@@ -94,7 +94,9 @@ static void __kmpc_spmd_kernel_init(bool RequiresFullRuntime) {
 
   if (GetLaneId() == 0) {
     parallelLevel[GetWarpId()] =
-        1 + (GetNumberOfThreadsInBlock() > 1 ? OMP_ACTIVE_PARALLEL_LEVEL : 0);
+        1 + (__kmpc_get_hardware_num_threads_in_block() > 1
+                 ? OMP_ACTIVE_PARALLEL_LEVEL
+                 : 0);
   }
 
   __kmpc_data_sharing_init_stack();
@@ -162,7 +164,11 @@ EXTERN int8_t __kmpc_is_spmd_exec_mode() {
 }
 
 EXTERN int8_t __kmpc_is_generic_main_thread(kmp_int32 Tid) {
-  return !__kmpc_is_spmd_exec_mode() && GetMasterThreadID() == Tid;
+  return !__kmpc_is_spmd_exec_mode() && __kmpc_is_generic_main_thread_id(Tid);
+}
+
+NOINLINE EXTERN int8_t __kmpc_is_generic_main_thread_id(kmp_int32 Tid) {
+  return GetMasterThreadID() == Tid;
 }
 
 EXTERN bool __kmpc_kernel_parallel(void**WorkFn);

@@ -849,6 +849,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   setTargetDAGCombine(ISD::OR);
   setTargetDAGCombine(ISD::XOR);
   setTargetDAGCombine(ISD::ANY_EXTEND);
+  setTargetDAGCombine(ISD::ZERO_EXTEND);
   if (Subtarget.hasStdExtV()) {
     setTargetDAGCombine(ISD::FCOPYSIGN);
     setTargetDAGCombine(ISD::MGATHER);
@@ -1385,6 +1386,78 @@ static SDValue lowerSPLAT_VECTOR(SDValue Op, SelectionDAG &DAG,
   return convertFromScalableVector(VT, Splat, DAG, Subtarget);
 }
 
+struct VIDSequence {
+  int64_t Step;
+  int64_t Addend;
+};
+
+// Try to match an arithmetic-sequence BUILD_VECTOR [X,X+S,X+2*S,...,X+(N-1)*S]
+// to the (non-zero) step S and start value X. This can be then lowered as the
+// RVV sequence (VID * S) + X, for example.
+// Note that this method will also match potentially unappealing index
+// sequences, like <i32 0, i32 50939494>, however it is left to the caller to
+// determine whether this is worth generating code for.
+static Optional<VIDSequence> isSimpleVIDSequence(SDValue Op) {
+  unsigned NumElts = Op.getNumOperands();
+  assert(Op.getOpcode() == ISD::BUILD_VECTOR && "Unexpected BUILD_VECTOR");
+  if (!Op.getValueType().isInteger())
+    return None;
+
+  Optional<int64_t> SeqStep, SeqAddend;
+  Optional<std::pair<uint64_t, unsigned>> PrevElt;
+  unsigned EltSizeInBits = Op.getValueType().getScalarSizeInBits();
+  for (unsigned Idx = 0; Idx < NumElts; Idx++) {
+    // Assume undef elements match the sequence; we just have to be careful
+    // when interpolating across them.
+    if (Op.getOperand(Idx).isUndef())
+      continue;
+    // The BUILD_VECTOR must be all constants.
+    if (!isa<ConstantSDNode>(Op.getOperand(Idx)))
+      return None;
+
+    uint64_t Val = Op.getConstantOperandVal(Idx) &
+                   maskTrailingOnes<uint64_t>(EltSizeInBits);
+
+    if (PrevElt) {
+      // Calculate the step since the last non-undef element, and ensure
+      // it's consistent across the entire sequence.
+      int64_t Diff = SignExtend64(Val - PrevElt->first, EltSizeInBits);
+      // The difference must cleanly divide the element span.
+      if (Diff % (Idx - PrevElt->second) != 0)
+        return None;
+      int64_t Step = Diff / (Idx - PrevElt->second);
+      // A zero step indicates we're either a not an index sequence, or we
+      // have a fractional step. This must be handled by a more complex
+      // pattern recognition (undefs complicate things here).
+      if (Step == 0)
+        return None;
+      if (!SeqStep)
+        SeqStep = Step;
+      else if (Step != SeqStep)
+        return None;
+    }
+
+    // Record and/or check any addend.
+    if (SeqStep) {
+      int64_t Addend =
+          SignExtend64(Val - (Idx * (uint64_t)*SeqStep), EltSizeInBits);
+      if (!SeqAddend)
+        SeqAddend = Addend;
+      else if (SeqAddend != Addend)
+        return None;
+    }
+
+    // Record this non-undef element for later.
+    PrevElt = std::make_pair(Val, Idx);
+  }
+  // We need to have logged both a step and an addend for this to count as
+  // a legal index sequence.
+  if (!SeqStep || !SeqAddend)
+    return None;
+
+  return VIDSequence{*SeqStep, *SeqAddend};
+}
+
 static SDValue lowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
                                  const RISCVSubtarget &Subtarget) {
   MVT VT = Op.getSimpleValueType();
@@ -1512,18 +1585,41 @@ static SDValue lowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
     return convertFromScalableVector(VT, Splat, DAG, Subtarget);
   }
 
-  // Try and match an index sequence, which we can lower directly to the vid
-  // instruction. An all-undef vector is matched by getSplatValue, above.
-  if (VT.isInteger()) {
-    bool IsVID = true;
-    for (unsigned I = 0; I < NumElts && IsVID; I++)
-      IsVID &= Op.getOperand(I).isUndef() ||
-               (isa<ConstantSDNode>(Op.getOperand(I)) &&
-                Op.getConstantOperandVal(I) == I);
-
-    if (IsVID) {
+  // Try and match index sequences, which we can lower to the vid instruction
+  // with optional modifications. An all-undef vector is matched by
+  // getSplatValue, above.
+  if (auto SimpleVID = isSimpleVIDSequence(Op)) {
+    int64_t Step = SimpleVID->Step;
+    int64_t Addend = SimpleVID->Addend;
+    // Only emit VIDs with suitably-small steps/addends. We use imm5 is a
+    // threshold since it's the immediate value many RVV instructions accept.
+    if (isInt<5>(Step) && isInt<5>(Addend)) {
       SDValue VID = DAG.getNode(RISCVISD::VID_VL, DL, ContainerVT, Mask, VL);
-      return convertFromScalableVector(VT, VID, DAG, Subtarget);
+      // Convert right out of the scalable type so we can use standard ISD
+      // nodes for the rest of the computation. If we used scalable types with
+      // these, we'd lose the fixed-length vector info and generate worse
+      // vsetvli code.
+      VID = convertFromScalableVector(VT, VID, DAG, Subtarget);
+      assert(Step != 0 && "Invalid step");
+      bool Negate = false;
+      if (Step != 1) {
+        int64_t SplatStepVal = Step;
+        unsigned Opcode = ISD::MUL;
+        if (isPowerOf2_64(std::abs(Step))) {
+          Negate = Step < 0;
+          Opcode = ISD::SHL;
+          SplatStepVal = Log2_64(std::abs(Step));
+        }
+        SDValue SplatStep = DAG.getSplatVector(
+            VT, DL, DAG.getConstant(SplatStepVal, DL, XLenVT));
+        VID = DAG.getNode(Opcode, DL, VT, VID, SplatStep);
+      }
+      if (Addend != 0 || Negate) {
+        SDValue SplatAddend =
+            DAG.getSplatVector(VT, DL, DAG.getConstant(Addend, DL, XLenVT));
+        VID = DAG.getNode(Negate ? ISD::SUB : ISD::ADD, DL, VT, SplatAddend, VID);
+      }
+      return VID;
     }
   }
 
@@ -4764,20 +4860,30 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
   case ISD::STRICT_FP_TO_UINT:
   case ISD::FP_TO_SINT:
   case ISD::FP_TO_UINT: {
-    bool IsStrict = N->isStrictFPOpcode();
     assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
            "Unexpected custom legalisation");
+    bool IsStrict = N->isStrictFPOpcode();
+    bool IsSigned = N->getOpcode() == ISD::FP_TO_SINT ||
+                    N->getOpcode() == ISD::STRICT_FP_TO_SINT;
     SDValue Op0 = IsStrict ? N->getOperand(1) : N->getOperand(0);
+    if (getTypeAction(*DAG.getContext(), Op0.getValueType()) !=
+        TargetLowering::TypeSoftenFloat) {
+      // FIXME: Support strict FP.
+      if (IsStrict)
+        return;
+      if (!isTypeLegal(Op0.getValueType()))
+        return;
+      unsigned Opc = IsSigned ? RISCVISD::FCVT_W_RV64 : RISCVISD::FCVT_WU_RV64;
+      SDValue Res = DAG.getNode(Opc, DL, MVT::i64, Op0);
+      Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Res));
+      return;
+    }
     // If the FP type needs to be softened, emit a library call using the 'si'
     // version. If we left it to default legalization we'd end up with 'di'. If
     // the FP type doesn't need to be softened just let generic type
     // legalization promote the result type.
-    if (getTypeAction(*DAG.getContext(), Op0.getValueType()) !=
-        TargetLowering::TypeSoftenFloat)
-      return;
     RTLIB::Libcall LC;
-    if (N->getOpcode() == ISD::FP_TO_SINT ||
-        N->getOpcode() == ISD::STRICT_FP_TO_SINT)
+    if (IsSigned)
       LC = RTLIB::getFPTOSINT(Op0.getValueType(), N->getValueType(0));
     else
       LC = RTLIB::getFPTOUINT(Op0.getValueType(), N->getValueType(0));
@@ -5961,6 +6067,16 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
     return performXORCombine(N, DCI, Subtarget);
   case ISD::ANY_EXTEND:
     return performANY_EXTENDCombine(N, DCI, Subtarget);
+  case ISD::ZERO_EXTEND:
+    // Fold (zero_extend (fp_to_uint X)) to prevent forming fcvt+zexti32 during
+    // type legalization. This is safe because fp_to_uint produces poison if
+    // it overflows.
+    if (N->getValueType(0) == MVT::i64 && Subtarget.is64Bit() &&
+        N->getOperand(0).getOpcode() == ISD::FP_TO_UINT &&
+        isTypeLegal(N->getOperand(0).getOperand(0).getValueType()))
+      return DAG.getNode(ISD::FP_TO_UINT, SDLoc(N), MVT::i64,
+                         N->getOperand(0).getOperand(0));
+    return SDValue();
   case RISCVISD::SELECT_CC: {
     // Transform
     SDValue LHS = N->getOperand(0);
@@ -6491,6 +6607,8 @@ unsigned RISCVTargetLowering::ComputeNumSignBitsForTargetNode(
   case RISCVISD::UNSHFLW:
   case RISCVISD::BCOMPRESSW:
   case RISCVISD::BDECOMPRESSW:
+  case RISCVISD::FCVT_W_RV64:
+  case RISCVISD::FCVT_WU_RV64:
     // TODO: As the result is sign-extended, this is conservatively correct. A
     // more precise answer could be calculated for SRAW depending on known
     // bits in the shift amount.
@@ -7035,7 +7153,7 @@ static bool CC_RISCV(const DataLayout &DL, RISCVABI::ABI ABI, unsigned ValNo,
   // Split arguments might be passed indirectly, so keep track of the pending
   // values. Split vectors are passed via a mix of registers and indirectly, so
   // treat them as we would any other argument.
-  if (!LocVT.isVector() && (ArgFlags.isSplit() || !PendingLocs.empty())) {
+  if (ValVT.isScalarInteger() && (ArgFlags.isSplit() || !PendingLocs.empty())) {
     LocVT = XLenVT;
     LocInfo = CCValAssign::Indirect;
     PendingLocs.push_back(
@@ -7048,7 +7166,8 @@ static bool CC_RISCV(const DataLayout &DL, RISCVABI::ABI ABI, unsigned ValNo,
 
   // If the split argument only had two elements, it should be passed directly
   // in registers or on the stack.
-  if (!LocVT.isVector() && ArgFlags.isSplitEnd() && PendingLocs.size() <= 2) {
+  if (ValVT.isScalarInteger() && ArgFlags.isSplitEnd() &&
+      PendingLocs.size() <= 2) {
     assert(PendingLocs.size() == 2 && "Unexpected PendingLocs.size()");
     // Apply the normal calling convention rules to the first half of the
     // split argument.
@@ -8202,6 +8321,8 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(FMV_X_ANYEXTH)
   NODE_NAME_CASE(FMV_W_X_RV64)
   NODE_NAME_CASE(FMV_X_ANYEXTW_RV64)
+  NODE_NAME_CASE(FCVT_W_RV64)
+  NODE_NAME_CASE(FCVT_WU_RV64)
   NODE_NAME_CASE(READ_CYCLE_WIDE)
   NODE_NAME_CASE(GREV)
   NODE_NAME_CASE(GREVW)

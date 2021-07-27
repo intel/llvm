@@ -304,7 +304,7 @@ static void getI64Values(ArrayAttr arrayAttr, SmallVector<int64_t> &values) {
 
 LogicalResult tosa::ArgMaxOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   ShapedType inputTy = operands[0].getType().cast<ShapedType>();
   IntegerAttr axis = attributes.get("axis").cast<IntegerAttr>();
@@ -329,7 +329,7 @@ LogicalResult tosa::ArgMaxOp::inferReturnTypeComponents(
 
 LogicalResult tosa::ConcatOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   // Infer all dimension sizes by reducing based on inputs.
   int32_t axis =
@@ -386,7 +386,7 @@ LogicalResult tosa::ConcatOp::inferReturnTypeComponents(
 
 LogicalResult tosa::FullyConnectedOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   ShapedType inputTy = operands[0].getType().cast<ShapedType>();
   ShapedType weightTy = operands[1].getType().cast<ShapedType>();
@@ -414,7 +414,7 @@ LogicalResult tosa::FullyConnectedOp::inferReturnTypeComponents(
 
 LogicalResult tosa::MatMulOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   ShapedType lhsTy = operands[0].getType().cast<ShapedType>();
   ShapedType rhsTy = operands[1].getType().cast<ShapedType>();
@@ -439,7 +439,7 @@ LogicalResult tosa::MatMulOp::inferReturnTypeComponents(
 
 LogicalResult tosa::PadOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   ShapedType inputTy = operands[0].getType().cast<ShapedType>();
   ShapedType paddingTy = operands[1].getType().cast<ShapedType>();
@@ -495,7 +495,7 @@ LogicalResult tosa::PadOp::inferReturnTypeComponents(
 
 LogicalResult tosa::SliceOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   auto sizes = attributes.get("size").cast<ArrayAttr>().getValue();
   SmallVector<int64_t> outputShape;
@@ -510,7 +510,7 @@ LogicalResult tosa::SliceOp::inferReturnTypeComponents(
 
 LogicalResult tosa::TableOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   ShapedType inputTy = operands[0].getType().cast<ShapedType>();
 
@@ -525,7 +525,7 @@ LogicalResult tosa::TableOp::inferReturnTypeComponents(
 
 LogicalResult tosa::TileOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   auto multiples = attributes.get("multiples").cast<ArrayAttr>().getValue();
   ShapedType inputTy = operands[0].getType().cast<ShapedType>();
@@ -558,7 +558,7 @@ LogicalResult tosa::TileOp::inferReturnTypeComponents(
 
 LogicalResult tosa::ReshapeOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   ShapedType type = operands.front().getType().cast<ShapedType>();
 
@@ -596,7 +596,7 @@ LogicalResult tosa::ReshapeOp::inferReturnTypeComponents(
 
 LogicalResult tosa::TransposeOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   ShapedType inputTy = operands[0].getType().cast<ShapedType>();
   ShapedType permsTy = operands[1].getType().cast<ShapedType>();
@@ -662,7 +662,7 @@ LogicalResult tosa::TransposeOp::inferReturnTypeComponents(
 
 LogicalResult tosa::GatherOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   llvm::SmallVector<int64_t> outputShape;
   outputShape.resize(3, -1);
@@ -685,7 +685,7 @@ LogicalResult tosa::GatherOp::inferReturnTypeComponents(
 
 LogicalResult tosa::ScatterOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   llvm::SmallVector<int64_t> outputShape;
   outputShape.resize(3, -1);
@@ -736,7 +736,8 @@ static LogicalResult ReduceInferReturnTypes(
 #define REDUCE_SHAPE_INFER(OP)                                                 \
   LogicalResult OP::inferReturnTypeComponents(                                 \
       MLIRContext *context, ::llvm::Optional<Location> location,               \
-      ValueRange operands, DictionaryAttr attributes, RegionRange regions,     \
+      ValueShapeRange operands, DictionaryAttr attributes,                     \
+      RegionRange regions,                                                     \
       SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {           \
     return ReduceInferReturnTypes(operands[0],                                 \
                                   attributes.get("axis").cast<IntegerAttr>(),  \
@@ -802,7 +803,8 @@ static LogicalResult NAryInferReturnTypes(
 #define NARY_SHAPE_INFER(OP)                                                   \
   LogicalResult OP::inferReturnTypeComponents(                                 \
       MLIRContext *context, ::llvm::Optional<Location> location,               \
-      ValueRange operands, DictionaryAttr attributes, RegionRange regions,     \
+      ValueShapeRange operands, DictionaryAttr attributes,                     \
+      RegionRange regions,                                                     \
       SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {           \
     return NAryInferReturnTypes(operands, inferredReturnShapes);               \
   }
@@ -889,10 +891,10 @@ static LogicalResult poolingInferReturnTypes(
 
 LogicalResult Conv2DOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   llvm::SmallVector<int64_t> outputShape(4, ShapedType::kDynamicSize);
-  Conv2DOp::Adaptor adaptor(operands);
+  Conv2DOp::Adaptor adaptor(operands.getValues());
 
   int32_t inputWidth = ShapedType::kDynamicSize;
   int32_t inputHeight = ShapedType::kDynamicSize;
@@ -950,10 +952,10 @@ LogicalResult Conv2DOp::inferReturnTypeComponents(
 
 LogicalResult Conv3DOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   llvm::SmallVector<int64_t> outputShape(5, ShapedType::kDynamicSize);
-  Conv2DOp::Adaptor adaptor(operands);
+  Conv2DOp::Adaptor adaptor(operands.getValues());
 
   int32_t inputWidth = ShapedType::kDynamicSize;
   int32_t inputHeight = ShapedType::kDynamicSize;
@@ -1023,24 +1025,24 @@ LogicalResult Conv3DOp::inferReturnTypeComponents(
 
 LogicalResult AvgPool2dOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   return poolingInferReturnTypes(operands, attributes, inferredReturnShapes);
 }
 
 LogicalResult MaxPool2dOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   return poolingInferReturnTypes(operands, attributes, inferredReturnShapes);
 }
 
 LogicalResult DepthwiseConv2DOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   llvm::SmallVector<int64_t> outputShape(4, ShapedType::kDynamicSize);
-  DepthwiseConv2DOp::Adaptor adaptor(operands);
+  DepthwiseConv2DOp::Adaptor adaptor(operands.getValues());
 
   int32_t inputWidth = ShapedType::kDynamicSize;
   int32_t inputHeight = ShapedType::kDynamicSize;
@@ -1112,9 +1114,9 @@ LogicalResult DepthwiseConv2DOp::inferReturnTypeComponents(
 
 LogicalResult TransposeConv2DOp::inferReturnTypeComponents(
     MLIRContext *context, ::llvm::Optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
-  TransposeConv2DOp::Adaptor adaptor(operands);
+  TransposeConv2DOp::Adaptor adaptor(operands.getValues());
   llvm::SmallVector<int64_t> outputShape;
   getI64Values(attributes.get("out_shape").cast<ArrayAttr>(), outputShape);
 

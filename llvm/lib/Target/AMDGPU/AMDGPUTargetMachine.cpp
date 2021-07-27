@@ -350,6 +350,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeSILoadStoreOptimizerPass(*PR);
   initializeAMDGPUFixFunctionBitcastsPass(*PR);
   initializeAMDGPUAlwaysInlinePass(*PR);
+  initializeAMDGPUAttributorPass(*PR);
   initializeAMDGPUAnnotateKernelFeaturesPass(*PR);
   initializeAMDGPUAnnotateUniformValuesPass(*PR);
   initializeAMDGPUArgumentUsageInfoPass(*PR);
@@ -1106,9 +1107,6 @@ void AMDGPUPassConfig::addCodeGenPrepare() {
       EnableLowerKernelArguments)
     addPass(createAMDGPULowerKernelArgumentsPass());
 
-  if (TM->getOptLevel() > CodeGenOpt::Less)
-    addPass(&AMDGPUPerfHintAnalysisID);
-
   TargetPassConfig::addCodeGenPrepare();
 
   if (isPassEnabled(EnableLoadStoreVectorizer))
@@ -1218,6 +1216,9 @@ bool GCNPassConfig::addPreISel() {
     addPass(createSIAnnotateControlFlowPass());
   }
   addPass(createLCSSAPass());
+
+  if (TM->getOptLevel() > CodeGenOpt::Less)
+    addPass(&AMDGPUPerfHintAnalysisID);
 
   return false;
 }

@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 #include "clang/Driver/Driver.h"
-#include "InputInfo.h"
 #include "ToolChains/AIX.h"
 #include "ToolChains/AMDGPU.h"
 #include "ToolChains/AMDGPUOpenMP.h"
@@ -54,6 +53,7 @@
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Job.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
@@ -3512,12 +3512,9 @@ class OffloadingActionBuilder final {
         // a fat binary containing all the code objects for different GPU's.
         // The fat binary is then an input to the host action.
         for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
-          if (GPUSanitize || C.getDriver().isUsingLTO(/*IsOffload=*/true)) {
-            // When GPU sanitizer is enabled, since we need to link in the
-            // the sanitizer runtime library after the sanitize pass, we have
-            // to skip the backend and assemble phases and use lld to link
-            // the bitcode. The same happens if users request to use LTO
-            // explicitly.
+          if (C.getDriver().isUsingLTO(/*IsOffload=*/true)) {
+            // When LTO is enabled, skip the backend and assemble phases and
+            // use lld to link the bitcode.
             ActionList AL;
             AL.push_back(CudaDeviceActions[I]);
             // Create a link action to link device IR with device library
@@ -3525,7 +3522,7 @@ class OffloadingActionBuilder final {
             CudaDeviceActions[I] =
                 C.MakeAction<LinkJobAction>(AL, types::TY_Image);
           } else {
-            // When GPU sanitizer is not enabled, we follow the conventional
+            // When LTO is not enabled, we follow the conventional
             // compiler phases, including backend and assemble phases.
             ActionList AL;
             auto BackendAction = C.getDriver().ConstructPhaseAction(

@@ -663,12 +663,20 @@ bool Instruction::mayThrow() const {
   return isa<ResumeInst>(this);
 }
 
+bool Instruction::mayHaveSideEffects() const {
+  return mayWriteToMemory() || mayThrow() || !willReturn();
+}
+
 bool Instruction::isSafeToRemove() const {
   return (!isa<CallInst>(this) || !this->mayHaveSideEffects()) &&
          !this->isTerminator();
 }
 
 bool Instruction::willReturn() const {
+  // Volatile store isn't guaranteed to return; see LangRef.
+  if (auto *SI = dyn_cast<StoreInst>(this))
+    return !SI->isVolatile();
+
   if (const auto *CB = dyn_cast<CallBase>(this))
     // FIXME: Temporarily assume that all side-effect free intrinsics will
     // return. Remove this workaround once all intrinsics are appropriately

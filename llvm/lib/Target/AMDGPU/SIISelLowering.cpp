@@ -279,10 +279,10 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
       case ISD::BITCAST:
       case ISD::EXTRACT_VECTOR_ELT:
       case ISD::INSERT_VECTOR_ELT:
-      case ISD::INSERT_SUBVECTOR:
       case ISD::EXTRACT_SUBVECTOR:
       case ISD::SCALAR_TO_VECTOR:
         break;
+      case ISD::INSERT_SUBVECTOR:
       case ISD::CONCAT_VECTORS:
         setOperationAction(Op, VT, Custom);
         break;
@@ -5846,26 +5846,10 @@ static SDValue getBuildDwordsVector(SelectionDAG &DAG, SDLoc DL,
                                     ArrayRef<SDValue> Elts) {
   assert(!Elts.empty());
   MVT Type;
-  unsigned NumElts;
+  unsigned NumElts = Elts.size();
 
-  if (Elts.size() == 1) {
-    Type = MVT::f32;
-    NumElts = 1;
-  } else if (Elts.size() == 2) {
-    Type = MVT::v2f32;
-    NumElts = 2;
-  } else if (Elts.size() == 3) {
-    Type = MVT::v3f32;
-    NumElts = 3;
-  } else if (Elts.size() <= 4) {
-    Type = MVT::v4f32;
-    NumElts = 4;
-  } else if (Elts.size() <= 5) {
-    Type = MVT::v5f32;
-    NumElts = 5;
-  } else if (Elts.size() <= 8) {
-    Type = MVT::v8f32;
-    NumElts = 8;
+  if (NumElts <= 8) {
+    Type = MVT::getVectorVT(MVT::f32, NumElts);
   } else {
     assert(Elts.size() <= 16);
     Type = MVT::v16f32;
@@ -6227,8 +6211,9 @@ SDValue SITargetLowering::lowerImage(SDValue Op,
   //
   // SIShrinkInstructions will convert NSA encodings to non-NSA after register
   // allocation when possible.
-  bool UseNSA =
-      ST->hasFeature(AMDGPU::FeatureNSAEncoding) && VAddrs.size() >= 3;
+  bool UseNSA = ST->hasFeature(AMDGPU::FeatureNSAEncoding) &&
+                VAddrs.size() >= 3 &&
+                VAddrs.size() <= (unsigned)ST->getNSAMaxSize();
   SDValue VAddr;
   if (!UseNSA)
     VAddr = getBuildDwordsVector(DAG, DL, VAddrs);
@@ -6795,20 +6780,25 @@ SDValue SITargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
   }
 }
 
-/// Update \p MMO based on the offset inputs to an intrinsic.  If any of the
-/// offsets are non-constant or if \p VIndex is non-zero then this function does
-/// nothing.  Otherwise, it sets the MMO offset to the sum of \p VOffset, \p
-/// SOffset, and \p Offset.
+/// Update \p MMO based on the offset inputs to an intrinsic.
 static void updateBufferMMO(MachineMemOperand *MMO, SDValue VOffset,
                             SDValue SOffset, SDValue Offset,
                             SDValue VIndex = SDValue()) {
   if (!isa<ConstantSDNode>(VOffset) || !isa<ConstantSDNode>(SOffset) ||
-      !isa<ConstantSDNode>(Offset))
+      !isa<ConstantSDNode>(Offset)) {
+    // The combined offset is not known to be constant, so we cannot represent
+    // it in the MMO. Give up.
+    MMO->setValue((Value *)nullptr);
     return;
+  }
 
   if (VIndex && (!isa<ConstantSDNode>(VIndex) ||
-                 !cast<ConstantSDNode>(VIndex)->isNullValue()))
+                 !cast<ConstantSDNode>(VIndex)->isNullValue())) {
+    // The strided index component of the address is not known to be zero, so we
+    // cannot represent it in the MMO. Give up.
+    MMO->setValue((Value *)nullptr);
     return;
+  }
 
   MMO->setOffset(cast<ConstantSDNode>(VOffset)->getSExtValue() +
                  cast<ConstantSDNode>(SOffset)->getSExtValue() +
