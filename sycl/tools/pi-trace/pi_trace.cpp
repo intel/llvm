@@ -51,7 +51,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
         tpCallback);
 
 #define _PI_API(api)                                                           \
-  ArgHandler.set##_##api([](sycl::detail::XPTIPluginInfo,                      \
+  ArgHandler.set##_##api([](const pi_plugin &,                                 \
                             std::optional<pi_result>, auto &&... Args) {       \
     std::cout << "---> " << #api << "("                                        \
               << "\n";                                                         \
