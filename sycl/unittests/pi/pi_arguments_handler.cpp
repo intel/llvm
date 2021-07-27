@@ -20,9 +20,9 @@ TEST(PiArgumentsHandlerTest, CanUnpackArguments) {
   const pi_uint32 NumPlatforms = 42;
   pi_platform *Platforms = new pi_platform[NumPlatforms];
 
-  Handler.set_piPlatformsGet([&](sycl::detail::XPTIPluginInfo,
-                                 std::optional<pi_result>, pi_uint32 NP,
-                                 pi_platform *Plts, pi_uint32 *Ret) {
+  Handler.set_piPlatformsGet([&](const pi_plugin &, std::optional<pi_result>,
+                                 pi_uint32 NP, pi_platform *Plts,
+                                 pi_uint32 *Ret) {
     EXPECT_EQ(NP, NumPlatforms);
     EXPECT_EQ(Platforms, Plts);
     EXPECT_EQ(Ret, nullptr);

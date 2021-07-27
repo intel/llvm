@@ -1,4 +1,5 @@
 //==---------- pi_arguments_handler.hpp - PI call arguments handler --------==//
+// i
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -42,8 +43,8 @@ inline TupleT unpack(char *Data,
 template <typename T> struct to_function {};
 
 template <typename... Args> struct to_function<std::tuple<Args...>> {
-  using type = std::function<void(detail::XPTIPluginInfo,
-                                  std::optional<pi_result>, Args...)>;
+  using type =
+      std::function<void(const pi_plugin &, std::optional<pi_result>, Args...)>;
 };
 
 /// PiArgumentsHandler is a helper class to process incoming XPTI function call
@@ -61,8 +62,8 @@ template <typename... Args> struct to_function<std::tuple<Args...>> {
 /// See sycl/tools/pi-trace/ for an example.
 class PiArgumentsHandler {
 public:
-  void handle(uint32_t ID, pi_plugin &Plugin, std::optional<pi_result> Result,
-              void *ArgsData) {
+  void handle(uint32_t ID, const pi_plugin &Plugin,
+              std::optional<pi_result> Result, void *ArgsData) {
 #define _PI_API(api)                                                           \
   if (ID == static_cast<uint32_t>(detail::PiApiKind::api)) {                   \
     MHandler##_##api(Plugin, Result, ArgsData);                                \
@@ -77,14 +78,14 @@ public:
       const typename to_function<                                              \
           typename detail::function_traits<decltype(api)>::args_type>::type    \
           &Handler) {                                                          \
-    MHandler##_##api = [Handler](pi_plugin &Plugin,                            \
+    MHandler##_##api = [Handler](const pi_plugin &Plugin,                      \
                                  std::optional<pi_result> Res, void *Data) {   \
       using TupleT =                                                           \
           typename detail::function_traits<decltype(api)>::args_type;          \
       TupleT Tuple = unpack<TupleT>(                                           \
           (char *)Data,                                                        \
           std::make_index_sequence<std::tuple_size<TupleT>::value>{});         \
-      const auto Wrapper = [Plugin, Res, Handler](auto &... Args) {            \
+      const auto Wrapper = [&Plugin, Res, Handler](auto &... Args) {           \
         Handler(Plugin, Res, Args...);                                         \
       };                                                                       \
       std::apply(Wrapper, Tuple);                                              \
@@ -95,9 +96,9 @@ public:
 
 private:
 #define _PI_API(api)                                                           \
-  std::function<void(pi_plugin &, std::optional<pi_result>, void *)>           \
+  std::function<void(const pi_plugin &, std::optional<pi_result>, void *)>     \
       MHandler##_##api =                                                       \
-          [](pi_plugin&, std::optional<pi_result>, void *) {};
+          [](const pi_plugin &, std::optional<pi_result>, void *) {};
 #include <CL/sycl/detail/pi.def>
 #undef _PI_API
 };
