@@ -1069,7 +1069,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
 
         auto Queue = EventList[I]->Queue;
 
-        if (Queue != CurQueue) {
+        if (Queue && Queue != CurQueue) {
           // If the event that is going to be waited on is in a
           // different queue, then any open command list in
           // that queue must be closed and executed because
