@@ -4379,15 +4379,15 @@ static pi_result cleanupAfterEvent(pi_event Event) {
     if (Queue->LastCommandEvent == Event) {
       Queue->LastCommandEvent = nullptr;
     }
+  }
 
-    if (!Event->CleanedUp) {
-      Event->CleanedUp = true;
-      // Release this event since we explicitly retained it on creation.
-      // NOTE: that this needs to be done only once for an event so
-      // this is guarded with the CleanedUp flag.
-      //
-      PI_CALL(piEventRelease(Event));
-    }
+  if (!Event->CleanedUp) {
+    Event->CleanedUp = true;
+    // Release this event since we explicitly retained it on creation.
+    // NOTE: that this needs to be done only once for an event so
+    // this is guarded with the CleanedUp flag.
+    //
+    PI_CALL(piEventRelease(Event));
   }
 
   // Make a list of all the dependent events that must have signalled
