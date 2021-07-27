@@ -1981,6 +1981,17 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
           // In ESIMD kernels accessor's pointer argument needs to be marked
           Params.back()->addAttr(
               SYCLSimdAccessorPtrAttr::CreateImplicit(SemaRef.getASTContext()));
+        // Get access mode of accessor.
+        const auto *AccessorSpecializationDecl =
+            cast<ClassTemplateSpecializationDecl>(RecordDecl);
+        const TemplateArgument &AccessModeArg =
+            AccessorSpecializationDecl->getTemplateArgs().get(2);
+
+        // Add implicit attribute to parameter decl when it is a read only
+        // SYCL accessor.
+        if (isReadOnlyAccessor(AccessModeArg))
+          Params.back()->addAttr(SYCLAccessorReadonlyAttr::CreateImplicit(
+              SemaRef.getASTContext()));
       }
     }
     LastParamIndex = ParamIndex;

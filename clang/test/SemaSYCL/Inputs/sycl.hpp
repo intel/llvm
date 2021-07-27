@@ -85,7 +85,7 @@ struct _ImplT {
   id<dim> Offset;
 };
 
-using propertyListT = ONEAPI::accessor_property_list<>;
+using propertyListT = ext::oneapi::accessor_property_list<>;
 template <typename dataT, access::target accessTarget, typename propertyListT>
 struct DeviceValueType;
 

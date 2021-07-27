@@ -72,7 +72,7 @@ int main() {
 // CHECK-SAME: %[[ID_TYPE]]* byval(%[[ID_TYPE]]) align 4 [[ACC3_DATA:%[a-zA-Z0-9_]+]])
 
 // CHECK: [[ACC_FIELD:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class.{{.*}}.AccessorBase, %class.{{.*}}.AccessorBase addrspace(4)* %3, i32 0, i32 1
-// CHECK: call spir_func void @_ZN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEC1Ev(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* align 4 dereferenceable_or_null(12) [[ACC_FIELD]])
+// CHECK: call spir_func void @_ZN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2016ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(%"class.{{.*}}.cl::sycl::accessor" addrspace(4)* align 4 dereferenceable_or_null(12) [[ACC_FIELD]])
 
 // CHECK: [[ACC1_FIELD:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class{{.*}}.AccessorBase, %class{{.*}}.AccessorBase addrspace(4)* %5, i32 0, i32 1
 // CHECK: [[ACC1_DATA_LOAD:%[a-zA-Z0-9_]+]] = load i32 addrspace(1)*, i32 addrspace(1)* addrspace(4)* %_arg_acc.addr.ascast, align 8

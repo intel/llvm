@@ -31,4 +31,3 @@ int main() {
 // CHECK-NEXT: InitListExpr {{.*}} 'SpecConstantsWrapper'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::ext::oneapi::experimental::spec_constant<int, class sc_name1>':'sycl::ext::oneapi::experimental::spec_constant<int, sc_name1>'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::ext::oneapi::experimental::spec_constant<int, class sc_name2>':'sycl::ext::oneapi::experimental::spec_constant<int, sc_name2>'
->>>>>>> remote/sycl
