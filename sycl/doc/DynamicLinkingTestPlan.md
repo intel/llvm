@@ -15,6 +15,8 @@ For GPU device both OpenCL and L0 backends are used.
 ### AOT & JIT compilation
 
 All the tests are compiled using AOT, JIT and mixed (AOT with JIT) compilation.
+Mixed compilation is the case when application is built using AOT and used
+shared library uses JIT or vice versa.
 
 ### Device code split modes
 
