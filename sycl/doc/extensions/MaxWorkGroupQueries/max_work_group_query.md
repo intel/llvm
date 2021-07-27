@@ -1,5 +1,12 @@
 # SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY
 
+## Notice
+
+This document describes an *experimental* API that applications can use to try
+out a new feature.  Future versions of this API may change in ways that are
+incompatible with this experimental version.  
+
+
 ## Introduction
 
 This extension adds functionally two new device information descriptors. They provide the ability to query a device for the maximum numbers of work-groups that can be submitted in each dimension as well as globally (across all dimensions).
