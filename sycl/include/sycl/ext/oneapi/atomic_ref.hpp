@@ -292,6 +292,7 @@ public:
   using atomic_ref_base<T, DefaultOrder, DefaultScope, AddressSpace>::load;
   using atomic_ref_base<T, DefaultOrder, DefaultScope,
                         AddressSpace>::compare_exchange_weak;
+  using atomic_ref_base<T, DefaultOrder, DefaultScope, AddressSpace>::operator=;
 
   T fetch_add(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
@@ -439,6 +440,7 @@ public:
   using atomic_ref_base<T, DefaultOrder, DefaultScope, AddressSpace>::load;
   using atomic_ref_base<T, DefaultOrder, DefaultScope,
                         AddressSpace>::compare_exchange_weak;
+  using atomic_ref_base<T, DefaultOrder, DefaultScope, AddressSpace>::operator=;
 
   T fetch_add(T operand, memory_order order = default_read_modify_write_order,
               memory_scope scope = default_scope) const noexcept {
@@ -665,6 +667,8 @@ class atomic_ref : public detail::atomic_ref_impl<T, DefaultOrder, DefaultScope,
 public:
   using detail::atomic_ref_impl<T, DefaultOrder, DefaultScope,
                                 AddressSpace>::atomic_ref_impl;
+  using detail::atomic_ref_impl<T, DefaultOrder, DefaultScope,
+                                AddressSpace>::operator=;
 };
 
 } // namespace oneapi
