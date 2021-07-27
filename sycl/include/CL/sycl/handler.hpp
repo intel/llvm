@@ -568,6 +568,20 @@ private:
     return true;
   }
 
+  // TODO: Delete these functions when ABI breaking changes are allowed.
+  // Currently these functions are unused but they are static members of
+  // the exported class 'handler' and has got into sycl library some time ago
+  // and must stay there for a while.
+  static id<1> getDelinearizedIndex(const range<1> Range, const size_t Index) {
+    return detail::getDelinearizedId(Range, Index);
+  }
+  static id<2> getDelinearizedIndex(const range<2> Range, const size_t Index) {
+    return detail::getDelinearizedId(Range, Index);
+  }
+  static id<3> getDelinearizedIndex(const range<3> Range, const size_t Index) {
+    return detail::getDelinearizedId(Range, Index);
+  }
+
   /// Handles some special cases of the copy operation from one accessor
   /// to another accessor. Returns true if the copy is handled here.
   ///
