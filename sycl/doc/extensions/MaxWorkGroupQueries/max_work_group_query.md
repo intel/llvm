@@ -2,7 +2,7 @@
 
 ## Notice
 
-This document describes an *experimental* API that applications can use to try
+This document describes an **experimental** API that applications can use to try
 out a new feature.  Future versions of this API may change in ways that are
 incompatible with this experimental version.  
 
