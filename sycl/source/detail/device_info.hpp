@@ -476,8 +476,9 @@ template <> struct get_device_info<id<3>, info::device::max_work_item_sizes> {
 template <>
 struct get_device_info<size_t,
                        info::device::ext_oneapi_max_global_work_groups> {
-  static size_t get(__attribute__((unused)) RT::PiDevice dev,
-                    __attribute__((unused)) const plugin &Plugin) {
+  static size_t get(RT::PiDevice dev, const plugin &Plugin) {
+    (void)dev; // Silence unused warning
+    (void)Plugin;
     return static_cast<size_t>((std::numeric_limits<int>::max)());
   }
 };
