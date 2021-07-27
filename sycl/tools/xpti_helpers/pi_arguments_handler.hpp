@@ -77,7 +77,7 @@ public:
       const typename to_function<                                              \
           typename detail::function_traits<decltype(api)>::args_type>::type    \
           &Handler) {                                                          \
-    MHandler##_##api = [Handler](pi_plugin Plugin,                             \
+    MHandler##_##api = [Handler](pi_plugin &Plugin,                            \
                                  std::optional<pi_result> Res, void *Data) {   \
       using TupleT =                                                           \
           typename detail::function_traits<decltype(api)>::args_type;          \
@@ -97,7 +97,7 @@ private:
 #define _PI_API(api)                                                           \
   std::function<void(pi_plugin &, std::optional<pi_result>, void *)>           \
       MHandler##_##api =                                                       \
-          [](detail::XPTIPluginInfo, std::optional<pi_result>, void *) {};
+          [](pi_plugin&, std::optional<pi_result>, void *) {};
 #include <CL/sycl/detail/pi.def>
 #undef _PI_API
 };
