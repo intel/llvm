@@ -93,6 +93,26 @@ Building clang from sources takes time and resources and it can be avoided:
   moment, see [KhronosGroup/SPIRV-LLVM-Translator#477](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/issues/477)
   to track progress, discuss and contribute.
 
+## Configuring SPIR-V Headers
+
+The translator build is dependent on the official Khronos header file
+`spirv.hpp` that maps SPIR-V extensions, decorations, instructions,
+etc. onto numeric tokens. The official header version is available at
+[KhronosGroup/SPIRV-Headers](https://github.com/KhronosGroup/SPIRV-Headers).
+There are several options for accessing the header file:
+- By default, the header file repository will be downloaded from
+  Khronos Group GitHub and put into `<build_dir>/SPIRV-Headers`.
+- If you are building the translator in-tree, you can manually
+  download the SPIR-V Headers repo into `llvm/projects` - this
+  location will be automatically picked up by the LLVM build
+  scripts. Make sure the folder retains its default naming in
+  that of `SPIRV-Headers`.
+- Any build type can also use an external installation of SPIR-V
+  Headers - if you have the headers downloaded somewhere in your
+  system and want to use that version, simply extend your CMake
+  command with `-DLLVM_EXTERNAL_PROJECTS="SPIRV-Headers"
+  -DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR=</path/to/headers_dir>`.
+
 ## Test instructions
 
 All tests related to the translator are placed in the [test](test) directory. A number of the tests require spirv-as (part of SPIR-V Tools) to run, but the remainder of the tests can still be run without this. Optionally the tests can make use of spirv-val (part of SPIRV-Tools) in order to validate the generated SPIR-V against the official SPIR-V specification.
