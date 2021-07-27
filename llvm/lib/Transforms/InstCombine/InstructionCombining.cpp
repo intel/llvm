@@ -346,6 +346,25 @@ static bool simplifyAssocCastAssoc(BinaryOperator *BinOp1,
   return true;
 }
 
+// Simplifies IntToPtr/PtrToInt RoundTrip Cast To BitCast.
+// inttoptr ( ptrtoint (x) ) --> x
+Value *InstCombinerImpl::simplifyIntToPtrRoundTripCast(Value *Val) {
+  auto *IntToPtr = dyn_cast<IntToPtrInst>(Val);
+  if (IntToPtr && DL.getPointerTypeSizeInBits(IntToPtr->getDestTy()) ==
+                      DL.getTypeSizeInBits(IntToPtr->getSrcTy())) {
+    auto *PtrToInt = dyn_cast<PtrToIntInst>(IntToPtr->getOperand(0));
+    Type *CastTy = IntToPtr->getDestTy();
+    if (PtrToInt &&
+        CastTy->getPointerAddressSpace() ==
+            PtrToInt->getSrcTy()->getPointerAddressSpace() &&
+        DL.getPointerTypeSizeInBits(PtrToInt->getSrcTy()) ==
+            DL.getTypeSizeInBits(PtrToInt->getDestTy())) {
+      return Builder.CreateBitCast(PtrToInt->getOperand(0), CastTy);
+    }
+  }
+  return nullptr;
+}
+
 /// This performs a few simplifications for operators that are associative or
 /// commutative:
 ///
@@ -2599,6 +2618,11 @@ static bool isAllocSiteRemovable(Instruction *AI,
           case Intrinsic::lifetime_end:
           case Intrinsic::objectsize:
             Users.emplace_back(I);
+            continue;
+          case Intrinsic::launder_invariant_group:
+          case Intrinsic::strip_invariant_group:
+            Users.emplace_back(I);
+            Worklist.push_back(I);
             continue;
           }
         }

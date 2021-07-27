@@ -25,9 +25,13 @@
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; Reverse translation shouldn't crash:
+; RUN: llvm-spirv -r -preserve-ocl-kernel-arg-type-metadata-through-string %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM-STR-WORKAROUND
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
-; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM-NO-WORKAROUND
 
-; CHECK-LLVM: define spir_kernel void @kernel_func1(i31 addrspace(1)* %_arg_){{.*}} !kernel_arg_type ![[ArgTy:[0-9]+]]{{.*}} !kernel_arg_base_type ![[BaseArgTy:[0-9]+]]
-; CHECK-LLVM: ![[ArgTy]] = !{!"_ExtInt(31)*"}
-; CHECK-LLVM: ![[BaseArgTy]] = !{!"int31_t*"}
+; CHECK-LLVM-STR-WORKAROUND: define spir_kernel void @kernel_func1(i31 addrspace(1)* %_arg_){{.*}} !kernel_arg_type ![[ArgTy:[0-9]+]]{{.*}} !kernel_arg_base_type ![[BaseArgTy:[0-9]+]]
+; CHECK-LLVM-STR-WORKAROUND: ![[ArgTy]] = !{!"_ExtInt(31)*"}
+; CHECK-LLVM-STR-WORKAROUND: ![[BaseArgTy]] = !{!"int31_t*"}
+; CHECK-LLVM-NO-WORKAROUND: define spir_kernel void @kernel_func1(i31 addrspace(1)* %_arg_){{.*}} !kernel_arg_type ![[ArgTy:[0-9]+]]{{.*}} !kernel_arg_base_type ![[ArgTy:[0-9]+]]
+; CHECK-LLVM-NO-WORKAROUND: ![[ArgTy]] = !{!"int31_t*"}

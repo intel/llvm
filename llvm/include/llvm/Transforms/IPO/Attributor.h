@@ -177,7 +177,9 @@ enum class ChangeStatus {
 };
 
 ChangeStatus operator|(ChangeStatus l, ChangeStatus r);
+ChangeStatus &operator|=(ChangeStatus &l, ChangeStatus r);
 ChangeStatus operator&(ChangeStatus l, ChangeStatus r);
+ChangeStatus &operator&=(ChangeStatus &l, ChangeStatus r);
 
 enum class DepClassTy {
   REQUIRED, ///< The target cannot be valid if the source is not.
@@ -1585,7 +1587,13 @@ public:
     Function *F = I->getFunction();
     auto &ORE = OREGetter.getValue()(F);
 
-    ORE.emit([&]() { return RemarkCB(RemarkKind(PassName, RemarkName, I)); });
+    if (RemarkName.startswith("OMP"))
+      ORE.emit([&]() {
+        return RemarkCB(RemarkKind(PassName, RemarkName, I))
+               << " [" << RemarkName << "]";
+      });
+    else
+      ORE.emit([&]() { return RemarkCB(RemarkKind(PassName, RemarkName, I)); });
   }
 
   /// Emit a remark on a function.
@@ -1597,7 +1605,13 @@ public:
 
     auto &ORE = OREGetter.getValue()(F);
 
-    ORE.emit([&]() { return RemarkCB(RemarkKind(PassName, RemarkName, F)); });
+    if (RemarkName.startswith("OMP"))
+      ORE.emit([&]() {
+        return RemarkCB(RemarkKind(PassName, RemarkName, F))
+               << " [" << RemarkName << "]";
+      });
+    else
+      ORE.emit([&]() { return RemarkCB(RemarkKind(PassName, RemarkName, F)); });
   }
 
   /// Helper struct used in the communication between an abstract attribute (AA)
@@ -4186,8 +4200,11 @@ struct AACallEdges : public StateWrapper<BooleanState, AbstractAttribute>,
   /// Get the optimistic edges.
   virtual const SetVector<Function *> &getOptimisticEdges() const = 0;
 
-  /// Is there in this function call with a unknown Callee.
+  /// Is there any call with a unknown callee.
   virtual bool hasUnknownCallee() const = 0;
+
+  /// Is there any call with a unknown callee, excluding any inline asm.
+  virtual bool hasNonAsmUnknownCallee() const = 0;
 
   /// Iterator for exploring the call graph.
   AACallEdgeIterator optimisticEdgesBegin() const override {
