@@ -947,7 +947,7 @@ define amdgpu_kernel void @load_constant_adjacent_offsets(i32 addrspace(1)* %out
 ; CI:       ; %bb.0:
 ; CI-NEXT:    v_mov_b32_e32 v0, 0
 ; CI-NEXT:    s_mov_b32 m0, -1
-; CI-NEXT:    ds_read2_b32 v[0:1], v0 offset1:1
+; CI-NEXT:    ds_read_b64 v[0:1], v0
 ; CI-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x9
 ; CI-NEXT:    s_mov_b32 s3, 0xf000
 ; CI-NEXT:    s_mov_b32 s2, -1
@@ -959,7 +959,7 @@ define amdgpu_kernel void @load_constant_adjacent_offsets(i32 addrspace(1)* %out
 ; GFX9-LABEL: load_constant_adjacent_offsets:
 ; GFX9:       ; %bb.0:
 ; GFX9-NEXT:    v_mov_b32_e32 v2, 0
-; GFX9-NEXT:    ds_read2_b32 v[0:1], v2 offset1:1
+; GFX9-NEXT:    ds_read_b64 v[0:1], v2
 ; GFX9-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x24
 ; GFX9-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX9-NEXT:    v_add_u32_e32 v0, v0, v1
@@ -1007,10 +1007,9 @@ define amdgpu_kernel void @load_constant_disjoint_offsets(i32 addrspace(1)* %out
 define amdgpu_kernel void @load_misaligned64_constant_offsets(i64 addrspace(1)* %out) {
 ; CI-LABEL: load_misaligned64_constant_offsets:
 ; CI:       ; %bb.0:
-; CI-NEXT:    v_mov_b32_e32 v2, 0
+; CI-NEXT:    v_mov_b32_e32 v0, 0
 ; CI-NEXT:    s_mov_b32 m0, -1
-; CI-NEXT:    ds_read2_b32 v[0:1], v2 offset1:1
-; CI-NEXT:    ds_read2_b32 v[2:3], v2 offset0:2 offset1:3
+; CI-NEXT:    ds_read_b128 v[0:3], v0
 ; CI-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x9
 ; CI-NEXT:    s_mov_b32 s3, 0xf000
 ; CI-NEXT:    s_mov_b32 s2, -1
@@ -1020,28 +1019,16 @@ define amdgpu_kernel void @load_misaligned64_constant_offsets(i64 addrspace(1)* 
 ; CI-NEXT:    buffer_store_dwordx2 v[0:1], off, s[0:3], 0
 ; CI-NEXT:    s_endpgm
 ;
-; GFX9-ALIGNED-LABEL: load_misaligned64_constant_offsets:
-; GFX9-ALIGNED:       ; %bb.0:
-; GFX9-ALIGNED-NEXT:    v_mov_b32_e32 v4, 0
-; GFX9-ALIGNED-NEXT:    ds_read2_b32 v[0:1], v4 offset1:1
-; GFX9-ALIGNED-NEXT:    ds_read2_b32 v[2:3], v4 offset0:2 offset1:3
-; GFX9-ALIGNED-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x24
-; GFX9-ALIGNED-NEXT:    s_waitcnt lgkmcnt(0)
-; GFX9-ALIGNED-NEXT:    v_add_co_u32_e32 v0, vcc, v0, v2
-; GFX9-ALIGNED-NEXT:    v_addc_co_u32_e32 v1, vcc, v1, v3, vcc
-; GFX9-ALIGNED-NEXT:    global_store_dwordx2 v4, v[0:1], s[0:1]
-; GFX9-ALIGNED-NEXT:    s_endpgm
-;
-; GFX9-UNALIGNED-LABEL: load_misaligned64_constant_offsets:
-; GFX9-UNALIGNED:       ; %bb.0:
-; GFX9-UNALIGNED-NEXT:    v_mov_b32_e32 v4, 0
-; GFX9-UNALIGNED-NEXT:    ds_read2_b64 v[0:3], v4 offset1:1
-; GFX9-UNALIGNED-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x24
-; GFX9-UNALIGNED-NEXT:    s_waitcnt lgkmcnt(0)
-; GFX9-UNALIGNED-NEXT:    v_add_co_u32_e32 v0, vcc, v0, v2
-; GFX9-UNALIGNED-NEXT:    v_addc_co_u32_e32 v1, vcc, v1, v3, vcc
-; GFX9-UNALIGNED-NEXT:    global_store_dwordx2 v4, v[0:1], s[0:1]
-; GFX9-UNALIGNED-NEXT:    s_endpgm
+; GFX9-LABEL: load_misaligned64_constant_offsets:
+; GFX9:       ; %bb.0:
+; GFX9-NEXT:    v_mov_b32_e32 v4, 0
+; GFX9-NEXT:    ds_read_b128 v[0:3], v4
+; GFX9-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x24
+; GFX9-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX9-NEXT:    v_add_co_u32_e32 v0, vcc, v0, v2
+; GFX9-NEXT:    v_addc_co_u32_e32 v1, vcc, v1, v3, vcc
+; GFX9-NEXT:    global_store_dwordx2 v4, v[0:1], s[0:1]
+; GFX9-NEXT:    s_endpgm
   %val0 = load i64, i64 addrspace(3)* getelementptr inbounds ([4 x i64], [4 x i64] addrspace(3)* @bar, i32 0, i32 0), align 4
   %val1 = load i64, i64 addrspace(3)* getelementptr inbounds ([4 x i64], [4 x i64] addrspace(3)* @bar, i32 0, i32 1), align 4
   %sum = add i64 %val0, %val1
@@ -1054,11 +1041,10 @@ define amdgpu_kernel void @load_misaligned64_constant_offsets(i64 addrspace(1)* 
 define amdgpu_kernel void @load_misaligned64_constant_large_offsets(i64 addrspace(1)* %out) {
 ; CI-LABEL: load_misaligned64_constant_large_offsets:
 ; CI:       ; %bb.0:
-; CI-NEXT:    v_mov_b32_e32 v0, 0x4000
-; CI-NEXT:    v_mov_b32_e32 v2, 0x7ff8
+; CI-NEXT:    v_mov_b32_e32 v2, 0
 ; CI-NEXT:    s_mov_b32 m0, -1
-; CI-NEXT:    ds_read2_b32 v[0:1], v0 offset1:1
-; CI-NEXT:    ds_read2_b32 v[2:3], v2 offset1:1
+; CI-NEXT:    ds_read_b64 v[0:1], v2 offset:16384
+; CI-NEXT:    ds_read_b64 v[2:3], v2 offset:32760
 ; CI-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x9
 ; CI-NEXT:    s_mov_b32 s3, 0xf000
 ; CI-NEXT:    s_mov_b32 s2, -1
@@ -1070,12 +1056,10 @@ define amdgpu_kernel void @load_misaligned64_constant_large_offsets(i64 addrspac
 ;
 ; GFX9-LABEL: load_misaligned64_constant_large_offsets:
 ; GFX9:       ; %bb.0:
-; GFX9-NEXT:    v_mov_b32_e32 v0, 0x4000
-; GFX9-NEXT:    v_mov_b32_e32 v2, 0x7ff8
-; GFX9-NEXT:    ds_read2_b32 v[0:1], v0 offset1:1
-; GFX9-NEXT:    ds_read2_b32 v[2:3], v2 offset1:1
-; GFX9-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x24
 ; GFX9-NEXT:    v_mov_b32_e32 v4, 0
+; GFX9-NEXT:    ds_read_b64 v[0:1], v4 offset:16384
+; GFX9-NEXT:    ds_read_b64 v[2:3], v4 offset:32760
+; GFX9-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0x24
 ; GFX9-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX9-NEXT:    v_add_co_u32_e32 v0, vcc, v0, v2
 ; GFX9-NEXT:    v_addc_co_u32_e32 v1, vcc, v1, v3, vcc

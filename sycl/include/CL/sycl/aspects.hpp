@@ -30,7 +30,9 @@ enum class aspect {
   usm_host_allocations = 14,
   usm_shared_allocations = 15,
   usm_restricted_shared_allocations = 16,
-  usm_system_allocator = 17,
+  usm_system_allocations = 17,
+  usm_system_allocator __SYCL2020_DEPRECATED(
+      "use usm_system_allocations instead") = usm_system_allocations,
   ext_intel_pci_address = 18,
   ext_intel_gpu_eu_count = 19,
   ext_intel_gpu_eu_simd_width = 20,
@@ -38,7 +40,12 @@ enum class aspect {
   ext_intel_gpu_subslices_per_slice = 22,
   ext_intel_gpu_eu_count_per_subslice = 23,
   ext_intel_max_mem_bandwidth = 24,
-  ext_intel_mem_channel = 25
+  ext_intel_mem_channel = 25,
+  usm_atomic_host_allocations = 26,
+  usm_atomic_shared_allocations = 27,
+  atomic64 = 28,
+  ext_intel_device_info_uuid = 29,
+  ext_oneapi_srgb = 30,
 };
 
 } // namespace sycl

@@ -140,58 +140,13 @@ For example:
 Example
 =======
 
+DataFlowSanitizer supports up to 8 labels, to achieve low CPU and code
+size overhead. Base labels are simply 8-bit unsigned integers that are
+powers of 2 (i.e. 1, 2, 4, 8, ..., 128), and union labels are created
+by ORing base labels.
+
 The following program demonstrates label propagation by checking that
 the correct labels are propagated.
-
-.. code-block:: c++
-
-  #include <sanitizer/dfsan_interface.h>
-  #include <assert.h>
-
-  int main(void) {
-    int i = 1;
-    dfsan_label i_label = dfsan_create_label("i", 0);
-    dfsan_set_label(i_label, &i, sizeof(i));
-
-    int j = 2;
-    dfsan_label j_label = dfsan_create_label("j", 0);
-    dfsan_set_label(j_label, &j, sizeof(j));
-
-    int k = 3;
-    dfsan_label k_label = dfsan_create_label("k", 0);
-    dfsan_set_label(k_label, &k, sizeof(k));
-
-    dfsan_label ij_label = dfsan_get_label(i + j);
-    assert(dfsan_has_label(ij_label, i_label));
-    assert(dfsan_has_label(ij_label, j_label));
-    assert(!dfsan_has_label(ij_label, k_label));
-
-    dfsan_label ijk_label = dfsan_get_label(i + j + k);
-    assert(dfsan_has_label(ijk_label, i_label));
-    assert(dfsan_has_label(ijk_label, j_label));
-    assert(dfsan_has_label(ijk_label, k_label));
-
-    return 0;
-  }
-
-fast16labels mode
-=================
-
-If you need 16 or fewer labels, you can use fast16labels instrumentation for
-less CPU and code size overhead.  To use fast16labels instrumentation, you'll
-need to specify `-fsanitize=dataflow -mllvm -dfsan-fast-16-labels` in your
-compile and link commands and use a modified API for creating and managing
-labels.
-
-In fast16labels mode, base labels are simply 16-bit unsigned integers that are
-powers of 2 (i.e. 1, 2, 4, 8, ..., 32768), and union labels are created by ORing
-base labels.  In this mode DFSan does not manage any label metadata, so the
-functions `dfsan_create_label`, `dfsan_union`, `dfsan_get_label_info`,
-`dfsan_has_label`, `dfsan_has_label_with_desc`, `dfsan_get_label_count`, and
-`dfsan_dump_labels` are unsupported.  Instead of using them, the user should
-maintain any necessary metadata about base labels themselves.
-
-For example:
 
 .. code-block:: c++
 
@@ -216,6 +171,11 @@ For example:
     assert(!(ij_label & k_label));  // ij_label doesn't have k_label
     assert(ij_label == 3);  // Verifies all of the above
 
+    // Or, equivalently:
+    assert(dfsan_has_label(ij_label, i_label));
+    assert(dfsan_has_label(ij_label, j_label));
+    assert(!dfsan_has_label(ij_label, k_label));
+
     dfsan_label ijk_label = dfsan_get_label(i + j + k);
 
     assert(ijk_label & i_label);  // ijk_label has i_label
@@ -223,8 +183,51 @@ For example:
     assert(ijk_label & k_label);  // ijk_label has k_label
     assert(ijk_label == 7);  // Verifies all of the above
 
+    // Or, equivalently:
+    assert(dfsan_has_label(ijk_label, i_label));
+    assert(dfsan_has_label(ijk_label, j_label));
+    assert(dfsan_has_label(ijk_label, k_label));
+
     return 0;
   }
+
+Origin Tracking
+===============
+
+DataFlowSanitizer can track origins of labeled values. This feature is enabled by
+``-mllvm -dfsan-track-origins=1``. For example,
+
+.. code-block:: console
+
+    % cat test.cc
+    #include <sanitizer/dfsan_interface.h>
+    #include <stdio.h>
+
+    int main(int argc, char** argv) {
+      int i = 0;
+      dfsan_set_label(i_label, &i, sizeof(i));
+      int j = i + 1;
+      dfsan_print_origin_trace(&j, "A flow from i to j");
+      return 0;
+    }
+
+    % clang++ -fsanitize=dataflow -mllvm -dfsan-track-origins=1 -fno-omit-frame-pointer -g -O2 test.cc
+    % ./a.out
+    Taint value 0x1 (at 0x7ffd42bf415c) origin tracking (A flow from i to j)
+    Origin value: 0x13900001, Taint value was stored to memory at
+      #0 0x55676db85a62 in main test.cc:7:7
+      #1 0x7f0083611bbc in __libc_start_main libc-start.c:285
+
+    Origin value: 0x9e00001, Taint value was created at
+      #0 0x55676db85a08 in main test.cc:6:3
+      #1 0x7f0083611bbc in __libc_start_main libc-start.c:285
+
+By ``-mllvm -dfsan-track-origins=1`` DataFlowSanitizer collects only
+intermediate stores a labeled value went through. Origin tracking slows down
+program execution by a factor of 2x on top of the usual DataFlowSanitizer
+slowdown and increases memory overhead by 1x. By ``-mllvm -dfsan-track-origins=2``
+DataFlowSanitizer also collects intermediate loads a labeled value went through.
+This mode slows down program execution by a factor of 4x.
 
 Current status
 ==============

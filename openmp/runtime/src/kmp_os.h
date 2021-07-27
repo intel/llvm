@@ -406,9 +406,24 @@ extern "C" {
           api_name) "@" ver_str "\n\t");                                        \
   __asm__(".symver " KMP_STR(__kmp_api_##api_name) "," KMP_STR(                 \
       api_name) "@@" default_ver "\n\t")
+
+#define KMP_VERSION_OMPC_SYMBOL(apic_name, api_name, ver_num, ver_str)         \
+  _KMP_VERSION_OMPC_SYMBOL(apic_name, api_name, ver_num, ver_str, "VERSION")
+#define _KMP_VERSION_OMPC_SYMBOL(apic_name, api_name, ver_num, ver_str,          \
+                                 default_ver)                                    \
+  __typeof__(__kmp_api_##apic_name) __kmp_api_##apic_name##_##ver_num##_alias    \
+      __attribute__((alias(KMP_STR(__kmp_api_##apic_name))));                    \
+  __asm__(".symver " KMP_STR(__kmp_api_##apic_name) "," KMP_STR(                 \
+      apic_name) "@@" default_ver "\n\t");                                       \
+  __asm__(                                                                       \
+      ".symver " KMP_STR(__kmp_api_##apic_name##_##ver_num##_alias) "," KMP_STR( \
+          api_name) "@" ver_str "\n\t")
+
 #else // KMP_USE_VERSION_SYMBOLS
 #define KMP_EXPAND_NAME(api_name) api_name
 #define KMP_VERSION_SYMBOL(api_name, ver_num, ver_str) /* Nothing */
+#define KMP_VERSION_OMPC_SYMBOL(apic_name, api_name, ver_num,                  \
+                                ver_str) /* Nothing */
 #endif // KMP_USE_VERSION_SYMBOLS
 
 /* Temporary note: if performance testing of this passes, we can remove
@@ -495,8 +510,10 @@ extern kmp_uint64 __kmp_test_then_and64(volatile kmp_uint64 *p, kmp_uint64 v);
   __kmp_compare_and_store_rel8((p), (cv), (sv))
 #define KMP_COMPARE_AND_STORE_ACQ16(p, cv, sv)                                 \
   __kmp_compare_and_store_acq16((p), (cv), (sv))
-// #define KMP_COMPARE_AND_STORE_REL16(p, cv, sv)                                 \
-//   __kmp_compare_and_store_rel16((p), (cv), (sv))
+/*
+#define KMP_COMPARE_AND_STORE_REL16(p, cv, sv)                                 \
+  __kmp_compare_and_store_rel16((p), (cv), (sv))
+*/
 #define KMP_COMPARE_AND_STORE_ACQ32(p, cv, sv)                                 \
   __kmp_compare_and_store_acq32((volatile kmp_int32 *)(p), (kmp_int32)(cv),    \
                                 (kmp_int32)(sv))
@@ -563,16 +580,20 @@ inline kmp_int32 __kmp_compare_and_store_ptr(void *volatile *p, void *cv,
 }
 
 // The _RET versions return the value instead of a bool
-// #define KMP_COMPARE_AND_STORE_RET8(p, cv, sv) \
-//   _InterlockedCompareExchange8((p), (sv), (cv))
-// #define KMP_COMPARE_AND_STORE_RET16(p, cv, sv) \
-//   _InterlockedCompareExchange16((p), (sv), (cv))
+/*
+#define KMP_COMPARE_AND_STORE_RET8(p, cv, sv)                                  \
+   _InterlockedCompareExchange8((p), (sv), (cv))
+#define KMP_COMPARE_AND_STORE_RET16(p, cv, sv)                                 \
+  _InterlockedCompareExchange16((p), (sv), (cv))
+*/
 #define KMP_COMPARE_AND_STORE_RET64(p, cv, sv)                                 \
   _InterlockedCompareExchange64((volatile kmp_int64 *)(p), (kmp_int64)(sv),    \
                                 (kmp_int64)(cv))
 
-// #define KMP_XCHG_FIXED8(p, v)                                                  \
-//   _InterlockedExchange8((volatile kmp_int8 *)(p), (kmp_int8)(v));
+/*
+#define KMP_XCHG_FIXED8(p, v)                                                  \
+  _InterlockedExchange8((volatile kmp_int8 *)(p), (kmp_int8)(v));
+*/
 // #define KMP_XCHG_FIXED16(p, v) _InterlockedExchange16((p), (v));
 // #define KMP_XCHG_REAL64(p, v) __kmp_xchg_real64((p), (v)));
 

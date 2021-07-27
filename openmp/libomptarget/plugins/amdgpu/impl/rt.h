@@ -8,7 +8,6 @@
 
 #include "atmi_runtime.h"
 #include "hsa.h"
-#include <cstdarg>
 #include <string>
 
 namespace core {
@@ -51,7 +50,7 @@ public:
 
   // modules
   static hsa_status_t RegisterModuleFromMemory(
-      void *, size_t, int DeviceId,
+      void *, size_t, hsa_agent_t agent,
       hsa_status_t (*on_deserialized_data)(void *data, size_t size,
                                            void *cb_state),
       void *cb_state, std::vector<hsa_executable_t> &HSAExecutables);

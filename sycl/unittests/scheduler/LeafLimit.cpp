@@ -29,8 +29,9 @@ TEST_F(SchedulerTest, LeafLimit) {
 
   MockDepCmd =
       std::make_unique<MockCommand>(detail::getSyclObjImpl(MQueue), MockReq);
-  detail::MemObjRecord *Rec =
-      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(MQueue), &MockReq);
+  std::vector<detail::Command *> AuxCmds;
+  detail::MemObjRecord *Rec = MS.getOrInsertMemObjRecord(
+      detail::getSyclObjImpl(MQueue), &MockReq, AuxCmds);
 
   // Create commands that will be added as leaves exceeding the limit by 1
   for (std::size_t i = 0; i < Rec->MWriteLeaves.genericCommandsCapacity() + 1;
@@ -41,12 +42,13 @@ TEST_F(SchedulerTest, LeafLimit) {
   // Create edges: all soon-to-be leaves are direct users of MockDep
   for (auto &Leaf : LeavesToAdd) {
     MockDepCmd->addUser(Leaf.get());
-    Leaf->addDep(
+    (void)Leaf->addDep(
         detail::DepDesc{MockDepCmd.get(), Leaf->getRequirement(), nullptr});
   }
+  std::vector<cl::sycl::detail::Command *> ToEnqueue;
   // Add edges as leaves and exceed the leaf limit
   for (auto &LeafPtr : LeavesToAdd) {
-    MS.addNodeToLeaves(Rec, LeafPtr.get());
+    MS.addNodeToLeaves(Rec, LeafPtr.get(), access::mode::write, ToEnqueue);
   }
   // Check that the oldest leaf has been removed from the leaf list
   // and added as a dependency of the newest one instead

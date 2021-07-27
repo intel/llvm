@@ -1495,8 +1495,8 @@ TemplateInstantiator::TransformTemplateParmRefExpr(DeclRefExpr *E,
         ExprType.addConst();
 
       return new (SemaRef.Context) SubstNonTypeTemplateParmPackExpr(
-          ExprType, TargetType->isReferenceType() ? VK_LValue : VK_RValue, NTTP,
-          E->getLocation(), Arg);
+          ExprType, TargetType->isReferenceType() ? VK_LValue : VK_PRValue,
+          NTTP, E->getLocation(), Arg);
     }
 
     Arg = getPackSubstitutedTemplateArgument(getSema(), Arg);
@@ -1541,9 +1541,8 @@ TemplateInstantiator::TransformSYCLIntelFPGAInitiationIntervalAttr(
     const SYCLIntelFPGAInitiationIntervalAttr *II) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(II->getIntervalExpr()).get();
-  return getSema()
-      .BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAInitiationIntervalAttr>(
-          *II, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGAInitiationIntervalAttr(*II,
+                                                            TransformedExpr);
 }
 
 const SYCLIntelFPGAMaxConcurrencyAttr *
@@ -1551,33 +1550,29 @@ TemplateInstantiator::TransformSYCLIntelFPGAMaxConcurrencyAttr(
     const SYCLIntelFPGAMaxConcurrencyAttr *MC) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(MC->getNThreadsExpr()).get();
-  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAMaxConcurrencyAttr>(
-      *MC, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGAMaxConcurrencyAttr(*MC, TransformedExpr);
 }
 
 const SYCLIntelFPGALoopCoalesceAttr *
 TemplateInstantiator::TransformSYCLIntelFPGALoopCoalesceAttr(
     const SYCLIntelFPGALoopCoalesceAttr *LC) {
   Expr *TransformedExpr = getDerived().TransformExpr(LC->getNExpr()).get();
-  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGALoopCoalesceAttr>(
-      *LC, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGALoopCoalesceAttr(*LC, TransformedExpr);
 }
 
 const SYCLIntelFPGAMaxInterleavingAttr *
 TemplateInstantiator::TransformSYCLIntelFPGAMaxInterleavingAttr(
     const SYCLIntelFPGAMaxInterleavingAttr *MI) {
   Expr *TransformedExpr = getDerived().TransformExpr(MI->getNExpr()).get();
-  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAMaxInterleavingAttr>(
-      *MI, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGAMaxInterleavingAttr(*MI, TransformedExpr);
 }
 
 const SYCLIntelFPGASpeculatedIterationsAttr *
 TemplateInstantiator::TransformSYCLIntelFPGASpeculatedIterationsAttr(
     const SYCLIntelFPGASpeculatedIterationsAttr *SI) {
   Expr *TransformedExpr = getDerived().TransformExpr(SI->getNExpr()).get();
-  return getSema()
-      .BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGASpeculatedIterationsAttr>(
-          *SI, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGASpeculatedIterationsAttr(*SI,
+                                                              TransformedExpr);
 }
 
 const SYCLIntelFPGALoopCountAttr *
@@ -1585,8 +1580,7 @@ TemplateInstantiator::TransformSYCLIntelFPGALoopCountAttr(
     const SYCLIntelFPGALoopCountAttr *LCA) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(LCA->getNTripCount()).get();
-  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGALoopCountAttr>(
-      *LCA, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGALoopCountAttr(*LCA, TransformedExpr);
 }
 
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
@@ -2911,7 +2905,8 @@ Sema::InstantiateClass(SourceLocation PointOfInstantiation,
 
   if (!Instantiation->isInvalidDecl()) {
     // Perform any dependent diagnostics from the pattern.
-    PerformDependentDiagnostics(Pattern, TemplateArgs);
+    if (Pattern->isDependentContext())
+      PerformDependentDiagnostics(Pattern, TemplateArgs);
 
     // Instantiate any out-of-line class template partial
     // specializations now.

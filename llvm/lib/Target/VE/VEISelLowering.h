@@ -92,12 +92,15 @@ public:
     // VE uses release consistency, so need fence for each atomics.
     return true;
   }
-  Instruction *emitLeadingFence(IRBuilder<> &Builder, Instruction *Inst,
+  Instruction *emitLeadingFence(IRBuilderBase &Builder, Instruction *Inst,
                                 AtomicOrdering Ord) const override;
-  Instruction *emitTrailingFence(IRBuilder<> &Builder, Instruction *Inst,
+  Instruction *emitTrailingFence(IRBuilderBase &Builder, Instruction *Inst,
                                  AtomicOrdering Ord) const override;
   TargetLoweringBase::AtomicExpansionKind
   shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
+  ISD::NodeType getExtendForAtomicOps() const override {
+    return ISD::ANY_EXTEND;
+  }
 
   /// Custom Lower {
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;

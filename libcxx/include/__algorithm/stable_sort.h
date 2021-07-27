@@ -10,11 +10,14 @@
 #define _LIBCPP___ALGORITHM_STABLE_SORT_H
 
 #include <__config>
+#include <__algorithm/comp.h>
 #include <__algorithm/comp_ref_type.h>
-#include <__algorithm/sort.h>
 #include <__algorithm/inplace_merge.h>
+#include <__algorithm/sort.h>
 #include <__iterator/iterator_traits.h>
+#include <__utility/swap.h>
 #include <memory>
+#include <type_traits> // swap
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header

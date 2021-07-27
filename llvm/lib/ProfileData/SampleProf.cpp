@@ -119,16 +119,7 @@ raw_ostream &llvm::sampleprof::operator<<(raw_ostream &OS,
 sampleprof_error SampleRecord::merge(const SampleRecord &Other,
                                      uint64_t Weight) {
   sampleprof_error Result;
-  // With pseudo probes, merge a dangling sample with a non-dangling sample
-  // should result in a dangling sample.
-  if (FunctionSamples::ProfileIsProbeBased &&
-      (getSamples() == FunctionSamples::InvalidProbeCount ||
-       Other.getSamples() == FunctionSamples::InvalidProbeCount)) {
-    NumSamples = FunctionSamples::InvalidProbeCount;
-    Result = sampleprof_error::success;
-  } else {
-    Result = addSamples(Other.getSamples(), Weight);
-  }
+  Result = addSamples(Other.getSamples(), Weight);
   for (const auto &I : Other.getCallTargets()) {
     MergeResult(Result, addCalledTarget(I.first(), I.second, Weight));
   }
@@ -324,7 +315,8 @@ std::error_code ProfileSymbolList::read(const uint8_t *Data,
 }
 
 void SampleContextTrimmer::trimAndMergeColdContextProfiles(
-    uint64_t ColdCountThreshold, bool TrimColdContext, bool MergeColdContext) {
+    uint64_t ColdCountThreshold, bool TrimColdContext, bool MergeColdContext,
+    uint32_t ColdContextFrameLength) {
   if (!TrimColdContext && !MergeColdContext)
     return;
 
@@ -342,21 +334,24 @@ void SampleContextTrimmer::trimAndMergeColdContextProfiles(
     ColdProfiles.emplace_back(I.getKey(), &I.second);
   }
 
-  // Remove the cold profile from ProfileMap and merge them into BaseProileMap
-  StringMap<FunctionSamples> BaseProfileMap;
+  // Remove the cold profile from ProfileMap and merge them into
+  // MergedProfileMap by the last K frames of context
+  StringMap<FunctionSamples> MergedProfileMap;
   for (const auto &I : ColdProfiles) {
     if (MergeColdContext) {
-      auto Ret = BaseProfileMap.try_emplace(
-          I.second->getContext().getNameWithoutContext(), FunctionSamples());
-      FunctionSamples &BaseProfile = Ret.first->second;
-      BaseProfile.merge(*I.second);
+      auto Ret = MergedProfileMap.try_emplace(
+          I.second->getContext().getContextWithLastKFrames(
+              ColdContextFrameLength),
+          FunctionSamples());
+      FunctionSamples &MergedProfile = Ret.first->second;
+      MergedProfile.merge(*I.second);
     }
     ProfileMap.erase(I.first);
   }
 
-  // Merge the base profiles into ProfileMap;
-  for (const auto &I : BaseProfileMap) {
-    // Filter the cold base profile
+  // Move the merged profiles into ProfileMap;
+  for (const auto &I : MergedProfileMap) {
+    // Filter the cold merged profile
     if (TrimColdContext && I.second.getTotalSamples() < ColdCountThreshold &&
         ProfileMap.find(I.getKey()) == ProfileMap.end())
       continue;
@@ -375,10 +370,8 @@ void SampleContextTrimmer::trimAndMergeColdContextProfiles(
 }
 
 void SampleContextTrimmer::canonicalizeContextProfiles() {
-  StringSet<> ProfilesToBeRemoved;
-  // Note that StringMap order is guaranteed to be top-down order,
-  // this makes sure we make room for promoted/merged context in the
-  // map, before we move profiles in the map.
+  std::vector<StringRef> ProfilesToBeRemoved;
+  StringMap<FunctionSamples> ProfilesToBeAdded;
   for (auto &I : ProfileMap) {
     FunctionSamples &FProfile = I.second;
     StringRef ContextStr = FProfile.getNameWithContext();
@@ -388,17 +381,27 @@ void SampleContextTrimmer::canonicalizeContextProfiles() {
     // Use the context string from FunctionSamples to update the keys of
     // ProfileMap. They can get out of sync after context profile promotion
     // through pre-inliner.
-    auto Ret = ProfileMap.try_emplace(ContextStr, FProfile);
-    assert(Ret.second && "Conext conflict during canonicalization");
-    FProfile = Ret.first->second;
-
-    // Track the context profile to remove
-    ProfilesToBeRemoved.erase(ContextStr);
-    ProfilesToBeRemoved.insert(I.first());
+    // Duplicate the function profile for later insertion to avoid a conflict
+    // caused by a context both to be add and to be removed. This could happen
+    // when a context is promoted to another context which is also promoted to
+    // the third context. For example, given an original context A @ B @ C that
+    // is promoted to B @ C and the original context B @ C which is promoted to
+    // just C, adding B @ C to the profile map while removing same context (but
+    // with different profiles) from the map can cause a conflict if they are
+    // not handled in a right order. This can be solved by just caching the
+    // profiles to be added.
+    auto Ret = ProfilesToBeAdded.try_emplace(ContextStr, FProfile);
+    (void)Ret;
+    assert(Ret.second && "Context conflict during canonicalization");
+    ProfilesToBeRemoved.push_back(I.first());
   }
 
   for (auto &I : ProfilesToBeRemoved) {
-    ProfileMap.erase(I.first());
+    ProfileMap.erase(I);
+  }
+
+  for (auto &I : ProfilesToBeAdded) {
+    ProfileMap.try_emplace(I.first(), I.second);
   }
 }
 

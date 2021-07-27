@@ -96,9 +96,12 @@ class FixupLEAPass : public MachineFunctionPass {
   /// Check instructions between LeaI and AluI (exclusively).
   /// Set BaseIndexDef to true if base or index register from LeaI is defined.
   /// Set AluDestRef to true if the dest register of AluI is used or defined.
+  /// *KilledBase is set to the killed base register usage.
+  /// *KilledIndex is set to the killed index register usage.
   void checkRegUsage(MachineBasicBlock::iterator &LeaI,
                      MachineBasicBlock::iterator &AluI, bool &BaseIndexDef,
-                     bool &AluDestRef) const;
+                     bool &AluDestRef, MachineOperand **KilledBase,
+                     MachineOperand **KilledIndex) const;
 
   /// Determine if an instruction references a machine register
   /// and, if so, whether it reads or writes the register.
@@ -418,26 +421,30 @@ FixupLEAPass::searchALUInst(MachineBasicBlock::iterator &I,
     // Check if the lea dest register is used in an add/sub instruction only.
     for (unsigned I = 0, E = CurInst->getNumOperands(); I != E; ++I) {
       MachineOperand &Opnd = CurInst->getOperand(I);
-      if (Opnd.isReg() && Opnd.getReg() == DestReg) {
-        if (Opnd.isDef() || !Opnd.isKill())
-          return MachineBasicBlock::iterator();
+      if (Opnd.isReg()) {
+        if (Opnd.getReg() == DestReg) {
+          if (Opnd.isDef() || !Opnd.isKill())
+            return MachineBasicBlock::iterator();
 
-        unsigned AluOpcode = CurInst->getOpcode();
-        if (AluOpcode != AddOpcode && AluOpcode != SubOpcode)
-          return MachineBasicBlock::iterator();
+          unsigned AluOpcode = CurInst->getOpcode();
+          if (AluOpcode != AddOpcode && AluOpcode != SubOpcode)
+            return MachineBasicBlock::iterator();
 
-        MachineOperand &Opnd2 = CurInst->getOperand(3 - I);
-        MachineOperand AluDest = CurInst->getOperand(0);
-        if (Opnd2.getReg() != AluDest.getReg())
-          return MachineBasicBlock::iterator();
+          MachineOperand &Opnd2 = CurInst->getOperand(3 - I);
+          MachineOperand AluDest = CurInst->getOperand(0);
+          if (Opnd2.getReg() != AluDest.getReg())
+            return MachineBasicBlock::iterator();
 
-        // X - (Y + Z) may generate different flags than (X - Y) - Z when there
-        // is overflow. So we can't change the alu instruction if the flags
-        // register is live.
-        if (!CurInst->registerDefIsDead(X86::EFLAGS, TRI))
-          return MachineBasicBlock::iterator();
+          // X - (Y + Z) may generate different flags than (X - Y) - Z when
+          // there is overflow. So we can't change the alu instruction if the
+          // flags register is live.
+          if (!CurInst->registerDefIsDead(X86::EFLAGS, TRI))
+            return MachineBasicBlock::iterator();
 
-        return CurInst;
+          return CurInst;
+        }
+        if (TRI->regsOverlap(DestReg, Opnd.getReg()))
+          return MachineBasicBlock::iterator();
       }
     }
 
@@ -449,8 +456,11 @@ FixupLEAPass::searchALUInst(MachineBasicBlock::iterator &I,
 
 void FixupLEAPass::checkRegUsage(MachineBasicBlock::iterator &LeaI,
                                  MachineBasicBlock::iterator &AluI,
-                                 bool &BaseIndexDef, bool &AluDestRef) const {
+                                 bool &BaseIndexDef, bool &AluDestRef,
+                                 MachineOperand **KilledBase,
+                                 MachineOperand **KilledIndex) const {
   BaseIndexDef = AluDestRef = false;
+  *KilledBase = *KilledIndex = nullptr;
   Register BaseReg = LeaI->getOperand(1 + X86::AddrBaseReg).getReg();
   Register IndexReg = LeaI->getOperand(1 + X86::AddrIndexReg).getReg();
   Register AluDestReg = AluI->getOperand(0).getReg();
@@ -464,9 +474,17 @@ void FixupLEAPass::checkRegUsage(MachineBasicBlock::iterator &LeaI,
       Register Reg = Opnd.getReg();
       if (TRI->regsOverlap(Reg, AluDestReg))
         AluDestRef = true;
-      if (Opnd.isDef() &&
-          (TRI->regsOverlap(Reg, BaseReg) || TRI->regsOverlap(Reg, IndexReg))) {
-        BaseIndexDef = true;
+      if (TRI->regsOverlap(Reg, BaseReg)) {
+        if (Opnd.isDef())
+          BaseIndexDef = true;
+        else if (Opnd.isKill())
+          *KilledBase = &Opnd;
+      }
+      if (TRI->regsOverlap(Reg, IndexReg)) {
+        if (Opnd.isDef())
+          BaseIndexDef = true;
+        else if (Opnd.isKill())
+          *KilledIndex = &Opnd;
       }
     }
     ++CurInst;
@@ -482,13 +500,15 @@ bool FixupLEAPass::optLEAALU(MachineBasicBlock::iterator &I,
 
   // Check if there are any related register usage between lea and alu.
   bool BaseIndexDef, AluDestRef;
-  checkRegUsage(I, AluI, BaseIndexDef, AluDestRef);
+  MachineOperand *KilledBase, *KilledIndex;
+  checkRegUsage(I, AluI, BaseIndexDef, AluDestRef, &KilledBase, &KilledIndex);
 
   MachineBasicBlock::iterator InsertPos = AluI;
   if (BaseIndexDef) {
     if (AluDestRef)
       return false;
     InsertPos = I;
+    KilledBase = KilledIndex = nullptr;
   }
 
   // Check if there are same registers.
@@ -503,21 +523,30 @@ bool FixupLEAPass::optLEAALU(MachineBasicBlock::iterator &I,
     if (BaseReg == IndexReg)
       return false;
     std::swap(BaseReg, IndexReg);
+    std::swap(KilledBase, KilledIndex);
   }
+  if (BaseReg == IndexReg)
+    KilledBase = nullptr;
 
   // Now it's safe to change instructions.
   MachineInstr *NewMI1, *NewMI2;
   unsigned NewOpcode = AluI->getOpcode();
   NewMI1 = BuildMI(MBB, InsertPos, AluI->getDebugLoc(), TII->get(NewOpcode),
                    AluDestReg)
-               .addReg(AluDestReg)
-               .addReg(BaseReg);
+               .addReg(AluDestReg, RegState::Kill)
+               .addReg(BaseReg, KilledBase ? RegState::Kill : 0);
   NewMI1->addRegisterDead(X86::EFLAGS, TRI);
   NewMI2 = BuildMI(MBB, InsertPos, AluI->getDebugLoc(), TII->get(NewOpcode),
                    AluDestReg)
-               .addReg(AluDestReg)
-               .addReg(IndexReg);
+               .addReg(AluDestReg, RegState::Kill)
+               .addReg(IndexReg, KilledIndex ? RegState::Kill : 0);
   NewMI2->addRegisterDead(X86::EFLAGS, TRI);
+
+  // Clear the old Kill flags.
+  if (KilledBase)
+    KilledBase->setIsKill(false);
+  if (KilledIndex)
+    KilledIndex->setIsKill(false);
 
   MBB.getParent()->substituteDebugValuesForInst(*AluI, *NewMI1, 1);
   MBB.getParent()->substituteDebugValuesForInst(*AluI, *NewMI2, 1);

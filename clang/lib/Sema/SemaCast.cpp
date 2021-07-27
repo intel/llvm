@@ -61,6 +61,15 @@ namespace {
         ValueKind(Expr::getValueKindForType(destType)),
         Kind(CK_Dependent), IsARCUnbridgedCast(false) {
 
+      // C++ [expr.type]/8.2.2:
+      //   If a pr-value initially has the type cv-T, where T is a
+      //   cv-unqualified non-class, non-array type, the type of the
+      //   expression is adjusted to T prior to any further analysis.
+      if (!S.Context.getLangOpts().ObjC && !DestType->isRecordType() &&
+          !DestType->isArrayType()) {
+        DestType = DestType.getUnqualifiedType();
+      }
+
       if (const BuiltinType *placeholder =
             src.get()->getType()->getAsPlaceholderType()) {
         PlaceholderKind = placeholder->getKind();
@@ -747,7 +756,7 @@ static TryCastResult getCastAwayConstnessCastKind(CastAwayConstnessKind CACK,
 void CastOperation::CheckDynamicCast() {
   CheckNoDerefRAII NoderefCheck(*this);
 
-  if (ValueKind == VK_RValue)
+  if (ValueKind == VK_PRValue)
     SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
   else if (isPlaceholder())
     SrcExpr = Self.CheckPlaceholderExpr(SrcExpr.get());
@@ -815,7 +824,7 @@ void CastOperation::CheckDynamicCast() {
   } else {
     // If we're dynamic_casting from a prvalue to an rvalue reference, we need
     // to materialize the prvalue before we bind the reference to it.
-    if (SrcExpr.get()->isRValue())
+    if (SrcExpr.get()->isPRValue())
       SrcExpr = Self.CreateMaterializeTemporaryExpr(
           SrcType, SrcExpr.get(), /*IsLValueReference*/ false);
     SrcPointee = SrcType;
@@ -914,7 +923,7 @@ void CastOperation::CheckDynamicCast() {
 void CastOperation::CheckConstCast() {
   CheckNoDerefRAII NoderefCheck(*this);
 
-  if (ValueKind == VK_RValue)
+  if (ValueKind == VK_PRValue)
     SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
   else if (isPlaceholder())
     SrcExpr = Self.CheckPlaceholderExpr(SrcExpr.get());
@@ -1126,7 +1135,7 @@ static bool checkCastFunctionType(Sema &Self, const ExprResult &SrcExpr,
 /// like this:
 /// char *bytes = reinterpret_cast\<char*\>(int_ptr);
 void CastOperation::CheckReinterpretCast() {
-  if (ValueKind == VK_RValue && !isPlaceholder(BuiltinType::Overload))
+  if (ValueKind == VK_PRValue && !isPlaceholder(BuiltinType::Overload))
     SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
   else
     checkNonOverloadPlaceholders();
@@ -1198,7 +1207,7 @@ void CastOperation::CheckStaticCast() {
     return;
   }
 
-  if (ValueKind == VK_RValue && !DestType->isRecordType() &&
+  if (ValueKind == VK_PRValue && !DestType->isRecordType() &&
       !isPlaceholder(BuiltinType::Overload)) {
     SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
     if (SrcExpr.isInvalid()) // if conversion failed, don't report another error
@@ -1897,7 +1906,7 @@ static TryCastResult TryConstCast(Sema &Self, ExprResult &SrcExpr,
       return TC_NotApplicable;
     }
 
-    if (isa<RValueReferenceType>(DestTypeTmp) && SrcExpr.get()->isRValue()) {
+    if (isa<RValueReferenceType>(DestTypeTmp) && SrcExpr.get()->isPRValue()) {
       if (!SrcType->isRecordType()) {
         // Cannot const_cast non-class prvalue to rvalue reference type. But if
         // this is C-style, static_cast can do this.
@@ -2169,7 +2178,8 @@ static bool fixOverloadedReinterpretCastExpr(Sema &Self, QualType DestType,
   // like it?
   if (Self.ResolveAndFixSingleFunctionTemplateSpecialization(
           Result,
-          Expr::getValueKindForType(DestType) == VK_RValue // Convert Fun to Ptr
+          Expr::getValueKindForType(DestType) ==
+              VK_PRValue // Convert Fun to Ptr
           ) &&
       Result.isUsable())
     return true;
@@ -2614,6 +2624,19 @@ void CastOperation::checkAddressSpaceCast(QualType SrcType, QualType DestType) {
   }
 }
 
+bool Sema::ShouldSplatAltivecScalarInCast(const VectorType *VecTy) {
+  bool SrcCompatXL = this->getLangOpts().getAltivecSrcCompat() ==
+                     LangOptions::AltivecSrcCompatKind::XL;
+  VectorType::VectorKind VKind = VecTy->getVectorKind();
+
+  if ((VKind == VectorType::AltiVecVector) ||
+      (SrcCompatXL && ((VKind == VectorType::AltiVecBool) ||
+                       (VKind == VectorType::AltiVecPixel)))) {
+    return true;
+  }
+  return false;
+}
+
 void CastOperation::CheckCXXCStyleCast(bool FunctionalStyle,
                                        bool ListInitialization) {
   assert(Self.getLangOpts().CPlusPlus);
@@ -2659,7 +2682,7 @@ void CastOperation::CheckCXXCStyleCast(bool FunctionalStyle,
     return;
   }
 
-  if (ValueKind == VK_RValue && !DestType->isRecordType() &&
+  if (ValueKind == VK_PRValue && !DestType->isRecordType() &&
       !isPlaceholder(BuiltinType::Overload)) {
     SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
     if (SrcExpr.isInvalid())
@@ -2668,9 +2691,9 @@ void CastOperation::CheckCXXCStyleCast(bool FunctionalStyle,
 
   // AltiVec vector initialization with a single literal.
   if (const VectorType *vecTy = DestType->getAs<VectorType>())
-    if (vecTy->getVectorKind() == VectorType::AltiVecVector
-        && (SrcExpr.get()->getType()->isIntegerType()
-            || SrcExpr.get()->getType()->isFloatingType())) {
+    if (Self.ShouldSplatAltivecScalarInCast(vecTy) &&
+        (SrcExpr.get()->getType()->isIntegerType() ||
+         SrcExpr.get()->getType()->isFloatingType())) {
       Kind = CK_VectorSplat;
       SrcExpr = Self.prepareVectorSplat(DestType, SrcExpr.get());
       return;
@@ -2916,7 +2939,7 @@ void CastOperation::CheckCStyleCast() {
         }
         Self.Diag(OpRange.getBegin(),
                   diag::err_opencl_cast_non_zero_to_event_t)
-                  << CastInt.toString(10) << SrcExpr.get()->getSourceRange();
+                  << toString(CastInt, 10) << SrcExpr.get()->getSourceRange();
         SrcExpr = ExprError();
         return;
       }
@@ -2953,8 +2976,8 @@ void CastOperation::CheckCStyleCast() {
   }
 
   if (const VectorType *DestVecTy = DestType->getAs<VectorType>()) {
-    if (DestVecTy->getVectorKind() == VectorType::AltiVecVector &&
-          (SrcType->isIntegerType() || SrcType->isFloatingType())) {
+    if (Self.ShouldSplatAltivecScalarInCast(DestVecTy) &&
+        (SrcType->isIntegerType() || SrcType->isFloatingType())) {
       Kind = CK_VectorSplat;
       SrcExpr = Self.prepareVectorSplat(DestType, SrcExpr.get());
     } else if (Self.CheckVectorCast(OpRange, DestType, SrcType, Kind)) {
@@ -3103,7 +3126,7 @@ void CastOperation::CheckBuiltinBitCast() {
     return;
   }
 
-  if (SrcExpr.get()->isRValue())
+  if (SrcExpr.get()->isPRValue())
     SrcExpr = Self.CreateMaterializeTemporaryExpr(SrcType, SrcExpr.get(),
                                                   /*IsLValueReference=*/false);
 

@@ -103,13 +103,13 @@ platform device_impl::get_platform() const {
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 
-bool device_impl::has_extension(const string_class &ExtensionName) const {
+bool device_impl::has_extension(const std::string &ExtensionName) const {
   if (MIsHostDevice)
     // TODO: implement extension management for host device;
     return false;
 
-  string_class AllExtensionNames =
-      get_device_info<string_class, info::device::extensions>::get(
+  std::string AllExtensionNames =
+      get_device_info<std::string, info::device::extensions>::get(
           this->getHandleRef(), this->getPlugin());
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
@@ -120,11 +120,11 @@ bool device_impl::is_partition_supported(info::partition_property Prop) const {
                    Prop) != SupportedProperties.end();
 }
 
-vector_class<device>
+std::vector<device>
 device_impl::create_sub_devices(const cl_device_partition_property *Properties,
                                 size_t SubDevicesCount) const {
 
-  vector_class<RT::PiDevice> SubDevices(SubDevicesCount);
+  std::vector<RT::PiDevice> SubDevices(SubDevicesCount);
   pi_uint32 ReturnedSubDevices = 0;
   const detail::plugin &Plugin = getPlugin();
   Plugin.call<PiApiKind::piDevicePartition>(MDevice, Properties,
@@ -137,7 +137,7 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   // may be necessary. What happens if create_sub_devices is called multiple
   // times with the same arguments?
   //
-  vector_class<device> res;
+  std::vector<device> res;
   std::for_each(SubDevices.begin(), SubDevices.end(),
                 [&res, this](const RT::PiDevice &a_pi_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
@@ -147,8 +147,7 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   return res;
 }
 
-vector_class<device>
-device_impl::create_sub_devices(size_t ComputeUnits) const {
+std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
 
   if (MIsHostDevice)
     // TODO: implement host device partitioning
@@ -167,8 +166,8 @@ device_impl::create_sub_devices(size_t ComputeUnits) const {
   return create_sub_devices(Properties, SubDevicesCount);
 }
 
-vector_class<device>
-device_impl::create_sub_devices(const vector_class<size_t> &Counts) const {
+std::vector<device>
+device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
 
   if (MIsHostDevice)
     // TODO: implement host device partitioning
@@ -181,12 +180,12 @@ device_impl::create_sub_devices(const vector_class<size_t> &Counts) const {
   }
   static const cl_device_partition_property P[] = {
       CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
-  vector_class<cl_device_partition_property> Properties(P, P + 3);
+  std::vector<cl_device_partition_property> Properties(P, P + 3);
   Properties.insert(Properties.begin() + 1, Counts.begin(), Counts.end());
   return create_sub_devices(Properties.data(), Counts.size());
 }
 
-vector_class<device> device_impl::create_sub_devices(
+std::vector<device> device_impl::create_sub_devices(
     info::partition_affinity_domain AffinityDomain) const {
 
   if (MIsHostDevice)
@@ -200,9 +199,9 @@ vector_class<device> device_impl::create_sub_devices(
       !is_affinity_supported(AffinityDomain)) {
     throw cl::sycl::feature_not_supported();
   }
-  const cl_device_partition_property Properties[3] = {
-      CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-      (cl_device_partition_property)AffinityDomain, 0};
+  const pi_device_partition_property Properties[3] = {
+      PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+      (pi_device_partition_property)AffinityDomain, 0};
   size_t SubDevicesCount = get_info<info::device::partition_max_sub_devices>();
   return create_sub_devices(Properties, SubDevicesCount);
 }
@@ -239,6 +238,8 @@ bool device_impl::has(aspect Aspect) const {
     return has_extension("cl_khr_int64_base_atomics");
   case aspect::int64_extended_atomics:
     return has_extension("cl_khr_int64_extended_atomics");
+  case aspect::atomic64:
+    return get_info<info::device::atomic64>();
   case aspect::image:
     return get_info<info::device::image_support>();
   case aspect::online_compiler:
@@ -251,12 +252,25 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::usm_device_allocations>();
   case aspect::usm_host_allocations:
     return get_info<info::device::usm_host_allocations>();
+  case aspect::usm_atomic_host_allocations:
+    return is_host() ||
+           (get_device_info<
+                pi_usm_capabilities,
+                info::device::usm_host_allocations>::get(MDevice, getPlugin()) &
+            PI_USM_ATOMIC_ACCESS);
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
+  case aspect::usm_atomic_shared_allocations:
+    return is_host() ||
+           (get_device_info<
+                pi_usm_capabilities,
+                info::device::usm_shared_allocations>::get(MDevice,
+                                                           getPlugin()) &
+            PI_USM_ATOMIC_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
-  case aspect::usm_system_allocator:
-    return get_info<info::device::usm_system_allocator>();
+  case aspect::usm_system_allocations:
+    return get_info<info::device::usm_system_allocations>();
   case aspect::ext_intel_pci_address:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
                MDevice, PI_DEVICE_INFO_PCI_ADDRESS, sizeof(pi_device_type),
@@ -284,9 +298,25 @@ bool device_impl::has(aspect Aspect) const {
                MDevice, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
                sizeof(pi_device_type), &device_type,
                &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_device_info_uuid: {
+    auto Result = getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+        MDevice, PI_DEVICE_INFO_UUID, 0, nullptr, &return_size);
+    if (Result != PI_SUCCESS) {
+      return false;
+    }
+
+    assert(return_size <= 16);
+    unsigned char UUID[16];
+
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_DEVICE_INFO_UUID, 16 * sizeof(unsigned char), UUID,
+               nullptr) == PI_SUCCESS;
+  }
   case aspect::ext_intel_max_mem_bandwidth:
     // currently not supported
     return false;
+  case aspect::ext_oneapi_srgb:
+    return get_info<info::device::ext_oneapi_srgb>();
 
   default:
     throw runtime_error("This device aspect has not been implemented yet.",

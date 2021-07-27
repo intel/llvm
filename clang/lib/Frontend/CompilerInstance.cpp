@@ -143,13 +143,13 @@ bool CompilerInstance::createTarget() {
   //
   // FIXME: We shouldn't need to do this, the target should be immutable once
   // created. This complexity should be lifted elsewhere.
-  getTarget().adjust(getLangOpts());
+  getTarget().adjust(getDiagnostics(), getLangOpts());
 
   // Adjust target options based on codegen options.
   getTarget().adjustTargetOptions(getCodeGenOpts(), getTargetOpts());
 
   if (auto *Aux = getAuxTarget()) {
-    Aux->adjust(getLangOpts());
+    Aux->adjust(getDiagnostics(), getLangOpts());
     getTarget().setAuxTarget(Aux);
   }
 
@@ -460,7 +460,7 @@ void CompilerInstance::createPreprocessor(TranslationUnitKind TUKind) {
                                       getSourceManager(), *HeaderInfo, *this,
                                       /*IdentifierInfoLookup=*/nullptr,
                                       /*OwnsHeaderSearch=*/true, TUKind);
-  getTarget().adjust(getLangOpts());
+  getTarget().adjust(getDiagnostics(), getLangOpts());
   PP->Initialize(getTarget(), getAuxTarget());
 
   if (PPOpts.DetailedRecord)
@@ -554,7 +554,7 @@ void CompilerInstance::createASTContext() {
   Preprocessor &PP = getPreprocessor();
   auto *Context = new ASTContext(getLangOpts(), PP.getSourceManager(),
                                  PP.getIdentifierTable(), PP.getSelectorTable(),
-                                 PP.getBuiltinInfo());
+                                 PP.getBuiltinInfo(), PP.TUKind);
   Context->InitBuiltinTypes(getTarget(), getAuxTarget());
   setASTContext(Context);
 }
@@ -746,11 +746,9 @@ void CompilerInstance::clearOutputFiles(bool EraseFiles) {
   }
 }
 
-std::unique_ptr<raw_pwrite_stream>
-CompilerInstance::createDefaultOutputFile(bool Binary, StringRef InFile,
-                                          StringRef Extension,
-                                          bool RemoveFileOnSignal,
-                                          bool CreateMissingDirectories) {
+std::unique_ptr<raw_pwrite_stream> CompilerInstance::createDefaultOutputFile(
+    bool Binary, StringRef InFile, StringRef Extension, bool RemoveFileOnSignal,
+    bool CreateMissingDirectories, bool ForceUseTemporary) {
   StringRef OutputPath = getFrontendOpts().OutputFile;
   Optional<SmallString<128>> PathStorage;
   if (OutputPath.empty()) {
@@ -763,9 +761,8 @@ CompilerInstance::createDefaultOutputFile(bool Binary, StringRef InFile,
     }
   }
 
-  // Force a temporary file if RemoveFileOnSignal was disabled.
   return createOutputFile(OutputPath, Binary, RemoveFileOnSignal,
-                          getFrontendOpts().UseTemporary || !RemoveFileOnSignal,
+                          getFrontendOpts().UseTemporary || ForceUseTemporary,
                           CreateMissingDirectories);
 }
 
@@ -831,7 +828,9 @@ CompilerInstance::createOutputFileImpl(StringRef OutputPath, bool Binary,
     TempPath += OutputExtension;
     TempPath += ".tmp";
     Expected<llvm::sys::fs::TempFile> ExpectedFile =
-        llvm::sys::fs::TempFile::create(TempPath);
+        llvm::sys::fs::TempFile::create(
+            TempPath, llvm::sys::fs::all_read | llvm::sys::fs::all_write,
+            Binary ? llvm::sys::fs::OF_None : llvm::sys::fs::OF_Text);
 
     llvm::Error E = handleErrors(
         ExpectedFile.takeError(), [&](const llvm::ECError &E) -> llvm::Error {
@@ -854,9 +853,7 @@ CompilerInstance::createOutputFileImpl(StringRef OutputPath, bool Binary,
       consumeError(std::move(E));
     } else {
       Temp = std::move(ExpectedFile.get());
-      OS.reset(new llvm::raw_fd_ostream(Temp->FD, /*shouldClose=*/false,
-                                        Binary ? llvm::sys::fs::OF_None
-                                               : llvm::sys::fs::OF_Text));
+      OS.reset(new llvm::raw_fd_ostream(Temp->FD, /*shouldClose=*/false));
       OSFile = Temp->TmpName;
     }
     // If we failed to create the temporary, fallback to writing to the file
@@ -1059,6 +1056,15 @@ compileModuleImpl(CompilerInstance &ImportingInstance, SourceLocation ImportLoc,
                   llvm::function_ref<void(CompilerInstance &)> PostBuildStep =
                       [](CompilerInstance &) {}) {
   llvm::TimeTraceScope TimeScope("Module Compile", ModuleName);
+
+  // Never compile a module that's already finalized - this would cause the
+  // existing module to be freed, causing crashes if it is later referenced
+  if (ImportingInstance.getModuleCache().isPCMFinal(ModuleFileName)) {
+    ImportingInstance.getDiagnostics().Report(
+        ImportLoc, diag::err_module_rebuild_finalized)
+        << ModuleName;
+    return false;
+  }
 
   // Construct a compiler invocation for creating this module.
   auto Invocation =

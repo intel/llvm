@@ -110,6 +110,10 @@ class MTBUF_Real <MTBUF_Pseudo ps> :
   let isPseudo = 0;
   let isCodeGenOnly = 0;
 
+  let VM_CNT = 1;
+  let EXP_CNT = 1;
+  let MTBUF = 1;
+
   // copy relevant pseudo op flags
   let UseNamedOperandTable = ps.UseNamedOperandTable;
   let SubtargetPredicate = ps.SubtargetPredicate;
@@ -118,6 +122,10 @@ class MTBUF_Real <MTBUF_Pseudo ps> :
   let DisableEncoding    = ps.DisableEncoding;
   let TSFlags            = ps.TSFlags;
   let SchedRW            = ps.SchedRW;
+  let mayLoad            = ps.mayLoad;
+  let mayStore           = ps.mayStore;
+  let IsAtomicRet        = ps.IsAtomicRet;
+  let IsAtomicNoRet      = ps.IsAtomicNoRet;
 
   bits<12> offset;
   bits<5>  cpol;
@@ -341,6 +349,10 @@ class MUBUF_Real <MUBUF_Pseudo ps> :
   let isPseudo = 0;
   let isCodeGenOnly = 0;
 
+  let VM_CNT = 1;
+  let EXP_CNT = 1;
+  let MUBUF = 1;
+
   // copy relevant pseudo op flags
   let SubtargetPredicate   = ps.SubtargetPredicate;
   let AsmMatchConverter    = ps.AsmMatchConverter;
@@ -350,6 +362,10 @@ class MUBUF_Real <MUBUF_Pseudo ps> :
   let TSFlags              = ps.TSFlags;
   let UseNamedOperandTable = ps.UseNamedOperandTable;
   let SchedRW              = ps.SchedRW;
+  let mayLoad              = ps.mayLoad;
+  let mayStore             = ps.mayStore;
+  let IsAtomicRet          = ps.IsAtomicRet;
+  let IsAtomicNoRet        = ps.IsAtomicNoRet;
 
   bits<12> offset;
   bits<5>  cpol;
@@ -420,14 +436,11 @@ class getMUBUFInsDA<list<RegisterClass> vdataList,
 }
 
 class getMUBUFElements<ValueType vt> {
-  // eq does not support ValueType for some reason.
-  string vtAsStr = !cast<string>(vt);
-
   int ret =
-    !if(!eq(vtAsStr, "f16"), 1,
-      !if(!eq(vtAsStr, "v2f16"), 2,
-        !if(!eq(vtAsStr, "v3f16"), 3,
-          !if(!eq(vtAsStr, "v4f16"), 4,
+    !if(!eq(vt, f16), 1,
+      !if(!eq(vt, v2f16), 2,
+        !if(!eq(vt, v3f16), 3,
+          !if(!eq(vt, v4f16), 4,
             !if(!eq(vt.Size, 32), 1,
               !if(!eq(vt.Size, 64), 2,
                 !if(!eq(vt.Size, 96), 3,
@@ -532,7 +545,7 @@ multiclass MUBUF_Pseudo_Loads<string opName,
                               bit TiedDest = 0,
                               bit isLds = 0> {
 
-  defvar legal_load_vt = !if(!eq(!cast<string>(load_vt), !cast<string>(v3f16)), v4f16, load_vt);
+  defvar legal_load_vt = !if(!eq(load_vt, v3f16), v4f16, load_vt);
 
   def _OFFSET : MUBUF_Load_Pseudo <opName, BUFAddrKind.Offset, legal_load_vt, TiedDest, isLds>,
     MUBUFAddr64Table<0, NAME # !if(isLds, "_LDS", "")>;
@@ -582,7 +595,7 @@ multiclass MUBUF_Pseudo_Stores<string opName,
                                ValueType store_vt = i32,
                                SDPatternOperator st = null_frag> {
 
-  defvar legal_store_vt = !if(!eq(!cast<string>(store_vt), !cast<string>(v3f16)), v4f16, store_vt);
+  defvar legal_store_vt = !if(!eq(store_vt, v3f16), v4f16, store_vt);
 
   def _OFFSET : MUBUF_Store_Pseudo <opName, BUFAddrKind.Offset, legal_store_vt,
     [(st legal_store_vt:$vdata, (MUBUFOffset v4i32:$srsrc, i32:$soffset,
@@ -1196,7 +1209,7 @@ let SubtargetPredicate = isGFX10Plus in {
 
 multiclass MUBUF_LoadIntrinsicPat<SDPatternOperator name, ValueType vt,
                                   string opcode, ValueType memoryVt = vt> {
-  defvar st = !if(!eq(!cast<string>(memoryVt), !cast<string>(vt)), name, mubuf_intrinsic_load<name, memoryVt>);
+  defvar st = !if(!eq(memoryVt, vt), name, mubuf_intrinsic_load<name, memoryVt>);
 
   def : GCNPat<
     (vt (st v4i32:$rsrc, 0, 0, i32:$soffset, timm:$offset,
@@ -1278,7 +1291,7 @@ defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_ushort,  i32, "BUFFER_LOAD_USHORT">;
 
 multiclass MUBUF_StoreIntrinsicPat<SDPatternOperator name, ValueType vt,
                                    string opcode, ValueType memoryVt = vt> {
-  defvar st = !if(!eq(!cast<string>(memoryVt), !cast<string>(vt)), name, mubuf_intrinsic_store<name, memoryVt>);
+  defvar st = !if(!eq(memoryVt, vt), name, mubuf_intrinsic_store<name, memoryVt>);
 
   def : GCNPat<
     (st vt:$vdata, v4i32:$rsrc, 0, 0, i32:$soffset, timm:$offset,
@@ -1741,7 +1754,7 @@ defm : MUBUFScratchStorePat <BUFFER_STORE_BYTE_D16_HI_OFFEN, BUFFER_STORE_BYTE_D
 
 multiclass MTBUF_LoadIntrinsicPat<SDPatternOperator name, ValueType vt,
                                   string opcode, ValueType memoryVt = vt> {
-  defvar st = !if(!eq(!cast<string>(memoryVt), !cast<string>(vt)), name, mtbuf_intrinsic_load<name, memoryVt>);
+  defvar st = !if(!eq(memoryVt, vt), name, mtbuf_intrinsic_load<name, memoryVt>);
 
   def : GCNPat<
     (vt (st v4i32:$rsrc, 0, 0, i32:$soffset, timm:$offset,
@@ -1805,7 +1818,7 @@ let SubtargetPredicate = HasPackedD16VMem in {
 
 multiclass MTBUF_StoreIntrinsicPat<SDPatternOperator name, ValueType vt,
                                         string opcode, ValueType memoryVt = vt> {
-  defvar st = !if(!eq(!cast<string>(memoryVt), !cast<string>(vt)), name, mtbuf_intrinsic_store<name, memoryVt>);
+  defvar st = !if(!eq(memoryVt, vt), name, mtbuf_intrinsic_store<name, memoryVt>);
 
   def : GCNPat<
     (st vt:$vdata, v4i32:$rsrc, 0, 0, i32:$soffset, timm:$offset,
@@ -1908,13 +1921,6 @@ class MUBUF_Real_gfx6_gfx7<bits<8> op, MUBUF_Pseudo ps> :
 //===----------------------------------------------------------------------===//
 
 let AssemblerPredicate = isGFX10Plus, DecoderNamespace = "GFX10" in {
-  multiclass MUBUF_Real_gfx10_with_name<bits<8> op, string opName,
-                                        string asmName> {
-    def _gfx10 : MUBUF_Real_gfx10<op, !cast<MUBUF_Pseudo>(opName)> {
-      MUBUF_Pseudo ps = !cast<MUBUF_Pseudo>(opName);
-      let AsmString = asmName # ps.AsmOperands;
-    }
-  }
   multiclass MUBUF_Real_AllAddr_gfx10<bits<8> op> {
     def _BOTHEN_gfx10 :
       MUBUF_Real_gfx10<op, !cast<MUBUF_Pseudo>(NAME#"_BOTHEN")>;

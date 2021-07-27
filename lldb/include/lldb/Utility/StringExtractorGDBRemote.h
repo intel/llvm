@@ -23,7 +23,7 @@ public:
   typedef bool (*ResponseValidatorCallback)(
       void *baton, const StringExtractorGDBRemote &response);
 
-  StringExtractorGDBRemote() : StringExtractor(), m_validator(nullptr) {}
+  StringExtractorGDBRemote() : StringExtractor() {}
 
   StringExtractorGDBRemote(llvm::StringRef str)
       : StringExtractor(str), m_validator(nullptr) {}
@@ -167,6 +167,8 @@ public:
     eServerPacketType_jLLDBTraceStop,
     eServerPacketType_jLLDBTraceGetState,
     eServerPacketType_jLLDBTraceGetBinaryData,
+
+    eServerPacketType_qMemTags,
   };
 
   ServerPacketType GetServerPacketType() const;
@@ -201,7 +203,7 @@ public:
   GetPidTid(lldb::pid_t default_pid);
 
 protected:
-  ResponseValidatorCallback m_validator;
+  ResponseValidatorCallback m_validator = nullptr;
   void *m_validator_baton;
 };
 

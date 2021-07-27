@@ -73,7 +73,7 @@ public:
     m_collection_sp->Initialize(g_processkdp_properties);
   }
 
-  virtual ~PluginProperties() {}
+  virtual ~PluginProperties() = default;
 
   uint64_t GetPacketTimeout() {
     const uint32_t idx = ePropertyKDPPacketTimeout;
@@ -902,7 +902,7 @@ public:
     m_option_group.Finalize();
   }
 
-  ~CommandObjectProcessKDPPacketSend() {}
+  ~CommandObjectProcessKDPPacketSend() = default;
 
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     const size_t argc = command.GetArgumentCount();
@@ -910,7 +910,6 @@ public:
       if (!m_command_byte.GetOptionValue().OptionWasSet()) {
         result.AppendError(
             "the --command option must be set to a valid command byte");
-        result.SetStatus(eReturnStatusFailed);
       } else {
         const uint64_t command_byte =
             m_command_byte.GetOptionValue().GetUInt64Value(0);
@@ -933,7 +932,6 @@ public:
                                                "even number of ASCII hex "
                                                "characters: '%s'",
                                                ascii_hex_bytes_cstr);
-                  result.SetStatus(eReturnStatusFailed);
                   return false;
                 }
                 payload_bytes.resize(ascii_hex_bytes_cstr_len / 2);
@@ -943,7 +941,6 @@ public:
                                                "ASCII hex characters (no "
                                                "spaces or hex prefixes): '%s'",
                                                ascii_hex_bytes_cstr);
-                  result.SetStatus(eReturnStatusFailed);
                   return false;
                 }
               }
@@ -970,30 +967,25 @@ public:
                 else
                   result.AppendErrorWithFormat("unknown error 0x%8.8x",
                                                error.GetError());
-                result.SetStatus(eReturnStatusFailed);
                 return false;
               }
             } else {
               result.AppendErrorWithFormat("process must be stopped in order "
                                            "to send KDP packets, state is %s",
                                            StateAsCString(state));
-              result.SetStatus(eReturnStatusFailed);
             }
           } else {
             result.AppendError("invalid process");
-            result.SetStatus(eReturnStatusFailed);
           }
         } else {
           result.AppendErrorWithFormat("invalid command byte 0x%" PRIx64
                                        ", valid values are 1 - 255",
                                        command_byte);
-          result.SetStatus(eReturnStatusFailed);
         }
       }
     } else {
       result.AppendErrorWithFormat("'%s' takes no arguments, only options.",
                                    m_cmd_name.c_str());
-      result.SetStatus(eReturnStatusFailed);
     }
     return false;
   }
@@ -1011,7 +1003,7 @@ public:
         CommandObjectSP(new CommandObjectProcessKDPPacketSend(interpreter)));
   }
 
-  ~CommandObjectProcessKDPPacket() {}
+  ~CommandObjectProcessKDPPacket() = default;
 };
 
 class CommandObjectMultiwordProcessKDP : public CommandObjectMultiword {
@@ -1025,7 +1017,7 @@ public:
                                  interpreter)));
   }
 
-  ~CommandObjectMultiwordProcessKDP() {}
+  ~CommandObjectMultiwordProcessKDP() = default;
 };
 
 CommandObject *ProcessKDP::GetPluginCommandObject() {

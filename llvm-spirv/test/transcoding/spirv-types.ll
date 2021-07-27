@@ -7,6 +7,7 @@
 ; RUN: llvm-spirv -to-binary %t.spv.txt -o %t.from-text.spv
 ; RUN: cmp %t.from-llvm.spv %t.from-text.spv
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
@@ -99,7 +100,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM-SAME:     !kernel_arg_access_qual [[AQ:![0-9]+]]
 ; CHECK-LLVM-SAME:     !kernel_arg_type [[TYPE:![0-9]+]]
 ; CHECK-LLVM-SAME:     !kernel_arg_type_qual [[TQ:![0-9]+]]
-; CHECK-LLVM-SAME:     !kernel_arg_base_type [[BT:![0-9]+]]
+; CHECK-LLVM-SAME:     !kernel_arg_base_type [[TYPE]]
 
 ; Function Attrs: nounwind readnone
 define spir_kernel void @foo(
@@ -169,8 +170,7 @@ attributes #0 = { nounwind readnone "less-precise-fpmad"="false" "no-frame-point
 
 ; CHECK-LLVM-DAG: [[AS]] = !{i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1}
 ; CHECK-LLVM-DAG: [[AQ]] = !{!"read_only", !"write_only", !"read_only", !"read_only", !"read_only", !"read_only", !"read_only", !"write_only", !"read_write"}
-; CHECK-LLVM-DAG: [[TYPE]] = !{!"int", !"int", !"image1d_t", !"image2d_t", !"image3d_t", !"image2d_array_t", !"image1d_buffer_t", !"image1d_t", !"image2d_t"}
-; CHECK-LLVM-DAG: [[BT]] = !{!"pipe", !"pipe", !"image1d_t", !"image2d_t", !"image3d_t", !"image2d_array_t", !"image1d_buffer_t", !"image1d_t", !"image2d_t"}
+; CHECK-LLVM-DAG: [[TYPE]] = !{!"pipe", !"pipe", !"image1d_t", !"image2d_t", !"image3d_t", !"image2d_array_t", !"image1d_buffer_t", !"image1d_t", !"image2d_t"}
 ; CHECK-LLVM-DAG: [[TQ]] = !{!"pipe", !"pipe", !"", !"", !"", !"", !"", !"", !""}
 
 !1 = !{i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1}

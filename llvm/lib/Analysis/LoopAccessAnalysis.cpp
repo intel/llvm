@@ -199,9 +199,9 @@ void RuntimePointerChecking::insert(Loop *Lp, Value *Ptr, bool WritePtr,
   const SCEV *ScStart;
   const SCEV *ScEnd;
 
-  if (SE->isLoopInvariant(Sc, Lp))
+  if (SE->isLoopInvariant(Sc, Lp)) {
     ScStart = ScEnd = Sc;
-  else {
+  } else {
     const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(Sc);
     assert(AR && "Invalid addrec expression");
     const SCEV *Ex = PSE.getBackedgeTakenCount();
@@ -222,13 +222,13 @@ void RuntimePointerChecking::insert(Loop *Lp, Value *Ptr, bool WritePtr,
       ScStart = SE->getUMinExpr(ScStart, ScEnd);
       ScEnd = SE->getUMaxExpr(AR->getStart(), ScEnd);
     }
-    // Add the size of the pointed element to ScEnd.
-    auto &DL = Lp->getHeader()->getModule()->getDataLayout();
-    Type *IdxTy = DL.getIndexType(Ptr->getType());
-    const SCEV *EltSizeSCEV =
-        SE->getStoreSizeOfExpr(IdxTy, Ptr->getType()->getPointerElementType());
-    ScEnd = SE->getAddExpr(ScEnd, EltSizeSCEV);
   }
+  // Add the size of the pointed element to ScEnd.
+  auto &DL = Lp->getHeader()->getModule()->getDataLayout();
+  Type *IdxTy = DL.getIndexType(Ptr->getType());
+  const SCEV *EltSizeSCEV =
+      SE->getStoreSizeOfExpr(IdxTy, Ptr->getType()->getPointerElementType());
+  ScEnd = SE->getAddExpr(ScEnd, EltSizeSCEV);
 
   Pointers.emplace_back(Ptr, ScStart, ScEnd, WritePtr, DepSetId, ASId, Sc);
 }
@@ -1124,16 +1124,22 @@ int64_t llvm::getPtrStride(PredicatedScalarEvolution &PSE, Value *Ptr,
   return Stride;
 }
 
-Optional<int> llvm::getPointersDiff(Value *PtrA, Value *PtrB,
-                                    const DataLayout &DL, ScalarEvolution &SE,
-                                    bool StrictCheck, bool CheckType) {
+Optional<int> llvm::getPointersDiff(Type *ElemTyA, Value *PtrA, Type *ElemTyB,
+                                    Value *PtrB, const DataLayout &DL,
+                                    ScalarEvolution &SE, bool StrictCheck,
+                                    bool CheckType) {
   assert(PtrA && PtrB && "Expected non-nullptr pointers.");
+  assert(cast<PointerType>(PtrA->getType())
+             ->isOpaqueOrPointeeTypeMatches(ElemTyA) && "Wrong PtrA type");
+  assert(cast<PointerType>(PtrB->getType())
+             ->isOpaqueOrPointeeTypeMatches(ElemTyB) && "Wrong PtrB type");
+
   // Make sure that A and B are different pointers.
   if (PtrA == PtrB)
     return 0;
 
-  // Make sure that PtrA and PtrB have the same type if required
-  if (CheckType && PtrA->getType() != PtrB->getType())
+  // Make sure that the element types are the same if required.
+  if (CheckType && ElemTyA != ElemTyB)
     return None;
 
   unsigned ASA = PtrA->getType()->getPointerAddressSpace();
@@ -1174,8 +1180,7 @@ Optional<int> llvm::getPointersDiff(Value *PtrA, Value *PtrB,
       return None;
     Val = Diff->getAPInt().getSExtValue();
   }
-  Type *Ty = cast<PointerType>(PtrA->getType())->getElementType();
-  int Size = DL.getTypeStoreSize(Ty);
+  int Size = DL.getTypeStoreSize(ElemTyA);
   int Dist = Val / Size;
 
   // Ensure that the calculated distance matches the type-based one after all
@@ -1185,8 +1190,8 @@ Optional<int> llvm::getPointersDiff(Value *PtrA, Value *PtrB,
   return None;
 }
 
-bool llvm::sortPtrAccesses(ArrayRef<Value *> VL, const DataLayout &DL,
-                           ScalarEvolution &SE,
+bool llvm::sortPtrAccesses(ArrayRef<Value *> VL, Type *ElemTy,
+                           const DataLayout &DL, ScalarEvolution &SE,
                            SmallVectorImpl<unsigned> &SortedIndices) {
   assert(llvm::all_of(
              VL, [](const Value *V) { return V->getType()->isPointerTy(); }) &&
@@ -1204,8 +1209,8 @@ bool llvm::sortPtrAccesses(ArrayRef<Value *> VL, const DataLayout &DL,
   int Cnt = 1;
   bool IsConsecutive = true;
   for (auto *Ptr : VL.drop_front()) {
-    Optional<int> Diff =
-        getPointersDiff(Ptr0, Ptr, DL, SE, /*StrictCheck=*/true);
+    Optional<int> Diff = getPointersDiff(ElemTy, Ptr0, ElemTy, Ptr, DL, SE,
+                                         /*StrictCheck=*/true);
     if (!Diff)
       return false;
 
@@ -1238,8 +1243,10 @@ bool llvm::isConsecutiveAccess(Value *A, Value *B, const DataLayout &DL,
   Value *PtrB = getLoadStorePointerOperand(B);
   if (!PtrA || !PtrB)
     return false;
-  Optional<int> Diff =
-      getPointersDiff(PtrA, PtrB, DL, SE, /*StrictCheck=*/true, CheckType);
+  Type *ElemTyA = getLoadStoreType(A);
+  Type *ElemTyB = getLoadStoreType(B);
+  Optional<int> Diff = getPointersDiff(ElemTyA, PtrA, ElemTyB, PtrB, DL, SE,
+                                       /*StrictCheck=*/true, CheckType);
   return Diff && *Diff == 1;
 }
 
@@ -1507,7 +1514,8 @@ MemoryDepChecker::isDependent(const MemAccessInfo &A, unsigned AIdx,
   uint64_t Stride = std::abs(StrideAPtr);
   const SCEVConstant *C = dyn_cast<SCEVConstant>(Dist);
   if (!C) {
-    if (TypeByteSize == DL.getTypeAllocSize(BTy) &&
+    if (!isa<SCEVCouldNotCompute>(Dist) &&
+        TypeByteSize == DL.getTypeAllocSize(BTy) &&
         isSafeDependenceDistance(DL, *(PSE.getSE()),
                                  *(PSE.getBackedgeTakenCount()), *Dist, Stride,
                                  TypeByteSize))

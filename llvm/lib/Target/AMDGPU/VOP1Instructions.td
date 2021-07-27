@@ -64,6 +64,8 @@ class VOP1_Real <VOP1_Pseudo ps, int EncodingFamily> :
   InstSI <ps.OutOperandList, ps.InOperandList, ps.Mnemonic # ps.AsmOperands, []>,
   SIMCInstr <ps.PseudoInstr, EncodingFamily> {
 
+  let VALU = 1;
+  let VOP1 = 1;
   let isPseudo = 0;
   let isCodeGenOnly = 0;
 
@@ -81,6 +83,9 @@ class VOP1_Real <VOP1_Pseudo ps, int EncodingFamily> :
   let Uses                 = ps.Uses;
   let Defs                 = ps.Defs;
   let SchedRW              = ps.SchedRW;
+  let mayLoad              = ps.mayLoad;
+  let mayStore             = ps.mayStore;
+  let TRANS                = ps.TRANS;
 }
 
 class VOP1_SDWA_Pseudo <string OpName, VOPProfile P, list<dag> pattern=[]> :
@@ -198,6 +203,7 @@ def V_READFIRSTLANE_B32 :
   let Inst{31-25} = 0x3f; //encoding
 }
 
+let isReMaterializable = 1 in {
 let SchedRW = [WriteDoubleCvt] in {
 // OMod clears exceptions when set in this instruction
 defm V_CVT_I32_F64 : VOP1Inst <"v_cvt_i32_f64", VOP_I32_F64_SPECIAL_OMOD,  fp_to_sint>;
@@ -241,6 +247,7 @@ defm V_CVT_FLR_I32_F32 : VOP1Inst <"v_cvt_flr_i32_f32", VOP_I32_F32, cvt_flr_i32
 defm V_CVT_OFF_F32_I4 : VOP1Inst  <"v_cvt_off_f32_i4", VOP1_F32_I32>;
 } // End ReadsModeReg = 0, mayRaiseFPException = 0
 } // End SchedRW = [WriteFloatCvt]
+} // End isReMaterializable = 1
 
 let ReadsModeReg = 0, mayRaiseFPException = 0 in {
 defm V_CVT_F32_UBYTE0 : VOP1Inst <"v_cvt_f32_ubyte0", VOP1_F32_I32, AMDGPUcvt_f32_ubyte0>;
@@ -498,6 +505,7 @@ class VOP1_DPP<bits<8> op, VOP1_DPP_Pseudo ps, VOPProfile p = ps.Pfl, bit isDPP1
   let Defs = ps.Defs;
   let SchedRW = ps.SchedRW;
   let Uses = ps.Uses;
+  let TRANS = ps.TRANS;
 
   bits<8> vdst;
   let Inst{8-0}   = 0xfa;

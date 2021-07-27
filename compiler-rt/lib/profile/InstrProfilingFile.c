@@ -261,9 +261,13 @@ static int doProfileMerging(FILE *ProfileFile, int *MergeDone) {
     return -1;
 
   /* Now start merging */
-  __llvm_profile_merge_from_buffer(ProfileBuffer, ProfileFileSize);
+  if (__llvm_profile_merge_from_buffer(ProfileBuffer, ProfileFileSize)) {
+    PROF_ERR("%s\n", "Invalid profile data to merge");
+    (void)munmap(ProfileBuffer, ProfileFileSize);
+    return -1;
+  }
 
-  // Truncate the file in case merging of value profile did not happend to
+  // Truncate the file in case merging of value profile did not happen to
   // prevent from leaving garbage data at the end of the profile file.
   (void)COMPILER_RT_FTRUNCATE(ProfileFile,
                               __llvm_profile_get_size_for_buffer());
@@ -486,6 +490,8 @@ static void relocateCounters(void) {
    * __llvm_profile_get_size_for_buffer(). */
   const __llvm_profile_data *DataBegin = __llvm_profile_begin_data();
   const __llvm_profile_data *DataEnd = __llvm_profile_end_data();
+  const uint64_t *CountersBegin = __llvm_profile_begin_counters();
+  const uint64_t *CountersEnd = __llvm_profile_end_counters();
   uint64_t DataSize = __llvm_profile_get_data_size(DataBegin, DataEnd);
   const uint64_t CountersOffset = sizeof(__llvm_profile_header) +
       (DataSize * sizeof(__llvm_profile_data));
@@ -538,8 +544,11 @@ static void relocateCounters(void) {
   }
 
   /* Update the profile fields based on the current mapping. */
-  __llvm_profile_counter_bias = (intptr_t)Profile -
-      (uintptr_t)__llvm_profile_begin_counters() + CountersOffset;
+  __llvm_profile_counter_bias =
+      (intptr_t)Profile - (uintptr_t)CountersBegin + CountersOffset;
+
+  /* Return the memory allocated for counters to OS. */
+  lprofReleaseMemoryPagesToOS((uintptr_t)CountersBegin, (uintptr_t)CountersEnd);
 }
 
 static void initializeProfileForContinuousMode(void) {

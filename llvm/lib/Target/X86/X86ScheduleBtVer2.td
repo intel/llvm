@@ -273,6 +273,7 @@ def : WriteRes<WriteLoad,    [JLAGU]> { let Latency = 3; }
 def : WriteRes<WriteStore,   [JSAGU]>;
 def : WriteRes<WriteStoreNT, [JSAGU]>;
 def : WriteRes<WriteMove,    [JALU01]>;
+defm : X86WriteResUnsupported<WriteVecMaskedGatherWriteback>;
 
 // Load/store MXCSR.
 def : WriteRes<WriteLDMXCSR, [JLAGU]> { let Latency = 3; }
@@ -834,8 +835,8 @@ def JWriteMASKMOVDQU: SchedWriteRes<[JFPU0, JFPA, JFPU1, JSTC, JLAGU, JSAGU, JAL
   let ResourceCycles = [1, 1, 2, 2, 2, 16, 42];
   let NumMicroOps = 63;
 }
-def : InstRW<[JWriteMASKMOVDQU], (instrs MASKMOVDQU, MASKMOVDQU64,
-                                         VMASKMOVDQU, VMASKMOVDQU64)>;
+def : InstRW<[JWriteMASKMOVDQU], (instrs MASKMOVDQU, MASKMOVDQU64, MASKMOVDQUX32,
+                                         VMASKMOVDQU, VMASKMOVDQU64, VMASKMOVDQUX32)>;
 
 ///////////////////////////////////////////////////////////////////////////////
 //  SchedWriteVariant definitions.

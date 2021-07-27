@@ -85,3 +85,11 @@ func @mismatch_values_types(%arg0: tensor<?xf64, #SparseVector>) -> memref<?xf32
   %0 = sparse_tensor.values %arg0 : tensor<?xf64, #SparseVector> to memref<?xf32>
   return %0 : memref<?xf32>
 }
+
+// -----
+
+func @sparse_to_unannotated_tensor(%arg0: memref<?xf64>) -> tensor<16x32xf64> {
+  // expected-error@+1 {{expected a sparse tensor as result}}
+  %0 = sparse_tensor.tensor %arg0 : memref<?xf64> to tensor<16x32xf64>
+  return %0 : tensor<16x32xf64>
+}

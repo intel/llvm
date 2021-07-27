@@ -42,50 +42,51 @@ int main() {
   cl::sycl::program program(queue.get_context());
 
   // Create specialization constants.
-  cl::sycl::ONEAPI::experimental::spec_constant<bool, MyBoolConst> i1 =
+  cl::sycl::ext::oneapi::experimental::spec_constant<bool, MyBoolConst> i1 =
       program.set_spec_constant<MyBoolConst>((bool)get_value());
   // CHECK-DAG: _ZTS11MyBoolConst=2|
 
-  cl::sycl::ONEAPI::experimental::spec_constant<int8_t, MyInt8Const> i8 =
+  cl::sycl::ext::oneapi::experimental::spec_constant<int8_t, MyInt8Const> i8 =
       program.set_spec_constant<MyInt8Const>((int8_t)get_value());
   // CHECK-DAG: _ZTS11MyInt8Const=2|
-  cl::sycl::ONEAPI::experimental::spec_constant<uint8_t, MyUInt8Const> ui8 =
-      program.set_spec_constant<MyUInt8Const>((uint8_t)get_value());
+  cl::sycl::ext::oneapi::experimental::spec_constant<uint8_t, MyUInt8Const>
+      ui8 = program.set_spec_constant<MyUInt8Const>((uint8_t)get_value());
   // CHECK-DAG: _ZTS12MyUInt8Const=2|
 
-  cl::sycl::ONEAPI::experimental::spec_constant<int16_t, MyInt16Const> i16 =
-      program.set_spec_constant<MyInt16Const>((int16_t)get_value());
+  cl::sycl::ext::oneapi::experimental::spec_constant<int16_t, MyInt16Const>
+      i16 = program.set_spec_constant<MyInt16Const>((int16_t)get_value());
   // CHECK-DAG: _ZTS12MyInt16Const=2|
-  cl::sycl::ONEAPI::experimental::spec_constant<uint16_t, MyUInt16Const> ui16 =
-      program.set_spec_constant<MyUInt16Const>((uint16_t)get_value());
+  cl::sycl::ext::oneapi::experimental::spec_constant<uint16_t, MyUInt16Const>
+      ui16 = program.set_spec_constant<MyUInt16Const>((uint16_t)get_value());
   // CHECK-DAG: _ZTS13MyUInt16Const=2|
 
-  cl::sycl::ONEAPI::experimental::spec_constant<int32_t, MyInt32Const> i32 =
-      program.set_spec_constant<MyInt32Const>((int32_t)get_value());
+  cl::sycl::ext::oneapi::experimental::spec_constant<int32_t, MyInt32Const>
+      i32 = program.set_spec_constant<MyInt32Const>((int32_t)get_value());
   // CHECK-DAG: _ZTS12MyInt32Const=2|
-  cl::sycl::ONEAPI::experimental::spec_constant<uint32_t, MyUInt32Const> ui32 =
-      program.set_spec_constant<MyUInt32Const>((uint32_t)get_value());
+  cl::sycl::ext::oneapi::experimental::spec_constant<uint32_t, MyUInt32Const>
+      ui32 = program.set_spec_constant<MyUInt32Const>((uint32_t)get_value());
   // CHECK-DAG: _ZTS13MyUInt32Const=2|
 
-  cl::sycl::ONEAPI::experimental::spec_constant<int64_t, MyInt64Const> i64 =
-      program.set_spec_constant<MyInt64Const>((int64_t)get_value());
+  cl::sycl::ext::oneapi::experimental::spec_constant<int64_t, MyInt64Const>
+      i64 = program.set_spec_constant<MyInt64Const>((int64_t)get_value());
   // CHECK-DAG: _ZTS12MyInt64Const=2|
-  cl::sycl::ONEAPI::experimental::spec_constant<uint64_t, MyUInt64Const> ui64 =
-      program.set_spec_constant<MyUInt64Const>((uint64_t)get_value());
+  cl::sycl::ext::oneapi::experimental::spec_constant<uint64_t, MyUInt64Const>
+      ui64 = program.set_spec_constant<MyUInt64Const>((uint64_t)get_value());
   // CHECK-DAG: _ZTS13MyUInt64Const=2|
 
 #define HALF 0 // TODO not yet supported
 #if HALF
-  cl::sycl::ONEAPI::experimental::spec_constant<cl::sycl::half, MyHalfConst>
+  cl::sycl::ext::oneapi::experimental::spec_constant<cl::sycl::half,
+                                                     MyHalfConst>
       f16 = program.set_spec_constant<MyHalfConst>((cl::sycl::half)get_value());
 #endif
 
-  cl::sycl::ONEAPI::experimental::spec_constant<float, MyFloatConst> f32 =
+  cl::sycl::ext::oneapi::experimental::spec_constant<float, MyFloatConst> f32 =
       program.set_spec_constant<MyFloatConst>((float)get_value());
   // CHECK-DAG: _ZTS12MyFloatConst=2|
 
-  cl::sycl::ONEAPI::experimental::spec_constant<double, MyDoubleConst> f64 =
-      program.set_spec_constant<MyDoubleConst>((double)get_value());
+  cl::sycl::ext::oneapi::experimental::spec_constant<double, MyDoubleConst>
+      f64 = program.set_spec_constant<MyDoubleConst>((double)get_value());
   // CHECK-DAG: _ZTS13MyDoubleConst=2|
 
   program.build_with_kernel_type<SpecializedKernel>();

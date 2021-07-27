@@ -144,6 +144,13 @@ set( CMAKE_CLC_ARCHIVE ${LLVM_LINK} )
 set( CMAKE_LLAsm_PREPROCESSOR ${LLVM_CLANG} )
 set( CMAKE_LLAsm_COMPILER ${LLVM_AS} )
 set( CMAKE_LLAsm_ARCHIVE ${LLVM_LINK} )
+
+# LLVM 13 enables standard includes by default
+if( ${LLVM_VERSION} VERSION_GREATER "12.99.99" )
+				set( CMAKE_LLAsm_FLAGS ${CMAKE_LLAsm_FLAGS} -cl-no-stdinc )
+				set( CMAKE_CLC_FLAGS ${CMAKE_CLC_FLAGS} -cl-no-stdinc )
+endif()
+
 enable_language( CLC LLAsm )
 
 # Configure prepare_builtins
@@ -311,7 +318,9 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 		if( ${d} STREQUAL "none" OR ${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64" )
 			# FIXME: Ideally we would not be tied to a specific PTX ISA version
 			if( ${ARCH} STREQUAL nvptx OR ${ARCH} STREQUAL nvptx64 )
-				set( flags "SHELL:-Xclang -target-feature" "SHELL:-Xclang +ptx64")
+				# Disables NVVM reflection to defer to after linking
+				set( flags "SHELL:-Xclang -target-feature" "SHELL:-Xclang +ptx72"
+						 "SHELL:-march=sm_86" "SHELL:-mllvm --nvvm-reflect-enable=false")
 			endif()
 			set( arch_suffix "${t}" )
 		else()
@@ -327,21 +336,29 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 				set( t "spir64--" )
 			endif()
 			set( build_flags -O0 -finline-hint-functions )
-			set( opt_flags )
+			set( opt_flags -O3 )
 			set( spvflags --spirv-max-version=1.1 )
 		elseif( ${ARCH} STREQUAL "clspv" )
 			set( t "spir--" )
 			set( build_flags )
 			set( opt_flags -O3 )
+		elseif( ${ARCH} STREQUAL "nvptx" OR ${ARCH} STREQUAL "nvptx64" )
+			set( build_flags )
+			set( opt_flags -O3 "--nvvm-reflect-enable=false" )
 		else()
 			set( build_flags )
 			set( opt_flags -O3 )
 		endif()
 
+                # Enable SPIR-V builtin function declarations, so they don't
+                # have to be explicity declared in the soruce.
+                list( APPEND flags -Xclang -fdeclare-spirv-builtins)
+
 		add_libclc_builtin_set(libspirv-${arch_suffix}
 			TRIPLE ${t}
 			TARGET_ENV libspirv
 			COMPILE_OPT ${flags}
+			OPT_FLAGS ${opt_flags}
 			FILES ${libspirv_files}
 			ALIASES ${${d}_aliases}
 			GENERATE_TARGET "generate_convert_spirv.cl" "generate_convert_core.cl"
@@ -351,6 +368,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			TRIPLE ${t}
 			TARGET_ENV clc
 			COMPILE_OPT ${flags}
+			OPT_FLAGS ${opt_flags}
 			FILES ${lib_files}
 			LIB_DEP libspirv-${arch_suffix}
 			ALIASES ${${d}_aliases}

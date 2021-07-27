@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Conversion/SPIRVToLLVM/SPIRVToLLVM.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
+#include "mlir/Conversion/LLVMCommon/Pattern.h"
+#include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
@@ -1342,25 +1342,11 @@ public:
 
     auto newModuleOp =
         rewriter.create<ModuleOp>(spvModuleOp.getLoc(), spvModuleOp.getName());
-    rewriter.inlineRegionBefore(spvModuleOp.body(), newModuleOp.getBody());
+    rewriter.inlineRegionBefore(spvModuleOp.getRegion(), newModuleOp.getBody());
 
     // Remove the terminator block that was automatically added by builder
     rewriter.eraseBlock(&newModuleOp.getBodyRegion().back());
     rewriter.eraseOp(spvModuleOp);
-    return success();
-  }
-};
-
-class ModuleEndConversionPattern
-    : public SPIRVToLLVMConversion<spirv::ModuleEndOp> {
-public:
-  using SPIRVToLLVMConversion<spirv::ModuleEndOp>::SPIRVToLLVMConversion;
-
-  LogicalResult
-  matchAndRewrite(spirv::ModuleEndOp moduleEndOp, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-
-    rewriter.eraseOp(moduleEndOp);
     return success();
   }
 };
@@ -1507,8 +1493,7 @@ void mlir::populateSPIRVToLLVMFunctionConversionPatterns(
 
 void mlir::populateSPIRVToLLVMModuleConversionPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns) {
-  patterns.add<ModuleConversionPattern, ModuleEndConversionPattern>(
-      patterns.getContext(), typeConverter);
+  patterns.add<ModuleConversionPattern>(patterns.getContext(), typeConverter);
 }
 
 //===----------------------------------------------------------------------===//

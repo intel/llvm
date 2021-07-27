@@ -314,7 +314,7 @@ for.cond.cleanup3:
 ; UNROLL-NO-IC-NEXT:    [[TMP42]] = insertelement <4 x i32> [[TMP41]], i32 [[TMP34]], i32 3
 ; UNROLL-NO-IC-NEXT:    [[TMP43:%.*]] = shufflevector <4 x i32> [[VECTOR_RECUR]], <4 x i32> [[TMP38]], <4 x i32> <i32 3, i32 4, i32 5, i32 6>
 ; UNROLL-NO-IC-NEXT:    [[TMP44:%.*]] = shufflevector <4 x i32> [[TMP38]], <4 x i32> [[TMP42]], <4 x i32> <i32 3, i32 4, i32 5, i32 6>
-; UNROLL-NO-IC-NEXT:    [[INDEX_NEXT]] = add i64 [[INDEX]], 8
+; UNROLL-NO-IC-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 8
 ; UNROLL-NO-IC:         br i1 {{.*}}, label %middle.block, label %vector.body
 ;
 define void @PR30183(i32 %pre_load, i32* %a, i32* %b, i64 %n) {
@@ -366,7 +366,7 @@ for.end:
 ; UNROLL-NO-IC:   %step.add = add <4 x i32> %vec.ind, <i32 4, i32 4, i32 4, i32 4>
 ; UNROLL-NO-IC:   %[[L1:.+]] = add <4 x i32> %vec.ind, %broadcast.splat
 ; UNROLL-NO-IC:   %[[L2:.+]] = add <4 x i32> %step.add, %broadcast.splat
-; UNROLL-NO-IC:   %index.next = add i32 %index, 8
+; UNROLL-NO-IC:   %index.next = add nuw i32 %index, 8
 ; UNROLL-NO-IC:   icmp eq i32 %index.next, 96
 ; UNROLL-NO-IC: middle.block
 ; UNROLL-NO-IC:   icmp eq i32 96, 96
@@ -381,7 +381,7 @@ for.end:
 ; UNROLL-NO-VF:   %induction1 = add i32 %index, 1
 ; UNROLL-NO-VF:   %[[L1:.+]] = add i32 %induction, %x
 ; UNROLL-NO-VF:   %[[L2:.+]] = add i32 %induction1, %x
-; UNROLL-NO-VF:   %index.next = add i32 %index, 2
+; UNROLL-NO-VF:   %index.next = add nuw i32 %index, 2
 ; UNROLL-NO-VF:   icmp eq i32 %index.next, 96
 ; UNROLL-NO-VF: for.end:
 ; UNROLL-NO-VF:   %val.phi.lcssa = phi i32 [ %scalar.recur, %for.body ], [ %[[L1]], %middle.block ]
@@ -570,7 +570,7 @@ for.end:
 ; SINK-AFTER-NEXT:    %12 = getelementptr inbounds i32, i32* %11, i32 0
 ; SINK-AFTER-NEXT:    %13 = bitcast i32* %12 to <4 x i32>*
 ; SINK-AFTER-NEXT:    store <4 x i32> %10, <4 x i32>* %13, align 4, !alias.scope !46, !noalias !43
-; SINK-AFTER-NEXT:    %index.next = add i64 %index, 4
+; SINK-AFTER-NEXT:    %index.next = add nuw i64 %index, 4
 ; SINK-AFTER-NEXT:    %14 = icmp eq i64 %index.next, %n.vec
 ; SINK-AFTER-NEXT:    br i1 %14, label %middle.block, label %vector.body, !llvm.loop !48
 ;
@@ -648,7 +648,7 @@ define void @sink_dead_inst() {
 ; SINK-AFTER-NEXT:    %3 = add <4 x i16> %0, <i16 5, i16 5, i16 5, i16 5>
 ; SINK-AFTER-NEXT:    %4 = shufflevector <4 x i16> %vector.recur, <4 x i16> %3, <4 x i32> <i32 3, i32 4, i32 5, i32 6>
 ; SINK-AFTER-NEXT:    %5 = sub <4 x i16> %4, <i16 10, i16 10, i16 10, i16 10>
-; SINK-AFTER-NEXT:    %index.next = add i32 %index, 4
+; SINK-AFTER-NEXT:    %index.next = add nuw i32 %index, 4
 ; SINK-AFTER-NEXT:    %vec.ind.next = add <4 x i16> %vec.ind, <i16 4, i16 4, i16 4, i16 4>
 ; SINK-AFTER-NEXT:    %6 = icmp eq i32 %index.next, 40
 ; SINK-AFTER-NEXT:    br i1 %6, label %middle.block, label %vector.body, !llvm.loop !50
@@ -893,6 +893,45 @@ bb:
   %iv.next = add nsw i32 %iv, 1
   %tmp9 = icmp slt i32 %tmp3, 2
   br i1 %tmp9, label %bb1, label %bb2, !prof !2
+}
+
+; %vec.dead will be marked as dead instruction in the vector loop and no recipe
+; will be created for it. Make sure a valid sink target is used.
+define void @sink_after_dead_inst(i32* %A.ptr) {
+; CHECK-LABEL: @sink_after_dead_inst
+; CHECK-LABEL: vector.body:
+; CHECK-NEXT:    [[INDEX:%.*]] = phi i32 [ 0, %vector.ph ], [ [[INDEX_NEXT]], %vector.body ]
+; CHECK-NEXT:    [[OFFSET_IDX:%.*]] = zext i32 [[INDEX]] to i64
+; CHECK-NEXT:    [[SEXT:%.*]] = shl i64 [[OFFSET_IDX]], 48
+; CHECK-NEXT:    [[SHIFT:%.*]] = ashr exact i64 [[SEXT]], 48
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr i32, i32* %A.ptr, i64 [[SHIFT]]
+; CHECK-NEXT:    [[CAST:%.*]] = bitcast i32* [[GEP]]  to <4 x i32>*
+; CHECK-NEXT:    store <4 x i32> zeroinitializer, <4 x i32>* [[CAST]], align 4
+; CHECK-NEXT:    [[INDEX_NEXT:%.*]] = add nuw i32 [[INDEX]], 4
+; CHECK-NEXT:    [[EC:%.*]] = icmp eq i32 [[INDEX_NEXT]], 16
+; CHECK-NEXT:    br i1 [[EC]], label %middle.block, label %vector.body
+
+entry:
+  br label %loop
+
+loop:
+  %iv = phi i16 [ 0, %entry ], [ %iv.next, %loop ]
+  %for = phi i32 [ 0, %entry ], [ %for.prev, %loop ]
+  %cmp = icmp eq i32 %for, 15
+  %C = icmp eq i1 %cmp, true
+  %vec.dead = and i1 %C, 1
+  %iv.next = add i16 %iv, 1
+  %B1 = or i16 %iv.next, %iv.next
+  %B3 = and i1 %cmp, %C
+  %for.prev = zext i16 %B1 to i32
+
+  %ext = zext i1 %B3 to i32
+  %A.gep = getelementptr i32, i32* %A.ptr, i16 %iv
+  store i32 0, i32* %A.gep
+  br i1 %vec.dead, label %for.end, label %loop
+
+for.end:
+  ret void
 }
 
 !2 = !{!"branch_weights", i32 1, i32 1}

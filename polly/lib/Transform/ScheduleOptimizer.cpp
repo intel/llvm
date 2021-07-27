@@ -362,7 +362,7 @@ ScheduleTreeOptimizer::isolateFullPartialTiles(isl::schedule_node Node,
   isl::union_set ScheduleRangeUSet = SchedRelUMap.range();
   isl::set ScheduleRange{ScheduleRangeUSet};
   isl::set IsolateDomain = getPartialTilePrefixes(ScheduleRange, VectorWidth);
-  auto AtomicOption = getDimOptions(IsolateDomain.get_ctx(), "atomic");
+  auto AtomicOption = getDimOptions(IsolateDomain.ctx(), "atomic");
   isl::union_set IsolateOption = getIsolateOptions(IsolateDomain, 1);
   Node = Node.parent().parent();
   isl::union_set Options = IsolateOption.unite(AtomicOption);
@@ -387,7 +387,7 @@ isl::schedule_node ScheduleTreeOptimizer::prevectSchedBand(
     Node = isl::manage(isl_schedule_node_band_split(Node.release(), 1));
   Space = isl::manage(isl_schedule_node_band_get_space(Node.get()));
   auto Sizes = isl::multi_val::zero(Space);
-  Sizes = Sizes.set_val(0, isl::val(Node.get_ctx(), VectorWidth));
+  Sizes = Sizes.set_val(0, isl::val(Node.ctx(), VectorWidth));
   Node =
       isl::manage(isl_schedule_node_band_tile(Node.release(), Sizes.release()));
   Node = isolateFullPartialTiles(Node, VectorWidth);
@@ -395,12 +395,12 @@ isl::schedule_node ScheduleTreeOptimizer::prevectSchedBand(
   // Make sure the "trivially vectorizable loop" is not unrolled. Otherwise,
   // we will have troubles to match it in the backend.
   Node = Node.band_set_ast_build_options(
-      isl::union_set(Node.get_ctx(), "{ unroll[x]: 1 = 0 }"));
+      isl::union_set(Node.ctx(), "{ unroll[x]: 1 = 0 }"));
   Node = isl::manage(isl_schedule_node_band_sink(Node.release()));
   Node = Node.child(0);
   if (isl_schedule_node_get_type(Node.get()) == isl_schedule_node_leaf)
     Node = Node.parent();
-  auto LoopMarker = isl::id::alloc(Node.get_ctx(), "SIMD", nullptr);
+  auto LoopMarker = isl::id::alloc(Node.ctx(), "SIMD", nullptr);
   PrevectOpts++;
   return Node.insert_mark(LoopMarker);
 }
@@ -495,8 +495,9 @@ ScheduleTreeOptimizer::optimizeBand(__isl_take isl_schedule_node *Node,
       static_cast<const OptimizerAdditionalInfoTy *>(User);
 
   if (PMBasedOpts && User) {
-    if (isl::schedule_node PatternOptimizedSchedule = tryOptimizeMatMulPattern(
-            isl::manage_copy(Node), OAI->TTI, OAI->D)) {
+    isl::schedule_node PatternOptimizedSchedule =
+        tryOptimizeMatMulPattern(isl::manage_copy(Node), OAI->TTI, OAI->D);
+    if (!PatternOptimizedSchedule.is_null()) {
       MatMulOpts++;
       isl_schedule_node_free(Node);
       return PatternOptimizedSchedule.release();
@@ -535,8 +536,9 @@ bool ScheduleTreeOptimizer::isProfitableSchedule(Scop &S,
   // (e.g., #stride-one accesses)
   auto NewScheduleMap = NewSchedule.get_map();
   auto OldSchedule = S.getSchedule();
-  assert(OldSchedule && "Only IslScheduleOptimizer can insert extension nodes "
-                        "that make Scop::getSchedule() return nullptr.");
+  assert(!OldSchedule.is_null() &&
+         "Only IslScheduleOptimizer can insert extension nodes "
+         "that make Scop::getSchedule() return nullptr.");
   bool changed = !OldSchedule.is_equal(NewScheduleMap);
   return changed;
 }
@@ -546,8 +548,6 @@ public:
   static char ID;
 
   explicit IslScheduleOptimizerWrapperPass() : ScopPass(ID) {}
-
-  ~IslScheduleOptimizerWrapperPass() override { releaseMemory(); }
 
   /// Optimize the schedule of the SCoP @p S.
   bool runOnScop(Scop &S) override;
@@ -560,7 +560,7 @@ public:
 
   /// Release the internal memory.
   void releaseMemory() override {
-    LastSchedule = nullptr;
+    LastSchedule = {};
     IslCtx.reset();
   }
 
@@ -574,7 +574,7 @@ char IslScheduleOptimizerWrapperPass::ID = 0;
 #ifndef NDEBUG
 static void printSchedule(llvm::raw_ostream &OS, const isl::schedule &Schedule,
                           StringRef Desc) {
-  isl::ctx Ctx = Schedule.get_ctx();
+  isl::ctx Ctx = Schedule.ctx();
   isl_printer *P = isl_printer_to_str(Ctx.get());
   P = isl_printer_set_yaml_style(P, ISL_YAML_STYLE_BLOCK);
   P = isl_printer_print_schedule(P, Schedule.get());
@@ -596,7 +596,7 @@ static void printSchedule(llvm::raw_ostream &OS, const isl::schedule &Schedule,
 ///                 (tiling, pattern matching)
 static void walkScheduleTreeForStatistics(isl::schedule Schedule, int Version) {
   auto Root = Schedule.get_root();
-  if (!Root)
+  if (Root.is_null())
     return;
 
   isl_schedule_node_foreach_descendant_top_down(
@@ -664,7 +664,7 @@ static bool runIslScheduleOptimizer(
   if (PragmaBasedOpts) {
     isl::schedule ManuallyTransformed =
         applyManualTransformations(&S, Schedule);
-    if (!ManuallyTransformed) {
+    if (ManuallyTransformed.is_null()) {
       LLVM_DEBUG(dbgs() << "Error during manual optimization\n");
       return false;
     }
@@ -726,7 +726,7 @@ static bool runIslScheduleOptimizer(
 
     isl::union_set Domain = S.getDomains();
 
-    if (!Domain)
+    if (Domain.is_null())
       return false;
 
     isl::union_map Validity = D.getDependences(ValidityKinds);
@@ -819,7 +819,7 @@ static bool runIslScheduleOptimizer(
 
   // In cases the scheduler is not able to optimize the code, we just do not
   // touch the schedule.
-  if (!Schedule)
+  if (Schedule.is_null())
     return false;
 
   // Apply post-rescheduling optimizations.
@@ -871,12 +871,12 @@ static void runScheduleOptimizerPrinter(raw_ostream &OS,
 
   OS << "Calculated schedule:\n";
 
-  if (!LastSchedule) {
+  if (LastSchedule.is_null()) {
     OS << "n/a\n";
     return;
   }
 
-  p = isl_printer_to_str(LastSchedule.get_ctx().get());
+  p = isl_printer_to_str(LastSchedule.ctx().get());
   p = isl_printer_set_yaml_style(p, ISL_YAML_STYLE_BLOCK);
   p = isl_printer_print_schedule(p, LastSchedule.get());
   ScheduleStr = isl_printer_get_str(p);

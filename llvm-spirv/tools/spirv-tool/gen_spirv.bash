@@ -164,6 +164,7 @@ genFile() {
 
 #include \"SPIRVEnum.h\"
 #include \"spirv.hpp\"
+#include \"spirv_internal.hpp\"
 
 using namespace spv;
 

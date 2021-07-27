@@ -10,8 +10,9 @@
 #define _LIBCPP___ALGORITHM_MERGE_H
 
 #include <__config>
-#include <__algorithm/copy.h>
+#include <__algorithm/comp.h>
 #include <__algorithm/comp_ref_type.h>
+#include <__algorithm/copy.h>
 #include <__iterator/iterator_traits.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)

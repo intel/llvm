@@ -98,6 +98,7 @@ namespace {
     void VisitUnresolvedUsingTypenameDecl(UnresolvedUsingTypenameDecl *D);
     void VisitUnresolvedUsingValueDecl(UnresolvedUsingValueDecl *D);
     void VisitUsingDecl(UsingDecl *D);
+    void VisitUsingEnumDecl(UsingEnumDecl *D);
     void VisitUsingShadowDecl(UsingShadowDecl *D);
     void VisitOMPThreadPrivateDecl(OMPThreadPrivateDecl *D);
     void VisitOMPAllocateDecl(OMPAllocateDecl *D);
@@ -1151,7 +1152,6 @@ void DeclPrinter::VisitTemplateDecl(const TemplateDecl *D) {
     Out << "concept " << Concept->getName() << " = " ;
     Concept->getConstraintExpr()->printPretty(Out, nullptr, Policy, Indentation,
                                               "\n", &Context);
-    Out << ";";
   }
 }
 
@@ -1613,6 +1613,10 @@ void DeclPrinter::VisitUsingDecl(UsingDecl *D) {
     }
   }
   Out << *D;
+}
+
+void DeclPrinter::VisitUsingEnumDecl(UsingEnumDecl *D) {
+  Out << "using enum " << D->getEnumDecl();
 }
 
 void

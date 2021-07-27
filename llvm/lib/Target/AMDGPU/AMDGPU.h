@@ -56,6 +56,7 @@ FunctionPass *createSILoadStoreOptimizerPass();
 FunctionPass *createSIWholeQuadModePass();
 FunctionPass *createSIFixControlFlowLiveIntervalsPass();
 FunctionPass *createSIOptimizeExecMaskingPreRAPass();
+FunctionPass *createSIOptimizeVGPRLiveRangePass();
 FunctionPass *createSIFixSGPRCopiesPass();
 FunctionPass *createSIMemoryLegalizerPass();
 FunctionPass *createSIInsertWaitcntsPass();
@@ -71,8 +72,10 @@ FunctionPass *createAMDGPUMachineCFGStructurizerPass();
 FunctionPass *createAMDGPUPropagateAttributesEarlyPass(const TargetMachine *);
 ModulePass *createAMDGPUPropagateAttributesLatePass(const TargetMachine *);
 FunctionPass *createAMDGPURewriteOutArgumentsPass();
+ModulePass *createAMDGPUReplaceLDSUseWithPointerPass();
 ModulePass *createAMDGPULowerModuleLDSPass();
 FunctionPass *createSIModeRegisterPass();
+FunctionPass *createGCNPreRAOptimizationsPass();
 
 struct AMDGPUSimplifyLibCallsPass : PassInfoMixin<AMDGPUSimplifyLibCallsPass> {
   AMDGPUSimplifyLibCallsPass(TargetMachine &TM) : TM(TM) {}
@@ -144,6 +147,14 @@ struct AMDGPUPropagateAttributesLatePass
 
 private:
   TargetMachine &TM;
+};
+
+void initializeAMDGPUReplaceLDSUseWithPointerPass(PassRegistry &);
+extern char &AMDGPUReplaceLDSUseWithPointerID;
+
+struct AMDGPUReplaceLDSUseWithPointerPass
+    : PassInfoMixin<AMDGPUReplaceLDSUseWithPointerPass> {
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 void initializeAMDGPULowerModuleLDSPass(PassRegistry &);
@@ -288,6 +299,9 @@ struct AMDGPUUnifyMetadataPass : PassInfoMixin<AMDGPUUnifyMetadataPass> {
 void initializeSIOptimizeExecMaskingPreRAPass(PassRegistry&);
 extern char &SIOptimizeExecMaskingPreRAID;
 
+void initializeSIOptimizeVGPRLiveRangePass(PassRegistry &);
+extern char &SIOptimizeVGPRLiveRangeID;
+
 void initializeAMDGPUAnnotateUniformValuesPass(PassRegistry&);
 extern char &AMDGPUAnnotateUniformValuesPassID;
 
@@ -334,6 +348,9 @@ extern char &AMDGPUOpenCLEnqueuedBlockLoweringID;
 
 void initializeGCNNSAReassignPass(PassRegistry &);
 extern char &GCNNSAReassignID;
+
+void initializeGCNPreRAOptimizationsPass(PassRegistry &);
+extern char &GCNPreRAOptimizationsID;
 
 namespace AMDGPU {
 enum TargetIndex {

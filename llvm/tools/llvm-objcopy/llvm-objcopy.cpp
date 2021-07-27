@@ -59,13 +59,14 @@
 #include <system_error>
 #include <utility>
 
-namespace llvm {
-namespace objcopy {
+using namespace llvm;
+using namespace llvm::objcopy;
+using namespace llvm::object;
 
 // The name this program was invoked as.
-StringRef ToolName;
+static StringRef ToolName;
 
-ErrorSuccess reportWarning(Error E) {
+static ErrorSuccess reportWarning(Error E) {
   assert(E);
   WithColor::warning(errs(), ToolName) << toString(std::move(E)) << '\n';
   return Error::success();
@@ -80,7 +81,7 @@ static Expected<DriverConfig> getDriverConfig(ArrayRef<const char *> Args) {
     // strip-10.exe -> strip
     // powerpc64-unknown-freebsd13-objcopy -> objcopy
     // llvm-install-name-tool -> install-name-tool
-    auto I = Stem.rfind_lower(Tool);
+    auto I = Stem.rfind_insensitive(Tool);
     return I != StringRef::npos &&
            (I + Tool.size() == Stem.size() || !isAlnum(Stem[I + Tool.size()]));
   };
@@ -94,13 +95,6 @@ static Expected<DriverConfig> getDriverConfig(ArrayRef<const char *> Args) {
   else
     return parseObjcopyOptions(Args, reportWarning);
 }
-
-} // end namespace objcopy
-} // end namespace llvm
-
-using namespace llvm;
-using namespace llvm::object;
-using namespace llvm::objcopy;
 
 // For regular archives this function simply calls llvm::writeArchive,
 // For thin archives it writes the archive file itself as well as its members.
@@ -406,10 +400,6 @@ static Error executeObjcopy(ConfigManager &ConfigMgr) {
 
   return Error::success();
 }
-
-namespace {
-
-} // anonymous namespace
 
 int main(int argc, char **argv) {
   InitLLVM X(argc, argv);

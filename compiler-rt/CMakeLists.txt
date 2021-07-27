@@ -67,8 +67,12 @@ if (NOT COMPILER_RT_ASAN_SHADOW_SCALE STREQUAL "")
       -D${COMPILER_RT_ASAN_SHADOW_SCALE_DEFINITION})
 endif()
 
-set(COMPILER_RT_HWASAN_WITH_INTERCEPTORS ON CACHE BOOL
-    "Enable libc interceptors in HWASan (testing mode)")
+if(FUCHSIA)
+  set(COMPILER_RT_HWASAN_WITH_INTERCEPTORS_DEFAULT OFF)
+else()
+  set(COMPILER_RT_HWASAN_WITH_INTERCEPTORS_DEFAULT ON)
+endif()
+set(COMPILER_RT_HWASAN_WITH_INTERCEPTORS ${COMPILER_RT_HWASAN_WITH_INTERCEPTORS_DEFAULT} CACHE BOOL "Enable libc interceptors in HWASan (testing mode)")
 
 set(COMPILER_RT_BAREMETAL_BUILD OFF CACHE BOOL
   "Build for a bare-metal target.")
@@ -355,6 +359,17 @@ endif()
 
 append_list_if(COMPILER_RT_DEBUG -DSANITIZER_DEBUG=1 SANITIZER_COMMON_CFLAGS)
 
+if(CMAKE_CXX_COMPILER_ID MATCHES Clang)
+  list(APPEND THREAD_SAFETY_FLAGS
+      "-Werror=thread-safety"
+      "-Werror=thread-safety-reference"
+      "-Werror=thread-safety-beta"
+  )
+  list(APPEND SANITIZER_COMMON_CFLAGS ${THREAD_SAFETY_FLAGS})
+  string(REPLACE ";" " " thread_safety_flags_space_sep "${THREAD_SAFETY_FLAGS}")
+  string(APPEND COMPILER_RT_TEST_COMPILER_CFLAGS " ${thread_safety_flags_space_sep}")
+endif()
+
 # If we're using MSVC,
 # always respect the optimization flags set by CMAKE_BUILD_TYPE instead.
 if (NOT MSVC)
@@ -437,10 +452,18 @@ else()
 endif()
 
 append_list_if(COMPILER_RT_HAS_LIBC c SANITIZER_COMMON_LINK_LIBS)
+if("${CMAKE_SYSTEM_NAME}" STREQUAL "Fuchsia")
+  list(APPEND SANITIZER_COMMON_LINK_LIBS zircon)
+endif()
 
 if("${CMAKE_SYSTEM_NAME}" STREQUAL "Fuchsia")
-  list(APPEND SANITIZER_COMMON_LINK_FLAGS -Wl,-z,defs,-z,now,-z,relro)
-  list(APPEND SANITIZER_COMMON_LINK_LIBS zircon)
+  set(SANITIZER_NO_UNDEFINED_SYMBOLS_DEFAULT ON)
+else()
+  set(SANITIZER_NO_UNDEFINED_SYMBOLS_DEFAULT OFF)
+endif()
+option(SANITIZER_NO_UNDEFINED_SYMBOLS "Report error on unresolved symbol references" ${SANITIZER_NO_UNDEFINED_SYMBOLS_DEFAULT})
+if (SANITIZER_NO_UNDEFINED_SYMBOLS)
+  list(APPEND SANITIZER_COMMON_LINK_FLAGS -Wl,-z,defs)
 endif()
 
 # TODO: COMPILER_RT_COMMON_CFLAGS and COMPILER_RT_COMMON_LINK_FLAGS are

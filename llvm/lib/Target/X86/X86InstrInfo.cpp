@@ -905,7 +905,7 @@ unsigned X86InstrInfo::isLoadFromStackSlotPostFE(const MachineInstr &MI,
       FrameIndex =
           cast<FixedStackPseudoSourceValue>(Accesses.front()->getPseudoValue())
               ->getFrameIndex();
-      return 1;
+      return MI.getOperand(0).getReg();
     }
   }
   return 0;
@@ -940,7 +940,7 @@ unsigned X86InstrInfo::isStoreToStackSlotPostFE(const MachineInstr &MI,
       FrameIndex =
           cast<FixedStackPseudoSourceValue>(Accesses.front()->getPseudoValue())
               ->getFrameIndex();
-      return 1;
+      return MI.getOperand(X86::AddrNumOperands).getReg();
     }
   }
   return 0;
@@ -4234,6 +4234,8 @@ bool X86InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
     }
     CmpInstr.setDesc(get(NewOpcode));
     CmpInstr.RemoveOperand(0);
+    // Mutating this instruction invalidates any debug data associated with it.
+    CmpInstr.dropDebugNumber();
     // Fall through to optimize Cmp if Cmp is CMPrr or CMPri.
     if (NewOpcode == X86::CMP64rm || NewOpcode == X86::CMP32rm ||
         NewOpcode == X86::CMP16rm || NewOpcode == X86::CMP8rm)
@@ -6409,7 +6411,7 @@ bool X86InstrInfo::unfoldMemoryOperand(
   case X86::CMP8ri: {
     MachineOperand &MO0 = DataMI->getOperand(0);
     MachineOperand &MO1 = DataMI->getOperand(1);
-    if (MO1.getImm() == 0) {
+    if (MO1.isImm() && MO1.getImm() == 0) {
       unsigned NewOpc;
       switch (DataMI->getOpcode()) {
       default: llvm_unreachable("Unreachable!");

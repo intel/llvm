@@ -23,7 +23,7 @@
 #include "mlir/IR/RegionGraphTraits.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Target/LLVMIR/LLVMTranslationInterface.h"
-#include "mlir/Target/LLVMIR/TypeTranslation.h"
+#include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 #include "llvm/ADT/PostOrderIterator.h"
@@ -180,8 +180,6 @@ llvm::Constant *mlir::LLVM::detail::getLLVMConstant(
 
   if (auto elementsAttr = attr.dyn_cast<ElementsAttr>()) {
     assert(elementsAttr.getType().hasStaticShape());
-    assert(elementsAttr.getNumElements() != 0 &&
-           "unexpected empty elements attribute");
     assert(!elementsAttr.getType().getShape().empty() &&
            "unexpected empty elements attribute shape");
 
@@ -417,12 +415,22 @@ static Block &getModuleBody(Operation *module) {
 }
 
 /// A helper method to decide if a constant must not be set as a global variable
-/// initializer.
+/// initializer. For an external linkage variable, the variable with an
+/// initializer is considered externally visible and defined in this module, the
+/// variable without an initializer is externally available and is defined
+/// elsewhere.
 static bool shouldDropGlobalInitializer(llvm::GlobalValue::LinkageTypes linkage,
                                         llvm::Constant *cst) {
-  return (linkage == llvm::GlobalVariable::ExternalLinkage &&
-          isa<llvm::UndefValue>(cst)) ||
+  return (linkage == llvm::GlobalVariable::ExternalLinkage && !cst) ||
          linkage == llvm::GlobalVariable::ExternalWeakLinkage;
+}
+
+/// Sets the runtime preemption specifier of `gv` to dso_local if
+/// `dsoLocalRequested` is true, otherwise it is left unchanged.
+static void addRuntimePreemptionSpecifier(bool dsoLocalRequested,
+                                          llvm::GlobalValue *gv) {
+  if (dsoLocalRequested)
+    gv->setDSOLocal(true);
 }
 
 /// Create named global variables that correspond to llvm.mlir.global
@@ -430,7 +438,7 @@ static bool shouldDropGlobalInitializer(llvm::GlobalValue::LinkageTypes linkage,
 LogicalResult ModuleTranslation::convertGlobals() {
   for (auto op : getModuleBody(mlirModule).getOps<LLVM::GlobalOp>()) {
     llvm::Type *type = convertType(op.getType());
-    llvm::Constant *cst = llvm::UndefValue::get(type);
+    llvm::Constant *cst = nullptr;
     if (op.getValueOrNull()) {
       // String attributes are treated separately because they cannot appear as
       // in-function constants and are thus not supported by getLLVMConstant.
@@ -446,10 +454,18 @@ LogicalResult ModuleTranslation::convertGlobals() {
 
     auto linkage = convertLinkageToLLVM(op.linkage());
     auto addrSpace = op.addr_space();
+
+    // LLVM IR requires constant with linkage other than external or weak
+    // external to have initializers. If MLIR does not provide an initializer,
+    // default to undef.
+    bool dropInitializer = shouldDropGlobalInitializer(linkage, cst);
+    if (!dropInitializer && !cst)
+      cst = llvm::UndefValue::get(type);
+    else if (dropInitializer && cst)
+      cst = nullptr;
+
     auto *var = new llvm::GlobalVariable(
-        *llvmModule, type, op.constant(), linkage,
-        shouldDropGlobalInitializer(linkage, cst) ? nullptr : cst,
-        op.sym_name(),
+        *llvmModule, type, op.constant(), linkage, cst, op.sym_name(),
         /*InsertBefore=*/nullptr, llvm::GlobalValue::NotThreadLocal, addrSpace);
 
     if (op.unnamed_addr().hasValue())
@@ -457,6 +473,8 @@ LogicalResult ModuleTranslation::convertGlobals() {
 
     if (op.section().hasValue())
       var->setSection(*op.section());
+
+    addRuntimePreemptionSpecifier(op.dso_local(), var);
 
     Optional<uint64_t> alignment = op.alignment();
     if (alignment.hasValue())
@@ -504,7 +522,7 @@ static LogicalResult checkedAddLLVMFnAttribute(Location loc,
     return success();
   }
 
-  if (llvm::Attribute::doesAttrKindHaveArgument(kind)) {
+  if (llvm::Attribute::isIntAttrKind(kind)) {
     if (value.empty())
       return emitError(loc) << "LLVM attribute '" << key << "' expects a value";
 
@@ -687,6 +705,7 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
     llvm::Function *llvmFunc = cast<llvm::Function>(llvmFuncCst.getCallee());
     llvmFunc->setLinkage(convertLinkageToLLVM(function.linkage()));
     mapFunction(function.getName(), llvmFunc);
+    addRuntimePreemptionSpecifier(function.dso_local(), llvmFunc);
 
     // Forward the pass-through attributes to LLVM.
     if (failed(forwardPassthroughAttributes(function.getLoc(),

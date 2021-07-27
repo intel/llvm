@@ -461,31 +461,99 @@ TEST(TypeHints, Lambda) {
                   ExpectedHint{": int", "init"});
 }
 
-TEST(TypeHints, StructuredBindings) {
-  // FIXME: Not handled yet.
-  // To handle it, we could print:
-  //  - the aggregate type next to the 'auto', or
-  //  - the individual types inside the brackets
-  // The latter is probably more useful.
+// Structured bindings tests.
+// Note, we hint the individual bindings, not the aggregate.
+
+TEST(TypeHints, StructuredBindings_PublicStruct) {
   assertTypeHints(R"cpp(
+    // Struct with public fields.
     struct Point {
       int x;
       int y;
     };
     Point foo();
-    auto [x, y] = foo();
+    auto [$x[[x]], $y[[y]]] = foo();
+  )cpp",
+                  ExpectedHint{": int", "x"}, ExpectedHint{": int", "y"});
+}
+
+TEST(TypeHints, StructuredBindings_Array) {
+  assertTypeHints(R"cpp(
+    int arr[2];
+    auto [$x[[x]], $y[[y]]] = arr;
+  )cpp",
+                  ExpectedHint{": int", "x"}, ExpectedHint{": int", "y"});
+}
+
+TEST(TypeHints, StructuredBindings_TupleLike) {
+  assertTypeHints(R"cpp(
+    // Tuple-like type.
+    struct IntPair {
+      int a;
+      int b;
+    };
+    namespace std {
+      template <typename T>
+      struct tuple_size {};
+      template <>
+      struct tuple_size<IntPair> {
+        constexpr static unsigned value = 2;
+      };
+      template <unsigned I, typename T>
+      struct tuple_element {};
+      template <unsigned I>
+      struct tuple_element<I, IntPair> {
+        using type = int;
+      };
+    }
+    template <unsigned I>
+    int get(const IntPair& p) {
+      if constexpr (I == 0) {
+        return p.a;
+      } else if constexpr (I == 1) {
+        return p.b;
+      }
+    }
+    IntPair bar();
+    auto [$x[[x]], $y[[y]]] = bar();
+  )cpp",
+                  ExpectedHint{": int", "x"}, ExpectedHint{": int", "y"});
+}
+
+TEST(TypeHints, StructuredBindings_NoInitializer) {
+  assertTypeHints(R"cpp(
+    // No initializer (ill-formed).
+    // Do not show useless "NULL TYPE" hint.    
+    auto [x, y];  /*error-ok*/
   )cpp");
 }
 
 TEST(TypeHints, ReturnTypeDeduction) {
-  // FIXME: Not handled yet.
-  // This test is currently here mostly because a naive implementation
-  // might have us print something not super helpful like the function type.
-  assertTypeHints(R"cpp(
-    auto func(int x) {
-      return x + 1;
-    }
-  )cpp");
+  assertTypeHints(
+      R"cpp(
+    auto f1(int x$ret1a[[)]];  // Hint forward declaration too
+    auto f1(int x$ret1b[[)]] { return x + 1; }
+
+    // Include pointer operators in hint
+    int s;
+    auto& f2($ret2[[)]] { return s; }
+
+    // Do not hint `auto` for trailing return type.
+    auto f3() -> int;
+
+    // `auto` conversion operator
+    struct A {
+      operator auto($retConv[[)]] { return 42; }
+    };
+
+    // FIXME: Dependent types do not work yet.
+    template <typename T>
+    struct S {
+      auto method() { return T(); }
+    };
+  )cpp",
+      ExpectedHint{"-> int", "ret1a"}, ExpectedHint{"-> int", "ret1b"},
+      ExpectedHint{"-> int &", "ret2"}, ExpectedHint{"-> int", "retConv"});
 }
 
 TEST(TypeHints, DependentType) {

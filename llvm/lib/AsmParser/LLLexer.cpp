@@ -543,7 +543,6 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(triple);
   KEYWORD(source_filename);
   KEYWORD(unwind);
-  KEYWORD(deplibs);             // FIXME: Remove in 4.0.
   KEYWORD(datalayout);
   KEYWORD(volatile);
   KEYWORD(atomic);
@@ -644,6 +643,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(convergent);
   KEYWORD(dereferenceable);
   KEYWORD(dereferenceable_or_null);
+  KEYWORD(elementtype);
   KEYWORD(inaccessiblememonly);
   KEYWORD(inaccessiblemem_or_argmemonly);
   KEYWORD(inlinehint);

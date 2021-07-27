@@ -10,12 +10,14 @@
 #define _LIBCPP___ALGORITHM_SORT_H
 
 #include <__config>
-#include <__algorithm/comp_ref_type.h>
 #include <__algorithm/comp.h>
+#include <__algorithm/comp_ref_type.h>
 #include <__algorithm/min_element.h>
 #include <__algorithm/partial_sort.h>
 #include <__algorithm/unwrap_iter.h>
+#include <__utility/swap.h>
 #include <memory>
+#include <type_traits> // swap
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header

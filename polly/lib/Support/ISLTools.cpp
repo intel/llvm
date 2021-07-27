@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "polly/Support/ISLTools.h"
+#include "polly/Support/GICHelper.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <vector>
@@ -49,7 +50,7 @@ isl::multi_aff makeShiftDimAff(isl::space Space, int Pos, int Amount) {
 isl::basic_map makeTupleSwapBasicMap(isl::space FromSpace1,
                                      isl::space FromSpace2) {
   // Fast-path on out-of-quota.
-  if (!FromSpace1 || !FromSpace2)
+  if (FromSpace1.is_null() || FromSpace2.is_null())
     return {};
 
   assert(FromSpace1.is_set());
@@ -89,11 +90,11 @@ isl::map polly::beforeScatter(isl::map Map, bool Strict) {
 }
 
 isl::union_map polly::beforeScatter(isl::union_map UMap, bool Strict) {
-  isl::union_map Result = isl::union_map::empty(UMap.get_space());
+  isl::union_map Result = isl::union_map::empty(UMap.ctx());
 
   for (isl::map Map : UMap.get_map_list()) {
     isl::map After = beforeScatter(Map, Strict);
-    Result = Result.add_map(After);
+    Result = Result.unite(After);
   }
 
   return Result;
@@ -107,10 +108,10 @@ isl::map polly::afterScatter(isl::map Map, bool Strict) {
 }
 
 isl::union_map polly::afterScatter(const isl::union_map &UMap, bool Strict) {
-  isl::union_map Result = isl::union_map::empty(UMap.get_space());
+  isl::union_map Result = isl::union_map::empty(UMap.ctx());
   for (isl::map Map : UMap.get_map_list()) {
     isl::map After = afterScatter(Map, Strict);
-    Result = Result.add_map(After);
+    Result = Result.unite(After);
   }
   return Result;
 }
@@ -132,27 +133,29 @@ isl::union_map polly::betweenScatter(isl::union_map From, isl::union_map To,
 }
 
 isl::map polly::singleton(isl::union_map UMap, isl::space ExpectedSpace) {
-  if (!UMap)
-    return nullptr;
+  if (UMap.is_null())
+    return {};
 
   if (isl_union_map_n_map(UMap.get()) == 0)
     return isl::map::empty(ExpectedSpace);
 
   isl::map Result = isl::map::from_union_map(UMap);
-  assert(!Result || Result.get_space().has_equal_tuples(ExpectedSpace));
+  assert(Result.is_null() ||
+         Result.get_space().has_equal_tuples(ExpectedSpace));
 
   return Result;
 }
 
 isl::set polly::singleton(isl::union_set USet, isl::space ExpectedSpace) {
-  if (!USet)
-    return nullptr;
+  if (USet.is_null())
+    return {};
 
   if (isl_union_set_n_set(USet.get()) == 0)
     return isl::set::empty(ExpectedSpace);
 
   isl::set Result(USet);
-  assert(!Result || Result.get_space().has_equal_tuples(ExpectedSpace));
+  assert(Result.is_null() ||
+         Result.get_space().has_equal_tuples(ExpectedSpace));
 
   return Result;
 }
@@ -160,30 +163,35 @@ isl::set polly::singleton(isl::union_set USet, isl::space ExpectedSpace) {
 isl_size polly::getNumScatterDims(const isl::union_map &Schedule) {
   isl_size Dims = 0;
   for (isl::map Map : Schedule.get_map_list()) {
-    if (!Map)
+    if (Map.is_null())
       continue;
 
-    Dims = std::max(Dims, Map.dim(isl::dim::out));
+    Dims = std::max(Dims, Map.range_tuple_dim());
   }
   return Dims;
 }
 
 isl::space polly::getScatterSpace(const isl::union_map &Schedule) {
-  if (!Schedule)
-    return nullptr;
+  if (Schedule.is_null())
+    return {};
   unsigned Dims = getNumScatterDims(Schedule);
   isl::space ScatterSpace = Schedule.get_space().set_from_params();
   return ScatterSpace.add_dims(isl::dim::set, Dims);
 }
 
+isl::map polly::makeIdentityMap(const isl::set &Set, bool RestrictDomain) {
+  isl::map Result = isl::map::identity(Set.get_space().map_from_set());
+  if (RestrictDomain)
+    Result = Result.intersect_domain(Set);
+  return Result;
+}
+
 isl::union_map polly::makeIdentityMap(const isl::union_set &USet,
                                       bool RestrictDomain) {
-  isl::union_map Result = isl::union_map::empty(USet.get_space());
+  isl::union_map Result = isl::union_map::empty(USet.ctx());
   for (isl::set Set : USet.get_set_list()) {
-    isl::map IdentityMap = isl::map::identity(Set.get_space().map_from_set());
-    if (RestrictDomain)
-      IdentityMap = IdentityMap.intersect_domain(Set);
-    Result = Result.add_map(IdentityMap);
+    isl::map IdentityMap = makeIdentityMap(Set, RestrictDomain);
+    Result = Result.unite(IdentityMap);
   }
   return Result;
 }
@@ -197,16 +205,16 @@ isl::map polly::reverseDomain(isl::map Map) {
 }
 
 isl::union_map polly::reverseDomain(const isl::union_map &UMap) {
-  isl::union_map Result = isl::union_map::empty(UMap.get_space());
+  isl::union_map Result = isl::union_map::empty(UMap.ctx());
   for (isl::map Map : UMap.get_map_list()) {
     auto Reversed = reverseDomain(std::move(Map));
-    Result = Result.add_map(Reversed);
+    Result = Result.unite(Reversed);
   }
   return Result;
 }
 
 isl::set polly::shiftDim(isl::set Set, int Pos, int Amount) {
-  int NumDims = Set.dim(isl::dim::set);
+  int NumDims = Set.tuple_dim();
   if (Pos < 0)
     Pos = NumDims + Pos;
   assert(Pos < NumDims && "Dimension index must be in range");
@@ -218,10 +226,10 @@ isl::set polly::shiftDim(isl::set Set, int Pos, int Amount) {
 }
 
 isl::union_set polly::shiftDim(isl::union_set USet, int Pos, int Amount) {
-  isl::union_set Result = isl::union_set::empty(USet.get_space());
+  isl::union_set Result = isl::union_set::empty(USet.ctx());
   for (isl::set Set : USet.get_set_list()) {
     isl::set Shifted = shiftDim(Set, Pos, Amount);
-    Result = Result.add_set(Shifted);
+    Result = Result.unite(Shifted);
   }
   return Result;
 }
@@ -257,11 +265,11 @@ isl::map polly::shiftDim(isl::map Map, isl::dim Dim, int Pos, int Amount) {
 
 isl::union_map polly::shiftDim(isl::union_map UMap, isl::dim Dim, int Pos,
                                int Amount) {
-  isl::union_map Result = isl::union_map::empty(UMap.get_space());
+  isl::union_map Result = isl::union_map::empty(UMap.ctx());
 
   for (isl::map Map : UMap.get_map_list()) {
     isl::map Shifted = shiftDim(Map, Dim, Pos, Amount);
-    Result = Result.add_map(Shifted);
+    Result = Result.unite(Shifted);
   }
   return Result;
 }
@@ -439,16 +447,16 @@ isl::map polly::distributeDomain(isl::map Map) {
 
   isl::space Space = Map.get_space();
   isl::space DomainSpace = Space.domain();
-  if (!DomainSpace)
+  if (DomainSpace.is_null())
     return {};
   unsigned DomainDims = DomainSpace.dim(isl::dim::set);
   isl::space RangeSpace = Space.range().unwrap();
   isl::space Range1Space = RangeSpace.domain();
-  if (!Range1Space)
+  if (Range1Space.is_null())
     return {};
   unsigned Range1Dims = Range1Space.dim(isl::dim::set);
   isl::space Range2Space = RangeSpace.range();
-  if (!Range2Space)
+  if (Range2Space.is_null())
     return {};
   unsigned Range2Dims = Range2Space.dim(isl::dim::set);
 
@@ -478,10 +486,10 @@ isl::map polly::distributeDomain(isl::map Map) {
 }
 
 isl::union_map polly::distributeDomain(isl::union_map UMap) {
-  isl::union_map Result = isl::union_map::empty(UMap.get_space());
+  isl::union_map Result = isl::union_map::empty(UMap.ctx());
   for (isl::map Map : UMap.get_map_list()) {
     auto Distributed = distributeDomain(Map);
-    Result = Result.add_map(Distributed);
+    Result = Result.unite(Distributed);
   }
   return Result;
 }
@@ -534,18 +542,18 @@ isl::val polly::getConstant(isl::pw_aff PwAff, bool Max, bool Min) {
   isl::val Result;
   isl::stat Stat = PwAff.foreach_piece(
       [=, &Result](isl::set Set, isl::aff Aff) -> isl::stat {
-        if (Result && Result.is_nan())
+        if (!Result.is_null() && Result.is_nan())
           return isl::stat::ok();
 
         // TODO: If Min/Max, we can also determine a minimum/maximum value if
         // Set is constant-bounded.
         if (!Aff.is_cst()) {
-          Result = isl::val::nan(Aff.get_ctx());
+          Result = isl::val::nan(Aff.ctx());
           return isl::stat::error();
         }
 
         isl::val ThisVal = Aff.get_constant_val();
-        if (!Result) {
+        if (Result.is_null()) {
           Result = ThisVal;
           return isl::stat::ok();
         }
@@ -564,7 +572,7 @@ isl::val polly::getConstant(isl::pw_aff PwAff, bool Max, bool Min) {
         }
 
         // Not compatible
-        Result = isl::val::nan(Aff.get_ctx());
+        Result = isl::val::nan(Aff.ctx());
         return isl::stat::error();
       });
 
@@ -595,7 +603,7 @@ static void foreachPoint(isl::basic_set BSet,
 /// dimensions are considered first.
 static int flatCompare(const isl::basic_set &A, const isl::basic_set &B) {
   // Quick bail-out on out-of-quota.
-  if (!A || !B)
+  if (A.is_null() || B.is_null())
     return 0;
 
   unsigned ALen = A.dim(isl::dim::set);
@@ -723,7 +731,7 @@ static bool orderComparer(const isl::basic_set &A, const isl::basic_set &B) {
 ///                 unwrapped before printing to again appear as a map.
 static void printSortedPolyhedra(isl::union_set USet, llvm::raw_ostream &OS,
                                  bool Simplify, bool IsMap) {
-  if (!USet) {
+  if (USet.is_null()) {
     OS << "<null>\n";
     return;
   }
@@ -753,9 +761,9 @@ static void printSortedPolyhedra(isl::union_set USet, llvm::raw_ostream &OS,
   for (const isl::basic_set &BSet : BSets) {
     std::string Str;
     if (IsMap)
-      Str = isl::map(BSet.unwrap()).to_str();
+      Str = stringFromIslObj(isl::map(BSet.unwrap()));
     else
-      Str = isl::set(BSet).to_str();
+      Str = stringFromIslObj(isl::set(BSet));
     size_t OpenPos = Str.find_first_of('{');
     assert(OpenPos != std::string::npos);
     size_t ClosePos = Str.find_last_of('}');
@@ -816,10 +824,10 @@ static isl::set expand(const isl::set &Set) {
 ///
 /// @see expand(const isl::set)
 static isl::union_set expand(const isl::union_set &USet) {
-  isl::union_set Expanded = isl::union_set::empty(USet.get_space());
+  isl::union_set Expanded = isl::union_set::empty(USet.ctx());
   for (isl::set Set : USet.get_set_list()) {
     isl::set SetExpanded = expand(Set);
-    Expanded = Expanded.add_set(SetExpanded);
+    Expanded = Expanded.unite(SetExpanded);
   }
   return Expanded;
 }

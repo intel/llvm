@@ -157,11 +157,14 @@
 
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-SPV-IR
 
 ; ModuleID = 'subgroup_ballot.cl'
 source_filename = "subgroup_ballot.cl"
@@ -254,7 +257,8 @@ target triple = "spir64"
 ; CHECK-SPIRV: GroupNonUniformBroadcastFirst [[char]] {{[0-9]+}} [[ScopeSubgroup]] [[char_value]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBroadcastChars
+; CHECK-COMMON-LABEL: @testNonUniformBroadcastChars
+
 ; CHECK-LLVM: call spir_func i8 @_Z31sub_group_non_uniform_broadcasthj(i8 {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <2 x i8> @_Z31sub_group_non_uniform_broadcastDv2_hj(<2 x i8> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <3 x i8> @_Z31sub_group_non_uniform_broadcastDv3_hj(<3 x i8> {{.*}}, i32 0)
@@ -262,6 +266,14 @@ target triple = "spir64"
 ; CHECK-LLVM: call spir_func <8 x i8> @_Z31sub_group_non_uniform_broadcastDv8_hj(<8 x i8> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <16 x i8> @_Z31sub_group_non_uniform_broadcastDv16_hj(<16 x i8> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func i8 @_Z25sub_group_broadcast_firsth(i8 {{.*}})
+
+; CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformBroadcasticj(i32 3, i8 {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <2 x i8> @_Z32__spirv_GroupNonUniformBroadcastiDv2_cj(i32 3, <2 x i8> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <3 x i8> @_Z32__spirv_GroupNonUniformBroadcastiDv3_cj(i32 3, <3 x i8> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <4 x i8> @_Z32__spirv_GroupNonUniformBroadcastiDv4_cj(i32 3, <4 x i8> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <8 x i8> @_Z32__spirv_GroupNonUniformBroadcastiDv8_cj(i32 3, <8 x i8> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <16 x i8> @_Z32__spirv_GroupNonUniformBroadcastiDv16_cj(i32 3, <16 x i8> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z37__spirv_GroupNonUniformBroadcastFirstic(i32 3, i8 {{.*}})
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBroadcastChars() local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !3 !kernel_arg_type !3 !kernel_arg_base_type !3 !kernel_arg_type_qual !3 {
@@ -327,7 +339,8 @@ declare dso_local spir_func signext i8 @_Z25sub_group_broadcast_firstc(i8 signex
 ; CHECK-SPIRV: GroupNonUniformBroadcastFirst [[char]] {{[0-9]+}} [[ScopeSubgroup]] [[char_value]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBroadcastUChars
+; CHECK-COMMON-LABEL: @testNonUniformBroadcastUChars
+
 ; CHECK-LLVM: call spir_func i8 @_Z31sub_group_non_uniform_broadcasthj(i8 {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <2 x i8> @_Z31sub_group_non_uniform_broadcastDv2_hj(<2 x i8> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <3 x i8> @_Z31sub_group_non_uniform_broadcastDv3_hj(<3 x i8> {{.*}}, i32 0)
@@ -335,6 +348,14 @@ declare dso_local spir_func signext i8 @_Z25sub_group_broadcast_firstc(i8 signex
 ; CHECK-LLVM: call spir_func <8 x i8> @_Z31sub_group_non_uniform_broadcastDv8_hj(<8 x i8> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <16 x i8> @_Z31sub_group_non_uniform_broadcastDv16_hj(<16 x i8> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func i8 @_Z25sub_group_broadcast_firsth(i8 {{.*}})
+
+; CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformBroadcasticj(i32 3, i8 {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <2 x i8> @_Z32__spirv_GroupNonUniformBroadcastiDv2_cj(i32 3, <2 x i8> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <3 x i8> @_Z32__spirv_GroupNonUniformBroadcastiDv3_cj(i32 3, <3 x i8> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <4 x i8> @_Z32__spirv_GroupNonUniformBroadcastiDv4_cj(i32 3, <4 x i8> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <8 x i8> @_Z32__spirv_GroupNonUniformBroadcastiDv8_cj(i32 3, <8 x i8> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <16 x i8> @_Z32__spirv_GroupNonUniformBroadcastiDv16_cj(i32 3, <16 x i8> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z37__spirv_GroupNonUniformBroadcastFirstic(i32 3, i8 {{.*}})
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBroadcastUChars() local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !3 !kernel_arg_type !3 !kernel_arg_base_type !3 !kernel_arg_type_qual !3 {
@@ -400,7 +421,8 @@ declare dso_local spir_func zeroext i8 @_Z25sub_group_broadcast_firsth(i8 zeroex
 ; CHECK-SPIRV: GroupNonUniformBroadcastFirst [[short]] {{[0-9]+}} [[ScopeSubgroup]] [[short_value]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBroadcastShorts
+; CHECK-COMMON-LABEL: @testNonUniformBroadcastShorts
+
 ; CHECK-LLVM: call spir_func i16 @_Z31sub_group_non_uniform_broadcasttj(i16 {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <2 x i16> @_Z31sub_group_non_uniform_broadcastDv2_tj(<2 x i16> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <3 x i16> @_Z31sub_group_non_uniform_broadcastDv3_tj(<3 x i16> {{.*}}, i32 0)
@@ -408,6 +430,14 @@ declare dso_local spir_func zeroext i8 @_Z25sub_group_broadcast_firsth(i8 zeroex
 ; CHECK-LLVM: call spir_func <8 x i16> @_Z31sub_group_non_uniform_broadcastDv8_tj(<8 x i16> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <16 x i16> @_Z31sub_group_non_uniform_broadcastDv16_tj(<16 x i16> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func i16 @_Z25sub_group_broadcast_firstt(i16 {{.*}})
+
+; CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformBroadcastisj(i32 3, i16 {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <2 x i16> @_Z32__spirv_GroupNonUniformBroadcastiDv2_sj(i32 3, <2 x i16> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <3 x i16> @_Z32__spirv_GroupNonUniformBroadcastiDv3_sj(i32 3, <3 x i16> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <4 x i16> @_Z32__spirv_GroupNonUniformBroadcastiDv4_sj(i32 3, <4 x i16> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <8 x i16> @_Z32__spirv_GroupNonUniformBroadcastiDv8_sj(i32 3, <8 x i16> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <16 x i16> @_Z32__spirv_GroupNonUniformBroadcastiDv16_sj(i32 3, <16 x i16> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z37__spirv_GroupNonUniformBroadcastFirstis(i32 3, i16 {{.*}})
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBroadcastShorts() local_unnamed_addr #2 !kernel_arg_addr_space !3 !kernel_arg_access_qual !3 !kernel_arg_type !3 !kernel_arg_base_type !3 !kernel_arg_type_qual !3 {
@@ -473,7 +503,8 @@ declare dso_local spir_func signext i16 @_Z25sub_group_broadcast_firsts(i16 sign
 ; CHECK-SPIRV: GroupNonUniformBroadcastFirst [[short]] {{[0-9]+}} [[ScopeSubgroup]] [[short_value]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBroadcastUShorts
+; CHECK-COMMON-LABEL: @testNonUniformBroadcastUShorts
+
 ; CHECK-LLVM: call spir_func i16 @_Z31sub_group_non_uniform_broadcasttj(i16 {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <2 x i16> @_Z31sub_group_non_uniform_broadcastDv2_tj(<2 x i16> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <3 x i16> @_Z31sub_group_non_uniform_broadcastDv3_tj(<3 x i16> {{.*}}, i32 0)
@@ -481,6 +512,14 @@ declare dso_local spir_func signext i16 @_Z25sub_group_broadcast_firsts(i16 sign
 ; CHECK-LLVM: call spir_func <8 x i16> @_Z31sub_group_non_uniform_broadcastDv8_tj(<8 x i16> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <16 x i16> @_Z31sub_group_non_uniform_broadcastDv16_tj(<16 x i16> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func i16 @_Z25sub_group_broadcast_firstt(i16 {{.*}})
+
+; CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformBroadcastisj(i32 3, i16 {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <2 x i16> @_Z32__spirv_GroupNonUniformBroadcastiDv2_sj(i32 3, <2 x i16> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <3 x i16> @_Z32__spirv_GroupNonUniformBroadcastiDv3_sj(i32 3, <3 x i16> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <4 x i16> @_Z32__spirv_GroupNonUniformBroadcastiDv4_sj(i32 3, <4 x i16> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <8 x i16> @_Z32__spirv_GroupNonUniformBroadcastiDv8_sj(i32 3, <8 x i16> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <16 x i16> @_Z32__spirv_GroupNonUniformBroadcastiDv16_sj(i32 3, <16 x i16> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z37__spirv_GroupNonUniformBroadcastFirstis(i32 3, i16 {{.*}})
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBroadcastUShorts() local_unnamed_addr #2 !kernel_arg_addr_space !3 !kernel_arg_access_qual !3 !kernel_arg_type !3 !kernel_arg_base_type !3 !kernel_arg_type_qual !3 {
@@ -546,7 +585,8 @@ declare dso_local spir_func zeroext i16 @_Z25sub_group_broadcast_firstt(i16 zero
 ; CHECK-SPIRV: GroupNonUniformBroadcastFirst [[int]] {{[0-9]+}} [[ScopeSubgroup]] [[int_value]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBroadcastInts
+; CHECK-COMMON-LABEL: @testNonUniformBroadcastInts
+
 ; CHECK-LLVM: call spir_func i32 @_Z31sub_group_non_uniform_broadcastjj(i32 {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <2 x i32> @_Z31sub_group_non_uniform_broadcastDv2_jj(<2 x i32> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <3 x i32> @_Z31sub_group_non_uniform_broadcastDv3_jj(<3 x i32> {{.*}}, i32 0)
@@ -554,6 +594,14 @@ declare dso_local spir_func zeroext i16 @_Z25sub_group_broadcast_firstt(i16 zero
 ; CHECK-LLVM: call spir_func <8 x i32> @_Z31sub_group_non_uniform_broadcastDv8_jj(<8 x i32> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <16 x i32> @_Z31sub_group_non_uniform_broadcastDv16_jj(<16 x i32> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z25sub_group_broadcast_firstj(i32 {{.*}})
+
+; CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformBroadcastiij(i32 3, i32 {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <2 x i32> @_Z32__spirv_GroupNonUniformBroadcastiDv2_ij(i32 3, <2 x i32> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <3 x i32> @_Z32__spirv_GroupNonUniformBroadcastiDv3_ij(i32 3, <3 x i32> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z32__spirv_GroupNonUniformBroadcastiDv4_ij(i32 3, <4 x i32> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <8 x i32> @_Z32__spirv_GroupNonUniformBroadcastiDv8_ij(i32 3, <8 x i32> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <16 x i32> @_Z32__spirv_GroupNonUniformBroadcastiDv16_ij(i32 3, <16 x i32> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z37__spirv_GroupNonUniformBroadcastFirstii(i32 3, i32 {{.*}})
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBroadcastInts() local_unnamed_addr #3 !kernel_arg_addr_space !3 !kernel_arg_access_qual !3 !kernel_arg_type !3 !kernel_arg_base_type !3 !kernel_arg_type_qual !3 {
@@ -619,7 +667,8 @@ declare dso_local spir_func i32 @_Z25sub_group_broadcast_firsti(i32) local_unnam
 ; CHECK-SPIRV: GroupNonUniformBroadcastFirst [[int]] {{[0-9]+}} [[ScopeSubgroup]] [[int_value]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBroadcastUInts
+; CHECK-COMMON-LABEL: @testNonUniformBroadcastUInts
+
 ; CHECK-LLVM: call spir_func i32 @_Z31sub_group_non_uniform_broadcastjj(i32 {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <2 x i32> @_Z31sub_group_non_uniform_broadcastDv2_jj(<2 x i32> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <3 x i32> @_Z31sub_group_non_uniform_broadcastDv3_jj(<3 x i32> {{.*}}, i32 0)
@@ -628,6 +677,13 @@ declare dso_local spir_func i32 @_Z25sub_group_broadcast_firsti(i32) local_unnam
 ; CHECK-LLVM: call spir_func <16 x i32> @_Z31sub_group_non_uniform_broadcastDv16_jj(<16 x i32> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z25sub_group_broadcast_firstj(i32 {{.*}})
 
+; CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformBroadcastiij(i32 3, i32 {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <2 x i32> @_Z32__spirv_GroupNonUniformBroadcastiDv2_ij(i32 3, <2 x i32> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <3 x i32> @_Z32__spirv_GroupNonUniformBroadcastiDv3_ij(i32 3, <3 x i32> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z32__spirv_GroupNonUniformBroadcastiDv4_ij(i32 3, <4 x i32> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <8 x i32> @_Z32__spirv_GroupNonUniformBroadcastiDv8_ij(i32 3, <8 x i32> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <16 x i32> @_Z32__spirv_GroupNonUniformBroadcastiDv16_ij(i32 3, <16 x i32> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z37__spirv_GroupNonUniformBroadcastFirstii(i32 3, i32 {{.*}})
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBroadcastUInts() local_unnamed_addr #3 !kernel_arg_addr_space !3 !kernel_arg_access_qual !3 !kernel_arg_type !3 !kernel_arg_base_type !3 !kernel_arg_type_qual !3 {
@@ -693,7 +749,8 @@ declare dso_local spir_func i32 @_Z25sub_group_broadcast_firstj(i32) local_unnam
 ; CHECK-SPIRV: GroupNonUniformBroadcastFirst [[long]] {{[0-9]+}} [[ScopeSubgroup]] [[long_value]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBroadcastLongs
+; CHECK-COMMON-LABEL: @testNonUniformBroadcastLongs
+
 ; CHECK-LLVM: call spir_func i64 @_Z31sub_group_non_uniform_broadcastmj(i64 {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <2 x i64> @_Z31sub_group_non_uniform_broadcastDv2_mj(<2 x i64> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <3 x i64> @_Z31sub_group_non_uniform_broadcastDv3_mj(<3 x i64> {{.*}}, i32 0)
@@ -701,6 +758,14 @@ declare dso_local spir_func i32 @_Z25sub_group_broadcast_firstj(i32) local_unnam
 ; CHECK-LLVM: call spir_func <8 x i64> @_Z31sub_group_non_uniform_broadcastDv8_mj(<8 x i64> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <16 x i64> @_Z31sub_group_non_uniform_broadcastDv16_mj(<16 x i64> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func i64 @_Z25sub_group_broadcast_firstm(i64 {{.*}})
+
+; CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformBroadcastilj(i32 3, i64 {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <2 x i64> @_Z32__spirv_GroupNonUniformBroadcastiDv2_lj(i32 3, <2 x i64> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <3 x i64> @_Z32__spirv_GroupNonUniformBroadcastiDv3_lj(i32 3, <3 x i64> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <4 x i64> @_Z32__spirv_GroupNonUniformBroadcastiDv4_lj(i32 3, <4 x i64> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <8 x i64> @_Z32__spirv_GroupNonUniformBroadcastiDv8_lj(i32 3, <8 x i64> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <16 x i64> @_Z32__spirv_GroupNonUniformBroadcastiDv16_lj(i32 3, <16 x i64> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z37__spirv_GroupNonUniformBroadcastFirstil(i32 3, i64 {{.*}})
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBroadcastLongs() local_unnamed_addr #4 !kernel_arg_addr_space !3 !kernel_arg_access_qual !3 !kernel_arg_type !3 !kernel_arg_base_type !3 !kernel_arg_type_qual !3 {
@@ -766,7 +831,8 @@ declare dso_local spir_func i64 @_Z25sub_group_broadcast_firstl(i64) local_unnam
 ; CHECK-SPIRV: GroupNonUniformBroadcastFirst [[long]] {{[0-9]+}} [[ScopeSubgroup]] [[long_value]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBroadcastULongs
+; CHECK-COMMON-LABEL: @testNonUniformBroadcastULongs
+
 ; CHECK-LLVM: call spir_func i64 @_Z31sub_group_non_uniform_broadcastmj(i64 {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <2 x i64> @_Z31sub_group_non_uniform_broadcastDv2_mj(<2 x i64> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <3 x i64> @_Z31sub_group_non_uniform_broadcastDv3_mj(<3 x i64> {{.*}}, i32 0)
@@ -774,6 +840,14 @@ declare dso_local spir_func i64 @_Z25sub_group_broadcast_firstl(i64) local_unnam
 ; CHECK-LLVM: call spir_func <8 x i64> @_Z31sub_group_non_uniform_broadcastDv8_mj(<8 x i64> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <16 x i64> @_Z31sub_group_non_uniform_broadcastDv16_mj(<16 x i64> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func i64 @_Z25sub_group_broadcast_firstm(i64 {{.*}})
+
+; CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformBroadcastilj(i32 3, i64 {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <2 x i64> @_Z32__spirv_GroupNonUniformBroadcastiDv2_lj(i32 3, <2 x i64> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <3 x i64> @_Z32__spirv_GroupNonUniformBroadcastiDv3_lj(i32 3, <3 x i64> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <4 x i64> @_Z32__spirv_GroupNonUniformBroadcastiDv4_lj(i32 3, <4 x i64> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <8 x i64> @_Z32__spirv_GroupNonUniformBroadcastiDv8_lj(i32 3, <8 x i64> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <16 x i64> @_Z32__spirv_GroupNonUniformBroadcastiDv16_lj(i32 3, <16 x i64> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z37__spirv_GroupNonUniformBroadcastFirstil(i32 3, i64 {{.*}})
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBroadcastULongs() local_unnamed_addr #4 !kernel_arg_addr_space !3 !kernel_arg_access_qual !3 !kernel_arg_type !3 !kernel_arg_base_type !3 !kernel_arg_type_qual !3 {
@@ -839,7 +913,8 @@ declare dso_local spir_func i64 @_Z25sub_group_broadcast_firstm(i64) local_unnam
 ; CHECK-SPIRV: GroupNonUniformBroadcastFirst [[float]] {{[0-9]+}} [[ScopeSubgroup]] [[float_value]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBroadcastFloats
+; CHECK-COMMON-LABEL: @testNonUniformBroadcastFloats
+
 ; CHECK-LLVM: call spir_func float @_Z31sub_group_non_uniform_broadcastfj(float {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <2 x float> @_Z31sub_group_non_uniform_broadcastDv2_fj(<2 x float> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <3 x float> @_Z31sub_group_non_uniform_broadcastDv3_fj(<3 x float> {{.*}}, i32 0)
@@ -847,6 +922,14 @@ declare dso_local spir_func i64 @_Z25sub_group_broadcast_firstm(i64) local_unnam
 ; CHECK-LLVM: call spir_func <8 x float> @_Z31sub_group_non_uniform_broadcastDv8_fj(<8 x float> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <16 x float> @_Z31sub_group_non_uniform_broadcastDv16_fj(<16 x float> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func float @_Z25sub_group_broadcast_firstf(float {{.*}})
+
+; CHECK-SPV-IR: call spir_func float @_Z32__spirv_GroupNonUniformBroadcastifj(i32 3, float {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <2 x float> @_Z32__spirv_GroupNonUniformBroadcastiDv2_fj(i32 3, <2 x float> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <3 x float> @_Z32__spirv_GroupNonUniformBroadcastiDv3_fj(i32 3, <3 x float> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <4 x float> @_Z32__spirv_GroupNonUniformBroadcastiDv4_fj(i32 3, <4 x float> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <8 x float> @_Z32__spirv_GroupNonUniformBroadcastiDv8_fj(i32 3, <8 x float> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <16 x float> @_Z32__spirv_GroupNonUniformBroadcastiDv16_fj(i32 3, <16 x float> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func float @_Z37__spirv_GroupNonUniformBroadcastFirstif(i32 3, float {{.*}})
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBroadcastFloats() local_unnamed_addr #3 !kernel_arg_addr_space !3 !kernel_arg_access_qual !3 !kernel_arg_type !3 !kernel_arg_base_type !3 !kernel_arg_type_qual !3 {
@@ -912,7 +995,8 @@ declare dso_local spir_func float @_Z25sub_group_broadcast_firstf(float) local_u
 ; CHECK-SPIRV: GroupNonUniformBroadcastFirst [[half]] {{[0-9]+}} [[ScopeSubgroup]] [[half_value]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBroadcastHalfs
+; CHECK-COMMON-LABEL: @testNonUniformBroadcastHalfs
+
 ; CHECK-LLVM: call spir_func half @_Z31sub_group_non_uniform_broadcastDhj(half {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <2 x half> @_Z31sub_group_non_uniform_broadcastDv2_Dhj(<2 x half> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <3 x half> @_Z31sub_group_non_uniform_broadcastDv3_Dhj(<3 x half> {{.*}}, i32 0)
@@ -920,6 +1004,14 @@ declare dso_local spir_func float @_Z25sub_group_broadcast_firstf(float) local_u
 ; CHECK-LLVM: call spir_func <8 x half> @_Z31sub_group_non_uniform_broadcastDv8_Dhj(<8 x half> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <16 x half> @_Z31sub_group_non_uniform_broadcastDv16_Dhj(<16 x half> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func half @_Z25sub_group_broadcast_firstDh(half {{.*}})
+
+; CHECK-SPV-IR: call spir_func half @_Z32__spirv_GroupNonUniformBroadcastiDhj(i32 3, half {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <2 x half> @_Z32__spirv_GroupNonUniformBroadcastiDv2_Dhj(i32 3, <2 x half> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <3 x half> @_Z32__spirv_GroupNonUniformBroadcastiDv3_Dhj(i32 3, <3 x half> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <4 x half> @_Z32__spirv_GroupNonUniformBroadcastiDv4_Dhj(i32 3, <4 x half> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <8 x half> @_Z32__spirv_GroupNonUniformBroadcastiDv8_Dhj(i32 3, <8 x half> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <16 x half> @_Z32__spirv_GroupNonUniformBroadcastiDv16_Dhj(i32 3, <16 x half> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func half @_Z37__spirv_GroupNonUniformBroadcastFirstiDh(i32 3, half {{.*}})
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBroadcastHalfs() local_unnamed_addr #2 !kernel_arg_addr_space !3 !kernel_arg_access_qual !3 !kernel_arg_type !3 !kernel_arg_base_type !3 !kernel_arg_type_qual !3 {
@@ -985,7 +1077,8 @@ declare dso_local spir_func half @_Z25sub_group_broadcast_firstDh(half) local_un
 ; CHECK-SPIRV: GroupNonUniformBroadcastFirst [[double]] {{[0-9]+}} [[ScopeSubgroup]] [[double_value]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBroadcastDoubles
+; CHECK-COMMON-LABEL: @testNonUniformBroadcastDoubles
+
 ; CHECK-LLVM: call spir_func double @_Z31sub_group_non_uniform_broadcastdj(double {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <2 x double> @_Z31sub_group_non_uniform_broadcastDv2_dj(<2 x double> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <3 x double> @_Z31sub_group_non_uniform_broadcastDv3_dj(<3 x double> {{.*}}, i32 0)
@@ -993,6 +1086,14 @@ declare dso_local spir_func half @_Z25sub_group_broadcast_firstDh(half) local_un
 ; CHECK-LLVM: call spir_func <8 x double> @_Z31sub_group_non_uniform_broadcastDv8_dj(<8 x double> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func <16 x double> @_Z31sub_group_non_uniform_broadcastDv16_dj(<16 x double> {{.*}}, i32 0)
 ; CHECK-LLVM: call spir_func double @_Z25sub_group_broadcast_firstd(double {{.*}})
+
+; CHECK-SPV-IR: call spir_func double @_Z32__spirv_GroupNonUniformBroadcastidj(i32 3, double {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <2 x double> @_Z32__spirv_GroupNonUniformBroadcastiDv2_dj(i32 3, <2 x double> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <3 x double> @_Z32__spirv_GroupNonUniformBroadcastiDv3_dj(i32 3, <3 x double> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <4 x double> @_Z32__spirv_GroupNonUniformBroadcastiDv4_dj(i32 3, <4 x double> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <8 x double> @_Z32__spirv_GroupNonUniformBroadcastiDv8_dj(i32 3, <8 x double> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func <16 x double> @_Z32__spirv_GroupNonUniformBroadcastiDv16_dj(i32 3, <16 x double> {{.*}}, i32 0)
+; CHECK-SPV-IR: call spir_func double @_Z37__spirv_GroupNonUniformBroadcastFirstid(i32 3, double {{.*}})
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBroadcastDoubles() local_unnamed_addr #4 !kernel_arg_addr_space !3 !kernel_arg_access_qual !3 !kernel_arg_type !3 !kernel_arg_base_type !3 !kernel_arg_type_qual !3 {
@@ -1052,7 +1153,8 @@ declare dso_local spir_func double @_Z25sub_group_broadcast_firstd(double) local
 ; CHECK-SPIRV: GroupNonUniformBallotFindMSB [[int]] {{[0-9]+}} [[ScopeSubgroup]] [[ballot]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testBallotOperations
+; CHECK-COMMON-LABEL: @testBallotOperations
+
 ; CHECK-LLVM: %[[ballot:[0-9]+]] = call spir_func <4 x i32> @_Z16sub_group_balloti(i32 {{.*}})
 ; CHECK-LLVM: %[[inverse_ballot:[0-9]+]] = call spir_func i32 @_Z24sub_group_inverse_ballotDv4_j(<4 x i32> %[[ballot]])
 ; CHECK-LLVM-NEXT: icmp ne i32 %[[inverse_ballot]], 0
@@ -1063,6 +1165,15 @@ declare dso_local spir_func double @_Z25sub_group_broadcast_firstd(double) local
 ; CHECK-LLVM: call spir_func i32 @_Z31sub_group_ballot_exclusive_scanDv4_j(<4 x i32> %[[ballot]])
 ; CHECK-LLVM: call spir_func i32 @_Z25sub_group_ballot_find_lsbDv4_j(<4 x i32> %[[ballot]])
 ; CHECK-LLVM: call spir_func i32 @_Z25sub_group_ballot_find_msbDv4_j(<4 x i32> %[[ballot]])
+
+; CHECK-SPV-IR: %[[ballot:[0-9]+]] = call spir_func <4 x i32> @_Z29__spirv_GroupNonUniformBallotib(i32 3, i1 false)
+; CHECK-SPV-IR: call spir_func i1 @_Z36__spirv_GroupNonUniformInverseBallotiDv4_j(i32 3, <4 x i32> %[[ballot]])
+; CHECK-SPV-IR: call spir_func i1 @_Z39__spirv_GroupNonUniformBallotBitExtractiDv4_jj(i32 3, <4 x i32> %[[ballot]], i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z37__spirv_GroupNonUniformBallotBitCountiiDv4_j(i32 3, i32 0, <4 x i32> %[[ballot]])
+; CHECK-SPV-IR: call spir_func i32 @_Z37__spirv_GroupNonUniformBallotBitCountiiDv4_j(i32 3, i32 1, <4 x i32> %[[ballot]])
+; CHECK-SPV-IR: call spir_func i32 @_Z37__spirv_GroupNonUniformBallotBitCountiiDv4_j(i32 3, i32 2, <4 x i32> %[[ballot]])
+; CHECK-SPV-IR: call spir_func i32 @_Z36__spirv_GroupNonUniformBallotFindLSBiDv4_j(i32 3, <4 x i32> %[[ballot]])
+; CHECK-SPV-IR: call spir_func i32 @_Z36__spirv_GroupNonUniformBallotFindMSBiDv4_j(i32 3, <4 x i32> %[[ballot]])
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testBallotOperations(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
@@ -1122,12 +1233,19 @@ declare dso_local spir_func i32 @_Z25sub_group_ballot_find_msbDv4_j(<4 x i32>) l
 ; CHECK-SPIRV: Load [[int4]] {{[0-9]+}} [[ltMask]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testSubgroupMasks
+; CHECK-COMMON-LABEL: @testSubgroupMasks
+
 ; CHECK-LLVM: call spir_func <4 x i32> @_Z21get_sub_group_eq_maskv()
 ; CHECK-LLVM: call spir_func <4 x i32> @_Z21get_sub_group_ge_maskv()
 ; CHECK-LLVM: call spir_func <4 x i32> @_Z21get_sub_group_gt_maskv()
 ; CHECK-LLVM: call spir_func <4 x i32> @_Z21get_sub_group_le_maskv()
 ; CHECK-LLVM: call spir_func <4 x i32> @_Z21get_sub_group_lt_maskv()
+
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z32__spirv_BuiltInSubgroupEqMaskKHRv()
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z32__spirv_BuiltInSubgroupGeMaskKHRv()
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z32__spirv_BuiltInSubgroupGtMaskKHRv()
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z32__spirv_BuiltInSubgroupLeMaskKHRv()
+; CHECK-SPV-IR: call spir_func <4 x i32> @_Z32__spirv_BuiltInSubgroupLtMaskKHRv()
 
 ; Function Attrs: convergent nofree nounwind writeonly
 define dso_local spir_kernel void @testSubgroupMasks(<4 x i32> addrspace(1)* nocapture) local_unnamed_addr #6 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !12 !kernel_arg_base_type !13 !kernel_arg_type_qual !7 {

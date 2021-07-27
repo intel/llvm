@@ -12,13 +12,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
+#include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/Utils.h"
+#include "mlir/Dialect/Linalg/Analysis/ConstraintsSet.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/SCF/Utils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/Dialect/Vector/VectorUtils.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -42,13 +45,13 @@ namespace {
 /// instructions that need to be hoisted too.
 struct HoistableWrite {
   vector::TransferWriteOp transferWriteOp;
-  SubTensorInsertOp subTensorInsertOp;
+  tensor::InsertSliceOp insertSliceOp;
 };
 /// Represents a unit of hoistable TransferReadOp. This may comprise other
 /// instructions that need to be hoisted too.
 struct HoistableRead {
   vector::TransferReadOp transferReadOp;
-  SubTensorOp subTensorOp;
+  tensor::ExtractSliceOp extractSliceOp;
 };
 } // namespace
 
@@ -71,7 +74,8 @@ static bool isEqualOffsetSizeOrStride(OpFoldResult op1, OpFoldResult op2) {
 }
 
 /// Return true is all offsets, sizes and strides are equal.
-static bool sameOffsetsSizesAndStrides(SubTensorOp s, SubTensorInsertOp si) {
+static bool sameOffsetsSizesAndStrides(tensor::ExtractSliceOp s,
+                                       tensor::InsertSliceOp si) {
   if (s.static_offsets().size() != si.static_offsets().size())
     return false;
   if (s.static_sizes().size() != si.static_sizes().size())
@@ -99,38 +103,37 @@ static HoistableRead findMatchingTransferRead(HoistableWrite write,
 
   LLVM_DEBUG(DBGS() << "findMatchingTransferRead for: "
                     << *write.transferWriteOp.getOperation() << "\n");
-  if (write.subTensorInsertOp)
-    LLVM_DEBUG(DBGS() << "findMatchingTransferRead subTensorInsertOp: "
-                      << *write.subTensorInsertOp.getOperation() << "\n");
+  if (write.insertSliceOp)
+    LLVM_DEBUG(DBGS() << "findMatchingTransferRead inserSliceOp: "
+                      << *write.insertSliceOp.getOperation() << "\n");
 
   for (Operation *user : srcTensor.getUsers()) {
     LLVM_DEBUG(DBGS() << "findMatchingTransferRead inspect user: " << *user
                       << "\n");
 
-    // If HoistableWrite involves a SubTensorInsertOp, we need to find a
-    // matching SubTensorOp.
-    SubTensorOp subTensorOp;
+    // If HoistableWrite involves a InsertSliceOp, we need to find a
+    // matching ExtractSliceOp.
+    tensor::ExtractSliceOp sliceOp;
     Operation *maybeTransferReadUser = user;
-    if (write.subTensorInsertOp) {
-      subTensorOp = dyn_cast<SubTensorOp>(user);
-      if (!subTensorOp || subTensorOp.getResult().getType() !=
-                              write.subTensorInsertOp.source().getType())
+    if (write.insertSliceOp) {
+      sliceOp = dyn_cast<tensor::ExtractSliceOp>(user);
+      if (!sliceOp || sliceOp.getResult().getType() !=
+                          write.insertSliceOp.source().getType())
         continue;
 
       LLVM_DEBUG(DBGS() << "check whether sameOffsetsSizesAndStrides: "
-                        << *subTensorOp << " vs " << *write.subTensorInsertOp
-                        << "\n");
-      if (!sameOffsetsSizesAndStrides(subTensorOp, write.subTensorInsertOp))
+                        << *sliceOp << " vs " << *write.insertSliceOp << "\n");
+      if (!sameOffsetsSizesAndStrides(sliceOp, write.insertSliceOp))
         continue;
 
       LLVM_DEBUG(DBGS() << "sameOffsetsSizesAndStrides: SUCCESS\n");
-      // If we got here, subTensorOp is hoistable iff it has exactly 2 uses:
+      // If we got here, sliceOp is hoistable iff it has exactly 2 uses:
       //   1. the transfer_write we want to hoist.
       //   2. a matching transfer_read.
       // Anything else, we skip.
       bool skip = false;
       Operation *otherUser = nullptr;
-      for (Operation *u : subTensorOp->getUsers()) {
+      for (Operation *u : sliceOp->getUsers()) {
         if (u == write.transferWriteOp)
           continue;
         if (otherUser) {
@@ -149,7 +152,7 @@ static HoistableRead findMatchingTransferRead(HoistableWrite write,
     auto read = dyn_cast<vector::TransferReadOp>(maybeTransferReadUser);
     if (read && read.indices() == write.transferWriteOp.indices() &&
         read.getVectorType() == write.transferWriteOp.getVectorType())
-      return HoistableRead{read, subTensorOp};
+      return HoistableRead{read, sliceOp};
   }
   return HoistableRead();
 }
@@ -168,13 +171,13 @@ static bool tensorChunkAccessedByUnknownOp(HoistableWrite write,
       Operation *user = use.getOwner();
       // Skip the candidate use, only inspect the "other" uses.
       if (user == candidateRead.transferReadOp ||
-          user == candidateRead.subTensorOp || user == write.transferWriteOp ||
-          user == write.subTensorInsertOp)
+          user == candidateRead.extractSliceOp ||
+          user == write.transferWriteOp || user == write.insertSliceOp)
         continue;
-      // Consider all transitive uses through a subtensor / subtensor_insert.
+      // Consider all transitive uses through a extract_slice / insert_slice.
       // TODO: atm we just bail because a stronger analysis is needed for these
       // cases.
-      if (isa<SubTensorOp, SubTensorInsertOp>(user))
+      if (isa<tensor::ExtractSliceOp, tensor::InsertSliceOp>(user))
         return true;
       // Consider all transitive uses through a vector.transfer_write.
       if (auto writeUser = dyn_cast<vector::TransferWriteOp>(user)) {
@@ -214,7 +217,7 @@ static bool tensorChunkAccessedByUnknownOp(HoistableWrite write,
 
 /// Return the `forOp`-invariant HoistableWrite that produces `yieldOperand`.
 /// Return the null HoistableWrite() if it is not comprised of a
-/// vector.transfer_write + optional subtensor_insert or if any of the indexings
+/// vector.transfer_write + optional insert_slice or if any of the indexings
 /// is `forOp`-dependent.
 static HoistableWrite
 getLoopInvariantTransferWriteOpDefining(scf::ForOp forOp,
@@ -229,26 +232,26 @@ getLoopInvariantTransferWriteOpDefining(scf::ForOp forOp,
     return HoistableWrite{write, nullptr};
   }
 
-  if (auto subTensorInsertOp = v.getDefiningOp<SubTensorInsertOp>()) {
-    // Inserted subTensor must come from vector.transfer_write.
+  if (auto insertSliceOp = v.getDefiningOp<tensor::InsertSliceOp>()) {
+    // Inserted slice must come from vector.transfer_write.
     auto write =
-        subTensorInsertOp.source().getDefiningOp<vector::TransferWriteOp>();
+        insertSliceOp.source().getDefiningOp<vector::TransferWriteOp>();
     if (!write)
       return HoistableWrite();
 
     // Tensor inserted into must be a BBArg at position matching yieldOperand's.
-    auto bbArg = subTensorInsertOp.dest().dyn_cast<BlockArgument>();
+    auto bbArg = insertSliceOp.dest().dyn_cast<BlockArgument>();
     if (!bbArg || bbArg.getOwner()->getParentOp() != forOp ||
         bbArg.getArgNumber() != /*num iv=*/1 + yieldOperand.getOperandNumber())
       return HoistableWrite();
 
     // Indexing inserted into must not depend on `forOp`.
-    for (Value operand : subTensorInsertOp->getOperands().drop_front(
-             SubTensorInsertOp::getOffsetSizeAndStrideStartOperandIndex()))
+    for (Value operand : insertSliceOp->getOperands().drop_front(
+             tensor::InsertSliceOp::getOffsetSizeAndStrideStartOperandIndex()))
       if (!forOp.isDefinedOutsideOfLoop(operand))
         return HoistableWrite();
 
-    return HoistableWrite{write, subTensorInsertOp};
+    return HoistableWrite{write, insertSliceOp};
   }
 
   return HoistableWrite();
@@ -260,18 +263,18 @@ static void hoistReadWrite(HoistableRead read, HoistableWrite write,
   scf::ForOp forOp = cast<scf::ForOp>(tensorBBArg.getOwner()->getParentOp());
   assert(read.transferReadOp && write.transferWriteOp &&
          "expected transfer_read and transfer_write ops to be set");
-  assert(((read.subTensorOp && write.subTensorInsertOp) ||
-          (!read.subTensorOp && !write.subTensorInsertOp)) &&
-         "expected matching subtensor / subtensor_insert");
+  assert(((read.extractSliceOp && write.insertSliceOp) ||
+          (!read.extractSliceOp && !write.insertSliceOp)) &&
+         "expected matching extract_slice / insert_slice");
   LLVM_DEBUG(DBGS() << "In forOp:\n"
                     << *forOp.getOperation()
                     << "\nHoist: " << *read.transferReadOp.getOperation()
                     << "\nHoist: " << *write.transferWriteOp.getOperation()
                     << "\nInvolving: " << tensorBBArg << "\n");
 
-  // If a read subtensor is present, hoist it.
-  if (read.subTensorOp && failed(forOp.moveOutOfLoop({read.subTensorOp})))
-    llvm_unreachable("Unexpected failure moving subtensor out of loop");
+  // If a read slice is present, hoist it.
+  if (read.extractSliceOp && failed(forOp.moveOutOfLoop({read.extractSliceOp})))
+    llvm_unreachable("Unexpected failure moving extract_slice out of loop");
 
   // Hoist the transfer_read op.
   if (failed(forOp.moveOutOfLoop({read.transferReadOp})))
@@ -282,20 +285,20 @@ static void hoistReadWrite(HoistableRead read, HoistableWrite write,
   unsigned initArgNumber = tensorBBArg.getArgNumber() - /*numIvs=*/1;
 
   // Update the source tensor.
-  if (read.subTensorOp)
-    read.subTensorOp.sourceMutable().assign(forOp.initArgs()[initArgNumber]);
+  if (read.extractSliceOp)
+    read.extractSliceOp.sourceMutable().assign(forOp.initArgs()[initArgNumber]);
   else
     read.transferReadOp.sourceMutable().assign(forOp.initArgs()[initArgNumber]);
 
   // Hoist write after.
-  if (write.subTensorInsertOp)
-    write.subTensorInsertOp->moveAfter(forOp);
+  if (write.insertSliceOp)
+    write.insertSliceOp->moveAfter(forOp);
   write.transferWriteOp->moveAfter(forOp);
 
   // Update the yield.
   auto yieldOp = cast<scf::YieldOp>(forOp.region().front().getTerminator());
-  if (write.subTensorInsertOp)
-    yieldOp->setOperand(initArgNumber, write.subTensorInsertOp.dest());
+  if (write.insertSliceOp)
+    yieldOp->setOperand(initArgNumber, write.insertSliceOp.dest());
   else
     yieldOp->setOperand(initArgNumber, write.transferWriteOp.source());
 
@@ -306,13 +309,13 @@ static void hoistReadWrite(HoistableRead read, HoistableWrite write,
   // Transfer write has been hoisted, need to update the vector and tensor
   // source. Replace the result of the loop to use the new tensor created
   // outside the loop.
-  // Depending on whether a subtensor_insert is present or not, it carries the
+  // Depending on whether a insert_slice is present or not, it carries the
   // update on the tensor operands.
-  if (write.subTensorInsertOp) {
+  if (write.insertSliceOp) {
     newForOp.getResult(initArgNumber)
-        .replaceAllUsesWith(write.subTensorInsertOp.getResult());
-    write.transferWriteOp.sourceMutable().assign(read.subTensorOp.result());
-    write.subTensorInsertOp.destMutable().assign(read.subTensorOp.source());
+        .replaceAllUsesWith(write.insertSliceOp.getResult());
+    write.transferWriteOp.sourceMutable().assign(read.extractSliceOp.result());
+    write.insertSliceOp.destMutable().assign(read.extractSliceOp.source());
   } else {
     newForOp.getResult(initArgNumber)
         .replaceAllUsesWith(write.transferWriteOp.getResult(0));
@@ -350,9 +353,9 @@ void mlir::linalg::hoistRedundantVectorTransfersOnTensor(FuncOp func) {
         LLVM_DEBUG(dbgs() << "\n";
                    DBGS() << "Candidate write for hoisting: "
                           << *write.transferWriteOp.getOperation() << "\n");
-        if (write.subTensorInsertOp)
-          LLVM_DEBUG(DBGS() << "Candidate subtensor_insert for hoisting: "
-                            << *write.subTensorInsertOp.getOperation() << "\n");
+        if (write.insertSliceOp)
+          LLVM_DEBUG(DBGS() << "Candidate insert_slice for hoisting: "
+                            << *write.insertSliceOp.getOperation() << "\n");
         if (llvm::any_of(write.transferWriteOp.indices(),
                          [&forOp](Value index) {
                            return !forOp.isDefinedOutsideOfLoop(index);
@@ -529,97 +532,6 @@ bool isDefinedOutsideOrConstant(scf::ForOp outer, Value v) {
   return outer.isDefinedOutsideOfLoop(v) || v.getDefiningOp<ConstantOp>();
 }
 
-/// Compute the tightest lower bound with quantities that are all defined
-/// outside of `outer`.
-/// Return null if such a bound cannot be computed.
-Value computeLoopIndependentLowerBound(OpBuilder &b, scf::ForOp outer,
-                                       Value v) {
-  if (isDefinedOutsideOrConstant(outer, v))
-    return v;
-  return Value();
-}
-
-/// Compute the tightest upper bound with quantities that are all defined
-/// outside of `outer`.
-/// Expects all ops in the backward slice of `v` up to `outer` to be either
-/// scf.for, affine.min or affine.apply.
-static Value computeLoopIndependentUpperBound(OpBuilder &b, scf::ForOp outer,
-                                              Value v) {
-  if (isDefinedOutsideOrConstant(outer, v))
-    return v;
-
-  LLVM_DEBUG(DBGS() << "Begin loopIndependentUpperBound for: " << v << "\n");
-
-  bool ok =
-      backwardsSliceOnlyHasOpsOfType<scf::ForOp, AffineMinOp, AffineApplyOp>(
-          outer, v);
-  assert(ok && "expected to only be defined by scf::ForOp and AffineMinOp");
-  (void)ok;
-
-  // Compute a backward slice up to, but not including, `outer`.
-  SetVector<Operation *> backwardSlice;
-  getBackwardSlice(v, &backwardSlice,
-                   [&](Operation *op) { return outer->isProperAncestor(op); });
-  backwardSlice.insert(v.getDefiningOp());
-
-  OpBuilder::InsertionGuard g(b);
-  b.setInsertionPoint(outer);
-  Value res = v;
-  BlockAndValueMapping bvm;
-  for (Operation *op : backwardSlice) {
-    if (isa<scf::ForOp>(op))
-      continue;
-    if (isa<AffineApplyOp>(op)) {
-      b.clone(*op, bvm);
-      continue;
-    }
-    auto sliceMinOp = cast<AffineMinOp>(op);
-    GetMinMaxExprFn getSCFMinMax = [&](Value value,
-                                       SmallVectorImpl<Value> &dims,
-                                       SmallVectorImpl<Value> &symbols) {
-      return getSCFMinMaxExpr(value, dims, symbols, [&](Operation *op) {
-        return outer->isAncestor(op);
-      });
-    };
-    // Perform the substitution of the operands of AffineMinOp.
-    auto mapAndOperands = substituteMin(sliceMinOp, getSCFMinMax);
-    SmallVector<Value> resultOperands = mapAndOperands.dims;
-    llvm::append_range(resultOperands, mapAndOperands.symbols);
-    AffineMap map = mapAndOperands.map;
-    canonicalizeMapAndOperands(&map, &resultOperands);
-    map = simplifyAffineMap(map);
-    res = b.create<AffineMinOp>(
-        outer->getLoc(), map,
-        llvm::to_vector<4>(llvm::map_range(resultOperands, [&](Value operand) {
-          return bvm.lookupOrDefault(operand);
-        })));
-    bvm.map(sliceMinOp, res);
-  }
-  LLVM_DEBUG(DBGS() << "End loopIndependentUpperBound with: " << res << "\n");
-  return res;
-}
-
-/// Return the number of iterations in the loop (ub - lb).ceilDiv(step).
-/// The returned Value is guaranteed not to depend on any loop comprised in
-/// [`outer`, `forOp`].
-/// Return null if such a loop-independent quantity cannot be computed.
-static Value buildLoopTripCount(OpBuilder &b, scf::ForOp outer,
-                                scf::ForOp forOp) {
-  MLIRContext *ctx = forOp->getContext();
-  AffineExpr lb, ub, step;
-  bindDims(ctx, lb, ub);
-  bindSymbols(ctx, step);
-  Value lbVal = computeLoopIndependentLowerBound(b, outer, forOp.lowerBound()),
-        ubVal = computeLoopIndependentUpperBound(b, outer, forOp.upperBound()),
-        stepVal = forOp.step();
-  if (!lbVal || !ubVal || !stepVal)
-    return Value();
-  auto loc = forOp->getLoc();
-  Value res = b.create<AffineApplyOp>(loc, (ub - lb).ceilDiv(step),
-                                      ValueRange{lbVal, ubVal, stepVal});
-  return res;
-}
-
 /// Return the current iteration number in the loop (iv - lb).ceilDiv(step).
 /// The returned Value is guaranteed not to depend on any loop comprised in
 /// [`outer`, `forOp`].
@@ -630,14 +542,135 @@ static Value buildLoopIterationCount(OpBuilder &b, scf::ForOp outer,
   AffineExpr iv, lb, step;
   bindDims(ctx, iv, lb);
   bindSymbols(ctx, step);
-  Value ivVal = forOp.getInductionVar(),
-        lbVal = computeLoopIndependentLowerBound(b, outer, forOp.lowerBound()),
-        stepVal = forOp.step();
-  if (!ivVal || !lbVal || !stepVal)
+  if (!isDefinedOutsideOrConstant(outer, forOp.lowerBound()) ||
+      !isDefinedOutsideOrConstant(outer, forOp.step()))
     return Value();
+  Value ivVal = forOp.getInductionVar(), lbVal = forOp.lowerBound(),
+        stepVal = forOp.step();
   auto loc = forOp->getLoc();
-  return b.create<AffineApplyOp>(loc, (iv - lb).ceilDiv(step),
-                                 ValueRange{ivVal, lbVal, stepVal});
+  return b.createOrFold<AffineApplyOp>(loc, (iv - lb).ceilDiv(step),
+                                       ValueRange{ivVal, lbVal, stepVal});
+}
+
+/// Given a set of loops, assumed to be scf::ForOp, create a constraint set
+/// containing the inequalities `iv - lb >= 0` and `-iv + ub >= 0` for each
+/// loop.
+static ConstraintsSet initLoopIvsAndBounds(ArrayRef<Operation *> loops) {
+  ConstraintsSet constraints;
+  for (Operation *op : loops)
+    constraints.addDimId(constraints.getNumDimIds(),
+                         cast<scf::ForOp>(op).getInductionVar());
+  for (Operation *op : loops)
+    constraints.addDimId(constraints.getNumDimIds(),
+                         cast<scf::ForOp>(op).lowerBound());
+  for (Operation *op : loops)
+    constraints.addDimId(constraints.getNumDimIds(),
+                         cast<scf::ForOp>(op).upperBound());
+  unsigned numLoops = loops.size();
+  for (unsigned ivIdx = 0, e = numLoops; ivIdx < e; ++ivIdx) {
+    // iv - lb >= 0
+    SmallVector<int64_t, 8> ineqLb(constraints.getNumCols(), 0);
+    ineqLb[ivIdx] = 1;
+    ineqLb[ivIdx + numLoops] = -1;
+    // -iv + ub >= 0
+    SmallVector<int64_t, 8> ineqUb(constraints.getNumCols(), 0);
+    ineqUb[ivIdx] = -1;
+    ineqUb[ivIdx + 2 * numLoops] = 1;
+    ineqUb[constraints.getNumCols() - 1] = -1;
+    constraints.addInequality(ineqLb);
+    constraints.addInequality(ineqUb);
+  }
+  return constraints;
+}
+
+/// For each loop in `loops`, determine the ops involved in the construction of
+/// its upper bound---up to the outerLimit loop--- and fold them as new
+/// inequalities in the constraint set.
+/// This is achieved by computing the backwardSlice of the loop's upper bound
+/// and iteratively folding each op in reverse topological order to guarantee
+/// use-def ordering.
+/// As operations are folded in, their result is projected out of the
+/// constraints set.
+/// The following operations are supported:
+///   - scf::ForOp are simply skipped.
+///   - AffineApplyOp are composed to replace the result by an equality.
+///   - AffineMinOp are composed by adding each entry as an upper bound.
+/// If any other operation is met, return failure.
+// TODO: extend on a per-need basis.
+static LogicalResult
+foldUpperBoundsIntoConstraintsSet(ConstraintsSet &constraints,
+                                  scf::ForOp outerLimit,
+                                  ArrayRef<Operation *> loops) {
+  SetVector<Value> toProjectOut;
+  for (Operation *loop : loops) {
+    auto ub = cast<scf::ForOp>(loop).upperBound();
+    if (isDefinedOutsideOrConstant(outerLimit, ub))
+      continue;
+
+    // Compute a backward slice up to, but not including, `outerLimit`.
+    SetVector<Operation *> backwardSlice;
+    getBackwardSlice(ub, &backwardSlice, [&](Operation *op) {
+      return outerLimit->isProperAncestor(op);
+    });
+    backwardSlice.insert(ub.getDefiningOp());
+
+    // Iterate over all ops in the slice and compose them in the constraints.
+    for (Operation *op : llvm::reverse(backwardSlice)) {
+      if (!isa<scf::ForOp, AffineApplyOp, AffineMinOp>(op))
+        return failure();
+      if (isa<scf::ForOp>(op))
+        continue;
+      // Ensure there is a
+      auto ensureIdFailed = [&](Value v) {
+        return failed(constraints.ensureIdOfType(v, /*asDim=*/true));
+      };
+
+      // Ensure all ids exist and add results for later projection.
+      if (llvm::any_of(op->getResults(), ensureIdFailed) ||
+          llvm::any_of(op->getOperands(), ensureIdFailed))
+        return failure();
+
+      // All supported ops have 1 result.
+      // TODO: extend when needed.
+      toProjectOut.insert(op->getResult(0));
+
+      // Compose supported ops.
+      if (auto affineApplyOp = dyn_cast<AffineApplyOp>(op)) {
+        if (failed(constraints.composeAffineApply(affineApplyOp.getResult(),
+                                                  affineApplyOp.getAffineMap(),
+                                                  affineApplyOp.getOperands())))
+          return failure();
+        continue;
+      }
+      auto affineMinOp = cast<AffineMinOp>(op);
+      if (failed(constraints.composeMin(affineMinOp.getResult(),
+                                        affineMinOp.getAffineMap(),
+                                        affineMinOp.operands())))
+        return failure();
+    }
+  }
+  for (Value v : toProjectOut)
+    constraints.projectOut(v);
+  return success();
+}
+
+/// Compute dynamic tensor sizes, independent of any value defined inside
+/// `outer` and such that every n-D iteration of the packingLoops has its own
+/// space (so that each packed buffer has a storage location). This is achieved
+/// by computing the extent for each of the packing loops.
+static LogicalResult computeBounds(scf::ForOp outer,
+                                   ArrayRef<Operation *> packingLoops,
+                                   SmallVector<AffineMap> &lbs,
+                                   SmallVector<AffineMap> &ubs) {
+  // Packing loop IVs are introduced as the first positions.
+  ConstraintsSet constraints = initLoopIvsAndBounds(packingLoops);
+  if (failed(
+          foldUpperBoundsIntoConstraintsSet(constraints, outer, packingLoops)))
+    return failure();
+  // Compute the bounds of the first positions, assuming the others are fixed.
+  constraints.getSliceBounds(/*pos=*/0, /*num=*/packingLoops.size(),
+                             outer->getContext(), &lbs, &ubs);
+  return success();
 }
 
 /// Ensure prerequisites that guarantee pad op hoisting can occur.
@@ -724,28 +757,49 @@ hoistPaddingOnTensorsPrerequisites(linalg::PadTensorOp padTensorOp, int nLevels,
   assert(outermostEnclosingForOp == backwardSlice.front());
 
   scf::ForOp outer = cast<scf::ForOp>(outermostEnclosingForOp);
-  if (llvm::any_of(packingLoops, [&](Operation *op) {
-        scf::ForOp forOp = cast<scf::ForOp>(op);
-        Value lb = forOp.lowerBound(), ub = forOp.upperBound(),
-              step = forOp.step();
-        return !isDefinedOutsideOrConstant(outer, lb) ||
-               !(isDefinedOutsideOrConstant(outer, ub) ||
-                 backwardsSliceOnlyHasOpsOfType<scf::ForOp, AffineMinOp,
-                                                AffineApplyOp>(outer, ub)) ||
-               !isDefinedOutsideOrConstant(outer, step);
-      }))
+
+  ConstraintsSet constraints = initLoopIvsAndBounds(packingLoops.getArrayRef());
+  if (failed(foldUpperBoundsIntoConstraintsSet(constraints, outer,
+                                               packingLoops.getArrayRef())))
     return failure();
 
+  unsigned numLoops = packingLoops.size();
+  SmallVector<AffineMap> lbs(numLoops), ubs(numLoops);
+  if (failed(computeBounds(outer, packingLoops.getArrayRef(), lbs, ubs)))
+    return failure();
+
+  SmallVector<Value> allValues;
+  constraints.getAllIdValues(&allValues);
+  SmallVector<Value> allNonLoopValues(allValues.begin() + numLoops,
+                                      allValues.end());
+
+  // For each packingLoop, create the extent by (ub - lb).ceilDiv(step).
   // IP just before the outermost loop considered that we hoist above.
-  OpBuilder b(outermostEnclosingForOp);
-  dynamicTensorSizes =
-      llvm::to_vector<4>(llvm::map_range(packingLoops, [&](Operation *op) {
-        return buildLoopTripCount(b, cast<scf::ForOp>(outermostEnclosingForOp),
-                                  cast<scf::ForOp>(op));
-      }));
-  // Assert all loop trip counts can be computed.
-  if (!llvm::all_of(dynamicTensorSizes, [](Value v) { return v; }))
-    llvm_unreachable("loop independence prerequisite not met");
+  ImplicitLocOpBuilder b(outer->getLoc(), outer);
+  assert(packingLoops.size() == lbs.size() && "expected matching lb sizes");
+  assert(packingLoops.size() == ubs.size() && "expected matching ub sizes");
+  for (auto it : llvm::zip(packingLoops, lbs, ubs)) {
+    scf::ForOp loop = cast<scf::ForOp>(std::get<0>(it));
+    AffineMap lbMap = std::get<1>(it);
+    AffineMap ubMap = std::get<2>(it);
+    SmallVector<Value> lbOperands(allNonLoopValues);
+    canonicalizeMapAndOperands(&lbMap, &lbOperands);
+    Value lbVal = b.createOrFold<AffineMaxOp>(lbMap, lbOperands);
+
+    SmallVector<Value> ubOperands(allNonLoopValues);
+    canonicalizeMapAndOperands(&ubMap, &ubOperands);
+    Value ubVal = b.createOrFold<AffineMinOp>(ubMap, ubOperands);
+
+    AffineExpr lb, ub, step;
+    bindDims(b.getContext(), lb, ub);
+    bindSymbols(b.getContext(), step);
+    Value res = b.createOrFold<AffineApplyOp>(
+        (ub - lb).ceilDiv(step),
+        ValueRange{lbVal, ubVal, cast<scf::ForOp>(loop).step()});
+
+    dynamicTensorSizes.push_back(res);
+  }
+
   return success();
 }
 
@@ -788,8 +842,8 @@ LogicalResult mlir::linalg::hoistPaddingOnTensors(PadTensorOp &padTensorOp,
   // The implementation proceeds in a stack-like fashion:
   //   1. Iteratively clone and step into the loops, pushing the `packedTensor`
   //      deeper in the stack.
-  //   2. Create a SubTensorInsert at the top of the stack.
-  //   3. Iteratively pop and yield the result of the SubTensorInsertOp across
+  //   2. Create a InsertSliceOp at the top of the stack.
+  //   3. Iteratively pop and yield the result of the InsertSliceOp across
   //     the cloned loops.
   SmallVector<Value> clonedLoopIvs, leadingPackedTensorIndexings;
   clonedLoopIvs.reserve(nLoops);
@@ -799,10 +853,10 @@ LogicalResult mlir::linalg::hoistPaddingOnTensors(PadTensorOp &padTensorOp,
   backwardSlice.insert(padTensorOp);
   // Stack step 1. iteratively clone loops and push `packedTensor`.
   for (Operation *op : backwardSlice) {
-    // Specifically sit out in the subtenso(packedTensor) case: this is the
+    // Specifically sit out in the extract_slice(packedTensor) case: this is the
     // piece we seek to replace.
-    if (auto subTensor = dyn_cast<SubTensorOp>(op))
-      if (bvm.lookupOrDefault(subTensor.source()) == packedTensor)
+    if (auto sliceOp = dyn_cast<tensor::ExtractSliceOp>(op))
+      if (bvm.lookupOrDefault(sliceOp.source()) == packedTensor)
         continue;
     auto effects = dyn_cast<MemoryEffectOpInterface>(op);
     bool hasNoEffects = !effects || effects.hasNoEffect();
@@ -839,7 +893,7 @@ LogicalResult mlir::linalg::hoistPaddingOnTensors(PadTensorOp &padTensorOp,
     packedTensor = clonedForOp.getRegionIterArgs().front();
   }
 
-  // Stack step 2. create SubTensorInsertOp at the top of the stack.
+  // Stack step 2. create InsertSliceOp at the top of the stack.
   // offsets = [clonedLoopIvs, 0 .. 0].
   SmallVector<OpFoldResult> offsets(leadingPackedTensorIndexings.begin(),
                                     leadingPackedTensorIndexings.end());
@@ -856,8 +910,8 @@ LogicalResult mlir::linalg::hoistPaddingOnTensors(PadTensorOp &padTensorOp,
   SmallVector<OpFoldResult> strides(nLoops + paddedRank, b.getIndexAttr(1));
 
   Value inserted =
-      b.create<SubTensorInsertOp>(loc, bvm.lookup(padTensorOp.result()),
-                                  packedTensor, offsets, sizes, strides);
+      b.create<tensor::InsertSliceOp>(loc, bvm.lookup(padTensorOp.result()),
+                                      packedTensor, offsets, sizes, strides);
 
   // Stack step 3. iteratively pop the stack and propagate the yield.
   Value valueToYield = inserted;
@@ -869,7 +923,7 @@ LogicalResult mlir::linalg::hoistPaddingOnTensors(PadTensorOp &padTensorOp,
   }
 
   // Now the packed tensor is ready, replace the original padding op by a
-  // 1x..x1 SubTensor [originalLoopIvs, 0 .. 0][1 .. 1, paddedShape][1 .. 1].
+  // 1x..x1 slice [originalLoopIvs, 0 .. 0][1 .. 1, paddedShape][1 .. 1].
   b.setInsertionPoint(padTensorOp);
   SmallVector<Value> loopIterationCounts =
       llvm::to_vector<4>(llvm::map_range(packingLoops, [&](Operation *loop) {
@@ -888,8 +942,8 @@ LogicalResult mlir::linalg::hoistPaddingOnTensors(PadTensorOp &padTensorOp,
   packedTensor =
       scf::getForInductionVarOwner(clonedLoopIvs.front())->getResult(0);
   padTensorOp.replaceAllUsesWith(
-      b.create<SubTensorOp>(loc, padTensorOp.getResultType(), packedTensor,
-                            offsets, sizes, strides)
+      b.create<tensor::ExtractSliceOp>(loc, padTensorOp.getResultType(),
+                                       packedTensor, offsets, sizes, strides)
           ->getResult(0));
 
   Operation *toErase = padTensorOp;

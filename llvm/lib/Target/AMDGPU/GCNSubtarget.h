@@ -136,6 +136,7 @@ protected:
   bool HasGFX10A16;
   bool HasG16;
   bool HasNSAEncoding;
+  bool GFX10_AEncoding;
   bool GFX10_BEncoding;
   bool HasDLInsts;
   bool HasDot1Insts;
@@ -284,6 +285,11 @@ public:
   }
 
   unsigned getConstantBusLimit(unsigned Opcode) const;
+
+  /// Returns if the result of this instruction with a 16-bit result returned in
+  /// a 32-bit register implicitly zeroes the high 16-bits, rather than preserve
+  /// the original value.
+  bool zeroesHigh16BitsOfDest(unsigned Opcode) const;
 
   bool hasIntClamp() const {
     return HasIntClamp;
@@ -872,6 +878,10 @@ public:
 
   bool hasNSAEncoding() const { return HasNSAEncoding; }
 
+  bool hasGFX10_AEncoding() const {
+    return GFX10_AEncoding;
+  }
+
   bool hasGFX10_BEncoding() const {
     return GFX10_BEncoding;
   }
@@ -1028,8 +1038,23 @@ public:
     return AMDGPU::IsaInfo::getMaxNumSGPRs(this, WavesPerEU, Addressable);
   }
 
-  /// \returns Reserved number of SGPRs for given function \p MF.
+  /// \returns Reserved number of SGPRs. This is common
+  /// utility function called by MachineFunction and
+  /// Function variants of getReservedNumSGPRs.
+  unsigned getBaseReservedNumSGPRs(const bool HasFlatScratchInit) const;
+  /// \returns Reserved number of SGPRs for given machine function \p MF.
   unsigned getReservedNumSGPRs(const MachineFunction &MF) const;
+
+  /// \returns Reserved number of SGPRs for given function \p F.
+  unsigned getReservedNumSGPRs(const Function &F) const;
+
+  /// \returns max num SGPRs. This is the common utility
+  /// function called by MachineFunction and Function
+  /// variants of getMaxNumSGPRs.
+  unsigned getBaseMaxNumSGPRs(const Function &F,
+                              std::pair<unsigned, unsigned> WavesPerEU,
+                              unsigned PreloadedSGPRs,
+                              unsigned ReservedNumSGPRs) const;
 
   /// \returns Maximum number of SGPRs that meets number of waves per execution
   /// unit requirement for function \p MF, or number of SGPRs explicitly
@@ -1040,6 +1065,16 @@ public:
   /// subtarget's specifications, or does not meet number of waves per execution
   /// unit requirement.
   unsigned getMaxNumSGPRs(const MachineFunction &MF) const;
+
+  /// \returns Maximum number of SGPRs that meets number of waves per execution
+  /// unit requirement for function \p F, or number of SGPRs explicitly
+  /// requested using "amdgpu-num-sgpr" attribute attached to function \p F.
+  ///
+  /// \returns Value that meets number of waves per execution unit requirement
+  /// if explicitly requested value cannot be converted to integer, violates
+  /// subtarget's specifications, or does not meet number of waves per execution
+  /// unit requirement.
+  unsigned getMaxNumSGPRs(const Function &F) const;
 
   /// \returns VGPR allocation granularity supported by the subtarget.
   unsigned getVGPRAllocGranule() const {
@@ -1072,6 +1107,20 @@ public:
   unsigned getMaxNumVGPRs(unsigned WavesPerEU) const {
     return AMDGPU::IsaInfo::getMaxNumVGPRs(this, WavesPerEU);
   }
+
+  /// \returns max num VGPRs. This is the common utility function
+  /// called by MachineFunction and Function variants of getMaxNumVGPRs.
+  unsigned getBaseMaxNumVGPRs(const Function &F,
+                              std::pair<unsigned, unsigned> WavesPerEU) const;
+  /// \returns Maximum number of VGPRs that meets number of waves per execution
+  /// unit requirement for function \p F, or number of VGPRs explicitly
+  /// requested using "amdgpu-num-vgpr" attribute attached to function \p F.
+  ///
+  /// \returns Value that meets number of waves per execution unit requirement
+  /// if explicitly requested value cannot be converted to integer, violates
+  /// subtarget's specifications, or does not meet number of waves per execution
+  /// unit requirement.
+  unsigned getMaxNumVGPRs(const Function &F) const;
 
   /// \returns Maximum number of VGPRs that meets number of waves per execution
   /// unit requirement for function \p MF, or number of VGPRs explicitly

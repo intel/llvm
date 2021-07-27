@@ -30,20 +30,25 @@ void markLive() {
   // We build up a worklist of sections which have been marked as live. We only
   // push into the worklist when we discover an unmarked section, and we mark
   // as we push, so sections never appear twice in the list.
-  SmallVector<InputSection *, 256> worklist;
+  // Literal sections cannot contain references to other sections, so we only
+  // store ConcatInputSections in our worklist.
+  SmallVector<ConcatInputSection *, 256> worklist;
 
-  auto enqueue = [&](InputSection *s) {
-    if (s->live)
+  auto enqueue = [&](InputSection *isec, uint64_t off) {
+    if (isec->isLive(off))
       return;
-    s->live = true;
-    worklist.push_back(s);
+    isec->markLive(off);
+    if (auto s = dyn_cast<ConcatInputSection>(isec)) {
+      assert(!s->isCoalescedWeak());
+      worklist.push_back(s);
+    }
   };
 
   auto addSym = [&](Symbol *s) {
     s->used = true;
     if (auto *d = dyn_cast<Defined>(s))
       if (d->isec)
-        enqueue(d->isec);
+        enqueue(d->isec, d->value);
   };
 
   // Add GC roots.
@@ -74,9 +79,11 @@ void markLive() {
       // * -alias(-list)
       // * -init
 
-      // In dylibs and bundles, all external functions are GC roots.
-      // FIXME: -export_dynamic should enable this for executables too.
-      if (config->outputType != MH_EXECUTE && !defined->privateExtern) {
+      // In dylibs and bundles and in executables with -export_dynamic,
+      // all external functions are GC roots.
+      bool externsAreRoots =
+          config->outputType != MH_EXECUTE || config->exportDynamic;
+      if (externsAreRoots && !defined->privateExtern) {
         addSym(defined);
         continue;
       }
@@ -96,75 +103,67 @@ void markLive() {
   if (auto *stubBinder =
           dyn_cast_or_null<DylibSymbol>(symtab->find("dyld_stub_binder")))
     addSym(stubBinder);
-  for (InputSection *isec : inputSections) {
+  for (ConcatInputSection *isec : inputSections) {
     // Sections marked no_dead_strip
-    if (isec->flags & S_ATTR_NO_DEAD_STRIP) {
-      enqueue(isec);
+    if (isec->getFlags() & S_ATTR_NO_DEAD_STRIP) {
+      enqueue(isec, 0);
       continue;
     }
 
     // mod_init_funcs, mod_term_funcs sections
-    if (sectionType(isec->flags) == S_MOD_INIT_FUNC_POINTERS ||
-        sectionType(isec->flags) == S_MOD_TERM_FUNC_POINTERS) {
-      enqueue(isec);
+    if (sectionType(isec->getFlags()) == S_MOD_INIT_FUNC_POINTERS ||
+        sectionType(isec->getFlags()) == S_MOD_TERM_FUNC_POINTERS) {
+      enqueue(isec, 0);
       continue;
     }
+  }
 
-    // Dead strip runs before UnwindInfoSection handling so we need to keep
-    // __LD,__compact_unwind alive here.
-    // But that section contains absolute references to __TEXT,__text and
-    // keeps most code alive due to that. So we can't just enqueue() the
-    // section: We must skip the relocations for the functionAddress
-    // in each CompactUnwindEntry.
-    // See also scanEhFrameSection() in lld/ELF/MarkLive.cpp.
-    if (isec->segname == segment_names::ld &&
-        isec->name == section_names::compactUnwind) {
-      isec->live = true;
-      const int compactUnwindEntrySize =
-          target->wordSize == 8 ? sizeof(CompactUnwindEntry<uint64_t>)
-                                : sizeof(CompactUnwindEntry<uint32_t>);
-      for (const Reloc &r : isec->relocs) {
-        // This is the relocation for the address of the function itself.
-        // Ignore it, else these would keep everything alive.
-        if (r.offset % compactUnwindEntrySize == 0)
-          continue;
+  // Dead strip runs before UnwindInfoSection handling so we need to keep
+  // __LD,__compact_unwind alive here.
+  // But that section contains absolute references to __TEXT,__text and
+  // keeps most code alive due to that. So we can't just enqueue() the
+  // section: We must skip the relocations for the functionAddress
+  // in each CompactUnwindEntry.
+  // See also scanEhFrameSection() in lld/ELF/MarkLive.cpp.
+  for (ConcatInputSection *isec : in.unwindInfo->getInputs()) {
+    isec->live = true;
+    const int compactUnwindEntrySize =
+        target->wordSize == 8 ? sizeof(CompactUnwindEntry<uint64_t>)
+                              : sizeof(CompactUnwindEntry<uint32_t>);
+    for (const Reloc &r : isec->relocs) {
+      // This is the relocation for the address of the function itself.
+      // Ignore it, else these would keep everything alive.
+      if (r.offset % compactUnwindEntrySize == 0)
+        continue;
 
-        if (auto *s = r.referent.dyn_cast<Symbol *>())
-          addSym(s);
-        else {
-          auto *referentIsec = r.referent.get<InputSection *>();
-          assert(!referentIsec->isCoalescedWeak());
-          enqueue(referentIsec);
-        }
-      }
-      continue;
+      if (auto *s = r.referent.dyn_cast<Symbol *>())
+        addSym(s);
+      else
+        enqueue(r.referent.get<InputSection *>(), r.addend);
     }
   }
 
   do {
     // Mark things reachable from GC roots as live.
     while (!worklist.empty()) {
-      InputSection *s = worklist.pop_back_val();
+      ConcatInputSection *s = worklist.pop_back_val();
       assert(s->live && "We mark as live when pushing onto the worklist!");
 
       // Mark all symbols listed in the relocation table for this section.
       for (const Reloc &r : s->relocs) {
-        if (auto *s = r.referent.dyn_cast<Symbol *>()) {
+        if (auto *s = r.referent.dyn_cast<Symbol *>())
           addSym(s);
-        } else {
-          auto *referentIsec = r.referent.get<InputSection *>();
-          assert(!referentIsec->isCoalescedWeak());
-          enqueue(referentIsec);
-        }
+        else
+          enqueue(r.referent.get<InputSection *>(), r.addend);
       }
     }
 
     // S_ATTR_LIVE_SUPPORT sections are live if they point _to_ a live section.
     // Process them in a second pass.
-    for (InputSection *isec : inputSections) {
+    for (ConcatInputSection *isec : inputSections) {
       // FIXME: Check if copying all S_ATTR_LIVE_SUPPORT sections into a
       // separate vector and only walking that here is faster.
-      if (!(isec->flags & S_ATTR_LIVE_SUPPORT) || isec->live)
+      if (!(isec->getFlags() & S_ATTR_LIVE_SUPPORT) || isec->live)
         continue;
 
       for (const Reloc &r : isec->relocs) {
@@ -172,9 +171,9 @@ void markLive() {
         if (auto *s = r.referent.dyn_cast<Symbol *>())
           referentLive = s->isLive();
         else
-          referentLive = r.referent.get<InputSection *>()->live;
+          referentLive = r.referent.get<InputSection *>()->isLive(r.addend);
         if (referentLive)
-          enqueue(isec);
+          enqueue(isec, 0);
       }
     }
 

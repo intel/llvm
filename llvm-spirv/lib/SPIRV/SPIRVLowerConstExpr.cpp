@@ -157,8 +157,12 @@ void SPIRVLowerConstExprBase::visit(Module *M) {
               Users.push_back(InstUser);
           }
         }
-        for (auto &User : Users)
+        for (auto &User : Users) {
+          if (ReplInst->getParent() == User->getParent())
+            if (User->comesBefore(ReplInst))
+              ReplInst->moveBefore(User);
           User->replaceUsesOfWith(CE, ReplInst);
+        }
         return ReplInst;
       };
 

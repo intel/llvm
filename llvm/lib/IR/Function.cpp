@@ -169,14 +169,8 @@ static Type *getMemoryParamAllocType(AttributeSet ParamAttrs, Type *ArgTy) {
     return PreAllocTy;
   if (Type *InAllocaTy = ParamAttrs.getInAllocaType())
     return InAllocaTy;
-
-  // FIXME: sret and inalloca always depends on pointee element type. It's also
-  // possible for byval to miss it.
-  if (ParamAttrs.hasAttribute(Attribute::InAlloca) ||
-      ParamAttrs.hasAttribute(Attribute::ByVal) ||
-      ParamAttrs.hasAttribute(Attribute::StructRet) ||
-      ParamAttrs.hasAttribute(Attribute::Preallocated))
-    return cast<PointerType>(ArgTy)->getElementType();
+  if (Type *SRetTy = ParamAttrs.getStructRetType())
+    return SRetTy;
 
   return nullptr;
 }
@@ -781,10 +775,13 @@ void Function::recalculateIntrinsicID() {
 /// indicating that extra care must be taken to ensure a unique name.
 static std::string getMangledTypeStr(Type *Ty, bool &HasUnnamedType) {
   std::string Result;
-  if (PointerType* PTyp = dyn_cast<PointerType>(Ty)) {
-    Result += "p" + utostr(PTyp->getAddressSpace()) +
-              getMangledTypeStr(PTyp->getElementType(), HasUnnamedType);
-  } else if (ArrayType* ATyp = dyn_cast<ArrayType>(Ty)) {
+  if (PointerType *PTyp = dyn_cast<PointerType>(Ty)) {
+    Result += "p" + utostr(PTyp->getAddressSpace());
+    // Opaque pointer doesn't have pointee type information, so we just mangle
+    // address space for opaque pointer.
+    if (!PTyp->isOpaque())
+      Result += getMangledTypeStr(PTyp->getElementType(), HasUnnamedType);
+  } else if (ArrayType *ATyp = dyn_cast<ArrayType>(Ty)) {
     Result += "a" + utostr(ATyp->getNumElements()) +
               getMangledTypeStr(ATyp->getElementType(), HasUnnamedType);
   } else if (StructType *STyp = dyn_cast<StructType>(Ty)) {
@@ -809,7 +806,7 @@ static std::string getMangledTypeStr(Type *Ty, bool &HasUnnamedType) {
       Result += "vararg";
     // Ensure nested function types are distinguishable.
     Result += "f";
-  } else if (VectorType* VTy = dyn_cast<VectorType>(Ty)) {
+  } else if (VectorType *VTy = dyn_cast<VectorType>(Ty)) {
     ElementCount EC = VTy->getElementCount();
     if (EC.isScalable())
       Result += "nx";
@@ -837,37 +834,53 @@ static std::string getMangledTypeStr(Type *Ty, bool &HasUnnamedType) {
   return Result;
 }
 
+StringRef Intrinsic::getBaseName(ID id) {
+  assert(id < num_intrinsics && "Invalid intrinsic ID!");
+  return IntrinsicNameTable[id];
+}
+
 StringRef Intrinsic::getName(ID id) {
   assert(id < num_intrinsics && "Invalid intrinsic ID!");
   assert(!Intrinsic::isOverloaded(id) &&
          "This version of getName does not support overloading");
-  return IntrinsicNameTable[id];
+  return getBaseName(id);
 }
 
-std::string Intrinsic::getName(ID Id, ArrayRef<Type *> Tys, Module *M,
-                               FunctionType *FT) {
-  assert(Id < num_intrinsics && "Invalid intrinsic ID!");
+static std::string getIntrinsicNameImpl(Intrinsic::ID Id, ArrayRef<Type *> Tys,
+                                        Module *M, FunctionType *FT,
+                                        bool EarlyModuleCheck) {
+
+  assert(Id < Intrinsic::num_intrinsics && "Invalid intrinsic ID!");
   assert((Tys.empty() || Intrinsic::isOverloaded(Id)) &&
          "This version of getName is for overloaded intrinsics only");
+  (void)EarlyModuleCheck;
+  assert((!EarlyModuleCheck || M ||
+          !any_of(Tys, [](Type *T) { return isa<PointerType>(T); })) &&
+         "Intrinsic overloading on pointer types need to provide a Module");
   bool HasUnnamedType = false;
-  std::string Result(IntrinsicNameTable[Id]);
-  for (Type *Ty : Tys) {
+  std::string Result(Intrinsic::getBaseName(Id));
+  for (Type *Ty : Tys)
     Result += "." + getMangledTypeStr(Ty, HasUnnamedType);
-  }
-  assert((M || !HasUnnamedType) && "unnamed types need a module");
-  if (M && HasUnnamedType) {
+  if (HasUnnamedType) {
+    assert(M && "unnamed types need a module");
     if (!FT)
-      FT = getType(M->getContext(), Id, Tys);
+      FT = Intrinsic::getType(M->getContext(), Id, Tys);
     else
-      assert((FT == getType(M->getContext(), Id, Tys)) &&
+      assert((FT == Intrinsic::getType(M->getContext(), Id, Tys)) &&
              "Provided FunctionType must match arguments");
     return M->getUniqueIntrinsicName(Result, Id, FT);
   }
   return Result;
 }
 
-std::string Intrinsic::getName(ID Id, ArrayRef<Type *> Tys) {
-  return getName(Id, Tys, nullptr, nullptr);
+std::string Intrinsic::getName(ID Id, ArrayRef<Type *> Tys, Module *M,
+                               FunctionType *FT) {
+  assert(M && "We need to have a Module");
+  return getIntrinsicNameImpl(Id, Tys, M, FT, true);
+}
+
+std::string Intrinsic::getNameNoUnnamedTypes(ID Id, ArrayRef<Type *> Tys) {
+  return getIntrinsicNameImpl(Id, Tys, nullptr, nullptr, false);
 }
 
 /// IIT_Info - These are enumerators that describe the entries returned by the
@@ -1391,9 +1404,21 @@ static bool matchIntrinsicType(
     }
     case IITDescriptor::Pointer: {
       PointerType *PT = dyn_cast<PointerType>(Ty);
-      return !PT || PT->getAddressSpace() != D.Pointer_AddressSpace ||
-             matchIntrinsicType(PT->getElementType(), Infos, ArgTys,
-                                DeferredChecks, IsDeferredCheck);
+      if (!PT || PT->getAddressSpace() != D.Pointer_AddressSpace)
+        return true;
+      if (!PT->isOpaque())
+        return matchIntrinsicType(PT->getElementType(), Infos, ArgTys,
+                                  DeferredChecks, IsDeferredCheck);
+      // If typed pointers are supported, do not allow using opaque pointer in
+      // place of fixed pointer type. This would make the intrinsic signature
+      // non-unique.
+      if (Ty->getContext().supportsTypedPointers())
+        return true;
+      // Consume IIT descriptors relating to the pointer element type.
+      while (Infos.front().Kind == IITDescriptor::Pointer)
+        Infos = Infos.slice(1);
+      Infos = Infos.slice(1);
+      return false;
     }
 
     case IITDescriptor::Struct: {
@@ -1504,8 +1529,13 @@ static bool matchIntrinsicType(
         dyn_cast<VectorType> (ArgTys[D.getArgumentNumber()]);
       PointerType *ThisArgType = dyn_cast<PointerType>(Ty);
 
-      return (!ThisArgType || !ReferenceType ||
-              ThisArgType->getElementType() != ReferenceType->getElementType());
+      if (!ThisArgType || !ReferenceType)
+        return true;
+      if (!ThisArgType->isOpaque())
+        return ThisArgType->getElementType() != ReferenceType->getElementType();
+      // If typed pointers are supported, do not allow opaque pointer to ensure
+      // uniqueness.
+      return Ty->getContext().supportsTypedPointers();
     }
     case IITDescriptor::VecOfAnyPtrsToElt: {
       unsigned RefArgNumber = D.getRefArgNumber();
@@ -1536,7 +1566,8 @@ static bool matchIntrinsicType(
           dyn_cast<PointerType>(ThisArgVecTy->getElementType());
       if (!ThisArgEltTy)
         return true;
-      return ThisArgEltTy->getElementType() != ReferenceType->getElementType();
+      return !ThisArgEltTy->isOpaqueOrPointeeTypeMatches(
+          ReferenceType->getElementType());
     }
     case IITDescriptor::VecElementArgument: {
       if (D.getArgumentNumber() >= ArgTys.size())
@@ -1645,11 +1676,26 @@ Optional<Function *> Intrinsic::remangleIntrinsicFunction(Function *F) {
 
   Intrinsic::ID ID = F->getIntrinsicID();
   StringRef Name = F->getName();
-  if (Name ==
-      Intrinsic::getName(ID, ArgTys, F->getParent(), F->getFunctionType()))
+  std::string WantedName =
+      Intrinsic::getName(ID, ArgTys, F->getParent(), F->getFunctionType());
+  if (Name == WantedName)
     return None;
 
-  auto NewDecl = Intrinsic::getDeclaration(F->getParent(), ID, ArgTys);
+  Function *NewDecl = [&] {
+    if (auto *ExistingGV = F->getParent()->getNamedValue(WantedName)) {
+      if (auto *ExistingF = dyn_cast<Function>(ExistingGV))
+        if (ExistingF->getFunctionType() == F->getFunctionType())
+          return ExistingF;
+
+      // The name already exists, but is not a function or has the wrong
+      // prototype. Make place for the new one by renaming the old version.
+      // Either this old version will be removed later on or the module is
+      // invalid and we'll get an error.
+      ExistingGV->setName(WantedName + ".renamed");
+    }
+    return Intrinsic::getDeclaration(F->getParent(), ID, ArgTys);
+  }();
+
   NewDecl->setCallingConv(F->getCallingConv());
   assert(NewDecl->getFunctionType() == F->getFunctionType() &&
          "Shouldn't change the signature");

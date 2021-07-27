@@ -15,6 +15,7 @@
 #include "ARMTargetMachine.h"
 #include "MCTargetDesc/ARMAddressingModes.h"
 #include "Utils/ARMBaseInfo.h"
+#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -195,6 +196,11 @@ private:
   bool tryT1IndexedLoad(SDNode *N);
   bool tryT2IndexedLoad(SDNode *N);
   bool tryMVEIndexedLoad(SDNode *N);
+  bool tryFMULFixed(SDNode *N, SDLoc dl);
+  bool tryFP_TO_INT(SDNode *N, SDLoc dl);
+  bool transformFixedFloatingPointConversion(SDNode *N, SDNode *FMul,
+                                             bool IsUnsigned,
+                                             bool FixedToFloat);
 
   /// SelectVLD - Select NEON load intrinsics.  NumVecs should be
   /// 1, 2, 3 or 4.  The opcode arrays specify the instructions used for
@@ -1972,6 +1978,9 @@ static bool isVLDfixed(unsigned Opc)
   case ARM::VLD2DUPd8wb_fixed : return true;
   case ARM::VLD2DUPd16wb_fixed : return true;
   case ARM::VLD2DUPd32wb_fixed : return true;
+  case ARM::VLD2DUPq8OddPseudoWB_fixed: return true;
+  case ARM::VLD2DUPq16OddPseudoWB_fixed: return true;
+  case ARM::VLD2DUPq32OddPseudoWB_fixed: return true;
   }
 }
 
@@ -2035,6 +2044,9 @@ static unsigned getVLDSTRegisterUpdateOpcode(unsigned Opc) {
   case ARM::VLD1DUPq8wb_fixed : return ARM::VLD1DUPq8wb_register;
   case ARM::VLD1DUPq16wb_fixed : return ARM::VLD1DUPq16wb_register;
   case ARM::VLD1DUPq32wb_fixed : return ARM::VLD1DUPq32wb_register;
+  case ARM::VLD2DUPq8OddPseudoWB_fixed: return ARM::VLD2DUPq8OddPseudoWB_register;
+  case ARM::VLD2DUPq16OddPseudoWB_fixed: return ARM::VLD2DUPq16OddPseudoWB_register;
+  case ARM::VLD2DUPq32OddPseudoWB_fixed: return ARM::VLD2DUPq32OddPseudoWB_register;
 
   case ARM::VST1d8wb_fixed: return ARM::VST1d8wb_register;
   case ARM::VST1d16wb_fixed: return ARM::VST1d16wb_register;
@@ -2987,51 +2999,47 @@ void ARMDAGToDAGISel::SelectVLDDup(SDNode *N, bool IsIntrinsic,
   SDValue Pred = getAL(CurDAG, dl);
   SDValue Reg0 = CurDAG->getRegister(0, MVT::i32);
 
-  SDNode *VLdDup;
-  if (is64BitVector || NumVecs == 1) {
-    SmallVector<SDValue, 6> Ops;
-    Ops.push_back(MemAddr);
-    Ops.push_back(Align);
-    unsigned Opc = is64BitVector ? DOpcodes[OpcodeIndex] :
-                                   QOpcodes0[OpcodeIndex];
-    if (isUpdating) {
-      // fixed-stride update instructions don't have an explicit writeback
-      // operand. It's implicit in the opcode itself.
-      SDValue Inc = N->getOperand(2);
-      bool IsImmUpdate =
-          isPerfectIncrement(Inc, VT.getVectorElementType(), NumVecs);
-      if (NumVecs <= 2 && !IsImmUpdate)
-        Opc = getVLDSTRegisterUpdateOpcode(Opc);
-      if (!IsImmUpdate)
-        Ops.push_back(Inc);
-      // FIXME: VLD3 and VLD4 haven't been updated to that form yet.
-      else if (NumVecs > 2)
+  SmallVector<SDValue, 6> Ops;
+  Ops.push_back(MemAddr);
+  Ops.push_back(Align);
+  unsigned Opc = is64BitVector    ? DOpcodes[OpcodeIndex]
+                 : (NumVecs == 1) ? QOpcodes0[OpcodeIndex]
+                                  : QOpcodes1[OpcodeIndex];
+  if (isUpdating) {
+    SDValue Inc = N->getOperand(2);
+    bool IsImmUpdate =
+        isPerfectIncrement(Inc, VT.getVectorElementType(), NumVecs);
+    if (IsImmUpdate) {
+      if (!isVLDfixed(Opc))
         Ops.push_back(Reg0);
+    } else {
+      if (isVLDfixed(Opc))
+        Opc = getVLDSTRegisterUpdateOpcode(Opc);
+      Ops.push_back(Inc);
     }
-    Ops.push_back(Pred);
-    Ops.push_back(Reg0);
-    Ops.push_back(Chain);
-    VLdDup = CurDAG->getMachineNode(Opc, dl, ResTys, Ops);
-  } else if (NumVecs == 2) {
-    const SDValue OpsA[] = { MemAddr, Align, Pred, Reg0, Chain };
-    SDNode *VLdA = CurDAG->getMachineNode(QOpcodes0[OpcodeIndex],
-                                          dl, ResTys, OpsA);
-
-    Chain = SDValue(VLdA, 1);
-    const SDValue OpsB[] = { MemAddr, Align, Pred, Reg0, Chain };
-    VLdDup = CurDAG->getMachineNode(QOpcodes1[OpcodeIndex], dl, ResTys, OpsB);
-  } else {
-    SDValue ImplDef =
-      SDValue(CurDAG->getMachineNode(TargetOpcode::IMPLICIT_DEF, dl, ResTy), 0);
-    const SDValue OpsA[] = { MemAddr, Align, ImplDef, Pred, Reg0, Chain };
-    SDNode *VLdA = CurDAG->getMachineNode(QOpcodes0[OpcodeIndex],
-                                          dl, ResTys, OpsA);
-
-    SDValue SuperReg = SDValue(VLdA, 0);
-    Chain = SDValue(VLdA, 1);
-    const SDValue OpsB[] = { MemAddr, Align, SuperReg, Pred, Reg0, Chain };
-    VLdDup = CurDAG->getMachineNode(QOpcodes1[OpcodeIndex], dl, ResTys, OpsB);
   }
+  if (is64BitVector || NumVecs == 1) {
+    // Double registers and VLD1 quad registers are directly supported.
+  } else if (NumVecs == 2) {
+    const SDValue OpsA[] = {MemAddr, Align, Pred, Reg0, Chain};
+    SDNode *VLdA = CurDAG->getMachineNode(QOpcodes0[OpcodeIndex], dl, ResTy,
+                                          MVT::Other, OpsA);
+    Chain = SDValue(VLdA, 1);
+  } else {
+    SDValue ImplDef = SDValue(
+        CurDAG->getMachineNode(TargetOpcode::IMPLICIT_DEF, dl, ResTy), 0);
+    const SDValue OpsA[] = {MemAddr, Align, ImplDef, Pred, Reg0, Chain};
+    SDNode *VLdA = CurDAG->getMachineNode(QOpcodes0[OpcodeIndex], dl, ResTy,
+                                          MVT::Other, OpsA);
+    Ops.push_back(SDValue(VLdA, 0));
+    Chain = SDValue(VLdA, 1);
+  }
+
+  Ops.push_back(Pred);
+  Ops.push_back(Reg0);
+  Ops.push_back(Chain);
+
+  SDNode *VLdDup = CurDAG->getMachineNode(Opc, dl, ResTys, Ops);
 
   // Transfer memoperands.
   MachineMemOperand *MemOp = cast<MemIntrinsicSDNode>(N)->getMemOperand();
@@ -3144,6 +3152,170 @@ bool ARMDAGToDAGISel::tryInsertVectorElt(SDNode *N) {
   }
 
   return false;
+}
+
+bool ARMDAGToDAGISel::transformFixedFloatingPointConversion(SDNode *N,
+                                                            SDNode *FMul,
+                                                            bool IsUnsigned,
+                                                            bool FixedToFloat) {
+  auto Type = N->getValueType(0);
+  unsigned ScalarBits = Type.getScalarSizeInBits();
+  if (ScalarBits > 32)
+    return false;
+
+  SDNodeFlags FMulFlags = FMul->getFlags();
+  // The fixed-point vcvt and vcvt+vmul are not always equivalent if inf is
+  // allowed in 16 bit unsigned floats
+  if (ScalarBits == 16 && !FMulFlags.hasNoInfs() && IsUnsigned)
+    return false;
+
+  SDValue ImmNode = FMul->getOperand(1);
+  SDValue VecVal = FMul->getOperand(0);
+  if (VecVal->getOpcode() == ISD::UINT_TO_FP ||
+      VecVal->getOpcode() == ISD::SINT_TO_FP)
+    VecVal = VecVal->getOperand(0);
+
+  if (VecVal.getValueType().getScalarSizeInBits() != ScalarBits)
+    return false;
+
+  if (ImmNode.getOpcode() == ISD::BITCAST) {
+    if (ImmNode.getValueType().getScalarSizeInBits() != ScalarBits)
+      return false;
+    ImmNode = ImmNode.getOperand(0);
+  }
+
+  if (ImmNode.getValueType().getScalarSizeInBits() != ScalarBits)
+    return false;
+
+  APFloat ImmAPF(0.0f);
+  switch (ImmNode.getOpcode()) {
+  case ARMISD::VMOVIMM:
+  case ARMISD::VDUP: {
+    if (!isa<ConstantSDNode>(ImmNode.getOperand(0)))
+      return false;
+    unsigned Imm = ImmNode.getConstantOperandVal(0);
+    if (ImmNode.getOpcode() == ARMISD::VMOVIMM)
+      Imm = ARM_AM::decodeVMOVModImm(Imm, ScalarBits);
+    ImmAPF =
+        APFloat(ScalarBits == 32 ? APFloat::IEEEsingle() : APFloat::IEEEhalf(),
+                APInt(ScalarBits, Imm));
+    break;
+  }
+  case ARMISD::VMOVFPIMM: {
+    ImmAPF = APFloat(ARM_AM::getFPImmFloat(ImmNode.getConstantOperandVal(0)));
+    break;
+  }
+  default:
+    return false;
+  }
+
+  // Where n is the number of fractional bits, multiplying by 2^n will convert
+  // from float to fixed and multiplying by 2^-n will convert from fixed to
+  // float. Taking log2 of the factor (after taking the inverse in the case of
+  // float to fixed) will give n.
+  APFloat ToConvert = ImmAPF;
+  if (FixedToFloat) {
+    if (!ImmAPF.getExactInverse(&ToConvert))
+      return false;
+  }
+  APSInt Converted(64, 0);
+  bool IsExact;
+  ToConvert.convertToInteger(Converted, llvm::RoundingMode::NearestTiesToEven,
+                             &IsExact);
+  if (!IsExact || !Converted.isPowerOf2())
+    return false;
+
+  unsigned FracBits = Converted.logBase2();
+  if (FracBits > ScalarBits)
+    return false;
+
+  SmallVector<SDValue, 3> Ops{
+      VecVal, CurDAG->getConstant(FracBits, SDLoc(N), MVT::i32)};
+  AddEmptyMVEPredicateToOps(Ops, SDLoc(N), Type);
+
+  unsigned int Opcode;
+  switch (ScalarBits) {
+  case 16:
+    if (FixedToFloat)
+      Opcode = IsUnsigned ? ARM::MVE_VCVTf16u16_fix : ARM::MVE_VCVTf16s16_fix;
+    else
+      Opcode = IsUnsigned ? ARM::MVE_VCVTu16f16_fix : ARM::MVE_VCVTs16f16_fix;
+    break;
+  case 32:
+    if (FixedToFloat)
+      Opcode = IsUnsigned ? ARM::MVE_VCVTf32u32_fix : ARM::MVE_VCVTf32s32_fix;
+    else
+      Opcode = IsUnsigned ? ARM::MVE_VCVTu32f32_fix : ARM::MVE_VCVTs32f32_fix;
+    break;
+  default:
+    llvm_unreachable("unexpected number of scalar bits");
+    break;
+  }
+
+  ReplaceNode(N, CurDAG->getMachineNode(Opcode, SDLoc(N), Type, Ops));
+  return true;
+}
+
+bool ARMDAGToDAGISel::tryFP_TO_INT(SDNode *N, SDLoc dl) {
+  // Transform a floating-point to fixed-point conversion to a VCVT
+  if (!Subtarget->hasMVEFloatOps())
+    return false;
+  EVT Type = N->getValueType(0);
+  if (!Type.isVector())
+    return false;
+  unsigned int ScalarBits = Type.getScalarSizeInBits();
+
+  bool IsUnsigned = N->getOpcode() == ISD::FP_TO_UINT;
+  SDNode *Node = N->getOperand(0).getNode();
+
+  // floating-point to fixed-point with one fractional bit gets turned into an
+  // FP_TO_[U|S]INT(FADD (x, x)) rather than an FP_TO_[U|S]INT(FMUL (x, y))
+  if (Node->getOpcode() == ISD::FADD) {
+    if (Node->getOperand(0) != Node->getOperand(1))
+      return false;
+    SDNodeFlags Flags = Node->getFlags();
+    // The fixed-point vcvt and vcvt+vmul are not always equivalent if inf is
+    // allowed in 16 bit unsigned floats
+    if (ScalarBits == 16 && !Flags.hasNoInfs() && IsUnsigned)
+      return false;
+
+    unsigned Opcode;
+    switch (ScalarBits) {
+    case 16:
+      Opcode = IsUnsigned ? ARM::MVE_VCVTu16f16_fix : ARM::MVE_VCVTs16f16_fix;
+      break;
+    case 32:
+      Opcode = IsUnsigned ? ARM::MVE_VCVTu32f32_fix : ARM::MVE_VCVTs32f32_fix;
+      break;
+    }
+    SmallVector<SDValue, 3> Ops{Node->getOperand(0),
+                                CurDAG->getConstant(1, dl, MVT::i32)};
+    AddEmptyMVEPredicateToOps(Ops, dl, Type);
+
+    ReplaceNode(N, CurDAG->getMachineNode(Opcode, dl, Type, Ops));
+    return true;
+  }
+
+  if (Node->getOpcode() != ISD::FMUL)
+    return false;
+
+  return transformFixedFloatingPointConversion(N, Node, IsUnsigned, false);
+}
+
+bool ARMDAGToDAGISel::tryFMULFixed(SDNode *N, SDLoc dl) {
+  // Transform a fixed-point to floating-point conversion to a VCVT
+  if (!Subtarget->hasMVEFloatOps())
+    return false;
+  auto Type = N->getValueType(0);
+  if (!Type.isVector())
+    return false;
+
+  auto LHS = N->getOperand(0);
+  if (LHS.getOpcode() != ISD::SINT_TO_FP && LHS.getOpcode() != ISD::UINT_TO_FP)
+    return false;
+
+  return transformFixedFloatingPointConversion(
+      N, N, LHS.getOpcode() == ISD::UINT_TO_FP, true);
 }
 
 bool ARMDAGToDAGISel::tryV6T2BitfieldExtractOp(SDNode *N, bool isSigned) {
@@ -3579,6 +3751,15 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
   case ISD::SIGN_EXTEND_INREG:
   case ISD::SRA:
     if (tryV6T2BitfieldExtractOp(N, true))
+      return;
+    break;
+  case ISD::FP_TO_UINT:
+  case ISD::FP_TO_SINT:
+    if (tryFP_TO_INT(N, dl))
+      return;
+    break;
+  case ISD::FMUL:
+    if (tryFMULFixed(N, dl))
       return;
     break;
   case ISD::MUL:
@@ -4192,26 +4373,47 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
   }
 
   case ARMISD::VLD2DUP_UPD: {
-    static const uint16_t Opcodes[] = { ARM::VLD2DUPd8wb_fixed,
-                                        ARM::VLD2DUPd16wb_fixed,
-                                        ARM::VLD2DUPd32wb_fixed };
-    SelectVLDDup(N, /* IsIntrinsic= */ false, true, 2, Opcodes);
+    static const uint16_t DOpcodes[] = { ARM::VLD2DUPd8wb_fixed,
+                                         ARM::VLD2DUPd16wb_fixed,
+                                         ARM::VLD2DUPd32wb_fixed,
+                                         ARM::VLD1q64wb_fixed };
+    static const uint16_t QOpcodes0[] = { ARM::VLD2DUPq8EvenPseudo,
+                                          ARM::VLD2DUPq16EvenPseudo,
+                                          ARM::VLD2DUPq32EvenPseudo };
+    static const uint16_t QOpcodes1[] = { ARM::VLD2DUPq8OddPseudoWB_fixed,
+                                          ARM::VLD2DUPq16OddPseudoWB_fixed,
+                                          ARM::VLD2DUPq32OddPseudoWB_fixed };
+    SelectVLDDup(N, /* IsIntrinsic= */ false, true, 2, DOpcodes, QOpcodes0, QOpcodes1);
     return;
   }
 
   case ARMISD::VLD3DUP_UPD: {
-    static const uint16_t Opcodes[] = { ARM::VLD3DUPd8Pseudo_UPD,
-                                        ARM::VLD3DUPd16Pseudo_UPD,
-                                        ARM::VLD3DUPd32Pseudo_UPD };
-    SelectVLDDup(N, /* IsIntrinsic= */ false, true, 3, Opcodes);
+    static const uint16_t DOpcodes[] = { ARM::VLD3DUPd8Pseudo_UPD,
+                                         ARM::VLD3DUPd16Pseudo_UPD,
+                                         ARM::VLD3DUPd32Pseudo_UPD,
+                                         ARM::VLD1d64TPseudoWB_fixed };
+    static const uint16_t QOpcodes0[] = { ARM::VLD3DUPq8EvenPseudo,
+                                          ARM::VLD3DUPq16EvenPseudo,
+                                          ARM::VLD3DUPq32EvenPseudo };
+    static const uint16_t QOpcodes1[] = { ARM::VLD3DUPq8OddPseudo_UPD,
+                                          ARM::VLD3DUPq16OddPseudo_UPD,
+                                          ARM::VLD3DUPq32OddPseudo_UPD };
+    SelectVLDDup(N, /* IsIntrinsic= */ false, true, 3, DOpcodes, QOpcodes0, QOpcodes1);
     return;
   }
 
   case ARMISD::VLD4DUP_UPD: {
-    static const uint16_t Opcodes[] = { ARM::VLD4DUPd8Pseudo_UPD,
-                                        ARM::VLD4DUPd16Pseudo_UPD,
-                                        ARM::VLD4DUPd32Pseudo_UPD };
-    SelectVLDDup(N, /* IsIntrinsic= */ false, true, 4, Opcodes);
+    static const uint16_t DOpcodes[] = { ARM::VLD4DUPd8Pseudo_UPD,
+                                         ARM::VLD4DUPd16Pseudo_UPD,
+                                         ARM::VLD4DUPd32Pseudo_UPD,
+                                         ARM::VLD1d64QPseudoWB_fixed };
+    static const uint16_t QOpcodes0[] = { ARM::VLD4DUPq8EvenPseudo,
+                                          ARM::VLD4DUPq16EvenPseudo,
+                                          ARM::VLD4DUPq32EvenPseudo };
+    static const uint16_t QOpcodes1[] = { ARM::VLD4DUPq8OddPseudo_UPD,
+                                          ARM::VLD4DUPq16OddPseudo_UPD,
+                                          ARM::VLD4DUPq32OddPseudo_UPD };
+    SelectVLDDup(N, /* IsIntrinsic= */ false, true, 4, DOpcodes, QOpcodes0, QOpcodes1);
     return;
   }
 
@@ -5191,6 +5393,7 @@ static void getIntOperandsFromRegisterString(StringRef RegString,
 
     assert(AllIntFields &&
             "Unexpected non-integer value in special register string.");
+    (void)AllIntFields;
   }
 }
 

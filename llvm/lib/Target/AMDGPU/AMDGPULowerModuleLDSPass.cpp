@@ -24,6 +24,13 @@
 // A possible future refinement is to specialise the structure per-kernel, so
 // that fields can be elided based on more expensive analysis.
 //
+// NOTE: Since this pass will directly pack LDS (assume large LDS) into a struct
+// type which would cause allocating huge memory for struct instance within
+// every kernel. Hence, before running this pass, it is advisable to run the
+// pass "amdgpu-replace-lds-use-with-pointer" which will replace LDS uses within
+// non-kernel functions by pointers and thereby minimizes the unnecessary per
+// kernel allocation of LDS memory.
+//
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
@@ -37,14 +44,20 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/OptimizedStructLayout.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
-#include <algorithm>
 #include <vector>
 
 #define DEBUG_TYPE "amdgpu-lower-module-lds"
 
 using namespace llvm;
+
+static cl::opt<bool> SuperAlignLDSGlobals(
+    "amdgpu-super-align-lds-globals",
+    cl::desc("Increase alignment of LDS if it is not on align boundary"),
+    cl::init(true), cl::Hidden);
 
 namespace {
 
@@ -165,42 +178,57 @@ private:
 
     // Find variables to move into new struct instance
     std::vector<GlobalVariable *> FoundLocalVars =
-        AMDGPU::findVariablesToLower(M, UsedList, F);
+        AMDGPU::findVariablesToLower(M, F);
 
     if (FoundLocalVars.empty()) {
       // No variables to rewrite, no changes made.
       return false;
     }
 
-    // Sort by alignment, descending, to minimise padding.
-    // On ties, sort by size, descending, then by name, lexicographical.
-    llvm::stable_sort(
-        FoundLocalVars,
-        [&](const GlobalVariable *LHS, const GlobalVariable *RHS) -> bool {
-          Align ALHS = AMDGPU::getAlign(DL, LHS);
-          Align ARHS = AMDGPU::getAlign(DL, RHS);
-          if (ALHS != ARHS) {
-            return ALHS > ARHS;
-          }
+    // Increase the alignment of LDS globals if necessary to maximise the chance
+    // that we can use aligned LDS instructions to access them.
+    if (SuperAlignLDSGlobals) {
+      for (auto *GV : FoundLocalVars) {
+        Align Alignment = AMDGPU::getAlign(DL, GV);
+        TypeSize GVSize = DL.getTypeAllocSize(GV->getValueType());
 
-          TypeSize SLHS = DL.getTypeAllocSize(LHS->getValueType());
-          TypeSize SRHS = DL.getTypeAllocSize(RHS->getValueType());
-          if (SLHS != SRHS) {
-            return SLHS > SRHS;
-          }
+        if (GVSize > 8) {
+          // We might want to use a b96 or b128 load/store
+          Alignment = std::max(Alignment, Align(16));
+        } else if (GVSize > 4) {
+          // We might want to use a b64 load/store
+          Alignment = std::max(Alignment, Align(8));
+        } else if (GVSize > 2) {
+          // We might want to use a b32 load/store
+          Alignment = std::max(Alignment, Align(4));
+        } else if (GVSize > 1) {
+          // We might want to use a b16 load/store
+          Alignment = std::max(Alignment, Align(2));
+        }
 
-          // By variable name on tie for predictable order in test cases.
-          return LHS->getName() < RHS->getName();
-        });
+        GV->setAlignment(Alignment);
+      }
+    }
+
+    SmallVector<OptimizedStructLayoutField, 8> LayoutFields;
+    LayoutFields.reserve(FoundLocalVars.size());
+    for (GlobalVariable *GV : FoundLocalVars) {
+      OptimizedStructLayoutField F(GV, DL.getTypeAllocSize(GV->getValueType()),
+                                   AMDGPU::getAlign(DL, GV));
+      LayoutFields.emplace_back(F);
+    }
+
+    performOptimizedStructLayout(LayoutFields);
 
     std::vector<GlobalVariable *> LocalVars;
     LocalVars.reserve(FoundLocalVars.size()); // will be at least this large
     {
       // This usually won't need to insert any padding, perhaps avoid the alloc
       uint64_t CurrentOffset = 0;
-      for (size_t I = 0; I < FoundLocalVars.size(); I++) {
-        GlobalVariable *FGV = FoundLocalVars[I];
-        Align DataAlign = AMDGPU::getAlign(DL, FGV);
+      for (size_t I = 0; I < LayoutFields.size(); I++) {
+        GlobalVariable *FGV = static_cast<GlobalVariable *>(
+            const_cast<void *>(LayoutFields[I].Id));
+        Align DataAlign = LayoutFields[I].Alignment;
 
         uint64_t DataAlignV = DataAlign.value();
         if (uint64_t Rem = CurrentOffset % DataAlignV) {
@@ -219,7 +247,7 @@ private:
         }
 
         LocalVars.push_back(FGV);
-        CurrentOffset += DL.getTypeAllocSize(FGV->getValueType());
+        CurrentOffset += LayoutFields[I].Size;
       }
     }
 
@@ -234,14 +262,14 @@ private:
           : "llvm.amdgcn.module.lds");
     StructType *LDSTy = StructType::create(Ctx, LocalVarTypes, VarName + ".t");
 
-    Align MaxAlign =
-        AMDGPU::getAlign(DL, LocalVars[0]); // was sorted on alignment
+    Align StructAlign =
+        AMDGPU::getAlign(DL, LocalVars[0]);
 
     GlobalVariable *SGV = new GlobalVariable(
         M, LDSTy, false, GlobalValue::InternalLinkage, UndefValue::get(LDSTy),
         VarName, nullptr, GlobalValue::NotThreadLocal, AMDGPUAS::LOCAL_ADDRESS,
         false);
-    SGV->setAlignment(MaxAlign);
+    SGV->setAlignment(StructAlign);
     if (!F) {
       appendToCompilerUsed(
           M, {static_cast<GlobalValue *>(
@@ -261,8 +289,18 @@ private:
       Constant *GEPIdx[] = {ConstantInt::get(I32, 0), ConstantInt::get(I32, I)};
       Constant *GEP = ConstantExpr::getGetElementPtr(LDSTy, SGV, GEPIdx);
       if (F) {
+        // Replace all constant uses with instructions if they belong to the
+        // current kernel.
+        for (User *U : make_early_inc_range(GV->users())) {
+          if (ConstantExpr *C = dyn_cast<ConstantExpr>(U))
+            AMDGPU::replaceConstantUsesInFunction(C, F);
+        }
+
+        GV->removeDeadConstantUsers();
+
         GV->replaceUsesWithIf(GEP, [F](Use &U) {
-          return AMDGPU::isUsedOnlyFromFunction(U.getUser(), F);
+          Instruction *I = dyn_cast<Instruction>(U.getUser());
+          return I && I->getFunction() == F;
         });
       } else {
         GV->replaceAllUsesWith(GEP);
@@ -271,6 +309,10 @@ private:
         UsedList.erase(GV);
         GV->eraseFromParent();
       }
+
+      uint64_t Off = DL.getStructLayout(LDSTy)->getElementOffset(I);
+      Align A = commonAlignment(StructAlign, Off);
+      refineUsesAlignment(GEP, A, DL);
     }
 
     // Mark kernels with asm that reads the address of the allocated structure
@@ -289,6 +331,51 @@ private:
       }
     }
     return true;
+  }
+
+  void refineUsesAlignment(Value *Ptr, Align A, const DataLayout &DL,
+                           unsigned MaxDepth = 5) {
+    if (!MaxDepth || A == 1)
+      return;
+
+    for (User *U : Ptr->users()) {
+      if (auto *LI = dyn_cast<LoadInst>(U)) {
+        LI->setAlignment(std::max(A, LI->getAlign()));
+        continue;
+      }
+      if (auto *SI = dyn_cast<StoreInst>(U)) {
+        if (SI->getPointerOperand() == Ptr)
+          SI->setAlignment(std::max(A, SI->getAlign()));
+        continue;
+      }
+      if (auto *AI = dyn_cast<AtomicRMWInst>(U)) {
+        // None of atomicrmw operations can work on pointers, but let's
+        // check it anyway in case it will or we will process ConstantExpr.
+        if (AI->getPointerOperand() == Ptr)
+          AI->setAlignment(std::max(A, AI->getAlign()));
+        continue;
+      }
+      if (auto *AI = dyn_cast<AtomicCmpXchgInst>(U)) {
+        if (AI->getPointerOperand() == Ptr)
+          AI->setAlignment(std::max(A, AI->getAlign()));
+        continue;
+      }
+      if (auto *GEP = dyn_cast<GetElementPtrInst>(U)) {
+        unsigned BitWidth = DL.getIndexTypeSizeInBits(GEP->getType());
+        APInt Off(BitWidth, 0);
+        if (GEP->getPointerOperand() == Ptr &&
+            GEP->accumulateConstantOffset(DL, Off)) {
+          Align GA = commonAlignment(A, Off.getLimitedValue());
+          refineUsesAlignment(GEP, GA, DL, MaxDepth - 1);
+        }
+        continue;
+      }
+      if (auto *I = dyn_cast<Instruction>(U)) {
+        if (I->getOpcode() == Instruction::BitCast ||
+            I->getOpcode() == Instruction::AddrSpaceCast)
+          refineUsesAlignment(I, A, DL, MaxDepth - 1);
+      }
+    }
   }
 };
 

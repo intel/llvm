@@ -10,6 +10,7 @@
 #define _LIBCPP___ALGORITHM_IS_HEAP_UNTIL_H
 
 #include <__config>
+#include <__algorithm/comp.h>
 #include <__iterator/iterator_traits.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)

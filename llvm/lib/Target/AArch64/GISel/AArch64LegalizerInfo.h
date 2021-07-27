@@ -35,6 +35,8 @@ public:
                          MachineInstr &MI) const override;
 
 private:
+  bool legalizeBSwap(MachineInstr &MI, MachineRegisterInfo &MRI,
+                     MachineIRBuilder &MIRBuilder) const;
   bool legalizeVaArg(MachineInstr &MI, MachineRegisterInfo &MRI,
                      MachineIRBuilder &MIRBuilder) const;
   bool legalizeLoadStore(MachineInstr &MI, MachineRegisterInfo &MRI,
@@ -56,6 +58,7 @@ private:
                      LegalizerHelper &Helper) const;
   bool legalizeAtomicCmpxchg128(MachineInstr &MI, MachineRegisterInfo &MRI,
                                 LegalizerHelper &Helper) const;
+  bool legalizeCTTZ(MachineInstr &MI, LegalizerHelper &Helper) const;
   const AArch64Subtarget *ST;
 };
 } // End llvm namespace.

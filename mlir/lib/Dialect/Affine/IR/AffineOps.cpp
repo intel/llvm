@@ -26,6 +26,8 @@ using namespace mlir;
 
 #define DEBUG_TYPE "affine-analysis"
 
+#include "mlir/Dialect/Affine/IR/AffineOpsDialect.cpp.inc"
+
 /// A utility function to check if a value is defined at the top level of
 /// `region` or is an argument of `region`. A value of index type defined at the
 /// top level of a `AffineScope` region is always a valid symbol for all
@@ -58,13 +60,14 @@ remainsLegalAfterInline(Value value, Region *src, Region *dest,
   if (value.isa<BlockArgument>())
     return legalityCheck(mapping.lookup(value), dest);
 
-  // If it's a top-level value beacuse it's defined in the region,
+  // If it's a top-level value because it's defined in the region,
   // it can only be inlined if the defining op is a constant or a
   // `dim`, which can appear anywhere and be valid, since the defining
   // op won't be top-level anymore after inlining.
   Attribute operandCst;
   return matchPattern(value.getDefiningOp(), m_Constant(&operandCst)) ||
-         value.getDefiningOp<memref::DimOp>();
+         value.getDefiningOp<memref::DimOp>() ||
+         value.getDefiningOp<tensor::DimOp>();
 }
 
 /// Checks if all values known to be legal affine dimensions or symbols in `src`
@@ -296,7 +299,9 @@ bool mlir::isValidDim(Value value, Region *region) {
   // The dim op is okay if its operand memref/tensor is defined at the top
   // level.
   if (auto dimOp = dyn_cast<memref::DimOp>(op))
-    return isTopLevelValue(dimOp.memrefOrTensor());
+    return isTopLevelValue(dimOp.source());
+  if (auto dimOp = dyn_cast<tensor::DimOp>(op))
+    return isTopLevelValue(dimOp.source());
   return false;
 }
 
@@ -317,14 +322,15 @@ static bool isMemRefSizeValidSymbol(AnyMemRefDefOp memrefDefOp, unsigned index,
 }
 
 /// Returns true if the result of the dim op is a valid symbol for `region`.
-static bool isDimOpValidSymbol(memref::DimOp dimOp, Region *region) {
-  // The dim op is okay if its operand memref is defined at the top level.
-  if (isTopLevelValue(dimOp.memrefOrTensor()))
+template <typename OpTy>
+static bool isDimOpValidSymbol(OpTy dimOp, Region *region) {
+  // The dim op is okay if its source is defined at the top level.
+  if (isTopLevelValue(dimOp.source()))
     return true;
 
   // Conservatively handle remaining BlockArguments as non-valid symbols.
   // E.g. scf.for iterArgs.
-  if (dimOp.memrefOrTensor().isa<BlockArgument>())
+  if (dimOp.source().template isa<BlockArgument>())
     return false;
 
   // The dim op is also okay if its operand memref is a view/subview whose
@@ -333,7 +339,7 @@ static bool isDimOpValidSymbol(memref::DimOp dimOp, Region *region) {
   assert(index.hasValue() &&
          "expect only `dim` operations with a constant index");
   int64_t i = index.getValue();
-  return TypeSwitch<Operation *, bool>(dimOp.memrefOrTensor().getDefiningOp())
+  return TypeSwitch<Operation *, bool>(dimOp.source().getDefiningOp())
       .Case<memref::ViewOp, memref::SubViewOp, memref::AllocOp>(
           [&](auto op) { return isMemRefSizeValidSymbol(op, i, region); })
       .Default([](Operation *) { return false; });
@@ -362,7 +368,7 @@ bool mlir::isValidSymbol(Value value) {
   return false;
 }
 
-/// A value can be used as a symbol for `region` iff it meets onf of the the
+/// A value can be used as a symbol for `region` iff it meets one of the
 /// following conditions:
 /// *) It is a constant.
 /// *) It is the result of an affine apply operation with symbol arguments.
@@ -404,6 +410,8 @@ bool mlir::isValidSymbol(Value value, Region *region) {
 
   // Dim op results could be valid symbols at any level.
   if (auto dimOp = dyn_cast<memref::DimOp>(defOp))
+    return isDimOpValidSymbol(dimOp, region);
+  if (auto dimOp = dyn_cast<tensor::DimOp>(defOp))
     return isDimOpValidSymbol(dimOp, region);
 
   // Check for values dominating `region`'s parent op.
@@ -942,11 +950,12 @@ void AffineApplyOp::getCanonicalizationPatterns(RewritePatternSet &results,
 /// This is a common class used for patterns of the form
 /// "someop(memrefcast) -> someop".  It folds the source of any memref.cast
 /// into the root operation directly.
-static LogicalResult foldMemRefCast(Operation *op) {
+static LogicalResult foldMemRefCast(Operation *op, Value ignore = nullptr) {
   bool folded = false;
   for (OpOperand &operand : op->getOpOperands()) {
     auto cast = operand.get().getDefiningOp<memref::CastOp>();
-    if (cast && !cast.getOperand().getType().isa<UnrankedMemRefType>()) {
+    if (cast && operand.get() != ignore &&
+        !cast.getOperand().getType().isa<UnrankedMemRefType>()) {
       operand.set(cast.getOperand());
       folded = true;
     }
@@ -1874,6 +1883,49 @@ void mlir::buildAffineLoopNest(
                           buildAffineLoopFromValues);
 }
 
+AffineForOp mlir::replaceForOpWithNewYields(OpBuilder &b, AffineForOp loop,
+                                            ValueRange newIterOperands,
+                                            ValueRange newYieldedValues,
+                                            ValueRange newIterArgs,
+                                            bool replaceLoopResults) {
+  assert(newIterOperands.size() == newYieldedValues.size() &&
+         "newIterOperands must be of the same size as newYieldedValues");
+  // Create a new loop before the existing one, with the extra operands.
+  OpBuilder::InsertionGuard g(b);
+  b.setInsertionPoint(loop);
+  auto operands = llvm::to_vector<4>(loop.getIterOperands());
+  operands.append(newIterOperands.begin(), newIterOperands.end());
+  SmallVector<Value, 4> lbOperands(loop.getLowerBoundOperands());
+  SmallVector<Value, 4> ubOperands(loop.getUpperBoundOperands());
+  SmallVector<Value, 4> steps(loop.getStep());
+  auto lbMap = loop.getLowerBoundMap();
+  auto ubMap = loop.getUpperBoundMap();
+  AffineForOp newLoop =
+      b.create<AffineForOp>(loop.getLoc(), lbOperands, lbMap, ubOperands, ubMap,
+                            loop.getStep(), operands);
+  // Take the body of the original parent loop.
+  newLoop.getLoopBody().takeBody(loop.getLoopBody());
+  for (Value val : newIterArgs)
+    newLoop.getLoopBody().addArgument(val.getType());
+
+  // Update yield operation with new values to be added.
+  if (!newYieldedValues.empty()) {
+    auto yield = cast<AffineYieldOp>(newLoop.getBody()->getTerminator());
+    b.setInsertionPoint(yield);
+    auto yieldOperands = llvm::to_vector<4>(yield.getOperands());
+    yieldOperands.append(newYieldedValues.begin(), newYieldedValues.end());
+    b.create<AffineYieldOp>(yield.getLoc(), yieldOperands);
+    yield.erase();
+  }
+  if (replaceLoopResults) {
+    for (auto it : llvm::zip(loop.getResults(), newLoop.getResults().take_front(
+                                                    loop.getNumResults()))) {
+      std::get<0>(it).replaceAllUsesWith(std::get<1>(it));
+    }
+  }
+  return newLoop;
+}
+
 //===----------------------------------------------------------------------===//
 // AffineIfOp
 //===----------------------------------------------------------------------===//
@@ -1892,6 +1944,60 @@ struct SimplifyDeadElse : public OpRewritePattern<AffineIfOp> {
     rewriter.startRootUpdate(ifOp);
     rewriter.eraseBlock(ifOp.getElseBlock());
     rewriter.finalizeRootUpdate(ifOp);
+    return success();
+  }
+};
+
+/// Removes affine.if cond if the condition is always true or false in certain
+/// trivial cases. Promotes the then/else block in the parent operation block.
+struct AlwaysTrueOrFalseIf : public OpRewritePattern<AffineIfOp> {
+  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineIfOp op,
+                                PatternRewriter &rewriter) const override {
+
+    auto isTriviallyFalse = [](IntegerSet iSet) {
+      return iSet.isEmptyIntegerSet();
+    };
+
+    auto isTriviallyTrue = [](IntegerSet iSet) {
+      return (iSet.getNumEqualities() == 1 && iSet.getNumInequalities() == 0 &&
+              iSet.getConstraint(0) == 0);
+    };
+
+    IntegerSet affineIfConditions = op.getIntegerSet();
+    Block *blockToMove;
+    if (isTriviallyFalse(affineIfConditions)) {
+      // The absence, or equivalently, the emptiness of the else region need not
+      // be checked when affine.if is returning results because if an affine.if
+      // operation is returning results, it always has a non-empty else region.
+      if (op.getNumResults() == 0 && !op.hasElse()) {
+        // If the else region is absent, or equivalently, empty, remove the
+        // affine.if operation (which is not returning any results).
+        rewriter.eraseOp(op);
+        return success();
+      }
+      blockToMove = op.getElseBlock();
+    } else if (isTriviallyTrue(affineIfConditions)) {
+      blockToMove = op.getThenBlock();
+    } else {
+      return failure();
+    }
+    Operation *blockToMoveTerminator = blockToMove->getTerminator();
+    // Promote the "blockToMove" block to the parent operation block between the
+    // prologue and epilogue of "op".
+    rewriter.mergeBlockBefore(blockToMove, op);
+    // Replace the "op" operation with the operands of the
+    // "blockToMoveTerminator" operation. Note that "blockToMoveTerminator" is
+    // the affine.yield operation present in the "blockToMove" block. It has no
+    // operands when affine.if is not returning results and therefore, in that
+    // case, replaceOp just erases "op". When affine.if is not returning
+    // results, the affine.yield operation can be omitted. It gets inserted
+    // implicitly.
+    rewriter.replaceOp(op, blockToMoveTerminator->getOperands());
+    // Erase the "blockToMoveTerminator" operation since it is now in the parent
+    // operation block, which already has its own terminator.
+    rewriter.eraseOp(blockToMoveTerminator);
     return success();
   }
 };
@@ -2001,6 +2107,7 @@ IntegerSet AffineIfOp::getIntegerSet() {
       ->getAttrOfType<IntegerSetAttr>(getConditionAttrName())
       .getValue();
 }
+
 void AffineIfOp::setIntegerSet(IntegerSet newSet) {
   (*this)->setAttr(getConditionAttrName(), IntegerSetAttr::get(newSet));
 }
@@ -2058,7 +2165,7 @@ LogicalResult AffineIfOp::fold(ArrayRef<Attribute>,
 
 void AffineIfOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                              MLIRContext *context) {
-  results.add<SimplifyDeadElse>(context);
+  results.add<SimplifyDeadElse, AlwaysTrueOrFalseIf>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2270,7 +2377,7 @@ void AffineStoreOp::getCanonicalizationPatterns(RewritePatternSet &results,
 LogicalResult AffineStoreOp::fold(ArrayRef<Attribute> cstOperands,
                                   SmallVectorImpl<OpFoldResult> &results) {
   /// store(memrefcast) -> store
-  return foldMemRefCast(*this);
+  return foldMemRefCast(*this, getValueToStore());
 }
 
 //===----------------------------------------------------------------------===//
@@ -2474,6 +2581,20 @@ struct MergeAffineMinMaxOp : public OpRewritePattern<T> {
   }
 };
 
+template <typename T>
+struct CanonicalizeSingleResultAffineMinMaxOp : public OpRewritePattern<T> {
+  using OpRewritePattern<T>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(T affineOp,
+                                PatternRewriter &rewriter) const override {
+    if (affineOp.map().getNumResults() != 1)
+      return failure();
+    rewriter.replaceOpWithNewOp<AffineApplyOp>(affineOp, affineOp.map(),
+                                               affineOp.getOperands());
+    return success();
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // AffineMinOp
 //===----------------------------------------------------------------------===//
@@ -2487,7 +2608,8 @@ OpFoldResult AffineMinOp::fold(ArrayRef<Attribute> operands) {
 
 void AffineMinOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                               MLIRContext *context) {
-  patterns.add<DeduplicateAffineMinMaxExpressions<AffineMinOp>,
+  patterns.add<CanonicalizeSingleResultAffineMinMaxOp<AffineMinOp>,
+               DeduplicateAffineMinMaxExpressions<AffineMinOp>,
                MergeAffineMinMaxOp<AffineMinOp>, SimplifyAffineOp<AffineMinOp>>(
       context);
 }
@@ -2505,7 +2627,8 @@ OpFoldResult AffineMaxOp::fold(ArrayRef<Attribute> operands) {
 
 void AffineMaxOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                               MLIRContext *context) {
-  patterns.add<DeduplicateAffineMinMaxExpressions<AffineMaxOp>,
+  patterns.add<CanonicalizeSingleResultAffineMinMaxOp<AffineMaxOp>,
+               DeduplicateAffineMinMaxExpressions<AffineMaxOp>,
                MergeAffineMinMaxOp<AffineMaxOp>, SimplifyAffineOp<AffineMaxOp>>(
       context);
 }

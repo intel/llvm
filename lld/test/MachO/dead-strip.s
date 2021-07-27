@@ -1,4 +1,4 @@
-# REQUIRES: x86
+# REQUIRES: x86, llvm-64-bits
 
 # RUN: rm -rf %t; split-file %s %t
 
@@ -64,6 +64,32 @@
 # DYLIB-NEXT:   g {{.*}} _unref_com
 # DYLIB-NEXT:   g {{.*}} _unref_extern
 # DYLIB-NEXT:   g {{.*}} _no_dead_strip_globl
+
+## Extern symbols aren't stripped from executables with -export_dynamic
+# RUN: %lld -lSystem -dead_strip -export_dynamic -u _ref_private_extern_u \
+# RUN:     %t/basics.o -o %t/basics
+# RUN: llvm-objdump --syms --section-headers %t/basics | \
+# RUN:     FileCheck --check-prefix=EXECDYN %s
+# EXECDYN-LABEL: Sections:
+# EXECDYN-LABEL: Name
+# EXECDYN-NEXT:  __text
+# EXECDYN-NEXT:  __got
+# EXECDYN-NEXT:  __ref_section
+# EXECDYN-NEXT:  __common
+# EXECDYN-LABEL: SYMBOL TABLE:
+# EXECDYN-NEXT:   l {{.*}} _ref_data
+# EXECDYN-NEXT:   l {{.*}} _ref_local
+# EXECDYN-NEXT:   l {{.*}} _ref_from_no_dead_strip_globl
+# EXECDYN-NEXT:   l {{.*}} _no_dead_strip_local
+# EXECDYN-NEXT:   l {{.*}} _ref_from_no_dead_strip_local
+# EXECDYN-NEXT:   l {{.*}} _ref_private_extern_u
+# EXECDYN-NEXT:   l {{.*}} _main
+# EXECDYN-NEXT:   l {{.*}} _ref_private_extern
+# EXECDYN-NEXT:   g {{.*}} _ref_com
+# EXECDYN-NEXT:   g {{.*}} _unref_com
+# EXECDYN-NEXT:   g {{.*}} _unref_extern
+# EXECDYN-NEXT:   g {{.*}} _no_dead_strip_globl
+# EXECDYN-NEXT:   g {{.*}} __mh_execute_header
 
 ## Absolute symbol handling.
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-macos \
@@ -252,6 +278,20 @@
 # EXECSTABS-NOT: N_FUN {{.*}} '_unref'
 # EXECSTABS:     N_FUN {{.*}} '_main'
 # EXECSTABS-NOT: N_FUN {{.*}} '_unref'
+
+# RUN: llvm-mc -g -filetype=obj -triple=x86_64-apple-macos \
+# RUN:     %t/literals.s -o %t/literals.o
+# RUN: %lld -dylib -dead_strip --deduplicate-literals %t/literals.o -o %t/literals
+# RUN: llvm-objdump --macho --section="__TEXT,__cstring" --section="__DATA,str_ptrs" \
+# RUN:   --section="__TEXT,__literals" %t/literals | FileCheck %s --check-prefix=LIT
+
+# LIT:      Contents of (__TEXT,__cstring) section
+# LIT-NEXT: foobar
+# LIT-NEXT: Contents of (__DATA,str_ptrs) section
+# LIT-NEXT: __TEXT:__cstring:bar
+# LIT-NEXT: __TEXT:__cstring:bar
+# LIT-NEXT: Contents of (__TEXT,__literals) section
+# LIT-NEXT: ef be ad de {{$}}
 
 #--- basics.s
 .comm _ref_com, 1
@@ -734,5 +774,41 @@ _unref:
 .globl _main
 _main:
   retq
+
+.subsections_via_symbols
+
+#--- literals.s
+.cstring
+_unref_foo:
+  .ascii "foo"
+_bar:
+Lbar:
+  .asciz "bar"
+_unref_baz:
+  .asciz "baz"
+
+.literal4
+.p2align 2
+L._foo4:
+  .long 0xdeadbeef
+L._bar4:
+  .long 0xdeadbeef
+L._unref:
+  .long 0xfeedface
+
+.section __DATA,str_ptrs,literal_pointers
+.globl _data
+_data:
+  .quad _bar
+  .quad Lbar
+
+## The output binary has these integer literals put into a section that isn't
+## marked with a S_*BYTE_LITERALS flag, so we don't mark word_ptrs with the
+## S_LITERAL_POINTERS flag in order not to confuse llvm-objdump.
+.section __DATA,word_ptrs
+.globl _more_data
+_more_data:
+  .quad L._foo4
+  .quad L._bar4
 
 .subsections_via_symbols

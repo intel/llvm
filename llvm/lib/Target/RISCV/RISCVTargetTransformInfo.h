@@ -148,7 +148,7 @@ public:
     return VPLegalization(VPLegalization::Legal, VPLegalization::Legal);
   }
 
-  bool isLegalToVectorizeReduction(RecurrenceDescriptor RdxDesc,
+  bool isLegalToVectorizeReduction(const RecurrenceDescriptor &RdxDesc,
                                    ElementCount VF) const {
     if (!ST->hasStdExtV())
       return false;
@@ -178,7 +178,6 @@ public:
     }
   }
 
-  bool enableInterleavedAccessVectorization() { return true; }
   unsigned getMaxInterleaveFactor(unsigned VF) {
     return ST->getMaxInterleaveFactor();
   }

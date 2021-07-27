@@ -511,9 +511,16 @@ bool Formula::isCanonical(const Loop &L) const {
 void Formula::canonicalize(const Loop &L) {
   if (isCanonical(L))
     return;
-  // So far we did not need this case. This is easy to implement but it is
-  // useless to maintain dead code. Beside it could hurt compile time.
-  assert(!BaseRegs.empty() && "1*reg => reg, should not be needed.");
+
+  if (BaseRegs.empty()) {
+    // No base reg? Use scale reg with scale = 1 as such.
+    assert(ScaledReg && "Expected 1*reg => reg");
+    assert(Scale == 1 && "Expected 1*reg => reg");
+    BaseRegs.push_back(ScaledReg);
+    Scale = 0;
+    ScaledReg = nullptr;
+    return;
+  }
 
   // Keep the invariant sum in BaseRegs and one of the variant sum in ScaledReg.
   if (!ScaledReg) {
@@ -533,6 +540,7 @@ void Formula::canonicalize(const Loop &L) {
     if (I != BaseRegs.end())
       std::swap(ScaledReg, *I);
   }
+  assert(isCanonical(L) && "Failed to canonicalize?");
 }
 
 /// Get rid of the scale in the formula.
@@ -665,7 +673,7 @@ static bool isMulSExtable(const SCEVMulExpr *M, ScalarEvolution &SE) {
 
 /// Return an expression for LHS /s RHS, if it can be determined and if the
 /// remainder is known to be zero, or null otherwise. If IgnoreSignificantBits
-/// is true, expressions like (X * Y) /s Y are simplified to Y, ignoring that
+/// is true, expressions like (X * Y) /s Y are simplified to X, ignoring that
 /// the multiplication may overflow, which is useful when the result will be
 /// used in a context where the most significant bits are ignored.
 static const SCEV *getExactSDiv(const SCEV *LHS, const SCEV *RHS,
@@ -681,8 +689,11 @@ static const SCEV *getExactSDiv(const SCEV *LHS, const SCEV *RHS,
     const APInt &RA = RC->getAPInt();
     // Handle x /s -1 as x * -1, to give ScalarEvolution a chance to do
     // some folding.
-    if (RA.isAllOnesValue())
+    if (RA.isAllOnesValue()) {
+      if (LHS->getType()->isPointerTy())
+        return nullptr;
       return SE.getMulExpr(LHS, RC);
+    }
     // Handle x /s 1 as x.
     if (RA == 1)
       return LHS;
@@ -733,6 +744,21 @@ static const SCEV *getExactSDiv(const SCEV *LHS, const SCEV *RHS,
   // Check for a multiply operand that we can pull RHS out of.
   if (const SCEVMulExpr *Mul = dyn_cast<SCEVMulExpr>(LHS)) {
     if (IgnoreSignificantBits || isMulSExtable(Mul, SE)) {
+      // Handle special case C1*X*Y /s C2*X*Y.
+      if (const SCEVMulExpr *MulRHS = dyn_cast<SCEVMulExpr>(RHS)) {
+        if (IgnoreSignificantBits || isMulSExtable(MulRHS, SE)) {
+          const SCEVConstant *LC = dyn_cast<SCEVConstant>(Mul->getOperand(0));
+          const SCEVConstant *RC =
+              dyn_cast<SCEVConstant>(MulRHS->getOperand(0));
+          if (LC && RC) {
+            SmallVector<const SCEV *, 4> LOps(drop_begin(Mul->operands()));
+            SmallVector<const SCEV *, 4> ROps(drop_begin(MulRHS->operands()));
+            if (LOps == ROps)
+              return getExactSDiv(LC, RC, SE, IgnoreSignificantBits);
+          }
+        }
+      }
+
       SmallVector<const SCEV *, 4> Ops;
       bool Found = false;
       for (const SCEV *S : Mul->operands()) {
@@ -2697,13 +2723,13 @@ void LSRInstance::CollectInterestingTypesAndFactors() {
       if (const SCEVConstant *Factor =
             dyn_cast_or_null<SCEVConstant>(getExactSDiv(NewStride, OldStride,
                                                         SE, true))) {
-        if (Factor->getAPInt().getMinSignedBits() <= 64)
+        if (Factor->getAPInt().getMinSignedBits() <= 64 && !Factor->isZero())
           Factors.insert(Factor->getAPInt().getSExtValue());
       } else if (const SCEVConstant *Factor =
                    dyn_cast_or_null<SCEVConstant>(getExactSDiv(OldStride,
                                                                NewStride,
                                                                SE, true))) {
-        if (Factor->getAPInt().getMinSignedBits() <= 64)
+        if (Factor->getAPInt().getMinSignedBits() <= 64 && !Factor->isZero())
           Factors.insert(Factor->getAPInt().getSExtValue());
       }
     }
@@ -2947,7 +2973,7 @@ void LSRInstance::ChainInstruction(Instruction *UserInst, Instruction *IVOper,
     // The increment must be loop-invariant so it can be kept in a register.
     const SCEV *PrevExpr = SE.getSCEV(PrevIV);
     const SCEV *IncExpr = SE.getMinusSCEV(OperExpr, PrevExpr);
-    if (!SE.isLoopInvariant(IncExpr, L))
+    if (isa<SCEVCouldNotCompute>(IncExpr) || !SE.isLoopInvariant(IncExpr, L))
       continue;
 
     if (Chain.isProfitableIncrement(OperExpr, IncExpr, SE)) {
@@ -3300,7 +3326,9 @@ void LSRInstance::CollectFixupsAndInitialFormulae() {
 
         // x == y  -->  x - y == 0
         const SCEV *N = SE.getSCEV(NV);
-        if (SE.isLoopInvariant(N, L) && isSafeToExpand(N, SE)) {
+        if (SE.isLoopInvariant(N, L) && isSafeToExpand(N, SE) &&
+            (!NV->getType()->isPointerTy() ||
+             SE.getPointerBase(N) == SE.getPointerBase(S))) {
           // S is normalized, so normalize N before folding it into S
           // to keep the result normalized.
           N = normalizeForPostIncUse(N, TmpPostIncLoops, SE);
@@ -3904,6 +3932,7 @@ void LSRInstance::GenerateICmpZeroScales(LSRUse &LU, unsigned LUIdx,
     if (Base.BaseOffset == std::numeric_limits<int64_t>::min() && Factor == -1)
       continue;
     int64_t NewBaseOffset = (uint64_t)Base.BaseOffset * Factor;
+    assert(Factor != 0 && "Zero factor not expected!");
     if (NewBaseOffset / Factor != Base.BaseOffset)
       continue;
     // If the offset will be truncated at this use, check that it is in bounds.
@@ -4044,7 +4073,8 @@ void LSRInstance::GenerateTruncates(LSRUse &LU, unsigned LUIdx, Formula Base) {
   // Determine the integer type for the base formula.
   Type *DstTy = Base.getType();
   if (!DstTy) return;
-  DstTy = SE.getEffectiveSCEVType(DstTy);
+  if (DstTy->isPointerTy())
+    return;
 
   for (Type *SrcTy : Types) {
     if (SrcTy != DstTy && TTI.isTruncateFree(SrcTy, DstTy)) {
@@ -5282,7 +5312,7 @@ Value *LSRInstance::Expand(const LSRUse &LU, const LSRFixup &LF,
   if (F.BaseGV) {
     // Flush the operand list to suppress SCEVExpander hoisting.
     if (!Ops.empty()) {
-      Value *FullV = Rewriter.expandCodeFor(SE.getAddExpr(Ops), Ty);
+      Value *FullV = Rewriter.expandCodeFor(SE.getAddExpr(Ops), IntTy);
       Ops.clear();
       Ops.push_back(SE.getUnknown(FullV));
     }

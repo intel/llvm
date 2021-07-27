@@ -151,9 +151,9 @@ define signext i4 @func3(i4 signext %x, i4 signext %y) nounwind {
 ; X86-NEXT:    cmpb $7, %al
 ; X86-NEXT:    movl $7, %eax
 ; X86-NEXT:    cmovll %ecx, %eax
-; X86-NEXT:    cmpb $-8, %al
+; X86-NEXT:    cmpb $-7, %al
 ; X86-NEXT:    movl $248, %ecx
-; X86-NEXT:    cmovgl %eax, %ecx
+; X86-NEXT:    cmovgel %eax, %ecx
 ; X86-NEXT:    movsbl %cl, %eax
 ; X86-NEXT:    retl
 ;
@@ -164,9 +164,9 @@ define signext i4 @func3(i4 signext %x, i4 signext %y) nounwind {
 ; X64-NEXT:    cmpb $7, %al
 ; X64-NEXT:    movl $7, %ecx
 ; X64-NEXT:    cmovll %eax, %ecx
-; X64-NEXT:    cmpb $-8, %cl
+; X64-NEXT:    cmpb $-7, %cl
 ; X64-NEXT:    movl $248, %eax
-; X64-NEXT:    cmovgl %ecx, %eax
+; X64-NEXT:    cmovgel %ecx, %eax
 ; X64-NEXT:    movsbl %al, %eax
 ; X64-NEXT:    retq
   %tmp = call i4 @llvm.sadd.sat.i4(i4 %x, i4 %y);
@@ -236,7 +236,7 @@ define <4 x i32> @vec(<4 x i32> %x, <4 x i32> %y) nounwind {
 ; X64-NEXT:    pcmpgtd %xmm1, %xmm0
 ; X64-NEXT:    pxor %xmm3, %xmm0
 ; X64-NEXT:    movdqa %xmm1, %xmm3
-; X64-NEXT:    pandn {{.*}}(%rip), %xmm3
+; X64-NEXT:    pandn {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm3
 ; X64-NEXT:    pcmpgtd %xmm1, %xmm2
 ; X64-NEXT:    psrld $1, %xmm2
 ; X64-NEXT:    por %xmm3, %xmm2

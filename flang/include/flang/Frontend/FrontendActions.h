@@ -38,6 +38,10 @@ class EmitObjAction : public FrontendAction {
   void ExecuteAction() override;
 };
 
+class InitOnlyAction : public FrontendAction {
+  void ExecuteAction() override;
+};
+
 //===----------------------------------------------------------------------===//
 // Prescan Actions
 //===----------------------------------------------------------------------===//
@@ -109,6 +113,10 @@ class DebugDumpSymbolsAction : public PrescanAndSemaAction {
 };
 
 class DebugDumpParseTreeAction : public PrescanAndSemaAction {
+  void ExecuteAction() override;
+};
+
+class DebugDumpAllAction : public PrescanAndSemaAction {
   void ExecuteAction() override;
 };
 

@@ -69,14 +69,8 @@ static void ProtectGap(uptr addr, uptr size) {
 
 uptr kLowMemStart;
 uptr kLowMemEnd;
-uptr kLowShadowEnd;
-uptr kLowShadowStart;
-uptr kHighShadowStart;
-uptr kHighShadowEnd;
 uptr kHighMemStart;
 uptr kHighMemEnd;
-
-uptr kAliasRegionStart;  // Always 0 when aliases aren't used.
 
 static void PrintRange(uptr start, uptr end, const char *name) {
   Printf("|| [%p, %p] || %.*s ||\n", (void *)start, (void *)end, 10, name);
@@ -116,7 +110,7 @@ static void InitializeShadowBaseAddress(uptr shadow_size_bytes) {
       FindDynamicShadowStart(shadow_size_bytes);
 }
 
-void InitPrctl() {
+void InitializeOsSupport() {
 #define PR_SET_TAGGED_ADDR_CTRL 55
 #define PR_GET_TAGGED_ADDR_CTRL 56
 #define PR_TAGGED_ADDR_ENABLE (1UL << 0)
@@ -198,18 +192,6 @@ bool InitShadow() {
   // High memory starts where allocated shadow allows.
   kHighMemStart = ShadowToMem(kHighShadowStart);
 
-#  if defined(HWASAN_ALIASING_MODE)
-  constexpr uptr kAliasRegionOffset = 1ULL << (kTaggableRegionCheckShift - 1);
-  kAliasRegionStart =
-      __hwasan_shadow_memory_dynamic_address + kAliasRegionOffset;
-
-  CHECK_EQ(kAliasRegionStart >> kTaggableRegionCheckShift,
-           __hwasan_shadow_memory_dynamic_address >> kTaggableRegionCheckShift);
-  CHECK_EQ(
-      (kAliasRegionStart + kAliasRegionOffset - 1) >> kTaggableRegionCheckShift,
-      __hwasan_shadow_memory_dynamic_address >> kTaggableRegionCheckShift);
-#  endif
-
   // Check the sanity of the defined memory ranges (there might be gaps).
   CHECK_EQ(kHighMemStart % GetMmapGranularity(), 0);
   CHECK_GT(kHighMemStart, kHighShadowEnd);
@@ -250,6 +232,7 @@ void InitThreads() {
   ProtectGap(thread_space_end,
              __hwasan_shadow_memory_dynamic_address - thread_space_end);
   InitThreadList(thread_space_start, thread_space_end - thread_space_start);
+  hwasanThreadList().CreateCurrentThread();
 }
 
 bool MemIsApp(uptr p) {
@@ -337,14 +320,6 @@ void AndroidTestTlsSlot() {
 void AndroidTestTlsSlot() {}
 #endif
 
-Thread *GetCurrentThread() {
-  uptr *ThreadLongPtr = GetCurrentThreadLongPtr();
-  if (UNLIKELY(*ThreadLongPtr == 0))
-    return nullptr;
-  auto *R = (StackAllocationsRingBuffer *)ThreadLongPtr;
-  return hwasanThreadList().GetThreadByBufferAddress((uptr)R->Next());
-}
-
 static AccessInfo GetAccessInfo(siginfo_t *info, ucontext_t *uc) {
   // Access type is passed in a platform dependent way (see below) and encoded
   // as 0xXY, where X&1 is 1 for store, 0 for load, and X&2 is 1 if the error is
@@ -427,14 +402,39 @@ void HwasanOnDeadlySignal(int signo, void *info, void *context) {
   HandleDeadlySignal(info, context, GetTid(), &OnStackUnwind, nullptr);
 }
 
+void Thread::InitStackAndTls(const InitState *) {
+  uptr tls_size;
+  uptr stack_size;
+  GetThreadStackAndTls(IsMainThread(), &stack_bottom_, &stack_size, &tls_begin_,
+                       &tls_size);
+  stack_top_ = stack_bottom_ + stack_size;
+  tls_end_ = tls_begin_ + tls_size;
+}
+
+uptr TagMemoryAligned(uptr p, uptr size, tag_t tag) {
+  CHECK(IsAligned(p, kShadowAlignment));
+  CHECK(IsAligned(size, kShadowAlignment));
+  uptr shadow_start = MemToShadow(p);
+  uptr shadow_size = MemToShadowSize(size);
+
+  uptr page_size = GetPageSizeCached();
+  uptr page_start = RoundUpTo(shadow_start, page_size);
+  uptr page_end = RoundDownTo(shadow_start + shadow_size, page_size);
+  uptr threshold = common_flags()->clear_shadow_mmap_threshold;
+  if (SANITIZER_LINUX &&
+      UNLIKELY(page_end >= page_start + threshold && tag == 0)) {
+    internal_memset((void *)shadow_start, tag, page_start - shadow_start);
+    internal_memset((void *)page_end, tag,
+                    shadow_start + shadow_size - page_end);
+    // For an anonymous private mapping MADV_DONTNEED will return a zero page on
+    // Linux.
+    ReleaseMemoryPagesToOSAndZeroFill(page_start, page_end);
+  } else {
+    internal_memset((void *)shadow_start, tag, shadow_size);
+  }
+  return AddTagToPointer(p, tag);
+}
 
 } // namespace __hwasan
-
-// Entry point for interoperability between __hwasan_tag_mismatch (ASM) and the
-// rest of the mismatch handling code (C++).
-void __hwasan_tag_mismatch4(uptr addr, uptr access_info, uptr *registers_frame,
-                            size_t outsize) {
-  __hwasan::HwasanTagMismatch(addr, access_info, registers_frame, outsize);
-}
 
 #endif // SANITIZER_FREEBSD || SANITIZER_LINUX || SANITIZER_NETBSD

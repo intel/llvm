@@ -112,7 +112,7 @@ public:
   /// \return A vector class of sub devices partitioned from this SYCL
   /// device equally based on the ComputeUnits parameter.
   template <info::partition_property prop>
-  vector_class<device> create_sub_devices(size_t ComputeUnits) const;
+  std::vector<device> create_sub_devices(size_t ComputeUnits) const;
 
   /// Partition device into sub devices
   ///
@@ -121,12 +121,12 @@ public:
   /// info::partition_property::partition_by_counts a feature_not_supported
   /// exception must be thrown.
   ///
-  /// \param Counts is a vector_class of desired compute units in sub devices.
-  /// \return a vector_class of sub devices partitioned from this SYCL device by
+  /// \param Counts is a std::vector of desired compute units in sub devices.
+  /// \return a std::vector of sub devices partitioned from this SYCL device by
   /// count sizes based on the Counts parameter.
   template <info::partition_property prop>
-  vector_class<device>
-  create_sub_devices(const vector_class<size_t> &Counts) const;
+  std::vector<device>
+  create_sub_devices(const std::vector<size_t> &Counts) const;
 
   /// Partition device into sub devices
   ///
@@ -142,7 +142,7 @@ public:
   /// \return a vector class of sub devices partitioned from this SYCL
   /// device by affinity domain based on the AffinityDomain parameter
   template <info::partition_property prop>
-  vector_class<device>
+  std::vector<device>
   create_sub_devices(info::partition_affinity_domain AffinityDomain) const;
 
   /// Queries this SYCL device for information requested by the template
@@ -161,17 +161,18 @@ public:
   ///
   /// \param extension_name is a name of queried extension.
   /// \return true if SYCL device supports the extension.
-  bool has_extension(const string_class &extension_name) const;
+  __SYCL2020_DEPRECATED("use device::has() function with aspects APIs instead")
+  bool has_extension(const std::string &extension_name) const;
 
   /// Query available SYCL devices
   ///
-  /// The returned vector_class must contain a single SYCL device
+  /// The returned std::vector must contain a single SYCL device
   /// that is a host device, permitted by the deviceType parameter
   ///
   /// \param deviceType is one of the values described in A.3 of SYCL Spec
-  /// \return a vector_class containing all SYCL devices available in the system
+  /// \return a std::vector containing all SYCL devices available in the system
   /// of the device type specified
-  static vector_class<device>
+  static std::vector<device>
   get_devices(info::device_type deviceType = info::device_type::all);
 
   /// Returns the backend associated with this device.
@@ -196,8 +197,8 @@ public:
   bool has(aspect Aspect) const;
 
 private:
-  shared_ptr_class<detail::device_impl> impl;
-  device(shared_ptr_class<detail::device_impl> impl) : impl(impl) {}
+  std::shared_ptr<detail::device_impl> impl;
+  device(std::shared_ptr<detail::device_impl> impl) : impl(impl) {}
 
   pi_native_handle getNative() const;
 
@@ -219,7 +220,7 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::device> {
   size_t operator()(const cl::sycl::device &Device) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::device_impl>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::device_impl>>()(
         cl::sycl::detail::getSyclObjImpl(Device));
   }
 };

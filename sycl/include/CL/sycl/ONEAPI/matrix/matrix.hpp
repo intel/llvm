@@ -5,19 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 // ===--------------------------------------------------------------------=== //
-/// Currently, this is the compilation command line needed to invoke AMX unit of
-/// Sapphire Rapids CPU: clang++ -fsycl -march=sapphirerapids
-/// fsycl-targets="spir64_x86_64-uknown-linux-sycldevice" -O2 main.cpp
-///
-///
-// ===--------------------------------------------------------------------=== //
 
 #pragma once
 
-#include <CL/sycl/feature_test.hpp>
+#include <CL/sycl/detail/defines_elementary.hpp>
 
-#if (SYCL_EXT_ONEAPI_MATRIX == 1)
-#if defined(__AMXTILE__) && defined(__AMXINT8__) && defined(__AMXBF16__)
-#include <CL/sycl/ONEAPI/matrix/matrix-amx.hpp>
-#endif
-#endif
+__SYCL_WARNING("CL/sycl/ONEAPI/matrix/matrix.hpp usage is "
+               "deprecated, include "
+               "sycl/ext/oneapi/matrix/matrix.hpp instead")
+
+#include <sycl/ext/oneapi/matrix/matrix.hpp>

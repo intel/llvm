@@ -27,7 +27,19 @@ using namespace mlir::sparse_tensor;
 
 namespace {
 
-/// Returns internal type encoding for overhead storage.
+/// Internal encoding of primary storage. Keep this enum consistent
+/// with the equivalent enum in the sparse runtime support library.
+enum PrimaryTypeEnum : uint64_t {
+  kF64 = 1,
+  kF32 = 2,
+  kI64 = 3,
+  kI32 = 4,
+  kI16 = 5,
+  kI8 = 6
+};
+
+/// Returns internal type encoding for overhead storage. Keep these
+/// values consistent with the sparse runtime support library.
 static unsigned getOverheadTypeEncoding(unsigned width) {
   switch (width) {
   default:
@@ -41,7 +53,8 @@ static unsigned getOverheadTypeEncoding(unsigned width) {
   }
 }
 
-/// Returns internal dimension level type encoding.
+/// Returns internal dimension level type encoding. Keep these
+/// values consistent with the sparse runtime support library.
 static unsigned
 getDimLevelTypeEncoding(SparseTensorEncodingAttr::DimLevelType dlt) {
   switch (dlt) {
@@ -99,11 +112,11 @@ public:
 
 /// Sparse conversion rule for dimension accesses.
 class SparseTensorToDimSizeConverter
-    : public OpConversionPattern<memref::DimOp> {
+    : public OpConversionPattern<tensor::DimOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(memref::DimOp op, ArrayRef<Value> operands,
+  matchAndRewrite(tensor::DimOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     if (!operands[0].getType().isa<LLVM::LLVMPointerType>())
       return failure();
@@ -159,15 +172,17 @@ class SparseTensorNewConverter : public OpConversionPattern<NewOp> {
     unsigned secInd = getOverheadTypeEncoding(enc.getIndexBitWidth());
     unsigned primary;
     if (eltType.isF64())
-      primary = 1;
+      primary = kF64;
     else if (eltType.isF32())
-      primary = 2;
+      primary = kF32;
+    else if (eltType.isInteger(64))
+      primary = kI64;
     else if (eltType.isInteger(32))
-      primary = 3;
+      primary = kI32;
     else if (eltType.isInteger(16))
-      primary = 4;
+      primary = kI16;
     else if (eltType.isInteger(8))
-      primary = 5;
+      primary = kI8;
     else
       return failure();
     params.push_back(
@@ -256,6 +271,8 @@ public:
       name = "sparseValuesF64";
     else if (eltType.isF32())
       name = "sparseValuesF32";
+    else if (eltType.isInteger(64))
+      name = "sparseValuesI64";
     else if (eltType.isInteger(32))
       name = "sparseValuesI32";
     else if (eltType.isInteger(16))
@@ -270,6 +287,36 @@ public:
   }
 };
 
+/// Sparse conversion rule for tensor reconstruction.
+class SparseTensorToTensorConverter : public OpConversionPattern<ToTensorOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  // Simply fold the operator into the pointer to the sparse storage scheme.
+  matchAndRewrite(ToTensorOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    // Check that all arguments of the tensor reconstruction operators are calls
+    // into the support library that query exactly the same opaque pointer.
+    Value ptr;
+    for (Value op : operands) {
+      if (auto call = op.getDefiningOp<CallOp>()) {
+        Value arg = call.getOperand(0);
+        if (!arg.getType().isa<LLVM::LLVMPointerType>())
+          return failure();
+        if (!ptr)
+          ptr = arg;
+        else if (arg != ptr)
+          return failure();
+      }
+    }
+    // If a single opaque pointer is found, perform the folding.
+    if (!ptr)
+      return failure();
+    rewriter.replaceOp(op, ptr);
+    return success();
+  }
+};
+
 } // namespace
 
 /// Populates the given patterns list with conversion rules required for
@@ -278,6 +325,7 @@ void mlir::populateSparseTensorConversionPatterns(TypeConverter &typeConverter,
                                                   RewritePatternSet &patterns) {
   patterns.add<SparseReturnConverter, SparseTensorToDimSizeConverter,
                SparseTensorNewConverter, SparseTensorToPointersConverter,
-               SparseTensorToIndicesConverter, SparseTensorToValuesConverter>(
-      typeConverter, patterns.getContext());
+               SparseTensorToIndicesConverter, SparseTensorToValuesConverter,
+               SparseTensorToTensorConverter>(typeConverter,
+                                              patterns.getContext());
 }

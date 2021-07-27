@@ -153,6 +153,9 @@ protected:
   /// This is appended to emitted labels.  Defaults to ":"
   const char *LabelSuffix;
 
+  /// Emit labels in purely upper case. Defaults to false.
+  bool EmitLabelsInUpperCase = false;
+
   // Print the EH begin symbol with an assignment. Defaults to false.
   bool UseAssignmentForEHBegin = false;
 
@@ -387,6 +390,10 @@ protected:
   /// for ELF targets.  Defaults to true.
   bool HasSingleParameterDotFile = true;
 
+  /// True if the target has a four strings .file directive, strings seperated
+  /// by comma. Defaults to false.
+  bool HasFourStringsDotFile = false;
+
   /// True if the target has a .ident directive, this is true for ELF targets.
   /// Defaults to false.
   bool HasIdentDirective = false;
@@ -493,6 +500,9 @@ protected:
   /// or otherwise) is considered a bug. It may then be overridden after
   /// construction (see LLVMTargetMachine::initAsmInfo()).
   bool UseIntegratedAssembler;
+
+  /// Use AsmParser to parse inlineAsm when UseIntegratedAssembler is not set.
+  bool ParseInlineAsmUsingAsmParser;
 
   /// Preserve Comments in assembly
   bool PreserveAsmComments;
@@ -637,6 +647,7 @@ public:
     return EmitGNUAsmStartIndentationMarker;
   }
   const char *getLabelSuffix() const { return LabelSuffix; }
+  bool shouldEmitLabelsInUpperCase() const { return EmitLabelsInUpperCase; }
 
   bool useAssignmentForEHBegin() const { return UseAssignmentForEHBegin; }
   bool needsLocalForSize() const { return NeedsLocalForSize; }
@@ -722,6 +733,7 @@ public:
   bool hasFunctionAlignment() const { return HasFunctionAlignment; }
   bool hasDotTypeDotSizeDirective() const { return HasDotTypeDotSizeDirective; }
   bool hasSingleParameterDotFile() const { return HasSingleParameterDotFile; }
+  bool hasFourStringsDotFile() const { return HasFourStringsDotFile; }
   bool hasIdentDirective() const { return HasIdentDirective; }
   bool hasNoDeadStrip() const { return HasNoDeadStrip; }
   bool hasAltEntry() const { return HasAltEntry; }
@@ -801,6 +813,11 @@ public:
   /// Return true if assembly (inline or otherwise) should be parsed.
   bool useIntegratedAssembler() const { return UseIntegratedAssembler; }
 
+  /// Return true if target want to use AsmParser to parse inlineasm.
+  bool parseInlineAsmUsingAsmParser() const {
+    return ParseInlineAsmUsingAsmParser;
+  }
+
   bool binutilsIsAtLeast(int Major, int Minor) const {
     return BinutilsVersion >= std::make_pair(Major, Minor);
   }
@@ -808,6 +825,11 @@ public:
   /// Set whether assembly (inline or otherwise) should be parsed.
   virtual void setUseIntegratedAssembler(bool Value) {
     UseIntegratedAssembler = Value;
+  }
+
+  /// Set whether target want to use AsmParser to parse inlineasm.
+  virtual void setParseInlineAsmUsingAsmParser(bool Value) {
+    ParseInlineAsmUsingAsmParser = Value;
   }
 
   /// Return true if assembly (inline or otherwise) should be parsed.

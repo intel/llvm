@@ -178,6 +178,21 @@ func private @memref_with_complex_elems(memref<1x?xcomplex<f32>>)
 // CHECK: func private @memref_with_vector_elems(memref<1x?xvector<10xf32>>)
 func private @memref_with_vector_elems(memref<1x?xvector<10xf32>>)
 
+// CHECK: func private @memref_with_custom_elem(memref<1x?x!test.memref_element>)
+func private @memref_with_custom_elem(memref<1x?x!test.memref_element>)
+
+// CHECK: func private @memref_of_memref(memref<1xmemref<1xf64>>)
+func private @memref_of_memref(memref<1xmemref<1xf64>>)
+
+// CHECK: func private @memref_of_unranked_memref(memref<1xmemref<*xf32>>)
+func private @memref_of_unranked_memref(memref<1xmemref<*xf32>>)
+
+// CHECK: func private @unranked_memref_of_memref(memref<*xmemref<1xf32>>)
+func private @unranked_memref_of_memref(memref<*xmemref<1xf32>>)
+
+// CHECK: func private @unranked_memref_of_unranked_memref(memref<*xmemref<*xi32>>)
+func private @unranked_memref_of_unranked_memref(memref<*xmemref<*xi32>>)
+
 // CHECK: func private @unranked_memref_with_complex_elems(memref<*xcomplex<f32>>)
 func private @unranked_memref_with_complex_elems(memref<*xcomplex<f32>>)
 
@@ -1222,6 +1237,12 @@ func @"\"_string_symbol_reference\""() {
   // CHECK: ref = @"\22_string_symbol_reference\22"
   "foo.symbol_reference"() {ref = @"\"_string_symbol_reference\""} : () -> ()
   return
+}
+
+// CHECK-LABEL: func private @parse_opaque_attr_escape
+func private @parse_opaque_attr_escape() {
+    // CHECK: value = #foo<"\22escaped\\\0A\22">
+    "foo.constant"() {value = #foo<"\"escaped\\\n\"">} : () -> ()
 }
 
 // CHECK-LABEL: func private @string_attr_name

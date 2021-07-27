@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/memory_enums.hpp>
 #include <CL/sycl/platform.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/platform_impl.hpp>
@@ -26,9 +27,8 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-inline vector_class<info::fp_config>
-read_fp_bitfield(cl_device_fp_config bits) {
-  vector_class<info::fp_config> result;
+inline std::vector<info::fp_config> read_fp_bitfield(cl_device_fp_config bits) {
+  std::vector<info::fp_config> result;
   if (bits & CL_FP_DENORM)
     result.push_back(info::fp_config::denorm);
   if (bits & CL_FP_INF_NAN)
@@ -48,9 +48,9 @@ read_fp_bitfield(cl_device_fp_config bits) {
   return result;
 }
 
-inline vector_class<info::partition_affinity_domain>
+inline std::vector<info::partition_affinity_domain>
 read_domain_bitfield(cl_device_affinity_domain bits) {
-  vector_class<info::partition_affinity_domain> result;
+  std::vector<info::partition_affinity_domain> result;
   if (bits & CL_DEVICE_AFFINITY_DOMAIN_NUMA)
     result.push_back(info::partition_affinity_domain::numa);
   if (bits & CL_DEVICE_AFFINITY_DOMAIN_L4_CACHE)
@@ -66,9 +66,9 @@ read_domain_bitfield(cl_device_affinity_domain bits) {
   return result;
 }
 
-inline vector_class<info::execution_capability>
+inline std::vector<info::execution_capability>
 read_execution_bitfield(cl_device_exec_capabilities bits) {
-  vector_class<info::execution_capability> result;
+  std::vector<info::execution_capability> result;
   if (bits & CL_EXEC_KERNEL)
     result.push_back(info::execution_capability::exec_kernel);
   if (bits & CL_EXEC_NATIVE_KERNEL)
@@ -125,25 +125,25 @@ template <info::device param> struct get_device_info<platform, param> {
 // Helper struct to allow using the specialization of get_device_info
 // for string return type in other specializations.
 template <info::device param> struct get_device_info_string {
-  static string_class get(RT::PiDevice dev, const plugin &Plugin) {
+  static std::string get(RT::PiDevice dev, const plugin &Plugin) {
     size_t resultSize;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(param), 0, nullptr, &resultSize);
     if (resultSize == 0) {
-      return string_class();
+      return std::string();
     }
-    unique_ptr_class<char[]> result(new char[resultSize]);
+    std::unique_ptr<char[]> result(new char[resultSize]);
     Plugin.call<PiApiKind::piDeviceGetInfo>(dev,
                                             pi::cast<RT::PiDeviceInfo>(param),
                                             resultSize, result.get(), nullptr);
 
-    return string_class(result.get());
+    return std::string(result.get());
   }
 };
 
 // Specialization for string return type, variable return size
-template <info::device param> struct get_device_info<string_class, param> {
-  static string_class get(RT::PiDevice dev, const plugin &Plugin) {
+template <info::device param> struct get_device_info<std::string, param> {
+  static std::string get(RT::PiDevice dev, const plugin &Plugin) {
     return get_device_info_string<param>::get(dev, Plugin);
   }
 };
@@ -166,9 +166,9 @@ template <info::device param> struct get_device_info<id<3>, param> {
 
 // Specialization for fp_config types, checks the corresponding fp type support
 template <info::device param>
-struct get_device_info<vector_class<info::fp_config>, param> {
-  static vector_class<info::fp_config> get(RT::PiDevice dev,
-                                           const plugin &Plugin) {
+struct get_device_info<std::vector<info::fp_config>, param> {
+  static std::vector<info::fp_config> get(RT::PiDevice dev,
+                                          const plugin &Plugin) {
     // Check if fp type is supported
     if (!get_device_info<
             typename info::param_traits<
@@ -185,9 +185,9 @@ struct get_device_info<vector_class<info::fp_config>, param> {
 };
 
 // Specialization for OpenCL version, splits the string returned by OpenCL
-template <> struct get_device_info<string_class, info::device::version> {
-  static string_class get(RT::PiDevice dev, const plugin &Plugin) {
-    string_class result =
+template <> struct get_device_info<std::string, info::device::version> {
+  static std::string get(RT::PiDevice dev, const plugin &Plugin) {
+    std::string result =
         get_device_info_string<info::device::version>::get(dev, Plugin);
 
     // Extract OpenCL version from the returned string.
@@ -210,10 +210,10 @@ template <> struct get_device_info<string_class, info::device::version> {
 
 // Specialization for single_fp_config, no type support check required
 template <>
-struct get_device_info<vector_class<info::fp_config>,
+struct get_device_info<std::vector<info::fp_config>,
                        info::device::single_fp_config> {
-  static vector_class<info::fp_config> get(RT::PiDevice dev,
-                                           const plugin &Plugin) {
+  static std::vector<info::fp_config> get(RT::PiDevice dev,
+                                          const plugin &Plugin) {
     cl_device_fp_config result;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::single_fp_config),
@@ -233,12 +233,44 @@ template <> struct get_device_info<bool, info::device::queue_profiling> {
   }
 };
 
+// Specialization for atomic64 that is necessary because
+// PI_DEVICE_INFO_ATOMIC_64 is currently only implemented for the cuda backend.
+template <> struct get_device_info<bool, info::device::atomic64> {
+  static bool get(RT::PiDevice dev, const plugin &Plugin) {
+
+    bool result = false;
+
+    RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+        dev, pi::cast<RT::PiDeviceInfo>(info::device::atomic64), sizeof(result),
+        &result, nullptr);
+    if (Err != PI_SUCCESS) {
+      return false;
+    }
+    return result;
+  }
+};
+
+// Specialization for atomic_memory_order_capabilities, PI returns a bitfield
+template <>
+struct get_device_info<std::vector<memory_order>,
+                       info::device::atomic_memory_order_capabilities> {
+  static std::vector<memory_order> get(RT::PiDevice dev, const plugin &Plugin) {
+    pi_memory_order_capabilities result;
+    Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+        dev,
+        pi::cast<RT::PiDeviceInfo>(
+            info::device::atomic_memory_order_capabilities),
+        sizeof(pi_memory_order_capabilities), &result, nullptr);
+    return readMemoryOrderBitfield(result);
+  }
+};
+
 // Specialization for exec_capabilities, OpenCL returns a bitfield
 template <>
-struct get_device_info<vector_class<info::execution_capability>,
+struct get_device_info<std::vector<info::execution_capability>,
                        info::device::execution_capabilities> {
-  static vector_class<info::execution_capability> get(RT::PiDevice dev,
-                                                      const plugin &Plugin) {
+  static std::vector<info::execution_capability> get(RT::PiDevice dev,
+                                                     const plugin &Plugin) {
     cl_device_exec_capabilities result;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::execution_capabilities),
@@ -249,12 +281,11 @@ struct get_device_info<vector_class<info::execution_capability>,
 
 // Specialization for built in kernels, splits the string returned by OpenCL
 template <>
-struct get_device_info<vector_class<string_class>,
+struct get_device_info<std::vector<std::string>,
                        info::device::built_in_kernels> {
-  static vector_class<string_class> get(RT::PiDevice dev,
-                                        const plugin &Plugin) {
-    string_class result =
-        get_device_info<string_class, info::device::built_in_kernels>::get(
+  static std::vector<std::string> get(RT::PiDevice dev, const plugin &Plugin) {
+    std::string result =
+        get_device_info<std::string, info::device::built_in_kernels>::get(
             dev, Plugin);
     return split_string(result, ';');
   }
@@ -262,12 +293,11 @@ struct get_device_info<vector_class<string_class>,
 
 // Specialization for extensions, splits the string returned by OpenCL
 template <>
-struct get_device_info<vector_class<string_class>, info::device::extensions> {
-  static vector_class<string_class> get(RT::PiDevice dev,
-                                        const plugin &Plugin) {
-    string_class result =
-        get_device_info<string_class, info::device::extensions>::get(dev,
-                                                                     Plugin);
+struct get_device_info<std::vector<std::string>, info::device::extensions> {
+  static std::vector<std::string> get(RT::PiDevice dev, const plugin &Plugin) {
+    std::string result =
+        get_device_info<std::string, info::device::extensions>::get(dev,
+                                                                    Plugin);
     return split_string(result, ' ');
   }
 };
@@ -285,10 +315,10 @@ static bool is_sycl_partition_property(info::partition_property PP) {
 
 // Specialization for partition properties, variable OpenCL return size
 template <>
-struct get_device_info<vector_class<info::partition_property>,
+struct get_device_info<std::vector<info::partition_property>,
                        info::device::partition_properties> {
-  static vector_class<info::partition_property> get(RT::PiDevice dev,
-                                                    const plugin &Plugin) {
+  static std::vector<info::partition_property> get(RT::PiDevice dev,
+                                                   const plugin &Plugin) {
     auto info_partition =
         pi::cast<RT::PiDeviceInfo>(info::device::partition_properties);
 
@@ -300,12 +330,12 @@ struct get_device_info<vector_class<info::partition_property>,
     if (arrayLength == 0) {
       return {};
     }
-    unique_ptr_class<cl_device_partition_property[]> arrayResult(
+    std::unique_ptr<cl_device_partition_property[]> arrayResult(
         new cl_device_partition_property[arrayLength]);
     Plugin.call<PiApiKind::piDeviceGetInfo>(dev, info_partition, resultSize,
                                             arrayResult.get(), nullptr);
 
-    vector_class<info::partition_property> result;
+    std::vector<info::partition_property> result;
     for (size_t i = 0; i < arrayLength; ++i) {
       // OpenCL extensions may have partition_properties that
       // are not yet defined for SYCL (eg. CL_DEVICE_PARTITION_BY_NAMES_INTEL)
@@ -320,9 +350,9 @@ struct get_device_info<vector_class<info::partition_property>,
 
 // Specialization for partition affinity domains, OpenCL returns a bitfield
 template <>
-struct get_device_info<vector_class<info::partition_affinity_domain>,
+struct get_device_info<std::vector<info::partition_affinity_domain>,
                        info::device::partition_affinity_domains> {
-  static vector_class<info::partition_affinity_domain>
+  static std::vector<info::partition_affinity_domain>
   get(RT::PiDevice dev, const plugin &Plugin) {
     cl_device_affinity_domain result;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
@@ -380,7 +410,7 @@ struct get_device_info<info::partition_property,
 
     size_t arrayLength = resultSize / sizeof(cl_device_partition_property);
 
-    unique_ptr_class<cl_device_partition_property[]> arrayResult(
+    std::unique_ptr<cl_device_partition_property[]> arrayResult(
         new cl_device_partition_property[arrayLength]);
     Plugin.call<PiApiKind::piDeviceGetInfo>(dev, PI_DEVICE_INFO_PARTITION_TYPE,
                                             resultSize, arrayResult.get(),
@@ -392,14 +422,14 @@ struct get_device_info<info::partition_property,
 };
 // Specialization for supported subgroup sizes
 template <>
-struct get_device_info<vector_class<size_t>, info::device::sub_group_sizes> {
-  static vector_class<size_t> get(RT::PiDevice dev, const plugin &Plugin) {
+struct get_device_info<std::vector<size_t>, info::device::sub_group_sizes> {
+  static std::vector<size_t> get(RT::PiDevice dev, const plugin &Plugin) {
     size_t resultSize = 0;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::sub_group_sizes), 0,
         nullptr, &resultSize);
 
-    vector_class<size_t> result(resultSize / sizeof(size_t));
+    std::vector<size_t> result(resultSize / sizeof(size_t));
     Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::sub_group_sizes),
         resultSize, result.data(), nullptr);
@@ -417,7 +447,7 @@ struct get_device_info<bool, info::device::kernel_kernel_pipe_support> {
     // feature (at least at the scope of SYCL_INTEL_data_flow_pipes extension).
     platform plt =
         get_device_info<platform, info::device::platform>::get(dev, Plugin);
-    string_class platform_name = plt.get_info<info::platform::name>();
+    std::string platform_name = plt.get_info<info::platform::name>();
     if (platform_name == "Intel(R) FPGA Emulation Platform for OpenCL(TM)" ||
         platform_name == "Intel(R) FPGA SDK for OpenCL(TM)")
       return true;
@@ -613,6 +643,17 @@ template <> inline bool get_device_info_host<info::device::image_support>() {
   return true;
 }
 
+template <> inline bool get_device_info_host<info::device::atomic64>() {
+  return false;
+}
+
+template <>
+inline std::vector<memory_order>
+get_device_info_host<info::device::atomic_memory_order_capabilities>() {
+  return {memory_order::relaxed, memory_order::acquire, memory_order::release,
+          memory_order::acq_rel, memory_order::seq_cst};
+}
+
 template <>
 inline cl_uint get_device_info_host<info::device::max_read_image_args>() {
   // current value is the required minimum
@@ -684,21 +725,21 @@ inline cl_uint get_device_info_host<info::device::mem_base_addr_align>() {
 }
 
 template <>
-inline vector_class<info::fp_config>
+inline std::vector<info::fp_config>
 get_device_info_host<info::device::half_fp_config>() {
   // current value is the required minimum
   return {};
 }
 
 template <>
-inline vector_class<info::fp_config>
+inline std::vector<info::fp_config>
 get_device_info_host<info::device::single_fp_config>() {
   // current value is the required minimum
   return {info::fp_config::round_to_nearest, info::fp_config::inf_nan};
 }
 
 template <>
-inline vector_class<info::fp_config>
+inline std::vector<info::fp_config>
 get_device_info_host<info::device::double_fp_config>() {
   // current value is the required minimum
   return {info::fp_config::fma,           info::fp_config::round_to_nearest,
@@ -789,7 +830,7 @@ inline bool get_device_info_host<info::device::is_linker_available>() {
 }
 
 template <>
-inline vector_class<info::execution_capability>
+inline std::vector<info::execution_capability>
 get_device_info_host<info::device::execution_capabilities>() {
   return {info::execution_capability::exec_kernel};
 }
@@ -799,7 +840,7 @@ template <> inline bool get_device_info_host<info::device::queue_profiling>() {
 }
 
 template <>
-inline vector_class<string_class>
+inline std::vector<std::string>
 get_device_info_host<info::device::built_in_kernels>() {
   return {};
 }
@@ -808,34 +849,34 @@ template <> inline platform get_device_info_host<info::device::platform>() {
   return platform();
 }
 
-template <> inline string_class get_device_info_host<info::device::name>() {
+template <> inline std::string get_device_info_host<info::device::name>() {
   return "SYCL host device";
 }
 
-template <> inline string_class get_device_info_host<info::device::vendor>() {
+template <> inline std::string get_device_info_host<info::device::vendor>() {
   return "";
 }
 
 template <>
-inline string_class get_device_info_host<info::device::driver_version>() {
+inline std::string get_device_info_host<info::device::driver_version>() {
   return "1.2";
 }
 
-template <> inline string_class get_device_info_host<info::device::profile>() {
+template <> inline std::string get_device_info_host<info::device::profile>() {
   return "FULL PROFILE";
 }
 
-template <> inline string_class get_device_info_host<info::device::version>() {
+template <> inline std::string get_device_info_host<info::device::version>() {
   return "1.2";
 }
 
 template <>
-inline string_class get_device_info_host<info::device::opencl_c_version>() {
+inline std::string get_device_info_host<info::device::opencl_c_version>() {
   return "not applicable";
 }
 
 template <>
-inline vector_class<string_class>
+inline std::vector<std::string>
 get_device_info_host<info::device::extensions>() {
   // TODO update when appropriate
   return {};
@@ -866,14 +907,14 @@ inline cl_uint get_device_info_host<info::device::partition_max_sub_devices>() {
 }
 
 template <>
-inline vector_class<info::partition_property>
+inline std::vector<info::partition_property>
 get_device_info_host<info::device::partition_properties>() {
   // TODO update once subdevice creation is enabled
   return {};
 }
 
 template <>
-inline vector_class<info::partition_affinity_domain>
+inline std::vector<info::partition_affinity_domain>
 get_device_info_host<info::device::partition_affinity_domains>() {
   // TODO update once subdevice creation is enabled
   return {};
@@ -906,7 +947,7 @@ inline cl_uint get_device_info_host<info::device::max_num_sub_groups>() {
 }
 
 template <>
-inline vector_class<size_t>
+inline std::vector<size_t>
 get_device_info_host<info::device::sub_group_sizes>() {
   // TODO update once subgroups are enabled
   throw runtime_error("Sub-group feature is not supported on HOST device.",
@@ -948,7 +989,7 @@ get_device_info_host<info::device::usm_restricted_shared_allocations>() {
 }
 
 template <>
-inline bool get_device_info_host<info::device::usm_system_allocator>() {
+inline bool get_device_info_host<info::device::usm_system_allocations>() {
   return true;
 }
 
@@ -1014,11 +1055,11 @@ struct get_device_info<bool, info::device::usm_restricted_shared_allocations> {
 };
 
 // Specialization for system usm query
-template <> struct get_device_info<bool, info::device::usm_system_allocator> {
+template <> struct get_device_info<bool, info::device::usm_system_allocations> {
   static bool get(RT::PiDevice dev, const plugin &Plugin) {
     pi_usm_capabilities caps;
     pi_result Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
-        dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_system_allocator),
+        dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_system_allocations),
         sizeof(pi_usm_capabilities), &caps, nullptr);
     return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
   }
@@ -1038,8 +1079,7 @@ template <> struct get_device_info<bool, info::device::ext_intel_mem_channel> {
 // Specializations for intel extensions for Level Zero low-level
 // detail device descriptors (not support on host).
 template <>
-inline string_class
-get_device_info_host<info::device::ext_intel_pci_address>() {
+inline std::string get_device_info_host<info::device::ext_intel_pci_address>() {
   throw runtime_error(
       "Obtaining the PCI address is not supported on HOST device",
       PI_INVALID_DEVICE);
@@ -1081,6 +1121,17 @@ inline cl_ulong
 get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
   throw runtime_error(
       "Obtaining the maximum memory bandwidth is not supported on HOST device",
+      PI_INVALID_DEVICE);
+}
+template <> inline bool get_device_info_host<info::device::ext_oneapi_srgb>() {
+  return false;
+}
+
+template <>
+inline detail::uuid_type
+get_device_info_host<info::device::ext_intel_device_info_uuid>() {
+  throw runtime_error(
+      "Obtaining the device uuid is not supported on HOST device",
       PI_INVALID_DEVICE);
 }
 

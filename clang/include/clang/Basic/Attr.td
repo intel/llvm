@@ -1261,6 +1261,14 @@ def SYCLSimdAccessorPtr : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+// Used to mark readonly accessors. It is not to be used directly in the source.
+def SYCLAccessorReadonly : Attr {
+  // This attribute has no spellings as it is only ever created implicitly.
+  let Spellings = [];
+  let SemaHandler = 0;
+  let Documentation = [Undocumented];
+}
+
 // The attribute denotes that it is a function written in a scalar fashion, which
 // is used in ESIMD context and needs to be vectorized by a vector backend compiler.
 // For now, this attribute will be used only in internal implementation of
@@ -2585,6 +2593,13 @@ def NoInstrumentFunction : InheritableAttr {
   let SimpleHandler = 1;
 }
 
+def NoProfileFunction : InheritableAttr {
+  let Spellings = [GCC<"no_profile_instrument_function">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [NoProfileInstrumentFunctionDocs];
+  let SimpleHandler = 1;
+}
+
 def NotTailCalled : InheritableAttr {
   let Spellings = [Clang<"not_tail_called">];
   let Subjects = SubjectList<[Function]>;
@@ -3102,6 +3117,11 @@ def SwiftCall : DeclOrTypeAttr {
   let Spellings = [Clang<"swiftcall">];
 //  let Subjects = SubjectList<[Function]>;
   let Documentation = [SwiftCallDocs];
+}
+
+def SwiftAsyncCall : DeclOrTypeAttr {
+  let Spellings = [Clang<"swiftasynccall">];
+  let Documentation = [SwiftAsyncCallDocs];
 }
 
 def SwiftContext : ParameterABIAttr {

@@ -451,6 +451,9 @@ static StringRef getArchNameForCompilerRTLib(const ToolChain &TC,
   if (TC.getArch() == llvm::Triple::x86 && Triple.isAndroid())
     return "i686";
 
+  if (TC.getArch() == llvm::Triple::x86_64 && Triple.isX32())
+    return "x32";
+
   return llvm::Triple::getArchTypeName(TC.getArch());
 }
 
@@ -1169,7 +1172,9 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
     // matches the current toolchain triple. If it is not present
     // at all, target and host share a toolchain.
     if (A->getOption().matches(options::OPT_m_Group)) {
-      if (SameTripleAsHost)
+      // AMD GPU is a special case, as -mcpu is required for the device
+      // compilation.
+      if (SameTripleAsHost || getTriple().getArch() == llvm::Triple::amdgcn)
         DAL->append(A);
       else
         Modified = true;

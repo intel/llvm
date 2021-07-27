@@ -16,6 +16,8 @@
 using namespace mlir;
 using namespace mlir::sparse_tensor;
 
+#include "mlir/Dialect/SparseTensor/IR/SparseTensorOpsDialect.cpp.inc"
+
 //===----------------------------------------------------------------------===//
 // TensorDialect Attribute Methods.
 //===----------------------------------------------------------------------===//
@@ -240,6 +242,12 @@ static LogicalResult verify(ToValuesOp op) {
   MemRefType mtp = op.result().getType().cast<MemRefType>();
   if (ttp.getElementType() != mtp.getElementType())
     return op.emitError("unexpected mismatch in element types");
+  return success();
+}
+
+static LogicalResult verify(ToTensorOp op) {
+  if (!getSparseTensorEncoding(op.result().getType()))
+    return op.emitError("expected a sparse tensor as result");
   return success();
 }
 

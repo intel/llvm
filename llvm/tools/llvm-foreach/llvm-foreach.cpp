@@ -165,6 +165,7 @@ int main(int argc, char **argv) {
   if (!OutputFileList.empty())
     error(EC, "error opening the file '" + OutputFileList + "'");
 
+  int Res = 0;
   std::string ResOutArg;
   std::string IncOutArg;
   std::vector<std::string> ResInArgs(InReplaceArgs.size());
@@ -225,13 +226,15 @@ int main(int argc, char **argv) {
     int Result =
         sys::ExecuteAndWait(Prog, Args, /*Env=*/None, /*Redirects=*/None,
                             /*SecondsToWait=*/0, /*MemoryLimit=*/0, &ErrMsg);
-    if (Result != 0)
-      error(ErrMsg);
+    if (Result != 0) {
+      errs() << "llvm-foreach: " << ErrMsg << '\n';
+      Res = Result;
+    }
   }
 
   if (!OutputFileList.empty()) {
     OS.close();
   }
 
-  return 0;
+  return Res;
 }

@@ -85,6 +85,8 @@ class VOP2_Real <VOP2_Pseudo ps, int EncodingFamily> :
   InstSI <ps.OutOperandList, ps.InOperandList, ps.Mnemonic # ps.AsmOperands, []>,
   SIMCInstr <ps.PseudoInstr, EncodingFamily> {
 
+  let VALU = 1;
+  let VOP2 = 1;
   let isPseudo = 0;
   let isCodeGenOnly = 0;
 
@@ -103,6 +105,8 @@ class VOP2_Real <VOP2_Pseudo ps, int EncodingFamily> :
   let Uses                 = ps.Uses;
   let Defs                 = ps.Defs;
   let SchedRW              = ps.SchedRW;
+  let mayLoad              = ps.mayLoad;
+  let mayStore             = ps.mayStore;
 }
 
 class VOP2_SDWA_Pseudo <string OpName, VOPProfile P, list<dag> pattern=[]> :
@@ -1274,20 +1278,20 @@ let AssemblerPredicate = isGFX6GFX7, DecoderNamespace = "GFX6GFX7" in {
       VOP2_Real<!cast<VOP2_Pseudo>(NAME), SIEncodingFamily.SI>,
       VOP2_MADKe<op{5-0}, !cast<VOP2_Pseudo>(NAME).Pfl>;
   }
-  multiclass VOP2_Real_e32_gfx6_gfx7<bits<6> op, string PseudoName = NAME> {
+  multiclass VOP2_Real_e32_gfx6_gfx7<bits<6> op, string opName = NAME> {
     def _e32_gfx6_gfx7 :
-      VOP2_Real<!cast<VOP2_Pseudo>(PseudoName#"_e32"), SIEncodingFamily.SI>,
-      VOP2e<op{5-0}, !cast<VOP2_Pseudo>(PseudoName#"_e32").Pfl>;
+      VOP2_Real<!cast<VOP2_Pseudo>(opName#"_e32"), SIEncodingFamily.SI>,
+      VOP2e<op{5-0}, !cast<VOP2_Pseudo>(opName#"_e32").Pfl>;
   }
-  multiclass VOP2_Real_e64_gfx6_gfx7<bits<6> op, string PseudoName = NAME> {
+  multiclass VOP2_Real_e64_gfx6_gfx7<bits<6> op, string opName = NAME> {
     def _e64_gfx6_gfx7 :
-      VOP3_Real<!cast<VOP3_Pseudo>(PseudoName#"_e64"), SIEncodingFamily.SI>,
-      VOP3e_gfx6_gfx7<{1, 0, 0, op{5-0}}, !cast<VOP3_Pseudo>(PseudoName#"_e64").Pfl>;
+      VOP3_Real<!cast<VOP3_Pseudo>(opName#"_e64"), SIEncodingFamily.SI>,
+      VOP3e_gfx6_gfx7<{1, 0, 0, op{5-0}}, !cast<VOP3_Pseudo>(opName#"_e64").Pfl>;
   }
-  multiclass VOP2be_Real_e64_gfx6_gfx7<bits<6> op, string PseudoName = NAME> {
+  multiclass VOP2be_Real_e64_gfx6_gfx7<bits<6> op, string opName = NAME> {
     def _e64_gfx6_gfx7 :
-      VOP3_Real<!cast<VOP3_Pseudo>(PseudoName#"_e64"), SIEncodingFamily.SI>,
-      VOP3be_gfx6_gfx7<{1, 0, 0, op{5-0}}, !cast<VOP3_Pseudo>(PseudoName#"_e64").Pfl>;
+      VOP3_Real<!cast<VOP3_Pseudo>(opName#"_e64"), SIEncodingFamily.SI>,
+      VOP3be_gfx6_gfx7<{1, 0, 0, op{5-0}}, !cast<VOP3_Pseudo>(opName#"_e64").Pfl>;
   }
 } // End AssemblerPredicate = isGFX6GFX7, DecoderNamespace = "GFX6GFX7"
 
@@ -1304,16 +1308,16 @@ multiclass VOP2be_Real_gfx6_gfx7<bits<6> op> :
   VOP2_Real_e32_gfx6_gfx7<op>, VOP2be_Real_e64_gfx6_gfx7<op>;
 
 multiclass VOP2be_Real_gfx6_gfx7_with_name<bits<6> op,
-  string PseudoName, string asmName>  {
-  defvar ps32 = !cast<VOP2_Pseudo>(PseudoName#"_e32");
-  defvar ps64 = !cast<VOP3_Pseudo>(PseudoName#"_e64");
+  string opName, string asmName>  {
+  defvar ps32 = !cast<VOP2_Pseudo>(opName#"_e32");
+  defvar ps64 = !cast<VOP3_Pseudo>(opName#"_e64");
 
   let AsmString = asmName # ps32.AsmOperands in {
-    defm "" : VOP2_Real_e32_gfx6_gfx7<op, PseudoName>;
+    defm "" : VOP2_Real_e32_gfx6_gfx7<op, opName>;
   }
 
    let AsmString = asmName # ps64.AsmOperands in {
-    defm "" : VOP2be_Real_e64_gfx6_gfx7<op, PseudoName>;
+    defm "" : VOP2be_Real_e64_gfx6_gfx7<op, opName>;
   }
 }
 

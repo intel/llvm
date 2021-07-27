@@ -10,7 +10,6 @@
 #define _LIBCPP___ALGORITHM_GENERATE_H
 
 #include <__config>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
@@ -28,20 +27,6 @@ generate(_ForwardIterator __first, _ForwardIterator __last, _Generator __gen)
 {
     for (; __first != __last; ++__first)
         *__first = __gen();
-}
-
-// generate_n
-
-template <class _OutputIterator, class _Size, class _Generator>
-inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
-_OutputIterator
-generate_n(_OutputIterator __first, _Size __orig_n, _Generator __gen)
-{
-    typedef decltype(_VSTD::__convert_to_integral(__orig_n)) _IntegralSize;
-    _IntegralSize __n = __orig_n;
-    for (; __n > 0; ++__first, (void) --__n)
-        *__first = __gen();
-    return __first;
 }
 
 _LIBCPP_END_NAMESPACE_STD

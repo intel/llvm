@@ -8,26 +8,31 @@ set(LLVM_ENABLE_PROJECTS "clang;clang-tools-extra;lld;llvm;polly" CACHE STRING "
 set(LLVM_ENABLE_RUNTIMES "compiler-rt;libcxx;libcxxabi;libunwind" CACHE STRING "")
 
 set(LLVM_ENABLE_BACKTRACES OFF CACHE BOOL "")
+set(LLVM_ENABLE_DIA_SDK OFF CACHE BOOL "")
 if(NOT APPLE)
+  # TODO: Remove this once we switch to ld64.lld.
   set(LLVM_ENABLE_LLD ON CACHE BOOL "")
 endif()
 set(LLVM_ENABLE_LTO ON CACHE BOOL "")
 set(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR ON CACHE BOOL "")
+set(LLVM_ENABLE_LIBCXX ON CACHE BOOL "")
 set(LLVM_ENABLE_TERMINFO OFF CACHE BOOL "")
 set(LLVM_ENABLE_UNWIND_TABLES OFF CACHE BOOL "")
+set(LLVM_ENABLE_Z3_SOLVER OFF CACHE BOOL "")
 set(LLVM_ENABLE_ZLIB ON CACHE BOOL "")
 set(LLVM_INCLUDE_DOCS OFF CACHE BOOL "")
 set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "")
 set(LLVM_INCLUDE_GO_TESTS OFF CACHE BOOL "")
+set(LLVM_STATIC_LINK_CXX_STDLIB ON CACHE BOOL "")
 set(LLVM_USE_RELATIVE_PATHS_IN_FILES ON CACHE BOOL "")
-set(LLVM_ENABLE_Z3_SOLVER OFF CACHE BOOL "")
 
-if(MSVC)
+if(WIN32)
   set(LLVM_USE_CRT_RELEASE "MT" CACHE STRING "")
 endif()
 
 set(CLANG_DEFAULT_CXX_STDLIB libc++ CACHE STRING "")
 if(NOT APPLE)
+  # TODO: Remove this once we switch to ld64.lld.
   set(CLANG_DEFAULT_LINKER lld CACHE STRING "")
   set(CLANG_DEFAULT_OBJCOPY llvm-objcopy CACHE STRING "")
 endif()
@@ -43,7 +48,7 @@ set(ENABLE_X86_RELAX_RELOCATIONS ON CACHE BOOL "")
 set(CMAKE_BUILD_TYPE Release CACHE STRING "")
 if (APPLE)
   set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "")
-elseif(MSVC)
+elseif(WIN32)
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded" CACHE STRING "")
 endif()
 
@@ -88,7 +93,6 @@ if(WIN32)
   set(RUNTIMES_${target}_LIBCXX_ENABLE_FILESYSTEM OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LIBCXX_ENABLE_ABI_LINKER_SCRIPT OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LIBCXX_ENABLE_SHARED OFF CACHE BOOL "")
-  set(RUNTIMES_${target}_LIBCXX_NO_VCRUNTIME ON CACHE BOOL "")
   set(RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES "compiler-rt;libcxx" CACHE STRING "")
 endif()
 
@@ -130,7 +134,7 @@ foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unkn
     set(RUNTIMES_${target}_LIBCXX_ENABLE_SHARED OFF CACHE BOOL "")
     set(RUNTIMES_${target}_LIBCXX_ENABLE_STATIC_ABI_LIBRARY ON CACHE BOOL "")
     set(RUNTIMES_${target}_LIBCXX_ABI_VERSION 2 CACHE STRING "")
-    set(RUNTIMES_${target}_LLVM_ENABLE_ASSERTIONS ON CACHE BOOL "")
+    set(RUNTIMES_${target}_LLVM_ENABLE_ASSERTIONS OFF CACHE BOOL "")
     set(RUNTIMES_${target}_SANITIZER_CXX_ABI "libc++" CACHE STRING "")
     set(RUNTIMES_${target}_SANITIZER_CXX_ABI_INTREE ON CACHE BOOL "")
     set(RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES "compiler-rt;libcxx;libcxxabi;libunwind" CACHE STRING "")
@@ -193,7 +197,7 @@ if(FUCHSIA_SDK)
     set(RUNTIMES_${target}_LIBCXX_HERMETIC_STATIC_LIBRARY ON CACHE BOOL "")
     set(RUNTIMES_${target}_LIBCXX_STATICALLY_LINK_ABI_IN_SHARED_LIBRARY OFF CACHE BOOL "")
     set(RUNTIMES_${target}_LIBCXX_ABI_VERSION 2 CACHE STRING "")
-    set(RUNTIMES_${target}_LLVM_ENABLE_ASSERTIONS ON CACHE BOOL "")
+    set(RUNTIMES_${target}_LLVM_ENABLE_ASSERTIONS OFF CACHE BOOL "")
     set(RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES "compiler-rt;libcxx;libcxxabi;libunwind" CACHE STRING "")
 
     # Compat multilibs.
@@ -218,41 +222,15 @@ if(FUCHSIA_SDK)
     set(RUNTIMES_${target}+asan+noexcept_LIBCXXABI_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
     set(RUNTIMES_${target}+asan+noexcept_LIBCXX_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
 
-    set(RUNTIMES_${target}+relative-vtables_LLVM_BUILD_COMPILER_RT OFF CACHE BOOL "")
-    set(RUNTIMES_${target}+relative-vtables_CMAKE_CXX_FLAGS "${FUCHSIA_${target}_COMPILER_FLAGS} -Xclang -fexperimental-relative-c++-abi-vtables" CACHE STRING "")
-
-    set(RUNTIMES_${target}+relative-vtables+asan_LLVM_BUILD_COMPILER_RT OFF CACHE BOOL "")
-    set(RUNTIMES_${target}+relative-vtables+asan_LLVM_USE_SANITIZER "Address" CACHE STRING "")
-    set(RUNTIMES_${target}+relative-vtables+asan_LIBCXXABI_ENABLE_NEW_DELETE_DEFINITIONS OFF CACHE BOOL "")
-    set(RUNTIMES_${target}+relative-vtables+asan_LIBCXX_ENABLE_NEW_DELETE_DEFINITIONS OFF CACHE BOOL "")
-    set(RUNTIMES_${target}+relative-vtables+asan_CMAKE_CXX_FLAGS "${FUCHSIA_${target}_COMPILER_FLAGS} -Xclang -fexperimental-relative-c++-abi-vtables" CACHE STRING "")
-
-    set(RUNTIMES_${target}+relative-vtables+noexcept_LLVM_BUILD_COMPILER_RT OFF CACHE BOOL "")
-    set(RUNTIMES_${target}+relative-vtables+noexcept_CMAKE_CXX_FLAGS "${FUCHSIA_${target}_COMPILER_FLAGS} -Xclang -fexperimental-relative-c++-abi-vtables" CACHE STRING "")
-    set(RUNTIMES_${target}+relative-vtables+noexcept_LIBCXXABI_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
-    set(RUNTIMES_${target}+relative-vtables+noexcept_LIBCXX_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
-
-    set(RUNTIMES_${target}+relative-vtables+asan+noexcept_LLVM_BUILD_COMPILER_RT OFF CACHE BOOL "")
-    set(RUNTIMES_${target}+relative-vtables+asan+noexcept_LLVM_USE_SANITIZER "Address" CACHE STRING "")
-    set(RUNTIMES_${target}+relative-vtables+asan+noexcept_LIBCXXABI_ENABLE_NEW_DELETE_DEFINITIONS OFF CACHE BOOL "")
-    set(RUNTIMES_${target}+relative-vtables+asan+noexcept_LIBCXX_ENABLE_NEW_DELETE_DEFINITIONS OFF CACHE BOOL "")
-    set(RUNTIMES_${target}+relative-vtables+asan+noexcept_LIBCXXABI_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
-    set(RUNTIMES_${target}+relative-vtables+asan+noexcept_LIBCXX_ENABLE_EXCEPTIONS OFF CACHE BOOL "")
-    set(RUNTIMES_${target}+relative-vtables+asan+noexcept_CMAKE_CXX_FLAGS "${FUCHSIA_${target}_COMPILER_FLAGS} -Xclang -fexperimental-relative-c++-abi-vtables" CACHE STRING "")
-
     # Use .build-id link.
     list(APPEND RUNTIME_BUILD_ID_LINK "${target}")
   endforeach()
 
-  set(LLVM_RUNTIME_MULTILIBS "asan;noexcept;compat;asan+noexcept;relative-vtables;relative-vtables+noexcept;relative-vtables+asan;relative-vtables+asan+noexcept" CACHE STRING "")
+  set(LLVM_RUNTIME_MULTILIBS "asan;noexcept;compat;asan+noexcept" CACHE STRING "")
   set(LLVM_RUNTIME_MULTILIB_asan_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
   set(LLVM_RUNTIME_MULTILIB_noexcept_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
   set(LLVM_RUNTIME_MULTILIB_compat_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
   set(LLVM_RUNTIME_MULTILIB_asan+noexcept_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
-  set(LLVM_RUNTIME_MULTILIB_relative-vtables_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
-  set(LLVM_RUNTIME_MULTILIB_relative-vtables+noexcept_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
-  set(LLVM_RUNTIME_MULTILIB_relative-vtables+asan_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
-  set(LLVM_RUNTIME_MULTILIB_relative-vtables+asan+noexcept_TARGETS "x86_64-unknown-fuchsia;aarch64-unknown-fuchsia" CACHE STRING "")
 endif()
 
 set(LLVM_BUILTIN_TARGETS "${BUILTIN_TARGETS}" CACHE STRING "")
@@ -276,6 +254,7 @@ set(LLVM_TOOLCHAIN_TOOLS
   llvm-nm
   llvm-objcopy
   llvm-objdump
+  llvm-otool
   llvm-profdata
   llvm-rc
   llvm-ranlib
@@ -286,6 +265,7 @@ set(LLVM_TOOLCHAIN_TOOLS
   llvm-symbolizer
   llvm-xray
   sancov
+  scan-build-py
   CACHE STRING "")
 
 set(LLVM_DISTRIBUTION_COMPONENTS

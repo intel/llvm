@@ -522,6 +522,14 @@ static BaseDefiningValueResult findBaseDefiningValue(Value *I) {
         ConstantPointerNull::get(cast<PointerType>(I->getType())), true);
   }
 
+  // inttoptrs in an integral address space are currently ill-defined.  We
+  // treat them as defining base pointers here for consistency with the
+  // constant rule above and because we don't really have a better semantic
+  // to give them.  Note that the optimizer is always free to insert undefined
+  // behavior on dynamically dead paths as well.
+  if (isa<IntToPtrInst>(I))
+    return BaseDefiningValueResult(I, true);
+
   if (CastInst *CI = dyn_cast<CastInst>(I)) {
     Value *Def = CI->stripPointerCasts();
     // If stripping pointer casts changes the address space there is an
@@ -2392,8 +2400,8 @@ static void rematerializeLiveValues(CallBase *Call,
 }
 
 static bool inlineGetBaseAndOffset(Function &F,
-                                   SmallVectorImpl<CallInst *> &Intrinsics) {
-  DefiningValueMapTy DVCache;
+                                   SmallVectorImpl<CallInst *> &Intrinsics,
+                                   DefiningValueMapTy &DVCache) {
   auto &Context = F.getContext();
   auto &DL = F.getParent()->getDataLayout();
   bool Changed = false;
@@ -2443,7 +2451,8 @@ static bool inlineGetBaseAndOffset(Function &F,
 
 static bool insertParsePoints(Function &F, DominatorTree &DT,
                               TargetTransformInfo &TTI,
-                              SmallVectorImpl<CallBase *> &ToUpdate) {
+                              SmallVectorImpl<CallBase *> &ToUpdate,
+                              DefiningValueMapTy &DVCache) {
 #ifndef NDEBUG
   // sanity check the input
   std::set<CallBase *> Uniqued;
@@ -2494,16 +2503,10 @@ static bool insertParsePoints(Function &F, DominatorTree &DT,
   findLiveReferences(F, DT, ToUpdate, Records);
 
   // B) Find the base pointers for each live pointer
-  /* scope for caching */ {
-    // Cache the 'defining value' relation used in the computation and
-    // insertion of base phis and selects.  This ensures that we don't insert
-    // large numbers of duplicate base_phis.
-    DefiningValueMapTy DVCache;
-    for (size_t i = 0; i < Records.size(); i++) {
-      PartiallyConstructedSafepointRecord &info = Records[i];
-      findBasePointers(DT, DVCache, ToUpdate[i], info);
-    }
-  } // end of cache scope
+  for (size_t i = 0; i < Records.size(); i++) {
+    PartiallyConstructedSafepointRecord &info = Records[i];
+    findBasePointers(DT, DVCache, ToUpdate[i], info);
+  }
 
   // The base phi insertion logic (for any safepoint) may have inserted new
   // instructions which are now live at some safepoint.  The simplest such
@@ -2929,13 +2932,20 @@ bool RewriteStatepointsForGC::runOnFunction(Function &F, DominatorTree &DT,
     }
   }
 
+  // Cache the 'defining value' relation used in the computation and
+  // insertion of base phis and selects.  This ensures that we don't insert
+  // large numbers of duplicate base_phis. Use one cache for both
+  // inlineGetBaseAndOffset() and insertParsePoints().
+  DefiningValueMapTy DVCache;
+
   if (!Intrinsics.empty())
     // Inline @gc.get.pointer.base() and @gc.get.pointer.offset() before finding
     // live references.
-    MadeChange |= inlineGetBaseAndOffset(F, Intrinsics);
+    MadeChange |= inlineGetBaseAndOffset(F, Intrinsics, DVCache);
 
   if (!ParsePointNeeded.empty())
-    MadeChange |= insertParsePoints(F, DT, TTI, ParsePointNeeded);
+    MadeChange |= insertParsePoints(F, DT, TTI, ParsePointNeeded, DVCache);
+
   return MadeChange;
 }
 

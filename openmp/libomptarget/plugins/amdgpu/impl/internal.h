@@ -65,15 +65,6 @@ typedef struct hsa_signal_s {
 } hsa_signal_t;
 #endif
 
-/*  All global values go in this global structure */
-typedef struct atl_context_s {
-  bool struct_initialized;
-  bool g_hsa_initialized;
-  bool g_gpu_initialized;
-  bool g_tasks_initialized;
-} atl_context_t;
-extern atl_context_t atlc;
-
 #ifdef __cplusplus
 }
 #endif
@@ -206,9 +197,6 @@ template <typename T> inline T *alignUp(T *value, size_t alignment) {
       alignDown((intptr_t)(value + alignment - 1), alignment));
 }
 
-hsa_status_t register_allocation(void *addr, size_t size,
-                                 atmi_devtype_t DeviceType);
-
 extern bool atl_is_atmi_initialized();
 
 bool handle_group_signal(hsa_signal_value_t value, void *arg);
@@ -217,6 +205,5 @@ hsa_status_t allow_access_to_all_gpu_agents(void *ptr);
 } // namespace core
 
 const char *get_error_string(hsa_status_t err);
-const char *get_atmi_error_string(hsa_status_t err);
 
 #endif // SRC_RUNTIME_INCLUDE_INTERNAL_H_

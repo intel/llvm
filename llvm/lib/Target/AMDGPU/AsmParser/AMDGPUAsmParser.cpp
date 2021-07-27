@@ -2192,6 +2192,7 @@ static int getRegClass(RegisterKind Is, unsigned RegWidth) {
       case 4: return AMDGPU::VReg_128RegClassID;
       case 5: return AMDGPU::VReg_160RegClassID;
       case 6: return AMDGPU::VReg_192RegClassID;
+      case 7: return AMDGPU::VReg_224RegClassID;
       case 8: return AMDGPU::VReg_256RegClassID;
       case 16: return AMDGPU::VReg_512RegClassID;
       case 32: return AMDGPU::VReg_1024RegClassID;
@@ -2214,6 +2215,7 @@ static int getRegClass(RegisterKind Is, unsigned RegWidth) {
       case 4: return AMDGPU::SGPR_128RegClassID;
       case 5: return AMDGPU::SGPR_160RegClassID;
       case 6: return AMDGPU::SGPR_192RegClassID;
+      case 7: return AMDGPU::SGPR_224RegClassID;
       case 8: return AMDGPU::SGPR_256RegClassID;
       case 16: return AMDGPU::SGPR_512RegClassID;
     }
@@ -2226,6 +2228,7 @@ static int getRegClass(RegisterKind Is, unsigned RegWidth) {
       case 4: return AMDGPU::AReg_128RegClassID;
       case 5: return AMDGPU::AReg_160RegClassID;
       case 6: return AMDGPU::AReg_192RegClassID;
+      case 7: return AMDGPU::AReg_224RegClassID;
       case 8: return AMDGPU::AReg_256RegClassID;
       case 16: return AMDGPU::AReg_512RegClassID;
       case 32: return AMDGPU::AReg_1024RegClassID;
@@ -3434,22 +3437,28 @@ bool AMDGPUAsmParser::validateMIMGAddrSize(const MCInst &Inst) {
   unsigned Dim = Inst.getOperand(DimIdx).getImm();
   const AMDGPU::MIMGDimInfo *DimInfo = AMDGPU::getMIMGDimInfoByEncoding(Dim);
   bool IsNSA = SrsrcIdx - VAddr0Idx > 1;
-  unsigned VAddrSize =
+  unsigned ActualAddrSize =
       IsNSA ? SrsrcIdx - VAddr0Idx
             : AMDGPU::getRegOperandSize(getMRI(), Desc, VAddr0Idx) / 4;
   bool IsA16 = (A16Idx != -1 && Inst.getOperand(A16Idx).getImm());
 
-  unsigned AddrSize =
+  unsigned ExpectedAddrSize =
       AMDGPU::getAddrSizeMIMGOp(BaseOpcode, DimInfo, IsA16, hasG16());
 
   if (!IsNSA) {
-    if (AddrSize > 8)
-      AddrSize = 16;
-    else if (AddrSize > 4)
-      AddrSize = 8;
+    if (ExpectedAddrSize > 8)
+      ExpectedAddrSize = 16;
+    else if (ExpectedAddrSize > 5)
+      ExpectedAddrSize = 8;
+
+    // Allow oversized 8 VGPR vaddr when only 5 VGPR are required.
+    // This provides backward compatibility for assembly created
+    // before 160b types were directly supported.
+    if (ExpectedAddrSize == 5 && ActualAddrSize == 8)
+      return true;
   }
 
-  return VAddrSize == AddrSize;
+  return ActualAddrSize == ExpectedAddrSize;
 }
 
 bool AMDGPUAsmParser::validateMIMGAtomicDMask(const MCInst &Inst) {

@@ -306,6 +306,7 @@ public:
                                        SPIRVInstruction * = nullptr) = 0;
   virtual SPIRVEntry *addDebugInfo(SPIRVWord, SPIRVType *,
                                    const std::vector<SPIRVWord> &) = 0;
+  virtual SPIRVEntry *addModuleProcessed(const std::string &) = 0;
   virtual void addCapability(SPIRVCapabilityKind) = 0;
   template <typename T> void addCapabilities(const T &Caps) {
     for (auto I : Caps)
@@ -360,6 +361,9 @@ public:
   virtual SPIRVInstTemplateBase *
   addInstTemplate(Op OC, const std::vector<SPIRVWord> &Ops, SPIRVBasicBlock *BB,
                   SPIRVType *Ty) = 0;
+  virtual void addInstTemplate(SPIRVInstTemplateBase *Ins,
+                               const std::vector<SPIRVWord> &Ops,
+                               SPIRVBasicBlock *BB, SPIRVType *Ty) = 0;
   virtual SPIRVInstruction *addLoadInst(SPIRVValue *,
                                         const std::vector<SPIRVWord> &,
                                         SPIRVBasicBlock *) = 0;
@@ -484,6 +488,8 @@ public:
     return TranslationOpts.isGenArgNameMDEnabled();
   }
 
+  virtual std::vector<SPIRVModuleProcessed *> getModuleProcessedVec() = 0;
+
   bool getSpecializationConstant(SPIRVWord SpecId, uint64_t &ConstValue) {
     return TranslationOpts.getSpecializationConstant(SpecId, ConstValue);
   }
@@ -506,6 +512,11 @@ public:
 
   bool shouldReplaceLLVMFmulAddWithOpenCLMad() const noexcept {
     return TranslationOpts.shouldReplaceLLVMFmulAddWithOpenCLMad();
+  }
+
+  bool shouldPreserveOCLKernelArgTypeMetadataThroughString() const noexcept {
+    return TranslationOpts
+        .shouldPreserveOCLKernelArgTypeMetadataThroughString();
   }
 
   SPIRVExtInstSetKind getDebugInfoEIS() const {

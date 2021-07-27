@@ -57,7 +57,8 @@ Add a new property and global variable to the listing:
 ```c++
 namespace sycl {
 ...
-namespace INTEL {
+namespace ext {
+namespace intel {
 namespace property {
     struct buffer_location {
         template<int>
@@ -66,7 +67,8 @@ namespace property {
 } // namespace property
     template<int I>
     inline constexpr /* buffer location instance class */<I> buffer_location;
-} // namespace INTEL
+} // namespace intel
+} // namespace ext
 } // namespace sycl
 ```
 

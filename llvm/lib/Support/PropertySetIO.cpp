@@ -197,7 +197,9 @@ constexpr char PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS[];
 constexpr char PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK[];
 constexpr char PropertySetRegistry::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES[];
 constexpr char PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO[];
+constexpr char PropertySetRegistry::SYCL_PROGRAM_METADATA[];
 constexpr char PropertySetRegistry::SYCL_MISC_PROP[];
+constexpr char PropertySetRegistry::SYCL_ASSERT_USED[];
 
 } // namespace util
 } // namespace llvm

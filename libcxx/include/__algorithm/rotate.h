@@ -9,7 +9,14 @@
 #ifndef _LIBCPP___ALGORITHM_ROTATE_H
 #define _LIBCPP___ALGORITHM_ROTATE_H
 
+#include <__algorithm/move.h>
+#include <__algorithm/move_backward.h>
+#include <__algorithm/swap_ranges.h>
 #include <__config>
+#include <__iterator/iterator_traits.h>
+#include <__iterator/next.h>
+#include <__iterator/prev.h>
+#include <__utility/swap.h>
 #include <iterator>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -20,8 +27,6 @@ _LIBCPP_PUSH_MACROS
 #include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
-
-// rotate
 
 template <class _ForwardIterator>
 _LIBCPP_CONSTEXPR_AFTER_CXX11 _ForwardIterator
@@ -191,16 +196,6 @@ rotate(_ForwardIterator __first, _ForwardIterator __middle, _ForwardIterator __l
         return __first;
     return _VSTD::__rotate(__first, __middle, __last,
                            typename iterator_traits<_ForwardIterator>::iterator_category());
-}
-
-// rotate_copy
-
-template <class _ForwardIterator, class _OutputIterator>
-inline _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
-_OutputIterator
-rotate_copy(_ForwardIterator __first, _ForwardIterator __middle, _ForwardIterator __last, _OutputIterator __result)
-{
-    return _VSTD::copy(__first, __middle, _VSTD::copy(__middle, __last, __result));
 }
 
 _LIBCPP_END_NAMESPACE_STD

@@ -62,11 +62,6 @@ def LLVM_TokenType : Type<
   "LLVM token type">,
   BuildableType<"::mlir::LLVM::LLVMTokenType::get($_builder.getContext())">;
 
-// Type constraint accepting LLVM integer types.
-def LLVM_AnyInteger : Type<
-  CPred<"$_self.isa<::mlir::IntegerType>()">,
-  "LLVM integer type">;
-
 // Type constraint accepting LLVM primitive types, i.e. all types except void
 // and function.
 def LLVM_PrimitiveType : Type<
@@ -113,10 +108,18 @@ def LLVM_OpaqueStruct : Type<
   And<[LLVM_AnyStruct.predicate,
        CPred<"$_self.cast<::mlir::LLVM::LLVMStructType>().isOpaque()">]>>;
 
+// Type constraint accepting types that implement that pointer element
+// interface.
+def LLVM_PointerElementType : Type<
+  CPred<"$_self.isa<::mlir::LLVM::PointerElementTypeInterface>()">,
+  "LLVM-compatible pointer element type">;
+
+
 // Type constraint accepting any LLVM type that can be loaded or stored, i.e. a
 // type that has size (not void, function or opaque struct type).
 def LLVM_LoadableType : Type<
-  And<[LLVM_PrimitiveType.predicate, Neg<LLVM_OpaqueStruct.predicate>]>,
+  Or<[And<[LLVM_PrimitiveType.predicate, Neg<LLVM_OpaqueStruct.predicate>]>,
+      LLVM_PointerElementType.predicate]>,
   "LLVM type with size">;
 
 // Type constraint accepting any LLVM aggregate type, i.e. structure or array.

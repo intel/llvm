@@ -9,6 +9,8 @@
 #ifndef _LIBCPP___ALGORITHM_IS_SORTED_H
 #define _LIBCPP___ALGORITHM_IS_SORTED_H
 
+#include <__algorithm/comp.h>
+#include <__algorithm/is_sorted_until.h>
 #include <__config>
 #include <__iterator/iterator_traits.h>
 
@@ -20,36 +22,6 @@ _LIBCPP_PUSH_MACROS
 #include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
-
-// is_sorted_until
-
-template <class _ForwardIterator, class _Compare>
-_LIBCPP_NODISCARD_EXT _LIBCPP_CONSTEXPR_AFTER_CXX17 _ForwardIterator
-is_sorted_until(_ForwardIterator __first, _ForwardIterator __last, _Compare __comp)
-{
-    if (__first != __last)
-    {
-        _ForwardIterator __i = __first;
-        while (++__i != __last)
-        {
-            if (__comp(*__i, *__first))
-                return __i;
-            __first = __i;
-        }
-    }
-    return __last;
-}
-
-template<class _ForwardIterator>
-_LIBCPP_NODISCARD_EXT inline
-_LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
-_ForwardIterator
-is_sorted_until(_ForwardIterator __first, _ForwardIterator __last)
-{
-    return _VSTD::is_sorted_until(__first, __last, __less<typename iterator_traits<_ForwardIterator>::value_type>());
-}
-
-// is_sorted
 
 template <class _ForwardIterator, class _Compare>
 _LIBCPP_NODISCARD_EXT inline

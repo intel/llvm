@@ -472,19 +472,46 @@ func @pooling_nhwc_min(%input: memref<?x?x?x?xf32>, %fake: memref<2x3xf32>, %ini
 // -----
 
 func @generalize_fill(%output: memref<?x?xf32>, %value : f32) {
-  linalg.fill(%output, %value) : memref<?x?xf32>, f32
+  linalg.fill(%value, %output) : f32, memref<?x?xf32>
   return
 }
 
-// CHECK-DAG: #[[MAP0:.+]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK-DAG: #[[MAP0:.+]] = affine_map<(d0, d1) -> ()>
+// CHECK-DAG: #[[MAP1:.+]] = affine_map<(d0, d1) -> (d0, d1)>
 
 // CHECK: func @generalize_fill
 // CHECK-SAME: (%[[ARG0:.+]]: memref<?x?xf32>, %[[VAL:.+]]: f32)
 
 // CHECK: linalg.generic
-// CHECK-SAME: indexing_maps = [#[[MAP0]]]
+// CHECK-SAME: indexing_maps = [#[[MAP0]], #[[MAP1]]]
 // CHECK-SAME: iterator_types = ["parallel", "parallel"]}
+// CHECK-SAME: ins(%[[VAL]] : f32)
 // CHECK-SAME: outs(%{{.+}} : memref<?x?xf32>)
 
-// CHECK:         ^{{.+}}(%[[BBARG0:.+]]: f32)
-// CHECK-NEXT:      linalg.yield %[[VAL]] : f32
+// CHECK:         ^{{.+}}(%[[BBARG0:.+]]: f32, %[[BBARG1:.+]]: f32)
+// CHECK-NEXT:      linalg.yield %[[BBARG0]] : f32
+
+// -----
+
+func @generalize_batch_matm_vec(%lhs : memref<?x?x?xi8>, %rhs: memref<?x?xi8>,  %out: memref<?x?xf32>) {
+  linalg.batch_matvec ins(%lhs, %rhs: memref<?x?x?xi8>, memref<?x?xi8>)
+                     outs(%out: memref<?x?xf32>)
+  return
+}
+// CHECK: #[[MAP0:.+]] = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+// CHECK: #[[MAP1:.+]] = affine_map<(d0, d1, d2) -> (d0, d2)>
+// CHECK: #[[MAP2:.+]] = affine_map<(d0, d1, d2) -> (d0, d1)>
+
+// CHECK: @generalize_batch_matm_vec
+
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#[[MAP0]], #[[MAP1]], #[[MAP2]]]
+// CHECK-SAME: iterator_types = ["parallel", "parallel", "reduction"]}
+// CHECK-SAME: ins(%{{.+}}, %{{.+}} : memref<?x?x?xi8>, memref<?x?xi8>)
+// CHECK-SAME: outs(%{{.+}} : memref<?x?xf32>)
+// CHECK:         ^{{.+}}(%[[BBARG0:.+]]: i8, %[[BBARG1:.+]]: i8, %[[BBARG2:.+]]: f32)
+// CHECK:            %[[BBARG0_F32:.+]] = sitofp %[[BBARG0]] : i8 to f32
+// CHECK:            %[[BBARG1_F32:.+]] = sitofp %[[BBARG1]] : i8 to f32
+// CHECK:            %[[MUL:.+]] = mulf %[[BBARG0_F32]], %[[BBARG1_F32]]
+// CHECK:            %[[ADD:.+]] = addf %[[BBARG2]], %[[MUL]]
+// CHECK:            linalg.yield %[[ADD]] : f32

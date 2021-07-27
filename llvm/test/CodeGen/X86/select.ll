@@ -8,37 +8,40 @@
 %0 = type { i64, i32 }
 
 define i32 @test1(%0* %p, %0* %q, i1 %r) nounwind {
-; CHECK-LABEL: test1:
-; CHECK:       ## %bb.0:
-; CHECK-NEXT:    addq $8, %rdi
-; CHECK-NEXT:    addq $8, %rsi
-; CHECK-NEXT:    testb $1, %dl
-; CHECK-NEXT:    cmovneq %rdi, %rsi
-; CHECK-NEXT:    movl (%rsi), %eax
-; CHECK-NEXT:    retq
+; GENERIC-LABEL: test1:
+; GENERIC:       ## %bb.0:
+; GENERIC-NEXT:    testb $1, %dl
+; GENERIC-NEXT:    cmoveq %rsi, %rdi
+; GENERIC-NEXT:    movl 8(%rdi), %eax
+; GENERIC-NEXT:    retq
+;
+; ATOM-LABEL: test1:
+; ATOM:       ## %bb.0:
+; ATOM-NEXT:    testb $1, %dl
+; ATOM-NEXT:    cmoveq %rsi, %rdi
+; ATOM-NEXT:    movl 8(%rdi), %eax
+; ATOM-NEXT:    nop
+; ATOM-NEXT:    nop
+; ATOM-NEXT:    retq
 ;
 ; ATHLON-LABEL: test1:
 ; ATHLON:       ## %bb.0:
-; ATHLON-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; ATHLON-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; ATHLON-NEXT:    addl $8, %ecx
-; ATHLON-NEXT:    addl $8, %eax
 ; ATHLON-NEXT:    testb $1, {{[0-9]+}}(%esp)
-; ATHLON-NEXT:    cmovnel %ecx, %eax
-; ATHLON-NEXT:    movl (%eax), %eax
+; ATHLON-NEXT:    leal {{[0-9]+}}(%esp), %eax
+; ATHLON-NEXT:    leal {{[0-9]+}}(%esp), %ecx
+; ATHLON-NEXT:    cmovnel %eax, %ecx
+; ATHLON-NEXT:    movl (%ecx), %eax
+; ATHLON-NEXT:    movl 8(%eax), %eax
 ; ATHLON-NEXT:    retl
 ;
 ; MCU-LABEL: test1:
 ; MCU:       # %bb.0:
 ; MCU-NEXT:    testb $1, %cl
-; MCU-NEXT:    jne .LBB0_1
-; MCU-NEXT:  # %bb.2:
-; MCU-NEXT:    addl $8, %edx
-; MCU-NEXT:    movl (%edx), %eax
-; MCU-NEXT:    retl
-; MCU-NEXT:  .LBB0_1:
-; MCU-NEXT:    addl $8, %eax
-; MCU-NEXT:    movl (%eax), %eax
+; MCU-NEXT:    jne .LBB0_2
+; MCU-NEXT:  # %bb.1:
+; MCU-NEXT:    movl %edx, %eax
+; MCU-NEXT:  .LBB0_2:
+; MCU-NEXT:    movl 8(%eax), %eax
 ; MCU-NEXT:    retl
   %t0 = load %0, %0* %p
   %t1 = load %0, %0* %q
@@ -137,14 +140,14 @@ define float @test3(i32 %x) nounwind readnone {
 ; GENERIC-NEXT:    xorl %eax, %eax
 ; GENERIC-NEXT:    testl %edi, %edi
 ; GENERIC-NEXT:    sete %al
-; GENERIC-NEXT:    leaq {{.*}}(%rip), %rcx
+; GENERIC-NEXT:    leaq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %rcx
 ; GENERIC-NEXT:    movss {{.*#+}} xmm0 = mem[0],zero,zero,zero
 ; GENERIC-NEXT:    retq
 ;
 ; ATOM-LABEL: test3:
 ; ATOM:       ## %bb.0: ## %entry
 ; ATOM-NEXT:    xorl %eax, %eax
-; ATOM-NEXT:    leaq {{.*}}(%rip), %rcx
+; ATOM-NEXT:    leaq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %rcx
 ; ATOM-NEXT:    testl %edi, %edi
 ; ATOM-NEXT:    sete %al
 ; ATOM-NEXT:    movss {{.*#+}} xmm0 = mem[0],zero,zero,zero
@@ -155,7 +158,7 @@ define float @test3(i32 %x) nounwind readnone {
 ; ATHLON-NEXT:    xorl %eax, %eax
 ; ATHLON-NEXT:    cmpl $0, {{[0-9]+}}(%esp)
 ; ATHLON-NEXT:    sete %al
-; ATHLON-NEXT:    flds LCPI2_0(,%eax,4)
+; ATHLON-NEXT:    flds {{\.?LCPI[0-9]+_[0-9]+}}(,%eax,4)
 ; ATHLON-NEXT:    retl
 ;
 ; MCU-LABEL: test3:
@@ -163,7 +166,7 @@ define float @test3(i32 %x) nounwind readnone {
 ; MCU-NEXT:    xorl %ecx, %ecx
 ; MCU-NEXT:    testl %eax, %eax
 ; MCU-NEXT:    sete %cl
-; MCU-NEXT:    flds {{\.LCPI[0-9]+_[0-9]+}}(,%ecx,4)
+; MCU-NEXT:    flds {{\.?LCPI[0-9]+_[0-9]+}}(,%ecx,4)
 ; MCU-NEXT:    retl
 entry:
   %0 = icmp eq i32 %x, 0
@@ -185,7 +188,7 @@ define signext i8 @test4(i8* nocapture %P, double %F) nounwind readonly {
 ; ATHLON:       ## %bb.0: ## %entry
 ; ATHLON-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; ATHLON-NEXT:    fldl {{[0-9]+}}(%esp)
-; ATHLON-NEXT:    flds LCPI3_0
+; ATHLON-NEXT:    flds {{\.?LCPI[0-9]+_[0-9]+}}
 ; ATHLON-NEXT:    xorl %ecx, %ecx
 ; ATHLON-NEXT:    fucompi %st(1), %st
 ; ATHLON-NEXT:    fstp %st(0)
@@ -197,7 +200,7 @@ define signext i8 @test4(i8* nocapture %P, double %F) nounwind readonly {
 ; MCU:       # %bb.0: # %entry
 ; MCU-NEXT:    movl %eax, %ecx
 ; MCU-NEXT:    fldl {{[0-9]+}}(%esp)
-; MCU-NEXT:    flds {{\.LCPI[0-9]+_[0-9]+}}
+; MCU-NEXT:    flds {{\.?LCPI[0-9]+_[0-9]+}}
 ; MCU-NEXT:    fucompp
 ; MCU-NEXT:    fnstsw %ax
 ; MCU-NEXT:    xorl %edx, %edx
@@ -394,14 +397,14 @@ define x86_fp80 @test7(i32 %tmp8) nounwind {
 ; GENERIC-NEXT:    testl %edi, %edi
 ; GENERIC-NEXT:    setns %al
 ; GENERIC-NEXT:    shlq $4, %rax
-; GENERIC-NEXT:    leaq {{.*}}(%rip), %rcx
+; GENERIC-NEXT:    leaq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %rcx
 ; GENERIC-NEXT:    fldt (%rax,%rcx)
 ; GENERIC-NEXT:    retq
 ;
 ; ATOM-LABEL: test7:
 ; ATOM:       ## %bb.0:
 ; ATOM-NEXT:    xorl %eax, %eax
-; ATOM-NEXT:    leaq {{.*}}(%rip), %rcx
+; ATOM-NEXT:    leaq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %rcx
 ; ATOM-NEXT:    testl %edi, %edi
 ; ATOM-NEXT:    setns %al
 ; ATOM-NEXT:    shlq $4, %rax
@@ -414,7 +417,7 @@ define x86_fp80 @test7(i32 %tmp8) nounwind {
 ; ATHLON-NEXT:    notl %eax
 ; ATHLON-NEXT:    shrl $27, %eax
 ; ATHLON-NEXT:    andl $-16, %eax
-; ATHLON-NEXT:    fldt LCPI6_0(%eax)
+; ATHLON-NEXT:    fldt {{\.?LCPI[0-9]+_[0-9]+}}(%eax)
 ; ATHLON-NEXT:    retl
 ;
 ; MCU-LABEL: test7:
@@ -422,7 +425,7 @@ define x86_fp80 @test7(i32 %tmp8) nounwind {
 ; MCU-NEXT:    notl %eax
 ; MCU-NEXT:    shrl $27, %eax
 ; MCU-NEXT:    andl $-16, %eax
-; MCU-NEXT:    fldt {{\.LCPI[0-9]+_[0-9]+}}(%eax)
+; MCU-NEXT:    fldt {{\.?LCPI[0-9]+_[0-9]+}}(%eax)
 ; MCU-NEXT:    retl
   %tmp9 = icmp sgt i32 %tmp8, -1
   %retval = select i1 %tmp9, x86_fp80 0xK4005B400000000000000, x86_fp80 0xK40078700000000000000
@@ -1202,9 +1205,9 @@ define void @clamp_i8(i32 %src, i8* %dst) {
 define void @clamp(i32 %src, i16* %dst) {
 ; GENERIC-LABEL: clamp:
 ; GENERIC:       ## %bb.0:
-; GENERIC-NEXT:    cmpl $32767, %edi ## imm = 0x7FFF
+; GENERIC-NEXT:    cmpl $32768, %edi ## imm = 0x8000
 ; GENERIC-NEXT:    movl $32767, %eax ## imm = 0x7FFF
-; GENERIC-NEXT:    cmovlel %edi, %eax
+; GENERIC-NEXT:    cmovll %edi, %eax
 ; GENERIC-NEXT:    cmpl $-32768, %eax ## imm = 0x8000
 ; GENERIC-NEXT:    movl $32768, %ecx ## imm = 0x8000
 ; GENERIC-NEXT:    cmovgel %eax, %ecx
@@ -1213,10 +1216,10 @@ define void @clamp(i32 %src, i16* %dst) {
 ;
 ; ATOM-LABEL: clamp:
 ; ATOM:       ## %bb.0:
-; ATOM-NEXT:    cmpl $32767, %edi ## imm = 0x7FFF
+; ATOM-NEXT:    cmpl $32768, %edi ## imm = 0x8000
 ; ATOM-NEXT:    movl $32767, %eax ## imm = 0x7FFF
 ; ATOM-NEXT:    movl $32768, %ecx ## imm = 0x8000
-; ATOM-NEXT:    cmovlel %edi, %eax
+; ATOM-NEXT:    cmovll %edi, %eax
 ; ATOM-NEXT:    cmpl $-32768, %eax ## imm = 0x8000
 ; ATOM-NEXT:    cmovgel %eax, %ecx
 ; ATOM-NEXT:    movw %cx, (%rsi)
@@ -1226,9 +1229,9 @@ define void @clamp(i32 %src, i16* %dst) {
 ; ATHLON:       ## %bb.0:
 ; ATHLON-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; ATHLON-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; ATHLON-NEXT:    cmpl $32767, %ecx ## imm = 0x7FFF
+; ATHLON-NEXT:    cmpl $32768, %ecx ## imm = 0x8000
 ; ATHLON-NEXT:    movl $32767, %edx ## imm = 0x7FFF
-; ATHLON-NEXT:    cmovlel %ecx, %edx
+; ATHLON-NEXT:    cmovll %ecx, %edx
 ; ATHLON-NEXT:    cmpl $-32768, %edx ## imm = 0x8000
 ; ATHLON-NEXT:    movl $32768, %ecx ## imm = 0x8000
 ; ATHLON-NEXT:    cmovgel %edx, %ecx
@@ -1237,9 +1240,9 @@ define void @clamp(i32 %src, i16* %dst) {
 ;
 ; MCU-LABEL: clamp:
 ; MCU:       # %bb.0:
-; MCU-NEXT:    cmpl $32767, %eax # imm = 0x7FFF
+; MCU-NEXT:    cmpl $32768, %eax # imm = 0x8000
 ; MCU-NEXT:    movl $32767, %ecx # imm = 0x7FFF
-; MCU-NEXT:    jg .LBB22_2
+; MCU-NEXT:    jge .LBB22_2
 ; MCU-NEXT:  # %bb.1:
 ; MCU-NEXT:    movl %eax, %ecx
 ; MCU-NEXT:  .LBB22_2:

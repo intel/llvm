@@ -219,7 +219,7 @@ static bool importContext(Scop &S, const json::Object &JScop) {
                                  JScop.getString("context").getValue().str()};
 
   // Check whether the context was parsed successfully.
-  if (!NewContext) {
+  if (NewContext.is_null()) {
     errs() << "The context was not parsed successfully by ISL.\n";
     return false;
   }
@@ -321,12 +321,12 @@ static bool importSchedule(Scop &S, const json::Object &JScop,
     return false;
   }
 
-  auto ScheduleMap = isl::union_map::empty(S.getParamSpace());
+  auto ScheduleMap = isl::union_map::empty(S.getIslCtx());
   for (ScopStmt &Stmt : S) {
     if (NewSchedule.find(&Stmt) != NewSchedule.end())
-      ScheduleMap = ScheduleMap.add_map(NewSchedule[&Stmt]);
+      ScheduleMap = ScheduleMap.unite(NewSchedule[&Stmt]);
     else
-      ScheduleMap = ScheduleMap.add_map(Stmt.getSchedule());
+      ScheduleMap = ScheduleMap.unite(Stmt.getSchedule());
   }
 
   S.setSchedule(ScheduleMap);

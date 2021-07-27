@@ -621,8 +621,8 @@ private:
     }
 
     // If we have "x ult 3", for example, then we can add 0,1,2 to the set.
-    ConstantRange Span = ConstantRange::makeAllowedICmpRegion(
-        ICI->getPredicate(), C->getValue());
+    ConstantRange Span =
+        ConstantRange::makeExactICmpRegion(ICI->getPredicate(), C->getValue());
 
     // Shift the range if the compare is fed by an add. This is the range
     // compare idiom as emitted by instcombine.
@@ -1325,10 +1325,6 @@ bool SimplifyCFGOpt::PerformValueComparisonIntoPredecessorFolding(
     DTU->applyUpdates(Updates);
   }
 
-  // Here the BB is not a dead block but folded into its predecessors, so move
-  // the probe and mark it as dangling.
-  moveAndDanglePseudoProbes(BB, NewSI);
-
   ++NumFoldValueComparisonIntoPredecessors;
   return true;
 }
@@ -1407,6 +1403,12 @@ bool SimplifyCFGOpt::HoistThenElseCodeToIf(BranchInst *BI,
   // identical order.
   BasicBlock *BB1 = BI->getSuccessor(0); // The true destination.
   BasicBlock *BB2 = BI->getSuccessor(1); // The false destination
+
+  // If either of the blocks has it's address taken, then we can't do this fold,
+  // because the code we'd hoist would no longer run when we jump into the block
+  // by it's address.
+  if (BB1->hasAddressTaken() || BB2->hasAddressTaken())
+    return false;
 
   BasicBlock::iterator BB1_Itr = BB1->begin();
   BasicBlock::iterator BB2_Itr = BB2->begin();
@@ -2394,6 +2396,11 @@ bool SimplifyCFGOpt::SpeculativelyExecuteBB(BranchInst *BI, BasicBlock *ThenBB,
     // probability for ThenBB, which is fine since the optimization here takes
     // place regardless of the branch probability.
     if (isa<PseudoProbeInst>(I)) {
+      // The probe should be deleted so that it will not be over-counted when
+      // the samples collected on the non-conditional path are counted towards
+      // the conditional path. We leave it for the counts inference algorithm to
+      // figure out a proper count for an unknown probe.
+      SpeculatedDbgIntrinsics.push_back(I);
       continue;
     }
 
@@ -2469,19 +2476,11 @@ bool SimplifyCFGOpt::SpeculativelyExecuteBB(BranchInst *BI, BasicBlock *ThenBB,
                                          SpeculatedStore->getDebugLoc());
   }
 
-  // A hoisted conditional probe should be treated as dangling so that it will
-  // not be over-counted when the samples collected on the non-conditional path
-  // are counted towards the conditional path. We leave it for the counts
-  // inference algorithm to figure out a proper count for a danglng probe.
-  moveAndDanglePseudoProbes(ThenBB, BI);
-
   // Metadata can be dependent on the condition we are hoisting above.
   // Conservatively strip all metadata on the instruction. Drop the debug loc
   // to avoid making it appear as if the condition is a constant, which would
   // be misleading while debugging.
   for (auto &I : *ThenBB) {
-    assert(!isa<PseudoProbeInst>(I) &&
-           "Should not drop debug info from any pseudo probes.");
     if (!SpeculatedStoreValue || &I != SpeculatedStore)
       I.setDebugLoc(DebugLoc());
     I.dropUnknownNonDebugMetadata();
@@ -2713,6 +2712,12 @@ static bool FoldTwoEntryPHINode(PHINode *PN, const TargetTransformInfo &TTI,
       isa<ConstantInt>(IfCond))
     return false;
 
+  // Don't try to fold an unreachable block. For example, the phi node itself
+  // can't be the candidate if-condition for a select that we want to form.
+  if (auto *IfCondPhiInst = dyn_cast<PHINode>(IfCond))
+    if (IfCondPhiInst->getParent() == BB)
+      return false;
+
   // Okay, we found that we can merge this two-entry phi node into a select.
   // Doing so would require us to fold *all* two entry phi nodes in this block.
   // At some point this becomes non-profitable (particularly if the target
@@ -2813,6 +2818,11 @@ static bool FoldTwoEntryPHINode(PHINode *PN, const TargetTransformInfo &TTI,
       }
   }
   assert(DomBlock && "Failed to find root DomBlock");
+
+  // If either of the blocks has it's address taken, we can't do this fold.
+  if ((IfBlock1 && IfBlock1->hasAddressTaken()) ||
+      (IfBlock2 && IfBlock2->hasAddressTaken()))
+    return Changed;
 
   LLVM_DEBUG(dbgs() << "FOUND IF CONDITION!  " << *IfCond
                     << "  T: " << IfTrue->getName()
@@ -3182,9 +3192,6 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, DomTreeUpdater *DTU,
     return false;
 
   BasicBlock *BB = BI->getParent();
-
-  bool Changed = false;
-
   TargetTransformInfo::TargetCostKind CostKind =
     BB->getParent()->hasMinSize() ? TargetTransformInfo::TCK_CodeSize
                                   : TargetTransformInfo::TCK_SizeAndLatency;
@@ -3193,20 +3200,20 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, DomTreeUpdater *DTU,
 
   if (!Cond || (!isa<CmpInst>(Cond) && !isa<BinaryOperator>(Cond)) ||
       Cond->getParent() != BB || !Cond->hasOneUse())
-    return Changed;
+    return false;
 
   // Cond is known to be a compare or binary operator.  Check to make sure that
   // neither operand is a potentially-trapping constant expression.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(Cond->getOperand(0)))
     if (CE->canTrap())
-      return Changed;
+      return false;
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(Cond->getOperand(1)))
     if (CE->canTrap())
-      return Changed;
+      return false;
 
   // Finally, don't infinitely unroll conditional loops.
   if (is_contained(successors(BB), BB))
-    return Changed;
+    return false;
 
   // With which predecessors will we want to deal with?
   SmallVector<BasicBlock *, 8> Preds;
@@ -3247,7 +3254,7 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, DomTreeUpdater *DTU,
   // If there aren't any predecessors into which we can fold,
   // don't bother checking the cost.
   if (Preds.empty())
-    return Changed;
+    return false;
 
   // Only allow this transformation if computing the condition doesn't involve
   // too many instructions and these involved instructions can be executed
@@ -3266,14 +3273,14 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, DomTreeUpdater *DTU,
       continue;
     // I must be safe to execute unconditionally.
     if (!isSafeToSpeculativelyExecute(&I))
-      return Changed;
+      return false;
 
     // Account for the cost of duplicating this instruction into each
     // predecessor.
     NumBonusInsts += PredCount;
     // Early exits once we reach the limit.
     if (NumBonusInsts > BonusInstThreshold)
-      return Changed;
+      return false;
   }
 
   // Ok, we have the budget. Perform the transformation.
@@ -3281,7 +3288,7 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, DomTreeUpdater *DTU,
     auto *PBI = cast<BranchInst>(PredBlock->getTerminator());
     return performBranchToCommonDestFolding(BI, PBI, DTU, MSSAU, TTI);
   }
-  return Changed;
+  return false;
 }
 
 // If there is only one store in BB1 and BB2, return it, otherwise return
@@ -4231,11 +4238,6 @@ bool SimplifyCFGOpt::SimplifyBranchOnICmpChain(BranchInst *BI,
 
   BasicBlock *BB = BI->getParent();
 
-  // MSAN does not like undefs as branch condition which can be introduced
-  // with "explicit branch".
-  if (ExtraCase && BB->getParent()->hasFnAttribute(Attribute::SanitizeMemory))
-    return false;
-
   LLVM_DEBUG(dbgs() << "Converting 'icmp' chain with " << Values.size()
                     << " cases into SWITCH.  BB is:\n"
                     << *BB);
@@ -4252,6 +4254,16 @@ bool SimplifyCFGOpt::SimplifyBranchOnICmpChain(BranchInst *BI,
     // Remove the uncond branch added to the old block.
     Instruction *OldTI = BB->getTerminator();
     Builder.SetInsertPoint(OldTI);
+
+    // There can be an unintended UB if extra values are Poison. Before the
+    // transformation, extra values may not be evaluated according to the
+    // condition, and it will not raise UB. But after transformation, we are
+    // evaluating extra values before checking the condition, and it will raise
+    // UB. It can be solved by adding freeze instruction to extra values.
+    AssumptionCache *AC = Options.AC;
+
+    if (!isGuaranteedNotToBeUndefOrPoison(ExtraCase, AC, BI, nullptr))
+      ExtraCase = Builder.CreateFreeze(ExtraCase);
 
     if (TrueWhenEqual)
       Builder.CreateCondBr(ExtraCase, EdgeBB, NewBB);
@@ -4645,6 +4657,7 @@ bool SimplifyCFGOpt::simplifyReturn(ReturnInst *RI, IRBuilder<> &Builder) {
   return false;
 }
 
+// WARNING: keep in sync with InstCombinerImpl::visitUnreachableInst()!
 bool SimplifyCFGOpt::simplifyUnreachable(UnreachableInst *UI) {
   BasicBlock *BB = UI->getParent();
 
@@ -4655,46 +4668,27 @@ bool SimplifyCFGOpt::simplifyUnreachable(UnreachableInst *UI) {
   while (UI->getIterator() != BB->begin()) {
     BasicBlock::iterator BBI = UI->getIterator();
     --BBI;
-    // Do not delete instructions that can have side effects which might cause
-    // the unreachable to not be reachable; specifically, calls and volatile
-    // operations may have this effect.
-    if (isa<CallInst>(BBI) && !isa<DbgInfoIntrinsic>(BBI))
-      break;
 
-    if (BBI->mayHaveSideEffects()) {
-      if (auto *SI = dyn_cast<StoreInst>(BBI)) {
-        if (SI->isVolatile())
-          break;
-      } else if (auto *LI = dyn_cast<LoadInst>(BBI)) {
-        if (LI->isVolatile())
-          break;
-      } else if (auto *RMWI = dyn_cast<AtomicRMWInst>(BBI)) {
-        if (RMWI->isVolatile())
-          break;
-      } else if (auto *CXI = dyn_cast<AtomicCmpXchgInst>(BBI)) {
-        if (CXI->isVolatile())
-          break;
-      } else if (isa<CatchPadInst>(BBI)) {
-        // A catchpad may invoke exception object constructors and such, which
-        // in some languages can be arbitrary code, so be conservative by
-        // default.
-        // For CoreCLR, it just involves a type test, so can be removed.
-        if (classifyEHPersonality(BB->getParent()->getPersonalityFn()) !=
-            EHPersonality::CoreCLR)
-          break;
-      } else if (!isa<FenceInst>(BBI) && !isa<VAArgInst>(BBI) &&
-                 !isa<LandingPadInst>(BBI)) {
-        break;
-      }
-      // Note that deleting LandingPad's here is in fact okay, although it
-      // involves a bit of subtle reasoning. If this inst is a LandingPad,
-      // all the predecessors of this block will be the unwind edges of Invokes,
-      // and we can therefore guarantee this block will be erased.
-    }
+    if (!isGuaranteedToTransferExecutionToSuccessor(&*BBI))
+      break; // Can not drop any more instructions. We're done here.
+    // Otherwise, this instruction can be freely erased,
+    // even if it is not side-effect free.
+
+    // Temporarily disable removal of volatile stores preceding unreachable,
+    // pending a potential LangRef change permitting volatile stores to trap.
+    // TODO: Either remove this code, or properly integrate the check into
+    // isGuaranteedToTransferExecutionToSuccessor().
+    if (auto *SI = dyn_cast<StoreInst>(&*BBI))
+      if (SI->isVolatile())
+        break; // Can not drop this instruction. We're done here.
+
+    // Note that deleting EH's here is in fact okay, although it involves a bit
+    // of subtle reasoning. If this inst is an EH, all the predecessors of this
+    // block will be the unwind edges of Invoke/CatchSwitch/CleanupReturn,
+    // and we can therefore guarantee this block will be erased.
 
     // Delete this instruction (any uses are guaranteed to be dead)
-    if (!BBI->use_empty())
-      BBI->replaceAllUsesWith(UndefValue::get(BBI->getType()));
+    BBI->replaceAllUsesWith(PoisonValue::get(BBI->getType()));
     BBI->eraseFromParent();
     Changed = true;
   }
@@ -6736,7 +6730,14 @@ bool SimplifyCFGOpt::simplifyOnceImpl(BasicBlock *BB) {
     return true;
 
   if (SinkCommon && Options.SinkCommonInsts)
-    Changed |= SinkCommonCodeFromPredecessors(BB, DTU);
+    if (SinkCommonCodeFromPredecessors(BB, DTU)) {
+      // SinkCommonCodeFromPredecessors() does not automatically CSE PHI's,
+      // so we may now how duplicate PHI's.
+      // Let's rerun EliminateDuplicatePHINodes() first,
+      // before FoldTwoEntryPHINode() potentially converts them into select's,
+      // after which we'd need a whole EarlyCSE pass run to cleanup them.
+      return true;
+    }
 
   IRBuilder<> Builder(BB);
 

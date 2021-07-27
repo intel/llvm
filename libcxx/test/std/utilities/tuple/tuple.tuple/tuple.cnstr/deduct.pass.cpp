@@ -13,7 +13,7 @@
 // GCC's implementation of class template deduction is still immature and runs
 // into issues with libc++. However GCC accepts this code when compiling
 // against libstdc++.
-// XFAIL: gcc-5, gcc-6, gcc-7, gcc-8, gcc-9, gcc-10
+// XFAIL: gcc-5, gcc-6, gcc-7, gcc-8, gcc-9, gcc-10, gcc-11
 
 // <tuple>
 
@@ -22,8 +22,9 @@
 // possible that they provide explicit guides to make it work.
 
 #include <tuple>
-#include <memory>
 #include <cassert>
+#include <functional>
+#include <memory>
 
 #include "test_macros.h"
 #include "archetypes.h"

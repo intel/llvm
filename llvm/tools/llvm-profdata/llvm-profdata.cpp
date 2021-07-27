@@ -316,6 +316,8 @@ static void writeInstrProfile(StringRef OutputFilename,
     if (Error E = Writer.writeText(Output))
       warn(std::move(E));
   } else {
+    if (Output.is_displayed())
+      exitWithError("cannot write a non-text format profile to the terminal");
     if (Error E = Writer.write(Output))
       warn(std::move(E));
   }
@@ -326,12 +328,9 @@ static void mergeInstrProfile(const WeightedFileVector &Inputs,
                               StringRef OutputFilename,
                               ProfileFormat OutputFormat, bool OutputSparse,
                               unsigned NumThreads, FailureMode FailMode) {
-  if (OutputFilename.compare("-") == 0)
-    exitWithError("Cannot write indexed profdata format to stdout.");
-
   if (OutputFormat != PF_Binary && OutputFormat != PF_Compact_Binary &&
       OutputFormat != PF_Ext_Binary && OutputFormat != PF_Text)
-    exitWithError("Unknown format is specified.");
+    exitWithError("unknown format is specified");
 
   std::mutex ErrorLock;
   SmallSet<instrprof_error, 4> WriterErrorCodes;
@@ -394,7 +393,7 @@ static void mergeInstrProfile(const WeightedFileVector &Inputs,
   }
   if (NumErrors == Inputs.size() ||
       (NumErrors > 0 && FailMode == failIfAnyAreInvalid))
-    exitWithError("No profiles could be merged.");
+    exitWithError("no profile can be merged");
 
   writeInstrProfile(OutputFilename, OutputFormat, Contexts[0]->Writer);
 }
@@ -552,11 +551,11 @@ static void supplementInstrProfile(
     unsigned SupplMinSizeThreshold, float ZeroCounterThreshold,
     unsigned InstrProfColdThreshold) {
   if (OutputFilename.compare("-") == 0)
-    exitWithError("Cannot write indexed profdata format to stdout.");
+    exitWithError("cannot write indexed profdata format to stdout");
   if (Inputs.size() != 1)
-    exitWithError("Expect one input to be an instr profile.");
+    exitWithError("expect one input to be an instr profile");
   if (Inputs[0].Weight != 1)
-    exitWithError("Expect instr profile doesn't have weight.");
+    exitWithError("expect instr profile doesn't have weight");
 
   StringRef InstrFilename = Inputs[0].Filename;
 
@@ -689,7 +688,7 @@ mergeSampleProfile(const WeightedFileVector &Inputs, SymbolRemapper *Remapper,
                    StringRef ProfileSymbolListFile, bool CompressAllSections,
                    bool UseMD5, bool GenPartialProfile,
                    bool SampleMergeColdContext, bool SampleTrimColdContext,
-                   FailureMode FailMode) {
+                   bool SampleColdContextFrameDepth, FailureMode FailMode) {
   using namespace sampleprof;
   StringMap<FunctionSamples> ProfileMap;
   SmallVector<std::unique_ptr<sampleprof::SampleProfileReader>, 5> Readers;
@@ -758,9 +757,9 @@ mergeSampleProfile(const WeightedFileVector &Inputs, SymbolRemapper *Remapper,
 
     // Trim and merge cold context profile using cold threshold above;
     SampleContextTrimmer(ProfileMap)
-        .trimAndMergeColdContextProfiles(SampleProfColdThreshold,
-                                         SampleTrimColdContext,
-                                         SampleMergeColdContext);
+        .trimAndMergeColdContextProfiles(
+            SampleProfColdThreshold, SampleTrimColdContext,
+            SampleMergeColdContext, SampleColdContextFrameDepth);
   }
 
   auto WriterOrErr =
@@ -784,7 +783,7 @@ static WeightedFile parseWeightedFile(const StringRef &WeightedFilename) {
 
   uint64_t Weight;
   if (WeightStr.getAsInteger(10, Weight) || Weight < 1)
-    exitWithError("Input weight must be a positive integer.");
+    exitWithError("input weight must be a positive integer");
 
   return {std::string(FileName), Weight};
 }
@@ -863,8 +862,7 @@ static int merge_main(int argc, const char *argv[]) {
   cl::alias RemappingFileA("r", cl::desc("Alias for --remapping-file"),
                            cl::aliasopt(RemappingFile));
   cl::opt<std::string> OutputFilename("output", cl::value_desc("output"),
-                                      cl::init("-"), cl::Required,
-                                      cl::desc("Output file"));
+                                      cl::init("-"), cl::desc("Output file"));
   cl::alias OutputFilenameA("o", cl::desc("Alias for --output"),
                             cl::aliasopt(OutputFilename));
   cl::opt<ProfileKinds> ProfileKind(
@@ -914,6 +912,10 @@ static int merge_main(int argc, const char *argv[]) {
       "sample-trim-cold-context", cl::init(false), cl::Hidden,
       cl::desc(
           "Trim context sample profiles whose count is below cold threshold"));
+  cl::opt<uint32_t> SampleColdContextFrameDepth(
+      "sample-frame-depth-for-cold-context", cl::init(1), cl::ZeroOrMore,
+      cl::desc("Keep the last K frames while merging cold profile. 1 means the "
+               "context-less base profile"));
   cl::opt<bool> GenPartialProfile(
       "gen-partial-profile", cl::init(false), cl::Hidden,
       cl::desc("Generate a partial profile (only meaningful for -extbinary)"));
@@ -954,7 +956,7 @@ static int merge_main(int argc, const char *argv[]) {
   parseInputFilenamesFile(Buffer.get(), WeightedInputs);
 
   if (WeightedInputs.empty())
-    exitWithError("No input files specified. See " +
+    exitWithError("no input files specified. See " +
                   sys::path::filename(argv[0]) + " -help");
 
   if (DumpInputFileList) {
@@ -985,7 +987,8 @@ static int merge_main(int argc, const char *argv[]) {
     mergeSampleProfile(WeightedInputs, Remapper.get(), OutputFilename,
                        OutputFormat, ProfileSymbolListFile, CompressAllSections,
                        UseMD5, GenPartialProfile, SampleMergeColdContext,
-                       SampleTrimColdContext, FailureMode);
+                       SampleTrimColdContext, SampleColdContextFrameDepth,
+                       FailureMode);
 
   return 0;
 }
@@ -1002,7 +1005,7 @@ static void overlapInstrProfile(const std::string &BaseFilename,
   OverlapStats Overlap;
   Error E = Overlap.accumulateCounts(BaseFilename, TestFilename, IsCS);
   if (E)
-    exitWithError(std::move(E), "Error in getting profile count sums");
+    exitWithError(std::move(E), "error in getting profile count sums");
   if (Overlap.Base.CountSum < 1.0f) {
     OS << "Sum of edge counts for profile " << BaseFilename << " is 0.\n";
     exit(0);
@@ -1999,7 +2002,8 @@ static int overlap_main(int argc, const char *argv[]) {
   return 0;
 }
 
-typedef struct ValueSitesStats {
+namespace {
+struct ValueSitesStats {
   ValueSitesStats()
       : TotalNumValueSites(0), TotalNumValueSitesWithValueProfile(0),
         TotalNumValues(0) {}
@@ -2007,7 +2011,8 @@ typedef struct ValueSitesStats {
   uint64_t TotalNumValueSitesWithValueProfile;
   uint64_t TotalNumValues;
   std::vector<unsigned> ValueSitesHistogram;
-} ValueSitesStats;
+};
+} // namespace
 
 static void traverseAllValueSites(const InstrProfRecord &Func, uint32_t VK,
                                   ValueSitesStats &Stats, raw_fd_ostream &OS,
@@ -2498,9 +2503,6 @@ static int show_main(int argc, const char *argv[]) {
                "extbinary format"));
 
   cl::ParseCommandLineOptions(argc, argv, "LLVM profile data summary\n");
-
-  if (OutputFilename.empty())
-    OutputFilename = "-";
 
   if (Filename == OutputFilename) {
     errs() << sys::path::filename(argv[0])

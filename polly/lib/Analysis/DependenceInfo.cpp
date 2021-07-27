@@ -190,9 +190,9 @@ static void collectInfo(Scop &S, isl_union_map *&Read,
 
 /// Fix all dimension of @p Zero to 0 and add it to @p user
 static void fixSetToZero(isl::set Zero, isl::union_set *User) {
-  for (auto i : seq<isl_size>(0, Zero.dim(isl::dim::set)))
+  for (auto i : seq<isl_size>(0, Zero.tuple_dim()))
     Zero = Zero.fix_si(isl::dim::set, i, 0);
-  *User = User->add_set(Zero);
+  *User = User->unite(Zero);
 }
 
 /// Compute the privatization dependences for a given dependency @p Map
@@ -642,8 +642,7 @@ bool Dependences::isValidSchedule(
     return true;
 
   isl::union_map Dependences = getDependences(TYPE_RAW | TYPE_WAW | TYPE_WAR);
-  isl::space Space = S.getParamSpace();
-  isl::union_map Schedule = isl::union_map::empty(Space);
+  isl::union_map Schedule = isl::union_map::empty(S.getIslCtx());
 
   isl::space ScheduleSpace;
 
@@ -658,17 +657,17 @@ bool Dependences::isValidSchedule(
     assert(!StmtScat.is_null() &&
            "Schedules that contain extension nodes require special handling.");
 
-    if (!ScheduleSpace)
+    if (ScheduleSpace.is_null())
       ScheduleSpace = StmtScat.get_space().range();
 
-    Schedule = Schedule.add_map(StmtScat);
+    Schedule = Schedule.unite(StmtScat);
   }
 
   Dependences = Dependences.apply_domain(Schedule);
   Dependences = Dependences.apply_range(Schedule);
 
   isl::set Zero = isl::set::universe(ScheduleSpace);
-  for (auto i : seq<isl_size>(0, Zero.dim(isl::dim::set)))
+  for (auto i : seq<isl_size>(0, Zero.tuple_dim()))
     Zero = Zero.fix_si(isl::dim::set, i, 0);
 
   isl::union_set UDeltas = Dependences.deltas();
@@ -778,7 +777,7 @@ void Dependences::releaseMemory() {
 isl::union_map Dependences::getDependences(int Kinds) const {
   assert(hasValidDependences() && "No valid dependences available");
   isl::space Space = isl::manage_copy(RAW).get_space();
-  isl::union_map Deps = Deps.empty(Space);
+  isl::union_map Deps = Deps.empty(Space.ctx());
 
   if (Kinds & TYPE_RAW)
     Deps = Deps.unite(isl::manage_copy(RAW));

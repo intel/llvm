@@ -18,7 +18,7 @@ namespace sycl {
 namespace detail {
 SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
                          const size_t SizeInBytes, event AvailableEvent,
-                         unique_ptr_class<SYCLMemObjAllocator> Allocator)
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator)
     : MAllocator(std::move(Allocator)), MProps(),
       MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
       MInteropContext(detail::getSyclObjImpl(SyclContext)),

@@ -10,6 +10,7 @@
 #include <memory>
 #include <mutex>
 
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/Threading.h"
 
@@ -68,6 +69,7 @@
 #include "lldb/Utility/ProcessInfo.h"
 #include "lldb/Utility/SelectHelper.h"
 #include "lldb/Utility/State.h"
+#include "lldb/Utility/Timer.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -296,6 +298,13 @@ std::chrono::seconds ProcessProperties::GetUtilityExpressionTimeout() const {
   return std::chrono::seconds(value);
 }
 
+std::chrono::seconds ProcessProperties::GetInterruptTimeout() const {
+  const uint32_t idx = ePropertyInterruptTimeout;
+  uint64_t value = m_collection_sp->GetPropertyAtIndexAsUInt64(
+      nullptr, idx, g_process_properties[idx].default_uint_value);
+  return std::chrono::seconds(value);
+}
+
 bool ProcessProperties::GetSteppingRunsAllThreads() const {
   const uint32_t idx = ePropertySteppingRunsAllThreads;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
@@ -484,25 +493,9 @@ void Process::Finalize() {
   if (m_finalizing.exchange(true))
     return;
 
-  // Destroy this process if needed
-  switch (GetPrivateState()) {
-  case eStateConnected:
-  case eStateAttaching:
-  case eStateLaunching:
-  case eStateStopped:
-  case eStateRunning:
-  case eStateStepping:
-  case eStateCrashed:
-  case eStateSuspended:
-    DestroyImpl(false);
-    break;
-
-  case eStateInvalid:
-  case eStateUnloaded:
-  case eStateDetached:
-  case eStateExited:
-    break;
-  }
+  // Destroy the process. This will call the virtual function DoDestroy under
+  // the hood, giving our derived class a chance to do the ncessary tear down.
+  DestroyImpl(false);
 
   // Clear our broadcaster before we proceed with destroying
   Broadcaster::Clear();
@@ -1333,8 +1326,8 @@ Status Process::ResumeSynchronous(Stream *stream) {
 
   Status error = PrivateResume();
   if (error.Success()) {
-    StateType state =
-        WaitForProcessToStop(llvm::None, nullptr, true, listener_sp, stream);
+    StateType state = WaitForProcessToStop(llvm::None, nullptr, true,
+                                           listener_sp, stream);
     const bool must_be_alive =
         false; // eStateExited is ok, so this must be false
     if (!StateIsStoppedState(state, must_be_alive))
@@ -2044,6 +2037,8 @@ size_t Process::ReadCStringFromMemory(addr_t addr, char *dst,
 
 size_t Process::ReadMemoryFromInferior(addr_t addr, void *buf, size_t size,
                                        Status &error) {
+  LLDB_SCOPED_TIMER();
+
   if (buf == nullptr || size == 0)
     return 0;
 
@@ -2469,6 +2464,11 @@ Status Process::Launch(ProcessLaunchInfo &launch_info) {
     error = GetTarget().Install(&launch_info);
     if (error.Fail())
       return error;
+
+    // Listen and queue events that are broadcasted during the process launch.
+    ListenerSP listener_sp(Listener::MakeListener("LaunchEventHijack"));
+    HijackProcessEvents(listener_sp);
+    auto on_exit = llvm::make_scope_exit([this]() { RestoreProcessEvents(); });
 
     if (PrivateStateThreadIsValid())
       PausePrivateStateThread();
@@ -3074,9 +3074,10 @@ Status Process::Halt(bool clear_thread_plans, bool use_run_lock) {
     return Status();
   }
 
-  // Wait for 10 second for the process to stop.
-  StateType state = WaitForProcessToStop(
-      seconds(10), &event_sp, true, halt_listener_sp, nullptr, use_run_lock);
+  // Wait for the process halt timeout seconds for the process to stop.
+  StateType state =
+      WaitForProcessToStop(GetInterruptTimeout(), &event_sp, true,
+                           halt_listener_sp, nullptr, use_run_lock);
   RestoreProcessEvents();
 
   if (state == eStateInvalid || !event_sp) {
@@ -3107,8 +3108,8 @@ Status Process::StopForDestroyOrDetach(lldb::EventSP &exit_event_sp) {
     SendAsyncInterrupt();
 
     // Consume the interrupt event.
-    StateType state =
-        WaitForProcessToStop(seconds(10), &exit_event_sp, true, listener_sp);
+    StateType state = WaitForProcessToStop(GetInterruptTimeout(),
+                                           &exit_event_sp, true, listener_sp);
 
     RestoreProcessEvents();
 
@@ -3843,9 +3844,7 @@ thread_result_t Process::RunPrivateStateThread(bool is_secondary_thread) {
 
 // Process Event Data
 
-Process::ProcessEventData::ProcessEventData()
-    : EventData(), m_process_wp(), m_state(eStateInvalid), m_restarted(false),
-      m_update_state(0), m_interrupted(false) {}
+Process::ProcessEventData::ProcessEventData() : EventData(), m_process_wp() {}
 
 Process::ProcessEventData::ProcessEventData(const ProcessSP &process_sp,
                                             StateType state)
@@ -6066,4 +6065,40 @@ bool Process::CallVoidArgVoidPtrReturn(const Address *address,
   }
 
   return false;
+}
+
+llvm::Expected<const MemoryTagManager *> Process::GetMemoryTagManager() {
+  Architecture *arch = GetTarget().GetArchitecturePlugin();
+  const MemoryTagManager *tag_manager =
+      arch ? arch->GetMemoryTagManager() : nullptr;
+  if (!arch || !tag_manager) {
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "This architecture does not support memory tagging",
+        GetPluginName().GetCString());
+  }
+
+  if (!SupportsMemoryTagging()) {
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Process does not support memory tagging");
+  }
+
+  return tag_manager;
+}
+
+llvm::Expected<std::vector<lldb::addr_t>>
+Process::ReadMemoryTags(lldb::addr_t addr, size_t len) {
+  llvm::Expected<const MemoryTagManager *> tag_manager_or_err =
+      GetMemoryTagManager();
+  if (!tag_manager_or_err)
+    return tag_manager_or_err.takeError();
+
+  const MemoryTagManager *tag_manager = *tag_manager_or_err;
+  llvm::Expected<std::vector<uint8_t>> tag_data =
+      DoReadMemoryTags(addr, len, tag_manager->GetAllocationTagType());
+  if (!tag_data)
+    return tag_data.takeError();
+
+  return tag_manager->UnpackTagsData(*tag_data,
+                                     len / tag_manager->GetGranuleSize());
 }

@@ -86,13 +86,14 @@ enum class ownership { transfer, keep };
 __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle);
 __SYCL_EXPORT device make_device(const platform &Platform,
                                  pi_native_handle NativeHandle);
-__SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
+__SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
                                    pi_native_handle NativeHandle,
                                    bool keep_ownership = false);
 __SYCL_EXPORT program make_program(const context &Context,
                                    pi_native_handle NativeHandle);
 __SYCL_EXPORT queue make_queue(const context &Context,
-                               pi_native_handle InteropHandle);
+                               pi_native_handle InteropHandle,
+                               bool keep_ownership = false);
 
 // Construction of SYCL platform.
 template <typename T, typename detail::enable_if_t<
@@ -120,7 +121,7 @@ T make(const platform &Platform,
 ///
 template <typename T, typename std::enable_if<
                           std::is_same<T, context>::value>::type * = nullptr>
-T make(const vector_class<device> &DeviceList,
+T make(const std::vector<device> &DeviceList,
        typename interop<backend::level_zero, T>::type Interop,
        ownership Ownership = ownership::transfer) {
   return make_context(DeviceList, detail::pi::cast<pi_native_handle>(Interop),
@@ -139,8 +140,10 @@ T make(const context &Context,
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, queue>::value> * = nullptr>
 T make(const context &Context,
-       typename interop<backend::level_zero, T>::type Interop) {
-  return make_queue(Context, reinterpret_cast<pi_native_handle>(Interop));
+       typename interop<backend::level_zero, T>::type Interop,
+       ownership Ownership = ownership::transfer) {
+  return make_queue(Context, reinterpret_cast<pi_native_handle>(Interop),
+                    Ownership == ownership::keep);
 }
 
 } // namespace level_zero

@@ -60,7 +60,7 @@ using namespace lldb_private;
 DWARFASTParserClang::DWARFASTParserClang(TypeSystemClang &ast)
     : m_ast(ast), m_die_to_decl_ctx(), m_decl_ctx_to_die() {}
 
-DWARFASTParserClang::~DWARFASTParserClang() {}
+DWARFASTParserClang::~DWARFASTParserClang() = default;
 
 static AccessType DW_ACCESS_to_AccessType(uint32_t dwarf_accessibility) {
   switch (dwarf_accessibility) {
@@ -157,7 +157,7 @@ TypeSP DWARFASTParserClang::ParseTypeFromClangModule(const SymbolContext &sc,
 
   // The type in the Clang module must have the same language as the current CU.
   LanguageSet languages;
-  languages.Insert(SymbolFileDWARF::GetLanguage(*die.GetCU()));
+  languages.Insert(SymbolFileDWARF::GetLanguageFamily(*die.GetCU()));
   llvm::DenseSet<SymbolFile *> searched_symbol_files;
   clang_module_sp->GetSymbolFile()->FindTypes(decl_context, languages,
                                               searched_symbol_files, pcm_types);
@@ -1270,13 +1270,10 @@ TypeSP DWARFASTParserClang::ParseSubroutine(const DWARFDIE &die,
           LinkDeclContextToDIE(function_decl, die);
 
           if (!function_param_decls.empty()) {
-            m_ast.SetFunctionParameters(function_decl,
-                                        &function_param_decls.front(),
-                                        function_param_decls.size());
+            m_ast.SetFunctionParameters(function_decl, function_param_decls);
             if (template_function_decl)
               m_ast.SetFunctionParameters(template_function_decl,
-                                          &function_param_decls.front(),
-                                          function_param_decls.size());
+                                          function_param_decls);
           }
 
           ClangASTMetadata metadata;

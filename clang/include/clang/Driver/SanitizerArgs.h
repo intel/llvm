@@ -12,6 +12,7 @@
 #include "clang/Driver/Types.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/Transforms/Instrumentation/AddressSanitizerOptions.h"
 #include <string>
 #include <vector>
 
@@ -43,6 +44,7 @@ class SanitizerArgs {
   bool AsanUseOdrIndicator = false;
   bool AsanInvalidPointerCmp = false;
   bool AsanInvalidPointerSub = false;
+  bool AsanOutlineInstrumentation = false;
   llvm::AsanDtorKind AsanDtorKind = llvm::AsanDtorKind::Invalid;
   std::string HwasanAbi;
   bool LinkRuntimes = true;
@@ -58,6 +60,8 @@ class SanitizerArgs {
   bool ImplicitCfiRuntime = false;
   bool NeedsMemProfRt = false;
   bool HwasanUseAliases = false;
+  llvm::AsanDetectStackUseAfterReturnMode AsanUseAfterReturn =
+      llvm::AsanDetectStackUseAfterReturnMode::Invalid;
 
 public:
   /// Parses the sanitizer arguments from an argument list.

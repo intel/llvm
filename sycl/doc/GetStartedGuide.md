@@ -4,24 +4,33 @@ The DPC++ Compiler compiles C++ and SYCL\* source files with code for both CPU
 and a wide range of compute accelerators such as GPU and FPGA.
 
 ## Table of contents
-
-* [Prerequisites](#prerequisites)
-  * [Create DPC++ workspace](#create-dpc-workspace)
-* [Build DPC++ toolchain](#build-dpc-toolchain)
-  * [Build DPC++ toolchain with libc++ library](#build-dpc-toolchain-with-libc-library)
-  * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
-  * [Build Doxygen documentation](#build-doxygen-documentation)
-* [Use DPC++ toolchain](#use-dpc-toolchain)
-  * [Install low level runtime](#install-low-level-runtime)
-  * [Obtain prerequisites for ahead of time (AOT) compilation](#obtain-prerequisites-for-ahead-of-time-aot-compilation)
-  * [Test DPC++ toolchain](#test-dpc-toolchain)
-  * [Run simple DPC++ application](#run-simple-dpc-application)
-  * [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu)
-  * [Using the DPC++ toolchain on CUDA platforms](#using-the-dpc-toolchain-on-cuda-platforms)
-* [C++ standard](#c-standard)
-* [Known Issues and Limitations](#known-issues-and-limitations)
-* [CUDA back-end limitations](#cuda-back-end-limitations)
-* [Find More](#find-more)
+  - [Prerequisites](#prerequisites)
+    - [Create DPC++ workspace](#create-dpc-workspace)
+  - [Build DPC++ toolchain](#build-dpc-toolchain)
+    - [Build DPC++ toolchain with libc++ library](#build-dpc-toolchain-with-libc-library)
+    - [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
+    - [Build DPC++ toolchain with support for AMD ROCm](#build-dpc-toolchain-with-support-for-amd-rocm)
+    - [Build DPC++ toolchain with support for NVIDIA ROCm](#build-dpc-toolchain-with-support-for-nvidia-rocm)
+    - [Build Doxygen documentation](#build-doxygen-documentation)
+    - [Deployment](#deployment)
+  - [Use DPC++ toolchain](#use-dpc-toolchain)
+    - [Install low level runtime](#install-low-level-runtime)
+    - [Obtain prerequisites for ahead of time (AOT) compilation](#obtain-prerequisites-for-ahead-of-time-aot-compilation)
+      - [GPU](#gpu)
+      - [CPU](#cpu)
+      - [Accelerator](#accelerator)
+    - [Test DPC++ toolchain](#test-dpc-toolchain)
+      - [Run in-tree LIT tests](#run-in-tree-lit-tests)
+      - [Run DPC++ E2E test suite](#run-dpc-e2e-test-suite)
+      - [Run Khronos\* SYCL\* conformance test suite (optional)](#run-khronos-sycl-conformance-test-suite-optional)
+    - [Run simple DPC++ application](#run-simple-dpc-application)
+    - [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu)
+    - [Using the DPC++ toolchain on CUDA platforms](#using-the-dpc-toolchain-on-cuda-platforms)
+  - [C++ standard](#c-standard)
+  - [Known Issues and Limitations](#known-issues-and-limitations)
+    - [CUDA back-end limitations](#cuda-back-end-limitations)
+    - [ROCm back-end limitations](#rocm-back-end-limitations)
+  - [Find More](#find-more)
 
 ## Prerequisites
 
@@ -98,6 +107,8 @@ flags can be found by launching the script with `--help`):
 * `--system-ocl` -> Don't download OpenCL headers and library via CMake but use the system ones
 * `--no-werror` -> Don't treat warnings as errors when compiling llvm
 * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
+* `--rocm` -> use the rocm backend (see [AMD ROCm](#build-dpc-toolchain-with-support-for-amd-rocm))
+* `--rocm-platform` -> select the platform used by the rocm backend, `AMD` or `NVIDIA` (see [AMD ROCm](#build-dpc-toolchain-with-support-for-amd-rocm) or see [NVIDIA ROCm](#build-dpc-toolchain-with-support-for-nvidia-rocm))
 * `--shared-libs` -> Build shared libraries
 * `-t` -> Build type (debug or release)
 * `-o` -> Path to build directory
@@ -147,6 +158,53 @@ Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
 a Titan RTX GPU (SM 71), but it should work on any GPU compatible with SM 50 or
 above. The default SM for the NVIDIA CUDA backend is 5.0. Users can specify
 lower values, but some features may not be supported.
+
+### Build DPC++ toolchain with support for AMD ROCm
+There is experimental support for DPC++ for ROCm devices.
+
+To enable support for ROCm devices, follow the instructions for the Linux
+DPC++ toolchain, but add the `--rocm` flag to `configure.py`
+
+Enabling this flag requires an installation of
+ROCm 4.1.0 on the system, refer to
+[AMD ROCm Installation Guide for Linux](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
+
+Currently, the only combination tested is Ubuntu 18.04 with ROCm 4.1.0 using a Vega20 gfx906.
+
+[LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMD GPU compilation chain. 
+The AMDGPU backend generates a standard ELF [ELF] relocatable code object that can be linked by lld to 
+produce a standard ELF shared code object which can be loaded and executed on an AMDGPU target. 
+So if you want to support AMD ROCm, you should also build the lld project.
+[LLD Build Guide](https://lld.llvm.org/)
+
+The following CMake variables can be updated to change where CMake is looking
+for the ROCm installation:
+
+* `SYCL_BUILD_PI_ROCM_INCLUDE_DIR`: Path to HIP include directory (default
+  `/opt/rocm/hip/include`).
+* `SYCL_BUILD_PI_ROCM_HSA_INCLUDE_DIR`: Path to HSA include directory (default
+  `/opt/rocm/hsa/include`).
+* `SYCL_BUILD_PI_ROCM_AMD_LIBRARY`: Path to HIP runtime library (default
+  `/opt/rocm/hip/lib/libamdhip64.so`).
+
+### Build DPC++ toolchain with support for NVIDIA ROCm
+
+There is experimental support for DPC++ for using ROCm on NVIDIA devices.
+
+This is a compatibility feature and the [CUDA backend](#build-dpc-toolchain-with-support-for-nvidia-cuda)
+should be preferred to run on NVIDIA GPUs.
+
+To enable support for NVIDIA ROCm devices, follow the instructions for the Linux
+DPC++ toolchain, but add the `--rocm` and `--rocm-platform NVIDIA` flags to
+`configure.py`.
+
+Enabling this flag requires ROCm to be installed, more specifically
+[HIP NVCC](https://rocmdocs.amd.com/en/latest/Installation_Guide/HIP-Installation.html#nvidia-platform),
+as well as CUDA to be installed, see
+[NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
+
+Currently this was only tested on Linux with ROCm 4.2, CUDA 11 and a GeForce GTX
+1060 card.
 
 ### Build Doxygen documentation
 
@@ -482,19 +540,28 @@ and run following command:
 clang++ -fsycl simple-sycl-app.cpp -o simple-sycl-app.exe
 ```
 
-When building for CUDA, use the CUDA target triple as follows:
+When building for CUDA or NVIDIA ROCm, use the CUDA target triple as follows:
 
 ```bash
 clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
-To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,
-specify the target architecture:
+When building for ROCm, please note that the option `mcpu` must be specified, use the ROCm target triple as follows:
 
-```-fsycl-targets=spir64_gen-unknown-unknown-sycldevice``` for GPU,  
-```-fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice``` for CPU,  
-```-fsycl-targets=spir64_fpga-unknown-unknown-sycldevice``` for Accelerator.
+```bash
+clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa-sycldevice \
+  -mcpu=gfx906 simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
+```
+
+To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,
+specify the target architecture.  The examples provided use a supported
+alias for the target, representing a full triple.  Additional details can
+be found in the [Users Manual](UsersManual.md#generic-options).
+
+```-fsycl-targets=spir64_gen``` for GPU,
+```-fsycl-targets=spir64_x86_64``` for CPU,
+```-fsycl-targets=spir64_fpga``` for Accelerator.
 
 Multiple target architectures are supported.
 
@@ -502,7 +569,7 @@ E.g., this command builds simple-sycl-app for GPU and CPU devices in
 ahead of time mode:
 
 ```bash
-clang++ -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice,spir64_x86_64-unknown-unknown-sycldevice simple-sycl-app.cpp -o simple-sycl-app-aot.exe
+clang++ -fsycl -fsycl-targets=spir64_gen,spir64_x86_64 simple-sycl-app.cpp -o simple-sycl-app-aot.exe
 ```
 
 Additionally, user can pass specific options of AOT compiler to
@@ -519,7 +586,8 @@ execution, so SYCL runtime will use `default_selector` logic to select one
 of accelerators available in the system or SYCL host device.
 In this case, the behavior of the `default_selector` can be altered
 using the `SYCL_BE` environment variable, setting `PI_CUDA` forces
-the usage of the CUDA backend (if available), `PI_OPENCL` will
+the usage of the CUDA backend (if available), `PI_ROCM` forces
+the usage of the ROCm backend (if available), `PI_OPENCL` will
 force the usage of the OpenCL backend.
 
 ```bash
@@ -662,6 +730,16 @@ which contains all the symbols required.
   GPU (SM 71), but it should work on any GPU compatible with SM 50 or above
 * The NVIDIA OpenCL headers conflict with the OpenCL headers required for this
   project and may cause compilation issues on some platforms
+
+### ROCm back-end limitations
+
+* For supported Operating Systems, please refer to the [Supported Operating Systems](https://github.com/RadeonOpenCompute/ROCm#supported-operating-systems)
+* The only combination tested is Ubuntu 18.04 with ROCm 4.1 using a Vega20 gfx906.
+* Judging from the current [test](https://github.com/zjin-lcf/oneAPI-DirectProgramming) results, 
+  there is still a lot of room for improvement in ROCm back-end support. The current problems include three aspects. 
+  The first one is at compile time: the `barrier` and `atomic` keywords are not supported. 
+  The second is at runtime: when calling `hipMemcpyDtoHAsync` ROCm API, the program will cause an exception if the input data size is too large. 
+  The third is calculation accuracy: the ROCm backend has obvious errors in the calculation results of some float type operators
 
 ## Find More
 

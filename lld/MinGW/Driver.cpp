@@ -83,7 +83,7 @@ public:
 } // namespace
 
 static void printHelp(const char *argv0) {
-  MinGWOptTable().PrintHelp(
+  MinGWOptTable().printHelp(
       lld::outs(), (std::string(argv0) + " [options] file...").c_str(), "lld",
       false /*ShowHidden*/, true /*ShowAllAliases*/);
   lld::outs() << "\n";
@@ -142,16 +142,10 @@ searchLibrary(StringRef name, ArrayRef<StringRef> searchPaths, bool bStatic) {
     if (!bStatic) {
       if (Optional<std::string> s = findFile(dir, name + ".lib"))
         return *s;
-      if (Optional<std::string> s = findFile(dir, "lib" + name + ".dll")) {
-        error("lld doesn't support linking directly against " + *s +
-              ", use an import library");
-        return "";
-      }
-      if (Optional<std::string> s = findFile(dir, name + ".dll")) {
-        error("lld doesn't support linking directly against " + *s +
-              ", use an import library");
-        return "";
-      }
+      if (Optional<std::string> s = findFile(dir, "lib" + name + ".dll"))
+        return *s;
+      if (Optional<std::string> s = findFile(dir, name + ".dll"))
+        return *s;
     }
   }
   error("unable to find library -l" + name);
@@ -295,6 +289,11 @@ bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   else
     add("-WX:no");
 
+  if (args.hasFlag(OPT_enable_stdcall_fixup, OPT_disable_stdcall_fixup, false))
+    add("-stdcall-fixup");
+  else if (args.hasArg(OPT_disable_stdcall_fixup))
+    add("-stdcall-fixup:no");
+
   if (args.hasArg(OPT_shared))
     add("-dll");
   if (args.hasArg(OPT_verbose))
@@ -401,7 +400,7 @@ bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   for (auto *a : args) {
     switch (a->getOption().getID()) {
     case OPT_INPUT:
-      if (StringRef(a->getValue()).endswith_lower(".def"))
+      if (StringRef(a->getValue()).endswith_insensitive(".def"))
         add("-def:" + StringRef(a->getValue()));
       else
         add(prefix + StringRef(a->getValue()));
@@ -428,7 +427,7 @@ bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     return false;
 
   if (args.hasArg(OPT_verbose) || args.hasArg(OPT__HASH_HASH_HASH))
-    lld::outs() << llvm::join(linkArgs, " ") << "\n";
+    lld::errs() << llvm::join(linkArgs, " ") << "\n";
 
   if (args.hasArg(OPT__HASH_HASH_HASH))
     return true;
@@ -437,5 +436,8 @@ bool mingw::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   std::vector<const char *> vec;
   for (const std::string &s : linkArgs)
     vec.push_back(s.c_str());
+  // Pass the actual binary name, to make error messages be printed with
+  // the right prefix.
+  vec[0] = argsArr[0];
   return coff::link(vec, canExitEarly, stdoutOS, stderrOS);
 }

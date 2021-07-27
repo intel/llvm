@@ -257,9 +257,7 @@ Module::Module(const FileSpec &file_spec, const ArchSpec &arch,
               m_object_name.IsEmpty() ? "" : ")");
 }
 
-Module::Module()
-    : m_object_offset(0), m_file_has_changed(false),
-      m_first_file_changed_log(false) {
+Module::Module() : m_file_has_changed(false), m_first_file_changed_log(false) {
   std::lock_guard<std::recursive_mutex> guard(
       GetAllocationModuleCollectionMutex());
   GetModuleCollection().push_back(this);
@@ -1530,9 +1528,9 @@ bool Module::LoadScriptingResourceInTarget(Target *target, Status &error,
             }
             StreamString scripting_stream;
             scripting_fspec.Dump(scripting_stream.AsRawOstream());
-            const bool init_lldb_globals = false;
+            LoadScriptOptions options;
             bool did_load = script_interpreter->LoadScriptingModule(
-                scripting_stream.GetData(), init_lldb_globals, error);
+                scripting_stream.GetData(), options, error);
             if (!did_load)
               return false;
           }
@@ -1600,13 +1598,18 @@ bool Module::MatchesModuleSpec(const ModuleSpec &module_ref) {
 bool Module::FindSourceFile(const FileSpec &orig_spec,
                             FileSpec &new_spec) const {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
-  return m_source_mappings.FindFile(orig_spec, new_spec);
+  if (auto remapped = m_source_mappings.FindFile(orig_spec)) {
+    new_spec = *remapped;
+    return true;
+  }
+  return false;
 }
 
-bool Module::RemapSourceFile(llvm::StringRef path,
-                             std::string &new_path) const {
+llvm::Optional<std::string> Module::RemapSourceFile(llvm::StringRef path) const {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
-  return m_source_mappings.RemapPath(path, new_path);
+  if (auto remapped = m_source_mappings.RemapPath(path))
+    return remapped->GetPath();
+  return {};
 }
 
 void Module::RegisterXcodeSDK(llvm::StringRef sdk_name, llvm::StringRef sysroot) {

@@ -60,9 +60,11 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/InstrTypes.h"
@@ -118,6 +120,25 @@ static SPIRVMemoryModelKind getMemoryModel(Module &M) {
     }
   }
   return SPIRVMemoryModelKind::MemoryModelMax;
+}
+
+static bool shouldTryToAddMemAliasingDecoration(Instruction *Inst) {
+  // Limit translation of aliasing metadata with only this set of instructions
+  // gracefully considering others as compilation mistakes and ignoring them
+  if (!Inst->mayReadOrWriteMemory())
+    return false;
+  // Loads and Stores are handled during memory access mask addition
+  if (isa<StoreInst>(Inst) || isa<LoadInst>(Inst))
+    return false;
+  CallInst *CI = dyn_cast<CallInst>(Inst);
+  if (!CI)
+    return true;
+  // Calls to intrinsics are skipped. At some point lifetime start/end will be
+  // handled separately, but specification isn't ready.
+  if (Function *Fun = CI->getCalledFunction())
+    if (Fun->isIntrinsic())
+      return false;
+  return true;
 }
 
 LLVMToSPIRVBase::LLVMToSPIRVBase(SPIRVModule *SMod)
@@ -592,7 +613,13 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
   // translated function declaration
   MDNode *BufferLocation = nullptr;
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_buffer_location))
-    BufferLocation = ((*F).getMetadata("kernel_arg_buffer_location"));
+    BufferLocation = F->getMetadata("kernel_arg_buffer_location");
+
+  // Translate runtime_aligned metadata if it's attached to the translated
+  // function declaration
+  MDNode *RuntimeAligned = nullptr;
+  if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_runtime_aligned))
+    RuntimeAligned = F->getMetadata("kernel_arg_runtime_aligned");
 
   auto Attrs = F->getAttributes();
 
@@ -631,6 +658,17 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
         LocID = getMDOperandAsInt(BufferLocation, ArgNo);
       if (LocID >= 0)
         BA->addDecorate(DecorationBufferLocationINTEL, LocID);
+    }
+    if (RuntimeAligned && I->getType()->isPointerTy()) {
+      // Order of integer numbers in MD node follows the order of function
+      // parameters on which we shall attach the appropriate decoration. Add
+      // decoration only if MD value is 1.
+      int LocID = 0;
+      if (!isa<MDString>(RuntimeAligned->getOperand(ArgNo)) &&
+          !isa<MDNode>(RuntimeAligned->getOperand(ArgNo)))
+        LocID = getMDOperandAsInt(RuntimeAligned, ArgNo);
+      if (LocID == 1)
+        BA->addDecorate(internal::DecorationRuntimeAlignedINTEL, LocID);
     }
   }
   if (Attrs.hasAttribute(AttributeList::ReturnIndex, Attribute::ZExt))
@@ -715,7 +753,7 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
       Attrs.getAttribute(ArgNo + 1, kVCMetadata::VCArgumentKind)
           .getValueAsString()
           .getAsInteger(0, Kind);
-      BA->addDecorate(DecorationFuncParamKindINTEL, Kind);
+      BA->addDecorate(internal::DecorationFuncParamKindINTEL, Kind);
     }
     if (Attrs.hasAttribute(ArgNo + 1, kVCMetadata::VCArgumentDesc)) {
       StringRef Desc =
@@ -1128,6 +1166,12 @@ LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
 
   size_t LoopControl = spv::LoopControlMaskNone;
   std::vector<std::pair<SPIRVWord, SPIRVWord>> ParametersToSort;
+  // If only a subset of loop count parameters is defined in metadata
+  // then undefined ones should have a default value -1 in SPIR-V.
+  // Preset all loop count parameters with the default value.
+  struct LoopCountInfo {
+    int64_t Min = -1, Max = -1, Avg = -1;
+  } LoopCount;
 
   // Unlike with most of the cases, some loop metadata specifications
   // can occur multiple times - for these, all correspondent tokens
@@ -1227,11 +1271,41 @@ LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
           BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
           BM->addCapability(CapabilityFPGALoopControlsINTEL);
           LoopControl |= spv::LoopControlNoFusionINTELMask;
+        } else if (S == "llvm.loop.intel.loopcount_min") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          LoopCount.Min = getMDOperandAsInt(Node, 1);
+          LoopControl |= spv::internal::LoopControlLoopCountINTELMask;
+        } else if (S == "llvm.loop.intel.loopcount_max") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          LoopCount.Max = getMDOperandAsInt(Node, 1);
+          LoopControl |= spv::internal::LoopControlLoopCountINTELMask;
+        } else if (S == "llvm.loop.intel.loopcount_avg") {
+          BM->addExtension(ExtensionID::SPV_INTEL_fpga_loop_controls);
+          BM->addCapability(CapabilityFPGALoopControlsINTEL);
+          LoopCount.Avg = getMDOperandAsInt(Node, 1);
+          LoopControl |= spv::internal::LoopControlLoopCountINTELMask;
         }
       }
     }
   }
-
+  if (LoopControl & spv::internal::LoopControlLoopCountINTELMask) {
+    // LoopCountINTELMask have int64 literal parameters and we need to store
+    // int64 into 2 SPIRVWords
+    ParametersToSort.emplace_back(spv::internal::LoopControlLoopCountINTELMask,
+                                  static_cast<SPIRVWord>(LoopCount.Min));
+    ParametersToSort.emplace_back(spv::internal::LoopControlLoopCountINTELMask,
+                                  static_cast<SPIRVWord>(LoopCount.Min >> 32));
+    ParametersToSort.emplace_back(spv::internal::LoopControlLoopCountINTELMask,
+                                  static_cast<SPIRVWord>(LoopCount.Max));
+    ParametersToSort.emplace_back(spv::internal::LoopControlLoopCountINTELMask,
+                                  static_cast<SPIRVWord>(LoopCount.Max >> 32));
+    ParametersToSort.emplace_back(spv::internal::LoopControlLoopCountINTELMask,
+                                  static_cast<SPIRVWord>(LoopCount.Avg));
+    ParametersToSort.emplace_back(spv::internal::LoopControlLoopCountINTELMask,
+                                  static_cast<SPIRVWord>(LoopCount.Avg >> 32));
+  }
   // If any loop control parameters were held back until fully collected,
   // now is the time to move the information to the main parameters collection
   if (!DependencyArrayParameters.empty()) {
@@ -1250,11 +1324,11 @@ LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
     LoopControl |= spv::LoopControlDependencyArrayINTELMask;
   }
 
-  std::sort(ParametersToSort.begin(), ParametersToSort.end(),
-            [](const std::pair<SPIRVWord, SPIRVWord> &CompareLeft,
-               const std::pair<SPIRVWord, SPIRVWord> &CompareRight) {
-              return CompareLeft.first < CompareRight.first;
-            });
+  std::stable_sort(ParametersToSort.begin(), ParametersToSort.end(),
+                   [](const std::pair<SPIRVWord, SPIRVWord> &CompareLeft,
+                      const std::pair<SPIRVWord, SPIRVWord> &CompareRight) {
+                     return CompareLeft.first < CompareRight.first;
+                   });
   for (auto Param : ParametersToSort)
     Parameters.push_back(Param.second);
 
@@ -1326,10 +1400,10 @@ void transAliasingMemAccess(SPIRVModule *BM, MDNode *AliasingListMD,
   if (!BM->isAllowedToUseExtension(
         ExtensionID::SPV_INTEL_memory_access_aliasing))
     return;
-  MemoryAccess[0] |= MemAccessMask;
   auto *MemAliasList = addMemAliasingINTELInstructions(BM, AliasingListMD);
   if (!MemAliasList)
     return;
+  MemoryAccess[0] |= MemAccessMask;
   MemoryAccess.push_back(MemAliasList->getId());
 }
 
@@ -1500,8 +1574,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     if (MDNode *AliasingListMD = ST->getMetadata(LLVMContext::MD_alias_scope))
       transAliasingMemAccess(BM, AliasingListMD, MemoryAccess,
                              internal::MemoryAccessAliasScopeINTELMask);
-    else if (MDNode *AliasingListMD =
-                 ST->getMetadata(LLVMContext::MD_noalias))
+    if (MDNode *AliasingListMD = ST->getMetadata(LLVMContext::MD_noalias))
       transAliasingMemAccess(BM, AliasingListMD, MemoryAccess,
                              internal::MemoryAccessNoAliasINTELMask);
     if (MemoryAccess.front() == 0)
@@ -1531,9 +1604,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       MemoryAccess[0] |= MemoryAccessNontemporalMask;
     if (MDNode *AliasingListMD = LD->getMetadata(LLVMContext::MD_alias_scope))
       transAliasingMemAccess(BM, AliasingListMD, MemoryAccess,
-                            internal::MemoryAccessAliasScopeINTELMask);
-    else if (MDNode *AliasingListMD =
-                 LD->getMetadata(LLVMContext::MD_noalias))
+                             internal::MemoryAccessAliasScopeINTELMask);
+    if (MDNode *AliasingListMD = LD->getMetadata(LLVMContext::MD_noalias))
       transAliasingMemAccess(BM, AliasingListMD, MemoryAccess,
                              internal::MemoryAccessNoAliasINTELMask);
     if (MemoryAccess.front() == 0)
@@ -1635,8 +1707,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     spv::LoopControlMask LoopControl = getLoopControl(Branch, Parameters);
 
     if (Branch->isUnconditional()) {
-      // For "for" and "while" loops llvm.loop metadata is attached to
-      // an unconditional branch instruction.
+      // Usually, "for" and "while" loops llvm.loop metadata is attached to an
+      // unconditional branch instruction.
       if (LoopControl != spv::LoopControlMaskNone) {
         // SuccessorTrue is the loop header BB.
         const SPIRVInstruction *Term = SuccessorTrue->getTerminateInstr();
@@ -1657,15 +1729,35 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       }
       return mapValue(V, BM->addBranchInst(SuccessorTrue, BB));
     }
-    // For "do-while" loops llvm.loop metadata is attached to a conditional
-    // branch instructions
+    // For "do-while" (and in some cases, for "for" and "while") loops,
+    // llvm.loop metadata is attached to a conditional branch instructions
     SPIRVLabel *SuccessorFalse =
         static_cast<SPIRVLabel *>(transValue(Branch->getSuccessor(1), BB));
-    if (LoopControl != spv::LoopControlMaskNone)
-      // SuccessorTrue is the loop header BB.
-      BM->addLoopMergeInst(SuccessorFalse->getId(), // Merge Block
-                           BB->getId(),             // Continue Target
-                           LoopControl, Parameters, SuccessorTrue);
+    if (LoopControl != spv::LoopControlMaskNone) {
+      Function *Fun = Branch->getFunction();
+      DominatorTree DomTree(*Fun);
+      LoopInfo LI(DomTree);
+      for (const auto *LoopObj : LI.getLoopsInPreorder()) {
+        // Check whether SuccessorFalse or SuccessorTrue is the loop header BB.
+        // For example consider following LLVM IR:
+        // br i1 %compare, label %for.body, label %for.end
+        //   <- SuccessorTrue is 'for.body' aka successor(0)
+        // br i1 %compare.not, label %for.end, label %for.body
+        //   <- SuccessorTrue is 'for.end' aka successor(1)
+        // meanwhile the true successor (by definition) should be a loop header
+        // aka 'for.body'
+        if (LoopObj->getHeader() == Branch->getSuccessor(1))
+          // SuccessorFalse is the loop header BB.
+          BM->addLoopMergeInst(SuccessorTrue->getId(), // Merge Block
+                               BB->getId(),            // Continue Target
+                               LoopControl, Parameters, SuccessorFalse);
+        else
+          // SuccessorTrue is the loop header BB.
+          BM->addLoopMergeInst(SuccessorFalse->getId(), // Merge Block
+                               BB->getId(),             // Continue Target
+                               LoopControl, Parameters, SuccessorTrue);
+      }
+    }
     return mapValue(
         V, BM->addBranchConditionalInst(transValue(Branch->getCondition(), BB),
                                         SuccessorTrue, SuccessorFalse, BB));
@@ -1917,7 +2009,18 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
         BV->setFPFastMathMode(M);
     }
   }
-  transMemAliasingINTELDecorations(V, BV);
+  if (Instruction *Inst = dyn_cast<Instruction>(V))
+    if (shouldTryToAddMemAliasingDecoration(Inst))
+      transMemAliasingINTELDecorations(Inst, BV);
+
+  if (auto *CI = dyn_cast<CallInst>(V)) {
+    auto OC = BV->getOpCode();
+    if (OC == OpSpecConstantTrue || OC == OpSpecConstantFalse ||
+        OC == OpSpecConstant) {
+      auto SpecId = cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue();
+      BV->addDecorate(DecorationSpecId, SpecId);
+    }
+  }
 
   return true;
 }
@@ -1936,18 +2039,11 @@ bool LLVMToSPIRVBase::transAlign(Value *V, SPIRVValue *BV) {
 
 // Apply aliasing decorations to instructions annotated with aliasing metadata.
 // Do it for any instruction but loads and stores.
-void LLVMToSPIRVBase::transMemAliasingINTELDecorations(Value *V, SPIRVValue *BV) {
+void LLVMToSPIRVBase::transMemAliasingINTELDecorations(Instruction *Inst,
+                                                       SPIRVValue *BV) {
   if (!BM->isAllowedToUseExtension(
          ExtensionID::SPV_INTEL_memory_access_aliasing))
     return;
-  // Loads and Stores are handled during memory access mask addition
-  if (isa<StoreInst>(V) || isa<LoadInst>(V))
-    return;
-
-  Instruction *Inst = dyn_cast<Instruction>(V);
-  if (!Inst)
-    return;
-
   if (MDNode *AliasingListMD =
           Inst->getMetadata(LLVMContext::MD_alias_scope)) {
     auto *MemAliasList =
@@ -1956,8 +2052,8 @@ void LLVMToSPIRVBase::transMemAliasingINTELDecorations(Value *V, SPIRVValue *BV)
       return;
     BV->addDecorate(new SPIRVDecorateId(
           internal::DecorationAliasScopeINTEL, BV, MemAliasList->getId()));
-  } else if (MDNode *AliasingListMD =
-                 Inst->getMetadata(LLVMContext::MD_noalias)) {
+  }
+  if (MDNode *AliasingListMD = Inst->getMetadata(LLVMContext::MD_noalias)) {
     auto *MemAliasList =
         addMemAliasingINTELInstructions(BM, AliasingListMD);
     if (!MemAliasList)
@@ -2326,6 +2422,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::invariant_end:
   case Intrinsic::dbg_label:
   case Intrinsic::trap:
+  case Intrinsic::arithmetic_fence:
     return true;
   default:
     // Unknown intrinsics' declarations should always be translated
@@ -2950,6 +3047,16 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     else
       return transValue(ConstantInt::getFalse(II->getType()), BB, false);
   }
+  case Intrinsic::arithmetic_fence: {
+    SPIRVType *Ty = transType(II->getType());
+    SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_arithmetic_fence)) {
+      BM->addCapability(internal::CapabilityFPArithmeticFenceINTEL);
+      BM->addExtension(ExtensionID::SPV_INTEL_arithmetic_fence);
+      return BM->addUnaryInst(internal::OpArithmeticFenceINTEL, Ty, Op, BB);
+    }
+    return Op;
+  }
   default:
     if (BM->isUnknownIntrinsicAllowed(II))
       return BM->addCallInst(
@@ -3462,8 +3569,6 @@ SPIRVValue *LLVMToSPIRVBase::transBuiltinToConstant(StringRef DemangledName,
   else
     return nullptr;
   SPIRVValue *SC = BM->addSpecConstant(transType(Ty), Val);
-  uint64_t SpecId = cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue();
-  SC->addDecorate(DecorationSpecId, SpecId);
   return SC;
 }
 
@@ -3678,6 +3783,16 @@ bool LLVMToSPIRVBase::transMetadata() {
   return true;
 }
 
+// Work around to translate kernel_arg_type and kernel_arg_type_qual metadata
+static void transKernelArgTypeMD(SPIRVModule *BM, Function *F, MDNode *MD,
+                                 std::string MDName) {
+  std::string KernelArgTypesMDStr =
+      std::string(MDName) + "." + F->getName().str() + ".";
+  for (const auto &TyOp : MD->operands())
+    KernelArgTypesMDStr += cast<MDString>(TyOp)->getString().str() + ",";
+  BM->getString(KernelArgTypesMDStr);
+}
+
 bool LLVMToSPIRVBase::transOCLMetadata() {
   for (auto &F : *M) {
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
@@ -3689,13 +3804,9 @@ bool LLVMToSPIRVBase::transOCLMetadata() {
     // Create 'OpString' as a workaround to store information about
     // *orignal* (typedef'ed, unsigned integers) type names of kernel arguments.
     // OpString "kernel_arg_type.%kernel_name%.typename0,typename1,..."
-    if (auto *KernelArgType = F.getMetadata(SPIR_MD_KERNEL_ARG_TYPE)) {
-      std::string KernelArgTypesStr =
-          std::string(SPIR_MD_KERNEL_ARG_TYPE) + "." + F.getName().str() + ".";
-      for (const auto &TyOp : KernelArgType->operands())
-        KernelArgTypesStr += cast<MDString>(TyOp)->getString().str() + ",";
-      BM->getString(KernelArgTypesStr);
-    }
+    if (auto *KernelArgType = F.getMetadata(SPIR_MD_KERNEL_ARG_TYPE))
+      if (BM->shouldPreserveOCLKernelArgTypeMetadataThroughString())
+        transKernelArgTypeMD(BM, &F, KernelArgType, SPIR_MD_KERNEL_ARG_TYPE);
 
     if (auto *KernelArgTypeQual = F.getMetadata(SPIR_MD_KERNEL_ARG_TYPE_QUAL)) {
       foreachKernelArgMD(
@@ -3708,6 +3819,13 @@ bool LLVMToSPIRVBase::transOCLMetadata() {
                   new SPIRVDecorate(DecorationFuncParamAttr, BA,
                                     FunctionParameterAttributeNoAlias));
           });
+      // Create 'OpString' as a workaround to store information about
+      // constant qualifiers of pointer kernel arguments. Store empty string
+      // for a non constant parameter.
+      // OpString "kernel_arg_type_qual.%kernel_name%.qual0,qual1,..."
+      if (BM->shouldPreserveOCLKernelArgTypeMetadataThroughString())
+        transKernelArgTypeMD(BM, &F, KernelArgTypeQual,
+                             SPIR_MD_KERNEL_ARG_TYPE_QUAL);
     }
     if (auto *KernelArgName = F.getMetadata(SPIR_MD_KERNEL_ARG_NAME)) {
       foreachKernelArgMD(
@@ -3780,10 +3898,6 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     return BM->addAsyncGroupCopy(BArgs[0], BArgs[1], BArgs[2], BArgs[3],
                                  BArgs[4], BArgs[5], BB);
   } break;
-  case OpSelect: {
-    auto BArgs = transValue(getArguments(CI), BB);
-    return BM->addSelectInst(BArgs[0], BArgs[1], BArgs[2], BB);
-  }
   case OpSampledImage: {
     // Clang can generate SPIRV-friendly call for OpSampledImage instruction,
     // i.e. __spirv_SampledImage... But it can't generate correct return type
@@ -4024,7 +4138,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
         SPRetTy = transType(F->arg_begin()->getType()->getPointerElementType());
         Args.erase(Args.begin());
       }
-      auto SPI = BM->addInstTemplate(OC, BB, SPRetTy);
+      auto *SPI = SPIRVInstTemplateBase::create(OC);
       std::vector<SPIRVWord> SPArgs;
       for (size_t I = 0, E = Args.size(); I != E; ++I) {
         assert((!isFunctionPointerType(Args[I]->getType()) ||
@@ -4034,7 +4148,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
                              ? cast<ConstantInt>(Args[I])->getZExtValue()
                              : transValue(Args[I], BB)->getId());
       }
-      SPI->setOpWordsAndValidate(SPArgs);
+      BM->addInstTemplate(SPI, SPArgs, BB, SPRetTy);
       if (!SPRetTy || !SPRetTy->isTypeStruct())
         return SPI;
       std::vector<SPIRVWord> Mem;

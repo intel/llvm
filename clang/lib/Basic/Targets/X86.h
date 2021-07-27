@@ -357,10 +357,14 @@ public:
     case CC_IntelOclBicc:
     case CC_OpenCLKernel:
       return CCCR_OK;
+    case CC_SwiftAsync:
+      return CCCR_Error;
     default:
       return CCCR_Warning;
     }
   }
+
+  bool checkArithmeticFenceSupported() const override { return true; }
 
   CallingConv getDefaultCallingConv() const override {
     return CC_C;
@@ -661,7 +665,7 @@ class LLVM_LIBRARY_VISIBILITY X86_64TargetInfo : public X86TargetInfo {
 public:
   X86_64TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : X86TargetInfo(Triple, Opts) {
-    const bool IsX32 = getTriple().getEnvironment() == llvm::Triple::GNUX32;
+    const bool IsX32 = getTriple().isX32();
     bool IsWinCOFF =
         getTriple().isOSWindows() && getTriple().isOSBinFormatCOFF();
     LongWidth = LongAlign = PointerWidth = PointerAlign = IsX32 ? 32 : 64;
@@ -715,6 +719,7 @@ public:
     switch (CC) {
     case CC_C:
     case CC_Swift:
+    case CC_SwiftAsync:
     case CC_X86VectorCall:
     case CC_IntelOclBicc:
     case CC_Win64:
@@ -796,6 +801,7 @@ public:
     case CC_PreserveAll:
     case CC_X86_64SysV:
     case CC_Swift:
+    case CC_SwiftAsync:
     case CC_X86RegCall:
     case CC_OpenCLKernel:
       return CCCR_OK;

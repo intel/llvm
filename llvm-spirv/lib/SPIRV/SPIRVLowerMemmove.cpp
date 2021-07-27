@@ -41,22 +41,21 @@
 #include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
+#include "llvm/Transforms/Utils/LowerMemIntrinsics.h"
 
 using namespace llvm;
 using namespace SPIRV;
 
 namespace SPIRV {
 
-class SPIRVLowerMemmoveBase : public InstVisitor<SPIRVLowerMemmoveBase> {
+class SPIRVLowerMemmoveBase {
 public:
-  SPIRVLowerMemmoveBase() : Context(nullptr) {}
-  virtual ~SPIRVLowerMemmoveBase() {}
-  virtual void visitMemMoveInst(MemMoveInst &I) {
+  SPIRVLowerMemmoveBase() : Context(nullptr), Mod(nullptr) {}
+  void LowerMemMoveInst(MemMoveInst &I) {
     IRBuilder<> Builder(I.getParent());
     Builder.SetInsertPoint(&I);
     auto *Dest = I.getRawDest();
@@ -64,39 +63,31 @@ public:
     if (isa<PHINode>(Src))
       report_fatal_error("llvm.memmove of PHI instruction result not supported",
                          false);
-    auto *SrcTy = Src->getType();
-    if (!isa<ConstantInt>(I.getLength()))
-      // ToDo: for non-constant length, could use a loop to copy a
-      // fixed length chunk at a time. For now simply fail
-      report_fatal_error("llvm.memmove of non-constant length not supported",
-                         false);
-    auto *Length = cast<ConstantInt>(I.getLength());
-    auto *S = Src;
     // The source could be bit-cast or addrspacecast from another type,
     // need the original type for the allocation of the temporary variable
-    while (isa<BitCastInst>(S) || isa<AddrSpaceCastInst>(S))
-      S = cast<CastInst>(S)->getOperand(0);
-    SrcTy = S->getType();
+    auto *SrcTy = Src->stripPointerCasts()->getType();
+    auto *Length = cast<ConstantInt>(I.getLength());
     MaybeAlign Align = I.getSourceAlign();
     auto Volatile = I.isVolatile();
     Value *NumElements = nullptr;
     uint64_t ElementsCount = 1;
     if (SrcTy->isArrayTy()) {
-      NumElements = Builder.getInt32(SrcTy->getArrayNumElements());
       ElementsCount = SrcTy->getArrayNumElements();
+      NumElements = Builder.getInt32(ElementsCount);
     }
-    if (((ElementsCount > 1) && (Mod->getDataLayout().getTypeSizeInBits(
-                                     SrcTy->getPointerElementType()) *
-                                     ElementsCount !=
-                                 Length->getZExtValue() * 8)) ||
-        ((ElementsCount == 1) &&
-         (Mod->getDataLayout().getTypeSizeInBits(
-              SrcTy->getPointerElementType()) < Length->getZExtValue() * 8)))
-      report_fatal_error("Size of the memcpy should match the allocated memory",
-                         false);
-
-    auto *Alloca =
-        Builder.CreateAlloca(SrcTy->getPointerElementType(), NumElements);
+    // Get number of bits to move and allocate memory appropriately:
+    // if lenght is bigger than a pointer base type size, then create an
+    // alloca of an array type with the same base type.
+    const uint64_t LenBits = Length->getZExtValue();
+    const uint64_t LayoutTypeBites =
+        Mod->getDataLayout().getTypeSizeInBits(SrcTy->getPointerElementType()) *
+        ElementsCount;
+    auto *AllocaTy = SrcTy->getPointerElementType();
+    if (LenBits > LayoutTypeBites) {
+      const uint64_t ArraySize = LenBits / LayoutTypeBites;
+      AllocaTy = ArrayType::get(SrcTy->getPointerElementType(), ArraySize);
+    }
+    auto *Alloca = Builder.CreateAlloca(AllocaTy, NumElements);
     if (Align.hasValue()) {
       Alloca->setAlignment(Align.getValue());
     }
@@ -111,13 +102,36 @@ public:
     I.dropAllReferences();
     I.eraseFromParent();
   }
+  bool expandMemMoveIntrinsicUses(Function &F) {
+    bool Changed = false;
+
+    for (User *U : make_early_inc_range(F.users())) {
+      MemMoveInst *Inst = cast<MemMoveInst>(U);
+      if (!isa<ConstantInt>(Inst->getLength())) {
+        expandMemMoveAsLoop(Inst);
+        Inst->eraseFromParent();
+      } else {
+        LowerMemMoveInst(*Inst);
+      }
+      Changed = true;
+    }
+    return Changed;
+  }
   bool runLowerMemmove(Module &M) {
     Context = &M.getContext();
     Mod = &M;
-    visit(M);
+    bool Changed = false;
+
+    for (Function &F : M) {
+      if (!F.isDeclaration())
+        continue;
+
+      if (F.getIntrinsicID() == Intrinsic::memmove)
+        Changed |= expandMemMoveIntrinsicUses(F);
+    }
 
     verifyRegularizationPass(M, "SPIRVLowerMemmove");
-    return true;
+    return Changed;
   }
 
 private:

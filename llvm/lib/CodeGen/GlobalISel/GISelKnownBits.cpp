@@ -88,10 +88,10 @@ LLVM_ATTRIBUTE_UNUSED static void
 dumpResult(const MachineInstr &MI, const KnownBits &Known, unsigned Depth) {
   dbgs() << "[" << Depth << "] Compute known bits: " << MI << "[" << Depth
          << "] Computed for: " << MI << "[" << Depth << "] Known: 0x"
-         << (Known.Zero | Known.One).toString(16, false) << "\n"
-         << "[" << Depth << "] Zero: 0x" << Known.Zero.toString(16, false)
+         << toString(Known.Zero | Known.One, 16, false) << "\n"
+         << "[" << Depth << "] Zero: 0x" << toString(Known.Zero, 16, false)
          << "\n"
-         << "[" << Depth << "] One:  0x" << Known.One.toString(16, false)
+         << "[" << Depth << "] One:  0x" << toString(Known.One, 16, false)
          << "\n";
 }
 
@@ -501,13 +501,13 @@ void GISelKnownBits::computeKnownBitsImpl(Register R, KnownBits &Known,
   case TargetOpcode::G_BSWAP: {
     Register SrcReg = MI.getOperand(1).getReg();
     computeKnownBitsImpl(SrcReg, Known, DemandedElts, Depth + 1);
-    Known.byteSwap();
+    Known = Known.byteSwap();
     break;
   }
   case TargetOpcode::G_BITREVERSE: {
     Register SrcReg = MI.getOperand(1).getReg();
     computeKnownBitsImpl(SrcReg, Known, DemandedElts, Depth + 1);
-    Known.reverseBits();
+    Known = Known.reverseBits();
     break;
   }
   case TargetOpcode::G_UBFX: {

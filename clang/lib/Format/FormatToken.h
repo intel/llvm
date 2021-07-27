@@ -52,6 +52,7 @@ namespace format {
   TYPE(FunctionDeclarationName)                                                \
   TYPE(FunctionLBrace)                                                         \
   TYPE(FunctionTypeLParen)                                                     \
+  TYPE(IfMacro)                                                                \
   TYPE(ImplicitStringLiteral)                                                  \
   TYPE(InheritanceColon)                                                       \
   TYPE(InheritanceComma)                                                       \
@@ -430,6 +431,15 @@ public:
 
   /// The next token in the unwrapped line.
   FormatToken *Next = nullptr;
+
+  /// The first token in set of column elements.
+  bool StartsColumn = false;
+
+  /// This notes the start of the line of an array initializer.
+  bool ArrayInitializerLineStart = false;
+
+  /// This starts an array initializer.
+  bool IsArrayInitializer = false;
 
   /// If this token starts a block, this contains all the unwrapped lines
   /// in it.

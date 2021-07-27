@@ -102,35 +102,35 @@ bool TargetLowering::parametersInCSRMatch(const MachineRegisterInfo &MRI,
   return true;
 }
 
-/// Set CallLoweringInfo attribute flags based on the call instruction's
-/// argument attributes.
+/// Set CallLoweringInfo attribute flags based on a call instruction
+/// and called function attributes.
 void TargetLoweringBase::ArgListEntry::setAttributes(const CallBase *Call,
                                                      unsigned ArgIdx) {
-  auto Attrs = Call->getAttributes();
-
-  IsSExt = Attrs.hasParamAttribute(ArgIdx, Attribute::SExt);
-  IsZExt = Attrs.hasParamAttribute(ArgIdx, Attribute::ZExt);
-  IsInReg = Attrs.hasParamAttribute(ArgIdx, Attribute::InReg);
-  IsSRet = Attrs.hasParamAttribute(ArgIdx, Attribute::StructRet);
-  IsNest = Attrs.hasParamAttribute(ArgIdx, Attribute::Nest);
-  IsReturned = Attrs.hasParamAttribute(ArgIdx, Attribute::Returned);
-  IsSwiftSelf = Attrs.hasParamAttribute(ArgIdx, Attribute::SwiftSelf);
-  IsSwiftAsync = Attrs.hasParamAttribute(ArgIdx, Attribute::SwiftAsync);
-  IsSwiftError = Attrs.hasParamAttribute(ArgIdx, Attribute::SwiftError);
-  Alignment = Attrs.getParamStackAlignment(ArgIdx);
-
-  IsByVal = Attrs.hasParamAttribute(ArgIdx, Attribute::ByVal);
-  ByValType = nullptr;
+  IsSExt = Call->paramHasAttr(ArgIdx, Attribute::SExt);
+  IsZExt = Call->paramHasAttr(ArgIdx, Attribute::ZExt);
+  IsInReg = Call->paramHasAttr(ArgIdx, Attribute::InReg);
+  IsSRet = Call->paramHasAttr(ArgIdx, Attribute::StructRet);
+  IsNest = Call->paramHasAttr(ArgIdx, Attribute::Nest);
+  IsByVal = Call->paramHasAttr(ArgIdx, Attribute::ByVal);
+  IsPreallocated = Call->paramHasAttr(ArgIdx, Attribute::Preallocated);
+  IsInAlloca = Call->paramHasAttr(ArgIdx, Attribute::InAlloca);
+  IsReturned = Call->paramHasAttr(ArgIdx, Attribute::Returned);
+  IsSwiftSelf = Call->paramHasAttr(ArgIdx, Attribute::SwiftSelf);
+  IsSwiftAsync = Call->paramHasAttr(ArgIdx, Attribute::SwiftAsync);
+  IsSwiftError = Call->paramHasAttr(ArgIdx, Attribute::SwiftError);
+  Alignment = Call->getParamStackAlign(ArgIdx);
+  IndirectType = nullptr;
+  assert(IsByVal + IsPreallocated + IsInAlloca <= 1 &&
+         "multiple ABI attributes?");
   if (IsByVal) {
-    ByValType = Call->getParamByValType(ArgIdx);
+    IndirectType = Call->getParamByValType(ArgIdx);
     if (!Alignment)
       Alignment = Call->getParamAlign(ArgIdx);
   }
-  IsInAlloca = Attrs.hasParamAttribute(ArgIdx, Attribute::InAlloca);
-  IsPreallocated = Attrs.hasParamAttribute(ArgIdx, Attribute::Preallocated);
-  PreallocatedType = nullptr;
   if (IsPreallocated)
-    PreallocatedType = Call->getParamPreallocatedType(ArgIdx);
+    IndirectType = Call->getParamPreallocatedType(ArgIdx);
+  if (IsInAlloca)
+    IndirectType = Call->getParamInAllocaType(ArgIdx);
 }
 
 /// Generate a libcall taking the given operands as arguments and returning a
@@ -510,7 +510,7 @@ bool TargetLowering::ShrinkDemandedConstant(SDValue Op,
   case ISD::AND:
   case ISD::OR: {
     auto *Op1C = dyn_cast<ConstantSDNode>(Op.getOperand(1));
-    if (!Op1C)
+    if (!Op1C || Op1C->isOpaque())
       return false;
 
     // If this is a 'not' op, don't touch it because that's a canonical form.
@@ -2423,6 +2423,27 @@ bool TargetLowering::SimplifyDemandedVectorElts(
     if (!DemandedElts[0]) {
       KnownUndef.setAllBits();
       return TLO.CombineTo(Op, TLO.DAG.getUNDEF(VT));
+    }
+    SDValue ScalarSrc = Op.getOperand(0);
+    if (ScalarSrc.getOpcode() == ISD::EXTRACT_VECTOR_ELT) {
+      SDValue Src = ScalarSrc.getOperand(0);
+      SDValue Idx = ScalarSrc.getOperand(1);
+      EVT SrcVT = Src.getValueType();
+
+      ElementCount SrcEltCnt = SrcVT.getVectorElementCount();
+
+      if (SrcEltCnt.isScalable())
+        return false;
+
+      unsigned NumSrcElts = SrcEltCnt.getFixedValue();
+      if (isNullConstant(Idx)) {
+        APInt SrcDemandedElts = APInt::getOneBitSet(NumSrcElts, 0);
+        APInt SrcUndef = KnownUndef.zextOrTrunc(NumSrcElts);
+        APInt SrcZero = KnownZero.zextOrTrunc(NumSrcElts);
+        if (SimplifyDemandedVectorElts(Src, SrcDemandedElts, SrcUndef, SrcZero,
+                                       TLO, Depth + 1))
+          return true;
+      }
     }
     KnownUndef.setHighBits(NumElts - 1);
     break;
@@ -4572,7 +4593,7 @@ TargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *RI,
       continue;
 
     for (const MCPhysReg &PR : *RC) {
-      if (RegName.equals_lower(RI->getRegAsmName(PR))) {
+      if (RegName.equals_insensitive(RI->getRegAsmName(PR))) {
         std::pair<unsigned, const TargetRegisterClass *> S =
             std::make_pair(PR, RC);
 
@@ -5903,7 +5924,7 @@ TargetLowering::prepareSREMEqFold(EVT SETCCVT, SDValue REMNode,
   if (!isOperationLegalOrCustom(ISD::SETEQ, VT) ||
       !isOperationLegalOrCustom(ISD::AND, VT) ||
       !isOperationLegalOrCustom(Cond, VT) ||
-      !isOperationLegalOrCustom(ISD::VSELECT, VT))
+      !isOperationLegalOrCustom(ISD::VSELECT, SETCCVT))
     return SDValue();
 
   Created.push_back(Fold.getNode());
@@ -5929,8 +5950,8 @@ TargetLowering::prepareSREMEqFold(EVT SETCCVT, SDValue REMNode,
   // 'MaskedIsZero'. If the divisor for channel was *NOT* INT_MIN, we pick
   // from 'Fold', else pick from 'MaskedIsZero'. Since 'DivisorIsIntMin' is
   // constant-folded, select can get lowered to a shuffle with constant mask.
-  SDValue Blended =
-      DAG.getNode(ISD::VSELECT, DL, VT, DivisorIsIntMin, MaskedIsZero, Fold);
+  SDValue Blended = DAG.getNode(ISD::VSELECT, DL, SETCCVT, DivisorIsIntMin,
+                                MaskedIsZero, Fold);
 
   return Blended;
 }
@@ -7763,39 +7784,51 @@ TargetLowering::IncrementMemoryAddress(SDValue Addr, SDValue Mask,
   return DAG.getNode(ISD::ADD, DL, AddrVT, Addr, Increment);
 }
 
-static SDValue clampDynamicVectorIndex(SelectionDAG &DAG,
-                                       SDValue Idx,
-                                       EVT VecVT,
-                                       const SDLoc &dl) {
+static SDValue clampDynamicVectorIndex(SelectionDAG &DAG, SDValue Idx,
+                                       EVT VecVT, const SDLoc &dl,
+                                       unsigned NumSubElts) {
   if (!VecVT.isScalableVector() && isa<ConstantSDNode>(Idx))
     return Idx;
 
   EVT IdxVT = Idx.getValueType();
   unsigned NElts = VecVT.getVectorMinNumElements();
   if (VecVT.isScalableVector()) {
-    // If this is a constant index and we know the value is less than the
-    // minimum number of elements then it's safe to return Idx.
+    // If this is a constant index and we know the value plus the number of the
+    // elements in the subvector minus one is less than the minimum number of
+    // elements then it's safe to return Idx.
     if (auto *IdxCst = dyn_cast<ConstantSDNode>(Idx))
-      if (IdxCst->getZExtValue() < NElts)
+      if (IdxCst->getZExtValue() + (NumSubElts - 1) < NElts)
         return Idx;
     SDValue VS =
         DAG.getVScale(dl, IdxVT, APInt(IdxVT.getFixedSizeInBits(), NElts));
-    SDValue Sub =
-        DAG.getNode(ISD::SUB, dl, IdxVT, VS, DAG.getConstant(1, dl, IdxVT));
+    unsigned SubOpcode = NumSubElts <= NElts ? ISD::SUB : ISD::USUBSAT;
+    SDValue Sub = DAG.getNode(SubOpcode, dl, IdxVT, VS,
+                              DAG.getConstant(NumSubElts, dl, IdxVT));
     return DAG.getNode(ISD::UMIN, dl, IdxVT, Idx, Sub);
   }
-  if (isPowerOf2_32(NElts)) {
+  if (isPowerOf2_32(NElts) && NumSubElts == 1) {
     APInt Imm = APInt::getLowBitsSet(IdxVT.getSizeInBits(), Log2_32(NElts));
     return DAG.getNode(ISD::AND, dl, IdxVT, Idx,
                        DAG.getConstant(Imm, dl, IdxVT));
   }
+  unsigned MaxIndex = NumSubElts < NElts ? NElts - NumSubElts : 0;
   return DAG.getNode(ISD::UMIN, dl, IdxVT, Idx,
-                     DAG.getConstant(NElts - 1, dl, IdxVT));
+                     DAG.getConstant(MaxIndex, dl, IdxVT));
 }
 
 SDValue TargetLowering::getVectorElementPointer(SelectionDAG &DAG,
                                                 SDValue VecPtr, EVT VecVT,
                                                 SDValue Index) const {
+  return getVectorSubVecPointer(
+      DAG, VecPtr, VecVT,
+      EVT::getVectorVT(*DAG.getContext(), VecVT.getVectorElementType(), 1),
+      Index);
+}
+
+SDValue TargetLowering::getVectorSubVecPointer(SelectionDAG &DAG,
+                                               SDValue VecPtr, EVT VecVT,
+                                               EVT SubVecVT,
+                                               SDValue Index) const {
   SDLoc dl(Index);
   // Make sure the index type is big enough to compute in.
   Index = DAG.getZExtOrTrunc(Index, dl, VecPtr.getValueType());
@@ -7807,7 +7840,13 @@ SDValue TargetLowering::getVectorElementPointer(SelectionDAG &DAG,
   assert(EltSize * 8 == EltVT.getFixedSizeInBits() &&
          "Converting bits to bytes lost precision");
 
-  Index = clampDynamicVectorIndex(DAG, Index, VecVT, dl);
+  // Scalable vectors don't need clamping as these are checked at compile time
+  if (SubVecVT.isFixedLengthVector()) {
+    assert(SubVecVT.getVectorElementType() == EltVT &&
+           "Sub-vector must be a fixed vector with matching element type");
+    Index = clampDynamicVectorIndex(DAG, Index, VecVT, dl,
+                                    SubVecVT.getVectorNumElements());
+  }
 
   EVT IdxVT = Index.getValueType();
 

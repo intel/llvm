@@ -249,26 +249,7 @@ PrintingPolicy CGDebugInfo::getPrintingPolicy() const {
 }
 
 StringRef CGDebugInfo::getFunctionName(const FunctionDecl *FD) {
-  assert(FD && "Invalid FunctionDecl!");
-  IdentifierInfo *FII = FD->getIdentifier();
-  FunctionTemplateSpecializationInfo *Info =
-      FD->getTemplateSpecializationInfo();
-
-  if (!Info && FII)
-    return FII->getName();
-
-  SmallString<128> NS;
-  llvm::raw_svector_ostream OS(NS);
-  FD->printName(OS);
-
-  // Add any template specialization args.
-  if (Info) {
-    const TemplateArgumentList *TArgs = Info->TemplateArguments;
-    printTemplateArgumentList(OS, TArgs->asArray(), getPrintingPolicy());
-  }
-
-  // Copy this name on the side and use its reference.
-  return internString(OS.str());
+  return internString(GetName(FD));
 }
 
 StringRef CGDebugInfo::getObjCMethodName(const ObjCMethodDecl *OMD) {
@@ -301,16 +282,8 @@ StringRef CGDebugInfo::getSelectorName(Selector S) {
 
 StringRef CGDebugInfo::getClassName(const RecordDecl *RD) {
   if (isa<ClassTemplateSpecializationDecl>(RD)) {
-    SmallString<128> Name;
-    llvm::raw_svector_ostream OS(Name);
-    PrintingPolicy PP = getPrintingPolicy();
-    PP.PrintCanonicalTypes = true;
-    PP.SuppressInlineNamespace = false;
-    RD->getNameForDiagnostic(OS, PP,
-                             /*Qualified*/ false);
-
     // Copy this name on the side and use its reference.
-    return internString(Name);
+    return internString(GetName(RD));
   }
 
   // quick optimization to avoid having to intern strings that are already
@@ -568,14 +541,19 @@ void CGDebugInfo::CreateCompileUnit() {
   if (LO.CPlusPlus) {
     if (LO.ObjC)
       LangTag = llvm::dwarf::DW_LANG_ObjC_plus_plus;
-    else if (LO.CPlusPlus14 && CGM.getCodeGenOpts().DwarfVersion >= 5)
+    else if (LO.CPlusPlus14 && (!CGM.getCodeGenOpts().DebugStrictDwarf ||
+                                CGM.getCodeGenOpts().DwarfVersion >= 5))
       LangTag = llvm::dwarf::DW_LANG_C_plus_plus_14;
-    else if (LO.CPlusPlus11 && CGM.getCodeGenOpts().DwarfVersion >= 5)
+    else if (LO.CPlusPlus11 && (!CGM.getCodeGenOpts().DebugStrictDwarf ||
+                                CGM.getCodeGenOpts().DwarfVersion >= 5))
       LangTag = llvm::dwarf::DW_LANG_C_plus_plus_11;
     else
       LangTag = llvm::dwarf::DW_LANG_C_plus_plus;
   } else if (LO.ObjC) {
     LangTag = llvm::dwarf::DW_LANG_ObjC;
+  } else if (LO.OpenCL && (!CGM.getCodeGenOpts().DebugStrictDwarf ||
+                           CGM.getCodeGenOpts().DwarfVersion >= 5)) {
+    LangTag = llvm::dwarf::DW_LANG_OpenCL;
   } else if (LO.RenderScript) {
     LangTag = llvm::dwarf::DW_LANG_GOOGLE_RenderScript;
   } else if (LO.C99) {
@@ -1315,6 +1293,9 @@ static unsigned getDwarfCC(CallingConv CC) {
   case CC_OpenCLKernel:
     return llvm::dwarf::DW_CC_LLVM_OpenCLKernel;
   case CC_Swift:
+    return llvm::dwarf::DW_CC_LLVM_Swift;
+  case CC_SwiftAsync:
+    // [FIXME: swiftasynccc] Update to SwiftAsync once LLVM support lands.
     return llvm::dwarf::DW_CC_LLVM_Swift;
   case CC_PreserveMost:
     return llvm::dwarf::DW_CC_LLVM_PreserveMost;
@@ -3548,16 +3529,17 @@ void CGDebugInfo::collectFunctionDeclProps(GlobalDecl GD, llvm::DIFile *Unit,
   const auto *FD = cast<FunctionDecl>(GD.getCanonicalDecl().getDecl());
   Name = getFunctionName(FD);
   // Use mangled name as linkage name for C/C++ functions.
-  if (FD->hasPrototype()) {
+  if (FD->getType()->getAs<FunctionProtoType>())
     LinkageName = CGM.getMangledName(GD);
+  if (FD->hasPrototype())
     Flags |= llvm::DINode::FlagPrototyped;
-  }
   // No need to replicate the linkage name if it isn't different from the
   // subprogram name, no need to have it at all unless coverage is enabled or
   // debug is set to more than just line tables or extra debug info is needed.
   if (LinkageName == Name || (!CGM.getCodeGenOpts().EmitGcovArcs &&
                               !CGM.getCodeGenOpts().EmitGcovNotes &&
                               !CGM.getCodeGenOpts().DebugInfoForProfiling &&
+                              !CGM.getCodeGenOpts().PseudoProbeForProfiling &&
                               DebugKind <= codegenoptions::DebugLineTablesOnly))
     LinkageName = StringRef();
 
@@ -4001,12 +3983,7 @@ void CGDebugInfo::EmitFunctionDecl(GlobalDecl GD, SourceLocation Loc,
     return;
 
   llvm::TimeTraceScope TimeScope("DebugFunction", [&]() {
-    std::string Name;
-    llvm::raw_string_ostream OS(Name);
-    if (const NamedDecl *ND = dyn_cast<NamedDecl>(D))
-      ND->getNameForDiagnostic(OS, getPrintingPolicy(),
-                               /*Qualified=*/true);
-    return Name;
+    return GetName(D, true);
   });
 
   llvm::DINode::DIFlags Flags = llvm::DINode::FlagZero;
@@ -4774,6 +4751,18 @@ llvm::DIGlobalVariableExpression *CGDebugInfo::CollectAnonRecordDecls(
   return GVE;
 }
 
+std::string CGDebugInfo::GetName(const Decl *D, bool Qualified) const {
+  std::string Name;
+  llvm::raw_string_ostream OS(Name);
+  if (const NamedDecl *ND = dyn_cast<NamedDecl>(D)) {
+    PrintingPolicy PP = getPrintingPolicy();
+    PP.PrintCanonicalTypes = true;
+    PP.SuppressInlineNamespace = false;
+    ND->getNameForDiagnostic(OS, PP, Qualified);
+  }
+  return Name;
+}
+
 void CGDebugInfo::EmitGlobalVariable(llvm::GlobalVariable *Var,
                                      const VarDecl *D) {
   assert(CGM.getCodeGenOpts().hasReducedDebugInfo());
@@ -4781,11 +4770,7 @@ void CGDebugInfo::EmitGlobalVariable(llvm::GlobalVariable *Var,
     return;
 
   llvm::TimeTraceScope TimeScope("DebugGlobalVariable", [&]() {
-    std::string Name;
-    llvm::raw_string_ostream OS(Name);
-    D->getNameForDiagnostic(OS, getPrintingPolicy(),
-                            /*Qualified=*/true);
-    return Name;
+    return GetName(D, true);
   });
 
   // If we already created a DIGlobalVariable for this declaration, just attach
@@ -4849,11 +4834,7 @@ void CGDebugInfo::EmitGlobalVariable(const ValueDecl *VD, const APValue &Init) {
   if (VD->hasAttr<NoDebugAttr>())
     return;
   llvm::TimeTraceScope TimeScope("DebugConstGlobalVariable", [&]() {
-    std::string Name;
-    llvm::raw_string_ostream OS(Name);
-    VD->getNameForDiagnostic(OS, getPrintingPolicy(),
-                             /*Qualified=*/true);
-    return Name;
+    return GetName(VD, true);
   });
 
   auto Align = getDeclAlignIfRequired(VD, CGM.getContext());
@@ -4974,24 +4955,7 @@ void CGDebugInfo::EmitUsingDirective(const UsingDirectiveDecl &UD) {
   }
 }
 
-void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
-  if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
-    return;
-  assert(UD.shadow_size() &&
-         "We shouldn't be codegening an invalid UsingDecl containing no decls");
-  // Emitting one decl is sufficient - debuggers can detect that this is an
-  // overloaded name & provide lookup for all the overloads.
-  const UsingShadowDecl &USD = **UD.shadow_begin();
-
-  // FIXME: Skip functions with undeduced auto return type for now since we
-  // don't currently have the plumbing for separate declarations & definitions
-  // of free functions and mismatched types (auto in the declaration, concrete
-  // return type in the definition)
-  if (const auto *FD = dyn_cast<FunctionDecl>(USD.getUnderlyingDecl()))
-    if (const auto *AT =
-            FD->getType()->castAs<FunctionProtoType>()->getContainedAutoType())
-      if (AT->getDeducedType().isNull())
-        return;
+void CGDebugInfo::EmitUsingShadowDecl(const UsingShadowDecl &USD) {
   if (llvm::DINode *Target =
           getDeclarationOrDefinition(USD.getUnderlyingDecl())) {
     auto Loc = USD.getLocation();
@@ -4999,6 +4963,42 @@ void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
         getCurrentContextDescriptor(cast<Decl>(USD.getDeclContext())), Target,
         getOrCreateFile(Loc), getLineNumber(Loc));
   }
+}
+
+void CGDebugInfo::EmitUsingDecl(const UsingDecl &UD) {
+  if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
+    return;
+  assert(UD.shadow_size() &&
+         "We shouldn't be codegening an invalid UsingDecl containing no decls");
+
+  for (const auto *USD : UD.shadows()) {
+    // FIXME: Skip functions with undeduced auto return type for now since we
+    // don't currently have the plumbing for separate declarations & definitions
+    // of free functions and mismatched types (auto in the declaration, concrete
+    // return type in the definition)
+    if (const auto *FD = dyn_cast<FunctionDecl>(USD->getUnderlyingDecl()))
+      if (const auto *AT = FD->getType()
+                               ->castAs<FunctionProtoType>()
+                               ->getContainedAutoType())
+        if (AT->getDeducedType().isNull())
+          continue;
+
+    EmitUsingShadowDecl(*USD);
+    // Emitting one decl is sufficient - debuggers can detect that this is an
+    // overloaded name & provide lookup for all the overloads.
+    break;
+  }
+}
+
+void CGDebugInfo::EmitUsingEnumDecl(const UsingEnumDecl &UD) {
+  if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
+    return;
+  assert(UD.shadow_size() &&
+         "We shouldn't be codegening an invalid UsingEnumDecl"
+         " containing no decls");
+
+  for (const auto *USD : UD.shadows())
+    EmitUsingShadowDecl(*USD);
 }
 
 void CGDebugInfo::EmitImportDecl(const ImportDecl &ID) {

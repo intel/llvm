@@ -65,3 +65,9 @@ API Changes
   While this is technically both an API and an ABI break, we do not expect
   ``std::pointer_safety`` to have been used at all in real code, since we
   never implemented the underlying support for garbage collection.
+
+- The `LIBCXXABI_ENABLE_PIC` CMake option was removed. If you are building your
+  own libc++abi from source and were using `LIBCXXABI_ENABLE_PIC`, please use
+  `CMAKE_POSITION_INDEPENDENT_CODE=ON` instead.
+
+- When the header <variant> is included, it will no longer include <array> transitively.

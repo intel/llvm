@@ -28,7 +28,7 @@ class SectionList;
 using namespace lldb;
 using namespace lldb_private;
 
-AddressRange::AddressRange() : m_base_addr(), m_byte_size(0) {}
+AddressRange::AddressRange() : m_base_addr() {}
 
 AddressRange::AddressRange(addr_t file_addr, addr_t byte_size,
                            const SectionList *section_list)
@@ -41,7 +41,7 @@ AddressRange::AddressRange(const lldb::SectionSP &section, addr_t offset,
 AddressRange::AddressRange(const Address &so_addr, addr_t byte_size)
     : m_base_addr(so_addr), m_byte_size(byte_size) {}
 
-AddressRange::~AddressRange() {}
+AddressRange::~AddressRange() = default;
 
 bool AddressRange::Contains(const Address &addr) const {
   SectionSP range_sect_sp = GetBaseAddress().GetSection();

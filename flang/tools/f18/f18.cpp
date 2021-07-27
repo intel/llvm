@@ -105,7 +105,7 @@ struct DriverOptions {
   bool debugModuleWriter{false};
   bool defaultReal8{false};
   bool measureTree{false};
-  bool unparseTypedExprsToF18_FC{false};
+  bool useAnalyzedObjectsForUnparse{true};
   std::vector<std::string> F18_FCArgs;
   const char *prefix{nullptr};
   bool getDefinition{false};
@@ -319,10 +319,26 @@ std::string CompileFortran(std::string path, Fortran::parser::Options options,
     Fortran::parser::DumpTree(llvm::outs(), parseTree, &asFortran);
   }
   if (driver.dumpUnparse) {
-    Unparse(llvm::outs(), parseTree, driver.encoding, true /*capitalize*/,
+    // Prepare the output stream
+    std::unique_ptr<llvm::raw_fd_ostream> os;
+    std::string outputFile = "-";
+    if (!driver.outputPath.empty()) {
+      outputFile = driver.outputPath;
+    }
+
+    std::error_code EC;
+    os.reset(new llvm::raw_fd_ostream(
+        outputFile, EC, llvm::sys::fs::OF_TextWithCRLF));
+    if (EC) {
+      llvm::errs() << EC.message() << "\n";
+      std::exit(EXIT_FAILURE);
+    }
+
+    Unparse(*os, parseTree, driver.encoding, true /*capitalize*/,
         options.features.IsEnabled(
             Fortran::common::LanguageFeature::BackslashEscapes),
-        nullptr /* action before each statement */, &asFortran);
+        nullptr /* action before each statement */,
+        driver.useAnalyzedObjectsForUnparse ? &asFortran : nullptr);
     return {};
   }
   if (driver.dumpPreFirTree) {
@@ -353,7 +369,7 @@ std::string CompileFortran(std::string path, Fortran::parser::Options options,
         options.features.IsEnabled(
             Fortran::common::LanguageFeature::BackslashEscapes),
         nullptr /* action before each statement */,
-        driver.unparseTypedExprsToF18_FC ? &asFortran : nullptr);
+        driver.useAnalyzedObjectsForUnparse ? &asFortran : nullptr);
   }
 
   RunOtherCompiler(driver, tmpSourcePath.data(), relo.data());
@@ -578,8 +594,8 @@ int main(int argc, char *const argv[]) {
     } else if (arg == "-funparse-with-symbols" ||
         arg == "-fdebug-unparse-with-symbols") {
       driver.dumpUnparseWithSymbols = true;
-    } else if (arg == "-funparse-typed-exprs-to-f18-fc") {
-      driver.unparseTypedExprsToF18_FC = true;
+    } else if (arg == "-fno-analyzed-objects-for-unparse") {
+      driver.useAnalyzedObjectsForUnparse = false;
     } else if (arg == "-fparse-only" || arg == "-fsyntax-only") {
       driver.syntaxOnly = true;
     } else if (arg == "-c") {

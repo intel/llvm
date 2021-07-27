@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/kernel_bundle_enums.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <memory>
@@ -22,6 +23,7 @@ namespace sycl {
 class program;
 class context;
 template <backend Backend> class backend_traits;
+template <bundle_state State> class kernel_bundle;
 
 namespace detail {
 class kernel_impl;
@@ -30,17 +32,39 @@ class kernel_impl;
 /// invocation APIs such as single_task.
 class auto_name {};
 
+// Helper for the auto_name specialization to ensure that the 'B' is evaluted.
+template <typename Type, bool B> struct get_kernel_name_t_helper {
+  using name = Type;
+};
+
 /// Helper struct to get a kernel name type based on given \c Name and \c Type
 /// types: if \c Name is undefined (is a \c auto_name) then \c Type becomes
 /// the \c Name.
 template <typename Name, typename Type> struct get_kernel_name_t {
   using name = Name;
+  static_assert(
+      !std::is_same<Name, auto_name>::value,
+      "No kernel name provided without -fsycl-unnamed-lambda enabled!");
 };
 
+#ifdef __SYCL_UNNAMED_LAMBDA__
 /// Specialization for the case when \c Name is undefined.
+/// This is only legal with our compiler with the unnamed lambda
+/// extension, so make sure the specialiation isn't available in that case: the
+/// lack of specialization allows us to trigger static_assert from the primary
+/// definition.
 template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
-  using name = Type;
+  // We need to mark 'Type' as kernel here so FE will apply proper mangling for
+  // it. The reason for that is that when with range rounding enabled, we
+  // evaluate __builtin_sycl_unique_stable_name before instantiating the kernel,
+  // which leads to different results of built-in evaluation before and after
+  // kernel instantiation, which is illegal as it changes the result of
+  // previously evaluated constant expression.
+  using name =
+      typename get_kernel_name_t_helper<Type, __builtin_sycl_mark_kernel_name(
+                                                  Type)>::name;
 };
+#endif // __SYCL_UNNAMED_LAMBDA__
 
 } // namespace detail
 
@@ -99,6 +123,11 @@ public:
   ///
   /// \return a valid SYCL context
   context get_context() const;
+
+  /// Get the kernel_bundle associated with this kernel.
+  ///
+  /// \return a valid kernel_bundle<bundle_state::executable>
+  kernel_bundle<bundle_state::executable> get_kernel_bundle() const;
 
   /// Get the program that this kernel is defined for.
   ///
@@ -187,7 +216,7 @@ private:
 
   pi_native_handle getNativeImpl() const;
 
-  shared_ptr_class<detail::kernel_impl> impl;
+  std::shared_ptr<detail::kernel_impl> impl;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);

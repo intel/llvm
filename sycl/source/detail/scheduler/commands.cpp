@@ -203,7 +203,7 @@ public:
   void operator()() const {
     waitForEvents();
 
-    assert(MThisCmd->getCG().getType() == CG::CGTYPE::CODEPLAY_HOST_TASK);
+    assert(MThisCmd->getCG().getType() == CG::CGType::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 
@@ -235,7 +235,7 @@ public:
     // Thus we employ read-lock of graph.
     {
       Scheduler &Sched = Scheduler::getInstance();
-      std::shared_lock<std::shared_timed_mutex> Lock(Sched.MGraphLock);
+      Scheduler::ReadLockT Lock(Sched.MGraphLock);
 
       std::vector<DepDesc> Deps = MThisCmd->MDeps;
 
@@ -337,7 +337,7 @@ void Command::emitInstrumentationDataProxy() {
 /// @param IsCommand True if the dependency has a command object as the source,
 /// false otherwise
 void Command::emitEdgeEventForCommandDependence(Command *Cmd, void *ObjAddr,
-                                                const string_class &Prefix,
+                                                const std::string &Prefix,
                                                 bool IsCommand) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Bail early if either the source or the target node for the given dependency
@@ -481,33 +481,41 @@ void Command::makeTraceEventEpilog() {
 #endif
 }
 
-void Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
+Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   const QueueImplPtr &WorkerQueue = getWorkerQueue();
   const ContextImplPtr &WorkerContext = WorkerQueue->getContextImplPtr();
 
   // 1. Async work is not supported for host device.
-  // 2. The event handle can be null in case of, for example, alloca command,
-  //    which is currently synchronous, so don't generate OpenCL event.
-  //    Though, this event isn't host one as it's context isn't host one.
-  if (DepEvent->is_host() || DepEvent->getHandleRef() == nullptr) {
+  // 2. Some types of commands do not produce PI events after they are enqueued
+  // (e.g. alloca). Note that we can't check the pi event to make that
+  // distinction since the command might still be unenqueued at this point.
+  bool PiEventExpected = !DepEvent->is_host();
+  if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
+    PiEventExpected &= DepCmd->producesPiEvent();
+
+  if (!PiEventExpected) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
     // from enqueue process functions
     MPreparedHostDepsEvents.push_back(DepEvent);
-    return;
+    return nullptr;
   }
+
+  Command *ConnectionCmd = nullptr;
 
   // Do not add redundant event dependencies for in-order queues.
   if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
       WorkerQueue->has_property<property::queue::in_order>())
-    return;
+    return nullptr;
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
   if (DepEventContext != WorkerContext && !WorkerContext->is_host()) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
-    GB.connectDepEvent(this, DepEvent, Dep);
+    ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep);
   } else
     MPreparedDepsEvents.push_back(std::move(DepEvent));
+
+  return ConnectionCmd;
 }
 
 const ContextImplPtr &Command::getWorkerContext() const {
@@ -516,9 +524,13 @@ const ContextImplPtr &Command::getWorkerContext() const {
 
 const QueueImplPtr &Command::getWorkerQueue() const { return MQueue; }
 
-void Command::addDep(DepDesc NewDep) {
+bool Command::producesPiEvent() const { return true; }
+
+Command *Command::addDep(DepDesc NewDep) {
+  Command *ConnectionCmd = nullptr;
+
   if (NewDep.MDepCommand) {
-    processDepEvent(NewDep.MDepCommand->getEvent(), NewDep);
+    ConnectionCmd = processDepEvent(NewDep.MDepCommand->getEvent(), NewDep);
   }
   MDeps.push_back(NewDep);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -526,9 +538,11 @@ void Command::addDep(DepDesc NewDep) {
       NewDep.MDepCommand, (void *)NewDep.MDepRequirement->MSYCLMemObj,
       accessModeToString(NewDep.MDepRequirement->MAccessMode), true);
 #endif
+
+  return ConnectionCmd;
 }
 
-void Command::addDep(EventImplPtr Event) {
+Command *Command::addDep(EventImplPtr Event) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // We need this for just the instrumentation, so guarding it will prevent
   // unused variable warnings when instrumentation is turned off
@@ -538,7 +552,7 @@ void Command::addDep(EventImplPtr Event) {
   emitEdgeEventForEventDependence(Cmd, PiEventAddr);
 #endif
 
-  processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr});
+  return processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr});
 }
 
 void Command::emitEnqueuedEventSignal(RT::PiEvent &PiEventAddr) {
@@ -723,6 +737,8 @@ void AllocaCommandBase::emitInstrumentationData() {
 #endif
 }
 
+bool AllocaCommandBase::producesPiEvent() const { return false; }
+
 AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
                              bool InitFromUserData,
                              AllocaCommandBase *LinkedAllocaCmd)
@@ -732,7 +748,10 @@ AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
   // Node event must be created before the dependent edge is added to this node,
   // so this call must be before the addDep() call.
   emitInstrumentationDataProxy();
-  addDep(DepDesc(nullptr, getRequirement(), this));
+  // "Nothing to depend on"
+  Command *ConnectionCmd = addDep(DepDesc(nullptr, getRequirement(), this));
+  assert(ConnectionCmd == nullptr);
+  (void)ConnectionCmd;
 }
 
 void AllocaCommand::emitInstrumentationData() {
@@ -795,7 +814,8 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
 }
 
 AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
-                                         AllocaCommandBase *ParentAlloca)
+                                         AllocaCommandBase *ParentAlloca,
+                                         std::vector<Command *> &ToEnqueue)
     : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, std::move(Queue),
                         std::move(Req),
                         /*LinkedAllocaCmd*/ nullptr),
@@ -804,7 +824,10 @@ AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
   // is added to this node, so this call must be before
   // the addDep() call.
   emitInstrumentationDataProxy();
-  addDep(DepDesc(MParentAlloca, getRequirement(), MParentAlloca));
+  Command *ConnectionCmd =
+      addDep(DepDesc(MParentAlloca, getRequirement(), MParentAlloca));
+  if (ConnectionCmd)
+    ToEnqueue.push_back(ConnectionCmd);
 }
 
 void AllocaSubBufCommand::emitInstrumentationData() {
@@ -982,6 +1005,8 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
            << std::endl;
   }
 }
+
+bool ReleaseCommand::producesPiEvent() const { return false; }
 
 MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
                            void **DstPtr, QueueImplPtr Queue,
@@ -1191,14 +1216,14 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
   throw runtime_error("Alloca for command not found", PI_INVALID_OPERATION);
 }
 
-vector_class<StreamImplPtr> ExecCGCommand::getStreams() const {
-  if (MCommandGroup->getType() == CG::KERNEL)
+std::vector<StreamImplPtr> ExecCGCommand::getStreams() const {
+  if (MCommandGroup->getType() == CG::Kernel)
     return ((CGExecKernel *)MCommandGroup.get())->getStreams();
   return {};
 }
 
 void ExecCGCommand::clearStreams() {
-  if (MCommandGroup->getType() == CG::KERNEL)
+  if (MCommandGroup->getType() == CG::Kernel)
     ((CGExecKernel *)MCommandGroup.get())->clearStreams();
 }
 
@@ -1222,7 +1247,7 @@ void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
   Stream << "ID = " << this << "\\n";
   Stream << "UPDATE REQ ON " << deviceToString(MQueue->get_device()) << "\\n";
   bool IsReqOnBuffer =
-      MDstReq.MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::BUFFER;
+      MDstReq.MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::Buffer;
   Stream << "TYPE: " << (IsReqOnBuffer ? "Buffer" : "Image") << "\\n";
   if (IsReqOnBuffer)
     Stream << "Is sub buffer: " << std::boolalpha << MDstReq.MIsSubBuffer
@@ -1329,7 +1354,10 @@ void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
   MRequirements.emplace_back(ReqRef);
   const Requirement *const StoredReq = &MRequirements.back();
 
-  addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});
+  // EmptyCommand is always host one, so we believe that result of addDep is nil
+  Command *Cmd = addDep(DepDesc{DepCmd, StoredReq, AllocaCmd});
+  assert(Cmd == nullptr && "Conection command should be null for EmptyCommand");
+  (void)Cmd;
 }
 
 void EmptyCommand::emitInstrumentationData() {
@@ -1373,6 +1401,8 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
            << std::endl;
   }
 }
+
+bool EmptyCommand::producesPiEvent() const { return false; }
 
 void MemCpyCommandHost::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
@@ -1419,36 +1449,36 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
 #endif
 }
 
-static std::string cgTypeToString(detail::CG::CGTYPE Type) {
+static std::string cgTypeToString(detail::CG::CGType Type) {
   switch (Type) {
-  case detail::CG::KERNEL:
+  case detail::CG::Kernel:
     return "Kernel";
     break;
-  case detail::CG::UPDATE_HOST:
+  case detail::CG::UpdateHost:
     return "update_host";
     break;
-  case detail::CG::FILL:
+  case detail::CG::Fill:
     return "fill";
     break;
-  case detail::CG::COPY_ACC_TO_ACC:
+  case detail::CG::CopyAccToAcc:
     return "copy acc to acc";
     break;
-  case detail::CG::COPY_ACC_TO_PTR:
+  case detail::CG::CopyAccToPtr:
     return "copy acc to ptr";
     break;
-  case detail::CG::COPY_PTR_TO_ACC:
+  case detail::CG::CopyPtrToAcc:
     return "copy ptr to acc";
     break;
-  case detail::CG::COPY_USM:
+  case detail::CG::CopyUSM:
     return "copy usm";
     break;
-  case detail::CG::FILL_USM:
+  case detail::CG::FillUSM:
     return "fill usm";
     break;
-  case detail::CG::PREFETCH_USM:
+  case detail::CG::PrefetchUSM:
     return "prefetch usm";
     break;
-  case detail::CG::CODEPLAY_HOST_TASK:
+  case detail::CG::CodeplayHostTask:
     return "host task";
     break;
   default:
@@ -1474,7 +1504,7 @@ void ExecCGCommand::emitInstrumentationData() {
   bool HasSourceInfo = false;
   std::string KernelName, FromSource;
   switch (MCommandGroup->getType()) {
-  case detail::CG::KERNEL: {
+  case detail::CG::Kernel: {
     auto KernelCG =
         reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
 
@@ -1561,7 +1591,7 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
   Stream << "EXEC CG ON " << deviceToString(MQueue->get_device()) << "\\n";
 
   switch (MCommandGroup->getType()) {
-  case detail::CG::KERNEL: {
+  case detail::CG::Kernel: {
     auto KernelCG =
         reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
     Stream << "Kernel name: ";
@@ -1640,7 +1670,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     std::shared_ptr<device_image_impl> DeviceImageImpl, RT::PiKernel Kernel,
     NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
     ProgramManager::KernelArgMask EliminatedArgMask) {
-  vector_class<ArgDesc> &Args = ExecKernel->MArgs;
+  std::vector<ArgDesc> &Args = ExecKernel->MArgs;
   // TODO this is not necessary as long as we can guarantee that the arguments
   // are already sorted (e. g. handle the sorting in handler if necessary due
   // to set_arg(...) usage).
@@ -1723,10 +1753,27 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
   ReverseRangeDimensionsForKernel(NDRDesc);
+
+  size_t RequiredWGSize[3] = {0, 0, 0};
+  Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+      Kernel, detail::getSyclObjImpl(MQueue->get_device())->getHandleRef(),
+      PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
+      RequiredWGSize, /* param_value_size_ret = */ nullptr);
+
+  const bool EnforcedLocalSize =
+      (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
+       RequiredWGSize[2] != 0);
+  size_t *LocalSize = nullptr;
+
+  if (EnforcedLocalSize && !HasLocalSize)
+    LocalSize = RequiredWGSize;
+  else if (HasLocalSize)
+    LocalSize = &NDRDesc.LocalSize[0];
+
   pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-      &NDRDesc.GlobalSize[0], HasLocalSize ? &NDRDesc.LocalSize[0] : nullptr,
-      RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0], &Event);
+      &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
+      RawEvents.empty() ? nullptr : &RawEvents[0], &Event);
   return Error;
 }
 
@@ -1751,7 +1798,7 @@ void DispatchNativeKernel(void *Blob) {
 }
 
 cl_int ExecCGCommand::enqueueImp() {
-  if (getCG().getType() != CG::CGTYPE::CODEPLAY_HOST_TASK)
+  if (getCG().getType() != CG::CGType::CodeplayHostTask)
     waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getPiEvents(EventImpls);
@@ -1760,11 +1807,11 @@ cl_int ExecCGCommand::enqueueImp() {
 
   switch (MCommandGroup->getType()) {
 
-  case CG::CGTYPE::UPDATE_HOST: {
+  case CG::CGType::UpdateHost: {
     throw runtime_error("Update host should be handled by the Scheduler.",
                         PI_INVALID_OPERATION);
   }
-  case CG::CGTYPE::COPY_ACC_TO_PTR: {
+  case CG::CGType::CopyAccToPtr: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
     Requirement *Req = (Requirement *)Copy->getSrc();
     AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
@@ -1779,7 +1826,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::COPY_PTR_TO_ACC: {
+  case CG::CGType::CopyPtrToAcc: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
     Requirement *Req = (Requirement *)(Copy->getDst());
     AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
@@ -1796,7 +1843,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::COPY_ACC_TO_ACC: {
+  case CG::CGType::CopyAccToAcc: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
     Requirement *ReqSrc = (Requirement *)(Copy->getSrc());
     Requirement *ReqDst = (Requirement *)(Copy->getDst());
@@ -1813,7 +1860,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::FILL: {
+  case CG::CGType::Fill: {
     CGFill *Fill = (CGFill *)MCommandGroup.get();
     Requirement *Req = (Requirement *)(Fill->getReqToFill());
     AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
@@ -1826,7 +1873,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::RUN_ON_HOST_INTEL: {
+  case CG::CGType::RunOnHostIntel: {
     CGExecKernel *HostTask = (CGExecKernel *)MCommandGroup.get();
 
     // piEnqueueNativeKernel takes arguments blob which is passes to user
@@ -1897,7 +1944,7 @@ cl_int ExecCGCommand::enqueueImp() {
           "Enqueueing run_on_host_intel task has failed.", Error);
     }
   }
-  case CG::CGTYPE::KERNEL: {
+  case CG::CGType::Kernel: {
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
 
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
@@ -2014,21 +2061,21 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return PI_SUCCESS;
   }
-  case CG::CGTYPE::COPY_USM: {
+  case CG::CGType::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
     MemoryManager::copy_usm(Copy->getSrc(), MQueue, Copy->getLength(),
                             Copy->getDst(), std::move(RawEvents), Event);
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::FILL_USM: {
+  case CG::CGType::FillUSM: {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
                             Fill->getFill(), std::move(RawEvents), Event);
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::PREFETCH_USM: {
+  case CG::CGType::PrefetchUSM: {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     MemoryManager::prefetch_usm(Prefetch->getDst(), MQueue,
                                 Prefetch->getLength(), std::move(RawEvents),
@@ -2036,7 +2083,14 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::CODEPLAY_INTEROP_TASK: {
+  case CG::CGType::AdviseUSM: {
+    CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
+    MemoryManager::advise_usm(Advise->getDst(), MQueue, Advise->getLength(),
+                              Advise->getAdvice(), std::move(RawEvents), Event);
+
+    return CL_SUCCESS;
+  }
+  case CG::CGType::CodeplayInteropTask: {
     const detail::plugin &Plugin = MQueue->getPlugin();
     CGInteropTask *ExecInterop = (CGInteropTask *)MCommandGroup.get();
     // Wait for dependencies to complete before dispatching work on the host
@@ -2064,7 +2118,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::CODEPLAY_HOST_TASK: {
+  case CG::CGType::CodeplayHostTask: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
 
     for (ArgDesc &Arg : HostTask->MArgs) {
@@ -2119,7 +2173,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::BARRIER: {
+  case CG::CGType::Barrier: {
     if (MQueue->get_device().is_host()) {
       // NOP for host device.
       return PI_SUCCESS;
@@ -2130,7 +2184,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return PI_SUCCESS;
   }
-  case CG::CGTYPE::BARRIER_WAITLIST: {
+  case CG::CGType::BarrierWaitlist: {
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     if (MQueue->get_device().is_host() || Events.empty()) {
@@ -2145,10 +2199,14 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return PI_SUCCESS;
   }
-  case CG::CGTYPE::NONE:
+  case CG::CGType::None:
     throw runtime_error("CG type not implemented.", PI_INVALID_OPERATION);
   }
   return PI_INVALID_OPERATION;
+}
+
+bool ExecCGCommand::producesPiEvent() const {
+  return MCommandGroup->getType() != CG::CGType::CodeplayHostTask;
 }
 
 } // namespace detail

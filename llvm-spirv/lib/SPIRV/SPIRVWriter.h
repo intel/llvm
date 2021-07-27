@@ -102,7 +102,7 @@ public:
   SPIRVValue *transAsmINTEL(InlineAsm *Asm);
   SPIRVValue *transAsmCallINTEL(CallInst *Call, SPIRVBasicBlock *BB);
   bool transDecoration(Value *V, SPIRVValue *BV);
-  void transMemAliasingINTELDecorations(Value *V, SPIRVValue *BV);
+  void transMemAliasingINTELDecorations(Instruction *V, SPIRVValue *BV);
   SPIRVWord transFunctionControlMask(Function *);
   SPIRVFunction *transFunctionDecl(Function *F);
   void transVectorComputeMetadata(Function *F);

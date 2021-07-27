@@ -59,6 +59,7 @@
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/Config/config.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Comdat.h"
 #include "llvm/IR/Constant.h"
@@ -297,11 +298,24 @@ bool AsmPrinter::doInitialization(Module &M) {
   // don't, this at least helps the user find where a global came from.
   if (MAI->hasSingleParameterDotFile()) {
     // .file "foo.c"
+
+    SmallString<128> FileName;
     if (MAI->hasBasenameOnlyForFileDirective())
-      OutStreamer->emitFileDirective(
-          llvm::sys::path::filename(M.getSourceFileName()));
+      FileName = llvm::sys::path::filename(M.getSourceFileName());
     else
-      OutStreamer->emitFileDirective(M.getSourceFileName());
+      FileName = M.getSourceFileName();
+    if (MAI->hasFourStringsDotFile()) {
+#ifdef PACKAGE_VENDOR
+      const char VerStr[] =
+          PACKAGE_VENDOR " " PACKAGE_NAME " version " PACKAGE_VERSION;
+#else
+      const char VerStr[] = PACKAGE_NAME " version " PACKAGE_VERSION;
+#endif
+      // TODO: Add timestamp and description.
+      OutStreamer->emitFileDirective(FileName, VerStr, "", "");
+    } else {
+      OutStreamer->emitFileDirective(FileName);
+    }
   }
 
   GCModuleInfo *MI = getAnalysisIfAvailable<GCModuleInfo>();
@@ -345,7 +359,7 @@ bool AsmPrinter::doInitialization(Module &M) {
   }
 
   if (M.getNamedMetadata(PseudoProbeDescMetadataName)) {
-    PP = new PseudoProbeHandler(this, &M);
+    PP = new PseudoProbeHandler(this);
     Handlers.emplace_back(std::unique_ptr<PseudoProbeHandler>(PP), PPTimerName,
                           PPTimerDescription, PPGroupName, PPGroupDescription);
   }
@@ -1332,6 +1346,10 @@ void AsmPrinter::emitFunctionBody() {
       case TargetOpcode::PSEUDO_PROBE:
         emitPseudoProbe(MI);
         break;
+      case TargetOpcode::ARITH_FENCE:
+        if (isVerbose())
+          OutStreamer->emitRawComment("ARITH_FENCE");
+        break;
       default:
         emitInstruction(&MI);
         if (CanDoExtraAnalysis) {
@@ -1680,7 +1698,7 @@ void AsmPrinter::emitRemarksSection(remarks::RemarkStreamer &RS) {
   std::string Buf;
   raw_string_ostream OS(Buf);
   std::unique_ptr<remarks::MetaSerializer> MetaSerializer =
-      Filename ? RemarkSerializer.metaSerializer(OS, StringRef(*Filename))
+      Filename ? RemarkSerializer.metaSerializer(OS, Filename->str())
                : RemarkSerializer.metaSerializer(OS);
   MetaSerializer->emit();
 
@@ -2305,6 +2323,11 @@ void AsmPrinter::emitXXStructorList(const DataLayout &DL, const Constant *List,
   preprocessXXStructorList(DL, List, Structors);
   if (Structors.empty())
     return;
+
+  // Emit the structors in reverse order if we are using the .ctor/.dtor
+  // initialization scheme.
+  if (!TM.Options.UseInitArray)
+    std::reverse(Structors.begin(), Structors.end());
 
   const Align Align = DL.getPointerPrefAlignment();
   for (Structor &S : Structors) {

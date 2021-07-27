@@ -77,6 +77,7 @@ class AffineDmaStartOp
                 AffineMapAccessInterface::Trait> {
 public:
   using Op::Op;
+  static ArrayRef<StringRef> getAttributeNames() { return {}; }
 
   static void build(OpBuilder &builder, OperationState &result, Value srcMemRef,
                     AffineMap srcMap, ValueRange srcIndices, Value destMemRef,
@@ -268,6 +269,7 @@ class AffineDmaWaitOp
                 AffineMapAccessInterface::Trait> {
 public:
   using Op::Op;
+  static ArrayRef<StringRef> getAttributeNames() { return {}; }
 
   static void build(OpBuilder &builder, OperationState &result, Value tagMemRef,
                     AffineMap tagMap, ValueRange tagIndices, Value numElements);
@@ -403,6 +405,20 @@ void buildAffineLoopNest(OpBuilder &builder, Location loc, ValueRange lbs,
                          ValueRange ubs, ArrayRef<int64_t> steps,
                          function_ref<void(OpBuilder &, Location, ValueRange)>
                              bodyBuilderFn = nullptr);
+
+/// Replace `loop` with a new loop where `newIterOperands` are appended with
+/// new initialization values and `newYieldedValues` are added as new yielded
+/// values. The returned ForOp has `newYieldedValues.size()` new result values.
+/// Additionally, if `replaceLoopResults` is true, all uses of
+/// `loop.getResults()` are replaced with the first `loop.getNumResults()`
+/// return values  of the original loop respectively. The original loop is
+/// deleted and the new loop returned.
+/// Prerequisite: `newIterOperands.size() == newYieldedValues.size()`.
+AffineForOp replaceForOpWithNewYields(OpBuilder &b, AffineForOp loop,
+                                      ValueRange newIterOperands,
+                                      ValueRange newYieldedValues,
+                                      ValueRange newIterArgs,
+                                      bool replaceLoopResults = true);
 
 /// AffineBound represents a lower or upper bound in the for operation.
 /// This class does not own the underlying operands. Instead, it refers

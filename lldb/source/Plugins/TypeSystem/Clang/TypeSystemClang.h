@@ -328,6 +328,8 @@ public:
         (!packed_args || !packed_args->packed_args);
     }
 
+    bool hasParameterPack() const { return static_cast<bool>(packed_args); }
+
     llvm::SmallVector<const char *, 2> names;
     llvm::SmallVector<clang::TemplateArgument, 2> args;
     
@@ -421,7 +423,7 @@ public:
                              int storage, bool add_decl = false);
 
   void SetFunctionParameters(clang::FunctionDecl *function_decl,
-                             clang::ParmVarDecl **params, unsigned num_params);
+                             llvm::ArrayRef<clang::ParmVarDecl *> params);
 
   CompilerType CreateBlockPointerType(const CompilerType &function_type);
 

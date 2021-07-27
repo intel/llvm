@@ -1834,6 +1834,22 @@ void PPCInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     if (SrcPrimed && !KillSrc)
       BuildMI(MBB, I, DL, get(PPC::XXMTACC), SrcReg).addReg(SrcReg);
     return;
+  } else if (PPC::G8pRCRegClass.contains(DestReg) &&
+             PPC::G8pRCRegClass.contains(SrcReg)) {
+    // TODO: Handle G8RC to G8pRC (and vice versa) copy.
+    unsigned DestRegIdx = DestReg - PPC::G8p0;
+    MCRegister DestRegSub0 = PPC::X0 + 2 * DestRegIdx;
+    MCRegister DestRegSub1 = PPC::X0 + 2 * DestRegIdx + 1;
+    unsigned SrcRegIdx = SrcReg - PPC::G8p0;
+    MCRegister SrcRegSub0 = PPC::X0 + 2 * SrcRegIdx;
+    MCRegister SrcRegSub1 = PPC::X0 + 2 * SrcRegIdx + 1;
+    BuildMI(MBB, I, DL, get(PPC::OR8), DestRegSub0)
+        .addReg(SrcRegSub0)
+        .addReg(SrcRegSub0, getKillRegState(KillSrc));
+    BuildMI(MBB, I, DL, get(PPC::OR8), DestRegSub1)
+        .addReg(SrcRegSub1)
+        .addReg(SrcRegSub1, getKillRegState(KillSrc));
+    return;
   } else
     llvm_unreachable("Impossible reg-to-reg copy");
 
@@ -1886,6 +1902,8 @@ unsigned PPCInstrInfo::getSpillIndex(const TargetRegisterClass *RC) const {
     assert(Subtarget.pairedVectorMemops() &&
            "Register unexpected when paired memops are disabled.");
     OpcodeIndex = SOK_PairedVecSpill;
+  } else if (PPC::G8pRCRegClass.hasSubClassEq(RC)) {
+    OpcodeIndex = SOK_PairedG8Spill;
   } else {
     llvm_unreachable("Unknown regclass!");
   }
@@ -3142,11 +3160,11 @@ void PPCInstrInfo::replaceInstrOperandWithImm(MachineInstr &MI,
   Register InUseReg = MI.getOperand(OpNo).getReg();
   MI.getOperand(OpNo).ChangeToImmediate(Imm);
 
-  if (MI.implicit_operands().empty())
-    return;
-
   // We need to make sure that the MI didn't have any implicit use
-  // of this REG any more.
+  // of this REG any more. We don't call MI.implicit_operands().empty() to
+  // return early, since MI's MCID might be changed in calling context, as a
+  // result its number of explicit operands may be changed, thus the begin of
+  // implicit operand is changed.
   const TargetRegisterInfo *TRI = &getRegisterInfo();
   int UseOpIdx = MI.findRegisterUseOperandIdx(InUseReg, false, TRI);
   if (UseOpIdx >= 0) {

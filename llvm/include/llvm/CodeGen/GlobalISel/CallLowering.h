@@ -71,11 +71,17 @@ public:
     /// arguments.
     const Value *OrigValue = nullptr;
 
-    ArgInfo(ArrayRef<Register> Regs, Type *Ty,
+    /// Index original Function's argument.
+    unsigned OrigArgIndex;
+
+    /// Sentinel value for implicit machine-level input arguments.
+    static const unsigned NoArgIndex = UINT_MAX;
+
+    ArgInfo(ArrayRef<Register> Regs, Type *Ty, unsigned OrigIndex,
             ArrayRef<ISD::ArgFlagsTy> Flags = ArrayRef<ISD::ArgFlagsTy>(),
             bool IsFixed = true, const Value *OrigValue = nullptr)
         : BaseArgInfo(Ty, Flags, IsFixed), Regs(Regs.begin(), Regs.end()),
-          OrigValue(OrigValue) {
+          OrigValue(OrigValue), OrigArgIndex(OrigIndex) {
       if (!Regs.empty() && Flags.empty())
         this->Flags.push_back(ISD::ArgFlagsTy());
       // FIXME: We should have just one way of saying "no register".
@@ -84,10 +90,10 @@ public:
              "only void types should have no register");
     }
 
-    ArgInfo(ArrayRef<Register> Regs, const Value &OrigValue,
+    ArgInfo(ArrayRef<Register> Regs, const Value &OrigValue, unsigned OrigIndex,
             ArrayRef<ISD::ArgFlagsTy> Flags = ArrayRef<ISD::ArgFlagsTy>(),
             bool IsFixed = true)
-        : ArgInfo(Regs, OrigValue.getType(), Flags, IsFixed, &OrigValue) {}
+      : ArgInfo(Regs, OrigValue.getType(), OrigIndex, Flags, IsFixed, &OrigValue) {}
 
     ArgInfo() : BaseArgInfo() {}
   };
@@ -236,7 +242,7 @@ public:
     /// direct SP manipulation, depending on the context. \p MPO
     /// should be initialized to an appropriate description of the
     /// address created.
-    virtual Register getStackAddress(uint64_t Size, int64_t Offset,
+    virtual Register getStackAddress(uint64_t MemSize, int64_t Offset,
                                      MachinePointerInfo &MPO,
                                      ISD::ArgFlagsTy Flags) = 0;
 
@@ -245,8 +251,9 @@ public:
     ///
     /// This is overridable primarily for targets to maintain compatibility with
     /// hacks around the existing DAG call lowering infrastructure.
-    virtual uint64_t getStackValueStoreSize(const DataLayout &DL,
-                                            const CCValAssign &VA) const;
+    virtual LLT getStackValueStoreType(const DataLayout &DL,
+                                       const CCValAssign &VA,
+                                       ISD::ArgFlagsTy Flags) const;
 
     /// The specified value has been assigned to a physical register,
     /// handle the appropriate COPY (either to or from) and mark any
@@ -258,24 +265,24 @@ public:
     /// location. Load or store it there, with appropriate extension
     /// if necessary.
     virtual void assignValueToAddress(Register ValVReg, Register Addr,
-                                      uint64_t Size, MachinePointerInfo &MPO,
+                                      LLT MemTy, MachinePointerInfo &MPO,
                                       CCValAssign &VA) = 0;
 
     /// An overload which takes an ArgInfo if additional information about the
     /// arg is needed. \p ValRegIndex is the index in \p Arg.Regs for the value
     /// to store.
     virtual void assignValueToAddress(const ArgInfo &Arg, unsigned ValRegIndex,
-                                      Register Addr, uint64_t Size,
+                                      Register Addr, LLT MemTy,
                                       MachinePointerInfo &MPO,
                                       CCValAssign &VA) {
-      assignValueToAddress(Arg.Regs[ValRegIndex], Addr, Size, MPO, VA);
+      assignValueToAddress(Arg.Regs[ValRegIndex], Addr, MemTy, MPO, VA);
     }
 
     /// Handle custom values, which may be passed into one or more of \p VAs.
     /// \return The number of \p VAs that have been assigned after the first
     ///         one, and which should therefore be skipped from further
     ///         processing.
-    virtual unsigned assignCustomValue(const ArgInfo &Arg,
+    virtual unsigned assignCustomValue(ArgInfo &Arg,
                                        ArrayRef<CCValAssign> VAs) {
       // This is not a pure virtual method because not all targets need to worry
       // about custom values.
@@ -348,17 +355,13 @@ protected:
   /// Break \p OrigArgInfo into one or more pieces the calling convention can
   /// process, returned in \p SplitArgs. For example, this should break structs
   /// down into individual fields.
+  ///
+  /// If \p Offsets is non-null, it points to a vector to be filled in
+  /// with the in-memory offsets of each of the individual values.
   void splitToValueTypes(const ArgInfo &OrigArgInfo,
                          SmallVectorImpl<ArgInfo> &SplitArgs,
-                         const DataLayout &DL, CallingConv::ID CallConv) const;
-
-  /// Generate instructions for unpacking \p SrcReg into the \p DstRegs
-  /// corresponding to the aggregate type \p PackedTy.
-  ///
-  /// \param DstRegs should contain one virtual register for each base type in
-  ///        \p PackedTy, as returned by computeValueLLTs.
-  void unpackRegs(ArrayRef<Register> DstRegs, Register SrcReg, Type *PackedTy,
-                  MachineIRBuilder &MIRBuilder) const;
+                         const DataLayout &DL, CallingConv::ID CallConv,
+                         SmallVectorImpl<uint64_t> *Offsets = nullptr) const;
 
   /// Analyze the argument list in \p Args, using \p Assigner to populate \p
   /// CCInfo. This will determine the types and locations to use for passed or
@@ -567,6 +570,10 @@ public:
                  ArrayRef<Register> ResRegs,
                  ArrayRef<ArrayRef<Register>> ArgRegs, Register SwiftErrorVReg,
                  std::function<unsigned()> GetCalleeReg) const;
+
+  /// For targets which want to use big-endian can enable it with
+  /// enableBigEndian() hook
+  virtual bool enableBigEndian() const { return false; }
 
   /// For targets which support the "returned" parameter attribute, returns
   /// true if the given type is a valid one to use with "returned".

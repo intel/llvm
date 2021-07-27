@@ -54,7 +54,7 @@ struct AMDGPUOutgoingValueHandler : public CallLowering::OutgoingValueHandler {
     llvm_unreachable("not implemented");
   }
 
-  void assignValueToAddress(Register ValVReg, Register Addr, uint64_t Size,
+  void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
                             MachinePointerInfo &MPO, CCValAssign &VA) override {
     llvm_unreachable("not implemented");
   }
@@ -122,17 +122,12 @@ struct AMDGPUIncomingArgHandler : public CallLowering::IncomingValueHandler {
     IncomingValueHandler::assignValueToReg(ValVReg, PhysReg, VA);
   }
 
-  void assignValueToAddress(Register ValVReg, Register Addr, uint64_t MemSize,
+  void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
                             MachinePointerInfo &MPO, CCValAssign &VA) override {
     MachineFunction &MF = MIRBuilder.getMF();
 
-    // The reported memory location may be wider than the value.
-    const LLT RegTy = MRI.getType(ValVReg);
-    MemSize = std::min(static_cast<uint64_t>(RegTy.getSizeInBytes()), MemSize);
-
-    // FIXME: Get alignment
     auto MMO = MF.getMachineMemOperand(
-        MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, MemSize,
+        MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, MemTy,
         inferAlignFromPtrInfo(MF, MPO));
     MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
   }
@@ -214,32 +209,25 @@ struct AMDGPUOutgoingArgHandler : public AMDGPUOutgoingValueHandler {
     MIRBuilder.buildCopy(PhysReg, ExtReg);
   }
 
-  void assignValueToAddress(Register ValVReg, Register Addr, uint64_t Size,
+  void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
                             MachinePointerInfo &MPO, CCValAssign &VA) override {
     MachineFunction &MF = MIRBuilder.getMF();
     uint64_t LocMemOffset = VA.getLocMemOffset();
     const auto &ST = MF.getSubtarget<GCNSubtarget>();
 
     auto MMO = MF.getMachineMemOperand(
-      MPO, MachineMemOperand::MOStore, Size,
-      commonAlignment(ST.getStackAlignment(), LocMemOffset));
+        MPO, MachineMemOperand::MOStore, MemTy,
+        commonAlignment(ST.getStackAlignment(), LocMemOffset));
     MIRBuilder.buildStore(ValVReg, Addr, *MMO);
   }
 
   void assignValueToAddress(const CallLowering::ArgInfo &Arg,
-                            unsigned ValRegIndex, Register Addr,
-                            uint64_t MemSize, MachinePointerInfo &MPO,
-                            CCValAssign &VA) override {
+                            unsigned ValRegIndex, Register Addr, LLT MemTy,
+                            MachinePointerInfo &MPO, CCValAssign &VA) override {
     Register ValVReg = VA.getLocInfo() != CCValAssign::LocInfo::FPExt
                            ? extendRegister(Arg.Regs[ValRegIndex], VA)
                            : Arg.Regs[ValRegIndex];
-
-    // If we extended the value type we might need to adjust the MMO's
-    // Size. This happens if ComputeValueVTs widened a small type value to a
-    // legal register type (e.g. s8->s16)
-    const LLT RegTy = MRI.getType(ValVReg);
-    MemSize = std::min(MemSize, (uint64_t)RegTy.getSizeInBytes());
-    assignValueToAddress(ValVReg, Addr, MemSize, MPO, VA);
+    assignValueToAddress(ValVReg, Addr, MemTy, MPO, VA);
   }
 };
 }
@@ -305,7 +293,7 @@ bool AMDGPUCallLowering::lowerReturnVal(MachineIRBuilder &B,
   for (unsigned i = 0; i < SplitEVTs.size(); ++i) {
     EVT VT = SplitEVTs[i];
     Register Reg = VRegs[i];
-    ArgInfo RetInfo(Reg, VT.getTypeForEVT(Ctx));
+    ArgInfo RetInfo(Reg, VT.getTypeForEVT(Ctx), 0);
     setArgFlags(RetInfo, AttributeList::ReturnIndex, DL, F);
 
     if (VT.isScalarInteger()) {
@@ -396,7 +384,6 @@ bool AMDGPUCallLowering::lowerReturn(MachineIRBuilder &B, const Value *Val,
 }
 
 void AMDGPUCallLowering::lowerParameterPtr(Register DstReg, MachineIRBuilder &B,
-                                           Type *ParamTy,
                                            uint64_t Offset) const {
   MachineFunction &MF = B.getMF();
   const SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
@@ -410,26 +397,45 @@ void AMDGPUCallLowering::lowerParameterPtr(Register DstReg, MachineIRBuilder &B,
   B.buildPtrAdd(DstReg, KernArgSegmentVReg, OffsetReg);
 }
 
-void AMDGPUCallLowering::lowerParameter(MachineIRBuilder &B, Type *ParamTy,
-                                        uint64_t Offset, Align Alignment,
-                                        Register DstReg) const {
+void AMDGPUCallLowering::lowerParameter(MachineIRBuilder &B, ArgInfo &OrigArg,
+                                        uint64_t Offset,
+                                        Align Alignment) const {
   MachineFunction &MF = B.getMF();
   const Function &F = MF.getFunction();
   const DataLayout &DL = F.getParent()->getDataLayout();
   MachinePointerInfo PtrInfo(AMDGPUAS::CONSTANT_ADDRESS);
-  unsigned TypeSize = DL.getTypeStoreSize(ParamTy);
 
   LLT PtrTy = LLT::pointer(AMDGPUAS::CONSTANT_ADDRESS, 64);
-  Register PtrReg = B.getMRI()->createGenericVirtualRegister(PtrTy);
-  lowerParameterPtr(PtrReg, B, ParamTy, Offset);
 
-  MachineMemOperand *MMO = MF.getMachineMemOperand(
-      PtrInfo,
-      MachineMemOperand::MOLoad | MachineMemOperand::MODereferenceable |
-          MachineMemOperand::MOInvariant,
-      TypeSize, Alignment);
+  SmallVector<ArgInfo, 32> SplitArgs;
+  SmallVector<uint64_t> FieldOffsets;
+  splitToValueTypes(OrigArg, SplitArgs, DL, F.getCallingConv(), &FieldOffsets);
 
-  B.buildLoad(DstReg, PtrReg, *MMO);
+  unsigned Idx = 0;
+  for (ArgInfo &SplitArg : SplitArgs) {
+    Register PtrReg = B.getMRI()->createGenericVirtualRegister(PtrTy);
+    lowerParameterPtr(PtrReg, B, Offset + FieldOffsets[Idx]);
+
+    LLT ArgTy = getLLTForType(*SplitArg.Ty, DL);
+    if (SplitArg.Flags[0].isPointer()) {
+      // Compensate for losing pointeriness in splitValueTypes.
+      LLT PtrTy = LLT::pointer(SplitArg.Flags[0].getPointerAddrSpace(),
+                               ArgTy.getScalarSizeInBits());
+      ArgTy = ArgTy.isVector() ? LLT::vector(ArgTy.getElementCount(), PtrTy)
+                               : PtrTy;
+    }
+
+    MachineMemOperand *MMO = MF.getMachineMemOperand(
+        PtrInfo,
+        MachineMemOperand::MOLoad | MachineMemOperand::MODereferenceable |
+            MachineMemOperand::MOInvariant,
+        ArgTy, commonAlignment(Alignment, FieldOffsets[Idx]));
+
+    assert(SplitArg.Regs.size() == 1);
+
+    B.buildLoad(SplitArg.Regs[0], PtrReg, *MMO);
+    ++Idx;
+  }
 }
 
 // Allocate special inputs passed in user SGPRs.
@@ -535,24 +541,19 @@ bool AMDGPUCallLowering::lowerFormalArgumentsKernel(
       assert(VRegs[i].size() == 1 &&
              "expected only one register for byval pointers");
       if (ByRefAS == AMDGPUAS::CONSTANT_ADDRESS) {
-        lowerParameterPtr(VRegs[i][0], B, ArgTy, ArgOffset);
+        lowerParameterPtr(VRegs[i][0], B, ArgOffset);
       } else {
         const LLT ConstPtrTy = LLT::pointer(AMDGPUAS::CONSTANT_ADDRESS, 64);
         Register PtrReg = MRI.createGenericVirtualRegister(ConstPtrTy);
-        lowerParameterPtr(PtrReg, B, ArgTy, ArgOffset);
+        lowerParameterPtr(PtrReg, B, ArgOffset);
 
         B.buildAddrSpaceCast(VRegs[i][0], PtrReg);
       }
     } else {
-      ArrayRef<Register> OrigArgRegs = VRegs[i];
-      Register ArgReg =
-        OrigArgRegs.size() == 1
-        ? OrigArgRegs[0]
-        : MRI.createGenericVirtualRegister(getLLTForType(*ArgTy, DL));
-
-      lowerParameter(B, ArgTy, ArgOffset, Alignment, ArgReg);
-      if (OrigArgRegs.size() > 1)
-        unpackRegs(OrigArgRegs, ArgReg, ArgTy, B);
+      ArgInfo OrigArg(VRegs[i], Arg, i);
+      const unsigned OrigArgIdx = i + AttributeList::FirstArgIndex;
+      setArgFlags(OrigArg, OrigArgIdx, DL, F);
+      lowerParameter(B, OrigArg, ArgOffset, Alignment);
     }
 
     ++i;
@@ -649,7 +650,7 @@ bool AMDGPUCallLowering::lowerFormalArguments(
       }
     }
 
-    ArgInfo OrigArg(VRegs[Idx], Arg);
+    ArgInfo OrigArg(VRegs[Idx], Arg, Idx);
     const unsigned OrigArgIdx = Idx + AttributeList::FirstArgIndex;
     setArgFlags(OrigArg, OrigArgIdx, DL, F);
 
@@ -1087,8 +1088,8 @@ void AMDGPUCallLowering::handleImplicitCallArguments(
   if (!ST.enableFlatScratch()) {
     // Insert copies for the SRD. In the HSA case, this should be an identity
     // copy.
-    auto ScratchRSrcReg =
-        MIRBuilder.buildCopy(LLT::vector(4, 32), FuncInfo.getScratchRSrcReg());
+    auto ScratchRSrcReg = MIRBuilder.buildCopy(LLT::fixed_vector(4, 32),
+                                               FuncInfo.getScratchRSrcReg());
     MIRBuilder.buildCopy(AMDGPU::SGPR0_SGPR1_SGPR2_SGPR3, ScratchRSrcReg);
     CallInst.addReg(AMDGPU::SGPR0_SGPR1_SGPR2_SGPR3, RegState::Implicit);
   }

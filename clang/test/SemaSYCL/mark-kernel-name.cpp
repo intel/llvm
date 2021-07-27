@@ -28,7 +28,7 @@ template <template <typename> class KI,
           typename KernelType>
 void wrapper(KernelType KernelFunc) {
   (void)KI<KernelName>::c;
-  cl::sycl::kernel_single_task<KernelName>(KernelFunc); // #SingleTaskInst
+  cl::sycl::kernel_single_task<KernelType>(KernelFunc); // #SingleTaskInst
 }
 
 int main() {

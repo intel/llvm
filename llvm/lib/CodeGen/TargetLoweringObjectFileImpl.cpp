@@ -1480,11 +1480,10 @@ static bool canUsePrivateLabel(const MCAsmInfo &AsmInfo,
   if (!AsmInfo.isSectionAtomizableBySymbols(Section))
     return true;
 
-  // If it is not dead stripped, it is safe to use private labels.
-  const MCSectionMachO &SMO = cast<MCSectionMachO>(Section);
-  if (SMO.hasAttribute(MachO::S_ATTR_NO_DEAD_STRIP))
-    return true;
-
+  // FIXME: we should be able to use private labels for sections that can't be
+  // dead-stripped (there's no issue with blocking atomization there), but `ld
+  // -r` sometimes drops the no_dead_strip attribute from sections so for safety
+  // we don't allow it.
   return false;
 }
 
@@ -1930,7 +1929,7 @@ const MCExpr *TargetLoweringObjectFileCOFF::lowerRelativeReference(
 
 static std::string APIntToHexString(const APInt &AI) {
   unsigned Width = (AI.getBitWidth() / 8) * 2;
-  std::string HexString = AI.toString(16, /*Signed=*/false);
+  std::string HexString = toString(AI, 16, /*Signed=*/false);
   llvm::transform(HexString, HexString.begin(), tolower);
   unsigned Size = HexString.size();
   assert(Width >= Size && "hex string is too large!");
@@ -2185,6 +2184,17 @@ bool TargetLoweringObjectFileXCOFF::ShouldEmitEHBlock(
   if (isNoOpWithoutInvoke(classifyEHPersonality(Per)))
     return false;
 
+  return true;
+}
+
+bool TargetLoweringObjectFileXCOFF::ShouldSetSSPCanaryBitInTB(
+    const MachineFunction *MF) {
+  const Function &F = MF->getFunction();
+  if (!F.hasStackProtectorFnAttr())
+    return false;
+  // FIXME: check presence of canary word
+  // There are cases that the stack protectors are not really inserted even if
+  // the attributes are on.
   return true;
 }
 

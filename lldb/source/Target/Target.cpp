@@ -41,6 +41,7 @@
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/Symbol.h"
+#include "lldb/Target/ABI.h"
 #include "lldb/Target/Language.h"
 #include "lldb/Target/LanguageRuntime.h"
 #include "lldb/Target/Process.h"
@@ -823,6 +824,11 @@ WatchpointSP Target::CreateWatchpoint(lldb::addr_t addr, size_t size,
   // Grab the list mutex while doing operations.
   const bool notify = false; // Don't notify about all the state changes we do
                              // on creating the watchpoint.
+
+  // Mask off ignored bits from watchpoint address.
+  if (ABISP abi = m_process_sp->GetABI())
+    addr = abi->FixDataAddress(addr);
+
   std::unique_lock<std::recursive_mutex> lock;
   this->GetWatchpointList().GetListMutex(lock);
   WatchpointSP matched_sp = m_watchpoint_list.FindByAddress(addr);
@@ -1691,6 +1697,7 @@ bool Target::ModuleIsExcludedForUnconstrainedSearches(
 
 size_t Target::ReadMemoryFromFileCache(const Address &addr, void *dst,
                                        size_t dst_len, Status &error) {
+  LLDB_SCOPED_TIMER();
   SectionSP section_sp(addr.GetSection());
   if (section_sp) {
     // If the contents of this section are encrypted, the on-disk file is
@@ -3082,26 +3089,37 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
 
 void Target::SetTrace(const TraceSP &trace_sp) { m_trace_sp = trace_sp; }
 
-TraceSP &Target::GetTrace() { return m_trace_sp; }
+TraceSP Target::GetTrace() { return m_trace_sp; }
 
-llvm::Expected<TraceSP &> Target::GetTraceOrCreate() {
-  if (!m_trace_sp && m_process_sp) {
-    llvm::Expected<TraceSupportedResponse> trace_type =
-        m_process_sp->TraceSupported();
-    if (!trace_type)
-      return llvm::createStringError(
-          llvm::inconvertibleErrorCode(), "Tracing is not supported. %s",
-          llvm::toString(trace_type.takeError()).c_str());
-    if (llvm::Expected<TraceSP> trace_sp =
-            Trace::FindPluginForLiveProcess(trace_type->name, *m_process_sp))
-      m_trace_sp = *trace_sp;
-    else
-      return llvm::createStringError(
-          llvm::inconvertibleErrorCode(),
-          "Couldn't start tracing the process. %s",
-          llvm::toString(trace_sp.takeError()).c_str());
-  }
+llvm::Expected<TraceSP> Target::CreateTrace() {
+  if (!m_process_sp)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "A process is required for tracing");
+  if (m_trace_sp)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "A trace already exists for the target");
+
+  llvm::Expected<TraceSupportedResponse> trace_type =
+      m_process_sp->TraceSupported();
+  if (!trace_type)
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(), "Tracing is not supported. %s",
+        llvm::toString(trace_type.takeError()).c_str());
+  if (llvm::Expected<TraceSP> trace_sp =
+          Trace::FindPluginForLiveProcess(trace_type->name, *m_process_sp))
+    m_trace_sp = *trace_sp;
+  else
+    return llvm::createStringError(
+        llvm::inconvertibleErrorCode(),
+        "Couldn't create a Trace object for the process. %s",
+        llvm::toString(trace_sp.takeError()).c_str());
   return m_trace_sp;
+}
+
+llvm::Expected<TraceSP> Target::GetTraceOrCreate() {
+  if (m_trace_sp)
+    return m_trace_sp;
+  return CreateTrace();
 }
 
 Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {

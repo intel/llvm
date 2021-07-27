@@ -271,11 +271,22 @@ let Defs = [CR0] in {
 let mayLoad = 1, hasSideEffects = 0 in {
 def LDARX : XForm_1_memOp<31,  84, (outs g8rc:$rD), (ins memrr:$ptr),
                           "ldarx $rD, $ptr", IIC_LdStLDARX, []>;
+// TODO: Add scheduling info.
+let hasNoSchedulingInfo = 1 in
+def LQARX : XForm_1_memOp<31, 276, (outs g8prc:$RTp), (ins memrr:$ptr),
+                          "lqarx $RTp, $ptr", IIC_LdStLQARX, []>, isPPC64;
 
 // Instruction to support lock versions of atomics
 // (EH=1 - see Power ISA 2.07 Book II 4.4.2)
 def LDARXL : XForm_1<31,  84, (outs g8rc:$rD), (ins memrr:$ptr),
                      "ldarx $rD, $ptr, 1", IIC_LdStLDARX, []>, isRecordForm;
+// TODO: Add scheduling info.
+let hasNoSchedulingInfo = 1 in
+// FIXME: We have to seek a way to remove isRecordForm since
+// LQARXL is not really altering CR0.
+def LQARXL : XForm_1<31, 276, (outs g8prc:$RTp), (ins memrr:$ptr),
+                     "lqarx $RTp, $ptr, 1", IIC_LdStLQARX, []>,
+                     isPPC64, isRecordForm;
 
 let hasExtraDefRegAllocReq = 1 in
 def LDAT : X_RD5_RS5_IM5<31, 614, (outs g8rc:$rD), (ins g8rc:$rA, u5imm:$FC),
@@ -283,9 +294,97 @@ def LDAT : X_RD5_RS5_IM5<31, 614, (outs g8rc:$rD), (ins g8rc:$rA, u5imm:$FC),
            Requires<[IsISA3_0]>;
 }
 
-let Defs = [CR0], mayStore = 1, mayLoad = 0, hasSideEffects = 0 in
+let Defs = [CR0], mayStore = 1, mayLoad = 0, hasSideEffects = 0 in {
 def STDCX : XForm_1_memOp<31, 214, (outs), (ins g8rc:$rS, memrr:$dst),
                           "stdcx. $rS, $dst", IIC_LdStSTDCX, []>, isRecordForm;
+// TODO: Add scheduling info.
+let hasNoSchedulingInfo = 1 in
+def STQCX : XForm_1_memOp<31, 182, (outs), (ins g8prc:$RSp, memrr:$dst),
+                          "stqcx. $RSp, $dst", IIC_LdStSTQCX, []>,
+                          isPPC64, isRecordForm;
+}
+
+def SPLIT_QUADWORD : PPCCustomInserterPseudo<(outs g8rc:$lo, g8rc:$hi),
+                                             (ins g8prc:$src),
+                                             "#SPLIT_QUADWORD", []>;
+class AtomicRMW128<string asmstr>
+  : PPCPostRAExpPseudo<(outs g8prc:$RTp, g8prc:$scratch),
+                       (ins memrr:$ptr, g8rc:$incr_lo, g8rc:$incr_hi),
+                       asmstr, []>;
+// We have to keep values in MI's uses during LL/SC looping as they are,
+// so set both $RTp and $scratch earlyclobber.
+let mayStore = 1, mayLoad = 1,
+    Defs = [CR0],
+    Constraints = "@earlyclobber $scratch,@earlyclobber $RTp" in {
+// Atomic pseudo instructions expanded post-ra.
+def ATOMIC_SWAP_I128 : AtomicRMW128<"#ATOMIC_SWAP_I128">;
+def ATOMIC_LOAD_ADD_I128  : AtomicRMW128<"#ATOMIC_LOAD_ADD_I128">;
+def ATOMIC_LOAD_SUB_I128  : AtomicRMW128<"#ATOMIC_LOAD_SUB_I128">;
+def ATOMIC_LOAD_AND_I128  : AtomicRMW128<"#ATOMIC_LOAD_AND_I128">;
+def ATOMIC_LOAD_XOR_I128  : AtomicRMW128<"#ATOMIC_LOAD_XOR_I128">;
+def ATOMIC_LOAD_OR_I128   : AtomicRMW128<"#ATOMIC_LOAD_OR_I128">;
+def ATOMIC_LOAD_NAND_I128 : AtomicRMW128<"#ATOMIC_LOAD_NAND_I128">;
+
+def ATOMIC_CMP_SWAP_I128 : PPCPostRAExpPseudo<
+                              (outs g8prc:$RTp, g8prc:$scratch),
+                              (ins memrr:$ptr, g8rc:$cmp_lo, g8rc:$cmp_hi,
+                                   g8rc:$new_lo, g8rc:$new_hi),
+                              "#ATOMIC_CMP_SWAP_I128", []>;
+}
+
+def : Pat<(int_ppc_atomicrmw_add_i128 ForceXForm:$ptr,
+                                      i64:$incr_lo,
+                                      i64:$incr_hi),
+          (SPLIT_QUADWORD (ATOMIC_LOAD_ADD_I128 memrr:$ptr,
+                                                g8rc:$incr_lo,
+                                                g8rc:$incr_hi))>;
+def : Pat<(int_ppc_atomicrmw_sub_i128 ForceXForm:$ptr,
+                                      i64:$incr_lo,
+                                      i64:$incr_hi),
+          (SPLIT_QUADWORD (ATOMIC_LOAD_SUB_I128 memrr:$ptr,
+                                                g8rc:$incr_lo,
+                                                g8rc:$incr_hi))>;
+def : Pat<(int_ppc_atomicrmw_xor_i128 ForceXForm:$ptr,
+                                      i64:$incr_lo,
+                                      i64:$incr_hi),
+          (SPLIT_QUADWORD (ATOMIC_LOAD_XOR_I128 memrr:$ptr,
+                                                g8rc:$incr_lo,
+                                                g8rc:$incr_hi))>;
+def : Pat<(int_ppc_atomicrmw_and_i128 ForceXForm:$ptr,
+                                      i64:$incr_lo,
+                                      i64:$incr_hi),
+          (SPLIT_QUADWORD (ATOMIC_LOAD_AND_I128 memrr:$ptr,
+                                                g8rc:$incr_lo,
+                                                g8rc:$incr_hi))>;
+def : Pat<(int_ppc_atomicrmw_nand_i128 ForceXForm:$ptr,
+                                       i64:$incr_lo,
+                                       i64:$incr_hi),
+          (SPLIT_QUADWORD (ATOMIC_LOAD_NAND_I128 memrr:$ptr,
+                                                 g8rc:$incr_lo,
+                                                 g8rc:$incr_hi))>;
+def : Pat<(int_ppc_atomicrmw_or_i128 ForceXForm:$ptr,
+                                     i64:$incr_lo,
+                                     i64:$incr_hi),
+          (SPLIT_QUADWORD (ATOMIC_LOAD_OR_I128 memrr:$ptr,
+                                               g8rc:$incr_lo,
+                                               g8rc:$incr_hi))>;
+def : Pat<(int_ppc_atomicrmw_xchg_i128 ForceXForm:$ptr,
+                                       i64:$incr_lo,
+                                       i64:$incr_hi),
+          (SPLIT_QUADWORD (ATOMIC_SWAP_I128 memrr:$ptr,
+                                            g8rc:$incr_lo,
+                                            g8rc:$incr_hi))>;
+def : Pat<(int_ppc_cmpxchg_i128 ForceXForm:$ptr,
+                                i64:$cmp_lo,
+                                i64:$cmp_hi,
+                                i64:$new_lo,
+                                i64:$new_hi),
+          (SPLIT_QUADWORD (ATOMIC_CMP_SWAP_I128
+                           memrr:$ptr,
+                           g8rc:$cmp_lo,
+                           g8rc:$cmp_hi,
+                           g8rc:$new_lo,
+                           g8rc:$new_hi))>;
 
 let mayStore = 1, mayLoad = 0, hasSideEffects = 0 in
 def STDAT : X_RD5_RS5_IM5<31, 742, (outs), (ins g8rc:$rS, g8rc:$rA, u5imm:$FC),
@@ -810,9 +909,10 @@ def POPCNTW : XForm_11<31, 378, (outs gprc:$rA), (ins gprc:$rS),
                        "popcntw $rA, $rS", IIC_IntGeneral,
                        [(set i32:$rA, (ctpop i32:$rS))]>;
 
-def POPCNTB : XForm_11<31, 122, (outs g8rc:$rA), (ins g8rc:$rS),
-                       "popcntb $rA, $rS", IIC_IntGeneral,
-                       [(set i64:$rA, (int_ppc_popcntb i64:$rS))]>;
+let isCodeGenOnly = 1 in
+def POPCNTB8 : XForm_11<31, 122, (outs g8rc:$rA), (ins g8rc:$rS),
+                        "popcntb $rA, $rS", IIC_IntGeneral,
+                        [(set i64:$rA, (int_ppc_popcntb i64:$rS))]>;
 
 defm DIVD  : XOForm_1rcr<31, 489, 0, (outs g8rc:$rT), (ins g8rc:$rA, g8rc:$rB),
                           "divd", "$rT, $rA, $rB", IIC_IntDivD,
@@ -1228,6 +1328,22 @@ def LDMX : XForm_1<31, 309, (outs g8rc:$rD), (ins memrr:$src),
                    "ldmx $rD, $src", IIC_LdStLD, []>, isPPC64,
                    Requires<[IsISA3_0]>;
 }
+
+let mayLoad = 1, hasNoSchedulingInfo = 1 in {
+// Full 16-byte load.
+// Early clobber $RTp to avoid assigned to the same register as RA.
+// TODO: Add scheduling info.
+def LQ   : DQForm_RTp5_RA17_MEM<56, 0,
+                                (outs g8prc:$RTp),
+                                (ins memrix16:$src),
+                                "lq $RTp, $src", IIC_LdStLQ,
+                                []>,
+                                RegConstraint<"@earlyclobber $RTp">,
+                                isPPC64;
+def RESTORE_QUADWORD : PPCEmitTimePseudo<(outs g8prc:$RTp), (ins memrix:$src),
+                                         "#RESTORE_QUADWORD", []>;
+}
+
 }
 
 // Support for medium and large code model.
@@ -1411,6 +1527,17 @@ def STDBRX: XForm_8_memOp<31, 660, (outs), (ins g8rc:$rS, memrr:$dst),
                           "stdbrx $rS, $dst", IIC_LdStStore,
                           [(PPCstbrx i64:$rS, ForceXForm:$dst, i64)]>, isPPC64,
                           PPC970_DGroup_Cracked;
+
+let mayStore = 1, hasNoSchedulingInfo = 1 in {
+// Normal 16-byte stores.
+// TODO: Add scheduling info.
+def STQ : DSForm_1<62, 2, (outs), (ins g8prc:$RSp, memrix:$dst),
+                   "stq $RSp, $dst", IIC_LdStSTQ,
+                   []>, isPPC64;
+def SPILL_QUADWORD : PPCEmitTimePseudo<(outs), (ins g8prc:$RSp, memrix:$dst),
+                                       "#SPILL_QUADWORD", []>;
+}
+
 }
 
 // Stores with Update (pre-inc).
@@ -1645,6 +1772,30 @@ def : Pat<(atomic_load_64 XForm:$src),  (LDX memrr:$src)>;
 def : Pat<(atomic_store_64 DSForm:$ptr, i64:$val), (STD  g8rc:$val, memrix:$ptr)>;
 def : Pat<(atomic_store_64 XForm:$ptr,  i64:$val), (STDX g8rc:$val, memrr:$ptr)>;
 
+let Predicates = [IsISA3_0, In64BitMode] in {
+def : Pat<(i64 (int_ppc_cmpeqb g8rc:$a, g8rc:$b)),
+          (i64 (SETB8 (CMPEQB $a, $b)))>;
+def : Pat<(i64 (int_ppc_setb g8rc:$a, g8rc:$b)),
+          (i64 (SETB8 (CMPD $a, $b)))>;
+def : Pat<(i64 (int_ppc_maddhd g8rc:$a, g8rc:$b, g8rc:$c)),
+          (i64 (MADDHD $a, $b, $c))>;
+def : Pat<(i64 (int_ppc_maddhdu g8rc:$a, g8rc:$b, g8rc:$c)),
+          (i64 (MADDHDU $a, $b, $c))>;
+def : Pat<(i64 (int_ppc_maddld g8rc:$a, g8rc:$b, g8rc:$c)),
+          (i64 (MADDLD8 $a, $b, $c))>;
+}
+
+let Predicates = [In64BitMode] in {
+def : Pat<(i64 (int_ppc_mulhd g8rc:$a, g8rc:$b)),
+          (i64 (MULHD $a, $b))>;
+def : Pat<(i64 (int_ppc_mulhdu g8rc:$a, g8rc:$b)),
+          (i64 (MULHDU $a, $b))>;
+def : Pat<(int_ppc_load8r ForceXForm:$ptr),
+          (LDBRX ForceXForm:$ptr)>;
+def : Pat<(int_ppc_store8r g8rc:$a, ForceXForm:$ptr),
+          (STDBRX g8rc:$a, ForceXForm:$ptr)>;
+}
+
 let Predicates = [IsISA3_0] in {
 // DARN (deliver random number)
 // L=0 for 32-bit, L=1 for conditioned random, L=2 for raw random
@@ -1676,3 +1827,12 @@ def SLBIEG : XForm_26<31, 466, (outs), (ins gprc:$RS, gprc:$RB),
 def SLBSYNC : XForm_0<31, 338, (outs), (ins), "slbsync", IIC_SprSLBSYNC, []>;
 
 } // IsISA3_0
+
+def : Pat<(int_ppc_stdcx ForceXForm:$dst, g8rc:$A),
+          (STDCX g8rc:$A, ForceXForm:$dst)>;
+def : Pat<(int_ppc_tdw g8rc:$A, g8rc:$B, i32:$IMM),
+          (TD $IMM, $A, $B)>;
+
+// trapd
+def : Pat<(int_ppc_trapd g8rc:$A),
+          (TDI 24, $A, 0)>;

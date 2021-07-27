@@ -258,7 +258,7 @@ public:
   /// state, this routine will mark that the current loop should be skipped by
   /// the rest of the pass management infrastructure.
   void markLoopAsDeleted(Loop &L, llvm::StringRef Name) {
-    assert((!LoopNestMode || L.isOutermost()) &&
+    assert((!LoopNestMode || CurrentL == &L) &&
            "L should be a top-level loop in loop-nest mode.");
     LAM.clear(L, Name);
     assert((&L == CurrentL || CurrentL->contains(&L)) &&
@@ -269,7 +269,7 @@ public:
   }
 
   void setParentLoop(Loop *L) {
-#ifndef NDEBUG
+#ifdef LLVM_ENABLE_ABI_BREAKING_CHECKS
     ParentL = L;
 #endif
   }
@@ -308,7 +308,7 @@ public:
   /// loops within them will be visited in postorder as usual for the loop pass
   /// manager.
   void addSiblingLoops(ArrayRef<Loop *> NewSibLoops) {
-#ifndef NDEBUG
+#if defined(LLVM_ENABLE_ABI_BREAKING_CHECKS) && !defined(NDEBUG)
     for (Loop *NewL : NewSibLoops)
       assert(NewL->getParentLoop() == ParentL &&
              "All of the new loops must be siblings of the current loop!");
@@ -349,7 +349,7 @@ private:
   bool SkipCurrentLoop;
   const bool LoopNestMode;
 
-#ifndef NDEBUG
+#ifdef LLVM_ENABLE_ABI_BREAKING_CHECKS
   // In debug builds we also track the parent loop to implement asserts even in
   // the face of loop deletion.
   Loop *ParentL;

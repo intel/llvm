@@ -40,6 +40,7 @@ add_flang_library(FortranRuntime
   connection.cpp
   derived.cpp
   descriptor.cpp
+  descriptor-io.cpp
   dot-product.cpp
   edit-input.cpp
   edit-output.cpp
@@ -66,9 +67,11 @@ add_flang_library(FortranRuntime
   stop.cpp
   sum.cpp
   terminator.cpp
+  time-intrinsic.cpp
   tools.cpp
   transformational.cpp
   type-code.cpp
+  type-info.cpp
   unit.cpp
   unit-map.cpp
 

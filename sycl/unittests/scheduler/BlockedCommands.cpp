@@ -19,6 +19,8 @@ TEST_F(SchedulerTest, BlockedCommands) {
   MockCmd.MIsBlockable = true;
   MockCmd.MRetVal = CL_DEVICE_PARTITION_EQUALLY;
 
+  MockScheduler MS;
+  auto Lock = MS.acquireGraphReadLock();
   detail::EnqueueResultT Res;
   bool Enqueued =
       MockScheduler::enqueueCommand(&MockCmd, Res, detail::NON_BLOCKING);
@@ -84,6 +86,8 @@ TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
   EXPECT_CALL(C, enqueue(_, _)).Times(0);
   EXPECT_CALL(D, enqueue(_, _)).Times(0);
 
+  MockScheduler MS;
+  auto Lock = MS.acquireGraphReadLock();
   detail::EnqueueResultT Res;
   bool Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
@@ -112,6 +116,8 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
   EXPECT_CALL(A, enqueue(_, _)).Times(0);
   EXPECT_CALL(B, enqueue(_, _)).Times(0);
 
+  MockScheduler MS;
+  auto Lock = MS.acquireGraphReadLock();
   detail::EnqueueResultT Res;
   bool Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);
   ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
@@ -148,7 +154,7 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
       new cl::sycl::detail::event_impl(detail::getSyclObjImpl(MQueue))};
   DepEvent->setCommand(&B);
 
-  A.addDep(DepEvent);
+  (void)A.addDep(DepEvent);
 
   // We have such a "graph":
   //
@@ -163,6 +169,8 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
   EXPECT_CALL(A, enqueue(_, _)).Times(1);
   EXPECT_CALL(B, enqueue(_, _)).Times(1);
 
+  MockScheduler MS;
+  auto Lock = MS.acquireGraphReadLock();
   detail::EnqueueResultT Res;
   bool Enqueued = MockScheduler::enqueueCommand(&A, Res, detail::NON_BLOCKING);
   ASSERT_TRUE(Enqueued) << "The command should be enqueued\n";

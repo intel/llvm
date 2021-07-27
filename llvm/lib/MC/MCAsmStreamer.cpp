@@ -153,6 +153,8 @@ public:
 
   void emitLOHDirective(MCLOHType Kind, const MCLOHArgs &Args) override;
 
+  void emitGNUAttribute(unsigned Tag, unsigned Value) override;
+
   StringRef getMnemonic(MCInst &MI) override {
     return InstPrinter->getMnemonic(&MI).first;
   }
@@ -251,6 +253,8 @@ public:
                          SMLoc Loc) override;
 
   void emitFileDirective(StringRef Filename) override;
+  void emitFileDirective(StringRef Filename, StringRef CompilerVerion,
+                         StringRef TimeStamp, StringRef Description) override;
   Expected<unsigned> tryEmitDwarfFileDirective(unsigned FileNo,
                                                StringRef Directory,
                                                StringRef Filename,
@@ -315,6 +319,8 @@ public:
   void emitCFIDefCfa(int64_t Register, int64_t Offset) override;
   void emitCFIDefCfaOffset(int64_t Offset) override;
   void emitCFIDefCfaRegister(int64_t Register) override;
+  void emitCFILLVMDefAspaceCfa(int64_t Register, int64_t Offset,
+                               int64_t AddressSpace) override;
   void emitCFIOffset(int64_t Register, int64_t Offset) override;
   void emitCFIPersonality(const MCSymbol *Sym, unsigned Encoding) override;
   void emitCFILsda(const MCSymbol *Sym, unsigned Encoding) override;
@@ -534,6 +540,10 @@ void MCAsmStreamer::emitLOHDirective(MCLOHType Kind, const MCLOHArgs &Args) {
     Arg->print(OS, MAI);
   }
   EmitEOL();
+}
+
+void MCAsmStreamer::emitGNUAttribute(unsigned Tag, unsigned Value) {
+  OS << "\t.gnu_attribute " << Tag << ", " << Value << "\n";
 }
 
 void MCAsmStreamer::emitAssemblerFlag(MCAssemblerFlag Flag) {
@@ -1442,6 +1452,28 @@ void MCAsmStreamer::emitFileDirective(StringRef Filename) {
   EmitEOL();
 }
 
+void MCAsmStreamer::emitFileDirective(StringRef Filename,
+                                      StringRef CompilerVerion,
+                                      StringRef TimeStamp,
+                                      StringRef Description) {
+  assert(MAI->hasFourStringsDotFile());
+  OS << "\t.file\t";
+  PrintQuotedString(Filename, OS);
+  OS << ",";
+  if (!CompilerVerion.empty()) {
+    PrintQuotedString(CompilerVerion, OS);
+  }
+  if (!TimeStamp.empty()) {
+    OS << ",";
+    PrintQuotedString(TimeStamp, OS);
+  }
+  if (!Description.empty()) {
+    OS << ",";
+    PrintQuotedString(Description, OS);
+  }
+  EmitEOL();
+}
+
 void MCAsmStreamer::printDwarfFileDirective(
     unsigned FileNo, StringRef Directory, StringRef Filename,
     Optional<MD5::MD5Result> Checksum, Optional<StringRef> Source,
@@ -1807,6 +1839,16 @@ void MCAsmStreamer::emitCFIDefCfa(int64_t Register, int64_t Offset) {
 void MCAsmStreamer::emitCFIDefCfaOffset(int64_t Offset) {
   MCStreamer::emitCFIDefCfaOffset(Offset);
   OS << "\t.cfi_def_cfa_offset " << Offset;
+  EmitEOL();
+}
+
+void MCAsmStreamer::emitCFILLVMDefAspaceCfa(int64_t Register, int64_t Offset,
+                                            int64_t AddressSpace) {
+  MCStreamer::emitCFILLVMDefAspaceCfa(Register, Offset, AddressSpace);
+  OS << "\t.cfi_llvm_def_aspace_cfa ";
+  EmitRegisterName(Register);
+  OS << ", " << Offset;
+  OS << ", " << AddressSpace;
   EmitEOL();
 }
 

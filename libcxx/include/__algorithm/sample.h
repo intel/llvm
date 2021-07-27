@@ -11,7 +11,7 @@
 
 #include <__config>
 #include <__algorithm/min.h>
-#include <__algorithm/uniform_int_distribution.h>
+#include <__random/uniform_int_distribution.h>
 #include <iterator>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)

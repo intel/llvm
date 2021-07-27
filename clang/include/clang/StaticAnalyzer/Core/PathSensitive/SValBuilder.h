@@ -238,6 +238,14 @@ public:
                                                 const LocationContext *LCtx,
                                                 unsigned Count);
 
+  /// Conjure a symbol representing heap allocated memory region.
+  ///
+  /// Note, now, the expression *doesn't* need to represent a location.
+  /// But the type need to!
+  DefinedOrUnknownSVal getConjuredHeapSymbolVal(const Expr *E,
+                                                const LocationContext *LCtx,
+                                                QualType type, unsigned Count);
+
   DefinedOrUnknownSVal getDerivedRegionValueSymbolVal(
       SymbolRef parentSymbol, const TypedValueRegion *region);
 
@@ -379,6 +387,10 @@ public:
   Loc makeLoc(const llvm::APSInt& integer) {
     return loc::ConcreteInt(BasicVals.getValue(integer));
   }
+
+  /// Return MemRegionVal on success cast, otherwise return None.
+  Optional<loc::MemRegionVal> getCastedMemRegionVal(const MemRegion *region,
+                                                    QualType type);
 
   /// Make an SVal that represents the given symbol. This follows the convention
   /// of representing Loc-type symbols (symbolic pointers and references)

@@ -10,7 +10,9 @@
 #define MLIR_DIALECT_LINALG_LINALGOPS_H_
 
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
@@ -51,16 +53,6 @@ using LoopRangeBuilder =
 /// provide an op-specified hook so that Linalg ops may override the behavior.
 LoopRangeBuilder defaultLoopRangesBuilder(LinalgOp op);
 
-using ReassociationIndices = SmallVector<int64_t, 2>;
-using ReassociationIndicesRef = ArrayRef<int64_t>;
-using ReassociationExprs = SmallVector<AffineExpr, 2>;
-
-/// Return the reassociations maps to use to reshape given the source type and
-/// the target type when possible. Return llvm::None when this computation
-/// failed.
-Optional<SmallVector<ReassociationIndices>>
-getReassociationIndicesForReshape(ShapedType sourceType, ShapedType targetType);
-
 /// Returns the name mangled library call name to disambiguate between different
 /// overloads at the C level. The name mangling scheme is basic and uses MLIR
 /// type names:
@@ -71,19 +63,19 @@ getReassociationIndicesForReshape(ShapedType sourceType, ShapedType targetType);
 ///
 /// Examples:
 ///
-/// 1. linalg.fill(%A, %f) : memref<f32>, f32
-///   name mangles into `linalg_fill_viewf32_f32_impl`
+/// 1. linalg.fill(%f, %A) : f32, memref<f32>
+///   name mangles into `linalg_fill_f32_viewf32`
 ///
 /// 2. linalg.dot %A, %B, %C :
 ///      (memref<?xf32, stride_specification>,
 ///       memref<?xf32, stride_specification>, memref<f32>)
-///   name mangles into `linalg_dot_viewxf32_viewxf32_viewf32_impl`
+///   name mangles into `linalg_dot_viewxf32_viewxf32_viewf32`
 ///
 /// 3. linalg.matmul(...) :
 ///      memref<?x?xf32, stride_specification>,
 ///      memref<?x?xf32, stride_specification>,
 ///      memref<?x?xf32, stride_specification>
-///   name mangles into `linalg_matmul_viewxxf32_viewxxf32_viewxxf32_impl`
+///   name mangles into `linalg_matmul_viewxxf32_viewxxf32_viewxxf32`
 std::string generateLibraryCallName(Operation *op);
 
 /// Returns `num` AffineDimExpr dimensions at positions
@@ -119,11 +111,6 @@ LogicalResult verifyStructuredOpInterface(Operation *op);
 } // namespace linalg
 } // namespace mlir
 
-namespace mlir {
-namespace linalg {
-class IndexedGenericOp;
-} // namespace linalg
-} // namespace mlir
 #include "mlir/Dialect/Linalg/IR/LinalgInterfaces.h"
 
 #define GET_OP_CLASSES

@@ -168,6 +168,96 @@ for.end36:                                        ; preds = %for.cond29
   ret void
 }
 
+; Function Attrs: convergent norecurse nounwind mustprogress
+define linkonce_odr dso_local spir_func void @_Z18loop_count_controlILi12EEvv() #0 {
+entry:
+  %a = alloca [10 x i32], align 4
+  %a.ascast = addrspacecast [10 x i32]* %a to [10 x i32] addrspace(4)*
+  %i = alloca i32, align 4
+  %i.ascast = addrspacecast i32* %i to i32 addrspace(4)*
+  %cleanup.dest.slot = alloca i32, align 4
+  %i1 = alloca i32, align 4
+  %i1.ascast = addrspacecast i32* %i1 to i32 addrspace(4)*
+  %cleanup.dest.slot5 = alloca i32, align 4
+  %0 = bitcast [10 x i32]* %a to i8*
+  call void @llvm.lifetime.start.p0i8(i64 40, i8* %0)
+  %1 = bitcast i32* %i to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1)
+  store i32 0, i32 addrspace(4)* %i.ascast, align 4
+  br label %for.cond
+; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
+; LoopControlLoopCountINTELMask = 0x1000000 (16777216)
+; CHECK-SPIRV: LoopMerge [[#]] [[#]] 16777216 4294967295 4294967295 4294967295 4294967295 12 0
+; CHECK-SPIRV-NEXT: BranchConditional [[#]] [[#]] [[#]]
+; CHECK-SPIRV-NEGATIVE-NOT: LoopMerge [[#]] [[#]] 16777216
+for.cond:                                         ; preds = %for.inc, %entry
+  %2 = load i32, i32 addrspace(4)* %i.ascast, align 4
+  %cmp = icmp ne i32 %2, 10
+  br i1 %cmp, label %for.body, label %for.cond.cleanup
+
+for.cond.cleanup:                                 ; preds = %for.cond
+  %3 = bitcast i32* %i to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3)
+  br label %for.end
+
+for.body:                                         ; preds = %for.cond
+  %4 = load i32, i32 addrspace(4)* %i.ascast, align 4
+  %idxprom = sext i32 %4 to i64
+  %arrayidx = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %a.ascast, i64 0, i64 %idxprom
+  store i32 0, i32 addrspace(4)* %arrayidx, align 4
+  br label %for.inc
+
+for.inc:                                          ; preds = %for.body
+  %5 = load i32, i32 addrspace(4)* %i.ascast, align 4
+  %inc = add nsw i32 %5, 1
+  store i32 %inc, i32 addrspace(4)* %i.ascast, align 4
+  br label %for.cond, !llvm.loop !12
+
+for.end:                                          ; preds = %for.cond.cleanup
+  %6 = bitcast i32* %i1 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %6)
+  store i32 0, i32 addrspace(4)* %i1.ascast, align 4
+  br label %for.cond2
+
+; Per SPIR-V spec extension INTEL/SPV_INTEL_fpga_loop_controls,
+; spv::internal::LoopControlLoopCountINTELMask = 0x1000000 (16777216)
+; Parameters 4 0 = 4, 100 1 = 4294967396, 21 0 = 21
+; CHECK-SPIRV: LoopMerge [[#]] [[#]] 16777216 4 0 100 1 21 0
+; CHECK-SPIRV-NEXT: BranchConditional [[#]] [[#]] [[#]]
+; CHECK-SPIRV-NEGATIVE-NOT: LoopMerge [[#]] [[#]] 16777216
+for.cond2:                                        ; preds = %for.inc9, %for.end
+  %7 = load i32, i32 addrspace(4)* %i1.ascast, align 4
+  %cmp3 = icmp ne i32 %7, 10
+  br i1 %cmp3, label %for.body6, label %for.cond.cleanup4
+
+for.cond.cleanup4:                                ; preds = %for.cond2
+  %8 = bitcast i32* %i1 to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %8)
+  br label %for.end11
+
+for.body6:                                        ; preds = %for.cond2
+  %9 = load i32, i32 addrspace(4)* %i1.ascast, align 4
+  %idxprom7 = sext i32 %9 to i64
+  %arrayidx8 = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %a.ascast, i64 0, i64 %idxprom7
+  store i32 0, i32 addrspace(4)* %arrayidx8, align 4
+  br label %for.inc9
+
+for.inc9:                                         ; preds = %for.body6
+  %10 = load i32, i32 addrspace(4)* %i1.ascast, align 4
+  %inc10 = add nsw i32 %10, 1
+  store i32 %inc10, i32 addrspace(4)* %i1.ascast, align 4
+  br label %for.cond2, !llvm.loop !15
+
+for.end11:                                        ; preds = %for.cond.cleanup4
+  %11 = bitcast [10 x i32]* %a to i8*
+  call void @llvm.lifetime.end.p0i8(i64 40, i8* %11) 
+  ret void
+}
+
+declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture)
+
+declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture)
+
 attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.module.flags = !{!0}
@@ -186,12 +276,22 @@ attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide
 !9 = distinct !{!9, !10}
 !10 = !{!"llvm.loop.max_concurrency.count", i32 2}
 !11 = distinct !{!11, !8, !10}
+!12 = distinct !{!12, !13, !14}
+!13 = !{!"llvm.loop.mustprogress"}
+!14 = !{!"llvm.loop.intel.loopcount_avg", i64 12}
+!15 = distinct !{!15, !13, !16, !17, !18}
+!16 = !{!"llvm.loop.intel.loopcount_min", i64 4}
+;4294967396 = 2^32 + 100
+!17 = !{!"llvm.loop.intel.loopcount_max", i64 4294967396}
+!18 = !{!"llvm.loop.intel.loopcount_avg", i64 21}
 
 ; CHECK-LLVM: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_A:[0-9]+]]
 ; CHECK-LLVM: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_B:[0-9]+]]
 ; CHECK-LLVM: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_C:[0-9]+]]
 ; CHECK-LLVM: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_D:[0-9]+]]
 ; CHECK-LLVM: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_E:[0-9]+]]
+; CHECK-LLVM: br label %for.cond{{.*}}, !llvm.loop ![[#MD_F:]]
+; CHECK-LLVM: br label %for.cond{{.*}}, !llvm.loop ![[#MD_G:]]
 
 ; CHECK-LLVM-NEGATIVE: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_A:[0-9]+]]
 ; CHECK-LLVM-NEGATIVE: br label %for.cond{{[0-9]+}}, !llvm.loop ![[MD_B:[0-9]+]]
@@ -206,6 +306,12 @@ attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide
 ; CHECK-LLVM: ![[MD_D]] = distinct !{![[MD_D]], ![[MD_max_concurrency:[0-9]+]]}
 ; CHECK-LLVM: ![[MD_max_concurrency]] = !{!"llvm.loop.max_concurrency.count", i32 2}
 ; CHECK-LLVM: ![[MD_E]] = distinct !{![[MD_E]], ![[MD_ii:[0-9]+]], ![[MD_max_concurrency:[0-9]+]]}
+; CHECK-LLVM: ![[#MD_F]] = distinct !{![[#MD_F]], ![[#MD_loop_count_avg:]]}
+; CHECK-LLVM: ![[#MD_loop_count_avg]] = !{!"llvm.loop.intel.loopcount_avg", i64 12}
+; CHECK-LLVM: ![[#MD_G]] = distinct !{![[#MD_G]], ![[#MD_loop_count_min:]], ![[#MD_loop_count_max:]], ![[#MD_loop_count_avg_1:]]}
+; CHECK-LLVM: ![[#MD_loop_count_min]] = !{!"llvm.loop.intel.loopcount_min", i64 4}
+; CHECK-LLVM: ![[#MD_loop_count_max]] = !{!"llvm.loop.intel.loopcount_max", i64 4294967396}
+; CHECK-LLVM: ![[#MD_loop_count_avg_1]] = !{!"llvm.loop.intel.loopcount_avg", i64 21}
 
 ; CHECK-LLVM-NEGATIVE: ![[MD_A]] = distinct !{![[MD_A]], ![[MD_ivdep_enable:[0-9]+]]}
 ; CHECK-LLVM-NEGATIVE: ![[MD_ivdep_enable]] = !{!"llvm.loop.ivdep.enable"}
@@ -213,3 +319,6 @@ attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide
 ; CHECK-LLVM-NEGATIVE: ![[MD_ivdep]] = !{!"llvm.loop.ivdep.safelen", i32 2}
 ; CHECK-LLVM-NEGATIVE-NOT: !{{.*}} = !{!"llvm.loop.ii.count"{{.*}}}
 ; CHECK-LLVM-NEGATIVE-NOT: !{{.*}} = !{!"llvm.loop.max_concurrency.count"{{.*}}}
+; CHECK-LLVM-NEGATIVE-NOT: !{{.*}} = !{!"llvm.loop.intel.loopcount_min"{{.*}}}
+; CHECK-LLVM-NEGATIVE-NOT: !{{.*}} = !{!"llvm.loop.intel.loopcount_max"{{.*}}}
+; CHECK-LLVM-NEGATIVE-NOT: !{{.*}} = !{!"llvm.loop.intel.loopcount_avg"{{.*}}}

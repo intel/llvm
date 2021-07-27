@@ -12,9 +12,7 @@ DataFlowSanitizer is a program instrumentation which can associate
 a number of taint labels with any data stored in any memory region
 accessible by the program. The analysis is dynamic, which means that
 it operates on a running program, and tracks how the labels propagate
-through that program. The tool shall support a large (>100) number
-of labels, such that programs which operate on large numbers of data
-items may be analysed with each data item being tracked separately.
+through that program.
 
 Use Cases
 ---------
@@ -28,15 +26,12 @@ ensure it isn't exiting the program anywhere it shouldn't be.
 Interface
 ---------
 
-A number of functions are provided which will create taint labels,
-attach labels to memory regions and extract the set of labels
-associated with a specific memory region. These functions are declared
-in the header file ``sanitizer/dfsan_interface.h``.
+A number of functions are provided which will attach taint labels to
+memory regions and extract the set of labels associated with a
+specific memory region. These functions are declared in the header
+file ``sanitizer/dfsan_interface.h``.
 
 .. code-block:: c
-
-  /// Creates and returns a base label with the given description and user data.
-  dfsan_label dfsan_create_label(const char *desc, void *userdata);
 
   /// Sets the label for each address in [addr,addr+size) to \c label.
   void dfsan_set_label(dfsan_label label, void *addr, size_t size);
@@ -53,93 +48,73 @@ in the header file ``sanitizer/dfsan_interface.h``.
   /// value.
   dfsan_label dfsan_get_label(long data);
 
-  /// Retrieves a pointer to the dfsan_label_info struct for the given label.
-  const struct dfsan_label_info *dfsan_get_label_info(dfsan_label label);
-
   /// Returns whether the given label label contains the label elem.
   int dfsan_has_label(dfsan_label label, dfsan_label elem);
 
-  /// If the given label label contains a label with the description desc, returns
-  /// that label, else returns 0.
-  dfsan_label dfsan_has_label_with_desc(dfsan_label label, const char *desc);
+  /// Computes the union of \c l1 and \c l2, resulting in a union label.
+  dfsan_label dfsan_union(dfsan_label l1, dfsan_label l2);
 
 Taint label representation
 --------------------------
 
-As stated above, the tool must track a large number of taint
-labels. This poses an implementation challenge, as most multiple-label
-tainting systems assign one label per bit to shadow storage, and
-union taint labels using a bitwise or operation. This will not scale
-to clients which use hundreds or thousands of taint labels, as the
-label union operation becomes O(n) in the number of supported labels,
-and data associated with it will quickly dominate the live variable
-set, causing register spills and hampering performance.
+We use an 8-bit unsigned integer for the representation of a
+label. The label identifier 0 is special, and means that the data item
+is unlabelled. This is optimizing for low CPU and code size overhead
+of the instrumentation. When a label union operation is requested at a
+join point (any arithmetic or logical operation with two or more
+operands, such as addition), we can simply OR the two labels in O(1).
 
-Instead, a low overhead approach is proposed which is best-case O(log\
-:sub:`2` n) during execution. The underlying assumption is that
-the required space of label unions is sparse, which is a reasonable
-assumption to make given that we are optimizing for the case where
-applications mostly copy data from one place to another, without often
-invoking the need for an actual union operation. The representation
-of a taint label is a 16-bit integer, and new labels are allocated
-sequentially from a pool. The label identifier 0 is special, and means
-that the data item is unlabelled.
-
-When a label union operation is requested at a join point (any
-arithmetic or logical operation with two or more operands, such as
-addition), the code checks whether a union is required, whether the
-same union has been requested before, and whether one union label
-subsumes the other. If so, it returns the previously allocated union
-label. If not, it allocates a new union label from the same pool used
-for new labels.
-
-Specifically, the instrumentation pass will insert code like this
-to decide the union label ``lu`` for a pair of labels ``l1``
-and ``l2``:
-
-.. code-block:: c
-
-  if (l1 == l2)
-    lu = l1;
-  else
-    lu = __dfsan_union(l1, l2);
-
-The equality comparison is outlined, to provide an early exit in
-the common cases where the program is processing unlabelled data, or
-where the two data items have the same label.  ``__dfsan_union`` is
-a runtime library function which performs all other union computation.
-
-Further optimizations are possible, for example if ``l1`` is known
-at compile time to be zero (e.g. it is derived from a constant),
-``l2`` can be used for ``lu``, and vice versa.
+Users are responsible for managing the 8 integer labels (i.e., keeping
+track of what labels they have used so far, picking one that is yet
+unused, etc).
 
 Memory layout and label management
 ----------------------------------
 
-The following is the current memory layout for Linux/x86\_64:
+The following is the memory layout for Linux/x86\_64:
 
 +---------------+---------------+--------------------+
 |    Start      |    End        |        Use         |
 +===============+===============+====================+
-| 0x700000008000|0x800000000000 | application memory |
+| 0x700000000000|0x800000000000 |    application 3   |
 +---------------+---------------+--------------------+
-| 0x200200000000|0x700000008000 |       unused       |
+| 0x610000000000|0x700000000000 |       unused       |
 +---------------+---------------+--------------------+
-| 0x200000000000|0x200200000000 |    union table     |
+| 0x600000000000|0x610000000000 |      origin 1      |
 +---------------+---------------+--------------------+
-| 0x000000010000|0x200000000000 |   shadow memory    |
+| 0x510000000000|0x600000000000 |    application 2   |
 +---------------+---------------+--------------------+
-| 0x000000000000|0x000000010000 | reserved by kernel |
+| 0x500000000000|0x510000000000 |      shadow 1      |
++---------------+---------------+--------------------+
+| 0x400000000000|0x500000000000 |       unused       |
++---------------+---------------+--------------------+
+| 0x300000000000|0x400000000000 |      origin 3      |
++---------------+---------------+--------------------+
+| 0x200000000000|0x300000000000 |      shadow 3      |
++---------------+---------------+--------------------+
+| 0x110000000000|0x200000000000 |      origin 2      |
++---------------+---------------+--------------------+
+| 0x100000000000|0x110000000000 |       unused       |
++---------------+---------------+--------------------+
+| 0x010000000000|0x100000000000 |      shadow 2      |
++---------------+---------------+--------------------+
+| 0x000000000000|0x010000000000 |    application 1   |
 +---------------+---------------+--------------------+
 
-Each byte of application memory corresponds to two bytes of shadow
-memory, which are used to store its taint label. As for LLVM SSA
-registers, we have not found it necessary to associate a label with
-each byte or bit of data, as some other tools do. Instead, labels are
+Each byte of application memory corresponds to a single byte of shadow
+memory, which is used to store its taint label. We map memory, shadow, and
+origin regions to each other with these masks and offsets:
+
+* shadow_addr = memory_addr ^ 0x500000000000
+
+* origin_addr = shadow_addr + 0x100000000000
+
+As for LLVM SSA registers, we have not found it necessary to associate a label
+with each byte or bit of data, as some other tools do. Instead, labels are
 associated directly with registers.  Loads will result in a union of
-all shadow labels corresponding to bytes loaded (which most of the
-time will be short circuited by the initial comparison) and stores will
-result in a copy of the label to the shadow of all bytes stored to.
+all shadow labels corresponding to bytes loaded, and stores will
+result in a copy of the label of the stored value to the shadow of all
+bytes stored to.
 
 Propagating labels through arguments
 ------------------------------------
@@ -212,8 +187,8 @@ Checking ABI Consistency
 DFSan changes the ABI of each function in the module.  This makes it possible
 for a function with the native ABI to be called with the instrumented ABI,
 or vice versa, thus possibly invoking undefined behavior.  A simple way
-of statically detecting instances of this problem is to prepend the prefix
-"dfs$" to the name of each instrumented-ABI function.
+of statically detecting instances of this problem is to append the suffix
+".dfsan" to the name of each instrumented-ABI function.
 
 This will not catch every such problem; in particular function pointers passed
 across the instrumented-native barrier cannot be used on the other side.

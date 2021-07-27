@@ -164,11 +164,10 @@ TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
   }
   sycl::detail::AllowListParsedT ActualValue =
       sycl::detail::parseAllowList(AllowList);
-  sycl::detail::AllowListParsedT ExpectedValue{{{"BackendName", "host"}},
-                                               {{"BackendName", "opencl"}},
-                                               {{"BackendName", "level_zero"}},
-                                               {{"BackendName", "cuda"}},
-                                               {{"BackendName", "*"}}};
+  sycl::detail::AllowListParsedT ExpectedValue{
+      {{"BackendName", "host"}},       {{"BackendName", "opencl"}},
+      {{"BackendName", "level_zero"}}, {{"BackendName", "cuda"}},
+      {{"BackendName", "rocm"}},       {{"BackendName", "*"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
 
@@ -251,4 +250,20 @@ TEST(ParseAllowListTests, CheckMultipleColonsBetweenKeyAndValue) {
       sycl::detail::parseAllowList("DeviceVendorId:::::0x1234");
   sycl::detail::AllowListParsedT ExpectedValue{{{"DeviceVendorId", "0x1234"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
+}
+
+TEST(ParseAllowListTests, CheckExceptionIsThrownForValueWOColonDelim) {
+  try {
+    sycl::detail::AllowListParsedT ActualValue =
+        sycl::detail::parseAllowList("SomeValueWOColonDelimiter");
+    throw std::logic_error("sycl::runtime_error didn't throw");
+  } catch (sycl::runtime_error const &e) {
+    EXPECT_EQ(std::string("SYCL_DEVICE_ALLOWLIST has incorrect format. For "
+                          "details, please refer to "
+                          "https://github.com/intel/llvm/blob/sycl/sycl/"
+                          "doc/EnvironmentVariables.md -30 (CL_INVALID_VALUE)"),
+              e.what());
+  } catch (...) {
+    FAIL() << "Expected sycl::runtime_error";
+  }
 }

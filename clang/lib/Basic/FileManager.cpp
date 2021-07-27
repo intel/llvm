@@ -128,7 +128,7 @@ FileManager::getDirectoryRef(StringRef DirName, bool CacheFailure) {
   // Stat("C:") does not recognize "C:" as a valid directory
   std::string DirNameStr;
   if (DirName.size() > 1 && DirName.back() == ':' &&
-      DirName.equals_lower(llvm::sys::path::root_name(DirName))) {
+      DirName.equals_insensitive(llvm::sys::path::root_name(DirName))) {
     DirNameStr = DirName.str() + '.';
     DirName = DirNameStr;
   }
@@ -611,7 +611,7 @@ StringRef FileManager::getCanonicalName(const DirectoryEntry *Dir) {
 
   SmallString<4096> CanonicalNameBuf;
   if (!FS->getRealPath(Dir->getName(), CanonicalNameBuf))
-    CanonicalName = StringRef(CanonicalNameBuf).copy(CanonicalNameStorage);
+    CanonicalName = CanonicalNameBuf.str().copy(CanonicalNameStorage);
 
   CanonicalNames.insert({Dir, CanonicalName});
   return CanonicalName;
@@ -627,7 +627,7 @@ StringRef FileManager::getCanonicalName(const FileEntry *File) {
 
   SmallString<4096> CanonicalNameBuf;
   if (!FS->getRealPath(File->getName(), CanonicalNameBuf))
-    CanonicalName = StringRef(CanonicalNameBuf).copy(CanonicalNameStorage);
+    CanonicalName = CanonicalNameBuf.str().copy(CanonicalNameStorage);
 
   CanonicalNames.insert({File, CanonicalName});
   return CanonicalName;

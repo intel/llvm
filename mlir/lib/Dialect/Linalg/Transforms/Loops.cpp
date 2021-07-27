@@ -126,8 +126,12 @@ static void emitScalarImplementation(OpBuilder &b, Location loc,
 
   // TODO: Avoid the loads if the corresponding argument of the
   // region has no uses.
-  // 1.a. Emit load from input views.
+  // 1.a. Emit load from input operand or for scalars access the operand itself.
   for (OpOperand *inputOperand : linalgOp.getInputOperands()) {
+    if (linalgOp.isScalar(inputOperand)) {
+      indexedValues.push_back(inputOperand->get());
+      continue;
+    }
     auto indexing = makeCanonicalAffineApplies(
         b, loc, linalgOp.getTiedIndexingMap(inputOperand), allIvsPlusDims);
     indexedValues.push_back(
@@ -178,7 +182,7 @@ Value getPaddedInput(OpBuilder &b, Location loc, Value input,
       conds.push_back(leftOutOfBound);
     else
       conds.push_back(b.create<OrOp>(loc, conds.back(), leftOutOfBound));
-    Value rightBound = b.create<memref::DimOp>(loc, input, idx);
+    Value rightBound = createOrFoldDimOp(b, loc, input, idx);
     Value rightOutOfBound =
         b.create<CmpIOp>(loc, CmpIPredicate::sge, dim, rightBound);
     conds.push_back(b.create<OrOp>(loc, conds.back(), rightOutOfBound));
@@ -414,10 +418,6 @@ static Optional<LinalgLoops> linalgOpToLoopsImpl(PatternRewriter &rewriter,
       typename std::conditional<std::is_same<LoopTy, AffineForOp>::value,
                                 AffineStoreOp, memref::StoreOp>::type;
 
-  // Canonicalize indexed_generic operations before lowering them to loops.
-  if (isa<IndexedGenericOp>(linalgOp))
-    return llvm::None;
-
   // The flattened loopToOperandRangesMaps is expected to be an invertible
   // permutation map (which is asserted in the inverse calculation).
   assert(linalgOp.hasBufferSemantics() &&
@@ -558,6 +558,7 @@ static void lowerLinalgToLoopsImpl(FuncOp funcOp) {
   RewritePatternSet patterns(context);
   patterns.add<LinalgRewritePattern<LoopType>>(context);
   memref::DimOp::getCanonicalizationPatterns(patterns, context);
+  tensor::DimOp::getCanonicalizationPatterns(patterns, context);
   AffineApplyOp::getCanonicalizationPatterns(patterns, context);
   patterns.add<FoldAffineOp>(context);
   // Just apply the patterns greedily.

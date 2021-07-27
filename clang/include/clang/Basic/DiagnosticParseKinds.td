@@ -580,6 +580,12 @@ def warn_cxx98_compat_noexcept_decl : Warning<
 def err_expected_catch : Error<"expected catch">;
 def err_using_namespace_in_class : Error<
   "'using namespace' is not allowed in classes">;
+def warn_cxx17_compat_using_enum_declaration : Warning<
+  "using enum declaration is incompatible with C++ standards before C++20">,
+  InGroup<CXXPre20Compat>, DefaultIgnore;
+def ext_using_enum_declaration : ExtWarn<
+  "using enum declaration is a C++20 extension">,
+  InGroup<CXX20>;
 def err_constructor_bad_name : Error<
   "missing return type for function %0; did you mean the constructor name %1?">;
 def err_destructor_tilde_identifier : Error<
@@ -1421,6 +1427,15 @@ def err_omp_expected_interop_type : Error<
 def warn_omp_more_one_interop_type
   : Warning<"interop type '%0' cannot be specified more than once">,
     InGroup<OpenMPClauses>;
+def err_expected_sequence_or_directive : Error<
+  "expected an OpenMP 'directive' or 'sequence' attribute argument">;
+def ext_omp_attributes : ExtWarn<
+  "specifying OpenMP directives with [[]] is an OpenMP 5.1 extension">,
+  InGroup<OpenMP51Ext>;
+def warn_omp51_compat_attributes : Warning<
+  "specifying OpenMP directives with [[]] is incompatible with OpenMP "
+  "standards before OpenMP 5.1">,
+  InGroup<OpenMPPre51Compat>, DefaultIgnore;
 
 // Pragma loop support.
 def err_pragma_loop_missing_argument : Error<

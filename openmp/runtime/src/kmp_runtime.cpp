@@ -31,6 +31,9 @@
 #if OMPT_SUPPORT
 #include "ompt-specific.h"
 #endif
+#if OMPD_SUPPORT
+#include "ompd-specific.h"
+#endif
 
 #if OMP_PROFILING_SUPPORT
 #include "llvm/Support/TimeProfiler.h"
@@ -43,8 +46,6 @@ static char *ProfileTraceFile = nullptr;
 #if KMP_OS_WINDOWS
 #include <process.h>
 #endif
-
-#include "tsan_annotations.h"
 
 #if KMP_OS_WINDOWS
 // windows does not need include files as it doesn't use shared memory
@@ -1130,7 +1131,6 @@ void __kmp_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
 
 #if OMPT_SUPPORT
   ompt_data_t ompt_parallel_data = ompt_data_none;
-  ompt_data_t *implicit_task_data;
   void *codeptr = OMPT_LOAD_RETURN_ADDRESS(global_tid);
   if (ompt_enabled.enabled &&
       this_thr->th.ompt_thread_info.state != ompt_state_overhead) {
@@ -1323,7 +1323,6 @@ void __kmp_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
     // don't use lw_taskteam after linking. content was swaped
 
     /* OMPT implicit task begin */
-    implicit_task_data = OMPT_CUR_TASK_DATA(this_thr);
     if (ompt_enabled.ompt_callback_implicit_task) {
       ompt_callbacks.ompt_callback(ompt_callback_implicit_task)(
           ompt_scope_begin, OMPT_CUR_TEAM_DATA(this_thr),
@@ -1409,6 +1408,9 @@ int __kmp_fork_call(ident_t *loc, int gtid,
     }
 #endif
 
+    // Assign affinity to root thread if it hasn't happened yet
+    __kmp_assign_root_init_mask();
+
     // Nested level will be an index in the nested nthreads array
     level = parent_team->t.t_level;
     // used to launch non-serial teams even if nested is not allowed
@@ -1469,6 +1471,10 @@ int __kmp_fork_call(ident_t *loc, int gtid,
           parent_team->t.t_serialized--;
           return TRUE;
         }
+
+#if OMPD_SUPPORT
+        parent_team->t.t_pkfn = microtask;
+#endif
 
 #if OMPT_SUPPORT
         void *dummy;
@@ -1693,6 +1699,10 @@ int __kmp_fork_call(ident_t *loc, int gtid,
                ("__kmp_fork_call: T#%d serializing parallel region\n", gtid));
 
       __kmpc_serialized_parallel(loc, gtid);
+
+#if OMPD_SUPPORT
+      master_th->th.th_serial_team->t.t_pkfn = microtask;
+#endif
 
       if (call_context == fork_context_intel) {
         /* TODO this sucks, use the compiler itself to pass args! :) */
@@ -2020,6 +2030,10 @@ int __kmp_fork_call(ident_t *loc, int gtid,
 
     // Update the floating point rounding in the team if required.
     propagateFPControl(team);
+#if OMPD_SUPPORT
+    if (ompd_state & OMPD_ENABLE_BP)
+      ompd_bp_parallel_begin();
+#endif
 
     if (__kmp_tasking_mode != tskm_immediate_exec) {
       // Set primary thread's task team to team's task team. Unless this is hot
@@ -2212,7 +2226,6 @@ int __kmp_fork_call(ident_t *loc, int gtid,
   KMP_MB(); /* Flush all pending memory write invalidates.  */
 
   KA_TRACE(20, ("__kmp_fork_call: parallel exit T#%d\n", gtid));
-
 #if OMPT_SUPPORT
   if (ompt_enabled.enabled) {
     master_th->th.ompt_thread_info.state = ompt_state_overhead;
@@ -2488,6 +2501,10 @@ void __kmp_join_call(ident_t *loc, int gtid
 #endif // KMP_AFFINITY_SUPPORTED
   master_th->th.th_def_allocator = team->t.t_def_allocator;
 
+#if OMPD_SUPPORT
+  if (ompd_state & OMPD_ENABLE_BP)
+    ompd_bp_parallel_end();
+#endif
   updateHWFPControl(team);
 
   if (root->r.r_active != master_active)
@@ -3153,6 +3170,9 @@ static void __kmp_initialize_root(kmp_root_t *root) {
   root->r.r_active = FALSE;
   root->r.r_in_parallel = 0;
   root->r.r_blocktime = __kmp_dflt_blocktime;
+#if KMP_AFFINITY_SUPPORTED
+  root->r.r_affinity_assigned = FALSE;
+#endif
 
   /* setup the root team for this task */
   /* allocate the root team structure */
@@ -3798,9 +3818,6 @@ int __kmp_register_root(int initial_thread) {
   root_thread->th.th_new_place = KMP_PLACE_UNDEFINED;
   root_thread->th.th_first_place = KMP_PLACE_UNDEFINED;
   root_thread->th.th_last_place = KMP_PLACE_UNDEFINED;
-  if (TCR_4(__kmp_init_middle)) {
-    __kmp_affinity_set_init_mask(gtid, TRUE);
-  }
 #endif /* KMP_AFFINITY_SUPPORTED */
   root_thread->th.th_def_allocator = __kmp_def_allocator;
   root_thread->th.th_prev_level = 0;
@@ -3840,6 +3857,10 @@ int __kmp_register_root(int initial_thread) {
 
     ompt_set_thread_state(root_thread, ompt_state_work_serial);
   }
+#endif
+#if OMPD_SUPPORT
+  if (ompd_state & OMPD_ENABLE_BP)
+    ompd_bp_thread_begin();
 #endif
 
   KMP_MB();
@@ -3923,6 +3944,11 @@ static int __kmp_reset_root(int gtid, kmp_root_t *root) {
            root->r.r_uber_thread->th.th_info.ds.ds_thread));
   __kmp_free_handle(root->r.r_uber_thread->th.th_info.ds.ds_thread);
 #endif /* KMP_OS_WINDOWS */
+
+#if OMPD_SUPPORT
+  if (ompd_state & OMPD_ENABLE_BP)
+    ompd_bp_thread_end();
+#endif
 
 #if OMPT_SUPPORT
   ompt_data_t *task_data;
@@ -5753,6 +5779,11 @@ void *__kmp_launch_thread(kmp_info_t *this_thr) {
     this_thr->th.th_cons = __kmp_allocate_cons_stack(gtid); // ATT: Memory leak?
   }
 
+#if OMPD_SUPPORT
+  if (ompd_state & OMPD_ENABLE_BP)
+    ompd_bp_thread_begin();
+#endif
+
 #if OMPT_SUPPORT
   ompt_data_t *thread_data = nullptr;
   if (ompt_enabled.enabled) {
@@ -5829,6 +5860,11 @@ void *__kmp_launch_thread(kmp_info_t *this_thr) {
     }
   }
   TCR_SYNC_PTR((intptr_t)__kmp_global.g.g_done);
+
+#if OMPD_SUPPORT
+  if (ompd_state & OMPD_ENABLE_BP)
+    ompd_bp_thread_end();
+#endif
 
 #if OMPT_SUPPORT
   if (ompt_enabled.ompt_callback_thread_end) {
@@ -5921,7 +5957,6 @@ static void __kmp_reap_thread(kmp_info_t *thread, int is_root) {
                gtid));
       /* Need release fence here to prevent seg faults for tree forkjoin barrier
        * (GEH) */
-      ANNOTATE_HAPPENS_BEFORE(thread);
       kmp_flag_64<> flag(&thread->th.th_bar[bs_forkjoin_barrier].bb.b_go,
                          thread);
       __kmp_release_64(&flag);
@@ -6166,6 +6201,16 @@ void __kmp_internal_end_library(int gtid_req) {
     return;
   }
 
+  // If hidden helper team has been initialized, we need to deinit it
+  if (TCR_4(__kmp_init_hidden_helper) &&
+      !TCR_4(__kmp_hidden_helper_team_done)) {
+    TCW_SYNC_4(__kmp_hidden_helper_team_done, TRUE);
+    // First release the main thread to let it continue its work
+    __kmp_hidden_helper_main_thread_release();
+    // Wait until the hidden helper team has been destroyed
+    __kmp_hidden_helper_threads_deinitz_wait();
+  }
+
   KMP_MB(); /* Flush all pending memory write invalidates.  */
   /* find out who we are and what we should do */
   {
@@ -6279,7 +6324,8 @@ void __kmp_internal_end_thread(int gtid_req) {
   }
 
   // If hidden helper team has been initialized, we need to deinit it
-  if (TCR_4(__kmp_init_hidden_helper)) {
+  if (TCR_4(__kmp_init_hidden_helper) &&
+      !TCR_4(__kmp_hidden_helper_team_done)) {
     TCW_SYNC_4(__kmp_hidden_helper_team_done, TRUE);
     // First release the main thread to let it continue its work
     __kmp_hidden_helper_main_thread_release();
@@ -6506,7 +6552,7 @@ void __kmp_register_library_startup(void) {
       __kmp_str_split(tail, '-', &flag_val_str, &tail);
       file_name = tail;
       if (tail != NULL) {
-        long *flag_addr = 0;
+        unsigned long *flag_addr = 0;
         unsigned long flag_val = 0;
         KMP_SSCANF(flag_addr_str, "%p", RCAST(void **, &flag_addr));
         KMP_SSCANF(flag_val_str, "%lx", &flag_val);
@@ -6690,6 +6736,10 @@ static void __kmp_do_serial_initialize(void) {
 
 #if OMPT_SUPPORT
   ompt_pre_init();
+#endif
+#if OMPD_SUPPORT
+  __kmp_env_dump();
+  ompd_init();
 #endif
 
   __kmp_validate_locks();
@@ -6996,13 +7046,6 @@ static void __kmp_do_middle_initialize(void) {
   // number of cores on the machine.
   __kmp_affinity_initialize();
 
-  // Run through the __kmp_threads array and set the affinity mask
-  // for each root thread that is currently registered with the RTL.
-  for (i = 0; i < __kmp_threads_capacity; i++) {
-    if (TCR_PTR(__kmp_threads[i]) != NULL) {
-      __kmp_affinity_set_init_mask(i, TRUE);
-    }
-  }
 #endif /* KMP_AFFINITY_SUPPORTED */
 
   KMP_ASSERT(__kmp_xproc > 0);
@@ -7124,6 +7167,7 @@ void __kmp_parallel_initialize(void) {
   if (!__kmp_init_middle) {
     __kmp_do_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   __kmp_resume_if_hard_paused();
 
   /* begin initialization */
@@ -7430,6 +7474,7 @@ static void __kmp_push_thread_limit(kmp_info_t *thr, int num_teams,
   // Remember the number of threads for inner parallel regions
   if (!TCR_4(__kmp_init_middle))
     __kmp_middle_initialize(); // get internal globals calculated
+  __kmp_assign_root_init_mask();
   KMP_DEBUG_ASSERT(__kmp_avail_proc);
   KMP_DEBUG_ASSERT(__kmp_dflt_team_nth);
 
@@ -7838,6 +7883,13 @@ void __kmp_cleanup(void) {
   __kmp_cleanup_indirect_user_locks();
 #else
   __kmp_cleanup_user_locks();
+#endif
+#if OMPD_SUPPORT
+  if (ompd_state) {
+    __kmp_free(ompd_env_block);
+    ompd_env_block = NULL;
+    ompd_env_block_size = 0;
+  }
 #endif
 
 #if KMP_AFFINITY_SUPPORTED
@@ -8653,11 +8705,12 @@ void __kmp_omp_display_env(int verbose) {
 // Globals and functions for hidden helper task
 kmp_info_t **__kmp_hidden_helper_threads;
 kmp_info_t *__kmp_hidden_helper_main_thread;
-kmp_int32 __kmp_hidden_helper_threads_num = 8;
 std::atomic<kmp_int32> __kmp_unexecuted_hidden_helper_tasks;
 #if KMP_OS_LINUX
+kmp_int32 __kmp_hidden_helper_threads_num = 8;
 kmp_int32 __kmp_enable_hidden_helper = TRUE;
 #else
+kmp_int32 __kmp_hidden_helper_threads_num = 0;
 kmp_int32 __kmp_enable_hidden_helper = FALSE;
 #endif
 

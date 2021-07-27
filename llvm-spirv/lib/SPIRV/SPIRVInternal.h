@@ -803,7 +803,7 @@ std::vector<Value *> getInt32(Module *M, const std::vector<int> &Value);
 ConstantInt *getSizet(Module *M, uint64_t Value);
 
 /// Get metadata operand as int.
-int getMDOperandAsInt(MDNode *N, unsigned I);
+int64_t getMDOperandAsInt(MDNode *N, unsigned I);
 
 /// Get metadata operand as string.
 std::string getMDOperandAsString(MDNode *N, unsigned I);

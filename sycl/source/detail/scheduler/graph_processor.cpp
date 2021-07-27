@@ -36,7 +36,9 @@ Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
   return Result;
 }
 
-void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event) {
+void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
+                                             ReadLockT &GraphReadLock,
+                                             bool LockTheLock) {
   Command *Cmd = getCommand(Event);
   // Command can be nullptr if user creates cl::sycl::event explicitly or the
   // event has been waited on by another thread
@@ -49,7 +51,13 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event) {
     // TODO: Reschedule commands.
     throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
 
-  Cmd->getEvent()->waitInternal();
+  assert(Cmd->getEvent() == Event);
+
+  GraphReadLock.unlock();
+  Event->waitInternal();
+
+  if (LockTheLock)
+    GraphReadLock.lock();
 }
 
 bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
@@ -87,6 +95,19 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
         return false;
   }
 
+  // Only graph read lock is to be held here.
+  // Enqueue process of a command may last quite a time. Having graph locked can
+  // introduce some thread starving (i.e. when the other thread attempts to
+  // acquire write lock and add a command to graph). Releasing read lock without
+  // other safety measures isn't an option here as the other thread could go
+  // into graph cleanup process (due to some event complete) and remove some
+  // dependencies from dependencies of the user of this command.
+  // An example: command A depends on commands B and C. This thread wants to
+  // enqueue A. Hence, it needs to enqueue B and C. So this thread gets into
+  // dependency list and starts enqueueing B right away. The other thread waits
+  // on completion of C and starts cleanup process. This thread is still in the
+  // middle of enqueue of B. The other thread modifies dependency list of A by
+  // removing C out of it. Iterators become invalid.
   return Cmd->enqueue(EnqueueResult, Blocking);
 }
 

@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/INTEL/online_compiler.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <sycl/ext/intel/online_compiler.hpp>
 
 #include <cstring>
 
@@ -16,7 +16,8 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace INTEL {
+namespace ext {
+namespace intel {
 namespace detail {
 
 static std::vector<const char *>
@@ -229,6 +230,26 @@ __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
                                 FreeSPIRVOutputsHandle, CMUserArgs);
 }
 
+} // namespace intel
+} // namespace ext
+
+namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
+  using namespace ext::intel;
+
+  template <>
+  template <>
+  __SYCL_EXPORT std::vector<byte>
+  online_compiler<source_language::opencl_c>::compile(
+      const std::string &Source, const std::vector<std::string> &UserArgs) {
+    return MOnlineCompiler.compile(Source, UserArgs);
+  }
+
+  template <>
+  template <>
+  __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
+      const std::string &Source, const std::vector<std::string> &UserArgs) {
+    return MOnlineCompiler.compile(Source, UserArgs);
+  }
 } // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

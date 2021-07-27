@@ -101,10 +101,6 @@ static bool shouldInspect(MachineInstr &MI) {
   return isDomainMVE(&MI) || isVectorPredicate(&MI) || hasVPRUse(MI);
 }
 
-static bool isDo(MachineInstr *MI) {
-  return MI->getOpcode() != ARM::t2WhileLoopStartLR;
-}
-
 namespace {
 
   using InstSet = SmallPtrSetImpl<MachineInstr *>;
@@ -446,7 +442,7 @@ namespace {
     }
 
     unsigned getStartOpcode() const {
-      bool IsDo = isDo(Start);
+      bool IsDo = isDoLoopStart(*Start);
       if (!IsTailPredicationLegal())
         return IsDo ? ARM::t2DLS : ARM::t2WLS;
 
@@ -635,7 +631,8 @@ bool LowOverheadLoop::ValidateTailPredicate() {
   // elements is provided to the vctp instruction, so we need to check that
   // we can use this register at InsertPt.
   MachineInstr *VCTP = VCTPs.back();
-  if (Start->getOpcode() == ARM::t2DoLoopStartTP) {
+  if (Start->getOpcode() == ARM::t2DoLoopStartTP ||
+      Start->getOpcode() == ARM::t2WhileLoopStartTP) {
     TPNumElements = Start->getOperand(2);
     StartInsertPt = Start;
     StartInsertBB = Start->getParent();
@@ -778,10 +775,12 @@ bool LowOverheadLoop::ValidateTailPredicate() {
     }
   }
 
-  // If we converted the LoopStart to a t2DoLoopStartTP, we can also remove any
-  // extra instructions in the preheader, which often includes a now unused MOV.
-  if (Start->getOpcode() == ARM::t2DoLoopStartTP && Preheader &&
-      !Preheader->empty() &&
+  // If we converted the LoopStart to a t2DoLoopStartTP/t2WhileLoopStartTP, we
+  // can also remove any extra instructions in the preheader, which often
+  // includes a now unused MOV.
+  if ((Start->getOpcode() == ARM::t2DoLoopStartTP ||
+       Start->getOpcode() == ARM::t2WhileLoopStartTP) &&
+      Preheader && !Preheader->empty() &&
       !RDA.hasLocalDefBefore(VCTP, VCTP->getOperand(1).getReg())) {
     if (auto *Def = RDA.getUniqueReachingMIDef(
             &Preheader->back(), VCTP->getOperand(1).getReg().asMCReg())) {
@@ -1045,12 +1044,13 @@ void LowOverheadLoop::Validate(ARMBasicBlockUtils *BBUtils) {
       return false;
     }
 
-    if (Start->getOpcode() == ARM::t2WhileLoopStartLR &&
-        (BBUtils->getOffsetOf(Start) >
-             BBUtils->getOffsetOf(Start->getOperand(2).getMBB()) ||
-         !BBUtils->isBBInRange(Start, Start->getOperand(2).getMBB(), 4094))) {
-      LLVM_DEBUG(dbgs() << "ARM Loops: WLS offset is out-of-range!\n");
-      return false;
+    if (isWhileLoopStart(*Start)) {
+      MachineBasicBlock *TargetBB = getWhileLoopStartTargetBB(*Start);
+      if (BBUtils->getOffsetOf(Start) > BBUtils->getOffsetOf(TargetBB) ||
+          !BBUtils->isBBInRange(Start, TargetBB, 4094)) {
+        LLVM_DEBUG(dbgs() << "ARM Loops: WLS offset is out-of-range!\n");
+        return false;
+      }
     }
     return true;
   };
@@ -1084,7 +1084,85 @@ bool LowOverheadLoop::AddVCTP(MachineInstr *MI) {
   return true;
 }
 
-bool LowOverheadLoop::ValidateMVEInst(MachineInstr* MI) {
+static bool ValidateMVEStore(MachineInstr *MI, MachineLoop *ML) {
+
+  auto GetFrameIndex = [](MachineMemOperand *Operand) {
+    const PseudoSourceValue *PseudoValue = Operand->getPseudoValue();
+    if (PseudoValue && PseudoValue->kind() == PseudoSourceValue::FixedStack) {
+      if (const auto *FS = dyn_cast<FixedStackPseudoSourceValue>(PseudoValue)) {
+        return FS->getFrameIndex();
+      }
+    }
+    return -1;
+  };
+
+  auto IsStackOp = [GetFrameIndex](MachineInstr *I) {
+    switch (I->getOpcode()) {
+    case ARM::MVE_VSTRWU32:
+    case ARM::MVE_VLDRWU32: {
+      return I->getOperand(1).getReg() == ARM::SP &&
+             I->memoperands().size() == 1 &&
+             GetFrameIndex(I->memoperands().front()) >= 0;
+    }
+    default:
+      return false;
+    }
+  };
+
+  // An unpredicated vector register spill is allowed if all of the uses of the
+  // stack slot are within the loop
+  if (MI->getOpcode() != ARM::MVE_VSTRWU32 || !IsStackOp(MI))
+    return false;
+
+  // Search all blocks after the loop for accesses to the same stack slot.
+  // ReachingDefAnalysis doesn't work for sp as it relies on registers being
+  // live-out (which sp never is) to know what blocks to look in
+  if (MI->memoperands().size() == 0)
+    return false;
+  int FI = GetFrameIndex(MI->memoperands().front());
+
+  MachineFrameInfo FrameInfo = MI->getParent()->getParent()->getFrameInfo();
+  if (FI == -1 || !FrameInfo.isSpillSlotObjectIndex(FI))
+    return false;
+
+  SmallVector<MachineBasicBlock *> Frontier;
+  ML->getExitBlocks(Frontier);
+  SmallPtrSet<MachineBasicBlock *, 4> Visited{MI->getParent()};
+  unsigned Idx = 0;
+  while (Idx < Frontier.size()) {
+    MachineBasicBlock *BB = Frontier[Idx];
+    bool LookAtSuccessors = true;
+    for (auto &I : *BB) {
+      if (!IsStackOp(&I) || I.memoperands().size() == 0)
+        continue;
+      if (GetFrameIndex(I.memoperands().front()) != FI)
+        continue;
+      // If this block has a store to the stack slot before any loads then we
+      // can ignore the block
+      if (I.getOpcode() == ARM::MVE_VSTRWU32) {
+        LookAtSuccessors = false;
+        break;
+      }
+      // If the store and the load are using the same stack slot then the
+      // store isn't valid for tail predication
+      if (I.getOpcode() == ARM::MVE_VLDRWU32)
+        return false;
+    }
+
+    if (LookAtSuccessors) {
+      for (auto Succ : BB->successors()) {
+        if (!Visited.contains(Succ) && !is_contained(Frontier, Succ))
+          Frontier.push_back(Succ);
+      }
+    }
+    Visited.insert(BB);
+    Idx++;
+  }
+
+  return true;
+}
+
+bool LowOverheadLoop::ValidateMVEInst(MachineInstr *MI) {
   if (CannotTailPredicate)
     return false;
 
@@ -1140,7 +1218,7 @@ bool LowOverheadLoop::ValidateMVEInst(MachineInstr* MI) {
 
   // If the instruction is already explicitly predicated, then the conversion
   // will be fine, but ensure that all store operations are predicated.
-  if (MI->mayStore())
+  if (MI->mayStore() && !ValidateMVEStore(MI, &ML))
     return IsUse;
 
   // If this instruction defines the VPR, update the predicate for the
@@ -1289,7 +1367,7 @@ bool ARMLowOverheadLoops::ProcessLoop(MachineLoop *ML) {
 // another low register.
 void ARMLowOverheadLoops::RevertWhile(MachineInstr *MI) const {
   LLVM_DEBUG(dbgs() << "ARM Loops: Reverting to cmp: " << *MI);
-  MachineBasicBlock *DestBB = MI->getOperand(2).getMBB();
+  MachineBasicBlock *DestBB = getWhileLoopStartTargetBB(*MI);
   unsigned BrOpc = BBUtils->isBBInRange(MI, DestBB, 254) ?
     ARM::tBcc : ARM::t2Bcc;
 
@@ -1426,8 +1504,8 @@ MachineInstr* ARMLowOverheadLoops::ExpandLoopStart(LowOverheadLoop &LoLoop) {
 
     MIB.addDef(ARM::LR);
     MIB.add(Count);
-    if (!isDo(Start))
-      MIB.add(Start->getOperand(2));
+    if (isWhileLoopStart(*Start))
+      MIB.addMBB(getWhileLoopStartTargetBB(*Start));
 
     LLVM_DEBUG(dbgs() << "ARM Loops: Inserted start: " << *MIB);
     NewStart = &*MIB;
@@ -1612,7 +1690,7 @@ void ARMLowOverheadLoops::Expand(LowOverheadLoop &LoLoop) {
   };
 
   if (LoLoop.Revert) {
-    if (LoLoop.Start->getOpcode() == ARM::t2WhileLoopStartLR)
+    if (isWhileLoopStart(*LoLoop.Start))
       RevertWhile(LoLoop.Start);
     else
       RevertDo(LoLoop.Start);
@@ -1683,7 +1761,7 @@ bool ARMLowOverheadLoops::RevertNonLoops() {
     Changed = true;
 
     for (auto *Start : Starts) {
-      if (Start->getOpcode() == ARM::t2WhileLoopStartLR)
+      if (isWhileLoopStart(*Start))
         RevertWhile(Start);
       else
         RevertDo(Start);

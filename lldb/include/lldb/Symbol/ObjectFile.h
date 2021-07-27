@@ -25,9 +25,9 @@ namespace lldb_private {
 
 class ObjectFileJITDelegate {
 public:
-  ObjectFileJITDelegate() {}
+  ObjectFileJITDelegate() = default;
 
-  virtual ~ObjectFileJITDelegate() {}
+  virtual ~ObjectFileJITDelegate() = default;
 
   virtual lldb::ByteOrder GetByteOrder() const = 0;
 
@@ -665,6 +665,22 @@ public:
 
   /// Creates a plugin-specific call frame info
   virtual std::unique_ptr<CallFrameInfo> CreateCallFrameInfo();
+
+  /// Load binaries listed in a corefile
+  ///
+  /// A corefile may have metadata listing binaries that can be loaded,
+  /// and the offsets at which they were loaded.  This method will try
+  /// to add them to the Target.  If any binaries were loaded,
+  ///
+  /// \param[in] process
+  ///     Process where to load binaries.
+  ///
+  /// \return
+  ///     Returns true if any binaries were loaded.
+
+  virtual bool LoadCoreFileImages(lldb_private::Process &process) {
+    return false;
+  }
 
 protected:
   // Member variables.

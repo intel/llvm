@@ -328,7 +328,7 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
   if (((match(Op0, m_ZExt(m_Value(X))) && match(Op1, m_ZExt(m_Value(Y)))) ||
        (match(Op0, m_SExt(m_Value(X))) && match(Op1, m_SExt(m_Value(Y))))) &&
       X->getType()->isIntOrIntVectorTy(1) && X->getType() == Y->getType() &&
-      (Op0->hasOneUse() || Op1->hasOneUse())) {
+      (Op0->hasOneUse() || Op1->hasOneUse() || X == Y)) {
     Value *And = Builder.CreateAnd(X, Y, "mulbool");
     return CastInst::Create(Instruction::ZExt, And, I.getType());
   }
@@ -555,22 +555,30 @@ Instruction *InstCombinerImpl::visitFMul(BinaryOperator &I) {
       }
     }
 
-    // exp(X) * exp(Y) -> exp(X + Y)
-    if (match(Op0, m_Intrinsic<Intrinsic::exp>(m_Value(X))) &&
-        match(Op1, m_Intrinsic<Intrinsic::exp>(m_Value(Y))) &&
-        I.isOnlyUserOfAnyOperand()) {
-      Value *XY = Builder.CreateFAddFMF(X, Y, &I);
-      Value *Exp = Builder.CreateUnaryIntrinsic(Intrinsic::exp, XY, &I);
-      return replaceInstUsesWith(I, Exp);
-    }
+    if (I.isOnlyUserOfAnyOperand()) {
+      // pow(x, y) * pow(x, z) -> pow(x, y + z)
+      if (match(Op0, m_Intrinsic<Intrinsic::pow>(m_Value(X), m_Value(Y))) &&
+          match(Op1, m_Intrinsic<Intrinsic::pow>(m_Specific(X), m_Value(Z)))) {
+        auto *YZ = Builder.CreateFAddFMF(Y, Z, &I);
+        auto *NewPow = Builder.CreateBinaryIntrinsic(Intrinsic::pow, X, YZ, &I);
+        return replaceInstUsesWith(I, NewPow);
+      }
 
-    // exp2(X) * exp2(Y) -> exp2(X + Y)
-    if (match(Op0, m_Intrinsic<Intrinsic::exp2>(m_Value(X))) &&
-        match(Op1, m_Intrinsic<Intrinsic::exp2>(m_Value(Y))) &&
-        I.isOnlyUserOfAnyOperand()) {
-      Value *XY = Builder.CreateFAddFMF(X, Y, &I);
-      Value *Exp2 = Builder.CreateUnaryIntrinsic(Intrinsic::exp2, XY, &I);
-      return replaceInstUsesWith(I, Exp2);
+      // exp(X) * exp(Y) -> exp(X + Y)
+      if (match(Op0, m_Intrinsic<Intrinsic::exp>(m_Value(X))) &&
+          match(Op1, m_Intrinsic<Intrinsic::exp>(m_Value(Y)))) {
+        Value *XY = Builder.CreateFAddFMF(X, Y, &I);
+        Value *Exp = Builder.CreateUnaryIntrinsic(Intrinsic::exp, XY, &I);
+        return replaceInstUsesWith(I, Exp);
+      }
+
+      // exp2(X) * exp2(Y) -> exp2(X + Y)
+      if (match(Op0, m_Intrinsic<Intrinsic::exp2>(m_Value(X))) &&
+          match(Op1, m_Intrinsic<Intrinsic::exp2>(m_Value(Y)))) {
+        Value *XY = Builder.CreateFAddFMF(X, Y, &I);
+        Value *Exp2 = Builder.CreateUnaryIntrinsic(Intrinsic::exp2, XY, &I);
+        return replaceInstUsesWith(I, Exp2);
+      }
     }
 
     // (X*Y) * X => (X*X) * Y where Y != X
@@ -1292,7 +1300,7 @@ static Instruction *foldFDivPowDivisor(BinaryOperator &I,
     Args.push_back(II->getArgOperand(0));
     Args.push_back(Builder.CreateFNegFMF(II->getArgOperand(1), &I));
     break;
-  case Intrinsic::powi:
+  case Intrinsic::powi: {
     // Require 'ninf' assuming that makes powi(X, -INT_MIN) acceptable.
     // That is, X ** (huge negative number) is 0.0, ~1.0, or INF and so
     // dividing by that is INF, ~1.0, or 0.0. Code that uses powi allows
@@ -1302,7 +1310,10 @@ static Instruction *foldFDivPowDivisor(BinaryOperator &I,
       return nullptr;
     Args.push_back(II->getArgOperand(0));
     Args.push_back(Builder.CreateNeg(II->getArgOperand(1)));
-    break;
+    Type *Tys[] = {I.getType(), II->getArgOperand(1)->getType()};
+    Value *Pow = Builder.CreateIntrinsic(IID, Tys, Args, &I);
+    return BinaryOperator::CreateFMulFMF(Op0, Pow, &I);
+  }
   case Intrinsic::exp:
   case Intrinsic::exp2:
     Args.push_back(Builder.CreateFNegFMF(II->getArgOperand(0), &I));

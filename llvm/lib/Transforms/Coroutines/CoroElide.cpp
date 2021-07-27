@@ -9,6 +9,7 @@
 #include "llvm/Transforms/Coroutines/CoroElide.h"
 #include "CoroInternal.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/IR/Dominators.h"
@@ -21,6 +22,8 @@ using namespace llvm;
 
 #define DEBUG_TYPE "coro-elide"
 
+STATISTIC(NumOfCoroElided, "The # of coroutine get elided.");
+
 namespace {
 // Created on demand if the coro-elide pass has work to do.
 struct Lowerer : coro::LowererBase {
@@ -29,7 +32,6 @@ struct Lowerer : coro::LowererBase {
   SmallVector<CoroAllocInst *, 1> CoroAllocs;
   SmallVector<CoroSubFnInst *, 4> ResumeAddr;
   DenseMap<CoroBeginInst *, SmallVector<CoroSubFnInst *, 4>> DestroyAddr;
-  SmallVector<CoroFreeInst *, 1> CoroFrees;
   SmallPtrSet<const SwitchInst *, 4> CoroSuspendSwitches;
 
   Lowerer(Module &M) : LowererBase(M) {}
@@ -287,7 +289,6 @@ bool Lowerer::processCoroId(CoroIdInst *CoroId, AAResults &AA,
                             DominatorTree &DT) {
   CoroBegins.clear();
   CoroAllocs.clear();
-  CoroFrees.clear();
   ResumeAddr.clear();
   DestroyAddr.clear();
 
@@ -297,8 +298,6 @@ bool Lowerer::processCoroId(CoroIdInst *CoroId, AAResults &AA,
       CoroBegins.push_back(CB);
     else if (auto *CA = dyn_cast<CoroAllocInst>(U))
       CoroAllocs.push_back(CA);
-    else if (auto *CF = dyn_cast<CoroFreeInst>(U))
-      CoroFrees.push_back(CF);
   }
 
   // Collect all coro.subfn.addrs associated with coro.begin.
@@ -344,6 +343,7 @@ bool Lowerer::processCoroId(CoroIdInst *CoroId, AAResults &AA,
     elideHeapAllocations(CoroId->getFunction(), FrameSizeAndAlign.first,
                          FrameSizeAndAlign.second, AA);
     coro::replaceCoroFree(CoroId, /*Elide=*/true);
+    NumOfCoroElided++;
   }
 
   return true;

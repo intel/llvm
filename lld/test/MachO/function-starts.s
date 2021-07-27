@@ -3,7 +3,7 @@
 # RUN: rm -rf %t; split-file %s %t
 
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/basic.s -o %t/basic.o
-# RUN: %lld %t/basic.o -o %t/basic
+# RUN: %lld -lSystem %t/basic.o -o %t/basic
 # RUN: llvm-objdump --syms %t/basic > %t/objdump
 # RUN: llvm-objdump --macho --function-starts %t/basic >> %t/objdump
 # RUN: FileCheck %s --check-prefix=BASIC < %t/objdump
@@ -13,12 +13,12 @@
 # BASIC-NEXT:  [[#%x,F1:]] g F __TEXT,__text _f1
 # BASIC-NEXT:  [[#%x,F2:]] g F __TEXT,__text _f2
 # BASIC-LABEL: basic:
-# BASIC:       [[#MAIN]]
 # BASIC:       [[#F1]]
 # BASIC:       [[#F2]]
+# BASIC:       [[#MAIN]]
 
 # RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/alias.s -o %t/alias.o
-# RUN: %lld %t/alias.o -o %t/alias
+# RUN: %lld -lSystem %t/alias.o -o %t/alias
 # RUN: llvm-objdump --syms  %t/alias > %t/objdump
 # RUN: llvm-objdump --macho --function-starts %t/alias >> %t/objdump
 # RUN: FileCheck %s --check-prefix=ALIAS < %t/objdump
@@ -28,13 +28,18 @@
 # ALIAS-NEXT:  [[#%x,MAIN:]] g F __TEXT,__text _main
 # ALIAS-NEXT:  [[#%x,F1:]] g F __TEXT,__text _f1
 # ALIAS-LABEL: alias:
-# ALIAS:       [[#MAIN]]
 # ALIAS:       [[#F1]]
+# ALIAS:       [[#MAIN]]
 
 # RUN: %lld %t/basic.o -no_function_starts -o %t/basic-no-function-starts
 # RUN: llvm-objdump --macho --function-starts %t/basic-no-function-starts | FileCheck %s --check-prefix=NO-FUNCTION-STARTS
 # NO-FUNCTION-STARTS: basic-no-function-starts:
 # NO-FUNCTION-STARTS-EMPTY:
+
+# RUN: %lld -lSystem %t/basic.o -no_function_starts -function_starts -o %t/basic-explicit
+# RUN: llvm-objdump --syms %t/basic > %t/objdump
+# RUN: llvm-objdump --macho --function-starts %t/basic >> %t/objdump
+# RUN: FileCheck %s --check-prefix=BASIC < %t/objdump
 
 #--- basic.s
 .section  __TEXT,__text,regular,pure_instructions

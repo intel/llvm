@@ -38,7 +38,7 @@ bool event::is_host() const { return impl->is_host(); }
 
 void event::wait() { impl->wait(impl); }
 
-void event::wait(const vector_class<event> &EventList) {
+void event::wait(const std::vector<event> &EventList) {
   for (auto E : EventList) {
     E.wait();
   }
@@ -46,14 +46,14 @@ void event::wait(const vector_class<event> &EventList) {
 
 void event::wait_and_throw() { impl->wait_and_throw(impl); }
 
-void event::wait_and_throw(const vector_class<event> &EventList) {
+void event::wait_and_throw(const std::vector<event> &EventList) {
   for (auto E : EventList) {
     E.wait_and_throw();
   }
 }
 
-vector_class<event> event::get_wait_list() {
-  vector_class<event> Result;
+std::vector<event> event::get_wait_list() {
+  std::vector<event> Result;
 
   for (auto &EventImpl : detail::Scheduler::getInstance().getWaitList(impl))
     Result.push_back(detail::createSyclObjFromImpl<event>(EventImpl));
@@ -61,7 +61,7 @@ vector_class<event> event::get_wait_list() {
   return Result;
 }
 
-event::event(shared_ptr_class<detail::event_impl> event_impl)
+event::event(std::shared_ptr<detail::event_impl> event_impl)
     : impl(event_impl) {}
 
 #define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \

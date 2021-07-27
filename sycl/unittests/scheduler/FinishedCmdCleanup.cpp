@@ -21,8 +21,9 @@ TEST_F(SchedulerTest, FinishedCmdCleanup) {
   detail::Requirement MockReqA = getMockRequirement(BufA);
   detail::Requirement MockReqB = getMockRequirement(BufB);
   detail::Requirement MockReqC = getMockRequirement(BufC);
-  detail::MemObjRecord *RecC =
-      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(MQueue), &MockReqC);
+  std::vector<detail::Command *> AuxCmds;
+  detail::MemObjRecord *RecC = MS.getOrInsertMemObjRecord(
+      detail::getSyclObjImpl(MQueue), &MockReqC, AuxCmds);
 
   // Create a graph and check that all inner nodes have been deleted and
   // their users have had the corresponding dependency replaced with a
@@ -59,13 +60,15 @@ TEST_F(SchedulerTest, FinishedCmdCleanup) {
       detail::getSyclObjImpl(MQueue), MockReqA, Callback);
   addEdge(InnerC, &AllocaA, &AllocaA);
 
+  std::vector<detail::Command *> ToEnqueue;
+
   MockCommand LeafB{detail::getSyclObjImpl(MQueue), MockReqB};
   addEdge(&LeafB, &AllocaB, &AllocaB);
-  MS.addNodeToLeaves(RecC, &LeafB);
+  MS.addNodeToLeaves(RecC, &LeafB, access::mode::read, ToEnqueue);
 
   MockCommand LeafA{detail::getSyclObjImpl(MQueue), MockReqA};
   addEdge(&LeafA, InnerC, &AllocaA);
-  MS.addNodeToLeaves(RecC, &LeafA);
+  MS.addNodeToLeaves(RecC, &LeafA, access::mode::read, ToEnqueue);
 
   MockCommand *InnerB = new MockCommandWithCallback(
       detail::getSyclObjImpl(MQueue), MockReqB, Callback);

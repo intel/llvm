@@ -102,7 +102,7 @@ extern bool hwasan_init_is_running;
 extern int hwasan_report_count;
 
 bool InitShadow();
-void InitPrctl();
+void InitializeOsSupport();
 void InitThreads();
 void InitializeInterceptors();
 
@@ -202,5 +202,13 @@ struct __hw_jmp_buf_struct {
 typedef struct __hw_jmp_buf_struct __hw_jmp_buf[1];
 typedef struct __hw_jmp_buf_struct __hw_sigjmp_buf[1];
 #endif // HWASAN_WITH_INTERCEPTORS && __aarch64__
+
+#define ENSURE_HWASAN_INITED()      \
+  do {                              \
+    CHECK(!hwasan_init_is_running); \
+    if (!hwasan_inited) {           \
+      __hwasan_init();              \
+    }                               \
+  } while (0)
 
 #endif  // HWASAN_H

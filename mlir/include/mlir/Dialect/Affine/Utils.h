@@ -30,11 +30,12 @@ class Operation;
 
 using ReductionLoopMap = DenseMap<Operation *, SmallVector<LoopReduction, 2>>;
 
-/// Replaces parallel affine.for op with 1-d affine.parallel op.
-/// mlir::isLoopParallel detects the parallel affine.for ops.
-/// Parallelizes the specified reductions. Parallelization will fail in presence
-/// of loop iteration arguments that are not listed in `parallelReductions`.
-/// There is no cost model currently used to drive this parallelization.
+/// Replaces a parallel affine.for op with a 1-d affine.parallel op. `forOp`'s
+/// body is taken by the affine.parallel op and the former is erased.
+/// (mlir::isLoopParallel can be used to detect a parallel affine.for op.) The
+/// reductions specified in `parallelReductions` are also parallelized.
+/// Parallelization will fail in the presence of loop iteration arguments that
+/// are not listed in `parallelReductions`.
 LogicalResult
 affineParallelize(AffineForOp forOp,
                   ArrayRef<LoopReduction> parallelReductions = {});
@@ -145,6 +146,14 @@ vectorizeAffineLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
 /// As currently implemented, this transformation cannot fail and will return
 /// early if the op is already in a normalized form.
 void normalizeAffineParallel(AffineParallelOp op);
+
+/// Normalize an affine.for op. If the affine.for op has only a single iteration
+/// only then it is simply promoted, else it is normalized in the traditional
+/// way, by converting the lower bound to zero and loop step to one. The upper
+/// bound is set to the trip count of the loop. For now, original loops must
+/// have lower bound with a single result only. There is no such restriction on
+/// upper bounds.
+void normalizeAffineFor(AffineForOp op);
 
 /// Traverse `e` and return an AffineExpr where all occurrences of `dim` have
 /// been replaced by either:

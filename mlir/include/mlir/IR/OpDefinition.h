@@ -1619,6 +1619,19 @@ public:
         reinterpret_cast<Operation *>(const_cast<void *>(pointer)));
   }
 
+  /// Attach the given models as implementations of the corresponding interfaces
+  /// for the concrete operation.
+  template <typename... Models>
+  static void attachInterface(MLIRContext &context) {
+    AbstractOperation *abstract = AbstractOperation::lookupMutable(
+        ConcreteType::getOperationName(), &context);
+    if (!abstract)
+      llvm::report_fatal_error(
+          "Attempting to attach an interface to an unregistered operation " +
+          ConcreteType::getOperationName() + ".");
+    abstract->interfaceMap.insert<Models...>();
+  }
+
 private:
   /// Trait to check if T provides a 'fold' method for a single result op.
   template <typename T, typename... Args>
@@ -1779,7 +1792,17 @@ private:
   static AbstractOperation::VerifyInvariantsFn getVerifyInvariantsFn() {
     return &verifyInvariants;
   }
+
+  static constexpr bool hasNoDataMembers() {
+    // Checking that the derived class does not define any member by comparing
+    // its size to an ad-hoc EmptyOp.
+    class EmptyOp : public Op<EmptyOp, Traits...> {};
+    return sizeof(ConcreteType) == sizeof(EmptyOp);
+  }
+
   static LogicalResult verifyInvariants(Operation *op) {
+    static_assert(hasNoDataMembers(),
+                  "Op class shouldn't define new data members");
     return failure(
         failed(op_definition_impl::verifyTraits<VerifiableTraitsTupleT>(op)) ||
         failed(cast<ConcreteType>(op).verify()));

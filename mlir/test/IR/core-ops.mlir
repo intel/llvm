@@ -35,9 +35,9 @@ func @func_with_ops(f32) {
   %t = "getTensor"() : () -> tensor<4x4x?xf32>
 
   // CHECK: %[[C2:.*]] = constant 2 : index
-  // CHECK-NEXT: %{{.*}} = memref.dim %[[T]], %[[C2]] : tensor<4x4x?xf32>
+  // CHECK-NEXT: %{{.*}} = tensor.dim %[[T]], %[[C2]] : tensor<4x4x?xf32>
   %c2 = constant 2 : index
-  %t2 = "memref.dim"(%t, %c2) : (tensor<4x4x?xf32>, index) -> index
+  %t2 = "tensor.dim"(%t, %c2) : (tensor<4x4x?xf32>, index) -> index
 
   // CHECK: %{{.*}} = addf %[[ARG]], %[[ARG]] : f32
   %x = "std.addf"(%a, %a) : (f32,f32) -> (f32)
@@ -50,9 +50,9 @@ func @func_with_ops(f32) {
 func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
 ^bb42(%t: tensor<4x4x?xf32>, %f: f32, %i: i32, %idx : index, %j: i64, %half: f16):
   // CHECK: %[[C2:.*]] = constant 2 : index
-  // CHECK: %[[A2:.*]] = memref.dim %arg0, %[[C2]] : tensor<4x4x?xf32>
+  // CHECK: %[[A2:.*]] = tensor.dim %arg0, %[[C2]] : tensor<4x4x?xf32>
   %c2 = constant 2 : index
-  %a2 = memref.dim %t, %c2 : tensor<4x4x?xf32>
+  %a2 = tensor.dim %t, %c2 : tensor<4x4x?xf32>
 
   // CHECK: %[[F2:.*]] = addf %arg1, %arg1 : f32
   %f2 = "std.addf"(%f, %f) : (f32,f32) -> f32
@@ -757,9 +757,9 @@ func @memref_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
 // CHECK-SAME: %[[ARG:.*]]: tensor<4x4x?xf32>
 func @test_dimop(%arg0: tensor<4x4x?xf32>) {
   // CHECK: %[[C2:.*]] = constant 2 : index
-  // CHECK: %{{.*}} = memref.dim %[[ARG]], %[[C2]] : tensor<4x4x?xf32>
+  // CHECK: %{{.*}} = tensor.dim %[[ARG]], %[[C2]] : tensor<4x4x?xf32>
   %c2 = constant 2 : index
-  %0 = memref.dim %arg0, %c2 : tensor<4x4x?xf32>
+  %0 = tensor.dim %arg0, %c2 : tensor<4x4x?xf32>
   // use dim as an index to ensure type correctness
   %1 = affine.apply affine_map<(d0) -> (d0)>(%0)
   return
@@ -825,31 +825,31 @@ func @assume_alignment(%0: memref<4x4xf16>) {
   return
 }
 
-// CHECK-LABEL: func @subtensor({{.*}}) {
-func @subtensor(%t: tensor<8x16x4xf32>, %idx : index) {
+// CHECK-LABEL: func @slice({{.*}}) {
+func @slice(%t: tensor<8x16x4xf32>, %idx : index) {
   %c0 = constant 0 : index
   %c1 = constant 1 : index
 
-  // CHECK: subtensor
+  // CHECK: tensor.extract_slice
   // CHECK-SAME: tensor<8x16x4xf32> to tensor<?x?x?xf32>
-  %1 = subtensor %t[%c0, %c0, %c0][%idx, %idx, %idx][%c1, %c1, %c1]
+  %1 = tensor.extract_slice %t[%c0, %c0, %c0][%idx, %idx, %idx][%c1, %c1, %c1]
     : tensor<8x16x4xf32> to tensor<?x?x?xf32>
 
-  // CHECK: subtensor
+  // CHECK: tensor.extract_slice
   // CHECK-SAME: tensor<8x16x4xf32> to tensor<4x4x4xf32>
-  %2 = subtensor %t[0, 2, 0][4, 4, 4][1, 1, 1]
+  %2 = tensor.extract_slice %t[0, 2, 0][4, 4, 4][1, 1, 1]
     : tensor<8x16x4xf32> to tensor<4x4x4xf32>
 
-  // CHECK: subtensor
+  // CHECK: tensor.extract_slice
   // CHECK-SAME: tensor<8x16x4xf32> to tensor<4x4xf32>
-  %3 = subtensor %t[0, 2, 0][4, 1, 4][1, 1, 1]
+  %3 = tensor.extract_slice %t[0, 2, 0][4, 1, 4][1, 1, 1]
     : tensor<8x16x4xf32> to tensor<4x4xf32>
 
   return
 }
 
-// CHECK-LABEL: func @subtensor_insert({{.*}}) {
-func @subtensor_insert(
+// CHECK-LABEL: func @insert_slice({{.*}}) {
+func @insert_slice(
     %t: tensor<8x16x4xf32>,
     %t2: tensor<16x32x8xf32>,
     %t3: tensor<4x4xf32>,
@@ -857,19 +857,19 @@ func @subtensor_insert(
   %c0 = constant 0 : index
   %c1 = constant 1 : index
 
-  // CHECK: subtensor_insert
+  // CHECK: tensor.insert_slice
   // CHECK-SAME: tensor<8x16x4xf32> into tensor<16x32x8xf32>
-  %1 = subtensor_insert %t into %t2[%c0, %c0, %c0][%idx, %idx, %idx][%c1, %c1, %c1]
+  %1 = tensor.insert_slice %t into %t2[%c0, %c0, %c0][%idx, %idx, %idx][%c1, %c1, %c1]
     : tensor<8x16x4xf32> into tensor<16x32x8xf32>
 
-  // CHECK: subtensor_insert
+  // CHECK: tensor.insert_slice
   // CHECK-SAME: tensor<8x16x4xf32> into tensor<16x32x8xf32>
-  %2 = subtensor_insert %t into %t2[%c0, %idx, %c0][%idx, 4, %idx][%c1, 1, %c1]
+  %2 = tensor.insert_slice %t into %t2[%c0, %idx, %c0][%idx, 4, %idx][%c1, 1, %c1]
     : tensor<8x16x4xf32> into tensor<16x32x8xf32>
 
-  // CHECK: subtensor_insert
+  // CHECK: tensor.insert_slice
   // CHECK-SAME: tensor<4x4xf32> into tensor<8x16x4xf32>
-  %3 = subtensor_insert %t3 into %t[0, 2, 0][4, 1, 4][1, 1, 1]
+  %3 = tensor.insert_slice %t3 into %t[0, 2, 0][4, 1, 4][1, 1, 1]
     : tensor<4x4xf32> into tensor<8x16x4xf32>
 
   return

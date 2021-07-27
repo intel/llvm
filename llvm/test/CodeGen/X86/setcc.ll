@@ -6,8 +6,8 @@ define zeroext i16 @t1(i16 zeroext %x) nounwind readnone ssp {
 ; CHECK-LABEL: t1:
 ; CHECK:       ## %bb.0:
 ; CHECK-NEXT:    xorl %eax, %eax
-; CHECK-NEXT:    cmpw $26, %di
-; CHECK-NEXT:    seta %al
+; CHECK-NEXT:    cmpw $27, %di
+; CHECK-NEXT:    setae %al
 ; CHECK-NEXT:    shll $5, %eax
 ; CHECK-NEXT:    retq
   %t0 = icmp ugt i16 %x, 26
@@ -46,7 +46,7 @@ define i64 @t3(i64 %x) nounwind readnone ssp {
 define i32 @t4(i32 %a) {
 ; CHECK-LABEL: t4:
 ; CHECK:       ## %bb.0:
-; CHECK-NEXT:    movq _v4@{{.*}}(%rip), %rax
+; CHECK-NEXT:    movq _v4@GOTPCREL(%rip), %rax
 ; CHECK-NEXT:    cmpl $1, (%rax)
 ; CHECK-NEXT:    movw $1, %ax
 ; CHECK-NEXT:    adcw $0, %ax

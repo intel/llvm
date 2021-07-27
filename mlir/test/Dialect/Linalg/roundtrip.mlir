@@ -1,7 +1,7 @@
 // RUN: mlir-opt %s | mlir-opt | FileCheck %s
 // RUN: mlir-opt %s --mlir-print-op-generic | mlir-opt | FileCheck %s
 
-// TODO: Re-enable LLVM lowering test after IndexedGenericOp is lowered.
+// TODO: Re-enable LLVM lowering test.
 //
 // Test that we can lower all the way to LLVM without crashing, don't check results here.
 // DISABLED: mlir-opt %s --convert-linalg-to-llvm -o=/dev/null 2>&1
@@ -12,9 +12,7 @@
 // CHECK-DAG: #[[$permute_1:.*]] = affine_map<(d0, d1, d2) -> (d2, d1, d0)>
 // CHECK-DAG: #[[$strided1D:.*]] = affine_map<(d0)[s0] -> (d0 + s0)>
 // CHECK-DAG: #[[$strided2D:.*]] = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
-// CHECK-DAG: #[[$strided2DOFF0:.*]] = affine_map<(d0, d1)[s0] -> (d0 * s0 + d1)>
 // CHECK-DAG: #[[$strided3D:.*]] = affine_map<(d0, d1, d2)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2 + d2)>
-// CHECK-DAG: #[[$strided3DOFF0:.*]] = affine_map<(d0, d1, d2)[s0, s1] -> (d0 * s0 + d1 * s1 + d2)>
 // CHECK-DAG: #[[$strided3DT:.*]] = affine_map<(d0, d1, d2)[s0, s1, s2] -> (d2 * s1 + s0 + d1 * s2 + d0)>
 // CHECK-DAG: #[[$strided6D:.*]] = affine_map<(d0, d1, d2, d3, d4, d5)[s0, s1, s2, s3, s4, s5] -> (d0 * s1 + s0 + d1 * s2 + d2 * s3 + d3 * s4 + d4 * s5 + d5)>
 
@@ -47,6 +45,24 @@ func @pad_static(%arg0: tensor<3x4xf32>, %pad_value: f32) -> tensor<6x9xf32> {
 // CHECK-LABEL: func @pad_static
 //  CHECK-SAME: %[[ARG0:[a-zA-Z0-9_]*]]
 //       CHECK:   linalg.pad_tensor %[[ARG0]] low[1, 2] high[2, 3]
+//       CHECK:    : tensor<3x4xf32> to tensor<6x9xf32>
+
+// -----
+
+func @pad_static_with_output(%arg0: tensor<3x4xf32>,
+                             %out_tensor : tensor<6x9xf32>,
+                             %pad_value: f32)
+    -> tensor<6x9xf32> {
+  %0 = linalg.pad_tensor %arg0 low[1, 2] high[2, 3] into %out_tensor {
+    ^bb0(%arg1 : index, %arg2 : index):
+      linalg.yield %pad_value : f32
+    } : tensor<3x4xf32> to tensor<6x9xf32>
+  return %0 : tensor<6x9xf32>
+}
+// CHECK-LABEL: func @pad_static
+//  CHECK-SAME: %[[ARG0:[a-zA-Z0-9_]*]]: tensor<3x4xf32>,
+//  CHECK-SAME: %[[ARG1:[a-zA-Z0-9_]*]]: tensor<6x9xf32>,
+//       CHECK:   linalg.pad_tensor %[[ARG0]] low[1, 2] high[2, 3] into %[[ARG1]]
 //       CHECK:    : tensor<3x4xf32> to tensor<6x9xf32>
 
 // -----
@@ -151,14 +167,13 @@ func @ops(%arg0: memref<?x?xf32, offset: ?, strides: [?, 1]>,
 
 // -----
 
-
 func @fill_view(%arg0: memref<?xf32, offset: ?, strides: [1]>, %arg1: f32) {
-  linalg.fill(%arg0, %arg1) : memref<?xf32, offset: ?, strides: [1]>, f32
+  linalg.fill(%arg1, %arg0) : f32, memref<?xf32, offset: ?, strides: [1]>
   return
 }
 // CHECK-LABEL: func @fill_view(
 //       CHECK:  %{{.*}}: memref<?xf32, #[[$strided1D]]>, %{{.*}}: f32) {
-//       CHECK:   linalg.fill(%{{.*}}, %{{.*}}) : memref<?xf32, #[[$strided1D]]>, f32
+//       CHECK:   linalg.fill(%{{.*}}, %{{.*}}) : f32, memref<?xf32, #[[$strided1D]]>
 
 // -----
 
@@ -174,12 +189,12 @@ func @transpose(%arg0: memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>) {
 
 
 func @fill_view3(%arg0: memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>, %arg1: f32) {
-  linalg.fill(%arg0, %arg1) : memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>, f32
+  linalg.fill(%arg1, %arg0) : f32, memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>
   return
 }
 // CHECK-LABEL: func @fill_view3(
 //       CHECK:  %{{.*}}: memref<?x?x?xf32, #[[$strided3D]]>, %{{.*}}: f32) {
-//       CHECK:   linalg.fill(%{{.*}}, %{{.*}}) : memref<?x?x?xf32, #[[$strided3D]]>, f32
+//       CHECK:   linalg.fill(%{{.*}}, %{{.*}}) : f32, memref<?x?x?xf32, #[[$strided3D]]>
 
 // -----
 
@@ -316,6 +331,7 @@ func @pooling_sum(%arg0: memref<?x?x?xf32>,
 
 #accesses_0 = [
   affine_map<(i, j, k) -> (j, i)>,
+  affine_map<(i, j, k) -> ()>,
   affine_map<(i, j, k) -> (i, k, i + j)>
 ]
 
@@ -327,34 +343,34 @@ func @pooling_sum(%arg0: memref<?x?x?xf32>,
 
 func @generic(%arg0: memref<?x?xvector<3x4xi4>, offset: ?, strides: [?, 1]>,
               %arg1: memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>) {
+  %cst = constant 0.0 : f32
   linalg.generic #trait_0
-       ins(%arg0 : memref<?x?xvector<3x4xi4>, offset: ?, strides: [?, 1]>)
+       ins(%arg0, %cst : memref<?x?xvector<3x4xi4>, offset: ?, strides: [?, 1]>, f32)
       outs(%arg1 : memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>)
       attrs = {foo = 1} {
-    ^bb(%0: vector<3x4xi4>, %1: f32) :
-      %f0 = constant 0.0 : f32
-      linalg.yield %f0 : f32
+    ^bb(%0: vector<3x4xi4>, %1: f32, %2: f32) :
+      linalg.yield %1 : f32
   }
   return
 }
 // CHECK-LABEL: func @generic
 //       CHECK:   linalg.generic {
-//  CHECK-SAME:     indexing_maps = [#{{[0-9a-z]*}}, #{{[0-9a-z]*}}],
+//  CHECK-SAME:     indexing_maps = [#{{[0-9a-z]*}}, #{{[0-9a-z]*}}, #{{[0-9a-z]*}}],
 //  CHECK-SAME:     iterator_types = ["parallel", "parallel", "parallel"],
 //  CHECK-SAME:     library_call = "some_external_function_name_1"}
-//  CHECK-SAME:      ins({{.*}} : memref<?x?xvector<3x4xi4>, #[[$strided2D]]>)
+//  CHECK-SAME:      ins({{.*}}, {{.*}} : memref<?x?xvector<3x4xi4>, #[[$strided2D]]>, f32)
 //  CHECK-SAME:     outs({{.*}} : memref<?x?x?xf32, #[[$strided3D]]>)
 //  CHECK-SAME:     {foo = 1 : i64}
 
 func @generic_with_tensor_input(%arg0: tensor<?x?xvector<3x4xi4>>,
                                 %arg1: memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>) {
+  %cst = constant 0.0 : f32
   linalg.generic #trait_0
-       ins(%arg0 : tensor<?x?xvector<3x4xi4>>)
+       ins(%arg0, %cst : tensor<?x?xvector<3x4xi4>>, f32)
       outs(%arg1 : memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>)
       attrs = {foo = 1} {
-    ^bb(%0: vector<3x4xi4>, %1: f32) :
-      %f0 = constant 0.0 : f32
-      linalg.yield %f0 : f32
+    ^bb(%0: vector<3x4xi4>, %1: f32, %2: f32) :
+      linalg.yield %1 : f32
   }
   return
 }
@@ -362,7 +378,7 @@ func @generic_with_tensor_input(%arg0: tensor<?x?xvector<3x4xi4>>,
 //       CHECK:   linalg.generic {
 //  CHECK-SAME:     indexing_maps = [#{{.*}}, #{{.*}}], iterator_types = ["parallel", "parallel", "parallel"],
 //  CHECK-SAME:     library_call = "some_external_function_name_1"}
-//  CHECK-SAME:     ins({{.*}} : tensor<?x?xvector<3x4xi4>>)
+//  CHECK-SAME:     ins({{.*}}, {{.*}} : tensor<?x?xvector<3x4xi4>>, f32)
 //  CHECK-SAME:     outs({{.*}} : memref<?x?x?xf32, #[[$strided3D]]>)
 //  CHECK-SAME:     {foo = 1 : i64}
 
@@ -423,40 +439,36 @@ func @generic_with_tensor_input_and_output(
 
 // -----
 
-#accesses_2 = [
-  affine_map<(i, j, k) -> (j, i)>,
-  affine_map<(i, j, k) -> (i, k, i + j)>,
-  affine_map<(i, j, k) -> (i, k, i + j)>
-]
-
-#trait_2 = {
-  indexing_maps = #accesses_2,
-  iterator_types = ["parallel", "parallel", "parallel"],
-  library_call = "some_external_function_name_1"
+func @generic_with_multiple_tensor_outputs(
+    %arg0: tensor<?xi32>, %arg1: tensor<?xi32>, %arg2: i32)
+    -> (tensor<i32>, tensor<i32>) {
+  %c0 = constant 0 : index
+  %0 = linalg.init_tensor [] : tensor<i32>
+  %1 = linalg.fill(%arg2, %0) : i32, tensor<i32> -> tensor<i32>
+  %2 = linalg.init_tensor [] : tensor<i32>
+  %3 = linalg.fill(%arg2, %2) : i32, tensor<i32> -> tensor<i32>
+  %4:2 = linalg.generic {
+    indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>, affine_map<(d0) -> ()>, affine_map<(d0) -> ()>],
+    iterator_types = ["reduction"]}
+    ins(%arg0, %arg1 : tensor<?xi32>, tensor<?xi32>)
+    outs(%1, %3 : tensor<i32>, tensor<i32>) {
+  ^bb0(%arg3: i32, %arg4: i32, %arg5: i32, %arg6: i32):  // no predecessors
+    %5 = cmpi sge, %arg3, %arg5 : i32
+    %6 = select %5, %arg3, %arg5 : i32
+    %7 = cmpi eq, %arg3, %arg5 : i32
+    %8 = cmpi slt, %arg4, %arg6 : i32
+    %9 = select %8, %arg4, %arg6 : i32
+    %10 = select %5, %arg4, %arg6 : i32
+    %11 = select %7, %9, %10 : i32
+    linalg.yield %6, %11 : i32, i32
+  } -> (tensor<i32>, tensor<i32>)
+  return %4#0, %4#1 : tensor<i32>, tensor<i32>
 }
-
-func @indexed_generic_with_tensor_input_and_output(
-    %arg0: tensor<?x?xvector<3x4xi4>>, %arg1: tensor<?x?x?xf32>)
-    -> (tensor<?x?x?xf32>) {
-  %0 = linalg.indexed_generic #trait_2
-       ins(%arg0, %arg1 : tensor<?x?xvector<3x4xi4>>, tensor<?x?x?xf32>)
-      outs(%arg1 : tensor<?x?x?xf32>)
-      attrs = {foo = 1} {
-    ^bb(%i: index, %j: index, %k: index, %0: vector<3x4xi4>, %1: f32, %2: f32) :
-      %f0 = constant 0.0 : f32
-      linalg.yield %f0 : f32
-  } -> tensor<?x?x?xf32>
-  return %0 : tensor<?x?x?xf32>
-}
-// CHECK-LABEL: func @indexed_generic_with_tensor_input_and_output
-//       CHECK:   linalg.indexed_generic {
-//  CHECK-SAME:     indexing_maps = [#{{.*}}, #{{.*}}], iterator_types = ["parallel", "parallel", "parallel"],
-//  CHECK-SAME:     library_call = "some_external_function_name_1"}
-//  CHECK-SAME:      ins({{.*}} : tensor<?x?xvector<3x4xi4>>, tensor<?x?x?xf32>)
-//  CHECK-SAME:     outs({{.*}} : tensor<?x?x?xf32>)
-//  CHECK-SAME:     {foo = 1 : i64}
-//       CHECK:     -> tensor<?x?x?xf32>
-//       CHECK:   return {{.*}} : tensor<?x?x?xf32>
+// CHECK-LABEL: func @generic_with_multiple_tensor_outputs
+//       CHECK:   %{{.*}} = linalg.generic {
+//  CHECK-SAME:      ins({{.*}} : tensor<?xi32>, tensor<?xi32>)
+//  CHECK-SAME:     outs({{.*}} : tensor<i32>, tensor<i32>)
+//       CHECK:   } -> (tensor<i32>, tensor<i32>)
 
 // -----
 
@@ -477,17 +489,6 @@ func @generic_op_zero_rank(%arg0: tensor<f32>, %arg1 : tensor<3x4xf32>) -> (tens
        ins(%arg0 : tensor<f32>)
       outs(%arg1 : tensor<3x4xf32>) {
     ^bb(%a: f32, %b: f32) :
-      linalg.yield %a : f32
-  } -> tensor<3x4xf32>
-  return %0 : tensor<3x4xf32>
-}
-
-func @indexed_generic_op_zero_rank(%arg0: tensor<f32>, %arg1 : tensor<3x4xf32>) -> (tensor<3x4xf32>)
-{
-  %0 = linalg.indexed_generic #trait_broadcast
-       ins(%arg0 : tensor<f32>)
-      outs(%arg1 : tensor<3x4xf32>) {
-    ^bb(%i: index, %j: index, %a: f32, %b: f32) :
       linalg.yield %a : f32
   } -> tensor<3x4xf32>
   return %0 : tensor<3x4xf32>
@@ -535,121 +536,8 @@ func @generic_region(%arg0: memref<?x?xvector<3x4xi4>, offset: ?, strides: [?, 1
 //       CHECK:    %{{.*}} = linalg.index 2 : index
 //       CHECK:    linalg.yield %{{.*}} : f32
 
-func @indexed_generic(%arg0: memref<?x?xvector<3x4xi4>, offset: ?, strides: [?, 1]>,
-                      %arg1: memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>) {
-  linalg.indexed_generic #trait_3
-       ins(%arg0 : memref<?x?xvector<3x4xi4>, offset: ?, strides: [?, 1]>)
-      outs(%arg1 : memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>)
-      attrs = {foo = 1} {
-    ^bb(%i: index, %j: index, %k: index, %a: vector<3x4xi4>, %b: f32) :
-      linalg.yield %b : f32
-  }
-  return
-}
-// CHECK-LABEL: func @indexed_generic
-//       CHECK:   linalg.indexed_generic {
-//  CHECK-SAME:     indexing_maps = [#{{[0-9a-z]*}}, #{{[0-9a-z]*}}],
-//  CHECK-SAME:     iterator_types = ["parallel", "parallel", "parallel"],
-//  CHECK-SAME:     library_call = "some_external_function_name_2"
-//  CHECK-SAME:      ins({{.*}} : memref<?x?xvector<3x4xi4>, #[[$strided2D]]>)
-//  CHECK-SAME:     outs({{.*}} : memref<?x?x?xf32, #[[$strided3D]]>)
-//  CHECK-SAME:     {foo = 1 : i64}
-//       CHECK:    ^{{.*}}(%{{.*}}: index, %{{.*}}: index, %{{.*}}: index, %{{.*}}: vector<3x4xi4>, %{{.*}}: f32):
-//       CHECK:      linalg.yield %{{.*}} : f32
-//       CHECK:    }
-
 // -----
 
-func @reshape_static(%arg0: memref<3x4x5xf32>, %arg1: tensor<3x4x5xf32>,
-                     %arg2: tensor<3x?x5xf32>) {
-  // Reshapes that collapse and expand back a contiguous buffer.
-  %0 = linalg.collapse_shape %arg0 [[0, 1], [2]] :
-    memref<3x4x5xf32> into memref<12x5xf32>
-  %r0 = linalg.expand_shape %0 [[0, 1], [2]] :
-    memref<12x5xf32> into memref<3x4x5xf32>
-  %1 = linalg.collapse_shape %arg0 [[0], [1, 2]] :
-    memref<3x4x5xf32> into memref<3x20xf32>
-  %r1 = linalg.expand_shape %1 [[0], [1, 2]] :
-    memref<3x20xf32> into memref<3x4x5xf32>
-  %2 = linalg.collapse_shape %arg0 [[0, 1, 2]] :
-    memref<3x4x5xf32> into memref<60xf32>
-  %r2 = linalg.expand_shape %2 [[0, 1, 2]] :
-    memref<60xf32> into memref<3x4x5xf32>
-  // Reshapes that expand and collapse back a contiguous buffer with some 1's.
-  %3 = linalg.expand_shape %arg0 [[0, 1], [2], [3, 4]] :
-    memref<3x4x5xf32> into memref<1x3x4x1x5xf32>
-  %r3 = linalg.collapse_shape %3 [[0, 1], [2], [3, 4]] :
-    memref<1x3x4x1x5xf32> into memref<3x4x5xf32>
-  // Reshapes on tensors.
-  %t0 = linalg.tensor_expand_shape %arg1 [[0, 1], [2], [3, 4]] :
-    tensor<3x4x5xf32> into tensor<1x3x4x1x5xf32>
-  %rt0 = linalg.tensor_collapse_shape %t0 [[0, 1], [2], [3, 4]] :
-    tensor<1x3x4x1x5xf32> into tensor<3x4x5xf32>
-  %t1 = linalg.tensor_expand_shape %arg2 [[0, 1], [2], [3, 4]] :
-    tensor<3x?x5xf32> into tensor<1x3x?x1x5xf32>
-  %rt1 = linalg.tensor_collapse_shape %t1 [[0], [1, 2], [3, 4]] :
-    tensor<1x3x?x1x5xf32> into tensor<1x?x5xf32>
-  return
-}
-// CHECK-LABEL: func @reshape_static
-//       CHECK:   linalg.collapse_shape {{.*}} {{\[}}[0, 1], [2]]
-//  CHECK-SAME:     memref<3x4x5xf32> into memref<12x5xf32>
-//       CHECK:   linalg.expand_shape {{.*}} {{\[}}[0, 1], [2]]
-//  CHECK-SAME:     memref<12x5xf32> into memref<3x4x5xf32>
-//       CHECK:   linalg.collapse_shape {{.*}} {{\[}}[0], [1, 2]]
-//  CHECK-SAME:     memref<3x4x5xf32> into memref<3x20xf32>
-//       CHECK:   linalg.expand_shape {{.*}} {{\[}}[0], [1, 2]]
-//  CHECK-SAME:     memref<3x20xf32> into memref<3x4x5xf32>
-//       CHECK:   linalg.collapse_shape {{.*}} {{\[}}[0, 1, 2]]
-//  CHECK-SAME:     memref<3x4x5xf32> into memref<60xf32>
-//       CHECK:   linalg.expand_shape {{.*}} {{\[}}[0, 1, 2]]
-//  CHECK-SAME:     memref<60xf32> into memref<3x4x5xf32>
-//       CHECK:   linalg.expand_shape {{.*}} {{\[}}[0, 1], [2], [3, 4]]
-//  CHECK-SAME:     memref<3x4x5xf32> into memref<1x3x4x1x5xf32>
-//       CHECK:   linalg.collapse_shape {{.*}} {{\[}}[0, 1], [2], [3, 4]]
-//  CHECK-SAME:     memref<1x3x4x1x5xf32> into memref<3x4x5xf32>
-//
-//       CHECK:   linalg.tensor_expand_shape {{.*}}: tensor<3x4x5xf32> into tensor<1x3x4x1x5xf32>
-//       CHECK:   linalg.tensor_collapse_shape {{.*}}: tensor<1x3x4x1x5xf32> into tensor<3x4x5xf32>
-//       CHECK:   linalg.tensor_expand_shape {{.*}}: tensor<3x?x5xf32> into tensor<1x3x?x1x5xf32>
-//       CHECK:   linalg.tensor_collapse_shape {{.*}}: tensor<1x3x?x1x5xf32> into tensor<1x?x5xf32>
-
-// -----
-
-func @reshape_dynamic(%arg0: memref<?x?x?xf32>,
-                      %arg1: memref<?x?x?xf32, offset : 0, strides : [?, ?, 1]>,
-                      %arg2: memref<?x?x?xf32, offset : ?, strides : [?, ?, 1]>) {
-  %0 = linalg.collapse_shape %arg0 [[0, 1], [2]] :
-    memref<?x?x?xf32> into memref<?x?xf32>
-  %r0 = linalg.expand_shape %0 [[0, 1], [2]] :
-    memref<?x?xf32> into memref<?x4x?xf32>
-  %1 = linalg.collapse_shape %arg1 [[0, 1], [2]] :
-    memref<?x?x?xf32, offset : 0, strides : [?, ?, 1]> into
-    memref<?x?xf32, offset : 0, strides : [?, 1]>
-  %r1 = linalg.expand_shape %1 [[0, 1], [2]] :
-    memref<?x?xf32, offset : 0, strides : [?, 1]> into
-    memref<?x4x?xf32, offset : 0, strides : [?, ?, 1]>
-  %2 = linalg.collapse_shape %arg2 [[0, 1], [2]] :
-    memref<?x?x?xf32, offset : ?, strides : [?, ?, 1]> into
-    memref<?x?xf32, offset : ?, strides : [?, 1]>
-  %r2 = linalg.expand_shape %2 [[0, 1], [2]] :
-    memref<?x?xf32, offset : ?, strides : [?, 1]> into
-    memref<?x4x?xf32, offset : ?, strides : [?, ?, 1]>
-  return
-}
-// CHECK-LABEL: func @reshape
-//       CHECK:   linalg.collapse_shape {{.*}} {{\[}}[0, 1], [2]]
-//  CHECK-SAME:     memref<?x?x?xf32> into memref<?x?xf32>
-//       CHECK:   linalg.expand_shape {{.*}} {{\[}}[0, 1], [2]]
-//  CHECK-SAME:     memref<?x?xf32> into memref<?x4x?xf32>
-//       CHECK:   linalg.collapse_shape {{.*}} {{\[}}[0, 1], [2]]
-//  CHECK-SAME:     memref<?x?x?xf32, #[[$strided3DOFF0]]> into memref<?x?xf32, #[[$strided2DOFF0]]>
-//       CHECK:   linalg.expand_shape {{.*}} {{\[}}[0, 1], [2]]
-//  CHECK-SAME:     memref<?x?xf32, #[[$strided2DOFF0]]> into memref<?x4x?xf32, #[[$strided3DOFF0]]>
-//       CHECK:   linalg.collapse_shape {{.*}} {{\[}}[0, 1], [2]]
-//  CHECK-SAME:     memref<?x?x?xf32, #[[$strided3D]]> into memref<?x?xf32, #[[$strided2D]]>
-//       CHECK:   linalg.expand_shape {{.*}} {{\[}}[0, 1], [2]]
-//  CHECK-SAME:     memref<?x?xf32, #[[$strided2D]]> into memref<?x4x?xf32, #[[$strided3D]]>
 
 func @named_ops(%a3: memref<?x?x?xf32>, %b3: memref<?x?x?xf32>, %c3: memref<?x?x?xf32>,
                 %ta3: tensor<?x?x?xf32>, %tb3: tensor<?x?x?xf32>, %tc3: tensor<?x?x?xf32>)
@@ -689,17 +577,6 @@ func @tensor_reshape_zero_dim(%arg0 : tensor<1x1xf32>, %arg1 : tensor<f32>) -> (
 
 // -----
 
-func @memref_reshape_zero_dim(%arg0 : memref<1x1xf32>, %arg1 : memref<f32>) -> (memref<f32>, memref<1x1xf32>)
-{
-  %0 = linalg.collapse_shape %arg0 [] : memref<1x1xf32> into memref<f32>
-  %1 = linalg.expand_shape %0 [] : memref<f32> into memref<1x1xf32>
-  return %0, %1 : memref<f32>, memref<1x1xf32>
-}
-// CHECK-LABEL: func @memref_reshape_zero_dim
-//       CHECK:   linalg.collapse_shape %{{.*}} [] : memref<1x1xf32> into memref<f32>
-//       CHECK:   linalg.expand_shape %{{.*}} [] : memref<f32> into memref<1x1xf32>
-
-// -----
 
 func @init_tensor(%arg0 : index, %arg1 : index)
 {
@@ -726,25 +603,12 @@ func @legal_collapsing_reshape_dynamic_tensor
 
 // -----
 
-func @legal_collapsing_reshape_dynamic_memref
-  (%arg0: memref<?x?x?x4x?xf32>) -> memref<?x?x?xf32>
-{
-  %0 = linalg.collapse_shape %arg0 [[0], [1], [2, 3, 4]] :
-    memref<?x?x?x4x?xf32> into memref<?x?x?xf32>
-  return %0 : memref<?x?x?xf32>
-}
-//      CHECK: func @legal_collapsing_reshape_dynamic_memref
-//      CHECK:   linalg.collapse_shape
-// CHECK-SAME:    [0], [1], [2, 3, 4]
-
-// -----
-
 func @fill_tensor(%arg0 : index, %arg1 : index, %arg2 : f32) -> tensor<?x?xf32> {
   %0 = linalg.init_tensor [%arg0, %arg1] : tensor<?x?xf32>
-  %1 = linalg.fill(%0, %arg2) : tensor<?x?xf32>, f32 -> tensor<?x?xf32>
+  %1 = linalg.fill(%arg2, %0) : f32, tensor<?x?xf32> -> tensor<?x?xf32>
   return %1 : tensor<?x?xf32>
 }
-// CHECK: %{{.+}} = linalg.fill(%{{.+}}, %{{.+}}) : tensor<?x?xf32>, f32 -> tensor<?x?xf32>
+// CHECK: %{{.+}} = linalg.fill(%{{.+}}, %{{.+}}) : f32, tensor<?x?xf32> -> tensor<?x?xf32>
 
 // -----
 
@@ -769,11 +633,11 @@ func @tiled_loop(%lhs: tensor<24x64xi8>, %rhs: tensor<24x64xi8>,
  %prod = linalg.tiled_loop (%i) = (%c0) to (%c24) step (%c4)
       ins(%lhs_ = %lhs: tensor<24x64xi8>, %rhs_ = %rhs: tensor<24x64xi8>)
       outs(%out_ = %out: tensor<24x64xi8>) {
-    %lhs_sub = subtensor %lhs_[%i, 0] [%c4, %c64] [1, 1]
+    %lhs_sub = tensor.extract_slice %lhs_[%i, 0] [%c4, %c64] [1, 1]
         : tensor<24x64xi8> to tensor<?x?xi8>
-    %rhs_sub = subtensor %rhs_[%i, 0] [%c4, %c64] [1, 1]
+    %rhs_sub = tensor.extract_slice %rhs_[%i, 0] [%c4, %c64] [1, 1]
         : tensor<24x64xi8> to tensor<?x?xi8>
-    %out_sub = subtensor %out_[%i, 0] [%c4, %c64] [1, 1]
+    %out_sub = tensor.extract_slice %out_[%i, 0] [%c4, %c64] [1, 1]
         : tensor<24x64xi8> to tensor<?x?xi8>
 
     %sum = linalg.generic #trait_4
@@ -784,7 +648,7 @@ func @tiled_loop(%lhs: tensor<24x64xi8>, %rhs: tensor<24x64xi8>,
         linalg.yield %s : i8
       } -> tensor<?x?xi8>
 
-    %sum_sub = subtensor_insert %sum into %out_[%i, 0][%c4, %c64][1, 1]
+    %sum_sub = tensor.insert_slice %sum into %out_[%i, 0][%c4, %c64][1, 1]
       : tensor<?x?xi8> into tensor<24x64xi8>
     linalg.yield %sum_sub : tensor<24x64xi8>
   }
@@ -818,9 +682,9 @@ func @tiled_loop_reduction(%input_3d: tensor<16x24x32xf32>,
   %c2 = constant 2 : index
   %c4 = constant 4 : index
   %c8 = constant 8 : index
-  %X = memref.dim %input_3d, %c0 : tensor<16x24x32xf32>
-  %Y = memref.dim %input_3d, %c1 : tensor<16x24x32xf32>
-  %Z = memref.dim %input_3d, %c2 : tensor<16x24x32xf32>
+  %X = tensor.dim %input_3d, %c0 : tensor<16x24x32xf32>
+  %Y = tensor.dim %input_3d, %c1 : tensor<16x24x32xf32>
+  %Z = tensor.dim %input_3d, %c2 : tensor<16x24x32xf32>
   %result = linalg.tiled_loop (%i, %j, %k)
       = (%c0, %c0, %c0) to (%X, %Y, %Z) step (%c2, %c4, %c8)
       ins(%i3d_ = %input_3d: tensor<16x24x32xf32>,
@@ -829,13 +693,13 @@ func @tiled_loop_reduction(%input_3d: tensor<16x24x32xf32>,
       outs(%o_ =  %output: tensor<24xf32>)
       iterators["reduction", "parallel", "reduction"]
       distribution["block_x", "block_y", "none"] {
-    %sub_3d = subtensor %i3d_[%i, %j, %k][2, 4, 8][1, 1, 1]
+    %sub_3d = tensor.extract_slice %i3d_[%i, %j, %k][2, 4, 8][1, 1, 1]
       : tensor<16x24x32xf32> to tensor<2x4x8xf32>
-    %sub_2d = subtensor %i2d_[%i, %k][2, 8][1, 1]
+    %sub_2d = tensor.extract_slice %i2d_[%i, %k][2, 8][1, 1]
       : tensor<16x32xf32> to tensor<2x8xf32>
-    %sub_1d = subtensor %i1d_[%j] [4] [1]
+    %sub_1d = tensor.extract_slice %i1d_[%j] [4] [1]
       : tensor<24xf32> to tensor<4xf32>
-    %sub_out = subtensor %o_[%j] [4] [1]
+    %sub_out = tensor.extract_slice %o_[%j] [4] [1]
       : tensor<24xf32> to tensor<4xf32>
     %acc = linalg.generic #trait_5
       ins(%sub_3d, %sub_2d, %sub_1d
@@ -847,7 +711,7 @@ func @tiled_loop_reduction(%input_3d: tensor<16x24x32xf32>,
       linalg.yield %1 : f32
     } -> tensor<4xf32>
 
-    %sum_sub = subtensor_insert %acc into %o_[%j][%c4][1]
+    %sum_sub = tensor.insert_slice %acc into %o_[%j][%c4][1]
       : tensor<4xf32> into tensor<24xf32>
     linalg.yield %sum_sub : tensor<24xf32>
   }

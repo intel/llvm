@@ -117,6 +117,7 @@ static void diagnoseBadTypeAttribute(Sema &S, const ParsedAttr &attr,
   case ParsedAttr::AT_RegCall:                                                 \
   case ParsedAttr::AT_Pascal:                                                  \
   case ParsedAttr::AT_SwiftCall:                                               \
+  case ParsedAttr::AT_SwiftAsyncCall:                                          \
   case ParsedAttr::AT_VectorCall:                                              \
   case ParsedAttr::AT_AArch64VectorPcs:                                        \
   case ParsedAttr::AT_MSABI:                                                   \
@@ -639,7 +640,7 @@ static void distributeFunctionTypeAttrFromDeclSpec(TypeProcessingState &state,
   // C++11 attributes before the decl specifiers actually appertain to
   // the declarators. Move them straight there. We don't support the
   // 'put them wherever you like' semantics we allow for GNU attributes.
-  if (attr.isCXX11Attribute()) {
+  if (attr.isStandardAttributeSyntax()) {
     moveAttrFromListToList(attr, state.getCurrentAttributes(),
                            state.getDeclarator().getAttributes());
     return;
@@ -692,9 +693,9 @@ static void distributeTypeAttrsFromDeclarator(TypeProcessingState &state,
   // non-owning copy and iterate over that.
   ParsedAttributesView AttrsCopy{state.getDeclarator().getAttributes()};
   for (ParsedAttr &attr : AttrsCopy) {
-    // Do not distribute C++11 attributes. They have strict rules for what
+    // Do not distribute [[]] attributes. They have strict rules for what
     // they appertain to.
-    if (attr.isCXX11Attribute())
+    if (attr.isStandardAttributeSyntax())
       continue;
 
     switch (attr.getKind()) {
@@ -1730,11 +1731,25 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   if (Result->containsErrors())
     declarator.setInvalidType();
 
-  if (S.getLangOpts().OpenCL && Result->isOCLImage3dWOType() &&
-      !S.getOpenCLOptions().isSupported("cl_khr_3d_image_writes", S.getLangOpts())) {
-        S.Diag(DS.getTypeSpecTypeLoc(), diag::err_opencl_requires_extension)
-        << 0 << Result << "cl_khr_3d_image_writes";
-        declarator.setInvalidType();
+  if (S.getLangOpts().OpenCL) {
+    const auto &OpenCLOptions = S.getOpenCLOptions();
+    StringRef OptName;
+    // OpenCL C v3.0 s6.3.3 - OpenCL image types require __opencl_c_images
+    // support
+    if ((Result->isImageType() || Result->isSamplerT()) &&
+        (S.getLangOpts().OpenCLVersion >= 300 &&
+         !OpenCLOptions.isSupported("__opencl_c_images", S.getLangOpts())))
+      OptName = "__opencl_c_images";
+    else if (Result->isOCLImage3dWOType() &&
+             !OpenCLOptions.isSupported("cl_khr_3d_image_writes",
+                                        S.getLangOpts()))
+      OptName = "cl_khr_3d_image_writes";
+
+    if (!OptName.empty()) {
+      S.Diag(DS.getTypeSpecTypeLoc(), diag::err_opencl_requires_extension)
+          << 0 << Result << OptName;
+      declarator.setInvalidType();
+    }
   }
 
   bool IsFixedPointType = DS.getTypeSpecType() == DeclSpec::TST_accum ||
@@ -2406,7 +2421,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
   }
 
   // Do lvalue-to-rvalue conversions on the array size expression.
-  if (ArraySize && !ArraySize->isRValue()) {
+  if (ArraySize && !ArraySize->isPRValue()) {
     ExprResult Result = DefaultLvalueConversion(ArraySize);
     if (Result.isInvalid())
       return QualType();
@@ -2507,7 +2522,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
               : ConstVal.getActiveBits();
       if (ActiveSizeBits > ConstantArrayType::getMaxSizeBits(Context)) {
         Diag(ArraySize->getBeginLoc(), diag::err_array_too_large)
-            << ConstVal.toString(10) << ArraySize->getSourceRange();
+            << toString(ConstVal, 10) << ArraySize->getSourceRange();
         return QualType();
       }
 
@@ -2777,16 +2792,21 @@ static void checkExtParameterInfos(Sema &S, ArrayRef<QualType> paramTypes,
                     llvm::function_ref<SourceLocation(unsigned)> getParamLoc) {
   assert(EPI.ExtParameterInfos && "shouldn't get here without param infos");
 
-  bool hasCheckedSwiftCall = false;
-  auto checkForSwiftCC = [&](unsigned paramIndex) {
-    // Only do this once.
-    if (hasCheckedSwiftCall) return;
-    hasCheckedSwiftCall = true;
-    if (EPI.ExtInfo.getCC() == CC_Swift) return;
+  bool emittedError = false;
+  auto actualCC = EPI.ExtInfo.getCC();
+  enum class RequiredCC { OnlySwift, SwiftOrSwiftAsync };
+  auto checkCompatible = [&](unsigned paramIndex, RequiredCC required) {
+    bool isCompatible =
+        (required == RequiredCC::OnlySwift)
+            ? (actualCC == CC_Swift)
+            : (actualCC == CC_Swift || actualCC == CC_SwiftAsync);
+    if (isCompatible || emittedError)
+      return;
     S.Diag(getParamLoc(paramIndex), diag::err_swift_param_attr_not_swiftcall)
-      << getParameterABISpelling(EPI.ExtParameterInfos[paramIndex].getABI());
+        << getParameterABISpelling(EPI.ExtParameterInfos[paramIndex].getABI())
+        << (required == RequiredCC::OnlySwift);
+    emittedError = true;
   };
-
   for (size_t paramIndex = 0, numParams = paramTypes.size();
           paramIndex != numParams; ++paramIndex) {
     switch (EPI.ExtParameterInfos[paramIndex].getABI()) {
@@ -2797,7 +2817,7 @@ static void checkExtParameterInfos(Sema &S, ArrayRef<QualType> paramTypes,
     // swift_indirect_result parameters must be a prefix of the function
     // arguments.
     case ParameterABI::SwiftIndirectResult:
-      checkForSwiftCC(paramIndex);
+      checkCompatible(paramIndex, RequiredCC::SwiftOrSwiftAsync);
       if (paramIndex != 0 &&
           EPI.ExtParameterInfos[paramIndex - 1].getABI()
             != ParameterABI::SwiftIndirectResult) {
@@ -2807,16 +2827,16 @@ static void checkExtParameterInfos(Sema &S, ArrayRef<QualType> paramTypes,
       continue;
 
     case ParameterABI::SwiftContext:
-      checkForSwiftCC(paramIndex);
+      checkCompatible(paramIndex, RequiredCC::SwiftOrSwiftAsync);
       continue;
 
+    // SwiftAsyncContext is not limited to swiftasynccall functions.
     case ParameterABI::SwiftAsyncContext:
-      // FIXME: might want to require swiftasynccc when it exists
       continue;
 
     // swift_error parameters must be preceded by a swift_context parameter.
     case ParameterABI::SwiftErrorResult:
-      checkForSwiftCC(paramIndex);
+      checkCompatible(paramIndex, RequiredCC::OnlySwift);
       if (paramIndex == 0 ||
           EPI.ExtParameterInfos[paramIndex - 1].getABI() !=
               ParameterABI::SwiftContext) {
@@ -7429,6 +7449,8 @@ static Attr *getCCTypeAttr(ASTContext &Ctx, ParsedAttr &Attr) {
     return createSimpleAttr<PascalAttr>(Ctx, Attr);
   case ParsedAttr::AT_SwiftCall:
     return createSimpleAttr<SwiftCallAttr>(Ctx, Attr);
+  case ParsedAttr::AT_SwiftAsyncCall:
+    return createSimpleAttr<SwiftAsyncCallAttr>(Ctx, Attr);
   case ParsedAttr::AT_VectorCall:
     return createSimpleAttr<VectorCallAttr>(Ctx, Attr);
   case ParsedAttr::AT_AArch64VectorPcs:
@@ -8127,7 +8149,7 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
     if (attr.isInvalid())
       continue;
 
-    if (attr.isCXX11Attribute()) {
+    if (attr.isStandardAttributeSyntax()) {
       // [[gnu::...]] attributes are treated as declaration attributes, so may
       // not appertain to a DeclaratorChunk. If we handle them as type
       // attributes, accept them in that position and diagnose the GCC
@@ -8156,8 +8178,8 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
     // otherwise, add it to the FnAttrs list for rechaining.
     switch (attr.getKind()) {
     default:
-      // A C++11 attribute on a declarator chunk must appertain to a type.
-      if (attr.isCXX11Attribute() && TAL == TAL_DeclChunk &&
+      // A [[]] attribute on a declarator chunk must appertain to a type.
+      if (attr.isStandardAttributeSyntax() && TAL == TAL_DeclChunk &&
           (!state.isProcessingLambdaExpr() ||
            !attr.supportsNonconformingLambdaSyntax())) {
         state.getSema().Diag(attr.getLoc(), diag::err_attribute_not_type_attr)
@@ -8167,7 +8189,7 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       break;
 
     case ParsedAttr::UnknownAttribute:
-      if (attr.isCXX11Attribute() && TAL == TAL_DeclChunk)
+      if (attr.isStandardAttributeSyntax() && TAL == TAL_DeclChunk)
         state.getSema().Diag(attr.getLoc(),
                              diag::warn_unknown_attribute_ignored)
             << attr << attr.getRange();
@@ -8975,7 +8997,7 @@ QualType Sema::getDecltypeForParenthesizedExpr(Expr *E) {
   case VK_LValue:
     return Context.getLValueReferenceType(T);
   //  - otherwise, decltype(e) is the type of e.
-  case VK_RValue:
+  case VK_PRValue:
     return T;
   }
   llvm_unreachable("Unknown value kind");
@@ -8988,6 +9010,10 @@ static QualType getDecltypeForExpr(Sema &S, Expr *E) {
   if (E->isTypeDependent())
     return S.Context.DependentTy;
 
+  Expr *IDExpr = E;
+  if (auto *ImplCastExpr = dyn_cast<ImplicitCastExpr>(E))
+    IDExpr = ImplCastExpr->getSubExpr();
+
   // C++11 [dcl.type.simple]p4:
   //   The type denoted by decltype(e) is defined as follows:
 
@@ -8998,7 +9024,7 @@ static QualType getDecltypeForExpr(Sema &S, Expr *E) {
   // Note that this does not pick up the implicit 'const' for a template
   // parameter object. This rule makes no difference before C++20 so we apply
   // it unconditionally.
-  if (const auto *SNTTPE = dyn_cast<SubstNonTypeTemplateParmExpr>(E))
+  if (const auto *SNTTPE = dyn_cast<SubstNonTypeTemplateParmExpr>(IDExpr))
     return SNTTPE->getParameterType(S.Context);
 
   //     - if e is an unparenthesized id-expression or an unparenthesized class
@@ -9007,21 +9033,22 @@ static QualType getDecltypeForExpr(Sema &S, Expr *E) {
   //       functions, the program is ill-formed;
   //
   // We apply the same rules for Objective-C ivar and property references.
-  if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
+  if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(IDExpr)) {
     const ValueDecl *VD = DRE->getDecl();
     if (auto *TPO = dyn_cast<TemplateParamObjectDecl>(VD))
       return TPO->getType().getUnqualifiedType();
     return VD->getType();
-  } else if (const MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
+  } else if (const MemberExpr *ME = dyn_cast<MemberExpr>(IDExpr)) {
     if (const ValueDecl *VD = ME->getMemberDecl())
       if (isa<FieldDecl>(VD) || isa<VarDecl>(VD))
         return VD->getType();
-  } else if (const ObjCIvarRefExpr *IR = dyn_cast<ObjCIvarRefExpr>(E)) {
+  } else if (const ObjCIvarRefExpr *IR = dyn_cast<ObjCIvarRefExpr>(IDExpr)) {
     return IR->getDecl()->getType();
-  } else if (const ObjCPropertyRefExpr *PR = dyn_cast<ObjCPropertyRefExpr>(E)) {
+  } else if (const ObjCPropertyRefExpr *PR =
+                 dyn_cast<ObjCPropertyRefExpr>(IDExpr)) {
     if (PR->isExplicitProperty())
       return PR->getExplicitProperty()->getType();
-  } else if (auto *PE = dyn_cast<PredefinedExpr>(E)) {
+  } else if (auto *PE = dyn_cast<PredefinedExpr>(IDExpr)) {
     return PE->getType();
   }
 
@@ -9034,8 +9061,8 @@ static QualType getDecltypeForExpr(Sema &S, Expr *E) {
   //   entity.
   using namespace sema;
   if (S.getCurLambda()) {
-    if (isa<ParenExpr>(E)) {
-      if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParens())) {
+    if (isa<ParenExpr>(IDExpr)) {
+      if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(IDExpr->IgnoreParens())) {
         if (VarDecl *Var = dyn_cast<VarDecl>(DRE->getDecl())) {
           QualType T = S.getCapturedDeclRefType(Var, DRE->getLocation());
           if (!T.isNull())

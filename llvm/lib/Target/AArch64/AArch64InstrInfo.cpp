@@ -2300,6 +2300,22 @@ unsigned AArch64InstrInfo::getLoadStoreImmIdx(unsigned Opc) {
   case AArch64::LD1B_D_IMM:
   case AArch64::LD1SB_D_IMM:
   case AArch64::ST1B_D_IMM:
+  case AArch64::LD1RB_IMM:
+  case AArch64::LD1RB_H_IMM:
+  case AArch64::LD1RB_S_IMM:
+  case AArch64::LD1RB_D_IMM:
+  case AArch64::LD1RSB_H_IMM:
+  case AArch64::LD1RSB_S_IMM:
+  case AArch64::LD1RSB_D_IMM:
+  case AArch64::LD1RH_IMM:
+  case AArch64::LD1RH_S_IMM:
+  case AArch64::LD1RH_D_IMM:
+  case AArch64::LD1RSH_S_IMM:
+  case AArch64::LD1RSH_D_IMM:
+  case AArch64::LD1RW_IMM:
+  case AArch64::LD1RW_D_IMM:
+  case AArch64::LD1RSW_IMM:
+  case AArch64::LD1RD_IMM:
     return 3;
   case AArch64::ADDG:
   case AArch64::STGOffset:
@@ -2911,6 +2927,42 @@ bool AArch64InstrInfo::getMemOpInfo(unsigned Opcode, TypeSize &Scale,
     Scale = TypeSize::Fixed(16);
     Width = 16;
     MinOffset = -64;
+    MaxOffset = 63;
+    break;
+  case AArch64::LD1RB_IMM:
+  case AArch64::LD1RB_H_IMM:
+  case AArch64::LD1RB_S_IMM:
+  case AArch64::LD1RB_D_IMM:
+  case AArch64::LD1RSB_H_IMM:
+  case AArch64::LD1RSB_S_IMM:
+  case AArch64::LD1RSB_D_IMM:
+    Scale = TypeSize::Fixed(1);
+    Width = 1;
+    MinOffset = 0;
+    MaxOffset = 63;
+    break;
+  case AArch64::LD1RH_IMM:
+  case AArch64::LD1RH_S_IMM:
+  case AArch64::LD1RH_D_IMM:
+  case AArch64::LD1RSH_S_IMM:
+  case AArch64::LD1RSH_D_IMM:
+    Scale = TypeSize::Fixed(2);
+    Width = 2;
+    MinOffset = 0;
+    MaxOffset = 63;
+    break;
+  case AArch64::LD1RW_IMM:
+  case AArch64::LD1RW_D_IMM:
+  case AArch64::LD1RSW_IMM:
+    Scale = TypeSize::Fixed(4);
+    Width = 4;
+    MinOffset = 0;
+    MaxOffset = 63;
+    break;
+  case AArch64::LD1RD_IMM:
+    Scale = TypeSize::Fixed(8);
+    Width = 8;
+    MinOffset = 0;
     MaxOffset = 63;
     break;
   }
@@ -3569,6 +3621,11 @@ void AArch64InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
 
+#ifndef NDEBUG
+  const TargetRegisterInfo &TRI = getRegisterInfo();
+  errs() << TRI.getRegAsmName(DestReg) << " = COPY "
+         << TRI.getRegAsmName(SrcReg) << "\n";
+#endif
   llvm_unreachable("unimplemented reg-to-reg copy");
 }
 
@@ -7132,15 +7189,22 @@ static void signOutlinedFunction(MachineFunction &MF, MachineBasicBlock &MBB,
     //    PACIASP                   EMITBKEY
     //    CFI_INSTRUCTION           PACIBSP
     //                              CFI_INSTRUCTION
+    unsigned PACI;
     if (ShouldSignReturnAddrWithAKey) {
-      BuildMI(MBB, MBBPAC, DebugLoc(), TII->get(AArch64::PACIASP))
-          .setMIFlag(MachineInstr::FrameSetup);
+      PACI = Subtarget.hasPAuth() ? AArch64::PACIA : AArch64::PACIASP;
     } else {
       BuildMI(MBB, MBBPAC, DebugLoc(), TII->get(AArch64::EMITBKEY))
           .setMIFlag(MachineInstr::FrameSetup);
-      BuildMI(MBB, MBBPAC, DebugLoc(), TII->get(AArch64::PACIBSP))
-          .setMIFlag(MachineInstr::FrameSetup);
+      PACI = Subtarget.hasPAuth() ? AArch64::PACIB : AArch64::PACIBSP;
     }
+
+    auto MI = BuildMI(MBB, MBBPAC, DebugLoc(), TII->get(PACI));
+    if (Subtarget.hasPAuth())
+      MI.addReg(AArch64::LR, RegState::Define)
+          .addReg(AArch64::LR)
+          .addReg(AArch64::SP, RegState::InternalRead);
+    MI.setMIFlag(MachineInstr::FrameSetup);
+
     unsigned CFIIndex =
         MF.addFrameInst(MCCFIInstruction::createNegateRAState(nullptr));
     BuildMI(MBB, MBBPAC, DebugLoc(), TII->get(AArch64::CFI_INSTRUCTION))

@@ -116,8 +116,10 @@ void invalidated() {
         __builtin_sycl_unique_stable_id(ThisGlobalStorageVar);
 
     // expected-error@#KernelSingleTaskFunc{{kernel instantiation changes the result of an evaluated '__builtin_sycl_unique_stable_id'}}
-    // expected-note@+2{{in instantiation of function template specialization}}
-    // expected-note@-4{{'__builtin_sycl_unique_stable_id' evaluated here}}
-    cl::sycl::kernel_single_task<class C>(lambda);
+    // expected-note@#KernelSingleTask{{in instantiation of function template specialization}}
+    // expected-note@+3{{in instantiation of function template specialization}}
+    // expected-note@-5{{'__builtin_sycl_unique_stable_id' evaluated here}}
+    cl::sycl::handler H;
+    H.single_task(lambda);
   };
 }

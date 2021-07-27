@@ -3150,6 +3150,143 @@ func @no_fusion_cannot_compute_valid_slice() {
 
 // -----
 
+// MAXIMAL-LABEL:   func @reduce_add_f32_f32(
+func @reduce_add_f32_f32(%arg0: memref<64x64xf32, 1>, %arg1: memref<1x64xf32, 1>, %arg2: memref<1x64xf32, 1>) {
+  %cst_0 = constant 0.000000e+00 : f32
+  %cst_1 = constant 1.000000e+00 : f32
+  %0 = memref.alloca() : memref<f32, 1>
+  %1 = memref.alloca() : memref<f32, 1>
+  affine.for %arg3 = 0 to 1 {
+    affine.for %arg4 = 0 to 64 {
+      %accum = affine.for %arg5 = 0 to 64 iter_args (%prevAccum = %cst_0) -> f32 {
+        %4 = affine.load %arg0[%arg5, %arg4] : memref<64x64xf32, 1>
+        %5 = addf %prevAccum, %4 : f32
+        affine.yield %5 : f32
+      }
+      %accum_dbl = addf %accum, %accum : f32
+      affine.store %accum_dbl, %arg1[%arg3, %arg4] : memref<1x64xf32, 1>
+    }
+  }
+  affine.for %arg3 = 0 to 1 {
+    affine.for %arg4 = 0 to 64 {
+      %accum = affine.for %arg5 = 0 to 64 iter_args (%prevAccum = %cst_1) -> f32 {
+        %4 = affine.load %arg0[%arg5, %arg4] : memref<64x64xf32, 1>
+        %5 = mulf %prevAccum, %4 : f32
+        affine.yield %5 : f32
+      }
+      %accum_sqr = mulf %accum, %accum : f32
+      affine.store %accum_sqr, %arg2[%arg3, %arg4] : memref<1x64xf32, 1>
+    }
+  }
+  return
+}
+// The two loops here get maximally sibling-fused at the innermost
+// insertion point. Test checks  if the innermost reduction loop of the fused loop
+// gets promoted into its outerloop.
+// MAXIMAL-SAME:                             %[[arg_0:.*]]: memref<64x64xf32, 1>,
+// MAXIMAL-SAME:                             %[[arg_1:.*]]: memref<1x64xf32, 1>,
+// MAXIMAL-SAME:                             %[[arg_2:.*]]: memref<1x64xf32, 1>) {
+// MAXIMAL:             %[[cst:.*]] = constant 0 : index
+// MAXIMAL-NEXT:        %[[cst_0:.*]] = constant 0.000000e+00 : f32
+// MAXIMAL-NEXT:        %[[cst_1:.*]] = constant 1.000000e+00 : f32
+// MAXIMAL:             affine.for %[[idx_0:.*]] = 0 to 1 {
+// MAXIMAL-NEXT:          affine.for %[[idx_1:.*]] = 0 to 64 {
+// MAXIMAL-NEXT:            %[[results:.*]]:2 = affine.for %[[idx_2:.*]] = 0 to 64 iter_args(%[[iter_0:.*]] = %[[cst_1]], %[[iter_1:.*]] = %[[cst_0]]) -> (f32, f32) {
+// MAXIMAL-NEXT:              %[[val_0:.*]] = affine.load %[[arg_0]][%[[idx_2]], %[[idx_1]]] : memref<64x64xf32, 1>
+// MAXIMAL-NEXT:              %[[reduc_0:.*]] = addf %[[iter_1]], %[[val_0]] : f32
+// MAXIMAL-NEXT:              %[[val_1:.*]] = affine.load %[[arg_0]][%[[idx_2]], %[[idx_1]]] : memref<64x64xf32, 1>
+// MAXIMAL-NEXT:              %[[reduc_1:.*]] = mulf %[[iter_0]], %[[val_1]] : f32
+// MAXIMAL-NEXT:              affine.yield %[[reduc_1]], %[[reduc_0]] : f32, f32
+// MAXIMAL-NEXT:            }
+// MAXIMAL-NEXT:            %[[reduc_0_dbl:.*]] = addf %[[results:.*]]#1, %[[results]]#1 : f32
+// MAXIMAL-NEXT:            affine.store %[[reduc_0_dbl]], %[[arg_1]][%[[cst]], %[[idx_1]]] : memref<1x64xf32, 1>
+// MAXIMAL-NEXT:            %[[reduc_1_sqr:.*]] = mulf %[[results]]#0, %[[results]]#0 : f32
+// MAXIMAL-NEXT:            affine.store %[[reduc_1_sqr]], %[[arg_2]][%[[idx_0]], %[[idx_1]]] : memref<1x64xf32, 1>
+// MAXIMAL-NEXT:          }
+// MAXIMAL-NEXT:        }
+// MAXIMAL-NEXT:        return
+// MAXIMAL-NEXT:      }
+
+// -----
+
+// CHECK-LABEL:   func @reduce_add_non_innermost
+func @reduce_add_non_innermost(%arg0: memref<64x64xf32, 1>, %arg1: memref<1x64xf32, 1>, %arg2: memref<1x64xf32, 1>) {
+  %cst = constant 0.000000e+00 : f32
+  %cst_0 = constant 1.000000e+00 : f32
+  %0 = memref.alloca() : memref<f32, 1>
+  %1 = memref.alloca() : memref<f32, 1>
+  affine.for %arg3 = 0 to 1 {
+    affine.for %arg4 = 0 to 64 {
+      %accum = affine.for %arg5 = 0 to 64 iter_args (%prevAccum = %cst) -> f32 {
+        %4 = affine.load %arg0[%arg5, %arg4] : memref<64x64xf32, 1>
+        %5 = addf %prevAccum, %4 : f32
+        affine.yield %5 : f32
+      }
+      %accum_dbl = addf %accum, %accum : f32
+      affine.store %accum_dbl, %arg1[%arg3, %arg4] : memref<1x64xf32, 1>
+    }
+  }
+  affine.for %arg3 = 0 to 1 {
+    affine.for %arg4 = 0 to 64 {
+      %accum = affine.for %arg5 = 0 to 64 iter_args (%prevAccum = %cst_0) -> f32 {
+        %4 = affine.load %arg0[%arg5, %arg4] : memref<64x64xf32, 1>
+        %5 = mulf %prevAccum, %4 : f32
+        affine.yield %5 : f32
+      }
+      %accum_sqr = mulf %accum, %accum : f32
+      affine.store %accum_sqr, %arg2[%arg3, %arg4] : memref<1x64xf32, 1>
+    }
+  }
+  return
+}
+// Test checks the loop structure is preserved after sibling fusion.
+// CHECK:         affine.for
+// CHECK-NEXT:      affine.for
+// CHECK-NEXT:        affine.for
+// CHECK             affine.for
+
+// -----
+func @reduce_add_non_maximal_f32_f32(%arg0: memref<64x64xf32, 1>, %arg1 : memref<1x64xf32, 1>, %arg2 : memref<1x64xf32, 1>) {
+    %cst_0 = constant 0.000000e+00 : f32
+    %cst_1 = constant 1.000000e+00 : f32
+    affine.for %arg3 = 0 to 1 {
+      affine.for %arg4 = 0 to 64 {
+        %accum = affine.for %arg5 = 0 to 64 iter_args (%prevAccum = %cst_0) -> f32 {
+          %4 = affine.load %arg0[%arg5, %arg4] : memref<64x64xf32, 1>
+          %5 = addf %prevAccum, %4 : f32
+          affine.yield %5 : f32
+        }
+        %accum_dbl = addf %accum, %accum : f32
+        affine.store %accum_dbl, %arg1[%arg3, %arg4] : memref<1x64xf32, 1>
+      }
+    }
+    affine.for %arg3 = 0 to 1 {
+      affine.for %arg4 = 0 to 64 {
+        // Following loop  trip count does not match the corresponding source trip count.
+        %accum = affine.for %arg5 = 0 to 32 iter_args (%prevAccum = %cst_1) -> f32 {
+          %4 = affine.load %arg0[%arg5, %arg4] : memref<64x64xf32, 1>
+          %5 = mulf %prevAccum, %4 : f32
+          affine.yield %5 : f32
+        }
+        %accum_sqr = mulf %accum, %accum : f32
+        affine.store %accum_sqr, %arg2[%arg3, %arg4] : memref<1x64xf32, 1>
+      }
+    }
+    return
+}
+// Test checks the loop structure is preserved after sibling fusion
+// since the destination loop and source loop trip counts do not
+// match.
+// MAXIMAL-LABEL:   func @reduce_add_non_maximal_f32_f32(
+// MAXIMAL:        %[[cst_0:.*]] = constant 0.000000e+00 : f32
+// MAXIMAL-NEXT:        %[[cst_1:.*]] = constant 1.000000e+00 : f32
+// MAXIMAL-NEXT:           affine.for %[[idx_0:.*]]= 0 to 1 {
+// MAXIMAL-NEXT:             affine.for %[[idx_1:.*]] = 0 to 64 {
+// MAXIMAL-NEXT:               %[[result_1:.*]] = affine.for %[[idx_2:.*]] = 0 to 32 iter_args(%[[iter_0:.*]] = %[[cst_1]]) -> (f32) {
+// MAXIMAL-NEXT:                 %[[result_0:.*]] = affine.for %[[idx_3:.*]] = 0 to 64 iter_args(%[[iter_1:.*]] = %[[cst_0]]) -> (f32) {
+
+// -----
+
 // CHECK-LABEL: func @fuse_large_number_of_loops
 func @fuse_large_number_of_loops(%arg0: memref<20x10xf32, 1>, %arg1: memref<20x10xf32, 1>, %arg2: memref<20x10xf32, 1>, %arg3: memref<20x10xf32, 1>, %arg4: memref<20x10xf32, 1>, %arg5: memref<f32, 1>, %arg6: memref<f32, 1>, %arg7: memref<f32, 1>, %arg8: memref<f32, 1>, %arg9: memref<20x10xf32, 1>, %arg10: memref<20x10xf32, 1>, %arg11: memref<20x10xf32, 1>, %arg12: memref<20x10xf32, 1>) {
   %cst = constant 1.000000e+00 : f32
@@ -3330,3 +3467,69 @@ func @fuse_large_number_of_loops(%arg0: memref<20x10xf32, 1>, %arg1: memref<20x1
 // CHECK:         affine.for
 // CHECK:         affine.for
 // CHECK-NOT:     affine.for
+
+// -----
+
+// Expects fusion of producer into consumer at depth 4 and subsequent removal of
+// source loop.
+// CHECK-LABEL: func @unflatten4d
+func @unflatten4d(%arg1: memref<7x8x9x10xf32>) {
+  %m = memref.alloc() : memref<5040xf32>
+  %cf7 = constant 7.0 : f32
+
+  affine.for %i0 = 0 to 7 {
+    affine.for %i1 = 0 to 8 {
+      affine.for %i2 = 0 to 9 {
+        affine.for %i3 = 0 to 10 {
+          affine.store %cf7, %m[720 * %i0 + 90 * %i1 + 10 * %i2 + %i3] : memref<5040xf32>
+        }
+      }
+    }
+  }
+  affine.for %i0 = 0 to 7 {
+    affine.for %i1 = 0 to 8 {
+      affine.for %i2 = 0 to 9 {
+        affine.for %i3 = 0 to 10 {
+          %v0 = affine.load %m[720 * %i0 + 90 * %i1 + 10 * %i2 + %i3] : memref<5040xf32>
+          affine.store %v0, %arg1[%i0, %i1, %i2, %i3] : memref<7x8x9x10xf32>
+        }
+      }
+    }
+  }
+  return
+}
+
+// CHECK:        affine.for
+// CHECK-NEXT:     affine.for
+// CHECK-NEXT:       affine.for
+// CHECK-NEXT:         affine.for
+// CHECK-NOT:    affine.for
+// CHECK: return
+
+// -----
+
+// Expects fusion of producer into consumer at depth 2 and subsequent removal of
+// source loop.
+// CHECK-LABEL: func @unflatten2d_with_transpose
+func @unflatten2d_with_transpose(%arg1: memref<8x7xf32>) {
+  %m = memref.alloc() : memref<56xf32>
+  %cf7 = constant 7.0 : f32
+
+  affine.for %i0 = 0 to 7 {
+    affine.for %i1 = 0 to 8 {
+      affine.store %cf7, %m[8 * %i0 + %i1] : memref<56xf32>
+    }
+  }
+  affine.for %i0 = 0 to 8 {
+    affine.for %i1 = 0 to 7 {
+      %v0 = affine.load %m[%i0 + 8 * %i1] : memref<56xf32>
+      affine.store %v0, %arg1[%i0, %i1] : memref<8x7xf32>
+    }
+  }
+  return
+}
+
+// CHECK:        affine.for
+// CHECK-NEXT:     affine.for
+// CHECK-NOT:    affine.for
+// CHECK: return

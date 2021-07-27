@@ -55,6 +55,9 @@ static std::unique_ptr<FrontendAction> CreateFrontendBaseAction(
   case DebugDumpParseTreeNoSema:
     return std::make_unique<DebugDumpParseTreeNoSemaAction>();
     break;
+  case DebugDumpAll:
+    return std::make_unique<DebugDumpAllAction>();
+    break;
   case DebugDumpProvenance:
     return std::make_unique<DebugDumpProvenanceAction>();
     break;
@@ -72,6 +75,9 @@ static std::unique_ptr<FrontendAction> CreateFrontendBaseAction(
     break;
   case GetSymbolsSources:
     return std::make_unique<GetSymbolsSourcesAction>();
+    break;
+  case InitOnly:
+    return std::make_unique<InitOnlyAction>();
     break;
   default:
     break;
@@ -97,7 +103,7 @@ std::unique_ptr<FrontendAction> CreateFrontendAction(CompilerInstance &ci) {
 bool ExecuteCompilerInvocation(CompilerInstance *flang) {
   // Honor -help.
   if (flang->frontendOpts().showHelp_) {
-    clang::driver::getDriverOptTable().PrintHelp(llvm::outs(),
+    clang::driver::getDriverOptTable().printHelp(llvm::outs(),
         "flang-new -fc1 [options] file...", "LLVM 'Flang' Compiler",
         /*Include=*/clang::driver::options::FC1Option,
         /*Exclude=*/llvm::opt::DriverFlag::HelpHidden,

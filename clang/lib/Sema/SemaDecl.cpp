@@ -3226,7 +3226,7 @@ static bool checkUsingShadowRedecl(Sema &S, UsingShadowDecl *OldS,
   if (!Old) {
     S.Diag(New->getLocation(), diag::err_using_decl_conflict_reverse);
     S.Diag(OldS->getTargetDecl()->getLocation(), diag::note_using_decl_target);
-    S.Diag(OldS->getUsingDecl()->getLocation(), diag::note_using_decl) << 0;
+    S.Diag(OldS->getIntroducer()->getLocation(), diag::note_using_decl) << 0;
     return true;
   }
   return false;
@@ -3332,8 +3332,8 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
         Diag(New->getLocation(), diag::err_using_decl_friend);
         Diag(Shadow->getTargetDecl()->getLocation(),
              diag::note_using_decl_target);
-        Diag(Shadow->getUsingDecl()->getLocation(),
-             diag::note_using_decl) << 0;
+        Diag(Shadow->getIntroducer()->getLocation(), diag::note_using_decl)
+            << 0;
         return true;
       }
 
@@ -6187,7 +6187,7 @@ bool Sema::tryToFixVariablyModifiedVarType(TypeSourceInfo *&TInfo,
   if (SizeIsNegative)
     Diag(Loc, diag::err_typecheck_negative_array_size);
   else if (Oversized.getBoolValue())
-    Diag(Loc, diag::err_array_too_large) << Oversized.toString(10);
+    Diag(Loc, diag::err_array_too_large) << toString(Oversized, 10);
   else if (FailedFoldDiagID)
     Diag(Loc, FailedFoldDiagID);
   return false;
@@ -6307,7 +6307,7 @@ Sema::CheckTypedefForVariablyModifiedType(Scope *S, TypedefNameDecl *NewTD) {
           Diag(NewTD->getLocation(), diag::err_vla_decl_in_file_scope);
         else if (Oversized.getBoolValue())
           Diag(NewTD->getLocation(), diag::err_array_too_large)
-            << Oversized.toString(10);
+            << toString(Oversized, 10);
         else
           Diag(NewTD->getLocation(), diag::err_vm_decl_in_file_scope);
         NewTD->setInvalidDecl();
@@ -6476,7 +6476,11 @@ void Sema::deduceOpenCLAddressSpace(ValueDecl *Decl) {
     if (Type->isSamplerT() || Type->isVoidType())
       return;
     LangAS ImplAS = LangAS::opencl_private;
-    if ((getLangOpts().OpenCLCPlusPlus || getLangOpts().OpenCLVersion >= 200) &&
+    // OpenCL C v3.0 s6.7.8 - For OpenCL C 2.0 or with the
+    // __opencl_c_program_scope_global_variables feature, the address space
+    // for a variable at program scope or a static or extern variable inside
+    // a function are inferred to be __global.
+    if (getOpenCLOptions().areProgramScopeVariablesSupported(getLangOpts()) &&
         Var->hasGlobalStorage())
       ImplAS = LangAS::opencl_global;
     // If the original type from a decayed type is an array type and that array
@@ -8077,23 +8081,16 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
       }
     }
 
-    // OpenCL C v1.2 s6.5 - All program scope variables must be declared in the
-    // __constant address space.
-    // OpenCL C v2.0 s6.5.1 - Variables defined at program scope and static
-    // variables inside a function can also be declared in the global
-    // address space.
-    // C++ for OpenCL inherits rule from OpenCL C v2.0.
     // FIXME: Adding local AS in C++ for OpenCL might make sense.
     if (NewVD->isFileVarDecl() || NewVD->isStaticLocal() ||
         NewVD->hasExternalStorage()) {
-      if (!T->isSamplerT() &&
-          !T->isDependentType() &&
+      if (!T->isSamplerT() && !T->isDependentType() &&
           !(T.getAddressSpace() == LangAS::opencl_constant ||
             (T.getAddressSpace() == LangAS::opencl_global &&
-             (getLangOpts().OpenCLVersion == 200 ||
-              getLangOpts().OpenCLCPlusPlus)))) {
+             getOpenCLOptions().areProgramScopeVariablesSupported(
+                 getLangOpts())))) {
         int Scope = NewVD->isStaticLocal() | NewVD->hasExternalStorage() << 1;
-        if (getLangOpts().OpenCLVersion == 200 || getLangOpts().OpenCLCPlusPlus)
+        if (getOpenCLOptions().areProgramScopeVariablesSupported(getLangOpts()))
           Diag(NewVD->getLocation(), diag::err_opencl_global_invalid_addr_space)
               << Scope << "global or constant";
         else
@@ -12286,12 +12283,12 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
   // If adding the initializer will turn this declaration into a definition,
   // and we already have a definition for this variable, diagnose or otherwise
   // handle the situation.
-  VarDecl *Def;
-  if ((Def = VDecl->getDefinition()) && Def != VDecl &&
-      (!VDecl->isStaticDataMember() || VDecl->isOutOfLine()) &&
-      !VDecl->isThisDeclarationADemotedDefinition() &&
-      checkVarDeclRedefinition(Def, VDecl))
-    return;
+  if (VarDecl *Def = VDecl->getDefinition())
+    if (Def != VDecl &&
+        (!VDecl->isStaticDataMember() || VDecl->isOutOfLine()) &&
+        !VDecl->isThisDeclarationADemotedDefinition() &&
+        checkVarDeclRedefinition(Def, VDecl))
+      return;
 
   if (getLangOpts().CPlusPlus) {
     // C++ [class.static.data]p4
@@ -12412,12 +12409,10 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit) {
   // Variables declared within a function/method body (except for references)
   // are handled by a dataflow analysis.
   // This is undefined behavior in C++, but valid in C.
-  if (getLangOpts().CPlusPlus) {
+  if (getLangOpts().CPlusPlus)
     if (!VDecl->hasLocalStorage() || VDecl->getType()->isRecordType() ||
-        VDecl->getType()->isReferenceType()) {
+        VDecl->getType()->isReferenceType())
       CheckSelfReference(*this, RealDecl, Init, DirectInit);
-    }
-  }
 
   // If the type changed, it means we had an incomplete type that was
   // completed by the initializer. For example:
@@ -13382,16 +13377,6 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
     CheckCompleteDecompositionDeclaration(DD);
 }
 
-/// Determines if a variable's alignment is dependent.
-static bool hasDependentAlignment(VarDecl *VD) {
-  if (VD->getType()->isDependentType())
-    return true;
-  for (auto *I : VD->specific_attrs<AlignedAttr>())
-    if (I->isAlignmentDependent())
-      return true;
-  return false;
-}
-
 /// Check if VD needs to be dllexport/dllimport due to being in a
 /// dllexport/import function.
 void Sema::CheckStaticLocalForDllExport(VarDecl *VD) {
@@ -13480,8 +13465,7 @@ void Sema::FinalizeDeclaration(Decl *ThisDecl) {
   if (unsigned MaxAlign = Context.getTargetInfo().getMaxTLSAlign()) {
     // Protect the check so that it's not performed on dependent types and
     // dependent alignments (we can't determine the alignment in that case).
-    if (VD->getTLSKind() && !hasDependentAlignment(VD) &&
-        !VD->isInvalidDecl()) {
+    if (VD->getTLSKind() && !VD->hasDependentAlignment()) {
       CharUnits MaxAlignChars = Context.toCharUnitsFromBits(MaxAlign);
       if (Context.getDeclAlign(VD) > MaxAlignChars) {
         Diag(VD->getLocation(), diag::err_tls_var_aligned_over_maximum)
@@ -16058,7 +16042,7 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
         Diag(KWLoc, diag::err_using_decl_conflict_reverse);
         Diag(Shadow->getTargetDecl()->getLocation(),
              diag::note_using_decl_target);
-        Diag(Shadow->getUsingDecl()->getLocation(), diag::note_using_decl)
+        Diag(Shadow->getIntroducer()->getLocation(), diag::note_using_decl)
             << 0;
         // Recover by ignoring the old declaration.
         Previous.clear();
@@ -16741,16 +16725,16 @@ ExprResult Sema::VerifyBitField(SourceLocation FieldLoc,
   if (Value.isSigned() && Value.isNegative()) {
     if (FieldName)
       return Diag(FieldLoc, diag::err_bitfield_has_negative_width)
-               << FieldName << Value.toString(10);
+               << FieldName << toString(Value, 10);
     return Diag(FieldLoc, diag::err_anon_bitfield_has_negative_width)
-      << Value.toString(10);
+      << toString(Value, 10);
   }
 
   // The size of the bit-field must not exceed our maximum permitted object
   // size.
   if (Value.getActiveBits() > ConstantArrayType::getMaxSizeBits(Context)) {
     return Diag(FieldLoc, diag::err_bitfield_too_wide)
-           << !FieldName << FieldName << Value.toString(10);
+           << !FieldName << FieldName << toString(Value, 10);
   }
 
   if (!FieldTy->isDependentType()) {
@@ -16768,14 +16752,9 @@ ExprResult Sema::VerifyBitField(SourceLocation FieldLoc,
     if (CStdConstraintViolation || MSBitfieldViolation) {
       unsigned DiagWidth =
           CStdConstraintViolation ? TypeWidth : TypeStorageSize;
-      if (FieldName)
-        return Diag(FieldLoc, diag::err_bitfield_width_exceeds_type_width)
-               << FieldName << Value.toString(10)
-               << !CStdConstraintViolation << DiagWidth;
-
-      return Diag(FieldLoc, diag::err_anon_bitfield_width_exceeds_type_width)
-             << Value.toString(10) << !CStdConstraintViolation
-             << DiagWidth;
+      return Diag(FieldLoc, diag::err_bitfield_width_exceeds_type_width)
+             << (bool)FieldName << FieldName << toString(Value, 10)
+             << !CStdConstraintViolation << DiagWidth;
     }
 
     // Warn on types where the user might conceivably expect to get all
@@ -16783,7 +16762,7 @@ ExprResult Sema::VerifyBitField(SourceLocation FieldLoc,
     // 'bool'.
     if (BitfieldIsOverwide && !FieldTy->isBooleanType() && FieldName) {
       Diag(FieldLoc, diag::warn_bitfield_width_exceeds_type_width)
-          << FieldName << Value.toString(10)
+          << FieldName << toString(Value, 10)
           << (unsigned)TypeWidth;
     }
   }
@@ -17895,7 +17874,7 @@ EnumConstantDecl *Sema::CheckEnumConstant(EnumDecl *Enum,
           // Complain if the value is not representable in an int.
           if (!isRepresentableIntegerValue(Context, EnumVal, Context.IntTy))
             Diag(IdLoc, diag::ext_enum_value_not_int)
-              << EnumVal.toString(10) << Val->getSourceRange()
+              << toString(EnumVal, 10) << Val->getSourceRange()
               << (EnumVal.isUnsigned() || EnumVal.isNonNegative());
           else if (!Context.hasSameType(Val->getType(), Context.IntTy)) {
             // Force the type of the expression to 'int'.
@@ -17953,11 +17932,11 @@ EnumConstantDecl *Sema::CheckEnumConstant(EnumDecl *Enum,
           if (Enum->isFixed())
             // When the underlying type is fixed, this is ill-formed.
             Diag(IdLoc, diag::err_enumerator_wrapped)
-              << EnumVal.toString(10)
+              << toString(EnumVal, 10)
               << EltTy;
           else
             Diag(IdLoc, diag::ext_enumerator_increment_too_large)
-              << EnumVal.toString(10);
+              << toString(EnumVal, 10);
         } else {
           EltTy = T;
         }
@@ -17981,7 +17960,7 @@ EnumConstantDecl *Sema::CheckEnumConstant(EnumDecl *Enum,
                  !isRepresentableIntegerValue(Context, EnumVal, EltTy)) {
         // Enforce C99 6.7.2.2p2 even when we compute the next value.
         Diag(IdLoc, diag::ext_enum_value_not_int)
-          << EnumVal.toString(10) << 1;
+          << toString(EnumVal, 10) << 1;
       }
     }
   }
@@ -18235,14 +18214,14 @@ static void CheckForDuplicateEnumValues(Sema &S, ArrayRef<Decl *> Elements,
     // Emit warning for one enum constant.
     auto *FirstECD = Vec->front();
     S.Diag(FirstECD->getLocation(), diag::warn_duplicate_enum_values)
-      << FirstECD << FirstECD->getInitVal().toString(10)
+      << FirstECD << toString(FirstECD->getInitVal(), 10)
       << FirstECD->getSourceRange();
 
     // Emit one note for each of the remaining enum constants with
     // the same value.
     for (auto *ECD : llvm::make_range(Vec->begin() + 1, Vec->end()))
       S.Diag(ECD->getLocation(), diag::note_duplicate_element)
-        << ECD << ECD->getInitVal().toString(10)
+        << ECD << toString(ECD->getInitVal(), 10)
         << ECD->getSourceRange();
   }
 }
@@ -18477,7 +18456,7 @@ void Sema::ActOnEnumBody(SourceLocation EnumLoc, SourceRange BraceRange,
         !Context.hasSameType(NewTy, ECD->getInitExpr()->getType()))
       ECD->setInitExpr(ImplicitCastExpr::Create(
           Context, NewTy, CK_IntegralCast, ECD->getInitExpr(),
-          /*base paths*/ nullptr, VK_RValue, FPOptionsOverride()));
+          /*base paths*/ nullptr, VK_PRValue, FPOptionsOverride()));
     if (getLangOpts().CPlusPlus)
       // C++ [dcl.enum]p4: Following the closing brace of an
       // enum-specifier, each enumerator has the type of its
