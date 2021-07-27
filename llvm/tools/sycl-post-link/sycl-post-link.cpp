@@ -44,6 +44,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
+#include <algorithm>
 #include <memory>
 
 using namespace llvm;
@@ -163,12 +164,17 @@ static cl::opt<bool> EmitKernelParamInfo{
     "emit-param-info", cl::desc("emit kernel parameter optimization info"),
     cl::cat(PostLinkCat)};
 
+static cl::opt<bool> EmitProgramMetadata{"emit-program-metadata",
+                                         cl::desc("emit SYCL program metadata"),
+                                         cl::cat(PostLinkCat)};
+
 struct ImagePropSaveInfo {
   bool NeedDeviceLibReqMask;
   bool DoSpecConst;
   bool SetSpecConstAtRT;
   bool SpecConstsMet;
   bool EmitKernelParamInfo;
+  bool EmitProgramMetadata;
   bool IsEsimdKernel;
 };
 
@@ -288,13 +294,17 @@ static void collectKernelModuleMap(
   }
 }
 
+enum HasAssertStatus { No_Assert, Assert, Assert_Indirect };
+
 // Go through function call graph searching for assert call.
-static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
+static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
   // Map holds the info about assertions in already examined functions:
   // true  - if there is an assertion in underlying functions,
   // false - if there are definetely no assertions in underlying functions.
   static std::map<llvm::Function *, bool> hasAssertionInCallGraphMap;
   std::vector<llvm::Function *> FuncCallStack;
+
+  static std::vector<llvm::Function *> isIndirectlyCalledInGraph;
 
   std::vector<llvm::Function *> Workstack;
   Workstack.push_back(Func);
@@ -305,6 +315,16 @@ static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
     if (F != Func)
       FuncCallStack.push_back(F);
 
+    bool HasIndirectlyCalledAttr = false;
+    if (std::find(isIndirectlyCalledInGraph.begin(),
+                  isIndirectlyCalledInGraph.end(),
+                  F) != isIndirectlyCalledInGraph.end())
+      HasIndirectlyCalledAttr = true;
+    else if (F->hasFnAttribute("referenced-indirectly")) {
+      HasIndirectlyCalledAttr = true;
+      isIndirectlyCalledInGraph.push_back(F);
+    }
+
     bool IsLeaf = true;
     for (auto &I : instructions(F)) {
       if (!isa<CallBase>(&I))
@@ -313,6 +333,12 @@ static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
       Function *CF = cast<CallBase>(&I)->getCalledFunction();
       if (!CF)
         continue;
+
+      bool IsIndirectlyCalled =
+          HasIndirectlyCalledAttr ||
+          std::find(isIndirectlyCalledInGraph.begin(),
+                    isIndirectlyCalledInGraph.end(),
+                    CF) != isIndirectlyCalledInGraph.end();
 
       // Return if we've already discovered if there are asserts in the
       // function call graph.
@@ -323,7 +349,7 @@ static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
         if (!HasAssert->second)
           continue;
 
-        return true;
+        return IsIndirectlyCalled ? Assert_Indirect : Assert;
       }
 
       if (CF->getName().startswith("__devicelib_assert_fail")) {
@@ -335,12 +361,14 @@ static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
         hasAssertionInCallGraphMap[Func] = true;
         hasAssertionInCallGraphMap[CF] = true;
 
-        return true;
+        return IsIndirectlyCalled ? Assert_Indirect : Assert;
       }
 
       if (!CF->isDeclaration()) {
         Workstack.push_back(CF);
         IsLeaf = false;
+        if (HasIndirectlyCalledAttr)
+          isIndirectlyCalledInGraph.push_back(CF);
       }
     }
 
@@ -350,7 +378,24 @@ static bool hasAssertInFunctionCallGraph(llvm::Function *Func) {
       FuncCallStack.clear();
     }
   }
-  return false;
+  return No_Assert;
+}
+
+// Gets reqd_work_group_size information for function Func.
+static std::vector<uint32_t>
+getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
+  auto ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
+  if (!ReqdWorkGroupSizeMD)
+    return {};
+  // TODO: Remove 3-operand assumption when it is relaxed.
+  assert(ReqdWorkGroupSizeMD->getNumOperands() == 3);
+  uint32_t X = mdconst::extract<ConstantInt>(ReqdWorkGroupSizeMD->getOperand(0))
+                   ->getZExtValue();
+  uint32_t Y = mdconst::extract<ConstantInt>(ReqdWorkGroupSizeMD->getOperand(1))
+                   ->getZExtValue();
+  uint32_t Z = mdconst::extract<ConstantInt>(ReqdWorkGroupSizeMD->getOperand(2))
+                   ->getZExtValue();
+  return {X, Y, Z};
 }
 
 // Input parameter KernelModuleMap is a map containing groups of kernels with
@@ -540,6 +585,24 @@ static string_vector saveDeviceImageProperty(
       }
     }
 
+    // Metadata names may be composite so we keep them alive until the
+    // properties have been written.
+    SmallVector<std::string, 4> MetadataNames;
+    if (ImgPSInfo.EmitProgramMetadata) {
+      auto &ProgramMetadata =
+          PropSet[llvm::util::PropertySetRegistry::SYCL_PROGRAM_METADATA];
+
+      // Add reqd_work_group_size information to program metadata
+      for (const Function &Func : ResultModules[I]->functions()) {
+        std::vector<uint32_t> KernelReqdWorkGroupSize =
+            getKernelReqdWorkGroupSizeMetadata(Func);
+        if (KernelReqdWorkGroupSize.empty())
+          continue;
+        MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
+        ProgramMetadata.insert({MetadataNames.back(), KernelReqdWorkGroupSize});
+      }
+    }
+
     if (ImgPSInfo.IsEsimdKernel) {
       PropSet[llvm::util::PropertySetRegistry::SYCL_MISC_PROP].insert(
           {"isEsimdImage", true});
@@ -547,14 +610,36 @@ static string_vector saveDeviceImageProperty(
 
     {
       Module *M = ResultModules[I].get();
+      bool HasIndirectlyCalledAssert = false;
+      std::vector<llvm::Function *> Kernels;
       for (auto &F : M->functions()) {
         // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
         // TODO: handle function pointers.
-        if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-          if (hasAssertInFunctionCallGraph(&F))
-            PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
-                {F.getName(), true});
+        if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+          continue;
+
+        Kernels.push_back(&F);
+        if (HasIndirectlyCalledAssert)
+          continue;
+
+        HasAssertStatus HasAssert = hasAssertInFunctionCallGraph(&F);
+        switch (HasAssert) {
+        case Assert:
+          PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
+              {F.getName(), true});
+          break;
+        case Assert_Indirect:
+          HasIndirectlyCalledAssert = true;
+          break;
+        case No_Assert:
+          break;
         }
+      }
+
+      if (HasIndirectlyCalledAssert) {
+        for (auto *F : Kernels)
+          PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
+              {F->getName(), true});
       }
     }
 
@@ -702,7 +787,8 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   {
     ImagePropSaveInfo ImgPSInfo = {
         true,          DoSpecConst,         SetSpecConstAtRT,
-        SpecConstsMet, EmitKernelParamInfo, IsEsimd};
+        SpecConstsMet, EmitKernelParamInfo, EmitProgramMetadata,
+        IsEsimd};
     string_vector Files = saveDeviceImageProperty(ResultModules, ImgPSInfo);
     std::copy(Files.begin(), Files.end(),
               std::back_inserter(TblFiles[COL_PROPS]));
@@ -852,8 +938,10 @@ int main(int argc, char **argv) {
   bool DoSplitEsimd = SplitEsimd.getNumOccurrences() > 0;
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
   bool DoParamInfo = EmitKernelParamInfo.getNumOccurrences() > 0;
+  bool DoProgMetadata = EmitProgramMetadata.getNumOccurrences() > 0;
 
-  if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo && !DoSplitEsimd) {
+  if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
+      !DoProgMetadata && !DoSplitEsimd) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
@@ -874,6 +962,11 @@ int main(int argc, char **argv) {
   }
   if (IROutputOnly && DoParamInfo) {
     errs() << "error: -" << EmitKernelParamInfo.ArgStr << " can't be used with"
+           << " -" << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
+  if (IROutputOnly && DoProgMetadata) {
+    errs() << "error: -" << EmitProgramMetadata.ArgStr << " can't be used with"
            << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }

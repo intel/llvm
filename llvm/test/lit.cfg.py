@@ -182,7 +182,13 @@ tools.extend([
     ToolSubst('Kaleidoscope-Ch7', unresolved='ignore'),
     ToolSubst('Kaleidoscope-Ch8', unresolved='ignore'),
     ToolSubst('LLJITWithThinLTOSummaries', unresolved='ignore'),
-    ToolSubst('LLJITWithRemoteDebugging', unresolved='ignore')])
+    ToolSubst('LLJITWithRemoteDebugging', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsBasicUsage', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsAddObjectFile', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsRemovableCode', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsReflectProcessSymbols', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsLazy', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsVeryLazy', unresolved='ignore')])
 
 llvm_config.add_tool_substitutions(tools, config.llvm_tools_dir)
 
@@ -248,7 +254,7 @@ def have_cxx_shared_library():
 
     try:
         readobj_cmd = subprocess.Popen(
-            [readobj_exe, '-needed-libs', readobj_exe], stdout=subprocess.PIPE)
+            [readobj_exe, '--needed-libs', readobj_exe], stdout=subprocess.PIPE)
     except OSError:
         print('could not exec llvm-readobj')
         return False

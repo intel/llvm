@@ -92,7 +92,8 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
 __SYCL_EXPORT program make_program(const context &Context,
                                    pi_native_handle NativeHandle);
 __SYCL_EXPORT queue make_queue(const context &Context,
-                               pi_native_handle InteropHandle);
+                               pi_native_handle InteropHandle,
+                               bool keep_ownership = false);
 
 // Construction of SYCL platform.
 template <typename T, typename detail::enable_if_t<
@@ -139,8 +140,10 @@ T make(const context &Context,
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, queue>::value> * = nullptr>
 T make(const context &Context,
-       typename interop<backend::level_zero, T>::type Interop) {
-  return make_queue(Context, reinterpret_cast<pi_native_handle>(Interop));
+       typename interop<backend::level_zero, T>::type Interop,
+       ownership Ownership = ownership::transfer) {
+  return make_queue(Context, reinterpret_cast<pi_native_handle>(Interop),
+                    Ownership == ownership::keep);
 }
 
 } // namespace level_zero

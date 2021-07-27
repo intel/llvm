@@ -29,7 +29,7 @@ bool isDimBoundedByConstant(isl::set Set, unsigned dim) {
   auto ParamDims = Set.dim(isl::dim::param);
   Set = Set.project_out(isl::dim::param, 0, ParamDims);
   Set = Set.project_out(isl::dim::set, 0, dim);
-  auto SetDims = Set.dim(isl::dim::set);
+  auto SetDims = Set.tuple_dim();
   Set = Set.project_out(isl::dim::set, 1, SetDims - 1);
   return bool(Set.is_bounded());
 }
@@ -40,7 +40,7 @@ bool isDimBoundedByConstant(isl::set Set, unsigned dim) {
 /// Min_p <= x <= Max_p.
 bool isDimBoundedByParameter(isl::set Set, unsigned dim) {
   Set = Set.project_out(isl::dim::set, 0, dim);
-  auto SetDims = Set.dim(isl::dim::set);
+  auto SetDims = Set.tuple_dim();
   Set = Set.project_out(isl::dim::set, 1, SetDims - 1);
   return bool(Set.is_bounded());
 }
@@ -116,10 +116,10 @@ isl::union_map scheduleProjectOut(const isl::union_map &UMap, unsigned first,
     return UMap; /* isl_map_project_out would also reset the tuple, which should
                     have no effect on schedule ranges */
 
-  auto Result = isl::union_map::empty(UMap.get_space());
+  auto Result = isl::union_map::empty(UMap.ctx());
   for (isl::map Map : UMap.get_map_list()) {
     auto Outprojected = Map.project_out(isl::dim::out, first, n);
-    Result = Result.add_map(Outprojected);
+    Result = Result.unite(Outprojected);
   }
   return Result;
 }
@@ -135,19 +135,19 @@ isl_size scheduleScatterDims(const isl::union_map &Schedule) {
     if (Map.is_null())
       continue;
 
-    Dims = std::max(Dims, Map.dim(isl::dim::out));
+    Dims = std::max(Dims, Map.range_tuple_dim());
   }
   return Dims;
 }
 
 /// Return the @p pos' range dimension, converted to an isl_union_pw_aff.
 isl::union_pw_aff scheduleExtractDimAff(isl::union_map UMap, unsigned pos) {
-  auto SingleUMap = isl::union_map::empty(UMap.get_space());
+  auto SingleUMap = isl::union_map::empty(UMap.ctx());
   for (isl::map Map : UMap.get_map_list()) {
-    unsigned MapDims = Map.dim(isl::dim::out);
+    unsigned MapDims = Map.range_tuple_dim();
     isl::map SingleMap = Map.project_out(isl::dim::out, 0, pos);
     SingleMap = SingleMap.project_out(isl::dim::out, 1, MapDims - pos - 1);
-    SingleUMap = SingleUMap.add_map(SingleMap);
+    SingleUMap = SingleUMap.unite(SingleMap);
   };
 
   auto UAff = isl::union_pw_multi_aff(SingleUMap);
@@ -175,11 +175,11 @@ isl::union_pw_aff scheduleExtractDimAff(isl::union_map UMap, unsigned pos) {
 /// The example schedule would be transformed to:
 ///   { Stmt_X[] -> [X - l_X, ...]; Stmt_B -> [l_X - u_X + 1 + Y - l_Y, ...] }
 isl::union_map tryFlattenSequence(isl::union_map Schedule) {
-  auto IslCtx = Schedule.get_ctx();
+  auto IslCtx = Schedule.ctx();
   auto ScatterSet = isl::set(Schedule.range());
 
   auto ParamSpace = Schedule.get_space().params();
-  auto Dims = ScatterSet.dim(isl::dim::set);
+  auto Dims = ScatterSet.tuple_dim();
   assert(Dims >= 2);
 
   // Would cause an infinite loop.
@@ -191,7 +191,7 @@ isl::union_map tryFlattenSequence(isl::union_map Schedule) {
   auto AllDomains = Schedule.domain();
   auto AllDomainsToNull = isl::union_pw_multi_aff(AllDomains);
 
-  auto NewSchedule = isl::union_map::empty(ParamSpace);
+  auto NewSchedule = isl::union_map::empty(ParamSpace.ctx());
   auto Counter = isl::pw_aff(isl::local_space(ParamSpace.set_from_params()));
 
   while (!ScatterSet.is_empty()) {

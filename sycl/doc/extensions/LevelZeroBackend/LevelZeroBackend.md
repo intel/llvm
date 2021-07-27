@@ -88,7 +88,7 @@ a SYCL object that encapsulates a corresponding Level-Zero object:
 |``` make<platform>(ze_driver_handle_t);```|Constructs a SYCL platform instance from a Level-Zero ```ze_driver_handle_t```.|
 |``` make<device>(const platform &, ze_device_handle_t);```|Constructs a SYCL device instance from a Level-Zero ```ze_device_handle_t```. The platform argument gives a SYCL platform, encapsulating a Level-Zero driver supporting the passed Level-Zero device.|
 |``` make<context>(const vector_class<device> &, ze_context_handle_t, ownership = transfer);```| Constructs a SYCL context instance from a Level-Zero ```ze_context_handle_t```. The context is created against the devices passed in. There must be at least one device given and all the devices must be from the same SYCL platform and thus from the same Level-Zero driver. The ```ownership``` argument specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.|
-|``` make<queue>(const context &, ze_command_queue_handle_t);```| Constructs a SYCL queue instance from a Level-Zero ```ze_command_queue_handle_t```. The context argument must be a valid SYCL context encapsulating a Level-Zero context. The queue is attached to the first device in the passed SYCL context.|
+|``` make<queue>(const context &, ze_command_queue_handle_t, ownership = transfer);```| Constructs a SYCL queue instance from a Level-Zero ```ze_command_queue_handle_t```. The context argument must be a valid SYCL context encapsulating a Level-Zero context. The queue is attached to the first device in the passed SYCL context. The ```ownership``` argument specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.|
 |``` make<program>(const context &, ze_module_handle_t);```| Constructs a SYCL program instance from a Level-Zero ```ze_module_handle_t```. The context argument must be a valid SYCL context encapsulating a Level-Zero context. The Level-Zero module must be fully linked (i.e. not require further linking through [```zeModuleDynamicLink```](https://spec.oneapi.com/level-zero/latest/core/api.html?highlight=zemoduledynamiclink#_CPPv419zeModuleDynamicLink8uint32_tP18ze_module_handle_tP28ze_module_build_log_handle_t)), and thus the SYCL program is created in the "linked" state.|
 
 NOTE: We shall consider adding other interoperability as needed, if possible.
@@ -189,4 +189,4 @@ struct free_memory {
 |1|2021-01-26|Sergey Maslov|Initial public working draft
 |2|2021-02-22|Sergey Maslov|Introduced explicit ownership for context
 |3|2021-04-13|James Brodman|Free Memory Query
-
+|4|2021-07-06|Rehana Begam|Introduced explicit ownership for queue

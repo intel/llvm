@@ -49,6 +49,12 @@ inline bool operator==(const QOffsets &a, const QOffsets &b) {
 }
 llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const QOffsets &offsets);
 
+// A trivial struct used to return a pair of PID and TID.
+struct PidTid {
+  uint64_t pid;
+  uint64_t tid;
+};
+
 class GDBRemoteCommunicationClient : public GDBRemoteClientBase {
 public:
   GDBRemoteCommunicationClient();
@@ -321,7 +327,8 @@ public:
       GDBStoppointType type, // Type of breakpoint or watchpoint
       bool insert,           // Insert or remove?
       lldb::addr_t addr,     // Address of breakpoint or watchpoint
-      uint32_t length);      // Byte Size of breakpoint or watchpoint
+      uint32_t length,       // Byte Size of breakpoint or watchpoint
+      std::chrono::seconds interrupt_timeout); // Time to wait for an interrupt
 
   bool SetNonStopMode(const bool enable);
 
@@ -336,9 +343,14 @@ public:
   // and response times.
   bool SendSpeedTestPacket(uint32_t send_size, uint32_t recv_size);
 
-  bool SetCurrentThread(uint64_t tid);
+  llvm::Optional<PidTid>
+  SendSetCurrentThreadPacket(uint64_t tid, uint64_t pid, char op);
 
-  bool SetCurrentThreadForRun(uint64_t tid);
+  bool SetCurrentThread(uint64_t tid,
+                        lldb::pid_t pid = LLDB_INVALID_PROCESS_ID);
+
+  bool SetCurrentThreadForRun(uint64_t tid,
+                              lldb::pid_t pid = LLDB_INVALID_PROCESS_ID);
 
   bool GetQXferAuxvReadSupported();
 
@@ -515,16 +527,22 @@ public:
   ConfigureRemoteStructuredData(ConstString type_name,
                                 const StructuredData::ObjectSP &config_sp);
 
-  llvm::Expected<TraceSupportedResponse> SendTraceSupported();
+  llvm::Expected<TraceSupportedResponse>
+  SendTraceSupported(std::chrono::seconds interrupt_timeout);
 
-  llvm::Error SendTraceStart(const llvm::json::Value &request);
+  llvm::Error SendTraceStart(const llvm::json::Value &request,
+                             std::chrono::seconds interrupt_timeout);
 
-  llvm::Error SendTraceStop(const TraceStopRequest &request);
+  llvm::Error SendTraceStop(const TraceStopRequest &request,
+                            std::chrono::seconds interrupt_timeout);
 
-  llvm::Expected<std::string> SendTraceGetState(llvm::StringRef type);
+  llvm::Expected<std::string>
+  SendTraceGetState(llvm::StringRef type,
+                    std::chrono::seconds interrupt_timeout);
 
   llvm::Expected<std::vector<uint8_t>>
-  SendTraceGetBinaryData(const TraceGetBinaryDataRequest &request);
+  SendTraceGetBinaryData(const TraceGetBinaryDataRequest &request,
+                         std::chrono::seconds interrupt_timeout);
 
 protected:
   LazyBool m_supports_not_sending_acks = eLazyBoolCalculate;
@@ -574,13 +592,14 @@ protected:
       m_supports_qModuleInfo : 1, m_supports_jThreadsInfo : 1,
       m_supports_jModulesInfo : 1;
 
+  /// Current gdb remote protocol process identifier for all other operations
   lldb::pid_t m_curr_pid = LLDB_INVALID_PROCESS_ID;
-  lldb::tid_t m_curr_tid =
-      LLDB_INVALID_THREAD_ID; // Current gdb remote protocol thread index for
-                              // all other operations
-  lldb::tid_t m_curr_tid_run =
-      LLDB_INVALID_THREAD_ID; // Current gdb remote protocol thread index for
-                              // continue, step, etc
+  /// Current gdb remote protocol process identifier for continue, step, etc
+  lldb::pid_t m_curr_pid_run = LLDB_INVALID_PROCESS_ID;
+  /// Current gdb remote protocol thread identifier for all other operations
+  lldb::tid_t m_curr_tid = LLDB_INVALID_THREAD_ID;
+  /// Current gdb remote protocol thread identifier for continue, step, etc
+  lldb::tid_t m_curr_tid_run = LLDB_INVALID_THREAD_ID;
 
   uint32_t m_num_supported_hardware_watchpoints = 0;
   uint32_t m_addressing_bits = 0;
@@ -624,7 +643,7 @@ protected:
 
   PacketResult SendThreadSpecificPacketAndWaitForResponse(
       lldb::tid_t tid, StreamString &&payload,
-      StringExtractorGDBRemote &response, bool send_async);
+      StringExtractorGDBRemote &response);
 
   Status SendGetTraceDataPacket(StreamGDBRemote &packet, lldb::user_id_t uid,
                                 lldb::tid_t thread_id,

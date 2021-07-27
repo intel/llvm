@@ -137,6 +137,12 @@ static cl::opt<SPIRV::BIsRepresentation> BIsRepresentation(
                    "SPIR-V Friendly IR")),
     cl::init(SPIRV::BIsRepresentation::OpenCL12));
 
+static cl::opt<bool>
+    PreserveOCLKernelArgTypeMetadataThroughString(
+        "preserve-ocl-kernel-arg-type-metadata-through-string", cl::init(false),
+        cl::desc("Preserve OpenCL kernel_arg_type and kernel_arg_type_qual "
+                 "metadata through OpString"));
+
 using SPIRV::ExtensionID;
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
@@ -626,6 +632,9 @@ int main(int Ac, char **Av) {
       Opts.setDebugInfoEIS(DebugEIS);
     }
   }
+
+  if (PreserveOCLKernelArgTypeMetadataThroughString.getNumOccurrences() != 0)
+    Opts.setPreserveOCLKernelArgTypeMetadataThroughString(true);
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
   if (ToText && (ToBinary || IsReverse || IsRegularization)) {

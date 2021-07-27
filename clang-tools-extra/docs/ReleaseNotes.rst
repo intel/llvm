@@ -108,6 +108,13 @@ New checks
   Finds inner loops that have not been unrolled, as well as fully unrolled
   loops with unknown loops bounds or a large number of iterations.
 
+- New :doc:`bugprone-easily-swappable-parameters
+  <clang-tidy/checks/bugprone-easily-swappable-parameters>` check.
+
+  Finds function definitions where parameters of convertible types follow each
+  other directly, making call sites prone to calling the function with
+  swapped (or badly ordered) arguments.
+
 - New :doc:`cppcoreguidelines-prefer-member-initializer
   <clang-tidy/checks/cppcoreguidelines-prefer-member-initializer>` check.
 
@@ -119,6 +126,13 @@ New checks
 
   Finds calls to ``new`` with missing exception handler for ``std::bad_alloc``.
 
+- New `readability-suspicious-call-argument
+  <clang-tidy/checks/readability-suspicious-call-argument>`_ check
+
+  Finds function calls where the arguments passed are provided out of order,
+  based on the difference between the argument name and the parameter names
+  of the function.
+
 New check aliases
 ^^^^^^^^^^^^^^^^^
 
@@ -126,6 +140,7 @@ New check aliases
   <clang-tidy/checks/cert-pos47-c>` to
   :doc:`concurrency-thread-canceltype-asynchronous
   <clang-tidy/checks/concurrency-thread-canceltype-asynchronous>` was added.
+
 
 Changes in existing checks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^

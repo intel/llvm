@@ -13,6 +13,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/memory_enums.hpp>
 #include <CL/sycl/platform.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/platform_impl.hpp>
@@ -246,6 +247,21 @@ template <> struct get_device_info<bool, info::device::atomic64> {
       return false;
     }
     return result;
+  }
+};
+
+// Specialization for atomic_memory_order_capabilities, PI returns a bitfield
+template <>
+struct get_device_info<std::vector<memory_order>,
+                       info::device::atomic_memory_order_capabilities> {
+  static std::vector<memory_order> get(RT::PiDevice dev, const plugin &Plugin) {
+    pi_memory_order_capabilities result;
+    Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
+        dev,
+        pi::cast<RT::PiDeviceInfo>(
+            info::device::atomic_memory_order_capabilities),
+        sizeof(pi_memory_order_capabilities), &result, nullptr);
+    return readMemoryOrderBitfield(result);
   }
 };
 
@@ -632,6 +648,13 @@ template <> inline bool get_device_info_host<info::device::atomic64>() {
 }
 
 template <>
+inline std::vector<memory_order>
+get_device_info_host<info::device::atomic_memory_order_capabilities>() {
+  return {memory_order::relaxed, memory_order::acquire, memory_order::release,
+          memory_order::acq_rel, memory_order::seq_cst};
+}
+
+template <>
 inline cl_uint get_device_info_host<info::device::max_read_image_args>() {
   // current value is the required minimum
   return 128;
@@ -966,7 +989,7 @@ get_device_info_host<info::device::usm_restricted_shared_allocations>() {
 }
 
 template <>
-inline bool get_device_info_host<info::device::usm_system_allocator>() {
+inline bool get_device_info_host<info::device::usm_system_allocations>() {
   return true;
 }
 
@@ -1032,11 +1055,11 @@ struct get_device_info<bool, info::device::usm_restricted_shared_allocations> {
 };
 
 // Specialization for system usm query
-template <> struct get_device_info<bool, info::device::usm_system_allocator> {
+template <> struct get_device_info<bool, info::device::usm_system_allocations> {
   static bool get(RT::PiDevice dev, const plugin &Plugin) {
     pi_usm_capabilities caps;
     pi_result Err = Plugin.call_nocheck<PiApiKind::piDeviceGetInfo>(
-        dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_system_allocator),
+        dev, pi::cast<RT::PiDeviceInfo>(info::device::usm_system_allocations),
         sizeof(pi_usm_capabilities), &caps, nullptr);
     return (Err != PI_SUCCESS) ? false : (caps & PI_USM_ACCESS);
   }
@@ -1099,6 +1122,9 @@ get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
   throw runtime_error(
       "Obtaining the maximum memory bandwidth is not supported on HOST device",
       PI_INVALID_DEVICE);
+}
+template <> inline bool get_device_info_host<info::device::ext_oneapi_srgb>() {
+  return false;
 }
 
 template <>

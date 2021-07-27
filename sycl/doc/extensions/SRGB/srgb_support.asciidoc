@@ -1,0 +1,154 @@
+= SYCL_EXT_ONEAPI_SRGB
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+Copyright (c) 2021-2021 Intel Corporation.  All rights reserved.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+This extension is written against the SYCL 1.2.1 specification, Revision v1.2.1-6.
+
+== Introduction
+
+sRGB isn't an image data format, per se. It is a linearization of RGB color values that adjusts the color to be better matched with a particular hardware medium. A more detailed explanation may be found here: https://software.intel.com/content/www/us/en/develop/articles/using-opencl-20-srgb-image-format.html
+
+OpenCL provides automatic linearization of RGB values into sRGB color space. OneAPI now exposes that OpenCL support for read_only images.
+
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_SRGB` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.
+|===
+
+== aspect::ext_oneapi_srgb
+Since not all devices and backends support sRGB images, `aspect::ext_oneapi_srgb` is available to programmatically detect this.
+[source]
+----
+ // someDevice is a sycl::device
+ if(someDevice.has(aspect::ext_oneapi_srgb)){ ... }
+----
+
+== New ImageChannelOrder Enums
+
+sRGB values have been added to the `image_channel_order` enumeration. The `image_channel_order::ext_oneapi_srgba` value allows images to be read with sRGB linearization of the color values. This value can be passed to `image` constructors, with some limitations that are outlined below.
+
+[source]
+----
+image_channel_order::ext_oneapi_srgba
+----
+
+== Limitations of sRGB usage
+
+There are five primary limitations of which any potential user should be aware.
+
+. 2D and 3D images only. 
+. unorm_int8 channel type (only)
+. read_only access to image 
+. const data required when initializing image.
+. OpenCL backend only at this time.
+
+Three of these are limitations to the construction of the image object itself, and will typically result in a `CL_IMAGE_FORMAT_NOT_SUPPORTED` error if exceeded. 
+
+=== 2D and 3D images only.
+The title is self explanatory. For the new sRGB support, OneAPI does not support 1D sRGB images. They must be 2D or 3D images.
+
+=== unorm_int8 channel type (only)
+sRGB images can *only* be created with the `image_channel_type::unorm_int8` channel type. This is an 8-bit per channel type, normalized to a low accuracy floating point on read. 
+
+=== read_only access to image
+The OneAPI support for sRGB images at this time is read_only. Be sure to only request read access mode accessors, not write or read_write.
+
+=== const data required when initializing image
+As a consequence of the read_only limitation, the image must be initialized with user data upon construction, and that data must be `const`.
+
+=== OpenCL backend only at this time
+The sRGB enablement is available on OpenCL, but no other backends at this time.   
+
+== Example
+
+[source]
+----
+using accessorPixelT = sycl::float4; // we access the image data as four floats
+using dataPixelT = uint32_t;         // but the underlying data is merely 32 bit per pixel (four 8 bit values)
+
+// this should yield a read of approximate 0.5 for each channel
+// when read directly with a normal non-linearized image (e.g. image_channel_order::rgba).  
+// For sRGB (image_channel_order::ext_oneapi_srgba), this is the value that will experience maximum conversion/linearization. 
+// So we should read values of approximately 0.2 
+dataPixelT basicPixel{127 << 24 | 127 << 16 | 127 << 8 | 127};
+
+const sycl::range<2> ImgRange_2D(width, height);
+
+// Make a 2D image with every pixel initialized to basicPixel.
+// IMPORTANT: const data is *required* for sRGBA images.
+// OpenCL support is limited for 2D/3D images that are read only.
+const std::vector<dataPixelT> ImgData(ImgRange_2D.size(), basicPixel);
+
+image<2> image_2D(ImgData.data(), image_channel_order::srgba, image_channel_type::unorm_int8, ImgRange_2D);
+
+queue Q;
+Q.submit([&](handler &cgh) {
+    // read only accessor
+    auto image_acc = image_2D.get_access<accessorPixelT, access::mode::read>(cgh);
+
+    cgh.parallel_for<class sRGAExample>(ImgRange_2D, [=](sycl::item<2> Item) {
+        accessorPixelT Data = image_acc.read(sycl::int2{Item[0], Item[1]});
+        // in our example, Data will be approximately {0.2, 0.2, 0.2, 0.5}
+        // ie, the color was linearized, the alpha value was untouched
+        // etc.
+----
+
+And to run, be sure to select the OpenCL backend (works on both CPU and GPU devices)
+
+[source]
+----
+$ SYCL_DEVICE_FILTER=opencl:gpu ./myapp.bin
+----
+
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|A|2021-07-01|Chris Perkins|*Initial revision*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use `mono` text for device APIs, or [source] syntax highlighting.
+//* Use `mono` text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************

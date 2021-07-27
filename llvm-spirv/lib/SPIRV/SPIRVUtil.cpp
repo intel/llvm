@@ -1186,7 +1186,7 @@ Value *getScalarOrArrayConstantInt(Instruction *Pos, Type *T, unsigned Len,
     new StoreInst(CA, Alloca, Pos);
     auto Zero = ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
     Value *Index[] = {Zero, Zero};
-    auto Ret = GetElementPtrInst::CreateInBounds(Alloca, Index, "", Pos);
+    auto *Ret = GetElementPtrInst::CreateInBounds(AT, Alloca, Index, "", Pos);
     LLVM_DEBUG(dbgs() << "[getScalarOrArrayConstantInt] Alloca: " << *Alloca
                       << ", Return: " << *Ret << '\n');
     return Ret;

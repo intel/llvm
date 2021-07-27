@@ -17,6 +17,7 @@
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/AffineExpr.h"
@@ -190,8 +191,6 @@ static LogicalResult rewriteAsPaddedOp(PatternRewriter &rewriter,
   // Clone `opToPad` to operate on the statically padded shapes.
   auto resultTensorTypes =
       ValueRange(newOperands).take_back(opToPad.getNumOutputs()).getTypes();
-  ValueRange otherOperands = opToPad.getAssumedNonShapedOperands();
-  newOperands.append(otherOperands.begin(), otherOperands.end());
   linalg::LinalgOp paddedOp =
       opToPad.clone(rewriter, loc, resultTensorTypes, newOperands);
 
@@ -206,7 +205,7 @@ static LogicalResult rewriteAsPaddedOp(PatternRewriter &rewriter,
     SmallVector<OpFoldResult> offsets(rank, rewriter.getIndexAttr(0));
     auto sizes = llvm::to_vector<4>(llvm::map_range(
         llvm::seq<unsigned>(0, rank), [&](unsigned d) -> OpFoldResult {
-          auto dimOp = rewriter.create<memref::DimOp>(loc, std::get<0>(it), d);
+          auto dimOp = rewriter.create<tensor::DimOp>(loc, std::get<0>(it), d);
           newUsersOfOpToPad.insert(dimOp);
           return dimOp.getResult();
         }));
@@ -701,6 +700,95 @@ LogicalResult PadTensorOpTransformationPattern::matchAndRewrite(
   return success();
 }
 
+/// Filling `dest` using FillOp constant padding value if possible.
+/// Otherwise, generate a tensor::GenerateOp.
+Value GeneralizePadTensorOpPattern::createFillOrGenerateOp(
+    PatternRewriter &rewriter, PadTensorOp padOp, Value dest,
+    const SmallVector<Value> &dynSizes) const {
+  auto padValue = padOp.getConstantPaddingValue();
+  if (padValue)
+    return rewriter.create<FillOp>(padOp.getLoc(), padValue, dest).result();
+
+  // Fill could not be optimized: Lower to tensor::GenerateOp with region.
+  auto generateOp = rewriter.create<tensor::GenerateOp>(
+      padOp.getLoc(), padOp.getResultType(), dynSizes);
+  // Copy region to new op.
+  BlockAndValueMapping bvm;
+  padOp.region().cloneInto(&generateOp.getRegion(), bvm);
+  // Rewrite linalg::YieldOp to tensor::YieldOp.
+  OpBuilder::InsertionGuard guard(rewriter);
+  auto yieldOp =
+      dyn_cast<linalg::YieldOp>(generateOp.getRegion().front().getTerminator());
+  assert(yieldOp && "malformed PadTensorOp: expected YieldOp terminator");
+  assert(yieldOp.values().size() == 1);
+  rewriter.setInsertionPoint(yieldOp);
+  rewriter.replaceOpWithNewOp<tensor::YieldOp>(yieldOp, yieldOp.values()[0]);
+  return generateOp;
+}
+
+LogicalResult
+GeneralizePadTensorOpPattern::matchAndRewrite(PadTensorOp padOp,
+                                              PatternRewriter &rewriter) const {
+  // Given an OpFoldResult, return an index-typed value.
+  auto getIdxValue = [&](OpFoldResult ofr) {
+    if (auto val = ofr.dyn_cast<Value>())
+      return val;
+    return rewriter
+        .create<ConstantIndexOp>(
+            padOp.getLoc(), ofr.get<Attribute>().cast<IntegerAttr>().getInt())
+        .getResult();
+  };
+
+  auto resultType = padOp.getResultType();
+  // Compute size of InitTensorOp. Any combination of static/dynamic is
+  // supported.
+  SmallVector<Value> dynSizes;
+  SmallVector<int64_t> staticSizes;
+  for (unsigned dim = 0; dim < resultType.getRank(); ++dim) {
+    if (resultType.isDynamicDim(dim)) {
+      auto srcSize = rewriter.createOrFold<tensor::DimOp>(padOp.getLoc(),
+                                                          padOp.source(), dim);
+      // Add low and high padding value.
+      auto plusLow = rewriter.createOrFold<AddIOp>(
+          padOp.getLoc(), srcSize, getIdxValue(padOp.getMixedLowPad()[dim]));
+      auto plusHigh = rewriter.createOrFold<AddIOp>(
+          padOp.getLoc(), plusLow, getIdxValue(padOp.getMixedHighPad()[dim]));
+      dynSizes.push_back(plusHigh);
+    }
+    staticSizes.push_back(resultType.getDimSize(dim));
+  }
+
+  // Init tensor and fill it with padding.
+  Value init = rewriter.create<InitTensorOp>(
+      padOp.getLoc(), dynSizes, staticSizes, resultType.getElementType());
+  Value fill = createFillOrGenerateOp(rewriter, padOp, init, dynSizes);
+
+  // Try optimize the copy of source.
+  if (optimizeCopyFn && optimizeCopyFn(rewriter, padOp, fill).succeeded())
+    return success();
+
+  // PadTensorOps cannot be optimized. Generate a InsertSliceOp instead
+  // for copying the PadOp source.
+  auto sourceType = padOp.getSourceType();
+  // Compute size of source of PadTensorOp.
+  SmallVector<OpFoldResult> srcSizes;
+  for (unsigned dim = 0; dim < sourceType.getRank(); ++dim) {
+    if (sourceType.isDynamicDim(dim)) {
+      srcSizes.push_back(rewriter.createOrFold<tensor::DimOp>(
+          padOp.getLoc(), padOp.source(), dim));
+    } else {
+      srcSizes.push_back(rewriter.getIndexAttr(sourceType.getDimSize(dim)));
+    }
+  }
+  // Strides of InsertSliceOp are all 1.
+  SmallVector<OpFoldResult> strides(sourceType.getRank(),
+                                    rewriter.getIndexAttr(1));
+  rewriter.replaceOpWithNewOp<tensor::InsertSliceOp>(
+      padOp, padOp.source(), fill, padOp.getMixedLowPad(), srcSizes, strides);
+
+  return success();
+}
+
 /// Given an OpFoldResult, return a Value. If the OpFoldResult is an Attribute,
 /// it must be of type Integer.
 static Value asValue(OpBuilder &builder, Location loc, OpFoldResult ofr) {
@@ -709,14 +797,6 @@ static Value asValue(OpBuilder &builder, Location loc, OpFoldResult ofr) {
   auto intVal = getConstantIntValue(ofr);
   assert(intVal && "expected Value or IntegerAttr");
   return builder.create<ConstantIndexOp>(loc, *intVal);
-}
-
-/// Given a value, try to extract a constant index-type integer as an Attribute.
-/// If this fails, return the original value.
-static OpFoldResult asOpFoldResult(OpBuilder &builder, Value val) {
-  if (auto constInt = getConstantIntValue(val))
-    return builder.getIndexAttr(*constInt);
-  return val;
 }
 
 LogicalResult ExtractSliceOfPadTensorSwapPattern::matchAndRewrite(
@@ -786,15 +866,20 @@ LogicalResult ExtractSliceOfPadTensorSwapPattern::matchAndRewrite(
   int64_t rank = padOp.getSourceType().getRank();
   for (unsigned dim = 0; dim < rank; ++dim) {
     auto low = asValue(rewriter, loc, padOp.getMixedLowPad()[dim]);
+    bool hasLowPad = getConstantIntValue(low) != static_cast<int64_t>(0);
+    auto high = asValue(rewriter, loc, padOp.getMixedHighPad()[dim]);
+    bool hasHighPad = getConstantIntValue(high) != static_cast<int64_t>(0);
     auto offset = asValue(rewriter, loc, sliceOp.getMixedOffsets()[dim]);
     auto length = asValue(rewriter, loc, sliceOp.getMixedSizes()[dim]);
-    auto srcSize = rewriter.createOrFold<memref::DimOp>(
-        loc, padOp.source(), dim);
+    auto srcSize =
+        rewriter.createOrFold<tensor::DimOp>(loc, padOp.source(), dim);
 
     // The new amount of low padding is `low - offset`. Except for the case
     // where none of the low padding is read. In that case, the new amount of
     // low padding is zero.
-    Value newLow = max(zero, sub(low, offset));
+    //
+    // Optimization: If low = 0, then newLow = 0.
+    Value newLow = hasLowPad ? max(zero, sub(low, offset)) : zero;
     appendIndex(newLow, newLows, staticNewLows);
 
     // Start reading the data from position `offset - low`. Since the original
@@ -807,8 +892,11 @@ LogicalResult ExtractSliceOfPadTensorSwapPattern::matchAndRewrite(
     // In that case, set the offset to the end of source tensor. The new
     // ExtractSliceOp length will be zero in that case. (Effectively reading no
     // data from the source.)
-    Value newOffset = min(max(sub(offset, low), zero), srcSize);
-    newOffsets.push_back(asOpFoldResult(rewriter, newOffset));
+    //
+    // Optimization: If low = 0, then the formula can be simplified.
+    Value newOffset = hasLowPad ? min(max(sub(offset, low), zero), srcSize)
+                                : min(offset, srcSize);
+    newOffsets.push_back(getAsOpFoldResult(newOffset));
 
     // The original ExtractSliceOp was reading until position `offset + length`.
     // Therefore, the corresponding position within the source tensor is:
@@ -826,9 +914,13 @@ LogicalResult ExtractSliceOfPadTensorSwapPattern::matchAndRewrite(
     // endLoc = min(max(offset - low + length, 0), srcSize)
     //
     // The new ExtractSliceOp length is `endLoc - newOffset`.
-    Value endLoc = min(max(add(sub(offset, low), length), zero), srcSize);
+    //
+    // Optimization: If low = 0, then the formula can be simplified.
+    Value endLoc = hasLowPad
+                       ? min(max(add(sub(offset, low), length), zero), srcSize)
+                       : min(add(offset, length), srcSize);
     Value newLength = sub(endLoc, newOffset);
-    newLengths.push_back(asOpFoldResult(rewriter, newLength));
+    newLengths.push_back(getAsOpFoldResult(newLength));
 
     // Check if newLength is zero. In that case, no SubTensorOp should be
     // executed.
@@ -845,7 +937,9 @@ LogicalResult ExtractSliceOfPadTensorSwapPattern::matchAndRewrite(
 
     // The amount of high padding is simply the number of elements remaining,
     // so that the result has the same length as the original ExtractSliceOp.
-    Value newHigh = sub(sub(length, newLength), newLow);
+    // As an optimization, if the original high padding is zero, then the new
+    // high padding must also be zero.
+    Value newHigh = hasHighPad ? sub(sub(length, newLength), newLow) : zero;
     appendIndex(newHigh, newHighs, staticNewHighs);
 
     // Only unit stride supported.
@@ -867,7 +961,7 @@ LogicalResult ExtractSliceOfPadTensorSwapPattern::matchAndRewrite(
     SmallVector<Value> dynDims;
     for (unsigned i = 0; i < type.getRank(); ++i) {
       if (type.isDynamicDim(i))
-        dynDims.push_back(asValue(rewriter, loc, sliceOp.getMixedOffsets()[i]));
+        dynDims.push_back(asValue(rewriter, loc, sliceOp.getMixedSizes()[i]));
     }
 
     // Create GenerateOp.

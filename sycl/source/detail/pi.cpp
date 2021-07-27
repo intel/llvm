@@ -46,6 +46,8 @@ namespace detail {
 xpti_td *GSYCLGraphEvent = nullptr;
 /// Event to be used by PI layer related activities
 xpti_td *GPICallEvent = nullptr;
+/// Event to be used by PI layer calls with arguments
+xpti_td *GPIArgCallEvent = nullptr;
 /// Constants being used as placeholder until one is able to reliably get the
 /// version of the SYCL runtime
 constexpr uint32_t GMajVer = 1;
@@ -135,14 +137,50 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 #endif // XPTI_ENABLE_INSTRUMENTATION
 }
 
+uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
+                                        unsigned char *ArgsData) {
+  uint64_t CorrelationID = 0;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
+    CorrelationID = xptiGetUniqueId();
+
+    xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, nullptr,
+                                       nullptr};
+
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin,
+        GPIArgCallEvent, nullptr, CorrelationID, &Payload);
+  }
+#endif
+  return CorrelationID;
+}
+
+void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
+                                  const char *FuncName, unsigned char *ArgsData,
+                                  pi_result Result) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
+
+    xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, &Result,
+                                       nullptr};
+
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,
+        GPIArgCallEvent, nullptr, CorrelationID, &Payload);
+  }
+#endif
+}
+
 void contextSetExtendedDeleter(const cl::sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
   auto impl = getSyclObjImpl(context);
   auto contextHandle = reinterpret_cast<pi_context>(impl->getHandleRef());
   auto plugin = impl->getPlugin();
-  plugin.call_nocheck<PiApiKind::piextContextSetExtendedDeleter>(
-      contextHandle, func, user_data);
+  plugin.call<PiApiKind::piextContextSetExtendedDeleter>(contextHandle, func,
+                                                         user_data);
 }
 
 std::string platformInfoToString(pi_platform_info info) {
@@ -225,19 +263,34 @@ std::string memFlagsToString(pi_mem_flags Flags) {
 std::shared_ptr<plugin> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
-bool findPlugins(std::vector<std::pair<std::string, backend>> &PluginNames) {
+std::vector<std::pair<std::string, backend>> findPlugins() {
+  std::vector<std::pair<std::string, backend>> PluginNames;
+
   // TODO: Based on final design discussions, change the location where the
   // plugin must be searched; how to identify the plugins etc. Currently the
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
   // env only.
   //
+  const char *OpenCLPluginName =
+      SYCLConfig<SYCL_OVERRIDE_PI_OPENCL>::get()
+          ? SYCLConfig<SYCL_OVERRIDE_PI_OPENCL>::get()
+          : __SYCL_OPENCL_PLUGIN_NAME;
+  const char *L0PluginName =
+      SYCLConfig<SYCL_OVERRIDE_PI_LEVEL_ZERO>::get()
+          ? SYCLConfig<SYCL_OVERRIDE_PI_LEVEL_ZERO>::get()
+          : __SYCL_LEVEL_ZERO_PLUGIN_NAME;
+  const char *CUDAPluginName = SYCLConfig<SYCL_OVERRIDE_PI_CUDA>::get()
+                                   ? SYCLConfig<SYCL_OVERRIDE_PI_CUDA>::get()
+                                   : __SYCL_CUDA_PLUGIN_NAME;
+  const char *ROCMPluginName = SYCLConfig<SYCL_OVERRIDE_PI_ROCM>::get()
+                                   ? SYCLConfig<SYCL_OVERRIDE_PI_ROCM>::get()
+                                   : __SYCL_ROCM_PLUGIN_NAME;
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
   if (!FilterList) {
-    PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
-    PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
-                             backend::level_zero);
-    PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
-    PluginNames.emplace_back(__SYCL_ROCM_PLUGIN_NAME, backend::rocm);
+    PluginNames.emplace_back(OpenCLPluginName, backend::opencl);
+    PluginNames.emplace_back(L0PluginName, backend::level_zero);
+    PluginNames.emplace_back(CUDAPluginName, backend::cuda);
+    PluginNames.emplace_back(ROCMPluginName, backend::rocm);
   } else {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
@@ -248,26 +301,25 @@ bool findPlugins(std::vector<std::pair<std::string, backend>> &PluginNames) {
       backend Backend = Filter.Backend;
       if (!OpenCLFound &&
           (Backend == backend::opencl || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
+        PluginNames.emplace_back(OpenCLPluginName, backend::opencl);
         OpenCLFound = true;
       }
       if (!LevelZeroFound &&
           (Backend == backend::level_zero || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
-                                 backend::level_zero);
+        PluginNames.emplace_back(L0PluginName, backend::level_zero);
         LevelZeroFound = true;
       }
       if (!CudaFound && (Backend == backend::cuda || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
+        PluginNames.emplace_back(CUDAPluginName, backend::cuda);
         CudaFound = true;
       }
       if (!RocmFound && (Backend == backend::rocm || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_ROCM_PLUGIN_NAME, backend::rocm);
+        PluginNames.emplace_back(ROCMPluginName, backend::rocm);
         RocmFound = true;
       }
     }
   }
-  return true;
+  return PluginNames;
 }
 
 // Load the Plugin by calling the OS dependent library loading call.
@@ -321,8 +373,7 @@ const std::vector<plugin> &initialize() {
 }
 
 static void initializePlugins(std::vector<plugin> *Plugins) {
-  std::vector<std::pair<std::string, backend>> PluginNames;
-  findPlugins(PluginNames);
+  std::vector<std::pair<std::string, backend>> PluginNames = findPlugins();
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
     std::cerr << "SYCL_PI_TRACE[all]: "
@@ -430,6 +481,14 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
   GPICallEvent =
       xptiMakeEvent("PI Layer", &PIPayload, xpti::trace_algorithm_event,
                     xpti_at::active, &PiInstanceNo);
+
+  xptiInitialize(SYCL_PIDEBUGCALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  xpti::payload_t PIArgPayload(
+      "Plugin Interface Layer (with function arguments)");
+  uint64_t PiArgInstanceNo;
+  GPIArgCallEvent = xptiMakeEvent("PI Layer with arguments", &PIArgPayload,
+                                  xpti::trace_algorithm_event, xpti_at::active,
+                                  &PiArgInstanceNo);
 #endif
 }
 
@@ -644,6 +703,7 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
   SpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
   DeviceLibReqMask.init(Bin, __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
   KernelParamOptInfo.init(Bin, __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
+  ProgramMetadata.init(Bin, __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA);
 }
 
 } // namespace pi

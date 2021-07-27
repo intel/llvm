@@ -365,6 +365,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
         return replaceInstUsesWith(EI, Idx);
       }
     }
+
     // InstSimplify should handle cases where the index is invalid.
     // For fixed-length vector, it's invalid to extract out-of-range element.
     if (!EC.isScalable() && IndexC->getValue().uge(NumElts))
@@ -400,6 +401,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
         }
       }
     }
+
     if (Instruction *I = foldBitcastExtElt(EI, Builder, DL.isBigEndian()))
       return I;
 
@@ -796,12 +798,12 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
 
   // Try to find a value of each element of an aggregate.
   // FIXME: deal with more complex, not one-dimensional, aggregate types
-  SmallVector<Optional<Value *>, 2> AggElts(NumAggElts, NotFound);
+  SmallVector<Optional<Instruction *>, 2> AggElts(NumAggElts, NotFound);
 
   // Do we know values for each element of the aggregate?
   auto KnowAllElts = [&AggElts]() {
     return all_of(AggElts,
-                  [](Optional<Value *> Elt) { return Elt != NotFound; });
+                  [](Optional<Instruction *> Elt) { return Elt != NotFound; });
   };
 
   int Depth = 0;
@@ -816,7 +818,11 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
        Depth < DepthLimit && CurrIVI && !KnowAllElts();
        CurrIVI = dyn_cast<InsertValueInst>(CurrIVI->getAggregateOperand()),
                        ++Depth) {
-    Value *InsertedValue = CurrIVI->getInsertedValueOperand();
+    auto *InsertedValue =
+        dyn_cast<Instruction>(CurrIVI->getInsertedValueOperand());
+    if (!InsertedValue)
+      return nullptr; // Inserted value must be produced by an instruction.
+
     ArrayRef<unsigned int> Indices = CurrIVI->getIndices();
 
     // Don't bother with more than single-level aggregates.
@@ -826,7 +832,7 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
     // Now, we may have already previously recorded the value for this element
     // of an aggregate. If we did, that means the CurrIVI will later be
     // overwritten with the already-recorded value. But if not, let's record it!
-    Optional<Value *> &Elt = AggElts[Indices.front()];
+    Optional<Instruction *> &Elt = AggElts[Indices.front()];
     Elt = Elt.getValueOr(InsertedValue);
 
     // FIXME: should we handle chain-terminating undef base operand?
@@ -870,15 +876,15 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
   // If found, return the source aggregate from which the extraction was.
   // If \p PredBB is provided, does PHI translation of an \p Elt first.
   auto FindSourceAggregate =
-      [&](Value *Elt, unsigned EltIdx, Optional<BasicBlock *> UseBB,
+      [&](Instruction *Elt, unsigned EltIdx, Optional<BasicBlock *> UseBB,
           Optional<BasicBlock *> PredBB) -> Optional<Value *> {
     // For now(?), only deal with, at most, a single level of PHI indirection.
     if (UseBB && PredBB)
-      Elt = Elt->DoPHITranslation(*UseBB, *PredBB);
+      Elt = dyn_cast<Instruction>(Elt->DoPHITranslation(*UseBB, *PredBB));
     // FIXME: deal with multiple levels of PHI indirection?
 
     // Did we find an extraction?
-    auto *EVI = dyn_cast<ExtractValueInst>(Elt);
+    auto *EVI = dyn_cast_or_null<ExtractValueInst>(Elt);
     if (!EVI)
       return NotFound;
 
@@ -966,13 +972,8 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
   // they all should be defined in the same basic block.
   BasicBlock *UseBB = nullptr;
 
-  for (const Optional<Value *> &Elt : AggElts) {
-    // If this element's value was not defined by an instruction, ignore it.
-    auto *I = dyn_cast<Instruction>(*Elt);
-    if (!I)
-      continue;
-    // Otherwise, in which basic block is this instruction located?
-    BasicBlock *BB = I->getParent();
+  for (const Optional<Instruction *> &I : AggElts) {
+    BasicBlock *BB = (*I)->getParent();
     // If it's the first instruction we've encountered, record the basic block.
     if (!UseBB) {
       UseBB = BB;

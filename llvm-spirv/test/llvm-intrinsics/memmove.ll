@@ -7,6 +7,9 @@
 
 ; CHECK-SPIRV-NOT: llvm.memmove
 
+; CHECK-SPIRV: TypeInt [[#TYPEINT:]] 32
+; CHECK-SPIRV: Constant [[#TYPEINT]] [[#ARRSIZE:]] 128
+
 ; CHECK-SPIRV: Variable {{[0-9]+}} [[mem:[0-9]+]] 7
 ; CHECK-SPIRV: Bitcast [[i8Ty:[0-9]+]] [[tmp0:[0-9]+]] [[mem]]
 ; CHECK-SPIRV: LifetimeStart [[tmp0]] [[size:[0-9]+]]
@@ -27,6 +30,16 @@
 ; CHECK-SPIRV: CopyMemorySized [[out]] [[tmp2]] {{[0-9]+}}
 ; CHECK-SPIRV: Bitcast [[i8Ty]] [[tmp3:[0-9]+]] [[mem]]
 ; CHECK-SPIRV: LifetimeStop [[tmp3]] [[size]]
+
+; CHECK-SPIRV: Variable [[#]] [[#VAR:]]
+; CHECK-SPIRV: Bitcast [[i8Ty:[0-9]+]] [[#TMP0:]] [[#VAR]]
+; CHECK-SPIRV: LifetimeStart [[#TMP0]]
+; CHECK-SPIRV: Bitcast [[i8Ty]] [[#TMP1:]] [[#VAR]]
+; CHECK-SPIRV: CopyMemorySized [[#TMP1]] [[#]] [[#ARRSIZE]]
+; CHECK-SPIRV: Bitcast [[i8Ty]] [[#TMP2:]] [[#VAR]]
+; CHECK-SPIRV: CopyMemorySized [[#]] [[#TMP2]] [[#ARRSIZE]]
+; CHECK-SPIRV: Bitcast [[i8Ty]] [[#TMP3:]] [[#VAR]]
+; CHECK-SPIRV: LifetimeStop [[#TMP3]]
 
 ; CHECK-LLVM-NOT: llvm.memmove
 
@@ -60,6 +73,18 @@
 ; CHECK-LLVM: [[tmp4:%[0-9]+]] = bitcast %struct.SomeStruct* [[local]] to [[type]]
 ; CHECK-LLVM: call void @llvm.lifetime.end.p0i8({{i[0-9]+}} {{-?[0-9]+}}, [[type]] [[tmp4]])
 
+; CHECK-LLVM-LABEL: @test_array
+; CHECK-LLVM: %[[#ALLOCA:]] = alloca [16 x i8], align 1
+; CHECK-LLVM: %[[#TMP0:]] = bitcast [16 x i8]* %[[#ALLOCA]] to i8*
+; CHECK-LLVM: call void @llvm.lifetime.start.p0i8(i64 -1, i8* %[[#TMP0]])
+; CHECK-LLVM: %[[#TMP1:]] = bitcast [16 x i8]* %[[#ALLOCA]] to i8*
+; CHECK-LLVM: call void @llvm.memcpy.p0i8.p1i8.i32(i8* %[[#TMP1]], i8 addrspace(1)* %out, i32 128, i1 false)
+; CHECK-LLVM: %[[#TMP2:]] = bitcast [16 x i8]* %[[#ALLOCA]] to i8*
+; CHECK-LLVM: call void @llvm.memcpy.p1i8.p0i8.i32(i8 addrspace(1)* %in, i8* %[[#TMP2]], i32 128, i1 false)
+; CHECK-LLVM: %[[#TMP3:]] = bitcast [16 x i8]* %[[#ALLOCA]] to i8*
+; CHECK-LLVM: call void @llvm.lifetime.end.p0i8(i64 -1, i8* %[[#TMP3]])
+
+
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir-unknown-unknown"
 
@@ -78,6 +103,12 @@ define spir_func void @copy_struct(%struct.SomeStruct addrspace(1)* nocapture re
   %2 = bitcast %struct.SomeStruct addrspace(4)* %out to i8 addrspace(4)*
   %3 = addrspacecast i8 addrspace(4)* %2 to i8 addrspace(1)*
   call void @llvm.memmove.p1i8.p1i8.i32(i8 addrspace(1)* align 64 %3, i8 addrspace(1)* align 64 %1, i32 68, i1 false)
+  ret void
+}
+
+; Function Attrs: nounwind
+define spir_kernel void @test_array(i8 addrspace(1)* %in, i8 addrspace(1)* %out) {
+  call void @llvm.memmove.p1i8.p1i8.i32(i8 addrspace(1)* %in, i8 addrspace(1)* %out, i32 128, i1 false)
   ret void
 }
 

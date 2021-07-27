@@ -11,6 +11,7 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/helpers.hpp>
+#include <CL/sycl/memory_enums.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <atomic>
@@ -25,8 +26,6 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-
-enum class memory_order : int { relaxed = 0 };
 
 // Forward declaration
 template <typename pointerT, access::address_space addressSpace>
@@ -80,9 +79,6 @@ namespace detail {
 // Only relaxed memory semantics are supported currently
 static inline std::memory_order
 getStdMemoryOrder(__spv::MemorySemanticsMask::Flag) {
-  return std::memory_order_relaxed;
-}
-static inline std::memory_order getStdMemoryOrder(::cl::sycl::memory_order) {
   return std::memory_order_relaxed;
 }
 } // namespace detail

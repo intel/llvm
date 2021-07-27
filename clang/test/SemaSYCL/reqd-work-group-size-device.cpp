@@ -1,6 +1,7 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -Wno-sycl-2017-compat -verify -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2017 -Wno-sycl-2017-compat -verify -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
 
+// Test for AST of reqd_work_group_size kernel attribute in SYCL 1.2.1.
 #include "sycl.hpp"
 
 using namespace cl::sycl;
@@ -34,23 +35,8 @@ queue q;
 [[sycl::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
 [[sycl::reqd_work_group_size(4, 1, 1)]] void four_again(); // OK
 
-// The GNU and [[cl::reqd_work_group_size]] spellings are deprecated in SYCL
-// mode, and still requires all three arguments.
-__attribute__((reqd_work_group_size(4, 4, 4))) void four_once_more(); // expected-warning {{attribute 'reqd_work_group_size' is deprecated}} \
-                                                                      // expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
-[[cl::reqd_work_group_size(4, 4, 4)]] void four_with_feeling(); // expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} \
-                                                                // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
-
-#ifdef TRIGGER_ERROR
-__attribute__((reqd_work_group_size(4))) void four_yet_again(); // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}} \
-                                                                // expected-warning {{attribute 'reqd_work_group_size' is deprecated}} \
-                                                                // expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
-
-[[cl::reqd_work_group_size(4)]] void four_with_more_feeling(); // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}} \
-                                                               // expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} \
-                                                               // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
-
 // Make sure there's at least one argument passed for the SYCL spelling.
+#ifdef TRIGGER_ERROR
 [[sycl::reqd_work_group_size]] void four_no_more(); // expected-error {{'reqd_work_group_size' attribute takes at least 1 argument}}
 #endif // TRIGGER_ERROR
 
@@ -87,12 +73,6 @@ public:
   }
 };
 
-class FunctorAttr {
-public:
-  __attribute__((reqd_work_group_size(128, 128, 128))) void operator()() const {} // expected-warning {{attribute 'reqd_work_group_size' is deprecated}} \
-                                                                                  // expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
-};
-
 int main() {
   q.submit([&](handler &h) {
     Functor16 f16;
@@ -103,9 +83,6 @@ int main() {
 
     Functor16x16x16 f16x16x16;
     h.single_task<class kernel_name3>(f16x16x16);
-
-    FunctorAttr fattr;
-    h.single_task<class kernel_name4>(fattr);
 
     h.single_task<class kernel_name5>([]() [[sycl::reqd_work_group_size(32, 32, 32), sycl::reqd_work_group_size(32, 32, 32)]] {
       f32x32x32();
@@ -176,17 +153,6 @@ int main() {
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 16
 // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 128
-// CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 128
-// CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 128
-// CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'

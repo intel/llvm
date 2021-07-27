@@ -363,7 +363,7 @@ private:
             Left->Previous && Left->Previous->is(tok::l_paren)) {
           // Detect the case where macros are used to generate lambdas or
           // function bodies, e.g.:
-          //   auto my_lambda = MARCO((Type *type, int i) { .. body .. });
+          //   auto my_lambda = MACRO((Type *type, int i) { .. body .. });
           for (FormatToken *Tok = Left; Tok != CurrentToken; Tok = Tok->Next) {
             if (Tok->is(TT_BinaryOperator) &&
                 Tok->isOneOf(tok::star, tok::amp, tok::ampamp))
@@ -2475,6 +2475,14 @@ static bool isFunctionDeclarationName(const FormatToken &Current,
   // If there is an &/&& after the r_paren, this is likely a function.
   if (Next->MatchingParen->Next &&
       Next->MatchingParen->Next->is(TT_PointerOrReference))
+    return true;
+  // Check for K&R C function definitions, e.g.:
+  //   int f(i)
+  //   {
+  //     return i + 1;
+  //   }
+  if (Next->Next && Next->Next->is(tok::identifier) &&
+      !(Next->MatchingParen->Next && Next->MatchingParen->Next->is(tok::semi)))
     return true;
   for (const FormatToken *Tok = Next->Next; Tok && Tok != Next->MatchingParen;
        Tok = Tok->Next) {

@@ -163,23 +163,24 @@ static void addNamedMetadataStringSet(LLVMContext *Context, Module *M,
 static void addOCLKernelArgumentMetadata(
     LLVMContext *Context, const std::string &MDName, SPIRVFunction *BF,
     llvm::Function *Fn,
-    std::function<Metadata *(SPIRVFunctionParameter *)> Func) {
+    std::function<Metadata *(SPIRVFunctionParameter *)> ForeachFnArg) {
   std::vector<Metadata *> ValueVec;
-  BF->foreachArgument(
-      [&](SPIRVFunctionParameter *Arg) { ValueVec.push_back(Func(Arg)); });
+  BF->foreachArgument([&](SPIRVFunctionParameter *Arg) {
+    ValueVec.push_back(ForeachFnArg(Arg));
+  });
   Fn->setMetadata(MDName, MDNode::get(*Context, ValueVec));
 }
 
 static void addBufferLocationMetadata(
     LLVMContext *Context, SPIRVFunction *BF, llvm::Function *Fn,
-    std::function<Metadata *(SPIRVFunctionParameter *)> Func) {
+    std::function<Metadata *(SPIRVFunctionParameter *)> ForeachFnArg) {
   std::vector<Metadata *> ValueVec;
   bool DecorationFound = false;
   BF->foreachArgument([&](SPIRVFunctionParameter *Arg) {
     if (Arg->getType()->isTypePointer() &&
         Arg->hasDecorate(DecorationBufferLocationINTEL)) {
       DecorationFound = true;
-      ValueVec.push_back(Func(Arg));
+      ValueVec.push_back(ForeachFnArg(Arg));
     } else {
       llvm::Metadata *DefaultNode = ConstantAsMetadata::get(
           ConstantInt::get(Type::getInt32Ty(*Context), -1));
@@ -188,6 +189,27 @@ static void addBufferLocationMetadata(
   });
   if (DecorationFound)
     Fn->setMetadata("kernel_arg_buffer_location",
+                    MDNode::get(*Context, ValueVec));
+}
+
+static void addRuntimeAlignedMetadata(
+    LLVMContext *Context, SPIRVFunction *BF, llvm::Function *Fn,
+    std::function<Metadata *(SPIRVFunctionParameter *)> ForeachFnArg) {
+  std::vector<Metadata *> ValueVec;
+  bool DecorationFound = false;
+  BF->foreachArgument([&](SPIRVFunctionParameter *Arg) {
+    if (Arg->getType()->isTypePointer() &&
+        Arg->hasDecorate(internal::DecorationRuntimeAlignedINTEL)) {
+      DecorationFound = true;
+      ValueVec.push_back(ForeachFnArg(Arg));
+    } else {
+      llvm::Metadata *DefaultNode = ConstantAsMetadata::get(
+          ConstantInt::get(Type::getInt1Ty(*Context), 0));
+      ValueVec.push_back(DefaultNode);
+    }
+  });
+  if (DecorationFound)
+    Fn->setMetadata("kernel_arg_runtime_aligned",
                     MDNode::get(*Context, ValueVec));
 }
 
@@ -748,6 +770,8 @@ bool SPIRVToLLVM::isDirectlyTranslatedToOCL(Op OpCode) const {
     return false;
   if (isEventOpCode(OpCode))
     return false;
+  if (OpBitFieldInsert <= OpCode && OpCode <= OpBitReverse)
+    return false;
   if (OCLSPIRVBuiltinMap::rfind(OpCode, nullptr)) {
     // Not every spirv opcode which is placed in OCLSPIRVBuiltinMap is
     // translated directly to OCL builtin. Some of them are translated
@@ -789,135 +813,6 @@ SPIRVToLLVM::getMetadataFromNameAndParameter(std::string Name,
           ConstantInt::get(Type::getInt64Ty(*Context), Parameter))};
   return llvm::MDNode::get(*Context, Metadata);
 }
-
-class IVDepMetadataEmitter {
-public:
-  using PointerSafeLenMapTy = std::map<Value *, unsigned>;
-  static void emit(LLVMContext *Context, const Loop *LoopObj,
-                   const PointerSafeLenMapTy &PointerSafeLenMap,
-                   std::vector<llvm::Metadata *> &Metadata) {
-    if (LoopsEmitted.contains(LoopObj))
-      return;
-    const auto ArrayGEPMap = mapArrayToGEPs(LoopObj, PointerSafeLenMap);
-    emitMetadata(Context, ArrayGEPMap, PointerSafeLenMap, Metadata);
-    LoopsEmitted.insert(LoopObj);
-  }
-
-private:
-  static llvm::DenseSet<const Loop *> LoopsEmitted;
-
-  using ArrayGEPMapTy = std::map<Value *, std::vector<GetElementPtrInst *>>;
-  // A single run over the loop to retrieve all GetElementPtr instructions
-  // that access relevant array variables
-  static ArrayGEPMapTy
-  mapArrayToGEPs(const Loop *LoopObj,
-                 const PointerSafeLenMapTy &PointerSafeLenMap) {
-    ArrayGEPMapTy ArrayGEPMap;
-    for (const auto &BB : LoopObj->blocks()) {
-      for (Instruction &I : *BB) {
-        auto *GEP = dyn_cast<GetElementPtrInst>(&I);
-        if (!GEP)
-          continue;
-
-        Value *AccessedPointer = GEP->getPointerOperand();
-        if (auto *LI = dyn_cast<LoadInst>(AccessedPointer))
-          AccessedPointer = LI->getPointerOperand();
-        auto PointerSafeLenIt = PointerSafeLenMap.find(AccessedPointer);
-        if (PointerSafeLenIt != PointerSafeLenMap.end()) {
-          ArrayGEPMap[AccessedPointer].push_back(GEP);
-        }
-      }
-    }
-    return ArrayGEPMap;
-  }
-
-  // Create index group metadata nodes - one per each of the array
-  // variables. Mark each GEP accessing a particular array variable
-  // into a corresponding index group
-  static void emitMetadata(LLVMContext *Context,
-                           const ArrayGEPMapTy &ArrayGEPMap,
-                           const PointerSafeLenMapTy &PointerSafeLenMap,
-                           std::vector<llvm::Metadata *> &Metadata) {
-    using SafeLenIdxGroupMapTy = std::map<unsigned, SmallSet<MDNode *, 4>>;
-    SafeLenIdxGroupMapTy SafeLenIdxGroupMap;
-    // Whenever a kernel closure field access is pointed to instead of
-    // an array/pointer variable, ensure that all GEPs to that memory
-    // share the same index group by hashing the newly added index groups.
-    // "Memory offset info" represents a handle to the whole closure block
-    // + an integer offset to a particular captured parameter.
-    using MemoryOffsetInfo = std::pair<Value *, unsigned>;
-    std::map<MemoryOffsetInfo, MDNode *> OffsetIdxGroupMap;
-
-    for (auto &ArrayGEPIt : ArrayGEPMap) {
-      MDNode *CurrentDepthIdxGroup = nullptr;
-      if (auto *PrecedingGEP = dyn_cast<GetElementPtrInst>(ArrayGEPIt.first)) {
-        Value *ClosureFieldPointer = PrecedingGEP->getPointerOperand();
-        unsigned Offset =
-            cast<ConstantInt>(PrecedingGEP->getOperand(2))->getZExtValue();
-        MemoryOffsetInfo Info{ClosureFieldPointer, Offset};
-        auto OffsetIdxGroupIt = OffsetIdxGroupMap.find(Info);
-        if (OffsetIdxGroupIt == OffsetIdxGroupMap.end()) {
-          // This is the first GEP encountered for this closure field.
-          // Emit a distinct index group that will be referenced from
-          // llvm.loop.parallel_access_indices metadata; hash the new
-          // MDNode for future accesses to the same memory.
-          CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, None);
-          OffsetIdxGroupMap.emplace(Info, CurrentDepthIdxGroup);
-        } else {
-          // Previous accesses to that field have already been indexed,
-          // just use the already-existing metadata.
-          CurrentDepthIdxGroup = OffsetIdxGroupIt->second;
-        }
-      } else /* Regular kernel-scope array/pointer variable */ {
-        // Emit a distinct index group that will be referenced from
-        // llvm.loop.parallel_access_indices metadata
-        CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, None);
-      }
-
-      unsigned SafeLen = PointerSafeLenMap.find(ArrayGEPIt.first)->second;
-      SafeLenIdxGroupMap[SafeLen].insert(CurrentDepthIdxGroup);
-      for (auto *GEP : ArrayGEPIt.second) {
-        StringRef IdxGroupMDName("llvm.index.group");
-        llvm::MDNode *PreviousIdxGroup = GEP->getMetadata(IdxGroupMDName);
-        if (!PreviousIdxGroup) {
-          GEP->setMetadata(IdxGroupMDName, CurrentDepthIdxGroup);
-          continue;
-        }
-
-        // If we're dealing with an embedded loop, it may be the case
-        // that GEP instructions for some of the arrays were already
-        // marked by the algorithm when it went over the outer level loops.
-        // In order to retain the IVDep information for each "loop
-        // dimension", we will mark such GEP's into a separate joined node
-        // that will refer to the previous levels' index groups AND to the
-        // index group specific to the current loop.
-        std::vector<llvm::Metadata *> CurrentDepthOperands(
-            PreviousIdxGroup->op_begin(), PreviousIdxGroup->op_end());
-        if (CurrentDepthOperands.empty())
-          CurrentDepthOperands.push_back(PreviousIdxGroup);
-        CurrentDepthOperands.push_back(CurrentDepthIdxGroup);
-        auto *JointIdxGroup = llvm::MDNode::get(*Context, CurrentDepthOperands);
-        GEP->setMetadata(IdxGroupMDName, JointIdxGroup);
-      }
-    }
-
-    for (auto &SafeLenIdxGroupIt : SafeLenIdxGroupMap) {
-      auto *Name = MDString::get(*Context, "llvm.loop.parallel_access_indices");
-      unsigned SafeLenValue = SafeLenIdxGroupIt.first;
-      llvm::Metadata *SafeLenMDOp =
-          SafeLenValue ? ConstantAsMetadata::get(ConstantInt::get(
-                             Type::getInt32Ty(*Context), SafeLenValue))
-                       : nullptr;
-      std::vector<llvm::Metadata *> Parameters{Name};
-      for (auto *Node : SafeLenIdxGroupIt.second)
-        Parameters.push_back(Node);
-      if (SafeLenMDOp)
-        Parameters.push_back(SafeLenMDOp);
-      Metadata.push_back(llvm::MDNode::get(*Context, Parameters));
-    }
-  }
-};
-llvm::DenseSet<const Loop *> IVDepMetadataEmitter::LoopsEmitted;
 
 template <typename LoopInstType>
 void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
@@ -1013,7 +908,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
   }
   if (LC & LoopControlDependencyArrayINTELMask) {
     // Collect pointer variable <-> safelen information
-    IVDepMetadataEmitter::PointerSafeLenMapTy PointerSafeLenMap;
+    std::map<Value *, unsigned> PointerSflnMap;
     unsigned NumOperandPairs = LoopControlParameters[NumParam];
     unsigned OperandsEndIndex = NumParam + NumOperandPairs * 2;
     assert(OperandsEndIndex <= LoopControlParameters.size() &&
@@ -1022,13 +917,109 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
     while (NumParam < OperandsEndIndex) {
       SPIRVId ArraySPIRVId = LoopControlParameters[++NumParam];
       Value *PointerVar = ValueMap[M->getValue(ArraySPIRVId)];
-      unsigned SafeLen = LoopControlParameters[++NumParam];
-      PointerSafeLenMap.emplace(PointerVar, SafeLen);
+      unsigned Safelen = LoopControlParameters[++NumParam];
+      PointerSflnMap.emplace(PointerVar, Safelen);
     }
-    IVDepMetadataEmitter::emit(Context, LoopObj, PointerSafeLenMap, Metadata);
+
+    // A single run over the loop to retrieve all GetElementPtr instructions
+    // that access relevant array variables
+    std::map<Value *, std::vector<GetElementPtrInst *>> ArrayGEPMap;
+    for (const auto &BB : LoopObj->blocks()) {
+      for (Instruction &I : *BB) {
+        auto *GEP = dyn_cast<GetElementPtrInst>(&I);
+        if (!GEP)
+          continue;
+
+        Value *AccessedPointer = GEP->getPointerOperand();
+        if (auto *LI = dyn_cast<LoadInst>(AccessedPointer))
+          AccessedPointer = LI->getPointerOperand();
+        auto PointerSflnIt = PointerSflnMap.find(AccessedPointer);
+        if (PointerSflnIt != PointerSflnMap.end()) {
+          ArrayGEPMap[AccessedPointer].push_back(GEP);
+        }
+      }
+    }
+
+    // Create index group metadata nodes - one per each of the array
+    // variables. Mark each GEP accessing a particular array variable
+    // into a corresponding index group
+    std::map<unsigned, SmallSet<MDNode *, 4>> SafelenIdxGroupMap;
+    // Whenever a kernel closure field access is pointed to instead of
+    // an array/pointer variable, ensure that all GEPs to that memory
+    // share the same index group by hashing the newly added index groups.
+    // "Memory offset info" represents a handle to the whole closure block
+    // + an integer offset to a particular captured parameter.
+    using MemoryOffsetInfo = std::pair<Value *, unsigned>;
+    std::map<MemoryOffsetInfo, MDNode *> OffsetIdxGroupMap;
+
+    for (auto &ArrayGEPIt : ArrayGEPMap) {
+      MDNode *CurrentDepthIdxGroup = nullptr;
+      if (auto *PrecedingGEP = dyn_cast<GetElementPtrInst>(ArrayGEPIt.first)) {
+        Value *ClosureFieldPointer = PrecedingGEP->getPointerOperand();
+        unsigned Offset =
+            cast<ConstantInt>(PrecedingGEP->getOperand(2))->getZExtValue();
+        MemoryOffsetInfo Info{ClosureFieldPointer, Offset};
+        auto OffsetIdxGroupIt = OffsetIdxGroupMap.find(Info);
+        if (OffsetIdxGroupIt == OffsetIdxGroupMap.end()) {
+          // This is the first GEP encountered for this closure field.
+          // Emit a distinct index group that will be referenced from
+          // llvm.loop.parallel_access_indices metadata; hash the new
+          // MDNode for future accesses to the same memory.
+          CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, None);
+          OffsetIdxGroupMap.emplace(Info, CurrentDepthIdxGroup);
+        } else {
+          // Previous accesses to that field have already been indexed,
+          // just use the already-existing metadata.
+          CurrentDepthIdxGroup = OffsetIdxGroupIt->second;
+        }
+      } else /* Regular kernel-scope array/pointer variable */ {
+        // Emit a distinct index group that will be referenced from
+        // llvm.loop.parallel_access_indices metadata
+        CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, None);
+      }
+
+      unsigned Safelen = PointerSflnMap.find(ArrayGEPIt.first)->second;
+      SafelenIdxGroupMap[Safelen].insert(CurrentDepthIdxGroup);
+      for (auto *GEP : ArrayGEPIt.second) {
+        StringRef IdxGroupMDName("llvm.index.group");
+        llvm::MDNode *PreviousIdxGroup = GEP->getMetadata(IdxGroupMDName);
+        if (!PreviousIdxGroup) {
+          GEP->setMetadata(IdxGroupMDName, CurrentDepthIdxGroup);
+          continue;
+        }
+
+        // If we're dealing with an embedded loop, it may be the case
+        // that GEP instructions for some of the arrays were already
+        // marked by the algorithm when it went over the outer level loops.
+        // In order to retain the IVDep information for each "loop
+        // dimension", we will mark such GEP's into a separate joined node
+        // that will refer to the previous levels' index groups AND to the
+        // index group specific to the current loop.
+        std::vector<llvm::Metadata *> CurrentDepthOperands(
+            PreviousIdxGroup->op_begin(), PreviousIdxGroup->op_end());
+        if (CurrentDepthOperands.empty())
+          CurrentDepthOperands.push_back(PreviousIdxGroup);
+        CurrentDepthOperands.push_back(CurrentDepthIdxGroup);
+        auto *JointIdxGroup = llvm::MDNode::get(*Context, CurrentDepthOperands);
+        GEP->setMetadata(IdxGroupMDName, JointIdxGroup);
+      }
+    }
+
+    for (auto &SflnIdxGroupIt : SafelenIdxGroupMap) {
+      auto *Name = MDString::get(*Context, "llvm.loop.parallel_access_indices");
+      unsigned SflnValue = SflnIdxGroupIt.first;
+      llvm::Metadata *SafelenMDOp =
+          SflnValue ? ConstantAsMetadata::get(ConstantInt::get(
+                          Type::getInt32Ty(*Context), SflnValue))
+                    : nullptr;
+      std::vector<llvm::Metadata *> Parameters{Name};
+      for (auto *Node : SflnIdxGroupIt.second)
+        Parameters.push_back(Node);
+      if (SafelenMDOp)
+        Parameters.push_back(SafelenMDOp);
+      Metadata.push_back(llvm::MDNode::get(*Context, Parameters));
+    }
     ++NumParam;
-    assert(NumParam <= LoopControlParameters.size() &&
-           "Missing loop control parameter!");
   }
   if (LC & LoopControlPipelineEnableINTELMask) {
     Metadata.push_back(llvm::MDNode::get(
@@ -1402,7 +1393,7 @@ bool SPIRVToLLVM::postProcessOCLBuiltinWithArrayArguments(
           auto Zero =
               ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
           Value *Index[] = {Zero, Zero};
-          I = GetElementPtrInst::CreateInBounds(Alloca, Index, "", CI);
+          I = GetElementPtrInst::CreateInBounds(T, Alloca, Index, "", CI);
         }
         return Name.str();
       },
@@ -2390,6 +2381,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpInBoundsPtrAccessChain: {
     auto AC = static_cast<SPIRVAccessChainBase *>(BV);
     auto Base = transValue(AC->getBase(), F, BB);
+    Type *BaseTy = cast<PointerType>(Base->getType())->getPointerElementType();
     auto Index = transValue(AC->getIndices(), F, BB);
     if (!AC->hasPtrIndex())
       Index.insert(Index.begin(), getInt32(M, 0));
@@ -2397,11 +2389,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     Value *V = nullptr;
     if (BB) {
       auto GEP =
-          GetElementPtrInst::Create(nullptr, Base, Index, BV->getName(), BB);
+          GetElementPtrInst::Create(BaseTy, Base, Index, BV->getName(), BB);
       GEP->setIsInBounds(IsInbound);
       V = GEP;
     } else {
-      V = ConstantExpr::getGetElementPtr(nullptr, dyn_cast<Constant>(Base),
+      V = ConstantExpr::getGetElementPtr(BaseTy, dyn_cast<Constant>(Base),
                                          Index, IsInbound);
     }
     return mapValue(BV, V);
@@ -2784,6 +2776,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(
         BV, transArbFloatInst(static_cast<SPIRVInstruction *>(BV), BB, true));
 
+  case internal::OpArithmeticFenceINTEL: {
+    IRBuilder<> Builder(BB);
+    auto *BC = static_cast<SPIRVUnary *>(BV);
+    Type *RetTy = transType(BC->getType());
+    Value *Val = transValue(BC->getOperand(0), F, BB);
+    return mapValue(
+        BV, Builder.CreateIntrinsic(Intrinsic::arithmetic_fence, RetTy, Val));
+  }
+
   default: {
     auto OC = BV->getOpCode();
     if (isSPIRVCmpInstTransToLLVMInst(static_cast<SPIRVInstruction *>(BV))) {
@@ -3045,7 +3046,6 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
         AttrTy = cast<PointerType>(I->getType())->getElementType();
         break;
       case Attribute::AttrKind::StructRet:
-      case Attribute::AttrKind::ReadOnly:
         AttrTy = I->getType();
         break;
       default:
@@ -3580,6 +3580,9 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   if (OC == OpImageSampleExplicitLod)
     AddRetTypePostfix = true;
 
+  if (OpSDotKHR <= BI->getOpCode() && BI->getOpCode() <= OpSUDotAccSatKHR)
+    AddRetTypePostfix = true;
+
   if (AddRetTypePostfix) {
     const Type *RetTy =
         BI->hasType() ? transType(BI->getType()) : Type::getVoidTy(*Context);
@@ -4065,9 +4068,13 @@ bool SPIRVToLLVM::transNonTemporalMetadata(Instruction *I) {
 // generated and 'false' otherwise.
 static bool transKernelArgTypeMedataFromString(LLVMContext *Ctx,
                                                SPIRVModule *BM,
-                                               Function *Kernel) {
-  std::string ArgTypePrefix = std::string(SPIR_MD_KERNEL_ARG_TYPE) + "." +
-                              Kernel->getName().str() + ".";
+                                               Function *Kernel,
+                                               std::string MDName) {
+  // Run W/A translation only if the appropriate option is passed
+  if (!BM->shouldPreserveOCLKernelArgTypeMetadataThroughString())
+    return false;
+  std::string ArgTypePrefix =
+      std::string(MDName) + "." + Kernel->getName().str() + ".";
   auto ArgTypeStrIt = std::find_if(
       BM->getStringVec().begin(), BM->getStringVec().end(),
       [=](SPIRVString *S) { return S->getStr().find(ArgTypePrefix) == 0; });
@@ -4099,7 +4106,7 @@ static bool transKernelArgTypeMedataFromString(LLVMContext *Ctx,
     }
   }
 
-  Kernel->setMetadata(SPIR_MD_KERNEL_ARG_TYPE, MDNode::get(*Ctx, TypeMDs));
+  Kernel->setMetadata(MDName, MDNode::get(*Ctx, TypeMDs));
   return true;
 }
 
@@ -4225,29 +4232,32 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
                                  return MDString::get(*Context, Qual);
                                });
   // Generate metadata for kernel_arg_type
-  if (!transKernelArgTypeMedataFromString(Context, BM, F))
+  if (!transKernelArgTypeMedataFromString(Context, BM, F,
+                                          SPIR_MD_KERNEL_ARG_TYPE))
     addOCLKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_TYPE, BF, F,
                                  [=](SPIRVFunctionParameter *Arg) {
                                    return transOCLKernelArgTypeName(Arg);
                                  });
   // Generate metadata for kernel_arg_type_qual
-  addOCLKernelArgumentMetadata(
-      Context, SPIR_MD_KERNEL_ARG_TYPE_QUAL, BF, F,
-      [=](SPIRVFunctionParameter *Arg) {
-        std::string Qual;
-        if (Arg->hasDecorate(DecorationVolatile))
-          Qual = kOCLTypeQualifierName::Volatile;
-        Arg->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
-          Qual += Qual.empty() ? "" : " ";
-          if (Kind == FunctionParameterAttributeNoAlias)
-            Qual += kOCLTypeQualifierName::Restrict;
+  if (!transKernelArgTypeMedataFromString(Context, BM, F,
+                                          SPIR_MD_KERNEL_ARG_TYPE_QUAL))
+    addOCLKernelArgumentMetadata(
+        Context, SPIR_MD_KERNEL_ARG_TYPE_QUAL, BF, F,
+        [=](SPIRVFunctionParameter *Arg) {
+          std::string Qual;
+          if (Arg->hasDecorate(DecorationVolatile))
+            Qual = kOCLTypeQualifierName::Volatile;
+          Arg->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
+            Qual += Qual.empty() ? "" : " ";
+            if (Kind == FunctionParameterAttributeNoAlias)
+              Qual += kOCLTypeQualifierName::Restrict;
+          });
+          if (Arg->getType()->isTypePipe()) {
+            Qual += Qual.empty() ? "" : " ";
+            Qual += kOCLTypeQualifierName::Pipe;
+          }
+          return MDString::get(*Context, Qual);
         });
-        if (Arg->getType()->isTypePipe()) {
-          Qual += Qual.empty() ? "" : " ";
-          Qual += kOCLTypeQualifierName::Pipe;
-        }
-        return MDString::get(*Context, Qual);
-      });
   // Generate metadata for kernel_arg_base_type
   addOCLKernelArgumentMetadata(Context, SPIR_MD_KERNEL_ARG_BASE_TYPE, BF, F,
                                [=](SPIRVFunctionParameter *Arg) {
@@ -4269,6 +4279,16 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
 
     return ConstantAsMetadata::get(
         ConstantInt::get(Type::getInt32Ty(*Context), Literals[0]));
+  });
+  // Generate metadata for kernel_arg_runtime_aligned
+  addRuntimeAlignedMetadata(Context, BF, F, [=](SPIRVFunctionParameter *Arg) {
+    auto Literals =
+        Arg->getDecorationLiterals(internal::DecorationRuntimeAlignedINTEL);
+    assert(Literals.size() == 1 &&
+           "RuntimeAlignedINTEL decoration shall have 1 ID literal");
+
+    return ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt1Ty(*Context), Literals[0]));
   });
   return true;
 }
@@ -4304,16 +4324,17 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
                                       std::to_string(Kind));
       F->addAttribute(ArgNo + 1, Attr);
     }
-    if (BA->hasDecorate(DecorationFuncParamKindINTEL, 0, &Kind)) {
+    if (BA->hasDecorate(internal::DecorationFuncParamKindINTEL, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentKind,
                                       std::to_string(Kind));
       F->addAttribute(ArgNo + 1, Attr);
     }
     if (BA->hasDecorate(DecorationSingleElementVectorINTEL))
       F->addAttribute(ArgNo + 1, SEVAttr);
-    if (BA->hasDecorate(DecorationFuncParamDescINTEL)) {
+    if (BA->hasDecorate(internal::DecorationFuncParamDescINTEL)) {
       auto Desc =
-          BA->getDecorationStringLiteral(DecorationFuncParamDescINTEL).front();
+          BA->getDecorationStringLiteral(internal::DecorationFuncParamDescINTEL)
+              .front();
       Attribute Attr =
           Attribute::get(*Context, kVCMetadata::VCArgumentDesc, Desc);
       F->addAttribute(ArgNo + 1, Attr);

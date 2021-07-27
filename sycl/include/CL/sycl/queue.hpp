@@ -494,7 +494,17 @@ public:
   /// \param Length is a number of bytes in the allocation.
   /// \param Advice is a device-defined advice for the specified allocation.
   /// \return an event representing advice operation.
+  __SYCL2020_DEPRECATED("use the overload with int Advice instead")
   event mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice);
+
+  /// Provides additional information to the underlying runtime about how
+  /// different allocations are used.
+  ///
+  /// \param Ptr is a USM pointer to the allocation.
+  /// \param Length is a number of bytes in the allocation.
+  /// \param Advice is a device-defined advice for the specified allocation.
+  /// \return an event representing advice operation.
+  event mem_advise(const void *Ptr, size_t Length, int Advice);
 
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
@@ -504,8 +514,7 @@ public:
   /// \param Advice is a device-defined advice for the specified allocation.
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing advice operation.
-  event mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
-                   event DepEvent);
+  event mem_advise(const void *Ptr, size_t Length, int Advice, event DepEvent);
 
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
@@ -516,7 +525,7 @@ public:
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \return an event representing advice operation.
-  event mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
+  event mem_advise(const void *Ptr, size_t Length, int Advice,
                    const vector_class<event> &DepEvents);
 
   /// Provides hints to the runtime library that data should be made available

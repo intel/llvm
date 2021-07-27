@@ -552,15 +552,21 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
   if (!FD->hasAttrs())
     return;
 
-  llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
-    // FIXME: Make this list self-adapt as new SYCL attributes are added.
-    return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
-               ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
-               SYCLIntelNumSimdWorkItemsAttr,
-               SYCLIntelSchedulerTargetFmaxMhzAttr,
-               SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
-               SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
-  });
+  // In SYCL 1.2.1 mode, the attributes are propagated from the function they
+  // are applied to onto the kernel which calls the function.
+  // In SYCL 2020 mode, the attributes are not propagated to the kernel.
+  if (DirectlyCalled || S.getASTContext().getLangOpts().getSYCLVersion() <
+                            LangOptions::SYCL_2020) {
+    llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
+      // FIXME: Make this list self-adapt as new SYCL attributes are added.
+      return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
+                 ReqdWorkGroupSizeAttr, SYCLIntelKernelArgsRestrictAttr,
+                 SYCLIntelNumSimdWorkItemsAttr,
+                 SYCLIntelSchedulerTargetFmaxMhzAttr,
+                 SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
+                 SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
+    });
+  }
 
   // Attributes that should not be propagated from device functions to a kernel.
   if (DirectlyCalled) {
@@ -1097,6 +1103,20 @@ static ParmVarDecl *getSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
   auto KHArg = llvm::find_if(KernelCallerFunc->parameters(), IsHandlerLambda);
 
   return (KHArg != KernelCallerFunc->param_end()) ? *KHArg : nullptr;
+}
+
+static bool isReadOnlyAccessor(const TemplateArgument &AccessModeArg) {
+  const auto *AccessModeArgEnumType =
+      AccessModeArg.getIntegralType()->castAs<EnumType>();
+  const EnumDecl *ED = AccessModeArgEnumType->getDecl();
+
+  auto ReadOnly =
+      llvm::find_if(ED->enumerators(), [&](const EnumConstantDecl *E) {
+        return E->getName() == "read";
+      });
+
+  return ReadOnly != ED->enumerator_end() &&
+         (*ReadOnly)->getInitVal() == AccessModeArg.getAsIntegral();
 }
 
 // anonymous namespace so these don't get linkage.
@@ -2060,14 +2080,27 @@ public:
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
 
+    // Get access mode of accessor.
+    const auto *AccessorSpecializationDecl =
+        cast<ClassTemplateSpecializationDecl>(RecordDecl);
+    const TemplateArgument &AccessModeArg =
+        AccessorSpecializationDecl->getTemplateArgs().get(2);
+
     // Don't do -1 here because we count on this to be the first parameter added
     // (if any).
     size_t ParamIndex = Params.size();
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
       addParam(BS, ParamTy.getCanonicalType());
-      if (ParamTy.getTypePtr()->isPointerType())
+      if (ParamTy.getTypePtr()->isPointerType()) {
         handleAccessorPropertyList(Params.back(), RecordDecl, BS.getBeginLoc());
+
+        // Add implicit attribute to parameter decl when it is a read only
+        // SYCL accessor.
+        if (isReadOnlyAccessor(AccessModeArg))
+          Params.back()->addAttr(SYCLAccessorReadonlyAttr::CreateImplicit(
+              SemaRef.getASTContext()));
+      }
     }
     LastParamIndex = ParamIndex;
     return true;
@@ -4240,6 +4273,7 @@ public:
     Policy.adjustForCPlusPlusFwdDecl();
     Policy.SuppressTypedefs = true;
     Policy.SuppressUnwrittenScope = true;
+    Policy.PrintCanonicalTypes = true;
   }
 
   void Visit(QualType T) {
@@ -4924,14 +4958,23 @@ bool Util::isSyclHalfType(QualType Ty) {
 }
 
 bool Util::isSyclSpecConstantType(QualType Ty) {
-  std::array<DeclContextDesc, 5> Scopes = {
+  std::array<DeclContextDesc, 6> Scopes = {
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "experimental"),
+      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
+                                "spec_constant")};
+  std::array<DeclContextDesc, 5> ScopesDeprecated = {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ONEAPI"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "experimental"),
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "spec_constant")};
-  return matchQualifiedTypeName(Ty, Scopes);
+  return matchQualifiedTypeName(Ty, Scopes) ||
+         matchQualifiedTypeName(Ty, ScopesDeprecated);
 }
 
 bool Util::isSyclSpecIdType(QualType Ty) {
@@ -4952,7 +4995,16 @@ bool Util::isSyclKernelHandlerType(QualType Ty) {
 }
 
 bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
-  std::array<DeclContextDesc, 6> Scopes = {
+  std::array<DeclContextDesc, 7> Scopes = {
+      Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
+      Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
+      Util::DeclContextDesc{Decl::Kind::Namespace, "ext"},
+      Util::DeclContextDesc{Decl::Kind::Namespace, "oneapi"},
+      Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
+      Util::DeclContextDesc{Decl::Kind::CXXRecord, "no_alias"},
+      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization,
+                            "instance"}};
+  std::array<DeclContextDesc, 6> ScopesDeprecated = {
       Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
       Util::DeclContextDesc{Decl::Kind::Namespace, "ONEAPI"},
@@ -4960,11 +5012,21 @@ bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
       Util::DeclContextDesc{Decl::Kind::CXXRecord, "no_alias"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization,
                             "instance"}};
-  return matchQualifiedTypeName(Ty, Scopes);
+  return matchQualifiedTypeName(Ty, Scopes) ||
+         matchQualifiedTypeName(Ty, ScopesDeprecated);
 }
 
 bool Util::isSyclBufferLocationType(QualType Ty) {
-  std::array<DeclContextDesc, 6> Scopes = {
+  std::array<DeclContextDesc, 7> Scopes = {
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "intel"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "property"),
+      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "buffer_location"),
+      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
+                                "instance")};
+  std::array<DeclContextDesc, 6> ScopesDeprecated = {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "INTEL"),
@@ -4972,7 +5034,8 @@ bool Util::isSyclBufferLocationType(QualType Ty) {
       Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "buffer_location"),
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "instance")};
-  return matchQualifiedTypeName(Ty, Scopes);
+  return matchQualifiedTypeName(Ty, Scopes) ||
+         matchQualifiedTypeName(Ty, ScopesDeprecated);
 }
 
 bool Util::isSyclType(QualType Ty, StringRef Name, bool Tmpl) {
@@ -5001,13 +5064,21 @@ bool Util::isSyclFunction(const FunctionDecl *FD, StringRef Name) {
 }
 
 bool Util::isAccessorPropertyListType(QualType Ty) {
-  std::array<DeclContextDesc, 4> Scopes = {
+  std::array<DeclContextDesc, 5> Scopes = {
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
+      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
+                                "accessor_property_list")};
+  std::array<DeclContextDesc, 4> ScopesDeprecated = {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ONEAPI"),
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "accessor_property_list")};
-  return matchQualifiedTypeName(Ty, Scopes);
+  return matchQualifiedTypeName(Ty, Scopes) ||
+         matchQualifiedTypeName(Ty, ScopesDeprecated);
 }
 
 bool Util::matchContext(const DeclContext *Ctx,

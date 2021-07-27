@@ -29,7 +29,7 @@ namespace orc {
 class LLJITBuilderState;
 class LLLazyJITBuilderState;
 class ObjectTransformLayer;
-class TargetProcessControl;
+class ExecutorProcessControl;
 
 /// A pre-fabricated ORC JIT stack that can serve as an alternative to MCJIT.
 ///
@@ -267,7 +267,7 @@ public:
   CompileFunctionCreator CreateCompileFunction;
   PlatformSetupFunction SetUpPlatform;
   unsigned NumCompileThreads = 0;
-  TargetProcessControl *TPC = nullptr;
+  ExecutorProcessControl *EPC = nullptr;
 
   /// Called prior to JIT class construcion to fix up defaults.
   Error prepareForConstruction();
@@ -350,14 +350,14 @@ public:
     return impl();
   }
 
-  /// Set a TargetProcessControl object.
+  /// Set an ExecutorProcessControl object.
   ///
   /// If the platform uses ObjectLinkingLayer by default and no
-  /// ObjectLinkingLayerCreator has been set then the TargetProcessControl
+  /// ObjectLinkingLayerCreator has been set then the ExecutorProcessControl
   /// object will be used to supply the memory manager for the
   /// ObjectLinkingLayer.
-  SetterImpl &setTargetProcessControl(TargetProcessControl &TPC) {
-    impl().TPC = &TPC;
+  SetterImpl &setExecutorProcessControl(ExecutorProcessControl &EPC) {
+    impl().EPC = &EPC;
     return impl();
   }
 
@@ -441,20 +441,6 @@ class LLLazyJITBuilder
 /// deinitialization functions. Platform specific initialization configurations
 /// should be preferred where available.
 void setUpGenericLLVMIRPlatform(LLJIT &J);
-
-/// Configure the LLJIT instance to use MachOPlatform support.
-///
-/// Warning: MachOPlatform *requires* that LLJIT be configured to use
-/// ObjectLinkingLayer (default on platforms supported by JITLink). If
-/// MachOPlatform is used with RTDyldObjectLinkingLayer it will result in
-/// undefined behavior).
-///
-/// MachOPlatform installs an ObjectLinkingLayer plugin to scrape initializers
-/// from the __mod_inits section. It also provides interposes for the dlfcn
-/// functions (dlopen, dlclose, dlsym, dlerror) that work for JITDylibs as
-/// well as regular libraries (JITDylibs will be preferenced, so make sure
-/// your JITDylib names do not shadow any real library paths).
-Error setUpMachOPlatform(LLJIT &J);
 
 /// Configure the LLJIT instance to disable platform support explicitly. This is
 /// useful in two cases: for platforms that don't have such requirements and for

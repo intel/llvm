@@ -249,6 +249,18 @@ public:
     All,
   };
 
+  enum class AltivecSrcCompatKind {
+    // All vector compares produce scalars except vector pixel and vector bool.
+    // The types vector pixel and vector bool return vector results.
+    Mixed,
+    // All vector compares produce vector results as in GCC.
+    GCC,
+    // All vector compares produce scalars as in XL.
+    XL,
+    // Default clang behaviour.
+    Default = Mixed,
+  };
+
   enum class SignReturnAddressScopeKind {
     /// No signing for any function.
     None,
@@ -703,7 +715,11 @@ enum TranslationUnitKind {
   TU_Prefix,
 
   /// The translation unit is a module.
-  TU_Module
+  TU_Module,
+
+  /// The translation unit is a is a complete translation unit that we might
+  /// incrementally extend later.
+  TU_Incremental
 };
 
 } // namespace clang
