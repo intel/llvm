@@ -35,3 +35,4 @@ SYCL\* standards. DPC++ extends these standards with a number of extensions,
 which can be found in [sycl/doc/extensions](sycl/doc/extensions) directory.
 
 *\*Other names and brands may be claimed as the property of others.*
+
