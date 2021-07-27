@@ -28,7 +28,7 @@
 // CHK-PHASES-NO-CC: 9: assembler, {8}, object, (host-sycl)
 // CHK-PHASES-NO-CC: 10: linker, {9}, image, (host-sycl)
 // CHK-PHASES-NO-CC: 11: linker, {5}, ir, (device-sycl)
-// CHK-PHASES-NO-CC: 12: sycl-post-link, {11}, tempfiletable, (device-sycl)
+// CHK-PHASES-NO-CC: 12: sycl-post-link, {11}, ir, (device-sycl)
 // CHK-PHASES-NO-CC: 13: file-table-tform, {12}, ir, (device-sycl)
 // CHK-PHASES-NO-CC: 14: backend, {13}, assembler, (device-sycl)
 // CHK-PHASES-NO-CC: 15: assembler, {14}, object, (device-sycl)
