@@ -75,9 +75,8 @@ public:
 
 #define _PI_API(api)                                                           \
   void set##_##api(                                                            \
-      const typename to_function<                                              \
-          typename detail::function_traits<decltype(api)>::args_type>::type    \
-          &Handler) {                                                          \
+      const typename to_function<typename detail::function_traits<decltype(    \
+          api)>::args_type>::type &Handler) {                                  \
     MHandler##_##api = [Handler](const pi_plugin &Plugin,                      \
                                  std::optional<pi_result> Res, void *Data) {   \
       using TupleT =                                                           \
