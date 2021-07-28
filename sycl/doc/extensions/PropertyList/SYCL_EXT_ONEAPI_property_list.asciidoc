@@ -526,8 +526,8 @@ using property_list_t = property_list</* unspecified */>;
 The following example shows how `property_list_t` is used to create a property list containing the compile-time constant properties `bar` and `foo`:
 
 ```c++
-using P1 = property_list_t<bar_v<1>, foo_v>;
-using P2 = property_list_t<foo_v, bar_v<1>>;
+using P1 = property_list_t<bar::value_t<1>, foo::value_t>;
+using P2 = property_list_t<foo::value_t, bar::value_t<1>>;
 static_assert(std::is_same<P1, P2>::value); // Succeeds, since the order of properties does not matter
 static_assert(P1.get_property<bar>().value == 1);
 ```
