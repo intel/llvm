@@ -45,6 +45,7 @@ public:
   /// with the context.
   ///
   /// \param Context is a pointer to SYCL context impl.
+  /// \param PropList is an instance of property_list.
   explicit program_impl(ContextImplPtr Context, const property_list &PropList);
 
   /// Constructs an instance of SYCL program for the provided DeviceList.
@@ -55,6 +56,7 @@ public:
   ///
   /// \param Context is a pointer to SYCL context impl.
   /// \param DeviceList is a list of SYCL devices.
+  /// \param PropList is an instance of property_list.
   program_impl(ContextImplPtr Context, std::vector<device> DeviceList,
                const property_list &PropList);
 
@@ -72,6 +74,7 @@ public:
   ///
   /// \param ProgramList is a list of program_impl instances.
   /// \param LinkOptions is a string containing valid OpenCL link options.
+  /// \param PropList is an instance of property_list.
   program_impl(std::vector<std::shared_ptr<program_impl>> ProgramList,
                std::string LinkOptions, const property_list &PropList);
 
