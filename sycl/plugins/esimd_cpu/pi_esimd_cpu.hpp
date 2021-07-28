@@ -160,4 +160,4 @@ struct _pi_kernel : _pi_object {
   _pi_kernel() {}
 };
 
-#include <sycl/ext/intel/experimental/esimd/detail/emu/esimdcpu_device_interface.hpp>
+#include <sycl/ext/intel/experimental/esimd/emu/detail/esimdcpu_device_interface.hpp>
