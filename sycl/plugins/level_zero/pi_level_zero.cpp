@@ -6005,8 +6005,8 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
   }
 
   try {
-    auto It = Context->DeviceMemAllocContexts.find(key(
-        Device->ZeComputeQueueGroupIndex, Device->ZeComputeEngineIndex));
+    auto It = Context->DeviceMemAllocContexts.find(
+        key(Device->ZeComputeQueueGroupIndex, Device->ZeComputeEngineIndex));
     if (It == Context->DeviceMemAllocContexts.end())
       return PI_INVALID_VALUE;
 
@@ -6064,8 +6064,8 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   }
 
   try {
-    auto It = Context->SharedMemAllocContexts.find(key(
-        Device->ZeComputeQueueGroupIndex, Device->ZeComputeEngineIndex));
+    auto It = Context->SharedMemAllocContexts.find(
+        key(Device->ZeComputeQueueGroupIndex, Device->ZeComputeEngineIndex));
     if (It == Context->SharedMemAllocContexts.end())
       return PI_INVALID_VALUE;
 

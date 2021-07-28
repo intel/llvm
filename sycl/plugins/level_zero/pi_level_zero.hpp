@@ -331,7 +331,9 @@ struct _pi_device : _pi_object {
 
 // Generates a key to be used in the unordered_maps `SharedMemAllocContexts`
 // and `DeviceMemAllocContexts` from the values of the {Ordinal, Index} pair.
-inline size_t key(int32_t i,int32_t j) {return (size_t) i << 32 | (int32_t) j;}
+inline size_t key(int32_t i,int32_t j) {
+  return (size_t) i << 32 | (int32_t) j;
+}
 
 struct _pi_context : _pi_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
@@ -342,18 +344,20 @@ struct _pi_context : _pi_object {
         NumEventsAvailableInEventPool{}, NumEventsUnreleasedInEventPool{} {
     // To implement sub sub-devices, each device needs to be represented with a
     // unique {Ordinal, Index} pair.
-    // Create USM allocator context for each pair ({Ordinal, Index}, context) where
-    // {Ordinal, Index} -> device.
+    // Create USM allocator context for each pair ({Ordinal, Index}, context)
+    // where {Ordinal, Index} -> device.
     for (uint32_t I = 0; I < NumDevices; I++) {
       pi_device Device = Devs[I];
       SharedMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(key(
-              Device->ZeComputeQueueGroupIndex, Device->ZeComputeEngineIndex)),
+          std::piecewise_construct,
+          std::make_tuple(key(Device->ZeComputeQueueGroupIndex,
+                              Device->ZeComputeEngineIndex)),
           std::make_tuple(std::unique_ptr<SystemMemory>(
               new USMSharedMemoryAlloc(this, Device))));
       DeviceMemAllocContexts.emplace(
-          std::piecewise_construct, std::make_tuple(key(
-              Device->ZeComputeQueueGroupIndex, Device->ZeComputeEngineIndex)),
+          std::piecewise_construct,
+          std::make_tuple(key(Device->ZeComputeQueueGroupIndex,
+                              Device->ZeComputeEngineIndex)),
           std::make_tuple(std::unique_ptr<SystemMemory>(
               new USMDeviceMemoryAlloc(this, Device))));
       // NOTE: one must additionally call initialize() to complete
