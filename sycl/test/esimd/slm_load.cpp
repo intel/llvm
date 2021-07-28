@@ -29,7 +29,7 @@ void slm_supported_types() __attribute__((sycl_device)) {
   auto v3 = slm_load<int, 32>(offsets);
   auto v4 = slm_load<float, 32>(offsets);
   // expected-error@+2 {{no matching function for call to 'slm_load'}}
-  // expected-note@sycl/ext/intel/experimental/esimd/memory.hpp:* {{candidate template ignored}}
+  // expected-note@sycl/ext/intel/experimental/esimd/memory.hpp:* 2 {{candidate template ignored}}
   auto v5 = slm_load<double, 32>(offsets);
 
   slm_store<char, 32>(v1, offsets);
@@ -38,6 +38,6 @@ void slm_supported_types() __attribute__((sycl_device)) {
   slm_store<float, 32>(v4, offsets);
   simd<double, 32> v6(0, 1);
   // expected-error@+2 {{no matching function for call to 'slm_store'}}
-  // expected-note@sycl/ext/intel/experimental/esimd/memory.hpp:* {{candidate template ignored}}
+  // expected-note@sycl/ext/intel/experimental/esimd/memory.hpp:* 2 {{candidate template ignored}}
   slm_store<double, 32>(v6, offsets);
 }
