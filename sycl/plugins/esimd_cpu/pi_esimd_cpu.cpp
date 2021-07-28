@@ -919,10 +919,12 @@ pi_result piextEventGetNativeHandle(pi_event, pi_native_handle *) {
   return PI_SUCCESS;
 }
 
-pi_result piextEventCreateWithNativeHandle(pi_native_handle, pi_event *) {
+pi_result piextEventCreateWithNativeHandle(pi_native_handle, pi_context, bool,
+                                           pi_event *) {
   DIE_NO_IMPLEMENTATION;
   return PI_SUCCESS;
 }
+
 pi_result piSamplerCreate(pi_context, const pi_sampler_properties *,
                           pi_sampler *) {
   DIE_NO_IMPLEMENTATION;
