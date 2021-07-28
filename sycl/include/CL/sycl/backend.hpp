@@ -98,6 +98,9 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
+__SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
+                               const context &TargetContext, bool KeepOwnership,
+                               backend Backend);
 __SYCL_EXPORT kernel make_kernel(pi_native_handle NativeHandle,
                                  const context &TargetContext, backend Backend);
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
@@ -156,6 +159,16 @@ make_event(const typename backend_traits<Backend>::template input_type<event>
            const context &TargetContext) {
   return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
                             TargetContext, Backend);
+}
+
+template <backend Backend>
+typename std::enable_if<
+    detail::InteropFeatureSupportMap<Backend>::MakeEvent == true, event>::type
+make_event(const typename backend_traits<Backend>::template input_type<event>
+               &BackendObject,
+           const context &TargetContext, bool KeepOwnership) {
+  return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
+                            TargetContext, KeepOwnership, Backend);
 }
 
 template <backend Backend, typename T, int Dimensions = 1,

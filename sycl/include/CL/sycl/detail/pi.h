@@ -38,10 +38,12 @@
 // 4. Add interoperability interfaces for kernel.
 // 4.6 Added new ownership argument to piextQueueCreateWithNativeHandle which
 // changes the API version from 3.5 to 4.6.
+// 5.7 Added new context and ownership arguments to
+//   piextEventCreateWithNativeHandle
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 4
-#define _PI_H_VERSION_MINOR 6
+#define _PI_H_VERSION_MAJOR 5
+#define _PI_H_VERSION_MINOR 7
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1360,9 +1362,13 @@ piextEventGetNativeHandle(pi_event event, pi_native_handle *nativeHandle);
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI event from.
+/// \param context is the corresponding PI context
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
 /// \param event is the PI event created from the native handle.
 __SYCL_EXPORT pi_result piextEventCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_event *event);
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    pi_event *event);
 
 //
 // Sampler
