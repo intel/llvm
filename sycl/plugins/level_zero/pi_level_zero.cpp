@@ -764,10 +764,7 @@ pi_result _pi_context::getAvailableCommandList(
     if (auto Res = Queue->executeOpenCommandList())
       return Res;
   }
-  // Use of copy engine is enabled only for out-of-order queues.
-  // TODO: Revisit this when in-order queue spport is available in L0 plugin.
-  bool UseCopyEngine = !(Queue->isInOrderQueue()) && PreferCopyEngine &&
-                       Queue->Device->hasCopyEngine();
+  bool UseCopyEngine = PreferCopyEngine && Queue->Device->hasCopyEngine();
 
   // Create/Reuse the command list, because in Level Zero commands are added to
   // the command lists, and later are then added to the command queue.
