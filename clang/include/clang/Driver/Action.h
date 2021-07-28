@@ -876,7 +876,7 @@ public:
 ///   - No change of toolchain, boundarch and offloading kind should occur
 ///     within the sub-region;
 ///   - No job should produce multiple outputs;
-///   - Results of action within the sub-region should not be used ouside the
+///   - Results of action within the sub-region should not be used outside the
 ///     wrapped region.
 /// Note: this doesn't bind to a tool directly and this need special casing
 /// anyhow. Hence why this is an Action and not a JobAction, even if there is a

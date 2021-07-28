@@ -6217,7 +6217,7 @@ static void CollectForEachInputs(
         &CachedResults) {
   for (const Action *Input : SourceAction->getInputs()) {
     // Search for the Input, if not in the cache assume actions were collapsed
-    // so recuse.
+    // so recurse.
     auto Lookup = CachedResults.find(
         {Input,
          GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)});
