@@ -331,9 +331,7 @@ struct _pi_device : _pi_object {
 
 // Generates a key to be used in the unordered_maps `SharedMemAllocContexts`
 // and `DeviceMemAllocContexts` from the values of the {Ordinal, Index} pair.
-inline size_t key(int32_t i,int32_t j) {
-  return (size_t) i << 32 | (int32_t) j;
-}
+inline size_t key(int32_t i,int32_t j) { return (size_t)i << 32 | (int32_t)j; }
 
 struct _pi_context : _pi_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
