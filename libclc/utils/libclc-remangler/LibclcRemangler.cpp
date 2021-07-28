@@ -139,7 +139,7 @@ class DefaultAllocator {
 public:
   void reset() { Alloc.reset(); }
 
-  template <typename T, typename... Args> T *makeNode(Args &&...args) {
+  template <typename T, typename... Args> T *makeNode(Args &&... args) {
     return new (Alloc.allocate(sizeof(T))) T(std::forward<Args>(args)...);
   }
 
