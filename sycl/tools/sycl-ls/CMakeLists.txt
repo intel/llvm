@@ -4,7 +4,7 @@ target_include_directories(sycl-ls PRIVATE "${sycl_inc_dir}")
 
 set(sycl_lib sycl)
 string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
-if (WIN32 AND "${build_type_lower}" MATCHES "Debug")
+if (WIN32 AND "${build_type_lower}" MATCHES "debug")
   set(sycl_lib sycld)
 endif()
 
