@@ -2206,7 +2206,18 @@ cl_int ExecCGCommand::enqueueImp() {
 }
 
 bool ExecCGCommand::producesPiEvent() const {
-  return MCommandGroup->getType() != CG::CGType::CodeplayHostTask;
+  if (MQueue->getPlugin().getBackend() == backend::esimd_cpu) {
+    // TODO : Enable event creation and handling. As of ESIMD_CPU
+    // bring-up stage, only 'piEnqueueMemBufferRead' and
+    // 'piEnqueueMemImageRead' request event creation, but esimd_cpu
+    // plug-in creates dummy event that is ignored during
+    // 'piEventsWait' as those read operations are done by CPU without
+    // any external devices like GPU/FPGA.
+    return false;
+  } else {
+    return MCommandGroup->getType() != CG::CGType::CodeplayHostTask;
+  }
+
 }
 
 } // namespace detail
