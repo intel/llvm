@@ -40,8 +40,8 @@ template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout = matrix_layout::row_major>
 struct joint_matrix {
 public:
-  __spv::__spirv_JointMatrixINTEL<T, NumRows, NumCols,
-                             spv_matrix_layout_traits<Layout>::value> *spvm;
+  __spv::__spirv_JointMatrixINTEL<
+      T, NumRows, NumCols, spv_matrix_layout_traits<Layout>::value> *spvm;
   joint_matrix(Group sg) {
 #ifndef __SYCL_DEVICE_ONLY__
     (void)sg;
@@ -60,9 +60,10 @@ joint_matrix_load(Group sg, joint_matrix<Group, T, NumRows, NumCols, MatL> &res,
                   multi_ptr<T, Space> src, size_t stride) {
 #ifdef __SYCL_DEVICE_ONLY__
   T *Ptr = src.get();
-  res.spvm = __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
-                                     spv_matrix_layout_traits<MatL>::value>(
-      Ptr, stride, spv_matrix_layout_traits<MemL>::value);
+  res.spvm =
+      __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+                                   spv_matrix_layout_traits<MatL>::value>(
+          Ptr, stride, spv_matrix_layout_traits<MemL>::value);
 #else
   (void)sg;
   (void)res;
@@ -84,7 +85,7 @@ joint_matrix_store(Group sg,
 #ifdef __SYCL_DEVICE_ONLY__
   T *Ptr = src.get();
   __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
-                           spv_matrix_layout_traits<MatL>::value>(
+                                spv_matrix_layout_traits<MatL>::value>(
       Ptr, obj.spvm, stride, spv_matrix_layout_traits<MemL>::value);
 #else
   (void)sg;
