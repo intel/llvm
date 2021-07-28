@@ -2217,7 +2217,6 @@ bool ExecCGCommand::producesPiEvent() const {
   } else {
     return MCommandGroup->getType() != CG::CGType::CodeplayHostTask;
   }
-
 }
 
 } // namespace detail
