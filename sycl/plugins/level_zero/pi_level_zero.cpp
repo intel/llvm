@@ -6005,7 +6005,8 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
   }
 
   try {
-    auto It = Context->DeviceMemAllocContexts.find(Device);
+    auto It = Context->DeviceMemAllocContexts.find(key(
+        Device->ZeComputeQueueGroupIndex, Device->ZeComputeEngineIndex));
     if (It == Context->DeviceMemAllocContexts.end())
       return PI_INVALID_VALUE;
 
@@ -6063,7 +6064,8 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   }
 
   try {
-    auto It = Context->SharedMemAllocContexts.find(Device);
+    auto It = Context->SharedMemAllocContexts.find(key(
+        Device->ZeComputeQueueGroupIndex, Device->ZeComputeEngineIndex));
     if (It == Context->SharedMemAllocContexts.end())
       return PI_INVALID_VALUE;
 
@@ -6200,9 +6202,10 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
 
     auto DeallocationHelper =
         [Context, Device,
-         Ptr](std::unordered_map<pi_device, USMAllocContext> &AllocContextMap) {
+         Ptr](std::unordered_map<size_t, USMAllocContext> &AllocContextMap) {
           try {
-            auto It = AllocContextMap.find(Device);
+            auto It = AllocContextMap.find(key(Device->ZeComputeQueueGroupIndex,
+                                               Device->ZeComputeEngineIndex));
             if (It == AllocContextMap.end())
               return PI_INVALID_VALUE;
 
