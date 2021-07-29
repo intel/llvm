@@ -3,8 +3,8 @@
 Release notes for commit range 6a49170027fb..962909fe9e78
 
 ## New features
- - Implemented SYCL 2020 specialized constants [07b27965] [ba3d657] [bd8dcf4]
-   [d15b841]
+ - Implemented SYCL 2020 specialization constants [07b27965] [ba3d657]
+   [bd8dcf4] [d15b841]
  - Provided SYCL 2020 function objects [24a2ad89]
  - Added support for ITT notification in SYCL Runtime [a7b8daf] [8d3921e3]
  - Implemented SYCL 2020 sub_group algorithms [e8caf6c3]
@@ -19,8 +19,10 @@ Release notes for commit range 6a49170027fb..962909fe9e78
    `intel::loop_count_avg` attributes that allow to specify number of loop
    iterations for FPGA [f74b4ef]
  - Implemented generation of compiler report for kernel arguments [201f902]
- - Implemented SYCL 2020 [sub-group](doc/extensions/SubGroup/SYCL_INTEL_sub_group.asciidoc#attributes)
-   size functionality [347e41c]
+ - Implemented SYCL 2020 `[[reqd_sub_group_size]]` attribute [347e41c]
+ - Implemented support for `[[intel::named_sub_group_size(primary)]]` attribute
+   from [sub-group extension](doc/extensions/SubGroup/SYCL_INTEL_sub_group.asciidoc#attributes)
+   [347e41c]
  - Implemented SYCL 2020 interoperability API [e6733e4]
  - Added [group sorting algorithm](doc/extensions/GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)
    extension specification [edaee9b]
@@ -101,17 +103,12 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Added global offset support for Level Zero backend [9ca2f911]
  - [ESIMD] Changed `simd::replicate` API by adding suffixes into the names to
    reflect the order of template arguments [e45408ad]
- - Disabled persistent device code caching by default [48f6bc9e]
  - Introduced `SYCL_REDUCTION_DETERMINISTIC` macro which forces reduction
    algorithms to produce stable results [a3fc51a4]
  - Improved `SYCL_DEVICE_ALLOWLIST` format [9216b49d]
  - Added `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` macro to disable range
    rounding [5c4275ac]
  - Disabled range rounding by default when compiling for FPGA [5c4275ac]
- - [ESIMD] Fixed a bug in `simd_view::operator--` [ccc97e23]
- - Fixed a memory leak for host USM allocations [c18c3456]
- - Fixed possible crashes that could happen when `sycl::free` is called while
-   there are still running kernels [c74f05d6]
  - Deprecated `sycl::buffer::get_count()`, please use `sycl::buffer::size()`
    instead [baf2ed9d]
  - Implemented `sycl::group_barrier` free function [48363902]
@@ -204,14 +201,26 @@ Release notes for commit range 6a49170027fb..962909fe9e78
    [ad46b641]
  - Use local size specified in `[[sycl::reqd_work_group_size]]` if no local
    size explicitly passed [0a54bef2]
+ - Disabled persistent device code caching by default since it doesn't reliably
+   identify driver version change [48f6bc9e]
+ - [ESIMD] Fixed a bug in `simd_view::operator--` [ccc97e23]
+ - Fixed a memory leak for host USM allocations [c18c3456]
+ - Fixed possible crashes that could happen when `sycl::free` is called while
+   there are still running kernels [c74f05d6]
 
 ## API/ABI breakages
  - None
 
 ## Known issues
- - User-defined functions with the same name and signature (exact match of
-   arguments, return type doesn't matter) as of an OpenCL C built-in
-   function, can lead to Undefined Behavior.
+ - [new] The compiler generates a temporary source file which is used during
+   host compilation.  This source file will appear to be a source dependency
+   and could break build environments (such as Bazel) which closely keeps track
+   of the generated files during a compilation. Build environments such as
+   these will need to be configured in the DPC++ space to expect an additional
+   intermediate file to be part of the compilation flow.
+ - User-defined functions with the name and signature matching those of any
+   OpenCL C built-in function (i.e. an exact match of arguments, return type
+   doesn't matter) can lead to Undefined Behavior.
  - A DPC++ system that has FPGAs installed does not support multi-process
    execution. Creating a context opens the device associated with the context
    and places a lock on it for that process. No other process may use that
