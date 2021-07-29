@@ -50,7 +50,7 @@
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 //
-// CHECK: template <> struct KernelInfo<class first_kernel> {
+// CHECK: template <> struct KernelInfo<first_kernel> {
 // CHECK: template <> struct KernelInfo<::second_namespace::second_kernel<char>> {
 // CHECK: template <> struct KernelInfo<::fourth_kernel<::template_arg_ns::namespaced_arg<1>>> {
 
