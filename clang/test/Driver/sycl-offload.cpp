@@ -62,14 +62,6 @@
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
 // RUN:  %clangxx -### -fsycl -fintelfpga %t_dummy.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
-// RUN:  %clangxx -### -fsycl -fsycl-add-spirv -fsycl-targets=spir64_x86_64 %t_empty.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
-// RUN:  %clangxx -### -fsycl -fsycl-add-spirv -fsycl-targets=spir64_fpga %t_empty.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
-// RUN:  %clangxx -### -fsycl -fsycl-add-spirv -fsycl-targets=spir64_gen %t_empty.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
-// RUN:  %clangxx -### -fsycl -fsycl-add-spirv -fintelfpga %t_empty.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
 // IMPLIED_DEVICE_OBJ: clang-offload-bundler{{.*}} "-type=o"{{.*}} "-targets=sycl-spir64-unknown-unknown-sycldevice,sycl-spir64_{{.*}}-unknown-unknown-sycldevice"{{.*}} "-unbundle"
 
 // RUN:  %clangxx -### -fsycl -fsycl-targets=spir64_x86_64 %t_dummy.a %s 2>&1 \

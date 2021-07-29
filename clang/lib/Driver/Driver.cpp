@@ -1440,8 +1440,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
 
   // Check for any objects/archives that need to be compiled with the default
   // triple.
-  if (checkForSYCLDefaultDevice(*C, *TranslatedArgs) ||
-      TranslatedArgs->hasArg(options::OPT_fsycl_add_spirv))
+  if (checkForSYCLDefaultDevice(*C, *TranslatedArgs))
     setSYCLDefaultTriple(true);
 
   // Populate the tool chains for the offloading devices, if any.
