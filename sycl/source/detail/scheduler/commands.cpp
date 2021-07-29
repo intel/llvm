@@ -203,7 +203,8 @@ public:
   void operator()() const {
     waitForEvents();
 
-    assert(MThisCmd->getCG().getType() == CG::CGType::CodeplayHostTask);
+    assert(MThisCmd->getCG().getType() ==
+           CommandGroup::CGType::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 
@@ -1217,13 +1218,13 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
 }
 
 std::vector<StreamImplPtr> ExecCGCommand::getStreams() const {
-  if (MCommandGroup->getType() == CG::Kernel)
+  if (MCommandGroup->getType() == CommandGroup::Kernel)
     return ((CGExecKernel *)MCommandGroup.get())->getStreams();
   return {};
 }
 
 void ExecCGCommand::clearStreams() {
-  if (MCommandGroup->getType() == CG::Kernel)
+  if (MCommandGroup->getType() == CommandGroup::Kernel)
     ((CGExecKernel *)MCommandGroup.get())->clearStreams();
 }
 
@@ -1449,36 +1450,36 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
 #endif
 }
 
-static std::string cgTypeToString(detail::CG::CGType Type) {
+static std::string cgTypeToString(detail::CommandGroup::CGType Type) {
   switch (Type) {
-  case detail::CG::Kernel:
+  case detail::CommandGroup::Kernel:
     return "Kernel";
     break;
-  case detail::CG::UpdateHost:
+  case detail::CommandGroup::UpdateHost:
     return "update_host";
     break;
-  case detail::CG::Fill:
+  case detail::CommandGroup::Fill:
     return "fill";
     break;
-  case detail::CG::CopyAccToAcc:
+  case detail::CommandGroup::CopyAccToAcc:
     return "copy acc to acc";
     break;
-  case detail::CG::CopyAccToPtr:
+  case detail::CommandGroup::CopyAccToPtr:
     return "copy acc to ptr";
     break;
-  case detail::CG::CopyPtrToAcc:
+  case detail::CommandGroup::CopyPtrToAcc:
     return "copy ptr to acc";
     break;
-  case detail::CG::CopyUSM:
+  case detail::CommandGroup::CopyUSM:
     return "copy usm";
     break;
-  case detail::CG::FillUSM:
+  case detail::CommandGroup::FillUSM:
     return "fill usm";
     break;
-  case detail::CG::PrefetchUSM:
+  case detail::CommandGroup::PrefetchUSM:
     return "prefetch usm";
     break;
-  case detail::CG::CodeplayHostTask:
+  case detail::CommandGroup::CodeplayHostTask:
     return "host task";
     break;
   default:
@@ -1487,7 +1488,7 @@ static std::string cgTypeToString(detail::CG::CGType Type) {
   }
 }
 
-ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
+ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CommandGroup> CommandGroup,
                              QueueImplPtr Queue)
     : Command(CommandType::RUN_CG, std::move(Queue)),
       MCommandGroup(std::move(CommandGroup)) {
@@ -1504,7 +1505,7 @@ void ExecCGCommand::emitInstrumentationData() {
   bool HasSourceInfo = false;
   std::string KernelName, FromSource;
   switch (MCommandGroup->getType()) {
-  case detail::CG::Kernel: {
+  case detail::CommandGroup::Kernel: {
     auto KernelCG =
         reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
 
@@ -1591,7 +1592,7 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
   Stream << "EXEC CG ON " << deviceToString(MQueue->get_device()) << "\\n";
 
   switch (MCommandGroup->getType()) {
-  case detail::CG::Kernel: {
+  case detail::CommandGroup::Kernel: {
     auto KernelCG =
         reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
     Stream << "Kernel name: ";
@@ -1798,7 +1799,7 @@ void DispatchNativeKernel(void *Blob) {
 }
 
 cl_int ExecCGCommand::enqueueImp() {
-  if (getCG().getType() != CG::CGType::CodeplayHostTask)
+  if (getCG().getType() != CommandGroup::CGType::CodeplayHostTask)
     waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getPiEvents(EventImpls);
@@ -1807,11 +1808,11 @@ cl_int ExecCGCommand::enqueueImp() {
 
   switch (MCommandGroup->getType()) {
 
-  case CG::CGType::UpdateHost: {
+  case CommandGroup::CGType::UpdateHost: {
     throw runtime_error("Update host should be handled by the Scheduler.",
                         PI_INVALID_OPERATION);
   }
-  case CG::CGType::CopyAccToPtr: {
+  case CommandGroup::CGType::CopyAccToPtr: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
     Requirement *Req = (Requirement *)Copy->getSrc();
     AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
@@ -1826,7 +1827,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGType::CopyPtrToAcc: {
+  case CommandGroup::CGType::CopyPtrToAcc: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
     Requirement *Req = (Requirement *)(Copy->getDst());
     AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
@@ -1843,7 +1844,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGType::CopyAccToAcc: {
+  case CommandGroup::CGType::CopyAccToAcc: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
     Requirement *ReqSrc = (Requirement *)(Copy->getSrc());
     Requirement *ReqDst = (Requirement *)(Copy->getDst());
@@ -1860,7 +1861,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGType::Fill: {
+  case CommandGroup::CGType::Fill: {
     CGFill *Fill = (CGFill *)MCommandGroup.get();
     Requirement *Req = (Requirement *)(Fill->getReqToFill());
     AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
@@ -1873,7 +1874,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGType::RunOnHostIntel: {
+  case CommandGroup::CGType::RunOnHostIntel: {
     CGExecKernel *HostTask = (CGExecKernel *)MCommandGroup.get();
 
     // piEnqueueNativeKernel takes arguments blob which is passes to user
@@ -1944,7 +1945,7 @@ cl_int ExecCGCommand::enqueueImp() {
           "Enqueueing run_on_host_intel task has failed.", Error);
     }
   }
-  case CG::CGType::Kernel: {
+  case CommandGroup::CGType::Kernel: {
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
 
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
@@ -2061,21 +2062,21 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return PI_SUCCESS;
   }
-  case CG::CGType::CopyUSM: {
+  case CommandGroup::CGType::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
     MemoryManager::copy_usm(Copy->getSrc(), MQueue, Copy->getLength(),
                             Copy->getDst(), std::move(RawEvents), Event);
 
     return CL_SUCCESS;
   }
-  case CG::CGType::FillUSM: {
+  case CommandGroup::CGType::FillUSM: {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
                             Fill->getFill(), std::move(RawEvents), Event);
 
     return CL_SUCCESS;
   }
-  case CG::CGType::PrefetchUSM: {
+  case CommandGroup::CGType::PrefetchUSM: {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     MemoryManager::prefetch_usm(Prefetch->getDst(), MQueue,
                                 Prefetch->getLength(), std::move(RawEvents),
@@ -2083,14 +2084,14 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGType::AdviseUSM: {
+  case CommandGroup::CGType::AdviseUSM: {
     CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
     MemoryManager::advise_usm(Advise->getDst(), MQueue, Advise->getLength(),
                               Advise->getAdvice(), std::move(RawEvents), Event);
 
     return CL_SUCCESS;
   }
-  case CG::CGType::CodeplayInteropTask: {
+  case CommandGroup::CGType::CodeplayInteropTask: {
     const detail::plugin &Plugin = MQueue->getPlugin();
     CGInteropTask *ExecInterop = (CGInteropTask *)MCommandGroup.get();
     // Wait for dependencies to complete before dispatching work on the host
@@ -2118,7 +2119,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGType::CodeplayHostTask: {
+  case CommandGroup::CGType::CodeplayHostTask: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
 
     for (ArgDesc &Arg : HostTask->MArgs) {
@@ -2173,7 +2174,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGType::Barrier: {
+  case CommandGroup::CGType::Barrier: {
     if (MQueue->get_device().is_host()) {
       // NOP for host device.
       return PI_SUCCESS;
@@ -2184,7 +2185,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return PI_SUCCESS;
   }
-  case CG::CGType::BarrierWaitlist: {
+  case CommandGroup::CGType::BarrierWaitlist: {
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     if (MQueue->get_device().is_host() || Events.empty()) {
@@ -2199,14 +2200,14 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return PI_SUCCESS;
   }
-  case CG::CGType::None:
+  case CommandGroup::CGType::None:
     throw runtime_error("CG type not implemented.", PI_INVALID_OPERATION);
   }
   return PI_INVALID_OPERATION;
 }
 
 bool ExecCGCommand::producesPiEvent() const {
-  return MCommandGroup->getType() != CG::CGType::CodeplayHostTask;
+  return MCommandGroup->getType() != CommandGroup::CGType::CodeplayHostTask;
 }
 
 } // namespace detail
