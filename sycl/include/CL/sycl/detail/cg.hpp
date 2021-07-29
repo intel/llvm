@@ -79,8 +79,8 @@ namespace detail {
 //
 // 0x00000001 - CG type KERNEL version 0
 // 0x01000001 - CG type KERNEL version 1
-//   /\
-//   ||
+//    ^
+//    |
 // The byte specifies the version
 //
 // A user of this vector should not expect that a specific data is stored at a

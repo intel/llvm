@@ -39,7 +39,9 @@
 #endif
 
 #ifndef __SYCL_DEPRECATED
-#ifndef SYCL_DISABLE_DEPRECATION_WARNINGS
+// The deprecated attribute is not supported in some situations(e.g. namespace)
+// in C++14 mode
+#if !defined(SYCL2020_DISABLE_DEPRECATION_WARNINGS) && __cplusplus >= 201703L
 #define __SYCL_DEPRECATED(message) [[deprecated(message)]]
 #else // SYCL_DISABLE_DEPRECATION_WARNINGS
 #define __SYCL_DEPRECATED(message)
@@ -90,7 +92,7 @@
 // define __SYCL_WARNING convenience macro to report compiler warnings
 #if defined(__GNUC__)
 #define __SYCL_GCC_PRAGMA(x) _Pragma(#x)
-#define __SYCL_WARNING(msg) __SYCL_GCC_PRAGMA(GCC warning msg)
+#define __SYCL_WARNING(msg) __SYCL_GCC_PRAGMA(message msg)
 #elif defined(_MSC_VER) && !defined(__clang__)
 #define __SYCL_QUOTE1(x) #x
 #define __SYCL_QUOTE(x) __SYCL_QUOTE1(x)
@@ -100,3 +102,10 @@
 // clang emits "warning:" in the message pragma output
 #define __SYCL_WARNING(msg) __pragma(message(msg))
 #endif // __GNUC__
+
+// Emitting a message instead of a warning here in order to avoid hard error
+// if an app is compiled with "-werror" option.
+#if !defined(__SYCL_DISABLE_CPP_VERSION_MESSAGE) && __cplusplus < 201703L
+__SYCL_WARNING("DPCPP does not support C++ version earlier than C++17. Some "
+               "features might not be available.")
+#endif
