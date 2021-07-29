@@ -156,6 +156,12 @@ namespace std::ranges {
 
   template<class T>
   inline constexpr bool enable_borrowed_range<common_view<T>> = enable_borrowed_range<T>;
+
+   // [range.take], take view
+  template<view> class take_view;
+
+  template<class T>
+  inline constexpr bool enable_borrowed_range<take_view<T>> = enable_borrowed_range<T>;
 }
 
 */
@@ -173,6 +179,7 @@ namespace std::ranges {
 #include <__ranges/enable_borrowed_range.h>
 #include <__ranges/enable_view.h>
 #include <__ranges/ref_view.h>
+#include <__ranges/take_view.h>
 #include <__ranges/size.h>
 #include <__ranges/subrange.h>
 #include <__ranges/transform_view.h>
@@ -182,6 +189,10 @@ namespace std::ranges {
 #include <iterator>         // Required by the standard.
 #include <type_traits>
 #include <version>
+
+#if defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
+# error "The Ranges library is not supported since libc++ has been configured with LIBCXX_ENABLE_INCOMPLETE_FEATURES disabled"
+#endif
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header

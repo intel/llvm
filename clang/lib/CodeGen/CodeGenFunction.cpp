@@ -80,7 +80,6 @@ CodeGenFunction::CodeGenFunction(CodeGenModule &cgm, bool suppressNewContext)
   EHStack.setCGF(this);
 
   SetFastMathFlags(CurFPFeatures);
-  SetFPModel();
 }
 
 CodeGenFunction::~CodeGenFunction() {
@@ -109,17 +108,6 @@ clang::ToConstrainedExceptMD(LangOptions::FPExceptionModeKind Kind) {
   case LangOptions::FPE_Strict:  return llvm::fp::ebStrict;
   }
   llvm_unreachable("Unsupported FP Exception Behavior");
-}
-
-void CodeGenFunction::SetFPModel() {
-  llvm::RoundingMode RM = getLangOpts().getFPRoundingMode();
-  auto fpExceptionBehavior = ToConstrainedExceptMD(
-                               getLangOpts().getFPExceptionMode());
-
-  Builder.setDefaultConstrainedRounding(RM);
-  Builder.setDefaultConstrainedExcept(fpExceptionBehavior);
-  Builder.setIsFPConstrained(fpExceptionBehavior != llvm::fp::ebIgnore ||
-                             RM != llvm::RoundingMode::NearestTiesToEven);
 }
 
 void CodeGenFunction::SetFastMathFlags(FPOptions FPFeatures) {
@@ -1123,10 +1111,16 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
              (getLangOpts().CUDA && FD->hasAttr<CUDAGlobalAttr>())))
     Fn->addFnAttr(llvm::Attribute::NoRecurse);
 
-  if (FD) {
-    Builder.setIsFPConstrained(FD->hasAttr<StrictFPAttr>());
-    if (FD->hasAttr<StrictFPAttr>())
-      Fn->addFnAttr(llvm::Attribute::StrictFP);
+  llvm::RoundingMode RM = getLangOpts().getFPRoundingMode();
+  llvm::fp::ExceptionBehavior FPExceptionBehavior =
+      ToConstrainedExceptMD(getLangOpts().getFPExceptionMode());
+  Builder.setDefaultConstrainedRounding(RM);
+  Builder.setDefaultConstrainedExcept(FPExceptionBehavior);
+  if ((FD && (FD->UsesFPIntrin() || FD->hasAttr<StrictFPAttr>())) ||
+      (!FD && (FPExceptionBehavior != llvm::fp::ebIgnore ||
+               RM != llvm::RoundingMode::NearestTiesToEven))) {
+    Builder.setIsFPConstrained(true);
+    Fn->addFnAttr(llvm::Attribute::StrictFP);
   }
 
   // If a custom alignment is used, force realigning to this alignment on

@@ -2439,9 +2439,7 @@ SDValue DAGCombiner::visitADDLike(SDNode *N) {
                          N0.getOperand(0));
 
     // fold (add (add (xor a, -1), b), 1) -> (sub b, a)
-    if (N0.getOpcode() == ISD::ADD ||
-        N0.getOpcode() == ISD::UADDO ||
-        N0.getOpcode() == ISD::SADDO) {
+    if (N0.getOpcode() == ISD::ADD) {
       SDValue A, Xor;
 
       if (isBitwiseNot(N0.getOperand(0))) {
@@ -10025,10 +10023,10 @@ SDValue DAGCombiner::visitVSELECT(SDNode *N) {
       // If it's on the left side invert the predicate to simplify logic below.
       SDValue Other;
       ISD::CondCode SatCC = CC;
-      if (ISD::isBuildVectorAllOnes(N1.getNode())) {
+      if (ISD::isConstantSplatVectorAllOnes(N1.getNode())) {
         Other = N2;
         SatCC = ISD::getSetCCInverse(SatCC, VT.getScalarType());
-      } else if (ISD::isBuildVectorAllOnes(N2.getNode())) {
+      } else if (ISD::isConstantSplatVectorAllOnes(N2.getNode())) {
         Other = N1;
       }
 
@@ -10049,7 +10047,9 @@ SDValue DAGCombiner::visitVSELECT(SDNode *N) {
             (OpLHS == CondLHS || OpRHS == CondLHS))
           return DAG.getNode(ISD::UADDSAT, DL, VT, OpLHS, OpRHS);
 
-        if (isa<BuildVectorSDNode>(OpRHS) && isa<BuildVectorSDNode>(CondRHS) &&
+        if (OpRHS.getOpcode() == CondRHS.getOpcode() &&
+            (OpRHS.getOpcode() == ISD::BUILD_VECTOR ||
+             OpRHS.getOpcode() == ISD::SPLAT_VECTOR) &&
             CondLHS == OpLHS) {
           // If the RHS is a constant we have to reverse the const
           // canonicalization.
@@ -10070,10 +10070,10 @@ SDValue DAGCombiner::visitVSELECT(SDNode *N) {
       // the left side invert the predicate to simplify logic below.
       SDValue Other;
       ISD::CondCode SatCC = CC;
-      if (ISD::isBuildVectorAllZeros(N1.getNode())) {
+      if (ISD::isConstantSplatVectorAllZeros(N1.getNode())) {
         Other = N2;
         SatCC = ISD::getSetCCInverse(SatCC, VT.getScalarType());
-      } else if (ISD::isBuildVectorAllZeros(N2.getNode())) {
+      } else if (ISD::isConstantSplatVectorAllZeros(N2.getNode())) {
         Other = N1;
       }
 
@@ -10102,8 +10102,10 @@ SDValue DAGCombiner::visitVSELECT(SDNode *N) {
               Other.getOpcode() == ISD::SUB && OpRHS == CondRHS)
             return DAG.getNode(ISD::USUBSAT, DL, VT, OpLHS, OpRHS);
 
-          if (auto *OpRHSBV = dyn_cast<BuildVectorSDNode>(OpRHS)) {
-            if (isa<BuildVectorSDNode>(CondRHS)) {
+          if (OpRHS.getOpcode() == ISD::BUILD_VECTOR ||
+              OpRHS.getOpcode() == ISD::SPLAT_VECTOR) {
+            if (CondRHS.getOpcode() == ISD::BUILD_VECTOR ||
+                CondRHS.getOpcode() == ISD::SPLAT_VECTOR) {
               // If the RHS is a constant we have to reverse the const
               // canonicalization.
               // x > C-1 ? x+-C : 0 --> usubsat x, C
@@ -10125,15 +10127,15 @@ SDValue DAGCombiner::visitVSELECT(SDNode *N) {
               // FIXME: Would it be better to use computeKnownBits to determine
               //        whether it's safe to decanonicalize the xor?
               // x s< 0 ? x^C : 0 --> usubsat x, C
-              if (auto *OpRHSConst = OpRHSBV->getConstantSplatNode()) {
-                if (SatCC == ISD::SETLT && Other.getOpcode() == ISD::XOR &&
-                    ISD::isBuildVectorAllZeros(CondRHS.getNode()) &&
-                    OpRHSConst->getAPIntValue().isSignMask()) {
-                  // Note that we have to rebuild the RHS constant here to
-                  // ensure we don't rely on particular values of undef lanes.
-                  OpRHS = DAG.getConstant(OpRHSConst->getAPIntValue(), DL, VT);
-                  return DAG.getNode(ISD::USUBSAT, DL, VT, OpLHS, OpRHS);
-                }
+              APInt SplatValue;
+              if (SatCC == ISD::SETLT && Other.getOpcode() == ISD::XOR &&
+                  ISD::isConstantSplatVector(OpRHS.getNode(), SplatValue) &&
+                  ISD::isConstantSplatVectorAllZeros(CondRHS.getNode()) &&
+                  SplatValue.isSignMask()) {
+                // Note that we have to rebuild the RHS constant here to
+                // ensure we don't rely on particular values of undef lanes.
+                OpRHS = DAG.getConstant(SplatValue, DL, VT);
+                return DAG.getNode(ISD::USUBSAT, DL, VT, OpLHS, OpRHS);
               }
             }
           }
@@ -10219,9 +10221,62 @@ SDValue DAGCombiner::visitSETCC(SDNode *N) {
   bool PreferSetCC =
       N->hasOneUse() && N->use_begin()->getOpcode() == ISD::BRCOND;
 
-  SDValue Combined = SimplifySetCC(
-      N->getValueType(0), N->getOperand(0), N->getOperand(1),
-      cast<CondCodeSDNode>(N->getOperand(2))->get(), SDLoc(N), !PreferSetCC);
+  ISD::CondCode Cond = cast<CondCodeSDNode>(N->getOperand(2))->get();
+  EVT VT = N->getValueType(0);
+
+  //   SETCC(FREEZE(X), CONST, Cond)
+  // =>
+  //   FREEZE(SETCC(X, CONST, Cond))
+  // This is correct if FREEZE(X) has one use and SETCC(FREEZE(X), CONST, Cond)
+  // isn't equivalent to true or false.
+  // For example, SETCC(FREEZE(X), -128, SETULT) cannot be folded to
+  // FREEZE(SETCC(X, -128, SETULT)) because X can be poison.
+  //
+  // This transformation is beneficial because visitBRCOND can fold
+  // BRCOND(FREEZE(X)) to BRCOND(X).
+
+  // Conservatively optimize integer comparisons only.
+  if (PreferSetCC) {
+    // Do this only when SETCC is going to be used by BRCOND.
+
+    SDValue N0 = N->getOperand(0), N1 = N->getOperand(1);
+    ConstantSDNode *N0C = dyn_cast<ConstantSDNode>(N0);
+    ConstantSDNode *N1C = dyn_cast<ConstantSDNode>(N1);
+    bool Updated = false;
+
+    // Is 'X Cond C' always true or false?
+    auto IsAlwaysTrueOrFalse = [](ISD::CondCode Cond, ConstantSDNode *C) {
+      bool False = (Cond == ISD::SETULT && C->isNullValue()) ||
+                   (Cond == ISD::SETLT  && C->isMinSignedValue()) ||
+                   (Cond == ISD::SETUGT && C->isAllOnesValue()) ||
+                   (Cond == ISD::SETGT  && C->isMaxSignedValue());
+      bool True =  (Cond == ISD::SETULE && C->isAllOnesValue()) ||
+                   (Cond == ISD::SETLE  && C->isMaxSignedValue()) ||
+                   (Cond == ISD::SETUGE && C->isNullValue()) ||
+                   (Cond == ISD::SETGE  && C->isMinSignedValue());
+      return True || False;
+    };
+
+    if (N0->getOpcode() == ISD::FREEZE && N0.hasOneUse() && N1C) {
+      if (!IsAlwaysTrueOrFalse(Cond, N1C)) {
+        N0 = N0->getOperand(0);
+        Updated = true;
+      }
+    }
+    if (N1->getOpcode() == ISD::FREEZE && N1.hasOneUse() && N0C) {
+      if (!IsAlwaysTrueOrFalse(ISD::getSetCCSwappedOperands(Cond),
+                               N0C)) {
+        N1 = N1->getOperand(0);
+        Updated = true;
+      }
+    }
+
+    if (Updated)
+      return DAG.getFreeze(DAG.getSetCC(SDLoc(N), VT, N0, N1, Cond));
+  }
+
+  SDValue Combined = SimplifySetCC(VT, N->getOperand(0), N->getOperand(1), Cond,
+                                   SDLoc(N), !PreferSetCC);
 
   if (!Combined)
     return SDValue();
