@@ -189,7 +189,7 @@ public:
     MColumn = loc.columnNumber();
   }
 
-  CommandGroup(CommandGroup &&CommandGroup) = default;
+  CommandGroup(CommandGroup &&CG) = default;
 
   CGType getType() { return static_cast<CGType>(getUnversionedCGType(MType)); }
 
