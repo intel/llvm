@@ -15,8 +15,8 @@ _CLC_DEF _CLC_OVERLOAD uint __spirv_SubgroupSize() {
   size_t size_x = __spirv_WorkgroupSize_x();
   size_t size_y = __spirv_WorkgroupSize_y();
   size_t size_z = __spirv_WorkgroupSize_z();
-  uint linear_size = size_z * size_y * size_x;
-  uint uniform_groups = __spirv_NumSubgroups() - 1;
-  uint uniform_size = __spirv_SubgroupMaxSize() * uniform_groups;
+  size_t linear_size = size_z * size_y * size_x;
+  size_t uniform_groups = __spirv_NumSubgroups() - 1;
+  size_t uniform_size = __spirv_SubgroupMaxSize() * uniform_groups;
   return linear_size - uniform_size;
 }
