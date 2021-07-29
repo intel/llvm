@@ -191,8 +191,8 @@ config.available_features.add('host')
 
 found_at_least_one_device = False
 
-cpu_run_substitute = "true"
-cpu_run_on_linux_substitute = "true "
+cpu_run_substitute = "echo "
+cpu_run_on_linux_substitute = "echo "
 cpu_check_substitute = ""
 cpu_check_on_linux_substitute = ""
 
@@ -213,8 +213,8 @@ config.substitutions.append( ('%CPU_RUN_ON_LINUX_PLACEHOLDER',  cpu_run_on_linux
 config.substitutions.append( ('%CPU_CHECK_PLACEHOLDER',  cpu_check_substitute) )
 config.substitutions.append( ('%CPU_CHECK_ON_LINUX_PLACEHOLDER',  cpu_check_on_linux_substitute) )
 
-gpu_run_substitute = "true"
-gpu_run_on_linux_substitute = "true "
+gpu_run_substitute = "echo "
+gpu_run_on_linux_substitute = "echo "
 gpu_check_substitute = ""
 gpu_check_on_linux_substitute = ""
 
@@ -244,7 +244,7 @@ config.substitutions.append( ('%GPU_RUN_ON_LINUX_PLACEHOLDER',  gpu_run_on_linux
 config.substitutions.append( ('%GPU_CHECK_PLACEHOLDER',  gpu_check_substitute) )
 config.substitutions.append( ('%GPU_CHECK_ON_LINUX_PLACEHOLDER',  gpu_check_on_linux_substitute) )
 
-acc_run_substitute = "true"
+acc_run_substitute = "echo "
 acc_check_substitute = ""
 if getDeviceCount("accelerator")[0]:
     found_at_least_one_device = True
