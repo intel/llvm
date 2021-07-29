@@ -157,8 +157,7 @@ typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
-           const context &TargetContext,
-           const async_handler Handler = {}) {
+           const context &TargetContext, const async_handler Handler = {}) {
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
                             TargetContext, false, Handler, Backend);
 }
