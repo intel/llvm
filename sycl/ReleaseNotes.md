@@ -3,22 +3,22 @@
 Release notes for commit range 6a49170027fb..962909fe9e78
 
 ## New features
- - Implement SYCL2020 specialized constants [07b27965] [ba3d657] [bd8dcf4]
+ - Implemented SYCL 2020 specialized constants [07b27965] [ba3d657] [bd8dcf4]
    [d15b841]
- - Provide SYCL 2020 function objects [24a2ad89]
+ - Provided SYCL 2020 function objects [24a2ad89]
  - Added support for ITT notification in SYCL Runtime [a7b8daf] [8d3921e3]
- - Implement SYCL 2020 sub_group algorithms [e8caf6c3]
- - Implement SYCL-2020 `sycl::handler::host_task` method [75e5a269]
- - Implement SYCL2020 `sycl::sub_group` class [19dcac79]
+ - Implemented SYCL 2020 sub_group algorithms [e8caf6c3]
+ - Implemented SYCL 2020 `sycl::handler::host_task` method [75e5a269]
+ - Implemented SYCL 2020 `sycl::sub_group` class [19dcac79]
  - Added support for AMD GPU devices [ec612228]
- - Implemented SYCL2020 `sycl::is_device_copyable` type trait [44c1cbcd]
- - Implemented SYCL2020 USM features [1df6873d]
+ - Implemented SYCL 2020 `sycl::is_device_copyable` type trait [44c1cbcd]
+ - Implemented SYCL 2020 USM features [1df6873d]
  - Implemented support for Device UUID from [Intel's Extensions for Device Information](doc/extensions/IntelGPU/IntelGPUDeviceInfo.md) [25aee287]
- - Implemented SYCL2020 `sycl::atomic_fence` [dcd59547]
+ - Implemented SYCL 2020 `sycl::atomic_fence` [dcd59547]
  - Implemented `intel::loop_count_max`, `intel::loop_count_max`,
    `intel::loop_count_avg` attributes that allow to specify number of loop
    iterations for FPGA [f74b4ef]
- - Impelemented generation of compiler report for kernel arguments [201f902]
+ - Implemented generation of compiler report for kernel arguments [201f902]
  - Implemented SYCL 2020 [sub-group](doc/extensions/SubGroup/SYCL_INTEL_sub_group.asciidoc#attributes)
    size functionality [347e41c]
  - Implemented SYCL 2020 interoperability API [e6733e4]
@@ -29,7 +29,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Added [InvokeSIMD](doc/extensions/InvokeSIMD/InvokeSIMD.asciidoc) and
    [Uniform](doc/extensions/Uniform/Uniform.asciidoc) extensions [72e1611]
  - Added [Matrix Programming Extension for DPC++ document](doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc) [ace4c733]
- - Implemented SYCL2020 `sycl::span` [9356d53]
+ - Implemented SYCL 2020 `sycl::span` [9356d53]
  - Added [device-if](doc/extensions/DeviceIf/device_if.asciidoc) extension
    [4fb95fc]
  - Added a [programming guide](doc/MultiTileCardWithLevelZero.md) for
@@ -42,7 +42,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Allowed for using an external host compiler [6f0ad1a]
  - Cleaned up preprocessing output when `-fsycl` option is passed [3a18db6]
  - Allowed kernel names in anonymous namespace [e47dbad]
- - Set default value of `-sycl-std` to `2020` when  `-fsycl-is-device` or
+ - Set default value of `-sycl-std` to `2020` when `-fsycl-is-device` or
    `-fsycl-is-host` specified [680adc0]
  - Added implication of `-fPIC` compilation for wrapped object when using
    `-shared` [1754934]
@@ -55,26 +55,31 @@ Release notes for commit range 6a49170027fb..962909fe9e78
    [001bbd42]
  - Deprecated `[[intel::reqd_work_group_size]]` attribute spelling, please use
    `[[sycl::reqd_work_group_size]]` instead [8ef7eacc]
- - Enabled native FP atomics by default [0bbb68ee]
- - Ignore `-O0` option for device code when compiling for FPGA with hardware
-   [7d94edf4]
- - Allowed for known aliases to be used for `-fsycl-targets` [9778952a]
+ - Enabled native FP atomics by default. Defining the
+   `SYCL_USE_NATIVE_FP_ATOMICS` macro explicitly is no longer required - it is
+   now automatically defined for hardware targets with "native" support for
+   atomic functions. [0bbb68ee]
+ - Switched to ignoring `-O0` option for device code when compiling for FPGA
+   with hardware [7d94edf4]
+ - Allowed for known aliases to be used for `-fsycl-targets`. Passing
+   `*-unknown-unknown-sycldevice` components of the SYCL target triple is no
+   longer necessary. [9778952a]
  - [ESIMD] Added support for half type in ESIMD intrinsics [d5958ebf]
  - Implemented `sycl::kernel::get_kernel_bundle` method [69a68a6d]
  - Added a diagnostic in case of timing issues for FPGA AOT [c69a3115]
  - Added support for C `memcpy` usages in the device code [76051ccf]
  - [ESIMD] Added support for vectorizing scalar function [3fc66cc]
- - Disable vectorization and loop transformation passes because loop unrolling
-   in "SYCL optimization mode" uses default heuristic, which is tuned for CPU
-   and might not be profitable for other devices [ff6929e6]
+ - Disabled vectorization and loop transformation passes because loop unrolling
+   in "SYCL optimization mode" used default heuristic, which is tuned the code
+   for CPU and might not have been profitable for other devices [ff6929e6]
 ### SYCL Library
  - Added an exception throw if no matched device is found when
    `SYCL_DEVICE_FILTER` is set regardless of `device_selector` used [ef4e6dd]
  - Changed event status update to complete without waiting when run on CUDA
    devices [be7c1cb]
  - Added `sycl::bit_cast` [d4b66bd]
- - Improved performance when executing with dynamic batching when using Level
-   Zero backend [fa382d6]
+ - Improved performance when executing with dynamic batching on Level Zero
+   backend [fa382d6]
  - Introduced pooling for USM and buffer allocations in Level Zero backend
    [4cffedd]
  - Added support for vectors with length of 3 and 16 elements in sub-group load
@@ -109,14 +114,15 @@ Release notes for commit range 6a49170027fb..962909fe9e78
    there are still running kernels [c74f05d6]
  - Deprecated `sycl::buffer::get_count()`, please use `sycl::buffer::size()`
    instead [baf2ed9d]
- - Implemented `sycl::group::group_barrier` method [48363902]
+ - Implemented `sycl::group_barrier` free function [48363902]
  - Added support of [SYCL_INTEL_enqueue_barrier extension](doc/extensions/EnqueueBarrier/enqueue_barrier.asciidoc) for CUDA backend [2e978482]
  - Deprecated `has_extension` method of `sycl::device` and `sycl::platform`
    classes, please use `has` method with aspects APIs instead [51c747da]
  - Deprecated `sycl::*_class` types, please use STL classes instead [51c747da]
  - Deprecated `sycl::ndrange` with an offset [51c747da]
  - Deprecated `barrier` and `mem_fence` methods of `sycl::nd_item` class,
-   please use `sycl::group_barrier()` free function instead [51c747da]
+   please use `sycl::group_barrier()` and `sycl::atomic_fence()` free functions
+   instead [51c747da]
  - Deprecated `sycl::byte`, please use `std::byte` instead [51c747da]
  - Deprecated `sycl::info::device::max_constant_buffer_size` and
    `sycl::info::device::max_constant_args` [51c747da]
@@ -157,7 +163,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Fixed workflow for multi-file compilation in AOT mode [a0099a5]
  - Fixed problem with unbundling from object for device archives for FPGA
    [25ea6e1]
- - Do not imply `defaultlib msvcrt` for Linux based driver on Windows
+ - Stopped implying `defaultlib msvcrt` for Linux based driver on Windows
    [d3dc212d]
  - Fixed handling of `[[intel::max_global_work_dim()]]` in case of
    redeclarations [9b615928]
@@ -175,8 +181,8 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Fixed requesting of USM memory allocation info on CUDA [691f842]
  - Fixed [`joint_matrix_mad`](doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc)
    behaviour to return `A*B+C` instead of assigning the result to `C` [ea59c2b]
- - Workaround use-case when event isn't waited upon its completion but is
-   queried for its status in an infinite loop [bfef316]
+ - Workaround an issue in Level Zero backend when event isn't waited upon its
+   completion but is queried for its status in an infinite loop  [bfef316]
  - Fixed persistent cache key comparison (esp. when there is `\0` symbol)
    [3e9ed1d]
  - Fixed a build issue when `sycl::kernel::get_native` is used [eb17836]
@@ -184,7 +190,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
    `-O0` or `-O1` [9f2fd98] [c2d6cfa]
  - [OpenCL] Fixed false-positive assertion trigger when allocation alignment is
    expected [3351916ad]
- - Aligned behavior of empty command groups with SYCL2020 [1cf697bd]
+ - Aligned behavior of empty command groups with SYCL 2020 [1cf697bd]
  - Fixed build options handling when they come from different sources
    [67411472]
  - Fixed host task CUDA native memory handle [e9cf124b6]
