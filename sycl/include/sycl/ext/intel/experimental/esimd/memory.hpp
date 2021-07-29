@@ -655,17 +655,36 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void slm_init(uint32_t size);
 template <typename T, int n>
 ESIMD_INLINE ESIMD_NODEBUG
     typename sycl::detail::enable_if_t<(n == 16 || n == 32), simd<T, n>>
-    slm_load(simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
+    slm_gather(simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
   return __esimd_slm_read<T, n>(offsets.data(), pred.data());
+}
+
+/// SLM gather (deprecated version).
+template <typename T, int n>
+__SYCL_DEPRECATED("use slm_gather.")
+ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+    (n == 16 || n == 32), simd<T, n>> slm_load(simd<uint32_t, n> offsets,
+                                               simd<uint16_t, n> pred = 1) {
+  return slm_gather<T, n>(offsets, pred);
 }
 
 /// SLM scatter.
 template <typename T, int n>
 ESIMD_INLINE ESIMD_NODEBUG
     typename sycl::detail::enable_if_t<(n == 16 || n == 32), void>
-    slm_store(simd<T, n> vals, simd<uint32_t, n> offsets,
-              simd<uint16_t, n> pred = 1) {
+    slm_scatter(simd<T, n> vals, simd<uint32_t, n> offsets,
+                simd<uint16_t, n> pred = 1) {
   __esimd_slm_write<T, n>(offsets.data(), vals.data(), pred.data());
+}
+
+/// SLM scatter (deprecated version).
+template <typename T, int n>
+__SYCL_DEPRECATED("use slm_scatter.")
+ESIMD_INLINE ESIMD_NODEBUG
+    typename sycl::detail::enable_if_t<(n == 16 || n == 32), void> slm_store(
+        simd<T, n> vals, simd<uint32_t, n> offsets,
+        simd<uint16_t, n> pred = 1) {
+  slm_scatter<T, n>(offsets, vals, pred);
 }
 
 /// Gathering read from the SLM given specified \p offsets.
