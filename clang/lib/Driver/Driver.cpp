@@ -720,7 +720,7 @@ static bool isValidSYCLTriple(llvm::Triple T) {
 
 static void addSYCLDefaultTriple(Compilation &C,
                                  SmallVectorImpl<llvm::Triple> &SYCLTriples) {
-  if (!C.getDriver().isSYCLDefaultTripleSet())
+  if (!C.getDriver().isSYCLDefaultTripleImplied())
     return;
   for (const auto &SYCLTriple : SYCLTriples) {
     if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&

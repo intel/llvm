@@ -660,9 +660,9 @@ private:
   /// or if a user explicitly turns this on with -fsycl-add-spirv.
   /// We need to keep track of this so any use of any generic target option
   /// setting is only applied to the user specified triples.
-  bool SYCLDefaultTripleSet = false;
-  void setSYCLDefaultTriple(bool IsDefaultSet) {
-    SYCLDefaultTripleSet = IsDefaultSet;
+  bool SYCLDefaultTripleImplied = false;
+  void setSYCLDefaultTriple(bool IsDefaultImplied) {
+    SYCLDefaultTripleImplied = IsDefaultImplied;
   }
 
   /// Returns true if an offload binary is found that contains the default
@@ -729,9 +729,9 @@ public:
   /// FPGA Emulation.  This is only used for SYCL offloading to FPGA device.
   bool isFPGAEmulationMode() const { return FPGAEmulationMode; };
 
-  /// isSYCLDefaultTripleSet - The default SYCL triple (spir64) has been added
-  /// or should be added given proper criteria.
-  bool isSYCLDefaultTripleSet() const { return SYCLDefaultTripleSet; };
+  /// isSYCLDefaultTripleImplied - The default SYCL triple (spir64) has been
+  /// added or should be added given proper criteria.
+  bool isSYCLDefaultTripleImplied() const { return SYCLDefaultTripleImplied; };
 
   /// addIntegrationFiles - Add the integration files that will be populated
   /// by the device compilation and used by the host compile.

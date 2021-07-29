@@ -782,7 +782,7 @@ void SYCLToolChain::TranslateBackendTargetArgs(
     if ((A->getOption().matches(options::OPT_Xs) ||
          A->getOption().matches(options::OPT_Xs_separate)) &&
         Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
-        getDriver().isSYCLDefaultTripleSet())
+        getDriver().isSYCLDefaultTripleImplied())
       continue;
 
     if (A->getOption().matches(options::OPT_Xs)) {
@@ -800,7 +800,7 @@ void SYCLToolChain::TranslateBackendTargetArgs(
   }
   // Do not process -Xsycl-target-backend for implied spir64
   if (Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
-      getDriver().isSYCLDefaultTripleSet())
+      getDriver().isSYCLDefaultTripleImplied())
     return;
   // Handle -Xsycl-target-backend.
   TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_backend,
@@ -812,7 +812,7 @@ void SYCLToolChain::TranslateLinkerTargetArgs(
     llvm::opt::ArgStringList &CmdArgs) const {
   // Do not process -Xsycl-target-linker for implied spir64
   if (Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
-      getDriver().isSYCLDefaultTripleSet())
+      getDriver().isSYCLDefaultTripleImplied())
     return;
   // Handle -Xsycl-target-linker.
   TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_linker,
