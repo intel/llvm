@@ -49,7 +49,7 @@ struct code_location {
   }
 #else
   static constexpr code_location
-  current(const char *fileName = __builtin_FILE(),
+  current(const char *fileName = nullptr,
           const char *funcName = __builtin_FUNCTION(),
           unsigned long lineNo = __builtin_LINE(),
           unsigned long columnNo = 0) noexcept {
