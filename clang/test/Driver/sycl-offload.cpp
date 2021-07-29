@@ -76,13 +76,16 @@
 
 /// Check that the default device triple is not used with -fno-sycl-link-spirv
 // RUN:  %clangxx -### -fsycl -fno-sycl-link-spirv -fsycl-targets=spir64_x86_64 %t_dummy.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE_OPT %s
+// RUN:    | FileCheck -check-prefixes=NO_IMPLIED_DEVICE_OPT,NO_IMPLIED_DEVICE_CPU %s
 // RUN:  %clangxx -### -fsycl -fno-sycl-link-spirv -fsycl-targets=spir64_fpga %t_dummy.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE_OPT %s
+// RUN:    | FileCheck -check-prefixes=NO_IMPLIED_DEVICE_OPT,NO_IMPLIED_DEVICE_FPGA %s
 // RUN:  %clangxx -### -fsycl -fno-sycl-link-spirv -fsycl-targets=spir64_gen %t_dummy.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE_OPT %s
+// RUN:    | FileCheck -check-prefixes=NO_IMPLIED_DEVICE_OPT,NO_IMPLIED_DEVICE_GEN %s
 // RUN:  %clangxx -### -fsycl -fno-sycl-link-spirv -fintelfpga %t_dummy.o %s 2>&1 \
-// RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE_OPT %s
+// RUN:    | FileCheck -check-prefixes=NO_IMPLIED_DEVICE_OPT,NO_IMPLIED_DEVICE_FPGA %s
+// NO_IMPLIED_DEVICE_CPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown-sycldevice"
+// NO_IMPLIED_DEVICE_FPGA: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown-sycldevice"
+// NO_IMPLIED_DEVICE_GEN: clang{{.*}} "-triple" "spir64_gen-unknown-unknown-sycldevice"
 // NO_IMPLIED_DEVICE_OPT-NOT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown-sycldevice"{{.*}} "-check-section"
 // NO_IMPLIED_DEVICE_OPT-NOT: clang-offload-bundler{{.*}} "-targets={{.*}}spir64-unknown-unknown-sycldevice{{.*}}" "-unbundle"
 
