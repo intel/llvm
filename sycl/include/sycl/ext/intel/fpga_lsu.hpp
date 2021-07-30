@@ -90,7 +90,7 @@ private:
   static constexpr uint8_t _cache = (_cache_val > 0) ? CACHE : 0;
 
   static constexpr int32_t _statically_coalesce_val =
-      _GetValue<statically_coalesce_impl<0>, _mem_access_params...>::value;
+      _GetValue<statically_coalesce_impl<1>, _mem_access_params...>::value;
   static constexpr uint8_t _dont_statically_coalesce =
       _statically_coalesce_val == 0 ? STATICALLY_COALESCE : 0;
 

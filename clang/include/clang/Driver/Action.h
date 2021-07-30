@@ -57,6 +57,7 @@ public:
     InputClass = 0,
     BindArchClass,
     OffloadClass,
+    ForEachWrappingClass,
     PreprocessJobClass,
     PrecompileJobClass,
     HeaderModulePrecompileJobClass,
@@ -737,7 +738,15 @@ class SYCLPostLinkJobAction : public JobAction {
   void anchor() override;
 
 public:
-  SYCLPostLinkJobAction(Action *Input, types::ID OutputType);
+  // The tempfiletable management relies on shadowing the main file type by
+  // types::TY_Tempfiletable. The problem of shadowing is it prevents its
+  // integration with clang tools that relies on the file type to properly set
+  // args.
+  // We "trick" the driver by declaring the underlying file type and set a
+  // "true output type" which will be used by the SYCLPostLinkJobAction
+  // to properly set the job.
+  SYCLPostLinkJobAction(Action *Input, types::ID ShadowOutputType,
+                        types::ID TrueOutputType);
 
   static bool classof(const Action *A) {
     return A->getKind() == SYCLPostLinkJobClass;
@@ -747,8 +756,11 @@ public:
 
   bool getRTSetsSpecConstants() const { return RTSetsSpecConsts; }
 
+  types::ID getTrueType() const { return TrueOutputType; }
+
 private:
   bool RTSetsSpecConsts = true;
+  types::ID TrueOutputType;
 };
 
 class BackendCompileJobAction : public JobAction {
@@ -771,6 +783,9 @@ class FileTableTformJobAction : public JobAction {
   void anchor() override;
 
 public:
+  static constexpr const char *COL_CODE = "Code";
+  static constexpr const char *COL_ZERO = "0";
+
   struct Tform {
     enum Kind {
       EXTRACT,
@@ -791,8 +806,10 @@ public:
     SmallVector<std::string, 2> TheArgs;
   };
 
-  FileTableTformJobAction(Action *Input, types::ID OutputType);
-  FileTableTformJobAction(ActionList &Inputs, types::ID OutputType);
+  FileTableTformJobAction(Action *Input, types::ID ShadowOutputType,
+                          types::ID TrueOutputType);
+  FileTableTformJobAction(ActionList &Inputs, types::ID ShadowOutputType,
+                          types::ID TrueOutputType);
 
   // Deletes all columns except the one with given name.
   void addExtractColumnTform(StringRef ColumnName, bool WithColTitle = true);
@@ -820,7 +837,10 @@ public:
 
   const ArrayRef<Tform> getTforms() const { return Tforms; }
 
+  types::ID getTrueType() const { return TrueOutputType; }
+
 private:
+  types::ID TrueOutputType;
   SmallVector<Tform, 2> Tforms; // transformation actions requested
 
   // column to copy single file from if requested
@@ -846,6 +866,30 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == StaticLibJobClass;
+  }
+};
+
+/// Wrap all jobs performed between TFormInput (excluded) and Job (included)
+/// behind a `llvm-foreach` call.
+///
+/// Assumptions:
+///   - No change of toolchain, boundarch and offloading kind should occur
+///     within the sub-region;
+///   - No job should produce multiple outputs;
+///   - Results of action within the sub-region should not be used outside the
+///     wrapped region.
+/// Note: this doesn't bind to a tool directly and this need special casing
+/// anyhow. Hence why this is an Action and not a JobAction, even if there is a
+/// command behind.
+class ForEachWrappingAction : public Action {
+public:
+  ForEachWrappingAction(JobAction *TFormInput, JobAction *Job);
+
+  JobAction *getTFormInput() const;
+  JobAction *getJobAction() const;
+
+  static bool classof(const Action *A) {
+    return A->getKind() == ForEachWrappingClass;
   }
 };
 

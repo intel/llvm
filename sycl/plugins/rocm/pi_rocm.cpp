@@ -3313,6 +3313,8 @@ pi_result rocm_piextEventGetNativeHandle(pi_event event,
 ///
 /// \return TBD
 pi_result rocm_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_context context,
+                                                bool ownNativeHandle,
                                                 pi_event *event) {
   cl::sycl::detail::pi::die(
       "Creation of PI event from native handle not implemented");
