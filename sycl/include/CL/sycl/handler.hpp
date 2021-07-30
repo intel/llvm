@@ -343,18 +343,20 @@ private:
     return Storage;
   }
 
-  void setType(detail::CG::CGType Type) {
-    constexpr detail::CG::CG_VERSION Version = detail::CG::CG_VERSION::V1;
-    MCGType = static_cast<detail::CG::CGType>(
+  void setType(detail::CommandGroup::CGType Type) {
+    constexpr detail::CommandGroup::CG_VERSION Version =
+        detail::CommandGroup::CG_VERSION::V1;
+    MCGType = static_cast<detail::CommandGroup::CGType>(
         getVersionedCGType(Type, static_cast<int>(Version)));
   }
 
-  detail::CG::CGType getType() {
-    return static_cast<detail::CG::CGType>(getUnversionedCGType(MCGType));
+  detail::CommandGroup::CGType getType() {
+    return static_cast<detail::CommandGroup::CGType>(
+        getUnversionedCGType(MCGType));
   }
 
   void throwIfActionIsCreated() {
-    if (detail::CG::None != getType())
+    if (detail::CommandGroup::None != getType())
       throw sycl::runtime_error("Attempt to set multiple actions for the "
                                 "command group. Command group must consist of "
                                 "a single kernel or explicit memory operation.",
@@ -850,7 +852,7 @@ private:
       MNDRDesc.set(std::move(AdjustedRange));
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
-      setType(detail::CG::Kernel);
+      setType(detail::CommandGroup::Kernel);
 #endif
     } else
 #endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&                     \
@@ -864,7 +866,7 @@ private:
       MNDRDesc.set(std::move(NumWorkItems));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
-      setType(detail::CG::Kernel);
+      setType(detail::CommandGroup::Kernel);
 #endif
     }
   }
@@ -883,7 +885,7 @@ private:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1082,7 +1084,7 @@ private:
 
     MHostTask.reset(new detail::HostTask(std::move(Func)));
 
-    setType(detail::CG::CodeplayHostTask);
+    setType(detail::CommandGroup::CodeplayHostTask);
   }
 
 public:
@@ -1229,7 +1231,7 @@ public:
     MNDRDesc.set(range<1>{1});
 
     StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(KernelFunc);
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
 #endif
   }
 
@@ -1273,7 +1275,7 @@ public:
     MArgs = std::move(MAssociatedAccesors);
     MHostKernel.reset(
         new detail::HostKernel<FuncT, void, 1, void>(std::move(Func)));
-    setType(detail::CG::RunOnHostIntel);
+    setType(detail::CommandGroup::RunOnHostIntel);
   }
 
   template <typename FuncT>
@@ -1336,7 +1338,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
 #endif
   }
 
@@ -1367,7 +1369,7 @@ public:
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
 #endif
   }
 
@@ -1699,7 +1701,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1734,7 +1736,7 @@ public:
     detail::checkValueRange<Dims>(ExecRange);
     MNDRDesc.set(std::move(ExecRange));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1751,7 +1753,7 @@ public:
     // known constant
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1785,7 +1787,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1804,7 +1806,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1827,7 +1829,7 @@ public:
     // known constant
     MNDRDesc.set(range<1>{1});
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1844,7 +1846,7 @@ public:
   template <typename FuncT> void interop_task(FuncT Func) {
 
     MInteropTask.reset(new detail::InteropTask(std::move(Func)));
-    setType(detail::CG::CodeplayInteropTask);
+    setType(detail::CommandGroup::CodeplayInteropTask);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -1869,7 +1871,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1905,7 +1907,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1940,7 +1942,7 @@ public:
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -1980,7 +1982,7 @@ public:
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -2020,7 +2022,7 @@ public:
     MNDRDesc.set(std::move(ExecRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
-    setType(detail::CG::Kernel);
+    setType(detail::CommandGroup::Kernel);
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -2103,7 +2105,7 @@ public:
       return;
     }
 #endif
-    setType(detail::CG::CopyAccToPtr);
+    setType(detail::CommandGroup::CopyAccToPtr);
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Src;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
@@ -2142,7 +2144,7 @@ public:
       return;
     }
 #endif
-    setType(detail::CG::CopyPtrToAcc);
+    setType(detail::CommandGroup::CopyPtrToAcc);
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
@@ -2187,7 +2189,7 @@ public:
            "The destination accessor does not fit the copied memory.");
     if (copyAccToAccHelper(Src, Dst))
       return;
-    setType(detail::CG::CopyAccToAcc);
+    setType(detail::CommandGroup::CopyAccToAcc);
 
     detail::AccessorBaseHost *AccBaseSrc = (detail::AccessorBaseHost *)&Src;
     detail::AccessorImplPtr AccImplSrc = detail::getSyclObjImpl(*AccBaseSrc);
@@ -2217,7 +2219,7 @@ public:
     throwIfActionIsCreated();
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the update_host method.");
-    setType(detail::CG::UpdateHost);
+    setType(detail::CommandGroup::UpdateHost);
 
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
     detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
@@ -2249,7 +2251,7 @@ public:
                   "Invalid accessor target for the fill method.");
     if (!MIsHost && (((Dims == 1) && isConstOrGlobal(AccessTarget)) ||
                      isImageOrImageArray(AccessTarget))) {
-      setType(detail::CG::Fill);
+      setType(detail::CommandGroup::Fill);
 
       detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
       detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
@@ -2294,7 +2296,7 @@ public:
   /// complete state.
   void barrier() {
     throwIfActionIsCreated();
-    setType(detail::CG::Barrier);
+    setType(detail::CommandGroup::Barrier);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -2382,7 +2384,7 @@ private:
   /// Type of the command group, e.g. kernel, fill. Can also encode version.
   /// Use getType and setType methods to access this variable unless
   /// manipulations with version are required
-  detail::CG::CGType MCGType = detail::CG::None;
+  detail::CommandGroup::CGType MCGType = detail::CommandGroup::None;
   /// Pointer to the source host memory or accessor(depending on command type).
   void *MSrcPtr = nullptr;
   /// Pointer to the dest host memory or accessor(depends on command type).
