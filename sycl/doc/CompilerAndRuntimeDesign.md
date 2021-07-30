@@ -550,7 +550,7 @@ During the "PTX target processing" in the device linking step [Device
 code post-link step](#device-code-post-link-step), the llvm bitcode
 objects for the CUDA target are linked together during the common
 `llvm-link` step and then split using the `sycl-post-link` tool.
-For each temporary bitcode file, clang is invoked the temporary file to link
+For each temporary bitcode file, clang is invoked for the temporary file to link
 `libspirv-nvptx64--nvidiacl.bc` and `libdevice.bc` and compile the resulting
 module to PTX using the NVPTX backend. The resulting PTX file is assembled
 into a cubin using the `ptxas` tool (part of the CUDA SDK). The PTX file and
