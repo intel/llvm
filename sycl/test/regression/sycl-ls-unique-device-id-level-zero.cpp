@@ -1,8 +1,9 @@
 // REQUIRES: level_zero
 
-// RUN: env SYCL_DEVICE_FILTER=level_zero sycl-ls | FileCheck %s --check-prefixes=CHECK-OPENCL
+// RUN: env SYCL_DEVICE_FILTER=level_zero sycl-ls | FileCheck %s --check-prefixes=CHECK-LEVELZERO
 
-// CHECK-OPENCL-COUNT-1: [level_zero:{{.*}}:0]
+// CHECK-LEVELZERO-COUNT-1: [level_zero:{{.*}}:0]
+// CHECK-LEVELZERO-NOT: [level_zero:{{.*}}:0]
 
 //==-- sycl-ls-unique-device-id-level-zero.cpp - SYCL test for unique device id
 //--===//
