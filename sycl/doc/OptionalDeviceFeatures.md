@@ -601,18 +601,14 @@ property set.
 #### Device configuration file
 
 The configuration file uses a simple YAML format where each top-level key is
-a name of a device architecture.  We expect to define a set of device
-architecture names that are used consistently in many places (in this
-configuration file, in the names of device-specific aspects, as parameters for
-the `-fsycl-targets` command line option, etc.)  However, we have not yet
-agreed on these architecture names.  There are sub-keys under each device for
+a name of a device architecture. There are sub-keys under each device for
 the supported aspects, sub-group sizes and AOT compiler ID.  For example:
 
 ```
-gen11_1:
+intel_gpu_11_1:
   aspects: [1, 2, 3]
   sub-group-sizes: [8, 16]
-gen_icl:
+intel_gpu_icl:
   aspects: [2, 3]
   sub-group-sizes: [8, 16]
 x86_64_avx512:
@@ -630,8 +626,7 @@ fact, the DPC++ driver supports a command line option which allows the user
 to select an alternate configuration file.
 
 **TODO**: 
-* The names of the devices in the configuration file.
-* Location of the default device configuration file
+* Define location of the default device configuration file.
 
 #### New features in clang compilation driver and tools
 
@@ -664,9 +659,9 @@ example set of targets used for the illustration is 4 targets
 - spir64 (runtime JITted SPIR-V)
 - AOT targets
     - non-SPIR-V based
-        - nvptx (PTX)
+        - ptx64 (PTX)
     - SPIR-V based
-        - gen_11 (Intel Gen)
+        - intel_gpu_11 (Intel Gen)
         - x86_64_avx512 (AVX512)
 
 ![Device SPIRV translation and AOT compilation](images/DeviceLinkAOTAndWrap.svg)
