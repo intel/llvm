@@ -44,6 +44,7 @@ DPC++ extensions status:
 | [Assert](Assert/SYCL_ONEAPI_ASSERT.asciidoc) | Proposal | |
 | [Matrix](Matrix/dpcpp-joint-matrix.asciidoc)                                                                        | Partially supported(AMX AOT)               | Not supported: dynamic-extent, wg and wi scopes, layouts other than packed|
 | [SYCL_INTEL_free_function_queries](FreeFunctionQueries/SYCL_INTEL_free_function_queries.asciidoc)                           | Supported (experimental)                  | |
+| [SYCL_EXT_ONEAPI_DEVICE_GLOBAL](DeviceGlobal/SYCL_INTEL_device_global.asciidoc)                           | Proposal                  | |
 
 Legend:
 
