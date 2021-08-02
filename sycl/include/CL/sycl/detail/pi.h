@@ -1565,8 +1565,8 @@ using pi_usm_migration_flags = _pi_usm_migration_flags;
 ///
 /// \param result_ptr contains the allocated memory
 /// \param context is the pi_context
-/// \param properties are optional allocation properties
-/// \param size is the size of the allocation
+/// \param pi_usm_mem_properties are optional allocation properties
+/// \param size_t is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
 __SYCL_EXPORT pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
                                           pi_usm_mem_properties *properties,
@@ -1577,8 +1577,8 @@ __SYCL_EXPORT pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
 /// \param result_ptr contains the allocated memory
 /// \param context is the pi_context
 /// \param device is the device the memory will be allocated on
-/// \param properties are optional allocation properties
-/// \param size is the size of the allocation
+/// \param pi_usm_mem_properties are optional allocation properties
+/// \param size_t is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
 __SYCL_EXPORT pi_result piextUSMDeviceAlloc(void **result_ptr,
                                             pi_context context,
@@ -1591,8 +1591,8 @@ __SYCL_EXPORT pi_result piextUSMDeviceAlloc(void **result_ptr,
 /// \param result_ptr contains the allocated memory
 /// \param context is the pi_context
 /// \param device is the device the memory will be allocated on
-/// \param properties are optional allocation properties
-/// \param size is the size of the allocation
+/// \param pi_usm_mem_properties are optional allocation properties
+/// \param size_t is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
 __SYCL_EXPORT pi_result piextUSMSharedAlloc(void **result_ptr,
                                             pi_context context,
@@ -1682,7 +1682,7 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemAdvise(pi_queue queue,
 /// \param param_name is the type of query to perform
 /// \param param_value_size is the size of the result in bytes
 /// \param param_value is the result
-/// \param param_value_size_ret is how many bytes were written
+/// \param param_value_ret is how many bytes were written
 __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
     pi_context context, const void *ptr, pi_mem_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
