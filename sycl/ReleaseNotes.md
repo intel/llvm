@@ -36,6 +36,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
    [4fb95fc]
  - Added a [programming guide](doc/MultiTileCardWithLevelZero.md) for
    multi-tile and multi-card under Level Zero backend [d581178a]
+ - Implemented SYCL 2020 `sycl::bit_cast` [d4b66bd]
 
 ## Improvements
 ### SYCL Compiler
@@ -44,8 +45,8 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Allowed for using an external host compiler [6f0ad1a]
  - Cleaned up preprocessing output when `-fsycl` option is passed [3a18db6]
  - Allowed kernel names in anonymous namespace [e47dbad]
- - Set default value of `-sycl-std` to `2020` when `-fsycl-is-device` or
-   `-fsycl-is-host` specified [680adc0]
+ - Set default value of -sycl-std to 2020 for SYCL enabled compilations
+   [680adc0]
  - Added implication of `-fPIC` compilation for wrapped object when using
    `-shared` [1754934]
  - Added a diagnostic for `-fsycl` and `-ffreestanding` as non-supported
@@ -79,7 +80,6 @@ Release notes for commit range 6a49170027fb..962909fe9e78
    `SYCL_DEVICE_FILTER` is set regardless of `device_selector` used [ef4e6dd]
  - Changed event status update to complete without waiting when run on CUDA
    devices [be7c1cb]
- - Added `sycl::bit_cast` [d4b66bd]
  - Improved performance when executing with dynamic batching on Level Zero
    backend [fa382d6]
  - Introduced pooling for USM and buffer allocations in Level Zero backend
