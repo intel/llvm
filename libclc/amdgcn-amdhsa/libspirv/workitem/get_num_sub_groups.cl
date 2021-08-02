@@ -8,12 +8,11 @@
 
 #include <spirv/spirv.h>
 
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
-__spirv_ocl_sqrt(__clc_fp32_t In) {
-  return __builtin_amdgcn_sqrtf(In);
-}
-
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
-__spirv_ocl_sqrt(__clc_fp64_t In) {
-  return __builtin_amdgcn_sqrt(In);
+_CLC_DEF _CLC_OVERLOAD uint __spirv_NumSubgroups() {
+  size_t size_x = __spirv_WorkgroupSize_x();
+  size_t size_y = __spirv_WorkgroupSize_y();
+  size_t size_z = __spirv_WorkgroupSize_z();
+  uint sg_size = __spirv_SubgroupMaxSize();
+  size_t linear_size = size_z * size_y * size_x;
+  return (uint)((linear_size + sg_size - 1) / sg_size);
 }

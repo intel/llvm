@@ -738,7 +738,7 @@ class SYCLPostLinkJobAction : public JobAction {
   void anchor() override;
 
 public:
-  // The tempfiletable management relies on a shadowing the main file type by
+  // The tempfiletable management relies on shadowing the main file type by
   // types::TY_Tempfiletable. The problem of shadowing is it prevents its
   // integration with clang tools that relies on the file type to properly set
   // args.

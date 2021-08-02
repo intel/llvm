@@ -1421,16 +1421,17 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
   // The file being compiled that contains the integration footer is not being
   // compiled in the directory of the original source.  Add that directory
-  // as a -I option so we can properly find potential headers there.
+  // as an -internal-isystem option so we can properly find potential headers
+  // there.
   if (ContainsAppendFooterAction(&JA)) {
     SmallString<128> SourcePath(Inputs[0].getBaseInput());
     llvm::sys::path::remove_filename(SourcePath);
     if (!SourcePath.empty()) {
-      CmdArgs.push_back("-I");
+      CmdArgs.push_back("-internal-isystem");
       CmdArgs.push_back(Args.MakeArgString(SourcePath));
     } else if (llvm::ErrorOr<std::string> CWD =
                    D.getVFS().getCurrentWorkingDirectory()) {
-      CmdArgs.push_back("-I");
+      CmdArgs.push_back("-internal-isystem");
       CmdArgs.push_back(Args.MakeArgString(*CWD));
     }
   }
@@ -8314,6 +8315,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       if (getToolChain().getTriple().getSubArch() ==
               llvm::Triple::SPIRSubArch_fpga &&
           Dep.DependentOffloadKind == Action::OFK_SYCL) {
+        if (J++)
+          Triples += ',';
         llvm::Triple TT;
         TT.setArchName(types::getTypeName(InputType));
         TT.setVendorName("intel");
@@ -8324,6 +8327,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       } else if (getToolChain().getTriple().getSubArch() !=
                      llvm::Triple::SPIRSubArch_fpga &&
                  Dep.DependentOffloadKind == Action::OFK_Host) {
+        if (J++)
+          Triples += ',';
         Triples += Action::GetOffloadKindName(Dep.DependentOffloadKind);
         Triples += '-';
         Triples += Dep.DependentToolChain->getTriple().normalize();
@@ -8483,10 +8488,10 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       // Only store compile/link opts in the image descriptor for the SPIR-V
       // target; AOT compilation has already been performed otherwise.
       TC.AddImpliedTargetArgs(TT, TCArgs, BuildArgs);
-      TC.TranslateBackendTargetArgs(TCArgs, BuildArgs);
+      TC.TranslateBackendTargetArgs(TT, TCArgs, BuildArgs);
       createArgString("-compile-opts=");
       BuildArgs.clear();
-      TC.TranslateLinkerTargetArgs(TCArgs, BuildArgs);
+      TC.TranslateLinkerTargetArgs(TT, TCArgs, BuildArgs);
       createArgString("-link-opts=");
     }
 

@@ -2660,6 +2660,9 @@ def fno_sycl_use_footer : Flag<["-"], "fno-sycl-use-footer">, Flags<[CoreOption]
 def fsycl_footer_path_EQ : Joined<["-"], "fsycl-footer-path=">,
   Flags<[CoreOption]>, HelpText<"Specify the location of the temporary "
   "source file with the included integration footer.">;
+def fno_sycl_link_spirv : Flag<["-"], "fno-sycl-link-spirv">,
+  Flags<[CoreOption]>, HelpText<"Disable adding of the default (spir64) triple "
+  "when discovered in user specified objects and archives.">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option]>, Group<Action_Group>;
 def ftabstop_EQ : Joined<["-"], "ftabstop=">, Group<f_Group>;
