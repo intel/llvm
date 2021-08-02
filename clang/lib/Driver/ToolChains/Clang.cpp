@@ -1420,16 +1420,17 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
   // The file being compiled that contains the integration footer is not being
   // compiled in the directory of the original source.  Add that directory
-  // as a -I option so we can properly find potential headers there.
+  // as an -internal-isystem option so we can properly find potential headers
+  // there.
   if (ContainsAppendFooterAction(&JA)) {
     SmallString<128> SourcePath(Inputs[0].getBaseInput());
     llvm::sys::path::remove_filename(SourcePath);
     if (!SourcePath.empty()) {
-      CmdArgs.push_back("-I");
+      CmdArgs.push_back("-internal-isystem");
       CmdArgs.push_back(Args.MakeArgString(SourcePath));
     } else if (llvm::ErrorOr<std::string> CWD =
                    D.getVFS().getCurrentWorkingDirectory()) {
-      CmdArgs.push_back("-I");
+      CmdArgs.push_back("-internal-isystem");
       CmdArgs.push_back(Args.MakeArgString(*CWD));
     }
   }
