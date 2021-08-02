@@ -492,12 +492,7 @@ public:
 bool createAlias(Module *M, std::string originalMangledName,
                  const itanium_demangle::Node *functionTree,
                  TargetTypeReplacements replacements) {
-  // If there are no alias replacements, this is trivially done.
-  if (replacements.getAliasTypeReplacements().empty())
-    return true;
-
-  Remangler ATR =
-      Remangler(functionTree, replacements.getAliasTypeReplacements());
+  Remangler ATR{functionTree, replacements.getAliasTypeReplacements()};
   std::string RemangledAliasName = ATR.remangle();
 
   if (ATR.hasFailed())
@@ -530,13 +525,8 @@ bool remangleFunction(Function &func, Module *M,
     return false;
   }
 
-  // No type replacements
-  if (replacements.getParameterTypeReplacements().empty())
-    return true;
-
   // Try to change the parameter types in the function name using the mappings.
-  Remangler R =
-      Remangler(FunctionTree, replacements.getParameterTypeReplacements());
+  Remangler R{FunctionTree, replacements.getParameterTypeReplacements()};
   std::string RemangledName = R.remangle();
 
   if (R.hasFailed())
