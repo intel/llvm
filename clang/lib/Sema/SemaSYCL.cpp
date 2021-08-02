@@ -2418,9 +2418,9 @@ public:
     KernelArgDescription Desc =
         strstr(FieldTy.getAsString().c_str(), "sycl::stream")
             ? KernelArgDescription::Stream
-        : strstr(FieldTy.getAsString().c_str(), "sycl::accessor")
-            ? KernelArgDescription::Accessor
-            : KernelArgDescription::Sampler;
+            : strstr(FieldTy.getAsString().c_str(), "sycl::accessor")
+                  ? KernelArgDescription::Accessor
+                  : KernelArgDescription::Sampler;
     for (const auto *Param : DC.getParamVarDeclsForCurrentField())
       addParam(FD, Param->getType(), Desc);
     return true;
