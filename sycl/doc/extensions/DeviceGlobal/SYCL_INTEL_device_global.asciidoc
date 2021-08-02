@@ -763,7 +763,7 @@ Also note that there are no restrictions on passing (and subsequent dereferencin
 == Issues
 
 1) Can `sycl::atomic_ref` be used with `device_global`? +
-*Resolved*: Yes, but only on the device side.  There is no visibility/communication across devices because each device receives a unique allocation of type _T_ underlying the `device_global`.  There is no way for an `atomic_ref` to the to be created in host code because there is no way to extract a pointer or reference in host code (only copy/memcpy).
+*Resolved*: Yes, but only on the device side.  There is no visibility/communication across devices because each device receives a unique allocation of type _T_ underlying the `device_global`.  There is no way for an `atomic_ref` associated with the allocation to be created in host code because there is no way to extract a pointer or reference in host code (only copy/memcpy).
 
 2) Should we restrict `device_global` to static storage duration, and if so how? +
 *Resolved*: Yes, through similar language as `specialization_id`. Moreover restricted to namespace scope, because it is expensive to implement function scope statics. This could change if a compelling use case arises that needs function scope static support. 
