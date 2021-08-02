@@ -2415,12 +2415,10 @@ public:
       : SyclKernelFieldHandler(S), DC(DC), KernelInvocationLoc(Loc) {}
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
-    const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
-    FieldTy.getAsString();
     KernelArgDescription Desc =
-        isCXXRecordWithInitMember(RecordDecl, FinalizeMethodName)
+        strstr(FieldTy.getAsString().c_str(), "sycl::stream")
             ? KernelArgDescription::Stream
-        : dyn_cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl())
+        : strstr(FieldTy.getAsString().c_str(), "sycl::accessor")
             ? KernelArgDescription::Accessor
             : KernelArgDescription::Sampler;
     for (const auto *Param : DC.getParamVarDeclsForCurrentField())
