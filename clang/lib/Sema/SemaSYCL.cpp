@@ -998,8 +998,8 @@ static void addScopeAttrToLocalVars(CXXMethodDecl &F) {
 }
 
 /// Return method by name
-static CXXMethodDecl *getMethodByName(const CXXRecordDecl *CRD,
-                                      StringRef MethodName) {
+static CXXMethodDecl *isCXXRecordWithInitMember(const CXXRecordDecl *CRD,
+                                                StringRef MethodName) {
   CXXMethodDecl *Method;
   auto It = std::find_if(CRD->methods().begin(), CRD->methods().end(),
                          [MethodName](const CXXMethodDecl *Method) {
@@ -1359,7 +1359,8 @@ public:
   // Mark these virtual so that we can use override in the implementer classes,
   // despite virtual dispatch never being used.
 
-  // Accessor can be a base class or a field decl, so both must be handled.
+  // SYCL special class can be a base class or a field decl, so both must be
+  // handled.
   virtual bool handleSyclSpecialType(const CXXRecordDecl *,
                                      const CXXBaseSpecifier &, QualType) {
     return true;
@@ -1964,7 +1965,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
                 RecordDecl->hasAttr<SYCLSpecialClassAttr>()
             ? InitESIMDMethodName
             : InitMethodName;
-    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
+    CXXMethodDecl *InitMethod =
+        isCXXRecordWithInitMember(RecordDecl, MethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
 
     // Don't do -1 here because we count on this to be the first parameter added
@@ -1974,7 +1976,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       QualType ParamTy = Param->getType();
       addParam(FD, ParamTy.getCanonicalType());
       if (ParamTy.getTypePtr()->isPointerType() &&
-          !getMethodByName(RecordDecl, FinalizeMethodName)) {
+          !isCXXRecordWithInitMember(RecordDecl, FinalizeMethodName)) {
         handleAccessorPropertyList(Params.back(), RecordDecl,
                                    FD->getLocation());
         if (KernelDecl->hasAttr<SYCLSimdAttr>())
@@ -2088,7 +2090,8 @@ public:
     llvm::StringLiteral MethodName = KernelDecl->hasAttr<SYCLSimdAttr>()
                                          ? InitESIMDMethodName
                                          : InitMethodName;
-    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
+    CXXMethodDecl *InitMethod =
+        isCXXRecordWithInitMember(RecordDecl, MethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
 
     // Get access mode of accessor.
@@ -2241,7 +2244,8 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
     llvm::StringLiteral MethodName =
         IsSIMD ? InitESIMDMethodName : InitMethodName;
-    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
+    CXXMethodDecl *InitMethod =
+        isCXXRecordWithInitMember(RecordDecl, MethodName);
     assert(InitMethod && "The accessor/sampler must have the __init method");
     for (const ParmVarDecl *Param : InitMethod->parameters())
       addParam(Param->getType());
@@ -2421,7 +2425,7 @@ public:
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
-    if (getMethodByName(RecordDecl, FinalizeMethodName))
+    if (isCXXRecordWithInitMember(RecordDecl, FinalizeMethodName))
       return handleSpecialType(
           FD, FieldTy, KernelArgDescription(KernelArgDescription::Stream));
     if (dyn_cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl()))
@@ -2768,7 +2772,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   void createSpecialMethodCall(const CXXRecordDecl *RD, StringRef MethodName,
                                SmallVectorImpl<Stmt *> &AddTo) {
-    CXXMethodDecl *Method = getMethodByName(RD, MethodName);
+    CXXMethodDecl *Method = isCXXRecordWithInitMember(RD, MethodName);
     if (!Method)
       return;
 
@@ -2864,9 +2868,9 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
     CXXMethodDecl *FinalizeMethod =
-        getMethodByName(RecordDecl, FinalizeMethodName);
+        isCXXRecordWithInitMember(RecordDecl, FinalizeMethodName);
     // A finalize-method is expected for stream class.
-    if (!FinalizeMethod && getMethodByName(RecordDecl, "__finalize"))
+    if (!FinalizeMethod && isCXXRecordWithInitMember(RecordDecl, "__finalize"))
       SemaRef.Diag(FD->getLocation(), diag::err_sycl_expected_finalize_method);
     else
       createSpecialMethodCall(RecordDecl, FinalizeMethodName, FinalizeStmts);
@@ -3275,10 +3279,11 @@ public:
       Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
                           CurOffset + offsetOf(FD, FieldTy));
     } else {
-      if (getMethodByName(ClassTy, FinalizeMethodName))
+      if (isCXXRecordWithInitMember(ClassTy, FinalizeMethodName))
         addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
       else {
-        CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
+        CXXMethodDecl *InitMethod =
+            isCXXRecordWithInitMember(ClassTy, InitMethodName);
         assert(InitMethod && "sampler must have __init method");
         const ParmVarDecl *SamplerArg = InitMethod->getParamDecl(0);
         addParam(SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler,
@@ -4955,7 +4960,7 @@ bool Util::isSyclSpecialType(const QualType Ty) {
   const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
   if (!RecTy)
     return false;
-  return getMethodByName(RecTy, "__init");
+  return isCXXRecordWithInitMember(RecTy, "__init");
 }
 
 bool Util::isSyclHalfType(QualType Ty) {
