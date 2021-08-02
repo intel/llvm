@@ -1061,6 +1061,9 @@ public:
   // Select the last element in the field if multiple elements exists.
   virtual void FieldDelegateSelectLastElement() { return; }
 
+  // Returns true if the field has an error, false otherwise.
+  virtual bool FieldDelegateHasError() { return false; }
+
   bool FieldDelegateIsVisible() { return m_is_visible; }
 
   void FieldDelegateHide() { m_is_visible = false; }
@@ -1075,8 +1078,9 @@ typedef std::unique_ptr<FieldDelegate> FieldDelegateUP;
 
 class TextFieldDelegate : public FieldDelegate {
 public:
-  TextFieldDelegate(const char *label, const char *content)
-      : m_label(label), m_cursor_position(0), m_first_visibile_char(0) {
+  TextFieldDelegate(const char *label, const char *content, bool required)
+      : m_label(label), m_required(required), m_cursor_position(0),
+        m_first_visibile_char(0) {
     if (content)
       m_content = content;
   }
@@ -1097,7 +1101,7 @@ public:
   // field and an optional line for an error if it exists.
   int FieldDelegateGetHeight() override {
     int height = GetFieldHeight();
-    if (HasError())
+    if (FieldDelegateHasError())
       height++;
     return height;
   }
@@ -1137,7 +1141,7 @@ public:
   }
 
   void DrawError(SubPad &surface) {
-    if (!HasError())
+    if (!FieldDelegateHasError())
       return;
     surface.MoveCursor(0, 0);
     surface.AttributeOn(COLOR_PAIR(RedOnBlack));
@@ -1238,7 +1242,14 @@ public:
     return eKeyNotHandled;
   }
 
-  bool HasError() { return !m_error.empty(); }
+  bool FieldDelegateHasError() override { return !m_error.empty(); }
+
+  void FieldDelegateExitCallback() override {
+    if (!IsSpecified() && m_required)
+      SetError("This field is required!");
+  }
+
+  bool IsSpecified() { return !m_content.empty(); }
 
   void ClearError() { m_error.clear(); }
 
@@ -1250,6 +1261,7 @@ public:
 
 protected:
   std::string m_label;
+  bool m_required;
   // The position of the top left corner character of the border.
   std::string m_content;
   // The cursor position in the content string itself. Can be in the range
@@ -1266,8 +1278,8 @@ protected:
 
 class IntegerFieldDelegate : public TextFieldDelegate {
 public:
-  IntegerFieldDelegate(const char *label, int content)
-      : TextFieldDelegate(label, std::to_string(content).c_str()) {}
+  IntegerFieldDelegate(const char *label, int content, bool required)
+      : TextFieldDelegate(label, std::to_string(content).c_str(), required) {}
 
   // Only accept digits.
   bool IsAcceptableChar(int key) override { return isdigit(key); }
@@ -1278,13 +1290,16 @@ public:
 
 class FileFieldDelegate : public TextFieldDelegate {
 public:
-  FileFieldDelegate(const char *label, const char *content,
-                    bool need_to_exist = true)
-      : TextFieldDelegate(label, content), m_need_to_exist(need_to_exist) {}
+  FileFieldDelegate(const char *label, const char *content, bool need_to_exist,
+                    bool required)
+      : TextFieldDelegate(label, content, required),
+        m_need_to_exist(need_to_exist) {}
 
-  // Set appropriate error messages if the file doesn't exists or is, in fact, a
-  // directory.
   void FieldDelegateExitCallback() override {
+    TextFieldDelegate::FieldDelegateExitCallback();
+    if (!IsSpecified())
+      return;
+
     FileSpec file(GetPath());
     if (m_need_to_exist && !FileSystem::Instance().Exists(file)) {
       SetError("File doesn't exist!");
@@ -1306,12 +1321,15 @@ protected:
 class DirectoryFieldDelegate : public TextFieldDelegate {
 public:
   DirectoryFieldDelegate(const char *label, const char *content,
-                         bool need_to_exist = true)
-      : TextFieldDelegate(label, content), m_need_to_exist(need_to_exist) {}
+                         bool need_to_exist, bool required)
+      : TextFieldDelegate(label, content, required),
+        m_need_to_exist(need_to_exist) {}
 
-  // Set appropriate error messages if the directory doesn't exists or is, in
-  // fact, a file.
   void FieldDelegateExitCallback() override {
+    TextFieldDelegate::FieldDelegateExitCallback();
+    if (!IsSpecified())
+      return;
+
     FileSpec file(GetPath());
     if (m_need_to_exist && !FileSystem::Instance().Exists(file)) {
       SetError("Directory doesn't exist!");
@@ -1439,6 +1457,8 @@ public:
   }
 
   void FieldDelegateDraw(SubPad &surface, bool is_selected) override {
+    UpdateScrolling();
+
     surface.TitledBox(m_label.c_str());
 
     Rect content_bounds = surface.GetFrame();
@@ -1458,29 +1478,23 @@ public:
       m_choice++;
   }
 
-  // If the cursor moved past the first visible choice, scroll up by one
-  // choice.
-  void ScrollUpIfNeeded() {
-    if (m_choice < m_first_visibile_choice)
-      m_first_visibile_choice--;
-  }
+  void UpdateScrolling() {
+    if (m_choice > GetLastVisibleChoice()) {
+      m_first_visibile_choice = m_choice - (m_number_of_visible_choices - 1);
+      return;
+    }
 
-  // If the cursor moved past the last visible choice, scroll down by one
-  // choice.
-  void ScrollDownIfNeeded() {
-    if (m_choice > GetLastVisibleChoice())
-      m_first_visibile_choice++;
+    if (m_choice < m_first_visibile_choice)
+      m_first_visibile_choice = m_choice;
   }
 
   HandleCharResult FieldDelegateHandleChar(int key) override {
     switch (key) {
     case KEY_UP:
       SelectPrevious();
-      ScrollUpIfNeeded();
       return eKeyHandled;
     case KEY_DOWN:
       SelectNext();
-      ScrollDownIfNeeded();
       return eKeyHandled;
     default:
       break;
@@ -1494,6 +1508,15 @@ public:
   // Returns the index of the choice.
   int GetChoice() { return m_choice; }
 
+  void SetChoice(const std::string &choice) {
+    for (int i = 0; i < GetNumberOfChoices(); i++) {
+      if (choice == m_choices[i]) {
+        m_choice = i;
+        return;
+      }
+    }
+  }
+
 protected:
   std::string m_label;
   int m_number_of_visible_choices;
@@ -1502,6 +1525,52 @@ protected:
   int m_choice;
   // The index of the first visible choice in the field.
   int m_first_visibile_choice;
+};
+
+class PlatformPluginFieldDelegate : public ChoicesFieldDelegate {
+public:
+  PlatformPluginFieldDelegate(Debugger &debugger)
+      : ChoicesFieldDelegate("Platform Plugin", 3, GetPossiblePluginNames()) {
+    PlatformSP platform_sp = debugger.GetPlatformList().GetSelectedPlatform();
+    if (platform_sp)
+      SetChoice(platform_sp->GetName().AsCString());
+  }
+
+  std::vector<std::string> GetPossiblePluginNames() {
+    std::vector<std::string> names;
+    size_t i = 0;
+    while (auto name = PluginManager::GetPlatformPluginNameAtIndex(i++))
+      names.push_back(name);
+    return names;
+  }
+
+  std::string GetPluginName() {
+    std::string plugin_name = GetChoiceContent();
+    return plugin_name;
+  }
+};
+
+class ProcessPluginFieldDelegate : public ChoicesFieldDelegate {
+public:
+  ProcessPluginFieldDelegate()
+      : ChoicesFieldDelegate("Process Plugin", 3, GetPossiblePluginNames()) {}
+
+  std::vector<std::string> GetPossiblePluginNames() {
+    std::vector<std::string> names;
+    names.push_back("<default>");
+
+    size_t i = 0;
+    while (auto name = PluginManager::GetProcessPluginNameAtIndex(i++))
+      names.push_back(name);
+    return names;
+  }
+
+  std::string GetPluginName() {
+    std::string plugin_name = GetChoiceContent();
+    if (plugin_name == "<default>")
+      return "";
+    return plugin_name;
+  }
 };
 
 template <class T> class ListFieldDelegate : public FieldDelegate {
@@ -1854,33 +1923,50 @@ public:
 
   void SetError(const char *error) { m_error = error; }
 
+  // If all fields are valid, true is returned. Otherwise, an error message is
+  // set and false is returned. This method is usually called at the start of an
+  // action that requires valid fields.
+  bool CheckFieldsValidity() {
+    for (int i = 0; i < GetNumberOfFields(); i++) {
+      if (GetField(i)->FieldDelegateHasError()) {
+        SetError("Some fields are invalid!");
+        return false;
+      }
+    }
+    return true;
+  }
+
   // Factory methods to create and add fields of specific types.
 
-  TextFieldDelegate *AddTextField(const char *label, const char *content) {
-    TextFieldDelegate *delegate = new TextFieldDelegate(label, content);
+  TextFieldDelegate *AddTextField(const char *label, const char *content,
+                                  bool required) {
+    TextFieldDelegate *delegate =
+        new TextFieldDelegate(label, content, required);
     m_fields.push_back(FieldDelegateUP(delegate));
     return delegate;
   }
 
   FileFieldDelegate *AddFileField(const char *label, const char *content,
-                                  bool need_to_exist = true) {
+                                  bool need_to_exist, bool required) {
     FileFieldDelegate *delegate =
-        new FileFieldDelegate(label, content, need_to_exist);
+        new FileFieldDelegate(label, content, need_to_exist, required);
     m_fields.push_back(FieldDelegateUP(delegate));
     return delegate;
   }
 
   DirectoryFieldDelegate *AddDirectoryField(const char *label,
                                             const char *content,
-                                            bool need_to_exist = true) {
+                                            bool need_to_exist, bool required) {
     DirectoryFieldDelegate *delegate =
-        new DirectoryFieldDelegate(label, content, need_to_exist);
+        new DirectoryFieldDelegate(label, content, need_to_exist, required);
     m_fields.push_back(FieldDelegateUP(delegate));
     return delegate;
   }
 
-  IntegerFieldDelegate *AddIntegerField(const char *label, int content) {
-    IntegerFieldDelegate *delegate = new IntegerFieldDelegate(label, content);
+  IntegerFieldDelegate *AddIntegerField(const char *label, int content,
+                                        bool required) {
+    IntegerFieldDelegate *delegate =
+        new IntegerFieldDelegate(label, content, required);
     m_fields.push_back(FieldDelegateUP(delegate));
     return delegate;
   }
@@ -1895,6 +1981,19 @@ public:
                                         std::vector<std::string> choices) {
     ChoicesFieldDelegate *delegate =
         new ChoicesFieldDelegate(label, height, choices);
+    m_fields.push_back(FieldDelegateUP(delegate));
+    return delegate;
+  }
+
+  PlatformPluginFieldDelegate *AddPlatformPluginField(Debugger &debugger) {
+    PlatformPluginFieldDelegate *delegate =
+        new PlatformPluginFieldDelegate(debugger);
+    m_fields.push_back(FieldDelegateUP(delegate));
+    return delegate;
+  }
+
+  ProcessPluginFieldDelegate *AddProcessPluginField() {
+    ProcessPluginFieldDelegate *delegate = new ProcessPluginFieldDelegate();
     m_fields.push_back(FieldDelegateUP(delegate));
     return delegate;
   }
@@ -2339,16 +2438,15 @@ public:
     types.push_back(std::string("Name"));
     types.push_back(std::string("PID"));
     m_type_field = AddChoicesField("Attach By", 2, types);
-    m_pid_field = AddIntegerField("PID", 0);
+    m_pid_field = AddIntegerField("PID", 0, true);
     m_name_field =
-        AddTextField("Process Name", GetDefaultProcessName().c_str());
+        AddTextField("Process Name", GetDefaultProcessName().c_str(), true);
     m_continue_field = AddBooleanField("Continue once attached.", false);
     m_wait_for_field = AddBooleanField("Wait for process to launch.", false);
     m_include_existing_field =
         AddBooleanField("Include existing processes.", false);
     m_show_advanced_field = AddBooleanField("Show advanced settings.", false);
-    m_plugin_field =
-        AddChoicesField("Plugin Name", 3, GetPossiblePluginNames());
+    m_plugin_field = AddProcessPluginField();
 
     AddAction("Attach", [this](Window &window) { Attach(window); });
   }
@@ -2388,16 +2486,6 @@ public:
       return "";
 
     return module_sp->GetFileSpec().GetFilename().AsCString();
-  }
-
-  std::vector<std::string> GetPossiblePluginNames() {
-    std::vector<std::string> names;
-    names.push_back("<default>");
-
-    size_t i = 0;
-    while (auto name = PluginManager::GetProcessPluginNameAtIndex(i++))
-      names.push_back(name);
-    return names;
   }
 
   bool StopRunningProcess() {
@@ -2455,14 +2543,17 @@ public:
     } else {
       attach_info.SetProcessID(m_pid_field->GetInteger());
     }
-    if (m_plugin_field->GetChoiceContent() != "<default>")
-      attach_info.SetProcessPluginName(m_plugin_field->GetChoiceContent());
+    attach_info.SetProcessPluginName(m_plugin_field->GetPluginName());
 
     return attach_info;
   }
 
   void Attach(Window &window) {
     ClearError();
+
+    bool all_fields_are_valid = CheckFieldsValidity();
+    if (!all_fields_are_valid)
+      return;
 
     bool process_is_running = StopRunningProcess();
     if (process_is_running)
@@ -2504,7 +2595,7 @@ protected:
   BooleanFieldDelegate *m_wait_for_field;
   BooleanFieldDelegate *m_include_existing_field;
   BooleanFieldDelegate *m_show_advanced_field;
-  ChoicesFieldDelegate *m_plugin_field;
+  ProcessPluginFieldDelegate *m_plugin_field;
 };
 
 class MenuDelegate {

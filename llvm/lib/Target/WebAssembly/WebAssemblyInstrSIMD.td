@@ -264,19 +264,19 @@ multiclass SIMDLoadZero<Vec vec, bits<32> simdop> {
   } // mayLoad = 1, UseNamedOperandTable = 1
 }
 
-// TODO: Also support v4f32 and v2f64 once the instructions are merged
-// to the proposal
 defm "" : SIMDLoadZero<I32x4, 0x5c>;
 defm "" : SIMDLoadZero<I64x2, 0x5d>;
 
+// TODO: f32x4 and f64x2 as well
 foreach vec = [I32x4, I64x2] in {
-defvar loadpat = !cast<Intrinsic>("int_wasm_load"#vec.lane_bits#"_zero");
-defvar inst = "LOAD_ZERO_"#vec;
-defm : LoadPatNoOffset<vec.vt, loadpat, inst>;
-defm : LoadPatImmOff<vec.vt, loadpat, regPlusImm, inst>;
-defm : LoadPatImmOff<vec.vt, loadpat, or_is_add, inst>;
-defm : LoadPatOffsetOnly<vec.vt, loadpat, inst>;
-defm : LoadPatGlobalAddrOffOnly<vec.vt, loadpat, inst>;
+  defvar inst = "LOAD_ZERO_"#vec;
+  defvar pat = PatFrag<(ops node:$ptr),
+    (vector_insert (vec.splat (vec.lane_vt 0)), (vec.lane_vt (load $ptr)), 0)>;
+  defm : LoadPatNoOffset<vec.vt, pat, inst>;
+  defm : LoadPatImmOff<vec.vt, pat, regPlusImm, inst>;
+  defm : LoadPatImmOff<vec.vt, pat, or_is_add, inst>;
+  defm : LoadPatOffsetOnly<vec.vt, pat, inst>;
+  defm : LoadPatGlobalAddrOffOnly<vec.vt, pat, inst>;
 }
 
 // Load lane
@@ -833,7 +833,7 @@ defm ABS : SIMDUnaryInt<abs, "abs", 96>;
 defm NEG : SIMDUnaryInt<ivneg, "neg", 97>;
 
 // Population count: popcnt
-defm POPCNT : SIMDUnary<I8x16, int_wasm_popcnt, "popcnt", 0x62>;
+defm POPCNT : SIMDUnary<I8x16, ctpop, "popcnt", 0x62>;
 
 // Any lane true: any_true
 defm ANYTRUE : SIMD_I<(outs I32:$dst), (ins V128:$vec), (outs), (ins), [],
@@ -1122,10 +1122,32 @@ defm MIN : SIMDBinaryFP<fminimum, "min", 232>;
 defm MAX : SIMDBinaryFP<fmaximum, "max", 233>;
 
 // Pseudo-minimum: pmin
-defm PMIN : SIMDBinaryFP<int_wasm_pmin, "pmin", 234>;
+def pmin : PatFrag<(ops node:$lhs, node:$rhs),
+                   (vselect (setolt $rhs, $lhs), $rhs, $lhs)>;
+defm PMIN : SIMDBinaryFP<pmin, "pmin", 234>;
 
 // Pseudo-maximum: pmax
-defm PMAX : SIMDBinaryFP<int_wasm_pmax, "pmax", 235>;
+def pmax : PatFrag<(ops node:$lhs, node:$rhs),
+                   (vselect (setolt $lhs, $rhs), $rhs, $lhs)>;
+defm PMAX : SIMDBinaryFP<pmax, "pmax", 235>;
+
+// Also match the pmin/pmax cases where the operands are int vectors (but the
+// comparison is still a floating point comparison). This can happen when using
+// the wasm_simd128.h intrinsics because v128_t is an integer vector.
+foreach vec = [F32x4, F64x2] in {
+defvar pmin = !cast<NI>("PMIN_"#vec);
+defvar pmax = !cast<NI>("PMAX_"#vec);
+def : Pat<(vec.int_vt (vselect
+            (setolt (vec.vt (bitconvert V128:$rhs)),
+                    (vec.vt (bitconvert V128:$lhs))),
+            V128:$rhs, V128:$lhs)),
+          (pmin $lhs, $rhs)>;
+def : Pat<(vec.int_vt (vselect
+            (setolt (vec.vt (bitconvert V128:$lhs)),
+                    (vec.vt (bitconvert V128:$rhs))),
+            V128:$rhs, V128:$lhs)),
+          (pmax $lhs, $rhs)>;
+}
 
 //===----------------------------------------------------------------------===//
 // Conversions
@@ -1292,14 +1314,10 @@ defm : NarrowingStorePatGlobalAddrOffOnly<I32x4, store_v4i16_trunc_v4i32>;
 
 // Bitcasts are nops
 // Matching bitcast t1 to t1 causes strange errors, so avoid repeating types
-foreach t1 = [v16i8, v8i16, v4i32, v2i64, v4f32, v2f64] in
-foreach t2 = !foldl(
-  []<ValueType>, [v16i8, v8i16, v4i32, v2i64, v4f32, v2f64],
-  acc, cur, !if(!eq(!cast<string>(t1), !cast<string>(cur)),
-    acc, !listconcat(acc, [cur])
-  )
-) in
-def : Pat<(t1 (bitconvert (t2 V128:$v))), (t1 V128:$v)>;
+foreach t1 = AllVecs in
+foreach t2 = AllVecs in
+if !ne(t1, t2) then
+def : Pat<(t1.vt (bitconvert (t2.vt V128:$v))), (t1.vt V128:$v)>;
 
 // Extended pairwise addition
 defm "" : SIMDConvert<I16x8, I8x16, int_wasm_extadd_pairwise_signed,

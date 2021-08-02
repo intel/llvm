@@ -78,7 +78,6 @@ set(LLVM_TEST_DEPENDS
           dsymutil
           llvm-dwarfdump
           llvm-dwp
-          llvm-elfabi
           llvm-exegesis
           llvm-extract
           llvm-foreach
@@ -117,6 +116,7 @@ set(LLVM_TEST_DEPENDS
           llvm-sim
           llvm-size
           llvm-split
+          llvm-stress
           llvm-strings
           llvm-strip
           llvm-symbolizer
