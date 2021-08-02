@@ -20,7 +20,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 #include <cassert>
@@ -63,12 +62,6 @@ using CLContextSPtr =
     std::shared_ptr<_cl_context>; // decltype(CLContextSPtr.get()) is
                                   // same as cl_context, should
                                   // initialized with ContextDeleter
-
-static bool verbose = false;
-static llvm::raw_ostream &logs() {
-  static llvm::raw_ostream &logger = verbose ? llvm::outs() : llvm::nulls();
-  return logger;
-}
 
 /*! \brief Generate OpenCL program from OpenCL program binary (in ELF format) or
  * SPIR-V binary file or LLVM IR (bitcode file) or OpenCL source file
@@ -227,9 +220,9 @@ generateProgramsFromInput(const std::vector<std::string> &FileNames,
 
     Programs.push_back(Program);
 
-    logs() << "OpenCL program was successfully created from " +
-                  SupportedTypesToNames[FileType] + " file " + FileName
-           << '\n';
+    std::cout << "OpenCL program was successfully created from " +
+                     SupportedTypesToNames[FileType] + " file " + FileName
+              << '\n';
   }
 
   // step 5: create guards to return result safely
@@ -356,9 +349,6 @@ int main(int Argc, char *Argv[]) {
   cl::list<std::string> OptBuildOptions("bo", cl::ZeroOrMore,
                                         cl::desc("Set OpenCL build options"),
                                         cl::value_desc("build options"));
-  cl::opt<bool, true> OptVerbose("verbose", cl::desc("Show verbose logs"),
-                                 cl::location(verbose));
-  cl::alias OptV("v", cl::aliasopt(OptVerbose));
 
   cl::ParseCommandLineOptions(
       Argc, Argv,
@@ -389,8 +379,8 @@ int main(int Argc, char *Argv[]) {
 
       // If not a link command, we only handle one input file each time.
       if (OptCommand != Commands::link && InputFileNames.size() >= 1) {
-        logs() << "WARNING: Can " << CmdToCmdInfoMap[OptCommand].first
-               << " only 1 file each time. Extra file(s) will be ignored!\n";
+        std::cout << "WARNING: Can " << CmdToCmdInfoMap[OptCommand].first
+                  << " only 1 file each time. Extra file(s) will be ignored!\n";
         break;
       }
       InputFileNames.push_back(Item);
@@ -435,7 +425,7 @@ int main(int Argc, char *Argv[]) {
     return CLErr;
   }
 
-  logs() << "Platform name: " << PlatformName << '\n';
+  std::cout << "Platform name: " << PlatformName << '\n';
 
   // step 3: get OpenCL device
   cl_device_id DeviceId = nullptr;
@@ -456,7 +446,7 @@ int main(int Argc, char *Argv[]) {
     return CLErr;
   }
 
-  logs() << "Device name: " << DeviceName << '\n';
+  std::cout << "Device name: " << DeviceName << '\n';
 
   // step 4: get driver version
   std::string DriverVersion;
@@ -468,7 +458,7 @@ int main(int Argc, char *Argv[]) {
     return CLErr;
   }
 
-  logs() << "Driver version: " << DriverVersion << '\n';
+  std::cout << "Driver version: " << DriverVersion << '\n';
 
   // step 5: enable optimizations for target CPU architecture
   if (OptMArch.getNumOccurrences()) {
@@ -497,8 +487,8 @@ int main(int Argc, char *Argv[]) {
                 << ArchTypeToArchTypeName[OptMArch] << '\n';
       return OPENCL_AOT_TARGET_CPU_ARCH_FAILURE;
     }
-    logs() << "Setting target CPU architecture to "
-           << ArchTypeToArchTypeName[OptMArch] << '\n';
+    std::cout << "Setting target CPU architecture to "
+              << ArchTypeToArchTypeName[OptMArch] << '\n';
   }
 
   // step 6: generate OpenCL programs from input files
@@ -536,7 +526,7 @@ int main(int Argc, char *Argv[]) {
     if (!ParentDir.empty()) {
       BuildOptions += " -I \"" + std::string(ParentDir) + '\"';
     }
-    logs() << "Using build options: " << BuildOptions << '\n';
+    std::cout << "Using build options: " << BuildOptions << '\n';
   }
 
   // step 8: compile | build | link OpenCL program
@@ -574,9 +564,9 @@ int main(int Argc, char *Argv[]) {
   }
 
   if (!CompilerBuildLog.empty()) {
-    logs() << "\n"
-           << CmdToCmdInfoMap[OptCommand].first << " log:\n"
-           << CompilerBuildLog << '\n';
+    std::cout << "\n"
+              << CmdToCmdInfoMap[OptCommand].first << " log:\n"
+              << CompilerBuildLog << '\n';
   }
 
   if (clFailed(CLErr)) {
@@ -621,8 +611,8 @@ int main(int Argc, char *Argv[]) {
               << CmdToCmdInfoMap[OptCommand].second << " file" << '\n';
     return OPENCL_AOT_FAILED_TO_CREATE_ELF;
   }
-  logs() << "OpenCL program " << CmdToCmdInfoMap[OptCommand].second
-         << " file was successfully created: " << OutputFileName << '\n';
+  std::cout << "OpenCL program " << CmdToCmdInfoMap[OptCommand].second
+            << " file was successfully created: " << OutputFileName << '\n';
 
   return CL_SUCCESS;
 }

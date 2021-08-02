@@ -2409,15 +2409,6 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
         "");
   }
 
-  // Handles SYCL special types (accessor, sampler and stream) and modified
-  // types (arrays and pointers)
-  bool handleSpecialType(const FieldDecl *FD, QualType FieldTy,
-                         KernelArgDescription Desc) {
-    for (const auto *Param : DC.getParamVarDeclsForCurrentField())
-      addParam(FD, Param->getType(), Desc);
-    return true;
-  }
-
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclOptReportCreator(Sema &S, SyclKernelDeclCreator &DC, SourceLocation Loc)
@@ -2425,14 +2416,16 @@ public:
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
-    if (isCXXRecordWithInitMember(RecordDecl, FinalizeMethodName))
-      return handleSpecialType(
-          FD, FieldTy, KernelArgDescription(KernelArgDescription::Stream));
-    if (dyn_cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl()))
-      return handleSpecialType(
-          FD, FieldTy, KernelArgDescription(KernelArgDescription::Accessor));
-    return handleSpecialType(
-        FD, FieldTy, KernelArgDescription(KernelArgDescription::Sampler));
+    FieldTy.getAsString();
+    KernelArgDescription Desc =
+        isCXXRecordWithInitMember(RecordDecl, FinalizeMethodName)
+            ? KernelArgDescription::Stream
+        : dyn_cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl())
+            ? KernelArgDescription::Accessor
+            : KernelArgDescription::Sampler;
+    for (const auto *Param : DC.getParamVarDeclsForCurrentField())
+      addParam(FD, Param->getType(), Desc);
+    return true;
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
@@ -2460,7 +2453,9 @@ public:
     // the openCL kernel argument is of type __wrapper_class.
     if (!KernelParameter->getType()->isPointerType())
       Desc = KernelArgDescription::WrappedPointer;
-    return handleSpecialType(FD, FieldTy, Desc);
+    for (const auto *Param : DC.getParamVarDeclsForCurrentField())
+      addParam(FD, Param->getType(), Desc);
+    return true;
   }
 
   bool handleScalarType(FieldDecl *FD, QualType FieldTy) final {
@@ -2470,8 +2465,9 @@ public:
 
   bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
     // Simple arrays are always wrapped.
-    handleSpecialType(FD, FieldTy,
-                      KernelArgDescription(KernelArgDescription::WrappedArray));
+    for (const auto *Param : DC.getParamVarDeclsForCurrentField())
+      addParam(FD, Param->getType(),
+               KernelArgDescription(KernelArgDescription::WrappedArray));
     return true;
   }
 

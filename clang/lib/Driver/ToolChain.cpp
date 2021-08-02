@@ -390,7 +390,6 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
   case Action::InputClass:
   case Action::BindArchClass:
   case Action::OffloadClass:
-  case Action::ForEachWrappingClass:
   case Action::LipoJobClass:
   case Action::DsymutilJobClass:
   case Action::VerifyDebugInfoJobClass:

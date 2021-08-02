@@ -1147,7 +1147,7 @@ __SYCL_EXPORT pi_result piclProgramCreateWithSource(pi_context context,
 ///                      succesfully or not, for each device in device_list.
 ///                      binary_status is ignored if it is null and otherwise
 ///                      it must be an array of num_devices elements.
-/// \param ret_program is the PI program created from the program binaries.
+/// \param program is the PI program created from the program binaries.
 __SYCL_EXPORT pi_result piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,

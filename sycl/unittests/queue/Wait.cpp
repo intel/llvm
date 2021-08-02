@@ -120,7 +120,7 @@ TEST(QueueWait, QueueWaitTest) {
   platform Plt{default_selector()};
   if (!preparePiMock(Plt))
     return;
-  context Ctx{Plt.get_devices()[0]};
+  context Ctx{Plt};
   queue Q{Ctx, default_selector()};
 
   unsigned char *HostAlloc = (unsigned char *)malloc_host(1, Ctx);

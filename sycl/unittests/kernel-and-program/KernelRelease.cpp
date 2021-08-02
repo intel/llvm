@@ -103,7 +103,7 @@ TEST(KernelReleaseTest, GetKernelRelease) {
   Mock.redefine<detail::PiApiKind::piKernelSetExecInfo>(
       redefinedKernelSetExecInfo);
 
-  context Ctx{Plt.get_devices()[0]};
+  context Ctx{Plt};
   TestContext.reset(new TestCtx(Ctx));
 
   program Prg{Ctx};

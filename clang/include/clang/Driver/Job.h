@@ -319,8 +319,6 @@ public:
   /// Clear the job list.
   void clear();
 
-  /// Return a mutable list of Jobs for llvm-foreach wrapping.
-  list_type &getJobsForOverride() { return Jobs; }
   const list_type &getJobs() const { return Jobs; }
 
   bool empty() const { return Jobs.empty(); }

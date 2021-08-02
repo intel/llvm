@@ -108,7 +108,7 @@ TEST(QueueEventClear, ClearOnQueueWait) {
   if (!preparePiMock(Plt))
     return;
 
-  context Ctx{Plt.get_devices()[0]};
+  context Ctx{Plt};
   TestContext.reset(new TestCtx(Ctx));
   queue Q{Ctx, default_selector()};
 
@@ -129,7 +129,7 @@ TEST(QueueEventClear, CleanupOnThreshold) {
   if (!preparePiMock(Plt))
     return;
 
-  context Ctx{Plt.get_devices()[0]};
+  context Ctx{Plt};
   TestContext.reset(new TestCtx(Ctx));
   queue Q{Ctx, default_selector()};
 
