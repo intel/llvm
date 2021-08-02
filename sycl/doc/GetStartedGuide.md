@@ -166,10 +166,10 @@ To enable support for ROCm devices, follow the instructions for the Linux
 DPC++ toolchain, but add the `--rocm` flag to `configure.py`
 
 Enabling this flag requires an installation of
-ROCm 4.1.0 on the system, refer to
+ROCm 4.2.0 on the system, refer to
 [AMD ROCm Installation Guide for Linux](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
 
-Currently, the only combination tested is Ubuntu 18.04 with ROCm 4.1.0 using a Vega20 gfx906.
+Currently, the only combination tested is Ubuntu 18.04 with ROCm 4.2.0 using a Vega20 gfx906.
 
 [LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMD GPU compilation chain. 
 The AMDGPU backend generates a standard ELF [ELF] relocatable code object that can be linked by lld to 
@@ -734,7 +734,7 @@ which contains all the symbols required.
 ### ROCm back-end limitations
 
 * For supported Operating Systems, please refer to the [Supported Operating Systems](https://github.com/RadeonOpenCompute/ROCm#supported-operating-systems)
-* The only combination tested is Ubuntu 18.04 with ROCm 4.1 using a Vega20 gfx906.
+* The only combination tested is Ubuntu 18.04 with ROCm 4.2 using a Vega20 gfx906.
 * Judging from the current [test](https://github.com/zjin-lcf/oneAPI-DirectProgramming) results, 
   there is still a lot of room for improvement in ROCm back-end support. The current problems include three aspects. 
   The first one is at compile time: the `barrier` and `atomic` keywords are not supported. 
