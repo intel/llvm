@@ -48,8 +48,10 @@ struct code_location {
     return code_location(fileName, funcName, lineNo, columnNo);
   }
 #else
+  // FIXME Having a nullptr for fileName here is a short-term solution to
+  // workaround leak of full paths in builds
   static constexpr code_location
-  current(const char *fileName = __builtin_FILE(),
+  current(const char *fileName = nullptr,
           const char *funcName = __builtin_FUNCTION(),
           unsigned long lineNo = __builtin_LINE(),
           unsigned long columnNo = 0) noexcept {
