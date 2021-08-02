@@ -4587,8 +4587,7 @@ class SYCLKernelNameTypePrinter
   // canonical sycl example of a type being created in the kernel call.
   void PrintNamespaceScopes(const DeclContext *DC) {
     if (isa<NamespaceDecl, FunctionDecl, RecordDecl, LinkageSpecDecl>(DC)) {
-      const auto *D = cast<Decl>(DC);
-      PrintNamespaceScopes(D->getDeclContext());
+      PrintNamespaceScopes(DC->getParent());
 
       const auto *NS = dyn_cast<NamespaceDecl>(DC);
       if (NS && !NS->isAnonymousNamespace())
