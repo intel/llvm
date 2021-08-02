@@ -4385,7 +4385,7 @@ class SYCLFwdDeclEmitter
     while (DC) {
       if (const auto *NS = dyn_cast<NamespaceDecl>(DC)) {
         ++NamespaceCnt;
-        const StringRef NSInlinePrefix = NS->isInline() ? "inline " : "";
+        StringRef NSInlinePrefix = NS->isInline() ? "inline " : "";
         NSStr.insert(
             0,
             Twine(NSInlinePrefix + "namespace " + NS->getName() + " { ").str());
