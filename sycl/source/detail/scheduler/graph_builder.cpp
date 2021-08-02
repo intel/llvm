@@ -677,12 +677,12 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       // unnecessary copy on devices with unified host memory support.
       const bool HostUnifiedMemory =
           checkHostUnifiedMemory(Queue->getContextImplPtr());
-      const bool InitFromUserData =
-          Record->MAllocaCommands.empty() && HostUnifiedMemory;
-      AllocaCommandBase *LinkedAllocaCmd = nullptr;
       // TODO casting is required here to get the necessary information
       // without breaking ABI, replace with the next major version.
       auto *MemObj = static_cast<SYCLMemObjT *>(Req->MSYCLMemObj);
+      const bool InitFromUserData = Record->MAllocaCommands.empty() &&
+                                    (HostUnifiedMemory || MemObj->isInterop());
+      AllocaCommandBase *LinkedAllocaCmd = nullptr;
 
       // For the first allocation on a device without host unified memory we
       // might need to also create a host alloca right away in order to perform
