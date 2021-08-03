@@ -54,7 +54,7 @@ struct _pi_object {
   std::atomic<pi_uint32> RefCount;
 };
 struct _pi_platform {
-  _pi_platform() {}
+  _pi_platform() = default;
 
   // Keep Version information.
   std::string CmEmuVersion;
@@ -89,7 +89,7 @@ struct _pi_queue : _pi_object {
 };
 
 struct _pi_mem : _pi_object {
-  _pi_mem() {}
+  _pi_mem() = default;
 
   pi_context Context;
 
