@@ -17,60 +17,76 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+std::vector<std::string> tokenize(const std::string &Filter,
+                                  const std::string &Delim) {
+  std::vector<std::string> Tokens;
+  size_t Pos = 0;
+  std::string Input = Filter;
+  std::string Tok;
+
+  while ((Pos = Input.find(Delim)) != std::string::npos) {
+    Tok = Input.substr(0, Pos);
+    Input.erase(0, Pos + Delim.length());
+
+    if (!Tok.empty()) {
+      Tokens.push_back(std::move(Tok));
+    }
+  }
+
+  // Add remainder
+  if (!Input.empty())
+    Tokens.push_back(std::move(Input));
+
+  return Tokens;
+}
+
 device_filter::device_filter(const std::string &FilterString) {
-  size_t Cursor = 0;
-  size_t ColonPos = 0;
-  auto findElement = [&](auto Element) {
-    size_t Found = FilterString.find(Element.first, Cursor);
+  std::vector<std::string> Tokens = tokenize(FilterString, ":");
+  size_t I = 0;
+
+  auto FindElement = [&](auto Element) {
+    size_t Found = Tokens[I].find(Element.first);
     if (Found == std::string::npos)
       return false;
-    Cursor = Found;
     return true;
   };
 
   // Handle the optional 1st field of the filter, backend
   // Check if the first entry matches with a known backend type
   auto It =
-      std::find_if(std::begin(SyclBeMap), std::end(SyclBeMap), findElement);
+      std::find_if(std::begin(SyclBeMap), std::end(SyclBeMap), FindElement);
   // If no match is found, set the backend type backend::all
   // which actually means 'any backend' will be a match.
   if (It == SyclBeMap.end())
     Backend = backend::all;
   else {
     Backend = It->second;
-    ColonPos = FilterString.find(":", Cursor);
-    if (ColonPos != std::string::npos)
-      Cursor = ColonPos + 1;
-    else
-      Cursor = Cursor + It->first.size();
+    I++;
   }
+
   // Handle the optional 2nd field of the filter - device type.
   // Check if the 2nd entry matches with any known device type.
-  if (Cursor >= FilterString.size()) {
+  if (I >= Tokens.size()) {
     DeviceType = info::device_type::all;
   } else {
     auto Iter = std::find_if(std::begin(SyclDeviceTypeMap),
-                             std::end(SyclDeviceTypeMap), findElement);
+                             std::end(SyclDeviceTypeMap), FindElement);
     // If no match is found, set device_type 'all',
     // which actually means 'any device_type' will be a match.
     if (Iter == SyclDeviceTypeMap.end())
       DeviceType = info::device_type::all;
     else {
       DeviceType = Iter->second;
-      ColonPos = FilterString.find(":", Cursor);
-      if (ColonPos != std::string::npos)
-        Cursor = ColonPos + 1;
-      else
-        Cursor = Cursor + Iter->first.size();
+      I++;
     }
   }
 
   // Handle the optional 3rd field of the filter, device number
   // Try to convert the remaining string to an integer.
   // If succeessful, the converted integer is the desired device num.
-  if (Cursor < FilterString.size()) {
+  if (I < Tokens.size()) {
     try {
-      DeviceNum = stoi(FilterString.substr(Cursor));
+      DeviceNum = stoi(Tokens[I]);
       HasDeviceNum = true;
     } catch (...) {
       std::string Message =

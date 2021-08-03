@@ -38,44 +38,38 @@ public:
   }
 };
 
-static void printDeviceInfo(const device &Device, const std::string &Prepend) {
+std::string getDeviceTypeName(const device &Device) {
   auto DeviceType = Device.get_info<info::device::device_type>();
-  std::string DeviceTypeName;
   switch (DeviceType) {
   case info::device_type::cpu:
-    DeviceTypeName = "CPU ";
-    break;
+    return "cpu";
   case info::device_type::gpu:
-    DeviceTypeName = "GPU ";
-    break;
+    return "gpu";
   case info::device_type::host:
-    DeviceTypeName = "HOST";
-    break;
+    return "host";
   case info::device_type::accelerator:
-    DeviceTypeName = "ACC ";
-    break;
+    return "acc";
   default:
-    DeviceTypeName = "UNKNOWN";
-    break;
+    return "unknown";
   }
+}
 
+static void printDeviceInfo(const device &Device, const std::string &Prepend) {
   auto DeviceVersion = Device.get_info<info::device::version>();
   auto DeviceName = Device.get_info<info::device::name>();
   auto DeviceVendor = Device.get_info<info::device::vendor>();
   auto DeviceDriverVersion = Device.get_info<info::device::driver_version>();
 
   if (verbose) {
-    std::cout << Prepend << "Type       : " << DeviceTypeName << std::endl;
+    std::cout << Prepend << "Type       : " << getDeviceTypeName(Device)
+              << std::endl;
     std::cout << Prepend << "Version    : " << DeviceVersion << std::endl;
     std::cout << Prepend << "Name       : " << DeviceName << std::endl;
     std::cout << Prepend << "Vendor     : " << DeviceVendor << std::endl;
     std::cout << Prepend << "Driver     : " << DeviceDriverVersion << std::endl;
   } else {
-    auto DevicePlatform = Device.get_info<info::device::platform>();
-    auto DevicePlatformName = DevicePlatform.get_info<info::platform::name>();
-    std::cout << Prepend << DeviceTypeName << ": " << DevicePlatformName << " "
-              << DeviceVersion << " [" << DeviceDriverVersion << "]"
-              << std::endl;
+    std::cout << Prepend << " : " << DeviceName << " " << DeviceVersion << " ["
+              << DeviceDriverVersion << "]" << std::endl;
   }
 }
 
@@ -83,8 +77,8 @@ static void printSelectorChoice(const device_selector &Selector,
                                 const std::string &Prepend) {
   try {
     const auto &Dev = device(Selector);
-    printDeviceInfo(Dev, Prepend);
-
+    std::string DeviceTypeName = getDeviceTypeName(Dev);
+    printDeviceInfo(Dev, Prepend + DeviceTypeName);
   } catch (const cl::sycl::runtime_error &Exception) {
     // Truncate long string so it can fit in one-line
     std::string What = Exception.what();
@@ -106,14 +100,26 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
+  const char *filter = std::getenv("SYCL_DEVICE_FILTER");
+  if (filter) {
+    std::cout << "Warning: SYCL_DEVICE_FILTER environment variable is set to "
+              << filter << "." << std::endl;
+    std::cout
+        << "To see the correct device id, please unset SYCL_DEVICE_FILTER."
+        << std::endl
+        << std::endl;
+  }
+
   const auto &Platforms = platform::get_platforms();
   if (verbose)
     std::cout << "Platforms: " << Platforms.size() << std::endl;
 
   uint32_t PlatformNum = 0;
+  // For each backend, device num starts at zero.
+  std::vector<uint32_t> DeviceNums(static_cast<int>(backend::all), 0);
 
   for (const auto &Platform : Platforms) {
-    uint32_t DeviceNum = 0;
+    backend Backend = Platform.get_backend();
     ++PlatformNum;
     if (verbose) {
       auto PlatformVersion = Platform.get_info<info::platform::version>();
@@ -128,11 +134,12 @@ int main(int argc, char **argv) {
     if (verbose)
       std::cout << "    Devices  : " << Devices.size() << std::endl;
     for (const auto &Device : Devices) {
+      uint32_t DeviceNum = DeviceNums[(int)Backend]++;
       if (verbose)
         std::cout << "        Device [#" << DeviceNum << "]:" << std::endl;
       else {
-        backend Backend = Platform.get_backend();
-        std::cout << "[" << Backend << ":" << DeviceNum << "] ";
+        std::cout << "[" << Backend << ":" << getDeviceTypeName(Device) << ":"
+                  << DeviceNum << "]";
       }
       ++DeviceNum;
       printDeviceInfo(Device, verbose ? "        " : "");
