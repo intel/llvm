@@ -1669,7 +1669,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     CGExecKernel *ExecKernel,
     std::shared_ptr<device_image_impl> DeviceImageImpl, RT::PiKernel Kernel,
     NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
-    ProgramManager::KernelArgMask &EliminatedArgMask) {
+    const ProgramManager::KernelArgMask &EliminatedArgMask) {
   std::vector<ArgDesc> &Args = ExecKernel->MArgs;
   const detail::plugin &Plugin = MQueue->getPlugin();
 
@@ -1748,11 +1748,11 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
       // Handle potential gaps in set arguments (e. g. if some of them are set
       // on the user side).
       for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
-        if (EliminatedArgMask.empty() || !EliminatedArgMask[Idx])
+        if (!EliminatedArgMask[Idx])
           ++NextTrueIndex;
       LastIndex = Arg.MIndex;
 
-      if (!EliminatedArgMask.empty() && EliminatedArgMask[Arg.MIndex])
+      if (EliminatedArgMask[Arg.MIndex])
         continue;
 
       setFunc(Arg, NextTrueIndex);
