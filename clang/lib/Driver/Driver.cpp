@@ -3960,7 +3960,8 @@ class OffloadingActionBuilder final {
     /// List of static archives to extract FPGA dependency info from
     ActionList FPGAArchiveInputs;
 
-    /// List of GPU architectures to use in this compilation with NVPTX/AMDGCN targets.
+    /// List of GPU architectures to use in this compilation with NVPTX/AMDGCN
+    /// targets.
     SmallVector<std::pair<llvm::Triple, std::string>, 8> GpuArchList;
 
     /// Build the last steps for CUDA after all BC files have been linked.
@@ -4730,8 +4731,7 @@ class OffloadingActionBuilder final {
         if (Triple.isAMDGCN() && llvm::none_of(GpuArchList, [&](auto &P) {
               return P.first.isAMDGCN();
             })) {
-          C.getDriver().Diag(
-              clang::diag::err_drv_sycl_missing_amdgpu_arch);
+          C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch);
           continue;
         }
       }
