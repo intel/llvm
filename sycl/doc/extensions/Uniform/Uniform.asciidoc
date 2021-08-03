@@ -110,8 +110,28 @@ namespace experimental {
 
 template <class T>
 class uniform {
+public:
   explicit uniform(T x) noexcept;
-  operator T() const;
+  operator const T() const;
+
+  uniform& operator=(const uniform&) = delete;
+
+  /* Other explicitly deleted operators improve error messages
+     if a user incorrectly attempts to modify a uniform */
+  uniform& operator+=(const T&) = delete;
+  uniform& operator-=(const T&) = delete;
+  uniform& operator*=(const T&) = delete;
+  uniform& operator/=(const T&) = delete;
+  uniform& operator%=(const T&) = delete;
+  uniform& operator&=(const T&) = delete;
+  uniform& operator|=(const T&) = delete;
+  uniform& operator^=(const T&) = delete;
+  uniform& operator<<=(const T&) = delete;
+  uniform& operator>>=(const T&) = delete;
+  uniform& operator++() = delete;
+  uniform& operator++(int) = delete;
+  uniform& operator--() = delete;
+  uniform& operator--(int) = delete;
 };
 
 } // namespace experimental
@@ -181,6 +201,7 @@ float x = array[sycl::ext::oneapi::experimental::uniform(index)];
 |========================================
 |Rev|Date|Author|Changes
 |1|2021-04-23|John Pennycook|*Initial public working draft*
+|2|2021-08-03|John Pennycook|*Add const and deleted operators*
 |========================================
 
 //************************************************************************
