@@ -111,7 +111,8 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-class bfloat16 {
+class [[sycl_detail::uses_aspects(ext_intel_bf16_conversion)]]
+bfloat16 {
   using storage_t = uint16_t;
   storage_t value;
 
@@ -156,21 +157,20 @@ float foo(float a, float b) {
   return C;
 }
 
-int main (int argc, char *argv[])
-{
-    float data[3] = {7.0, 8.1, 0.0};
-    cl::sycl::queue deviceQueue;
-    cl::sycl::buffer<float, 1> buf {data, cl::sycl::range<1> {3}};
+int main (int argc, char *argv[]) {
+  float data[3] = {7.0, 8.1, 0.0};
+  sycl::device dev{sycl::default_selector{}};
+  sycl::queue deviceQueue{dev};
+  sycl::buffer<float, 1> buf {data, cl::sycl::range<1> {3}};
 
-    deviceQueue.submit ([&] (cl::sycl::handler& cgh)
-    {
-        auto numbers = buf.get_access<cl::sycl::access::mode::read_write> (cgh);
-        cgh.single_task<class simple_kernel> ([=] ()
-        {
-            numbers[2] = foo(numbers[0], numbers[1]);
-
-        });
+  if (dev.has(aspect::ext_intel_bf16_conversion)) {
+    deviceQueue.submit ([&] (cl::sycl::handler& cgh) {
+      auto numbers = buf.get_access<cl::sycl::access::mode::read_write> (cgh);
+      cgh.single_task<class simple_kernel> ([=] () {
+        numbers[2] = foo(numbers[0], numbers[1]);
+      });
     });
+  }
   return 0;
 }
 ----
