@@ -78,7 +78,7 @@ Roland Schulz, Intel
 
 This extension is written against the SYCL 2020 specification, revision 3.
 
-It also depends on the `sycl::ext::oneapi::property_list` extension.
+It also depends on the `SYCL_EXT_ONEAPI_PROPERTY_LIST` extension.
 
 == Overview
 
@@ -171,14 +171,14 @@ A `device_global` on a given device maintains its state (address of the allocati
 [source,c++]
 ----
 namespace sycl::ext::oneapi {
-template <typename T, typename propertyListT = property_list<>>
+template <typename T, typename PropertyListT = property_list<>>
 class device_global {
   ...
 ----
 
-`device_global` is a class template, parameterized by the type of the underlying allocation _T_, and a list of properties _propertyListT_. The type of the allocation _T_ also encodes the size of the allocation for potentially multidimensional array types.
+`device_global` is a class template, parameterized by the type of the underlying allocation _T_, and a list of properties _PropertyListT_. The type of the allocation _T_ also encodes the size of the allocation for potentially multidimensional array types.
 
-_T_ is restricted to types that have a trivial destructor and a trivial default constructor in this revision of the specification (the constructor restriction may be partially relaxed in a future revision). _propertyListT_ enables properties to be associated with a `device_global`.
+_T_ is restricted to types that have a trivial destructor and a trivial default constructor in this revision of the specification (the constructor restriction may be partially relaxed in a future revision). _PropertyListT_ enables properties to be associated with a `device_global`.
 
 Since _T_ is restricted to types with trivial default constructors in this version of the specification, there are no non-default `device_global` constructors, and therefore no initialization values may be specified for the content of a `device_global` allocation on a device.
 
@@ -229,7 +229,7 @@ The section below and the table following describe the constructors, member func
 ----
 namespace sycl::ext::oneapi {
 
-template <typename T, typename property_listT = property_list<>>
+template <typename T, typename PropertyListT = property_list<>>
 class device_global {
 public:
   using element_type = std::remove_extent_t<T>; 
@@ -431,74 +431,79 @@ global variable that isn’t `const` or `constexpr` unless the variable is of ty
 Add the following functions to the `sycl::queue` interface described in Section 4.6.5.1 of
 the SYCL 2020 specification.
 
+[NOTE]
+====
+A pointer to the allocation within a `device_global` may not be obtained by the host program (can only be extracted in device functions because allocations are per device), so pointer arithmetic can therefore not be used in the host program to define `copy`/`memcpy' offsets into data.  `startIndex` and `offset` arguments are provided in these interfaces to allow offsetting without pointer arithmetic.
+====
+
 ```c++
 namespace sycl {
 class queue {
 public:
   // Copy to device_global
-  template <typename T, typename propertyListT>
+  template <typename T, typename PropertyListT>
   event copy(const std::remove_all_extents_t<T> *src,
-    device_global<T, propertyListT>& dest,
+    device_global<T, PropertyListT>& dest,
     size_t count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
     size_t startIndex = 0);
   
-  template <typename T, typename propertyListT>
+  template <typename T, typename PropertyListT>
   event copy(const std::remove_all_extents_t<T> *src,
-    device_global<T, propertyListT>& dest,
+    device_global<T, PropertyListT>& dest,
     size_t count, size_t startIndex, event depEvent);
   
-  template <typename T, typename propertyListT>
+  template <typename T, typename PropertyListT>
   event copy(const std::remove_all_extents_t<T> *src,
-    device_global<T, propertyListT>& dest,
+    device_global<T, PropertyListT>& dest,
      size_t count, size_t startIndex,
      const std::vector<event> &depEvents);
 
   // Copy from device_global
-  template <typename T, typename propertyListT>
-  event copy(const device_global<T, propertyListT>& src,
+  template <typename T, typename PropertyListT>
+  event copy(const device_global<T, PropertyListT>& src,
     std::remove_all_extents_t<T> *dest,
     size_t count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
     size_t startIndex = 0);
 
-  template <typename T, typename propertyListT>
-  event copy(const device_global<T, propertyListT>& src,
+  template <typename T, typename PropertyListT>
+  event copy(const device_global<T, PropertyListT>& src,
     std::remove_all_extents_t<T> *dest,
     size_t count, size_t startIndex, event depEvent);
   
-  template <typename T, typename propertyListT>
-  event copy(const device_global<T, propertyListT>& src,
+  template <typename T, typename PropertyListT>
+  event copy(const device_global<T, PropertyListT>& src,
     std::remove_all_extents_t<T> *dest,
     size_t count,size_t startIndex, const std::vector<event> &depEvents);
 
   // memcpy to device_global
-  template <typename T, typename propertyListT>
-  event memcpy(device_global<T, propertyListT>& dest, 
+  template <typename T, typename PropertyListT>
+  event memcpy(device_global<T, PropertyListT>& dest, 
     const void *src, size_t numBytes = sizeof(T), size_t offset = 0);
   
-  template <typename T, typename propertyListT>
-  event memcpy(device_global<T, propertyListT>& dest,
+  template <typename T, typename PropertyListT>
+  event memcpy(device_global<T, PropertyListT>& dest,
     const void *src, size_t numBytes,
     size_t offset, event depEvent);
   
-  template <typename T, typename propertyListT>
-  event memcpy(device_global<T, propertyListT>& dest,
+  template <typename T, typename PropertyListT>
+  event memcpy(device_global<T, PropertyListT>& dest,
     const void *src, size_t numBytes,
     size_t offset, const std::vector<event> &depEvents);
 
   // memcpy from device_global
-  template <typename T, typename propertyListT>
+  template <typename T, typename PropertyListT>
   event memcpy(void *dest,
-    const device_global<T, propertyListT>& src,
+    const device_global<T, PropertyListT>& src,
     size_t numBytes = sizeof(T), size_t offset = 0);
 
-  template <typename T, typename propertyListT>
+  template <typename T, typename PropertyListT>
   event memcpy(void *dest, 
-    const device_global<T, propertyListT>& src, size_t numBytes,
+    const device_global<T, PropertyListT>& src, size_t numBytes,
     size_t offset, event depEvent);
   
-  template <typename T, typename propertyListT>
+  template <typename T, typename PropertyListT>
   event memcpy(void *dest,
-    const device_global<T, propertyListT>& src, size_t numBytes,
+    const device_global<T, PropertyListT>& src, size_t numBytes,
     size_t offset, const std::vector<event> &depEvents);
 };
 } // namespace sycl
@@ -515,9 +520,9 @@ in Section 4.6.5.1 of the SYCL 2020 specification.
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
+template <typename T, typename PropertyListT>
 event copy(const std::remove_all_extents_t<T> *src,
-  device_global<T, propertyListT>& dest,
+  device_global<T, PropertyListT>& dest,
   size_t count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
   size_t startIndex = 0);
 ----
@@ -526,9 +531,9 @@ event copy(const std::remove_all_extents_t<T> *src,
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
+template <typename T, typename PropertyListT>
 event copy(const std::remove_all_extents_t<T> *src,
-  device_global<T, propertyListT>& dest,
+  device_global<T, PropertyListT>& dest,
   size_t count, size_t startIndex, event depEvent);
 ----
 | Explicit copy
@@ -536,9 +541,9 @@ event copy(const std::remove_all_extents_t<T> *src,
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
+template <typename T, typename PropertyListT>
 event copy(const std::remove_all_extents_t<T> *src,
-  device_global<T, propertyListT>& dest,
+  device_global<T, PropertyListT>& dest,
   size_t count, size_t startIndex, const std::vector<event> &depEvents);
 ----
 | Explicit copy
@@ -546,8 +551,8 @@ event copy(const std::remove_all_extents_t<T> *src,
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
-event copy(const device_global<T, propertyListT>& src,
+template <typename T, typename PropertyListT>
+event copy(const device_global<T, PropertyListT>& src,
   std::remove_all_extents_t<T> *dest,
   size_t count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
   size_t startIndex = 0);
@@ -557,8 +562,8 @@ event copy(const device_global<T, propertyListT>& src,
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
-event copy(const device_global<T, propertyListT>& src,
+template <typename T, typename PropertyListT>
+event copy(const device_global<T, PropertyListT>& src,
   std::remove_all_extents_t<T> *dest,
   size_t count, size_t startIndex, event depEvent);
 ----
@@ -567,8 +572,8 @@ event copy(const device_global<T, propertyListT>& src,
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
-event copy(const device_global<T, propertyListT>& src,
+template <typename T, typename PropertyListT>
+event copy(const device_global<T, PropertyListT>& src,
   std::remove_all_extents_t<T> *dest,
   size_t count, size_t startIndex, const std::vector<event> &depEvents);
 ----
@@ -577,8 +582,8 @@ event copy(const device_global<T, propertyListT>& src,
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
-event memcpy(device_global<T, propertyListT>& dest,
+template <typename T, typename PropertyListT>
+event memcpy(device_global<T, PropertyListT>& dest,
   const void *src, size_t numBytes = sizeof(T), size_t offset = 0);
 ----
 | Explicit copy
@@ -586,8 +591,8 @@ event memcpy(device_global<T, propertyListT>& dest,
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
-event memcpy(device_global<T, propertyListT>& dest,
+template <typename T, typename PropertyListT>
+event memcpy(device_global<T, PropertyListT>& dest,
   const void *src, size_t numBytes,
   size_t offset, event depEvent);
 ----
@@ -596,8 +601,8 @@ event memcpy(device_global<T, propertyListT>& dest,
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
-event memcpy(device_global<T, propertyListT>& dest,
+template <typename T, typename PropertyListT>
+event memcpy(device_global<T, PropertyListT>& dest,
   const void *src, size_t numBytes,
   size_t offset, const std::vector<event> &depEvents);
 ----
@@ -606,9 +611,9 @@ event memcpy(device_global<T, propertyListT>& dest,
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
+template <typename T, typename PropertyListT>
 event memcpy(void *dest,
-  const device_global<T, propertyListT>& src,
+  const device_global<T, PropertyListT>& src,
   size_t numBytes = sizeof(T), size_t offset = 0);
 ----
 | Explicit copy
@@ -616,9 +621,9 @@ event memcpy(void *dest,
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
+template <typename T, typename PropertyListT>
 event memcpy(void *dest,
-  const device_global<T, propertyListT>& src, size_t numBytes,
+  const device_global<T, PropertyListT>& src, size_t numBytes,
   size_t offset, event depEvent);
 ----
 | Explicit copy
@@ -626,9 +631,9 @@ event memcpy(void *dest,
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
+template <typename T, typename PropertyListT>
 event memcpy(void *dest,
-  const device_global<T, propertyListT>& src, size_t numBytes,
+  const device_global<T, PropertyListT>& src, size_t numBytes,
   size_t offset, const std::vector<event> &depEvents);
 ----
 | Explicit copy
@@ -650,9 +655,9 @@ Add to Table 130, "Member functions of the handler class".
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
+template <typename T, typename PropertyListT>
 void copy(const std::remove_all_extents_t<T> *src,
-  device_global<T, propertyListT>& dest,
+  device_global<T, PropertyListT>& dest,
   size_t count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
   size_t startIndex = 0);
 ----
@@ -662,8 +667,8 @@ Copies _count_ elements of type `std::remove_all_extents_t<T>` from the pointer 
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
-void copy(const device_global<T, propertyListT>& src,
+template <typename T, typename PropertyListT>
+void copy(const device_global<T, PropertyListT>& src,
   std::remove_all_extents_t<T> *dest,
   size_t count = sizeof(T) / sizeof(std::remove_all_extents_t<T>),
   size_t startIndex = 0);
@@ -675,8 +680,8 @@ Copies _count_ elements of type `std::remove_all_extents_t<T>` from the `device_
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
-void memcpy(device_global<T, propertyListT>& dest,
+template <typename T, typename PropertyListT>
+void memcpy(device_global<T, PropertyListT>& dest,
   const void *src, size_t numBytes = sizeof(T), size_t offset = 0);
 ----
 |`T` must be device copyable.
@@ -686,9 +691,9 @@ Copies _count_ bytes from the pointer _src_ to the `device_global` _dest_, start
 a| 
 [source, c++]
 ----
-template <typename T, typename propertyListT>
+template <typename T, typename PropertyListT>
 void memcpy(void *dest,
-  const device_global<T, propertyListT>& src,
+  const device_global<T, PropertyListT>& src,
   size_t numBytes = sizeof(T), size_t offset = 0);
 ----
 |`T` must be device copyable.
@@ -708,7 +713,7 @@ A sketch of the anticipated constructor interface is:
 ----
 namespace sycl::ext::oneapi {
 
-template <typename T, typename propertyListT = property_list<>>
+template <typename T, typename PropertyListT = property_list<>>
 class device_global {
 public:
   using element_type = std::remove_extent_t<T>; 
