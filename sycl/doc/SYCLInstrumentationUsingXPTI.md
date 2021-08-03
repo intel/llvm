@@ -15,13 +15,17 @@ unique 64-bit ID, referred to as the Universal ID (UID), for every public
 language entry point into the library. This allows tools and other helps in the
 software stack to correlate debug and performance data by tagging it with the
 64-bit UID. The framework also provides the ability to propagate this UID all
-the way to the driver layers for the target device so data from lower layers and hardware can be correlated easily.
+the way to the driver layers for the target device so data from lower layers and
+hardware can be correlated easily.
 
 The XPTI concepts in use here are:
 
-1.  Tracepoints - define all the points in a software layer we want to instrument or trace. The trace point is used to generate the UID.
-2.  Notification - allows the software layer to communicate the trace information to listeners/subscribers
-3.  Callback - implemented by subscribers to specific events to capture the trace information
+1.  Tracepoints - define all the points in a software layer we want to
+instrument or trace. The trace point is used to generate the UID.
+2.  Notification - allows the software layer to communicate the trace
+information to listeners/subscribers
+3.  Callback - implemented by subscribers to specific events to capture the
+trace information
 
 The SYCL runtime layer defines the tracepoints and notifies the information
 about any given tracepoint to a registered subscriber. These tracepoints are
