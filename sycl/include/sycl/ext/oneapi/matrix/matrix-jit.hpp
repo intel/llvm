@@ -51,47 +51,93 @@ public:
   }
 };
 
-template <matrix_layout MemL = matrix_layout::row_major, typename Group,
-          typename T, size_t NumRows, size_t NumCols,
-          matrix_layout MatL = matrix_layout::row_major,
+template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          matrix_layout Layout = matrix_layout::row_major,
           access::address_space Space>
 inline __SYCL_ALWAYS_INLINE void
-joint_matrix_load(Group sg, joint_matrix<Group, T, NumRows, NumCols, MatL> &res,
-                  multi_ptr<T, Space> src, size_t stride) {
+joint_matrix_load(Group sg,
+                  joint_matrix<Group, T, NumRows, NumCols, Layout> &res,
+                  multi_ptr<T, Space> src, size_t stride, matrix_layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
   T *Ptr = src.get();
-  res.spvm =
-      __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
-                                   spv_matrix_layout_traits<MatL>::value>(
-          Ptr, stride, spv_matrix_layout_traits<MemL>::value);
+  switch (MemL) {
+  default:
+    assert(false && "Invalid Memory Layout!");
+  case matrix_layout::row_major:
+    res.spvm =
+        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+                                     spv_matrix_layout_traits<Layout>::value>(
+            Ptr, stride, __spv::MatrixLayout::RowMajor);
+    break;
+  case matrix_layout::col_major:
+    res.spvm =
+        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+                                     spv_matrix_layout_traits<Layout>::value>(
+            Ptr, stride, __spv::MatrixLayout::ColumnMajor);
+    break;
+  case matrix_layout::packed_a:
+    res.spvm =
+        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+                                     spv_matrix_layout_traits<Layout>::value>(
+            Ptr, stride, __spv::MatrixLayout::PackedA);
+    break;
+  case matrix_layout::packed_b:
+    res.spvm =
+        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+                                     spv_matrix_layout_traits<Layout>::value>(
+            Ptr, stride, __spv::MatrixLayout::PackedB);
+    break;
+  }
 #else
   (void)sg;
   (void)res;
   (void)src;
   (void)stride;
+  (void)MemL;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-template <matrix_layout MemL = matrix_layout::row_major, typename Group,
-          typename T, size_t NumRows, size_t NumCols,
+template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout MatL = matrix_layout::row_major,
           access::address_space Space>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_store(Group sg,
                    joint_matrix<Group, T, NumRows, NumCols, MatL> &obj,
-                   multi_ptr<T, Space> src, size_t stride) {
+                   multi_ptr<T, Space> src, size_t stride, matrix_layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
   T *Ptr = src.get();
-  __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
-                                spv_matrix_layout_traits<MatL>::value>(
-      Ptr, obj.spvm, stride, spv_matrix_layout_traits<MemL>::value);
+  switch (MemL) {
+  default:
+    assert(false && "Invalid Memory Layout!");
+  case matrix_layout::row_major:
+    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
+                                  spv_matrix_layout_traits<MatL>::value>(
+        Ptr, obj.spvm, stride, __spv::MatrixLayout::RowMajor);
+    break;
+  case matrix_layout::col_major:
+    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
+                                  spv_matrix_layout_traits<MatL>::value>(
+        Ptr, obj.spvm, stride, __spv::MatrixLayout::ColumnMajor);
+    break;
+  case matrix_layout::packed_a:
+    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
+                                  spv_matrix_layout_traits<MatL>::value>(
+        Ptr, obj.spvm, stride, __spv::MatrixLayout::PackedA);
+    break;
+  case matrix_layout::packed_b:
+    __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
+                                  spv_matrix_layout_traits<MatL>::value>(
+        Ptr, obj.spvm, stride, __spv::MatrixLayout::PackedB);
+    break;
+  }
 #else
   (void)sg;
   (void)obj;
   (void)src;
   (void)stride;
+  (void)MemL;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
