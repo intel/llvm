@@ -3,7 +3,7 @@
 // RUN:  echo "void foo() {}" > %t.c
 // RUN:  echo "void foo2() {}" > %t2.c
 // RUN:  %clang -target x86_64-pc-windows-msvc -c -o %t.o %t.c
-// RUN:  %clang_cl --target=x86_64-pc-windows-msvc -fsycl -c -o %t2.o %t2.c
+// RUN:  %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fintelfpga -c -o %t2.o %t2.c
 // RUN:  clang-offload-wrapper -o %t-aoco.bc -host=x86_64-pc-windows-msvc -kind=sycl -target=fpga_aoco-intel-unknown-sycldevice %t.aoco
 // RUN:  llc -filetype=obj -o %t-aoco.o %t-aoco.bc
 // RUN:  llvm-ar crv %t_aoco.a %t.o %t2.o %t-aoco.o

@@ -51,6 +51,9 @@ bool SPIRVToOCL20Legacy::runOnModule(Module &Module) {
 bool SPIRVToOCL20Base::runSPIRVToOCL(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
+
+  translateOpaqueTypes();
+
   visit(*M);
 
   eraseUselessFunctions(&Module);

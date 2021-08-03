@@ -128,6 +128,29 @@ public:
   /// Transform __spirv_ImageWrite to write_image
   void visitCallSPIRVImageWriteBuiltIn(CallInst *CI, Op OC);
 
+  /// Transform __spirv_ImageRead to read_image
+  void visitCallSPIRVImageReadBuiltIn(CallInst *CI, Op OC);
+
+  /// Transform __spirv_ImageQueryOrder to get_image_channel_order
+  //            __spirv_ImageQueryFormat to get_image_channel_data_type
+  void visitCallSPIRVImageQueryBuiltIn(CallInst *CI, Op OC);
+
+  /// Transform subgroup Intel opcodes
+  /// example: __spirv_SubgroupBlockWriteINTEL
+  ///    =>    intel_sub_group_block_write_ul
+  void visitCallSPIRVSubgroupINTELBuiltIn(CallInst *CI, Op OC);
+
+  /// Transform AVC INTEL Evaluate opcodes
+  /// example: __spirv_SubgroupAvcImeEvaluateWithSingleReference
+  ///    => intel_sub_group_avc_ime_evaluate_with_single_reference
+  void visitCallSPIRVAvcINTELEvaluateBuiltIn(CallInst *CI, Op OC);
+
+  /// Transform AVC INTEL general opcodes
+  /// example: __spirv_SubgroupAvcMceGetDefaultInterBaseMultiReferencePenalty
+  ///   =>
+  ///   intel_sub_group_avc_mce_get_default_inter_base_multi_reference_penalty
+  void visitCallSPIRVAvcINTELInstructionBuiltin(CallInst *CI, Op OC);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);
@@ -199,6 +222,11 @@ public:
   std::string getBallotBuiltinName(CallInst *CI, Op OC);
   /// Transform group opcode to corresponding OpenCL function name
   std::string groupOCToOCLBuiltinName(CallInst *CI, Op OC);
+  /// Transform SPV-IR image opaque type into OpenCL representation,
+  /// example: spirv.Image._void_1_0_0_0_0_0_1 => opencl.image2d_wo_t
+  std::string getOCLImageOpaqueType(SmallVector<std::string, 8> &Postfixes);
+
+  void translateOpaqueTypes();
 
   Module *M;
   LLVMContext *Ctx;

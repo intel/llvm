@@ -31,6 +31,10 @@ template <> struct interop<backend::level_zero, queue> {
   using type = ze_command_queue_handle_t;
 };
 
+template <> struct interop<backend::level_zero, event> {
+  using type = ze_event_handle_t;
+};
+
 template <> struct interop<backend::level_zero, program> {
   using type = ze_module_handle_t;
 };
@@ -66,7 +70,7 @@ template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakeDevice = false;
   static constexpr bool MakeContext = false;
   static constexpr bool MakeQueue = false;
-  static constexpr bool MakeEvent = false;
+  static constexpr bool MakeEvent = true;
   static constexpr bool MakeBuffer = false;
   static constexpr bool MakeKernel = false;
   static constexpr bool MakeKernelBundle = false;
@@ -92,6 +96,9 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
 __SYCL_EXPORT program make_program(const context &Context,
                                    pi_native_handle NativeHandle);
 __SYCL_EXPORT queue make_queue(const context &Context,
+                               pi_native_handle InteropHandle,
+                               bool keep_ownership = false);
+__SYCL_EXPORT event make_event(const context &Context,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);
 
@@ -143,6 +150,16 @@ T make(const context &Context,
        typename interop<backend::level_zero, T>::type Interop,
        ownership Ownership = ownership::transfer) {
   return make_queue(Context, reinterpret_cast<pi_native_handle>(Interop),
+                    Ownership == ownership::keep);
+}
+
+// Construction of SYCL event.
+template <typename T, typename detail::enable_if_t<
+                          std::is_same<T, event>::value> * = nullptr>
+T make(const context &Context,
+       typename interop<backend::level_zero, T>::type Interop,
+       ownership Ownership = ownership::transfer) {
+  return make_event(Context, reinterpret_cast<pi_native_handle>(Interop),
                     Ownership == ownership::keep);
 }
 

@@ -58,7 +58,18 @@ static pi_result redefinedEnqueueMemBufferWriteRect(
   return PI_SUCCESS;
 }
 
+static pi_result redefinedMemRetain(pi_mem mem) { return PI_SUCCESS; }
 static pi_result redefinedMemRelease(pi_mem mem) { return PI_SUCCESS; }
+
+static pi_context InteropPiContext = nullptr;
+static pi_result redefinedMemGetInfo(pi_mem mem, cl_mem_info param_name,
+                                     size_t param_value_size, void *param_value,
+                                     size_t *param_value_size_ret) {
+  EXPECT_EQ(param_name, static_cast<cl_mem_info>(CL_MEM_CONTEXT));
+  auto *Result = reinterpret_cast<pi_context *>(param_value);
+  *Result = InteropPiContext;
+  return PI_SUCCESS;
+}
 
 TEST_F(SchedulerTest, NoHostUnifiedMemory) {
   platform Plt{default_selector()};
@@ -75,7 +86,9 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
       redefinedEnqueueMemBufferReadRect);
   Mock.redefine<detail::PiApiKind::piEnqueueMemBufferWriteRect>(
       redefinedEnqueueMemBufferWriteRect);
+  Mock.redefine<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
   Mock.redefine<detail::PiApiKind::piMemRelease>(redefinedMemRelease);
+  Mock.redefine<detail::PiApiKind::piMemGetInfo>(redefinedMemGetInfo);
   cl::sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
   device HostDevice;
@@ -184,5 +197,29 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     EXPECT_TRUE(MemoryMove == nullptr);
     // The current context for the record should still be modified.
     EXPECT_EQ(Record->MCurContext, DefaultHostQueue->getContextImplPtr());
+  }
+  // Check that interoperability memory objects are initialized.
+  {
+    cl_mem MockInteropBuffer = reinterpret_cast<cl_mem>(1);
+    context InteropContext = Q.get_context();
+    InteropPiContext = detail::getSyclObjImpl(InteropContext)->getHandleRef();
+    std::shared_ptr<detail::buffer_impl> BufI = std::make_shared<
+        detail::buffer_impl>(
+        MockInteropBuffer, Q.get_context(), /*BufSize*/ 8,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<buffer_allocator>>(),
+        event());
+
+    detail::Requirement Req = getMockRequirement();
+    Req.MSYCLMemObj = BufI.get();
+    std::vector<detail::Command *> AuxCmds;
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
+    detail::AllocaCommandBase *InteropAlloca =
+        MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
+    detail::EnqueueResultT Res;
+    MockScheduler::enqueueCommand(InteropAlloca, Res, detail::BLOCKING);
+
+    EXPECT_EQ(Record->MAllocaCommands.size(), 1U);
+    EXPECT_EQ(InteropAlloca->MMemAllocation, MockInteropBuffer);
   }
 }

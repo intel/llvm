@@ -106,6 +106,7 @@ public:
   /// PropList.
   ///
   /// \param Platform is an instance of SYCL platform.
+  /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
   explicit context(const platform &Platform, async_handler AsyncHandler,
                    const property_list &PropList = {});

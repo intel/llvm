@@ -100,6 +100,8 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
   return BufSize;
 }
 
+bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
+
 void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
                                    bool InitFromUserData, void *&HostPtr,
                                    bool &HostPtrReadOnly) {

@@ -3454,6 +3454,17 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   case PPC::BI__builtin_ppc_mtfsfi:
     return SemaBuiltinConstantArgRange(TheCall, 0, 0, 7) ||
            SemaBuiltinConstantArgRange(TheCall, 1, 0, 15);
+  case PPC::BI__builtin_ppc_alignx:
+    return SemaBuiltinConstantArgPower2(TheCall, 0);
+  case PPC::BI__builtin_ppc_rdlam:
+    return SemaValueIsRunOfOnes(TheCall, 2);
+  case PPC::BI__builtin_ppc_icbt:
+  case PPC::BI__builtin_ppc_sthcx:
+  case PPC::BI__builtin_ppc_stbcx:
+  case PPC::BI__builtin_ppc_lharx:
+  case PPC::BI__builtin_ppc_lbarx:
+    return SemaFeatureCheck(*this, TheCall, "isa-v207-instructions",
+                            diag::err_ppc_builtin_only_on_arch, "8");
 #define CUSTOM_BUILTIN(Name, Intr, Types, Acc) \
   case PPC::BI__builtin_##Name: \
     return SemaBuiltinPPCMMACall(TheCall, Types);
@@ -10853,8 +10864,9 @@ void CheckFreeArgumentsAddressof(Sema &S, const std::string &CalleeName,
                                  const UnaryOperator *UnaryExpr) {
   if (const auto *Lvalue = dyn_cast<DeclRefExpr>(UnaryExpr->getSubExpr())) {
     const Decl *D = Lvalue->getDecl();
-    if (isa<VarDecl, FunctionDecl>(D))
-      return CheckFreeArgumentsOnLvalue(S, CalleeName, UnaryExpr, D);
+    if (isa<DeclaratorDecl>(D))
+      if (!dyn_cast<DeclaratorDecl>(D)->getType()->isReferenceType())
+        return CheckFreeArgumentsOnLvalue(S, CalleeName, UnaryExpr, D);
   }
 
   if (const auto *Lvalue = dyn_cast<MemberExpr>(UnaryExpr->getSubExpr()))
@@ -12696,15 +12708,13 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
     checkObjCDictionaryLiteral(S, QualType(Target, 0), DictionaryLiteral);
 
   // Strip vector types.
-  if (const auto *SourceVT = dyn_cast<VectorType>(Source)) {
-    if (Target->isVLSTBuiltinType()) {
-      auto SourceVectorKind = SourceVT->getVectorKind();
-      if (SourceVectorKind == VectorType::SveFixedLengthDataVector ||
-          SourceVectorKind == VectorType::SveFixedLengthPredicateVector ||
-          (SourceVectorKind == VectorType::GenericVector &&
-           S.Context.getTypeSize(Source) == S.getLangOpts().ArmSveVectorBits))
-        return;
-    }
+  if (isa<VectorType>(Source)) {
+    if (Target->isVLSTBuiltinType() &&
+        (S.Context.areCompatibleSveTypes(QualType(Target, 0),
+                                         QualType(Source, 0)) ||
+         S.Context.areLaxCompatibleSveTypes(QualType(Target, 0),
+                                            QualType(Source, 0))))
+      return;
 
     if (!isa<VectorType>(Target)) {
       if (S.SourceMgr.isInSystemMacro(CC))

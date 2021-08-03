@@ -47,3 +47,55 @@
 // CHECK_S_LLVM: clang{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm"{{.*}} "-o" "[[DEVICE:.+\.ll]]"
 // CHECK_S_LLVM: clang{{.*}} "-fsycl-is-host"{{.*}} "-emit-llvm"{{.*}} "-o" "[[HOST:.+\.ll]]"
 // CHECK_S_LLVM: clang-offload-bundler{{.*}} "-type=ll"{{.*}} "-inputs=[[DEVICE]],[[HOST]]"
+
+/// Check for default device triple compilations based on object, archive or
+/// forced from command line.
+// RUN:  echo "void foo();" > %t_dummy.cpp
+// RUN:  %clang -fsycl -c %t_dummy.cpp -o %t_dummy.o
+// RUN:  llvm-ar cr %t_dummy.a %t_dummy.o
+// RUN:  touch %t_empty.o
+// RUN:  %clangxx -### -fsycl -fsycl-targets=spir64_x86_64 %t_dummy.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
+// RUN:  %clangxx -### -fsycl -fsycl-targets=spir64_fpga %t_dummy.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
+// RUN:  %clangxx -### -fsycl -fsycl-targets=spir64_gen %t_dummy.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
+// RUN:  %clangxx -### -fsycl -fintelfpga %t_dummy.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
+// IMPLIED_DEVICE_OBJ: clang-offload-bundler{{.*}} "-type=o"{{.*}} "-targets=sycl-spir64-unknown-unknown-sycldevice,sycl-spir64_{{.*}}-unknown-unknown-sycldevice"{{.*}} "-unbundle"
+
+// RUN:  %clangxx -### -fsycl -fsycl-targets=spir64_x86_64 %t_dummy.a %s 2>&1 \
+// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
+// RUN:  %clangxx -### -fsycl -fsycl-targets=spir64_fpga %t_dummy.a %s 2>&1 \
+// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
+// RUN:  %clangxx -### -fsycl -fsycl-targets=spir64_gen %t_dummy.a %s 2>&1 \
+// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
+// RUN:  %clangxx -### -fsycl -fintelfpga %t_dummy.a %s 2>&1 \
+// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
+// IMPLIED_DEVICE_LIB: clang-offload-bundler{{.*}} "-type=a"{{.*}} "-targets=sycl-spir64-unknown-unknown-sycldevice,sycl-spir64_{{.*}}-unknown-unknown-sycldevice"{{.*}} "-unbundle"
+
+/// Check that the default device triple is not used with -fno-sycl-link-spirv
+// RUN:  %clangxx -### -fsycl -fno-sycl-link-spirv -fsycl-targets=spir64_x86_64 %t_dummy.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefixes=NO_IMPLIED_DEVICE_OPT,NO_IMPLIED_DEVICE_CPU %s
+// RUN:  %clangxx -### -fsycl -fno-sycl-link-spirv -fsycl-targets=spir64_fpga %t_dummy.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefixes=NO_IMPLIED_DEVICE_OPT,NO_IMPLIED_DEVICE_FPGA %s
+// RUN:  %clangxx -### -fsycl -fno-sycl-link-spirv -fsycl-targets=spir64_gen %t_dummy.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefixes=NO_IMPLIED_DEVICE_OPT,NO_IMPLIED_DEVICE_GEN %s
+// RUN:  %clangxx -### -fsycl -fno-sycl-link-spirv -fintelfpga %t_dummy.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefixes=NO_IMPLIED_DEVICE_OPT,NO_IMPLIED_DEVICE_FPGA %s
+// NO_IMPLIED_DEVICE_CPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown-sycldevice"
+// NO_IMPLIED_DEVICE_FPGA: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown-sycldevice"
+// NO_IMPLIED_DEVICE_GEN: clang{{.*}} "-triple" "spir64_gen-unknown-unknown-sycldevice"
+// NO_IMPLIED_DEVICE_OPT-NOT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown-sycldevice"{{.*}} "-check-section"
+// NO_IMPLIED_DEVICE_OPT-NOT: clang-offload-bundler{{.*}} "-targets={{.*}}spir64-unknown-unknown-sycldevice{{.*}}" "-unbundle"
+
+// RUN:  %clangxx -### -fsycl -fsycl-targets=spir64_x86_64 %t_empty.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
+// RUN:  %clangxx -### -fsycl -fsycl-targets=spir64_fpga %t_empty.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
+// RUN:  %clangxx -### -fsycl -fsycl-targets=spir64_gen %t_empty.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
+// RUN:  %clangxx -### -fsycl -fintelfpga %t_empty.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
+// NO_IMPLIED_DEVICE: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown-sycldevice"{{.*}} "-check-section"
+// NO_IMPLIED_DEVICE-NOT: clang-offload-bundler{{.*}} "-targets={{.*}}spir64-unknown-unknown-sycldevice{{.*}}" "-unbundle"
