@@ -5,16 +5,16 @@
 
 /// Check action graph.
 // RUN: %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
-// RUN: -fsycl-targets=amdgcn-amd-amdhsa-sycldevice -mcpu=gfx906 \
+// RUN: -fsycl-targets=amdgcn-amd-amdhsa-sycldevice -Xsycl-target-backend --offload-arch=gfx906 \
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ACTIONS %s
 // CHK-ACTIONS: "-cc1" "-triple" "amdgcn-amd-amdhsa-sycldevice" "-aux-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-device"{{.*}} "-Wno-sycl-strict"{{.*}} "-sycl-std=2020" {{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libspirv.bc"{{.*}} "-target-cpu" "gfx906"{{.*}} "-std=c++11"{{.*}}
 // CHK-ACTIONS-NOT: "-mllvm -sycl-opt"
-// CHK-ACTIONS: clang-offload-wrapper"{{.*}} "-host=x86_64-unknown-linux-gnu" "-target=amdgcn" "-kind=sycl"{{.*}}
+// CHK-ACTIONS: clang-offload-wrapper"{{.*}} "-host=x86_64-unknown-linux-gnu" "-compile-opts=--offload-arch=gfx906" "-target=amdgcn" "-kind=sycl"{{.*}}
 
 /// Check phases w/out specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
-// RUN: -fsycl-targets=amdgcn-amd-amdhsa-sycldevice -mcpu=gfx906 %s 2>&1 \
+// RUN: -fsycl-targets=amdgcn-amd-amdhsa-sycldevice -Xsycl-target-backend --offload-arch=gfx906 %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-NO-CC %s
 // CHK-PHASES-NO-CC: 0: input, "{{.*}}", c++, (host-sycl)
 // CHK-PHASES-NO-CC: 1: append-footer, {0}, c++, (host-sycl)
