@@ -404,7 +404,11 @@ private:
     handler Handler(Self, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
+    if (has_property<property::queue::in_order>())
+      Handler.depends_on(MLastEvent);
     event Event = Handler.finalize();
+    if (has_property<property::queue::in_order>())
+      MLastEvent = Event;
     addEvent(Event);
     return Event;
   }
@@ -461,6 +465,8 @@ private:
   // Thread pool for host task and event callbacks execution.
   // The thread pool is instantiated upon the very first call to getThreadPool()
   std::unique_ptr<ThreadPool> MHostTaskThreadPool;
+
+  event MLastEvent;
 };
 
 } // namespace detail
