@@ -689,7 +689,7 @@ bool _pi_queue::isInOrderQueue() const {
 pi_result _pi_queue::resetCommandListFenceEntry(
     _pi_queue::command_list_fence_map_t::value_type &MapEntry,
     bool MakeAvailable) {
-  bool UseCopyEngine = MapEntry.second.IsCopyCommandList;
+  bool UseCopyEngine = (MapEntry.second.CopyQueueIndex != -1);
   auto &ZeCommandListCache = (UseCopyEngine)
                                  ? this->Context->ZeCopyCommandListCache
                                  : this->Context->ZeComputeCommandListCache;
@@ -747,15 +747,14 @@ static const pi_uint32 ZeCommandListBatchSize = [] {
 
 // This function requires a map lookup operation which can be expensive.
 // TODO: Restructure code to eliminate map lookup.
-// This function also looks up the index of the copy queue (if available).
-bool _pi_queue::getZeCommandListIsCopyList(
-    ze_command_list_handle_t ZeCommandList, int &CopyQueueIndex) {
+// This function looks up the index of the copy queue (if available).
+// it returns -1 if the list is not a 'copy' list.
+int _pi_queue::getCopyQueueIndex(ze_command_list_handle_t ZeCommandList) {
   auto it = this->ZeCommandListFenceMap.find(ZeCommandList);
   if (it == this->ZeCommandListFenceMap.end()) {
     die("Missing command-list fence map entry");
   }
-  CopyQueueIndex = it->second.CopyQueueIndex;
-  return it->second.IsCopyCommandList;
+  return it->second.CopyQueueIndex;
 }
 
 // Retrieve an available command list to be used in a PI call
@@ -817,12 +816,12 @@ pi_result _pi_context::getAvailableCommandList(
         int CopyQueueIndex = -1;
         ze_command_queue_handle_t ZeCopyCommandQueue = nullptr;
         if (UseCopyEngine)
-          ZeCopyCommandQueue = Queue->getZeCopyCommandQueue(CopyQueueIndex);
+          ZeCopyCommandQueue = Queue->getZeCopyCommandQueue(&CopyQueueIndex);
         auto &ZeCommandQueue =
             (UseCopyEngine) ? ZeCopyCommandQueue : Queue->ZeComputeCommandQueue;
         ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, ZeFence));
-        Queue->ZeCommandListFenceMap[*ZeCommandList] = {
-            *ZeFence, true, UseCopyEngine, CopyQueueIndex};
+        Queue->ZeCommandListFenceMap[*ZeCommandList] = {*ZeFence, true,
+                                                        CopyQueueIndex};
       }
       ZeCommandListCache.pop_front();
       return PI_SUCCESS;
@@ -837,7 +836,7 @@ pi_result _pi_context::getAvailableCommandList(
   // command list & fence are reset and we return.
   for (auto &MapEntry : Queue->ZeCommandListFenceMap) {
     // Make sure this is the command list type needed.
-    if (UseCopyEngine != MapEntry.second.IsCopyCommandList)
+    if (UseCopyEngine != (MapEntry.second.CopyQueueIndex != -1))
       continue;
 
     ze_result_t ZeResult =
@@ -864,7 +863,7 @@ pi_result _pi_context::getAvailableCommandList(
     int ZeCopyCommandQueueGroupIndex = -1;
     if (UseCopyEngine) {
       ZeCopyCommandQueue = Queue->getZeCopyCommandQueue(
-          CopyQueueIndex, &ZeCopyCommandQueueGroupIndex);
+          &CopyQueueIndex, &ZeCopyCommandQueueGroupIndex);
     }
     ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
     ZeCommandListDesc.commandQueueGroupOrdinal =
@@ -880,7 +879,7 @@ pi_result _pi_context::getAvailableCommandList(
     ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, ZeFence));
     Queue->ZeCommandListFenceMap.insert(
         std::pair<ze_command_list_handle_t, _pi_queue::command_list_fence_t>(
-            *ZeCommandList, {*ZeFence, false, UseCopyEngine, CopyQueueIndex}));
+            *ZeCommandList, {*ZeFence, false, CopyQueueIndex}));
     pi_result = PI_SUCCESS;
   }
 
@@ -976,8 +975,8 @@ pi_result _pi_queue::executeCommandList(ze_command_list_handle_t ZeCommandList,
     this->ZeOpenCommandListFence = nullptr;
     this->ZeOpenCommandListSize = 0;
   }
-  int Index = -1;
-  bool UseCopyEngine = getZeCommandListIsCopyList(ZeCommandList, Index);
+  int Index = getCopyQueueIndex(ZeCommandList);
+  bool UseCopyEngine = (Index != -1);
   if (UseCopyEngine)
     zePrint("Command list to be executed on copy engine\n");
   // If available, get the copy command queue assosciated with
@@ -1049,23 +1048,24 @@ bool _pi_queue::isBatchingAllowed() {
 // This function also sends back the value of CopyQueueIndex and
 // CopyQueueGroupIndex (optional)
 ze_command_queue_handle_t
-_pi_queue::getZeCopyCommandQueue(int &CopyQueueIndex,
+_pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
                                  int *CopyQueueGroupIndex) {
+  assert(CopyQueueIndex);
   int n = ZeCopyCommandQueues.size();
   // Return nullptr when no copy command queues are available
   if (n == 0) {
     if (CopyQueueGroupIndex)
       *CopyQueueGroupIndex = -1;
-    CopyQueueIndex = -1;
+    *CopyQueueIndex = -1;
     return nullptr;
   }
   // If there is only one copy queue, it is the main copy queue, which is the
   // first, and only entry in ZeCopyCommandQueues.
   if (n == 1) {
-    CopyQueueIndex = 0;
+    *CopyQueueIndex = 0;
     if (CopyQueueGroupIndex)
       *CopyQueueGroupIndex = Device->ZeMainCopyQueueGroupIndex;
-    zePrint("Note: CopyQueueIndex = %d\n", CopyQueueIndex);
+    zePrint("Note: CopyQueueIndex = %d\n", *CopyQueueIndex);
     return ZeCopyCommandQueues[0];
   }
 
@@ -1078,17 +1078,17 @@ _pi_queue::getZeCopyCommandQueue(int &CopyQueueIndex,
   // be advantageous for D2D. We will perform experiments and then assign
   // priority to different copy engines for different types of copy operations.
   if (LastUsedCopyCommandQueueIndex == (n - 1))
-    CopyQueueIndex = 0;
+    *CopyQueueIndex = 0;
   else
-    CopyQueueIndex = LastUsedCopyCommandQueueIndex + 1;
-  LastUsedCopyCommandQueueIndex = CopyQueueIndex;
-  zePrint("Note: CopyQueueIndex = %d\n", CopyQueueIndex);
+    *CopyQueueIndex = LastUsedCopyCommandQueueIndex + 1;
+  LastUsedCopyCommandQueueIndex = *CopyQueueIndex;
+  zePrint("Note: CopyQueueIndex = %d\n", *CopyQueueIndex);
   if (CopyQueueGroupIndex)
     // Last queue in the vector of copy queues is the main copy queue.
-    *CopyQueueGroupIndex = (CopyQueueIndex == (n - 1))
+    *CopyQueueGroupIndex = (*CopyQueueIndex == (n - 1))
                                ? Device->ZeMainCopyQueueGroupIndex
                                : Device->ZeLinkCopyQueueGroupIndex;
-  return ZeCopyCommandQueues[CopyQueueIndex];
+  return ZeCopyCommandQueues[*CopyQueueIndex];
 }
 
 pi_result _pi_queue::executeOpenCommandList() {

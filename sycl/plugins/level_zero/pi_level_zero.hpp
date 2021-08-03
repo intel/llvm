@@ -535,13 +535,8 @@ struct _pi_queue : _pi_object {
   // Currently, a round robin strategy is used.
   // It will return nullptr if no copy command queues are available for use.
   ze_command_queue_handle_t
-  getZeCopyCommandQueue(int &CopyQueueIndex,
+  getZeCopyCommandQueue(int *CopyQueueIndex,
                         int *CopyQueueGroupIndex = nullptr);
-
-  // This function will return the index of copy queue to which the
-  // command list (that is passed in) will be submitted.
-  // If the command list is not a copy command list, the function returns -1.
-  int getCopyQueueIndex(ze_command_list_handle_t ZeCommandList);
 
   // Keeps the PI context to which this queue belongs.
   // This field is only set at _pi_queue creation time, and cannot change.
@@ -613,8 +608,6 @@ struct _pi_queue : _pi_object {
     // completed (we are polling the fence at events completion). The fence
     // may be still "in-use" due to sporadic delay in HW.
     bool InUse;
-    // Record if the associated command list (if any) is a "copy" command list.
-    bool IsCopyCommandList;
     // Record the index of copy queue (in the vector of available copy queues)
     // to which the command list (if any) will be submitted.
     // If there is no command list, or if the command list is not a copy command
@@ -628,9 +621,9 @@ struct _pi_queue : _pi_object {
       command_list_fence_map_t;
   command_list_fence_map_t ZeCommandListFenceMap;
 
-  // return 'true' if a command list is a "copy" command list
-  bool getZeCommandListIsCopyList(ze_command_list_handle_t ZeCommandList,
-                                  int &CopyQueueIndex);
+  // return the index of copy queue associated with this command list.
+  // return -1 if a command list is not a "copy" command list
+  int getCopyQueueIndex(ze_command_list_handle_t ZeCommandList);
 
   // Keeps the properties of this queue.
   pi_queue_properties PiQueueProperties;
