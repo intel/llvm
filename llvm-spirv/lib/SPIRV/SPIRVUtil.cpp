@@ -221,6 +221,11 @@ PointerType *getPipeStorageType(Module *M) {
       M, getSPIRVTypeName(kSPIRVTypeName::PipeStorage), SPIRAS_Constant);
 }
 
+PointerType *getSPIRVOpaquePtrType(Module *M, Op OC) {
+  std::string Name = getSPIRVTypeName(SPIRVOpaqueTypeOpCodeMap::rmap(OC));
+  return getOrCreateOpaquePtrType(M, Name, getOCLOpaqueTypeAddrSpace(OC));
+}
+
 void getFunctionTypeParameterTypes(llvm::FunctionType *FT,
                                    std::vector<Type *> &ArgTys) {
   for (auto I = FT->param_begin(), E = FT->param_end(); I != E; ++I) {

@@ -583,6 +583,7 @@ PointerType *getOrCreateOpaquePtrType(Module *M, const std::string &Name,
                                       unsigned AddrSpace = SPIRAS_Global);
 PointerType *getSamplerType(Module *M);
 PointerType *getPipeStorageType(Module *M);
+PointerType *getSPIRVOpaquePtrType(Module *M, Op OC);
 void getFunctionTypeParameterTypes(llvm::FunctionType *FT,
                                    std::vector<Type *> &ArgTys);
 Function *getOrCreateFunction(Module *M, Type *RetTy, ArrayRef<Type *> ArgTypes,
