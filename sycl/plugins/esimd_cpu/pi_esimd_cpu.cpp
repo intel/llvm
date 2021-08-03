@@ -440,8 +440,8 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   // - PluginVersion
   // - ESIMDEmuPluginOpaqueData::version
   //
-  // PI_DEVICE_INFO_DRIVER_VERSION could report the ESIMDDeviceInterface version,
-  // PI_PLATFORM_INFO_VERSION - the underlying libCM library version.
+  // PI_DEVICE_INFO_DRIVER_VERSION could report the ESIMDDeviceInterface
+  // version, PI_PLATFORM_INFO_VERSION - the underlying libCM library version.
   unsigned int Version = 0;
 
   int Result = cm_support::CreateCmDevice(CmDevice, Version);
@@ -811,8 +811,8 @@ pi_result piMemRelease(pi_mem Mem) {
   if (--(Mem->RefCount) == 0) {
     if (Mem->getMemType() == PI_MEM_TYPE_BUFFER) {
       _pi_buffer *PiBuf = static_cast<_pi_buffer *>(Mem);
-      // TODO implement libCM API failure logging mechanism, so that these failures
-      // are clearly distinguishable from other EMU plugin failures.
+      // TODO implement libCM API failure logging mechanism, so that these
+      // failures are clearly distinguishable from other EMU plugin failures.
       int Result =
           Mem->Context->Device->CmDevicePtr->DestroySurface(PiBuf->CmBufferPtr);
 
