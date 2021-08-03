@@ -585,6 +585,11 @@ macho::Symbol *ObjFile::parseNonSectionSymbol(const NList &sym,
   }
 }
 
+template <class NList>
+static bool isUndef(const NList &sym) {
+  return (sym.n_type & N_TYPE) == N_UNDF && sym.n_value == 0;
+}
+
 template <class LP>
 void ObjFile::parseSymbols(ArrayRef<typename LP::section> sectionHeaders,
                            ArrayRef<typename LP::nlist> nList,
@@ -594,6 +599,7 @@ void ObjFile::parseSymbols(ArrayRef<typename LP::section> sectionHeaders,
   // Groups indices of the symbols by the sections that contain them.
   std::vector<std::vector<uint32_t>> symbolsBySection(subsections.size());
   symbols.resize(nList.size());
+  SmallVector<unsigned, 32> undefineds;
   for (uint32_t i = 0; i < nList.size(); ++i) {
     const NList &sym = nList[i];
 
@@ -609,6 +615,8 @@ void ObjFile::parseSymbols(ArrayRef<typename LP::section> sectionHeaders,
       if (subsecMap.empty())
         continue;
       symbolsBySection[sym.n_sect - 1].push_back(i);
+    } else if (isUndef(sym)) {
+      undefineds.push_back(i);
     } else {
       symbols[i] = parseNonSectionSymbol(sym, name);
     }
@@ -702,6 +710,18 @@ void ObjFile::parseSymbols(ArrayRef<typename LP::section> sectionHeaders,
       subsecMap.push_back({sym.n_value - sectionAddr, nextIsec});
       subsecEntry = subsecMap.back();
     }
+  }
+
+  // Undefined symbols can trigger recursive fetch from Archives due to
+  // LazySymbols. Process defined symbols first so that the relative order
+  // between a defined symbol and an undefined symbol does not change the
+  // symbol resolution behavior. In addition, a set of interconnected symbols
+  // will all be resolved to the same file, instead of being resolved to
+  // different files.
+  for (unsigned i : undefineds) {
+    const NList &sym = nList[i];
+    StringRef name = strtab + sym.n_strx;
+    symbols[i] = parseNonSectionSymbol(sym, name);
   }
 }
 
@@ -1215,8 +1235,8 @@ void ArchiveFile::fetch(const object::Archive::Symbol &sym) {
   // to it later.
   const object::Archive::Symbol symCopy = sym;
 
-  if (Optional<InputFile *> file =
-          loadArchiveMember(mb, modTime, getName(), /*objCOnly=*/false)) {
+  if (Optional<InputFile *> file = loadArchiveMember(
+          mb, modTime, getName(), /*objCOnly=*/false, c.getChildOffset())) {
     inputFiles.insert(*file);
     // ld64 doesn't demangle sym here even with -demangle.
     // Match that: intentionally don't call toMachOString().
@@ -1255,8 +1275,22 @@ static macho::Symbol *createBitcodeSymbol(const lto::InputFile::Symbol &objSym,
                             /*noDeadStrip=*/false);
 }
 
-BitcodeFile::BitcodeFile(MemoryBufferRef mbref)
-    : InputFile(BitcodeKind, mbref) {
+BitcodeFile::BitcodeFile(MemoryBufferRef mb, StringRef archiveName,
+                         uint64_t offsetInArchive)
+    : InputFile(BitcodeKind, mb) {
+  std::string path = mb.getBufferIdentifier().str();
+  // ThinLTO assumes that all MemoryBufferRefs given to it have a unique
+  // name. If two members with the same name are provided, this causes a
+  // collision and ThinLTO can't proceed.
+  // So, we append the archive name to disambiguate two members with the same
+  // name from multiple different archives, and offset within the archive to
+  // disambiguate two members of the same name from a single archive.
+  MemoryBufferRef mbref(
+      mb.getBuffer(),
+      saver.save(archiveName.empty() ? path
+                                     : archiveName + sys::path::filename(path) +
+                                           utostr(offsetInArchive)));
+
   obj = check(lto::InputFile::create(mbref));
 
   // Convert LTO Symbols to LLD Symbols in order to perform resolution. The

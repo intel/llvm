@@ -223,30 +223,6 @@ bool LLVMToSPIRVBase::isBuiltinTransToExtInst(
   return true;
 }
 
-/// Decode SPIR-V type name in the format spirv.{TypeName}._{Postfixes}
-/// where Postfixes are strings separated by underscores.
-/// \return TypeName.
-/// \param Ops contains the integers decoded from postfixes.
-static std::string decodeSPIRVTypeName(StringRef Name,
-                                       SmallVectorImpl<std::string> &Strs) {
-  SmallVector<StringRef, 4> SubStrs;
-  const char Delim[] = {kSPIRVTypeName::Delimiter, 0};
-  Name.split(SubStrs, Delim, -1, true);
-  assert(SubStrs.size() >= 2 && "Invalid SPIRV type name");
-  assert(SubStrs[0] == kSPIRVTypeName::Prefix && "Invalid prefix");
-  assert((SubStrs.size() == 2 || !SubStrs[2].empty()) && "Invalid postfix");
-
-  if (SubStrs.size() > 2) {
-    const char PostDelim[] = {kSPIRVTypeName::PostfixDelim, 0};
-    SmallVector<StringRef, 4> Postfixes;
-    SubStrs[2].split(Postfixes, PostDelim, -1, true);
-    assert(Postfixes.size() > 1 && Postfixes[0].empty() && "Invalid postfix");
-    for (unsigned I = 1, E = Postfixes.size(); I != E; ++I)
-      Strs.push_back(std::string(Postfixes[I]).c_str());
-  }
-  return SubStrs[1].str();
-}
-
 static bool recursiveType(const StructType *ST, const Type *Ty) {
   SmallPtrSet<const StructType *, 4> Seen;
 
@@ -643,6 +619,14 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       BA->addAttr(FunctionParameterAttributeZext);
     if (Attrs.hasAttribute(ArgNo + 1, Attribute::SExt))
       BA->addAttr(FunctionParameterAttributeSext);
+    if (Attrs.hasAttribute(ArgNo + 1, Attribute::Alignment)) {
+      SPIRVWord AlignmentBytes =
+          Attrs.getAttribute(ArgNo + 1, Attribute::Alignment)
+              .getAlignment()
+              .valueOrOne()
+              .value();
+      BA->setAlignment(AlignmentBytes);
+    }
     if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_1) &&
         Attrs.hasAttribute(ArgNo + 1, Attribute::Dereferenceable))
       BA->addDecorate(DecorationMaxByteOffset,

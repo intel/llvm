@@ -1555,6 +1555,26 @@ bool isSPIRVOCLExtInst(const CallInst *CI, OCLExtOpKind *ExtOp) {
   return true;
 }
 
+std::string decodeSPIRVTypeName(StringRef Name,
+                                SmallVectorImpl<std::string> &Strs) {
+  SmallVector<StringRef, 4> SubStrs;
+  const char Delim[] = {kSPIRVTypeName::Delimiter, 0};
+  Name.split(SubStrs, Delim, -1, true);
+  assert(SubStrs.size() >= 2 && "Invalid SPIRV type name");
+  assert(SubStrs[0] == kSPIRVTypeName::Prefix && "Invalid prefix");
+  assert((SubStrs.size() == 2 || !SubStrs[2].empty()) && "Invalid postfix");
+
+  if (SubStrs.size() > 2) {
+    const char PostDelim[] = {kSPIRVTypeName::PostfixDelim, 0};
+    SmallVector<StringRef, 4> Postfixes;
+    SubStrs[2].split(Postfixes, PostDelim, -1, true);
+    assert(Postfixes.size() > 1 && Postfixes[0].empty() && "Invalid postfix");
+    for (unsigned I = 1, E = Postfixes.size(); I != E; ++I)
+      Strs.push_back(std::string(Postfixes[I]).c_str());
+  }
+  return SubStrs[1].str();
+}
+
 // Returns true if type(s) and number of elements (if vector) is valid
 bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   switch (II->getIntrinsicID()) {

@@ -480,8 +480,9 @@ static RTLIB::Libcall getRTLibDesc(unsigned Opcode, unsigned Size) {
 
 /// True if an instruction is in tail position in its caller. Intended for
 /// legalizing libcalls as tail calls when possible.
-static bool isLibCallInTailPosition(const TargetInstrInfo &TII,
-                                    MachineInstr &MI) {
+static bool isLibCallInTailPosition(MachineInstr &MI,
+                                    const TargetInstrInfo &TII,
+                                    MachineRegisterInfo &MRI) {
   MachineBasicBlock &MBB = *MI.getParent();
   const Function &F = MBB.getParent()->getFunction();
 
@@ -500,8 +501,47 @@ static bool isLibCallInTailPosition(const TargetInstrInfo &TII,
       CallerAttrs.hasAttribute(AttributeList::ReturnIndex, Attribute::SExt))
     return false;
 
-  // Only tail call if the following instruction is a standard return.
+  // Only tail call if the following instruction is a standard return or if we
+  // have a `thisreturn` callee, and a sequence like:
+  //
+  //   G_MEMCPY %0, %1, %2
+  //   $x0 = COPY %0
+  //   RET_ReallyLR implicit $x0
   auto Next = next_nodbg(MI.getIterator(), MBB.instr_end());
+  if (Next != MBB.instr_end() && Next->isCopy()) {
+    switch (MI.getOpcode()) {
+    default:
+      llvm_unreachable("unsupported opcode");
+    case TargetOpcode::G_BZERO:
+      return false;
+    case TargetOpcode::G_MEMCPY:
+    case TargetOpcode::G_MEMMOVE:
+    case TargetOpcode::G_MEMSET:
+      break;
+    }
+
+    Register VReg = MI.getOperand(0).getReg();
+    if (!VReg.isVirtual() || VReg != Next->getOperand(1).getReg())
+      return false;
+
+    Register PReg = Next->getOperand(0).getReg();
+    if (!PReg.isPhysical())
+      return false;
+
+    auto Ret = next_nodbg(Next, MBB.instr_end());
+    if (Ret == MBB.instr_end() || !Ret->isReturn())
+      return false;
+
+    if (Ret->getNumImplicitOperands() != 1)
+      return false;
+
+    if (PReg != Ret->getOperand(0).getReg())
+      return false;
+
+    // Skip over the COPY that we just validated.
+    Next = Ret;
+  }
+
   if (Next == MBB.instr_end() || TII.isTailCall(*Next) || !Next->isReturn())
     return false;
 
@@ -580,15 +620,18 @@ llvm::createMemLibcall(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
     break;
   case TargetOpcode::G_MEMCPY:
     RTLibcall = RTLIB::MEMCPY;
+    Args[0].Flags[0].setReturned();
     break;
   case TargetOpcode::G_MEMMOVE:
     RTLibcall = RTLIB::MEMMOVE;
+    Args[0].Flags[0].setReturned();
     break;
   case TargetOpcode::G_MEMSET:
     RTLibcall = RTLIB::MEMSET;
+    Args[0].Flags[0].setReturned();
     break;
   default:
-    return LegalizerHelper::UnableToLegalize;
+    llvm_unreachable("unsupported opcode");
   }
   const char *Name = TLI.getLibcallName(RTLibcall);
 
@@ -604,12 +647,11 @@ llvm::createMemLibcall(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
   Info.Callee = MachineOperand::CreateES(Name);
   Info.OrigRet = CallLowering::ArgInfo({0}, Type::getVoidTy(Ctx), 0);
   Info.IsTailCall = MI.getOperand(MI.getNumOperands() - 1).getImm() &&
-                    isLibCallInTailPosition(MIRBuilder.getTII(), MI);
+                    isLibCallInTailPosition(MI, MIRBuilder.getTII(), MRI);
 
   std::copy(Args.begin(), Args.end(), std::back_inserter(Info.OrigArgs));
   if (!CLI.lowerCall(MIRBuilder, Info))
     return LegalizerHelper::UnableToLegalize;
-
 
   if (Info.LoweredTailCall) {
     assert(Info.IsTailCall && "Lowered tail call when it wasn't a tail call?");
@@ -621,7 +663,8 @@ llvm::createMemLibcall(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
     // isLibCallInTailPosition.
     do {
       MachineInstr *Next = MI.getNextNode();
-      assert(Next && (Next->isReturn() || Next->isDebugInstr()) &&
+      assert(Next &&
+             (Next->isCopy() || Next->isReturn() || Next->isDebugInstr()) &&
              "Expected instr following MI to be return or debug inst?");
       // We lowered a tail call, so the call is now the return from the block.
       // Delete the old return.
@@ -1928,6 +1971,45 @@ LegalizerHelper::widenScalar(MachineInstr &MI, unsigned TypeIdx, LLT WideTy) {
   switch (MI.getOpcode()) {
   default:
     return UnableToLegalize;
+  case TargetOpcode::G_ATOMICRMW_XCHG:
+  case TargetOpcode::G_ATOMICRMW_ADD:
+  case TargetOpcode::G_ATOMICRMW_SUB:
+  case TargetOpcode::G_ATOMICRMW_AND:
+  case TargetOpcode::G_ATOMICRMW_OR:
+  case TargetOpcode::G_ATOMICRMW_XOR:
+  case TargetOpcode::G_ATOMICRMW_MIN:
+  case TargetOpcode::G_ATOMICRMW_MAX:
+  case TargetOpcode::G_ATOMICRMW_UMIN:
+  case TargetOpcode::G_ATOMICRMW_UMAX:
+    assert(TypeIdx == 0 && "atomicrmw with second scalar type");
+    Observer.changingInstr(MI);
+    widenScalarSrc(MI, WideTy, 2, TargetOpcode::G_ANYEXT);
+    widenScalarDst(MI, WideTy, 0);
+    Observer.changedInstr(MI);
+    return Legalized;
+  case TargetOpcode::G_ATOMIC_CMPXCHG:
+    assert(TypeIdx == 0 && "G_ATOMIC_CMPXCHG with second scalar type");
+    Observer.changingInstr(MI);
+    widenScalarSrc(MI, WideTy, 2, TargetOpcode::G_ANYEXT);
+    widenScalarSrc(MI, WideTy, 3, TargetOpcode::G_ANYEXT);
+    widenScalarDst(MI, WideTy, 0);
+    Observer.changedInstr(MI);
+    return Legalized;
+  case TargetOpcode::G_ATOMIC_CMPXCHG_WITH_SUCCESS:
+    if (TypeIdx == 0) {
+      Observer.changingInstr(MI);
+      widenScalarSrc(MI, WideTy, 3, TargetOpcode::G_ANYEXT);
+      widenScalarSrc(MI, WideTy, 4, TargetOpcode::G_ANYEXT);
+      widenScalarDst(MI, WideTy, 0);
+      Observer.changedInstr(MI);
+      return Legalized;
+    }
+    assert(TypeIdx == 1 &&
+           "G_ATOMIC_CMPXCHG_WITH_SUCCESS with third scalar type");
+    Observer.changingInstr(MI);
+    widenScalarDst(MI, WideTy, 1);
+    Observer.changedInstr(MI);
+    return Legalized;
   case TargetOpcode::G_EXTRACT:
     return widenScalarExtract(MI, TypeIdx, WideTy);
   case TargetOpcode::G_INSERT:
@@ -2983,9 +3065,15 @@ LegalizerHelper::bitcast(MachineInstr &MI, unsigned TypeIdx, LLT CastTy) {
   case TargetOpcode::G_LOAD: {
     if (TypeIdx != 0)
       return UnableToLegalize;
+    MachineMemOperand &MMO = **MI.memoperands_begin();
+
+    // Not sure how to interpret a bitcast of an extending load.
+    if (MMO.getMemoryType().getSizeInBits() != CastTy.getSizeInBits())
+      return UnableToLegalize;
 
     Observer.changingInstr(MI);
     bitcastDst(MI, CastTy, 0);
+    MMO.setType(CastTy);
     Observer.changedInstr(MI);
     return Legalized;
   }
@@ -2993,8 +3081,15 @@ LegalizerHelper::bitcast(MachineInstr &MI, unsigned TypeIdx, LLT CastTy) {
     if (TypeIdx != 0)
       return UnableToLegalize;
 
+    MachineMemOperand &MMO = **MI.memoperands_begin();
+
+    // Not sure how to interpret a bitcast of a truncating store.
+    if (MMO.getMemoryType().getSizeInBits() != CastTy.getSizeInBits())
+      return UnableToLegalize;
+
     Observer.changingInstr(MI);
     bitcastSrc(MI, CastTy, 0);
+    MMO.setType(CastTy);
     Observer.changedInstr(MI);
     return Legalized;
   }

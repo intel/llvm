@@ -390,6 +390,11 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
 
 pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
   ze_event_pool_handle_t ZePool = Event->ZeEventPool;
+  if (!ZePool) {
+    // This must be an interop event created on a users's pool.
+    // Do nothing.
+    return PI_SUCCESS;
+  }
   std::lock_guard<std::mutex> Lock(NumEventsUnreleasedInEventPoolMutex);
   --NumEventsUnreleasedInEventPool[ZePool];
   if (NumEventsUnreleasedInEventPool[ZePool] == 0) {
@@ -759,10 +764,7 @@ pi_result _pi_context::getAvailableCommandList(
     if (auto Res = Queue->executeOpenCommandList())
       return Res;
   }
-  // Use of copy engine is enabled only for out-of-order queues.
-  // TODO: Revisit this when in-order queue spport is available in L0 plugin.
-  bool UseCopyEngine = !(Queue->isInOrderQueue()) && PreferCopyEngine &&
-                       Queue->Device->hasCopyEngine();
+  bool UseCopyEngine = PreferCopyEngine && Queue->Device->hasCopyEngine();
 
   // Create/Reuse the command list, because in Level Zero commands are added to
   // the command lists, and later are then added to the command queue.
@@ -1064,7 +1066,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
 
         auto Queue = EventList[I]->Queue;
 
-        if (Queue != CurQueue) {
+        if (Queue && Queue != CurQueue) {
           // If the event that is going to be waited on is in a
           // different queue, then any open command list in
           // that queue must be closed and executed because
@@ -4176,8 +4178,8 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   try {
     PI_ASSERT(RetEvent, PI_INVALID_VALUE);
 
-    *RetEvent =
-        new _pi_event(ZeEvent, ZeEventPool, Context, PI_COMMAND_TYPE_USER);
+    *RetEvent = new _pi_event(ZeEvent, ZeEventPool, Context,
+                              PI_COMMAND_TYPE_USER, true);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -4197,7 +4199,7 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
   case PI_EVENT_INFO_COMMAND_QUEUE:
     return ReturnValue(pi_queue{Event->Queue});
   case PI_EVENT_INFO_CONTEXT:
-    return ReturnValue(pi_context{Event->Queue->Context});
+    return ReturnValue(pi_context{Event->Context});
   case PI_EVENT_INFO_COMMAND_TYPE:
     return ReturnValue(pi_cast<pi_uint64>(Event->CommandType));
   case PI_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
@@ -4206,7 +4208,7 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
     // possible that this is trying to query some event's status that
     // is part of the batch.  This isn't strictly required, but it seems
     // like a reasonable thing to do.
-    {
+    if (Event->Queue) {
       // Lock automatically releases when this goes out of scope.
       std::lock_guard<std::mutex> lock(Event->Queue->PiQueueMutex);
 
@@ -4249,7 +4251,9 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
   uint64_t ZeTimerResolution =
-      Event->Queue->Device->ZeDeviceProperties.timerResolution;
+      Event->Queue
+          ? Event->Queue->Device->ZeDeviceProperties.timerResolution
+          : Event->Context->Devices[0]->ZeDeviceProperties.timerResolution;
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
@@ -4310,9 +4314,8 @@ static pi_result cleanupAfterEvent(pi_event Event) {
   // queue to also serve as the thread safety mechanism for the
   // any of the Event's data members that need to be read/reset as
   // part of the cleanup operations.
-  {
-    auto Queue = Event->Queue;
-
+  auto Queue = Event->Queue;
+  if (Queue) {
     // Lock automatically releases when this goes out of scope.
     std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
@@ -4373,15 +4376,15 @@ static pi_result cleanupAfterEvent(pi_event Event) {
     if (Queue->LastCommandEvent == Event) {
       Queue->LastCommandEvent = nullptr;
     }
+  }
 
-    if (!Event->CleanedUp) {
-      Event->CleanedUp = true;
-      // Release this event since we explicitly retained it on creation.
-      // NOTE: that this needs to be done only once for an event so
-      // this is guarded with the CleanedUp flag.
-      //
-      PI_CALL(piEventRelease(Event));
-    }
+  if (!Event->CleanedUp) {
+    Event->CleanedUp = true;
+    // Release this event since we explicitly retained it on creation.
+    // NOTE: that this needs to be done only once for an event so
+    // this is guarded with the CleanedUp flag.
+    //
+    PI_CALL(piEventRelease(Event));
   }
 
   // Make a list of all the dependent events that must have signalled
@@ -4403,7 +4406,7 @@ static pi_result cleanupAfterEvent(pi_event Event) {
 
     DepEvent->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
         EventsToBeReleased);
-    if (IndirectAccessTrackingEnabled) {
+    if (IndirectAccessTrackingEnabled && DepEvent->Queue) {
       // DepEvent has finished, we can release the associated kernel if there is
       // one. This is the earliest place we can do this and it can't be done
       // twice, so it is safe. Lock automatically releases when this goes out of
@@ -4431,13 +4434,14 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   // Submit dependent open command lists for execution, if any
   for (uint32_t I = 0; I < NumEvents; I++) {
     auto Queue = EventList[I]->Queue;
+    if (Queue) {
+      // Lock automatically releases when this goes out of scope.
+      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-    // Lock automatically releases when this goes out of scope.
-    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
-    if (Queue->RefCount > 0) {
-      if (auto Res = Queue->executeOpenCommandList())
-        return Res;
+      if (Queue->RefCount > 0) {
+        if (auto Res = Queue->executeOpenCommandList())
+          return Res;
+      }
     }
   }
 
@@ -4507,14 +4511,15 @@ pi_result piEventRelease(pi_event Event) {
       // TODO: always use piextUSMFree
       if (IndirectAccessTrackingEnabled) {
         // Use the version with reference counting
-        PI_CALL(piextUSMFree(Event->Queue->Context, Event->CommandData));
+        PI_CALL(piextUSMFree(Event->Context, Event->CommandData));
       } else {
-        ZE_CALL(zeMemFree,
-                (Event->Queue->Context->ZeContext, Event->CommandData));
+        ZE_CALL(zeMemFree, (Event->Context->ZeContext, Event->CommandData));
       }
       Event->CommandData = nullptr;
     }
-    ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+    if (Event->OwnZeEvent) {
+      ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+    }
 
     auto Context = Event->Context;
     if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
@@ -4524,7 +4529,9 @@ pi_result piEventRelease(pi_event Event) {
     // created so that we can avoid pi_queue is released before the associated
     // pi_event is released. Here we have to decrement it so pi_queue
     // can be released successfully.
-    PI_CALL(piQueueRelease(Event->Queue));
+    if (Event->Queue) {
+      PI_CALL(piQueueRelease(Event->Queue));
+    }
     delete Event;
   }
   return PI_SUCCESS;
@@ -4532,17 +4539,26 @@ pi_result piEventRelease(pi_event Event) {
 
 pi_result piextEventGetNativeHandle(pi_event Event,
                                     pi_native_handle *NativeHandle) {
-  (void)Event;
-  (void)NativeHandle;
-  die("piextEventGetNativeHandle: not supported");
+  PI_ASSERT(Event, PI_INVALID_EVENT);
+  PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
+
+  auto *ZeEvent = pi_cast<ze_event_handle_t *>(NativeHandle);
+  *ZeEvent = Event->ZeEvent;
   return PI_SUCCESS;
 }
 
 pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                           pi_context Context,
+                                           bool OwnNativeHandle,
                                            pi_event *Event) {
-  (void)NativeHandle;
-  (void)Event;
-  die("piextEventCreateWithNativeHandle: not supported");
+  PI_ASSERT(Context, PI_INVALID_CONTEXT);
+  PI_ASSERT(Event, PI_INVALID_EVENT);
+  PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
+
+  auto ZeEvent = pi_cast<ze_event_handle_t>(NativeHandle);
+  *Event = new _pi_event(ZeEvent, nullptr /* ZeEventPool */, Context,
+                         PI_COMMAND_TYPE_USER, OwnNativeHandle);
+
   return PI_SUCCESS;
 }
 

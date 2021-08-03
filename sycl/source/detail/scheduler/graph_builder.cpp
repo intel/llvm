@@ -516,7 +516,7 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 }
 
 Command *Scheduler::GraphBuilder::addCGUpdateHost(
-    std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr HostQueue,
+    std::unique_ptr<detail::CommandGroup> CommandGroup, QueueImplPtr HostQueue,
     std::vector<Command *> &ToEnqueue) {
 
   auto UpdateHost = static_cast<CGUpdateHost *>(CommandGroup.get());
@@ -677,12 +677,12 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       // unnecessary copy on devices with unified host memory support.
       const bool HostUnifiedMemory =
           checkHostUnifiedMemory(Queue->getContextImplPtr());
-      const bool InitFromUserData =
-          Record->MAllocaCommands.empty() && HostUnifiedMemory;
-      AllocaCommandBase *LinkedAllocaCmd = nullptr;
       // TODO casting is required here to get the necessary information
       // without breaking ABI, replace with the next major version.
       auto *MemObj = static_cast<SYCLMemObjT *>(Req->MSYCLMemObj);
+      const bool InitFromUserData = Record->MAllocaCommands.empty() &&
+                                    (HostUnifiedMemory || MemObj->isInterop());
+      AllocaCommandBase *LinkedAllocaCmd = nullptr;
 
       // For the first allocation on a device without host unified memory we
       // might need to also create a host alloca right away in order to perform
@@ -849,7 +849,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
 }
 
 static bool isInteropHostTask(const std::unique_ptr<ExecCGCommand> &Cmd) {
-  if (Cmd->getCG().getType() != CG::CGType::CodeplayHostTask)
+  if (Cmd->getCG().getType() != CommandGroup::CGType::CodeplayHostTask)
     return false;
 
   const detail::CGHostTask &HT =
@@ -878,13 +878,12 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
   }
 }
 
-Command *
-Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
-                               QueueImplPtr Queue,
-                               std::vector<Command *> &ToEnqueue) {
+Command *Scheduler::GraphBuilder::addCG(
+    std::unique_ptr<detail::CommandGroup> CommandGroup, QueueImplPtr Queue,
+    std::vector<Command *> &ToEnqueue) {
   std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
-  const CG::CGType CGType = CommandGroup->getType();
+  const CommandGroup::CGType CGType = CommandGroup->getType();
 
   std::unique_ptr<ExecCGCommand> NewCmd(
       new ExecCGCommand(std::move(CommandGroup), Queue));
@@ -978,7 +977,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
       ToEnqueue.push_back(ConnCmd);
   }
 
-  if (CGType == CG::CGType::CodeplayHostTask)
+  if (CGType == CommandGroup::CGType::CodeplayHostTask)
     NewCmd->MEmptyCmd =
         addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements, Queue,
                     Command::BlockReason::HostTask, ToEnqueue);
@@ -1185,11 +1184,11 @@ Command *Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
 
   {
     std::unique_ptr<detail::HostTask> HT(new detail::HostTask);
-    std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
+    std::unique_ptr<detail::CommandGroup> ConnectCG(new detail::CGHostTask(
         std::move(HT), /* Queue = */ {}, /* Context = */ {}, /* Args = */ {},
         /* ArgsStorage = */ {}, /* AccStorage = */ {},
         /* SharedPtrStorage = */ {}, /* Requirements = */ {},
-        /* DepEvents = */ {DepEvent}, CG::CodeplayHostTask,
+        /* DepEvents = */ {DepEvent}, CommandGroup::CodeplayHostTask,
         /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
