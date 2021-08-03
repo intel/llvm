@@ -582,7 +582,7 @@ sizes.
 In AOT mode, for each AOT target specified by the `-fsycl-targets` command
 line option, DPC++ normally invokes the AOT compiler for each device IR module
 resulting from the sycl-post-link tool.  For example, this is the `ocloc`
-command for Intel Gen AOT target and the `opencl-aot` command for the x86 AOT
+command for Intel Graphics AOT target and the `opencl-aot` command for the x86 AOT
 target with SPIR-V as the input, or other specific tools for the PTX target
 with LLVM IR bitcode input.  This causes a problem, though, for IR modules that
 use optional features because these commands could fail if they attempt to
@@ -645,7 +645,7 @@ containing necessary information about the module, such as the code itself, its
 properties.
 
 At the action graph building stage for each requested AOT compilation target -
-SPIR-V-based (such as Gen targets) and/or non-SPIR-V-based (such as PTX) - the
+SPIR-V-based (such as Intel Graphics targets) and/or non-SPIR-V-based (such as PTX) - the
 driver adds an `aspect-filter` action which filters out input file table rows
 with device code modules using features unsupported on current target. Then the
 output table goes as input into the AOT stage, and the prior filtering
@@ -661,7 +661,7 @@ example set of targets used for the illustration is 4 targets
     - non-SPIR-V based
         - ptx64 (PTX)
     - SPIR-V based
-        - intel_gpu_11 (Intel Gen)
+        - intel_gpu_12 (Intel Graphics)
         - x86_64_avx512 (AVX512)
 
 ![Device SPIRV translation and AOT compilation](images/DeviceLinkAOTAndWrap.svg)
@@ -729,19 +729,17 @@ are allowed. Below is a list of target architectures supported by DPC++:
 
 | target/alias(es) | description |
 |-|-|
-| fpga   | Generic Intel FPGA accelerator architecture |
 | intel_gpu    | Generic Intel graphics architecture |
-| intel_gpu_skl, intel_gpu_9_0 | Intel Skylake (6th generation Core) integrated graphics architecture |
-| intel_gpu_kbl, intel_gpu_9_1 | Intel Kaby Lake (7th generation Core) integrated graphics architecture |
+| intel_gpu_tgl, intel_gpu_12_0 | Intel Tiger Lake (11th generation Core) integrated graphics architecture |
 | ptx64  | Generic 64-bit PTX target architecture |
 | spir64 | Generic 64-bit SPIR-V target |
 | x86_64 | Generic 64-bit x86 architecture |
 
-TODO: add more targets
+TODO: Provide full list of AOT targets supported by the identification mechanism.
 
-Example of clang compilation invocation with 3 AOT targets and generic SPIR-V:
+Example of clang compilation invocation with 2 AOT targets and generic SPIR-V:
 ```
-clang++ -fsycl -fsycl-targets=spir64,intel_gpu_9_0,intel_gpu_kbl,ptx64 ...
+clang++ -fsycl -fsycl-targets=spir64,intel_gpu_12_0,ptx64 ...
 ```
 
 ### Changes to the DPC++ runtime
