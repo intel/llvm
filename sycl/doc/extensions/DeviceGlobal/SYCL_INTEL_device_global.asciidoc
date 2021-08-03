@@ -433,7 +433,7 @@ the SYCL 2020 specification.
 
 [NOTE]
 ====
-A pointer to the allocation within a `device_global` may not be obtained by the host program (can only be extracted in device functions because allocations are per device), so pointer arithmetic can therefore not be used in the host program to define `copy`/`memcpy' offsets into data.  `startIndex` and `offset` arguments are provided in these interfaces to allow offsetting without pointer arithmetic.
+A pointer to the allocation within a `device_global` may not be obtained by the host program (can only be extracted in device functions because allocations are per device), so pointer arithmetic can therefore not be used in the host program to define `copy`/`memcpy` offsets into data.  `startIndex` and `offset` arguments are provided in these interfaces to allow offsetting without pointer arithmetic.
 ====
 
 ```c++
