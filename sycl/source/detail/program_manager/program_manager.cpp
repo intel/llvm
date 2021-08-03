@@ -520,10 +520,11 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 }
 
 std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>
-ProgramManager::getOrCreateKernel(
-    OSModuleHandle M, const ContextImplPtr &Context,
-    const DeviceImplPtr &Device, const std::string &KernelName,
-    const program_impl *Prg) {
+ProgramManager::getOrCreateKernel(OSModuleHandle M,
+                                  const ContextImplPtr &Context,
+                                  const DeviceImplPtr &Device,
+                                  const std::string &KernelName,
+                                  const program_impl *Prg) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
               << Context.get() << ", " << Device.get() << ", " << KernelName
