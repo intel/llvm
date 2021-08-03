@@ -3960,7 +3960,7 @@ class OffloadingActionBuilder final {
     /// List of static archives to extract FPGA dependency info from
     ActionList FPGAArchiveInputs;
 
-    /// List of CUDA architectures to use in this compilation with NVPTX targets.
+    /// List of GPU architectures to use in this compilation with NVPTX/AMDGCN targets.
     SmallVector<std::pair<llvm::Triple, std::string>, 8> GpuArchList;
 
     /// Build the last steps for CUDA after all BC files have been linked.
