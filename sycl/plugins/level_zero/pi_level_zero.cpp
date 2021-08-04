@@ -528,13 +528,12 @@ createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
 
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
- 
+
   // Append this Event to the CommandList, if any
   if (CommandList != Queue->CommandListMap.end()) {
-   (*Event)->ZeCommandList = CommandList->first;
-   CommandList->second.append(*Event);
-  }
-  else {
+    (*Event)->ZeCommandList = CommandList->first;
+    CommandList->second.append(*Event);
+  } else {
     (*Event)->ZeCommandList = nullptr;
   }
 
