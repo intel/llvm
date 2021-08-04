@@ -8,6 +8,6 @@
 // RUN:  | FileCheck %s -check-prefix ERROR_OUTPUT
 // ERROR_OUTPUT: ld{{.*}} -o a.out
 // ERROR_OUTPUT: The FPGA image generated during this compile contains timing
-// violations
+// ERROR_OUTPUT-SAME: violations
 
 int main() { return 0; }
