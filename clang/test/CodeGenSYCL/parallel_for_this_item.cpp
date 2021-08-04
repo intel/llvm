@@ -18,7 +18,7 @@
 // CHECK-NEXT:   "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3BEE"
 // CHECK-NEXT: };
 
-// CHECK:template <> struct KernelInfo<class GNU> {
+// CHECK:template <> struct KernelInfo<GNU> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3GNU"; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
@@ -34,7 +34,7 @@
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:  static constexpr bool callsAnyThisFreeFunction() { return 0; }
 // CHECK-NEXT:};
-// CHECK-NEXT:template <> struct KernelInfo<class EMU> {
+// CHECK-NEXT:template <> struct KernelInfo<EMU> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3EMU"; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
@@ -50,7 +50,7 @@
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr bool callsAnyThisFreeFunction() { return 1; }
 // CHECK-NEXT:};
-// CHECK-NEXT:template <> struct KernelInfo<class OWL> {
+// CHECK-NEXT:template <> struct KernelInfo<OWL> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3OWL"; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
@@ -66,7 +66,7 @@
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr bool callsAnyThisFreeFunction() { return 0; }
 // CHECK-NEXT:};
-// CHECK-NEXT:template <> struct KernelInfo<class RAT> {
+// CHECK-NEXT:template <> struct KernelInfo<RAT> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3RAT"; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
@@ -82,7 +82,7 @@
 // CHECK-NEXT: __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr bool callsAnyThisFreeFunction() { return 1; }
 // CHECK-NEXT:};
-// CHECK-NEXT:template <> struct KernelInfo<class FOX> {
+// CHECK-NEXT:template <> struct KernelInfo<FOX> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3FOX"; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
@@ -98,7 +98,7 @@
 // CHECK-NEXT: __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr bool callsAnyThisFreeFunction() { return 1; }
 // CHECK-NEXT:};
-// CHECK-NEXT:template <> struct KernelInfo<class BEE> {
+// CHECK-NEXT:template <> struct KernelInfo<BEE> {
 // CHECK-NEXT:  __SYCL_DLL_LOCAL
 // CHECK-NEXT:    static constexpr const char* getName() { return "_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E3BEE"; }
 // CHECK-NEXT:  __SYCL_DLL_LOCAL

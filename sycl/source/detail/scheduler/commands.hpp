@@ -543,6 +543,7 @@ private:
   std::unique_ptr<detail::CommandGroup> MCommandGroup;
 
   friend class Command;
+  friend class Scheduler;
 };
 
 class UpdateHostRequirementCommand : public Command {
