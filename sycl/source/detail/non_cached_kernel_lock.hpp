@@ -3,7 +3,6 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/locked.hpp>
 #include <CL/sycl/detail/pi.hpp>
-//#include <detail/kernel_impl.hpp>
 
 #include <map>
 #include <mutex>
@@ -11,8 +10,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-
-//class context_impl;
 
 class NonCachedKernelLock {
 public:
@@ -26,8 +23,6 @@ private:
   using KernelLockMapT = std::map<RT::PiKernel, std::mutex>;
 
   KernelLockMapT Map{std::less<RT::PiKernel>{}};
-
-//  ContextPtr MParentContext;
 };
 
 } // namespace detail
