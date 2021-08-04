@@ -955,8 +955,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
       if (OpenCommandList->second.size() < QueueBatchSize) {
         return PI_SUCCESS;
       }
-    }
-    else {
+    } else {
       OpenCommandList = CommandList;
       return PI_SUCCESS;
     }
