@@ -3058,6 +3058,9 @@ void Sema::DeclareGlobalAllocationFunction(DeclarationName Name,
       EPI.ExceptionSpec.Type = EST_Dynamic;
       EPI.ExceptionSpec.Exceptions = llvm::makeArrayRef(BadAllocType);
     }
+    if (getLangOpts().NewInfallible) {
+      EPI.ExceptionSpec.Type = EST_DynamicNone;
+    }
   } else {
     EPI.ExceptionSpec =
         getLangOpts().CPlusPlus11 ? EST_BasicNoexcept : EST_DynamicNone;
@@ -3072,6 +3075,10 @@ void Sema::DeclareGlobalAllocationFunction(DeclarationName Name,
     Alloc->setImplicit();
     // Global allocation functions should always be visible.
     Alloc->setVisibleDespiteOwningModule();
+
+    if (HasBadAllocExceptionSpec && getLangOpts().NewInfallible)
+      Alloc->addAttr(
+          ReturnsNonNullAttr::CreateImplicit(Context, Alloc->getLocation()));
 
     Alloc->addAttr(VisibilityAttr::CreateImplicit(
         Context, LangOpts.GlobalAllocationFunctionVisibilityHidden
