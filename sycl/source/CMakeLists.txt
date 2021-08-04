@@ -128,6 +128,7 @@ set(SYCL_SOURCES
     "detail/kernel_impl.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
+    "detail/non_cached_kernel_lock.cpp"
     "detail/platform_impl.cpp"
     "detail/program_impl.cpp"
     "detail/program_manager/program_manager.cpp"

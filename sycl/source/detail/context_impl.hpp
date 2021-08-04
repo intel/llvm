@@ -16,6 +16,7 @@
 #include <CL/sycl/stl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_program_cache.hpp>
+#include <detail/non_cached_kernel_lock.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
@@ -159,6 +160,10 @@ public:
 
   KernelProgramCache &getKernelProgramCache() const;
 
+  Locked<RT::PiKernel> getNonCachedKernelLock(RT::PiKernel &K) const {
+    return MNonCachedKernelLock.lockKernel(K);
+  }
+
   /// Returns true if and only if context contains the given device.
   bool hasDevice(std::shared_ptr<detail::device_impl> Device) const;
 
@@ -177,6 +182,7 @@ private:
   std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
       MCachedLibPrograms;
   mutable KernelProgramCache MKernelProgramCache;
+  mutable NonCachedKernelLock MNonCachedKernelLock;
 };
 
 } // namespace detail
