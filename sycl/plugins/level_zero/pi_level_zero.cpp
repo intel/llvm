@@ -947,11 +947,16 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // as we want to strictly follow the batching the user specified.
   if (OKToBatchCommand && this->isBatchingAllowed() &&
       (!UseDynamicBatching || !CurrentlyEmpty)) {
-    if (hasOpenCommandList() && OpenCommandList != CommandList)
-      die("executeCommandList: OpenCommandList should be equal to"
-          "null or CommandList");
+    if (hasOpenCommandList()) {
+      if (OpenCommandList != CommandList)
+        die("executeCommandList: OpenCommandList should be equal to"
+            "null or CommandList");
 
-    if (OpenCommandList->second.EventList.size() < QueueBatchSize) {
+      if (OpenCommandList->second.size() < QueueBatchSize) {
+        return PI_SUCCESS;
+      }
+    }
+    else {
       OpenCommandList = CommandList;
       return PI_SUCCESS;
     }
