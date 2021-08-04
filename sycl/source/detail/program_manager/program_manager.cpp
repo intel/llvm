@@ -521,24 +521,21 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 
 std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>
 ProgramManager::getOrCreateKernel(OSModuleHandle M,
-                                  const ContextImplPtr &Context,
-                                  const DeviceImplPtr &Device,
+                                  const ContextImplPtr &ContextImpl,
+                                  const DeviceImplPtr &DeviceImpl,
                                   const std::string &KernelName,
                                   const program_impl *Prg) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
-              << Context.get() << ", " << Device.get() << ", " << KernelName
-              << ")\n";
+              << ContextImpl.get() << ", " << DeviceImpl.get() << ", "
+              << KernelName << ")\n";
   }
-
-  RT::PiProgram Program =
-      getBuiltPIProgram(M, Context, Device, KernelName, Prg);
 
   using PiKernelT = KernelProgramCache::PiKernelT;
   using KernelCacheT = KernelProgramCache::KernelCacheT;
   using KernelByNameT = KernelProgramCache::KernelByNameT;
 
-  KernelProgramCache &Cache = Context->getKernelProgramCache();
+  KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string CompileOpts, LinkOpts;
   SerializedObj SpecConsts;
@@ -547,7 +544,7 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
   }
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
-  const RT::PiDevice PiDevice = detail::getSyclObjImpl(Device)->getHandleRef();
+  const RT::PiDevice PiDevice = DeviceImpl->getHandleRef();
 
   auto key = std::make_tuple(std::move(SpecConsts), M, PiDevice,
                              CompileOpts + LinkOpts, KernelName);
@@ -556,7 +553,7 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
     return ret_tuple;
 
   RT::PiProgram Program =
-      getBuiltPIProgram(M, Context, Device, KernelName, Prg);
+      getBuiltPIProgram(M, ContextImpl, DeviceImpl, KernelName, Prg);
 
   auto AcquireF = [](KernelProgramCache &Cache) {
     return Cache.acquireKernelsPerProgramCache();
@@ -565,12 +562,12 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
       [&Program](const Locked<KernelCacheT> &LockedCache) -> KernelByNameT & {
     return LockedCache.get()[Program];
   };
-  auto BuildF = [&Program, &KernelName, &Context] {
+  auto BuildF = [&Program, &KernelName, &ContextImpl] {
     PiKernelT *Result = nullptr;
 
     // TODO need some user-friendly error/exception
     // instead of currently obscure one
-    const detail::plugin &Plugin = Context->getPlugin();
+    const detail::plugin &Plugin = ContextImpl->getPlugin();
     Plugin.call<PiApiKind::piKernelCreate>(Program, KernelName.c_str(),
                                            &Result);
 
