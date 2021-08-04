@@ -41,12 +41,12 @@ template <> struct KernelInfo<TestKernel> {
 
 using namespace sycl;
 
-pi_event GWaitEvent = nullptr;
+size_t GEventsWaitCounter = 0;
 
 inline pi_result redefinedEventsWait(pi_uint32 num_events,
                                      const pi_event *event_list) {
-  if (!GWaitEvent) {
-    GWaitEvent = const_cast<pi_event>(event_list[0]);
+  if (num_events > 0) {
+    GEventsWaitCounter++;
   }
   return PI_SUCCESS;
 }
@@ -61,6 +61,7 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
 
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
+  Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, Selector, property::queue::in_order()};
@@ -80,5 +81,5 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   InOrderQueue.wait();
 
   auto EventImpl = detail::getSyclObjImpl(Evt);
-  EXPECT_EQ(GWaitEvent, EventImpl->getHandleRef());
+  EXPECT_TRUE(GEventsWaitCounter >= 1);
 }
