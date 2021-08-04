@@ -7,7 +7,7 @@
 // RUN: %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=amdgcn-amd-amdhsa-sycldevice %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ARCH %s
-// CHK-ARCH: error: Missing AMDGPU architecture for SYCL offloading. Please specify it with -Xsycl-target-backend --offload-arch.
+// CHK-ARCH: error: missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend --offload-arch'
 
 /// Check action graph.
 // RUN: %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
