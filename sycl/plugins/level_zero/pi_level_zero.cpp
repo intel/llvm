@@ -528,11 +528,14 @@ createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
 
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
-  (*Event)->ZeCommandList = CommandList->first;
-
+ 
   // Append this Event to the CommandList, if any
   if (CommandList != Queue->CommandListMap.end()) {
-    CommandList->second.append(*Event);
+   (*Event)->ZeCommandList = CommandList->first;
+   CommandList->second.append(*Event);
+  }
+  else {
+    (*Event)->ZeCommandList = nullptr;
   }
 
   // We need to increment the reference counter here to avoid pi_queue
@@ -873,7 +876,7 @@ pi_result _pi_context::getAvailableCommandList(
     auto &ZeCommandQueue =
         (UseCopyEngine) ? ZeCopyCommandQueue : Queue->ZeComputeCommandQueue;
     ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
-    Queue->CommandListMap.insert(
+    std::tie(CommandList, std::ignore) = Queue->CommandListMap.insert(
         std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
             ZeCommandList, {ZeFence, false, CopyQueueIndex}));
     pi_result = PI_SUCCESS;
