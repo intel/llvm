@@ -478,7 +478,8 @@ bool getSPIRVBuiltin(const std::string &OrigName, spv::BuiltIn &B) {
   SmallVector<StringRef, 2> Postfix;
   StringRef R(OrigName);
   R = dePrefixSPIRVName(R, Postfix);
-  assert(Postfix.empty() && "Invalid SPIR-V builtin Name");
+  if (!Postfix.empty())
+    return false;
   return getByName(R.str(), B);
 }
 
