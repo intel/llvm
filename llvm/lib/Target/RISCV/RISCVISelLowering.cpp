@@ -516,6 +516,11 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::FP_TO_SINT, VT, Custom);
       setOperationAction(ISD::FP_TO_UINT, VT, Custom);
 
+      setOperationAction(ISD::SADDSAT, VT, Legal);
+      setOperationAction(ISD::UADDSAT, VT, Legal);
+      setOperationAction(ISD::SSUBSAT, VT, Legal);
+      setOperationAction(ISD::USUBSAT, VT, Legal);
+
       // Integer VTs are lowered as a series of "RISCVISD::TRUNCATE_VECTOR_VL"
       // nodes which truncate by one power of two at a time.
       setOperationAction(ISD::TRUNCATE, VT, Custom);
@@ -741,6 +746,11 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
 
         setOperationAction(ISD::MULHS, VT, Custom);
         setOperationAction(ISD::MULHU, VT, Custom);
+
+        setOperationAction(ISD::SADDSAT, VT, Custom);
+        setOperationAction(ISD::UADDSAT, VT, Custom);
+        setOperationAction(ISD::SSUBSAT, VT, Custom);
+        setOperationAction(ISD::USUBSAT, VT, Custom);
 
         setOperationAction(ISD::VSELECT, VT, Custom);
         setOperationAction(ISD::SELECT_CC, VT, Expand);
@@ -1694,12 +1704,22 @@ static SDValue lowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
   unsigned NumUndefElts =
       count_if(Op->op_values(), [](const SDValue &V) { return V.isUndef(); });
 
+  // Track the number of scalar loads we know we'd be inserting, estimated as
+  // any non-zero floating-point constant. Other kinds of element are either
+  // already in registers or are materialized on demand. The threshold at which
+  // a vector load is more desirable than several scalar materializion and
+  // vector-insertion instructions is not known.
+  unsigned NumScalarLoads = 0;
+
   for (SDValue V : Op->op_values()) {
     if (V.isUndef())
       continue;
 
     ValueCounts.insert(std::make_pair(V, 0));
     unsigned &Count = ValueCounts[V];
+
+    if (auto *CFP = dyn_cast<ConstantFPSDNode>(V))
+      NumScalarLoads += !CFP->isExactlyValue(+0.0);
 
     // Is this value dominant? In case of a tie, prefer the highest element as
     // it's cheaper to insert near the beginning of a vector than it is at the
@@ -1716,7 +1736,7 @@ static SDValue lowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
 
   // Don't perform this optimization when optimizing for size, since
   // materializing elements and inserting them tends to cause code bloat.
-  if (!DAG.shouldOptForSize() &&
+  if (!DAG.shouldOptForSize() && NumScalarLoads < NumElts &&
       ((MostCommonCount > DominantValueCountThreshold) ||
        (ValueCounts.size() <= Log2_32(NumDefElts)))) {
     // Start by splatting the most common element.
@@ -2569,6 +2589,14 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
     assert(Op.getOperand(1).getValueType() == MVT::i32 && Subtarget.is64Bit() &&
            "Unexpected custom legalisation");
     return SDValue();
+  case ISD::SADDSAT:
+    return lowerToScalableOp(Op, DAG, RISCVISD::SADDSAT_VL);
+  case ISD::UADDSAT:
+    return lowerToScalableOp(Op, DAG, RISCVISD::UADDSAT_VL);
+  case ISD::SSUBSAT:
+    return lowerToScalableOp(Op, DAG, RISCVISD::SSUBSAT_VL);
+  case ISD::USUBSAT:
+    return lowerToScalableOp(Op, DAG, RISCVISD::USUBSAT_VL);
   case ISD::FADD:
     return lowerToScalableOp(Op, DAG, RISCVISD::FADD_VL);
   case ISD::FSUB:
@@ -4873,7 +4901,8 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
         return;
       if (!isTypeLegal(Op0.getValueType()))
         return;
-      unsigned Opc = IsSigned ? RISCVISD::FCVT_W_RV64 : RISCVISD::FCVT_WU_RV64;
+      unsigned Opc =
+          IsSigned ? RISCVISD::FCVT_W_RTZ_RV64 : RISCVISD::FCVT_WU_RTZ_RV64;
       SDValue Res = DAG.getNode(Opc, DL, MVT::i64, Op0);
       Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Res));
       return;
@@ -5796,6 +5825,13 @@ static SDValue performANY_EXTENDCombine(SDNode *N,
     break;
   }
 
+  // Only handle cases where the result is used by a CopyToReg. That likely
+  // means the value is a liveout of the basic block. This helps prevent
+  // infinite combine loops like PR51206.
+  if (none_of(N->uses(),
+              [](SDNode *User) { return User->getOpcode() == ISD::CopyToReg; }))
+    return SDValue();
+
   SmallVector<SDNode *, 4> SetCCs;
   for (SDNode::use_iterator UI = Src.getNode()->use_begin(),
                             UE = Src.getNode()->use_end();
@@ -6607,8 +6643,8 @@ unsigned RISCVTargetLowering::ComputeNumSignBitsForTargetNode(
   case RISCVISD::UNSHFLW:
   case RISCVISD::BCOMPRESSW:
   case RISCVISD::BDECOMPRESSW:
-  case RISCVISD::FCVT_W_RV64:
-  case RISCVISD::FCVT_WU_RV64:
+  case RISCVISD::FCVT_W_RTZ_RV64:
+  case RISCVISD::FCVT_WU_RTZ_RV64:
     // TODO: As the result is sign-extended, this is conservatively correct. A
     // more precise answer could be calculated for SRAW depending on known
     // bits in the shift amount.
@@ -8321,8 +8357,8 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(FMV_X_ANYEXTH)
   NODE_NAME_CASE(FMV_W_X_RV64)
   NODE_NAME_CASE(FMV_X_ANYEXTW_RV64)
-  NODE_NAME_CASE(FCVT_W_RV64)
-  NODE_NAME_CASE(FCVT_WU_RV64)
+  NODE_NAME_CASE(FCVT_W_RTZ_RV64)
+  NODE_NAME_CASE(FCVT_WU_RTZ_RV64)
   NODE_NAME_CASE(READ_CYCLE_WIDE)
   NODE_NAME_CASE(GREV)
   NODE_NAME_CASE(GREVW)
@@ -8376,6 +8412,10 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(UDIV_VL)
   NODE_NAME_CASE(UREM_VL)
   NODE_NAME_CASE(XOR_VL)
+  NODE_NAME_CASE(SADDSAT_VL)
+  NODE_NAME_CASE(UADDSAT_VL)
+  NODE_NAME_CASE(SSUBSAT_VL)
+  NODE_NAME_CASE(USUBSAT_VL)
   NODE_NAME_CASE(FADD_VL)
   NODE_NAME_CASE(FSUB_VL)
   NODE_NAME_CASE(FMUL_VL)
@@ -8434,7 +8474,6 @@ RISCVTargetLowering::getConstraintType(StringRef Constraint) const {
     default:
       break;
     case 'f':
-    case 'v':
       return C_RegisterClass;
     case 'I':
     case 'J':
@@ -8445,6 +8484,9 @@ RISCVTargetLowering::getConstraintType(StringRef Constraint) const {
     case 'S': // A symbolic address
       return C_Other;
     }
+  } else {
+    if (Constraint == "vr" || Constraint == "vm")
+      return C_RegisterClass;
   }
   return TargetLowering::getConstraintType(Constraint);
 }
@@ -8467,16 +8509,19 @@ RISCVTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
       if (Subtarget.hasStdExtD() && VT == MVT::f64)
         return std::make_pair(0U, &RISCV::FPR64RegClass);
       break;
-    case 'v':
-      for (const auto *RC :
-           {&RISCV::VMRegClass, &RISCV::VRRegClass, &RISCV::VRM2RegClass,
-            &RISCV::VRM4RegClass, &RISCV::VRM8RegClass}) {
+    default:
+      break;
+    }
+  } else {
+    if (Constraint == "vr") {
+      for (const auto *RC : {&RISCV::VRRegClass, &RISCV::VRM2RegClass,
+                             &RISCV::VRM4RegClass, &RISCV::VRM8RegClass}) {
         if (TRI->isTypeLegalForClass(*RC, VT.SimpleTy))
           return std::make_pair(0U, RC);
       }
-      break;
-    default:
-      break;
+    } else if (Constraint == "vm") {
+      if (TRI->isTypeLegalForClass(RISCV::VMRegClass, VT.SimpleTy))
+        return std::make_pair(0U, &RISCV::VMRegClass);
     }
   }
 
@@ -8911,6 +8956,11 @@ bool RISCVTargetLowering::decomposeMulByConstant(LLVMContext &Context, EVT VT,
       const APInt &Imm = ConstNode->getAPIntValue();
       if ((Imm + 1).isPowerOf2() || (Imm - 1).isPowerOf2() ||
           (1 - Imm).isPowerOf2() || (-1 - Imm).isPowerOf2())
+        return true;
+      // Optimize the MUL to (SH*ADD x, (SLLI x, bits)) if Imm is not simm12.
+      if (Subtarget.hasStdExtZba() && !Imm.isSignedIntN(12) &&
+          ((Imm - 2).isPowerOf2() || (Imm - 4).isPowerOf2() ||
+           (Imm - 8).isPowerOf2()))
         return true;
       // Omit the following optimization if the sub target has the M extension
       // and the data size >= XLen.

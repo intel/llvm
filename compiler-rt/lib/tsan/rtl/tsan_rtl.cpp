@@ -77,9 +77,7 @@ void OnInitialize() {
 }
 #endif
 
-static ALIGNED(64) char thread_registry_placeholder[sizeof(ThreadRegistry)];
-
-static ThreadContextBase *CreateThreadContext(u32 tid) {
+static ThreadContextBase *CreateThreadContext(Tid tid) {
   // Map thread trace when context is created.
   char name[50];
   internal_snprintf(name, sizeof(name), "trace %u", tid);
@@ -103,8 +101,7 @@ static ThreadContextBase *CreateThreadContext(u32 tid) {
       CHECK("unable to mprotect" && 0);
     }
   }
-  void *mem = internal_alloc(MBlockThreadContex, sizeof(ThreadContext));
-  return new(mem) ThreadContext(tid);
+  return New<ThreadContext>(tid);
 }
 
 #if !SANITIZER_GO
@@ -118,8 +115,8 @@ Context::Context()
       report_mtx(MutexTypeReport),
       nreported(),
       nmissed_expected(),
-      thread_registry(new (thread_registry_placeholder) ThreadRegistry(
-          CreateThreadContext, kMaxTid, kThreadQuarantineSize, kMaxTidReuse)),
+      thread_registry(CreateThreadContext, kMaxTid, kThreadQuarantineSize,
+                      kMaxTidReuse),
       racy_mtx(MutexTypeRacy),
       racy_stacks(),
       racy_addresses(),
@@ -129,7 +126,7 @@ Context::Context()
 }
 
 // The objects are allocated in TLS, so one may rely on zero-initialization.
-ThreadState::ThreadState(Context *ctx, u32 tid, int unique_id, u64 epoch,
+ThreadState::ThreadState(Context *ctx, Tid tid, int unique_id, u64 epoch,
                          unsigned reuse_count, uptr stk_addr, uptr stk_size,
                          uptr tls_addr, uptr tls_size)
     : fast_state(tid, epoch)
@@ -161,7 +158,7 @@ ThreadState::ThreadState(Context *ctx, u32 tid, int unique_id, u64 epoch,
 static void MemoryProfiler(Context *ctx, fd_t fd, int i) {
   uptr n_threads;
   uptr n_running_threads;
-  ctx->thread_registry->GetNumberOfThreads(&n_threads, &n_running_threads);
+  ctx->thread_registry.GetNumberOfThreads(&n_threads, &n_running_threads);
   InternalMmapVector<char> buf(4096);
   WriteMemoryProfile(buf.data(), buf.size(), n_threads, n_running_threads);
   WriteToFile(fd, buf.data(), internal_strlen(buf.data()));
@@ -386,9 +383,10 @@ void CheckUnwind() {
   PrintCurrentStackSlow(StackTrace::GetCurrentPc());
 }
 
+bool is_initialized;
+
 void Initialize(ThreadState *thr) {
   // Thread safe because done before all threads exist.
-  static bool is_initialized = false;
   if (is_initialized)
     return;
   is_initialized = true;
@@ -440,8 +438,8 @@ void Initialize(ThreadState *thr) {
           (int)internal_getpid());
 
   // Initialize thread 0.
-  int tid = ThreadCreate(thr, 0, 0, true);
-  CHECK_EQ(tid, 0);
+  Tid tid = ThreadCreate(thr, 0, 0, true);
+  CHECK_EQ(tid, kMainTid);
   ThreadStart(thr, tid, GetTid(), ThreadType::Regular);
 #if TSAN_CONTAINS_UBSAN
   __ubsan::InitAsPlugin();
@@ -514,10 +512,6 @@ int Finalize(ThreadState *thr) {
 
   if (common_flags()->print_suppressions)
     PrintMatchedSuppressions();
-#if !SANITIZER_GO
-  if (flags()->print_benign)
-    PrintMatchedBenignRaces();
-#endif
 
   failed = OnFinalize(failed);
 
@@ -526,7 +520,7 @@ int Finalize(ThreadState *thr) {
 
 #if !SANITIZER_GO
 void ForkBefore(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
-  ctx->thread_registry->Lock();
+  ctx->thread_registry.Lock();
   ctx->report_mtx.Lock();
   ScopedErrorReportLock::Lock();
   // Suppress all reports in the pthread_atfork callbacks.
@@ -545,7 +539,7 @@ void ForkParentAfter(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
   thr->ignore_interceptors--;
   ScopedErrorReportLock::Unlock();
   ctx->report_mtx.Unlock();
-  ctx->thread_registry->Unlock();
+  ctx->thread_registry.Unlock();
 }
 
 void ForkChildAfter(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
@@ -553,10 +547,10 @@ void ForkChildAfter(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
   thr->ignore_interceptors--;
   ScopedErrorReportLock::Unlock();
   ctx->report_mtx.Unlock();
-  ctx->thread_registry->Unlock();
+  ctx->thread_registry.Unlock();
 
   uptr nthread = 0;
-  ctx->thread_registry->GetNumberOfThreads(0, 0, &nthread /* alive threads */);
+  ctx->thread_registry.GetNumberOfThreads(0, 0, &nthread /* alive threads */);
   VPrintf(1, "ThreadSanitizer: forked new process with pid %d,"
       " parent had %d threads\n", (int)internal_getpid(), (int)nthread);
   if (nthread == 1) {
@@ -578,19 +572,18 @@ NOINLINE
 void GrowShadowStack(ThreadState *thr) {
   const int sz = thr->shadow_stack_end - thr->shadow_stack;
   const int newsz = 2 * sz;
-  uptr *newstack = (uptr*)internal_alloc(MBlockShadowStack,
-      newsz * sizeof(uptr));
+  auto newstack = (uptr *)Alloc(newsz * sizeof(uptr));
   internal_memcpy(newstack, thr->shadow_stack, sz * sizeof(uptr));
-  internal_free(thr->shadow_stack);
+  Free(thr->shadow_stack);
   thr->shadow_stack = newstack;
   thr->shadow_stack_pos = newstack + sz;
   thr->shadow_stack_end = newstack + newsz;
 }
 #endif
 
-u32 CurrentStackId(ThreadState *thr, uptr pc) {
+StackID CurrentStackId(ThreadState *thr, uptr pc) {
   if (!thr->is_inited)  // May happen during bootstrap.
-    return 0;
+    return kInvalidStackID;
   if (pc != 0) {
 #if !SANITIZER_GO
     DCHECK_LT(thr->shadow_stack_pos, thr->shadow_stack_end);
@@ -601,7 +594,7 @@ u32 CurrentStackId(ThreadState *thr, uptr pc) {
     thr->shadow_stack_pos[0] = pc;
     thr->shadow_stack_pos++;
   }
-  u32 id = StackDepotPut(
+  StackID id = StackDepotPut(
       StackTrace(thr->shadow_stack, thr->shadow_stack_pos - thr->shadow_stack));
   if (pc != 0)
     thr->shadow_stack_pos--;
@@ -624,9 +617,7 @@ void TraceSwitch(ThreadState *thr) {
   thr->nomalloc--;
 }
 
-Trace *ThreadTrace(int tid) {
-  return (Trace*)GetThreadTraceHeader(tid);
-}
+Trace *ThreadTrace(Tid tid) { return (Trace *)GetThreadTraceHeader(tid); }
 
 uptr TraceTopPC(ThreadState *thr) {
   Event *events = (Event*)GetThreadTrace(thr->tid);
@@ -1069,18 +1060,18 @@ void FuncExit(ThreadState *thr) {
   thr->shadow_stack_pos--;
 }
 
-void ThreadIgnoreBegin(ThreadState *thr, uptr pc, bool save_stack) {
+void ThreadIgnoreBegin(ThreadState *thr, uptr pc) {
   DPrintf("#%d: ThreadIgnoreBegin\n", thr->tid);
   thr->ignore_reads_and_writes++;
   CHECK_GT(thr->ignore_reads_and_writes, 0);
   thr->fast_state.SetIgnoreBit();
 #if !SANITIZER_GO
-  if (save_stack && !ctx->after_multithreaded_fork)
+  if (pc && !ctx->after_multithreaded_fork)
     thr->mop_ignore_set.Add(CurrentStackId(thr, pc));
 #endif
 }
 
-void ThreadIgnoreEnd(ThreadState *thr, uptr pc) {
+void ThreadIgnoreEnd(ThreadState *thr) {
   DPrintf("#%d: ThreadIgnoreEnd\n", thr->tid);
   CHECK_GT(thr->ignore_reads_and_writes, 0);
   thr->ignore_reads_and_writes--;
@@ -1100,17 +1091,17 @@ uptr __tsan_testonly_shadow_stack_current_size() {
 }
 #endif
 
-void ThreadIgnoreSyncBegin(ThreadState *thr, uptr pc, bool save_stack) {
+void ThreadIgnoreSyncBegin(ThreadState *thr, uptr pc) {
   DPrintf("#%d: ThreadIgnoreSyncBegin\n", thr->tid);
   thr->ignore_sync++;
   CHECK_GT(thr->ignore_sync, 0);
 #if !SANITIZER_GO
-  if (save_stack && !ctx->after_multithreaded_fork)
+  if (pc && !ctx->after_multithreaded_fork)
     thr->sync_ignore_set.Add(CurrentStackId(thr, pc));
 #endif
 }
 
-void ThreadIgnoreSyncEnd(ThreadState *thr, uptr pc) {
+void ThreadIgnoreSyncEnd(ThreadState *thr) {
   DPrintf("#%d: ThreadIgnoreSyncEnd\n", thr->tid);
   CHECK_GT(thr->ignore_sync, 0);
   thr->ignore_sync--;
