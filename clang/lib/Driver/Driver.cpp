@@ -4732,7 +4732,7 @@ class OffloadingActionBuilder final {
               return P.first.isAMDGCN();
             })) {
           C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch);
-          continue;
+          return true;
         }
       }
 
