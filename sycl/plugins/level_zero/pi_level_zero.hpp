@@ -340,6 +340,43 @@ struct _pi_device : _pi_object {
   ZeStruct<ze_device_compute_properties_t> ZeDeviceComputeProperties;
 };
 
+// Structure describing the specific use of a command-list in a queue.
+// This is because command-lists are re-used across multiple queues
+// in the same context.
+typedef struct {
+  // The Level-Zero fence that will be signalled at completion.
+  ze_fence_handle_t ZeFence{nullptr};
+  // Record if the fence is in use.
+  // This is needed to avoid leak of the tracked command-list if the fence
+  // was not yet signaled at the time all events in that list were already
+  // completed (we are polling the fence at events completion). The fence
+  // may be still "in-use" due to sporadic delay in HW.
+  bool InUse{false};
+
+  // Record the index of copy queue (in the vector of available copy queues)
+  // to which the command list (if any) will be submitted.
+  // If there is no command list, or if the command list is not a copy command
+  // list, the value is set to -1.
+  int CopyQueueIndex{-1};
+  bool isCopy() const { return CopyQueueIndex != -1; }
+
+  // Keeps events created by commands submitted into this command-list.
+  // TODO: use this for explicit wait/cleanup of events at command-list
+  // completion.
+  // TODO: use this for optimizing events in the same command-list, e.g.
+  // only have last one visible to the host.
+  std::vector<pi_event> EventList{};
+  size_t size() const { return EventList.size(); }
+  void append(pi_event Event) { EventList.push_back(Event); }
+
+} pi_command_list_info_t;
+
+// The map type that would track all command-lists in a queue.
+typedef std::unordered_map<ze_command_list_handle_t, pi_command_list_info_t>
+    pi_command_list_map_t;
+// The iterator pointing to a specific command-list in use.
+typedef pi_command_list_map_t::iterator pi_command_list_ptr_t;
+
 struct _pi_context : _pi_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
               const pi_device *Devs, bool OwnZeContext)
@@ -445,12 +482,11 @@ struct _pi_context : _pi_object {
   // command in it, if AllowBatching is false, any open command lists that
   // already exist in Queue will be closed and executed.
   pi_result getAvailableCommandList(pi_queue Queue,
-                                    ze_command_list_handle_t *ZeCommandList,
-                                    ze_fence_handle_t *ZeFence,
+                                    pi_command_list_ptr_t &CommandList,
                                     bool PreferCopyCommandList = false,
                                     bool AllowBatching = false);
 
-  // Get index of the free slot in the available pool. If there is no avialble
+  // Get index of the free slot in the available pool. If there is no available
   // pool then create new one.
   pi_result getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &);
 
@@ -515,7 +551,9 @@ struct _pi_queue : _pi_object {
         QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
         OwnZeCommandQueue{OwnZeCommandQueue}, UseDynamicBatching{BatchSize ==
                                                                  0},
-        PiQueueProperties(PiQueueProperties) {}
+        PiQueueProperties(PiQueueProperties) {
+    OpenCommandList == CommandListMap.end();
+  }
 
   // Level Zero compute command queue handle.
   ze_command_queue_handle_t ZeComputeCommandQueue;
@@ -561,11 +599,6 @@ struct _pi_queue : _pi_object {
   // command is enqueued.
   pi_event LastCommandEvent = nullptr;
 
-  // Open command list field for batching commands into this queue.
-  ze_command_list_handle_t ZeOpenCommandList = {nullptr};
-  ze_fence_handle_t ZeOpenCommandListFence = {nullptr};
-  pi_uint32 ZeOpenCommandListSize = {0};
-
   // Kernel is not necessarily submitted for execution during
   // piEnqueueKernelLaunch, it may be batched. That's why we need to save the
   // list of kernels which is going to be submitted but have not been submitted
@@ -598,32 +631,14 @@ struct _pi_queue : _pi_object {
   pi_uint32 NumTimesClosedEarly = {0};
   pi_uint32 NumTimesClosedFull = {0};
 
-  // Structure describing the fence used to track command-list completion.
-  typedef struct {
-    // The Level-Zero fence that will be signalled at completion.
-    ze_fence_handle_t ZeFence;
-    // Record if the fence is in use by any command-list.
-    // This is needed to avoid leak of the tracked command-list if the fence
-    // was not yet signaled at the time all events in that list were already
-    // completed (we are polling the fence at events completion). The fence
-    // may be still "in-use" due to sporadic delay in HW.
-    bool InUse;
-    // Record the index of copy queue (in the vector of available copy queues)
-    // to which the command list (if any) will be submitted.
-    // If there is no command list, or if the command list is not a copy command
-    // list, the value is set to -1.
-    int CopyQueueIndex;
-  } command_list_fence_t;
+  // Map of all command lists used in this queue.
+  pi_command_list_map_t CommandListMap;
 
-  // Map of all Command lists created with their associated Fence used for
-  // tracking when the command list is available for use again.
-  typedef std::unordered_map<ze_command_list_handle_t, command_list_fence_t>
-      command_list_fence_map_t;
-  command_list_fence_map_t ZeCommandListFenceMap;
-
-  // return the index of copy queue associated with this command list.
-  // return -1 if a command list is not a "copy" command list
-  int getCopyQueueIndex(ze_command_list_handle_t ZeCommandList);
+  // Open command list field for batching commands into this queue.
+  pi_command_list_ptr_t OpenCommandList{};
+  bool hasOpenCommandList() const {
+    return OpenCommandList != CommandListMap.end();
+  }
 
   // Keeps the properties of this queue.
   pi_queue_properties PiQueueProperties;
@@ -648,28 +663,23 @@ struct _pi_queue : _pi_object {
   // If the reset command list should be made available, then MakeAvailable
   // needs to be set to true. The caller must verify that this command list and
   // fence have been signalled.
-  pi_result resetCommandListFenceEntry(
-      command_list_fence_map_t::value_type &ZeCommandList, bool MakeAvailable);
+  pi_result resetCommandList(pi_command_list_ptr_t CommandList,
+                             bool MakeAvailable);
 
   // Attach a command list to this queue, close, and execute it.
   // Note that this command list cannot be appended to after this.
   // The "IsBlocking" tells if the wait for completion is required.
-  // The "ZeFence" passed is used to track when the command list passed
-  // has completed execution on the device and can be reused.
-  // The Event parameter is the pi_event that the last command in the command
-  // list will signal upon its completion.
   // If OKToBatchCommand is true, then this command list may be executed
   // immediately, or it may be left open for other future command to be
   // batched into.
   // If IsBlocking is true, then batching will not be allowed regardless
   // of the value of OKToBatchCommand
-  pi_result executeCommandList(ze_command_list_handle_t ZeCommandList,
-                               ze_fence_handle_t ZeFence, pi_event Event,
+  pi_result executeCommandList(pi_command_list_ptr_t CommandList,
                                bool IsBlocking = false,
                                bool OKToBatchCommand = false);
 
   // If there is an open command list associated with this queue,
-  // close it, exceute it, and reset ZeOpenCommandList, ZeCommandListFence,
+  // close it, execute it, and reset ZeOpenCommandList, ZeCommandListFence,
   // and ZeOpenCommandListSize.
   pi_result executeOpenCommandList();
 };
