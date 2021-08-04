@@ -245,6 +245,12 @@ void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
                                    /*index*/ 0);
 }
 
+// The argument can take up more space to store additional information about
+// MAccessRange, MMemoryRange, and MOffset added with addArgsForGlobalAccessor.
+// TODO: the constant can be removed when the computation of real_KernelArgsNum
+// is done at compile time.
+const size_t NumAdditionalArgsForGlobalAccessor = 3;
+
 static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
                                      size_t &IndexShift, int Size,
                                      bool IsKernelCreatedFromSource,
@@ -432,7 +438,7 @@ void handler::extractArgsAndReqs() {
       case access::target::constant_buffer:
       case access::target::local: {
         if (!IsKernelCreatedFromSource) {
-          real_KernelArgsNum += 3;
+          real_KernelArgsNum += NumAdditionalArgsForGlobalAccessor;
         }
         break;
       }
@@ -445,9 +451,9 @@ void handler::extractArgsAndReqs() {
       }
     } else if (Kind == detail::kernel_param_kind_t::kind_stream) {
       if (!IsKernelCreatedFromSource) {
-        real_KernelArgsNum += 12;
+        real_KernelArgsNum += NumAdditionalArgsForGlobalAccessor * 4;
       } else {
-        real_KernelArgsNum += 3;
+        real_KernelArgsNum += NumAdditionalArgsForGlobalAccessor;
       }
     }
   }
@@ -491,12 +497,12 @@ void handler::extractArgsAndReqsFromLambda(
       case access::target::global_buffer:
       case access::target::constant_buffer: {
         if (!IsESIMD) {
-          real_KernelArgsNum += 3;
+          real_KernelArgsNum += NumAdditionalArgsForGlobalAccessor;
         }
         break;
       }
       case access::target::local: {
-        real_KernelArgsNum += 3;
+        real_KernelArgsNum += NumAdditionalArgsForGlobalAccessor;
         break;
       }
       case access::target::image:
@@ -508,9 +514,9 @@ void handler::extractArgsAndReqsFromLambda(
       }
     } else if (Kind == detail::kernel_param_kind_t::kind_stream) {
       if (!IsESIMD) {
-        real_KernelArgsNum += 12;
+        real_KernelArgsNum += NumAdditionalArgsForGlobalAccessor * 4;
       } else {
-        real_KernelArgsNum += 3;
+        real_KernelArgsNum += NumAdditionalArgsForGlobalAccessor;
       }
     }
   }
