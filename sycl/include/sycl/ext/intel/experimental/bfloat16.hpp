@@ -16,14 +16,13 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-class [[sycl_detail::uses_aspects(ext_intel_bf16_conversion)]]
-bfloat16 {
+class [[sycl_detail::uses_aspects(ext_intel_bf16_conversion)]] bfloat16 {
   using storage_t = uint16_t;
   storage_t value;
 
 public:
   bfloat16() = default;
-  bfloat16(const bfloat16&) = default;
+  bfloat16(const bfloat16 &) = default;
   ~bfloat16() = default;
 
   // Direct initialization
@@ -62,4 +61,3 @@ namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
-
