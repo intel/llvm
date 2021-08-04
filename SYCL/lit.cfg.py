@@ -97,6 +97,9 @@ config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 if lit_config.params.get('gpu-intel-dg1', False):
     config.available_features.add('gpu-intel-dg1')
 
+if lit_config.params.get('matrix', False):
+    config.available_features.add('matrix')
+
 # check if compiler supports CL command line options
 cl_options=False
 sp = subprocess.getstatusoutput(config.dpcpp_compiler+' /help')
