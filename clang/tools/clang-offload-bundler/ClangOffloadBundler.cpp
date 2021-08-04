@@ -1404,8 +1404,21 @@ static Error UnbundleFiles() {
     auto Output = Worklist.find(CurTriple);
     // The file may have more bundles for other targets, that we don't care
     // about. Therefore, move on to the next triple
-    if (Output == Worklist.end())
-      continue;
+    if (Output == Worklist.end()) {
+      // FIXME: temporary solution for supporting binaries produced by old
+      // versions of SYCL toolchain. Old versions used triples with 'sycldevice'
+      // environment component of the triple, whereas new toolchain use
+      // 'unknown' value for that triple component. Here we assume that if we
+      // are looking for a bundle for sycl offload kind, for the same target
+      // triple there might be either one with 'sycldevice' environment or with
+      // 'unknown' environment, but not both. So we will look for any of these
+      // two variants.
+      Output =
+          Worklist.find(CurTriple.drop_back(11 /*length of "-sycldevice"*/));
+      if (!CurTriple.startswith("sycl-") ||
+          !CurTriple.endswith("-sycldevice") || Output == Worklist.end())
+        continue;
+    }
 
     // Check if the output file can be opened and copy the bundle to it.
     std::error_code EC;
@@ -1507,7 +1520,21 @@ static Expected<bool> CheckBundledSection() {
     return std::move(Err);
 
   StringRef triple = TargetNames.front();
-  // Read all the bundles that are in the work list. If we find no bundles we
+
+  // FIXME: temporary solution for supporting binaries produced by old versions
+  // of SYCL toolchain. Old versions used triples with 'sycldevice' environment
+  // component of the triple, whereas new toolchain use 'unknown' value for that
+  // triple component. Here we assume that if we are looking for a bundle for
+  // sycl offload kind, for the same target triple there might be either one
+  // with 'sycldevice' environment or with 'unknown' environment, but not both.
+  // So we will look for any of these two variants.
+  OffloadTargetInfo TI(triple);
+  bool checkCompatibleTriple =
+      (TI.OffloadKind == "sycl") &&
+      (TI.Triple.getEnvironment() == Triple::UnknownEnvironment);
+  TI.Triple.setEnvironmentName("sycldevice");
+  std::string compatibleTriple = Twine("sycl-" + TI.Triple.str()).str();
+
   // assume the file is meant for the host target.
   bool found = false;
   while (!found) {
@@ -1519,7 +1546,9 @@ static Expected<bool> CheckBundledSection() {
     if (!*CurTripleOrErr)
       break;
 
-    if (*CurTripleOrErr == triple) {
+    if (*CurTripleOrErr == triple ||
+        (checkCompatibleTriple &&
+         *CurTripleOrErr == StringRef(compatibleTriple))) {
       found = true;
       break;
     }
