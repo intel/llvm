@@ -97,7 +97,7 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
   Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   queue InOrderQueue{Ctx, Selector, property::queue::in_order()};
   cl::sycl::detail::QueueImplPtr InOrderQueueImpl =
       detail::getSyclObjImpl(InOrderQueue);

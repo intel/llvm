@@ -54,47 +54,46 @@ namespace SPIRV {
 
 class SPIRVLowerMemmoveBase {
 public:
-  SPIRVLowerMemmoveBase() : Context(nullptr), Mod(nullptr) {}
+  SPIRVLowerMemmoveBase() : Context(nullptr) {}
+
   void LowerMemMoveInst(MemMoveInst &I) {
+    // There is no direct equivalent of @llvm.memmove in SPIR-V and the closest
+    // instructions are 'OpCopyMemory' and 'OpCopyMemorySized'.
+    //
+    // 'OpCopyMemory' does not accept amount of bytes to copy and infers that
+    // from type which is being copied; also it only allows to copy value of a
+    // particular type to pointer pointing to the same type.
+    //
+    // 'OpCopyMemorySized' is closer to @llvm.memmove, because it actually
+    // copies bytes, but unlike memove it is not explicitly specified whether it
+    // supports overlapping source and destination. Therefore, we replace
+    // memmove with two 'OpCopyMemorySized' instructions: the first one copies
+    // bytes from source to a temporary location, the second one copies bytes
+    // from that temporary location to the destination.
     IRBuilder<> Builder(I.getParent());
     Builder.SetInsertPoint(&I);
-    auto *Dest = I.getRawDest();
-    auto *Src = I.getRawSource();
-    if (isa<PHINode>(Src))
-      report_fatal_error("llvm.memmove of PHI instruction result not supported",
-                         false);
-    // The source could be bit-cast or addrspacecast from another type,
-    // need the original type for the allocation of the temporary variable
-    auto *SrcTy = Src->stripPointerCasts()->getType();
+
     auto *Length = cast<ConstantInt>(I.getLength());
-    MaybeAlign Align = I.getSourceAlign();
-    auto Volatile = I.isVolatile();
-    Value *NumElements = nullptr;
-    uint64_t ElementsCount = 1;
-    if (SrcTy->isArrayTy()) {
-      ElementsCount = SrcTy->getArrayNumElements();
-      NumElements = Builder.getInt32(ElementsCount);
-    }
-    // Get number of bits to move and allocate memory appropriately:
-    // if lenght is bigger than a pointer base type size, then create an
-    // alloca of an array type with the same base type.
-    const uint64_t LenBits = Length->getZExtValue();
-    const uint64_t LayoutTypeBites =
-        Mod->getDataLayout().getTypeSizeInBits(SrcTy->getPointerElementType()) *
-        ElementsCount;
-    auto *AllocaTy = SrcTy->getPointerElementType();
-    if (LenBits > LayoutTypeBites) {
-      const uint64_t ArraySize = LenBits / LayoutTypeBites;
-      AllocaTy = ArrayType::get(SrcTy->getPointerElementType(), ArraySize);
-    }
-    auto *Alloca = Builder.CreateAlloca(AllocaTy, NumElements);
-    if (Align.hasValue()) {
-      Alloca->setAlignment(Align.getValue());
-    }
+    auto *AllocaTy = ArrayType::get(IntegerType::getInt8Ty(*Context),
+                                    Length->getZExtValue());
+    MaybeAlign SrcAlign = I.getSourceAlign();
+
+    auto *Alloca = Builder.CreateAlloca(AllocaTy);
+    if (SrcAlign.hasValue())
+      Alloca->setAlignment(SrcAlign.getValue());
+
+    // FIXME: Do we need to pass the size of alloca here? From LangRef:
+    // > The first argument is a constant integer representing the size of the
+    // > object, or -1 if it is variable sized.
+    //
+    // https://llvm.org/docs/LangRef.html#llvm-lifetime-start-intrinsic
     Builder.CreateLifetimeStart(Alloca);
-    Builder.CreateMemCpy(Alloca, Align, Src, Align, Length, Volatile);
-    auto *SecondCpy = Builder.CreateMemCpy(Dest, I.getDestAlign(), Alloca,
-                                           Align, Length, Volatile);
+    Builder.CreateMemCpy(Alloca, SrcAlign, I.getRawSource(), SrcAlign, Length,
+                         I.isVolatile());
+
+    auto *SecondCpy =
+        Builder.CreateMemCpy(I.getRawDest(), I.getDestAlign(), Alloca, SrcAlign,
+                             Length, I.isVolatile());
     Builder.CreateLifetimeEnd(Alloca);
 
     SecondCpy->takeName(&I);
@@ -102,6 +101,7 @@ public:
     I.dropAllReferences();
     I.eraseFromParent();
   }
+
   bool expandMemMoveIntrinsicUses(Function &F) {
     bool Changed = false;
 
@@ -119,7 +119,6 @@ public:
   }
   bool runLowerMemmove(Module &M) {
     Context = &M.getContext();
-    Mod = &M;
     bool Changed = false;
 
     for (Function &F : M) {
@@ -136,7 +135,6 @@ public:
 
 private:
   LLVMContext *Context;
-  Module *Mod;
 };
 
 class SPIRVLowerMemmovePass : public llvm::PassInfoMixin<SPIRVLowerMemmovePass>,

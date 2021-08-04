@@ -363,7 +363,7 @@ public:
   ///
   /// \param CommandGroup is a unique_ptr to a command group to be added.
   /// \return an event object to wait on for command group completion.
-  EventImplPtr addCG(std::unique_ptr<detail::CG> CommandGroup,
+  EventImplPtr addCG(std::unique_ptr<detail::CommandGroup> CommandGroup,
                      QueueImplPtr Queue);
 
   /// Registers a command group, that copies most recent memory to the memory
@@ -432,14 +432,14 @@ public:
 
   /// Allocate buffers in the pool for a provided stream
   ///
-  /// \param Pointer to the stream object
-  /// \param Size of the stream buffer
-  /// \param Size of the flush buffer for a single work item
+  /// \param Impl to the stream object
+  /// \param StreamBufferSize of the stream buffer
+  /// \param FlushBufferSize of the flush buffer for a single work item
   void allocateStreamBuffers(stream_impl *, size_t, size_t);
 
   /// Deallocate all stream buffers in the pool
   ///
-  /// \param Pointer to the stream object
+  /// \param Impl to the stream object
   void deallocateStreamBuffers(stream_impl *);
 
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
@@ -479,14 +479,14 @@ protected:
     /// \sa queue::submit, Scheduler::addCG
     ///
     /// \return a command that represents command group execution.
-    Command *addCG(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
-                   std::vector<Command *> &ToEnqueue);
+    Command *addCG(std::unique_ptr<detail::CommandGroup> CommandGroup,
+                   QueueImplPtr Queue, std::vector<Command *> &ToEnqueue);
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.
     ///
     /// \return a command that represents command group execution.
-    Command *addCGUpdateHost(std::unique_ptr<detail::CG> CommandGroup,
+    Command *addCGUpdateHost(std::unique_ptr<detail::CommandGroup> CommandGroup,
                              QueueImplPtr HostQueue,
                              std::vector<Command *> &ToEnqueue);
 
@@ -612,6 +612,7 @@ protected:
                                         const ContextImplPtr &Context);
 
     friend class Command;
+    friend class Scheduler;
 
   private:
     friend class ::MockScheduler;
@@ -737,7 +738,6 @@ protected:
     /// Enqueues the command and all its dependencies.
     ///
     /// \param EnqueueResult is set to specific status if enqueue failed.
-    /// \param GraphReadLock read-lock which is already acquired for reading
     /// \return true if the command is successfully enqueued.
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return

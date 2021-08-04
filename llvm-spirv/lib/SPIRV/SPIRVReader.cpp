@@ -479,10 +479,13 @@ Type *SPIRVToLLVM::transFPType(SPIRVType *T) {
 }
 
 std::string SPIRVToLLVM::transOCLImageTypeName(SPIRV::SPIRVTypeImage *ST) {
-  std::string Name = std::string(kSPR2TypeName::OCLPrefix) +
-                     rmap<std::string>(ST->getDescriptor());
-  SPIRVToLLVM::insertImageNameAccessQualifier(ST, Name);
-  return Name;
+  return getSPIRVTypeName(
+      kSPIRVTypeName::Image,
+      getSPIRVImageTypePostfixes(
+          getSPIRVImageSampledTypeName(ST->getSampledType()),
+          ST->getDescriptor(),
+          ST->hasAccessQualifier() ? ST->getAccessQualifier()
+                                   : AccessQualifierReadOnly));
 }
 
 std::string
@@ -494,6 +497,18 @@ SPIRVToLLVM::transOCLSampledImageTypeName(SPIRV::SPIRVTypeSampledImage *ST) {
           ST->getImageType()->getDescriptor(),
           ST->getImageType()->hasAccessQualifier()
               ? ST->getImageType()->getAccessQualifier()
+              : AccessQualifierReadOnly));
+}
+
+std::string
+SPIRVToLLVM::transVMEImageTypeName(SPIRV::SPIRVTypeVmeImageINTEL *VT) {
+  return getSPIRVTypeName(
+      kSPIRVTypeName::VmeImageINTEL,
+      getSPIRVImageTypePostfixes(
+          getSPIRVImageSampledTypeName(VT->getImageType()->getSampledType()),
+          VT->getImageType()->getDescriptor(),
+          VT->getImageType()->hasAccessQualifier()
+              ? VT->getImageType()->getAccessQualifier()
               : AccessQualifierReadOnly));
 }
 
@@ -621,10 +636,10 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
         T, getOrCreateOpaquePtrType(M, transOCLPipeStorageTypeName(PST),
                                     getOCLOpaqueTypeAddrSpace(T->getOpCode())));
   }
-  // OpenCL Compiler does not use this instruction
-  case OpTypeVmeImageINTEL:
-    return nullptr;
-
+  case OpTypeVmeImageINTEL: {
+    auto *VT = static_cast<SPIRVTypeVmeImageINTEL *>(T);
+    return mapType(T, getOrCreateOpaquePtrType(M, transVMEImageTypeName(VT)));
+  }
   case OpTypeBufferSurfaceINTEL: {
     auto PST = static_cast<SPIRVTypeBufferSurfaceINTEL *>(T);
     return mapType(T,
@@ -634,14 +649,21 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
 
   default: {
     auto OC = T->getOpCode();
-    if (isOpaqueGenericTypeOpCode(OC) || isSubgroupAvcINTELTypeOpCode(OC)) {
-      auto Name = isSubgroupAvcINTELTypeOpCode(OC)
-                      ? OCLSubgroupINTELTypeOpCodeMap::rmap(OC)
-                      : OCLOpaqueTypeOpCodeMap::rmap(OC);
-      return mapType(
-          T, getOrCreateOpaquePtrType(M, Name, getOCLOpaqueTypeAddrSpace(OC)));
+    SPIRAddressSpace AS = getOCLOpaqueTypeAddrSpace(OC);
+    std::string Name;
+    if (isOpaqueGenericTypeOpCode(OC)) {
+      // TODO: Generic opaque type opcodes shouldn't be translated directly to
+      // OCL representation
+      //       SPIRVOpaqueTypeOpCodeMap should be used. The same as for AVC
+      //       INTEL opcodes.
+      Name = OCLOpaqueTypeOpCodeMap::rmap(OC);
+    } else if (isSubgroupAvcINTELTypeOpCode(OC)) {
+      Name =
+          kSPIRVTypeName::PrefixAndDelim + SPIRVOpaqueTypeOpCodeMap::rmap(OC);
+    } else {
+      llvm_unreachable("Not implemented");
     }
-    llvm_unreachable("Not implemented");
+    return mapType(T, getOrCreateOpaquePtrType(M, Name, AS));
   }
   }
   return 0;
@@ -759,12 +781,15 @@ bool SPIRVToLLVM::isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const {
 // TODO: Instead of direct translation to OCL we should always produce SPIR-V
 // friendly IR and apply lowering later if needed
 bool SPIRVToLLVM::isDirectlyTranslatedToOCL(Op OpCode) const {
-  if (isSubgroupAvcINTELInstructionOpCode(OpCode) ||
-      isIntelSubgroupOpCode(OpCode))
-    return true;
+  if (isSubgroupAvcINTELInstructionOpCode(OpCode))
+    return false;
+  if (isIntelSubgroupOpCode(OpCode))
+    return false;
   if (OpCode == OpImageSampleExplicitLod || OpCode == OpSampledImage)
     return false;
-  if (OpCode == OpImageWrite)
+  if (OpCode == OpImageWrite || OpCode == OpImageRead ||
+      OpCode == OpImageQueryOrder || OpCode == OpImageQueryFormat ||
+      OpCode == OpImageQueryLevels)
     return false;
   if (OpCode == OpGenericCastToPtrExplicit)
     return false;
@@ -1137,18 +1162,6 @@ void SPIRVToLLVM::transLLVMLoopMetadata(const Function *F) {
 
     FuncLoopMetadataMap.erase(LMDItr);
   }
-}
-
-void SPIRVToLLVM::insertImageNameAccessQualifier(SPIRV::SPIRVTypeImage *ST,
-                                                 std::string &Name) {
-  SPIRVAccessQualifierKind Acc = ST->hasAccessQualifier()
-                                     ? ST->getAccessQualifier()
-                                     : AccessQualifierReadOnly;
-  std::string QName = rmap<std::string>(Acc);
-  // transform: read_only -> ro, write_only -> wo, read_write -> rw
-  QName = QName.substr(0, 1) + QName.substr(QName.find("_") + 1, 1) + "_";
-  assert(!Name.empty() && "image name should not be empty");
-  Name.insert(Name.size() - 1, QName);
 }
 
 Value *SPIRVToLLVM::transValue(SPIRVValue *BV, Function *F, BasicBlock *BB,
@@ -1847,10 +1860,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(
         BV, new AllocaInst(Ty, SPIRAS_Private, ArrSize, BV->getName(), BB));
   }
-  case OpSaveMemoryINTEL: {
-    Function *StackSave = Intrinsic::getDeclaration(M, Intrinsic::stacksave);
-    return mapValue(BV, CallInst::Create(StackSave, "", BB));
-  }
   case OpRestoreMemoryINTEL: {
     auto *Restore = static_cast<SPIRVRestoreMemoryINTEL *>(BV);
     llvm::Value *Ptr = transValue(Restore->getOperand(0), F, BB, false);
@@ -1908,6 +1917,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   // Translation of instructions
   int OpCode = BV->getOpCode();
   switch (OpCode) {
+  case OpSaveMemoryINTEL: {
+    Function *StackSave = Intrinsic::getDeclaration(M, Intrinsic::stacksave);
+    return mapValue(BV, CallInst::Create(StackSave, "", BB));
+  }
   case OpBranch: {
     auto *BR = static_cast<SPIRVBranch *>(BV);
     auto *BI = BranchInst::Create(
@@ -2078,7 +2091,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
                                          BV->getName()));
   }
 
-  case OpVmeImageINTEL:
   case OpLine:
   case OpSelectionMerge: // OpenCL Compiler does not use this instruction
     return nullptr;
@@ -3057,12 +3069,14 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
       I->addAttr(A);
     });
 
+    AttrBuilder Builder;
     SPIRVWord MaxOffset = 0;
-    if (BA->hasDecorate(DecorationMaxByteOffset, 0, &MaxOffset)) {
-      AttrBuilder Builder;
+    if (BA->hasDecorate(DecorationMaxByteOffset, 0, &MaxOffset))
       Builder.addDereferenceableAttr(MaxOffset);
-      I->addAttrs(Builder);
-    }
+    SPIRVWord AlignmentBytes = 0;
+    if (BA->hasDecorate(DecorationAlignment, 0, &AlignmentBytes))
+      Builder.addAlignmentAttr(AlignmentBytes);
+    I->addAttrs(Builder);
   }
   BF->foreachReturnValueAttr([&](SPIRVFuncParamAttrKind Kind) {
     if (Kind == FunctionParameterAttributeNoWrite)
@@ -3120,7 +3134,6 @@ void SPIRVToLLVM::transOCLBuiltinFromInstPreproc(
   if (!BI->hasType())
     return;
   auto BT = BI->getType();
-  auto OC = BI->getOpCode();
   if (isCmpOpCode(BI->getOpCode())) {
     if (BT->isTypeBool())
       RetTy = IntegerType::getInt32Ty(*Context);
@@ -3132,56 +3145,6 @@ void SPIRVToLLVM::transOCLBuiltinFromInstPreproc(
           BT->getVectorComponentCount());
     else
       llvm_unreachable("invalid compare instruction");
-  } else if (OC == OpImageRead && Args.size() > 2) {
-    // Drop "Image operands" argument
-    Args.erase(Args.begin() + 2);
-  } else if (isSubgroupAvcINTELEvaluateOpcode(OC)) {
-    // There are three types of AVC Intel Evaluate opcodes:
-    // 1. With multi reference images - does not use OpVmeImageINTEL opcode for
-    // reference images
-    // 2. With dual reference images - uses two OpVmeImageINTEL opcodes for
-    // reference image
-    // 3. With single reference image - uses one OpVmeImageINTEL opcode for
-    // reference image
-    int NumImages =
-        std::count_if(Args.begin(), Args.end(), [](SPIRVValue *Arg) {
-          return static_cast<SPIRVInstruction *>(Arg)->getOpCode() ==
-                 OpVmeImageINTEL;
-        });
-    if (NumImages) {
-      SPIRVInstruction *SrcImage = static_cast<SPIRVInstruction *>(Args[0]);
-      assert(SrcImage &&
-             "Src image operand not found in avc evaluate instruction");
-      if (NumImages == 1) {
-        // Multi reference opcode - remove src image OpVmeImageINTEL opcode
-        // and replace it with corresponding OpImage and OpSampler arguments
-        size_t SamplerPos = Args.size() - 1;
-        Args.erase(Args.begin(), Args.begin() + 1);
-        Args.insert(Args.begin(), SrcImage->getOperands()[0]);
-        Args.insert(Args.begin() + SamplerPos, SrcImage->getOperands()[1]);
-      } else {
-        SPIRVInstruction *FwdRefImage =
-            static_cast<SPIRVInstruction *>(Args[1]);
-        SPIRVInstruction *BwdRefImage =
-            static_cast<SPIRVInstruction *>(Args[2]);
-        assert(FwdRefImage && "invalid avc evaluate instruction");
-        // Single reference opcode - remove src and ref image OpVmeImageINTEL
-        // opcodes and replace them with src and ref OpImage opcodes and
-        // OpSampler
-        Args.erase(Args.begin(), Args.begin() + NumImages);
-        // insert source OpImage and OpSampler
-        auto SrcOps = SrcImage->getOperands();
-        Args.insert(Args.begin(), SrcOps.begin(), SrcOps.end());
-        // insert reference OpImage
-        Args.insert(Args.begin() + 1, FwdRefImage->getOperands()[0]);
-        if (NumImages == 3) {
-          // Dual reference opcode - insert second reference OpImage argument
-          assert(BwdRefImage && "invalid avc evaluate instruction");
-          Args.insert(Args.begin() + 2, BwdRefImage->getOperands()[0]);
-        }
-      }
-    } else
-      llvm_unreachable("invalid avc instruction");
   }
 }
 
@@ -3196,12 +3159,6 @@ SPIRVToLLVM::transOCLBuiltinPostproc(SPIRVInstruction *BI, CallInst *CI,
   }
   if (OC == OpGenericPtrMemSemantics)
     return BinaryOperator::CreateShl(CI, getInt32(M, 8), "", BB);
-  if (OC == OpImageQueryFormat)
-    return BinaryOperator::CreateSub(
-        CI, getInt32(M, OCLImageChannelDataTypeOffset), "", BB);
-  if (OC == OpImageQueryOrder)
-    return BinaryOperator::CreateSub(
-        CI, getInt32(M, OCLImageChannelOrderOffset), "", BB);
   if (OC == OpBuildNDRange)
     return postProcessOCLBuildNDRange(BI, CI, DemangledName);
   if (SPIRVEnableStepExpansion &&
@@ -3450,60 +3407,8 @@ std::string SPIRVToLLVM::getOCLBuiltinName(SPIRVInstruction *BI) {
            (EleTy->isTypeArray() && Dim >= 2 && Dim <= 3));
     return std::string(kOCLBuiltinName::NDRangePrefix) + OS.str() + "D";
   }
-  if (isIntelSubgroupOpCode(OC)) {
-    std::stringstream Name;
-    SPIRVType *DataTy = nullptr;
-    switch (OC) {
-    case OpSubgroupBlockReadINTEL:
-    case OpSubgroupImageBlockReadINTEL:
-      Name << "intel_sub_group_block_read";
-      DataTy = BI->getType();
-      break;
-    case OpSubgroupBlockWriteINTEL:
-      Name << "intel_sub_group_block_write";
-      DataTy = BI->getOperands()[1]->getType();
-      break;
-    case OpSubgroupImageBlockWriteINTEL:
-      Name << "intel_sub_group_block_write";
-      DataTy = BI->getOperands()[2]->getType();
-      break;
-    default:
-      return OCLSPIRVBuiltinMap::rmap(OC);
-    }
-    assert(DataTy && "Intel subgroup block builtins should have data type");
-    unsigned VectorNumElements = 1;
-    if (DataTy->isTypeVector())
-      VectorNumElements = DataTy->getVectorComponentCount();
-    unsigned ElementBitSize = DataTy->getBitWidth();
-    Name << getIntelSubgroupBlockDataPostfix(ElementBitSize, VectorNumElements);
-    return Name.str();
-  }
-  if (isSubgroupAvcINTELInstructionOpCode(OC))
-    return OCLSPIRVSubgroupAVCIntelBuiltinMap::rmap(OC);
 
-  auto Name = OCLSPIRVBuiltinMap::rmap(OC);
-
-  SPIRVType *T = nullptr;
-  switch (OC) {
-  case OpImageRead:
-    T = BI->getType();
-    break;
-  default:
-    // do nothing
-    break;
-  }
-  if (T && T->isTypeVector())
-    T = T->getVectorComponentType();
-  if (T) {
-    if (T->isTypeFloat(16))
-      Name += 'h';
-    else if (T->isTypeFloat(32))
-      Name += 'f';
-    else
-      Name += 'i';
-  }
-
-  return Name;
+  return OCLSPIRVBuiltinMap::rmap(OC);
 }
 
 Instruction *SPIRVToLLVM::transOCLBuiltinFromInst(SPIRVInstruction *BI,
@@ -3567,7 +3472,9 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   assert(BB && "Invalid BB");
   const auto OC = BI->getOpCode();
   bool AddRetTypePostfix = false;
-  if (OC == OpImageQuerySizeLod || OC == OpImageQuerySize)
+  if (OC == OpImageQuerySizeLod || OC == OpImageQuerySize ||
+      OC == OpImageRead || OC == OpSubgroupImageBlockReadINTEL ||
+      OC == OpSubgroupBlockReadINTEL)
     AddRetTypePostfix = true;
 
   bool IsRetSigned = false;
