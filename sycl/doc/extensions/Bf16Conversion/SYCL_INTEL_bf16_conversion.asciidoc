@@ -65,6 +65,12 @@ The purpose of conversion from float to bfloat16 is to reduce ammount of memory
 required to store floating-point numbers. Computations are expected to be done with
 32-bit floating-point values.
 
+This extension is an optional kernel feature as described in
+https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:optional-kernel-features[section 5.7]
+of the SYCL 2020 spec. Therefore, attempting to submit a kernel using this
+feature to a device that does not support it should cause a synchronous
+`errc::kernel_not_supported` exception to be thrown from the kernel invocation`
+command (e.g. from `parallel_for`).
 
 == Feature test macro
 
@@ -97,12 +103,14 @@ enum class aspect {
 If a SYCL device has the `ext_intel_bf16_conversion` aspect, then it natively
 supports conversion of values of `float` type to `bfloat16` and back.
 
-If the device doesn't have the aspect, objects of `bfloat16` class ust not be
+If the device doesn't have the aspect, objects of `bfloat16` class must not be
 used in the device code.
 
 == New `bfloat16` class
 
-The following class provides the conversion functionality:
+The `bfloat16` class below provides the conversion functionality. Conversion
+from `float` to `bfloat16` is done with round to nearest even(RTE) rounding
+mode.
 
 [source]
 ----
@@ -117,11 +125,15 @@ bfloat16 {
   storage_t value;
 
 public:
+  bfloat16() = default;
+  bfloat16(const bfloat16&) = default;
+  ~bfloat16() = default;
+
   // Direct initialization
-  bfloat16(const storage_t& a)
+  bfloat16(const storage_t&)
 
   // Convert from float to bfloat16
-  bfloat16(const float& a);
+  bfloat16(const float&);
 
   // Convert from bfloat16 to float
   operator float() const;
@@ -140,6 +152,11 @@ public:
 
 [source]
 ----
+#include <sycl/sycl.hpp>
+#include <sycl/ext/intel/experimental/bfloat16.hpp>
+
+using sycl::ext::intel::experimental::bfloat16;
+
 bfloat16 operator+(const bfloat16 &lhs, const bfloat16 &rhs) {
   return static_cast<float>(lhs) + static_cast<float>(rhs);
 }
@@ -150,7 +167,7 @@ float foo(float a, float b) {
   bfloat16 B {b};
 
   // Convert A and B from bfloat16 to float, do addition on floating-pointer
-  // numbers, then convert the result to bfloat16 and store in C.
+  // numbers, then convert the result to bfloat16 and store it in C.
   bfloat16 C = A + B;
 
   // Return the result converted from bfloat16 to float.
