@@ -706,6 +706,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   ZE_CALL(zeFenceReset, (CommandList->second.ZeFence));
   ZE_CALL(zeCommandListReset, (CommandList->first));
   CommandList->second.InUse = false;
+  CommandList->second.EventList.clear();
 
   if (MakeAvailable) {
     std::lock_guard<std::mutex> lock(this->Context->ZeCommandListCacheMutex);
@@ -947,15 +948,12 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // as we want to strictly follow the batching the user specified.
   if (OKToBatchCommand && this->isBatchingAllowed() &&
       (!UseDynamicBatching || !CurrentlyEmpty)) {
-    if (hasOpenCommandList()) {
-      if (OpenCommandList != CommandList)
-        die("executeCommandList: OpenCommandList should be equal to"
-            "null or CommandList");
 
-      if (OpenCommandList->second.size() < QueueBatchSize) {
-        return PI_SUCCESS;
-      }
-    } else {
+    if (hasOpenCommandList() && OpenCommandList != CommandList)
+      die("executeCommandList: OpenCommandList should be equal to"
+          "null or CommandList");
+
+    if (CommandList->second.size() < QueueBatchSize) {
       OpenCommandList = CommandList;
       return PI_SUCCESS;
     }
