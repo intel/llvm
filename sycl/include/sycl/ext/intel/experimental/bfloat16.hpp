@@ -16,16 +16,21 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-class bfloat16 {
+class [[sycl_detail::uses_aspects(ext_intel_bf16_conversion)]]
+bfloat16 {
   using storage_t = uint16_t;
   storage_t value;
 
 public:
+  bfloat16() = default;
+  bfloat16(const bfloat16&) = default;
+  ~bfloat16() = default;
+
   // Direct initialization
-  bfloat16(const storage_t& a) : value(a) {}
+  bfloat16(const storage_t &a) : value(a) {}
 
   // convert from float to bfloat16
-  bfloat16(const float& a) {
+  bfloat16(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
     value = __spirv_ConvertFToBF16INTEL(a);
 #else
@@ -35,7 +40,7 @@ public:
   }
 
   // convert from bfloat16 to float
-  operator float() {
+  operator float() const {
 #if defined(__SYCL_DEVICE_ONLY__)
     return __spirv_ConvertBF16ToFINTEL(value);
 #else
@@ -44,18 +49,8 @@ public:
 #endif
   }
 
-  operator float() const {
-    return this->operator float();
-  }
-
   // Get bfloat16 as uint16.
-  operator storage_t() const {
-    return value;
-  }
-
-  operator storage_t() {
-    return value;
-  }
+  operator storage_t() const { return value; }
 };
 
 } // namespace experimental
@@ -66,4 +61,5 @@ namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
   using namespace ext::intel;
 }
 } // namespace sycl
-} // namespace cl
+} // __SYCL_INLINE_NAMESPACE(cl)
+
