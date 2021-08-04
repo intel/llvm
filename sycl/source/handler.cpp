@@ -245,12 +245,6 @@ void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
                                    /*index*/ 0);
 }
 
-// The argument can take up more space to store additional information about
-// MAccessRange, MMemoryRange, and MOffset added with addArgsForGlobalAccessor.
-// TODO: the constant can be removed when the computation of real_KernelArgsNum
-// is done at compile time.
-const size_t NumAdditionalArgsForGlobalAccessor = 3;
-
 static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
                                      size_t &IndexShift, int Size,
                                      bool IsKernelCreatedFromSource,
@@ -410,6 +404,13 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
   }
 }
 
+// The argument can take up more space to store additional information about
+// MAccessRange, MMemoryRange, and MOffset added with addArgsForGlobalAccessor.
+// We use the worst-case estimate because the lifetime of the vector is short.
+// TODO: the constant can be removed if the size of MArgs will be calculated at
+// compile time.
+const size_t MaxNumAdditionalArgs = 12;
+
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
   std::vector<detail::ArgDesc> UnPreparedArgs = std::move(MArgs);
@@ -423,41 +424,7 @@ void handler::extractArgsAndReqs() {
 
   const bool IsKernelCreatedFromSource = MKernel->isCreatedFromSource();
 
-  // TODO: to do that in compile time.
-  size_t real_KernelArgsNum = UnPreparedArgs.size();
-  for (size_t I = 0; I < UnPreparedArgs.size(); ++I) {
-    const detail::kernel_param_kind_t &Kind = UnPreparedArgs[I].MType;
-    if (Kind == detail::kernel_param_kind_t::kind_accessor) {
-      const int &Size = UnPreparedArgs[I].MSize;
-      // For args kind of accessor Size is information about accessor.
-      // The first 11 bits of Size encodes the accessor target.
-      const access::target AccTarget =
-          static_cast<access::target>(Size & 0x7ff);
-      switch (AccTarget) {
-      case access::target::global_buffer:
-      case access::target::constant_buffer:
-      case access::target::local: {
-        if (!IsKernelCreatedFromSource) {
-          real_KernelArgsNum += NumAdditionalArgsForGlobalAccessor;
-        }
-        break;
-      }
-      case access::target::image:
-      case access::target::image_array:
-      case access::target::host_image:
-      case access::target::host_buffer: {
-        break;
-      }
-      }
-    } else if (Kind == detail::kernel_param_kind_t::kind_stream) {
-      if (!IsKernelCreatedFromSource) {
-        real_KernelArgsNum += NumAdditionalArgsForGlobalAccessor * 4;
-      } else {
-        real_KernelArgsNum += NumAdditionalArgsForGlobalAccessor;
-      }
-    }
-  }
-  MArgs.reserve(real_KernelArgsNum);
+  MArgs.reserve(MaxNumAdditionalArgs * UnPreparedArgs.size());
 
   size_t IndexShift = 0;
   for (size_t I = 0; I < UnPreparedArgs.size(); ++I) {
@@ -483,44 +450,7 @@ void handler::extractArgsAndReqsFromLambda(
   const bool IsKernelCreatedFromSource = false;
   size_t IndexShift = 0;
 
-  // TODO: to do that in compile time.
-  size_t real_KernelArgsNum = KernelArgsNum;
-  for (size_t I = 0; I < KernelArgsNum; ++I) {
-    const detail::kernel_param_kind_t &Kind = KernelArgs[I].kind;
-    if (Kind == detail::kernel_param_kind_t::kind_accessor) {
-      const int &Size = KernelArgs[I].info;
-      // For args kind of accessor Size is information about accessor.
-      // The first 11 bits of Size encodes the accessor target.
-      const access::target AccTarget =
-          static_cast<access::target>(Size & 0x7ff);
-      switch (AccTarget) {
-      case access::target::global_buffer:
-      case access::target::constant_buffer: {
-        if (!IsESIMD) {
-          real_KernelArgsNum += NumAdditionalArgsForGlobalAccessor;
-        }
-        break;
-      }
-      case access::target::local: {
-        real_KernelArgsNum += NumAdditionalArgsForGlobalAccessor;
-        break;
-      }
-      case access::target::image:
-      case access::target::image_array:
-      case access::target::host_image:
-      case access::target::host_buffer: {
-        break;
-      }
-      }
-    } else if (Kind == detail::kernel_param_kind_t::kind_stream) {
-      if (!IsESIMD) {
-        real_KernelArgsNum += NumAdditionalArgsForGlobalAccessor * 4;
-      } else {
-        real_KernelArgsNum += NumAdditionalArgsForGlobalAccessor;
-      }
-    }
-  }
-  MArgs.reserve(real_KernelArgsNum);
+  MArgs.reserve(MaxNumAdditionalArgs * KernelArgsNum);
 
   for (size_t I = 0; I < KernelArgsNum; ++I) {
     void *Ptr = LambdaPtr + KernelArgs[I].offset;
