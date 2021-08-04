@@ -552,7 +552,7 @@ struct _pi_queue : _pi_object {
         OwnZeCommandQueue{OwnZeCommandQueue}, UseDynamicBatching{BatchSize ==
                                                                  0},
         PiQueueProperties(PiQueueProperties) {
-    OpenCommandList == CommandListMap.end();
+    OpenCommandList = CommandListMap.end();
   }
 
   // Level Zero compute command queue handle.
