@@ -404,6 +404,9 @@ private:
     handler Handler(Self, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
+    // Scheduler will later omit events, that are not required to execute tasks.
+    // Host and interop tasks, however, are not submitted to low-level runtimes
+    // and require separate dependency management.
     if (has_property<property::queue::in_order>())
       Handler.depends_on(MLastEvent);
     event Event = Handler.finalize();
