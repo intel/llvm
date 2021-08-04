@@ -1407,7 +1407,9 @@ public:
   template <int Num = getNumElements()>
   __SYCL2020_DEPRECATED(
       "get_size() is deprecated, please use byte_size() instead")
-  size_t get_size() const { return byte_size<Num>(); }
+  size_t get_size() const {
+    return byte_size<Num>();
+  }
 
   template <int Num = getNumElements()> size_t byte_size() const noexcept {
     return sizeof(DataT) * (Num == 3 ? 4 : Num);
