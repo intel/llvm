@@ -16152,7 +16152,7 @@ static bool isLayoutCompatible(ASTContext &C, QualType T1, QualType T2) {
 ///
 /// \param MagicValue Type tag magic value.
 ///
-/// \param isConstantEvaluated wether the evalaution should be performed in
+/// \param isConstantEvaluated whether the evalaution should be performed in
 
 /// constant context.
 static bool FindTypeTagExpr(const Expr *TypeExpr, const ASTContext &Ctx,
@@ -16232,7 +16232,7 @@ static bool FindTypeTagExpr(const Expr *TypeExpr, const ASTContext &Ctx,
 ///
 /// \param TypeInfo Information about the corresponding C type.
 ///
-/// \param isConstantEvaluated wether the evalaution should be performed in
+/// \param isConstantEvaluated whether the evalaution should be performed in
 /// constant context.
 ///
 /// \returns true if the corresponding C type was found.

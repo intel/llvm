@@ -469,7 +469,6 @@ defvar render_script = LangOpts<"RenderScript">;
 defvar hip = LangOpts<"HIP">;
 defvar gnu_mode = LangOpts<"GNUMode">;
 defvar asm_preprocessor = LangOpts<"AsmPreprocessor">;
-defvar cpp_modules = LangOpts<"CPlusPlusModules">;
 defvar sycl_ver = LangOpts<"SYCLVersion">;
 
 defvar std = !strconcat("LangStandard::getLangStandardForKind(", lang_std.KeyPath, ")");
@@ -1353,8 +1352,11 @@ defm cxx_exceptions: BoolFOption<"cxx-exceptions",
 defm async_exceptions: BoolFOption<"async-exceptions",
   LangOpts<"EHAsynch">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Enable EH Asynchronous exceptions">, NegFlag<SetFalse>>;
-def fcxx_modules : Flag <["-"], "fcxx-modules">, Group<f_Group>,
-  Flags<[NoXarchOption]>;
+defm cxx_modules : BoolFOption<"cxx-modules",
+  LangOpts<"CPlusPlusModules">, Default<cpp20.KeyPath>,
+  NegFlag<SetFalse, [CC1Option], "Disable">, PosFlag<SetTrue, [], "Enable">,
+  BothFlags<[NoXarchOption], " modules for C++">>,
+  ShouldParseIf<cplusplus.KeyPath>;
 def fdebug_pass_arguments : Flag<["-"], "fdebug-pass-arguments">, Group<f_Group>;
 def fdebug_pass_structure : Flag<["-"], "fdebug-pass-structure">, Group<f_Group>;
 def fdepfile_entry : Joined<["-"], "fdepfile-entry=">,
@@ -2175,7 +2177,7 @@ def fmodules_ts : Flag <["-"], "fmodules-ts">, Group<f_Group>,
   Flags<[CC1Option]>, HelpText<"Enable support for the C++ Modules TS">,
   MarshallingInfoFlag<LangOpts<"ModulesTS">>;
 defm modules : BoolFOption<"modules",
-  LangOpts<"Modules">, Default<!strconcat(fmodules_ts.KeyPath, "||", cpp_modules.KeyPath)>,
+  LangOpts<"Modules">, Default<!strconcat(fmodules_ts.KeyPath, "||", fcxx_modules.KeyPath)>,
   PosFlag<SetTrue, [CC1Option], "Enable the 'modules' language feature">,
   NegFlag<SetFalse>, BothFlags<[NoXarchOption, CoreOption]>>;
 def fmodule_maps : Flag <["-"], "fmodule-maps">, Flags<[CoreOption]>, Alias<fimplicit_module_maps>;
@@ -2234,8 +2236,6 @@ def fno_diagnostics_color : Flag<["-"], "fno-diagnostics-color">, Group<f_Group>
   Flags<[CoreOption, NoXarchOption]>;
 def fno_common : Flag<["-"], "fno-common">, Group<f_Group>, Flags<[CC1Option]>,
     HelpText<"Compile common globals like normal definitions">;
-def fno_cxx_modules : Flag <["-"], "fno-cxx-modules">, Group<f_Group>,
-  Flags<[NoXarchOption]>;
 defm digraphs : BoolFOption<"digraphs",
   LangOpts<"Digraphs">, Default<std#".hasDigraphs()">,
   PosFlag<SetTrue, [], "Enable alternative token representations '<:', ':>', '<%', '%>', '%:', '%:%:' (default)">,
@@ -2829,6 +2829,10 @@ def fvisibility_ms_compat : Flag<["-"], "fvisibility-ms-compat">, Group<f_Group>
 def fvisibility_global_new_delete_hidden : Flag<["-"], "fvisibility-global-new-delete-hidden">, Group<f_Group>,
   HelpText<"Give global C++ operator new and delete declarations hidden visibility">, Flags<[CC1Option]>,
   MarshallingInfoFlag<LangOpts<"GlobalAllocationFunctionVisibilityHidden">>;
+def fnew_infallible : Flag<["-"], "fnew-infallible">, Group<f_Group>,
+  HelpText<"Treats throwing global C++ operator new as always returning valid memory "
+  "(annotates with __attribute__((returns_nonnull)) and throw()). This is detectable in source.">,
+  Flags<[CC1Option]>, MarshallingInfoFlag<LangOpts<"NewInfallible">>;
 defm whole_program_vtables : BoolFOption<"whole-program-vtables",
   CodeGenOpts<"WholeProgramVTables">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Enables whole-program vtable optimization. Requires -flto">,
@@ -3243,6 +3247,8 @@ def meabi : Separate<["-"], "meabi">, Group<m_Group>, Flags<[CC1Option]>,
   MarshallingInfoEnum<TargetOpts<"EABIVersion">, "Default">,
   NormalizedValuesScope<"llvm::EABI">,
   NormalizedValues<["Default", "EABI4", "EABI5", "GNU"]>;
+def mtargetos_EQ : Joined<["-"], "mtargetos=">, Group<m_Group>,
+  HelpText<"Set the deployment target to be the specified OS and OS version">;
 
 def mno_constant_cfstrings : Flag<["-"], "mno-constant-cfstrings">, Group<m_Group>;
 def mno_global_merge : Flag<["-"], "mno-global-merge">, Group<m_Group>, Flags<[CC1Option]>,
@@ -5419,7 +5425,7 @@ def fmodules_local_submodule_visibility :
   HelpText<"Enforce name visibility rules across submodules of the same "
            "top-level module.">,
   MarshallingInfoFlag<LangOpts<"ModulesLocalVisibility">>,
-  ImpliedByAnyOf<[fmodules_ts.KeyPath, cpp_modules.KeyPath]>;
+  ImpliedByAnyOf<[fmodules_ts.KeyPath, fcxx_modules.KeyPath]>;
 def fmodules_codegen :
   Flag<["-"], "fmodules-codegen">,
   HelpText<"Generate code for uses of this module that assumes an explicit "
