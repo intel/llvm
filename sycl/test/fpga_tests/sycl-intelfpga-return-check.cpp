@@ -1,4 +1,4 @@
-// REQUIRES: system-linux 
+// REQUIRES: system-linux
 
 /// Tests behavior with aoc -fintelpga.
 /// Uses a dummy aoc which returns '42' to make sure we properly emit a
@@ -7,9 +7,7 @@
 // RUN: not %clangxx -fsycl -fintelfpga -Xshardware %s -v 2>&1 \
 // RUN:  | FileCheck %s -check-prefix ERROR_OUTPUT
 // ERROR_OUTPUT: ld{{.*}} -o a.out
-// ERROR_OUTPUT: The FPGA image generated during this compile contains timing violations
+// ERROR_OUTPUT: The FPGA image generated during this compile contains timing
+// violations
 
-int main()
-{
-  return 0;
-}
+int main() { return 0; }
