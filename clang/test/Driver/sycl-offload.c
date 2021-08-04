@@ -44,19 +44,19 @@
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
 // RUN:   %clang_cl -### -fsycl-targets=spir64-unknown-unknown-sycldevice  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
-// CHK-NO-FSYCL: error: The option -fsycl-targets must be used in conjunction with -fsycl to enable offloading.
+// CHK-NO-FSYCL: error: '-fsycl-targets' must be used in conjunction with '-fsycl' to enable offloading
 // RUN:   %clang -### -fsycl-link-targets=spir64-unknown-unknown-sycldevice  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-LINK-TGTS %s
-// CHK-NO-FSYCL-LINK-TGTS: error: The option -fsycl-link-targets must be used in conjunction with -fsycl to enable offloading.
+// CHK-NO-FSYCL-LINK-TGTS: error: '-fsycl-link-targets' must be used in conjunction with '-fsycl' to enable offloading
 // RUN:   %clang -### -fsycl-add-targets=spir64-unknown-unknown-sycldevice  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-ADD %s
-// CHK-NO-FSYCL-ADD: error: The option -fsycl-add-targets must be used in conjunction with -fsycl to enable offloading.
+// CHK-NO-FSYCL-ADD: error: '-fsycl-add-targets' must be used in conjunction with '-fsycl' to enable offloading
 // RUN:   %clang -### -fsycl-link  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-LINK %s
-// CHK-NO-FSYCL-LINK: error: The option -fsycl-link must be used in conjunction with -fsycl to enable offloading.
+// CHK-NO-FSYCL-LINK: error: '-fsycl-link' must be used in conjunction with '-fsycl' to enable offloading
 // RUN:   %clang -### -fintelfpga  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-FINTELFPGA %s
-// CHK-NO-FSYCL-FINTELFPGA: error: The option -fintelfpga must be used in conjunction with -fsycl to enable offloading.
+// CHK-NO-FSYCL-FINTELFPGA: error: '-fintelfpga' must be used in conjunction with '-fsycl' to enable offloading
 
 /// ###########################################################################
 
@@ -142,7 +142,7 @@
 /// Check warning for duplicate offloading targets.
 // RUN:   %clang -### -ccc-print-phases -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice,spir64-unknown-unknown-sycldevice  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DUPLICATES %s
-// CHK-DUPLICATES: warning: The SYCL offloading target 'spir64-unknown-unknown-sycldevice' is similar to target 'spir64-unknown-unknown-sycldevice' already specified - will be ignored.
+// CHK-DUPLICATES: warning: SYCL offloading target 'spir64-unknown-unknown-sycldevice' is similar to target 'spir64-unknown-unknown-sycldevice' already specified; will be ignored
 
 /// ###########################################################################
 
@@ -916,7 +916,7 @@
 // RUN: %clangxx -### -c -fsycl -xc %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
 // RUN: %clangxx -### -c -fsycl -xc-header %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
 // RUN: %clangxx -### -c -fsycl -xcpp-output %s 2>&1 | FileCheck -check-prefixes=CHECK_XC_FSYCL %s
-// CHECK_XC_FSYCL: The option '-x c{{.*}}' must not be used in conjunction with '-fsycl'
+// CHECK_XC_FSYCL: '-x c{{.*}}' must not be used in conjunction with '-fsycl'
 
 // -std=c++17 check (check all 3 compilations)
 // RUN: %clangxx -### -c -fsycl -xc++ %s 2>&1 | FileCheck -check-prefix=CHECK-STD %s
