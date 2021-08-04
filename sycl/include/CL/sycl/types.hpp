@@ -1403,11 +1403,12 @@ public:
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
   size_t size() const noexcept { return getNumElements(); }
+
+  template <int Num = getNumElements()>
   __SYCL2020_DEPRECATED(
       "get_size() is deprecated, please use byte_size() instead")
-  template <int Num = getNumElements()> size_t get_size() const {
-    return byte_size<Num>();
-  }
+  size_t get_size() const { return byte_size<Num>(); }
+
   template <int Num = getNumElements()> size_t byte_size() const noexcept {
     return sizeof(DataT) * (Num == 3 ? 4 : Num);
   }
