@@ -58,6 +58,11 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
     std::cout << "Not run due to host-only environment\n";
     return;
   }
+  if (Plt.get_backend() != sycl::backend::opencl &&
+      Plt.get_backend() != sycl::backend::level_zero) {
+    std::cout << "Only OpenCL and Level Zero are supported for this test\n";
+    return;
+  }
 
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
@@ -80,6 +85,5 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   });
   InOrderQueue.wait();
 
-  auto EventImpl = detail::getSyclObjImpl(Evt);
   EXPECT_TRUE(GEventsWaitCounter >= 1);
 }
