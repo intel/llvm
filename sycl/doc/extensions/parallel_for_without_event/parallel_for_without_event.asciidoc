@@ -52,7 +52,7 @@ products.
 == Introduction
 
 This extension adds the new API calls `parallel_for_without_event` for `sycl::queue`:
-[source]
+[source,c++]
 ----
   template <typename KernelName, typename KernelType>
   void parallel_for_without_event(range<1> NumWorkItems, const KernelType &KernelFunc);
@@ -81,14 +81,21 @@ by calling the `wait()` method on the same `sycl::queue`.
 == Limitations
 
 For using the new API, the following cases are not supported:
+
 - accessors(global and local)
+
 - streams
+
 - interoperability
+
 - specialization constants
+
 - enable_profiling property for queue
+
 - queue must support OOO if app creates OOO queue
 
-==  back-end limitations
+
+#### back-end limitations
 [%header,cols="1,5"]
 |===
 |back-end   |Description
@@ -102,13 +109,13 @@ unnecessary checks during each submission, and also not create
 an event that the user does not need, thereby saving the host time
 spent on each submission. Using the API is well suited for a kernel
 that uses USM memory.
-Advice: if target backend supports [static local memory allocation feature](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/LocalMemory/SYCL_INTEL_local_memory.asciidoc),
-inside the kernel code, then it can be used instead of creating local accessors.
+
+Advice: if target backend supports https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/LocalMemory/SYCL_INTEL_local_memory.asciidoc[static local memory allocation feature] inside the kernel code, then it can be used instead of creating local accessors.
 
 
 Following is an example use-case:
 
-[source]
+[source,c++]
 ----
 #include <sycl/sycl.hpp>
 
