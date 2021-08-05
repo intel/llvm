@@ -958,7 +958,10 @@ static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name);
   // [const|volatile] pointers, so this is ok to do it as a last step.
   if (Ty.IsPointer != 0) {
     for (unsigned Index = 0; Index < QT.size(); Index++) {
-      QT[Index] = Context.getAddrSpaceQualType(QT[Index], Ty.AS);
+      QT[Index] = Context.getAddrSpaceQualType(
+          QT[Index], S.getLangOpts().SYCLIsDevice
+                         ? getLangASasSYCLLangAS(Ty.AS)
+                         : getLangASasOpenCLLangAS(Ty.AS));
       QT[Index] = Context.getPointerType(QT[Index]);
     }
   }
