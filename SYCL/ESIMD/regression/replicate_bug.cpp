@@ -43,7 +43,6 @@ template <int Width> bool test(queue q, const std::vector<int> &gold) {
         using namespace sycl::ext::intel::experimental::esimd;
         simd<int, VL> va;
         va.copy_from(A);
-        // FIXME: it should be similar to replicate_vs_w_hs<VL, 0, 1, 1>(1);
         simd<int, VL *Width> vb = va.replicate_w<VL, Width>(1);
         vb.copy_to(B);
       });
@@ -84,14 +83,7 @@ int main(void) {
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
   bool passed = true;
-// FIXME: remove #else once fix is available
-#ifdef CORRECT_BEHAVIOR
   passed &= test<1>(q, {1, 1, 1, 1, 1, 1, 1, 1});
   passed &= test<2>(q, {1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2});
-#else
-  passed &= test<1>(q, {1, 2, 3, 4, 5, 6, 7, 0});
-  passed &= test<2>(q, {1, 2, 3, 4, 5, 6, 7, 0, 2, 3, 4, 5, 6, 7, 0, 0});
-#endif
-
   return passed ? 0 : 1;
 }
