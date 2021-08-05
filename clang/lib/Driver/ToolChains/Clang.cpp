@@ -1418,6 +1418,10 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     A->render(Args, CmdArgs);
   }
 
+  Args.AddAllArgs(CmdArgs,
+                  {options::OPT_D, options::OPT_U, options::OPT_I_Group,
+                   options::OPT_F, options::OPT_index_header_map});
+
   // The file being compiled that contains the integration footer is not being
   // compiled in the directory of the original source.  Add that directory
   // as an -internal-isystem option so we can properly find potential headers
@@ -1426,18 +1430,14 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     SmallString<128> SourcePath(Inputs[0].getBaseInput());
     llvm::sys::path::remove_filename(SourcePath);
     if (!SourcePath.empty()) {
-      CmdArgs.push_back("-internal-isystem");
+      CmdArgs.push_back("-I");
       CmdArgs.push_back(Args.MakeArgString(SourcePath));
     } else if (llvm::ErrorOr<std::string> CWD =
                    D.getVFS().getCurrentWorkingDirectory()) {
-      CmdArgs.push_back("-internal-isystem");
+      CmdArgs.push_back("-I");
       CmdArgs.push_back(Args.MakeArgString(*CWD));
     }
   }
-
-  Args.AddAllArgs(CmdArgs,
-                  {options::OPT_D, options::OPT_U, options::OPT_I_Group,
-                   options::OPT_F, options::OPT_index_header_map});
 
   // Add -Wp, and -Xpreprocessor if using the preprocessor.
 
