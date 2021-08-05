@@ -1205,7 +1205,8 @@ bool MemCpyCommand::producesPiEvent() const {
   // an event waitlist and Level Zero plugin attempts to batch these commands,
   // so the execution of kernel B starts only on step 4. This workaround
   // restores the old behavior in this case until this is resolved.
-  return MQueue->is_host() || MQueue->getPlugin().getBackend() != backend::level_zero;
+  return MQueue->is_host() ||
+         MQueue->getPlugin().getBackend() != backend::level_zero;
 }
 
 cl_int MemCpyCommand::enqueueImp() {
