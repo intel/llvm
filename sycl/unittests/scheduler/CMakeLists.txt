@@ -1,5 +1,6 @@
 add_sycl_unittest(SchedulerTests OBJECT
     BlockedCommands.cpp
+    Commands.cpp
     FailedCommands.cpp
     FinishedCmdCleanup.cpp
     LeafLimit.cpp
