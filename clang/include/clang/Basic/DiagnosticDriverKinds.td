@@ -79,8 +79,9 @@ def warn_drv_unknown_cuda_version: Warning<
   InGroup<CudaUnknownVersion>;
 def err_drv_cuda_host_arch : Error<"unsupported architecture '%0' for host compilation.">;
 def err_drv_no_sycl_libspirv : Error<
-  "cannot find `libspirv-nvptx64--nvidiacl.bc`. Provide path to libspirv library via "
-  "-fsycl-libspirv-path, or pass -fno-sycl-libspirv to build without linking with libspirv.">;
+  "cannot find 'libspirv-nvptx64--nvidiacl.bc'; provide path to libspirv "
+  "library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to build "
+  "without linking with libspirv">;
 def err_drv_mix_cuda_hip : Error<"Mixed Cuda and HIP compilation is not supported.">;
 def err_drv_bad_target_id : Error<"Invalid target ID: %0 (A target ID is a processor name "
   "followed by an optional list of predefined features post-fixed by a plus or minus sign deliminated "
@@ -246,6 +247,8 @@ def warn_invalid_ios_deployment_target : Warning<
   "invalid iOS deployment version '%0', iOS 10 is the maximum deployment "
   "target for 32-bit targets">, InGroup<InvalidIOSDeploymentTarget>,
   DefaultError;
+def err_invalid_macos_32bit_deployment_target : Error<
+  "32-bit targets are not supported when building for Mac Catalyst">;
 def err_drv_conflicting_deployment_targets : Error<
   "conflicting deployment targets, both '%0' and '%1' are present in environment">;
 def err_arc_unsupported_on_runtime : Error<
@@ -283,12 +286,12 @@ def err_drv_omp_host_target_not_supported : Error<
 def err_drv_expecting_fopenmp_with_fopenmp_targets : Error<
   "The option -fopenmp-targets must be used in conjunction with a -fopenmp option compatible with offloading, please use -fopenmp=libomp or -fopenmp=libiomp5.">;
 def err_drv_expecting_fsycl_with_sycl_opt : Error<
-  "The option %0 must be used in conjunction with -fsycl to enable offloading.">;
+  "'%0' must be used in conjunction with '-fsycl' to enable offloading">;
 def err_drv_fsycl_with_c_type : Error<
-  "The option '%0' must not be used in conjunction with '-fsycl', which expects C++ source.">;
+  "'%0' must not be used in conjunction with '-fsycl', which expects C++ source">;
 def warn_drv_sycl_offload_target_duplicate : Warning<
-  "The SYCL offloading target '%0' is similar to target '%1' already specified - will be ignored.">,
-  InGroup<SyclTarget>;
+  "SYCL offloading target '%0' is similar to target '%1' already specified; "
+  "will be ignored">, InGroup<SyclTarget>;
 def err_drv_omp_offload_target_missingbcruntime : Error<
   "No library '%0' found in the default clang lib directory or in LIBRARY_PATH. Please use --libomptarget-%1-bc-path to specify %1 bitcode library.">;
 def err_drv_omp_offload_target_bcruntime_not_found : Error<"Bitcode library '%0' does not exist.">;

@@ -1461,7 +1461,8 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
 
     // If switch has default case, then ignore it.
     if (!CaseListIsErroneous && !CaseListIsIncomplete && !HasConstantCond &&
-        ET && ET->getDecl()->isCompleteDefinition()) {
+        ET && ET->getDecl()->isCompleteDefinition() &&
+        !empty(ET->getDecl()->enumerators())) {
       const EnumDecl *ED = ET->getDecl();
       EnumValsTy EnumVals;
 
@@ -3483,7 +3484,12 @@ ExprResult
 Sema::PerformMoveOrCopyInitialization(const InitializedEntity &Entity,
                                       const NamedReturnInfo &NRInfo,
                                       Expr *Value) {
-  if (!getLangOpts().CPlusPlus2b && NRInfo.isMoveEligible()) {
+  // FIXME: We force P1825 implicit moves here in msvc compatibility mode
+  // because we are disabling simpler implicit moves as a temporary
+  // work around, as the MSVC STL has issues with this change.
+  // We will come back later with a more targeted approach.
+  if ((!getLangOpts().CPlusPlus2b || getLangOpts().MSVCCompat) &&
+      NRInfo.isMoveEligible()) {
     ImplicitCastExpr AsRvalue(ImplicitCastExpr::OnStack, Value->getType(),
                               CK_NoOp, Value, VK_XValue, FPOptionsOverride());
     Expr *InitExpr = &AsRvalue;

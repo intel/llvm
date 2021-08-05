@@ -655,6 +655,21 @@ private:
     FPGAEmulationMode = IsEmulation;
   }
 
+  /// The inclusion of the default SYCL device triple is dependent on either
+  /// the discovery of an existing object/archive that contains the device code
+  /// or if a user explicitly turns this on with -fsycl-add-spirv.
+  /// We need to keep track of this so any use of any generic target option
+  /// setting is only applied to the user specified triples.
+  bool SYCLDefaultTripleImplied = false;
+  void setSYCLDefaultTriple(bool IsDefaultImplied) {
+    SYCLDefaultTripleImplied = IsDefaultImplied;
+  }
+
+  /// Returns true if an offload binary is found that contains the default
+  /// triple for SYCL (spir64)
+  bool checkForSYCLDefaultDevice(Compilation &C,
+                                 llvm::opt::DerivedArgList &Args) const;
+
   /// Returns true if an offload static library is found.
   bool checkForOffloadStaticLib(Compilation &C,
                                 llvm::opt::DerivedArgList &Args) const;
@@ -713,6 +728,10 @@ public:
   /// isFPGAEmulationMode - Compilation mode is determined to be used for
   /// FPGA Emulation.  This is only used for SYCL offloading to FPGA device.
   bool isFPGAEmulationMode() const { return FPGAEmulationMode; };
+
+  /// isSYCLDefaultTripleImplied - The default SYCL triple (spir64) has been
+  /// added or should be added given proper criteria.
+  bool isSYCLDefaultTripleImplied() const { return SYCLDefaultTripleImplied; };
 
   /// addIntegrationFiles - Add the integration files that will be populated
   /// by the device compilation and used by the host compile.

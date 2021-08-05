@@ -68,12 +68,14 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   }
 }
 
-EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
-                              QueueImplPtr Queue) {
+EventImplPtr
+Scheduler::addCG(std::unique_ptr<detail::CommandGroup> CommandGroup,
+                 QueueImplPtr Queue) {
   EventImplPtr NewEvent = nullptr;
-  const bool IsKernel = CommandGroup->getType() == CG::Kernel;
+  const bool IsKernel = CommandGroup->getType() == CommandGroup::Kernel;
   std::vector<Command *> AuxiliaryCmds;
-  const bool IsHostKernel = CommandGroup->getType() == CG::RunOnHostIntel;
+  const bool IsHostKernel =
+      CommandGroup->getType() == CommandGroup::RunOnHostIntel;
   std::vector<StreamImplPtr> Streams;
 
   if (IsKernel) {
@@ -86,6 +88,59 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
         initStream(Stream, Queue);
       }
     }
+
+    if (CommandGroup->MRequirements.size() + CommandGroup->MEvents.size() ==
+        0) {
+      ExecCGCommand *NewCmd(
+          new ExecCGCommand(std::move(CommandGroup), std::move(Queue)));
+      if (!NewCmd)
+        throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+      NewEvent = NewCmd->getEvent();
+
+      auto CleanUp = [&]() {
+        NewEvent->setCommand(nullptr);
+        delete NewCmd;
+      };
+
+      if (MGraphBuilder
+              .MPrintOptionsArray[GraphBuilder::PrintOptions::BeforeAddCG])
+        MGraphBuilder.printGraphAsDot("before_addCG");
+      if (MGraphBuilder
+              .MPrintOptionsArray[GraphBuilder::PrintOptions::AfterAddCG])
+        MGraphBuilder.printGraphAsDot("after_addCG");
+
+      try {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+        NewCmd->emitInstrumentation(xpti::trace_task_begin, nullptr);
+#endif
+
+        cl_int Res = NewCmd->enqueueImp();
+
+        // Emit this correlation signal before the task end
+        NewCmd->emitEnqueuedEventSignal(NewEvent->getHandleRef());
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+        NewCmd->emitInstrumentation(xpti::trace_task_end, nullptr);
+#endif
+
+        if (CL_SUCCESS != Res)
+          throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+        else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
+          NewEvent->setComplete();
+      } catch (...) {
+        // enqueueImp() func and if statement above may throw an exception,
+        // so destroy required resources to avoid memory leak
+        CleanUp();
+        std::rethrow_exception(std::current_exception());
+      }
+
+      CleanUp();
+
+      for (auto StreamImplPtr : Streams) {
+        StreamImplPtr->flush();
+      }
+
+      return NewEvent;
+    }
   }
 
   {
@@ -94,11 +149,11 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     Command *NewCmd = nullptr;
     switch (CommandGroup->getType()) {
-    case CG::UpdateHost:
+    case CommandGroup::UpdateHost:
       NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
                                              DefaultHostQueue, AuxiliaryCmds);
       break;
-    case CG::CodeplayHostTask:
+    case CommandGroup::CodeplayHostTask:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), DefaultHostQueue,
                                    AuxiliaryCmds);
       break;

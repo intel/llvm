@@ -509,6 +509,9 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
   // Whether inlining is decided by cost-benefit analysis.
   bool DecidedByCostBenefit = false;
 
+  // The cost-benefit pair computed by cost-benefit analysis.
+  Optional<CostBenefitPair> CostBenefit = None;
+
   bool SingleBB = true;
 
   unsigned SROACostSavings = 0;
@@ -534,7 +537,7 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
   /// Handle a capped 'int' increment for Cost.
   void addCost(int64_t Inc, int64_t UpperBound = INT_MAX) {
     assert(UpperBound > 0 && UpperBound <= INT_MAX && "invalid upper bound");
-    Cost = (int)std::min(UpperBound, Cost + Inc);
+    Cost = std::min<int>(UpperBound, Cost + Inc);
   }
 
   void onDisableSROA(AllocaInst *Arg) override {
@@ -595,10 +598,11 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
     // branch to destination.
     // Maximum valid cost increased in this function.
     if (JumpTableSize) {
-      int64_t JTCost = (int64_t)JumpTableSize * InlineConstants::InstrCost +
-                       4 * InlineConstants::InstrCost;
+      int64_t JTCost =
+          static_cast<int64_t>(JumpTableSize) * InlineConstants::InstrCost +
+          4 * InlineConstants::InstrCost;
 
-      addCost(JTCost, (int64_t)CostUpperBound);
+      addCost(JTCost, static_cast<int64_t>(CostUpperBound));
       return;
     }
 
@@ -613,7 +617,7 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
     int64_t SwitchCost =
         ExpectedNumberOfCompare * 2 * InlineConstants::InstrCost;
 
-    addCost(SwitchCost, (int64_t)CostUpperBound);
+    addCost(SwitchCost, static_cast<int64_t>(CostUpperBound));
   }
   void onMissedSimplification() override {
     addCost(InlineConstants::InstrCost);
@@ -793,6 +797,8 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
     // savings threshold.
     Size = Size > InlineSizeAllowance ? Size - InlineSizeAllowance : 1;
 
+    CostBenefit.emplace(APInt(128, Size), CycleSavings);
+
     // Return true if the savings justify the cost of inlining.  Specifically,
     // we evaluate the following inequality:
     //
@@ -938,9 +944,10 @@ public:
   }
 
   virtual ~InlineCostCallAnalyzer() {}
-  int getThreshold() { return Threshold; }
-  int getCost() { return Cost; }
-  bool wasDecidedByCostBenefit() { return DecidedByCostBenefit; }
+  int getThreshold() const { return Threshold; }
+  int getCost() const { return Cost; }
+  Optional<CostBenefitPair> getCostBenefitPair() { return CostBenefit; }
+  bool wasDecidedByCostBenefit() const { return DecidedByCostBenefit; }
 };
 
 class InlineCostFeaturesAnalyzer final : public CallAnalyzer {
@@ -1097,9 +1104,9 @@ private:
     set(InlineCostFeatureIndex::SROASavings, SROACostSavingOpportunities);
 
     if (NumVectorInstructions <= NumInstructions / 10)
-      increment(InlineCostFeatureIndex::Threshold, -1 * VectorBonus);
+      Threshold -= VectorBonus;
     else if (NumVectorInstructions <= NumInstructions / 2)
-      increment(InlineCostFeatureIndex::Threshold, -1 * (VectorBonus / 2));
+      Threshold -= VectorBonus / 2;
 
     set(InlineCostFeatureIndex::Threshold, Threshold);
 
@@ -2833,9 +2840,10 @@ InlineCost llvm::getInlineCost(
   // as it's not what drives cost-benefit analysis.
   if (CA.wasDecidedByCostBenefit()) {
     if (ShouldInline.isSuccess())
-      return InlineCost::getAlways("benefit over cost");
+      return InlineCost::getAlways("benefit over cost",
+                                   CA.getCostBenefitPair());
     else
-      return InlineCost::getNever("cost over benefit");
+      return InlineCost::getNever("cost over benefit", CA.getCostBenefitPair());
   }
 
   // Check if there was a reason to force inlining or no inlining.

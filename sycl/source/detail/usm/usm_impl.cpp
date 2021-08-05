@@ -325,8 +325,8 @@ void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind,
 /// Query the allocation type from a USM pointer
 /// Returns alloc::host for all pointers in a host context.
 ///
-/// \param ptr is the USM pointer to query
-/// \param ctxt is the sycl context the ptr was allocated in
+/// \param Ptr is the USM pointer to query
+/// \param Ctxt is the sycl context the ptr was allocated in
 alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
   if (!Ptr)
     return alloc::unknown;
@@ -375,8 +375,8 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 
 /// Queries the device against which the pointer was allocated
 ///
-/// \param ptr is the USM pointer to query
-/// \param ctxt is the sycl context the ptr was allocated in
+/// \param Ptr is the USM pointer to query
+/// \param Ctxt is the sycl context the ptr was allocated in
 device get_pointer_device(const void *Ptr, const context &Ctxt) {
   // Check if ptr is a valid USM pointer
   if (get_pointer_type(Ptr, Ctxt) == alloc::unknown)

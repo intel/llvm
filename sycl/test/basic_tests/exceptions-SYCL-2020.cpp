@@ -72,6 +72,10 @@ int main() {
   assert(std::string("SYCL").compare(ec.category().name()) == 0 &&
          "error code category name should be SYCL");
 
+  // Test enum
+  static_assert(std::is_error_code_enum<sycl::errc>::value, "errc enum should identify as error code");
+  static_assert(!std::is_error_condition_enum<sycl::errc>::value, "errc enum should not identify as error condition");
+
   std::cout << "OK" << std::endl;
   return 0;
 }

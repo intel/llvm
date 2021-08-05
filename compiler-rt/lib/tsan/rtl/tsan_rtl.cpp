@@ -115,15 +115,15 @@ static const u32 kThreadQuarantineSize = 64;
 
 Context::Context()
     : initialized(),
-      report_mtx(MutexTypeReport, StatMtxReport),
+      report_mtx(MutexTypeReport),
       nreported(),
       nmissed_expected(),
       thread_registry(new (thread_registry_placeholder) ThreadRegistry(
           CreateThreadContext, kMaxTid, kThreadQuarantineSize, kMaxTidReuse)),
-      racy_mtx(MutexTypeRacy, StatMtxRacy),
+      racy_mtx(MutexTypeRacy),
       racy_stacks(),
       racy_addresses(),
-      fired_suppressions_mtx(MutexTypeFired, StatMtxFired),
+      fired_suppressions_mtx(MutexTypeFired),
       clock_alloc(LINKER_INITIALIZED, "clock allocator") {
   fired_suppressions.reserve(8);
 }
@@ -422,7 +422,6 @@ void Initialize(ThreadState *thr) {
   InitializeInterceptors();
   CheckShadowMapping();
   InitializePlatform();
-  InitializeMutex();
   InitializeDynamicAnnotations();
 #if !SANITIZER_GO
   InitializeShadowMemory();
@@ -521,11 +520,6 @@ int Finalize(ThreadState *thr) {
 #endif
 
   failed = OnFinalize(failed);
-
-#if TSAN_COLLECT_STATS
-  StatAggregate(ctx->stat, thr->stat);
-  StatOutput(ctx->stat);
-#endif
 
   return failed ? common_flags()->exitcode : 0;
 }
@@ -696,9 +690,6 @@ ALWAYS_INLINE
 void MemoryAccessImpl1(ThreadState *thr, uptr addr,
     int kAccessSizeLog, bool kAccessIsWrite, bool kIsAtomic,
     u64 *shadow_mem, Shadow cur) {
-  StatInc(thr, StatMop);
-  StatInc(thr, kAccessIsWrite ? StatMopWrite : StatMopRead);
-  StatInc(thr, (StatType)(StatMop1 + kAccessSizeLog));
 
   // This potentially can live in an MMX/SSE scratch register.
   // The required intrinsics are:
@@ -755,7 +746,6 @@ void MemoryAccessImpl1(ThreadState *thr, uptr addr,
     return;
   // choose a random candidate slot and replace it
   StoreShadow(shadow_mem + (cur.epoch() % kShadowCnt), store_word);
-  StatInc(thr, StatShadowReplace);
   return;
  RACE:
   HandleRace(thr, shadow_mem, cur, old);
@@ -894,19 +884,11 @@ void MemoryAccess(ThreadState *thr, uptr pc, uptr addr,
   if (!SANITIZER_GO && !kAccessIsWrite && *shadow_mem == kShadowRodata) {
     // Access to .rodata section, no races here.
     // Measurements show that it can be 10-20% of all memory accesses.
-    StatInc(thr, StatMop);
-    StatInc(thr, kAccessIsWrite ? StatMopWrite : StatMopRead);
-    StatInc(thr, (StatType)(StatMop1 + kAccessSizeLog));
-    StatInc(thr, StatMopRodata);
     return;
   }
 
   FastState fast_state = thr->fast_state;
   if (UNLIKELY(fast_state.GetIgnoreBit())) {
-    StatInc(thr, StatMop);
-    StatInc(thr, kAccessIsWrite ? StatMopWrite : StatMopRead);
-    StatInc(thr, (StatType)(StatMop1 + kAccessSizeLog));
-    StatInc(thr, StatMopIgnored);
     return;
   }
 
@@ -917,10 +899,6 @@ void MemoryAccess(ThreadState *thr, uptr pc, uptr addr,
 
   if (LIKELY(ContainsSameAccess(shadow_mem, cur.raw(),
       thr->fast_synch_epoch, kAccessIsWrite))) {
-    StatInc(thr, StatMop);
-    StatInc(thr, kAccessIsWrite ? StatMopWrite : StatMopRead);
-    StatInc(thr, (StatType)(StatMop1 + kAccessSizeLog));
-    StatInc(thr, StatMopSame);
     return;
   }
 
@@ -942,10 +920,6 @@ void MemoryAccessImpl(ThreadState *thr, uptr addr,
     u64 *shadow_mem, Shadow cur) {
   if (LIKELY(ContainsSameAccess(shadow_mem, cur.raw(),
       thr->fast_synch_epoch, kAccessIsWrite))) {
-    StatInc(thr, StatMop);
-    StatInc(thr, kAccessIsWrite ? StatMopWrite : StatMopRead);
-    StatInc(thr, (StatType)(StatMop1 + kAccessSizeLog));
-    StatInc(thr, StatMopSame);
     return;
   }
 
@@ -1061,7 +1035,6 @@ void MemoryRangeImitateWriteOrResetRange(ThreadState *thr, uptr pc, uptr addr,
 
 ALWAYS_INLINE USED
 void FuncEntry(ThreadState *thr, uptr pc) {
-  StatInc(thr, StatFuncEnter);
   DPrintf2("#%d: FuncEntry %p\n", (int)thr->fast_state.tid(), (void*)pc);
   if (kCollectHistory) {
     thr->fast_state.IncrementEpoch();
@@ -1083,7 +1056,6 @@ void FuncEntry(ThreadState *thr, uptr pc) {
 
 ALWAYS_INLINE USED
 void FuncExit(ThreadState *thr) {
-  StatInc(thr, StatFuncExit);
   DPrintf2("#%d: FuncExit\n", (int)thr->fast_state.tid());
   if (kCollectHistory) {
     thr->fast_state.IncrementEpoch();
@@ -1158,15 +1130,30 @@ void build_consistency_debug() {}
 void build_consistency_release() {}
 #endif
 
-#if TSAN_COLLECT_STATS
-void build_consistency_stats() {}
-#else
-void build_consistency_nostats() {}
-#endif
-
 }  // namespace __tsan
+
+#if SANITIZER_CHECK_DEADLOCKS
+namespace __sanitizer {
+using namespace __tsan;
+MutexMeta mutex_meta[] = {
+    {MutexInvalid, "Invalid", {}},
+    {MutexThreadRegistry, "ThreadRegistry", {}},
+    {MutexTypeTrace, "Trace", {MutexLeaf}},
+    {MutexTypeReport, "Report", {MutexTypeSyncVar}},
+    {MutexTypeSyncVar, "SyncVar", {}},
+    {MutexTypeAnnotations, "Annotations", {}},
+    {MutexTypeAtExit, "AtExit", {MutexTypeSyncVar}},
+    {MutexTypeFired, "Fired", {MutexLeaf}},
+    {MutexTypeRacy, "Racy", {MutexLeaf}},
+    {MutexTypeGlobalProc, "GlobalProc", {}},
+    {},
+};
+
+void PrintMutexPC(uptr pc) { StackTrace(&pc, 1).Print(); }
+}  // namespace __sanitizer
+#endif
 
 #if !SANITIZER_GO
 // Must be included in this file to make sure everything is inlined.
-#include "tsan_interface_inl.h"
+#  include "tsan_interface_inl.h"
 #endif

@@ -52,6 +52,9 @@ bool SPIRVToOCL12Legacy::runOnModule(Module &Module) {
 bool SPIRVToOCL12Base::runSPIRVToOCL(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
+
+  translateOpaqueTypes();
+
   visit(*M);
 
   eraseUselessFunctions(&Module);

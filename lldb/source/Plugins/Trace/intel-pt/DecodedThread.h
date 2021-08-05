@@ -61,6 +61,9 @@ private:
 /// As mentioned, any gap is represented as an error in this class.
 class IntelPTInstruction {
 public:
+  IntelPTInstruction(const pt_insn &pt_insn, uint64_t timestamp)
+      : m_pt_insn(pt_insn), m_timestamp(timestamp) {}
+
   IntelPTInstruction(const pt_insn &pt_insn) : m_pt_insn(pt_insn) {}
 
   /// Error constructor
@@ -84,6 +87,13 @@ public:
   ///     \a llvm::Error::success otherwise.
   llvm::Error ToError() const;
 
+  /// Get the timestamp associated with the current instruction. The timestamp
+  /// is similar to what a rdtsc instruction would return.
+  ///
+  /// \return
+  ///     The timestamp or \b llvm::None if not available.
+  llvm::Optional<uint64_t> GetTimestampCounter() const;
+
   /// Get the \a lldb::TraceInstructionControlFlowType categories of the
   /// instruction.
   ///
@@ -103,6 +113,7 @@ private:
   const IntelPTInstruction &operator=(const IntelPTInstruction &other) = delete;
 
   pt_insn m_pt_insn;
+  llvm::Optional<uint64_t> m_timestamp;
   std::unique_ptr<llvm::ErrorInfoBase> m_error;
 };
 
@@ -116,7 +127,8 @@ private:
 class DecodedThread : public std::enable_shared_from_this<DecodedThread> {
 public:
   DecodedThread(lldb::ThreadSP thread_sp,
-                std::vector<IntelPTInstruction> &&instructions);
+                std::vector<IntelPTInstruction> &&instructions,
+                size_t raw_trace_size);
 
   /// Constructor with a single error signaling a complete failure of the
   /// decoding process.
@@ -132,9 +144,16 @@ public:
   /// Get a new cursor for the decoded thread.
   lldb::TraceCursorUP GetCursor();
 
+  /// Get the size in bytes of the corresponding Intel PT raw trace
+  ///
+  /// \return
+  ///   The size of the trace.
+  size_t GetRawTraceSize() const;
+
 private:
   lldb::ThreadSP m_thread_sp;
   std::vector<IntelPTInstruction> m_instructions;
+  size_t m_raw_trace_size;
 };
 
 using DecodedThreadSP = std::shared_ptr<DecodedThread>;

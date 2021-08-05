@@ -1147,7 +1147,7 @@ __SYCL_EXPORT pi_result piclProgramCreateWithSource(pi_context context,
 ///                      succesfully or not, for each device in device_list.
 ///                      binary_status is ignored if it is null and otherwise
 ///                      it must be an array of num_devices elements.
-/// \param program is the PI program created from the program binaries.
+/// \param ret_program is the PI program created from the program binaries.
 __SYCL_EXPORT pi_result piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
@@ -1565,8 +1565,8 @@ using pi_usm_migration_flags = _pi_usm_migration_flags;
 ///
 /// \param result_ptr contains the allocated memory
 /// \param context is the pi_context
-/// \param pi_usm_mem_properties are optional allocation properties
-/// \param size_t is the size of the allocation
+/// \param properties are optional allocation properties
+/// \param size is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
 __SYCL_EXPORT pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
                                           pi_usm_mem_properties *properties,
@@ -1577,8 +1577,8 @@ __SYCL_EXPORT pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
 /// \param result_ptr contains the allocated memory
 /// \param context is the pi_context
 /// \param device is the device the memory will be allocated on
-/// \param pi_usm_mem_properties are optional allocation properties
-/// \param size_t is the size of the allocation
+/// \param properties are optional allocation properties
+/// \param size is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
 __SYCL_EXPORT pi_result piextUSMDeviceAlloc(void **result_ptr,
                                             pi_context context,
@@ -1591,8 +1591,8 @@ __SYCL_EXPORT pi_result piextUSMDeviceAlloc(void **result_ptr,
 /// \param result_ptr contains the allocated memory
 /// \param context is the pi_context
 /// \param device is the device the memory will be allocated on
-/// \param pi_usm_mem_properties are optional allocation properties
-/// \param size_t is the size of the allocation
+/// \param properties are optional allocation properties
+/// \param size is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
 __SYCL_EXPORT pi_result piextUSMSharedAlloc(void **result_ptr,
                                             pi_context context,
@@ -1682,7 +1682,7 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemAdvise(pi_queue queue,
 /// \param param_name is the type of query to perform
 /// \param param_value_size is the size of the result in bytes
 /// \param param_value is the result
-/// \param param_value_ret is how many bytes were written
+/// \param param_value_size_ret is how many bytes were written
 __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
     pi_context context, const void *ptr, pi_mem_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
