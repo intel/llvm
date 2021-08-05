@@ -94,7 +94,8 @@ static bool IsBannedPlatform(platform Platform) {
 
 std::vector<platform> platform_impl::get_platforms() {
   std::vector<platform> Platforms;
-  const std::vector<plugin> &Plugins = RT::initialize();
+  RT::initialize();
+  std::vector<plugin> &Plugins = GlobalHandler::instance().getPlugins();
   info::device_type ForcedType = detail::get_forced_type();
   for (unsigned int i = 0; i < Plugins.size(); i++) {
     pi_uint32 NumPlatforms = 0;
@@ -144,13 +145,13 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
   if (!FilterList)
     return;
-  const std::vector<plugin> &Plugins = GlobalHandler::instance().getPlugins();
+  std::vector<plugin> &Plugins = GlobalHandler::instance().getPlugins();
   unsigned I;
   for (I = 0; I < Plugins.size(); I++) {
     if (Plugins[I].containsPiPlatform(Platform))
       break;
   }
-  const plugin &Plugin = Plugins[I];
+  plugin &Plugin = Plugins[I];
   backend Backend = Plugin.getBackend();
   int InsertIDx = 0;
   // DeviceIds should be given consecutive numbers across platforms in the same

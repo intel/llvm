@@ -186,21 +186,23 @@ public:
 
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
-  int getPlatformId(RT::PiPlatform Platform) const {
-    auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
-    if (It != PiPlatforms.end()) {
-      return It - PiPlatforms.begin();
+  int getPlatformId(RT::PiPlatform Platform) {
+    auto It = std::find(PiPlatforms->begin(), PiPlatforms->end(), Platform);
+    if (It != PiPlatforms->end()) {
+      return It - PiPlatforms->begin();
     } else {
-      PiPlatforms.push_back(Platform);
+      PiPlatforms->push_back(Platform);
       LastDeviceIds.push_back(0);
-      return PiPlatforms.size() - 1;
+      return PiPlatforms->size() - 1;
     }
   }
   // Device ids are consecutive across platforms within a plugin.
   // We need to return the same starting index for the given platform.
   // So, instead of returing the last device id of the given platform,
   // return the last device id of the predecessor platform.
-  int getStartingDeviceId(RT::PiPlatform Platform) const {
+  int getStartingDeviceId(RT::PiPlatform Platform) {
+    if (PiPlatforms == nullptr)
+      PiPlatforms = new std::vector<RT::PiPlatform>;
     int PlatformId = getPlatformId(Platform);
     if (PlatformId == 0)
       return 0;
@@ -208,7 +210,7 @@ public:
       return LastDeviceIds[PlatformId - 1];
   }
   // set the id of the last device for the given platform
-  void setLastDeviceId(RT::PiPlatform Platform, int Id) const {
+  void setLastDeviceId(RT::PiPlatform Platform, int Id) {
     int PlatformId = getPlatformId(Platform);
     LastDeviceIds[PlatformId] = Id;
   }
@@ -217,8 +219,12 @@ public:
     std::fill(LastDeviceIds.begin(), LastDeviceIds.end(), 0);
   }
 
-  bool containsPiPlatform(RT::PiPlatform Platform) const {
-    for (RT::PiPlatform Plt : PiPlatforms) {
+  // Do not leave PiPlatform pointers so that they will not be
+  // released twice at the shutdown time.
+  void resetPiPlatforms() { PiPlatforms = nullptr; }
+
+  bool containsPiPlatform(RT::PiPlatform Platform) {
+    for (RT::PiPlatform Plt : *PiPlatforms) {
       if (Platform == Plt)
         return true;
     }
@@ -231,10 +237,10 @@ private:
   void *MLibraryHandle; // the handle returned from dlopen
   std::shared_ptr<std::mutex> TracingMutex;
   // vector of PiPlatforms that belong to this plugin
-  mutable std::vector<RT::PiPlatform> PiPlatforms;
+  std::vector<RT::PiPlatform> *PiPlatforms = nullptr;
   // represents the unique ids of the last device of each platform
   // index of this vector corresponds to the index in PiPlatforms vector.
-  mutable std::vector<int> LastDeviceIds;
+  std::vector<int> LastDeviceIds;
 }; // class plugin
 } // namespace detail
 } // namespace sycl
