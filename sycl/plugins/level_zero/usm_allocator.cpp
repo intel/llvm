@@ -617,6 +617,10 @@ void *USMAllocContext::USMAllocImpl::allocate(size_t Size, size_t Alignment) {
   if (Alignment <= 1)
     return allocate(Size);
 
+  // L0 does not support alignments > 64KB, so we don't either.
+  if (Alignment > 65536)
+    Alignment = 65536;
+
   size_t AlignedSize = (Size > 1) ? AlignUp(Size, Alignment) : Alignment;
 
   // Check if requested allocation size is within pooling limit.
