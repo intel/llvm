@@ -1,0 +1,175 @@
+= parallel_for_without_event
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+
+== Notice
+
+IMPORTANT: This specification is a draft.
+
+Copyright (c) 2021 Intel Corporation. All rights reserved.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.
+GitHub does not render image icons.
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 3.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+== Introduction
+
+This extension adds the new API calls `parallel_for_without_event` for `sycl::queue`:
+[source]
+----
+  template <typename KernelName, typename KernelType>
+  void parallel_for_without_event(range<1> NumWorkItems, const KernelType &KernelFunc);
+
+  template <typename KernelName, typename KernelType>
+  void parallel_for_without_event(range<2> NumWorkItems, const KernelType &KernelFunc);
+
+  template <typename KernelName, typename KernelType>
+  void parallel_for_without_event(range<3> NumWorkItems, const KernelType &KernelFunc);
+
+  template <typename KernelName, typename KernelType, int Dims>
+  void parallel_for_without_event(range<Dims> NumWorkItems, id<Dims> WorkItemOffset, const KernelType &KernelFunc);
+
+  template <typename KernelName, typename KernelType, int Dims>
+  void parallel_for_without_event(nd_range<Dims> ExecutionRange, const KernelType &KernelFunc);
+----
+
+Performance improvement is the main motivation for using the new API.
+if the application is not interested in returned events of each submission
+and the kernels don't use accessors and don't have dependencies by events
+then using the specific API will give performance improvement for
+the application compared with the standard API. Since the new API
+doesn't return an event, the application can wait for all kernels
+by calling the `wait()` method on the same `sycl::queue`.
+
+== Limitations
+
+For using the new API, the following cases are not supported:
+- accessors(global and local)
+- streams
+- interoperability
+- specialization constants
+- enable_profiling property for queue
+- queue must support OOO if app creates OOO queue
+
+==  back-end limitations
+[%header,cols="1,5"]
+|===
+|back-end   |Description
+|OpenCL     | Supported.
+|Level-zero | Temporary unsupported may be added later.
+|CUDA       | Supported.
+|===
+
+All these restrictions made it possible not to do many internal
+unnecessary checks during each submission, and also not create
+an event that the user does not need, thereby saving the host time
+spent on each submission. Using the API is well suited for a kernel
+that uses USM memory.
+Advice: if target backend supports [static local memory allocation feature](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/LocalMemory/SYCL_INTEL_local_memory.asciidoc),
+inside the kernel code, then it can be used instead of creating local accessors.
+
+
+Following is an example use-case:
+
+[source]
+----
+#include <sycl/sycl.hpp>
+
+using namespace sycl;
+
+int main() {
+  const size_t buffer_size = 10;
+  sycl::nd_range<1> range(buffer_size, 1);
+  std::vector<int> values(buffer_size, 0.0f);
+
+  queue Q;
+  int *dev_values = sycl::malloc_device<int>(values.size(), Q);
+  Q.memcpy(dev_values, values.data(), values.size() * sizeof(int)).wait();
+
+
+  Q.parallel_for_without_event(range, [=](sycl::nd_item<1> item) {
+    do_smth1();
+  });
+
+  Q.parallel_for_without_event(range, [=](sycl::nd_item<1> item) {
+    do_smth2();
+  });
+
+  Q.parallel_for_without_event(range, [=](sycl::nd_item<1> item) {
+    auto& ref = *sycl::group_local_memory_for_overwrite<uint32_t[buffer_size]>(item.get_group());
+    do_smth3(ref);
+  });
+
+  Q.wait();
+
+  Q.memcpy(values.data(), dev_values, values.size() * sizeof(int)).wait();
+  sycl::free(dev_values, Q);
+
+  return 0;
+}
+----
+
+== Version
+
+Built On: {docdate} +
+Revision: 1
+
+== Issues
+
+None.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-08-05|Alexander Flegontov |*Initial public working draft*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************
