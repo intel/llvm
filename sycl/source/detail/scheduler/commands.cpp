@@ -212,7 +212,7 @@ public:
       // we're ready to call the user-defined lambda now
       if (HostTask.MHostTask->isInteropTask()) {
         interop_handle IH{MReqToMem, HostTask.MQueue,
-                          getSyclObjImpl(HostTask.MQueue->get_device()),
+                          HostTask.MQueue->getDeviceImplPtr(),
                           HostTask.MQueue->getContextImplPtr()};
 
         HostTask.MHostTask->call(IH);
@@ -310,7 +310,7 @@ Command::Command(CommandType Type, QueueImplPtr Queue)
     : MQueue(std::move(Queue)), MType(Type) {
   MEvent.reset(new detail::event_impl(MQueue));
   MEvent->setCommand(this);
-  MEvent->setContextImpl(detail::getSyclObjImpl(MQueue->get_context()));
+  MEvent->setContextImpl(MQueue->getContextImplPtr());
   MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -787,8 +787,8 @@ cl_int AllocaCommand::enqueueImp() {
   // TODO: Check if it is correct to use std::move on stack variable and
   // delete it RawEvents below.
   MMemAllocation = MemoryManager::allocate(
-      detail::getSyclObjImpl(MQueue->get_context()), getSYCLMemObj(),
-      MInitFromUserData, HostPtr, std::move(EventImpls), Event);
+      MQueue->getContextImplPtr(), getSYCLMemObj(), MInitFromUserData, HostPtr,
+      std::move(EventImpls), Event);
 
   return CL_SUCCESS;
 }
@@ -869,10 +869,9 @@ cl_int AllocaSubBufCommand::enqueueImp() {
   RT::PiEvent &Event = MEvent->getHandleRef();
 
   MMemAllocation = MemoryManager::allocateMemSubBuffer(
-      detail::getSyclObjImpl(MQueue->get_context()),
-      MParentAlloca->getMemAllocation(), MRequirement.MElemSize,
-      MRequirement.MOffsetInBytes, MRequirement.MAccessRange,
-      std::move(EventImpls), Event);
+      MQueue->getContextImplPtr(), MParentAlloca->getMemAllocation(),
+      MRequirement.MElemSize, MRequirement.MOffsetInBytes,
+      MRequirement.MAccessRange, std::move(EventImpls), Event);
 
   return CL_SUCCESS;
 }
@@ -958,8 +957,7 @@ cl_int ReleaseCommand::enqueueImp() {
                                     : MAllocaCmd->getQueue();
 
     EventImplPtr UnmapEventImpl(new event_impl(Queue));
-    UnmapEventImpl->setContextImpl(
-        detail::getSyclObjImpl(Queue->get_context()));
+    UnmapEventImpl->setContextImpl(Queue->getContextImplPtr());
     RT::PiEvent &UnmapEvent = UnmapEventImpl->getHandleRef();
 
     void *Src = CurAllocaIsHost
@@ -981,10 +979,9 @@ cl_int ReleaseCommand::enqueueImp() {
   if (SkipRelease)
     Command::waitForEvents(MQueue, EventImpls, Event);
   else {
-    MemoryManager::release(detail::getSyclObjImpl(MQueue->get_context()),
-                           MAllocaCmd->getSYCLMemObj(),
-                           MAllocaCmd->getMemAllocation(),
-                           std::move(EventImpls), Event);
+    MemoryManager::release(
+        MQueue->getContextImplPtr(), MAllocaCmd->getSYCLMemObj(),
+        MAllocaCmd->getMemAllocation(), std::move(EventImpls), Event);
   }
   return CL_SUCCESS;
 }
@@ -1134,7 +1131,7 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(DstReq)),
       MDstAllocaCmd(DstAllocaCmd) {
   if (!MSrcQueue->is_host())
-    MEvent->setContextImpl(detail::getSyclObjImpl(MSrcQueue->get_context()));
+    MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
 
   emitInstrumentationDataProxy();
 }
@@ -1274,7 +1271,7 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
       MSrcQueue(SrcQueue), MSrcReq(std::move(SrcReq)),
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(DstReq)), MDstPtr(DstPtr) {
   if (!MSrcQueue->is_host())
-    MEvent->setContextImpl(detail::getSyclObjImpl(MSrcQueue->get_context()));
+    MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
 
   emitInstrumentationDataProxy();
 }
@@ -1747,8 +1744,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     ++NextTrueIndex;
   }
 
-  adjustNDRangePerKernel(NDRDesc, Kernel,
-                         *(detail::getSyclObjImpl(MQueue->get_device())));
+  adjustNDRangePerKernel(NDRDesc, Kernel, *(MQueue->getDeviceImplPtr()));
 
   // Remember this information before the range dimensions are reversed
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
@@ -1757,7 +1753,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
 
   size_t RequiredWGSize[3] = {0, 0, 0};
   Plugin.call<PiApiKind::piKernelGetGroupInfo>(
-      Kernel, detail::getSyclObjImpl(MQueue->get_device())->getHandleRef(),
+      Kernel, MQueue->getDeviceImplPtr()->getHandleRef(),
       PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
       RequiredWGSize, /* param_value_size_ret = */ nullptr);
 
@@ -1972,7 +1968,8 @@ cl_int ExecCGCommand::enqueueImp() {
         ExecKernel->getKernelBundle();
 
     // Run OpenCL kernel
-    sycl::context Context = MQueue->get_context();
+    auto ContextImpl = MQueue->getContextImplPtr();
+    auto DeviceImpl = MQueue->getDeviceImplPtr();
     RT::PiKernel Kernel = nullptr;
     std::mutex *KernelMutex = nullptr;
     RT::PiProgram Program = nullptr;
@@ -2004,7 +2001,7 @@ cl_int ExecCGCommand::enqueueImp() {
               /*PropList=*/{}, Program);
     } else if (nullptr != ExecKernel->MSyclKernel) {
       assert(ExecKernel->MSyclKernel->get_info<info::kernel::context>() ==
-             Context);
+             MQueue->get_context());
       Kernel = ExecKernel->MSyclKernel->getHandleRef();
 
       auto SyclProg = detail::getSyclObjImpl(
@@ -2014,16 +2011,15 @@ cl_int ExecCGCommand::enqueueImp() {
         RT::PiKernel FoundKernel = nullptr;
         std::tie(FoundKernel, KernelMutex) =
             detail::ProgramManager::getInstance().getOrCreateKernel(
-                ExecKernel->MOSModuleHandle,
-                ExecKernel->MSyclKernel->get_info<info::kernel::context>(),
-                MQueue->get_device(), ExecKernel->MKernelName, SyclProg.get());
+                ExecKernel->MOSModuleHandle, ContextImpl, DeviceImpl,
+                ExecKernel->MKernelName, SyclProg.get());
         assert(FoundKernel == Kernel);
       } else
         KnownProgram = false;
     } else {
       std::tie(Kernel, KernelMutex) =
           detail::ProgramManager::getInstance().getOrCreateKernel(
-              ExecKernel->MOSModuleHandle, Context, MQueue->get_device(),
+              ExecKernel->MOSModuleHandle, ContextImpl, DeviceImpl,
               ExecKernel->MKernelName, nullptr);
       MQueue->getPlugin().call<PiApiKind::piKernelGetInfo>(
           Kernel, PI_KERNEL_INFO_PROGRAM, sizeof(RT::PiProgram), &Program,
@@ -2036,8 +2032,8 @@ cl_int ExecCGCommand::enqueueImp() {
         !ExecKernel->MSyclKernel->isCreatedFromSource()) {
       EliminatedArgMask =
           detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-              ExecKernel->MOSModuleHandle, Context, MQueue->get_device(),
-              Program, ExecKernel->MKernelName, KnownProgram);
+              ExecKernel->MOSModuleHandle, ContextImpl, DeviceImpl, Program,
+              ExecKernel->MKernelName, KnownProgram);
     }
     if (KernelMutex != nullptr) {
       // For cacheable kernels, we use per-kernel mutex
@@ -2054,8 +2050,7 @@ cl_int ExecCGCommand::enqueueImp() {
     if (PI_SUCCESS != Error) {
       // If we have got non-success error code, let's analyze it to emit nice
       // exception explaining what was wrong
-      const device_impl &DeviceImpl =
-          *(detail::getSyclObjImpl(MQueue->get_device()));
+      const device_impl &DeviceImpl = *(MQueue->getDeviceImplPtr());
       return detail::enqueue_kernel_launch::handleError(Error, DeviceImpl,
                                                         Kernel, NDRDesc);
     }

@@ -4383,17 +4383,32 @@ class SYCLFwdDeclEmitter
     const DeclContext *DC = D->getDeclContext();
 
     while (DC) {
-      const auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
-
-      if (!NS)
-        break;
-
-      ++NamespaceCnt;
-      const StringRef NSInlinePrefix = NS->isInline() ? "inline " : "";
-      NSStr.insert(
-          0,
-          Twine(NSInlinePrefix + "namespace " + NS->getName() + " { ").str());
-      DC = NS->getDeclContext();
+      if (const auto *NS = dyn_cast<NamespaceDecl>(DC)) {
+        ++NamespaceCnt;
+        StringRef NSInlinePrefix = NS->isInline() ? "inline " : "";
+        NSStr.insert(
+            0,
+            Twine(NSInlinePrefix + "namespace " + NS->getName() + " { ").str());
+        DC = NS->getDeclContext();
+      } else {
+        // We should be able to handle a subset of the decl-context types to
+        // make our namespaces for forward declarations as specific as possible,
+        // so just skip them here.  We can't use their names, since they would
+        // not be forward declarable, but we can try to make them as specific as
+        // possible.
+        // This permits things such as:
+        // namespace N1 { void foo() { kernel<class K>(...); }}
+        // and
+        // namespace N2 { void foo() { kernel<class K>(...); }}
+        // to co-exist, despite technically being against the SYCL rules.
+        // See SYCLKernelNameTypePrinter for the corresponding part that prints
+        // the kernel information for this type. These two must match.
+        if (isa<FunctionDecl, RecordDecl, LinkageSpecDecl>(DC)) {
+          DC = cast<Decl>(DC)->getDeclContext();
+        } else {
+          break;
+        }
+      }
     }
     OS << NSStr;
     if (NamespaceCnt > 0)
@@ -4568,6 +4583,18 @@ class SYCLKernelNameTypePrinter
     Quals.print(OS, Policy, /*appendSpaceIfNotEmpty*/ true);
   }
 
+  // Use recursion to print the namespace-qualified name for the purposes of the
+  // canonical sycl example of a type being created in the kernel call.
+  void PrintNamespaceScopes(const DeclContext *DC) {
+    if (isa<NamespaceDecl, FunctionDecl, RecordDecl, LinkageSpecDecl>(DC)) {
+      PrintNamespaceScopes(DC->getParent());
+
+      const auto *NS = dyn_cast<NamespaceDecl>(DC);
+      if (NS && !NS->isAnonymousNamespace())
+        OS << NS->getName() << "::";
+    }
+  }
+
 public:
   SYCLKernelNameTypePrinter(raw_ostream &OS, PrintingPolicy &Policy)
       : OS(OS), Policy(Policy) {}
@@ -4606,12 +4633,16 @@ public:
 
       return;
     }
-    // TODO: Next part of code results in printing of "class" keyword before
-    // class name in case if kernel name doesn't belong to some namespace. It
-    // seems if we don't print it, the integration header still represents valid
-    // c++ code. Probably we don't need to print it at all.
-    if (RD->getDeclContext()->isFunctionOrMethod()) {
-      OS << QualType::getAsString(T, Qualifiers(), Policy);
+
+    // Handle the canonical sycl example where the type is created for the first
+    // time in the kernel naming. We want to qualify this as fully as we can,
+    // but not in a way that won't be forward declarable.  See
+    // SYCLFwdDeclEmitter::printForwardDecl for the corresponding list for
+    // printing the forward declaration, these two must match.
+    DeclContext *DC = RD->getDeclContext();
+    if (isa<FunctionDecl, RecordDecl, LinkageSpecDecl>(DC)) {
+      PrintNamespaceScopes(DC);
+      RD->printName(OS);
       return;
     }
 
