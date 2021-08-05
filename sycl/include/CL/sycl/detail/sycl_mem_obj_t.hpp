@@ -294,11 +294,15 @@ public:
     throw runtime_error("Not implemented", PI_INVALID_OPERATION);
   }
 
-  __SYCL_DLL_LOCAL MemObjType getType() const override { return UNDEFINED; }
+  __SYCL_DLL_LOCAL MemObjType getType() const override {
+    return MemObjType::Undefined;
+  }
 
   ContextImplPtr getInteropContext() const override { return MInteropContext; }
 
   bool hasUserDataPtr() const { return MUserPtr != nullptr; };
+
+  bool isInterop() const;
 
 protected:
   // An allocateMem helper that determines which host ptr to use

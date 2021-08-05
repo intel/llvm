@@ -1,9 +1,9 @@
 /// Check compilation tool steps when using the integration footer
 // RUN:  %clangxx -fsycl -include dummy.h %/s -### 2>&1 \
-// RUN:   | FileCheck -check-prefix FOOTER %s
+// RUN:   | FileCheck -check-prefix FOOTER %s -DSRCDIR=%/S
 // FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}"{{.*}} "-include" "dummy.h"
 // FOOTER: append-file{{.*}} "[[INPUTFILE:.+\.cpp]]" "--append=[[INTFOOTER]]" "--orig-filename=[[INPUTFILE]]" "--output=[[APPENDEDSRC:.+\.cpp]]"
-// FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-include" "dummy.h"{{.*}}
+// FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-include" "dummy.h"{{.*}} "-internal-isystem" "[[SRCDIR]]"
 // FOOTER-NOT: "-include" "[[INTHEADER]]"
 
 /// Preprocessed file creation with integration footer
@@ -60,3 +60,9 @@
 // COMMON-PHASES: [[#OFFLOAD+9]]: file-table-tform, {[[#OFFLOAD+6]], [[#OFFLOAD+8]]}, tempfiletable, (device-sycl)
 // COMMON-PHASES: [[#OFFLOAD+10]]: clang-offload-wrapper, {[[#OFFLOAD+9]]}, object, (device-sycl)
 // COMMON-PHASES: [[#OFFLOAD+11]]: offload, "host-sycl (x86_64-{{.*}})" {[[#OFFLOAD+4]]}, "device-sycl (spir64-unknown-unknown-sycldevice)" {[[#OFFLOAD+10]]}, image
+
+/// Test for -fsycl-footer-path=<dir>
+// RUN:  %clangxx -fsycl -fsycl-footer-path=dummy_dir %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix FOOTER_PATH %s
+// FOOTER_PATH: append-file{{.*}} "--output=dummy_dir{{(/|\\\\)}}[[APPENDEDSRC:.+\.cpp]]"
+// FOOTER_PATH: clang{{.*}} "-x" "c++" "dummy_dir{{(/|\\\\)}}[[APPENDEDSRC]]"

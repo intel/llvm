@@ -309,6 +309,12 @@ struct BarePtrFuncOpConversion : public FuncOpConversionBase {
   LogicalResult
   matchAndRewrite(FuncOp funcOp, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
+
+    // TODO: bare ptr conversion could be handled by argument materialization
+    // and most of the code below would go away. But to do this, we would need a
+    // way to distinguish between FuncOp and other regions in the
+    // addArgumentMaterialization hook.
+
     // Store the type of memref-typed arguments before the conversion so that we
     // can promote them to MemRef descriptor at the beginning of the function.
     SmallVector<Type, 8> oldArgTypes =
@@ -377,7 +383,8 @@ using DivFOpLowering = VectorConvertToLLVMPattern<DivFOp, LLVM::FDivOp>;
 using FPExtOpLowering = VectorConvertToLLVMPattern<FPExtOp, LLVM::FPExtOp>;
 using FPToSIOpLowering = VectorConvertToLLVMPattern<FPToSIOp, LLVM::FPToSIOp>;
 using FPToUIOpLowering = VectorConvertToLLVMPattern<FPToUIOp, LLVM::FPToUIOp>;
-using FPTruncOpLowering = VectorConvertToLLVMPattern<FPTruncOp, LLVM::FPTruncOp>;
+using FPTruncOpLowering =
+    VectorConvertToLLVMPattern<FPTruncOp, LLVM::FPTruncOp>;
 using FloorFOpLowering = VectorConvertToLLVMPattern<FloorFOp, LLVM::FFloorOp>;
 using FmaFOpLowering = VectorConvertToLLVMPattern<FmaFOp, LLVM::FMAOp>;
 using MulFOpLowering = VectorConvertToLLVMPattern<MulFOp, LLVM::FMulOp>;
@@ -399,7 +406,8 @@ using SignedShiftRightOpLowering =
     OneToOneConvertToLLVMPattern<SignedShiftRightOp, LLVM::AShrOp>;
 using SubFOpLowering = VectorConvertToLLVMPattern<SubFOp, LLVM::FSubOp>;
 using SubIOpLowering = VectorConvertToLLVMPattern<SubIOp, LLVM::SubOp>;
-using TruncateIOpLowering = VectorConvertToLLVMPattern<TruncateIOp, LLVM::TruncOp>;
+using TruncateIOpLowering =
+    VectorConvertToLLVMPattern<TruncateIOp, LLVM::TruncOp>;
 using UIToFPOpLowering = VectorConvertToLLVMPattern<UIToFPOp, LLVM::UIToFPOp>;
 using UnsignedDivIOpLowering =
     VectorConvertToLLVMPattern<UnsignedDivIOp, LLVM::UDivOp>;
@@ -488,89 +496,6 @@ struct ConstantOpLowering : public ConvertOpToLLVMPattern<ConstantOp> {
   }
 };
 
-/// Copies the shaped descriptor part to (if `toDynamic` is set) or from
-/// (otherwise) the dynamically allocated memory for any operands that were
-/// unranked descriptors originally.
-static LogicalResult copyUnrankedDescriptors(OpBuilder &builder, Location loc,
-                                             LLVMTypeConverter &typeConverter,
-                                             TypeRange origTypes,
-                                             SmallVectorImpl<Value> &operands,
-                                             bool toDynamic) {
-  assert(origTypes.size() == operands.size() &&
-         "expected as may original types as operands");
-
-  // Find operands of unranked memref type and store them.
-  SmallVector<UnrankedMemRefDescriptor, 4> unrankedMemrefs;
-  for (unsigned i = 0, e = operands.size(); i < e; ++i)
-    if (origTypes[i].isa<UnrankedMemRefType>())
-      unrankedMemrefs.emplace_back(operands[i]);
-
-  if (unrankedMemrefs.empty())
-    return success();
-
-  // Compute allocation sizes.
-  SmallVector<Value, 4> sizes;
-  UnrankedMemRefDescriptor::computeSizes(builder, loc, typeConverter,
-                                         unrankedMemrefs, sizes);
-
-  // Get frequently used types.
-  MLIRContext *context = builder.getContext();
-  Type voidPtrType = LLVM::LLVMPointerType::get(IntegerType::get(context, 8));
-  auto i1Type = IntegerType::get(context, 1);
-  Type indexType = typeConverter.getIndexType();
-
-  // Find the malloc and free, or declare them if necessary.
-  auto module = builder.getInsertionPoint()->getParentOfType<ModuleOp>();
-  LLVM::LLVMFuncOp freeFunc, mallocFunc;
-  if (toDynamic)
-    mallocFunc = LLVM::lookupOrCreateMallocFn(module, indexType);
-  if (!toDynamic)
-    freeFunc = LLVM::lookupOrCreateFreeFn(module);
-
-  // Initialize shared constants.
-  Value zero =
-      builder.create<LLVM::ConstantOp>(loc, i1Type, builder.getBoolAttr(false));
-
-  unsigned unrankedMemrefPos = 0;
-  for (unsigned i = 0, e = operands.size(); i < e; ++i) {
-    Type type = origTypes[i];
-    if (!type.isa<UnrankedMemRefType>())
-      continue;
-    Value allocationSize = sizes[unrankedMemrefPos++];
-    UnrankedMemRefDescriptor desc(operands[i]);
-
-    // Allocate memory, copy, and free the source if necessary.
-    Value memory =
-        toDynamic
-            ? builder.create<LLVM::CallOp>(loc, mallocFunc, allocationSize)
-                  .getResult(0)
-            : builder.create<LLVM::AllocaOp>(loc, voidPtrType, allocationSize,
-                                             /*alignment=*/0);
-
-    Value source = desc.memRefDescPtr(builder, loc);
-    builder.create<LLVM::MemcpyOp>(loc, memory, source, allocationSize, zero);
-    if (!toDynamic)
-      builder.create<LLVM::CallOp>(loc, freeFunc, source);
-
-    // Create a new descriptor. The same descriptor can be returned multiple
-    // times, attempting to modify its pointer can lead to memory leaks
-    // (allocated twice and overwritten) or double frees (the caller does not
-    // know if the descriptor points to the same memory).
-    Type descriptorType = typeConverter.convertType(type);
-    if (!descriptorType)
-      return failure();
-    auto updatedDesc =
-        UnrankedMemRefDescriptor::undef(builder, loc, descriptorType);
-    Value rank = desc.rank(builder, loc);
-    updatedDesc.setRank(builder, loc, rank);
-    updatedDesc.setMemRefDescPtr(builder, loc, memory);
-
-    operands[i] = updatedDesc;
-  }
-
-  return success();
-}
-
 // A CallOp automatically promotes MemRefType to a sequence of alloca/store and
 // passes the pointer to the MemRef across function boundaries.
 template <typename CallOpType>
@@ -626,10 +551,9 @@ struct CallOpInterfaceLowering : public ConvertOpToLLVMPattern<CallOpType> {
              "The number of arguments and types doesn't match");
       this->getTypeConverter()->promoteBarePtrsToDescriptors(
           rewriter, callOp.getLoc(), resultTypes, results);
-    } else if (failed(copyUnrankedDescriptors(rewriter, callOp.getLoc(),
-                                              *this->getTypeConverter(),
-                                              resultTypes, results,
-                                              /*toDynamic=*/false))) {
+    } else if (failed(this->copyUnrankedDescriptors(rewriter, callOp.getLoc(),
+                                                    resultTypes, results,
+                                                    /*toDynamic=*/false))) {
       return failure();
     }
 
@@ -646,20 +570,31 @@ struct CallIndirectOpLowering : public CallOpInterfaceLowering<CallIndirectOp> {
   using Super::Super;
 };
 
-struct DialectCastOpLowering
-    : public ConvertOpToLLVMPattern<LLVM::DialectCastOp> {
-  using ConvertOpToLLVMPattern<LLVM::DialectCastOp>::ConvertOpToLLVMPattern;
+struct UnrealizedConversionCastOpLowering
+    : public ConvertOpToLLVMPattern<UnrealizedConversionCastOp> {
+  using ConvertOpToLLVMPattern<
+      UnrealizedConversionCastOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
-  matchAndRewrite(LLVM::DialectCastOp castOp, ArrayRef<Value> operands,
+  matchAndRewrite(UnrealizedConversionCastOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    LLVM::DialectCastOp::Adaptor transformed(operands);
-    if (transformed.in().getType() !=
-        typeConverter->convertType(castOp.getType())) {
-      return failure();
+    UnrealizedConversionCastOp::Adaptor transformed(operands);
+    SmallVector<Type> convertedTypes;
+    if (succeeded(typeConverter->convertTypes(op.outputs().getTypes(),
+                                              convertedTypes)) &&
+        convertedTypes == transformed.inputs().getTypes()) {
+      rewriter.replaceOp(op, transformed.inputs());
+      return success();
     }
-    rewriter.replaceOp(castOp, transformed.in());
-    return success();
+
+    convertedTypes.clear();
+    if (succeeded(typeConverter->convertTypes(transformed.inputs().getTypes(),
+                                              convertedTypes)) &&
+        convertedTypes == op.outputs().getType()) {
+      rewriter.replaceOp(op, transformed.inputs());
+      return success();
+    }
+    return failure();
   }
 };
 
@@ -866,8 +801,7 @@ struct ReturnOpLowering : public ConvertOpToLLVMPattern<ReturnOp> {
       }
     } else {
       updatedOperands = llvm::to_vector<4>(operands);
-      (void)copyUnrankedDescriptors(rewriter, loc, *getTypeConverter(),
-                                    op.getOperands().getTypes(),
+      (void)copyUnrankedDescriptors(rewriter, loc, op.getOperands().getTypes(),
                                     updatedOperands,
                                     /*toDynamic=*/true);
     }
@@ -1203,7 +1137,6 @@ void mlir::populateStdToLLVMConversionPatterns(LLVMTypeConverter &converter,
       CondBranchOpLowering,
       CopySignOpLowering,
       ConstantOpLowering,
-      DialectCastOpLowering,
       DivFOpLowering,
       FloorFOpLowering,
       FmaFOpLowering,
@@ -1238,6 +1171,7 @@ void mlir::populateStdToLLVMConversionPatterns(LLVMTypeConverter &converter,
       UnsignedRemIOpLowering,
       UnsignedShiftRightOpLowering,
       XOrOpLowering,
+      UnrealizedConversionCastOpLowering,
       ZeroExtendIOpLowering>(converter);
   // clang-format on
 }
@@ -1290,8 +1224,10 @@ struct LLVMLoweringPass : public ConvertStandardToLLVMBase<LLVMLoweringPass> {
     populateStdToLLVMConversionPatterns(typeConverter, patterns);
 
     LLVMConversionTarget target(getContext());
+    target.addIllegalOp<UnrealizedConversionCastOp>();
     if (failed(applyPartialConversion(m, target, std::move(patterns))))
       signalPassFailure();
+
     m->setAttr(LLVM::LLVMDialect::getDataLayoutAttrName(),
                StringAttr::get(m.getContext(), this->dataLayout));
   }
@@ -1315,4 +1251,3 @@ mlir::createLowerToLLVMPass(const LowerToLLVMOptions &options) {
       options.useBarePtrCallConv, options.emitCWrappers,
       options.getIndexBitwidth(), useAlignedAlloc, options.dataLayout);
 }
-

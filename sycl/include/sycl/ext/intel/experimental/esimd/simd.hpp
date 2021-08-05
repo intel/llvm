@@ -233,10 +233,11 @@ public:
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
   }                                                                            \
-  template <typename T = simd,                                                 \
-            typename = sycl::detail::enable_if_t<T::length == 1>>              \
-  ESIMD_INLINE friend auto operator BINOP(const simd &X, const Ty &Y) {        \
-    return X BINOP simd(Y);                                                    \
+  template <typename T1, typename T = simd,                                    \
+            typename = sycl::detail::enable_if_t<T::length == 1 &&             \
+                                                 std::is_arithmetic_v<T1>>>    \
+  ESIMD_INLINE friend auto operator BINOP(const simd &X, T1 Y) {               \
+    return X BINOP simd((Ty)Y);                                                \
   }                                                                            \
   ESIMD_INLINE friend simd &operator OPASSIGN(simd &LHS, const simd &RHS) {    \
     using ComputeTy = detail::compute_type_t<simd>;                            \
@@ -272,10 +273,11 @@ public:
     mask_type_t<N> M(1);                                                       \
     return M & detail::convert<mask_type_t<N>>(R);                             \
   }                                                                            \
-  template <typename T = simd,                                                 \
-            typename = sycl::detail::enable_if_t<T::length == 1>>              \
-  ESIMD_INLINE friend bool operator RELOP(const simd &X, const Ty &Y) {        \
-    return (Ty)X RELOP Y;                                                      \
+  template <typename T1, typename T = simd,                                    \
+            typename = sycl::detail::enable_if_t<(T::length == 1) &&           \
+                                                 std::is_arithmetic_v<T1>>>    \
+  ESIMD_INLINE friend bool operator RELOP(const simd &X, T1 Y) {               \
+    return (Ty)X RELOP(Ty) Y;                                                  \
   }
 
   DEF_RELOP(>)
@@ -370,7 +372,7 @@ public:
   /// \param Offset is offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int W> simd<Ty, Rep * W> replicate_w(uint16_t Offset) {
-    return replicate_vs_w_hs<Rep, W, W, 1>(Offset);
+    return replicate_vs_w_hs<Rep, 0, W, 1>(Offset);
   }
 
   /// \tparam Rep is number of times region has to be replicated.

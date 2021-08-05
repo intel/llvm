@@ -199,9 +199,9 @@ std::vector<device> device_impl::create_sub_devices(
       !is_affinity_supported(AffinityDomain)) {
     throw cl::sycl::feature_not_supported();
   }
-  const cl_device_partition_property Properties[3] = {
-      CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-      (cl_device_partition_property)AffinityDomain, 0};
+  const pi_device_partition_property Properties[3] = {
+      PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+      (pi_device_partition_property)AffinityDomain, 0};
   size_t SubDevicesCount = get_info<info::device::partition_max_sub_devices>();
   return create_sub_devices(Properties, SubDevicesCount);
 }

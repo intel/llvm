@@ -46,6 +46,20 @@ static const pi_uint32 ZeSerialize = [] {
   return SerializeModeValue;
 }();
 
+// This is an experimental option to test performance of device to device copy
+// operations on copy engines (versus compute engine)
+static const bool UseCopyEngineForD2DCopy = [] {
+  const char *CopyEngineForD2DCopy =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_D2D_COPY");
+  return (CopyEngineForD2DCopy && (std::stoi(CopyEngineForD2DCopy) != 0));
+}();
+
+static const bool CopyEngineRequested = [] {
+  const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
+  return UseCopyEngine;
+}();
+
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
@@ -376,6 +390,11 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &ZePool,
 
 pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
   ze_event_pool_handle_t ZePool = Event->ZeEventPool;
+  if (!ZePool) {
+    // This must be an interop event created on a users's pool.
+    // Do nothing.
+    return PI_SUCCESS;
+  }
   std::lock_guard<std::mutex> Lock(NumEventsUnreleasedInEventPoolMutex);
   --NumEventsUnreleasedInEventPool[ZePool];
   if (NumEventsUnreleasedInEventPool[ZePool] == 0) {
@@ -529,7 +548,8 @@ createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
   return PI_SUCCESS;
 }
 
-pi_result _pi_device::initialize() {
+pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
+                                 int SubSubDeviceIndex) {
   uint32_t numQueueGroups = 0;
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
           (ZeDevice, &numQueueGroups, nullptr));
@@ -542,43 +562,53 @@ pi_result _pi_device::initialize() {
           (ZeDevice, &numQueueGroups, QueueProperties.data()));
 
   int ComputeGroupIndex = -1;
-  for (uint32_t i = 0; i < numQueueGroups; i++) {
-    if (QueueProperties[i].flags &
-        ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
-      ComputeGroupIndex = i;
-      break;
-    }
-  }
-  // How is it possible that there are no "compute" capabilities?
-  if (ComputeGroupIndex < 0) {
-    return PI_ERROR_UNKNOWN;
-  }
-  ZeComputeQueueGroupIndex = ComputeGroupIndex;
-  ZeComputeQueueGroupProperties = QueueProperties[ComputeGroupIndex];
 
-  int CopyGroupIndex = -1;
-  const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
-  bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
-  if (UseCopyEngine) {
+  // Initialize a sub-sub-device with its own ordinal and index
+  if (SubSubDeviceOrdinal >= 0) {
+    ComputeGroupIndex = SubSubDeviceOrdinal;
+    ZeComputeEngineIndex = SubSubDeviceIndex;
+  } else { // This is a root or a sub-device
     for (uint32_t i = 0; i < numQueueGroups; i++) {
-      if (((QueueProperties[i].flags &
-            ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
-          (QueueProperties[i].flags &
-           ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
-        CopyGroupIndex = i;
+      if (QueueProperties[i].flags &
+          ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
+        ComputeGroupIndex = i;
         break;
       }
     }
-    if (CopyGroupIndex < 0)
-      zePrint("NOTE: blitter/copy engine is not available though it was "
-              "requested\n");
-    else
-      zePrint("NOTE: blitter/copy engine is available\n");
+    // How is it possible that there are no "compute" capabilities?
+    if (ComputeGroupIndex < 0) {
+      return PI_ERROR_UNKNOWN;
+    }
+
+    // The index for a root or a sub-device is always 0.
+    ZeComputeEngineIndex = 0;
+
+    int CopyGroupIndex = -1;
+    if (CopyEngineRequested) {
+      for (uint32_t i = 0; i < numQueueGroups; i++) {
+        if (((QueueProperties[i].flags &
+              ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
+            (QueueProperties[i].flags &
+             ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COPY)) {
+          CopyGroupIndex = i;
+          break;
+        }
+      }
+      if (CopyGroupIndex < 0)
+        zePrint("NOTE: blitter/copy engine is not available though it was "
+                "requested\n");
+      else
+        zePrint("NOTE: blitter/copy engine is available\n");
+    }
+
+    ZeCopyQueueGroupIndex = CopyGroupIndex;
+    if (CopyGroupIndex >= 0) {
+      ZeCopyQueueGroupProperties = QueueProperties[CopyGroupIndex];
+    }
   }
-  ZeCopyQueueGroupIndex = CopyGroupIndex;
-  if (CopyGroupIndex >= 0) {
-    ZeCopyQueueGroupProperties = QueueProperties[CopyGroupIndex];
-  }
+
+  ZeComputeQueueGroupIndex = ComputeGroupIndex;
+  ZeComputeQueueGroupProperties = QueueProperties[ComputeGroupIndex];
 
   // Cache device properties
   ZeDeviceProperties = {};
@@ -598,7 +628,7 @@ pi_result _pi_context::initialize() {
   pi_device Device = SingleRootDevice ? SingleRootDevice : Devices[0];
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
   ZeCommandQueueDesc.ordinal = Device->ZeComputeQueueGroupIndex;
-  ZeCommandQueueDesc.index = 0;
+  ZeCommandQueueDesc.index = Device->ZeComputeEngineIndex;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
   ZE_CALL(
       zeCommandListCreateImmediate,
@@ -734,10 +764,7 @@ pi_result _pi_context::getAvailableCommandList(
     if (auto Res = Queue->executeOpenCommandList())
       return Res;
   }
-  // Use of copy engine is enabled only for out-of-order queues.
-  // TODO: Revisit this when in-order queue spport is available in L0 plugin.
-  bool UseCopyEngine = !(Queue->isInOrderQueue()) && PreferCopyEngine &&
-                       Queue->Device->hasCopyEngine();
+  bool UseCopyEngine = PreferCopyEngine && Queue->Device->hasCopyEngine();
 
   // Create/Reuse the command list, because in Level Zero commands are added to
   // the command lists, and later are then added to the command queue.
@@ -1039,7 +1066,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
 
         auto Queue = EventList[I]->Queue;
 
-        if (Queue != CurQueue) {
+        if (Queue && Queue != CurQueue) {
           // If the event that is going to be waited on is in a
           // different queue, then any open command list in
           // that queue must be closed and executed because
@@ -1547,6 +1574,50 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
           delete[] ZeSubdevices;
           return Result;
         }
+
+        // collect all the ordinals for the sub-sub-devices
+        std::vector<int> Ordinals;
+
+        uint32_t numQueueGroups = 0;
+        ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
+                (PiSubDevice->ZeDevice, &numQueueGroups, nullptr));
+        if (numQueueGroups == 0) {
+          return PI_ERROR_UNKNOWN;
+        }
+        std::vector<ze_command_queue_group_properties_t> QueueProperties(
+            numQueueGroups);
+        ZE_CALL(
+            zeDeviceGetCommandQueueGroupProperties,
+            (PiSubDevice->ZeDevice, &numQueueGroups, QueueProperties.data()));
+
+        for (uint32_t i = 0; i < numQueueGroups; i++) {
+          if (QueueProperties[i].flags &
+                  ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE &&
+              QueueProperties[i].numQueues > 1) {
+            Ordinals.push_back(i);
+          }
+        }
+
+        // Create PI sub-sub-devices with the sub-device for all the ordinals.
+        // Each {ordinal, index} points to a specific CCS which constructs
+        // a sub-sub-device at this point.
+        for (uint32_t J = 0; J < Ordinals.size(); ++J) {
+          for (uint32_t K = 0; K < QueueProperties[Ordinals[J]].numQueues;
+               ++K) {
+            std::unique_ptr<_pi_device> PiSubSubDevice(
+                new _pi_device(ZeSubdevices[I], this, PiSubDevice.get()));
+            pi_result Result = PiSubSubDevice->initialize(Ordinals[J], K);
+            if (Result != PI_SUCCESS) {
+              return Result;
+            }
+
+            // save pointers to sub-sub-devices for quick retrieval in the
+            // future.
+            PiSubDevice->SubDevices.push_back(PiSubSubDevice.get());
+            PiDevicesCache.push_back(std::move(PiSubSubDevice));
+          }
+        }
+
         // save pointers to sub-devices for quick retrieval in the future.
         Device->SubDevices.push_back(PiSubDevice.get());
         PiDevicesCache.push_back(std::move(PiSubDevice));
@@ -1777,17 +1848,23 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_VERSION:
     return ReturnValue(Device->Platform->ZeDriverApiVersion.c_str());
   case PI_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES: {
-    uint32_t ZeSubDeviceCount = 0;
-    ZE_CALL(zeDeviceGetSubDevices, (ZeDevice, &ZeSubDeviceCount, nullptr));
-    return ReturnValue(pi_uint32{ZeSubDeviceCount});
+    pi_result Res = Device->Platform->populateDeviceCacheIfNeeded();
+    if (Res != PI_SUCCESS) {
+      return Res;
+    }
+    return ReturnValue(pi_uint32{(unsigned int)(Device->SubDevices.size())});
   }
   case PI_DEVICE_INFO_REFERENCE_COUNT:
     return ReturnValue(pi_uint32{Device->RefCount});
   case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
     // SYCL spec says: if this SYCL device cannot be partitioned into at least
     // two sub devices then the returned vector must be empty.
-    uint32_t ZeSubDeviceCount = 0;
-    ZE_CALL(zeDeviceGetSubDevices, (ZeDevice, &ZeSubDeviceCount, nullptr));
+    pi_result Res = Device->Platform->populateDeviceCacheIfNeeded();
+    if (Res != PI_SUCCESS) {
+      return Res;
+    }
+
+    uint32_t ZeSubDeviceCount = Device->SubDevices.size();
     if (ZeSubDeviceCount < 2) {
       return ReturnValue(pi_device_partition_property{0});
     }
@@ -2402,7 +2479,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   ZeDevice = Device->ZeDevice;
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
   ZeCommandQueueDesc.ordinal = Device->ZeComputeQueueGroupIndex;
-  ZeCommandQueueDesc.index = 0;
+  ZeCommandQueueDesc.index = Device->ZeComputeEngineIndex;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS;
 
   ZE_CALL(zeCommandQueueCreate,
@@ -4101,8 +4178,8 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   try {
     PI_ASSERT(RetEvent, PI_INVALID_VALUE);
 
-    *RetEvent =
-        new _pi_event(ZeEvent, ZeEventPool, Context, PI_COMMAND_TYPE_USER);
+    *RetEvent = new _pi_event(ZeEvent, ZeEventPool, Context,
+                              PI_COMMAND_TYPE_USER, true);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -4122,7 +4199,7 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
   case PI_EVENT_INFO_COMMAND_QUEUE:
     return ReturnValue(pi_queue{Event->Queue});
   case PI_EVENT_INFO_CONTEXT:
-    return ReturnValue(pi_context{Event->Queue->Context});
+    return ReturnValue(pi_context{Event->Context});
   case PI_EVENT_INFO_COMMAND_TYPE:
     return ReturnValue(pi_cast<pi_uint64>(Event->CommandType));
   case PI_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
@@ -4131,7 +4208,7 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
     // possible that this is trying to query some event's status that
     // is part of the batch.  This isn't strictly required, but it seems
     // like a reasonable thing to do.
-    {
+    if (Event->Queue) {
       // Lock automatically releases when this goes out of scope.
       std::lock_guard<std::mutex> lock(Event->Queue->PiQueueMutex);
 
@@ -4174,7 +4251,9 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
   uint64_t ZeTimerResolution =
-      Event->Queue->Device->ZeDeviceProperties.timerResolution;
+      Event->Queue
+          ? Event->Queue->Device->ZeDeviceProperties.timerResolution
+          : Event->Context->Devices[0]->ZeDeviceProperties.timerResolution;
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
@@ -4235,9 +4314,8 @@ static pi_result cleanupAfterEvent(pi_event Event) {
   // queue to also serve as the thread safety mechanism for the
   // any of the Event's data members that need to be read/reset as
   // part of the cleanup operations.
-  {
-    auto Queue = Event->Queue;
-
+  auto Queue = Event->Queue;
+  if (Queue) {
     // Lock automatically releases when this goes out of scope.
     std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
@@ -4298,15 +4376,15 @@ static pi_result cleanupAfterEvent(pi_event Event) {
     if (Queue->LastCommandEvent == Event) {
       Queue->LastCommandEvent = nullptr;
     }
+  }
 
-    if (!Event->CleanedUp) {
-      Event->CleanedUp = true;
-      // Release this event since we explicitly retained it on creation.
-      // NOTE: that this needs to be done only once for an event so
-      // this is guarded with the CleanedUp flag.
-      //
-      PI_CALL(piEventRelease(Event));
-    }
+  if (!Event->CleanedUp) {
+    Event->CleanedUp = true;
+    // Release this event since we explicitly retained it on creation.
+    // NOTE: that this needs to be done only once for an event so
+    // this is guarded with the CleanedUp flag.
+    //
+    PI_CALL(piEventRelease(Event));
   }
 
   // Make a list of all the dependent events that must have signalled
@@ -4328,7 +4406,7 @@ static pi_result cleanupAfterEvent(pi_event Event) {
 
     DepEvent->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
         EventsToBeReleased);
-    if (IndirectAccessTrackingEnabled) {
+    if (IndirectAccessTrackingEnabled && DepEvent->Queue) {
       // DepEvent has finished, we can release the associated kernel if there is
       // one. This is the earliest place we can do this and it can't be done
       // twice, so it is safe. Lock automatically releases when this goes out of
@@ -4356,13 +4434,14 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   // Submit dependent open command lists for execution, if any
   for (uint32_t I = 0; I < NumEvents; I++) {
     auto Queue = EventList[I]->Queue;
+    if (Queue) {
+      // Lock automatically releases when this goes out of scope.
+      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-    // Lock automatically releases when this goes out of scope.
-    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
-    if (Queue->RefCount > 0) {
-      if (auto Res = Queue->executeOpenCommandList())
-        return Res;
+      if (Queue->RefCount > 0) {
+        if (auto Res = Queue->executeOpenCommandList())
+          return Res;
+      }
     }
   }
 
@@ -4432,14 +4511,15 @@ pi_result piEventRelease(pi_event Event) {
       // TODO: always use piextUSMFree
       if (IndirectAccessTrackingEnabled) {
         // Use the version with reference counting
-        PI_CALL(piextUSMFree(Event->Queue->Context, Event->CommandData));
+        PI_CALL(piextUSMFree(Event->Context, Event->CommandData));
       } else {
-        ZE_CALL(zeMemFree,
-                (Event->Queue->Context->ZeContext, Event->CommandData));
+        ZE_CALL(zeMemFree, (Event->Context->ZeContext, Event->CommandData));
       }
       Event->CommandData = nullptr;
     }
-    ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+    if (Event->OwnZeEvent) {
+      ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+    }
 
     auto Context = Event->Context;
     if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
@@ -4449,7 +4529,9 @@ pi_result piEventRelease(pi_event Event) {
     // created so that we can avoid pi_queue is released before the associated
     // pi_event is released. Here we have to decrement it so pi_queue
     // can be released successfully.
-    PI_CALL(piQueueRelease(Event->Queue));
+    if (Event->Queue) {
+      PI_CALL(piQueueRelease(Event->Queue));
+    }
     delete Event;
   }
   return PI_SUCCESS;
@@ -4457,17 +4539,26 @@ pi_result piEventRelease(pi_event Event) {
 
 pi_result piextEventGetNativeHandle(pi_event Event,
                                     pi_native_handle *NativeHandle) {
-  (void)Event;
-  (void)NativeHandle;
-  die("piextEventGetNativeHandle: not supported");
+  PI_ASSERT(Event, PI_INVALID_EVENT);
+  PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
+
+  auto *ZeEvent = pi_cast<ze_event_handle_t *>(NativeHandle);
+  *ZeEvent = Event->ZeEvent;
   return PI_SUCCESS;
 }
 
 pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                           pi_context Context,
+                                           bool OwnNativeHandle,
                                            pi_event *Event) {
-  (void)NativeHandle;
-  (void)Event;
-  die("piextEventCreateWithNativeHandle: not supported");
+  PI_ASSERT(Context, PI_INVALID_CONTEXT);
+  PI_ASSERT(Event, PI_INVALID_EVENT);
+  PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
+
+  auto ZeEvent = pi_cast<ze_event_handle_t>(NativeHandle);
+  *Event = new _pi_event(ZeEvent, nullptr /* ZeEventPool */, Context,
+                         PI_COMMAND_TYPE_USER, OwnNativeHandle);
+
   return PI_SUCCESS;
 }
 
@@ -4967,6 +5058,10 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
   bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
+
+  // Temporary option added to use copy engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
   return enqueueMemCopyHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue,
       pi_cast<char *>(DstBuffer->getZeHandle()) + DstOffset,
@@ -6214,6 +6309,10 @@ pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
   // (versus compute engine).
   bool PreferCopyEngine = !IsDevicePointer(Queue->Context, SrcPtr) ||
                           !IsDevicePointer(Queue->Context, DstPtr);
+
+  // Temporary option added to use copy engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
   return enqueueMemCopyHelper(
       // TODO: do we need a new command type for this?
       PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue, DstPtr, Blocking, Size, SrcPtr,

@@ -390,6 +390,7 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
   case Action::InputClass:
   case Action::BindArchClass:
   case Action::OffloadClass:
+  case Action::ForEachWrappingClass:
   case Action::LipoJobClass:
   case Action::DsymutilJobClass:
   case Action::VerifyDebugInfoJobClass:
@@ -450,6 +451,9 @@ static StringRef getArchNameForCompilerRTLib(const ToolChain &TC,
   // For historic reasons, Android library is using i686 instead of i386.
   if (TC.getArch() == llvm::Triple::x86 && Triple.isAndroid())
     return "i686";
+
+  if (TC.getArch() == llvm::Triple::x86_64 && Triple.isX32())
+    return "x32";
 
   return llvm::Triple::getArchTypeName(TC.getArch());
 }

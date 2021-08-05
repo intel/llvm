@@ -146,10 +146,8 @@ define i32 @udiv_constant_lhs(i32 %a) nounwind {
 ;
 ; RV64IM-LABEL: udiv_constant_lhs:
 ; RV64IM:       # %bb.0:
-; RV64IM-NEXT:    slli a0, a0, 32
-; RV64IM-NEXT:    srli a0, a0, 32
 ; RV64IM-NEXT:    addi a1, zero, 10
-; RV64IM-NEXT:    divu a0, a1, a0
+; RV64IM-NEXT:    divuw a0, a1, a0
 ; RV64IM-NEXT:    ret
   %1 = udiv i32 10, %a
   ret i32 %1
@@ -432,7 +430,7 @@ define i8 @udiv8_constant_lhs(i8 %a) nounwind {
 ; RV64IM:       # %bb.0:
 ; RV64IM-NEXT:    andi a0, a0, 255
 ; RV64IM-NEXT:    addi a1, zero, 10
-; RV64IM-NEXT:    divu a0, a1, a0
+; RV64IM-NEXT:    divuw a0, a1, a0
 ; RV64IM-NEXT:    ret
   %1 = udiv i8 10, %a
   ret i8 %1
@@ -608,7 +606,7 @@ define i16 @udiv16_constant_lhs(i16 %a) nounwind {
 ; RV64IM-NEXT:    addiw a1, a1, -1
 ; RV64IM-NEXT:    and a0, a0, a1
 ; RV64IM-NEXT:    addi a1, zero, 10
-; RV64IM-NEXT:    divu a0, a1, a0
+; RV64IM-NEXT:    divuw a0, a1, a0
 ; RV64IM-NEXT:    ret
   %1 = udiv i16 10, %a
   ret i16 %1
@@ -713,22 +711,56 @@ define i32 @sdiv_pow2(i32 %a) nounwind {
 ;
 ; RV64I-LABEL: sdiv_pow2:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    sext.w a1, a0
-; RV64I-NEXT:    srli a1, a1, 60
-; RV64I-NEXT:    andi a1, a1, 7
+; RV64I-NEXT:    sraiw a1, a0, 31
+; RV64I-NEXT:    srliw a1, a1, 29
 ; RV64I-NEXT:    add a0, a0, a1
 ; RV64I-NEXT:    sraiw a0, a0, 3
 ; RV64I-NEXT:    ret
 ;
 ; RV64IM-LABEL: sdiv_pow2:
 ; RV64IM:       # %bb.0:
-; RV64IM-NEXT:    sext.w a1, a0
-; RV64IM-NEXT:    srli a1, a1, 60
-; RV64IM-NEXT:    andi a1, a1, 7
+; RV64IM-NEXT:    sraiw a1, a0, 31
+; RV64IM-NEXT:    srliw a1, a1, 29
 ; RV64IM-NEXT:    add a0, a0, a1
 ; RV64IM-NEXT:    sraiw a0, a0, 3
 ; RV64IM-NEXT:    ret
   %1 = sdiv i32 %a, 8
+  ret i32 %1
+}
+
+define i32 @sdiv_pow2_2(i32 %a) nounwind {
+; RV32I-LABEL: sdiv_pow2_2:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    srai a1, a0, 31
+; RV32I-NEXT:    srli a1, a1, 16
+; RV32I-NEXT:    add a0, a0, a1
+; RV32I-NEXT:    srai a0, a0, 16
+; RV32I-NEXT:    ret
+;
+; RV32IM-LABEL: sdiv_pow2_2:
+; RV32IM:       # %bb.0:
+; RV32IM-NEXT:    srai a1, a0, 31
+; RV32IM-NEXT:    srli a1, a1, 16
+; RV32IM-NEXT:    add a0, a0, a1
+; RV32IM-NEXT:    srai a0, a0, 16
+; RV32IM-NEXT:    ret
+;
+; RV64I-LABEL: sdiv_pow2_2:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    sraiw a1, a0, 31
+; RV64I-NEXT:    srliw a1, a1, 16
+; RV64I-NEXT:    add a0, a0, a1
+; RV64I-NEXT:    sraiw a0, a0, 16
+; RV64I-NEXT:    ret
+;
+; RV64IM-LABEL: sdiv_pow2_2:
+; RV64IM:       # %bb.0:
+; RV64IM-NEXT:    sraiw a1, a0, 31
+; RV64IM-NEXT:    srliw a1, a1, 16
+; RV64IM-NEXT:    add a0, a0, a1
+; RV64IM-NEXT:    sraiw a0, a0, 16
+; RV64IM-NEXT:    ret
+  %1 = sdiv i32 %a, 65536
   ret i32 %1
 }
 
@@ -763,9 +795,8 @@ define i32 @sdiv_constant_lhs(i32 %a) nounwind {
 ;
 ; RV64IM-LABEL: sdiv_constant_lhs:
 ; RV64IM:       # %bb.0:
-; RV64IM-NEXT:    sext.w a0, a0
 ; RV64IM-NEXT:    addi a1, zero, -10
-; RV64IM-NEXT:    div a0, a1, a0
+; RV64IM-NEXT:    divw a0, a1, a0
 ; RV64IM-NEXT:    ret
   %1 = sdiv i32 -10, %a
   ret i32 %1
@@ -1143,7 +1174,7 @@ define i8 @sdiv8_constant_lhs(i8 %a) nounwind {
 ; RV64IM-NEXT:    slli a0, a0, 56
 ; RV64IM-NEXT:    srai a0, a0, 56
 ; RV64IM-NEXT:    addi a1, zero, -10
-; RV64IM-NEXT:    div a0, a1, a0
+; RV64IM-NEXT:    divw a0, a1, a0
 ; RV64IM-NEXT:    ret
   %1 = sdiv i8 -10, %a
   ret i8 %1
@@ -1241,10 +1272,9 @@ define i16 @sdiv16_constant(i16 %a) nounwind {
 ; RV64IM-NEXT:    lui a1, 6
 ; RV64IM-NEXT:    addiw a1, a1, 1639
 ; RV64IM-NEXT:    mul a0, a0, a1
-; RV64IM-NEXT:    srai a1, a0, 17
-; RV64IM-NEXT:    srli a0, a0, 31
-; RV64IM-NEXT:    andi a0, a0, 1
-; RV64IM-NEXT:    add a0, a1, a0
+; RV64IM-NEXT:    srliw a1, a0, 31
+; RV64IM-NEXT:    srai a0, a0, 17
+; RV64IM-NEXT:    add a0, a0, a1
 ; RV64IM-NEXT:    ret
   %1 = sdiv i16 %a, 5
   ret i16 %1
@@ -1336,7 +1366,7 @@ define i16 @sdiv16_constant_lhs(i16 %a) nounwind {
 ; RV64IM-NEXT:    slli a0, a0, 48
 ; RV64IM-NEXT:    srai a0, a0, 48
 ; RV64IM-NEXT:    addi a1, zero, -10
-; RV64IM-NEXT:    div a0, a1, a0
+; RV64IM-NEXT:    divw a0, a1, a0
 ; RV64IM-NEXT:    ret
   %1 = sdiv i16 -10, %a
   ret i16 %1

@@ -100,6 +100,11 @@ void store(multi_ptr<T, Space> dst, const vec<T, N> &x) {
 namespace ext {
 namespace oneapi {
 
+struct sub_group;
+namespace experimental {
+inline sub_group this_sub_group();
+}
+
 struct sub_group {
 
   using id_type = id<1>;
@@ -733,9 +738,12 @@ struct sub_group {
 protected:
   template <int dimensions> friend class cl::sycl::nd_item;
   friend sub_group this_sub_group();
+  friend sub_group experimental::this_sub_group();
   sub_group() = default;
 };
 
+__SYCL_DEPRECATED(
+    "use sycl::ext::oneapi::experimental::this_sub_group() instead")
 inline sub_group this_sub_group() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sub_group();

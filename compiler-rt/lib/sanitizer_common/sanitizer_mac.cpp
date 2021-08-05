@@ -509,6 +509,13 @@ void MprotectMallocZones(void *addr, int prot) {
   }
 }
 
+void FutexWait(atomic_uint32_t *p, u32 cmp) {
+  // FIXME: implement actual blocking.
+  sched_yield();
+}
+
+void FutexWake(atomic_uint32_t *p, u32 count) {}
+
 BlockingMutex::BlockingMutex() {
   internal_memset(this, 0, sizeof(*this));
 }
@@ -525,7 +532,7 @@ void BlockingMutex::Unlock() {
 }
 
 void BlockingMutex::CheckLocked() const {
-  CHECK_NE(*(OSSpinLock*)&opaque_storage_, 0);
+  CHECK_NE(*(const OSSpinLock*)&opaque_storage_, 0);
 }
 
 u64 NanoTime() {

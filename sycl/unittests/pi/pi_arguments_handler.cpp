@@ -20,12 +20,13 @@ TEST(PiArgumentsHandlerTest, CanUnpackArguments) {
   const pi_uint32 NumPlatforms = 42;
   pi_platform *Platforms = new pi_platform[NumPlatforms];
 
-  Handler.set_piPlatformsGet(
-      [&](pi_uint32 NP, pi_platform *Plts, pi_uint32 *Ret) {
-        EXPECT_EQ(NP, NumPlatforms);
-        EXPECT_EQ(Platforms, Plts);
-        EXPECT_EQ(Ret, nullptr);
-      });
+  Handler.set_piPlatformsGet([&](const pi_plugin &, std::optional<pi_result>,
+                                 pi_uint32 NP, pi_platform *Plts,
+                                 pi_uint32 *Ret) {
+    EXPECT_EQ(NP, NumPlatforms);
+    EXPECT_EQ(Platforms, Plts);
+    EXPECT_EQ(Ret, nullptr);
+  });
 
   constexpr size_t Size = sizeof(pi_uint32) + 2 * sizeof(void *);
   std::array<unsigned char, Size> Data{0};
@@ -33,8 +34,9 @@ TEST(PiArgumentsHandlerTest, CanUnpackArguments) {
   *reinterpret_cast<pi_platform **>(Data.data() + sizeof(pi_uint32)) =
       Platforms;
 
+  pi_plugin Plugin{};
   uint32_t ID = static_cast<uint32_t>(sycl::detail::PiApiKind::piPlatformsGet);
-  Handler.handle(ID, Data.data());
+  Handler.handle(ID, Plugin, std::nullopt, Data.data());
 
   delete[] Platforms;
 }

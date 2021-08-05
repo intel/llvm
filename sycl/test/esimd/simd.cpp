@@ -15,6 +15,29 @@ bool test_simd_ctors() SYCL_ESIMD_FUNCTION {
   return v0[0] + v1[1] + v2[2] + v3[3] == 1 + 1 + 2 + 6;
 }
 
+void test_simd_class_traits() SYCL_ESIMD_FUNCTION {
+  static_assert(std::is_default_constructible<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(std::is_trivially_default_constructible<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(std::is_copy_constructible<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(!std::is_trivially_copy_constructible<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(std::is_move_constructible<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(!std::is_trivially_move_constructible<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(std::is_copy_assignable<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(std::is_trivially_copy_assignable<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(std::is_move_assignable<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(std::is_trivially_move_assignable<simd<int, 4>>::value,
+                "type trait mismatch");
+}
+
 void test_conversion() SYCL_ESIMD_FUNCTION {
   simd<int, 32> v = 3;
   simd<float, 32> f = v;

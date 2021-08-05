@@ -137,7 +137,7 @@ constexpr unsigned char getCGTypeVersion(unsigned int Type) {
 }
 
 /// Base class for all types of command groups.
-class CG {
+class CommandGroup {
 public:
   // Used to version CG and handler classes. Using unsigned char as the version
   // is encoded in the highest byte of CGType value. So it is not possible to
@@ -149,30 +149,31 @@ public:
   };
 
   /// Type of the command group.
-  enum CGTYPE : unsigned int {
-    NONE = 0,
-    KERNEL = 1,
-    COPY_ACC_TO_PTR = 2,
-    COPY_PTR_TO_ACC = 3,
-    COPY_ACC_TO_ACC = 4,
-    BARRIER = 5,
-    BARRIER_WAITLIST = 6,
-    FILL = 7,
-    UPDATE_HOST = 8,
-    RUN_ON_HOST_INTEL = 9,
-    COPY_USM = 10,
-    FILL_USM = 11,
-    PREFETCH_USM = 12,
-    CODEPLAY_INTEROP_TASK = 13,
-    CODEPLAY_HOST_TASK = 14,
-    ADVISE_USM = 15,
+  enum CGType : unsigned int {
+    None = 0,
+    Kernel = 1,
+    CopyAccToPtr = 2,
+    CopyPtrToAcc = 3,
+    CopyAccToAcc = 4,
+    Barrier = 5,
+    BarrierWaitlist = 6,
+    Fill = 7,
+    UpdateHost = 8,
+    RunOnHostIntel = 9,
+    CopyUSM = 10,
+    FillUSM = 11,
+    PrefetchUSM = 12,
+    CodeplayInteropTask = 13,
+    CodeplayHostTask = 14,
+    AdviseUSM = 15,
   };
 
-  CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
-     std::vector<detail::AccessorImplPtr> AccStorage,
-     std::vector<std::shared_ptr<const void>> SharedPtrStorage,
-     std::vector<Requirement *> Requirements,
-     std::vector<detail::EventImplPtr> Events, detail::code_location loc = {})
+  CommandGroup(CGType Type, std::vector<std::vector<char>> ArgsStorage,
+               std::vector<detail::AccessorImplPtr> AccStorage,
+               std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+               std::vector<Requirement *> Requirements,
+               std::vector<detail::EventImplPtr> Events,
+               detail::code_location loc = {})
       : MType(Type), MArgsStorage(std::move(ArgsStorage)),
         MAccStorage(std::move(AccStorage)),
         MSharedPtrStorage(std::move(SharedPtrStorage)),
@@ -188,9 +189,9 @@ public:
     MColumn = loc.columnNumber();
   }
 
-  CG(CG &&CommandGroup) = default;
+  CommandGroup(CommandGroup &&CG) = default;
 
-  CGTYPE getType() { return static_cast<CGTYPE>(getUnversionedCGType(MType)); }
+  CGType getType() { return static_cast<CGType>(getUnversionedCGType(MType)); }
 
   CG_VERSION getVersion() {
     return static_cast<CG_VERSION>(getCGTypeVersion(MType));
@@ -206,10 +207,10 @@ public:
     return convertToExtendedMembers(MSharedPtrStorage[0]);
   }
 
-  virtual ~CG() = default;
+  virtual ~CommandGroup() = default;
 
 private:
-  CGTYPE MType;
+  CGType MType;
   // The following storages are needed to ensure that arguments won't die while
   // we are using them.
   /// Storage for standard layout arguments.
@@ -234,7 +235,7 @@ public:
 };
 
 /// "Execute kernel" command group class.
-class CGExecKernel : public CG {
+class CGExecKernel : public CommandGroup {
 public:
   /// Stores ND-range description.
   NDRDescT MNDRDesc;
@@ -255,16 +256,17 @@ public:
                std::vector<ArgDesc> Args, std::string KernelName,
                detail::OSModuleHandle OSModuleHandle,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
-               CGTYPE Type, detail::code_location loc = {})
-      : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events), std::move(loc)),
+               CGType Type, detail::code_location loc = {})
+      : CommandGroup(Type, std::move(ArgsStorage), std::move(AccStorage),
+                     std::move(SharedPtrStorage), std::move(Requirements),
+                     std::move(Events), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
         MStreams(std::move(Streams)) {
-    assert((getType() == RUN_ON_HOST_INTEL || getType() == KERNEL) &&
-           "Wrong type of exec kernel CG.");
+    assert(
+        (getType() == CGType::RunOnHostIntel || getType() == CGType::Kernel) &&
+        "Wrong type of exec kernel CG.");
   }
 
   std::vector<ArgDesc> getArguments() const { return MArgs; }
@@ -289,28 +291,28 @@ public:
 };
 
 /// "Copy memory" command group class.
-class CGCopy : public CG {
+class CGCopy : public CommandGroup {
   void *MSrc;
   void *MDst;
 
 public:
-  CGCopy(CGTYPE CopyType, void *Src, void *Dst,
+  CGCopy(CGType CopyType, void *Src, void *Dst,
          std::vector<std::vector<char>> ArgsStorage,
          std::vector<detail::AccessorImplPtr> AccStorage,
          std::vector<std::shared_ptr<const void>> SharedPtrStorage,
          std::vector<Requirement *> Requirements,
          std::vector<detail::EventImplPtr> Events,
          detail::code_location loc = {})
-      : CG(CopyType, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events), std::move(loc)),
+      : CommandGroup(CopyType, std::move(ArgsStorage), std::move(AccStorage),
+                     std::move(SharedPtrStorage), std::move(Requirements),
+                     std::move(Events), std::move(loc)),
         MSrc(Src), MDst(Dst) {}
   void *getSrc() { return MSrc; }
   void *getDst() { return MDst; }
 };
 
 /// "Fill memory" command group class.
-class CGFill : public CG {
+class CGFill : public CommandGroup {
 public:
   std::vector<char> MPattern;
   Requirement *MPtr;
@@ -322,15 +324,16 @@ public:
          std::vector<Requirement *> Requirements,
          std::vector<detail::EventImplPtr> Events,
          detail::code_location loc = {})
-      : CG(FILL, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events), std::move(loc)),
+      : CommandGroup(CGType::Fill, std::move(ArgsStorage),
+                     std::move(AccStorage), std::move(SharedPtrStorage),
+                     std::move(Requirements), std::move(Events),
+                     std::move(loc)),
         MPattern(std::move(Pattern)), MPtr((Requirement *)Ptr) {}
   Requirement *getReqToFill() { return MPtr; }
 };
 
 /// "Update host" command group class.
-class CGUpdateHost : public CG {
+class CGUpdateHost : public CommandGroup {
   Requirement *MPtr;
 
 public:
@@ -340,16 +343,17 @@ public:
                std::vector<Requirement *> Requirements,
                std::vector<detail::EventImplPtr> Events,
                detail::code_location loc = {})
-      : CG(UPDATE_HOST, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events), std::move(loc)),
+      : CommandGroup(CGType::UpdateHost, std::move(ArgsStorage),
+                     std::move(AccStorage), std::move(SharedPtrStorage),
+                     std::move(Requirements), std::move(Events),
+                     std::move(loc)),
         MPtr((Requirement *)Ptr) {}
 
   Requirement *getReqToUpdate() { return MPtr; }
 };
 
 /// "Copy USM" command group class.
-class CGCopyUSM : public CG {
+class CGCopyUSM : public CommandGroup {
   void *MSrc;
   void *MDst;
   size_t MLength;
@@ -362,9 +366,10 @@ public:
             std::vector<Requirement *> Requirements,
             std::vector<detail::EventImplPtr> Events,
             detail::code_location loc = {})
-      : CG(COPY_USM, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events), std::move(loc)),
+      : CommandGroup(CGType::CopyUSM, std::move(ArgsStorage),
+                     std::move(AccStorage), std::move(SharedPtrStorage),
+                     std::move(Requirements), std::move(Events),
+                     std::move(loc)),
         MSrc(Src), MDst(Dst), MLength(Length) {}
 
   void *getSrc() { return MSrc; }
@@ -373,7 +378,7 @@ public:
 };
 
 /// "Fill USM" command group class.
-class CGFillUSM : public CG {
+class CGFillUSM : public CommandGroup {
   std::vector<char> MPattern;
   void *MDst;
   size_t MLength;
@@ -386,9 +391,10 @@ public:
             std::vector<Requirement *> Requirements,
             std::vector<detail::EventImplPtr> Events,
             detail::code_location loc = {})
-      : CG(FILL_USM, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events), std::move(loc)),
+      : CommandGroup(CGType::FillUSM, std::move(ArgsStorage),
+                     std::move(AccStorage), std::move(SharedPtrStorage),
+                     std::move(Requirements), std::move(Events),
+                     std::move(loc)),
         MPattern(std::move(Pattern)), MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
@@ -396,7 +402,7 @@ public:
 };
 
 /// "Prefetch USM" command group class.
-class CGPrefetchUSM : public CG {
+class CGPrefetchUSM : public CommandGroup {
   void *MDst;
   size_t MLength;
 
@@ -408,16 +414,17 @@ public:
                 std::vector<Requirement *> Requirements,
                 std::vector<detail::EventImplPtr> Events,
                 detail::code_location loc = {})
-      : CG(PREFETCH_USM, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events), std::move(loc)),
+      : CommandGroup(CGType::PrefetchUSM, std::move(ArgsStorage),
+                     std::move(AccStorage), std::move(SharedPtrStorage),
+                     std::move(Requirements), std::move(Events),
+                     std::move(loc)),
         MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
 };
 
 /// "Advise USM" command group class.
-class CGAdviseUSM : public CG {
+class CGAdviseUSM : public CommandGroup {
   void *MDst;
   size_t MLength;
 
@@ -427,11 +434,11 @@ public:
               std::vector<detail::AccessorImplPtr> AccStorage,
               std::vector<std::shared_ptr<const void>> SharedPtrStorage,
               std::vector<Requirement *> Requirements,
-              std::vector<detail::EventImplPtr> Events, CGTYPE Type,
+              std::vector<detail::EventImplPtr> Events, CGType Type,
               detail::code_location loc = {})
-      : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events), std::move(loc)),
+      : CommandGroup(Type, std::move(ArgsStorage), std::move(AccStorage),
+                     std::move(SharedPtrStorage), std::move(Requirements),
+                     std::move(Events), std::move(loc)),
         MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
@@ -447,7 +454,7 @@ public:
   }
 };
 
-class CGInteropTask : public CG {
+class CGInteropTask : public CommandGroup {
 public:
   std::unique_ptr<InteropTask> MInteropTask;
 
@@ -456,15 +463,15 @@ public:
                 std::vector<detail::AccessorImplPtr> AccStorage,
                 std::vector<std::shared_ptr<const void>> SharedPtrStorage,
                 std::vector<Requirement *> Requirements,
-                std::vector<detail::EventImplPtr> Events, CGTYPE Type,
+                std::vector<detail::EventImplPtr> Events, CGType Type,
                 detail::code_location loc = {})
-      : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events), std::move(loc)),
+      : CommandGroup(Type, std::move(ArgsStorage), std::move(AccStorage),
+                     std::move(SharedPtrStorage), std::move(Requirements),
+                     std::move(Events), std::move(loc)),
         MInteropTask(std::move(InteropTask)) {}
 };
 
-class CGHostTask : public CG {
+class CGHostTask : public CommandGroup {
 public:
   std::unique_ptr<HostTask> MHostTask;
   // queue for host-interop task
@@ -481,16 +488,16 @@ public:
              std::vector<detail::AccessorImplPtr> AccStorage,
              std::vector<std::shared_ptr<const void>> SharedPtrStorage,
              std::vector<Requirement *> Requirements,
-             std::vector<detail::EventImplPtr> Events, CGTYPE Type,
+             std::vector<detail::EventImplPtr> Events, CGType Type,
              detail::code_location loc = {})
-      : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events), std::move(loc)),
+      : CommandGroup(Type, std::move(ArgsStorage), std::move(AccStorage),
+                     std::move(SharedPtrStorage), std::move(Requirements),
+                     std::move(Events), std::move(loc)),
         MHostTask(std::move(HostTask)), MQueue(Queue), MContext(Context),
         MArgs(std::move(Args)) {}
 };
 
-class CGBarrier : public CG {
+class CGBarrier : public CommandGroup {
 public:
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
 
@@ -499,11 +506,11 @@ public:
             std::vector<detail::AccessorImplPtr> AccStorage,
             std::vector<std::shared_ptr<const void>> SharedPtrStorage,
             std::vector<Requirement *> Requirements,
-            std::vector<detail::EventImplPtr> Events, CGTYPE Type,
+            std::vector<detail::EventImplPtr> Events, CGType Type,
             detail::code_location loc = {})
-      : CG(Type, std::move(ArgsStorage), std::move(AccStorage),
-           std::move(SharedPtrStorage), std::move(Requirements),
-           std::move(Events), std::move(loc)),
+      : CommandGroup(Type, std::move(ArgsStorage), std::move(AccStorage),
+                     std::move(SharedPtrStorage), std::move(Requirements),
+                     std::move(Events), std::move(loc)),
         MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {}
 };
 

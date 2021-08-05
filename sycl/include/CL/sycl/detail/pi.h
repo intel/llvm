@@ -38,10 +38,12 @@
 // 4. Add interoperability interfaces for kernel.
 // 4.6 Added new ownership argument to piextQueueCreateWithNativeHandle which
 // changes the API version from 3.5 to 4.6.
+// 5.7 Added new context and ownership arguments to
+//   piextEventCreateWithNativeHandle
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 4
-#define _PI_H_VERSION_MINOR 6
+#define _PI_H_VERSION_MAJOR 5
+#define _PI_H_VERSION_MINOR 7
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -292,7 +294,8 @@ typedef enum {
   PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 0x10025,
   PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026,
   PI_DEVICE_INFO_IMAGE_SRGB = 0x10027,
-  PI_DEVICE_INFO_ATOMIC_64 = 0x10110
+  PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
+  PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111
 } _pi_device_info;
 
 typedef enum {
@@ -312,6 +315,8 @@ typedef enum {
   PI_CONTEXT_INFO_NUM_DEVICES = CL_CONTEXT_NUM_DEVICES,
   PI_CONTEXT_INFO_PROPERTIES = CL_CONTEXT_PROPERTIES,
   PI_CONTEXT_INFO_REFERENCE_COUNT = CL_CONTEXT_REFERENCE_COUNT,
+  // Atomics capabilities extensions
+  PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10010
 } _pi_context_info;
 
 typedef enum {
@@ -508,6 +513,13 @@ constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_ADDRESSING_MODE =
     CL_SAMPLER_ADDRESSING_MODE;
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_FILTER_MODE =
     CL_SAMPLER_FILTER_MODE;
+
+using pi_memory_order_capabilities = pi_bitfield;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELAXED = 0x01;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_ACQUIRE = 0x02;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELEASE = 0x04;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_ACQ_REL = 0x08;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_SEQ_CST = 0x10;
 
 typedef enum {
   PI_PROFILING_INFO_COMMAND_QUEUED = CL_PROFILING_COMMAND_QUEUED,
@@ -1135,7 +1147,7 @@ __SYCL_EXPORT pi_result piclProgramCreateWithSource(pi_context context,
 ///                      succesfully or not, for each device in device_list.
 ///                      binary_status is ignored if it is null and otherwise
 ///                      it must be an array of num_devices elements.
-/// \param program is the PI program created from the program binaries.
+/// \param ret_program is the PI program created from the program binaries.
 __SYCL_EXPORT pi_result piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
@@ -1350,9 +1362,13 @@ piextEventGetNativeHandle(pi_event event, pi_native_handle *nativeHandle);
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI event from.
+/// \param context is the corresponding PI context
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
 /// \param event is the PI event created from the native handle.
 __SYCL_EXPORT pi_result piextEventCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_event *event);
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    pi_event *event);
 
 //
 // Sampler
@@ -1549,8 +1565,8 @@ using pi_usm_migration_flags = _pi_usm_migration_flags;
 ///
 /// \param result_ptr contains the allocated memory
 /// \param context is the pi_context
-/// \param pi_usm_mem_properties are optional allocation properties
-/// \param size_t is the size of the allocation
+/// \param properties are optional allocation properties
+/// \param size is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
 __SYCL_EXPORT pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
                                           pi_usm_mem_properties *properties,
@@ -1561,8 +1577,8 @@ __SYCL_EXPORT pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
 /// \param result_ptr contains the allocated memory
 /// \param context is the pi_context
 /// \param device is the device the memory will be allocated on
-/// \param pi_usm_mem_properties are optional allocation properties
-/// \param size_t is the size of the allocation
+/// \param properties are optional allocation properties
+/// \param size is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
 __SYCL_EXPORT pi_result piextUSMDeviceAlloc(void **result_ptr,
                                             pi_context context,
@@ -1575,8 +1591,8 @@ __SYCL_EXPORT pi_result piextUSMDeviceAlloc(void **result_ptr,
 /// \param result_ptr contains the allocated memory
 /// \param context is the pi_context
 /// \param device is the device the memory will be allocated on
-/// \param pi_usm_mem_properties are optional allocation properties
-/// \param size_t is the size of the allocation
+/// \param properties are optional allocation properties
+/// \param size is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
 __SYCL_EXPORT pi_result piextUSMSharedAlloc(void **result_ptr,
                                             pi_context context,
@@ -1666,7 +1682,7 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemAdvise(pi_queue queue,
 /// \param param_name is the type of query to perform
 /// \param param_value_size is the size of the result in bytes
 /// \param param_value is the result
-/// \param param_value_ret is how many bytes were written
+/// \param param_value_size_ret is how many bytes were written
 __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
     pi_context context, const void *ptr, pi_mem_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);

@@ -1007,6 +1007,8 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
 
         for (CallBase *ICB : reverse(IFI.InlinedCallSites)) {
           Function *NewCallee = ICB->getCalledFunction();
+          assert(!(NewCallee && NewCallee->isIntrinsic()) &&
+                 "Intrinsic calls should not be tracked.");
           if (!NewCallee) {
             // Try to promote an indirect (virtual) call without waiting for
             // the post-inline cleanup and the next DevirtSCCRepeatedPass
@@ -1124,6 +1126,10 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
     // them.
     UR.InvalidatedSCCs.insert(&DeadC);
     UR.InvalidatedRefSCCs.insert(&DeadRC);
+
+    // If the updated SCC was the one containing the deleted function, clear it.
+    if (&DeadC == UR.UpdatedC)
+      UR.UpdatedC = nullptr;
 
     // And delete the actual function from the module.
     // The Advisor may use Function pointers to efficiently index various
