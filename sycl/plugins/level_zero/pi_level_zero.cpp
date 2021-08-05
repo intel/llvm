@@ -695,7 +695,7 @@ bool _pi_queue::isInOrderQueue() const {
 
 pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
                                       bool MakeAvailable) {
-  bool UseCopyEngine = CommandList->second.isCopy());
+  bool UseCopyEngine = CommandList->second.isCopy();
   auto &ZeCommandListCache = (UseCopyEngine)
                                  ? this->Context->ZeCopyCommandListCache
                                  : this->Context->ZeComputeCommandListCache;
@@ -872,7 +872,7 @@ pi_result _pi_context::getAvailableCommandList(
              &ZeCommandListDesc, &ZeCommandList));
     // Increments the total number of command lists created on this platform.
     Queue->Device->Platform->ZeGlobalCommandListCount++;
-    
+
     auto &ZeCommandQueue =
         (UseCopyEngine) ? ZeCopyCommandQueue : Queue->ZeComputeCommandQueue;
     ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
