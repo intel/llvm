@@ -7575,9 +7575,9 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
                            bool *EmitCodeView) const {
   unsigned RTOptionID = options::OPT__SLASH_MT;
   bool isNVPTX = getToolChain().getTriple().isNVPTX();
-  bool isSYCLDevice =
-      getToolChain().getTriple().getEnvironment() == llvm::Triple::SYCLDevice;
-  bool isSYCL = Args.hasArg(options::OPT_fsycl) || isSYCLDevice;
+  bool isSPIR = getToolChain().getTriple().isSPIR();
+  // FIXME: isSYCL should not be enabled by "isSPIR"
+  bool isSYCL = Args.hasArg(options::OPT_fsycl) || isSPIR;
   // For SYCL Windows, /MD is the default.
   if (isSYCL)
     RTOptionID = options::OPT__SLASH_MD;
@@ -7589,7 +7589,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
 
   if (Arg *A = Args.getLastArg(options::OPT__SLASH_M_Group)) {
     RTOptionID = A->getOption().getID();
-    if (isSYCL && !isSYCLDevice &&
+    if (isSYCL && !isSPIR &&
         (RTOptionID == options::OPT__SLASH_MT ||
          RTOptionID == options::OPT__SLASH_MTd))
       // Use of /MT or /MTd is not supported for SYCL.
@@ -7601,9 +7601,9 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
   auto addPreDefines = [&](unsigned Defines) {
     if (Defines & addDEBUG)
       CmdArgs.push_back("-D_DEBUG");
-    if (Defines & addMT && !isSYCLDevice)
+    if (Defines & addMT && !isSPIR)
       CmdArgs.push_back("-D_MT");
-    if (Defines & addDLL && !isSYCLDevice)
+    if (Defines & addDLL && !isSPIR)
       CmdArgs.push_back("-D_DLL");
   };
   StringRef FlagForCRT;
@@ -8293,7 +8293,6 @@ void OffloadBundler::ConstructJobMultipleOutputs(
         TT.setArchName(types::getTypeName(InputType));
         TT.setVendorName("intel");
         TT.setOS(getToolChain().getTriple().getOS());
-        TT.setEnvironment(llvm::Triple::SYCLDevice);
         Triples += "sycl-";
         Triples += TT.normalize();
       } else if (getToolChain().getTriple().getSubArch() !=
@@ -8412,7 +8411,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     llvm::Triple TT = getToolChain().getTriple();
     SmallString<128> TargetTripleOpt = TT.getArchName();
     // When wrapping an FPGA device binary, we need to be sure to apply the
-    // appropriate triple that corresponds (fpga_aoc[xr]-intel-<os>-sycldevice)
+    // appropriate triple that corresponds (fpga_aoc[xr]-intel-<os>)
     // to the target triple setting.
     if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
         TCArgs.hasArg(options::OPT_fsycl_link_EQ)) {
@@ -8424,7 +8423,6 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         FPGAArch += "_emu";
       TT.setArchName(FPGAArch);
       TT.setVendorName("intel");
-      TT.setEnvironment(llvm::Triple::SYCLDevice);
       TargetTripleOpt = TT.str();
       // When wrapping an FPGA aocx binary to archive, do not emit registration
       // functions
@@ -8674,7 +8672,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
 
   TranslatorArgs.push_back("-o");
   TranslatorArgs.push_back(Output.getFilename());
-  if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
+  if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     TranslatorArgs.push_back("-spirv-max-version=1.3");
     // TODO: align debug info for FPGA H/W when its SPIR-V consumer is ready
     if (C.getDriver().isFPGAEmulationMode())

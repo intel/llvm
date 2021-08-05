@@ -941,6 +941,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             continue;
           }
 
+          // Warn about deprated `sycldevice` environment component
+          if (TT.getEnvironmentName() == "sycldevice") {
+            Diag(clang::diag::warn_drv_sycl_deprecated_triple_component)
+                << TT.getEnvironmentName();
+            // Drop evironment component
+            TT.setTriple(TT.getArchName() + "-" + TT.getVendorName() + "-" +
+                         TT.getOSName());
+          }
+
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
@@ -1003,7 +1012,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       else
         SYCLTargetArch = "spir64";
     else if (HasValidSYCLRuntime)
-      // Triple for -fintelfpga is spir64_fpga-unknown-unknown-sycldevice.
+      // Triple for -fintelfpga is spir64_fpga.
       SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
     if (!SYCLTargetArch.empty()) {
       UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(SYCLTargetArch));
@@ -1892,7 +1901,6 @@ llvm::Triple Driver::MakeSYCLDeviceTriple(StringRef TargetArch) const {
     TT.setArchName(TargetArch);
     TT.setVendor(llvm::Triple::UnknownVendor);
     TT.setOS(llvm::Triple::UnknownOS);
-    TT.setEnvironment(llvm::Triple::SYCLDevice);
     return TT;
   }
   return llvm::Triple(TargetArch);
@@ -2774,7 +2782,6 @@ bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   TT.setArchName(types::getTypeName(Type));
   TT.setVendorName("intel");
   TT.setOS(llvm::Triple::UnknownOS);
-  TT.setEnvironment(llvm::Triple::SYCLDevice);
 
   // Checking uses -check-section option with the input file, no output
   // file and the target triple being looked for.
@@ -7382,7 +7389,6 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
         break;
       case llvm::Triple::MSVC:
       case llvm::Triple::UnknownEnvironment:
-      case llvm::Triple::SYCLDevice:
         if (Args.getLastArgValue(options::OPT_fuse_ld_EQ)
                 .startswith_insensitive("bfd"))
           TC = std::make_unique<toolchains::CrossWindowsToolChain>(
