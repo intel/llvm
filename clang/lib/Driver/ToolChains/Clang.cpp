@@ -4634,13 +4634,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fms-extensions");
       CmdArgs.push_back("-fms-compatibility");
       CmdArgs.push_back("-fdelayed-template-parsing");
-      VersionTuple MSVT = TC.computeMSVCVersion(&D, Args);
+      VersionTuple MSVT = C.getDefaultToolChain().computeMSVCVersion(&D, Args);
       if (!MSVT.empty())
         CmdArgs.push_back(Args.MakeArgString("-fms-compatibility-version=" +
                                              MSVT.getAsString()));
       else {
-        const char *LowestMSVCSupported =
-            "19.10.25017"; // VS2017 v15.0 (initial release)
+        const char *LowestMSVCSupported = "19.16.27023"; // VS2017 v15.9
         CmdArgs.push_back(Args.MakeArgString(
             Twine("-fms-compatibility-version=") + LowestMSVCSupported));
       }
