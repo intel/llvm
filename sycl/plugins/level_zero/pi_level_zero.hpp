@@ -22,6 +22,7 @@
 #include <atomic>
 #include <cassert>
 #include <cstring>
+#include <functional>
 #include <iostream>
 #include <list>
 #include <map>
@@ -129,6 +130,10 @@ template <>
 ze_structure_type_t getZeStructureType<ze_device_cache_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_CACHE_PROPERTIES;
 }
+template <>
+ze_structure_type_t getZeStructureType<ze_device_memory_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_PROPERTIES;
+}
 template <> ze_structure_type_t getZeStructureType<ze_module_properties_t>() {
   return ZE_STRUCTURE_TYPE_MODULE_PROPERTIES;
 }
@@ -156,6 +161,32 @@ template <class T> struct ZesStruct : public T {
   ZesStruct() : T{} { // zero initializes base struct
     this->stype = getZesStructureType<T>();
     this->pNext = nullptr;
+  }
+};
+
+// The wrapper for immutable Level-Zero data.
+// The data is initialized only once at first access (via ->) with the
+// initialization function provided in Init. All subsequent access to
+// the data just returns the already stored data.
+//
+template <class T> struct ZeCache : private T {
+  // The initialization function takes a reference to the data
+  // it is going to initialize, since it is private here in
+  // order to disallow access other than through "->".
+  //
+  typedef std::function<void(T &)> InitFunctionType;
+  InitFunctionType Compute;
+  bool Computed{false};
+
+  ZeCache() : T{} {}
+
+  // Access to the fields of the original T data structure.
+  T *operator->() {
+    if (!Computed) {
+      Compute(*this);
+      Computed = true;
+    }
+    return this;
   }
 };
 
@@ -325,8 +356,13 @@ struct _pi_device : _pi_object {
   bool isSubDevice() { return RootDevice != nullptr; }
 
   // Cache of the immutable device properties.
-  ZeStruct<ze_device_properties_t> ZeDeviceProperties;
-  ZeStruct<ze_device_compute_properties_t> ZeDeviceComputeProperties;
+  ZeCache<ZeStruct<ze_device_properties_t>> ZeDeviceProperties;
+  ZeCache<ZeStruct<ze_device_compute_properties_t>> ZeDeviceComputeProperties;
+  ZeCache<ZeStruct<ze_device_image_properties_t>> ZeDeviceImageProperties;
+  ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
+  ZeCache<std::vector<ZeStruct<ze_device_memory_properties_t>>>
+      ZeDeviceMemoryProperties;
+  ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
 };
 
 struct _pi_context : _pi_object {
@@ -1068,6 +1104,9 @@ struct _pi_kernel : _pi_object {
   // of times. And that's why there is no value of RefCount which can mean zero
   // submissions.
   std::atomic<pi_uint32> SubmissionsCount;
+
+  // Cache of the kernel properties.
+  ZeCache<ZeStruct<ze_kernel_properties_t>> ZeKernelProperties;
 };
 
 struct _pi_sampler : _pi_object {
