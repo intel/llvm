@@ -5,7 +5,11 @@
 
 static __attribute__((opencl_private)) __attribute__((sycl_explicit_simd)) int esimdPrivStatic;
 
+struct S {
+  static __attribute__((opencl_private)) __attribute__((sycl_explicit_simd)) int esimdPrivStaticMember;
+};
+
 __attribute__((sycl_device)) __attribute__((sycl_explicit_simd)) void usage() {
-  // expected-note@+1{{called by}}
   esimdPrivStatic = 42;
+  S::esimdPrivStaticMember = 42;
 }
