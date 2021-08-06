@@ -187,13 +187,17 @@ public:
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
   int getPlatformId(RT::PiPlatform Platform) {
-    auto It = std::find(PiPlatforms->begin(), PiPlatforms->end(), Platform);
-    if (It != PiPlatforms->end()) {
-      return It - PiPlatforms->begin();
+    if (PiPlatforms) {
+      auto It = std::find(PiPlatforms->begin(), PiPlatforms->end(), Platform);
+      if (It != PiPlatforms->end()) {
+        return It - PiPlatforms->begin();
+      } else {
+        PiPlatforms->push_back(Platform);
+        LastDeviceIds.push_back(0);
+        return PiPlatforms->size() - 1;
+      }
     } else {
-      PiPlatforms->push_back(Platform);
-      LastDeviceIds.push_back(0);
-      return PiPlatforms->size() - 1;
+      return -1;
     }
   }
   // Device ids are consecutive across platforms within a plugin.
@@ -224,9 +228,11 @@ public:
   void resetPiPlatforms() { PiPlatforms = nullptr; }
 
   bool containsPiPlatform(RT::PiPlatform Platform) {
-    for (RT::PiPlatform Plt : *PiPlatforms) {
-      if (Platform == Plt)
-        return true;
+    if (PiPlatforms) {
+      for (RT::PiPlatform Plt : *PiPlatforms) {
+        if (Platform == Plt)
+          return true;
+      }
     }
     return false;
   }
