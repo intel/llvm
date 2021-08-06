@@ -517,6 +517,11 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   if (Arg *FinalOutput = Args.getLastArg(options::OPT_o, options::OPT__SLASH_o,
                                          options::OPT__SLASH_Fe)) {
     SmallString<128> FN(FinalOutput->getValue());
+    // For "-o file.xxx" where the option value has an extension, if the
+    // extension is one of .a .o .out .lib .obj .exe, the output project
+    // directory name will be file.proj which omits the extension. Otherwise
+    // the output project directory name will be file.xxx.prj which keeps
+    // the original extension.
     StringRef Ext = llvm::sys::path::extension(FN);
     SmallVector<StringRef, 6> Exts = {".o",   ".a",   ".out",
                                       ".obj", ".lib", ".exe"};
