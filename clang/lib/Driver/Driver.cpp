@@ -4650,8 +4650,9 @@ class OffloadingActionBuilder final {
     /// Initialize the GPU architecture list from arguments - this populates
     /// `GpuArchList` from `--offload-arch` flags. Only relevant if compiling to
     /// CUDA or AMDGCN. Return true if any initialization errors are found.
-    /// FIXME: SPIR-V AOT targets should also use `offload-arch` to better fit
-    /// in the standard model.
+    /// FIXME: "offload-arch" and the BoundArch mechanism should also be
+    // used in the SYCLToolChain for SPIR-V AOT to track the offload
+    // architecture instead of the Triple sub-arch it currently uses.
     bool initializeGpuArchMap() {
       const OptTable &Opts = C.getDriver().getOpts();
       for (auto *A : Args) {
