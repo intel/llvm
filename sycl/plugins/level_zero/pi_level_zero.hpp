@@ -343,7 +343,7 @@ struct _pi_device : _pi_object {
 // Structure describing the specific use of a command-list in a queue.
 // This is because command-lists are re-used across multiple queues
 // in the same context.
-struct  pi_command_list_info_t {
+struct pi_command_list_info_t {
   // The Level-Zero fence that will be signalled at completion.
   ze_fence_handle_t ZeFence{nullptr};
   // Record if the fence is in use.
