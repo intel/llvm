@@ -150,8 +150,17 @@ The unmangled names of SPIR-V builtin GenericCastToPtrExplicit function follow t
 .. code-block:: c
 
   __spirv_GenericCastToPtrExplicit_To{Global|Local|Private}
-  
-SPIR-V 1.1 Builtin CreatePipeFromPipeStorage Function Name 
+
+SPIR-V Builtin BuildNDRange Function Name
+----------------------------------------
+
+The unmangled names of SPIR-V builtin BuildNDRange functions follow the convention:
+
+.. code-block:: c
+
+  __spirv_{BuildNDRange}_{1|2|3}D
+
+SPIR-V 1.1 Builtin CreatePipeFromPipeStorage Function Name
 ----------------------------------------
 
 The unmangled names of SPIR-V builtin CreatePipeFromPipeStorage function follow the convention:

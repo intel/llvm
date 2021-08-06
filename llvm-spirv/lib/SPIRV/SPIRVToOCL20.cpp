@@ -58,6 +58,9 @@ bool SPIRVToOCL20Base::runSPIRVToOCL(Module &Module) {
 
   visit(*M);
 
+  postProcessBuiltinsReturningStruct(M);
+  postProcessBuiltinsWithArrayArguments(M);
+
   eraseUselessFunctions(&Module);
 
   LLVM_DEBUG(dbgs() << "After SPIRVToOCL20:\n" << *M);
