@@ -284,22 +284,33 @@ struct _pi_device : _pi_object {
   }
 
   // Keep the ordinal of a "compute" commands group, where we send all
-  // compute commands and some copy commands, and the ordinal of the
-  // "copy" commands group, where we can send only copy commands.
+  // compute commands and some copy commands, and a pair of ordinals for the
+  // main copy commands group and link copy command groups, where we can
+  // send only copy commands.
   // A value of "-1" means that there is no such queue group available
   // in the level zero backend.
   int32_t ZeComputeQueueGroupIndex;
-  int32_t ZeCopyQueueGroupIndex;
+  int32_t ZeMainCopyQueueGroupIndex;
+  int32_t ZeLinkCopyQueueGroupIndex;
 
   // Keep the index of the compute engine
   int32_t ZeComputeEngineIndex = 0;
 
   // Cache the properties of the compute/copy queue groups.
   ZeStruct<ze_command_queue_group_properties_t> ZeComputeQueueGroupProperties;
-  ZeStruct<ze_command_queue_group_properties_t> ZeCopyQueueGroupProperties;
+  ZeStruct<ze_command_queue_group_properties_t> ZeMainCopyQueueGroupProperties;
+  ZeStruct<ze_command_queue_group_properties_t> ZeLinkCopyQueueGroupProperties;
 
-  // This returns "true" if a copy engine is available for use.
-  bool hasCopyEngine() const { return ZeCopyQueueGroupIndex >= 0; }
+  // This returns "true" if a main copy engine is available for use.
+  bool hasMainCopyEngine() const { return ZeMainCopyQueueGroupIndex >= 0; }
+
+  // This returns "true" if a link copy engine is available for use.
+  bool hasLinkCopyEngine() const { return ZeLinkCopyQueueGroupIndex >= 0; }
+
+  // This returns "true" if a main or link copy engine is available for use.
+  bool hasCopyEngine() const {
+    return hasMainCopyEngine() || hasLinkCopyEngine();
+  }
 
   // Initialize the entire PI device.
   // Optional param `SubSubDeviceOrdinal` `SubSubDeviceIndex` are the compute
@@ -496,11 +507,11 @@ const pi_uint32 DynamicBatchStartSize = 4;
 
 struct _pi_queue : _pi_object {
   _pi_queue(ze_command_queue_handle_t Queue,
-            ze_command_queue_handle_t CopyQueue, pi_context Context,
-            pi_device Device, pi_uint32 BatchSize, bool OwnZeCommandQueue,
-            pi_queue_properties PiQueueProperties = 0)
+            std::vector<ze_command_queue_handle_t> &CopyQueues,
+            pi_context Context, pi_device Device, pi_uint32 BatchSize,
+            bool OwnZeCommandQueue, pi_queue_properties PiQueueProperties = 0)
       : ZeComputeCommandQueue{Queue},
-        ZeCopyCommandQueue{CopyQueue}, Context{Context}, Device{Device},
+        ZeCopyCommandQueues{CopyQueues}, Context{Context}, Device{Device},
         QueueBatchSize{BatchSize > 0 ? BatchSize : DynamicBatchStartSize},
         OwnZeCommandQueue{OwnZeCommandQueue}, UseDynamicBatching{BatchSize ==
                                                                  0},
@@ -508,9 +519,24 @@ struct _pi_queue : _pi_object {
 
   // Level Zero compute command queue handle.
   ze_command_queue_handle_t ZeComputeCommandQueue;
-  // Level Zero copy command command queue handle. This might not be available
-  // depending on user preference and/or target device.
-  ze_command_queue_handle_t ZeCopyCommandQueue;
+  // Vector of Level Zero copy command command queue handles.
+  // Some (or all) of these handles may not be available depending on user
+  // preference and/or target device.
+  // In this vector, link copy engines, if available, come first followed by
+  // main copy engine, if available.
+  std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
+
+  // One of the many available copy command queues will be used for
+  // submitting command lists to. This variable stores index of the last used
+  // copy command queue in the ZeCopyCommandQueues vector.
+  int32_t LastUsedCopyCommandQueueIndex = -1;
+
+  // This function will return one of possibly multiple available copy queues.
+  // Currently, a round robin strategy is used.
+  // It will return nullptr if no copy command queues are available for use.
+  ze_command_queue_handle_t
+  getZeCopyCommandQueue(int *CopyQueueIndex,
+                        int *CopyQueueGroupIndex = nullptr);
 
   // Keeps the PI context to which this queue belongs.
   // This field is only set at _pi_queue creation time, and cannot change.
@@ -582,8 +608,11 @@ struct _pi_queue : _pi_object {
     // completed (we are polling the fence at events completion). The fence
     // may be still "in-use" due to sporadic delay in HW.
     bool InUse;
-    // Record if the associated command list (if any) is a "copy" command list.
-    bool IsCopyCommandList;
+    // Record the index of copy queue (in the vector of available copy queues)
+    // to which the command list (if any) will be submitted.
+    // If there is no command list, or if the command list is not a copy command
+    // list, the value is set to -1.
+    int CopyQueueIndex;
   } command_list_fence_t;
 
   // Map of all Command lists created with their associated Fence used for
@@ -592,8 +621,9 @@ struct _pi_queue : _pi_object {
       command_list_fence_map_t;
   command_list_fence_map_t ZeCommandListFenceMap;
 
-  // return 'true' if a command list is a "copy" command list
-  bool getZeCommandListIsCopyList(ze_command_list_handle_t ZeCommandList);
+  // return the index of copy queue associated with this command list.
+  // return -1 if a command list is not a "copy" command list
+  int getCopyQueueIndex(ze_command_list_handle_t ZeCommandList);
 
   // Keeps the properties of this queue.
   pi_queue_properties PiQueueProperties;
