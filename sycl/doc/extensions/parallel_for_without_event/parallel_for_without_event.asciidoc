@@ -104,14 +104,30 @@ For using the new API, the following cases are not supported:
 |CUDA       | Supported.
 |===
 
-All these restrictions made it possible not to do many internal
-unnecessary checks during each submission, and also not create
-an event that the user does not need, thereby saving the host time
-spent on each submission. Using the API is well suited for a kernel
-that uses USM memory.
+All these restrictions made it possible not to do many internal unnecessary checks
+during each submission, and also not create an event that the user does not need,
+i.e new API executes fewer instructions, thereby saving the host time spent on each submission.
+Using the API is well suited for a kernel that uses USM memory.
 
 Advice: if target backend supports https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/LocalMemory/SYCL_INTEL_local_memory.asciidoc[static local memory allocation feature] inside the kernel code, then it can be used instead of creating local accessors.
 
+==  Observed performance gain
+In the table observed performance gain of one submittion using the API compared to standard API.
+
+[%header,cols="1,5"]
+|===
+|back-end   | (call time of `parallel_for`) / (call time of `parallel_for_without_event`)
+|CUDA       | ~ x1.5
+|OpenCL     | ~ x1.15
+|Level-zero | ~ x1.1
+|===
+
+----
+Table notes:
+* the results were obtained by submission of small kernels with no more than five arguments passed to the kernel
+* improvements may differ from device to device.
+* temporary workground was prepared to measure the performance for level-zero.
+----
 
 Following is an example use-case:
 
