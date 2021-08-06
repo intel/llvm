@@ -443,7 +443,7 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
   // for example the quad type __float128 will cause errors in the
   // SPIR-V translation phase.
   // Here we check any potentially unsupported declaration and issue
-  // a deferred diagnostic, which will be emitted if the declaration
+  // a deferred diagnostic, which will be emitted iff the declaration
   // is discovered to reside in kernel code.
   // The optional UsedAtLoc param is used when the SYCL usage is at a
   // different location than the variable declaration and we need to
