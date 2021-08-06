@@ -32,7 +32,6 @@ subject to change. Do not rely on these variables in production code.
 | `SYCL_PI_LEVEL_ZERO_BATCH_SIZE` | Integer | Sets a preferred number of commands to batch into a command list before executing the command list. A value of 0 causes the batch size to be adjusted dynamically. A value greater than 0 specifies fixed size batching, with the batch size set to the specified value. The default is 0. |
 | `SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST` | Integer | When set to 0, disables filtering of signaled events from wait lists when using the Level Zero backend. The default is 1. |
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE` | Integer | Allows the use of copy engine, if available in the device, in Level Zero plugin to transfer SYCL buffer or image data between the host and/or device(s) and to fill SYCL buffer or image data in device or shared memory. The default is 1. |
-| `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_D2D_COPY` (experimental) | Integer | Allows the use of copy engine, if available in the device, in Level Zero plugin for device to device copy operations. The default is 0. This option is experimental and will be removed once heuristics are added to make a decision about use of copy engine for device to device copy operations. |
 | `SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY` | Any(\*) | Enable support of the kernels with indirect access and corresponding deferred release of memory allocations in the Level Zero plugin. |
 | `SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE` | Any(\*) | Enables tracing of `parallel_for` invocations with rounded-up ranges. |
 | `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
@@ -54,25 +53,25 @@ subject to change. Do not rely on these variables in production code.
 
 This environment variable limits the SYCL RT to use only a subset of the system's devices. Setting this environment variable affects all of the device query functions (`platform::get_devices()` and `platform::get_platforms()`) and all of the device selectors. 
 
-The value of this environment variable is a comma separated list of filters, where each filter is a triple of the form "`backend:device_type:device_num`" (without the quotes). Each element of the triple is optional, but each filter must have at least one value. Possible values of "backend" are:
-- host
+The value of this environment variable is a comma separated list of filters, where each filter is a triple of the form "`backend`:`device_type`:`device_num`" (without the quotes). Each element of the triple is optional, but each filter must have at least one value. Possible values of `backend` are:
+- `host`
 - `level_zero`
-- opencl
-- cuda
-- \*
+- `opencl`
+- `cuda`
+- `*`
 
-Possible values of "`device_type`" are:
-- host
-- cpu
-- gpu
-- acc
-- \*
+Possible values of `device_type` are:
+- `host`
+- `cpu`
+- `gpu`
+- `acc`
+- `*`
 
-`Device_num` is an integer that indexes the enumeration of devices from the sycl-ls utility tool, where the first device in that enumeration has index zero in each backend. For example, `SYCL_DEVICE_FILTER`=2 will return all devices with index '2' from all different backends. If multiple devices satisfy this device number (e.g., GPU and CPU devices can be assigned device number '2'), then default_selector will choose the device with the highest heuristic point. 
+`device_num` is an integer that indexes the enumeration of devices from the sycl-ls utility tool, where the first device in that enumeration has index zero in each backend. For example, `SYCL_DEVICE_FILTER=2` will return all devices with index '2' from all different backends. If multiple devices satisfy this device number (e.g., GPU and CPU devices can be assigned device number '2'), then default_selector will choose the device with the highest heuristic point.  When `SYCL_DEVICE_ALLOWLIST` is set, it is applied before enumerating devices and affects `device_num` values.
 
-Assuming a filter has all three elements of the triple, it selects only those devices that come from the given backend, have the specified device type, AND have the given device index. If more than one filter is specified, the RT is restricted to the union of devices selected by all filters. The RT does not include the "host" backend and the host device automatically unless one of the filters explicitly specifies the "host" device type. Therefore, `SYCL_DEVICE_FILTER`=host should be set to enforce SYCL to use the host device only. 
+Assuming a filter has all three elements of the triple, it selects only those devices that come from the given backend, have the specified device type, AND have the given device index. If more than one filter is specified, the RT is restricted to the union of devices selected by all filters. The RT does not include the `host` backend and the `host` device automatically unless one of the filters explicitly specifies the `host` device type. Therefore, `SYCL_DEVICE_FILTER=host` should be set to enforce SYCL to use the `host` device only. 
 
-Note that all device selectors will throw an exception if the filtered list of devices does not include a device that satisfies the selector. For instance, `SYCL_DEVICE_FILTER`=cpu,level_zero will cause host_selector() to throw an exception. `SYCL_DEVICE_FILTER` also limits loading only specified plugins into the SYCL RT. In particular, `SYCL_DEVICE_FILTER`=level_zero will cause the cpu_selector to throw an exception since SYCL RT will only load the level_zero backend which does not support any CPU devices at this time. When multiple devices satisfy the filter (e..g, `SYCL_DEVICE_FILTER`=gpu), only one of them will be selected.
+Note that all device selectors will throw an exception if the filtered list of devices does not include a device that satisfies the selector. For instance, `SYCL_DEVICE_FILTER=cpu,level_zero` will cause `host_selector()` to throw an exception. `SYCL_DEVICE_FILTER` also limits loading only specified plugins into the SYCL RT. In particular, `SYCL_DEVICE_FILTER=level_zero` will cause the `cpu_selector` to throw an exception since SYCL RT will only load the `level_zero` backend which does not support any CPU devices at this time. When multiple devices satisfy the filter (e..g, `SYCL_DEVICE_FILTER=gpu`), only one of them will be selected.
 
 ### `SYCL_PRINT_EXECUTION_GRAPH` Options
 
