@@ -219,8 +219,8 @@ public:
 
   // Do not leave PiPlatform pointers so that they will not be
   // released twice at the shutdown time.
-  void resetPiPlatforms() { 
-    std::fill(PiPlatforms.begin(), PiPlatforms.end(), nullptr); 
+  void resetPiPlatforms() {
+    std::fill(PiPlatforms.begin(), PiPlatforms.end(), nullptr);
   }
 
   bool containsPiPlatform(RT::PiPlatform Platform) {
