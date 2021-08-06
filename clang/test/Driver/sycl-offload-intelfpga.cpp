@@ -364,7 +364,50 @@
 // RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
 // RUN: %clang_cl -### -fsycl -fintelfpga -Xshardware %s -Fe%t_dir/file.out 2>&1 \
 // RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
-// CHK-FPGA-REPORT-OPT: aoc{{.*}} "-sycl" {{.*}} "-output-report-folder={{.*}}{{(/|\\\\)}}file.out.prj"
+
+// RUN: %clangxx -### -fsycl -fintelfpga -Xshardware %s -o %t_dir/file.o 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+// RUN: %clang_cl -### -fsycl -fintelfpga -Xshardware %s -o %t_dir/file.o 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+// RUN: %clang_cl -### -fsycl -fintelfpga -Xshardware %s -Fe%t_dir/file.o 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+
+// RUN: %clangxx -### -fsycl -fintelfpga -Xshardware %s -o %t_dir/file.a 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+// RUN: %clang_cl -### -fsycl -fintelfpga -Xshardware %s -o %t_dir/file.a 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+// RUN: %clang_cl -### -fsycl -fintelfpga -Xshardware %s -Fe%t_dir/file.a 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+
+// RUN: %clangxx -### -fsycl -fintelfpga -Xshardware %s -o %t_dir/file.lib 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+// RUN: %clang_cl -### -fsycl -fintelfpga -Xshardware %s -o %t_dir/file.lib 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+// RUN: %clang_cl -### -fsycl -fintelfpga -Xshardware %s -Fe%t_dir/file.lib 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+
+// RUN: %clangxx -### -fsycl -fintelfpga -Xshardware %s -o %t_dir/file.obj 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+// RUN: %clang_cl -### -fsycl -fintelfpga -Xshardware %s -o %t_dir/file.obj 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+// RUN: %clang_cl -### -fsycl -fintelfpga -Xshardware %s -Fe%t_dir/file.obj 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+
+// RUN: %clangxx -### -fsycl -fintelfpga -Xshardware %s -o %t_dir/file.exe 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+// RUN: %clang_cl -### -fsycl -fintelfpga -Xshardware %s -o %t_dir/file.exe 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+// RUN: %clang_cl -### -fsycl -fintelfpga -Xshardware %s -Fe%t_dir/file.exe 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT %s
+
+// RUN: %clangxx -### -fsycl -fintelfpga -Xshardware %s -o %t_dir/file.xxx 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT-KEEP-EXT %s
+// RUN: %clang_cl -### -fsycl -fintelfpga -Xshardware %s -o %t_dir/file.xxx 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT-KEEP-EXT %s
+// RUN: %clang_cl -### -fsycl -fintelfpga -Xshardware %s -Fe%t_dir/file.xxx 2>&1 \
+// RUN:  | FileCheck -DOUTDIR=%t_dir -check-prefix=CHK-FPGA-REPORT-OPT-KEEP-EXT %s
+// CHK-FPGA-REPORT-OPT: aoc{{.*}} "-sycl" {{.*}} "-output-report-folder={{.*}}{{(/|\\\\)}}file.prj"
+// CHK-FPGA-REPORT-OPT-KEEP-EXT: aoc{{.*}} "-sycl" {{.*}} "-output-report-folder={{.*}}{{(/|\\\\)}}file.xxx.prj"
 
 /// -fintelfpga output report file from dir/source
 /// check dependency file from dir/source
