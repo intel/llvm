@@ -292,8 +292,8 @@ def err_drv_fsycl_with_c_type : Error<
 def warn_drv_sycl_offload_target_duplicate : Warning<
   "SYCL offloading target '%0' is similar to target '%1' already specified; "
   "will be ignored">, InGroup<SyclTarget>;
-def warn_drv_sycl_deprecated_triple_component : Warning<"SYCL offloading target"
-  " triple '%0' component is deprecated; will be ignored.">,
+def warn_drv_sycl_deprecated_triple_component : Warning<"'%0' component of '%1'"
+  " SYCL offloading target triple is deprecated. Effective triple is '%2'.">,
   InGroup<SyclTarget>;
 def err_drv_omp_offload_target_missingbcruntime : Error<
   "No library '%0' found in the default clang lib directory or in LIBRARY_PATH. Please use --libomptarget-%1-bc-path to specify %1 bitcode library.">;
