@@ -12,6 +12,70 @@
 #include <unordered_map>
 
 namespace xpti {
+/// @brief Universal ID data structure that is central to XPTI
+/// @details A given trace point is referred to by it its universal ID and this
+/// data structure has all the elements that are necessary to map to the code
+/// location of the trace point. In the case the end-user opts out of embedding
+/// the code location information in the trace point, other pieces of
+/// information are leveraged to generate a unique 64-bit ID.
+struct uid_t {
+  /// Contains string ID for file name in upper 32-bits and the line number in
+  /// lower 32-bits
+  uint64_t p1;
+  /// Contains the string ID for kernel name in lower 32-bits; in the case
+  /// dynamic stack walk is performed, the upper 32-bits contain the string ID
+  /// of the caller->callee combination string.
+  uint64_t p2;
+  /// Contains the address of the kernel object or SYCL object references and
+  /// only the lower 32-bits will be used to generate the hash
+  uint64_t p3;
+
+  uid_t() { p1 = p2 = p3 = 0; }
+  /// Computes a hash that is a bijection between N^3 and N
+  /// (x,y,z) |-> (x) + (x+y+1)/2 + (x+y+z+2)/3
+  uint64_t hash() const {
+    /// Use lower 32-bits of the address
+    uint32_t v3 = (uint32_t)(p3 & 0x00000000ffffffff);
+    return (p1 + (p1 + p2 + 1) / 2 + (p1 + p2 + v3 + 2) / 3);
+  }
+
+  bool operator<(const uid_t &rhs) const {
+    if (p1 < rhs.p1)
+      return true;
+    if (p1 == rhs.p1 && p2 < rhs.p2)
+      return true;
+    if (p1 == rhs.p1 && p2 == rhs.p2 && p3 < rhs.p3)
+      return true;
+    return false;
+  }
+
+  bool operator==(const uid_t &rhs) const {
+    return p1 == rhs.p1 && p2 == rhs.p2 && p3 == rhs.p3;
+  }
+};
+} // namespace xpti
+
+/// Specialize std::hash to support xpti::uid_t
+namespace std {
+template <>
+struct less<xpti::uid_t>
+    : public binary_function<xpti::uid_t, xpti::uid_t, bool> {
+  std::size_t operator()(const xpti::uid_t &lhs, const xpti::uid_t &rhs) const {
+    if (lhs.p1 < rhs.p1)
+      return true;
+    if (lhs.p1 == rhs.p1 && lhs.p2 < rhs.p2)
+      return true;
+    if (lhs.p1 == rhs.p1 && lhs.p2 == rhs.p2 && lhs.p3 < rhs.p3)
+      return true;
+    return false;
+  }
+};
+template <> struct hash<xpti::uid_t> {
+  std::size_t operator()(const xpti::uid_t &key) const { return key.hash(); }
+};
+} // namespace std
+
+namespace xpti {
 constexpr int invalid_id = -1;
 constexpr uint8_t default_vendor = 0;
 
@@ -19,8 +83,8 @@ constexpr uint8_t default_vendor = 0;
 /// present
 /// @details When a payload is created, it is conceivable that only partial
 /// information may be present and these flags are used to indicate the
-/// available information. The hash generator will generate a hash based on the
-/// flags set.
+/// available information. The hash generator will generate a hash based on
+/// the flags set.
 ///
 enum class payload_flag_t {
   NameAvailable = 1,        ///< The name for the tracepoint is available
@@ -56,20 +120,20 @@ using metadata_t = std::unordered_map<string_id_t, string_id_t>;
 #define XPTI_PACK16_RET32(value1, value2) ((value1 << 16) | value2)
 #define XPTI_PACK32_RET64(value1, value2) (((uint64_t)value1 << 32) | value2)
 
-/// @brief Payload data structure that is optional for trace point callback API
+/// @brief Payload data structure that is optional for trace point callback
+/// API
 /// @details The payload structure, if determined at compile time, can deliver
 /// the source association of various parallel constructs defined by the
 /// language. In the case it is defined, a lookup table will provide the
-/// association from a kernel/lambda (address) to a payload and the same address
-/// to a unique ID created at runtime.
+/// association from a kernel/lambda (address) to a payload and the same
+/// address to a unique ID created at runtime.
 ///
-/// All instances of a kernel will be associated with the same unique ID through
-/// the lifetime of an object. The hash maps that will be maintained would be:
-/// # [unique_id]->[payload]
-/// # [kernel address]->[unique_id]
+/// All instances of a kernel will be associated with the same unique ID
+/// through the lifetime of an object. The hash maps that will be maintained
+/// would be: # [unique_id]->[payload] # [kernel address]->[unique_id]
 ///
-/// Unique_id MUST be propagated downstream to the OpenCL runtime to ensure the
-/// associations back to the sources. This requires elp from the compiler
+/// Unique_id MUST be propagated downstream to the OpenCL runtime to ensure
+/// the associations back to the sources. This requires elp from the compiler
 /// front-end.
 ///
 struct payload_t {
@@ -83,8 +147,9 @@ struct payload_t {
   const char *source_file = nullptr;
   /// Line number information to correlate the trace point
   uint32_t line_no = invalid_id;
-  /// For a complex statement, column number may be needed to resolve the trace
-  /// point; currently none of the compiler builtins return a valid column no
+  /// For a complex statement, column number may be needed to resolve the
+  /// trace point; currently none of the compiler builtins return a valid
+  /// column no
   uint32_t column_no = invalid_id;
   /// Kernel/lambda/function address
   const void *code_ptr_va = nullptr;
@@ -114,8 +179,8 @@ struct payload_t {
   //  If neither an address or the fully identifyable source file name and
   //  location are not available, we take in the name of the
   //  function/task/user-defined name as input and create a hash from it. We
-  //  mark it as valid since we can display the name in a timeline view, but the
-  //  payload is considered to be a partial but valid payload.
+  //  mark it as valid since we can display the name in a timeline view, but
+  //  the payload is considered to be a partial but valid payload.
   payload_t(const char *func_name) {
     code_ptr_va = nullptr;
     name_sid = invalid_id;        ///< Invalid string ID
@@ -165,8 +230,8 @@ struct payload_t {
 /// A data structure that holds information about an API function call and its
 /// arguments.
 struct function_with_args_t {
-  /// A stable API function ID. It is a contract between the profiled system and
-  /// subscribers.
+  /// A stable API function ID. It is a contract between the profiled system
+  /// and subscribers.
   uint32_t function_id;
   /// A null-terminated string, containing human-readable function name.
   const char *function_name;
@@ -245,8 +310,8 @@ enum class trace_point_type_t : uint16_t {
   lock_begin = XPTI_TRACE_POINT_BEGIN(7),
   /// Similar to barrier end, but captures the information for a lock
   lock_end = XPTI_TRACE_POINT_END(7),
-  /// Use to model triggers (impulse) at various points in time - will not have
-  /// an end equivalent
+  /// Use to model triggers (impulse) at various points in time - will not
+  /// have an end equivalent
   signal = XPTI_TRACE_POINT_BEGIN(8),
   /// Used to model the data transfer initiation from device A to device B
   transfer_begin = XPTI_TRACE_POINT_BEGIN(9),
@@ -262,10 +327,11 @@ enum class trace_point_type_t : uint16_t {
   wait_begin = XPTI_TRACE_POINT_BEGIN(11),
   /// Models the explicit barrier end in SYCL
   wait_end = XPTI_TRACE_POINT_END(11),
-  /// Used to trace function call begin, from libraries, for example. This trace
-  /// point type does not require an event object for the parent or the event of
-  /// interest, but information about the function being traced needs to be sent
-  /// using the user_data parameter in the xptiNotifySubscribers() call.
+  /// Used to trace function call begin, from libraries, for example. This
+  /// trace point type does not require an event object for the parent or the
+  /// event of interest, but information about the function being traced needs
+  /// to be sent using the user_data parameter in the xptiNotifySubscribers()
+  /// call.
   function_begin = XPTI_TRACE_POINT_BEGIN(12),
   /// Used to trace function call end
   function_end = XPTI_TRACE_POINT_END(12),
@@ -281,19 +347,20 @@ enum class trace_point_type_t : uint16_t {
 };
 
 ///  @brief Enumerator defining the global/basic trace event types
-///  @details The frame work defines the global/basic trace event types that are
-///  necessary for modeling parallel runtimes.
+///  @details The frame work defines the global/basic trace event types that
+///  are necessary for modeling parallel runtimes.
 ///
 ///  The event_type data is of type uint8_t and the 7-LSB bits are used to
-///  enumerate event types. the MSB bit is reserved for user-defined event types
-///  and is set to 0 for predefined event types defined by the framework.
+///  enumerate event types. the MSB bit is reserved for user-defined event
+///  types and is set to 0 for predefined event types defined by the
+///  framework.
 ///
-///  When user-defined event types are being declared, a new ID is added to this
-///  value to create a uint16_t data type. The LSB 8-bits have the 8th bit set
-///  indicating that it is user-defined and the remaining 7-bits will indicated
-///  the user defined trace event type. However, since multiple tools or vendors
-///  could create their own trace event types, we require the vendor_id to
-///  create a vendor namespace to avoid collisions.
+///  When user-defined event types are being declared, a new ID is added to
+///  this value to create a uint16_t data type. The LSB 8-bits have the 8th
+///  bit set indicating that it is user-defined and the remaining 7-bits will
+///  indicated the user defined trace event type. However, since multiple
+///  tools or vendors could create their own trace event types, we require the
+///  vendor_id to create a vendor namespace to avoid collisions.
 ///
 ///                                  user-defined bit
 ///                                    |
@@ -320,7 +387,8 @@ enum class trace_event_type_t : uint16_t {
   /// Algorithm type describes a parallel algorithm such as a parallel_for
   algorithm = XPTI_EVENT(2),
   /// Barrier event is usually a synchronization type that causes threads to
-  /// wait until something happens and found in parallel algorithms and explicit
+  /// wait until something happens and found in parallel algorithms and
+  /// explicit
   /// synchronization use cases in asynchronous programming
   barrier = XPTI_EVENT(3),
   /// Activity in the scheduler that is not useful work is reported as this
@@ -370,8 +438,9 @@ struct reserved_data_t {
 struct trace_event_data_t {
   /// Unique id that corresponds to an event type or event group type
   int64_t unique_id = invalid_id;
-  /// Data ID: ID that tracks the data elements streaming through the algorithm
-  /// (mostly graphs; will be the same as instance_id for algorithms)
+  /// Data ID: ID that tracks the data elements streaming through the
+  /// algorithm (mostly graphs; will be the same as instance_id for
+  /// algorithms)
   uint64_t data_id = 0;
   /// Instance id of an algorithm with id=unique_id
   uint64_t instance_id = 0;
@@ -382,11 +451,11 @@ struct trace_event_data_t {
   /// Unused 32-bit slot that could be used for any ids that need to be
   /// propagated in the future
   uint32_t unused;
-  /// If event_type is "graph" and trace_type is "edge_create", then the source
-  /// ID is set
+  /// If event_type is "graph" and trace_type is "edge_create", then the
+  /// source ID is set
   int64_t source_id = invalid_id;
-  /// If event_type is "graph" and trace_type is "edge_create", then the target
-  /// ID is set
+  /// If event_type is "graph" and trace_type is "edge_create", then the
+  /// target ID is set
   int64_t target_id = invalid_id;
   /// A reserved slot for memory growth, if required by the framework
   reserved_data_t reserved;
@@ -438,10 +507,10 @@ enum class result_t : int32_t {
 /// child of. If the current trace is not nested, the parent object will be
 /// NULL.
 /// @param [in] child  Child object for this callback has been invoked.
-/// @param [in] user_data Data sent by the caller which can be anything and the
-/// tool trying to interpret it needs to know the type for the handshake to be
-/// successful. Most of the time, this field is used to send in const char *
-/// data.
+/// @param [in] user_data Data sent by the caller which can be anything and
+/// the tool trying to interpret it needs to know the type for the handshake
+/// to be successful. Most of the time, this field is used to send in const
+/// char * data.
 typedef void (*tracepoint_callback_api_t)(uint16_t trace_type,
                                           xpti::trace_event_data_t *parent,
                                           xpti::trace_event_data_t *child,
