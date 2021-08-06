@@ -603,3 +603,8 @@ One more possible mitigation would be to record name of the library from which
 each symbol should be imported, but it still won't resolve all potential
 issues with run-time library loading, because user can load the library with the
 same name as one of the explicitly linked libraries.
+
+## Related links
+
+1. Test plan for this feature
+https://github.com/intel/llvm-test-suite/blob/intel/SYCL/TestPlans/DynamicLinkingTestPlan.md
