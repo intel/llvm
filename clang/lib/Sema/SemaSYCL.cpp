@@ -4459,6 +4459,12 @@ public:
     InnerTypeVisitor::Visit(T.getTypePtr());
   }
 
+  void VisitReferenceType(const ReferenceType *RT) {
+    // Our forward declarations don't care about references, so we should just
+    // ignore the reference and continue on.
+    Visit(RT->getPointeeType());
+  }
+
   void Visit(const TemplateArgument &TA) {
     if (TA.isNull())
       return;
