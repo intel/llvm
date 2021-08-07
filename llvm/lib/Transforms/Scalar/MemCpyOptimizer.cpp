@@ -67,6 +67,10 @@ using namespace llvm;
 
 #define DEBUG_TYPE "memcpyopt"
 
+static cl::opt<bool> EnableMemCpyOptWithoutLibcalls(
+    "enable-memcpyopt-without-libcalls", cl::init(false), cl::Hidden,
+    cl::desc("Enable memcpyopt even when libcalls are disabled"));
+
 static cl::opt<bool>
     EnableMemorySSA("enable-memcpyopt-memoryssa", cl::init(true), cl::Hidden,
                     cl::desc("Use MemorySSA-backed MemCpyOpt."));
@@ -677,8 +681,9 @@ bool MemCpyOptPass::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
       // the corresponding libcalls are not available.
       // TODO: We should really distinguish between libcall availability and
       // our ability to introduce intrinsics.
-      if (T->isAggregateType() && TLI->has(LibFunc_memcpy) &&
-          TLI->has(LibFunc_memmove)) {
+      if (T->isAggregateType() &&
+          (EnableMemCpyOptWithoutLibcalls ||
+           (TLI->has(LibFunc_memcpy) && TLI->has(LibFunc_memmove)))) {
         MemoryLocation LoadLoc = MemoryLocation::get(LI);
 
         // We use alias analysis to check if an instruction may store to
@@ -708,9 +713,10 @@ bool MemCpyOptPass::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
         if (P) {
           // If we load from memory that may alias the memory we store to,
           // memmove must be used to preserve semantic. If not, memcpy can
-          // be used.
+          // be used. Also, if we load from constant memory, memcpy can be used
+          // as the constant memory won't be modified.
           bool UseMemMove = false;
-          if (!AA->isNoAlias(MemoryLocation::get(SI), LoadLoc))
+          if (isModSet(AA->getModRefInfo(SI, LoadLoc)))
             UseMemMove = true;
 
           uint64_t Size = DL.getTypeStoreSize(T);
@@ -805,7 +811,7 @@ bool MemCpyOptPass::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
   // this if the corresponding libfunc is not available.
   // TODO: We should really distinguish between libcall availability and
   // our ability to introduce intrinsics.
-  if (!TLI->has(LibFunc_memset))
+  if (!(TLI->has(LibFunc_memset) || EnableMemCpyOptWithoutLibcalls))
     return false;
 
   // There are two cases that are interesting for this code to handle: memcpy
@@ -1102,11 +1108,12 @@ bool MemCpyOptPass::processMemCpyMemCpyDependence(MemCpyInst *M,
   }
 
   // If the dest of the second might alias the source of the first, then the
-  // source and dest might overlap.  We still want to eliminate the intermediate
-  // value, but we have to generate a memmove instead of memcpy.
+  // source and dest might overlap. In addition, if the source of the first
+  // points to constant memory, they won't overlap by definition. Otherwise, we
+  // still want to eliminate the intermediate value, but we have to generate a
+  // memmove instead of memcpy.
   bool UseMemMove = false;
-  if (!AA->isNoAlias(MemoryLocation::getForDest(M),
-                     MemoryLocation::getForSource(MDep)))
+  if (isModSet(AA->getModRefInfo(M, MemoryLocation::getForSource(MDep))))
     UseMemMove = true;
 
   // If all checks passed, then we can transform M.
@@ -1168,10 +1175,7 @@ bool MemCpyOptPass::processMemSetMemCpyDependence(MemCpyInst *MemCpy,
 
   // Check that src and dst of the memcpy aren't the same. While memcpy
   // operands cannot partially overlap, exact equality is allowed.
-  if (!AA->isNoAlias(MemoryLocation(MemCpy->getSource(),
-                                    LocationSize::precise(1)),
-                     MemoryLocation(MemCpy->getDest(),
-                                    LocationSize::precise(1))))
+  if (isModSet(AA->getModRefInfo(MemCpy, MemoryLocation::getForSource(MemCpy))))
     return false;
 
   if (EnableMemorySSA) {
@@ -1560,9 +1564,8 @@ bool MemCpyOptPass::processMemCpy(MemCpyInst *M, BasicBlock::iterator &BBI) {
 /// Transforms memmove calls to memcpy calls when the src/dst are guaranteed
 /// not to alias.
 bool MemCpyOptPass::processMemMove(MemMoveInst *M) {
-  // See if the pointers alias.
-  if (!AA->isNoAlias(MemoryLocation::getForDest(M),
-                     MemoryLocation::getForSource(M)))
+  // See if the source could be modified by this memmove potentially.
+  if (isModSet(AA->getModRefInfo(M, MemoryLocation::getForSource(M))))
     return false;
 
   LLVM_DEBUG(dbgs() << "MemCpyOptPass: Optimizing memmove -> memcpy: " << *M
