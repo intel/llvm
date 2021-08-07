@@ -869,7 +869,9 @@ struct _pi_event : _pi_object {
   // This list must be destroyed once the event has signalled.
   _pi_ze_event_list_t WaitList;
 
-  // Tracks if the needed cleanupAfterEvent was already performed for
+  // Performs the cleanup of a completed event.
+  pi_result cleanup();
+  // Tracks if the needed cleanup was already performed for
   // a completed event. This allows to control that some cleanup
   // actions are performed only once.
   //
