@@ -1961,8 +1961,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
     llvm::StringLiteral MethodName =
-        KernelDecl->hasAttr<SYCLSimdAttr>() &&
-                RecordDecl->hasAttr<SYCLSpecialClassAttr>()
+        KernelDecl->hasAttr<SYCLSimdAttr>()
             ? InitESIMDMethodName
             : InitMethodName;
     CXXMethodDecl *InitMethod =
