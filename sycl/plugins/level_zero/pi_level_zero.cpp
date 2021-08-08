@@ -533,6 +533,7 @@ createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
   if (CommandList != Queue->CommandListMap.end()) {
     (*Event)->ZeCommandList = CommandList->first;
     CommandList->second.append(*Event);
+    PI_CALL(piEventRetain(*Event));
   } else {
     (*Event)->ZeCommandList = nullptr;
   }
@@ -711,11 +712,9 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   // NOTE: only those that were not explicitly waited before need
   // this handling.
   for (auto Event : CommandList->second.EventList) {
-    // Since the entire command-list was completed (and fence signalled)
-    // this sync call may be redundant.
-    ZE_CALL(zeHostSynchronize, (Event->ZeEvent));
-    if (!Event->CleanedUp)
-      Event->cleanup();
+    // TODO: remove this unlock!!!
+    PiQueueMutex.unlock();
+    PI_CALL(piEventRelease(Event));
   }
   CommandList->second.EventList.clear();
 
