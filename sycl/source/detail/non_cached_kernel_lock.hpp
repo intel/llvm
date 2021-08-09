@@ -18,8 +18,6 @@ public:
   Locked<RT::PiKernel> lockKernel(RT::PiKernel &K);
 
 private:
-  static bool Compare(RT::PiKernel Lhs, RT::PiKernel Rhs);
-
   using KernelLockMapT = std::map<RT::PiKernel, std::mutex>;
 
   KernelLockMapT Map{std::less<RT::PiKernel>{}};

@@ -12,11 +12,6 @@ Locked<RT::PiKernel> NonCachedKernelLock::lockKernel(RT::PiKernel &K) {
   return {K, Mtx};
 }
 
-// static
-bool NonCachedKernelLock::Compare(RT::PiKernel Lhs, RT::PiKernel Rhs) {
-  return Lhs < Rhs;
-}
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
