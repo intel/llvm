@@ -347,10 +347,10 @@ namespace sycl::ext::oneapi::experimental {
 
   // Exposition only: all template arguments except Group are unspecified
   template<typename Group, std::size_t Extent>
-  class group_helper
+  class group_with_scratchpad
   {
   public:
-    group_helper(Group group, sycl::span<uint8_t, Extent> scratch);
+    group_with_scratchpad(Group group, sycl::span<uint8_t, Extent> scratch);
     Group get_group() const;
 
     sycl::span<uint8_t, Extent>
@@ -359,20 +359,21 @@ namespace sycl::ext::oneapi::experimental {
 
   // Deduction guides
   template<typename Group, std::size_t Extent>
-  group_helper(Group, sycl::span<uint8_t, Extent>)
-    -> group_helper<Group, Extent>;
+  group_with_scratchpad(Group, sycl::span<uint8_t, Extent>)
+    -> group_with_scratchpad<Group, Extent>;
 
 }
 ----
 
-NOTE: `group_helper` is in the `experimental` namespace: interfaces might be changed later.
+NOTE: `group_with_scratchpad` is in the `experimental` namespace:
+interfaces might be changed later.
 
-Table 9. Constructors of the `group_helper` class.
+Table 9. Constructors of the `group_with_scratchpad` class.
 |===
 |Constructor|Description
 
-|`group_helper(Group group, sycl::span<uint8_t, Extent> scratch)`
-|Creates the `group_helper` object using `group` and `scratch`.
+|`group_with_scratchpad(Group group, sycl::span<uint8_t, Extent> scratch)`
+|Creates the `group_with_scratchpad` object using `group` and `scratch`.
 `sycl::is_group_v<std::decay_t<Group>>` must be true.
 `scratch.size()` must not be less than value returned by the `memory_required` method
 of `default_sorter`. Otherwise,
@@ -380,17 +381,17 @@ behavior of sorting algorithm, which is called with the constructed object, is u
 The `scratch` value must be the same for all work-items in `group`.
 |===
 
-Table 10. Member functions of the `group_helper` class.
+Table 10. Member functions of the `group_with_scratchpad` class.
 |===
 |Member function|Description
 
 |`Group get_group() const`
-|Returns the `Group` class object that is handled by the `group_helper` object.
+|Returns the `Group` class object that is handled by the `group_with_scratchpad` object.
 
 |`sycl::span<uint8_t, Extent>
 get_memory() const`
 |Returns `sycl::span` that represents an additional memory
-that is handled by the `group_helper` object.
+that is handled by the `group_with_scratchpad` object.
 
 |===
 
@@ -516,7 +517,7 @@ q.submit([&](sycl::handler& h) {
 
       my_sycl::joint_sort(
         // create group helper using deduction guides
-        my_sycl_exp::group_helper(
+        my_sycl_exp::group_with_scratchpad(
           id.get_group(),
           sycl::span{scratch.get_pointer(), temp_memory_size}
         ),
@@ -594,7 +595,7 @@ q.submit([&](sycl::handler& h) {
 
       my_sycl::joint_sort(
         // create group excutor using deduction guides
-        my_sycl_exp::group_helper(
+        my_sycl_exp::group_with_scratchpad(
           id.get_group(),
           sycl::span{scratch.get_pointer(), temp_memory_size}
         ),
@@ -619,7 +620,7 @@ It needs to be investigated what is the response for that.
 . Sorter traits can be useful if there are Finder, Reducer or other objects
 will be added to the Spec to be used with other Group algorithms, e.g. find, reduce.
 . Predefined sorters can be revisited to find a better interfaces for `memory_required` overloads.
-. `group_helper` can be replaced with concepts that requires 2 methods.
+. `group_with_scratchpad` can be replaced with concepts that requires 2 methods.
 
 == Revision History
 
