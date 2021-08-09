@@ -2070,7 +2070,7 @@ public:
             createKernelDecl(S.getASTContext(), Loc, IsInline, IsSIMDKernel)),
         FuncContext(SemaRef, KernelDecl) {
     S.addSyclOpenCLKernel(SYCLKernel, KernelDecl);
-        }
+  }
 
   ~SyclKernelDeclCreator() {
     ASTContext &Ctx = SemaRef.getASTContext();

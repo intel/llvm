@@ -13328,7 +13328,7 @@ private:
   // We need to store the list of the sycl_kernel functions and their associated
   // generated OpenCL Kernels so we can go back and re-name these after the
   // fact.
-  llvm::SmallVector<std::pair<const FunctionDecl * , FunctionDecl * >>
+  llvm::SmallVector<std::pair<const FunctionDecl *, FunctionDecl *>>
       SyclKernelsToOpenCLKernels;
 
   // Used to suppress diagnostics during kernel construction, since these were
