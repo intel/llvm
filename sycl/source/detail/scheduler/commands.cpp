@@ -1706,27 +1706,12 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     CGExecKernel *ExecKernel,
     std::shared_ptr<device_image_impl> DeviceImageImpl, RT::PiKernel Kernel,
     NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents, RT::PiEvent &Event,
-    ProgramManager::KernelArgMask EliminatedArgMask) {
+    const ProgramManager::KernelArgMask &EliminatedArgMask) {
   std::vector<ArgDesc> &Args = ExecKernel->MArgs;
-  // TODO this is not necessary as long as we can guarantee that the arguments
-  // are already sorted (e. g. handle the sorting in handler if necessary due
-  // to set_arg(...) usage).
-  std::sort(Args.begin(), Args.end(), [](const ArgDesc &A, const ArgDesc &B) {
-    return A.MIndex < B.MIndex;
-  });
-  int LastIndex = -1;
-  int NextTrueIndex = 0;
   const detail::plugin &Plugin = MQueue->getPlugin();
-  for (ArgDesc &Arg : ExecKernel->MArgs) {
-    // Handle potential gaps in set arguments (e. g. if some of them are set
-    // on the user side).
-    for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
-      if (EliminatedArgMask.empty() || !EliminatedArgMask[Idx])
-        ++NextTrueIndex;
-    LastIndex = Arg.MIndex;
 
-    if (!EliminatedArgMask.empty() && EliminatedArgMask[Arg.MIndex])
-      continue;
+  auto setFunc = [this, &Plugin, Kernel, &DeviceImageImpl](
+                     detail::ArgDesc &Arg, size_t NextTrueIndex) {
     switch (Arg.MType) {
     case kernel_param_kind_t::kind_stream:
       break;
@@ -1780,7 +1765,36 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
       break;
     }
     }
-    ++NextTrueIndex;
+  };
+
+  if (EliminatedArgMask.empty()) {
+    for (ArgDesc &Arg : Args) {
+      setFunc(Arg, Arg.MIndex);
+    }
+  } else {
+    // TODO this is not necessary as long as we can guarantee that the arguments
+    // are already sorted (e. g. handle the sorting in handler if necessary due
+    // to set_arg(...) usage).
+    std::sort(Args.begin(), Args.end(), [](const ArgDesc &A, const ArgDesc &B) {
+      return A.MIndex < B.MIndex;
+    });
+    int LastIndex = -1;
+    size_t NextTrueIndex = 0;
+
+    for (ArgDesc &Arg : Args) {
+      // Handle potential gaps in set arguments (e. g. if some of them are set
+      // on the user side).
+      for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
+        if (!EliminatedArgMask[Idx])
+          ++NextTrueIndex;
+      LastIndex = Arg.MIndex;
+
+      if (EliminatedArgMask[Arg.MIndex])
+        continue;
+
+      setFunc(Arg, NextTrueIndex);
+      ++NextTrueIndex;
+    }
   }
 
   adjustNDRangePerKernel(NDRDesc, Kernel, *(MQueue->getDeviceImplPtr()));
@@ -1791,20 +1805,22 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
   ReverseRangeDimensionsForKernel(NDRDesc);
 
   size_t RequiredWGSize[3] = {0, 0, 0};
-  Plugin.call<PiApiKind::piKernelGetGroupInfo>(
-      Kernel, MQueue->getDeviceImplPtr()->getHandleRef(),
-      PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
-      RequiredWGSize, /* param_value_size_ret = */ nullptr);
-
-  const bool EnforcedLocalSize =
-      (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
-       RequiredWGSize[2] != 0);
   size_t *LocalSize = nullptr;
 
-  if (EnforcedLocalSize && !HasLocalSize)
-    LocalSize = RequiredWGSize;
-  else if (HasLocalSize)
+  if (HasLocalSize)
     LocalSize = &NDRDesc.LocalSize[0];
+  else {
+    Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+        Kernel, MQueue->getDeviceImplPtr()->getHandleRef(),
+        PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
+        RequiredWGSize, /* param_value_size_ret = */ nullptr);
+
+    const bool EnforcedLocalSize =
+        (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
+         RequiredWGSize[2] != 0);
+    if (EnforcedLocalSize)
+      LocalSize = RequiredWGSize;
+  }
 
   pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],

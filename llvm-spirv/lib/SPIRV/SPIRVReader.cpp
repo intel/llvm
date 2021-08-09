@@ -245,32 +245,6 @@ void SPIRVToLLVM::setCallingConv(CallInst *Call) {
   Call->setCallingConv(F->getCallingConv());
 }
 
-void SPIRVToLLVM::setAttrByCalledFunc(CallInst *Call) {
-  Function *F = Call->getCalledFunction();
-  assert(F);
-  if (F->isIntrinsic()) {
-    return;
-  }
-  Call->setCallingConv(F->getCallingConv());
-  Call->setAttributes(F->getAttributes());
-}
-
-bool SPIRVToLLVM::transOCLBuiltinsFromVariables() {
-  std::vector<GlobalVariable *> WorkList;
-  for (auto I = M->global_begin(), E = M->global_end(); I != E; ++I) {
-    SPIRVBuiltinVariableKind Kind;
-    if (!isSPIRVBuiltinVariable(&(*I), &Kind))
-      continue;
-    if (!transOCLBuiltinFromVariable(&(*I), Kind))
-      return false;
-    WorkList.push_back(&(*I));
-  }
-  for (auto &I : WorkList) {
-    I->eraseFromParent();
-  }
-  return true;
-}
-
 // For integer types shorter than 32 bit, unsigned/signedness can be inferred
 // from zext/sext attribute.
 MDString *SPIRVToLLVM::transOCLKernelArgTypeName(SPIRVFunctionParameter *Arg) {
@@ -284,184 +258,6 @@ Value *SPIRVToLLVM::mapFunction(SPIRVFunction *BF, Function *F) {
            dbgs() << *F << '\n';)
   FuncMap[BF] = F;
   return F;
-}
-
-// Variable like GlobalInvolcationId[x] -> get_global_id(x).
-// Variable like WorkDim -> get_work_dim().
-// Replace the following pattern:
-// %a = addrspacecast i32 addrspace(1)* @__spirv_BuiltInSubgroupMaxSize to
-// i32 addrspace(4)*
-// %b = load i32, i32 addrspace(4)* %a, align 4
-// %c = load i32, i32 addrspace(4)* %a, align 4
-// With:
-// %b = call spir_func i32 @_Z22get_max_sub_group_sizev()
-// %c = call spir_func i32 @_Z22get_max_sub_group_sizev()
-
-// And replace the following pattern:
-// %a = addrspacecast <3 x i64> addrspace(1)* @__spirv_BuiltInWorkgroupId to
-// <3 x i64> addrspace(4)*
-// %b = load <3 x i64>, <3 x i64> addrspace(4)* %a, align 32
-// %c = extractelement <3 x i64> %b, i32 idx
-// %d = extractelement <3 x i64> %b, i32 idx
-// With:
-// %0 = call spir_func i64 @_Z13get_global_idj(i32 0) #1
-// %1 = insertelement <3 x i64> undef, i64 %0, i32 0
-// %2 = call spir_func i64 @_Z13get_global_idj(i32 1) #1
-// %3 = insertelement <3 x i64> %1, i64 %2, i32 1
-// %4 = call spir_func i64 @_Z13get_global_idj(i32 2) #1
-// %5 = insertelement <3 x i64> %3, i64 %4, i32 2
-// %c = extractelement <3 x i64> %5, i32 idx
-// %d = extractelement <3 x i64> %5, i32 idx
-//
-// Replace the following pattern:
-// %0 = addrspacecast <3 x i64> addrspace(1)* @__spirv_BuiltInWorkgroupSize to
-// <3 x i64> addrspace(4)*
-// %1 = getelementptr <3 x i64>, <3 x i64> addrspace(4)* %0, i64 0, i64 0
-// %2 = load i64, i64 addrspace(4)* %1, align 32
-// With:
-// %0 = call spir_func i64 @_Z13get_global_idj(i32 0) #1
-// %1 = insertelement <3 x i64> undef, i64 %0, i32 0
-// %2 = call spir_func i64 @_Z13get_global_idj(i32 1) #1
-// %3 = insertelement <3 x i64> %1, i64 %2, i32 1
-// %4 = call spir_func i64 @_Z13get_global_idj(i32 2) #1
-// %5 = insertelement <3 x i64> %3, i64 %4, i32 2
-// %6 = extractelement <3 x i64> %5, i32 0
-bool SPIRVToLLVM::transOCLBuiltinFromVariable(GlobalVariable *GV,
-                                              SPIRVBuiltinVariableKind Kind) {
-  std::string FuncName;
-  // TODO: we should always produce SPIR-V friendly IR and apply lowering later
-  // if needed
-  if (BM->getDesiredBIsRepresentation() != BIsRepresentation::SPIRVFriendlyIR) {
-    FuncName = SPIRSPIRVBuiltinVariableMap::rmap(Kind);
-  } else {
-    FuncName = std::string(GV->getName());
-  }
-  Type *GVTy = GV->getType()->getPointerElementType();
-  Type *ReturnTy = GVTy;
-  // Some SPIR-V builtin variables are translated to a function with an index
-  // argument.
-  bool HasIndexArg =
-      ReturnTy->isVectorTy() &&
-      !(BuiltInSubgroupEqMask <= Kind && Kind <= BuiltInSubgroupLtMask);
-  if (HasIndexArg)
-    ReturnTy = cast<VectorType>(ReturnTy)->getElementType();
-  std::vector<Type *> ArgTy;
-  if (HasIndexArg)
-    ArgTy.push_back(Type::getInt32Ty(*Context));
-  std::string MangledName;
-  mangleOpenClBuiltin(FuncName, ArgTy, MangledName);
-  Function *Func = M->getFunction(MangledName);
-  if (!Func) {
-    FunctionType *FT = FunctionType::get(ReturnTy, ArgTy, false);
-    Func = Function::Create(FT, GlobalValue::ExternalLinkage, MangledName, M);
-    Func->setCallingConv(CallingConv::SPIR_FUNC);
-    Func->addFnAttr(Attribute::NoUnwind);
-    Func->addFnAttr(Attribute::ReadNone);
-    Func->addFnAttr(Attribute::WillReturn);
-  }
-
-  // Collect instructions in these containers to remove them later.
-  std::vector<Instruction *> Loads;
-  std::vector<Instruction *> Casts;
-  std::vector<Instruction *> GEPs;
-
-  auto Replace = [&](std::vector<Value *> Arg, Instruction *I) {
-    auto Call = CallInst::Create(Func, Arg, "", I);
-    Call->takeName(I);
-    setAttrByCalledFunc(Call);
-    SPIRVDBG(dbgs() << "[transOCLBuiltinFromVariable] " << *I << " -> " << *Call
-                    << '\n';)
-    I->replaceAllUsesWith(Call);
-  };
-
-  // If HasIndexArg is true, we create 3 built-in calls and insertelement to
-  // get 3-element vector filled with ids and replace uses of Load instruction
-  // with this vector.
-  // If HasIndexArg is false, the result of the Load instruction is the value
-  // which should be replaced with the Func.
-  // Returns true if Load was replaced, false otherwise.
-  auto ReplaceIfLoad = [&](User *I) {
-    auto *LD = dyn_cast<LoadInst>(I);
-    if (!LD)
-      return false;
-    std::vector<Value *> Vectors;
-    Loads.push_back(LD);
-    if (HasIndexArg) {
-      auto *VecTy = cast<FixedVectorType>(GVTy);
-      Value *EmptyVec = UndefValue::get(VecTy);
-      Vectors.push_back(EmptyVec);
-      const DebugLoc &DLoc = LD->getDebugLoc();
-      for (unsigned I = 0; I < VecTy->getNumElements(); ++I) {
-        auto *Idx = ConstantInt::get(Type::getInt32Ty(*Context), I);
-        auto *Call = CallInst::Create(Func, {Idx}, "", LD);
-        if (DLoc)
-          Call->setDebugLoc(DLoc);
-        setAttrByCalledFunc(Call);
-        auto *Insert = InsertElementInst::Create(Vectors.back(), Call, Idx);
-        if (DLoc)
-          Insert->setDebugLoc(DLoc);
-        Insert->insertAfter(Call);
-        Vectors.push_back(Insert);
-      }
-
-      Value *Ptr = LD->getPointerOperand();
-
-      if (isa<FixedVectorType>(Ptr->getType()->getPointerElementType())) {
-        LD->replaceAllUsesWith(Vectors.back());
-      } else {
-        auto *GEP = dyn_cast<GetElementPtrInst>(Ptr);
-        assert(GEP && "Unexpected pattern!");
-        assert(GEP->getNumIndices() == 2 && "Unexpected pattern!");
-        Value *Idx = GEP->getOperand(2);
-        Value *Vec = Vectors.back();
-        auto *NewExtract = ExtractElementInst::Create(Vec, Idx);
-        NewExtract->insertAfter(cast<Instruction>(Vec));
-        LD->replaceAllUsesWith(NewExtract);
-      }
-
-    } else {
-      Replace({}, LD);
-    }
-
-    return true;
-  };
-
-  // Go over the GV users, find Load and ExtractElement instructions and
-  // replace them with the corresponding function call.
-  for (auto *UI : GV->users()) {
-    // There might or might not be an addrspacecast instruction.
-    if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(UI)) {
-      Casts.push_back(ASCast);
-      for (auto *CastUser : ASCast->users()) {
-        if (ReplaceIfLoad(CastUser))
-          continue;
-        if (auto *GEP = dyn_cast<GetElementPtrInst>(CastUser)) {
-          GEPs.push_back(GEP);
-          for (auto *GEPUser : GEP->users()) {
-            if (!ReplaceIfLoad(GEPUser))
-              llvm_unreachable("Unexpected pattern!");
-          }
-        } else {
-          llvm_unreachable("Unexpected pattern!");
-        }
-      }
-    } else if (!ReplaceIfLoad(UI)) {
-      llvm_unreachable("Unexpected pattern!");
-    }
-  }
-
-  auto Erase = [](std::vector<Instruction *> &ToErase) {
-    for (Instruction *I : ToErase) {
-      assert(I->hasNUses(0));
-      I->eraseFromParent();
-    }
-  };
-  // Order of erasing is important.
-  Erase(Loads);
-  Erase(GEPs);
-  Erase(Casts);
-
-  return true;
 }
 
 Type *SPIRVToLLVM::transFPType(SPIRVType *T) {
@@ -649,21 +445,9 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
 
   default: {
     auto OC = T->getOpCode();
-    SPIRAddressSpace AS = getOCLOpaqueTypeAddrSpace(OC);
-    std::string Name;
-    if (isOpaqueGenericTypeOpCode(OC)) {
-      // TODO: Generic opaque type opcodes shouldn't be translated directly to
-      // OCL representation
-      //       SPIRVOpaqueTypeOpCodeMap should be used. The same as for AVC
-      //       INTEL opcodes.
-      Name = OCLOpaqueTypeOpCodeMap::rmap(OC);
-    } else if (isSubgroupAvcINTELTypeOpCode(OC)) {
-      Name =
-          kSPIRVTypeName::PrefixAndDelim + SPIRVOpaqueTypeOpCodeMap::rmap(OC);
-    } else {
-      llvm_unreachable("Not implemented");
-    }
-    return mapType(T, getOrCreateOpaquePtrType(M, Name, AS));
+    if (isOpaqueGenericTypeOpCode(OC) || isSubgroupAvcINTELTypeOpCode(OC))
+      return mapType(T, getSPIRVOpaquePtrType(M, OC));
+    llvm_unreachable("Not implemented!");
   }
   }
   return 0;
@@ -796,6 +580,8 @@ bool SPIRVToLLVM::isDirectlyTranslatedToOCL(Op OpCode) const {
   if (isEventOpCode(OpCode))
     return false;
   if (OpBitFieldInsert <= OpCode && OpCode <= OpBitReverse)
+    return false;
+  if (OpCode == OpEnqueueMarker || OpCode == OpGetDefaultQueue)
     return false;
   if (OCLSPIRVBuiltinMap::rfind(OpCode, nullptr)) {
     // Not every spirv opcode which is placed in OCLSPIRVBuiltinMap is
@@ -1452,16 +1238,6 @@ Value *SPIRVToLLVM::mapValue(SPIRVValue *BV, Value *V) {
   return V;
 }
 
-bool SPIRVToLLVM::isSPIRVBuiltinVariable(GlobalVariable *GV,
-                                         SPIRVBuiltinVariableKind *Kind) {
-  auto Loc = BuiltinGVMap.find(GV);
-  if (Loc == BuiltinGVMap.end())
-    return false;
-  if (Kind)
-    *Kind = Loc->second;
-  return true;
-}
-
 CallInst *
 SPIRVToLLVM::expandOCLBuiltinWithScalarArg(CallInst *CI,
                                            const std::string &FuncName) {
@@ -1511,9 +1287,7 @@ void SPIRVToLLVM::transGeneratorMD() {
 
 Value *SPIRVToLLVM::oclTransConstantSampler(SPIRV::SPIRVConstantSampler *BCS,
                                             BasicBlock *BB) {
-  auto *SamplerT =
-      getOrCreateOpaquePtrType(M, OCLOpaqueTypeOpCodeMap::rmap(OpTypeSampler),
-                               getOCLOpaqueTypeAddrSpace(BCS->getOpCode()));
+  auto *SamplerT = getSPIRVOpaquePtrType(M, OpTypeSampler);
   auto *I32Ty = IntegerType::getInt32Ty(*Context);
   auto *FTy = FunctionType::get(SamplerT, {I32Ty}, false);
 
@@ -1847,9 +1621,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         LVar->addAttribute(kVCMetadata::VCVolatile);
     }
 
-    SPIRVBuiltinVariableKind BVKind;
-    if (BVar->isBuiltin(&BVKind))
-      BuiltinGVMap[LVar] = BVKind;
     return Res;
   }
 
@@ -3213,11 +2984,8 @@ Instruction *SPIRVToLLVM::transEnqueueKernelBI(SPIRVInstruction *BI,
         transType(Ops[2]->getType()), // ndrange
     };
     if (HasEvents) {
-      Type *EventTy =
-          PointerType::get(getOrCreateOpaquePtrType(
-                               M, SPIR_TYPE_NAME_CLK_EVENT_T,
-                               getOCLOpaqueTypeAddrSpace(OpTypeDeviceEvent)),
-                           SPIRAS_Generic);
+      Type *EventTy = PointerType::get(
+          getSPIRVOpaquePtrType(M, OpTypeDeviceEvent), SPIRAS_Generic);
 
       Tys.push_back(Int32Ty);
       Tys.push_back(EventTy);
@@ -3543,7 +3311,14 @@ bool SPIRVToLLVM::translate() {
   if (!transSourceExtension())
     return false;
   transGeneratorMD();
-  if (!transOCLBuiltinsFromVariables())
+  // TODO: add an option to control the builtin format in SPV-IR.
+  // The primary format should be function calls:
+  //   e.g. call spir_func i32 @_Z29__spirv_BuiltInGlobalLinearIdv()
+  // The secondary format should be global variables:
+  //   e.g. load i32, i32* @__spirv_BuiltInGlobalLinearId, align 4
+  // If the desired format is global variables, we don't have to lower them
+  // as calls.
+  if (!lowerBuiltinVariablesToCalls(M))
     return false;
   if (!postProcessOCL())
     return false;
