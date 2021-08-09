@@ -49,7 +49,7 @@ public:
   template <class T>
   using return_type = typename detail::BackendReturn<Backend, T>::type;
 
-  // TODO define errc once SYCL2020-style exceptions are supported.
+  using errc = sycl::errc;
 };
 
 template <backend Backend, typename SyclType>

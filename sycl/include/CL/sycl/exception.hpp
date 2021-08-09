@@ -12,6 +12,7 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/stl.hpp>
 
@@ -184,6 +185,9 @@ enum class errc : unsigned int {
   kernel_not_supported = 12,
   backend_mismatch = 13,
 };
+
+template<backend B>
+using errc_for = typename backend_traits<B>::errc;
 
 /// Constructs an error code using e and sycl_category()
 __SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;
