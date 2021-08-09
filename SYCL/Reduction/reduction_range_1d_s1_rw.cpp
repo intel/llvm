@@ -2,6 +2,10 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
+// TODO: test disabled due to Jenkins testing failure on unrelated commit
+// Sporadic failure
+// UNSUPPORTED: linux && level_zero
+
 // TODO: accelerator may not suport atomics required by the current
 // implementation. Enable testing when implementation is fixed.
 // RUNx: %ACC_RUN_PLACEHOLDER %t.out
