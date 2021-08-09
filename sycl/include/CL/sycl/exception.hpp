@@ -186,8 +186,7 @@ enum class errc : unsigned int {
   backend_mismatch = 13,
 };
 
-template<backend B>
-using errc_for = typename backend_traits<B>::errc;
+template<backend B> using errc_for = typename backend_traits<B>::errc;
 
 /// Constructs an error code using e and sycl_category()
 __SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;
