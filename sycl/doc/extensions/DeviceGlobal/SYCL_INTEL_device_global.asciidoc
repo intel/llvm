@@ -186,27 +186,6 @@ The allocation of type _T_ is zero-initialized on each device prior to the first
 
 `device_global` may only be declared with static storage duration at namespace scope or class scope. If a `device_global` is declared with any other storage duration or scope, the program is ill-formed.
 
-The example below creates two global namespace scope `device_global` objects named `dm1` and `dm2`. `dm1` contains one object of type `MyClass` on each device, and the `device_global` object has external linkage.  `dm2` contains an array of four integers on each device, and the `device_global` object has internal linkage.  In both cases, the `MyClass` and `int[4]` allocations on each device are zero-initialized before any non-initialization accesses occur.
-
-[source,c++]
-----
-using namespace sycl::ext::oneapi;
-
-device_global<MyClass> dm1;
-static device_global<int[4]> dm2;
-
-int main () {
-  sycl::queue Q;
-  Q.submit([&](sycl::handler& h) {
-    h.single_task([=]() {
-      int x = 5;
-      if (dm1.get().flag)
-        x = dm2[0];
-    });
-  });
-}
-----
-
 Properties may be specified for a `device_global` to provide semantic modification or optimization hint information to the compiler.  Specific properties are defined in other extensions, but example uses of a property (with a "no copy" attribute described by another extension) are:
 
 [source,c++]
@@ -763,7 +742,7 @@ int main () {
 
 `device_global` prioritizes usability over simplicity of implementation, and therefore adds requirements such as (1) that contents and addresses of the allocation on each device remain stable across changes to specialization constant values, and (2) that the allocation be accessible across `device_image` on the same device.  These requirements mean that the semantics of `device_global` do not match the semantics of SPIR-V module scope variables, and therefore may not be implementable exclusively using the SPIR-V feature in existing SPIR-V consuming implementations.
 
-Also note that there are no restrictions on passing (and subsequent dereferencing) of pointers obtained on a device from a `device_global`, between kernels on a device, including through storage to memory.
+Also note that there are no restrictions on passing (and subsequent dereferencing) of pointers obtained on a device from a `device_global`, between kernels on the same device, including through storage to memory.
 
 == Issues
 
