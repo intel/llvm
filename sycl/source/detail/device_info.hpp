@@ -493,6 +493,23 @@ template <> struct get_device_info<device, info::device::parent_device> {
   }
 };
 
+// Specialization for bfloat16
+template <>
+struct get_device_info<bool, info::device::ext_intel_bf16_conversion> {
+  static bool get(RT::PiDevice dev, const plugin &Plugin) {
+    // TODO: We claim, that all Intel GPU devices support bfloat16 conversion
+    // feature but we'd better have a low-level extension to query for support
+    // of the feature
+    platform plt =
+        get_device_info<platform, info::device::platform>::get(dev, Plugin);
+    std::string platform_name = plt.get_info<info::platform::name>();
+    if (platform_name == "Intel(R) OpenCL HD Graphics")
+      return true;
+
+    return false;
+  }
+};
+
 // SYCL host device information
 
 // Default template is disabled, all possible instantiations are
@@ -995,6 +1012,11 @@ inline bool get_device_info_host<info::device::usm_system_allocations>() {
 
 template <>
 inline bool get_device_info_host<info::device::ext_intel_mem_channel>() {
+  return false;
+}
+
+template <>
+inline bool get_device_info_host<info::device::ext_intel_bf16_conversion>() {
   return false;
 }
 

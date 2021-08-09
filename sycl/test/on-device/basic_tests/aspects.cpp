@@ -96,6 +96,9 @@ int main() {
     if (plt.has(aspect::usm_system_allocations)) {
       std::cout << "  USM system allocations" << std::endl;
     }
+    if (plt.has(aspect::ext_intel_bf16_conversion)) {
+      std::cout << "  BFloat16 conversion extension" << std::endl;
+    }
   }
   std::cout << "Passed." << std::endl;
   return 0;

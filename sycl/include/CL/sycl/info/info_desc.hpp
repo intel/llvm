@@ -154,6 +154,7 @@ enum class device : cl_device_info {
   atomic64 = PI_DEVICE_INFO_ATOMIC_64,
   atomic_memory_order_capabilities =
       PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+  ext_intel_bf16_conversion,
 };
 
 enum class device_type : pi_uint64 {
