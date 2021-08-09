@@ -39,7 +39,7 @@ int main() {
     return -1;
   }
   // Test queue::mem_advise
-  q.mem_advise(s_head, sizeof(Node), pi_mem_advice(mem_advice));
+  q.mem_advise(s_head, sizeof(Node), mem_advice);
   Node *s_cur = s_head;
 
   for (int i = 0; i < numNodes; i++) {
@@ -52,7 +52,7 @@ int main() {
       }
       // Test handler::mem_advise
       q.submit([&](handler &cgh) {
-        cgh.mem_advise(s_cur->pNext, sizeof(Node), pi_mem_advice(mem_advice));
+        cgh.mem_advise(s_cur->pNext, sizeof(Node), mem_advice);
       });
     } else {
       s_cur->pNext = nullptr;
