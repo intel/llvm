@@ -109,7 +109,10 @@ during each submission, and also not create an event that the user does not need
 i.e new API executes fewer instructions, thereby saving the host time spent on each submission.
 Using the API is well suited for a kernel that uses USM memory.
 
-Advice: if target backend supports https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/LocalMemory/SYCL_INTEL_local_memory.asciidoc[static local memory allocation feature] inside the kernel code, then it can be used instead of creating local accessors.
+Advice1: if target backend supports https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/LocalMemory/SYCL_INTEL_local_memory.asciidoc[static local memory allocation feature] inside the kernel code, then it can be used instead of creating local accessors.
+
+Advice2:
+if there is a data race between kernels, then developer needs to use inorder queue to ensure correctness results, see the example below. Independent kernels that don't have data races can run using an out-of-order queue.
 
 ==  Observed performance gain
 In the table observed performance gain of one submittion using the API compared to standard API.
@@ -142,22 +145,22 @@ int main() {
   sycl::nd_range<1> range(buffer_size, 1);
   std::vector<int> values(buffer_size, 0.0f);
 
-  queue Q;
+  queue Q(sycl::property::queue::in_order{}); // in_order queue should be used in cases when kernels have data races as in this example.
   int *dev_values = sycl::malloc_device<int>(values.size(), Q);
   Q.memcpy(dev_values, values.data(), values.size() * sizeof(int)).wait();
 
 
   Q.parallel_for_without_event(range, [=](sycl::nd_item<1> item) {
-    do_smth1();
+    do_smth1(); // it uses "dev_values"
   });
 
   Q.parallel_for_without_event(range, [=](sycl::nd_item<1> item) {
-    do_smth2();
+    do_smth2(); // it uses "dev_values"
   });
 
   Q.parallel_for_without_event(range, [=](sycl::nd_item<1> item) {
     auto& ref = *sycl::group_local_memory_for_overwrite<uint32_t[buffer_size]>(item.get_group());
-    do_smth3(ref);
+    do_smth3(ref); // it uses "dev_values"
   });
 
   Q.wait();
