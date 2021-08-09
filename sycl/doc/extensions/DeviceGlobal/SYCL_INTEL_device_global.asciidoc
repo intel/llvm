@@ -729,7 +729,7 @@ static device_global<int[4]> dm2{1, 3, 5, 7};  // Requires C++20 to be enabled
 int main () {
   sycl::queue Q;
   Q.submit([&](sycl::handler& h) {
-    h.single_task([=]() {
+    h.single_task([=] {
       int x = 5;
       if (dm1.get().flag)
         x = dm2[0];
