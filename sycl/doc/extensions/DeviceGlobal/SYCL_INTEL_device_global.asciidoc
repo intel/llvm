@@ -131,7 +131,7 @@ to be extracted, to which the usual dot operator may be applied as in:
 ----
 sycl::queue Q;
 Q.submit([&](sycl::handler& h) {
-  h.single_task([=]() {
+  h.single_task([=] {
     int x = 5;
     if (dm1.get().flag)
       x = dm2[0];
