@@ -10,9 +10,9 @@
 
 // 4.9.2 Exception Class Interface
 
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/stl.hpp>
 
