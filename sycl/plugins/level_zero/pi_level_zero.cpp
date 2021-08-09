@@ -708,15 +708,21 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   ZE_CALL(zeCommandListReset, (CommandList->first));
   CommandList->second.InUse = false;
 
+  // TODO: remove this unlock!!!
+  PiQueueMutex.unlock();
+
   // Finally release/cleanup all the events in this command list.
   // NOTE: only those that were not explicitly waited before need
   // this handling.
-  for (auto Event : CommandList->second.EventList) {
-    // TODO: remove this unlock!!!
-    PiQueueMutex.unlock();
+  auto &EventList = CommandList->second.EventList;
+  PI_CALL(piEventsWait(EventList.size(), EventList.data()));
+  for (auto &Event : EventList) {
     PI_CALL(piEventRelease(Event));
   }
-  CommandList->second.EventList.clear();
+  EventList.clear();
+
+  // TODO: remove this lock!!!
+  PiQueueMutex.lock();
 
   if (MakeAvailable) {
     std::lock_guard<std::mutex> lock(this->Context->ZeCommandListCacheMutex);
