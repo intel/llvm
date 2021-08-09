@@ -4687,14 +4687,14 @@ public:
 static void OutputStableNameChar(raw_ostream &O, char C) {
   // If it is reliably printable, print in the integration header as a
   // character. Else just print it as the integral representation.
-  if (C >= ' ' && C <= '~')
+  if (llvm::isPrint(C))
     O << '\'' << C << '\'';
   else
     O << static_cast<short>(C);
 }
 
 static void OutputStableNameInChars(raw_ostream &O, StringRef Name) {
-  assert(Name.size() > 0);
+  assert(!Name.empty() && "Expected a nonempty string!");
   OutputStableNameChar(O, Name[0]);
 
   for (char C : Name.substr(1)) {

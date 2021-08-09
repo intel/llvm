@@ -4,7 +4,7 @@
 #include "sycl.hpp"
 
 // Test ensures that we can properly handle unnamed kernels with extended-ascii
-// characters in it. Non ASCII characters aren't allowed in
+// characters in it.
 
 struct ΩßPolicyßΩ {
   void operator()() const {}
