@@ -820,6 +820,37 @@ ExprResult Sema::UsualUnaryConversions(Expr *E) {
   QualType Ty = E->getType();
   assert(!Ty.isNull() && "UsualUnaryConversions - missing type");
 
+  LangOptions::FPEvalMethodKind EvalMethod = CurFPFeatures.getFPEvalMethod();
+  if (EvalMethod != LangOptions::FEM_Source && Ty->isFloatingType()) {
+    switch (EvalMethod) {
+    default:
+      llvm_unreachable("Unrecognized float evaluation method");
+      break;
+    case LangOptions::FEM_TargetDefault:
+      // Float evaluation method not defined, use FEM_Source.
+      break;
+    case LangOptions::FEM_Double:
+      if (Context.getFloatingTypeOrder(Context.DoubleTy, Ty) > 0)
+        // Widen the expression to double.
+        return Ty->isComplexType()
+                   ? ImpCastExprToType(E,
+                                       Context.getComplexType(Context.DoubleTy),
+                                       CK_FloatingComplexCast)
+                   : ImpCastExprToType(E, Context.DoubleTy, CK_FloatingCast);
+      break;
+    case LangOptions::FEM_Extended:
+      if (Context.getFloatingTypeOrder(Context.LongDoubleTy, Ty) > 0)
+        // Widen the expression to long double.
+        return Ty->isComplexType()
+                   ? ImpCastExprToType(
+                         E, Context.getComplexType(Context.LongDoubleTy),
+                         CK_FloatingComplexCast)
+                   : ImpCastExprToType(E, Context.LongDoubleTy,
+                                       CK_FloatingCast);
+      break;
+    }
+  }
+
   // Half FP have to be promoted to float unless it is natively supported
   if (Ty->isHalfType() && !getLangOpts().NativeHalfType)
     return ImpCastExprToType(Res.get(), Context.FloatTy, CK_FloatingCast);
@@ -5631,7 +5662,7 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
     BaseExpr = LHSExp;    // vectors: V[123]
     IndexExpr = RHSExp;
     // We apply C++ DR1213 to vector subscripting too.
-    if (getLangOpts().CPlusPlus11 && LHSExp->getValueKind() == VK_PRValue) {
+    if (getLangOpts().CPlusPlus11 && LHSExp->isPRValue()) {
       ExprResult Materialized = TemporaryMaterializationConversion(LHSExp);
       if (Materialized.isInvalid())
         return ExprError();
@@ -6339,14 +6370,12 @@ static FunctionDecl *rewriteBuiltinFunctionDecl(Sema *Sema, ASTContext &Context,
   QualType OverloadTy = Context.getFunctionType(FT->getReturnType(),
                                                 OverloadParams, EPI);
   DeclContext *Parent = FDecl->getParent();
-  FunctionDecl *OverloadDecl = FunctionDecl::Create(Context, Parent,
-                                                    FDecl->getLocation(),
-                                                    FDecl->getLocation(),
-                                                    FDecl->getIdentifier(),
-                                                    OverloadTy,
-                                                    /*TInfo=*/nullptr,
-                                                    SC_Extern, false,
-                                                    /*hasPrototype=*/true);
+  FunctionDecl *OverloadDecl = FunctionDecl::Create(
+      Context, Parent, FDecl->getLocation(), FDecl->getLocation(),
+      FDecl->getIdentifier(), OverloadTy,
+      /*TInfo=*/nullptr, SC_Extern, Sema->getCurFPFeatures().isFPConstrained(),
+      false,
+      /*hasPrototype=*/true);
   SmallVector<ParmVarDecl*, 16> Params;
   FT = cast<FunctionProtoType>(OverloadTy);
   for (unsigned i = 0, e = FT->getNumParams(); i != e; ++i) {
@@ -7796,6 +7825,9 @@ ExprResult Sema::BuildVectorLiteral(SourceLocation LParenLoc,
   // initializers must be one or must match the size of the vector.
   // If a single value is specified in the initializer then it will be
   // replicated to all the components of the vector
+  if (CheckAltivecInitFromScalar(E->getSourceRange(), Ty,
+                                 VTy->getElementType()))
+    return ExprError();
   if (ShouldSplatAltivecScalarInCast(VTy)) {
     // The number of initializers must be one or must match the size of the
     // vector. If a single value is specified in the initializer then it will
@@ -10249,7 +10281,7 @@ QualType Sema::CheckVectorOperands(ExprResult &LHS, ExprResult &RHS,
                                     RHSType, DiagID))
         return RHSType;
     } else {
-      if (LHS.get()->getValueKind() == VK_LValue ||
+      if (LHS.get()->isLValue() ||
           !tryGCCVectorConvertAndSplat(*this, &LHS, &RHS))
         return RHSType;
     }
@@ -15029,7 +15061,7 @@ ExprResult Sema::CreateBuiltinUnaryOp(SourceLocation OpLoc,
     // complex l-values to ordinary l-values and all other values to r-values.
     if (Input.isInvalid()) return ExprError();
     if (Opc == UO_Real || Input.get()->getType()->isAnyComplexType()) {
-      if (Input.get()->getValueKind() != VK_PRValue &&
+      if (Input.get()->isGLValue() &&
           Input.get()->getObjectKind() == OK_Ordinary)
         VK = Input.get()->getValueKind();
     } else if (!getLangOpts().CPlusPlus) {
@@ -19268,7 +19300,7 @@ namespace {
       Expr *SubExpr = SubResult.get();
       E->setSubExpr(SubExpr);
       E->setType(S.Context.getPointerType(SubExpr->getType()));
-      assert(E->getValueKind() == VK_PRValue);
+      assert(E->isPRValue());
       assert(E->getObjectKind() == OK_Ordinary);
       return E;
     }
@@ -19278,7 +19310,7 @@ namespace {
 
       E->setType(VD->getType());
 
-      assert(E->getValueKind() == VK_PRValue);
+      assert(E->isPRValue());
       if (S.getLangOpts().CPlusPlus &&
           !(isa<CXXMethodDecl>(VD) &&
             cast<CXXMethodDecl>(VD)->isInstance()))
@@ -19369,7 +19401,7 @@ namespace {
         return ExprError();
       }
 
-      assert(E->getValueKind() == VK_PRValue);
+      assert(E->isPRValue());
       assert(E->getObjectKind() == OK_Ordinary);
       E->setType(DestType);
 
@@ -19463,14 +19495,7 @@ ExprResult RebuildUnknownAnyExpr::VisitCallExpr(CallExpr *E) {
     if (ParamTypes.empty() && Proto->isVariadic()) { // the special case
       ArgTypes.reserve(E->getNumArgs());
       for (unsigned i = 0, e = E->getNumArgs(); i != e; ++i) {
-        Expr *Arg = E->getArg(i);
-        QualType ArgType = Arg->getType();
-        if (E->isLValue()) {
-          ArgType = S.Context.getLValueReferenceType(ArgType);
-        } else if (E->isXValue()) {
-          ArgType = S.Context.getRValueReferenceType(ArgType);
-        }
-        ArgTypes.push_back(ArgType);
+        ArgTypes.push_back(S.Context.getReferenceQualifiedType(E->getArg(i)));
       }
       ParamTypes = ArgTypes;
     }
@@ -19529,7 +19554,7 @@ ExprResult RebuildUnknownAnyExpr::VisitObjCMessageExpr(ObjCMessageExpr *E) {
 ExprResult RebuildUnknownAnyExpr::VisitImplicitCastExpr(ImplicitCastExpr *E) {
   // The only case we should ever see here is a function-to-pointer decay.
   if (E->getCastKind() == CK_FunctionToPointerDecay) {
-    assert(E->getValueKind() == VK_PRValue);
+    assert(E->isPRValue());
     assert(E->getObjectKind() == OK_Ordinary);
 
     E->setType(DestType);
@@ -19543,7 +19568,7 @@ ExprResult RebuildUnknownAnyExpr::VisitImplicitCastExpr(ImplicitCastExpr *E) {
     E->setSubExpr(Result.get());
     return E;
   } else if (E->getCastKind() == CK_LValueToRValue) {
-    assert(E->getValueKind() == VK_PRValue);
+    assert(E->isPRValue());
     assert(E->getObjectKind() == OK_Ordinary);
 
     assert(isa<BlockPointerType>(E->getType()));
@@ -19597,7 +19622,8 @@ ExprResult RebuildUnknownAnyExpr::resolveDecl(Expr *E, ValueDecl *VD) {
         FunctionDecl *NewFD = FunctionDecl::Create(
             S.Context, FD->getDeclContext(), Loc, Loc,
             FD->getNameInfo().getName(), DestType, FD->getTypeSourceInfo(),
-            SC_None, false /*isInlineSpecified*/, FD->hasPrototype(),
+            SC_None, S.getCurFPFeatures().isFPConstrained(),
+            false /*isInlineSpecified*/, FD->hasPrototype(),
             /*ConstexprKind*/ ConstexprSpecKind::Unspecified);
 
         if (FD->getQualifier())

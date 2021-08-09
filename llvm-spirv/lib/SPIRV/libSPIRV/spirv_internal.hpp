@@ -21,7 +21,7 @@
 // The header is for SPIR-V to LLVM IR internal definitions, that are not a part
 // of Khronos SPIR-V specification.
 
-#include "spirv.hpp"
+#include "spirv/unified1/spirv.hpp"
 
 #ifndef spirv_internal_HPP
 #define spirv_internal_HPP

@@ -220,19 +220,15 @@ AArch64TTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
   auto *RetTy = ICA.getReturnType();
   switch (ICA.getID()) {
   case Intrinsic::umin:
-  case Intrinsic::umax: {
-    auto LT = TLI->getTypeLegalizationCost(DL, RetTy);
-    // umin(x,y) -> sub(x,usubsat(x,y))
-    // umax(x,y) -> add(x,usubsat(y,x))
-    if (LT.second == MVT::v2i64)
-      return LT.first * 2;
-    LLVM_FALLTHROUGH;
-  }
+  case Intrinsic::umax:
   case Intrinsic::smin:
   case Intrinsic::smax: {
     static const auto ValidMinMaxTys = {MVT::v8i8,  MVT::v16i8, MVT::v4i16,
                                         MVT::v8i16, MVT::v2i32, MVT::v4i32};
     auto LT = TLI->getTypeLegalizationCost(DL, RetTy);
+    // v2i64 types get converted to cmp+bif hence the cost of 2
+    if (LT.second == MVT::v2i64)
+      return LT.first * 2;
     if (any_of(ValidMinMaxTys, [&LT](MVT M) { return M == LT.second; }))
       return LT.first;
     break;
@@ -1543,14 +1539,9 @@ InstructionCost AArch64TTIImpl::getGatherScatterOpCost(
     return InstructionCost::getInvalid();
 
   ElementCount LegalVF = LT.second.getVectorElementCount();
-  Optional<unsigned> MaxNumVScale = getMaxVScale();
-  assert(MaxNumVScale && "Expected valid max vscale value");
-
   InstructionCost MemOpCost =
       getMemoryOpCost(Opcode, VT->getElementType(), Alignment, 0, CostKind, I);
-  unsigned MaxNumElementsPerGather =
-      MaxNumVScale.getValue() * LegalVF.getKnownMinValue();
-  return LT.first * MaxNumElementsPerGather * MemOpCost;
+  return LT.first * MemOpCost * getMaxNumElements(LegalVF);
 }
 
 bool AArch64TTIImpl::useNeonVector(const Type *Ty) const {
@@ -1710,9 +1701,10 @@ getFalkorUnrollingPreferences(Loop *L, ScalarEvolution &SE,
 }
 
 void AArch64TTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
-                                             TTI::UnrollingPreferences &UP) {
+                                             TTI::UnrollingPreferences &UP,
+                                             OptimizationRemarkEmitter *ORE) {
   // Enable partial unrolling and runtime unrolling.
-  BaseT::getUnrollingPreferences(L, SE, UP);
+  BaseT::getUnrollingPreferences(L, SE, UP, ORE);
 
   // For inner loop, it is more likely to be a hot one, and the runtime check
   // can be promoted out from LICM pass, so the overhead is less, let's try
@@ -1956,7 +1948,22 @@ InstructionCost AArch64TTIImpl::getArithmeticReductionCostSVE(
 
 InstructionCost
 AArch64TTIImpl::getArithmeticReductionCost(unsigned Opcode, VectorType *ValTy,
+                                           Optional<FastMathFlags> FMF,
                                            TTI::TargetCostKind CostKind) {
+  if (TTI::requiresOrderedReduction(FMF)) {
+    if (!isa<ScalableVectorType>(ValTy))
+      return BaseT::getArithmeticReductionCost(Opcode, ValTy, FMF, CostKind);
+
+    if (Opcode != Instruction::FAdd)
+      return InstructionCost::getInvalid();
+
+    auto *VTy = cast<ScalableVectorType>(ValTy);
+    InstructionCost Cost =
+        getArithmeticInstrCost(Opcode, VTy->getScalarType(), CostKind);
+    Cost *= getMaxNumElements(VTy->getElementCount());
+    return Cost;
+  }
+
   if (isa<ScalableVectorType>(ValTy))
     return getArithmeticReductionCostSVE(Opcode, ValTy, CostKind);
 
@@ -2031,7 +2038,7 @@ AArch64TTIImpl::getArithmeticReductionCost(unsigned Opcode, VectorType *ValTy,
     }
     break;
   }
-  return BaseT::getArithmeticReductionCost(Opcode, ValTy, CostKind);
+  return BaseT::getArithmeticReductionCost(Opcode, ValTy, FMF, CostKind);
 }
 
 InstructionCost AArch64TTIImpl::getSpliceCost(VectorType *Tp, int Index) {

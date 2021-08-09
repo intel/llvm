@@ -27,6 +27,7 @@
 #include "llvm/MC/MCTargetOptions.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/ProfileData/SampleProf.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
 #include <list>
 #include <set>
@@ -139,6 +140,12 @@ class ProfiledBinary {
 
   bool UsePseudoProbes = false;
 
+  // Indicate if the base loading address is parsed from the mmap event or uses
+  // the preferred address
+  bool IsLoadedByMMap = false;
+  // Use to avoid redundant warning.
+  bool MissingMMapWarned = false;
+
   void setPreferredTextSegmentAddresses(const ELFObjectFileBase *O);
 
   template <class ELFT>
@@ -190,7 +197,7 @@ public:
   StringRef getName() const { return llvm::sys::path::filename(Path); }
   uint64_t getBaseAddress() const { return BaseAddress; }
   void setBaseAddress(uint64_t Address) { BaseAddress = Address; }
-  
+
   // Return the preferred load address for the first executable segment.
   uint64_t getPreferredBaseAddress() const { return PreferredTextSegmentAddresses[0]; }
   // Return the file offset for the first executable segment.
@@ -277,6 +284,14 @@ public:
   const PseudoProbeFuncDesc *getInlinerDescForProbe(const PseudoProbe *Probe) {
     return ProbeDecoder.getInlinerDescForProbe(Probe);
   }
+
+  bool getIsLoadedByMMap() { return IsLoadedByMMap; }
+
+  void setIsLoadedByMMap(bool Value) { IsLoadedByMMap = Value; }
+
+  bool getMissingMMapWarned() { return MissingMMapWarned; }
+
+  void setMissingMMapWarned(bool Value) { MissingMMapWarned = Value; }
 };
 
 } // end namespace sampleprof

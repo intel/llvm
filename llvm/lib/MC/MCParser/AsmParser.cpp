@@ -782,6 +782,8 @@ AsmParser::AsmParser(SourceMgr &SM, MCContext &Ctx, MCStreamer &Out,
   case MCContext::IsELF:
     PlatformParser.reset(createELFAsmParser());
     break;
+  case MCContext::IsGOFF:
+    report_fatal_error("GOFFAsmParser support not implemented yet");
   case MCContext::IsWasm:
     PlatformParser.reset(createWasmAsmParser());
     break;
@@ -1050,11 +1052,14 @@ bool AsmParser::Run(bool NoInitialTextSection, bool NoFinalize) {
       }
     }
   }
-
   // Finalize the output stream if there are no errors and if the client wants
   // us to.
-  if (!HadError && !NoFinalize)
+  if (!HadError && !NoFinalize) {
+    if (auto *TS = Out.getTargetStreamer())
+      TS->emitConstantPools();
+
     Out.Finish(Lexer.getLoc());
+  }
 
   return HadError || getContext().hadError();
 }

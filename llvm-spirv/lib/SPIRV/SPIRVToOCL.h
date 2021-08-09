@@ -155,6 +155,13 @@ public:
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);
 
+  /// Transform __spirv_* builtins (originates from builtin variables) to OCL
+  /// builtins.
+  /// No change with arguments.
+  /// e.g.
+  /// _Z33__spirv_BuiltInGlobalInvocationIdi(x) -> get_global_id(x)
+  void visitCallSPIRVBuiltin(CallInst *CI, SPIRVBuiltinVariableKind Kind);
+
   /// Transform __spirv_ocl* instructions (OpenCL Extended Instruction Set)
   /// to OpenCL builtins.
   void visitCallSPIRVOCLExt(CallInst *CI, OCLExtOpKind Kind);
