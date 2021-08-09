@@ -1605,71 +1605,71 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     return false;
   }
 
-  void checkPropertyListType(TemplateArgument PropList, SourceLocation Loc) {
-    if (PropList.getKind() != TemplateArgument::ArgKind::Type) {
-      SemaRef.Diag(Loc,
-                   diag::err_sycl_invalid_accessor_property_template_param);
-      return;
-    }
+  bool checkPropertyListType(TemplateArgument PropList, SourceLocation Loc) {
+    if (PropList.getKind() != TemplateArgument::ArgKind::Type)
+      return SemaRef.Diag(
+          Loc, diag::err_sycl_invalid_accessor_property_template_param);
+
     QualType PropListTy = PropList.getAsType();
-    if (!Util::isAccessorPropertyListType(PropListTy)) {
-      SemaRef.Diag(Loc,
-                   diag::err_sycl_invalid_accessor_property_template_param);
-      return;
-    }
+    if (!Util::isAccessorPropertyListType(PropListTy))
+      return SemaRef.Diag(
+          Loc, diag::err_sycl_invalid_accessor_property_template_param);
+
     const auto *AccPropListDecl =
         cast<ClassTemplateSpecializationDecl>(PropListTy->getAsRecordDecl());
-    if (AccPropListDecl->getTemplateArgs().size() != 1) {
-      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
-          << "accessor_property_list";
-      return;
-    }
+    if (AccPropListDecl->getTemplateArgs().size() != 1)
+      return SemaRef.Diag(Loc,
+                          diag::err_sycl_invalid_property_list_param_number)
+             << "accessor_property_list";
+
     const auto TemplArg = AccPropListDecl->getTemplateArgs()[0];
-    if (TemplArg.getKind() != TemplateArgument::ArgKind::Pack) {
-      SemaRef.Diag(Loc,
-                   diag::err_sycl_invalid_accessor_property_list_template_param)
-          << /*accessor_property_list*/ 0 << /*parameter pack*/ 0;
-      return;
-    }
+    if (TemplArg.getKind() != TemplateArgument::ArgKind::Pack)
+      return SemaRef.Diag(
+                 Loc,
+                 diag::err_sycl_invalid_accessor_property_list_template_param)
+             << /*accessor_property_list*/ 0 << /*parameter pack*/ 0;
+
     for (TemplateArgument::pack_iterator Prop = TemplArg.pack_begin();
          Prop != TemplArg.pack_end(); ++Prop) {
-      if (Prop->getKind() != TemplateArgument::ArgKind::Type) {
-        SemaRef.Diag(
-            Loc, diag::err_sycl_invalid_accessor_property_list_template_param)
-            << /*accessor_property_list pack argument*/ 1 << /*type*/ 1;
-        return;
-      }
+      if (Prop->getKind() != TemplateArgument::ArgKind::Type)
+        return SemaRef.Diag(
+                   Loc,
+                   diag::err_sycl_invalid_accessor_property_list_template_param)
+               << /*accessor_property_list pack argument*/ 1 << /*type*/ 1;
       QualType PropTy = Prop->getAsType();
-      if (Util::isSyclBufferLocationType(PropTy))
-        checkBufferLocationType(PropTy, Loc);
+      if (Util::isSyclBufferLocationType(PropTy) &&
+          checkBufferLocationType(PropTy, Loc))
+        return true;
     }
+    return false;
   }
 
-  void checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
+  bool checkBufferLocationType(QualType PropTy, SourceLocation Loc) {
     const auto *PropDecl =
         cast<ClassTemplateSpecializationDecl>(PropTy->getAsRecordDecl());
-    if (PropDecl->getTemplateArgs().size() != 1) {
-      SemaRef.Diag(Loc, diag::err_sycl_invalid_property_list_param_number)
-          << "buffer_location";
-      return;
-    }
+    if (PropDecl->getTemplateArgs().size() != 1)
+      return SemaRef.Diag(Loc,
+                          diag::err_sycl_invalid_property_list_param_number)
+             << "buffer_location";
+
     const auto BufferLoc = PropDecl->getTemplateArgs()[0];
-    if (BufferLoc.getKind() != TemplateArgument::ArgKind::Integral) {
-      SemaRef.Diag(Loc,
-                   diag::err_sycl_invalid_accessor_property_list_template_param)
-          << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
-      return;
-    }
+    if (BufferLoc.getKind() != TemplateArgument::ArgKind::Integral)
+      return SemaRef.Diag(
+                 Loc,
+                 diag::err_sycl_invalid_accessor_property_list_template_param)
+             << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
+
     int LocationID = static_cast<int>(BufferLoc.getAsIntegral().getExtValue());
-    if (LocationID < 0) {
-      SemaRef.Diag(Loc,
-                   diag::err_sycl_invalid_accessor_property_list_template_param)
-          << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
-      return;
-    }
+    if (LocationID < 0)
+      return SemaRef.Diag(
+                 Loc,
+                 diag::err_sycl_invalid_accessor_property_list_template_param)
+             << /*buffer_location*/ 2 << /*non-negative integer*/ 2;
+
+    return false;
   }
 
-  void checkAccessorType(QualType Ty, SourceRange Loc) {
+  bool checkAccessorType(QualType Ty, SourceRange Loc) {
     assert(Util::isSyclAccessorType(Ty) &&
            "Should only be called on SYCL accessor types.");
 
@@ -1678,13 +1678,13 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
             dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
       const TemplateArgumentList &TAL = CTSD->getTemplateArgs();
       TemplateArgument TA = TAL.get(0);
-      const QualType TemplateArgTy = TA.getAsType();
+      llvm::DenseSet<QualType> Visited;
+      checkSYCLType(SemaRef, TA.getAsType(), Loc, Visited);
 
       if (TAL.size() > 5)
-        checkPropertyListType(TAL.get(5), Loc.getBegin());
-      llvm::DenseSet<QualType> Visited;
-      checkSYCLType(SemaRef, TemplateArgTy, Loc, Visited);
+        return checkPropertyListType(TAL.get(5), Loc.getBegin());
     }
+    return false;
   }
 
 public:
@@ -1706,12 +1706,12 @@ public:
 
   bool handleSyclAccessorType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                               QualType FieldTy) final {
-    checkAccessorType(FieldTy, BS.getBeginLoc());
+    IsInvalid |= checkAccessorType(FieldTy, BS.getBeginLoc());
     return isValid();
   }
 
   bool handleSyclAccessorType(FieldDecl *FD, QualType FieldTy) final {
-    checkAccessorType(FieldTy, FD->getLocation());
+    IsInvalid |= checkAccessorType(FieldTy, FD->getLocation());
     return isValid();
   }
 
@@ -4383,17 +4383,32 @@ class SYCLFwdDeclEmitter
     const DeclContext *DC = D->getDeclContext();
 
     while (DC) {
-      const auto *NS = dyn_cast_or_null<NamespaceDecl>(DC);
-
-      if (!NS)
-        break;
-
-      ++NamespaceCnt;
-      const StringRef NSInlinePrefix = NS->isInline() ? "inline " : "";
-      NSStr.insert(
-          0,
-          Twine(NSInlinePrefix + "namespace " + NS->getName() + " { ").str());
-      DC = NS->getDeclContext();
+      if (const auto *NS = dyn_cast<NamespaceDecl>(DC)) {
+        ++NamespaceCnt;
+        StringRef NSInlinePrefix = NS->isInline() ? "inline " : "";
+        NSStr.insert(
+            0,
+            Twine(NSInlinePrefix + "namespace " + NS->getName() + " { ").str());
+        DC = NS->getDeclContext();
+      } else {
+        // We should be able to handle a subset of the decl-context types to
+        // make our namespaces for forward declarations as specific as possible,
+        // so just skip them here.  We can't use their names, since they would
+        // not be forward declarable, but we can try to make them as specific as
+        // possible.
+        // This permits things such as:
+        // namespace N1 { void foo() { kernel<class K>(...); }}
+        // and
+        // namespace N2 { void foo() { kernel<class K>(...); }}
+        // to co-exist, despite technically being against the SYCL rules.
+        // See SYCLKernelNameTypePrinter for the corresponding part that prints
+        // the kernel information for this type. These two must match.
+        if (isa<FunctionDecl, RecordDecl, LinkageSpecDecl>(DC)) {
+          DC = cast<Decl>(DC)->getDeclContext();
+        } else {
+          break;
+        }
+      }
     }
     OS << NSStr;
     if (NamespaceCnt > 0)
@@ -4568,6 +4583,18 @@ class SYCLKernelNameTypePrinter
     Quals.print(OS, Policy, /*appendSpaceIfNotEmpty*/ true);
   }
 
+  // Use recursion to print the namespace-qualified name for the purposes of the
+  // canonical sycl example of a type being created in the kernel call.
+  void PrintNamespaceScopes(const DeclContext *DC) {
+    if (isa<NamespaceDecl, FunctionDecl, RecordDecl, LinkageSpecDecl>(DC)) {
+      PrintNamespaceScopes(DC->getParent());
+
+      const auto *NS = dyn_cast<NamespaceDecl>(DC);
+      if (NS && !NS->isAnonymousNamespace())
+        OS << NS->getName() << "::";
+    }
+  }
+
 public:
   SYCLKernelNameTypePrinter(raw_ostream &OS, PrintingPolicy &Policy)
       : OS(OS), Policy(Policy) {}
@@ -4606,12 +4633,16 @@ public:
 
       return;
     }
-    // TODO: Next part of code results in printing of "class" keyword before
-    // class name in case if kernel name doesn't belong to some namespace. It
-    // seems if we don't print it, the integration header still represents valid
-    // c++ code. Probably we don't need to print it at all.
-    if (RD->getDeclContext()->isFunctionOrMethod()) {
-      OS << QualType::getAsString(T, Qualifiers(), Policy);
+
+    // Handle the canonical sycl example where the type is created for the first
+    // time in the kernel naming. We want to qualify this as fully as we can,
+    // but not in a way that won't be forward declarable.  See
+    // SYCLFwdDeclEmitter::printForwardDecl for the corresponding list for
+    // printing the forward declaration, these two must match.
+    DeclContext *DC = RD->getDeclContext();
+    if (isa<FunctionDecl, RecordDecl, LinkageSpecDecl>(DC)) {
+      PrintNamespaceScopes(DC);
+      RD->printName(OS);
       return;
     }
 

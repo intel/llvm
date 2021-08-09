@@ -25,7 +25,7 @@
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 
-// CHECK: template <> struct KernelInfo<class kernel_C> {
+// CHECK: template <> struct KernelInfo<kernel_C> {
 
 #include "Inputs/sycl.hpp"
 

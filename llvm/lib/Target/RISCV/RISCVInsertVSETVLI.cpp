@@ -373,11 +373,8 @@ static VSETVLIInfo computeInfoForInstr(const MachineInstr &MI, uint64_t TSFlags,
 
   // Default to tail agnostic unless the destination is tied to a source.
   // Unless the source is undef. In that case the user would have some control
-  // over the tail values. The tail policy is also ignored on instructions
-  // that only update element 0 like vmv.s.x or reductions so use agnostic
-  // there to match the common case.
-  // FIXME: This is conservatively correct, but we might want to detect that
-  // the input is undefined.
+  // over the tail values. Some pseudo instructions force a tail agnostic policy
+  // despite having a tied def.
   bool ForceTailAgnostic = RISCVII::doesForceTailAgnostic(TSFlags);
   bool TailAgnostic = true;
   unsigned UseOpIdx;
@@ -434,11 +431,22 @@ void RISCVInsertVSETVLI::insertVSETVLI(MachineBasicBlock &MBB, MachineInstr &MI,
 
   Register AVLReg = Info.getAVLReg();
   if (AVLReg == RISCV::NoRegister) {
-    BuildMI(MBB, MI, DL, TII->get(RISCV::PseudoVSETVLI))
+    // We can only use x0, x0 if there's no chance of the vtype change causing
+    // the previous vl to become invalid.
+    if (PrevInfo.isValid() && !PrevInfo.isUnknown() &&
+        Info.hasSameVLMAX(PrevInfo)) {
+      BuildMI(MBB, MI, DL, TII->get(RISCV::PseudoVSETVLI))
+          .addReg(RISCV::X0, RegState::Define | RegState::Dead)
+          .addReg(RISCV::X0, RegState::Kill)
+          .addImm(Info.encodeVTYPE())
+          .addReg(RISCV::VL, RegState::Implicit);
+      return;
+    }
+    // Otherwise use an AVL of 0 to avoid depending on previous vl.
+    BuildMI(MBB, MI, DL, TII->get(RISCV::PseudoVSETIVLI))
         .addReg(RISCV::X0, RegState::Define | RegState::Dead)
-        .addReg(RISCV::X0, RegState::Kill)
-        .addImm(Info.encodeVTYPE())
-        .addReg(RISCV::VL, RegState::Implicit);
+        .addImm(0)
+        .addImm(Info.encodeVTYPE());
     return;
   }
 
@@ -625,6 +633,8 @@ bool RISCVInsertVSETVLI::needVSETVLIPHI(const VSETVLIInfo &Require,
 
 void RISCVInsertVSETVLI::emitVSETVLIs(MachineBasicBlock &MBB) {
   VSETVLIInfo CurInfo;
+  // Only be set if current VSETVLIInfo is from an explicit VSET(I)VLI.
+  MachineInstr *PrevVSETVLIMI = nullptr;
 
   for (MachineInstr &MI : MBB) {
     // If this is an explicit VSETVLI or VSETIVLI, update our state.
@@ -637,6 +647,7 @@ void RISCVInsertVSETVLI::emitVSETVLIs(MachineBasicBlock &MBB) {
       MI.getOperand(3).setIsDead(false);
       MI.getOperand(4).setIsDead(false);
       CurInfo = getInfoForVSETVLI(MI);
+      PrevVSETVLIMI = &MI;
       continue;
     }
 
@@ -670,10 +681,28 @@ void RISCVInsertVSETVLI::emitVSETVLIs(MachineBasicBlock &MBB) {
         // If this instruction isn't compatible with the previous VL/VTYPE
         // we need to insert a VSETVLI.
         if (needVSETVLI(NewInfo, CurInfo)) {
-          insertVSETVLI(MBB, MI, NewInfo, CurInfo);
+          // If the previous VL/VTYPE is set by VSETVLI and do not use, Merge it
+          // with current VL/VTYPE.
+          bool NeedInsertVSETVLI = true;
+          if (PrevVSETVLIMI) {
+            bool HasSameAVL =
+                CurInfo.hasSameAVL(NewInfo) ||
+                (NewInfo.hasAVLReg() && NewInfo.getAVLReg().isVirtual() &&
+                 NewInfo.getAVLReg() == PrevVSETVLIMI->getOperand(0).getReg());
+            // If these two VSETVLI have the same AVL and the same VLMAX,
+            // we could merge these two VSETVLI.
+            if (HasSameAVL &&
+                CurInfo.getSEWLMULRatio() == NewInfo.getSEWLMULRatio()) {
+              PrevVSETVLIMI->getOperand(2).setImm(NewInfo.encodeVTYPE());
+              NeedInsertVSETVLI = false;
+            }
+          }
+          if (NeedInsertVSETVLI)
+            insertVSETVLI(MBB, MI, NewInfo, CurInfo);
           CurInfo = NewInfo;
         }
       }
+      PrevVSETVLIMI = nullptr;
     }
 
     // If this is something updates VL/VTYPE that we don't know about, set
@@ -681,6 +710,7 @@ void RISCVInsertVSETVLI::emitVSETVLIs(MachineBasicBlock &MBB) {
     if (MI.isCall() || MI.isInlineAsm() || MI.modifiesRegister(RISCV::VL) ||
         MI.modifiesRegister(RISCV::VTYPE)) {
       CurInfo = VSETVLIInfo::getUnknown();
+      PrevVSETVLIMI = nullptr;
     }
   }
 }

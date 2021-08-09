@@ -350,6 +350,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeSILoadStoreOptimizerPass(*PR);
   initializeAMDGPUFixFunctionBitcastsPass(*PR);
   initializeAMDGPUAlwaysInlinePass(*PR);
+  initializeAMDGPUAttributorPass(*PR);
   initializeAMDGPUAnnotateKernelFeaturesPass(*PR);
   initializeAMDGPUAnnotateUniformValuesPass(*PR);
   initializeAMDGPUArgumentUsageInfoPass(*PR);
@@ -390,6 +391,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUUseNativeCallsPass(*PR);
   initializeAMDGPUSimplifyLibCallsPass(*PR);
   initializeAMDGPUPrintfRuntimeBindingPass(*PR);
+  initializeAMDGPUResourceUsageAnalysisPass(*PR);
   initializeGCNNSAReassignPass(*PR);
   initializeGCNPreRAOptimizationsPass(*PR);
 }
@@ -688,19 +690,18 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
   });
 
   PB.registerPipelineStartEPCallback(
-      [this](ModulePassManager &PM, PassBuilder::OptimizationLevel Level) {
+      [this](ModulePassManager &PM, OptimizationLevel Level) {
         FunctionPassManager FPM;
         FPM.addPass(AMDGPUPropagateAttributesEarlyPass(*this));
         FPM.addPass(AMDGPUUseNativeCallsPass());
-        if (EnableLibCallSimplify &&
-            Level != PassBuilder::OptimizationLevel::O0)
+        if (EnableLibCallSimplify && Level != OptimizationLevel::O0)
           FPM.addPass(AMDGPUSimplifyLibCallsPass(*this));
         PM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
       });
 
   PB.registerPipelineEarlySimplificationEPCallback(
-      [this](ModulePassManager &PM, PassBuilder::OptimizationLevel Level) {
-        if (Level == PassBuilder::OptimizationLevel::O0)
+      [this](ModulePassManager &PM, OptimizationLevel Level) {
+        if (Level == OptimizationLevel::O0)
           return;
 
         PM.addPass(AMDGPUUnifyMetadataPass());
@@ -718,8 +719,8 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
       });
 
   PB.registerCGSCCOptimizerLateEPCallback(
-      [this](CGSCCPassManager &PM, PassBuilder::OptimizationLevel Level) {
-        if (Level == PassBuilder::OptimizationLevel::O0)
+      [this](CGSCCPassManager &PM, OptimizationLevel Level) {
+        if (Level == OptimizationLevel::O0)
           return;
 
         FunctionPassManager FPM;
@@ -732,7 +733,7 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
         // anything, and before other cleanup optimizations.
         FPM.addPass(AMDGPULowerKernelAttributesPass());
 
-        if (Level != PassBuilder::OptimizationLevel::O0) {
+        if (Level != OptimizationLevel::O0) {
           // Promote alloca to vector before SROA and loop unroll. If we
           // manage to eliminate allocas before unroll we may choose to unroll
           // less.
@@ -1105,9 +1106,6 @@ void AMDGPUPassConfig::addCodeGenPrepare() {
       EnableLowerKernelArguments)
     addPass(createAMDGPULowerKernelArgumentsPass());
 
-  if (TM->getOptLevel() > CodeGenOpt::Less)
-    addPass(&AMDGPUPerfHintAnalysisID);
-
   TargetPassConfig::addCodeGenPrepare();
 
   if (isPassEnabled(EnableLoadStoreVectorizer))
@@ -1217,6 +1215,9 @@ bool GCNPassConfig::addPreISel() {
     addPass(createSIAnnotateControlFlowPass());
   }
   addPass(createLCSSAPass());
+
+  if (TM->getOptLevel() > CodeGenOpt::Less)
+    addPass(&AMDGPUPerfHintAnalysisID);
 
   return false;
 }

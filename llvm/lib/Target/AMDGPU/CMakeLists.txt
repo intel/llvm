@@ -44,6 +44,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUAliasAnalysis.cpp
   AMDGPUAlwaysInlinePass.cpp
   AMDGPUAnnotateKernelFeatures.cpp
+  AMDGPUAttributor.cpp
   AMDGPUAnnotateUniformValues.cpp
   AMDGPUArgumentUsageInfo.cpp
   AMDGPUAsmPrinter.cpp
@@ -92,6 +93,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUPerfHintAnalysis.cpp
   AMDILCFGStructurizer.cpp
   AMDGPUPrintfRuntimeBinding.cpp
+  AMDGPUResourceUsageAnalysis.cpp
   GCNHazardRecognizer.cpp
   GCNIterativeScheduler.cpp
   GCNMinRegStrategy.cpp
@@ -173,6 +175,7 @@ add_llvm_target(AMDGPUCodeGen
 
 add_subdirectory(AsmParser)
 add_subdirectory(Disassembler)
+add_subdirectory(MCA)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
 add_subdirectory(Utils)

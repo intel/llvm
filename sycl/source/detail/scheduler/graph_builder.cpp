@@ -677,12 +677,12 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       // unnecessary copy on devices with unified host memory support.
       const bool HostUnifiedMemory =
           checkHostUnifiedMemory(Queue->getContextImplPtr());
-      const bool InitFromUserData =
-          Record->MAllocaCommands.empty() && HostUnifiedMemory;
-      AllocaCommandBase *LinkedAllocaCmd = nullptr;
       // TODO casting is required here to get the necessary information
       // without breaking ABI, replace with the next major version.
       auto *MemObj = static_cast<SYCLMemObjT *>(Req->MSYCLMemObj);
+      const bool InitFromUserData = Record->MAllocaCommands.empty() &&
+                                    (HostUnifiedMemory || MemObj->isInterop());
+      AllocaCommandBase *LinkedAllocaCmd = nullptr;
 
       // For the first allocation on a device without host unified memory we
       // might need to also create a host alloca right away in order to perform
@@ -849,7 +849,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
 }
 
 static bool isInteropHostTask(const std::unique_ptr<ExecCGCommand> &Cmd) {
-  if (Cmd->getCG().getType() != CG::CGType::CodeplayHostTask)
+  if (Cmd->getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     return false;
 
   const detail::CGHostTask &HT =
@@ -884,7 +884,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                std::vector<Command *> &ToEnqueue) {
   std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
-  const CG::CGType CGType = CommandGroup->getType();
+  const CG::CGTYPE CGType = CommandGroup->getType();
 
   std::unique_ptr<ExecCGCommand> NewCmd(
       new ExecCGCommand(std::move(CommandGroup), Queue));
@@ -978,7 +978,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
       ToEnqueue.push_back(ConnCmd);
   }
 
-  if (CGType == CG::CGType::CodeplayHostTask)
+  if (CGType == CG::CGTYPE::CodeplayHostTask)
     NewCmd->MEmptyCmd =
         addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements, Queue,
                     Command::BlockReason::HostTask, ToEnqueue);
