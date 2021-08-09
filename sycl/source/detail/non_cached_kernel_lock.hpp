@@ -20,6 +20,7 @@ public:
 private:
   using KernelLockMapT = std::map<RT::PiKernel, std::mutex>;
 
+  std::mutex MapMtx;
   KernelLockMapT Map{std::less<RT::PiKernel>{}};
 };
 

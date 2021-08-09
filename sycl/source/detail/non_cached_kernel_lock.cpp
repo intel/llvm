@@ -7,7 +7,9 @@ namespace detail {
 NonCachedKernelLock::~NonCachedKernelLock() {}
 
 Locked<RT::PiKernel> NonCachedKernelLock::lockKernel(RT::PiKernel &K) {
+  std::unique_lock<std::mutex> MapLock{MapMtx};
   std::mutex &Mtx = Map[K];
+  MapLock.unlock();
 
   return {K, Mtx};
 }
