@@ -14,10 +14,13 @@
 
 using namespace cl::sycl;
 
+int NumErrors = 0;
+
 template <typename Name, typename T, class BinaryOperation>
 void tests(queue &Q, T Identity, T Init, BinaryOperation BOp, size_t NWItems) {
   constexpr access::mode RW = access::mode::read_write;
-  test<Name, false, RW, T, 0>(Q, Identity, Init, BOp, range<1>{NWItems});
+  NumErrors +=
+      test<Name, false, RW, 0>(Q, Identity, Init, BOp, range<1>{NWItems});
 }
 
 int main() {
@@ -38,13 +41,12 @@ int main() {
   tests<class B1, int>(Q, ~0, ~0, std::bit_and<>{}, 8);
   tests<class B2, int>(Q, 0, 0x12340000, std::bit_xor<>{}, 16);
   tests<class B3, int>(Q, 0, 0x3400, std::bit_or<>{}, MaxWGSize * 4);
-  tests<class B4, int>(Q, 1, 2, std::multiplies<>{}, 256);
-  tests<class B5, int>(Q, 1, 3, std::multiplies<>{}, MaxWGSize + 1);
-  tests<class B6, int>(Q, (std::numeric_limits<int>::max)(), -99,
+  tests<class B4, uint64_t>(Q, 1, 2, std::multiplies<>{}, 17);
+  tests<class B5, int>(Q, (std::numeric_limits<int>::max)(), -99,
                        ext::oneapi::minimum<>{}, MaxWGSize * 2);
-  tests<class B7, int>(Q, (std::numeric_limits<int>::min)(), 99,
+  tests<class B6, int>(Q, (std::numeric_limits<int>::min)(), 99,
                        ext::oneapi::maximum<>{}, 8);
-  tests<class B8, float>(Q, 1, 99, std::multiplies<>{}, MaxWGSize);
+  tests<class B7, float>(Q, 1, 99, std::multiplies<>{}, 16);
 
   // Check with CUSTOM type.
   tests<class C1>(Q, CustomVec<long long>(0), CustomVec<long long>(99),
@@ -52,6 +54,6 @@ int main() {
   tests<class C2>(Q, CustomVec<long long>(0), CustomVec<long long>(99),
                   CustomVecPlus<long long>{}, MaxWGSize * 3);
 
-  std::cout << "Test passed\n";
-  return 0;
+  printFinalStatus(NumErrors);
+  return NumErrors;
 }

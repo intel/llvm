@@ -16,4 +16,4 @@
 
 #include "reduction_nd_ext_type.hpp"
 
-int main() { return runTests<half>("cl_khr_fp16"); }
+int main() { return runTests<sycl::half>(sycl::aspect::fp16); }

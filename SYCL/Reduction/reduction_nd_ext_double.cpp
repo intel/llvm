@@ -11,4 +11,4 @@
 
 #include "reduction_nd_ext_type.hpp"
 
-int main() { return runTests<double>("cl_khr_fp64"); }
+int main() { return runTests<double>(sycl::aspect::fp64); }

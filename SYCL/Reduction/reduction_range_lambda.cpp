@@ -25,26 +25,34 @@ int main() {
 
   auto LambdaSum = [](auto x, auto y) { return (x + y); };
 
-  testBoth<class A1, RW, int>(Q, 0, 99, LambdaSum, range<1>{7});
-  testBoth<class A2, DW, int>(Q, 0, 99, LambdaSum, range<1>{7});
+  int NumErrors = 0;
 
-  testBoth<class A3, RW, int>(Q, 0, 99, LambdaSum, range<1>{MaxWGSize + 1});
-  testBoth<class A4, DW, int>(Q, 0, 99, LambdaSum, range<1>{MaxWGSize + 1});
+  NumErrors += testBoth<class A1, RW, int>(Q, 0, 99, LambdaSum, range<1>{7});
+  NumErrors += testBoth<class A2, DW, int>(Q, 0, 99, LambdaSum, range<1>{7});
 
-  testBoth<class B1, RW, int>(Q, 0, 99, LambdaSum, range<2>{3, 4});
-  testBoth<class B2, DW, int>(Q, 0, 99, LambdaSum, range<2>{3, 4});
+  NumErrors +=
+      testBoth<class A3, RW, int>(Q, 0, 99, LambdaSum, range<1>{MaxWGSize + 1});
+  NumErrors +=
+      testBoth<class A4, DW, int>(Q, 0, 99, LambdaSum, range<1>{MaxWGSize + 1});
 
-  testBoth<class B3, RW, int>(Q, 0, 99, LambdaSum, range<2>{3, MaxWGSize + 1});
-  testBoth<class B4, DW, int>(Q, 0, 99, LambdaSum, range<2>{3, MaxWGSize + 1});
+  NumErrors += testBoth<class B1, RW, int>(Q, 0, 99, LambdaSum, range<2>{3, 4});
+  NumErrors += testBoth<class B2, DW, int>(Q, 0, 99, LambdaSum, range<2>{3, 4});
 
-  testBoth<class C1, RW, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, 4});
-  testBoth<class C2, RW, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, 4});
+  NumErrors += testBoth<class B3, RW, int>(Q, 0, 99, LambdaSum,
+                                           range<2>{3, MaxWGSize + 1});
+  NumErrors += testBoth<class B4, DW, int>(Q, 0, 99, LambdaSum,
+                                           range<2>{3, MaxWGSize + 1});
 
-  testBoth<class C3, RW, int>(Q, 0, 99, LambdaSum,
-                              range<3>{2, 3, MaxWGSize + 1});
-  testBoth<class C4, DW, int>(Q, 0, 99, LambdaSum,
-                              range<3>{2, 3, MaxWGSize + 1});
+  NumErrors +=
+      testBoth<class C1, RW, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, 4});
+  NumErrors +=
+      testBoth<class C2, RW, int>(Q, 0, 99, LambdaSum, range<3>{2, 3, 4});
 
-  std::cout << "Test passed\n";
-  return 0;
+  NumErrors += testBoth<class C3, RW, int>(Q, 0, 99, LambdaSum,
+                                           range<3>{2, 3, MaxWGSize + 1});
+  NumErrors += testBoth<class C4, DW, int>(Q, 0, 99, LambdaSum,
+                                           range<3>{2, 3, MaxWGSize + 1});
+
+  printFinalStatus(NumErrors);
+  return NumErrors;
 }

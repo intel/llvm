@@ -11,20 +11,21 @@ template <typename T, bool B> class KName;
 template <typename Name, bool IsSYCL2020, access::mode Mode, int AccDim = 1,
           typename T, class BinaryOperation, int Dims>
 int test(queue &Q, T Identity, T Init, BinaryOperation BOp,
-         const range<Dims> &Range) {
+         const nd_range<Dims> &Range) {
   printTestLabel<T, BinaryOperation>(IsSYCL2020, Range);
 
   // Skip the test for such big arrays now.
   constexpr size_t TwoGB = 2LL * 1024 * 1024 * 1024;
-  if (Range.size() > TwoGB)
+  range<Dims> GlobalRange = Range.get_global_range();
+  if (GlobalRange.size() > TwoGB)
     return 0;
 
-  buffer<T, Dims> InBuf(Range);
+  buffer<T, Dims> InBuf(GlobalRange);
   buffer<T, 1> OutBuf(1);
 
   // Initialize.
   T CorrectOut;
-  initInputData(InBuf, CorrectOut, Identity, BOp, Range);
+  initInputData(InBuf, CorrectOut, Identity, BOp, GlobalRange);
   if constexpr (Mode == access::mode::read_write) {
     CorrectOut = BOp(CorrectOut, Init);
   }
@@ -38,8 +39,9 @@ int test(queue &Q, T Identity, T Init, BinaryOperation BOp,
     auto In = InBuf.template get_access<access::mode::read>(CGH);
     auto Redu =
         createReduction<IsSYCL2020, Mode, AccDim>(OutBuf, CGH, Identity, BOp);
-    CGH.parallel_for<Name>(
-        Range, Redu, [=](id<Dims> Id, auto &Sum) { Sum.combine(In[Id]); });
+    CGH.parallel_for<Name>(Range, Redu, [=](nd_item<Dims> NDIt, auto &Sum) {
+      Sum.combine(In[NDIt.get_global_id()]);
+    });
   });
 
   // Check correctness.
@@ -51,7 +53,7 @@ int test(queue &Q, T Identity, T Init, BinaryOperation BOp,
 template <typename Name, access::mode Mode, typename T, class BinaryOperation,
           int Dims>
 int testBoth(queue &Q, T Identity, T Init, BinaryOperation BOp,
-             const range<Dims> &Range) {
+             const nd_range<Dims> &Range) {
   return test<KName<Name, false>, false, Mode>(Q, Identity, Init, BOp, Range) +
          test<KName<Name, true>, true, Mode>(Q, Identity, Init, BOp, Range);
 }

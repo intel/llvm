@@ -6,104 +6,50 @@
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with 0-dimensional read_write accessor.
 
-#include "reduction_utils.hpp"
-#include <CL/sycl.hpp>
-#include <cassert>
+#include "reduction_nd_range_scalar.hpp"
 
 using namespace cl::sycl;
 
-// This allocator is needed only for the purpose of testing buffers
-// with allocator that is not same_as sycl::buffer_allocator.
-struct CustomAllocator : public sycl::buffer_allocator {};
-
-template <typename T, bool B> class KName;
-
-template <typename Name, bool IsSYCL2020Mode, typename T, class BinaryOperation>
-void test(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems) {
-  buffer<T, 1> InBuf(NWItems);
-  buffer<T, 1, CustomAllocator> OutBuf(1);
-
-  // Initialize.
-  BinaryOperation BOp;
-  T CorrectOut;
-  initInputData(InBuf, CorrectOut, Identity, BOp, NWItems);
-
-  // The final reduction sum after running parallel_for() must include
-  // the original value it was initialized with before the parallel_for().
-  CorrectOut = BOp(CorrectOut, Init);
-  (OutBuf.template get_access<access::mode::write>())[0] = Init;
-
-  // Compute.
-  nd_range<1> NDRange(range<1>{NWItems}, range<1>{WGSize});
-  if constexpr (IsSYCL2020Mode) {
-    Q.submit([&](handler &CGH) {
-      auto In = InBuf.template get_access<access::mode::read>(CGH);
-      auto Redu = sycl::reduction(OutBuf, CGH, Identity, BOp);
-
-      CGH.parallel_for<Name>(NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
-        Sum.combine(In[NDIt.get_global_linear_id()]);
-      });
-    });
-  } else {
-    Q.submit([&](handler &CGH) {
-      auto In = InBuf.template get_access<access::mode::read>(CGH);
-      accessor<T, 0, access::mode::read_write, access::target::global_buffer>
-          Out(OutBuf, CGH);
-      auto Redu = ONEAPI::reduction(Out, Identity, BOp);
-
-      CGH.parallel_for<Name>(NDRange, Redu, [=](nd_item<1> NDIt, auto &Sum) {
-        Sum.combine(In[NDIt.get_global_linear_id()]);
-      });
-    });
-  }
-
-  // Check correctness.
-  auto Out = OutBuf.template get_access<access::mode::read>();
-  T ComputedOut = *(Out.get_pointer());
-  if (ComputedOut != CorrectOut) {
-    std::cout << "NWItems = " << NWItems << ", WGSize = " << WGSize << "\n";
-    std::cout << "Computed value: " << ComputedOut
-              << ", Expected value: " << CorrectOut << "\n";
-    assert(0 && "Wrong value.");
-  }
-}
+int NumErrors = 0;
 
 template <typename Name, typename T, class BinaryOperation>
-void testBoth(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems) {
-  test<KName<Name, false>, false, T, BinaryOperation>(Q, Identity, Init, WGSize,
-                                                      NWItems);
-  test<KName<Name, true>, true, T, BinaryOperation>(Q, Identity, Init, WGSize,
-                                                    NWItems);
+void tests(queue &Q, T Identity, T Init, BinaryOperation BOp, size_t WGSize,
+           size_t NWItems) {
+  constexpr access::mode RW = access::mode::read_write;
+  nd_range<1> NDRange(range<1>{NWItems}, range<1>{WGSize});
+  NumErrors +=
+      test<Name, false /*SYCL2020*/, RW, 0>(Q, Identity, Init, BOp, NDRange);
 }
 
 int main() {
   queue Q;
+  printDeviceInfo(Q);
 
   // Check non power-of-two work-group sizes.
-  testBoth<class A1, int, ONEAPI::plus<int>>(Q, 0, 99, 1, 7);
-  testBoth<class A2, int, ONEAPI::plus<int>>(Q, 0, -99, 49, 49 * 5);
+  tests<class A1, int>(Q, 0, 99, std::plus<int>{}, 1, 7);
+  tests<class A2, int>(Q, 0, -99, std::plus<int>{}, 49, 49 * 5);
 
   // Try some power-of-two work-group sizes.
-  testBoth<class B1, int, ONEAPI::plus<>>(Q, 0, 99, 2, 32);
-  testBoth<class B2, int, ONEAPI::plus<>>(Q, 0, 199, 32, 32);
-  testBoth<class B3, int, ONEAPI::plus<>>(Q, 0, 299, 128, 256);
-  testBoth<class B4, int, ONEAPI::plus<>>(Q, 0, 399, 256, 256);
+  tests<class B1, int>(Q, 0, 99, std::plus<>{}, 2, 32);
+  tests<class B2, int>(Q, 0, 199, std::plus<>{}, 32, 32);
+  tests<class B3, int>(Q, 0, 299, std::plus<>{}, 128, 256);
+  tests<class B4, int>(Q, 0, 399, std::plus<>{}, 256, 256);
 
   // Check with various operations and types.
-  testBoth<class C1, int, std::multiplies<int>>(Q, 1, 2, 8, 256);
-  testBoth<class C2, float, std::multiplies<float>>(Q, 1, 1.2, 8, 32);
-  testBoth<class C3, short, ONEAPI::bit_or<>>(Q, 0, 0x3400, 4, 32);
-  testBoth<class C4, int, ONEAPI::bit_xor<int>>(Q, 0, 0x12340000, 4, 32);
-  testBoth<class C5, char, ONEAPI::bit_and<>>(Q, ~0, ~0, 4, 16);
-  testBoth<class C6, int, ONEAPI::minimum<int>>(
-      Q, (std::numeric_limits<int>::max)(), -99, 8, 256);
-  testBoth<class C7, int, ONEAPI::maximum<float>>(
-      Q, (std::numeric_limits<int>::min)(), 99, 8, 256);
+  tests<class C1, int>(Q, 1, 2, std::multiplies<>{}, 8, 8);
+  tests<class C2, float>(Q, 1, 1.2, std::multiplies<>{}, 8, 16);
+  tests<class C3, short>(Q, 0, 0x3400, std::bit_or<>{}, 4, 32);
+  tests<class C4, int>(Q, 0, 0x12340000, std::bit_xor<>{}, 4, 32);
+  tests<class C5, char>(Q, ~0, ~0, std::bit_and<>{}, 4, 16);
+  tests<class C6, int>(Q, (std::numeric_limits<int>::max)(), -99,
+                       ext::oneapi::minimum<>{}, 8, 256);
+  tests<class C7, int>(Q, (std::numeric_limits<int>::min)(), 99,
+                       ext::oneapi::maximum<>{}, 8, 256);
 
   // Check with CUSTOM type.
-  testBoth<class D1, CustomVec<long long>, CustomVecPlus<long long>>(
-      Q, CustomVec<long long>(0), CustomVec<long long>(199), 8, 256);
+  using CV = CustomVec<long long>;
+  tests<class D1, CV>(Q, CV(0), CV(99), CustomVecPlus<long long>{}, 8, 256);
 
-  std::cout << "Test passed\n";
-  return 0;
+  printFinalStatus(NumErrors);
+  return NumErrors;
 }

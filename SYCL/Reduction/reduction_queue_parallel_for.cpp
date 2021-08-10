@@ -4,47 +4,38 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
 // RUNx: %HOST_RUN_PLACEHOLDER %t.out
-// TODO: Enable the test for HOST when it supports ONEAPI::reduce() and
+// TODO: Enable the test for HOST when it supports ext::oneapi::reduce() and
 // barrier()
 
 // This test only checks that the method queue::parallel_for() accepting
 // reduction, can be properly translated into queue::submit + parallel_for().
 
-#include <CL/sycl.hpp>
+#include "reduction_utils.hpp"
+
 using namespace sycl;
 
 template <typename T, bool B> class KName;
 
-template <typename Name, bool IsSYCL2020Mode> int test(queue &Q) {
-  const size_t NElems = 1024;
-  const size_t WGSize = 256;
+template <typename Name, bool IsSYCL2020, typename T, typename BinaryOperation>
+int test(queue &Q, T Identity, size_t WGSize, size_t NElems) {
+  nd_range<1> NDRange(range<1>{NElems}, range<1>{WGSize});
+  printTestLabel<T, BinaryOperation>(IsSYCL2020, NDRange);
 
-  int *Data = malloc_shared<int>(NElems, Q);
+  T *Data = malloc_shared<T>(NElems, Q);
   for (int I = 0; I < NElems; I++)
     Data[I] = I;
 
-  int *Sum = malloc_shared<int>(1, Q);
-  *Sum = 0;
+  T *Sum = malloc_shared<T>(1, Q);
+  *Sum = Identity;
 
-  if constexpr (IsSYCL2020Mode) {
-    Q.parallel_for<Name>(
-         nd_range<1>{NElems, WGSize}, sycl::reduction(Sum, std::plus<>()),
-         [=](nd_item<1> It, auto &Sum) { Sum += Data[It.get_global_id(0)]; })
-        .wait();
-  } else {
-    Q.parallel_for<Name>(
-         nd_range<1>{NElems, WGSize}, ONEAPI::reduction(Sum, ONEAPI::plus<>()),
-         [=](nd_item<1> It, auto &Sum) { Sum += Data[It.get_global_id(0)]; })
-        .wait();
-  }
+  BinaryOperation BOp;
+  auto Redu = createReduction<IsSYCL2020, access::mode::read_write>(Sum, BOp);
+  Q.parallel_for<Name>(NDRange, Redu, [=](nd_item<1> It, auto &Sum) {
+     Sum += Data[It.get_global_id(0)];
+   }).wait();
 
-  int ExpectedSum = (NElems - 1) * NElems / 2;
-  int Error = 0;
-  if (*Sum != ExpectedSum) {
-    std::cerr << "Error: Expected = " << ExpectedSum << ", Computed = " << *Sum
-              << std::endl;
-    Error = 1;
-  }
+  T ExpectedSum = (NElems - 1) * NElems / 2;
+  int Error = checkResults(Q, IsSYCL2020, BOp, NDRange, *Sum, ExpectedSum);
 
   free(Data, Q);
   free(Sum, Q);
@@ -53,7 +44,11 @@ template <typename Name, bool IsSYCL2020Mode> int test(queue &Q) {
 
 int main() {
   queue Q;
-  int Error = test<KName<class A, true>, true>(Q);
-  Error += test<KName<class A, false>, false>(Q);
-  return Error;
+  printDeviceInfo(Q);
+
+  int NumErrors = test<class A1, true, int, std::plus<>>(Q, 0, 16, 32);
+  NumErrors += test<class A2, false, int, std::plus<>>(Q, 0, 7, 14);
+
+  printFinalStatus(NumErrors);
+  return NumErrors;
 }

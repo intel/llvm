@@ -14,10 +14,12 @@
 
 using namespace cl::sycl;
 
+int NumErrors = 0;
+
 template <typename Name, typename T, class BinaryOperation>
 void tests(queue &Q, T Identity, T Init, BinaryOperation BOp, range<2> Range) {
   constexpr access::mode DW = access::mode::discard_write;
-  testBoth<Name, DW, T>(Q, Identity, Init, BOp, Range);
+  NumErrors += testBoth<Name, DW>(Q, Identity, Init, BOp, Range);
 }
 
 int main() {
@@ -38,9 +40,8 @@ int main() {
   tests<class B1, int>(Q, 0, 0x2021ff99, std::bit_xor<>{}, range<2>{3, 3});
   tests<class B2, int>(Q, ~0, 99, std::bit_and<>{}, range<2>{4, 3});
   tests<class B3, int>(Q, 0, 99, std::bit_or<>{}, range<2>{2, 2});
-  tests<class B4, uint64_t>(Q, 1, 3, std::multiplies<>{}, range<2>{16, 3});
-  tests<class B5, uint64_t>(Q, 1, 3, std::multiplies<>{},
-                            range<2>{3, MaxWGSize});
+  tests<class B4, uint64_t>(Q, 1, 3, std::multiplies<>{}, range<2>{8, 3});
+  tests<class B5, uint64_t>(Q, 1, 3, std::multiplies<>{}, range<2>{3, 7});
   tests<class B6, int>(Q, (std::numeric_limits<int>::max)(), -99,
                        ext::oneapi::minimum<>{}, range<2>{8, 3});
   tests<class B7, int>(Q, (std::numeric_limits<int>::min)(), 99,
@@ -50,6 +51,6 @@ int main() {
   tests<class C1>(Q, CustomVec<long long>(0), CustomVec<long long>(99),
                   CustomVecPlus<long long>{}, range<2>{33, MaxWGSize});
 
-  std::cout << "Test passed\n";
-  return 0;
+  printFinalStatus(NumErrors);
+  return NumErrors;
 }

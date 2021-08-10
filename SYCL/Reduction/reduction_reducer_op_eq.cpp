@@ -6,9 +6,7 @@
 // This test checks that operators ++, +=, *=, |=, &=, ^= are supported
 // whent the corresponding std::plus<>, std::multiplies, etc are defined.
 
-#include <CL/sycl.hpp>
-#include <cmath>
-#include <iostream>
+#include "reduction_utils.hpp"
 
 using namespace sycl;
 
@@ -78,19 +76,13 @@ template <> struct bit_and<XY> {
 };
 } // namespace std
 
-template <bool IsSYCL2020Mode, typename T, typename BinaryOperation>
-auto createReduction(T *USMPtr, T Identity, BinaryOperation BOp) {
-  if constexpr (IsSYCL2020Mode)
-    return sycl::reduction(USMPtr, Identity, BOp);
-  else
-    return ONEAPI::reduction(USMPtr, Identity, BOp);
-}
-
 template <typename T, bool IsSYCL2020Mode, typename BinaryOperation,
           OperationEqual OpEq, bool IsFP>
 int test(queue &Q, T Identity) {
   constexpr size_t N = 16;
   constexpr size_t L = 4;
+  nd_range<1> NDR{N, L};
+  printTestLabel<T, BinaryOperation>(IsSYCL2020Mode, NDR);
 
   T *Data = malloc_host<T>(N, Q);
   T *Res = malloc_host<T>(1, Q);
@@ -107,7 +99,6 @@ int test(queue &Q, T Identity) {
 
   *Res = Identity;
   auto Red = createReduction<IsSYCL2020Mode>(Res, Identity, BOp);
-  nd_range<1> NDR{N, L};
   if constexpr (OpEq == PlusPlus) {
     auto Lambda = [=](nd_item<1> ID, auto &Sum) { ++Sum; };
     Q.submit([&](handler &H) { H.parallel_for(NDR, Red, Lambda); }).wait();
@@ -189,11 +180,12 @@ template <typename T, bool TestPlusPlus> int testINTPack(queue &Q) {
 
 int main() {
   queue Q;
-  int Error = 0;
-  Error += testFPPack<float2>(Q);
-  Error += testINTPack<int2, true>(Q);
-  Error += testINTPack<XY, false>(Q);
+  printDeviceInfo(Q);
+  int NumErrors = 0;
+  NumErrors += testFPPack<float2>(Q);
+  NumErrors += testINTPack<int2, true>(Q);
+  NumErrors += testINTPack<XY, false>(Q);
 
-  std::cout << (Error ? "Failed\n" : "Passed.\n");
-  return Error;
+  printFinalStatus(NumErrors);
+  return NumErrors;
 }

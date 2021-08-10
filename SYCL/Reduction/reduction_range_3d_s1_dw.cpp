@@ -14,10 +14,12 @@
 
 using namespace cl::sycl;
 
+int NumErrors = 0;
+
 template <typename Name, typename T, class BinaryOperation>
 void tests(queue &Q, T Identity, T Init, BinaryOperation BOp, range<3> Range) {
   constexpr access::mode DW = access::mode::discard_write;
-  testBoth<Name, DW, T>(Q, Identity, Init, BOp, Range);
+  NumErrors += testBoth<Name, DW>(Q, Identity, Init, BOp, Range);
 }
 
 int main() {
@@ -50,19 +52,17 @@ int main() {
                        range<3>{MaxWGSize * 3, 4, 3});
   tests<class B3, int>(Q, 0, 99, std::bit_or<>{},
                        range<3>{2, 2, MaxWGSize * 3});
-  tests<class B4, uint64_t>(Q, 1, 3, std::multiplies<>{}, range<3>{16, 3, 5});
-  tests<class B5, uint64_t>(Q, 1, 3, std::multiplies<>{},
-                            range<3>{2, 3, MaxWGSize});
+  tests<class B4, uint64_t>(Q, 1, 3, std::multiplies<>{}, range<3>{2, 3, 5});
+  tests<class B5, uint64_t>(Q, 1, 2, std::multiplies<>{}, range<3>{2, 3, 8});
   tests<class B6, int>(Q, (std::numeric_limits<int>::max)(), -99,
                        ext::oneapi::minimum<>{}, range<3>{MaxWGSize, 8, 3});
   tests<class B7, int>(Q, (std::numeric_limits<int>::min)(), 99,
                        ext::oneapi::maximum<>{}, range<3>{3, MaxWGSize, 3});
-  tests<class B8, float>(Q, 1, 99, std::multiplies<>{},
-                         range<3>{3, 3, MaxWGSize});
+  tests<class B8, float>(Q, 1, 99, std::multiplies<>{}, range<3>{3, 3, 5});
 
   tests<class C1>(Q, CustomVec<long long>(0), CustomVec<long long>(99),
                   CustomVecPlus<long long>{}, range<3>{2, 33, MaxWGSize});
 
-  std::cout << "Test passed\n";
-  return 0;
+  printFinalStatus(NumErrors);
+  return NumErrors;
 }
