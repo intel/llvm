@@ -21,6 +21,9 @@
 #include <mutex>
 #include <type_traits>
 
+// For testing purposes
+class MockKernelProgramCache;
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -137,6 +140,7 @@ private:
 
   std::mutex MKernelFastCacheMutex;
   KernelFastCacheT MKernelFastCache;
+  friend class ::MockKernelProgramCache;
 };
 } // namespace detail
 } // namespace sycl
