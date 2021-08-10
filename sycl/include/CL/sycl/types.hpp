@@ -754,22 +754,22 @@ public:
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<4, Ty> Arg0,
                 const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
-		const Ty Arg3)
+                const Ty Arg3)
       : m_Data{Arg0, Arg1, Arg2, Arg3} {}
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<8, Ty> Arg0,
                 const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
-		const DataT Arg3, const DataT Arg4, const DataT Arg5,
-		const DataT Arg6, const DataT Arg7)
+                const DataT Arg3, const DataT Arg4, const DataT Arg5,
+                const DataT Arg6, const DataT Arg7)
       : m_Data{Arg0, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7} {}
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<16, Ty> Arg0,
                 const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
-		const DataT Arg3, const DataT Arg4, const DataT Arg5,
-		const DataT Arg6, const DataT Arg7, const DataT Arg8,
-		const DataT Arg9, const DataT ArgA, const DataT ArgB,
-		const DataT ArgC, const DataT ArgD, const DataT ArgE,
-	       	const DataT ArgF)
+                const DataT Arg3, const DataT Arg4, const DataT Arg5,
+                const DataT Arg6, const DataT Arg7, const DataT Arg8,
+                const DataT Arg9, const DataT ArgA, const DataT ArgB,
+                const DataT ArgC, const DataT ArgD, const DataT ArgE,
+                const DataT ArgF)
       : m_Data{Arg0, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7,
                Arg8, Arg9, ArgA, ArgB, ArgC, ArgD, ArgE, ArgF} {}
 #endif
