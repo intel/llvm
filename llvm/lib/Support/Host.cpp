@@ -324,8 +324,11 @@ StringRef getCPUNameFromS390Model(unsigned int Id, bool HaveVectorSupport) {
       return HaveVectorSupport? "z14" : "zEC12";
     case 8561:
     case 8562:
-    default:
       return HaveVectorSupport? "z15" : "zEC12";
+    case 3931:
+    case 3932:
+    default:
+      return HaveVectorSupport? "arch14" : "zEC12";
   }
 }
 } // end anonymous namespace
@@ -767,6 +770,22 @@ getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
       CPU = "icelake-client";
       *Type = X86::INTEL_COREI7;
       *Subtype = X86::INTEL_COREI7_ICELAKE_CLIENT;
+      break;
+
+    // Tigerlake:
+    case 0x8c:
+    case 0x8d:
+      CPU = "tigerlake";
+      *Type = X86::INTEL_COREI7;
+      *Subtype = X86::INTEL_COREI7_TIGERLAKE;
+      break;
+
+    // Alderlake:
+    case 0x97:
+    case 0x9a:
+      CPU = "alderlake";
+      *Type = X86::INTEL_COREI7;
+      *Subtype = X86::INTEL_COREI7_ALDERLAKE;
       break;
 
     // Icelake Xeon:

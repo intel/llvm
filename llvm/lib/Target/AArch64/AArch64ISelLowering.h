@@ -330,6 +330,10 @@ enum NodeType : unsigned {
   // Cast between vectors of the same element type but differ in length.
   REINTERPRET_CAST,
 
+  // Nodes to build an LD64B / ST64B 64-bit quantity out of i64, and vice versa
+  LS64_BUILD,
+  LS64_EXTRACT,
+
   LD1_MERGE_ZERO,
   LD1S_MERGE_ZERO,
   LDNF1_MERGE_ZERO,
@@ -824,6 +828,9 @@ public:
   bool isAllActivePredicate(SDValue N) const;
   EVT getPromotedVTForPredicate(EVT VT) const;
 
+  EVT getAsmOperandValueType(const DataLayout &DL, Type *Ty,
+                             bool AllowUnknown = false) const override;
+
 private:
   /// Keep a pointer to the AArch64Subtarget around so that we can
   /// make the right decision when generating code for different targets.
@@ -948,6 +955,7 @@ private:
   SDValue LowerToPredicatedOp(SDValue Op, SelectionDAG &DAG, unsigned NewOp,
                               bool OverrideNEON = false) const;
   SDValue LowerToScalableOp(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerVECTOR_SPLICE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerEXTRACT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINSERT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerDIV(SDValue Op, SelectionDAG &DAG) const;
@@ -958,6 +966,7 @@ private:
   SDValue LowerCTPOP(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerCTTZ(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBitreverse(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerMinMax(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFCOPYSIGN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
