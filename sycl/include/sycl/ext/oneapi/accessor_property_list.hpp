@@ -194,9 +194,9 @@ public:
   }
 
 #if __cplusplus >= 201703L
-  template <typename T,
-            typename = std::enable_if_t<is_compile_time_property<T>::value>>
-  static constexpr bool has_property() {
+  template <typename T>
+  static constexpr bool has_property(
+      typename std::enable_if_t<is_compile_time_property<T>::value> * = 0) {
     return ContainsPropertyInstance<PropertyContainer<PropsT...>,
                                     T::template instance>::value;
   }
