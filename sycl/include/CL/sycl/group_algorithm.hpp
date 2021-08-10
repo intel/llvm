@@ -802,7 +802,7 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
     if (i < N) {
       x = first[i];
     }
-    typename OutPtr::element_type out =
+    typename detail::remove_pointer<OutPtr>::type out =
         inclusive_scan_over_group(g, x, binary_op, carry);
     if (i < N) {
       result[i] = out;
