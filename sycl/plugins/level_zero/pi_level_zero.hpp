@@ -343,7 +343,7 @@ struct _pi_device : _pi_object {
 // Structure describing the specific use of a command-list in a queue.
 // This is because command-lists are re-used across multiple queues
 // in the same context.
-typedef struct {
+struct pi_command_list_info_t {
   // The Level-Zero fence that will be signalled at completion.
   ze_fence_handle_t ZeFence{nullptr};
   // Record if the fence is in use.
@@ -368,8 +368,7 @@ typedef struct {
   std::vector<pi_event> EventList{};
   size_t size() const { return EventList.size(); }
   void append(pi_event Event) { EventList.push_back(Event); }
-
-} pi_command_list_info_t;
+};
 
 // The map type that would track all command-lists in a queue.
 typedef std::unordered_map<ze_command_list_handle_t, pi_command_list_info_t>

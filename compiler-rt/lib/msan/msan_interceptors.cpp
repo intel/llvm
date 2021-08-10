@@ -1092,7 +1092,7 @@ struct MSanAtExitRecord {
 };
 
 struct InterceptorContext {
-  BlockingMutex atexit_mu;
+  Mutex atexit_mu;
   Vector<struct MSanAtExitRecord *> AtExitStack;
 
   InterceptorContext()
@@ -1108,7 +1108,7 @@ InterceptorContext *interceptor_ctx() {
 void MSanAtExitWrapper() {
   MSanAtExitRecord *r;
   {
-    BlockingMutexLock l(&interceptor_ctx()->atexit_mu);
+    Lock l(&interceptor_ctx()->atexit_mu);
 
     uptr element = interceptor_ctx()->AtExitStack.Size() - 1;
     r = interceptor_ctx()->AtExitStack[element];
@@ -1159,7 +1159,7 @@ static int setup_at_exit_wrapper(void(*f)(), void *arg, void *dso) {
     // NetBSD does not preserve the 2nd argument if dso is equal to 0
     // Store ctx in a local stack-like structure
 
-    BlockingMutexLock l(&interceptor_ctx()->atexit_mu);
+    Lock l(&interceptor_ctx()->atexit_mu);
 
     res = REAL(__cxa_atexit)((void (*)(void *a))MSanAtExitWrapper, 0, 0);
     if (!res) {
@@ -1278,14 +1278,15 @@ int OnExit() {
   CHECK_UNPOISONED_CTX(ctx, ptr, size)
 #define COMMON_INTERCEPTOR_INITIALIZE_RANGE(ptr, size) \
   __msan_unpoison(ptr, size)
-#define COMMON_INTERCEPTOR_ENTER(ctx, func, ...)                  \
-  if (msan_init_is_running) return REAL(func)(__VA_ARGS__);       \
-  ENSURE_MSAN_INITED();                                           \
-  MSanInterceptorContext msan_ctx = {IsInInterceptorScope()};     \
-  ctx = (void *)&msan_ctx;                                        \
-  (void)ctx;                                                      \
-  InterceptorScope interceptor_scope;                             \
-  __msan_unpoison(__errno_location(), sizeof(int)); /* NOLINT */
+#define COMMON_INTERCEPTOR_ENTER(ctx, func, ...)              \
+  if (msan_init_is_running)                                   \
+    return REAL(func)(__VA_ARGS__);                           \
+  ENSURE_MSAN_INITED();                                       \
+  MSanInterceptorContext msan_ctx = {IsInInterceptorScope()}; \
+  ctx = (void *)&msan_ctx;                                    \
+  (void)ctx;                                                  \
+  InterceptorScope interceptor_scope;                         \
+  __msan_unpoison(__errno_location(), sizeof(int));
 #define COMMON_INTERCEPTOR_DIR_ACQUIRE(ctx, path) \
   do {                                            \
   } while (false)

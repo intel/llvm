@@ -86,8 +86,8 @@ enum NodeType : unsigned {
   FMV_X_ANYEXTW_RV64,
   // FP to 32 bit int conversions for RV64. These are used to keep track of the
   // result being sign extended to 64 bit.
-  FCVT_W_RV64,
-  FCVT_WU_RV64,
+  FCVT_W_RTZ_RV64,
+  FCVT_WU_RTZ_RV64,
   // READ_CYCLE_WIDE - A read of the 64-bit cycle CSR on a 32-bit target
   // (returns (Lo, Hi)). It takes a chain operand.
   READ_CYCLE_WIDE,
@@ -196,6 +196,12 @@ enum NodeType : unsigned {
   UDIV_VL,
   UREM_VL,
   XOR_VL,
+
+  SADDSAT_VL,
+  UADDSAT_VL,
+  SSUBSAT_VL,
+  USUBSAT_VL,
+
   FADD_VL,
   FSUB_VL,
   FMUL_VL,

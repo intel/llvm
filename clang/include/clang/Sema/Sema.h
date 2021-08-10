@@ -1670,19 +1670,15 @@ public:
   /// statements.
   class FPFeaturesStateRAII {
   public:
-    FPFeaturesStateRAII(Sema &S) : S(S), OldFPFeaturesState(S.CurFPFeatures) {
-      OldOverrides = S.FpPragmaStack.CurrentValue;
-    }
-    ~FPFeaturesStateRAII() {
-      S.CurFPFeatures = OldFPFeaturesState;
-      S.FpPragmaStack.CurrentValue = OldOverrides;
-    }
+    FPFeaturesStateRAII(Sema &S);
+    ~FPFeaturesStateRAII();
     FPOptionsOverride getOverrides() { return OldOverrides; }
 
   private:
     Sema& S;
     FPOptions OldFPFeaturesState;
     FPOptionsOverride OldOverrides;
+    int OldEvalMethod;
   };
 
   void addImplicitTypedef(StringRef Name, QualType T);
@@ -2581,7 +2577,6 @@ public:
                              const CXXScopeSpec &SS, QualType T,
                              TagDecl *OwnedTagDecl = nullptr);
 
-  QualType getDecltypeForParenthesizedExpr(Expr *E);
   QualType BuildTypeofExprType(Expr *E, SourceLocation Loc);
   /// If AsUnevaluated is false, E is treated as though it were an evaluated
   /// context, such as when building a type for decltype(auto).
@@ -5034,20 +5029,24 @@ public:
     bool isMoveEligible() const { return S != None; };
     bool isCopyElidable() const { return S == MoveEligibleAndCopyElidable; }
   };
-  NamedReturnInfo getNamedReturnInfo(Expr *&E, bool ForceCXX2b = false);
+  enum class SimplerImplicitMoveMode { ForceOff, Normal, ForceOn };
+  NamedReturnInfo getNamedReturnInfo(
+      Expr *&E, SimplerImplicitMoveMode Mode = SimplerImplicitMoveMode::Normal);
   NamedReturnInfo getNamedReturnInfo(const VarDecl *VD);
   const VarDecl *getCopyElisionCandidate(NamedReturnInfo &Info,
                                          QualType ReturnType);
 
-  ExprResult PerformMoveOrCopyInitialization(const InitializedEntity &Entity,
-                                             const NamedReturnInfo &NRInfo,
-                                             Expr *Value);
+  ExprResult
+  PerformMoveOrCopyInitialization(const InitializedEntity &Entity,
+                                  const NamedReturnInfo &NRInfo, Expr *Value,
+                                  bool SupressSimplerImplicitMoves = false);
 
   StmtResult ActOnReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
                              Scope *CurScope);
   StmtResult BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp);
   StmtResult ActOnCapScopeReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
-                                     NamedReturnInfo &NRInfo);
+                                     NamedReturnInfo &NRInfo,
+                                     bool SupressSimplerImplicitMoves);
 
   StmtResult ActOnGCCAsmStmt(SourceLocation AsmLoc, bool IsSimple,
                              bool IsVolatile, unsigned NumOutputs,
@@ -6356,6 +6355,13 @@ public:
   // This is the case for AltiVecVector types as well as with
   // AltiVecPixel and AltiVecBool when -faltivec-src-compat=xl is specified.
   bool ShouldSplatAltivecScalarInCast(const VectorType *VecTy);
+
+  // Checks if the -faltivec-src-compat=gcc option is specified.
+  // If so, AltiVecVector, AltiVecBool and AltiVecPixel types are
+  // treated the same way as they are when trying to initialize
+  // these vectors on gcc (an error is emitted).
+  bool CheckAltivecInitFromScalar(SourceRange R, QualType VecTy,
+                                  QualType SrcTy);
 
   /// ActOnCXXNamedCast - Parse
   /// {dynamic,static,reinterpret,const,addrspace}_cast's.
@@ -8080,8 +8086,7 @@ public:
                                  TemplateArgumentLoc &Arg,
                            SmallVectorImpl<TemplateArgument> &Converted);
 
-  bool CheckTemplateArgument(TemplateTypeParmDecl *Param,
-                             TypeSourceInfo *Arg);
+  bool CheckTemplateArgument(TypeSourceInfo *Arg);
   ExprResult CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
                                    QualType InstantiatedParamType, Expr *Arg,
                                    TemplateArgument &Converted,

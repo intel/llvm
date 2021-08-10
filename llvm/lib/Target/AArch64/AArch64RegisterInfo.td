@@ -732,7 +732,9 @@ def Tuples8X : RegisterTuples<
   !foreach(i, [0,1,2,3,4,5,6,7], !cast<SubRegIndex>("x8sub_"#i)),
   !foreach(i, [0,1,2,3,4,5,6,7], (trunc (decimate (rotl GPR64, i), 2), 12))>;
 
-def GPR64x8Class : RegisterClass<"AArch64", [i64], 64, (trunc Tuples8X, 12)>;
+def GPR64x8Class : RegisterClass<"AArch64", [i64x8], 512, (trunc Tuples8X, 12)> {
+  let Size = 512;
+}
 def GPR64x8AsmOp : AsmOperandClass {
   let Name = "GPR64x8";
   let ParserMethod = "tryParseGPR64x8";
@@ -1351,6 +1353,22 @@ class MatrixOperand<RegisterClass RC, int EltSize> : RegisterOperand<RC> {
 }
 
 def MatrixOp : MatrixOperand<MPR, 0>;
+
+class MatrixTileListAsmOperand : AsmOperandClass {
+  let Name = "MatrixTileList";
+  let ParserMethod = "tryParseMatrixTileList";
+  let RenderMethod = "addMatrixTileListOperands";
+  let PredicateMethod = "isMatrixTileList";
+}
+
+class MatrixTileListOperand : Operand<i8> {
+  let ParserMatchClass = MatrixTileListAsmOperand<>;
+  let DecoderMethod = "DecodeMatrixTileListRegisterClass";
+  let EncoderMethod = "EncodeMatrixTileListRegisterClass";
+  let PrintMethod = "printMatrixTileList";
+}
+
+def MatrixTileList : MatrixTileListOperand<>;
 
 def MatrixIndexGPR32_12_15 : RegisterClass<"AArch64", [i32], 32, (sequence "W%u", 12, 15)> {
   let DiagnosticType = "InvalidMatrixIndexGPR32_12_15";

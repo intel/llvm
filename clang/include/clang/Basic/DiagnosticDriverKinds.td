@@ -145,6 +145,8 @@ def warn_drv_mismatch_fpga_archive : Warning<
 def err_drv_unsupported_opt_dpcpp : Error<"option '%0' unsupported with DPC++">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;
+def err_drv_minws_unsupported_input_type : Error<
+  "'-fminimize-whitespace' invalid for input of type %0">;
 def err_drv_amdgpu_ieee_without_no_honor_nans : Error<
   "invalid argument '-mno-amdgpu-ieee' only allowed with relaxed NaN handling">;
 def err_drv_argument_not_allowed_with : Error<
@@ -249,6 +251,7 @@ def warn_invalid_ios_deployment_target : Warning<
   DefaultError;
 def err_invalid_macos_32bit_deployment_target : Error<
   "32-bit targets are not supported when building for Mac Catalyst">;
+def err_drv_invalid_os_in_arg : Error<"invalid OS value '%0' in '%1'">;
 def err_drv_conflicting_deployment_targets : Error<
   "conflicting deployment targets, both '%0' and '%1' are present in environment">;
 def err_arc_unsupported_on_runtime : Error<

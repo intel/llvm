@@ -428,11 +428,6 @@ static void truncateCurrentFile(void) {
 
 // TODO: Move these functions into InstrProfilingPlatform* files.
 #if defined(__APPLE__)
-static void assertIsZero(int *i) {
-  if (*i)
-    PROF_WARN("Expected flag to be 0, but got: %d\n", *i);
-}
-
 /* Write a partial profile to \p Filename, which is required to be backed by
  * the open file object \p File. */
 static int writeProfileWithFileObject(const char *Filename, FILE *File) {
@@ -495,7 +490,7 @@ static void initializeProfileForContinuousMode(void) {
 
   /* Whether an exclusive lock on the profile must be dropped after init.
    * Use a cleanup to warn if the unlock does not occur. */
-  COMPILER_RT_CLEANUP(assertIsZero) int ProfileRequiresUnlock = 0;
+  COMPILER_RT_CLEANUP(warnIfNonZero) int ProfileRequiresUnlock = 0;
 
   if (!doMerging()) {
     /* We are not merging profiles, so open the raw profile in append mode. */
@@ -594,9 +589,15 @@ intptr_t INSTR_PROF_PROFILE_COUNTER_BIAS_DEFAULT_VAR = 0;
  * whether or not the compiler defined this symbol. */
 #if defined(_WIN32)
 COMPILER_RT_VISIBILITY extern intptr_t INSTR_PROF_PROFILE_COUNTER_BIAS_VAR;
-#pragma comment(linker, "/alternatename:"                                      \
-      INSTR_PROF_QUOTE(INSTR_PROF_PROFILE_COUNTER_BIAS_VAR) "="                \
-      INSTR_PROF_QUOTE(INSTR_PROF_PROFILE_COUNTER_BIAS_DEFAULT_VAR))
+#if defined(_M_IX86) || defined(__i386__)
+#define WIN_SYM_PREFIX "_"
+#else
+#define WIN_SYM_PREFIX
+#endif
+#pragma comment(                                                               \
+    linker, "/alternatename:" WIN_SYM_PREFIX INSTR_PROF_QUOTE(                 \
+                INSTR_PROF_PROFILE_COUNTER_BIAS_VAR) "=" WIN_SYM_PREFIX        \
+                INSTR_PROF_QUOTE(INSTR_PROF_PROFILE_COUNTER_BIAS_DEFAULT_VAR))
 #else
 COMPILER_RT_VISIBILITY extern intptr_t INSTR_PROF_PROFILE_COUNTER_BIAS_VAR
     __attribute__((weak, alias(INSTR_PROF_QUOTE(

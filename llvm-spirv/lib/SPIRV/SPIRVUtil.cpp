@@ -221,6 +221,11 @@ PointerType *getPipeStorageType(Module *M) {
       M, getSPIRVTypeName(kSPIRVTypeName::PipeStorage), SPIRAS_Constant);
 }
 
+PointerType *getSPIRVOpaquePtrType(Module *M, Op OC) {
+  std::string Name = getSPIRVTypeName(SPIRVOpaqueTypeOpCodeMap::rmap(OC));
+  return getOrCreateOpaquePtrType(M, Name, getOCLOpaqueTypeAddrSpace(OC));
+}
+
 void getFunctionTypeParameterTypes(llvm::FunctionType *FT,
                                    std::vector<Type *> &ArgTys) {
   for (auto I = FT->param_begin(), E = FT->param_end(); I != E; ++I) {
@@ -380,6 +385,10 @@ std::string getSPIRVFuncName(Op OC, StringRef PostFix) {
 std::string getSPIRVFuncName(Op OC, const Type *PRetTy, bool IsSigned) {
   return prefixSPIRVName(getName(OC) + kSPIRVPostfix::Divider +
                          getPostfixForReturnType(PRetTy, IsSigned));
+}
+
+std::string getSPIRVFuncName(SPIRVBuiltinVariableKind BVKind) {
+  return prefixSPIRVName(getName(BVKind));
 }
 
 std::string getSPIRVExtFuncName(SPIRVExtInstSetKind Set, unsigned ExtOp,
@@ -1641,6 +1650,220 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   }
   return true;
 }
+
+void setAttrByCalledFunc(CallInst *Call) {
+  Function *F = Call->getCalledFunction();
+  assert(F);
+  if (F->isIntrinsic()) {
+    return;
+  }
+  Call->setCallingConv(F->getCallingConv());
+  Call->setAttributes(F->getAttributes());
+}
+
+bool isSPIRVBuiltinVariable(GlobalVariable *GV,
+                            SPIRVBuiltinVariableKind *Kind) {
+  if (!GV->hasName() || !getSPIRVBuiltin(GV->getName().str(), *Kind))
+    return false;
+  return true;
+}
+
+// Variable like GlobalInvolcationId[x] -> get_global_id(x).
+// Variable like WorkDim -> get_work_dim().
+// Replace the following pattern:
+// %a = addrspacecast i32 addrspace(1)* @__spirv_BuiltInSubgroupMaxSize to
+// i32 addrspace(4)*
+// %b = load i32, i32 addrspace(4)* %a, align 4
+// %c = load i32, i32 addrspace(4)* %a, align 4
+// With:
+// %b = call spir_func i32 @_Z22get_max_sub_group_sizev()
+// %c = call spir_func i32 @_Z22get_max_sub_group_sizev()
+
+// And replace the following pattern:
+// %a = addrspacecast <3 x i64> addrspace(1)* @__spirv_BuiltInWorkgroupId to
+// <3 x i64> addrspace(4)*
+// %b = load <3 x i64>, <3 x i64> addrspace(4)* %a, align 32
+// %c = extractelement <3 x i64> %b, i32 idx
+// %d = extractelement <3 x i64> %b, i32 idx
+// With:
+// %0 = call spir_func i64 @_Z13get_global_idj(i32 0) #1
+// %1 = insertelement <3 x i64> undef, i64 %0, i32 0
+// %2 = call spir_func i64 @_Z13get_global_idj(i32 1) #1
+// %3 = insertelement <3 x i64> %1, i64 %2, i32 1
+// %4 = call spir_func i64 @_Z13get_global_idj(i32 2) #1
+// %5 = insertelement <3 x i64> %3, i64 %4, i32 2
+// %c = extractelement <3 x i64> %5, i32 idx
+// %d = extractelement <3 x i64> %5, i32 idx
+//
+// Replace the following pattern:
+// %0 = addrspacecast <3 x i64> addrspace(1)* @__spirv_BuiltInWorkgroupSize to
+// <3 x i64> addrspace(4)*
+// %1 = getelementptr <3 x i64>, <3 x i64> addrspace(4)* %0, i64 0, i64 0
+// %2 = load i64, i64 addrspace(4)* %1, align 32
+// With:
+// %0 = call spir_func i64 @_Z13get_global_idj(i32 0) #1
+// %1 = insertelement <3 x i64> undef, i64 %0, i32 0
+// %2 = call spir_func i64 @_Z13get_global_idj(i32 1) #1
+// %3 = insertelement <3 x i64> %1, i64 %2, i32 1
+// %4 = call spir_func i64 @_Z13get_global_idj(i32 2) #1
+// %5 = insertelement <3 x i64> %3, i64 %4, i32 2
+// %6 = extractelement <3 x i64> %5, i32 0
+bool lowerBuiltinVariableToCall(GlobalVariable *GV,
+                                SPIRVBuiltinVariableKind Kind) {
+  // There might be dead constant users of GV (for example, SPIRVLowerConstExpr
+  // replaces ConstExpr uses but those ConstExprs are not deleted, since LLVM
+  // constants are created on demand as needed and never deleted).
+  // Remove them first!
+  GV->removeDeadConstantUsers();
+
+  Module *M = GV->getParent();
+  LLVMContext &C = M->getContext();
+  std::string FuncName = GV->getName().str();
+  Type *GVTy = GV->getType()->getPointerElementType();
+  Type *ReturnTy = GVTy;
+  // Some SPIR-V builtin variables are translated to a function with an index
+  // argument.
+  bool HasIndexArg =
+      ReturnTy->isVectorTy() &&
+      !(BuiltInSubgroupEqMask <= Kind && Kind <= BuiltInSubgroupLtMask);
+  if (HasIndexArg)
+    ReturnTy = cast<VectorType>(ReturnTy)->getElementType();
+  std::vector<Type *> ArgTy;
+  if (HasIndexArg)
+    ArgTy.push_back(Type::getInt32Ty(C));
+  std::string MangledName;
+  mangleOpenClBuiltin(FuncName, ArgTy, MangledName);
+  Function *Func = M->getFunction(MangledName);
+  if (!Func) {
+    FunctionType *FT = FunctionType::get(ReturnTy, ArgTy, false);
+    Func = Function::Create(FT, GlobalValue::ExternalLinkage, MangledName, M);
+    Func->setCallingConv(CallingConv::SPIR_FUNC);
+    Func->addFnAttr(Attribute::NoUnwind);
+    Func->addFnAttr(Attribute::ReadNone);
+    Func->addFnAttr(Attribute::WillReturn);
+  }
+
+  // Collect instructions in these containers to remove them later.
+  std::vector<Instruction *> Loads;
+  std::vector<Instruction *> Casts;
+  std::vector<Instruction *> GEPs;
+
+  auto Replace = [&](std::vector<Value *> Arg, Instruction *I) {
+    auto *Call = CallInst::Create(Func, Arg, "", I);
+    Call->takeName(I);
+    setAttrByCalledFunc(Call);
+    SPIRVDBG(dbgs() << "[lowerBuiltinVariableToCall] " << *I << " -> " << *Call
+                    << '\n';)
+    I->replaceAllUsesWith(Call);
+  };
+
+  // If HasIndexArg is true, we create 3 built-in calls and insertelement to
+  // get 3-element vector filled with ids and replace uses of Load instruction
+  // with this vector.
+  // If HasIndexArg is false, the result of the Load instruction is the value
+  // which should be replaced with the Func.
+  // Returns true if Load was replaced, false otherwise.
+  auto ReplaceIfLoad = [&](User *I) {
+    auto *LD = dyn_cast<LoadInst>(I);
+    if (!LD)
+      return false;
+    std::vector<Value *> Vectors;
+    Loads.push_back(LD);
+    if (HasIndexArg) {
+      auto *VecTy = cast<FixedVectorType>(GVTy);
+      Value *EmptyVec = UndefValue::get(VecTy);
+      Vectors.push_back(EmptyVec);
+      const DebugLoc &DLoc = LD->getDebugLoc();
+      for (unsigned I = 0; I < VecTy->getNumElements(); ++I) {
+        auto *Idx = ConstantInt::get(Type::getInt32Ty(C), I);
+        auto *Call = CallInst::Create(Func, {Idx}, "", LD);
+        if (DLoc)
+          Call->setDebugLoc(DLoc);
+        setAttrByCalledFunc(Call);
+        auto *Insert = InsertElementInst::Create(Vectors.back(), Call, Idx);
+        if (DLoc)
+          Insert->setDebugLoc(DLoc);
+        Insert->insertAfter(Call);
+        Vectors.push_back(Insert);
+      }
+
+      Value *Ptr = LD->getPointerOperand();
+
+      if (isa<FixedVectorType>(Ptr->getType()->getPointerElementType())) {
+        LD->replaceAllUsesWith(Vectors.back());
+      } else {
+        auto *GEP = dyn_cast<GetElementPtrInst>(Ptr);
+        assert(GEP && "Unexpected pattern!");
+        assert(GEP->getNumIndices() == 2 && "Unexpected pattern!");
+        Value *Idx = GEP->getOperand(2);
+        Value *Vec = Vectors.back();
+        auto *NewExtract = ExtractElementInst::Create(Vec, Idx);
+        NewExtract->insertAfter(cast<Instruction>(Vec));
+        LD->replaceAllUsesWith(NewExtract);
+      }
+
+    } else {
+      Replace({}, LD);
+    }
+
+    return true;
+  };
+
+  // Go over the GV users, find Load and ExtractElement instructions and
+  // replace them with the corresponding function call.
+  for (auto *UI : GV->users()) {
+    // There might or might not be an addrspacecast instruction.
+    if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(UI)) {
+      Casts.push_back(ASCast);
+      for (auto *CastUser : ASCast->users()) {
+        if (ReplaceIfLoad(CastUser))
+          continue;
+        if (auto *GEP = dyn_cast<GetElementPtrInst>(CastUser)) {
+          GEPs.push_back(GEP);
+          for (auto *GEPUser : GEP->users()) {
+            if (!ReplaceIfLoad(GEPUser))
+              llvm_unreachable("Unexpected pattern!");
+          }
+        } else {
+          llvm_unreachable("Unexpected pattern!");
+        }
+      }
+    } else if (!ReplaceIfLoad(UI)) {
+      llvm_unreachable("Unexpected pattern!");
+    }
+  }
+
+  auto Erase = [](std::vector<Instruction *> &ToErase) {
+    for (Instruction *I : ToErase) {
+      assert(I->hasNUses(0));
+      I->eraseFromParent();
+    }
+  };
+  // Order of erasing is important.
+  Erase(Loads);
+  Erase(GEPs);
+  Erase(Casts);
+
+  return true;
+}
+
+bool lowerBuiltinVariablesToCalls(Module *M) {
+  std::vector<GlobalVariable *> WorkList;
+  for (auto I = M->global_begin(), E = M->global_end(); I != E; ++I) {
+    SPIRVBuiltinVariableKind Kind;
+    if (!isSPIRVBuiltinVariable(&(*I), &Kind))
+      continue;
+    if (!lowerBuiltinVariableToCall(&(*I), Kind))
+      return false;
+    WorkList.push_back(&(*I));
+  }
+  for (auto &I : WorkList) {
+    I->eraseFromParent();
+  }
+
+  return true;
+}
+
 } // namespace SPIRV
 
 namespace {
