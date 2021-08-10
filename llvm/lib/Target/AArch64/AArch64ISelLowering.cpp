@@ -1273,6 +1273,7 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::SPLAT_VECTOR, VT, Custom);
       setOperationAction(ISD::SELECT, VT, Custom);
       setOperationAction(ISD::FADD, VT, Custom);
+      setOperationAction(ISD::FCOPYSIGN, VT, Custom);
       setOperationAction(ISD::FDIV, VT, Custom);
       setOperationAction(ISD::FMA, VT, Custom);
       setOperationAction(ISD::FMAXIMUM, VT, Custom);
@@ -4360,8 +4361,13 @@ SDValue AArch64TargetLowering::LowerMGATHER(SDValue Op,
   if (IsFixedLength) {
     assert(Subtarget->useSVEForFixedLengthVectors() &&
            "Cannot lower when not using SVE for fixed vectors");
-    IndexVT = getContainerForFixedLengthVector(DAG, IndexVT);
-    MemVT = IndexVT.changeVectorElementType(MemVT.getVectorElementType());
+    if (MemVT.getScalarSizeInBits() <= IndexVT.getScalarSizeInBits()) {
+      IndexVT = getContainerForFixedLengthVector(DAG, IndexVT);
+      MemVT = IndexVT.changeVectorElementType(MemVT.getVectorElementType());
+    } else {
+      MemVT = getContainerForFixedLengthVector(DAG, MemVT);
+      IndexVT = MemVT.changeTypeToInteger();
+    }
     InputVT = DAG.getValueType(MemVT.changeTypeToInteger());
     Mask = DAG.getNode(
         ISD::ZERO_EXTEND, DL,
@@ -4460,8 +4466,13 @@ SDValue AArch64TargetLowering::LowerMSCATTER(SDValue Op,
   if (IsFixedLength) {
     assert(Subtarget->useSVEForFixedLengthVectors() &&
            "Cannot lower when not using SVE for fixed vectors");
-    IndexVT = getContainerForFixedLengthVector(DAG, IndexVT);
-    MemVT = IndexVT.changeVectorElementType(MemVT.getVectorElementType());
+    if (MemVT.getScalarSizeInBits() <= IndexVT.getScalarSizeInBits()) {
+      IndexVT = getContainerForFixedLengthVector(DAG, IndexVT);
+      MemVT = IndexVT.changeVectorElementType(MemVT.getVectorElementType());
+    } else {
+      MemVT = getContainerForFixedLengthVector(DAG, MemVT);
+      IndexVT = MemVT.changeTypeToInteger();
+    }
     InputVT = DAG.getValueType(MemVT.changeTypeToInteger());
 
     StoreVal =
@@ -6985,6 +6996,30 @@ SDValue AArch64TargetLowering::LowerFCOPYSIGN(SDValue Op,
   SDValue In1 = Op.getOperand(0);
   SDValue In2 = Op.getOperand(1);
   EVT SrcVT = In2.getValueType();
+
+  if (VT.isScalableVector()) {
+    if (VT != SrcVT)
+      return SDValue();
+
+    // copysign(x,y) -> (y & SIGN_MASK) | (x & ~SIGN_MASK)
+    //
+    // A possible alternative sequence involves using FNEG_MERGE_PASSTHRU;
+    // maybe useful for copysign operations with mismatched VTs.
+    //
+    // IntVT here is chosen so it's a legal type with the same element width
+    // as the input.
+    EVT IntVT =
+        getPackedSVEVectorVT(VT.getVectorElementType().changeTypeToInteger());
+    unsigned NumBits = VT.getScalarSizeInBits();
+    SDValue SignMask = DAG.getConstant(APInt::getSignMask(NumBits), DL, IntVT);
+    SDValue InvSignMask = DAG.getNOT(DL, SignMask, IntVT);
+    SDValue Sign = DAG.getNode(ISD::AND, DL, IntVT, SignMask,
+                               getSVESafeBitCast(IntVT, In2, DAG));
+    SDValue Magnitude = DAG.getNode(ISD::AND, DL, IntVT, InvSignMask,
+                                    getSVESafeBitCast(IntVT, In1, DAG));
+    SDValue IntResult = DAG.getNode(ISD::OR, DL, IntVT, Sign, Magnitude);
+    return getSVESafeBitCast(VT, IntResult, DAG);
+  }
 
   if (SrcVT.bitsLT(VT))
     In2 = DAG.getNode(ISD::FP_EXTEND, DL, VT, In2);
