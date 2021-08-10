@@ -1413,10 +1413,11 @@ static Error UnbundleFiles() {
       // triple there might be either one with 'sycldevice' environment or with
       // 'unknown' environment, but not both. So we will look for any of these
       // two variants.
+      if (!CurTriple.startswith("sycl-") || !CurTriple.endswith("-sycldevice"))
+        continue;
       Output =
           Worklist.find(CurTriple.drop_back(11 /*length of "-sycldevice"*/));
-      if (!CurTriple.startswith("sycl-") ||
-          !CurTriple.endswith("-sycldevice") || Output == Worklist.end())
+      if (Output == Worklist.end())
         continue;
     }
 
