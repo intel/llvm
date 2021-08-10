@@ -60,7 +60,7 @@ public:
   template <
       typename... ArgTN, typename = EnableIfSuitableTypes<ArgTN...>,
       typename = typename std::enable_if<sizeof...(ArgTN) == NumElements>::type>
-  constexpr marray(const ArgTN &...Args) : MData{Args...} {}
+  constexpr marray(const ArgTN &... Args) : MData{Args...} {}
 
   constexpr marray(const marray<Type, NumElements> &Rhs) {
     for (std::size_t I = 0; I < NumElements; ++I) {
