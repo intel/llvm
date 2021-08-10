@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
-// expected-no-diagnostics
 
 #include <sycl/ext/intel/experimental/esimd.hpp>
 #include <limits>
@@ -61,4 +60,14 @@ bool test_simd_view_assign3() __attribute__((sycl_device)) {
   simd<ushort, 16> val1 =
       (g4.row(2) & mask2.bit_cast_view<ushort, 4, 16>().row(0));
   return val[0] == 0 && val1[0] == 0;
+}
+
+void test_simd_view_subscript() SYCL_ESIMD_FUNCTION {
+  simd<int, 4> v = 1;
+  auto vv = v.select<2, 1>(0);
+
+  int x = vv[1];
+  // expected-warning@+2 2 {{deprecated}}
+  // expected-note@sycl/ext/intel/experimental/esimd/detail/simd_view_impl.hpp:* 2 {{has been explicitly marked deprecated here}}
+  int y = vv(1);
 }
