@@ -12,7 +12,7 @@
 // UNSUPPORTED: windows
 // RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || rocm
 // The test fails on JITing due to use of too many registers
 // REQUIRES: TEMPORARY_DISBLED
 //

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || rocm
 // RUN: %clangxx -fsycl -DUSE_REF %s -I%S/.. -o %t.ref.out
 // RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.ref.out 3 2 1

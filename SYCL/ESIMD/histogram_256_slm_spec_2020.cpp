@@ -1,6 +1,6 @@
 // TODO enable on Windows
 // REQUIRES: linux && gpu
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || rocm
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out 16
 

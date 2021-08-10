@@ -6,7 +6,7 @@
 // RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 //
 // -fsycl-device-code-split is not supported for cuda
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || rocm
 
 #include <CL/sycl.hpp>
 

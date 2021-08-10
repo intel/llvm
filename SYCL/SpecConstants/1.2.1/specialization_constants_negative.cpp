@@ -3,7 +3,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // Specialization constants are not supported on FPGA h/w and emulator.
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || rocm
 //
 //==----------- specialization_constants_negative.cpp ----------------------==//
 //

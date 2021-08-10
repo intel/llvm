@@ -12,7 +12,7 @@
 // UNSUPPORTED: windows
 // RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || rocm
 //
 // The test checks that ESIMD kernels correctly handle function pointers as
 // arguments of LLVM's PHI function.

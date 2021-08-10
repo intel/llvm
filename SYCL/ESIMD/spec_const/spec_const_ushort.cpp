@@ -18,7 +18,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %clangxx -fsycl -I%S/.. -DSYCL2020 %s -o %t.2020.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.2020.out
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || rocm
 
 #include <cstdint>
 

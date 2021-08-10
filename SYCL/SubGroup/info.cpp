@@ -1,5 +1,5 @@
 // See https://github.com/intel/llvm/issues/2922 for more info
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || rocm
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out

@@ -8,7 +8,7 @@
 // REQUIRES: gpu
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || rocm
 
 #include "esimd_test_utils.hpp"
 

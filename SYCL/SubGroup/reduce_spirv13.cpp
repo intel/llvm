@@ -2,7 +2,7 @@
 // #2252 Disable until all variants of built-ins are available in OpenCL CPU
 // runtime for every supported ISA
 
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || rocm
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out

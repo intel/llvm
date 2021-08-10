@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || rocm
 // CUDA does not support the function pointer as kernel argument extension.
 
 // RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl %s -o %t.out

@@ -8,7 +8,7 @@
 // REQUIRES: gpu
 // Recursion is not supported in ESIMD (intel/llvm PR#3390)
 // REQUIRES: TEMPORARY_DISBLED
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || rocm
 // RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //

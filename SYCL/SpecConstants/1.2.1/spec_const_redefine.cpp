@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || rocm
 //
 // FIXME Disable fallback assert so that it doesn't interferes with number of
 // program builds at run-time

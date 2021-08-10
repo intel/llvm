@@ -12,7 +12,7 @@
 // REQUIRES: TEMPORARY_DISABLED
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env IGC_FunctionControl=3 IGC_ForceInlineStackCallWithImplArg=1 %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || rocm
 //
 // The test checks that ESIMD kernels support call of noinline function from
 // within other functions.
