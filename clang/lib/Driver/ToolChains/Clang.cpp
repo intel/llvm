@@ -8660,10 +8660,17 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
       Targets += ',';
     Targets += Action::GetOffloadKindName(Dep.DependentOffloadKind);
     Targets += '-';
-    Targets += Dep.DependentToolChain->getTriple().normalize();
-    if (Dep.DependentOffloadKind == Action::OFK_HIP &&
+    std::string NormalizedTriple =
+        Dep.DependentToolChain->getTriple().normalize();
+    Targets += NormalizedTriple;
+    if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
+         Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
-      Targets += '-';
+      // If OffloadArch is present it can only appear as the 6th hypen
+      // sepearated field of Bundle Entry ID. So, pad required number of
+      // hyphens in Triple.
+      for (int i = 4 - StringRef(NormalizedTriple).count("-"); i > 0; i--)
+        Targets += '-';
       Targets += Dep.DependentBoundArch;
     }
   }
