@@ -28,6 +28,12 @@
 
 #include "usm_allocator.hpp"
 
+extern "C" {
+// Forward declarartions.
+static pi_result EventRelease(pi_event Event, pi_queue LockedQueue);
+static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue);
+}
+
 namespace {
 
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT
@@ -708,21 +714,16 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   ZE_CALL(zeCommandListReset, (CommandList->first));
   CommandList->second.InUse = false;
 
-  // TODO: remove this unlock!!!
-  PiQueueMutex.unlock();
-
   // Finally release/cleanup all the events in this command list.
   // NOTE: only those that were not explicitly waited before need
   // this handling.
   auto &EventList = CommandList->second.EventList;
-  PI_CALL(piEventsWait(EventList.size(), EventList.data()));
   for (auto &Event : EventList) {
-    PI_CALL(piEventRelease(Event));
+    ZE_CALL(zeHostSynchronize, (Event->ZeEvent));
+    Event->cleanup(this);
+    PI_CALL(EventRelease(Event, this));
   }
   EventList.clear();
-
-  // TODO: remove this lock!!!
-  PiQueueMutex.lock();
 
   if (MakeAvailable) {
     std::lock_guard<std::mutex> lock(this->Context->ZeCommandListCacheMutex);
@@ -2650,13 +2651,21 @@ pi_result piQueueRetain(pi_queue Queue) {
 }
 
 pi_result piQueueRelease(pi_queue Queue) {
+  return QueueRelease(Queue, nullptr);
+}
+
+static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   // We need to use a bool variable here to check the condition that
   // RefCount becomes zero atomically with PiQueueMutex lock.
   // Then, we can release the lock before we remove the Queue below.
   bool RefCountZero = false;
   {
-    std::lock_guard<std::mutex> Lock(Queue->PiQueueMutex);
+    std::mutex NoLock;
+    auto Lock = ((Queue == LockedQueue)
+                     ? std::lock_guard<std::mutex>(NoLock)
+                     : std::lock_guard<std::mutex>(Queue->PiQueueMutex));
+
     Queue->RefCount--;
     if (Queue->RefCount == 0)
       RefCountZero = true;
@@ -4407,7 +4416,7 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 // Perform any necessary cleanup after an event has been signalled.
 // This currently recycles the associate command list, and also makes
 // sure to release any kernel that may have been used by the event.
-pi_result _pi_event::cleanup() {
+pi_result _pi_event::cleanup(pi_queue LockedQueue) {
   // The implementation of this is slightly tricky.  The same event
   // can be referred to by multiple threads, so it is possible to
   // have a race condition between the read of fields of the event,
@@ -4419,7 +4428,10 @@ pi_result _pi_event::cleanup() {
   // part of the cleanup operations.
   if (Queue) {
     // Lock automatically releases when this goes out of scope.
-    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+    std::mutex NoLock;
+    auto Lock = ((Queue == LockedQueue)
+                     ? std::lock_guard<std::mutex>(NoLock)
+                     : std::lock_guard<std::mutex>(Queue->PiQueueMutex));
 
     if (ZeCommandList) {
       // Event has been signalled: If the fence for the associated command list
@@ -4481,7 +4493,7 @@ pi_result _pi_event::cleanup() {
     // NOTE: that this needs to be done only once for an event so
     // this is guarded with the CleanedUp flag.
     //
-    PI_CALL(piEventRelease(this));
+    PI_CALL(EventRelease(this, LockedQueue));
   }
 
   // Make a list of all the dependent events that must have signalled
@@ -4508,14 +4520,19 @@ pi_result _pi_event::cleanup() {
       // twice, so it is safe. Lock automatically releases when this goes out of
       // scope.
       // TODO: this code needs to be moved out of the guard.
-      std::lock_guard<std::mutex> lock(DepEvent->Queue->PiQueueMutex);
+      std::mutex NoLock;
+      auto Lock =
+          ((DepEvent->Queue == LockedQueue)
+               ? std::lock_guard<std::mutex>(NoLock)
+               : std::lock_guard<std::mutex>(DepEvent->Queue->PiQueueMutex));
+
       if (DepEvent->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
           DepEvent->CommandData) {
         PI_CALL(piKernelRelease(pi_cast<pi_kernel>(DepEvent->CommandData)));
         DepEvent->CommandData = nullptr;
       }
     }
-    PI_CALL(piEventRelease(DepEvent));
+    PI_CALL(EventRelease(DepEvent, LockedQueue));
   }
 
   return PI_SUCCESS;
@@ -4580,6 +4597,10 @@ pi_result piEventRetain(pi_event Event) {
 }
 
 pi_result piEventRelease(pi_event Event) {
+  return EventRelease(Event, nullptr);
+}
+
+static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
   PI_ASSERT(Event, PI_INVALID_EVENT);
   if (!Event->RefCount) {
     die("piEventRelease: called on a destroyed event");
@@ -4587,7 +4608,7 @@ pi_result piEventRelease(pi_event Event) {
 
   if (--(Event->RefCount) == 0) {
     if (!Event->CleanedUp)
-      Event->cleanup();
+      Event->cleanup(LockedQueue);
 
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {
@@ -4614,7 +4635,7 @@ pi_result piEventRelease(pi_event Event) {
     // pi_event is released. Here we have to decrement it so pi_queue
     // can be released successfully.
     if (Event->Queue) {
-      PI_CALL(piQueueRelease(Event->Queue));
+      PI_CALL(QueueRelease(Event->Queue, LockedQueue));
     }
     delete Event;
   }
