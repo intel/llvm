@@ -2661,10 +2661,9 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
   // Then, we can release the lock before we remove the Queue below.
   bool RefCountZero = false;
   {
-    std::mutex NoLock;
     auto Lock = ((Queue == LockedQueue)
-                     ? std::lock_guard<std::mutex>(NoLock)
-                     : std::lock_guard<std::mutex>(Queue->PiQueueMutex));
+                     ? std::unique_lock<std::mutex>()
+                     : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
 
     Queue->RefCount--;
     if (Queue->RefCount == 0)
@@ -4428,10 +4427,9 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
   // part of the cleanup operations.
   if (Queue) {
     // Lock automatically releases when this goes out of scope.
-    std::mutex NoLock;
     auto Lock = ((Queue == LockedQueue)
-                     ? std::lock_guard<std::mutex>(NoLock)
-                     : std::lock_guard<std::mutex>(Queue->PiQueueMutex));
+                     ? std::unique_lock<std::mutex>()
+                     : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
 
     if (ZeCommandList) {
       // Event has been signalled: If the fence for the associated command list
@@ -4520,11 +4518,10 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
       // twice, so it is safe. Lock automatically releases when this goes out of
       // scope.
       // TODO: this code needs to be moved out of the guard.
-      std::mutex NoLock;
       auto Lock =
           ((DepEvent->Queue == LockedQueue)
-               ? std::lock_guard<std::mutex>(NoLock)
-               : std::lock_guard<std::mutex>(DepEvent->Queue->PiQueueMutex));
+               ? std::unique_lock<std::mutex>()
+               : std::unique_lock<std::mutex>(DepEvent->Queue->PiQueueMutex));
 
       if (DepEvent->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
           DepEvent->CommandData) {
