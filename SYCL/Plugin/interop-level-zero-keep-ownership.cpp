@@ -29,8 +29,44 @@ int main() {
   { // Scope in which SYCL interop context object is live
     vector_class<device> Devices{};
     Devices.push_back(Device);
-    auto ContextInterop = level_zero::make<context>(
-        Devices, ZeContext, level_zero::ownership::keep);
+    auto Context = level_zero::make<context>(Devices, ZeContext,
+                                             level_zero::ownership::keep);
+
+    // Create L0 event pool
+    ze_event_pool_handle_t ZeEventPool;
+    ze_event_pool_desc_t ZeEventPoolDesc{};
+    ZeEventPoolDesc.stype = ZE_STRUCTURE_TYPE_EVENT_POOL_DESC;
+    ZeEventPoolDesc.count = 1;
+    ZeEventPoolDesc.flags = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
+    zeEventPoolCreate(ZeContext, &ZeEventPoolDesc, 1, &ZeDevice, &ZeEventPool);
+
+    // Create L0 event
+    ze_event_handle_t ZeEvent;
+    ze_event_desc_t ZeEventDesc{};
+    ZeEventDesc.stype = ZE_STRUCTURE_TYPE_EVENT_DESC;
+    ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
+    ZeEventDesc.wait = 0;
+    ZeEventDesc.index = 0;
+    zeEventCreate(ZeEventPool, &ZeEventDesc, &ZeEvent);
+
+    { // Scope in which SYCL interop event is alive
+      int i = 0;
+      event Event = level_zero::make<event>(Context, ZeEvent,
+                                            level_zero::ownership::keep);
+
+      info::event_command_status status;
+      do {
+        status = Event.get_info<info::event::command_execution_status>();
+        printf("%d: %s\n", i,
+               status == info::event_command_status::complete ? "complete"
+                                                              : "!complete");
+        if (++i == 5) {
+          zeEventHostSignal(ZeEvent);
+        }
+      } while (status != info::event_command_status::complete);
+    }
+    zeEventDestroy(ZeEvent);
+    zeEventPoolDestroy(ZeEventPool);
   }
 
   // Verifies that Level-Zero context is not destroyed by SYCL RT yet.
