@@ -64,5 +64,6 @@
 /// Test for -fsycl-footer-path=<dir>
 // RUN:  %clangxx -fsycl -fsycl-footer-path=dummy_dir %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER_PATH %s
-// FOOTER_PATH: append-file{{.*}} "--output=dummy_dir{{(/|\\\\)}}[[APPENDEDSRC:.+\.cpp]]"
+// FOOTER_PATH: append-file{{.*}} "--append=dummy_dir{{(/|\\\\)}}{{.*}}-footer-{{.*}}.h"
+// FOOTER_PATH-SAME: "--output=dummy_dir{{(/|\\\\)}}[[APPENDEDSRC:.+\.cpp]]"
 // FOOTER_PATH: clang{{.*}} "-x" "c++" "dummy_dir{{(/|\\\\)}}[[APPENDEDSRC]]"
