@@ -5351,6 +5351,14 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
           llvm::sys::path::stem(SrcFileName).str() + "-footer", "h");
       StringRef TmpFileFooter =
           C.addTempFile(C.getArgs().MakeArgString(TmpFileNameFooter));
+      // Use of -fsycl-footer-path puts the integration footer into that
+      // specified location.
+      if (Arg *A = C.getArgs().getLastArg(options::OPT_fsycl_footer_path_EQ)) {
+        SmallString<128> OutName(A->getValue());
+        llvm::sys::path::append(OutName,
+                                llvm::sys::path::filename(TmpFileNameFooter));
+        TmpFileFooter = C.addTempFile(C.getArgs().MakeArgString(OutName));
+      }
       addIntegrationFiles(TmpFileHeader, TmpFileFooter, SrcFileName);
     }
   }
