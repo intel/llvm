@@ -715,12 +715,12 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   CommandList->second.InUse = false;
 
   // Finally release/cleanup all the events in this command list.
-  // NOTE: only those that were not explicitly waited before need
-  // this handling.
   auto &EventList = CommandList->second.EventList;
   for (auto &Event : EventList) {
-    ZE_CALL(zeHostSynchronize, (Event->ZeEvent));
-    Event->cleanup(this);
+    if (!Event->CleanedUp) {
+      ZE_CALL(zeHostSynchronize, (Event->ZeEvent));
+      Event->cleanup(this);
+    }
     PI_CALL(EventRelease(Event, this));
   }
   EventList.clear();
