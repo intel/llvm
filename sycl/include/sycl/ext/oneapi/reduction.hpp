@@ -2034,7 +2034,7 @@ reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
 /// the computed reduction must be stored \param VarPtr, identity value
 /// \param Identity, and the binary operation used in the reduction.
 template <typename T, class BinaryOperation>
-detail::reduction_impl<T, BinaryOperation, 0, true>
+detail::reduction_impl<T, BinaryOperation, 1, true>
 reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
   return {VarPtr, Identity, BOp};
 }
@@ -2046,7 +2046,7 @@ reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
 /// The identity value is not passed to this version as it is statically known.
 template <typename T, class BinaryOperation>
 std::enable_if_t<detail::IsKnownIdentityOp<T, BinaryOperation>::value,
-                 detail::reduction_impl<T, BinaryOperation, 0, true>>
+                 detail::reduction_impl<T, BinaryOperation, 1, true>>
 reduction(T *VarPtr, BinaryOperation) {
   return {VarPtr};
 }
