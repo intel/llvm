@@ -28,8 +28,7 @@ void sub_fetch_test(queue q, size_t N) {
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, ONEAPI::memory_order::relaxed,
-                              ONEAPI::memory_scope::device,
+        auto atm = atomic_ref<T, memory_order::relaxed, memory_scope::device,
                               access::address_space::global_space>(val[0]);
         out[gid] = atm.fetch_sub(Difference(1));
       });
@@ -64,8 +63,7 @@ void sub_plus_equal_test(queue q, size_t N) {
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, ONEAPI::memory_order::relaxed,
-                              ONEAPI::memory_scope::device,
+        auto atm = atomic_ref<T, memory_order::relaxed, memory_scope::device,
                               access::address_space::global_space>(val[0]);
         out[gid] = atm -= Difference(1);
       });
@@ -100,8 +98,7 @@ void sub_pre_dec_test(queue q, size_t N) {
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, ONEAPI::memory_order::relaxed,
-                              ONEAPI::memory_scope::device,
+        auto atm = atomic_ref<T, memory_order::relaxed, memory_scope::device,
                               access::address_space::global_space>(val[0]);
         out[gid] = --atm;
       });
@@ -136,8 +133,7 @@ void sub_post_dec_test(queue q, size_t N) {
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, ONEAPI::memory_order::relaxed,
-                              ONEAPI::memory_scope::device,
+        auto atm = atomic_ref<T, memory_order::relaxed, memory_scope::device,
                               access::address_space::global_space>(val[0]);
         out[gid] = atm--;
       });
