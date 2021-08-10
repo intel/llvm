@@ -35,13 +35,13 @@ def parse_readobj_output(output):
   parsed_symbols = []
   for sym in symbols:
     # Name section on Linux has the following structure:
-    # SYMBOL_NAME (ID)
+    # SYMBOL_NAME (ID)\n
     # regex takes SYMBOL_NAME before the space.
     # Name section on Windows has the following structure
-    # SYMBOL_NAME
+    # SYMBOL_NAME\n
     # and has special characters in comparison with symbols
     # on Linux
-    name = re.search(r"(?<=Name:\s)[^ ]+", sym)
+    name = re.search(r"(?<=Name:\s)[^ \n]+", sym)
     if os.name == 'nt':
       # no additional info about the symbols on Windows in comparison with symbols on Linux below
       parsed_symbols.append(name.group())
