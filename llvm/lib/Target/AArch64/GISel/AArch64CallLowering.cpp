@@ -181,7 +181,18 @@ struct IncomingArgHandler : public CallLowering::IncomingValueHandler {
     auto MMO = MF.getMachineMemOperand(
         MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, LocTy,
         inferAlignFromPtrInfo(MF, MPO));
-    MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
+
+    switch (VA.getLocInfo()) {
+    case CCValAssign::LocInfo::ZExt:
+      MIRBuilder.buildLoadInstr(TargetOpcode::G_ZEXTLOAD, ValVReg, Addr, *MMO);
+      return;
+    case CCValAssign::LocInfo::SExt:
+      MIRBuilder.buildLoadInstr(TargetOpcode::G_SEXTLOAD, ValVReg, Addr, *MMO);
+      return;
+    default:
+      MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
+      return;
+    }
   }
 
   /// How the physical register gets marked varies between formal
@@ -362,11 +373,6 @@ bool AArch64CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
     CallingConv::ID CC = F.getCallingConv();
 
     for (unsigned i = 0; i < SplitEVTs.size(); ++i) {
-      if (TLI.getNumRegistersForCallingConv(Ctx, CC, SplitEVTs[i]) > 1) {
-        LLVM_DEBUG(dbgs() << "Can't handle extended arg types which need split");
-        return false;
-      }
-
       Register CurVReg = VRegs[i];
       ArgInfo CurArgInfo = ArgInfo{CurVReg, SplitEVTs[i].getTypeForEVT(Ctx), 0};
       setArgFlags(CurArgInfo, AttributeList::ReturnIndex, DL, F);
@@ -375,7 +381,8 @@ bool AArch64CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
       // when widened using ANYEXT. We need to do it explicitly here.
       if (MRI.getType(CurVReg).getSizeInBits() == 1) {
         CurVReg = MIRBuilder.buildZExt(LLT::scalar(8), CurVReg).getReg(0);
-      } else {
+      } else if (TLI.getNumRegistersForCallingConv(Ctx, CC, SplitEVTs[i]) ==
+                 1) {
         // Some types will need extending as specified by the CC.
         MVT NewVT = TLI.getRegisterTypeForCallingConv(Ctx, CC, SplitEVTs[i]);
         if (EVT(NewVT) != SplitEVTs[i]) {

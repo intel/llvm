@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
 #include "CommonArgs.h"
-#include "InputInfo.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
 #include "llvm/Support/CommandLine.h"
@@ -517,7 +517,18 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   if (Arg *FinalOutput = Args.getLastArg(options::OPT_o, options::OPT__SLASH_o,
                                          options::OPT__SLASH_Fe)) {
     SmallString<128> FN(FinalOutput->getValue());
-    FN.append(".prj");
+    // For "-o file.xxx" where the option value has an extension, if the
+    // extension is one of .a .o .out .lib .obj .exe, the output project
+    // directory name will be file.proj which omits the extension. Otherwise
+    // the output project directory name will be file.xxx.prj which keeps
+    // the original extension.
+    StringRef Ext = llvm::sys::path::extension(FN);
+    SmallVector<StringRef, 6> Exts = {".o",   ".a",   ".out",
+                                      ".obj", ".lib", ".exe"};
+    if (std::find(Exts.begin(), Exts.end(), Ext) != Exts.end())
+      llvm::sys::path::replace_extension(FN, "prj");
+    else
+      FN.append(".prj");
     const char *FolderName = Args.MakeArgString(FN);
     ReportOptArg += FolderName;
   } else {

@@ -1266,7 +1266,6 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
               // May need relegalization for the scalars.
               return std::make_pair(0, EltTy);
             })
-    .lowerIfMemSizeNotPow2()
     .minScalar(0, S32)
     .narrowScalarIf(isWideScalarExtLoadTruncStore(0), changeTo(0, S32))
     .widenScalarToNextPow2(0)
@@ -3650,19 +3649,17 @@ bool AMDGPULegalizerInfo::legalizeIsAddrSpace(MachineInstr &MI,
 // (the offset that is excluded from bounds checking and swizzling, to go in
 // the instruction's soffset field).  This function takes the first kind of
 // offset and figures out how to split it between voffset and immoffset.
-std::tuple<Register, unsigned, unsigned>
+std::pair<Register, unsigned>
 AMDGPULegalizerInfo::splitBufferOffsets(MachineIRBuilder &B,
                                         Register OrigOffset) const {
   const unsigned MaxImm = 4095;
   Register BaseReg;
-  unsigned TotalConstOffset;
+  unsigned ImmOffset;
   const LLT S32 = LLT::scalar(32);
   MachineRegisterInfo &MRI = *B.getMRI();
 
-  std::tie(BaseReg, TotalConstOffset) =
+  std::tie(BaseReg, ImmOffset) =
       AMDGPU::getBaseWithConstantOffset(MRI, OrigOffset);
-
-  unsigned ImmOffset = TotalConstOffset;
 
   // If BaseReg is a pointer, convert it to int.
   if (MRI.getType(BaseReg).isPointer())
@@ -3694,7 +3691,32 @@ AMDGPULegalizerInfo::splitBufferOffsets(MachineIRBuilder &B,
   if (!BaseReg)
     BaseReg = B.buildConstant(S32, 0).getReg(0);
 
-  return std::make_tuple(BaseReg, ImmOffset, TotalConstOffset);
+  return std::make_pair(BaseReg, ImmOffset);
+}
+
+/// Update \p MMO based on the offset inputs to a raw/struct buffer intrinsic.
+void AMDGPULegalizerInfo::updateBufferMMO(MachineMemOperand *MMO,
+                                          Register VOffset, Register SOffset,
+                                          unsigned ImmOffset, Register VIndex,
+                                          MachineRegisterInfo &MRI) const {
+  Optional<ValueAndVReg> MaybeVOffsetVal =
+      getConstantVRegValWithLookThrough(VOffset, MRI);
+  Optional<ValueAndVReg> MaybeSOffsetVal =
+      getConstantVRegValWithLookThrough(SOffset, MRI);
+  Optional<ValueAndVReg> MaybeVIndexVal =
+      getConstantVRegValWithLookThrough(VIndex, MRI);
+  // If the combined VOffset + SOffset + ImmOffset + strided VIndex is constant,
+  // update the MMO with that offset. The stride is unknown so we can only do
+  // this if VIndex is constant 0.
+  if (MaybeVOffsetVal && MaybeSOffsetVal && MaybeVIndexVal &&
+      MaybeVIndexVal->Value == 0) {
+    uint64_t TotalOffset = MaybeVOffsetVal->Value.getZExtValue() +
+                           MaybeSOffsetVal->Value.getZExtValue() + ImmOffset;
+    MMO->setOffset(TotalOffset);
+  } else {
+    // We don't have a constant combined offset to use in the MMO. Give up.
+    MMO->setValue((Value *)nullptr);
+  }
 }
 
 /// Handle register layout difference for f16 images for some subtargets.
@@ -3798,7 +3820,6 @@ bool AMDGPULegalizerInfo::legalizeBufferStore(MachineInstr &MI,
   const int MemSize = MMO->getSize();
 
   unsigned ImmOffset;
-  unsigned TotalOffset;
 
   // The typed intrinsics add an immediate after the registers.
   const unsigned NumVIndexOps = IsTyped ? 8 : 7;
@@ -3810,6 +3831,8 @@ bool AMDGPULegalizerInfo::legalizeBufferStore(MachineInstr &MI,
   if (HasVIndex) {
     VIndex = MI.getOperand(3).getReg();
     OpOffset = 1;
+  } else {
+    VIndex = B.buildConstant(S32, 0).getReg(0);
   }
 
   Register VOffset = MI.getOperand(3 + OpOffset).getReg();
@@ -3823,9 +3846,8 @@ bool AMDGPULegalizerInfo::legalizeBufferStore(MachineInstr &MI,
 
   unsigned AuxiliaryData = MI.getOperand(5 + OpOffset).getImm();
 
-  std::tie(VOffset, ImmOffset, TotalOffset) = splitBufferOffsets(B, VOffset);
-  if (TotalOffset != 0)
-    MMO = B.getMF().getMachineMemOperand(MMO, TotalOffset, MemSize);
+  std::tie(VOffset, ImmOffset) = splitBufferOffsets(B, VOffset);
+  updateBufferMMO(MMO, VOffset, SOffset, ImmOffset, VIndex, MRI);
 
   unsigned Opc;
   if (IsTyped) {
@@ -3847,9 +3869,6 @@ bool AMDGPULegalizerInfo::legalizeBufferStore(MachineInstr &MI,
       break;
     }
   }
-
-  if (!VIndex)
-    VIndex = B.buildConstant(S32, 0).getReg(0);
 
   auto MIB = B.buildInstr(Opc)
     .addUse(VData)              // vdata
@@ -3893,6 +3912,8 @@ bool AMDGPULegalizerInfo::legalizeBufferLoad(MachineInstr &MI,
   if (HasVIndex) {
     VIndex = MI.getOperand(3).getReg();
     OpOffset = 1;
+  } else {
+    VIndex = B.buildConstant(S32, 0).getReg(0);
   }
 
   Register VOffset = MI.getOperand(3 + OpOffset).getReg();
@@ -3906,16 +3927,14 @@ bool AMDGPULegalizerInfo::legalizeBufferLoad(MachineInstr &MI,
 
   unsigned AuxiliaryData = MI.getOperand(5 + OpOffset).getImm();
   unsigned ImmOffset;
-  unsigned TotalOffset;
 
   LLT Ty = MRI.getType(Dst);
   LLT EltTy = Ty.getScalarType();
   const bool IsD16 = IsFormat && (EltTy.getSizeInBits() == 16);
   const bool Unpacked = ST.hasUnpackedD16VMem();
 
-  std::tie(VOffset, ImmOffset, TotalOffset) = splitBufferOffsets(B, VOffset);
-  if (TotalOffset != 0)
-    MMO = B.getMF().getMachineMemOperand(MMO, TotalOffset, MemTy);
+  std::tie(VOffset, ImmOffset) = splitBufferOffsets(B, VOffset);
+  updateBufferMMO(MMO, VOffset, SOffset, ImmOffset, VIndex, MRI);
 
   unsigned Opc;
 
@@ -3951,9 +3970,6 @@ bool AMDGPULegalizerInfo::legalizeBufferLoad(MachineInstr &MI,
     LoadDstReg = B.getMRI()->createGenericVirtualRegister(UnpackedTy);
   else
     LoadDstReg = Dst;
-
-  if (!VIndex)
-    VIndex = B.buildConstant(S32, 0).getReg(0);
 
   auto MIB = B.buildInstr(Opc)
     .addDef(LoadDstReg)         // vdata
@@ -4095,6 +4111,8 @@ bool AMDGPULegalizerInfo::legalizeBufferAtomic(MachineInstr &MI,
   if (HasVIndex) {
     VIndex = MI.getOperand(4 + OpOffset).getReg();
     ++OpOffset;
+  } else {
+    VIndex = B.buildConstant(LLT::scalar(32), 0).getReg(0);
   }
 
   Register VOffset = MI.getOperand(4 + OpOffset).getReg();
@@ -4104,13 +4122,8 @@ bool AMDGPULegalizerInfo::legalizeBufferAtomic(MachineInstr &MI,
   MachineMemOperand *MMO = *MI.memoperands_begin();
 
   unsigned ImmOffset;
-  unsigned TotalOffset;
-  std::tie(VOffset, ImmOffset, TotalOffset) = splitBufferOffsets(B, VOffset);
-  if (TotalOffset != 0)
-    MMO = B.getMF().getMachineMemOperand(MMO, TotalOffset, MMO->getSize());
-
-  if (!VIndex)
-    VIndex = B.buildConstant(LLT::scalar(32), 0).getReg(0);
+  std::tie(VOffset, ImmOffset) = splitBufferOffsets(B, VOffset);
+  updateBufferMMO(MMO, VOffset, SOffset, ImmOffset, VIndex, *B.getMRI());
 
   auto MIB = B.buildInstr(getBufferAtomicPseudo(IID));
 
@@ -4757,12 +4770,20 @@ bool AMDGPULegalizerInfo::legalizeBVHIntrinsic(MachineInstr &MI,
     return false;
   }
 
-  bool IsA16 = MRI.getType(RayDir).getElementType().getSizeInBits() == 16;
-  bool Is64 =  MRI.getType(NodePtr).getSizeInBits() == 64;
-  unsigned Opcode = IsA16 ? Is64 ? AMDGPU::IMAGE_BVH64_INTERSECT_RAY_a16_nsa
-                                 : AMDGPU::IMAGE_BVH_INTERSECT_RAY_a16_nsa
-                          : Is64 ? AMDGPU::IMAGE_BVH64_INTERSECT_RAY_nsa
-                                 : AMDGPU::IMAGE_BVH_INTERSECT_RAY_nsa;
+  const bool IsA16 = MRI.getType(RayDir).getElementType().getSizeInBits() == 16;
+  const bool Is64 = MRI.getType(NodePtr).getSizeInBits() == 64;
+  const unsigned NumVAddrs = IsA16 ? (Is64 ? 9 : 8) : (Is64 ? 12 : 11);
+  const bool UseNSA = ST.hasNSAEncoding() && NumVAddrs <= ST.getNSAMaxSize();
+  const unsigned Opcodes[2][2][2] = {
+      {{AMDGPU::IMAGE_BVH_INTERSECT_RAY_sa,
+        AMDGPU::IMAGE_BVH64_INTERSECT_RAY_sa},
+       {AMDGPU::IMAGE_BVH_INTERSECT_RAY_a16_sa,
+        AMDGPU::IMAGE_BVH64_INTERSECT_RAY_a16_sa}},
+      {{AMDGPU::IMAGE_BVH_INTERSECT_RAY_nsa,
+        AMDGPU::IMAGE_BVH64_INTERSECT_RAY_nsa},
+       {AMDGPU::IMAGE_BVH_INTERSECT_RAY_a16_nsa,
+        AMDGPU::IMAGE_BVH64_INTERSECT_RAY_a16_nsa}}};
+  const unsigned Opcode = Opcodes[UseNSA][IsA16][Is64];
 
   SmallVector<Register, 12> Ops;
   if (Is64) {
@@ -4797,6 +4818,14 @@ bool AMDGPULegalizerInfo::legalizeBVHIntrinsic(MachineInstr &MI,
   } else {
     packLanes(RayDir);
     packLanes(RayInvDir);
+  }
+
+  if (!UseNSA) {
+    // Build a single vector containing all the operands so far prepared.
+    LLT OpTy = LLT::fixed_vector(Ops.size(), 32);
+    Register MergedOps = B.buildMerge(OpTy, Ops).getReg(0);
+    Ops.clear();
+    Ops.push_back(MergedOps);
   }
 
   auto MIB = B.buildInstr(AMDGPU::G_AMDGPU_INTRIN_BVH_INTERSECT_RAY)

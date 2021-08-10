@@ -148,6 +148,7 @@
 #include "llvm/Transforms/Scalar/ConstraintElimination.h"
 #include "llvm/Transforms/Scalar/CorrelatedValuePropagation.h"
 #include "llvm/Transforms/Scalar/DCE.h"
+#include "llvm/Transforms/Scalar/DFAJumpThreading.h"
 #include "llvm/Transforms/Scalar/DeadStoreElimination.h"
 #include "llvm/Transforms/Scalar/DivRemPairs.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
@@ -305,6 +306,7 @@ extern cl::opt<bool> EnableCHR;
 extern cl::opt<bool> EnableLoopInterchange;
 extern cl::opt<bool> EnableUnrollAndJam;
 extern cl::opt<bool> EnableLoopFlatten;
+extern cl::opt<bool> EnableDFAJumpThreading;
 extern cl::opt<bool> RunNewGVN;
 extern cl::opt<bool> RunPartialInlining;
 extern cl::opt<bool> ExtraVectorizerPasses;
@@ -320,22 +322,22 @@ extern cl::opt<bool> DisablePreInliner;
 extern cl::opt<int> PreInlineThreshold;
 } // namespace llvm
 
-const PassBuilder::OptimizationLevel PassBuilder::OptimizationLevel::O0 = {
+const OptimizationLevel OptimizationLevel::O0 = {
     /*SpeedLevel*/ 0,
     /*SizeLevel*/ 0};
-const PassBuilder::OptimizationLevel PassBuilder::OptimizationLevel::O1 = {
+const OptimizationLevel OptimizationLevel::O1 = {
     /*SpeedLevel*/ 1,
     /*SizeLevel*/ 0};
-const PassBuilder::OptimizationLevel PassBuilder::OptimizationLevel::O2 = {
+const OptimizationLevel OptimizationLevel::O2 = {
     /*SpeedLevel*/ 2,
     /*SizeLevel*/ 0};
-const PassBuilder::OptimizationLevel PassBuilder::OptimizationLevel::O3 = {
+const OptimizationLevel OptimizationLevel::O3 = {
     /*SpeedLevel*/ 3,
     /*SizeLevel*/ 0};
-const PassBuilder::OptimizationLevel PassBuilder::OptimizationLevel::Os = {
+const OptimizationLevel OptimizationLevel::Os = {
     /*SpeedLevel*/ 2,
     /*SizeLevel*/ 1};
-const PassBuilder::OptimizationLevel PassBuilder::OptimizationLevel::Oz = {
+const OptimizationLevel OptimizationLevel::Oz = {
     /*SpeedLevel*/ 2,
     /*SizeLevel*/ 2};
 
@@ -476,8 +478,8 @@ PassBuilder::PassBuilder(TargetMachine *TM, PipelineTuningOptions PTO,
   }
 }
 
-void PassBuilder::invokePeepholeEPCallbacks(
-    FunctionPassManager &FPM, PassBuilder::OptimizationLevel Level) {
+void PassBuilder::invokePeepholeEPCallbacks(FunctionPassManager &FPM,
+                                            OptimizationLevel Level) {
   for (auto &C : PeepholeEPCallbacks)
     C(FPM, Level);
 }
@@ -832,6 +834,9 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
 
   // Re-consider control flow based optimizations after redundancy elimination,
   // redo DCE, etc.
+  if (EnableDFAJumpThreading && Level.getSizeLevel() == 0)
+    FPM.addPass(DFAJumpThreadingPass());
+
   FPM.addPass(JumpThreadingPass());
   FPM.addPass(CorrelatedValuePropagationPass());
 
@@ -872,9 +877,8 @@ void PassBuilder::addRequiredLTOPreLinkPasses(ModulePassManager &MPM) {
 }
 
 void PassBuilder::addPGOInstrPasses(ModulePassManager &MPM,
-                                    PassBuilder::OptimizationLevel Level,
-                                    bool RunProfileGen, bool IsCS,
-                                    std::string ProfileFile,
+                                    OptimizationLevel Level, bool RunProfileGen,
+                                    bool IsCS, std::string ProfileFile,
                                     std::string ProfileRemappingFile) {
   assert(Level != OptimizationLevel::O0 && "Not expecting O0 here!");
   if (!IsCS && !DisablePreInliner) {
@@ -961,8 +965,7 @@ void PassBuilder::addPGOInstrPassesForO0(ModulePassManager &MPM,
   MPM.addPass(InstrProfiling(Options, IsCS));
 }
 
-static InlineParams
-getInlineParamsFromOptLevel(PassBuilder::OptimizationLevel Level) {
+static InlineParams getInlineParamsFromOptLevel(OptimizationLevel Level) {
   return getInlineParams(Level.getSpeedupLevel(), Level.getSizeLevel());
 }
 
