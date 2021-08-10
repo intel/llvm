@@ -39,6 +39,29 @@ template <> struct KernelInfo<TestKernel> {
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
+static sycl::unittest::PiImage generateDefaultImage() {
+  using namespace sycl::unittest;
+
+  PiPropertySet PropSet;
+
+  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
+
+  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
+
+  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+              "",                                     // Compile options
+              "",                                     // Link options
+              std::move(Bin),
+              std::move(Entries),
+              std::move(PropSet)};
+
+  return Img;
+}
+
+static sycl::unittest::PiImage Img = generateDefaultImage();
+static sycl::unittest::PiImageArray<1> ImgArray{&Img};
+
 using namespace sycl;
 
 size_t GEventsWaitCounter = 0;
@@ -58,6 +81,7 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
     std::cout << "Not run due to host-only environment\n";
     return;
   }
+  // This test only contains device image for SPIR-V capable devices.
   if (Plt.get_backend() != sycl::backend::opencl &&
       Plt.get_backend() != sycl::backend::level_zero) {
     std::cout << "Only OpenCL and Level Zero are supported for this test\n";
@@ -79,11 +103,12 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
     CGH.use_kernel_bundle(ExecBundle);
     CGH.single_task<TestKernel>([] {});
   });
-  InOrderQueue.submit([&](sycl::handler &CGH) {
-    CGH.use_kernel_bundle(ExecBundle);
-    CGH.codeplay_host_task([=] {});
-  });
-  InOrderQueue.wait();
+  InOrderQueue
+      .submit([&](sycl::handler &CGH) {
+        CGH.use_kernel_bundle(ExecBundle);
+        CGH.codeplay_host_task([=] {});
+      })
+      .wait();
 
-  EXPECT_TRUE(GEventsWaitCounter >= 1);
+  EXPECT_TRUE(GEventsWaitCounter == 1);
 }
