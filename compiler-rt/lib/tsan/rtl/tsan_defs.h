@@ -101,8 +101,9 @@ const uptr kShadowCnt = 4;
 // That many user bytes are mapped onto a single shadow cell.
 const uptr kShadowCell = 8;
 
-// Size of a single shadow value (u64).
-const uptr kShadowSize = 8;
+// Single shadow value.
+typedef u64 RawShadow;
+const uptr kShadowSize = sizeof(RawShadow);
 
 // Shadow memory is kShadowMultiplier times larger than user memory.
 const uptr kShadowMultiplier = kShadowSize * kShadowCnt / kShadowCell;
@@ -179,6 +180,17 @@ struct Context;
 struct ReportStack;
 class ReportDesc;
 class RegionAlloc;
+
+typedef uptr AccessType;
+
+enum : AccessType {
+  kAccessWrite = 0,
+  kAccessRead = 1 << 0,
+  kAccessAtomic = 1 << 1,
+  kAccessVptr = 1 << 2,  // read or write of an object virtual table pointer
+  kAccessFree = 1 << 3,  // synthetic memory access during memory freeing
+  kAccessExternalPC = 1 << 4,  // access PC can have kExternalPCBit set
+};
 
 // Descriptor of user's memory block.
 struct MBlock {
