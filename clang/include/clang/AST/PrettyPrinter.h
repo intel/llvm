@@ -324,7 +324,7 @@ struct PrintingPolicy {
   /// is:
   ///   \code
   ///   TemplateTypeParmType 'type-parameter-0-0'
-  ///   \endcode.
+  ///   \endcode
   unsigned SkipCanonicalizationOfTemplateTypeParms : 1;
 
   /// Whether to print an InjectedClassNameType with template arguments or as
