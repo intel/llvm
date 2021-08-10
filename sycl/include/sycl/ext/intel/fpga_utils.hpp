@@ -17,25 +17,18 @@ namespace sycl {
 namespace ext {
 namespace intel {
 
-template <class _D, class _T>
-struct _MatchType : std::is_same<typename _D::type_id, typename _T::type_id> {};
+template <template <int32_t> class _Type, class _T>
+struct _MatchType : std::is_same<_Type<_T::value>, _T> {};
 
-template <class _D, class... _T> struct _GetValue;
-
-template <class _D>
-struct _GetValue<_D> : std::integral_constant<decltype(_D::value), _D::value> {
+template <template <int32_t> class _Type, class... _T> struct _GetValue {
+  static constexpr auto value = _Type<0>::default_value;
 };
 
-template <class _D, class _T1, class... _T> struct _GetValue<_D, _T1, _T...> {
-  template <class _D2, class _T12, class _Enable = void>
-  struct impl : std::integral_constant<decltype(_D::value),
-                                       _GetValue<_D, _T...>::value> {};
-
-  template <class _D2, class _T12>
-  struct impl<_D2, _T12, std::enable_if_t<_MatchType<_D2, _T12>::value>>
-      : std::integral_constant<decltype(_D::value), _T1::value> {};
-
-  static constexpr auto value = impl<_D, _T1>::value;
+template <template <int32_t> class _Type, class _T1, class... _T>
+struct _GetValue<_Type, _T1, _T...> {
+  static constexpr auto value =
+      detail::conditional_t<_MatchType<_Type, _T1>::value, _T1,
+                            _GetValue<_Type, _T...>>::value;
 };
 } // namespace intel
 } // namespace ext

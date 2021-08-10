@@ -939,7 +939,8 @@ void ScopedAliasMetadataDeepCloner::remap(Function::iterator FStart,
 /// parameters with noalias metadata specifying the new scope, and tag all
 /// non-derived loads, stores and memory intrinsics with the new alias scopes.
 static void AddAliasScopeMetadata(CallBase &CB, ValueToValueMapTy &VMap,
-                                  const DataLayout &DL, AAResults *CalleeAAR) {
+                                  const DataLayout &DL, AAResults *CalleeAAR,
+                                  ClonedCodeInfo &InlinedFunctionInfo) {
   if (!EnableNoAliasConversion)
     return;
 
@@ -1009,7 +1010,7 @@ static void AddAliasScopeMetadata(CallBase &CB, ValueToValueMapTy &VMap,
         continue;
 
       Instruction *NI = dyn_cast<Instruction>(VMI->second);
-      if (!NI)
+      if (!NI || InlinedFunctionInfo.isSimplified(I, NI))
         continue;
 
       bool IsArgMemOnlyCall = false, IsFuncCall = false;
@@ -2037,7 +2038,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
     SAMetadataCloner.remap(FirstNewBlock, Caller->end());
 
     // Add noalias metadata if necessary.
-    AddAliasScopeMetadata(CB, VMap, DL, CalleeAAR);
+    AddAliasScopeMetadata(CB, VMap, DL, CalleeAAR, InlinedFunctionInfo);
 
     // Clone return attributes on the callsite into the calls within the inlined
     // function which feed into its return value.
@@ -2326,7 +2327,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
       // As such, we replace the cleanupret with unreachable.
       if (auto *CleanupRet = dyn_cast<CleanupReturnInst>(BB->getTerminator()))
         if (CleanupRet->unwindsToCaller() && EHPadForCallUnwindsLocally)
-          changeToUnreachable(CleanupRet, /*UseLLVMTrap=*/false);
+          changeToUnreachable(CleanupRet);
 
       Instruction *I = BB->getFirstNonPHI();
       if (!I->isEHPad())

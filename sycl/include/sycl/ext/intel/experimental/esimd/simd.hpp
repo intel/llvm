@@ -372,7 +372,7 @@ public:
   /// \param Offset is offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int W> simd<Ty, Rep * W> replicate_w(uint16_t Offset) {
-    return replicate_vs_w_hs<Rep, W, W, 1>(Offset);
+    return replicate_vs_w_hs<Rep, 0, W, 1>(Offset);
   }
 
   /// \tparam Rep is number of times region has to be replicated.

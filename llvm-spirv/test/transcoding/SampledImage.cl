@@ -35,21 +35,21 @@ void sample_kernel(image2d_t input, float2 coords, global float4 *results, sampl
 // CHECK-SPIRV: SampledImage [[SampledImageTy]] [[SampledImage1:[0-9]+]] [[InputImage]] [[ConstSampler1]]
 // CHECK-SPIRV: ImageSampleExplicitLod {{.*}} [[SampledImage1]]
 // CHECK-LLVM:  call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_f(%opencl.image2d_ro_t addrspace(1)* %input, %opencl.sampler_t addrspace(2)* %0, <2 x float> %coords)
-// CHECK-SPV-IR: call spir_func %spirv.SampledImage._void_1_0_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImage14ocl_image2d_ro11ocl_sampler(%opencl.image2d_ro_t addrspace(1)* %input, %opencl.sampler_t addrspace(2)* %0)
+// CHECK-SPV-IR: call spir_func %spirv.SampledImage._void_1_0_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImagePU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %input, %spirv.Sampler addrspace(2)* %0)
 // CHECK-SPV-IR: call spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS140__spirv_SampledImage__void_1_0_0_0_0_0_0Dv2_fif(%spirv.SampledImage._void_1_0_0_0_0_0_0 addrspace(1)* %TempSampledImage, <2 x float> %coords, i32 2, float 0.000000e+00)
 
 // CHECK-SPIRV: SampledImage [[SampledImageTy]] [[SampledImage2:[0-9]+]] [[InputImage]] [[argSampl]]
 // CHECK-SPIRV: ImageSampleExplicitLod {{.*}} [[SampledImage2]]
 // CHECK-LLVM:   call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_f(%opencl.image2d_ro_t addrspace(1)* %input, %opencl.sampler_t addrspace(2)* %argSampl, <2 x float> %coords)
-// CHECK-SPV-IR: call spir_func %spirv.SampledImage._void_1_0_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImage14ocl_image2d_ro11ocl_sampler(%opencl.image2d_ro_t addrspace(1)* %input, %opencl.sampler_t addrspace(2)* %argSampl)
+// CHECK-SPV-IR: call spir_func %spirv.SampledImage._void_1_0_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImagePU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %input, %spirv.Sampler addrspace(2)* %argSampl)
 // CHECK-SPV-IR: call spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS140__spirv_SampledImage__void_1_0_0_0_0_0_0Dv2_fif(%spirv.SampledImage._void_1_0_0_0_0_0_0 addrspace(1)* %TempSampledImage4, <2 x float> %coords, i32 2, float 0.000000e+00)
 
 // CHECK-SPIRV: SampledImage [[SampledImageTy]] [[SampledImage3:[0-9]+]] [[InputImage]] [[ConstSampler2]]
 // CHECK-SPIRV: ImageSampleExplicitLod {{.*}} [[SampledImage3]]
 // CHECK-LLVM: call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_f(%opencl.image2d_ro_t addrspace(1)* %input, %opencl.sampler_t addrspace(2)* %{{[0-9]+}}, <2 x float> %coords)
-// CHECK-SPV-IR: call spir_func %spirv.SampledImage._void_1_0_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImage14ocl_image2d_ro11ocl_sampler(%opencl.image2d_ro_t addrspace(1)* %input, %opencl.sampler_t addrspace(2)* %1)
+// CHECK-SPV-IR: call spir_func %spirv.SampledImage._void_1_0_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImagePU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %input, %spirv.Sampler addrspace(2)* %1)
 // CHECK-SPV-IR: call spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS140__spirv_SampledImage__void_1_0_0_0_0_0_0Dv2_fif(%spirv.SampledImage._void_1_0_0_0_0_0_0 addrspace(1)* %TempSampledImage6, <2 x float> %coords, i32 2, float 0.000000e+00)
 
 // CHECK-LLVM: declare spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_f(%opencl.image2d_ro_t addrspace(1)*, %opencl.sampler_t addrspace(2)*, <2 x float>)
-// CHECK-SPV-IR: declare spir_func %spirv.SampledImage._void_1_0_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImage14ocl_image2d_ro11ocl_sampler(%opencl.image2d_ro_t addrspace(1)*, %opencl.sampler_t addrspace(2)*)
+// CHECK-SPV-IR: declare spir_func %spirv.SampledImage._void_1_0_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImagePU3AS133__spirv_Image__void_1_0_0_0_0_0_0PU3AS215__spirv_Sampler(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)*, %spirv.Sampler addrspace(2)*)
 // CHECK-SPV-IR: declare spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS140__spirv_SampledImage__void_1_0_0_0_0_0_0Dv2_fif(%spirv.SampledImage._void_1_0_0_0_0_0_0 addrspace(1)*, <2 x float>, i32, float)
