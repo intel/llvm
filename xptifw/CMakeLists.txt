@@ -10,7 +10,7 @@ set(XPTIFW_DIR ${CMAKE_CURRENT_LIST_DIR})
 set(XPTI_DIR ${CMAKE_CURRENT_LIST_DIR}/../xpti)
 
 # Create a soft option for enabling the use of TBB
-option(XPTI_ENABLE_TBB "Enable TBB in the framework" OFF)
+option(XPTI_ENABLE_TBB "Enable TBB in the framework" ON)
 
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "No build type selected, default to Release")
@@ -43,7 +43,7 @@ add_subdirectory(src)
 # TODO enable samples and tests back once build problems are resolved.
 # Currently builds for unit tests and samples fail mostly with dllimport/dllexport
 # mismatch problems:
-# syclpi_collector.cpp(32): error C2491: 'xptiTraceInit': definition of dllimport function not allowed 
+# syclpi_collector.cpp(32): error C2491: 'xptiTraceInit': definition of dllimport function not allowed
 if (0)
 add_subdirectory(unit_test)
 add_subdirectory(samples/basic_collector)
@@ -52,6 +52,6 @@ endif()
 
 # The tests in basic_test are written using TBB, so these tests are enabled
 # only if TBB has been enabled.
-if (XPTI_ENABLE_TBB)
+if (0)
   add_subdirectory(basic_test)
 endif()

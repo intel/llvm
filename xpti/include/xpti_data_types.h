@@ -21,16 +21,16 @@ namespace xpti {
 struct uid_t {
   /// Contains string ID for file name in upper 32-bits and the line number in
   /// lower 32-bits
-  uint64_t p1;
+  uint64_t p1 = 0;
   /// Contains the string ID for kernel name in lower 32-bits; in the case
   /// dynamic stack walk is performed, the upper 32-bits contain the string ID
   /// of the caller->callee combination string.
-  uint64_t p2;
+  uint64_t p2 = 0;
   /// Contains the address of the kernel object or SYCL object references and
   /// only the lower 32-bits will be used to generate the hash
-  uint64_t p3;
+  uint64_t p3 = 0;
 
-  uid_t() { p1 = p2 = p3 = 0; }
+  uid_t() = default;
   /// Computes a hash that is a bijection between N^3 and N
   /// (x,y,z) |-> (x) + (x+y+1)/2 + (x+y+z+2)/3
   uint64_t hash() const {
@@ -77,6 +77,7 @@ template <> struct hash<xpti::uid_t> {
 
 namespace xpti {
 constexpr int invalid_id = -1;
+constexpr int invalid_uid = 0;
 constexpr uint8_t default_vendor = 0;
 
 /// @brief Flag values used by the payload_t structure to mark the information
@@ -87,12 +88,20 @@ constexpr uint8_t default_vendor = 0;
 /// the flags set.
 ///
 enum class payload_flag_t {
-  NameAvailable = 1,        ///< The name for the tracepoint is available
-  SourceFileAvailable = 2,  ///< Source file information available
-  CodePointerAvailable = 4, ///< Code pointer VA is available
-  LineInfoAvailable = 8,    ///< Line information available in the payload
-  ColumnInfoAvailable = 16, ///< Column information available in payload
-  HashAvailable = 2 << 16   ///< A hash is already available for this payload
+  /// The name for the tracepoint is available
+  NameAvailable = 1,
+  /// Source file information available
+  SourceFileAvailable = 1 << 1,
+  /// Code pointer VA is available
+  CodePointerAvailable = 1 << 2,
+  /// Line information available in the payload
+  LineInfoAvailable = 1 << 3,
+  /// Column information available in payload
+  ColumnInfoAvailable = 1 << 4,
+  /// Caller/Callee stack trace available when source/kernel info not available
+  StackTraceAvailable = 1 << 5,
+  // A 64-bit hash is already available for this payload
+  HashAvailable = 2 << 16
 };
 
 //
@@ -138,11 +147,13 @@ using metadata_t = std::unordered_map<string_id_t, string_id_t>;
 ///
 struct payload_t {
   /// String ID of the function/kernel name; only valid if 'name' is valid
-  string_id_t name_sid = invalid_id;
+  // string_id_t name_sid = invalid_id;
   /// String ID of the source file name
-  string_id_t source_file_sid = invalid_id;
+  // string_id_t source_file_sid = invalid_id;
   /// Name of the trace point; graph, algorithm, lock names, for example.
   const char *name = nullptr;
+  /// Stack trace indicated by caller/callee as "caller->callee"
+  const char *stack_trace = nullptr;
   /// Absolute path of the source file; may have to to be unicode string
   const char *source_file = nullptr;
   /// Line number information to correlate the trace point
@@ -158,6 +169,8 @@ struct payload_t {
   /// Flags indicating whether string name, codepointer, source file and hash
   /// values are available
   uint64_t flags = 0;
+  /// Universal ID associated with this payload
+  uid_t uid;
 
   payload_t() = default;
 
@@ -167,12 +180,12 @@ struct payload_t {
   //  indicates a partial but valid payload.
   payload_t(void *codeptr) {
     code_ptr_va = codeptr;
-    name_sid = invalid_id;        ///< Invalid string ID
-    source_file_sid = invalid_id; ///< Invalid string ID
-    name = nullptr;               ///< Invalid name string pointer
-    source_file = nullptr;        ///< Invalid source file string pointer
-    line_no = invalid_id;         ///< Invalid line number
-    column_no = invalid_id;       ///< Invalid column number
+    // name_sid = invalid_id;        ///< Invalid string ID
+    // source_file_sid = invalid_id; ///< Invalid string ID
+    name = nullptr;         ///< Invalid name string pointer
+    source_file = nullptr;  ///< Invalid source file string pointer
+    line_no = invalid_id;   ///< Invalid line number
+    column_no = invalid_id; ///< Invalid column number
     flags = (uint64_t)payload_flag_t::CodePointerAvailable;
   }
 
@@ -183,25 +196,42 @@ struct payload_t {
   //  the payload is considered to be a partial but valid payload.
   payload_t(const char *func_name) {
     code_ptr_va = nullptr;
-    name_sid = invalid_id;        ///< Invalid string ID
-    source_file_sid = invalid_id; ///< Invalid string ID
-    name = func_name;             ///< Invalid name string pointer
-    source_file = nullptr;        ///< Invalid source file string pointer
-    line_no = invalid_id;         ///< Invalid line number
-    column_no = invalid_id;       ///< Invalid column number
+    // name_sid = invalid_id;        ///< Invalid string ID
+    // source_file_sid = invalid_id; ///< Invalid string ID
+    name = func_name;      ///< Invalid name string pointer
+    source_file = nullptr; ///< Invalid source file string pointer
     flags = (uint64_t)(payload_flag_t::NameAvailable);
   }
 
   payload_t(const char *func_name, void *codeptr) {
     code_ptr_va = codeptr;
-    name_sid = invalid_id;        ///< Invalid string ID
-    source_file_sid = invalid_id; ///< Invalid string ID
-    name = func_name;             ///< Invalid name string pointer
-    source_file = nullptr;        ///< Invalid source file string pointer
-    line_no = invalid_id;         ///< Invalid line number
-    column_no = invalid_id;       ///< Invalid column number
+    // name_sid = invalid_id;        ///< Invalid string ID
+    // source_file_sid = invalid_id; ///< Invalid string ID
+    name = func_name;      ///< Invalid name string pointer
+    source_file = nullptr; ///< Invalid source file string pointer
     flags = (uint64_t)payload_flag_t::NameAvailable |
             (uint64_t)payload_flag_t::CodePointerAvailable;
+  }
+
+  //  When the end user opts out of preserving the code location information and
+  //  the KernelInfo is not available from the given entry point, we will rely
+  //  on dynamic backtrace as a possibility. In this case, we send in the
+  //  caller/callee information as a string in the form "caller->callee" that
+  //  will be used to generate the unique ID.
+  payload_t(const char *kname, const char *caller_callee, void *codeptr) {
+    if (codeptr) {
+      code_ptr_va = codeptr;
+      flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
+    }
+    /// Capture the rest of the parameters
+    if (kname) {
+      name = kname;
+      flags |= (uint64_t)payload_flag_t::NameAvailable;
+    }
+    if (caller_callee) {
+      stack_trace = caller_callee;
+      flags |= (uint64_t)payload_flag_t::StackTraceAvailable;
+    }
   }
 
   //  We need the payload to contain at the very least, the code pointer
@@ -211,9 +241,6 @@ struct payload_t {
   payload_t(const char *kname, const char *sf, int line, int col,
             void *codeptr) {
     code_ptr_va = codeptr;
-    /// Invalid string ID as the string hasn't been registered yet
-    name_sid = invalid_id;
-    source_file_sid = invalid_id;
     /// Capture the rest of the parameters
     name = kname;
     source_file = sf;
@@ -224,6 +251,16 @@ struct payload_t {
             (uint64_t)payload_flag_t::LineInfoAvailable |
             (uint64_t)payload_flag_t::ColumnInfoAvailable |
             (uint64_t)payload_flag_t::CodePointerAvailable;
+  }
+
+  int32_t name_sid() const {
+    return (int32_t)(uid.p2 & 0x00000000ffffffff);
+  }
+  int32_t stacktrace_sid() const {
+    return (int32_t)(uid.p2 >> 32);
+  }
+  int32_t source_file_sid() const {
+    return (int32_t)(uid.p1 >> 32);
   }
 };
 
@@ -429,7 +466,7 @@ enum class trace_activity_type_t {
 
 struct reserved_data_t {
   /// Has a reference to the associated payload field for an event
-  payload_t *payload;
+  payload_t *payload = nullptr;
   /// Has additional metadata that may be defined by the user as key-value
   /// pairs
   metadata_t metadata;
@@ -437,7 +474,7 @@ struct reserved_data_t {
 
 struct trace_event_data_t {
   /// Unique id that corresponds to an event type or event group type
-  int64_t unique_id = invalid_id;
+  uint64_t unique_id = 0;
   /// Data ID: ID that tracks the data elements streaming through the
   /// algorithm (mostly graphs; will be the same as instance_id for
   /// algorithms)

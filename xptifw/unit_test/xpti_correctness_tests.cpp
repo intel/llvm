@@ -298,14 +298,14 @@ TEST(xptiCorrectnessTest, xptiUniversalIDTest) {
   xpti::payload_t Payload("foo", "foo.cpp", 1, 0, (void *)&Id0);
   auto Result = xptiMakeEvent("foo", &Payload, 0,
                               (xpti::trace_activity_type_t)1, &instance);
-  Id0.p1 = XPTI_PACK32_RET64(Payload.source_file_sid, Payload.line_no);
-  Id0.p2 = XPTI_PACK32_RET64(0, Payload.name_sid);
+  Id0.p1 = XPTI_PACK32_RET64(Payload.source_file_sid(), Payload.line_no);
+  Id0.p2 = XPTI_PACK32_RET64(0, Payload.name_sid());
   Id0.p3 = (uint64_t)Payload.code_ptr_va;
   xpti::payload_t P("foo", "foo.cpp", 1, 0, (void *)&Id1);
   auto Result1 =
       xptiMakeEvent("foo", &P, 0, (xpti::trace_activity_type_t)1, &instance);
-  Id1.p1 = XPTI_PACK32_RET64(P.source_file_sid, P.line_no);
-  Id1.p2 = XPTI_PACK32_RET64(0, P.name_sid);
+  Id1.p1 = XPTI_PACK32_RET64(P.source_file_sid(), P.line_no);
+  Id1.p2 = XPTI_PACK32_RET64(0, P.name_sid());
   Id1.p3 = (uint64_t)P.code_ptr_va;
   EXPECT_NE(Result, Result1);
   EXPECT_NE(Id0.hash(), Id1.hash());
@@ -358,7 +358,8 @@ TEST(xptiCorrectnessTest, xptiUniversalIDMapTest) {
   MLineNo = uniform_int_distribution<uint32_t>(1, 200000);
   MAddr = uniform_int_distribution<uint32_t>(0x10000000, 0xffffffff);
 
-  for (int i = 0; i < 100000; ++i) {
+  constexpr int Count = 100000;
+  for (int i = 0; i < Count; ++i) {
     xpti::uid_t id;
     id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MLineNo(Gen));
     id.p2 = XPTI_PACK32_RET64(0, MStringID(Gen));
@@ -369,6 +370,7 @@ TEST(xptiCorrectnessTest, xptiUniversalIDMapTest) {
     MapTest[id] = hash;
   }
 
+  EXPECT_EQ(Count, MapTest.size());
   for(auto &e : MapTest) {
     EXPECT_EQ(e.first.hash(), e.second);
   }
@@ -385,7 +387,8 @@ TEST(xptiCorrectnessTest, xptiUniversalIDUnorderedMapTest) {
   MLineNo = uniform_int_distribution<uint32_t>(1, 200000);
   MAddr = uniform_int_distribution<uint32_t>(0x10000000, 0xffffffff);
 
-  for (int i = 0; i < 100000; ++i) {
+  constexpr int Count = 100000;
+  for (int i = 0; i < Count; ++i) {
     xpti::uid_t id;
     id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MLineNo(Gen));
     id.p2 = XPTI_PACK32_RET64(0, MStringID(Gen));
@@ -396,6 +399,7 @@ TEST(xptiCorrectnessTest, xptiUniversalIDUnorderedMapTest) {
     MapTest[id] = hash;
   }
 
+  EXPECT_EQ(Count, MapTest.size());
   for(auto &e : MapTest) {
     EXPECT_EQ(e.first.hash(), e.second);
   }
