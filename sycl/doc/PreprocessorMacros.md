@@ -31,7 +31,12 @@ SYCL 2020.
 
 ### `SYCL_DISABLE_DEPRECATION_WARNINGS`
 
-Disables all deprecation warnings in SYCL runtime headers, including SYCL 1.2.1 deprecations.
+Disables all deprecation warnings in SYCL runtime headers, including SYCL 1.2.1
+deprecations.
+
+### `SYCL_DISABLE_CPP_VERSION_CHECK_MESSAGE`
+
+Disables a message which warns about unsupported C++ version.
 
 ### Version macros
 

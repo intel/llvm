@@ -105,7 +105,7 @@
 
 // Emitting a message instead of a warning here in order to avoid hard error
 // if an app is compiled with "-werror" option.
-#if !defined(__SYCL_DISABLE_CPP_VERSION_MESSAGE) && __cplusplus < 201703L
+#if !defined(SYCL_DISABLE_CPP_VERSION_CHECK_MESSAGE) && __cplusplus < 201703L
 __SYCL_WARNING("DPCPP does not support C++ version earlier than C++17. Some "
                "features might not be available.")
 #endif

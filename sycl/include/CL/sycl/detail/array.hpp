@@ -84,7 +84,7 @@ public:
   array<dimensions> &operator=(const array<dimensions> &rhs) = default;
   array<dimensions> &operator=(array<dimensions> &&rhs) = default;
 
-  // Returns true if all elements in 'this' are equal to
+  // Returns true iff all elements in 'this' are equal to
   // the corresponding elements in 'rhs'.
   bool operator==(const array<dimensions> &rhs) const {
     for (int i = 0; i < dimensions; ++i) {
@@ -95,7 +95,7 @@ public:
     return true;
   }
 
-  // Returns true if there is at least one element in 'this'
+  // Returns true iff there is at least one element in 'this'
   // which is not equal to the corresponding element in 'rhs'.
   bool operator!=(const array<dimensions> &rhs) const {
     for (int i = 0; i < dimensions; ++i) {
