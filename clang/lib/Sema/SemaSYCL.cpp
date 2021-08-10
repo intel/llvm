@@ -4451,6 +4451,7 @@ public:
     Policy.SuppressTypedefs = true;
     Policy.SuppressUnwrittenScope = true;
     Policy.PrintCanonicalTypes = true;
+    Policy.SkipCanonicalizationOfTemplateTypeParms = true;
   }
 
   void Visit(QualType T) {
