@@ -1,16 +1,14 @@
-// RUN: %clang_cc1 -S -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -ast-dump -sycl-std=2020 %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
 
 #include "sycl.hpp"
 
-sycl::queue myQueue;
-sycl::handler H;
-
 class AccessorBase {
   int A;
+
 public:
   sycl::accessor<int, 1, sycl::access::mode::read_write,
                  sycl::access::target::local>
-  acc;
+      acc;
 };
 
 class accessor {
@@ -26,10 +24,12 @@ public:
 class sampler {
 public:
   int field;
-  };
+};
 
 int main() {
 
+  sycl::queue myQueue;
+  sycl::handler H;
   AccessorBase Accessor1;
   accessor Accessor2 = {1};
   sycl::stream Stream1{0, 0, H};
@@ -59,7 +59,6 @@ int main() {
     h.single_task<class kernelfunction6>([=] {
       int a = Sampler2.field;
     });
-
   });
 
   return 0;
