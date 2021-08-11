@@ -36,6 +36,10 @@ struct uid_t {
   uint64_t hash() const {
     /// Use lower 32-bits of the address
     uint32_t v3 = (uint32_t)(p3 & 0x00000000ffffffff);
+    /// Use p1 and p2 as is; since p1 and p2 upper 32-bits is built from string
+    /// IDs, they are more than likely to be less than 16 bits. Combining
+    /// 48-bits of one value with ~16-bits/~32-bits will should not overflow a
+    /// 64-bit accumulator.
     return (p1 + (p1 + p2 + 1) / 2 + (p1 + p2 + v3 + 2) / 3);
   }
 
@@ -253,15 +257,9 @@ struct payload_t {
             (uint64_t)payload_flag_t::CodePointerAvailable;
   }
 
-  int32_t name_sid() const {
-    return (int32_t)(uid.p2 & 0x00000000ffffffff);
-  }
-  int32_t stacktrace_sid() const {
-    return (int32_t)(uid.p2 >> 32);
-  }
-  int32_t source_file_sid() const {
-    return (int32_t)(uid.p1 >> 32);
-  }
+  int32_t name_sid() const { return (int32_t)(uid.p2 & 0x00000000ffffffff); }
+  int32_t stacktrace_sid() const { return (int32_t)(uid.p2 >> 32); }
+  int32_t source_file_sid() const { return (int32_t)(uid.p1 >> 32); }
 };
 
 /// A data structure that holds information about an API function call and its
