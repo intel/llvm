@@ -409,7 +409,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
 // We use the worst-case estimate because the lifetime of the vector is short.
 // TODO: the constant can be removed if the size of MArgs will be calculated at
 // compile time.
-inline constexpr size_t MaxNumAdditionalArgs = 12;
+inline constexpr size_t MaxNumAdditionalArgs = 13;
 
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
