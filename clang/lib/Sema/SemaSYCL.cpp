@@ -4684,6 +4684,25 @@ public:
   }
 };
 
+static void OutputStableNameChar(raw_ostream &O, char C) {
+  // If it is reliably printable, print in the integration header as a
+  // character. Else just print it as the integral representation.
+  if (llvm::isPrint(C))
+    O << '\'' << C << '\'';
+  else
+    O << static_cast<short>(C);
+}
+
+static void OutputStableNameInChars(raw_ostream &O, StringRef Name) {
+  assert(!Name.empty() && "Expected a nonempty string!");
+  OutputStableNameChar(O, Name[0]);
+
+  for (char C : Name.substr(1)) {
+    O << ", ";
+    OutputStableNameChar(O, C);
+  }
+}
+
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
@@ -4782,10 +4801,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     const size_t N = K.Params.size();
     if (K.IsUnnamedKernel) {
       O << "template <> struct KernelInfoData<";
-      O << "'" << K.StableName.front();
-      for (char c : StringRef(K.StableName).substr(1))
-        O << "', '" << c;
-      O << "'> {\n";
+      OutputStableNameInChars(O, K.StableName);
+      O << "> {\n";
     } else {
       O << "template <> struct KernelInfo<";
       SYCLKernelNameTypePrinter Printer(O, Policy);
