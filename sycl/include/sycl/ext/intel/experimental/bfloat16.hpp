@@ -30,16 +30,16 @@ public:
 #if defined(__SYCL_DEVICE_ONLY__)
     return __spirv_ConvertFToBF16INTEL(a);
 #else
-    throw runtime_error("Bfloat16 conversion is not supported on HOST device.",
-                        PI_INVALID_DEVICE);
+    throw exception{errc::feature_not_supported,
+                    Bfloat16 conversion is not supported on host device};
 #endif
   }
   static float to_float(const storage_t &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
     return __spirv_ConvertBF16ToFINTEL(a);
 #else
-    throw runtime_error("Bfloat16 conversion is not supported on HOST device.",
-                        PI_INVALID_DEVICE);
+    throw exception{errc::feature_not_supported,
+                    Bfloat16 conversion is not supported on host device};
 #endif
   }
 

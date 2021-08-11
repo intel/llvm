@@ -36,19 +36,15 @@ float op(float a, float b) {
 // CHECK-NOT: fptoui
 }
 
-int main (int argc, char *argv[])
-{
-    float data[3] = {7.0, 8.1, 0.0};
-    cl::sycl::queue deviceQueue;
-    cl::sycl::buffer<float, 1> buf {data, cl::sycl::range<1> {3}};
+int main(int argc, char *argv[]) {
+  float data[3] = {7.0, 8.1, 0.0};
+  cl::sycl::queue deviceQueue;
+  cl::sycl::buffer<float, 1> buf{data, cl::sycl::range<1>{3}};
 
-    deviceQueue.submit ([&] (cl::sycl::handler& cgh)
-    {
-        auto numbers = buf.get_access<cl::sycl::access::mode::read_write> (cgh);
-        cgh.single_task<class simple_kernel> ([=] ()
-        {
-            numbers[2] = op(numbers[0], numbers[1]);
-        });
-    });
+  deviceQueue.submit([&](cl::sycl::handler &cgh) {
+    auto numbers = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+    cgh.single_task<class simple_kernel>(
+        [=]() { numbers[2] = op(numbers[0], numbers[1]); });
+  });
   return 0;
 }
