@@ -175,8 +175,8 @@ public:
   /// \param Offset is the starting element offset.
   /// \return the representing region object.
   template <int Size, int Stride>
-  simd_view<simd, region1d_t<Ty, Size, Stride>>
-  select(uint16_t Offset = 0) &[[clang::lifetimebound]] {
+  simd_view<simd, region1d_t<Ty, Size, Stride>> select(uint16_t Offset = 0) &[
+      [clang::lifetimebound]] {
     region1d_t<Ty, Size, Stride> Reg(Offset);
     return {*this, Reg};
   }
