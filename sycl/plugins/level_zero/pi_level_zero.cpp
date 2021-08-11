@@ -1536,9 +1536,16 @@ pi_device _pi_platform::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
     return nullptr;
   }
 
+  // TODO: our sub-sub-device representation is currently [Level-Zero device
+  // handle + Level-Zero compute group/engine index], so there is now no 1:1
+  // mapping from L0 device handle to PI device assumed in this function. Until
+  // Level-Zero adds unique ze_device_handle_t for sub-sub-devices, here we
+  // filter out PI sub-sub-devices.
   auto it = std::find_if(PiDevicesCache.begin(), PiDevicesCache.end(),
                          [&](std::unique_ptr<_pi_device> &D) {
-                           return D.get()->ZeDevice == ZeDevice;
+                           return D.get()->ZeDevice == ZeDevice &&
+                                  (D.get()->RootDevice == nullptr ||
+                                   D.get()->RootDevice->RootDevice == nullptr);
                          });
   if (it != PiDevicesCache.end()) {
     return (*it).get();
@@ -6297,11 +6304,16 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
   }
 
   if (ZeDeviceHandle) {
-    // All devices in the context are of the same platform.
-    auto Platform = Context->Devices[0]->Platform;
-    auto Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
-
-    PI_ASSERT(Device, PI_INVALID_DEVICE);
+    pi_device Device;
+    if (Context->Devices.size() == 1) {
+      Device = Context->Devices[0];
+      PI_ASSERT(Device->ZeDevice == ZeDeviceHandle, PI_INVALID_DEVICE);
+    } else {
+      // All devices in the context are of the same platform.
+      auto Platform = Context->Devices[0]->Platform;
+      Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
+      PI_ASSERT(Device, PI_INVALID_DEVICE);
+    }
 
     auto DeallocationHelper =
         [Context, Device,
