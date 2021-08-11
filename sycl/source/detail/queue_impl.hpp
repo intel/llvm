@@ -410,8 +410,8 @@ private:
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
     if (has_property<property::queue::in_order>() &&
-        (Handler.getType() == CG::CGType::CodeplayHostTask ||
-         Handler.getType() == CG::CGType::CodeplayInteropTask))
+        (Handler.getType() == CG::CGTYPE::CodeplayHostTask ||
+         Handler.getType() == CG::CGTYPE::CodeplayInteropTask))
       Handler.depends_on(MLastEvent);
     event Event = Handler.finalize();
     if (has_property<property::queue::in_order>())
