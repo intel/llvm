@@ -15,7 +15,7 @@ DPC++ extensions status:
 | [SYCL_INTEL_enqueue_barrier](EnqueueBarrier/enqueue_barrier.asciidoc)                                                       | Supported(OpenCL, Level Zero)             | |
 | [SYCL_INTEL_extended_atomics](ExtendedAtomics/SYCL_INTEL_extended_atomics.asciidoc)                                         | Supported(OpenCL: CPU, GPU)               | |
 | [SYCL_INTEL_group_algorithms](GroupAlgorithms/SYCL_INTEL_group_algorithms.asciidoc)                                         | Supported(OpenCL; CUDA)                   | |
-| [SYCL_INTEL_group_mask](./GroupMask/SYCL_INTEL_group_mask.asciidoc)                                                         | Proposal                                  | |
+| [GroupMask](GroupMask/GroupMask.asciidoc)                                                                                   | Proposal                                  | |
 | [FPGA selector](IntelFPGA/FPGASelector.md)                                                                                  | Supported                                 | |
 | [FPGA reg](IntelFPGA/FPGAReg.md)                                                                                            | Supported(OpenCL: ACCELERATOR)            | |
 | [SYCL_INTEL_kernel_restrict_all](KernelRestrictAll/SYCL_INTEL_kernel_restrict_all.asciidoc)                                 | Supported(OpenCL)                         | |
