@@ -335,9 +335,8 @@ public:
 
   ///  Signals that subsequent parameter descriptor additions will go to
   ///  the kernel with given name. Starts new kernel invocation descriptor.
-  void startKernel(StringRef KernelName, QualType KernelNameType,
-                   StringRef KernelStableName, SourceLocation Loc, bool IsESIMD,
-                   bool IsUnnamedKernel);
+  void startKernel(const FunctionDecl *SyclKernel, QualType KernelNameType,
+                   SourceLocation Loc, bool IsESIMD, bool IsUnnamedKernel);
 
   /// Adds a kernel parameter descriptor to current kernel invocation
   /// descriptor.
@@ -349,6 +348,17 @@ public:
 
   /// Registers a specialization constant to emit info for it into the header.
   void addSpecConstant(StringRef IDName, QualType IDType);
+
+  /// Update the names of a kernel description based on its SyclKernel.
+  void updateKernelNames(const FunctionDecl *SyclKernel, StringRef Name,
+                         StringRef StableName) {
+    auto Itr = llvm::find_if(KernelDescs, [SyclKernel](const KernelDesc &KD) {
+      return KD.SyclKernel == SyclKernel;
+    });
+
+    assert(Itr != KernelDescs.end() && "Unknown kernel description");
+    Itr->updateKernelNames(Name, StableName);
+  }
 
   /// Note which free functions (this_id, this_item, etc) are called within the
   /// kernel
@@ -385,6 +395,9 @@ private:
 
   // Kernel invocation descriptor
   struct KernelDesc {
+    /// sycl_kernel function associated with this kernel.
+    const FunctionDecl *SyclKernel;
+
     /// Kernel name.
     std::string Name;
 
@@ -410,11 +423,15 @@ private:
     // hasn't provided an explicit name for.
     bool IsUnnamedKernel;
 
-    KernelDesc(StringRef Name, QualType NameType, StringRef StableName,
+    KernelDesc(const FunctionDecl *SyclKernel, QualType NameType,
                SourceLocation KernelLoc, bool IsESIMD, bool IsUnnamedKernel)
-        : Name(Name), NameType(NameType), StableName(StableName),
-          KernelLocation(KernelLoc), IsESIMDKernel(IsESIMD),
-          IsUnnamedKernel(IsUnnamedKernel) {}
+        : SyclKernel(SyclKernel), NameType(NameType), KernelLocation(KernelLoc),
+          IsESIMDKernel(IsESIMD), IsUnnamedKernel(IsUnnamedKernel) {}
+
+    void updateKernelNames(StringRef Name, StringRef StableName) {
+      this->Name = Name.str();
+      this->StableName = StableName.str();
+    }
   };
 
   /// Returns the latest invocation descriptor started by
@@ -13313,12 +13330,23 @@ private:
   std::unique_ptr<SYCLIntegrationHeader> SyclIntHeader;
   std::unique_ptr<SYCLIntegrationFooter> SyclIntFooter;
 
+  // We need to store the list of the sycl_kernel functions and their associated
+  // generated OpenCL Kernels so we can go back and re-name these after the
+  // fact.
+  llvm::SmallVector<std::pair<const FunctionDecl *, FunctionDecl *>>
+      SyclKernelsToOpenCLKernels;
+
   // Used to suppress diagnostics during kernel construction, since these were
   // already emitted earlier. Diagnosing during Kernel emissions also skips the
   // useful notes that shows where the kernel was called.
   bool DiagnosingSYCLKernel = false;
 
 public:
+  void addSyclOpenCLKernel(const FunctionDecl *SyclKernel,
+                           FunctionDecl *OpenCLKernel) {
+    SyclKernelsToOpenCLKernels.emplace_back(SyclKernel, OpenCLKernel);
+  }
+
   void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.insert(d); }
   llvm::SetVector<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
 
@@ -13360,6 +13388,7 @@ public:
   void checkSYCLDeviceVarDecl(VarDecl *Var);
   void copySYCLKernelAttrs(const CXXRecordDecl *KernelObj);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
+  void SetSYCLKernelNames();
   void MarkDevices();
 
   /// Get the number of fields or captures within the parsed type.
