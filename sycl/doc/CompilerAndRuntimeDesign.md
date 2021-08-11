@@ -321,10 +321,7 @@ compiler `ocloc` without parsing it.
 versions/Gen architectures. For example, to make the device binary
 compatible with all Intel Gen9 GPU platforms, one could use:
 
-```
--fsycl -fsycl-targets=spir64_gen
--Xsycl-target-backend "-device gen9"
-```
+`-fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device gen9"`
 
 For more details on supported platforms and argument syntax, refer to
 the GPU offline compiler manual by detecting your local `ocloc`
@@ -535,8 +532,8 @@ See [corresponding documentation](SpecializationConstants.md)
 
 #### CUDA support
 
-The driver supports compilation to NVPTX when the
-`nvptx64-nvidia-cuda` is passed to `-fsycl-targets`.
+The driver supports compilation to NVPTX when the `nvptx64-nvidia-cuda` is
+passed to `-fsycl-targets`.
 
 Unlike other AOT targets, the bitcode module linked from intermediate compiled
 objects never goes through SPIR-V. Instead it is passed directly in bitcode form
