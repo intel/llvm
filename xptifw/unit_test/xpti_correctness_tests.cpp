@@ -371,7 +371,7 @@ TEST(xptiCorrectnessTest, xptiUniversalIDMapTest) {
   }
 
   EXPECT_EQ(Count, MapTest.size());
-  for(auto &e : MapTest) {
+  for (auto &e : MapTest) {
     EXPECT_EQ(e.first.hash(), e.second);
   }
 }
@@ -400,7 +400,7 @@ TEST(xptiCorrectnessTest, xptiUniversalIDUnorderedMapTest) {
   }
 
   EXPECT_EQ(Count, MapTest.size());
-  for(auto &e : MapTest) {
+  for (auto &e : MapTest) {
     EXPECT_EQ(e.first.hash(), e.second);
   }
 }
