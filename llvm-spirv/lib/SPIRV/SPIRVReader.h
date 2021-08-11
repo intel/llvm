@@ -177,7 +177,6 @@ public:
 
 private:
   Module *M;
-  BuiltinVarMap BuiltinGVMap;
   LLVMContext *Context;
   SPIRVModule *BM;
   SPIRVToLLVMTypeMap TypeMap;
@@ -206,9 +205,6 @@ private:
   // with kPlaceholderPrefix.
   Value *mapValue(SPIRVValue *BV, Value *V);
 
-  bool isSPIRVBuiltinVariable(GlobalVariable *GV,
-                              SPIRVBuiltinVariableKind *Kind = nullptr);
-
   // OpenCL function always has NoUnwind attribute.
   // Change this if it is no longer true.
   bool isFuncNoUnwind() const { return true; }
@@ -219,16 +215,12 @@ private:
 
   bool isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const;
   bool isDirectlyTranslatedToOCL(Op OpCode) const;
-  bool transOCLBuiltinsFromVariables();
-  bool transOCLBuiltinFromVariable(GlobalVariable *GV,
-                                   SPIRVBuiltinVariableKind Kind);
   MDString *transOCLKernelArgTypeName(SPIRVFunctionParameter *);
   Value *mapFunction(SPIRVFunction *BF, Function *F);
   Value *getTranslatedValue(SPIRVValue *BV);
   IntrinsicInst *getLifetimeStartIntrinsic(Instruction *I);
   SPIRVErrorLog &getErrorLog();
   void setCallingConv(CallInst *Call);
-  void setAttrByCalledFunc(CallInst *Call);
   Type *transFPType(SPIRVType *T);
   Value *transShiftLogicalBitwiseInst(SPIRVValue *BV, BasicBlock *BB,
                                       Function *F);
@@ -240,6 +232,7 @@ private:
                                        const std::string &DemangledName);
   std::string transOCLImageTypeName(SPIRV::SPIRVTypeImage *ST);
   std::string transOCLSampledImageTypeName(SPIRV::SPIRVTypeSampledImage *ST);
+  std::string transVMEImageTypeName(SPIRV::SPIRVTypeVmeImageINTEL *VT);
   std::string transOCLPipeTypeName(
       SPIRV::SPIRVTypePipe *ST, bool UseSPIRVFriendlyFormat = false,
       SPIRVAccessQualifierKind PipeAccess = AccessQualifierReadOnly);
@@ -260,8 +253,6 @@ private:
   getMetadataFromNameAndParameter(std::string Name, SPIRVWord Parameter);
   inline MDNode *getMetadataFromNameAndParameter(std::string Name,
                                                  int64_t Parameter);
-  void insertImageNameAccessQualifier(SPIRV::SPIRVTypeImage *ST,
-                                      std::string &Name);
   template <class Source, class Func> bool foreachFuncCtlMask(Source, Func);
   llvm::GlobalValue::LinkageTypes transLinkageType(const SPIRVValue *V);
   Instruction *transOCLAllAny(SPIRVInstruction *BI, BasicBlock *BB);

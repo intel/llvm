@@ -1375,6 +1375,20 @@ Instruction *InstCombinerImpl::visitZExt(ZExtInst &CI) {
     return BinaryOperator::CreateXor(Builder.CreateAnd(X, ZC), ZC);
   }
 
+  if (match(Src, m_VScale(DL))) {
+    if (CI.getFunction()->hasFnAttribute(Attribute::VScaleRange)) {
+      unsigned MaxVScale = CI.getFunction()
+                               ->getFnAttribute(Attribute::VScaleRange)
+                               .getVScaleRangeArgs()
+                               .second;
+      unsigned TypeWidth = Src->getType()->getScalarSizeInBits();
+      if (Log2_32(MaxVScale) < TypeWidth) {
+        Value *VScale = Builder.CreateVScale(ConstantInt::get(DestTy, 1));
+        return replaceInstUsesWith(CI, VScale);
+      }
+    }
+  }
+
   return nullptr;
 }
 
@@ -1617,6 +1631,20 @@ Instruction *InstCombinerImpl::visitSExt(SExtInst &CI) {
         Constant::mergeUndefsWith(Constant::mergeUndefsWith(NewShAmt, BA), CA);
     A = Builder.CreateShl(A, NewShAmt, CI.getName());
     return BinaryOperator::CreateAShr(A, NewShAmt);
+  }
+
+  if (match(Src, m_VScale(DL))) {
+    if (CI.getFunction()->hasFnAttribute(Attribute::VScaleRange)) {
+      unsigned MaxVScale = CI.getFunction()
+                               ->getFnAttribute(Attribute::VScaleRange)
+                               .getVScaleRangeArgs()
+                               .second;
+      unsigned TypeWidth = Src->getType()->getScalarSizeInBits();
+      if (Log2_32(MaxVScale) < (TypeWidth - 1)) {
+        Value *VScale = Builder.CreateVScale(ConstantInt::get(DestTy, 1));
+        return replaceInstUsesWith(CI, VScale);
+      }
+    }
   }
 
   return nullptr;

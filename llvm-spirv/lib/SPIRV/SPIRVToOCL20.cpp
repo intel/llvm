@@ -51,6 +51,11 @@ bool SPIRVToOCL20Legacy::runOnModule(Module &Module) {
 bool SPIRVToOCL20Base::runSPIRVToOCL(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
+
+  // Lower builtin variables to builtin calls first.
+  lowerBuiltinVariablesToCalls(M);
+  translateOpaqueTypes();
+
   visit(*M);
 
   eraseUselessFunctions(&Module);

@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_ASMPARSER_LLTOKEN_H
-#define LLVM_LIB_ASMPARSER_LLTOKEN_H
+#ifndef LLVM_ASMPARSER_LLTOKEN_H
+#define LLVM_ASMPARSER_LLTOKEN_H
 
 namespace llvm {
 namespace lltok {
@@ -261,7 +261,7 @@ enum Kind {
   kw_any,
   kw_exactmatch,
   kw_largest,
-  kw_noduplicates,
+  kw_nodeduplicate,
   kw_samesize,
 
   kw_eq,

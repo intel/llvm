@@ -21,6 +21,9 @@
 // CHECK-NOT: static_used
 // CHECK-NOT: sycl-spir64.llvm.used
 // CHECK-NOT: sycl-spir64.llvm.compiler.used
+// CHECK-NOT: sycl-spir64.const_as
+
+const __attribute__((opencl_constant)) char const_as[] = "abc";
 
 extern void undefined_func(void);
 

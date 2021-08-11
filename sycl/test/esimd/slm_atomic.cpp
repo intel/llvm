@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s 2>&1 | FileCheck %s --implicit-check-not="warning:" --implicit-check-not="error:"
+// RUN: %clangxx -fsycl -fsyntax-only -Wno-unused-command-line-argument %s 2>&1 | FileCheck %s --implicit-check-not="warning:" --implicit-check-not="error:"
 
 // This test checks compilation of ESIMD slm atomic APIs. Those which are
 // deprecated must produce deprecation messages.

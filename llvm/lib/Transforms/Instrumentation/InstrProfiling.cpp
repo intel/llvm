@@ -467,9 +467,14 @@ bool InstrProfiling::lowerIntrinsics(Function *F) {
 }
 
 bool InstrProfiling::isRuntimeCounterRelocationEnabled() const {
+  // Mach-O don't support weak external references.
+  if (TT.isOSBinFormatMachO())
+    return false;
+
   if (RuntimeCounterRelocation.getNumOccurrences() > 0)
     return RuntimeCounterRelocation;
 
+  // Fuchsia uses runtime counter relocation by default.
   return TT.isOSFuchsia();
 }
 
@@ -690,10 +695,19 @@ void InstrProfiling::lowerIncrement(InstrProfIncrementInst *Inc) {
       Type *Int64Ty = Type::getInt64Ty(M->getContext());
       GlobalVariable *Bias = M->getGlobalVariable(getInstrProfCounterBiasVarName());
       if (!Bias) {
+        // Compiler must define this variable when runtime counter relocation
+        // is being used. Runtime has a weak external reference that is used
+        // to check whether that's the case or not.
         Bias = new GlobalVariable(*M, Int64Ty, false, GlobalValue::LinkOnceODRLinkage,
                                   Constant::getNullValue(Int64Ty),
                                   getInstrProfCounterBiasVarName());
         Bias->setVisibility(GlobalVariable::HiddenVisibility);
+        // A definition that's weak (linkonce_odr) without being in a COMDAT
+        // section wouldn't lead to link errors, but it would lead to a dead
+        // data word from every TU but one. Putting it in COMDAT ensures there
+        // will be exactly one data slot in the link.
+        if (TT.supportsCOMDAT())
+          Bias->setComdat(M->getOrInsertComdat(Bias->getName()));
       }
       LI = Builder.CreateLoad(Int64Ty, Bias);
     }
@@ -848,7 +862,7 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfIncrementInst *Inc) {
   // same name marked IMAGE_COMDAT_SELECT_ASSOCIATIVE.
   //
   // For ELF, when not using COMDAT, put counters, data and values into a
-  // noduplicates COMDAT which is lowered to a zero-flag section group. This
+  // nodeduplicate COMDAT which is lowered to a zero-flag section group. This
   // allows -z start-stop-gc to discard the entire group when the function is
   // discarded.
   bool DataReferencedByCode = profDataReferencedByCode(*M);
@@ -863,7 +877,7 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfIncrementInst *Inc) {
                                 : CntsVarName;
       Comdat *C = M->getOrInsertComdat(GroupName);
       if (!NeedComdat)
-        C->setSelectionKind(Comdat::NoDuplicates);
+        C->setSelectionKind(Comdat::NoDeduplicate);
       GV->setComdat(C);
     }
   };
@@ -906,6 +920,7 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfIncrementInst *Inc) {
   }
 
   // Create data variable.
+  auto *IntPtrTy = M->getDataLayout().getIntPtrType(M->getContext());
   auto *Int16Ty = Type::getInt16Ty(Ctx);
   auto *Int16ArrayTy = ArrayType::get(Int16Ty, IPVK_Last + 1);
   Type *DataTypes[] = {
@@ -922,10 +937,6 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfIncrementInst *Inc) {
   for (uint32_t Kind = IPVK_First; Kind <= IPVK_Last; ++Kind)
     Int16ArrayVals[Kind] = ConstantInt::get(Int16Ty, PD.NumValueSites[Kind]);
 
-  Constant *DataVals[] = {
-#define INSTR_PROF_DATA(Type, LLVMType, Name, Init) Init,
-#include "llvm/ProfileData/InstrProfData.inc"
-  };
   // If the data variable is not referenced by code (if we don't emit
   // @llvm.instrprof.value.profile, NS will be 0), and the counter keeps the
   // data variable live under linker GC, the data variable can be private. This
@@ -939,8 +950,19 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfIncrementInst *Inc) {
     Visibility = GlobalValue::DefaultVisibility;
   }
   auto *Data =
-      new GlobalVariable(*M, DataTy, false, Linkage,
-                         ConstantStruct::get(DataTy, DataVals), DataVarName);
+      new GlobalVariable(*M, DataTy, false, Linkage, nullptr, DataVarName);
+  // Reference the counter variable with a label difference (link-time
+  // constant).
+  auto *RelativeCounterPtr =
+      ConstantExpr::getSub(ConstantExpr::getPtrToInt(CounterPtr, IntPtrTy),
+                           ConstantExpr::getPtrToInt(Data, IntPtrTy));
+
+  Constant *DataVals[] = {
+#define INSTR_PROF_DATA(Type, LLVMType, Name, Init) Init,
+#include "llvm/ProfileData/InstrProfData.inc"
+  };
+  Data->setInitializer(ConstantStruct::get(DataTy, DataVals));
+
   Data->setVisibility(Visibility);
   Data->setSection(getInstrProfSectionName(IPSK_data, TT.getObjectFormat()));
   Data->setAlignment(Align(INSTR_PROF_DATA_ALIGNMENT));

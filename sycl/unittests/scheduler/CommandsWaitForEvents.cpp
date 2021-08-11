@@ -79,9 +79,9 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   Mock.redefine<detail::PiApiKind::piEventRelease>(retainReleaseFunc);
   Mock.redefine<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
 
-  context Ctx1{Plt};
+  context Ctx1{Plt.get_devices()[0]};
   queue Q1{Ctx1, Selector};
-  context Ctx2{Plt};
+  context Ctx2{Plt.get_devices()[0]};
   queue Q2{Ctx2, Selector};
 
   TestContext.reset(new TestCtx(Q1, Q2));

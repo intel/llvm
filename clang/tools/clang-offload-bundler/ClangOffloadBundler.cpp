@@ -643,9 +643,22 @@ class ObjectFileHandler final : public FileHandler {
             return createStringError(inconvertibleErrorCode(),
                                      Err.getMessage());
 
+          bool UpdateBuf = false;
           if (!Mod->getModuleInlineAsm().empty()) {
             Mod->setModuleInlineAsm("");
-
+            UpdateBuf = true;
+          }
+          for (auto I = Mod->global_begin(), E = Mod->global_end(); I != E;) {
+            GlobalVariable &GV = *I++;
+            // Do not add globals with constant address space to the tgtsym.
+            if (!GV.isDeclaration() && !GV.hasLocalLinkage() &&
+                GV.getAddressSpace() == 2) {
+              GV.dropAllReferences();
+              GV.eraseFromParent();
+              UpdateBuf = true;
+            }
+          }
+          if (UpdateBuf) {
             SmallVector<char, 0> ModuleBuf;
             raw_svector_ostream ModuleOS(ModuleBuf);
             WriteBitcodeToFile(*Mod, ModuleOS);
