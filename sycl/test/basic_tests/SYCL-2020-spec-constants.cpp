@@ -37,6 +37,14 @@ constexpr sycl::specialization_id<uint64_t> uint64_id(8);
 // constexpr sycl::specialization_id<half> half_id(9.0);
 constexpr sycl::specialization_id<float> float_id(10.0);
 constexpr sycl::specialization_id<double> double_id(11.0);
+constexpr sycl::marray<double, 5> ma;
+constexpr sycl::specialization_id<sycl::marray<double, 5>> marray_id5(11.0);
+constexpr sycl::specialization_id<sycl::marray<double, 1>> marray_id1(11.0);
+constexpr sycl::specialization_id<sycl::marray<double, 5>> marray_id_def(ma);
+constexpr sycl::vec<double, 4> v{};
+constexpr sycl::specialization_id<sycl::vec<double, 4>> vec_id_def(v);
+constexpr sycl::specialization_id<sycl::vec<double, 1>> vec_id1(11.0);
+constexpr sycl::specialization_id<sycl::vec<double, 4>> vec_id4(11.0);
 
 struct composite {
   int a;
