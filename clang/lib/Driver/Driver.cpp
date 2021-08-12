@@ -925,13 +925,13 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
           // Warn about deprecated `sycldevice` environment component.
           if (TT.getEnvironmentName() == "sycldevice") {
+            Diag(clang::diag::warn_drv_deprecated_arg)
+                << TT.str() << TT.getArchName();
+            // Drop environment component.
             std::string EffectiveTriple =
                 Twine(TT.getArchName() + "-" + TT.getVendorName() + "-" +
                       TT.getOSName())
                     .str();
-            Diag(clang::diag::warn_drv_sycl_deprecated_triple_component)
-                << TT.getEnvironmentName() << TT.str() << EffectiveTriple;
-            // Drop environment component.
             TT.setTriple(EffectiveTriple);
           }
 

@@ -29,7 +29,7 @@
 // DISABLED-NOT: "-fsycl-std-layout-kernel-params"
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -c %s 2>&1 | FileCheck %s --check-prefix=CHECK_WARNING
-// CHECK_WARNING: 'sycldevice' component of 'spir64-unknown-unknown-sycldevice' SYCL offloading target triple is deprecated; using 'spir64-unknown-unknown' instead
+// CHECK_WARNING: argument 'spir64-unknown-unknown-sycldevice' is deprecated, use 'spir64' instead
 
 // RUN: %clang -### -fsycl-device-only -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 // RUN: %clang -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
