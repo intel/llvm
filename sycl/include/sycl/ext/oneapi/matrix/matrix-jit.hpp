@@ -44,8 +44,9 @@ template <int D> struct spv_scope_traits<sycl::group<D>> {
   constexpr static auto value = __spv::Scope::Workgroup;
 };
 
-template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          matrix_layout Layout = matrix_layout::row_major>
+template <typename T, size_t NumRows, size_t NumCols,
+          matrix_layout Layout = matrix_layout::row_major,
+          typename Group = sycl::sub_group>
 struct joint_matrix {
 public:
   __spv::__spirv_JointMatrixINTEL<
@@ -64,7 +65,7 @@ template <typename Group, typename T, size_t NumRows, size_t NumCols,
           access::address_space Space>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_load(Group sg,
-                  joint_matrix<Group, T, NumRows, NumCols, Layout> &res,
+                  joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
                   multi_ptr<T, Space> src, size_t stride, matrix_layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
   T *Ptr = src.get();
@@ -116,7 +117,7 @@ template <typename Group, typename T, size_t NumRows, size_t NumCols,
           access::address_space Space>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_store(Group sg,
-                   joint_matrix<Group, T, NumRows, NumCols, MatL> &src,
+                   joint_matrix<T, NumRows, NumCols, MatL, Group> &src,
                    multi_ptr<T, Space> res, size_t stride, matrix_layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
   T *Ptr = res.get();
@@ -162,12 +163,12 @@ joint_matrix_store(Group sg,
 template <typename Group, typename T1, typename T2, size_t M, size_t K,
           size_t N, matrix_layout LayoutA, matrix_layout LayoutB,
           matrix_layout LayoutC>
-inline __SYCL_ALWAYS_INLINE joint_matrix<Group, T2, M, N, LayoutC>
-joint_matrix_mad(Group sg, joint_matrix<Group, T1, M, K, LayoutA> &mA,
-                 joint_matrix<Group, T1, K, N, LayoutB> &mB,
-                 joint_matrix<Group, T2, M, N, LayoutC> &mC) {
+inline __SYCL_ALWAYS_INLINE joint_matrix<T2, M, N, LayoutC, Group>
+joint_matrix_mma(Group sg, joint_matrix<T1, M, K, LayoutA, Group> &mA,
+                 joint_matrix<T1, K, N, LayoutB, Group> &mB,
+                 joint_matrix<T2, M, N, LayoutC, Group> &mC) {
 #ifdef __SYCL_DEVICE_ONLY__
-  joint_matrix<Group, T2, M, N, LayoutC> res(sg);
+  joint_matrix<T2, M, N, LayoutC, Group> res(sg);
   res.spvm = __spirv_JointMatrixMadINTEL(mA.spvm, mB.spvm, mC.spvm);
   return res;
 #else

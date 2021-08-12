@@ -59,12 +59,12 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C, big_matrix<T2, N
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            ext::oneapi::sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<ext::oneapi::sub_group, int8_t, TM, TK> sub_a(sg);
+           joint_matrix<int8_t, TM, TK> sub_a(sg);
            // For B, since current implementation does not support non-packed layout,
            // users need to specify the updated VNNI sizes along with the packed_b layout.
            // By default, the layout is row_major and size is (TK, TN).
-           joint_matrix<ext::oneapi::sub_group, int8_t, TK, TN, matrix_layout::packed_b> sub_b(sg);
-           joint_matrix<ext::oneapi::sub_group, int32_t, TM, TN> sub_c(sg);
+           joint_matrix<int8_t, TK, TN, matrix_layout::packed_b> sub_b(sg);
+           joint_matrix<int32_t, TM, TN> sub_c(sg);
 
            // AMX: 8 register tiles : 1k byte size, SMmaxxSKmax =16x64
            // strideX = X's cols, so strideC = N, strideA = K, strideB = N*4
@@ -81,7 +81,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C, big_matrix<T2, N
                                accB.get_pointer() + (k * TK / 4) * (N * 4) +
                                    sg_starty / SG_SZ * TN * 4,
                                N * 4, matrix_layout::packed_b);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             sub_c = joint_matrix_mma(sg, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(sg, sub_c,
                               accC.get_pointer() + (sg_startx * TM) * N +
