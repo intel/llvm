@@ -1906,11 +1906,10 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   }
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
     struct {
-      size_t Arr[3];
-
-    } MaxGroupCounts = {{Device->ZeDeviceComputeProperties.maxGroupCountX,
-                         Device->ZeDeviceComputeProperties.maxGroupCountY,
-                         Device->ZeDeviceComputeProperties.maxGroupCountZ}};
+      size_t Arr[3]
+    } MaxGroupCounts = {{Device->ZeDeviceComputeProperties->maxGroupCountX,
+                         Device->ZeDeviceComputeProperties->maxGroupCountY,
+                         Device->ZeDeviceComputeProperties->maxGroupCountZ}};
     return ReturnValue(MaxGroupCounts);
   }
   case PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY:
