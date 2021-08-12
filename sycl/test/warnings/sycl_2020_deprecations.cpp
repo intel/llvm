@@ -69,6 +69,14 @@ int main() {
   // expected-warning@+1{{'get_count' is deprecated: get_count() is deprecated, please use size() instead}}
   size_t BufferGetCount = Buffer.get_count();
   size_t BufferSize = Buffer.size();
+  // expected-warning@+1 {{'get_size' is deprecated: get_size() is deprecated, please use byte_size() instead}}
+  size_t BufferGetSize = Buffer.get_size();
+
+  sycl::vec<int, 2> Vec(1, 2);
+  // expected-warning@+1{{'get_count' is deprecated: get_count() is deprecated, please use size() instead}}
+  size_t VecGetCount = Vec.get_count();
+  // expected-warning@+1 {{'get_size' is deprecated: get_size() is deprecated, please use byte_size() instead}}
+  size_t VecGetSize = Vec.get_size();
 
   // expected-warning@+1 {{'runtime_error' is deprecated: use sycl::exception with sycl::errc::runtime instead.}}
   sycl::runtime_error re;
