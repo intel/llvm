@@ -3635,6 +3635,19 @@ pi_result cuda_piSamplerRelease(pi_sampler sampler) {
   return PI_SUCCESS;
 }
 
+void copyRectAsserts(const pi_buff_rect_region &region,
+                    const pi_buff_rect_offset &src_offset,
+                    const pi_buff_rect_offset &dst_offset,
+                    const CUmemorytype_enum &src_type,
+                    const CUmemorytype_enum &dst_type) {
+  assert(region != nullptr);
+  assert(src_offset != nullptr);
+  assert(dst_offset != nullptr);
+
+  assert(src_type == CU_MEMORYTYPE_DEVICE || src_type == CU_MEMORYTYPE_HOST);
+  assert(dst_type == CU_MEMORYTYPE_DEVICE || dst_type == CU_MEMORYTYPE_HOST);
+}
+
 /// General 3D memory copy operation.
 /// This function requires the corresponding CUDA context to be at the top of
 /// the context stack
@@ -3647,12 +3660,7 @@ static pi_result commonEnqueueMemBufferCopyRect(
     const CUmemorytype_enum dst_type, pi_buff_rect_offset dst_offset,
     size_t dst_row_pitch, size_t dst_slice_pitch) {
 
-  assert(region != nullptr);
-  assert(src_offset != nullptr);
-  assert(dst_offset != nullptr);
-
-  assert(src_type == CU_MEMORYTYPE_DEVICE || src_type == CU_MEMORYTYPE_HOST);
-  assert(dst_type == CU_MEMORYTYPE_DEVICE || dst_type == CU_MEMORYTYPE_HOST);
+  copyRectAsserts(region, src_offset, dst_offset, src_type, dst_type);
 
   src_row_pitch = (!src_row_pitch) ? region->width_bytes : src_row_pitch;
   src_slice_pitch = (!src_slice_pitch) ? (region->height_scalar * src_row_pitch)
@@ -3690,6 +3698,60 @@ static pi_result commonEnqueueMemBufferCopyRect(
   params.dstHeight = dst_slice_pitch / dst_row_pitch;
 
   return PI_CHECK_ERROR(cuMemcpy3DAsync(&params, cu_stream));
+}
+
+/// General 3D memory Peer copy operation.
+/// Similar to commonEnqueueMemBufferCopyRect with the addition that two
+/// contexts must be specified.
+static pi_result commonEnqueueMemBufferCopyRectPeer(
+    CUstream cu_stream, pi_buff_rect_region region, const void *src_ptr,
+    const CUmemorytype_enum src_type, pi_buff_rect_offset src_offset,
+    size_t src_row_pitch, size_t src_slice_pitch, void *dst_ptr,
+    const CUmemorytype_enum dst_type, pi_buff_rect_offset dst_offset,
+    size_t dst_row_pitch, size_t dst_slice_pitch, CUcontext dst_context,
+    CUcontext src_context) {
+
+  copyRectAsserts(region, src_offset, dst_offset, src_type, dst_type);
+
+  src_row_pitch = (!src_row_pitch) ? region->width_bytes : src_row_pitch;
+  src_slice_pitch = (!src_slice_pitch) ? (region->height_scalar * src_row_pitch)
+                                       : src_slice_pitch;
+  dst_row_pitch = (!dst_row_pitch) ? region->width_bytes : dst_row_pitch;
+  dst_slice_pitch = (!dst_slice_pitch) ? (region->height_scalar * dst_row_pitch)
+                                       : dst_slice_pitch;
+
+  CUDA_MEMCPY3D_PEER params = {};
+
+  params.WidthInBytes = region->width_bytes;
+  params.Height = region->height_scalar;
+  params.Depth = region->depth_scalar;
+
+  params.srcMemoryType = src_type;
+  params.srcDevice = src_type == CU_MEMORYTYPE_DEVICE
+                         ? *static_cast<const CUdeviceptr *>(src_ptr)
+                         : 0;
+  params.srcHost = src_type == CU_MEMORYTYPE_HOST ? src_ptr : nullptr;
+  params.srcXInBytes = src_offset->x_bytes;
+  params.srcY = src_offset->y_scalar;
+  params.srcZ = src_offset->z_scalar;
+  params.srcPitch = src_row_pitch;
+  params.srcHeight = src_slice_pitch / src_row_pitch;
+
+  params.dstMemoryType = dst_type;
+  params.dstDevice = dst_type == CU_MEMORYTYPE_DEVICE
+                         ? *static_cast<CUdeviceptr *>(dst_ptr)
+                         : 0;
+  params.dstHost = dst_type == CU_MEMORYTYPE_HOST ? dst_ptr : nullptr;
+  params.dstXInBytes = dst_offset->x_bytes;
+  params.dstY = dst_offset->y_scalar;
+  params.dstZ = dst_offset->z_scalar;
+  params.dstPitch = dst_row_pitch;
+  params.dstHeight = dst_slice_pitch / dst_row_pitch;
+
+  params.dstContext = dst_context;
+  params.srcContext = src_context;
+
+  return PI_CHECK_ERROR(cuMemcpy3DPeerAsync(&params, cu_stream));
 }
 
 pi_result cuda_piEnqueueMemBufferReadRect(
@@ -3841,6 +3903,61 @@ pi_result cuda_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
   }
 }
 
+pi_result cuda_piextEnqueueMemBufferCopyPeer(
+    pi_queue src_queue, pi_mem src_buffer, pi_queue dst_queue,
+    pi_mem dst_buffer, size_t src_offset, size_t dst_offset, size_t size,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event) {
+
+  assert(src_buffer != nullptr);
+  assert(dst_buffer != nullptr);
+
+  if (!dst_queue) {
+    return PI_INVALID_QUEUE;
+  }
+
+  std::unique_ptr<_pi_event> retImplEv{nullptr};
+
+  try {
+    ScopedContext active(dst_queue->get_context());
+    if (event_wait_list) {
+      cuda_piEnqueueEventsWait(src_queue, num_events_in_wait_list,
+                               event_wait_list, nullptr);
+    }
+
+    pi_result result;
+
+    if (event) {
+      retImplEv = std::unique_ptr<_pi_event>(
+          _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY, dst_queue));
+      result = retImplEv->start();
+    }
+
+    auto stream = dst_queue->get();
+    auto src = src_buffer->mem_.buffer_mem_.get() + src_offset;
+    auto dst = dst_buffer->mem_.buffer_mem_.get() + dst_offset;
+
+    auto dst_context = dst_queue->get_context()->get();
+    auto src_context = src_queue->get_context()->get();
+
+    cuCtxEnablePeerAccess(src_context, 0);
+
+    result = PI_CHECK_ERROR(
+        cuMemcpyPeerAsync(dst, dst_context, src, src_context, size, stream));
+
+    if (event) {
+      result = retImplEv->record();
+      *event = retImplEv.release();
+    }
+
+    return result;
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+}
+
 pi_result cuda_piEnqueueMemBufferCopyRect(
     pi_queue command_queue, pi_mem src_buffer, pi_mem dst_buffer,
     pi_buff_rect_offset src_origin, pi_buff_rect_offset dst_origin,
@@ -3875,6 +3992,63 @@ pi_result cuda_piEnqueueMemBufferCopyRect(
         cuStream, region, &srcPtr, CU_MEMORYTYPE_DEVICE, src_origin,
         src_row_pitch, src_slice_pitch, &dstPtr, CU_MEMORYTYPE_DEVICE,
         dst_origin, dst_row_pitch, dst_slice_pitch);
+
+    if (event) {
+      retImplEv->record();
+      *event = retImplEv.release();
+    }
+
+  } catch (pi_result err) {
+    retErr = err;
+  }
+  return retErr;
+}
+
+pi_result cuda_piextEnqueueMemBufferCopyRectPeer(
+    pi_queue src_queue, pi_mem src_buffer, pi_queue dst_queue,
+    pi_mem dst_buffer, pi_buff_rect_offset src_origin,
+    pi_buff_rect_offset dst_origin, pi_buff_rect_region region,
+    size_t src_row_pitch, size_t src_slice_pitch, size_t dst_row_pitch,
+    size_t dst_slice_pitch, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+
+  assert(src_buffer != nullptr);
+  assert(dst_buffer != nullptr);
+
+  if (!dst_queue) {
+    return PI_INVALID_QUEUE;
+  }
+
+  pi_result retErr = PI_SUCCESS;
+
+  std::unique_ptr<_pi_event> retImplEv{nullptr};
+
+  CUstream cuStream = dst_queue->get();
+  CUdeviceptr srcPtr = src_buffer->mem_.buffer_mem_.get();
+  CUdeviceptr dstPtr = dst_buffer->mem_.buffer_mem_.get();
+
+  auto dstContext = dst_queue->get_context()->get();
+  auto srcContext = src_queue->get_context()->get();
+
+  cuCtxEnablePeerAccess(srcContext, 0);
+
+  try {
+    ScopedContext active(dst_queue->get_context());
+    if (event_wait_list) {
+      retErr = cuda_piEnqueueEventsWait(src_queue, num_events_in_wait_list,
+                                        event_wait_list, nullptr);
+    }
+
+    if (event) {
+      retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, dst_queue));
+      retImplEv->start();
+    }
+
+    retErr = commonEnqueueMemBufferCopyRectPeer(
+        cuStream, region, &srcPtr, CU_MEMORYTYPE_DEVICE, src_origin,
+        src_row_pitch, src_slice_pitch, &dstPtr, CU_MEMORYTYPE_DEVICE,
+        dst_origin, dst_row_pitch, dst_slice_pitch, dstContext, srcContext);
 
     if (event) {
       retImplEv->record();
@@ -4073,6 +4247,54 @@ static pi_result commonEnqueueMemImageNDCopy(
     cpyDesc.Depth = region[2];
     return PI_CHECK_ERROR(cuMemcpy3DAsync(&cpyDesc, cu_stream));
   }
+  return PI_INVALID_VALUE;
+}
+
+/// Similar to commonEnqueueMemImageNDCopy for Peer to Peer copies.
+static pi_result commonEnqueueMemImageNDCopyPeer(
+    CUstream cu_stream, pi_mem_type img_type, const size_t *region,
+    const void *src_ptr, const CUmemorytype_enum src_type,
+    const size_t *src_offset, void *dst_ptr, const CUmemorytype_enum dst_type,
+    const size_t *dst_offset, CUcontext dst_context, CUcontext src_context) {
+  assert(region != nullptr);
+
+  assert(src_type == CU_MEMORYTYPE_ARRAY || src_type == CU_MEMORYTYPE_HOST);
+  assert(dst_type == CU_MEMORYTYPE_ARRAY || dst_type == CU_MEMORYTYPE_HOST);
+
+  CUDA_MEMCPY3D_PEER cpyDesc;
+  memset(&cpyDesc, 0, sizeof(cpyDesc));
+  cpyDesc.srcMemoryType = src_type;
+  if (src_type == CU_MEMORYTYPE_ARRAY) {
+    cpyDesc.srcArray = *static_cast<const CUarray *>(src_ptr);
+    cpyDesc.srcXInBytes = src_offset[0];
+    cpyDesc.srcY = src_offset[1];
+    cpyDesc.srcZ = src_offset[2];
+  } else {
+    cpyDesc.srcDevice = src_type == CU_MEMORYTYPE_DEVICE
+                            ? *static_cast<const CUdeviceptr *>(src_ptr)
+                            : 0;
+    cpyDesc.srcHost = src_type == CU_MEMORYTYPE_HOST ? src_ptr : nullptr;
+  }
+  cpyDesc.dstMemoryType = dst_type;
+  if (dst_type == CU_MEMORYTYPE_ARRAY) {
+    cpyDesc.dstArray = *static_cast<CUarray *>(dst_ptr);
+    cpyDesc.dstXInBytes = dst_offset[0];
+    cpyDesc.dstY = dst_offset[1];
+    cpyDesc.dstZ = dst_offset[2];
+  } else {
+    cpyDesc.dstDevice = dst_type == CU_MEMORYTYPE_DEVICE
+                            ? *static_cast<CUdeviceptr *>(dst_ptr)
+                            : 0;
+    cpyDesc.dstHost = dst_type == CU_MEMORYTYPE_HOST ? dst_ptr : nullptr;
+  }
+  cpyDesc.WidthInBytes = region[0];
+  cpyDesc.Height = region[1];
+  cpyDesc.Depth = region[2];
+  cpyDesc.dstContext = dst_context;
+  cpyDesc.srcContext = src_context;
+
+  return PI_CHECK_ERROR(cuMemcpy3DPeerAsync(&cpyDesc, cu_stream));
+
   return PI_INVALID_VALUE;
 }
 
@@ -4281,6 +4503,87 @@ pi_result cuda_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
       new_event->record();
       *event = new_event;
     }
+  } catch (pi_result err) {
+    return err;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return retErr;
+}
+
+pi_result cuda_piextEnqueueMemImageCopyPeer(
+    pi_queue src_queue, pi_mem src_image, pi_queue dst_queue, pi_mem dst_image,
+    const size_t *src_origin, const size_t *dst_origin, const size_t *region,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event) {
+
+  assert(src_image->mem_type_ == _pi_mem::mem_type::surface);
+  assert(dst_image->mem_type_ == _pi_mem::mem_type::surface);
+  assert(src_image->mem_.surface_mem_.get_image_type() ==
+         dst_image->mem_.surface_mem_.get_image_type());
+
+  if (!dst_queue) {
+    return PI_INVALID_QUEUE;
+  }
+
+  pi_result retErr = PI_SUCCESS;
+  CUstream cuStream = dst_queue->get();
+
+  try {
+    ScopedContext active(dst_queue->get_context());
+
+    if (event_wait_list) {
+      cuda_piEnqueueEventsWait(src_queue, num_events_in_wait_list,
+                               event_wait_list, nullptr);
+    }
+
+    CUarray srcArray = src_image->mem_.surface_mem_.get_array();
+    CUarray dstArray = dst_image->mem_.surface_mem_.get_array();
+
+    CUDA_ARRAY_DESCRIPTOR srcArrayDesc;
+    retErr = PI_CHECK_ERROR(cuArrayGetDescriptor(&srcArrayDesc, srcArray));
+    CUDA_ARRAY_DESCRIPTOR dstArrayDesc;
+    retErr = PI_CHECK_ERROR(cuArrayGetDescriptor(&dstArrayDesc, dstArray));
+
+    assert(srcArrayDesc.Format == dstArrayDesc.Format);
+    assert(srcArrayDesc.NumChannels == dstArrayDesc.NumChannels);
+
+    int elementByteSize = imageElementByteSize(srcArrayDesc);
+
+    size_t dstByteOffsetX =
+        dst_origin[0] * elementByteSize * srcArrayDesc.NumChannels;
+    size_t srcByteOffsetX =
+        src_origin[0] * elementByteSize * dstArrayDesc.NumChannels;
+    size_t bytesToCopy = elementByteSize * srcArrayDesc.NumChannels * region[0];
+
+    pi_mem_type imgType = src_image->mem_.surface_mem_.get_image_type();
+
+    auto dstContext = dst_queue->get_context()->get();
+    auto srcContext = src_queue->get_context()->get();
+
+    cuCtxEnablePeerAccess(srcContext, 0);
+
+    size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
+    size_t srcOffset[3] = {srcByteOffsetX, src_origin[1], src_origin[2]};
+    size_t dstOffset[3] = {dstByteOffsetX, dst_origin[1], dst_origin[2]};
+
+    retErr = commonEnqueueMemImageNDCopyPeer(
+        cuStream, imgType, adjustedRegion, &srcArray, CU_MEMORYTYPE_ARRAY,
+        srcOffset, &dstArray, CU_MEMORYTYPE_ARRAY, dstOffset, dstContext,
+        srcContext);
+
+    if (retErr != PI_SUCCESS) {
+      return retErr;
+    }
+
+    if (event) {
+      auto new_event =
+          _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_COPY, dst_queue);
+      new_event->record();
+      *event = new_event;
+    }
+
   } catch (pi_result err) {
     return err;
   } catch (...) {
@@ -4830,6 +5133,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piMemBufferPartition, cuda_piMemBufferPartition)
   _PI_CL(piextMemGetNativeHandle, cuda_piextMemGetNativeHandle)
   _PI_CL(piextMemCreateWithNativeHandle, cuda_piextMemCreateWithNativeHandle)
+  _PI_CL(piextEnqueueMemBufferCopyPeer, cuda_piextEnqueueMemBufferCopyPeer)
+  _PI_CL(piextEnqueueMemBufferCopyRectPeer, cuda_piextEnqueueMemBufferCopyRectPeer)
+  _PI_CL(piextEnqueueMemImageCopyPeer, cuda_piextEnqueueMemImageCopyPeer)
   // Program
   _PI_CL(piProgramCreate, cuda_piProgramCreate)
   _PI_CL(piclProgramCreateWithSource, cuda_piclProgramCreateWithSource)

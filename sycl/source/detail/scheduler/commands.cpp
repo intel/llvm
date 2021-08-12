@@ -509,7 +509,12 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
   // If contexts don't match we'll connect them using host task
-  if (DepEventContext != WorkerContext && !WorkerContext->is_host()) {
+  if (DepEventContext != WorkerContext && !WorkerContext->is_host() &&
+      !(WorkerQueue->get_device().get_backend() ==
+            DepEventContext->getDevices()[0].get_platform().get_backend() &&
+        WorkerQueue->get_device()
+            .get_platform()
+            .get_info<info::platform::P2P>())) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep);
   } else

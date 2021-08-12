@@ -421,14 +421,17 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
 void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimSrc, sycl::range<3> SrcSize,
              sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
-             unsigned int SrcElemSize, RT::PiMem DstMem, QueueImplPtr,
+             unsigned int SrcElemSize, RT::PiMem DstMem, QueueImplPtr DstQueue,
              unsigned int DimDst, sycl::range<3> DstSize, sycl::range<3>,
              sycl::id<3> DstOffset, unsigned int DstElemSize,
              std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const RT::PiQueue Queue = SrcQueue->getHandleRef();
+  const RT::PiQueue QueueDst = DstQueue->getHandleRef();
   const detail::plugin &Plugin = SrcQueue->getPlugin();
+
+  auto sameCtxt = SrcQueue->get_context() == DstQueue->get_context();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   TermPositions SrcPos, DstPos;
@@ -443,10 +446,17 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
-      Plugin.call<PiApiKind::piEnqueueMemBufferCopy>(
-          Queue, SrcMem, DstMem, SrcXOffBytes, DstXOffBytes,
-          SrcAccessRangeWidthBytes, DepEvents.size(), DepEvents.data(),
-          &OutEvent);
+      if (sameCtxt) {
+        Plugin.call<PiApiKind::piEnqueueMemBufferCopy>(
+            Queue, SrcMem, DstMem, SrcXOffBytes, DstXOffBytes,
+            SrcAccessRangeWidthBytes, DepEvents.size(), DepEvents.data(),
+            &OutEvent);
+      } else {
+        Plugin.call<PiApiKind::piextEnqueueMemBufferCopyPeer>(
+            Queue, SrcMem, QueueDst, DstMem, SrcXOffBytes, DstXOffBytes,
+            SrcAccessRangeWidthBytes, DepEvents.size(), DepEvents.data(),
+            &OutEvent);
+      }
     } else {
       // passing 0 for pitches not allowed. Because clEnqueueCopyBufferRect will
       // calculate both src and dest pitch using region[0], which is not correct
@@ -468,10 +478,17 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
                                         SrcAccessRange[SrcPos.YTerm],
                                         SrcAccessRange[SrcPos.ZTerm]};
 
-      Plugin.call<PiApiKind::piEnqueueMemBufferCopyRect>(
-          Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region, SrcRowPitch,
-          SrcSlicePitch, DstRowPitch, DstSlicePitch, DepEvents.size(),
-          DepEvents.data(), &OutEvent);
+      if (sameCtxt) {
+        Plugin.call<PiApiKind::piEnqueueMemBufferCopyRect>(
+            Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region, SrcRowPitch,
+            SrcSlicePitch, DstRowPitch, DstSlicePitch, DepEvents.size(),
+            DepEvents.data(), &OutEvent);
+      } else {
+        Plugin.call<PiApiKind::piextEnqueueMemBufferCopyRectPeer>(
+            Queue, SrcMem, QueueDst, DstMem, &SrcOrigin, &DstOrigin, &Region,
+            SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
+            DepEvents.size(), DepEvents.data(), &OutEvent);
+      }
     }
   } else {
     pi_image_offset_struct SrcOrigin{SrcOffset[SrcPos.XTerm],
@@ -484,9 +501,15 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
                                   SrcAccessRange[SrcPos.YTerm],
                                   SrcAccessRange[SrcPos.ZTerm]};
 
-    Plugin.call<PiApiKind::piEnqueueMemImageCopy>(
-        Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region,
-        DepEvents.size(), DepEvents.data(), &OutEvent);
+    if (sameCtxt) {
+      Plugin.call<PiApiKind::piEnqueueMemImageCopy>(
+          Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region,
+          DepEvents.size(), DepEvents.data(), &OutEvent);
+    } else {
+      Plugin.call<PiApiKind::piextEnqueueMemImageCopyPeer>(
+          Queue, SrcMem, QueueDst, DstMem, &SrcOrigin, &DstOrigin, &Region,
+          DepEvents.size(), DepEvents.data(), &OutEvent);
+    }
   }
 }
 

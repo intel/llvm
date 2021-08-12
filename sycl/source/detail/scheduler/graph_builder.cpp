@@ -942,7 +942,14 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
           NeedMemMoveToHost = true;
           MemMoveTargetQueue = HT.MQueue;
         }
-      } else if (!Queue->is_host() && !Record->MCurContext->is_host())
+      } else if (!Queue->is_host() && !Record->MCurContext->is_host() &&
+                 !(Queue->get_device().get_platform().get_backend() ==
+                       Record->MCurContext->getDevices()[0]
+                           .get_platform()
+                           .get_backend() &&
+                   Queue->get_device()
+                       .get_platform()
+                       .get_info<info::platform::P2P>()))
         NeedMemMoveToHost = true;
 
       if (NeedMemMoveToHost)
