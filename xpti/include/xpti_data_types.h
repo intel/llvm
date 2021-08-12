@@ -150,10 +150,6 @@ using metadata_t = std::unordered_map<string_id_t, string_id_t>;
 /// front-end.
 ///
 struct payload_t {
-  /// String ID of the function/kernel name; only valid if 'name' is valid
-  // string_id_t name_sid = invalid_id;
-  /// String ID of the source file name
-  // string_id_t source_file_sid = invalid_id;
   /// Name of the trace point; graph, algorithm, lock names, for example.
   const char *name = nullptr;
   /// Stack trace indicated by caller/callee as "caller->callee"
@@ -184,8 +180,6 @@ struct payload_t {
   //  indicates a partial but valid payload.
   payload_t(void *codeptr) {
     code_ptr_va = codeptr;
-    // name_sid = invalid_id;        ///< Invalid string ID
-    // source_file_sid = invalid_id; ///< Invalid string ID
     name = nullptr;         ///< Invalid name string pointer
     source_file = nullptr;  ///< Invalid source file string pointer
     line_no = invalid_id;   ///< Invalid line number
@@ -200,8 +194,6 @@ struct payload_t {
   //  the payload is considered to be a partial but valid payload.
   payload_t(const char *func_name) {
     code_ptr_va = nullptr;
-    // name_sid = invalid_id;        ///< Invalid string ID
-    // source_file_sid = invalid_id; ///< Invalid string ID
     name = func_name;      ///< Invalid name string pointer
     source_file = nullptr; ///< Invalid source file string pointer
     flags = (uint64_t)(payload_flag_t::NameAvailable);
@@ -209,8 +201,6 @@ struct payload_t {
 
   payload_t(const char *func_name, void *codeptr) {
     code_ptr_va = codeptr;
-    // name_sid = invalid_id;        ///< Invalid string ID
-    // source_file_sid = invalid_id; ///< Invalid string ID
     name = func_name;      ///< Invalid name string pointer
     source_file = nullptr; ///< Invalid source file string pointer
     flags = (uint64_t)payload_flag_t::NameAvailable |
