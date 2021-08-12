@@ -4,7 +4,7 @@
 clang/ @premanandrao @elizabethandrews @AaronBallman
 
 # Driver
-clang/**/Driver @mdtoguchi @AGindinson
+clang/**/Driver @mdtoguchi @AGindinson @hchilama
 
 # LLVM-SPIRV translator
 llvm-spirv/ @AlexeySotkin @AlexeySachkov

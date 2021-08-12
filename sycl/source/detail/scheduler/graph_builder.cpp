@@ -516,7 +516,7 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 }
 
 Command *Scheduler::GraphBuilder::addCGUpdateHost(
-    std::unique_ptr<detail::CommandGroup> CommandGroup, QueueImplPtr HostQueue,
+    std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr HostQueue,
     std::vector<Command *> &ToEnqueue) {
 
   auto UpdateHost = static_cast<CGUpdateHost *>(CommandGroup.get());
@@ -849,7 +849,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
 }
 
 static bool isInteropHostTask(const std::unique_ptr<ExecCGCommand> &Cmd) {
-  if (Cmd->getCG().getType() != CommandGroup::CGType::CodeplayHostTask)
+  if (Cmd->getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     return false;
 
   const detail::CGHostTask &HT =
@@ -878,12 +878,13 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
   }
 }
 
-Command *Scheduler::GraphBuilder::addCG(
-    std::unique_ptr<detail::CommandGroup> CommandGroup, QueueImplPtr Queue,
-    std::vector<Command *> &ToEnqueue) {
+Command *
+Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
+                               QueueImplPtr Queue,
+                               std::vector<Command *> &ToEnqueue) {
   std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
-  const CommandGroup::CGType CGType = CommandGroup->getType();
+  const CG::CGTYPE CGType = CommandGroup->getType();
 
   std::unique_ptr<ExecCGCommand> NewCmd(
       new ExecCGCommand(std::move(CommandGroup), Queue));
@@ -977,7 +978,7 @@ Command *Scheduler::GraphBuilder::addCG(
       ToEnqueue.push_back(ConnCmd);
   }
 
-  if (CGType == CommandGroup::CGType::CodeplayHostTask)
+  if (CGType == CG::CGTYPE::CodeplayHostTask)
     NewCmd->MEmptyCmd =
         addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements, Queue,
                     Command::BlockReason::HostTask, ToEnqueue);
@@ -1184,11 +1185,11 @@ Command *Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
 
   {
     std::unique_ptr<detail::HostTask> HT(new detail::HostTask);
-    std::unique_ptr<detail::CommandGroup> ConnectCG(new detail::CGHostTask(
+    std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
         std::move(HT), /* Queue = */ {}, /* Context = */ {}, /* Args = */ {},
         /* ArgsStorage = */ {}, /* AccStorage = */ {},
         /* SharedPtrStorage = */ {}, /* Requirements = */ {},
-        /* DepEvents = */ {DepEvent}, CommandGroup::CodeplayHostTask,
+        /* DepEvents = */ {DepEvent}, CG::CodeplayHostTask,
         /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
