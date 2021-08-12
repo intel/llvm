@@ -10,7 +10,7 @@ set(XPTIFW_DIR ${CMAKE_CURRENT_LIST_DIR})
 set(XPTI_DIR ${CMAKE_CURRENT_LIST_DIR}/../xpti)
 
 # Create a soft option for enabling the use of TBB
-option(XPTI_ENABLE_TBB "Enable TBB in the framework" ON)
+option(XPTI_ENABLE_TBB "Enable TBB in the framework" OFF)
 
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "No build type selected, default to Release")
