@@ -2,8 +2,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// TODO: Switch to sycl/sycl.hpp once all compiler versions support it
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 class TestKernel;
 class TestKernelCUDA;

@@ -17,8 +17,7 @@
 
 #include <cstdlib>
 #include <iostream>
-// TODO: Switch to sycl/sycl.hpp once compiler supports it
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include "common.hpp"
 
