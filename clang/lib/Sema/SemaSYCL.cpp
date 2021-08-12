@@ -3870,7 +3870,7 @@ void Sema::SetSYCLKernelNames() {
       getASTContext().createMangleContext());
   // We assume the list of KernelDescs is the complete list of kernels needing
   // to be rewritten.
-  for (const std::pair<const FunctionDecl *, FunctionDecl *> Pair :
+  for (const std::pair<const FunctionDecl *, FunctionDecl *> &Pair :
        SyclKernelsToOpenCLKernels) {
     std::string CalculatedName, StableName;
     std::tie(CalculatedName, StableName) =
