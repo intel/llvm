@@ -62,19 +62,6 @@ struct uid_t {
 
 /// Specialize std::hash to support xpti::uid_t
 namespace std {
-template <>
-struct less<xpti::uid_t>
-    : public binary_function<xpti::uid_t, xpti::uid_t, bool> {
-  std::size_t operator()(const xpti::uid_t &lhs, const xpti::uid_t &rhs) const {
-    if (lhs.p1 < rhs.p1)
-      return true;
-    if (lhs.p1 == rhs.p1 && lhs.p2 < rhs.p2)
-      return true;
-    if (lhs.p1 == rhs.p1 && lhs.p2 == rhs.p2 && lhs.p3 < rhs.p3)
-      return true;
-    return false;
-  }
-};
 template <> struct hash<xpti::uid_t> {
   std::size_t operator()(const xpti::uid_t &key) const { return key.hash(); }
 };

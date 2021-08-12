@@ -374,6 +374,12 @@ TEST(xptiCorrectnessTest, xptiUniversalIDMapTest) {
   for (auto &e : MapTest) {
     EXPECT_EQ(e.first.hash(), e.second);
   }
+  // Check if the IDs are in sorted order
+  xpti::uid_t prev;
+  for (auto &e : MapTest) {
+    bool test = prev < e.first;
+    EXPECT_EQ(test, true);
+  }
 }
 
 TEST(xptiCorrectnessTest, xptiUniversalIDUnorderedMapTest) {
