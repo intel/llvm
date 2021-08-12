@@ -74,14 +74,17 @@ int lprofSuspendSigKill();
 /* Restore previously suspended SIGKILL. */
 void lprofRestoreSigKill();
 
-inline size_t lprofRoundUpTo(size_t x, size_t boundary) {
+static inline size_t lprofRoundUpTo(size_t x, size_t boundary) {
   return (x + boundary - 1) & ~(boundary - 1);
 }
 
-inline size_t lprofRoundDownTo(size_t x, size_t boundary) {
+static inline size_t lprofRoundDownTo(size_t x, size_t boundary) {
   return x & ~(boundary - 1);
 }
 
 int lprofReleaseMemoryPagesToOS(uintptr_t Begin, uintptr_t End);
+
+/// Noisly warn if *i is non-zero. Intended for use with COMPILER_RT_CLEANUP.
+void warnIfNonZero(int *i);
 
 #endif /* PROFILE_INSTRPROFILINGUTIL_H */

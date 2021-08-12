@@ -223,30 +223,6 @@ bool LLVMToSPIRVBase::isBuiltinTransToExtInst(
   return true;
 }
 
-/// Decode SPIR-V type name in the format spirv.{TypeName}._{Postfixes}
-/// where Postfixes are strings separated by underscores.
-/// \return TypeName.
-/// \param Ops contains the integers decoded from postfixes.
-static std::string decodeSPIRVTypeName(StringRef Name,
-                                       SmallVectorImpl<std::string> &Strs) {
-  SmallVector<StringRef, 4> SubStrs;
-  const char Delim[] = {kSPIRVTypeName::Delimiter, 0};
-  Name.split(SubStrs, Delim, -1, true);
-  assert(SubStrs.size() >= 2 && "Invalid SPIRV type name");
-  assert(SubStrs[0] == kSPIRVTypeName::Prefix && "Invalid prefix");
-  assert((SubStrs.size() == 2 || !SubStrs[2].empty()) && "Invalid postfix");
-
-  if (SubStrs.size() > 2) {
-    const char PostDelim[] = {kSPIRVTypeName::PostfixDelim, 0};
-    SmallVector<StringRef, 4> Postfixes;
-    SubStrs[2].split(Postfixes, PostDelim, -1, true);
-    assert(Postfixes.size() > 1 && Postfixes[0].empty() && "Invalid postfix");
-    for (unsigned I = 1, E = Postfixes.size(); I != E; ++I)
-      Strs.push_back(std::string(Postfixes[I]).c_str());
-  }
-  return SubStrs[1].str();
-}
-
 static bool recursiveType(const StructType *ST, const Type *Ty) {
   SmallPtrSet<const StructType *, 4> Seen;
 
@@ -643,6 +619,14 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       BA->addAttr(FunctionParameterAttributeZext);
     if (Attrs.hasAttribute(ArgNo + 1, Attribute::SExt))
       BA->addAttr(FunctionParameterAttributeSext);
+    if (Attrs.hasAttribute(ArgNo + 1, Attribute::Alignment)) {
+      SPIRVWord AlignmentBytes =
+          Attrs.getAttribute(ArgNo + 1, Attribute::Alignment)
+              .getAlignment()
+              .valueOrOne()
+              .value();
+      BA->setAlignment(AlignmentBytes);
+    }
     if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_1) &&
         Attrs.hasAttribute(ArgNo + 1, Attribute::Dereferenceable))
       BA->addDecorate(DecorationMaxByteOffset,
@@ -2076,6 +2060,73 @@ bool LLVMToSPIRVBase::transBuiltinSet() {
   return true;
 }
 
+/// Transforms SPV-IR work-item builtin calls to SPIRV builtin variables.
+/// e.g.
+///  SPV-IR: @_Z33__spirv_BuiltInGlobalInvocationIdi(i)
+///    is transformed as:
+///  x = load GlobalInvocationId; extract x, i
+/// e.g.
+///  SPV-IR: @_Z22__spirv_BuiltInWorkDim()
+///    is transformed as:
+///  load WorkDim
+bool LLVMToSPIRVBase::transWorkItemBuiltinCallsToVariables() {
+  LLVM_DEBUG(dbgs() << "Enter transWorkItemBuiltinCallsToVariables\n");
+  // Store instructions and functions that need to be removed.
+  SmallVector<Value *, 16> ToRemove;
+  for (auto &F : *M) {
+    // Builtins should be declaration only.
+    if (!F.isDeclaration())
+      continue;
+    StringRef DemangledName;
+    if (!oclIsBuiltin(F.getName(), DemangledName))
+      continue;
+    LLVM_DEBUG(dbgs() << "Function demangled name: " << DemangledName << '\n');
+    SmallVector<StringRef, 2> Postfix;
+    // Deprefix "__spirv_"
+    StringRef Name = dePrefixSPIRVName(DemangledName, Postfix);
+    // Lookup SPIRV Builtin map.
+    if (!SPIRVBuiltInNameMap::rfind(Name.str(), nullptr))
+      continue;
+    std::string BuiltinVarName = DemangledName.str();
+    LLVM_DEBUG(dbgs() << "builtin variable name: " << BuiltinVarName << '\n');
+    bool IsVec = F.getFunctionType()->getNumParams() > 0;
+    Type *GVType =
+        IsVec ? FixedVectorType::get(F.getReturnType(), 3) : F.getReturnType();
+    auto *BV = new GlobalVariable(
+        *M, GVType, /*isConstant=*/true, GlobalValue::ExternalLinkage, nullptr,
+        BuiltinVarName, 0, GlobalVariable::NotThreadLocal, SPIRAS_Input);
+    for (auto *U : F.users()) {
+      auto *CI = dyn_cast<CallInst>(U);
+      assert(CI && "invalid instruction");
+      const DebugLoc &DLoc = CI->getDebugLoc();
+      Instruction *NewValue = new LoadInst(GVType, BV, "", CI);
+      if (DLoc)
+        NewValue->setDebugLoc(DLoc);
+      LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
+      if (IsVec) {
+        NewValue =
+            ExtractElementInst::Create(NewValue, CI->getArgOperand(0), "", CI);
+        if (DLoc)
+          NewValue->setDebugLoc(DLoc);
+        LLVM_DEBUG(dbgs() << *NewValue << '\n');
+      }
+      NewValue->takeName(CI);
+      CI->replaceAllUsesWith(NewValue);
+      ToRemove.push_back(CI);
+    }
+    ToRemove.push_back(&F);
+  }
+  for (auto *V : ToRemove) {
+    if (auto *I = dyn_cast<Instruction>(V))
+      I->eraseFromParent();
+    else if (auto *F = dyn_cast<Function>(V))
+      F->eraseFromParent();
+    else
+      llvm_unreachable("Unexpected value to remove!");
+  }
+  return true;
+}
+
 /// Translate sampler* spcv.cast(i32 arg) or
 /// sampler* __translate_sampler_initializer(i32 arg)
 /// Three cases are possible:
@@ -3477,6 +3528,10 @@ bool LLVMToSPIRVBase::translate() {
 
   if (isEmptyLLVMModule(M))
     BM->addCapability(CapabilityLinkage);
+
+  // Transform SPV-IR builtin calls to builtin variables.
+  if (!transWorkItemBuiltinCallsToVariables())
+    return false;
 
   if (!transSourceLanguage())
     return false;

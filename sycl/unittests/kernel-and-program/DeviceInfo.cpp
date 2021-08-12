@@ -64,7 +64,7 @@ TEST_F(DeviceInfoTest, GetDeviceUUID) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
 
   device Dev = Ctx.get_devices()[0];

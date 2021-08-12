@@ -142,6 +142,9 @@ template <typename BaseTy, typename RegionTy>
 struct is_simd_view_type<detail::simd_view_impl<BaseTy, RegionTy>>
     : std::true_type {};
 
+template <typename BaseTy, typename RegionTy>
+struct is_simd_view_type<simd_view<BaseTy, RegionTy>> : std::true_type {};
+
 template <typename Ty>
 struct is_simd_view_v
     : std::integral_constant<bool,

@@ -24,7 +24,7 @@
 // CHECK-EMPTY:
 // CHECK-NEXT:};
 
-// CHECK: template <> struct KernelInfo<class kernel_A> {
+// CHECK: template <> struct KernelInfo<kernel_A> {
 
 union MyUnion {
   int FldInt;

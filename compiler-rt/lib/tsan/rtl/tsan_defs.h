@@ -15,16 +15,30 @@
 
 #include "sanitizer_common/sanitizer_internal_defs.h"
 #include "sanitizer_common/sanitizer_libc.h"
-#include "tsan_stat.h"
+#include "sanitizer_common/sanitizer_mutex.h"
 #include "ubsan/ubsan_platform.h"
+
+#ifndef TSAN_VECTORIZE
+#  define TSAN_VECTORIZE __SSE4_2__
+#endif
+
+#if TSAN_VECTORIZE
+// <emmintrin.h> transitively includes <stdlib.h>,
+// and it's prohibited to include std headers into tsan runtime.
+// So we do this dirty trick.
+#  define _MM_MALLOC_H_INCLUDED
+#  define __MM_MALLOC_H
+#  include <emmintrin.h>
+#  include <smmintrin.h>
+#  define VECTOR_ALIGNED ALIGNED(16)
+typedef __m128i m128;
+#else
+#  define VECTOR_ALIGNED
+#endif
 
 // Setup defaults for compile definitions.
 #ifndef TSAN_NO_HISTORY
 # define TSAN_NO_HISTORY 0
-#endif
-
-#ifndef TSAN_COLLECT_STATS
-# define TSAN_COLLECT_STATS 0
 #endif
 
 #ifndef TSAN_CONTAINS_UBSAN
@@ -36,6 +50,14 @@
 #endif
 
 namespace __tsan {
+
+// Thread slot ID.
+enum class Sid : u8 {};
+constexpr uptr kThreadSlotCount = 256;
+
+// Abstract time unit, vector clock element.
+enum class Epoch : u16 {};
+constexpr Epoch kEpochZero = static_cast<Epoch>(0);
 
 const int kClkBits = 42;
 const unsigned kMaxTidReuse = (1 << (64 - kClkBits)) - 1;
@@ -107,22 +129,11 @@ void build_consistency_debug();
 void build_consistency_release();
 #endif
 
-#if TSAN_COLLECT_STATS
-void build_consistency_stats();
-#else
-void build_consistency_nostats();
-#endif
-
 static inline void USED build_consistency() {
 #if SANITIZER_DEBUG
   build_consistency_debug();
 #else
   build_consistency_release();
-#endif
-#if TSAN_COLLECT_STATS
-  build_consistency_stats();
-#else
-  build_consistency_nostats();
 #endif
 }
 
@@ -173,8 +184,8 @@ class RegionAlloc;
 struct MBlock {
   u64  siz : 48;
   u64  tag : 16;
-  u32  stk;
-  u16  tid;
+  StackID stk;
+  Tid tid;
 };
 
 COMPILER_CHECK(sizeof(MBlock) == 16);
@@ -186,6 +197,17 @@ enum ExternalTag : uptr {
   kExternalTagMax = 1024,
   // Don't set kExternalTagMax over 65,536, since MBlock only stores tags
   // as 16-bit values, see tsan_defs.h.
+};
+
+enum MutexType {
+  MutexTypeTrace = MutexLastCommon,
+  MutexTypeReport,
+  MutexTypeSyncVar,
+  MutexTypeAnnotations,
+  MutexTypeAtExit,
+  MutexTypeFired,
+  MutexTypeRacy,
+  MutexTypeGlobalProc,
 };
 
 }  // namespace __tsan

@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/clc.h>
 #include <spirv/spirv.h>
 
 void __clc_amdgcn_s_waitcnt(unsigned flags);

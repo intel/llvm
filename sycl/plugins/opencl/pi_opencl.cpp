@@ -735,8 +735,17 @@ pi_result piEventCreate(pi_context context, pi_event *ret_event) {
 }
 
 pi_result piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                           pi_context context,
+                                           bool ownNativeHandle,
                                            pi_event *piEvent) {
+  (void)context;
+  // TODO: ignore this, but eventually want to return error as unsupported
+  (void)ownNativeHandle;
+
   assert(piEvent != nullptr);
+  assert(nativeHandle);
+  assert(context);
+
   *piEvent = reinterpret_cast<pi_event>(nativeHandle);
   return PI_SUCCESS;
 }

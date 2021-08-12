@@ -167,7 +167,9 @@ void TypePrinter::spaceBeforePlaceHolder(raw_ostream &OS) {
 
 static SplitQualType splitAccordingToPolicy(QualType QT,
                                             const PrintingPolicy &Policy) {
-  if (Policy.PrintCanonicalTypes)
+  if ((!Policy.SkipCanonicalizationOfTemplateTypeParms ||
+       !QT->isTemplateTypeParmType()) &&
+      Policy.PrintCanonicalTypes)
     QT = QT.getCanonicalType();
   return QT.split();
 }
@@ -1466,7 +1468,7 @@ void TypePrinter::printTemplateId(const TemplateSpecializationType *T,
 void TypePrinter::printTemplateSpecializationBefore(
                                             const TemplateSpecializationType *T,
                                             raw_ostream &OS) {
-  printTemplateId(T, OS, false);
+  printTemplateId(T, OS, Policy.FullyQualifiedName);
 }
 
 void TypePrinter::printTemplateSpecializationAfter(

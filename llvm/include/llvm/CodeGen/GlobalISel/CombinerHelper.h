@@ -264,6 +264,9 @@ public:
   void applyCombineShlOfExtend(MachineInstr &MI,
                                const RegisterImmPair &MatchData);
 
+  /// Fold away a merge of an unmerge of the corresponding values.
+  bool matchCombineMergeUnmerge(MachineInstr &MI, Register &MatchInfo);
+
   /// Reduce a shift by a constant to an unmerge and a shift on a half sized
   /// type. This will not produce a shift smaller than \p TargetShiftSize.
   bool matchCombineShiftToUnmerge(MachineInstr &MI, unsigned TargetShiftSize,
@@ -380,6 +383,9 @@ public:
 
   /// Replace an instruction with a G_CONSTANT with value \p C.
   bool replaceInstWithConstant(MachineInstr &MI, int64_t C);
+
+  /// Replace an instruction with a G_CONSTANT with value \p C.
+  bool replaceInstWithConstant(MachineInstr &MI, APInt C);
 
   /// Replace an instruction with a G_IMPLICIT_DEF.
   bool replaceInstWithUndef(MachineInstr &MI);
@@ -540,6 +546,10 @@ public:
   bool matchReassocPtrAdd(MachineInstr &MI,
                           std::function<void(MachineIRBuilder &)> &MatchInfo);
 
+
+  /// Do constant folding when opportunities are exposed after MIR building.
+  bool matchConstantFold(MachineInstr &MI, APInt &MatchInfo);
+
   /// Try to transform \p MI by using all of the above
   /// combine functions. Returns true if changed.
   bool tryCombine(MachineInstr &MI);
@@ -596,8 +606,10 @@ private:
   /// at to the index of the load.
   /// \param [in] MemSizeInBits - The number of bits each load should produce.
   ///
-  /// \returns The lowest-index load found and the lowest index on success.
-  Optional<std::pair<GZExtLoad *, int64_t>> findLoadOffsetsForLoadOrCombine(
+  /// \returns On success, a 3-tuple containing lowest-index load found, the
+  /// lowest index, and the last load in the sequence.
+  Optional<std::tuple<GZExtLoad *, int64_t, GZExtLoad *>>
+  findLoadOffsetsForLoadOrCombine(
       SmallDenseMap<int64_t, int64_t, 8> &MemOffset2Idx,
       const SmallVector<Register, 8> &RegsToVisit,
       const unsigned MemSizeInBits);

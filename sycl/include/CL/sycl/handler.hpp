@@ -343,14 +343,14 @@ private:
     return Storage;
   }
 
-  void setType(detail::CG::CGType Type) {
+  void setType(detail::CG::CGTYPE Type) {
     constexpr detail::CG::CG_VERSION Version = detail::CG::CG_VERSION::V1;
-    MCGType = static_cast<detail::CG::CGType>(
+    MCGType = static_cast<detail::CG::CGTYPE>(
         getVersionedCGType(Type, static_cast<int>(Version)));
   }
 
-  detail::CG::CGType getType() {
-    return static_cast<detail::CG::CGType>(getUnversionedCGType(MCGType));
+  detail::CG::CGTYPE getType() {
+    return static_cast<detail::CG::CGTYPE>(getUnversionedCGType(MCGType));
   }
 
   void throwIfActionIsCreated() {
@@ -566,6 +566,20 @@ private:
       if (Src[I] > Dst[I])
         return false;
     return true;
+  }
+
+  // TODO: Delete these functions when ABI breaking changes are allowed.
+  // Currently these functions are unused but they are static members of
+  // the exported class 'handler' and has got into sycl library some time ago
+  // and must stay there for a while.
+  static id<1> getDelinearizedIndex(const range<1> Range, const size_t Index) {
+    return detail::getDelinearizedId(Range, Index);
+  }
+  static id<2> getDelinearizedIndex(const range<2> Range, const size_t Index) {
+    return detail::getDelinearizedId(Range, Index);
+  }
+  static id<3> getDelinearizedIndex(const range<3> Range, const size_t Index) {
+    return detail::getDelinearizedId(Range, Index);
   }
 
   /// Handles some special cases of the copy operation from one accessor
@@ -2368,7 +2382,7 @@ private:
   /// Type of the command group, e.g. kernel, fill. Can also encode version.
   /// Use getType and setType methods to access this variable unless
   /// manipulations with version are required
-  detail::CG::CGType MCGType = detail::CG::None;
+  detail::CG::CGTYPE MCGType = detail::CG::None;
   /// Pointer to the source host memory or accessor(depending on command type).
   void *MSrcPtr = nullptr;
   /// Pointer to the dest host memory or accessor(depends on command type).

@@ -650,7 +650,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
   vec(const vec &Rhs) = default;
 #else
-  vec(const vec &Rhs) : m_Data(Rhs.m_Data) {}
+  constexpr vec(const vec &Rhs) : m_Data(Rhs.m_Data) {}
 #endif
 
   vec(vec &&Rhs) = default;
@@ -682,7 +682,7 @@ public:
       T>;
 
   template <typename Ty = DataT>
-  explicit vec(const EnableIfNotHostHalf<Ty> &arg) {
+  explicit constexpr vec(const EnableIfNotHostHalf<Ty> &arg) {
     m_Data = (DataType)arg;
   }
 
@@ -696,7 +696,8 @@ public:
     return *this;
   }
 
-  template <typename Ty = DataT> explicit vec(const EnableIfHostHalf<Ty> &arg) {
+  template <typename Ty = DataT>
+  explicit constexpr vec(const EnableIfHostHalf<Ty> &arg) {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, arg);
     }
@@ -714,7 +715,7 @@ public:
     return *this;
   }
 #else
-  explicit vec(const DataT &arg) {
+  explicit constexpr vec(const DataT &arg) {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, arg);
     }
@@ -743,28 +744,32 @@ public:
   using EnableIfMultipleElems = typename detail::enable_if_t<
       std::is_convertible<T, DataT>::value && NumElements == IdxNum, DataT>;
   template <typename Ty = DataT>
-  vec(const EnableIfMultipleElems<2, Ty> Arg0,
-      const EnableIfNotHostHalf<Ty> Arg1)
+  constexpr vec(const EnableIfMultipleElems<2, Ty> Arg0,
+                const EnableIfNotHostHalf<Ty> Arg1)
       : m_Data{Arg0, Arg1} {}
   template <typename Ty = DataT>
-  vec(const EnableIfMultipleElems<3, Ty> Arg0,
-      const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2)
+  constexpr vec(const EnableIfMultipleElems<3, Ty> Arg0,
+                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2)
       : m_Data{Arg0, Arg1, Arg2} {}
   template <typename Ty = DataT>
-  vec(const EnableIfMultipleElems<4, Ty> Arg0,
-      const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2, const Ty Arg3)
+  constexpr vec(const EnableIfMultipleElems<4, Ty> Arg0,
+                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
+                const Ty Arg3)
       : m_Data{Arg0, Arg1, Arg2, Arg3} {}
   template <typename Ty = DataT>
-  vec(const EnableIfMultipleElems<8, Ty> Arg0,
-      const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2, const DataT Arg3,
-      const DataT Arg4, const DataT Arg5, const DataT Arg6, const DataT Arg7)
+  constexpr vec(const EnableIfMultipleElems<8, Ty> Arg0,
+                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
+                const DataT Arg3, const DataT Arg4, const DataT Arg5,
+                const DataT Arg6, const DataT Arg7)
       : m_Data{Arg0, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7} {}
   template <typename Ty = DataT>
-  vec(const EnableIfMultipleElems<16, Ty> Arg0,
-      const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2, const DataT Arg3,
-      const DataT Arg4, const DataT Arg5, const DataT Arg6, const DataT Arg7,
-      const DataT Arg8, const DataT Arg9, const DataT ArgA, const DataT ArgB,
-      const DataT ArgC, const DataT ArgD, const DataT ArgE, const DataT ArgF)
+  constexpr vec(const EnableIfMultipleElems<16, Ty> Arg0,
+                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
+                const DataT Arg3, const DataT Arg4, const DataT Arg5,
+                const DataT Arg6, const DataT Arg7, const DataT Arg8,
+                const DataT Arg9, const DataT ArgA, const DataT ArgB,
+                const DataT ArgC, const DataT ArgD, const DataT ArgE,
+                const DataT ArgF)
       : m_Data{Arg0, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7,
                Arg8, Arg9, ArgA, ArgB, ArgC, ArgD, ArgE, ArgF} {}
 #endif
@@ -773,7 +778,7 @@ public:
   // base types are match and that the NumElements == sum of lengths of args.
   template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
             typename = EnableIfSuitableNumElements<argTN...>>
-  vec(const argTN &... args) {
+  constexpr vec(const argTN &... args) {
     vaargCtorHelper(0, args...);
   }
 
@@ -792,7 +797,7 @@ public:
             typename = typename detail::enable_if_t<
                 std::is_same<vector_t_, vector_t>::value &&
                 !std::is_same<vector_t_, DataT>::value>>
-  vec(vector_t openclVector) : m_Data(openclVector) {}
+  constexpr vec(vector_t openclVector) : m_Data(openclVector) {}
   operator vector_t() const { return m_Data; }
 #endif
 
