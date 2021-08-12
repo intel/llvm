@@ -146,15 +146,15 @@ work-item with the id `max_local_range()-1`.
 |`template <typename T = vec<uint32_t,4>> void insert_bits(T bits, id<1> pos = 0)`
 |Insert `CHAR_BIT * sizeof(T)` bits into the mask, starting from _pos_.  `T`
  must be an integral type or a SYCL vector of integral types.  _pos_ must be a
- multiple of `CHAR_BIT * sizeof(T)` in the range [0, `size()`).  If _pos_ \+
- `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ \+
+ multiple of `CHAR_BIT * sizeof(T)` in the range [0, `size()`).  If _pos_ pass:[+]
+ `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ pass:[+]
  `CHAR_BIT * sizeof(T)`) bits are ignored.
 
 |`template <typename T = vec<uint32_t,4>> T extract_bits(id<1> pos = 0) const`
 |Return `CHAR_BIT * sizeof(T)` bits from the mask, starting from _pos_.  `T`
  must be an integral type or a SYCL vector of integral types.  _pos_ must be a
- multiple of `CHAR_BIT * sizeof(T)` in the range [0, `size()`).  If _pos_ \+
- `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ \+
+ multiple of `CHAR_BIT * sizeof(T)` in the range [0, `size()`).  If _pos_ pass:[+]
+ `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ pass:[+]
  `CHAR_BIT * sizeof(T)`) bits of the return value are zero.
 
 |`void set()`
@@ -196,7 +196,7 @@ work-item with the id `max_local_range()-1`.
 |Set the bits of this mask to the result of performing a bitwise AND with this
  mask and `rhs`.
 
-|`+++group_mask operator |=(group_mask rhs)+++`
+|`group_mask operator \|=(group_mask rhs)`
 |Set the bits of this mask to the result of performing a bitwise OR with this
  mask and `rhs`.
 
@@ -204,7 +204,7 @@ work-item with the id `max_local_range()-1`.
 |Set the bits of this mask to the result of performing a bitwise XOR with this
  mask and `rhs`.
 
-|`+++group_mask operator <<=(size_t shift)+++`
+|`group_mask operator pass:[<<=](size_t shift)`
 |Set the bits of this mask to the result of shifting its bits _shift_ positions
  to the left using a logical shift.  Bits that are shifted out to the left are
  discarded, and zeroes are shifted in from the right.
@@ -235,7 +235,7 @@ work-item with the id `max_local_range()-1`.
 |Return a mask representing the result of performing a bitwise AND of `lhs` and
  `rhs`.
 
-|`+++group_mask operator |(const group_mask& lhs, const group_mask& rhs)+++`
+|`group_mask operator \|(const group_mask& lhs, const group_mask& rhs)`
 |Return a mask representing the result of performing a bitwise OR of `lhs` and
  `rhs`.
 
