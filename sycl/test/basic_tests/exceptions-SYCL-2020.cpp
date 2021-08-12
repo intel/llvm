@@ -78,24 +78,24 @@ int main() {
 
   // Test errc_for and backends. Should compile without complaint.
   constexpr int EC = 1;
-  sycl::backend_traits<sycl::backend::opencl>::errc OclErrc{EC};
-  sycl::errc SyclErrc1 = sycl::errc_for<sycl::backend::opencl>(OclErrc);
-  (void)SyclErrc1;
-  sycl::backend_traits<sycl::backend::level_zero>::errc L0Errc{EC};
-  sycl::errc SyclErrc2 = sycl::errc_for<sycl::backend::level_zero>(L0Errc);
-  (void)SyclErrc2;
-  sycl::backend_traits<sycl::backend::host>::errc HostErrc{EC};
-  sycl::errc SyclErrc3 = sycl::errc_for<sycl::backend::level_zero>(HostErrc);
-  (void)SyclErrc3;
-  sycl::backend_traits<sycl::backend::cuda>::errc CudaErrc{EC};
-  sycl::errc SyclErrc4 = sycl::errc_for<sycl::backend::cuda>(CudaErrc);
-  (void)SyclErrc4;
-  sycl::backend_traits<sycl::backend::esimd_cpu>::errc EsimdErrc{EC};
-  sycl::errc SyclErrc5 = sycl::errc_for<sycl::backend::esimd_cpu>(EsimdErrc);
-  (void)SyclErrc5;
-  sycl::backend_traits<sycl::backend::rocm>::errc RocmErrc{EC};
-  sycl::errc SyclErrc6 = sycl::errc_for<sycl::backend::rocm>(RocmErrc);
-  (void)SyclErrc6;
+  sycl::backend_traits<sycl::backend::opencl>::errc someOpenCLErrCode{EC};
+  sycl::errc_for<sycl::backend::opencl> anotherOpenCLErrCode{EC};
+  assert(someOpenCLErrCode == anotherOpenCLErrCode);
+  sycl::backend_traits<sycl::backend::level_zero>::errc someL0ErrCode{EC};
+  sycl::errc_for<sycl::backend::level_zero> anotherL0ErrCode{EC};
+  assert(someL0ErrCode == anotherL0ErrCode);
+  sycl::backend_traits<sycl::backend::host>::errc someHOSTErrCode{EC};
+  sycl::errc_for<sycl::backend::host> anotherHOSTErrCode{EC};
+  assert(someHOSTErrCode == anotherHOSTErrCode);
+  sycl::backend_traits<sycl::backend::cuda>::errc someCUDAErrCode{EC};
+  sycl::errc_for<sycl::backend::cuda> anotherCUDAErrCode{EC};
+  assert(someCUDAErrCode == anotherCUDAErrCode);
+  sycl::backend_traits<sycl::backend::esimd_cpu>::errc someESIMDErrCode{EC};
+  sycl::errc_for<sycl::backend::esimd_cpu> anotherESIMDErrCode{EC};
+  assert(someESIMDErrCode == anotherESIMDErrCode);
+  sycl::backend_traits<sycl::backend::rocm>::errc someROCMErrCode{EC};
+  sycl::errc_for<sycl::backend::rocm> anotherROCMErrCode{EC};
+  assert(someROCMErrCode == anotherROCMErrCode);
 
   std::cout << "OK" << std::endl;
   return 0;
