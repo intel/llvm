@@ -25,10 +25,10 @@
 // CHECK:  ZE ---> zeCommandListClose
 // CHECK:  ZE ---> zeCommandQueueExecuteCommandLists
 // CHECK: ---> piEventGetInfo
-// CHECK-NOT: piEventsWait
+// CHECK-NOT: piQueueFinish
 // CHECK: ---> piEnqueueKernelLaunch
 // CHECK: ZE ---> zeCommandListAppendLaunchKernel
-// CHECK: ---> piEventsWait
+// CHECK: ---> piQueueFinish
 // Look for close and Execute after piEventsWait
 // CHECK:  ZE ---> zeCommandListClose
 // CHECK:  ZE ---> zeCommandQueueExecuteCommandLists
