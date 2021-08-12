@@ -204,13 +204,15 @@ int checkResults(queue &Q, bool IsSYCL2020, BinaryOperation,
     Passed = ComputedRes == CorrectRes;
   }
 
+  if (!AddInfo.empty())
+    AddInfo = std::string(", ") + AddInfo;
   std::cout << AddInfo << (Passed ? ". PASSED" : ". FAILED") << std::endl;
   if (!Passed) {
     printDeviceInfo(Q, true);
     printTestLabel<T, BinaryOperation>(IsSYCL2020, Range, true);
     std::cerr << ", Computed value=" << ComputedRes
-              << ", Expected value=" << CorrectRes << ErrorStr
-              << (AddInfo.empty() ? "" : ", " + AddInfo) << std::endl;
+              << ", Expected value=" << CorrectRes << ErrorStr << AddInfo
+              << std::endl;
   }
   return Passed ? 0 : 1;
 }
