@@ -8,6 +8,7 @@
 #pragma once
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <unordered_map>
 
