@@ -778,7 +778,7 @@ public:
   // base types are match and that the NumElements == sum of lengths of args.
   template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
             typename = EnableIfSuitableNumElements<argTN...>>
-  constexpr vec(const argTN &...args) {
+  constexpr vec(const argTN &... args) {
     vaargCtorHelper(0, args...);
   }
 
@@ -1303,14 +1303,15 @@ private:
   }
 
   template <typename T1, typename... argTN>
-  constexpr void vaargCtorHelper(int Idx, const T1 &arg, const argTN &...args) {
+  constexpr void vaargCtorHelper(int Idx, const T1 &arg,
+                                 const argTN &... args) {
     int NewIdx = vaargCtorHelper(Idx, arg);
     vaargCtorHelper(NewIdx, args...);
   }
 
   template <typename DataT_, int NumElements_, typename... argTN>
   constexpr void vaargCtorHelper(int Idx, const vec<DataT_, NumElements_> &arg,
-                                 const argTN &...args) {
+                                 const argTN &... args) {
     int NewIdx = vaargCtorHelper(Idx, arg);
     vaargCtorHelper(NewIdx, args...);
   }
