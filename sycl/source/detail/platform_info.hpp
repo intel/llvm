@@ -49,7 +49,7 @@ struct get_platform_info<std::vector<std::string>, info::platform::extensions> {
   }
 };
 
-template <> struct get_platform_info<bool, info::platform::P2P> {
+template <> struct get_platform_info<bool, info::platform::ext_oneapi_P2P> {
   static bool get(RT::PiPlatform plt, const plugin &Plugin) {
 
     std::string vendor_name =
@@ -65,7 +65,8 @@ template <info::platform param>
 inline typename info::param_traits<info::platform, param>::return_type
 get_platform_info_host() = delete;
 
-template <> inline bool get_platform_info_host<info::platform::P2P>() {
+template <>
+inline bool get_platform_info_host<info::platform::ext_oneapi_P2P>() {
   return false;
 }
 

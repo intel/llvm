@@ -1,0 +1,121 @@
+= SYCL_ext_oneapi_P2P
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+NOTE: This document is better viewed when rendered as html with asciidoctor.
+GitHub does not render image icons.
+
+This document describes an extension to add a boolean platform information descriptor which returns true if devices within the platform are capable of Peer to Peer memory copies.
+
+== Name Strings
+
++= SYCL_ext_oneapi_P2P
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+== Version
+
+Built On: {docdate} 
+
+== Contact
+Jack Kirk, Codeplay (jack 'dot' kirk 'at' codeplay 'dot' com)
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 3.
+
+== Overview
+
+Some vendors provide functionality for direct memory copies between peer devices.  This extension adds a platform information descriptor, 'ext_oneapi_P2P', which is used to determine whether or not devices within a given platform are suitable for direct Peer to Peer memory copies.  For some vendors, driver APIs that perform Peer to Peer memory copies are available for the full set of devices supported by DPC++ (e.g. sm50 and above for cuda).  For the cuda driver API, in the case that a Peer to Peer copy is not available due to a limitation in the connection topology between the devices, then the functions performing the Peer to Peer copy, such as 'cuMemcpyPeer', instead perform a Peer copy via the Host.  For these reasons we propose adding a platform information descriptor which indicates whether such Peer to Peer memory copy operations may be arbitrarily performed using any platform member device, acting as a source or destination, that share the same backend as a peer device, acting correspondingly as a destination or source. 
+For some backends, such as cuda, currently a single SYCL context corresponds with a single backend context, and a backend context may not be shared between devices.  For such cases Peer to Peer memory copy may only currently occur between devices that do not share a SYCL context.  It is therefore important to account for this use case. 
+The platform information descriptor, 'ext_oneapi_P2P', may be used as part of the DPC++ runtime in order to determine whether it is possible to directly copy buffer/image memory between devices that are part of different contexts.  A check can be made to ensure that both the source and destination contexts share the same backend.  Then, if one of either the source or destination platforms return true for the 'info::platform::ext_oneapi_P2P' query, the direct Peer to Peer memory is considered legal.  Other backends such as hip/ROCm have similar APIs to cuda for Peer to Peer copies and also use a single context per device.  This consideration is one reason that we considered it more appropriate to add the P2P platform information descriptor, rather than account for a particular case (cuda) in the runtime explicitly.
+An alternative to using a platform information descriptor for the P2P memory copy property would be to use a device information descriptor.  However, choosing an information descriptor at the device level instead of the platform level would imply that a P2P memory copy between devices will depend upon the particular device capability level in addition to the device vendor.  This may be a useful information descriptor in the future, but for the current requirements it would be unnecessary.
+
+== Extension of SYCL 2020 Specification, Revision 3
+
+=== Extension of Section 4.6.2.2. Platform information descriptors
+
+==== Add Platform descriptor 'ext_oneapi_P2P' to table 18.
+
+Add row `info::platform::ext_oneapi_P2P`:
+
+[width="40%",frame="topbot",options="header,footer"]
+|======================
+|Platform descriptors |Return type |Description
+|info::platform::ext_oneapi_P2P | bool| Returns whether the platform supports Peer to Peer memory copies
+|======================
+
+== Example Usage
+
+This non-normative section shows some example usages of the extension.
+
+[source,c++]
+----
+bool P2P = plt.get_info<sycl::info::platform::ext_oneapi_P2P>();
+if (P2P)
+  std::cout << "P2P memory copies supported\n";
+else
+  std::cout << "P2P memory copies not supported\n";
+----
+
+The example above calls the get_info method of the sycl platform instance, 'plt', using the new info::platform::P2P template parameter. The return value is a boolean which determines whether P2P memory copies are supported by the platform, 'plt'.
+
+== Issues
+
+None.
+
+== Revision History
+
+example usage:
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-08-13|Jack Kirk|*Initial public working draft*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************

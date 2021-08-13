@@ -25,12 +25,12 @@ namespace info {
 // Information descriptors
 // A.1 Platform information descriptors
 enum class platform {
-  profile     = PI_PLATFORM_INFO_PROFILE,
-  version     = PI_PLATFORM_INFO_VERSION,
-  name        = PI_PLATFORM_INFO_NAME,
-  vendor      = PI_PLATFORM_INFO_VENDOR,
-  extensions  = PI_PLATFORM_INFO_EXTENSIONS,
-  P2P         = PI_PLATFORM_INFO_P2P,
+  profile = PI_PLATFORM_INFO_PROFILE,
+  version = PI_PLATFORM_INFO_VERSION,
+  name = PI_PLATFORM_INFO_NAME,
+  vendor = PI_PLATFORM_INFO_VENDOR,
+  extensions = PI_PLATFORM_INFO_EXTENSIONS,
+  ext_oneapi_P2P = PI_PLATFORM_INFO_ext_oneapi_P2P,
 };
 
 // A.2 Context information desctiptors
