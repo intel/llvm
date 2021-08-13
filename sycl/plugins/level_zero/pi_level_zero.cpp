@@ -67,15 +67,12 @@ static const bool CopyEngineRequested = [] {
   return UseCopyEngine;
 }();
 
-static const std::pair<int, int> getRangeOfAllowedCopyEngines =
-    [] {
-      const char *CopyEngineRange =
-          std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_RANGE");
-      int LowerCopyEngineIndex =
-          (CopyEngineRange) ? (CopyEngineRange[0] - '0') : 0;
-      int UpperCopyEngineIndex =
-          (CopyEngineRange) ? (CopyEngineRange[2] - '0') : 8;
-      return std::pair<int, int>(LowerCopyEngineIndex, UpperCopyEngineIndex);
+static const std::pair<int, int> getRangeOfAllowedCopyEngines = [] {
+  const char *CopyEngineRange =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_RANGE");
+  int LowerCopyEngineIndex = (CopyEngineRange) ? (CopyEngineRange[0] - '0') : 0;
+  int UpperCopyEngineIndex = (CopyEngineRange) ? (CopyEngineRange[2] - '0') : 8;
+  return std::pair<int, int>(LowerCopyEngineIndex, UpperCopyEngineIndex);
 }();
 
 // This class encapsulates actions taken along with a call to Level Zero API.
