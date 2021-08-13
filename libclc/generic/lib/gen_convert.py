@@ -9,9 +9,6 @@ from gen_convert_common import (
   conditional_guard, close_conditional_guard,
   clc_core_fn_name)
 
-# remove extra, non-opencl type
-types.remove('schar')
-
 # OpenCL built-in library: type conversion functions
 #
 # Copyright (c) 2013 Victor Oliveira <victormatheus@gmail.com>

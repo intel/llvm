@@ -14,7 +14,7 @@
 #define __CLC_GEN_S
 
 #define __CLC_GENTYPE char
-#define __CLC_SPIRV_INTERFACE_GENTYPE schar
+#define __CLC_SPIRV_INTERFACE_GENTYPE char
 #define __CLC_U_GENTYPE uchar
 #define __CLC_S_GENTYPE char
 #define __CLC_SCALAR 1
@@ -28,7 +28,7 @@
 #undef __CLC_SPIRV_INTERFACE_GENTYPE
 
 #define __CLC_GENTYPE char2
-#define __CLC_SPIRV_INTERFACE_GENTYPE schar2
+#define __CLC_SPIRV_INTERFACE_GENTYPE char2
 #define __CLC_U_GENTYPE uchar2
 #define __CLC_S_GENTYPE char2
 #define __CLC_VECSIZE 2
@@ -40,7 +40,7 @@
 #undef __CLC_SPIRV_INTERFACE_GENTYPE
 
 #define __CLC_GENTYPE char3
-#define __CLC_SPIRV_INTERFACE_GENTYPE schar3
+#define __CLC_SPIRV_INTERFACE_GENTYPE char3
 #define __CLC_U_GENTYPE uchar3
 #define __CLC_S_GENTYPE char3
 #define __CLC_VECSIZE 3
@@ -52,7 +52,7 @@
 #undef __CLC_SPIRV_INTERFACE_GENTYPE
 
 #define __CLC_GENTYPE char4
-#define __CLC_SPIRV_INTERFACE_GENTYPE schar4
+#define __CLC_SPIRV_INTERFACE_GENTYPE char4
 #define __CLC_U_GENTYPE uchar4
 #define __CLC_S_GENTYPE char4
 #define __CLC_VECSIZE 4
@@ -64,7 +64,7 @@
 #undef __CLC_SPIRV_INTERFACE_GENTYPE
 
 #define __CLC_GENTYPE char8
-#define __CLC_SPIRV_INTERFACE_GENTYPE schar8
+#define __CLC_SPIRV_INTERFACE_GENTYPE char8
 #define __CLC_U_GENTYPE uchar8
 #define __CLC_S_GENTYPE char8
 #define __CLC_VECSIZE 8
@@ -76,7 +76,7 @@
 #undef __CLC_SPIRV_INTERFACE_GENTYPE
 
 #define __CLC_GENTYPE char16
-#define __CLC_SPIRV_INTERFACE_GENTYPE schar16
+#define __CLC_SPIRV_INTERFACE_GENTYPE char16
 #define __CLC_U_GENTYPE uchar16
 #define __CLC_S_GENTYPE char16
 #define __CLC_VECSIZE 16
@@ -87,88 +87,6 @@
 #undef __CLC_S_GENTYPE
 #undef __CLC_SPIRV_INTERFACE_GENTYPE
 
-#ifndef __CLC_NO_SCHAR
-#undef __CLC_GEN_S
-#undef __CLC_SCALAR_GENTYPE
-#define __CLC_SCALAR_GENTYPE schar
-#define __CLC_GEN_S
-
-#define __CLC_GENTYPE schar
-#define __CLC_SPIRV_INTERFACE_GENTYPE schar
-#define __CLC_U_GENTYPE uchar
-#define __CLC_S_GENTYPE schar
-#define __CLC_SCALAR 1
-#define __CLC_VECSIZE
-#include __CLC_BODY
-#undef __CLC_VECSIZE
-#undef __CLC_SCALAR
-#undef __CLC_GENTYPE
-#undef __CLC_U_GENTYPE
-#undef __CLC_S_GENTYPE
-#undef __CLC_SPIRV_INTERFACE_GENTYPE
-
-#define __CLC_GENTYPE schar2
-#define __CLC_SPIRV_INTERFACE_GENTYPE schar2
-#define __CLC_U_GENTYPE uchar2
-#define __CLC_S_GENTYPE schar2
-#define __CLC_VECSIZE 2
-#include __CLC_BODY
-#undef __CLC_VECSIZE
-#undef __CLC_GENTYPE
-#undef __CLC_U_GENTYPE
-#undef __CLC_S_GENTYPE
-#undef __CLC_SPIRV_INTERFACE_GENTYPE
-
-#define __CLC_GENTYPE schar3
-#define __CLC_SPIRV_INTERFACE_GENTYPE schar3
-#define __CLC_U_GENTYPE uchar3
-#define __CLC_S_GENTYPE schar3
-#define __CLC_VECSIZE 3
-#include __CLC_BODY
-#undef __CLC_VECSIZE
-#undef __CLC_GENTYPE
-#undef __CLC_U_GENTYPE
-#undef __CLC_S_GENTYPE
-#undef __CLC_SPIRV_INTERFACE_GENTYPE
-
-#define __CLC_GENTYPE schar4
-#define __CLC_SPIRV_INTERFACE_GENTYPE schar4
-#define __CLC_U_GENTYPE uchar4
-#define __CLC_S_GENTYPE schar4
-#define __CLC_VECSIZE 4
-#include __CLC_BODY
-#undef __CLC_VECSIZE
-#undef __CLC_GENTYPE
-#undef __CLC_U_GENTYPE
-#undef __CLC_S_GENTYPE
-#undef __CLC_SPIRV_INTERFACE_GENTYPE
-
-#define __CLC_GENTYPE schar8
-#define __CLC_SPIRV_INTERFACE_GENTYPE schar8
-#define __CLC_U_GENTYPE uchar8
-#define __CLC_S_GENTYPE schar8
-#define __CLC_VECSIZE 8
-#include __CLC_BODY
-#undef __CLC_VECSIZE
-#undef __CLC_GENTYPE
-#undef __CLC_U_GENTYPE
-#undef __CLC_S_GENTYPE
-#undef __CLC_SPIRV_INTERFACE_GENTYPE
-
-#define __CLC_GENTYPE schar16
-#define __CLC_SPIRV_INTERFACE_GENTYPE schar16
-#define __CLC_U_GENTYPE uchar16
-#define __CLC_S_GENTYPE schar16
-#define __CLC_VECSIZE 16
-#include __CLC_BODY
-#undef __CLC_VECSIZE
-#undef __CLC_GENTYPE
-#undef __CLC_U_GENTYPE
-#undef __CLC_S_GENTYPE
-#undef __CLC_SPIRV_INTERFACE_GENTYPE
-
-#endif // __CLC_NO_SCHAR
-
 #undef __CLC_SCALAR_GENTYPE
 #define __CLC_SCALAR_GENTYPE uchar
 #undef __CLC_GEN_S
@@ -177,7 +95,7 @@
 #define __CLC_GENTYPE uchar
 #define __CLC_SPIRV_INTERFACE_GENTYPE uchar
 #define __CLC_U_GENTYPE uchar
-#define __CLC_S_GENTYPE schar
+#define __CLC_S_GENTYPE char
 #define __CLC_SCALAR 1
 #define __CLC_VECSIZE
 #include __CLC_BODY
@@ -191,7 +109,7 @@
 #define __CLC_GENTYPE uchar2
 #define __CLC_SPIRV_INTERFACE_GENTYPE uchar2
 #define __CLC_U_GENTYPE uchar2
-#define __CLC_S_GENTYPE schar2
+#define __CLC_S_GENTYPE char2
 #define __CLC_VECSIZE 2
 #include __CLC_BODY
 #undef __CLC_VECSIZE
@@ -203,7 +121,7 @@
 #define __CLC_GENTYPE uchar3
 #define __CLC_SPIRV_INTERFACE_GENTYPE uchar3
 #define __CLC_U_GENTYPE uchar3
-#define __CLC_S_GENTYPE schar3
+#define __CLC_S_GENTYPE char3
 #define __CLC_VECSIZE 3
 #include __CLC_BODY
 #undef __CLC_VECSIZE
@@ -215,7 +133,7 @@
 #define __CLC_GENTYPE uchar4
 #define __CLC_SPIRV_INTERFACE_GENTYPE uchar4
 #define __CLC_U_GENTYPE uchar4
-#define __CLC_S_GENTYPE schar4
+#define __CLC_S_GENTYPE char4
 #define __CLC_VECSIZE 4
 #include __CLC_BODY
 #undef __CLC_VECSIZE
@@ -227,7 +145,7 @@
 #define __CLC_GENTYPE uchar8
 #define __CLC_SPIRV_INTERFACE_GENTYPE uchar8
 #define __CLC_U_GENTYPE uchar8
-#define __CLC_S_GENTYPE schar8
+#define __CLC_S_GENTYPE char8
 #define __CLC_VECSIZE 8
 #include __CLC_BODY
 #undef __CLC_VECSIZE
@@ -239,7 +157,7 @@
 #define __CLC_GENTYPE uchar16
 #define __CLC_SPIRV_INTERFACE_GENTYPE uchar16
 #define __CLC_U_GENTYPE uchar16
-#define __CLC_S_GENTYPE schar16
+#define __CLC_S_GENTYPE char16
 #define __CLC_VECSIZE 16
 #include __CLC_BODY
 #undef __CLC_VECSIZE

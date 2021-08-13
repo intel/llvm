@@ -46,6 +46,13 @@ constexpr sycl::specialization_id<sycl::vec<double, 4>> vec_id_def(v);
 constexpr sycl::specialization_id<sycl::vec<double, 1>> vec_id1(11.0);
 constexpr sycl::specialization_id<sycl::vec<double, 4>> vec_id4(11.0);
 
+constexpr sycl::vec<long long, 1> vv(1);
+
+template <typename T> inline constexpr auto helper(int x) { return T{x}; }
+
+constexpr sycl::specialization_id<sycl::vec<long long, 1>>
+    vec_helper1(helper<sycl::vec<long long, 1>>(1));
+
 struct composite {
   int a;
   int b;
