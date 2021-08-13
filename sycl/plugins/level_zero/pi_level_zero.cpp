@@ -60,6 +60,15 @@ static const bool UseCopyEngineForD2DCopy = [] {
   return (CopyEngineForD2DCopy && (std::stoi(CopyEngineForD2DCopy) != 0));
 }();
 
+// This is an experimental option to test performance of use copy engine for
+// in order queue copy operations on copy engines (versus compute engine)
+static const bool UseCopyEngineForInOrderQueue = [] {
+  const char *CopyEngineForInOrderQueue =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_IN_ORDER_QUEUE");
+  return (CopyEngineForInOrderQueue &&
+          (std::stoi(CopyEngineForInOrderQueue) != 0));
+}();
+
 static const bool CopyEngineRequested = [] {
   const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
   bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
