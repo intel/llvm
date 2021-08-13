@@ -97,7 +97,8 @@ public:
 /// \ingroup sycl_esimd
 template <typename BaseTy>
 class simd_view<BaseTy, region_base_1<typename BaseTy::element_type>>
-    : public detail::simd_view_impl<BaseTy, region_base_1<typename BaseTy::element_type>> {
+    : public detail::simd_view_impl<
+          BaseTy, region_base_1<typename BaseTy::element_type>> {
   template <typename, int> friend class simd;
 
 public:
