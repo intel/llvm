@@ -218,7 +218,6 @@ template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS> {
   using BaseT = SYCLConfigBase<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>;
 
 private:
-
 public:
   static void GetSettings(size_t &MinFactor, size_t &GoodFactor,
                           size_t &MinRange) {

@@ -793,7 +793,7 @@ private:
     // call-graph to make this_item calls kernel-specific but this is
     // not considered worthwhile.
 
-    // Get the kernal name to check condition 1.
+    // Get the kernel name to check condition 2.
     std::string KName = typeid(NameT *).name();
     using KI = detail::KernelInfo<KernelName>;
     bool DisableRounding =
