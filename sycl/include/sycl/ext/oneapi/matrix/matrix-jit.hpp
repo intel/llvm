@@ -164,7 +164,7 @@ template <typename Group, typename T1, typename T2, size_t M, size_t K,
           size_t N, matrix_layout LayoutA, matrix_layout LayoutB,
           matrix_layout LayoutC>
 inline __SYCL_ALWAYS_INLINE joint_matrix<T2, M, N, LayoutC, Group>
-joint_matrix_mma(Group sg, joint_matrix<T1, M, K, LayoutA, Group> &mA,
+joint_matrix_mad(Group sg, joint_matrix<T1, M, K, LayoutA, Group> &mA,
                  joint_matrix<T1, K, N, LayoutB, Group> &mB,
                  joint_matrix<T2, M, N, LayoutC, Group> &mC) {
 #ifdef __SYCL_DEVICE_ONLY__
