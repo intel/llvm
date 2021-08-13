@@ -8770,7 +8770,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
       ExtArg += ",+SPV_INTEL_usm_storage_classes";
     else
       // Don't enable several freshly added extensions on FPGA H/W
-      ExtArg += ",+SPV_INTEL_token_type";
+      ExtArg += ",+SPV_INTEL_token_type,+SPV_INTEL_joint_matrix";
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {

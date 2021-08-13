@@ -51,6 +51,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arithmetic_fence
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_runtime_aligned
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_token_type"
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_joint_matrix"
 // CHECK-FPGA-HW: llvm-spirv{{.*}}"-spirv-ext=-all
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_min_max
