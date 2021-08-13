@@ -53,9 +53,9 @@ template <> struct get_platform_info<bool, info::platform::P2P> {
   static bool get(RT::PiPlatform plt, const plugin &Plugin) {
 
     std::string vendor_name =
-        get_platform_info<string_class, info::platform::name>::get(plt, Plugin);
-
-    bool result = (vendor_name == "NVIDIA CUDA BACKEND") ? true : false;
+        get_platform_info<string_class, info::platform::vendor>::get(plt,
+                                                                     Plugin);
+    bool result = (vendor_name == "NVIDIA Corporation") ? true : false;
     return result;
   }
 };
