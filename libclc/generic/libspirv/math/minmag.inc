@@ -10,7 +10,7 @@
 #define __CLC_VECSIZE
 #endif
 
-#define __CLC_CHARN __CLC_XCONCAT(schar, __CLC_VECSIZE)
+#define __CLC_CHARN __CLC_XCONCAT(char, __CLC_VECSIZE)
 
 #if __CLC_FPSIZE == 64
 #define __CLC_CONVERT_NATN __CLC_XCONCAT(__spirv_SConvert_Rlong, __CLC_VECSIZE)

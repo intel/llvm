@@ -563,10 +563,6 @@ template <typename dataT>
 extern SYCL_EXTERNAL WPipeTy<dataT> __spirv_CreatePipeFromPipeStorage_write(
     const ConstantPipeStorage *Storage) noexcept;
 
-extern SYCL_EXTERNAL void
-__spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
-                     size_t NumBytes) noexcept;
-
 #else // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>

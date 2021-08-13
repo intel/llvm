@@ -27,6 +27,7 @@ def do_configure(args):
     llvm_targets_to_build = 'X86'
     llvm_enable_projects = 'clang;' + llvm_external_projects
     libclc_targets_to_build = ''
+    libclc_gen_remangled_variants = 'OFF'
     sycl_build_pi_cuda = 'OFF'
     sycl_build_pi_esimd_cpu = 'ON'
     sycl_build_pi_rocm = 'OFF'
@@ -53,6 +54,7 @@ def do_configure(args):
     if args.cuda:
         llvm_targets_to_build += ';NVPTX'
         libclc_targets_to_build = 'nvptx64--;nvptx64--nvidiacl'
+        libclc_gen_remangled_variants = 'ON'
         sycl_build_pi_cuda = 'ON'
 
     if args.rocm:
@@ -62,6 +64,7 @@ def do_configure(args):
         elif args.rocm_platform == 'NVIDIA' and not args.cuda:
             llvm_targets_to_build += ';NVPTX'
             libclc_targets_to_build += ';nvptx64--;nvptx64--nvidiacl'
+        libclc_gen_remangled_variants = 'ON'
 
         sycl_build_pi_rocm_platform = args.rocm_platform
         sycl_build_pi_rocm = 'ON'
@@ -99,6 +102,7 @@ def do_configure(args):
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
+        "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(libclc_gen_remangled_variants),
         "-DSYCL_BUILD_PI_CUDA={}".format(sycl_build_pi_cuda),
         "-DSYCL_BUILD_PI_ROCM={}".format(sycl_build_pi_rocm),
         "-DSYCL_BUILD_PI_ROCM_PLATFORM={}".format(sycl_build_pi_rocm_platform),
