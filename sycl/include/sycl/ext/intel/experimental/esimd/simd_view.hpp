@@ -95,6 +95,9 @@ public:
 };
 
 /// This is a specialization of simd_view class with a single element.
+/// Objects of such a class are created in the following situation:
+///   simd<int, 4> v = 1;
+///   auto v1 = v[0];
 /// We allow implicit conversion to underlying type, e.g.:
 ///   simd<int, 4> v = 1;
 ///   int i = v[0];
@@ -103,16 +106,16 @@ public:
 ///   bool b = v[0] > v[1] && v[2] < 42;
 ///
 /// \ingroup sycl_esimd
-template <typename BaseTy>
-class simd_view<BaseTy, region_base_1<typename BaseTy::element_type>>
+template <typename BaseTy, typename T, int StrideY, int StrideX>
+class simd_view<BaseTy, region_base_1<T, StrideY, StrideX>>
     : public detail::simd_view_impl<
-          BaseTy, region_base_1<typename BaseTy::element_type>,
-          simd_view<BaseTy, region_base_1<typename BaseTy::element_type>>> {
+          BaseTy, region_base_1<T, StrideY, StrideX>,
+          simd_view<BaseTy, region_base_1<T, StrideY, StrideX>>> {
   template <typename, int> friend class simd;
   template <typename, typename, typename> friend class detail::simd_view_impl;
 
 public:
-  using RegionTy = region_base_1<typename BaseTy::element_type>;
+  using RegionTy = region_base_1<T, StrideY, StrideX>;
   using BaseClass =
       detail::simd_view_impl<BaseTy, RegionTy, simd_view<BaseTy, RegionTy>>;
   using ShapeTy = typename shape_type<RegionTy>::type;
@@ -120,21 +123,96 @@ public:
   static_assert(1 == length, "length of this view is not equal to 1");
   /// The element type of this class, which could be different from the element
   /// type of the base object type.
-  using element_type = typename ShapeTy::element_type;
+  using element_type = T;
 
 private:
   simd_view(BaseTy &Base, RegionTy Region) : BaseClass(Base, Region) {}
   simd_view(BaseTy &&Base, RegionTy Region) : BaseClass(Base, Region) {}
 
 public:
-  operator element_type() const { return (*this)[0]; }
+  operator element_type() const {
+    const auto v = BaseClass::read();
+    return v[0];
+  }
 
   using BaseClass::operator=;
 
 #define DEF_RELOP(RELOP)                                                       \
   ESIMD_INLINE friend bool operator RELOP(const simd_view &X,                  \
                                           const simd_view &Y) {                \
-    return (element_type)X RELOP(element_type) Y;                              \
+    return (element_type)X RELOP(element_type)                                 \
+    Y;                                                                         \
+  }                                                                            \
+  template <typename T1, typename = sycl::detail::enable_if_t<                 \
+                             detail::is_esimd_scalar<T1>::value &&             \
+                             detail::is_vectorizable_v<T1>::value>>            \
+  ESIMD_INLINE friend bool operator RELOP(const simd_view &X, T1 Y) {          \
+    return (element_type)X RELOP Y;                                            \
+  }
+
+  DEF_RELOP(>)
+  DEF_RELOP(>=)
+  DEF_RELOP(<)
+  DEF_RELOP(<=)
+  DEF_RELOP(==)
+  DEF_RELOP(!=)
+
+#undef DEF_RELOP
+};
+
+// TODO: remove code duplication in two class specializations for a simd_view
+// with a single element
+
+/// This is a specialization of nested simd_view class with a single element.
+/// Objects of such a class are created in the following situation:
+///   simd<int, 4> v = 1;
+///   auto v1 = v.select<2, 1>(0);
+///   auto v2 = v1[0]; // simd_view of a nested region for a single element
+template <typename BaseTy, typename T, int StrideY, int StrideX,
+          typename NestedRegion>
+class simd_view<BaseTy,
+                std::pair<region_base_1<T, StrideY, StrideX>, NestedRegion>>
+    : public detail::simd_view_impl<
+          BaseTy, std::pair<region_base_1<T, StrideY, StrideX>, NestedRegion>,
+          simd_view<BaseTy, std::pair<region_base_1<T, StrideY, StrideX>,
+                                      NestedRegion>>> {
+  template <typename, int> friend class simd;
+  template <typename, typename, typename> friend class detail::simd_view_impl;
+
+public:
+  using RegionTy = std::pair<region_base_1<T, StrideY, StrideX>, NestedRegion>;
+  using BaseClass =
+      detail::simd_view_impl<BaseTy, RegionTy, simd_view<BaseTy, RegionTy>>;
+  using ShapeTy = typename shape_type<RegionTy>::type;
+  static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
+  static_assert(1 == length, "length of this view is not equal to 1");
+  /// The element type of this class, which could be different from the element
+  /// type of the base object type.
+  using element_type = T;
+
+private:
+  simd_view(BaseTy &Base, RegionTy Region) : BaseClass(Base, Region) {}
+  simd_view(BaseTy &&Base, RegionTy Region) : BaseClass(Base, Region) {}
+
+public:
+  operator element_type() const {
+    const auto v = BaseClass::read();
+    return v[0];
+  }
+
+  using BaseClass::operator=;
+
+#define DEF_RELOP(RELOP)                                                       \
+  ESIMD_INLINE friend bool operator RELOP(const simd_view &X,                  \
+                                          const simd_view &Y) {                \
+    return (element_type)X RELOP(element_type)                                 \
+    Y;                                                                         \
+  }                                                                            \
+  template <typename T1, typename = sycl::detail::enable_if_t<                 \
+                             detail::is_esimd_scalar<T1>::value &&             \
+                             detail::is_vectorizable_v<T1>::value>>            \
+  ESIMD_INLINE friend bool operator RELOP(const simd_view &X, T1 Y) {          \
+    return (element_type)X RELOP Y;                                            \
   }
 
   DEF_RELOP(>)
