@@ -1202,7 +1202,8 @@ private:
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <int Num = NumElements, typename Ty = int,
             typename = typename detail::enable_if_t<1 != Num>>
-  void setValue(EnableIfNotHostHalf<Ty> Index, const DataT &Value, int) {
+  constexpr void setValue(EnableIfNotHostHalf<Ty> Index, const DataT &Value,
+                          int) {
     m_Data[Index] = Value;
   }
 
@@ -1214,7 +1215,7 @@ private:
 
   template <int Num = NumElements, typename Ty = int,
             typename = typename detail::enable_if_t<1 != Num>>
-  void setValue(EnableIfHostHalf<Ty> Index, const DataT &Value, int) {
+  constexpr void setValue(EnableIfHostHalf<Ty> Index, const DataT &Value, int) {
     m_Data.s[Index] = Value;
   }
 
@@ -1226,7 +1227,7 @@ private:
 #else  // __SYCL_USE_EXT_VECTOR_TYPE__
   template <int Num = NumElements,
             typename = typename detail::enable_if_t<1 != Num>>
-  void setValue(int Index, const DataT &Value, int) {
+  constexpr void setValue(int Index, const DataT &Value, int) {
     m_Data.s[Index] = Value;
   }
 
@@ -1239,7 +1240,7 @@ private:
 
   template <int Num = NumElements,
             typename = typename detail::enable_if_t<1 == Num>>
-  void setValue(int, const DataT &Value, float) {
+  constexpr void setValue(int, const DataT &Value, float) {
     m_Data = Value;
   }
 
@@ -1250,7 +1251,7 @@ private:
   }
 
   // Special proxies as specialization is not allowed in class scope.
-  void setValue(int Index, const DataT &Value) {
+  constexpr void setValue(int Index, const DataT &Value) {
     if (NumElements == 1)
       setValue(Index, Value, 0);
     else
@@ -1263,13 +1264,13 @@ private:
 
   // Helpers for variadic template constructor of vec.
   template <typename T, typename... argTN>
-  int vaargCtorHelper(int Idx, const T &arg) {
+  constexpr int vaargCtorHelper(int Idx, const T &arg) {
     setValue(Idx, arg);
     return Idx + 1;
   }
 
   template <typename DataT_, int NumElements_>
-  int vaargCtorHelper(int Idx, const vec<DataT_, NumElements_> &arg) {
+  constexpr int vaargCtorHelper(int Idx, const vec<DataT_, NumElements_> &arg) {
     for (size_t I = 0; I < NumElements_; ++I) {
       setValue(Idx + I, arg.getValue(I));
     }
@@ -1278,9 +1279,9 @@ private:
 
   template <typename DataT_, int NumElements_, typename T2, typename T3,
             template <typename> class T4, int... T5>
-  int vaargCtorHelper(int Idx,
-                      const detail::SwizzleOp<vec<DataT_, NumElements_>, T2, T3,
-                                              T4, T5...> &arg) {
+  constexpr int
+  vaargCtorHelper(int Idx, const detail::SwizzleOp<vec<DataT_, NumElements_>,
+                                                   T2, T3, T4, T5...> &arg) {
     size_t NumElems = sizeof...(T5);
     for (size_t I = 0; I < NumElems; ++I) {
       setValue(Idx + I, arg.getValue(I));
@@ -1290,9 +1291,10 @@ private:
 
   template <typename DataT_, int NumElements_, typename T2, typename T3,
             template <typename> class T4, int... T5>
-  int vaargCtorHelper(int Idx,
-                      const detail::SwizzleOp<const vec<DataT_, NumElements_>,
-                                              T2, T3, T4, T5...> &arg) {
+  constexpr int
+  vaargCtorHelper(int Idx,
+                  const detail::SwizzleOp<const vec<DataT_, NumElements_>, T2,
+                                          T3, T4, T5...> &arg) {
     size_t NumElems = sizeof...(T5);
     for (size_t I = 0; I < NumElems; ++I) {
       setValue(Idx + I, arg.getValue(I));
@@ -1301,14 +1303,15 @@ private:
   }
 
   template <typename T1, typename... argTN>
-  void vaargCtorHelper(int Idx, const T1 &arg, const argTN &... args) {
+  constexpr void vaargCtorHelper(int Idx, const T1 &arg,
+                                 const argTN &... args) {
     int NewIdx = vaargCtorHelper(Idx, arg);
     vaargCtorHelper(NewIdx, args...);
   }
 
   template <typename DataT_, int NumElements_, typename... argTN>
-  void vaargCtorHelper(int Idx, const vec<DataT_, NumElements_> &arg,
-                       const argTN &... args) {
+  constexpr void vaargCtorHelper(int Idx, const vec<DataT_, NumElements_> &arg,
+                                 const argTN &... args) {
     int NewIdx = vaargCtorHelper(Idx, arg);
     vaargCtorHelper(NewIdx, args...);
   }
