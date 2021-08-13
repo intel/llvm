@@ -195,8 +195,18 @@ public:
   /// Read single element, return value only (not reference).
   Ty operator[](int i) const { return data()[i]; }
 
+  /// Read single element, return value only (not reference).
+  __SYCL_DEPRECATED("use operator[] form.")
+  Ty operator()(int i) const { return data()[i]; }
+
   /// Return writable view of a single element.
   simd_view<simd, region1d_t<Ty, 1, 0>> operator[](int i) {
+    return select<1, 0>(i);
+  }
+
+  /// Return writable view of a single element.
+  __SYCL_DEPRECATED("use operator[] form.")
+  simd_view<simd, region1d_t<Ty, 1, 0>> operator()(int i) {
     return select<1, 0>(i);
   }
 

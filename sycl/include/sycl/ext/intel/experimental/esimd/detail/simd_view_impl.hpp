@@ -336,6 +336,15 @@ public:
     return v[i];
   }
 
+  /// Read a single element from a 1D region, by value only.
+  template <typename T = simd_view_impl,
+            typename = sycl::detail::enable_if_t<T::is1D()>>
+  __SYCL_DEPRECATED("use operator[] form.")
+  element_type operator()(int i) const {
+    const auto v = read();
+    return v[i];
+  }
+
   /// \name Replicate
   /// Replicate simd instance given a simd_view
   /// @{
