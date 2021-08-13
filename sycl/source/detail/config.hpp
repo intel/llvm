@@ -176,6 +176,86 @@ public:
   }
 };
 
+template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE> {
+  using BaseT = SYCLConfigBase<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE>;
+
+public:
+  static bool get() {
+    static bool Initialized = false;
+    static bool Trace = false; // No tracing by default
+
+    // Check env var setting for tracing only once
+    if (Initialized)
+      return Trace;
+
+    const char *ValStr = BaseT::getRawValue();
+    Trace = ValStr != nullptr;
+    Initialized = true;
+    return Trace;
+  }
+};
+
+template <> class SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING> {
+  using BaseT = SYCLConfigBase<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>;
+
+public:
+  static bool get() {
+    static bool Initialized = false;
+    static bool DisableRounding = false; // Range rounding on by default
+
+    // Check env var setting for rounding only once
+    if (Initialized)
+      return DisableRounding;
+
+    const char *ValStr = BaseT::getRawValue();
+    DisableRounding = ValStr != nullptr;
+    Initialized = true;
+    return DisableRounding;
+  }
+};
+
+template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS> {
+  using BaseT = SYCLConfigBase<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>;
+
+private:
+
+public:
+  static void GetSettings(size_t &MinFactor, size_t &GoodFactor,
+                          size_t &MinRange) {
+    static bool Initialized = false;
+    static bool NewFactors = false;
+    static size_t MF;
+    static size_t GF;
+    static size_t MR;
+    if (!Initialized) {
+      // Parse optional parameters of this form:
+      // MinRound:PreferredRound:MinRange
+      char *RoundParams = getenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS");
+      if (RoundParams != nullptr) {
+        std::string Params(RoundParams);
+        size_t Pos = Params.find(':');
+        if (Pos != std::string::npos) {
+          MF = std::stoi(Params.substr(0, Pos));
+          Params.erase(0, Pos + 1);
+          Pos = Params.find(':');
+          if (Pos != std::string::npos) {
+            GF = std::stoi(Params.substr(0, Pos));
+            Params.erase(0, Pos + 1);
+            MR = std::stoi(Params);
+          }
+        }
+        NewFactors = true;
+      }
+      Initialized = true;
+    }
+    if (NewFactors) {
+      MinFactor = MF;
+      GoodFactor = GF;
+      MinRange = MR;
+    }
+  }
+};
+
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
 static const std::array<std::pair<std::string, info::device_type>, 5>
     SyclDeviceTypeMap = {{{"host", info::device_type::host},

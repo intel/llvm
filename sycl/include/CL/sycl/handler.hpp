@@ -773,12 +773,17 @@ private:
     // Range should be at least this to make rounding worthwhile.
     size_t MinRangeX = 1024;
 
+    // Check if rounding parameters have been set through environment:
+    // SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=MinRound:PreferredRound:MinRange
+    this->GetRangeRoundingSettings(MinFactorX, GoodFactorX, MinRangeX);
+
     // Disable the rounding-up optimizations under these conditions:
-    // 1. The kernel is provided via an interoperability method.
-    // 2. The API "this_item" is used inside the kernel.
-    // 3. The range is already a multiple of the rounding factor.
+    // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
+    // 2. The kernel is provided via an interoperability method.
+    // 3. The API "this_item" is used inside the kernel.
+    // 4. The range is already a multiple of the rounding factor.
     //
-    // Cases 1 and 2 could be supported with extra effort.
+    // Cases 2 and 3 could be supported with extra effort.
     // As an optimization for the common case it is an
     // implementation choice to not support those scenarios.
     // Note that "this_item" is a free function, i.e. not tied to any
@@ -792,6 +797,7 @@ private:
     std::string KName = typeid(NameT *).name();
     using KI = detail::KernelInfo<KernelName>;
     bool DisableRounding =
+        this->DisableRangeRounding() ||
         (KI::getName() == nullptr || KI::getName()[0] == '\0') ||
         (KI::callsThisItem());
 
@@ -806,17 +812,7 @@ private:
       // will yield a rounded-up value for the total range.
       size_t NewValX =
           ((NumWorkItems[0] + GoodFactorX - 1) / GoodFactorX) * GoodFactorX;
-
-      // Check whether rounding trace has been requested.
-      // Call getenv only once.
-      static bool RoundingTraceChecked = false;
-      static bool RoundingTrace = false;
-      if (!RoundingTraceChecked) {
-        RoundingTrace =
-            getenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE") != nullptr;
-        RoundingTraceChecked = true;
-      }
-      if (RoundingTrace)
+      if (this->RangeRoundingTrace())
         std::cout << "parallel_for range adjusted from " << NumWorkItems[0]
                   << " to " << NewValX << std::endl;
 
@@ -853,6 +849,7 @@ private:
       setType(detail::CG::Kernel);
 #endif
     }
+    this->finalize();
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -2429,6 +2426,13 @@ private:
                                            access::target);
 
   friend class ::MockHandler;
+
+  bool DisableRangeRounding();
+
+  bool RangeRoundingTrace();
+
+  void GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
+                                size_t &MinRange);
 
   template <typename WrapperT, typename TransformedArgType, int Dims,
             typename KernelType>
