@@ -84,7 +84,7 @@ typedef Allocator::AllocatorCache AllocatorCache;
 Allocator *allocator();
 #endif
 
-const u64 kShadowRodata = (u64)-1;  // .rodata shadow marker
+const RawShadow kShadowRodata = (RawShadow)-1;  // .rodata shadow marker
 
 // FastState (from most significant bit):
 //   ignore          : 1
@@ -393,8 +393,8 @@ struct ThreadState {
   uptr *shadow_stack;
   uptr *shadow_stack_end;
   uptr *shadow_stack_pos;
-  u64 *racy_shadow_addr;
-  u64 racy_state[2];
+  RawShadow *racy_shadow_addr;
+  RawShadow racy_state[2];
   MutexSet mset;
   ThreadClock clock;
 #if !SANITIZER_GO
@@ -692,15 +692,6 @@ int Finalize(ThreadState *thr);
 void OnUserAlloc(ThreadState *thr, uptr pc, uptr p, uptr sz, bool write);
 void OnUserFree(ThreadState *thr, uptr pc, uptr p, bool write);
 
-typedef uptr AccessType;
-
-enum : AccessType {
-  kAccessWrite = 0,
-  kAccessRead = 1 << 0,
-  kAccessAtomic = 1 << 1,
-  kAccessVptr = 1 << 2,
-};
-
 void MemoryAccess(ThreadState *thr, uptr pc, uptr addr,
     int kAccessSizeLog, bool kAccessIsWrite, bool kIsAtomic);
 void MemoryAccessImpl(ThreadState *thr, uptr addr,
@@ -708,8 +699,6 @@ void MemoryAccessImpl(ThreadState *thr, uptr addr,
     u64 *shadow_mem, Shadow cur);
 void MemoryAccessRange(ThreadState *thr, uptr pc, uptr addr,
     uptr size, bool is_write);
-void MemoryAccessRangeStep(ThreadState *thr, uptr pc, uptr addr,
-    uptr size, uptr step, bool is_write);
 void UnalignedMemoryAccess(ThreadState *thr, uptr pc, uptr addr, uptr size,
                            AccessType typ);
 
@@ -741,9 +730,13 @@ void MemoryAccess(ThreadState *thr, uptr pc, uptr addr, uptr size,
   bool is_atomic = typ & kAccessAtomic;
   if (typ & kAccessVptr)
     thr->is_vptr_access = true;
+  if (typ & kAccessFree)
+    thr->is_freeing = true;
   MemoryAccess(thr, pc, addr, size_log, is_write, is_atomic);
   if (typ & kAccessVptr)
     thr->is_vptr_access = false;
+  if (typ & kAccessFree)
+    thr->is_freeing = false;
 }
 
 void MemoryResetRange(ThreadState *thr, uptr pc, uptr addr, uptr size);
