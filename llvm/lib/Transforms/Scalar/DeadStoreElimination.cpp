@@ -1786,7 +1786,6 @@ struct DSEState {
         continue;
 
       Instruction *DefI = Def->getMemoryInst();
-      SmallVector<const Value *, 4> Pointers;
       auto DefLoc = getLocForWriteEx(DefI);
       if (!DefLoc)
         continue;
@@ -1814,8 +1813,7 @@ struct DSEState {
 
   /// \returns true if \p Def is a no-op store, either because it
   /// directly stores back a loaded value or stores zero to a calloced object.
-  bool storeIsNoop(MemoryDef *Def, const MemoryLocation &DefLoc,
-                   const Value *DefUO) {
+  bool storeIsNoop(MemoryDef *Def, const Value *DefUO) {
     StoreInst *Store = dyn_cast<StoreInst>(Def->getMemoryInst());
     MemSetInst *MemSet = dyn_cast<MemSetInst>(Def->getMemoryInst());
     Constant *StoredConstant = nullptr;
@@ -1858,10 +1856,9 @@ struct DSEState {
                 memoryIsNotModifiedBetween(Malloc, MemSet, BatchAA, DL, &DT)) {
               IRBuilder<> IRB(Malloc);
               const auto &DL = Malloc->getModule()->getDataLayout();
-              AttributeList EmptyList;
-              if (auto *Calloc = emitCalloc(
-                      ConstantInt::get(IRB.getIntPtrTy(DL), 1),
-                      Malloc->getArgOperand(0), EmptyList, IRB, TLI)) {
+              if (auto *Calloc =
+                      emitCalloc(ConstantInt::get(IRB.getIntPtrTy(DL), 1),
+                                 Malloc->getArgOperand(0), IRB, TLI)) {
                 MemorySSAUpdater Updater(&MSSA);
                 auto *LastDef = cast<MemoryDef>(
                     Updater.getMemorySSA()->getMemoryAccess(Malloc));
@@ -2084,7 +2081,7 @@ static bool eliminateDeadStores(Function &F, AliasAnalysis &AA, MemorySSA &MSSA,
 
     // Check if the store is a no-op.
     if (!Shortend && isRemovable(SI) &&
-        State.storeIsNoop(KillingDef, SILoc, SILocUnd)) {
+        State.storeIsNoop(KillingDef, SILocUnd)) {
       LLVM_DEBUG(dbgs() << "DSE: Remove No-Op Store:\n  DEAD: " << *SI << '\n');
       State.deleteDeadInstruction(SI);
       NumRedundantStores++;

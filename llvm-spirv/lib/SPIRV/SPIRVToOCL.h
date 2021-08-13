@@ -107,6 +107,11 @@ public:
   /// to_{global|local|private} OCL builtin.
   void visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI, Op OC);
 
+  /// Transform __spirv_OpBuildINDRange_{1|2|3}D to
+  /// ndrange_{1|2|3}D OCL builtin.
+  void visitCallBuildNDRangeBuiltIn(CallInst *CI, Op OC,
+                                    StringRef DemangledName);
+
   /// Transform __spirv_*Convert_R{ReturnType}{_sat}{_rtp|_rtn|_rtz|_rte} to
   /// convert_{ReturnType}_{sat}{_rtp|_rtn|_rtz|_rte}
   /// example:  <2 x i8> __spirv_SatConvertUToS(<2 x i32>) =>
