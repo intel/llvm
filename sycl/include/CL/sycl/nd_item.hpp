@@ -122,7 +122,7 @@ public:
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
   template <access::mode accessMode = access::mode::read_write>
-  __SYCL2020_DEPRECATED("use sycl::group_barrier() free function instead")
+  __SYCL2020_DEPRECATED("use sycl::atomic_fence() free function instead")
   void mem_fence(
       typename detail::enable_if_t<accessMode == access::mode::read ||
                                        accessMode == access::mode::write ||

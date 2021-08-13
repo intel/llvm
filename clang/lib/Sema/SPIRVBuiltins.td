@@ -321,9 +321,8 @@ class ConstOCLSPVBuiltin<string _Name, list<Type> _Signature> :
 
 // OpenCL v1.0/1.2/2.0 s6.1.1: Built-in Scalar Data Types.
 def Bool      : IntType<"bool",   QualType<"Context.BoolTy">, 1>;
-def TrueChar  : IntType<"_char",      QualType<"Context.CharTy", 0, 1>, 8>;
-def Char      : IntType<"char",      QualType<"Context.SignedCharTy", 0, 1>, 8>;
-def SChar     : IntType<"schar",     QualType<"Context.SignedCharTy", 0, 1>, 8>;
+def Char      : IntType<"char",      QualType<"Context.CharTy", 0, 1>, 8>;
+def SChar     : IntType<"schar",      QualType<"Context.SignedCharTy", 0, 1>, 8>;
 def UChar     : UIntType<"uchar",     QualType<"Context.UnsignedCharTy">, 8>;
 def Short     : IntType<"short",     QualType<"Context.ShortTy", 0, 1>, 16>;
 def UShort    : UIntType<"ushort",    QualType<"Context.UnsignedShortTy">, 16>;
@@ -356,15 +355,13 @@ def Vec16       : IntList<"Vec16", [16]>;
 def Vec1234     : IntList<"Vec1234", [1, 2, 3, 4]>;
 
 // Type lists.
-def TLAll           : TypeList<[Char,  UChar, Short,  UShort, Int,  UInt, Long,  ULong, Float, Double, Half]>;
+def TLAll           : TypeList<[Char, UChar, Short,  UShort, Int,  UInt, Long,  ULong, Float, Double, Half]>;
 def TLAllUnsigned   : TypeList<[UChar, UChar, UShort, UShort, UInt, UInt, ULong, ULong, UInt,  ULong,  UShort]>;
 def TLFloat         : TypeList<[Float, Double, Half]>;
-// FIXME: handle properly char (signed or unsigned depending on host)
 def TLSignedInts    : TypeList<[Char, Short, Int, Long]>;
 def TLUnsignedInts  : TypeList<[UChar, UShort, UInt, ULong]>;
 
 // Signed to Unsigned conversion
-// FIXME: handle properly char (signed or unsigned depending on host)
 def TLSToUSignedInts    : TypeList<[Char, Short, Int, Long]>;
 def TLSToUUnsignedInts  : TypeList<[UChar, UShort, UInt, ULong]>;
 
@@ -375,7 +372,7 @@ def TLIntLongFloats : TypeList<[Int, UInt, Long, ULong, Float, Double, Half]>;
 // uchar abs(uchar).
 def TLAllUIntsTwice : TypeList<[UChar, UChar, UChar, UShort, UShort, UInt, UInt, ULong, ULong]>;
 
-def TLAllInts       : TypeList<[Char, UChar, Short, UShort, Int, UInt, Long, ULong]>;
+def TLAllInts       : TypeList<[Char, SChar, UChar, Short, UShort, Int, UInt, Long, ULong]>;
 
 // GenType definitions for multiple base types (e.g. all floating point types,
 // or all integer types).
@@ -402,7 +399,7 @@ def IntLongFloatGenType1   : GenericType<"IntLongFloatGenType1", TLIntLongFloats
 
 // GenType definitions for every single base type (e.g. fp32 only).
 // Names are like: GenTypeFloatVecAndScalar.
-foreach Type = [Char, UChar, SChar, Short, UShort,
+foreach Type = [Char, SChar, UChar, Short, UShort,
                 Int, UInt, Long, ULong,
                 Float, Double, Half] in {
   foreach VecSizes = [VecAndScalar, VecNoScalar] in {
@@ -557,6 +554,7 @@ foreach name = ["s_clamp", "s_mad_hi", "s_mad_sat"] in {
 
 foreach name = ["s_upsample"] in {
   def : ConstOCLSPVBuiltin<name, [GenTypeShortVecAndScalar, GenTypeCharVecAndScalar, GenTypeUCharVecAndScalar]>;
+  def : ConstOCLSPVBuiltin<name, [GenTypeShortVecAndScalar, GenTypeSCharVecAndScalar, GenTypeUCharVecAndScalar]>;
   def : ConstOCLSPVBuiltin<name, [GenTypeIntVecAndScalar, GenTypeShortVecAndScalar, GenTypeUShortVecAndScalar]>;
   def : ConstOCLSPVBuiltin<name, [GenTypeLongVecAndScalar, GenTypeIntVecAndScalar, GenTypeUIntVecAndScalar]>;
 }
@@ -724,7 +722,7 @@ foreach VSize1 = [Vec2, Vec4, Vec8, Vec16] in {
 
 let IsVariadic = 1 in {
   foreach name = ["printf"] in {
-    def : OCLSPVBuiltin<name, [Int, PointerType<ConstType<TrueChar>, ConstantAS>]>;
+    def : OCLSPVBuiltin<name, [Int, PointerType<ConstType<Char>, ConstantAS>]>;
   }
 }
 
