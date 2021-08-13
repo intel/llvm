@@ -49,10 +49,25 @@ struct get_platform_info<std::vector<std::string>, info::platform::extensions> {
   }
 };
 
+template <> struct get_platform_info<bool, info::platform::P2P> {
+  static bool get(RT::PiPlatform plt, const plugin &Plugin) {
+
+    std::string vendor_name =
+        get_platform_info<string_class, info::platform::vendor>::get(plt,
+                                                                     Plugin);
+    bool result = (vendor_name == "NVIDIA Corporation") ? true : false;
+    return result;
+  }
+};
+
 // Host platform information methods
 template <info::platform param>
 inline typename info::param_traits<info::platform, param>::return_type
 get_platform_info_host() = delete;
+
+template <> inline bool get_platform_info_host<info::platform::P2P>() {
+  return false;
+}
 
 template <>
 inline std::string get_platform_info_host<info::platform::profile>() {
