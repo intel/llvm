@@ -46,9 +46,11 @@ public:
   }
 
   ~XPTIRegistry() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
     for (const auto &StreamName : MActiveStreams) {
       xptiFinalize(StreamName.c_str());
     }
+#endif // XPTI_ENABLE_INSTRUMENTATION
   }
 
 private:
