@@ -10,6 +10,19 @@
 // RUN: %clang_cc1 -fno-sycl-id-queries-fit-in-int %s -E -dM | FileCheck \
 // RUN: --check-prefix=CHECK-NO-SYCL_FIT_IN_INT %s
 
+// RUN: %clang_cc1 %s -fsycl-is-device -E -dM | FileCheck \
+// RUN: --check-prefix=CHECK-SYCL-BFLOAT16-CONV-DISABLED %s
+// RUN: %clang_cc1 %s -fsycl-is-host -E -dM | FileCheck \
+// RUN: --check-prefix=CHECK-SYCL-BFLOAT16-CONV-DISABLED %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-enable-bfloat16-conversion -E -dM | FileCheck \
+// RUN: --check-prefix=CHECK-SYCL-BFLOAT16-CONV %s
+// RUN: %clang_cc1 -fsycl-is-host -fsycl-enable-bfloat16-conversion -E -dM | FileCheck \
+// RUN: --check-prefix=CHECK-SYCL-BFLOAT16-CONV %s
+// RUN: %clang_cc1 -fsycl-is-device -fno-sycl-enable-bfloat16-conversion -E -dM | FileCheck \
+// RUN: --check-prefix=CHECK-SYCL-BFLOAT16-CONV-DISABLED %s
+// RUN: %clang_cc1 -fsycl-is-host -fno-sycl-enable-bfloat16-conversion -E -dM | FileCheck \
+// RUN: --check-prefix=CHECK-SYCL-BFLOAT16-CONV-DISABLED %s
+
 // CHECK-NOT:#define __SYCL_DEVICE_ONLY__ 1
 // CHECK-NOT:#define SYCL_EXTERNAL
 // CHECK-NOT:#define CL_SYCL_LANGUAGE_VERSION 121
@@ -30,3 +43,6 @@
 
 // CHECK-NO-SYCL_FIT_IN_INT-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
 // CHECK-SYCL-ID:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
+
+// CHECK-SYCL-BFLOAT16-CONV:#define __SYCL_ENABLE_BF16_CONVERSION__ 1
+// CHECK-SYCL-BFLOAT16-CONV-DISABLED-NOT:#define __SYCL_ENABLE_BF16_CONVERSION__ 1

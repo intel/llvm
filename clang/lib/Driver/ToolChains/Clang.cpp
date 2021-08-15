@@ -4705,6 +4705,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                  options::OPT_fno_sycl_id_queries_fit_in_int))
       A->render(Args, CmdArgs);
 
+    // Set options for both host and device so we can manipulate host logic
+    // in case if bfloat16 conversion is supported
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_enable_bfloat16_conversion,
+                                 options::OPT_fsycl_enable_bfloat16_conversion))
+      A->render(Args, CmdArgs);
+
     if (SYCLStdArg) {
       SYCLStdArg->render(Args, CmdArgs);
       CmdArgs.push_back("-fsycl-std-layout-kernel-params");

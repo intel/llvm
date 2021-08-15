@@ -2689,6 +2689,10 @@ def fno_sycl_link_spirv : Flag<["-"], "fno-sycl-link-spirv">,
   "when discovered in user specified objects and archives.">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option]>, Group<Action_Group>;
+defm sycl_enable_bfloat16_conversion: BoolFOption<"sycl-enable-bfloat16-conversion",
+  LangOpts<"SYCLEnableBF16Conversion">, DefaultFalse,
+  PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [], "Do not enable">,
+  BothFlags<[CC1Option, CoreOption], " BFloat16 conversion extension">>;
 def ftabstop_EQ : Joined<["-"], "ftabstop=">, Group<f_Group>;
 def ftemplate_depth_EQ : Joined<["-"], "ftemplate-depth=">, Group<f_Group>;
 def ftemplate_depth_ : Joined<["-"], "ftemplate-depth-">, Group<f_Group>;
