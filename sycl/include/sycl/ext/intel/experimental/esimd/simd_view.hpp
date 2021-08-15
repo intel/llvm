@@ -42,9 +42,9 @@ private:
   simd_view(BaseTy &&Base, RegionTy Region) : BaseClass(Base, Region) {}
 
 public:
-  // Disallow copy and move constructors for simd_view.
-  simd_view(const simd_view &Other) = delete;
-  simd_view(simd_view &&Other) = delete;
+  // Default copy and move constructors for simd_view.
+  simd_view(const simd_view &Other) = default;
+  simd_view(simd_view &&Other) = default;
 
   /// @{
   /// Assignment operators.
@@ -57,6 +57,12 @@ public:
     return *this;
   }
   /// @}
+
+  /// Move assignment operator.
+  simd_view &operator=(simd_view &&Other) {
+    *this = Other.read();
+    return *this;
+  }
 
 #define DEF_RELOP(RELOP)                                                       \
   ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
