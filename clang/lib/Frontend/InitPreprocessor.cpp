@@ -497,7 +497,7 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__");
 
     if (LangOpts.SYCLEnableBF16Conversion)
-      Builder.defineMacro("__SYCL_ENABLE_BF16_CONVERSION__");
+      Builder.defineMacro("__SYCL_BF16_CONVERSION_IS_SUPPORTED__");
   }
 
   if (LangOpts.DeclareSPIRVBuiltins) {
