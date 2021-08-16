@@ -64,35 +64,47 @@ void readConfig() {
   if (File.is_open()) {
     // TODO: Use max size from macro instead of 256
     char Key[MAX_CONFIG_NAME] = {0}, Value[256] = {0};
+    std::string BufString;
+    std::size_t Position = std::string::npos;
     while (!File.eof()) {
-      // Expected fromat:
+      // Expected format:
       // ConfigName=Value\r
       // ConfigName=Value
       // TODO: Skip spaces before and after '='
-      File.getline(Key, sizeof(Key), '=');
+      std::getline(File, BufString);
       if (File.fail()) {
-        // Fail to process the line. Skip it completely and try next one.
-        // Do we want to restore here? Or just throw an exception?
         File.clear(File.rdstate() & ~std::ios_base::failbit);
         File.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        throw sycl::exception(
+            make_error_code(errc::runtime),
+            "An error occurred on the execution of getline().");
+      }
+      if ((BufString.length() == 0) ||
+          (BufString.find("#") != std::string::npos) ||
+          (BufString.find("=") == std::string::npos)) {
         continue;
       }
-      File.getline(Value, sizeof(Value), '\n');
-
-      if (File.fail()) {
-        // Fail to process the value while config name is OK. It's likely that
-        // value is too long. Currently just deal what we have got and ignore
-        // remaining characters on the line.
-        // Do we want to restore here? Or just throw an exception?
-        File.clear(File.rdstate() & ~std::ios_base::failbit);
-        File.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+      Position = BufString.find("=");
+      if ((Position <= MAX_CONFIG_NAME) && (Position > 0)) {
+        if ((BufString.length() - (Position + 1) <= 256) &&
+            (BufString.length() != Position + 1)) {
+          BufString.copy(Key, Position, 0);
+          Key[Position] = '\0';
+          BufString.copy(Value, BufString.length() - Position - 1,
+                         Position + 1);
+          Value[BufString.length() - Position - 1] = '\0';
+        } else {
+          throw sycl::exception(make_error_code(errc::runtime),
+                                "The value contains more than 256 characters "
+                                "or does not contain them at all.");
+        }
+      } else {
+        throw sycl::exception(
+            make_error_code(errc::runtime),
+            "Variable name is more than 256 or less than one character.");
       }
-
-      // Handle '\r' by nullifying it
-      const std::streamsize ReadSybmols = File.gcount();
-      if (ReadSybmols > 1 && '\r' == Value[ReadSybmols - 2])
-        Value[ReadSybmols - 2] = '\0';
-
+      if ('\r' == Value[BufString.length() - Position - 3])
+        Value[BufString.length() - Position - 3] = '\0';
       initValue(Key, Value);
     }
   }
