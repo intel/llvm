@@ -450,6 +450,10 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     return PI_INVALID_DEVICE;
   }
 
+  // FIXME / TODO : piDevicesGet always must return same pointer for
+  // 'Devices[0]' from cached entry. Reference : level-zero
+  // platform/device implementation with PiDevicesCache and
+  // PiDevicesCache
   if (Devices) {
     Devices[0] = new _pi_device(Platform, CmDevice);
   }
