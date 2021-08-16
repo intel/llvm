@@ -181,17 +181,8 @@ template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE> {
 
 public:
   static bool get() {
-    static bool Initialized = false;
-    static bool Trace = false; // No tracing by default
-
-    // Check env var setting for tracing only once
-    if (Initialized)
-      return Trace;
-
-    const char *ValStr = BaseT::getRawValue();
-    Trace = ValStr != nullptr;
-    Initialized = true;
-    return Trace;
+    static const char *ValStr = BaseT::getRawValue();
+    return ValStr != nullptr;
   }
 };
 
@@ -200,17 +191,8 @@ template <> class SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING> {
 
 public:
   static bool get() {
-    static bool Initialized = false;
-    static bool DisableRounding = false; // Range rounding on by default
-
-    // Check env var setting for rounding only once
-    if (Initialized)
-      return DisableRounding;
-
-    const char *ValStr = BaseT::getRawValue();
-    DisableRounding = ValStr != nullptr;
-    Initialized = true;
-    return DisableRounding;
+    static const char *ValStr = BaseT::getRawValue();
+    return ValStr != nullptr;
   }
 };
 
@@ -221,37 +203,35 @@ private:
 public:
   static void GetSettings(size_t &MinFactor, size_t &GoodFactor,
                           size_t &MinRange) {
-    static bool Initialized = false;
-    static bool NewFactors = false;
+    static bool ProcessedFactors = false;
+    // Parse optional parameters of this form:
+    // MinRound:PreferredRound:MinRange
+    static char *RoundParams =
+        getenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS");
+    if (RoundParams == nullptr)
+      return;
+
     static size_t MF;
     static size_t GF;
     static size_t MR;
-    if (!Initialized) {
-      // Parse optional parameters of this form:
-      // MinRound:PreferredRound:MinRange
-      char *RoundParams = getenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS");
-      if (RoundParams != nullptr) {
-        std::string Params(RoundParams);
-        size_t Pos = Params.find(':');
+    if (!ProcessedFactors) {
+      std::string Params(RoundParams);
+      size_t Pos = Params.find(':');
+      if (Pos != std::string::npos) {
+        MF = std::stoi(Params.substr(0, Pos));
+        Params.erase(0, Pos + 1);
+        Pos = Params.find(':');
         if (Pos != std::string::npos) {
-          MF = std::stoi(Params.substr(0, Pos));
+          GF = std::stoi(Params.substr(0, Pos));
           Params.erase(0, Pos + 1);
-          Pos = Params.find(':');
-          if (Pos != std::string::npos) {
-            GF = std::stoi(Params.substr(0, Pos));
-            Params.erase(0, Pos + 1);
-            MR = std::stoi(Params);
-          }
+          MR = std::stoi(Params);
         }
-        NewFactors = true;
       }
-      Initialized = true;
+      ProcessedFactors = true;
     }
-    if (NewFactors) {
-      MinFactor = MF;
-      GoodFactor = GF;
-      MinRange = MR;
-    }
+    MinFactor = MF;
+    GoodFactor = GF;
+    MinRange = MR;
   }
 };
 
