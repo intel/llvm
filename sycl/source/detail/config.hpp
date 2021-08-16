@@ -203,18 +203,17 @@ private:
 public:
   static void GetSettings(size_t &MinFactor, size_t &GoodFactor,
                           size_t &MinRange) {
-    static bool ProcessedFactors = false;
-    // Parse optional parameters of this form:
-    // MinRound:PreferredRound:MinRange
-    static char *RoundParams =
-        getenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS");
+    static const char *RoundParams = BaseT::getRawValue();
     if (RoundParams == nullptr)
       return;
 
+    static bool ProcessedFactors = false;
     static size_t MF;
     static size_t GF;
     static size_t MR;
     if (!ProcessedFactors) {
+      // Parse optional parameters of this form:
+      // MinRound:PreferredRound:MinRange
       std::string Params(RoundParams);
       size_t Pos = Params.find(':');
       if (Pos != std::string::npos) {
