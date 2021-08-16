@@ -31,4 +31,4 @@ bool __spirv_All(bool v) { return v; }
   ALL_ID(TYPE##8) { return _CLC_ALL8(v); }                                     \
   ALL_ID(TYPE##16) { return _CLC_ALL16(v); }
 
-ALL_VECTORIZE(char)
+ALL_VECTORIZE(schar)

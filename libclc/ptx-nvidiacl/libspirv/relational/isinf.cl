@@ -13,7 +13,7 @@
 
 _CLC_DEF _CLC_OVERLOAD bool __spirv_IsInf(float x) { return __nv_isinff(x); }
 
-_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(char, __spirv_IsInf, float)
+_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(schar, __spirv_IsInf, float)
 
 #ifdef cl_khr_fp64
 
@@ -21,7 +21,7 @@ _CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(char, __spirv_IsInf, float)
 
 _CLC_DEF _CLC_OVERLOAD bool __spirv_IsInf(double x) { return __nv_isinfd(x); }
 
-_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(char, __spirv_IsInf, double)
+_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(schar, __spirv_IsInf, double)
 #endif
 
 #ifdef cl_khr_fp16
@@ -33,5 +33,5 @@ _CLC_DEF _CLC_OVERLOAD bool __spirv_IsInf(half x) {
   return __spirv_IsInf(f);
 }
 
-_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(char, __spirv_IsInf, half)
+_CLC_DEFINE_RELATIONAL_UNARY_VEC_ALL(schar, __spirv_IsInf, half)
 #endif
