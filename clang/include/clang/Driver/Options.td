@@ -2691,7 +2691,8 @@ def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option]>, Group<Action_Group>;
 defm sycl_enable_bfloat16_conversion: BoolFOption<"sycl-enable-bfloat16-conversion",
   LangOpts<"SYCLEnableBF16Conversion">, DefaultFalse,
-  PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [], "Do not enable">,
+  PosFlag<SetTrue, [], "Define __SYCL_ENABLE_BF16_CONVERSION__ macro and enable">,
+  NegFlag<SetFalse, [], "Do not enable">,
   BothFlags<[CC1Option, CoreOption], " BFloat16 conversion extension">>;
 def ftabstop_EQ : Joined<["-"], "ftabstop=">, Group<f_Group>;
 def ftemplate_depth_EQ : Joined<["-"], "ftemplate-depth=">, Group<f_Group>;
