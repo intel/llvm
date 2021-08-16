@@ -4706,9 +4706,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       A->render(Args, CmdArgs);
 
     // Set options for both host and device so we can manipulate host logic
-    // in case if bfloat16 conversion is supported
-    if (Arg *A = Args.getLastArg(options::OPT_fsycl_enable_bfloat16_conversion,
-                                 options::OPT_fsycl_enable_bfloat16_conversion))
+    // in the case where bfloat16 conversion is supported
+    if (Arg *A =
+            Args.getLastArg(options::OPT_fsycl_enable_bfloat16_conversion,
+                            options::OPT_fno_sycl_enable_bfloat16_conversion))
       A->render(Args, CmdArgs);
 
     if (SYCLStdArg) {

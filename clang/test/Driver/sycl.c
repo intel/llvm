@@ -39,7 +39,8 @@
 // RUN: %clang_cl -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 // RUN: %clangxx -### -fsycl-device-only -fno-sycl-unnamed-lambda %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-LAMBDA
 // RUN: %clang_cl -### -fsycl-device-only -fno-sycl-unnamed-lambda %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-LAMBDA
-// RUN: %clangxx -### -fsycl-device-only -fsycl-enable-bfloat16-conversion %s 2>&1 | FileCheck %s --check-prefix=CHECK-BFLOAT16-CONV
+// RUN: %clangxx -### -fsycl -fsycl-enable-bfloat16-conversion %s 2>&1 | FileCheck %s --check-prefix=CHECK-BFLOAT16-CONV
+// RUN: %clangxx -### -fsycl -fno-sycl-enable-bfloat16-conversion %s 2>&1 | FileCheck %s --check-prefix=CHECK-BFLOAT16-CONV-NEG
 
 // DEFAULT: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-sycl-std=2020"{{.*}} "-emit-llvm-bc"
 // DEFAULT: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
@@ -55,6 +56,7 @@
 // TEXTUAL: "-triple" "spir64-unknown-{{.*}}-sycldevice{{.*}}" "-fsycl-is-device"{{.*}} "-emit-llvm"
 // CHECK-NOT-LAMBDA: "-fno-sycl-unnamed-lambda"
 // CHECK-BFLOAT16-CONV: "-fsycl-enable-bfloat16-conversion"
+// CHECK-BFLOAT16-CONV-NEG: "-fno-sycl-enable-bfloat16-conversion"
 
 /// -fsycl-device-only triple checks
 // RUN: %clang -fsycl-device-only -target x86_64-unknown-linux-gnu -### %s 2>&1 \
