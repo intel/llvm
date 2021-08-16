@@ -8,7 +8,10 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include <map>
+#include <random>
 #include <set>
+#include <unordered_map>
 
 XPTI_CALLBACK_API void tpCallback(uint16_t trace_type,
                                   xpti::trace_event_data_t *parent,
@@ -285,6 +288,127 @@ TEST(xptiCorrectnessTest, xptiGetUniqueId) {
   EXPECT_NE(Result, 0);
   auto Result1 = xptiGetUniqueId();
   EXPECT_NE(Result, Result1);
+}
+
+TEST(xptiCorrectnessTest, xptiUniversalIDTest) {
+  xpti::uid_t Id0, Id1;
+  uint64_t instance;
+  /// Simulates the specialization of a Kernel as used by MKL where
+  /// the same kernel may be compiled multiple times
+  xpti::payload_t Payload("foo", "foo.cpp", 1, 0, (void *)&Id0);
+  auto Result = xptiMakeEvent("foo", &Payload, 0,
+                              (xpti::trace_activity_type_t)1, &instance);
+  Id0.p1 = XPTI_PACK32_RET64(Payload.source_file_sid(), Payload.line_no);
+  Id0.p2 = XPTI_PACK32_RET64(0, Payload.name_sid());
+  Id0.p3 = (uint64_t)Payload.code_ptr_va;
+  xpti::payload_t P("foo", "foo.cpp", 1, 0, (void *)&Id1);
+  auto Result1 =
+      xptiMakeEvent("foo", &P, 0, (xpti::trace_activity_type_t)1, &instance);
+  Id1.p1 = XPTI_PACK32_RET64(P.source_file_sid(), P.line_no);
+  Id1.p2 = XPTI_PACK32_RET64(0, P.name_sid());
+  Id1.p3 = (uint64_t)P.code_ptr_va;
+  EXPECT_NE(Result, Result1);
+  EXPECT_NE(Id0.hash(), Id1.hash());
+}
+
+TEST(xptiCorrectnessTest, xptiUniversalIDRandomTest) {
+  using namespace std;
+  set<uint64_t> HashSet;
+  random_device QRd;
+  mt19937_64 Gen(QRd());
+  uniform_int_distribution<uint32_t> MStringID, MLineNo, MAddr;
+
+  MStringID = uniform_int_distribution<uint32_t>(1, 1000000);
+  MLineNo = uniform_int_distribution<uint32_t>(1, 200000);
+  MAddr = uniform_int_distribution<uint32_t>(0x10000000, 0xffffffff);
+
+  for (int i = 0; i < 1000000; ++i) {
+    xpti::uid_t id;
+    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MLineNo(Gen));
+    id.p2 = XPTI_PACK32_RET64(0, MStringID(Gen));
+    id.p3 = (uint64_t)MAddr(Gen);
+
+    uint64_t hash = id.hash();
+    EXPECT_EQ(HashSet.count(hash), 0);
+    HashSet.insert(hash);
+  }
+
+  xpti::uid_t id1, id2;
+  uint32_t sid = MStringID(Gen), ln = MLineNo(Gen), kid = MStringID(Gen),
+           addr = MAddr(Gen);
+  id1.p1 = XPTI_PACK32_RET64(sid, ln);
+  id1.p2 = XPTI_PACK32_RET64(0, kid);
+  id1.p3 = (uint64_t)addr;
+
+  id2.p1 = XPTI_PACK32_RET64(sid, ln);
+  id2.p2 = XPTI_PACK32_RET64(0, kid);
+  id2.p3 = (uint64_t)addr;
+
+  EXPECT_EQ(id1.hash(), id2.hash());
+}
+
+TEST(xptiCorrectnessTest, xptiUniversalIDMapTest) {
+  using namespace std;
+  map<xpti::uid_t, uint64_t> MapTest;
+  random_device QRd;
+  mt19937_64 Gen(QRd());
+  uniform_int_distribution<uint32_t> MStringID, MLineNo, MAddr;
+
+  MStringID = uniform_int_distribution<uint32_t>(1, 1000000);
+  MLineNo = uniform_int_distribution<uint32_t>(1, 200000);
+  MAddr = uniform_int_distribution<uint32_t>(0x10000000, 0xffffffff);
+
+  constexpr int Count = 100000;
+  for (int i = 0; i < Count; ++i) {
+    xpti::uid_t id;
+    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MLineNo(Gen));
+    id.p2 = XPTI_PACK32_RET64(0, MStringID(Gen));
+    id.p3 = (uint64_t)MAddr(Gen);
+
+    uint64_t hash = id.hash();
+    EXPECT_EQ(MapTest.count(id), 0);
+    MapTest[id] = hash;
+  }
+
+  EXPECT_EQ(Count, MapTest.size());
+  for (auto &e : MapTest) {
+    EXPECT_EQ(e.first.hash(), e.second);
+  }
+  // Check if the IDs are in sorted order
+  xpti::uid_t prev;
+  for (auto &e : MapTest) {
+    bool test = prev < e.first;
+    EXPECT_EQ(test, true);
+  }
+}
+
+TEST(xptiCorrectnessTest, xptiUniversalIDUnorderedMapTest) {
+  using namespace std;
+  unordered_map<xpti::uid_t, uint64_t> MapTest;
+  random_device QRd;
+  mt19937_64 Gen(QRd());
+  uniform_int_distribution<uint32_t> MStringID, MLineNo, MAddr;
+
+  MStringID = uniform_int_distribution<uint32_t>(1, 1000000);
+  MLineNo = uniform_int_distribution<uint32_t>(1, 200000);
+  MAddr = uniform_int_distribution<uint32_t>(0x10000000, 0xffffffff);
+
+  constexpr int Count = 100000;
+  for (int i = 0; i < Count; ++i) {
+    xpti::uid_t id;
+    id.p1 = XPTI_PACK32_RET64(MStringID(Gen), MLineNo(Gen));
+    id.p2 = XPTI_PACK32_RET64(0, MStringID(Gen));
+    id.p3 = (uint64_t)MAddr(Gen);
+
+    uint64_t hash = id.hash();
+    EXPECT_EQ(MapTest.count(id), 0);
+    MapTest[id] = hash;
+  }
+
+  EXPECT_EQ(Count, MapTest.size());
+  for (auto &e : MapTest) {
+    EXPECT_EQ(e.first.hash(), e.second);
+  }
 }
 
 TEST(xptiCorrectnessTest, xptiUserDefinedEventTypes) {

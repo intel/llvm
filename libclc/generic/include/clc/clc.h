@@ -12,8 +12,6 @@
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #endif
 
-#define __CLC_NO_SCHAR
-
 /* Function Attributes */
 #include <func.h>
 

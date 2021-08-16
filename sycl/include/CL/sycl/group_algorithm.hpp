@@ -624,14 +624,15 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
                      const ptrdiff_t &divisor) -> ptrdiff_t {
     return ((v + divisor - 1) / divisor) * divisor;
   };
-  typename InPtr::element_type x;
-  typename OutPtr::element_type carry = init;
+  typename std::remove_const<typename detail::remove_pointer<InPtr>::type>::type
+      x;
+  typename detail::remove_pointer<OutPtr>::type carry = init;
   for (ptrdiff_t chunk = 0; chunk < roundup(N, stride); chunk += stride) {
     ptrdiff_t i = chunk + offset;
     if (i < N) {
       x = first[i];
     }
-    typename OutPtr::element_type out =
+    typename detail::remove_pointer<OutPtr>::type out =
         exclusive_scan_over_group(g, x, carry, binary_op);
     if (i < N) {
       result[i] = out;
@@ -664,13 +665,15 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(*first, *first)),
-                   typename OutPtr::element_type>::value ||
-          (std::is_same<typename OutPtr::element_type, half>::value &&
+                   typename detail::remove_pointer<OutPtr>::type>::value ||
+          (std::is_same<typename detail::remove_pointer<OutPtr>::type,
+                        half>::value &&
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match scan accumulation type.");
   return joint_exclusive_scan(
       g, first, last, result,
-      sycl::known_identity_v<BinaryOperation, typename OutPtr::element_type>,
+      sycl::known_identity_v<BinaryOperation,
+                             typename detail::remove_pointer<OutPtr>::type>,
       binary_op);
 }
 
@@ -791,14 +794,15 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      const ptrdiff_t &divisor) -> ptrdiff_t {
     return ((v + divisor - 1) / divisor) * divisor;
   };
-  typename InPtr::element_type x;
-  typename OutPtr::element_type carry = init;
+  typename std::remove_const<typename detail::remove_pointer<InPtr>::type>::type
+      x;
+  typename detail::remove_pointer<OutPtr>::type carry = init;
   for (ptrdiff_t chunk = 0; chunk < roundup(N, stride); chunk += stride) {
     ptrdiff_t i = chunk + offset;
     if (i < N) {
       x = first[i];
     }
-    typename OutPtr::element_type out =
+    typename detail::remove_pointer<OutPtr>::type out =
         inclusive_scan_over_group(g, x, binary_op, carry);
     if (i < N) {
       result[i] = out;
@@ -830,13 +834,15 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(*first, *first)),
-                   typename OutPtr::element_type>::value ||
-          (std::is_same<typename OutPtr::element_type, half>::value &&
+                   typename detail::remove_pointer<OutPtr>::type>::value ||
+          (std::is_same<typename detail::remove_pointer<OutPtr>::type,
+                        half>::value &&
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match scan accumulation type.");
   return joint_inclusive_scan(
       g, first, last, result, binary_op,
-      sycl::known_identity_v<BinaryOperation, typename OutPtr::element_type>);
+      sycl::known_identity_v<BinaryOperation,
+                             typename detail::remove_pointer<OutPtr>::type>);
 }
 
 namespace detail {

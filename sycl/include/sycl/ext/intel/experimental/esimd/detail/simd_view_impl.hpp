@@ -59,9 +59,9 @@ protected:
       : M_base(Base), M_region(Region) {}
 
 public:
-  // Disallow copy and move constructors.
-  simd_view_impl(const simd_view_impl &Other) = delete;
-  simd_view_impl(simd_view_impl &&Other) = delete;
+  // Default copy and move constructors.
+  simd_view_impl(const simd_view_impl &Other) = default;
+  simd_view_impl(simd_view_impl &&Other) = default;
   /// @}
 
   /// Conversion to simd type.
@@ -79,6 +79,11 @@ public:
   }
   simd_view_impl &operator=(const value_type &Val) { return write(Val); }
   /// @}
+
+  /// Move assignment operator.
+  simd_view_impl &operator=(simd_view_impl &&Other) {
+    return write(Other.read());
+  }
 
   /// @{
   /// Region accessors.
@@ -332,6 +337,15 @@ public:
   template <typename T = simd_view_impl,
             typename = sycl::detail::enable_if_t<T::is1D()>>
   element_type operator[](int i) const {
+    const auto v = read();
+    return v[i];
+  }
+
+  /// Read a single element from a 1D region, by value only.
+  template <typename T = simd_view_impl,
+            typename = sycl::detail::enable_if_t<T::is1D()>>
+  __SYCL_DEPRECATED("use operator[] form.")
+  element_type operator()(int i) const {
     const auto v = read();
     return v[i];
   }
