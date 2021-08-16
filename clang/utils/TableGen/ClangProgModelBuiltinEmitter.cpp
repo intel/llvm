@@ -959,9 +959,8 @@ static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name);
   if (Ty.IsPointer != 0) {
     for (unsigned Index = 0; Index < QT.size(); Index++) {
       QT[Index] = Context.getAddrSpaceQualType(
-          QT[Index], S.getLangOpts().SYCLIsDevice
-                         ? getLangASasSYCLLangAS(Ty.AS)
-                         : getLangASasOpenCLLangAS(Ty.AS));
+          QT[Index], S.getLangOpts().SYCLIsDevice ? asSYCLLangAS(Ty.AS)
+                                                  : asOpenCLLangAS(Ty.AS));
       QT[Index] = Context.getPointerType(QT[Index]);
     }
   }

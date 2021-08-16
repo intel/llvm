@@ -87,7 +87,7 @@ inline bool isPtrSizeAddressSpace(LangAS AS) {
           AS == LangAS::ptr64);
 }
 
-inline LangAS getLangASasSYCLLangAS(LangAS AS) {
+inline LangAS asSYCLLangAS(LangAS AS) {
   switch (AS) {
   case LangAS::opencl_global:
     return LangAS::sycl_global;
@@ -104,7 +104,7 @@ inline LangAS getLangASasSYCLLangAS(LangAS AS) {
   }
 }
 
-inline LangAS getLangASasOpenCLLangAS(LangAS AS) {
+inline LangAS asOpenCLLangAS(LangAS AS) {
   switch (AS) {
   case LangAS::sycl_global:
     return LangAS::opencl_global;
