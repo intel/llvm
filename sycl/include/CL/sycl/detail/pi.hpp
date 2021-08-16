@@ -189,8 +189,10 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName);
 /// \param FuncID is the API hash ID from PiApiID type trait.
 /// \param FName The name of the PI API call.
 /// \param ArgsData is a pointer to packed function call arguments.
+/// \param Plugin is the plugin, which is used to make call.
 uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FName,
-                                        unsigned char *ArgsData);
+                                        unsigned char *ArgsData,
+                                        pi_plugin Plugin);
 
 /// Notifies XPTI subscribers about PI function call result.
 ///
@@ -200,9 +202,10 @@ uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FName,
 /// \param FName The name of the PI API call.
 /// \param ArgsData is a pointer to packed function call arguments.
 /// \param Result is function call result value.
+/// \param Plugin is the plugin, which is used to make call.
 void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
                                   const char *FName, unsigned char *ArgsData,
-                                  pi_result Result);
+                                  pi_result Result, pi_plugin Plugin);
 
 // A wrapper for passing around byte array properties
 class ByteArray {

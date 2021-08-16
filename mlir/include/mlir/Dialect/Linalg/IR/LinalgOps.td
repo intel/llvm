@@ -36,8 +36,7 @@ class Linalg_Op<string mnemonic, list<OpTrait> traits = []> :
 
 def Linalg_InitTensorOp : Linalg_Op<"init_tensor",
     [NoSideEffect,
-     DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-         ["reifyReturnTypeShapesPerResultDim"]>]> {
+     DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface>]> {
   let summary = "operation to define a tensor of particular value";
 
   let description = [{
@@ -130,10 +129,8 @@ def Linalg_InitTensorOp : Linalg_Op<"init_tensor",
 }
 
 def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
-    [AttrSizedOperandSegments,
-     DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-         ["reifyReturnTypeShapesPerResultDim"]>,
-     NoSideEffect]> {
+    [AttrSizedOperandSegments, NoSideEffect,
+     DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface>]> {
   let summary = "tensor pad operation";
   let description = [{
     `linalg.pad_tensor` is an operation that pads the `source` tensor
@@ -228,8 +225,8 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
       return getResult().getType().cast<RankedTensorType>();
     }
 
-    // Infer the shape of the result tensor given the static shapes
-    // and element type of the result tensor.
+    // Infer the shape of the result tensor given the type of the source tensor
+    // and paddings.
     static RankedTensorType inferResultType(RankedTensorType sourceType,
                                 ArrayRef<int64_t> staticLow,
                                 ArrayRef<int64_t> staticHigh);
@@ -398,8 +395,7 @@ def IndexListArrayAttr :
 
 class Linalg_TensorReshapeOp<string mnemonic> : Linalg_ReshapeLikeOp<
     mnemonic,
-    [DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-      ["reifyReturnTypeShapesPerResultDim"]>]>,
+    [DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface>]>,
     Arguments<(ins AnyTensor:$src,
                    IndexListArrayAttr:$reassociation)>,
     Results<(outs AnyTensor:$result)> {

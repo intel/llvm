@@ -1240,8 +1240,11 @@ SPIRVModuleImpl::addInstruction(SPIRVInstruction *Inst, SPIRVBasicBlock *BB,
                                 SPIRVInstruction *InsertBefore) {
   if (BB)
     return BB->addInstruction(Inst, InsertBefore);
-  if (Inst->getOpCode() != OpSpecConstantOp)
-    Inst = createSpecConstantOpInst(Inst);
+  if (Inst->getOpCode() != OpSpecConstantOp) {
+    SPIRVInstruction *Res = createSpecConstantOpInst(Inst);
+    delete Inst;
+    Inst = Res;
+  }
   return static_cast<SPIRVInstruction *>(addConstant(Inst));
 }
 

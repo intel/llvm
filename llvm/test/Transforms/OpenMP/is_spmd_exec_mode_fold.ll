@@ -13,7 +13,7 @@ target triple = "nvptx64"
 
 ;.
 ; CHECK: @[[IS_SPMD_EXEC_MODE:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 0
-; CHECK: @[[WILL_BE_SPMD_EXEC_MODE:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 0
+; CHECK: @[[WILL_BE_SPMD_EXEC_MODE:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 2
 ; CHECK: @[[NON_SPMD_EXEC_MODE:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; CHECK: @[[WILL_NOT_BE_SPMD_EXEC_MODE:[a-zA-Z0-9_$"\\.-]+]] = weak constant i8 1
 ; CHECK: @[[G:[a-zA-Z0-9_$"\\.-]+]] = external global i8
@@ -128,7 +128,8 @@ define internal void @is_generic_helper2() {
 ; CHECK-NEXT:    call void @foo()
 ; CHECK-NEXT:    ret void
 ; CHECK:       f:
-; CHECK-NEXT:    unreachable
+; CHECK-NEXT:    call void @bar()
+; CHECK-NEXT:    ret void
 ;
   %isSPMD = call i8 @__kmpc_is_spmd_exec_mode()
   %c = icmp eq i8 %isSPMD, 0

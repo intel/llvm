@@ -68,9 +68,8 @@
 #define VLOAD_ADDR_SPACES(__CLC_SCALAR_GENTYPE)                                \
   VLOAD_ADDR_SPACES_IMPL(__CLC_SCALAR_GENTYPE, __CLC_SCALAR_GENTYPE)
 
-VLOAD_ADDR_SPACES_IMPL(char, schar)
-
 #define VLOAD_TYPES()                                                          \
+  VLOAD_ADDR_SPACES(char)                                                      \
   VLOAD_ADDR_SPACES(uchar)                                                     \
   VLOAD_ADDR_SPACES(short)                                                     \
   VLOAD_ADDR_SPACES(ushort)                                                    \

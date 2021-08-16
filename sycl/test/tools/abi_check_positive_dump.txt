@@ -1,5 +1,6 @@
 __libc_csu_fini
 __libc_csu_init
+_dl_relocate_static_pie
 _start
 _Z3foov
 main
