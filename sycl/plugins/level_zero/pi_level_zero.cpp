@@ -63,13 +63,20 @@ static const bool UseCopyEngineForD2DCopy = [] {
 // TODO: Add support for non-zero values of SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE
 static const bool CopyEngineRequested = [] {
   const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
-  bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
+  bool UseCopyEngine = (!CopyEngine || ((CopyEngine[1] == '\0') &&
+                                        (std::stoi(CopyEngine) != 0)));
   return UseCopyEngine;
 }();
 
 static const std::pair<int, int> getRangeOfAllowedCopyEngines = [] {
   const char *CopyEngineRange =
-      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_RANGE");
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  if (CopyEngineRange && (CopyEngineRange[1] == '\0')) {
+    if (CopyEngineRange[0] == '0')
+      return std::pair<int, int>(-1, -1);
+    else
+      return std::pair<int, int>(0, 8);
+  }
   int LowerCopyEngineIndex = (CopyEngineRange) ? (CopyEngineRange[0] - '0') : 0;
   int UpperCopyEngineIndex = (CopyEngineRange) ? (CopyEngineRange[2] - '0') : 8;
   return std::pair<int, int>(LowerCopyEngineIndex, UpperCopyEngineIndex);
