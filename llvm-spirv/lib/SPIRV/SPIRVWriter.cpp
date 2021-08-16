@@ -659,13 +659,13 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
     BF->addDecorate(DecorationFuncParamAttr, FunctionParameterAttributeZext);
   if (Attrs.hasAttribute(AttributeList::ReturnIndex, Attribute::SExt))
     BF->addDecorate(DecorationFuncParamAttr, FunctionParameterAttributeSext);
-  if (Attrs.hasFnAttribute("referenced-indirectly")) {
+  if (Attrs.hasFnAttr("referenced-indirectly")) {
     assert(!isKernel(F) &&
            "kernel function was marked as referenced-indirectly");
     BF->addDecorate(DecorationReferencedIndirectlyINTEL);
   }
 
-  if (Attrs.hasFnAttribute(kVCMetadata::VCCallable) &&
+  if (Attrs.hasFnAttr(kVCMetadata::VCCallable) &&
       BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite)) {
     BF->addDecorate(internal::DecorationCallableFunctionINTEL);
   }
@@ -688,14 +688,14 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
   assert(BF && "The SPIRVFunction pointer shouldn't be nullptr");
   auto Attrs = F->getAttributes();
 
-  if (Attrs.hasFnAttribute(kVCMetadata::VCStackCall))
+  if (Attrs.hasFnAttr(kVCMetadata::VCStackCall))
     BF->addDecorate(DecorationStackCallINTEL);
-  if (Attrs.hasFnAttribute(kVCMetadata::VCFunction))
+  if (Attrs.hasFnAttr(kVCMetadata::VCFunction))
     BF->addDecorate(DecorationVectorComputeFunctionINTEL);
   else
     return;
 
-  if (Attrs.hasFnAttribute(kVCMetadata::VCSIMTCall)) {
+  if (Attrs.hasFnAttr(kVCMetadata::VCSIMTCall)) {
     SPIRVWord SIMTMode = 0;
     Attrs.getAttribute(AttributeList::FunctionIndex, kVCMetadata::VCSIMTCall)
         .getValueAsString()
@@ -748,7 +748,7 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
   }
   if (!isKernel(F) &&
       BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float_controls2) &&
-      Attrs.hasFnAttribute(kVCMetadata::VCFloatControl)) {
+      Attrs.hasFnAttr(kVCMetadata::VCFloatControl)) {
 
     SPIRVWord Mode = 0;
     Attrs

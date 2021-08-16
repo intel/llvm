@@ -64,12 +64,12 @@ TEST(Attributes, AddAttributes) {
   AttrBuilder B;
   B.addAttribute(Attribute::NoReturn);
   AL = AL.addAttributes(C, AttributeList::FunctionIndex, AttributeSet::get(C, B));
-  EXPECT_TRUE(AL.hasFnAttribute(Attribute::NoReturn));
+  EXPECT_TRUE(AL.hasFnAttr(Attribute::NoReturn));
   B.clear();
   B.addAttribute(Attribute::SExt);
   AL = AL.addAttributes(C, AttributeList::ReturnIndex, B);
   EXPECT_TRUE(AL.hasAttribute(AttributeList::ReturnIndex, Attribute::SExt));
-  EXPECT_TRUE(AL.hasFnAttribute(Attribute::NoReturn));
+  EXPECT_TRUE(AL.hasFnAttr(Attribute::NoReturn));
 }
 
 TEST(Attributes, RemoveAlign) {
@@ -158,7 +158,7 @@ TEST(Attributes, AddMatchingAlignAttr) {
   AL = AL.addAttributes(C, AttributeList::FirstArgIndex, B);
   EXPECT_EQ(Align(8), AL.getParamAlignment(0));
   EXPECT_EQ(Align(32), AL.getParamAlignment(1));
-  EXPECT_TRUE(AL.hasParamAttribute(0, Attribute::NonNull));
+  EXPECT_TRUE(AL.hasParamAttr(0, Attribute::NonNull));
 }
 
 TEST(Attributes, EmptyGet) {
