@@ -295,6 +295,9 @@ public:
 
 #undef DEF_UNARY_OP
 
+  // negation operator
+  auto operator!() { return *this == 0; }
+
   // Operator ++, --
   Derived &operator++() {
     *this += 1;
