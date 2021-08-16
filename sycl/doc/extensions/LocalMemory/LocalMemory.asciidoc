@@ -27,9 +27,6 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
-NOTE: This document is better viewed when rendered as html with asciidoctor.
-GitHub does not render image icons.
-
 This document describes an extension enabling the declaration of local memory
 objects at the kernel functor scope.
 
@@ -51,7 +48,6 @@ products.
 
 == Version
 
-Built On: {docdate} +
 Revision: 1
 
 == Contact
