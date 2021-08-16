@@ -19,7 +19,7 @@ static_assert(log2<1024 * 1024>() == 20, "");
 
 using BaseTy = simd<float, 4>;
 using RegionTy = region1d_t<float, 2, 1>;
-using RegionTy1 = region_base_1<false, float, 1, 1>;
+using RegionTy1 = region_base_1<float>;
 static_assert(is_simd_view_v<simd_view_impl<BaseTy, RegionTy>>::value, "");
 static_assert(is_simd_view_v<simd_view<BaseTy, RegionTy>>::value, "");
 static_assert(is_simd_view_v<simd_view<BaseTy, RegionTy1>>::value, "");

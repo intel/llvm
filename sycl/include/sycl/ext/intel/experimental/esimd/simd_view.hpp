@@ -101,14 +101,14 @@ public:
 ///   bool b = v[0] > v[1] && v[2] < 42;
 ///
 /// \ingroup sycl_esimd
-template <typename BaseTy, bool Is2D, typename T, int StrideY, int StrideX>
-class simd_view<BaseTy, region_base_1<Is2D, T, StrideY, StrideX>>
-    : public detail::simd_view_impl<BaseTy,
-                                    region_base_1<Is2D, T, StrideY, StrideX>> {
+template <typename BaseTy>
+class simd_view<BaseTy, region_base_1<typename BaseTy::element_type>>
+    : public detail::simd_view_impl<
+          BaseTy, region_base_1<typename BaseTy::element_type>> {
   template <typename, int> friend class simd;
 
 public:
-  using RegionTy = region_base_1<Is2D, T, StrideY, StrideX>;
+  using RegionTy = region_base_1<typename BaseTy::element_type>;
   using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
