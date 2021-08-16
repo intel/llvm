@@ -39,7 +39,7 @@ public:
     return __spirv_ConvertBF16ToFINTEL(a);
 #else
     throw exception{errc::feature_not_supported,
-                    Bfloat16 conversion is not supported on host device};
+                    "Bfloat16 conversion is not supported on host device"};
 #endif
   }
 
