@@ -289,12 +289,14 @@ public:
     auto V = UNARY_OP(read().data());                                          \
     return simd<element_type, length>(V);                                      \
   }
-  DEF_UNARY_OP(!)
   DEF_UNARY_OP(~)
   DEF_UNARY_OP(+)
   DEF_UNARY_OP(-)
 
 #undef DEF_UNARY_OP
+
+  // negation operator
+  auto operator!() { return *this == 0; }
 
   // Operator ++, --
   simd_view_impl &operator++() {
