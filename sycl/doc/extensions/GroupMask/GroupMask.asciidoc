@@ -21,8 +21,6 @@ IMPORTANT: This specification is a draft.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
 
-NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
-
 This document describes an extension which adds a `group_mask` type.  Such a mask can be used to efficiently represent subsets of work-items in a group for which a given Boolean condition holds.  Group mask functionality is currently limited to groups that are instances of the `sub_group` class.
 
 == Notice
@@ -39,7 +37,6 @@ Because the interfaces defined by this specification are not final and are subje
 
 == Version
 
-Built On: {docdate} +
 Revision: 1
 
 == Contact
