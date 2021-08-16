@@ -59,9 +59,9 @@ protected:
       : M_base(Base), M_region(Region) {}
 
 public:
-  // Disallow copy and move constructors.
-  simd_view_impl(const simd_view_impl &Other) = delete;
-  simd_view_impl(simd_view_impl &&Other) = delete;
+  // Default copy and move constructors.
+  simd_view_impl(const simd_view_impl &Other) = default;
+  simd_view_impl(simd_view_impl &&Other) = default;
   /// @}
 
   /// Conversion to simd type.
@@ -79,6 +79,11 @@ public:
   }
   simd_view_impl &operator=(const value_type &Val) { return write(Val); }
   /// @}
+
+  /// Move assignment operator.
+  simd_view_impl &operator=(simd_view_impl &&Other) {
+    return write(Other.read());
+  }
 
   /// @{
   /// Region accessors.
