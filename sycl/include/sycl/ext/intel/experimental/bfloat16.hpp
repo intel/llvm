@@ -31,7 +31,7 @@ public:
     return __spirv_ConvertFToBF16INTEL(a);
 #else
     throw exception{errc::feature_not_supported,
-                    Bfloat16 conversion is not supported on host device};
+                    "Bfloat16 conversion is not supported on host device"};
 #endif
   }
   static float to_float(const storage_t &a) {
