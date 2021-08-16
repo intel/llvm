@@ -17,7 +17,7 @@ an obvious way. These include:
  * SPIR-V types mapped to LLVM types
  * SPIR-V instructions mapped to LLVM function calls
  * SPIR-V extended instructions mapped to LLVM function calls
- * SPIR-V builtins variables mapped to LLVM global variables
+ * SPIR-V builtin variables mapped to LLVM function calls or LLVM global variables
  * SPIR-V instructions mapped to LLVM metadata
  * SPIR-V types mapped to LLVM opaque types
  * SPIR-V decorations mapped to LLVM metadata or named attributes
@@ -203,11 +203,58 @@ where
  * {VectorLoadOpCodeName} = vloadn|vload_half|vload_halfn|vloada_halfn
 
 
-SPIR-V Builtins Variables Mapped to LLVM Global Variables
-=========================================================
+SPIR-V Builtin Variables Mapped to LLVM Function Calls or LLVM Global Variables
+===============================================================================
 
-SPIR-V builtin variables are mapped to LLVM global variables with unmangled
-name __spirv_BuiltIn{Name}.
+By default each access of SPIR-V builtin variable's value is mapped to LLVM
+function call. The unmangled names of these functions follow the convention:
+
+.. code-block:: c
+
+  __spirv_BuiltIn{VariableName}
+
+In case if SPIR-V builtin variable has vector type, the corresponding
+LLVM function will have an integer argument, so each access of the variable's
+scalar component is mapped to a function call with index argument, i.e.:
+
+.. code-block:: llvm
+
+  ; For scalar variables
+  ; SPIR-V
+  OpDecorate %__spirv_BuiltInGlobalInvocationId BuiltIn GlobalInvocationId
+  %13 = OpLoad %uint %__spirv_BuiltInGlobalLinearId Aligned 4
+
+  ; Will be transformed into the following LLVM IR:
+  %0 = call spir_func i32 @_Z29__spirv_BuiltInGlobalLinearIdv()
+
+  ; For vector variables
+  ; SPIRV
+  OpDecorate %__spirv_BuiltInGlobalInvocationId BuiltIn GlobalInvocationId
+  %14 = OpLoad %v3ulong %__spirv_BuiltInGlobalInvocationId Aligned 32
+  %15 = OpCompositeExtract %ulong %14 1
+
+  ; Can be transformed into the following LLVM IR:
+  %0 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 1)
+
+  ; However SPIRV-LLVM translator will transform it to the following pattern:
+  %1 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0)
+  %2 = insertelement <3 x i64> undef, i64 %1, i32 0
+  %3 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 1)
+  %4 = insertelement <3 x i64> %2, i64 %3, i32 1
+  %5 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 2)
+  %6 = insertelement <3 x i64> %4, i64 %5, i32 2
+  %7 = extractelement <3 x i64> %6, i32 1
+  ; In case some actions are performed with the variable's value in vector form.
+
+SPIR-V builtin variables can also be mapped to LLVM global variables with
+unmangled name __spirv_BuiltIn{Name}.
+
+The representation with variables is closer to SPIR-V, so it is easier to
+translate from SPIR-V to LLVM and back using it.
+Hovewer in languages like OpenCL the functionality covered by SPIR-V builtin
+variables is usually represented by builtin functions, so it is easier to
+translate from/to SPIR-V friendly IR to/from LLVM IR produced from OpenCL-like
+source languages. That is why both forms of mapping are supported.
 
 SPIR-V instructions mapped to LLVM metadata
 ===========================================
