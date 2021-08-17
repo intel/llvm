@@ -385,7 +385,7 @@ template<typename propertyT>
 static constexpr auto get_property();
 ----
 | Returns an object of the class used to represent the value of property `propertyT`.
-Must produce a compiler diagnostic if `property_listT` does not contain a `propertyT` property.
+Must produce a compiler diagnostic if `PropertyListT` does not contain a `propertyT` property.
 Available only if `sycl::is_property_of_v<propertyT, sycl::ext::oneapi::device_global>` is true.
 
 |===
