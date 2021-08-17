@@ -54,7 +54,6 @@ device_filter::device_filter(const std::string &FilterString) {
   // Handle the optional 1st field of the filter, backend
   // Check if the first entry matches with a known backend type
   auto It = std::find_if(std::begin(getSyclBeMap()), std::end(getSyclBeMap()),
-      std::find_if(std::begin(SyclBeMap), std::end(SyclBeMap), FindElement);
                          FindElement);
   // If no match is found, set the backend type backend::all
   // which actually means 'any backend' will be a match.
