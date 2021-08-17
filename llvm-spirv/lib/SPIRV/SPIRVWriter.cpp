@@ -4285,6 +4285,7 @@ void addPassesForSPIRV(legacy::PassManager &PassMgr,
   PassMgr.add(createSPIRVLowerBoolLegacy());
   PassMgr.add(createSPIRVLowerMemmoveLegacy());
   PassMgr.add(createSPIRVLowerSaddWithOverflowLegacy());
+  PassMgr.add(createSPIRVLowerBitCastToNonStandardTypeLegacy());
 }
 
 bool isValidLLVMModule(Module *M, SPIRVErrorLog &ErrorLog) {
