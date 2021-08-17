@@ -10,25 +10,6 @@ include_directories("${sycl_inc_dir}")
 # ${OPENCL_INCLUDE}. Remove build dependency on OpenCL
 include_directories(${OpenCL_INCLUDE_DIR})
 
-if (NOT MSVC)
-  file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libva_build)
-  file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libva_install)
-  ExternalProject_Add(libva
-    GIT_REPOSITORY    https://github.com/intel/libva.git
-    GIT_TAG           bef69c5f380a27b6908d6daea0fc18ce50e33bb9
-    BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/libva_build
-    INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/libva_install
-    CONFIGURE_COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}/libva-prefix/src/libva && ./autogen.sh --prefix=${CMAKE_CURRENT_BINARY_DIR}/libva_install
-    BUILD_COMMAND     cd ${CMAKE_CURRENT_BINARY_DIR}/libva-prefix/src/libva && make -j
-    INSTALL_COMMAND   cd ${CMAKE_CURRENT_BINARY_DIR}/libva-prefix/src/libva && make install
-  )
-  ExternalProject_Add_Step(libva llvminstall
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${LLVM_BINARY_DIR}/pi_esimd_cpu_deps && ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/ ${LLVM_BINARY_DIR}/pi_esimd_cpu_deps
-    COMMENT "Installing libva into the LLVM binary directory"
-    DEPENDEES install
-  )
-endif()
-
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install)
 
@@ -57,10 +38,9 @@ if (DEFINED CM_LOCAL_SOURCE_DIR)
       SOURCE_DIR        ${CM_LOCAL_SOURCE_DIR}
       BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build
       INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
-      CMAKE_ARGS        -DLIBVA_INSTALL_PATH=${CMAKE_CURRENT_BINARY_DIR}/libva_install
+      CMAKE_ARGS        -DLIBVA_INSTALL_PATH=/usr
                         -D__SYCL_EXPLICIT_SIMD_PLUGIN__=true
                         -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-      DEPENDS           libva
       BUILD_BYPRODUCTS  ${LIBCM} ${LIBIGFXCMRT_EMU}
     )
   endif()
@@ -86,10 +66,9 @@ else ()
         GIT_REPOSITORY    https://github.com/intel/cm-cpu-emulation.git
         BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build
         INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
-        CMAKE_ARGS        -DLIBVA_INSTALL_PATH=${CMAKE_CURRENT_BINARY_DIR}/libva_install
+        CMAKE_ARGS        -DLIBVA_INSTALL_PATH=/usr
                           -D__SYCL_EXPLICIT_SIMD_PLUGIN__=true
                           -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-        DEPENDS           libva
         BUILD_BYPRODUCTS  ${LIBCM} ${LIBIGFXCMRT_EMU}
       )
     endif()
