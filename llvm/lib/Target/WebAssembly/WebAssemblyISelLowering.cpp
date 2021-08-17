@@ -13,6 +13,7 @@
 
 #include "WebAssemblyISelLowering.h"
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
+#include "Utils/WebAssemblyTypeUtilities.h"
 #include "Utils/WebAssemblyUtilities.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "WebAssemblySubtarget.h"
@@ -24,7 +25,6 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
-#include "llvm/CodeGen/WasmEHFuncInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/Function.h"
@@ -32,6 +32,7 @@
 #include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/KnownBits.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetOptions.h"
@@ -66,6 +67,10 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
     addRegisterClass(MVT::v2i64, &WebAssembly::V128RegClass);
     addRegisterClass(MVT::v2f64, &WebAssembly::V128RegClass);
   }
+  if (Subtarget->hasReferenceTypes()) {
+    addRegisterClass(MVT::externref, &WebAssembly::EXTERNREFRegClass);
+    addRegisterClass(MVT::funcref, &WebAssembly::FUNCREFRegClass);
+  }
   // Compute derived properties from the register classes.
   computeRegisterProperties(Subtarget->getRegisterInfo());
 
@@ -78,6 +83,12 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
   if (Subtarget->hasSIMD128()) {
     for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v4f32, MVT::v2i64,
                    MVT::v2f64}) {
+      setOperationAction(ISD::LOAD, T, Custom);
+      setOperationAction(ISD::STORE, T, Custom);
+    }
+  }
+  if (Subtarget->hasReferenceTypes()) {
+    for (auto T : {MVT::externref, MVT::funcref}) {
       setOperationAction(ISD::LOAD, T, Custom);
       setOperationAction(ISD::STORE, T, Custom);
     }
@@ -211,6 +222,9 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
     for (auto Op : {ISD::SMIN, ISD::SMAX, ISD::UMIN, ISD::UMAX})
       for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32})
         setOperationAction(Op, T, Legal);
+
+    // And we have popcnt for i8x16
+    setOperationAction(ISD::CTPOP, MVT::v16i8, Legal);
 
     // Expand float operations supported for scalars but not SIMD
     for (auto Op : {ISD::FCOPYSIGN, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
@@ -494,6 +508,16 @@ LowerCallResults(MachineInstr &CallResults, DebugLoc DL, MachineBasicBlock *BB,
   bool IsIndirect = CallParams.getOperand(0).isReg();
   bool IsRetCall = CallResults.getOpcode() == WebAssembly::RET_CALL_RESULTS;
 
+  bool IsFuncrefCall = false;
+  if (IsIndirect) {
+    Register Reg = CallParams.getOperand(0).getReg();
+    const MachineFunction *MF = BB->getParent();
+    const MachineRegisterInfo &MRI = MF->getRegInfo();
+    const TargetRegisterClass *TRC = MRI.getRegClass(Reg);
+    IsFuncrefCall = (TRC == &WebAssembly::FUNCREFRegClass);
+    assert(!IsFuncrefCall || Subtarget->hasReferenceTypes());
+  }
+
   unsigned CallOp;
   if (IsIndirect && IsRetCall) {
     CallOp = WebAssembly::RET_CALL_INDIRECT;
@@ -537,8 +561,11 @@ LowerCallResults(MachineInstr &CallResults, DebugLoc DL, MachineBasicBlock *BB,
     // Placeholder for the type index.
     MIB.addImm(0);
     // The table into which this call_indirect indexes.
-    MCSymbolWasm *Table =
-        WebAssembly::getOrCreateFunctionTableSymbol(MF.getContext(), Subtarget);
+    MCSymbolWasm *Table = IsFuncrefCall
+                              ? WebAssembly::getOrCreateFuncrefCallTableSymbol(
+                                    MF.getContext(), Subtarget)
+                              : WebAssembly::getOrCreateFunctionTableSymbol(
+                                    MF.getContext(), Subtarget);
     if (Subtarget->hasReferenceTypes()) {
       MIB.addSym(Table);
     } else {
@@ -556,6 +583,39 @@ LowerCallResults(MachineInstr &CallResults, DebugLoc DL, MachineBasicBlock *BB,
   BB->insert(CallResults.getIterator(), MIB);
   CallParams.eraseFromParent();
   CallResults.eraseFromParent();
+
+  // If this is a funcref call, to avoid hidden GC roots, we need to clear the
+  // table slot with ref.null upon call_indirect return.
+  //
+  // This generates the following code, which comes right after a call_indirect
+  // of a funcref:
+  //
+  //    i32.const 0
+  //    ref.null func
+  //    table.set __funcref_call_table
+  if (IsIndirect && IsFuncrefCall) {
+    MCSymbolWasm *Table = WebAssembly::getOrCreateFuncrefCallTableSymbol(
+        MF.getContext(), Subtarget);
+    Register RegZero =
+        MF.getRegInfo().createVirtualRegister(&WebAssembly::I32RegClass);
+    MachineInstr *Const0 =
+        BuildMI(MF, DL, TII.get(WebAssembly::CONST_I32), RegZero).addImm(0);
+    BB->insertAfter(MIB.getInstr()->getIterator(), Const0);
+
+    Register RegFuncref =
+        MF.getRegInfo().createVirtualRegister(&WebAssembly::FUNCREFRegClass);
+    MachineInstr *RefNull =
+        BuildMI(MF, DL, TII.get(WebAssembly::REF_NULL_FUNCREF), RegFuncref)
+            .addImm(static_cast<int32_t>(WebAssembly::HeapType::Funcref));
+    BB->insertAfter(Const0->getIterator(), RefNull);
+
+    MachineInstr *TableSet =
+        BuildMI(MF, DL, TII.get(WebAssembly::TABLE_SET_FUNCREF))
+            .addSym(Table)
+            .addReg(RegZero)
+            .addReg(RegFuncref);
+    BB->insertAfter(RefNull->getIterator(), TableSet);
+  }
 
   return BB;
 }
@@ -758,17 +818,32 @@ bool WebAssemblyTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.align = Align(8);
     Info.flags = MachineMemOperand::MOVolatile | MachineMemOperand::MOLoad;
     return true;
-  case Intrinsic::wasm_load32_zero:
-  case Intrinsic::wasm_load64_zero:
-    Info.opc = ISD::INTRINSIC_W_CHAIN;
-    Info.memVT = Intrinsic == Intrinsic::wasm_load32_zero ? MVT::i32 : MVT::i64;
-    Info.ptrVal = I.getArgOperand(0);
-    Info.offset = 0;
-    Info.align = Align(1);
-    Info.flags = MachineMemOperand::MOLoad;
-    return true;
   default:
     return false;
+  }
+}
+
+void WebAssemblyTargetLowering::computeKnownBitsForTargetNode(
+    const SDValue Op, KnownBits &Known, const APInt &DemandedElts,
+    const SelectionDAG &DAG, unsigned Depth) const {
+  switch (Op.getOpcode()) {
+  default:
+    break;
+  case ISD::INTRINSIC_WO_CHAIN: {
+    unsigned IntNo = Op.getConstantOperandVal(0);
+    switch (IntNo) {
+    default:
+      break;
+    case Intrinsic::wasm_bitmask: {
+      unsigned BitWidth = Known.getBitWidth();
+      EVT VT = Op.getOperand(1).getSimpleValueType();
+      unsigned PossibleBits = VT.getVectorNumElements();
+      APInt ZeroMask = APInt::getHighBitsSet(BitWidth, BitWidth - PossibleBits);
+      Known.Zero |= ZeroMask;
+      break;
+    }
+    }
+  }
   }
 }
 
@@ -1035,6 +1110,33 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
     InTys.push_back(In.VT);
   }
 
+  // Lastly, if this is a call to a funcref we need to add an instruction
+  // table.set to the chain and transform the call.
+  if (CLI.CB && isFuncrefType(CLI.CB->getCalledOperand()->getType())) {
+    // In the absence of function references proposal where a funcref call is
+    // lowered to call_ref, using reference types we generate a table.set to set
+    // the funcref to a special table used solely for this purpose, followed by
+    // a call_indirect. Here we just generate the table set, and return the
+    // SDValue of the table.set so that LowerCall can finalize the lowering by
+    // generating the call_indirect.
+    SDValue Chain = Ops[0];
+
+    MCSymbolWasm *Table = WebAssembly::getOrCreateFuncrefCallTableSymbol(
+        MF.getContext(), Subtarget);
+    SDValue Sym = DAG.getMCSymbol(Table, PtrVT);
+    SDValue TableSlot = DAG.getConstant(0, DL, MVT::i32);
+    SDValue TableSetOps[] = {Chain, Sym, TableSlot, Callee};
+    SDValue TableSet = DAG.getMemIntrinsicNode(
+        WebAssemblyISD::TABLE_SET, DL, DAG.getVTList(MVT::Other), TableSetOps,
+        MVT::funcref,
+        // Machine Mem Operand args
+        MachinePointerInfo(WasmAddressSpace::FUNCREF),
+        CLI.CB->getCalledOperand()->getPointerAlignment(DAG.getDataLayout()),
+        MachineMemOperand::MOStore);
+
+    Ops[0] = TableSet; // The new chain is the TableSet itself
+  }
+
   if (CLI.IsTailCall) {
     // ret_calls do not return values to the current frame
     SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
@@ -1266,6 +1368,16 @@ static Optional<unsigned> IsWebAssemblyLocal(SDValue Op, SelectionDAG &DAG) {
   return WebAssemblyFrameLowering::getLocalForStackObject(MF, FI->getIndex());
 }
 
+bool WebAssemblyTargetLowering::isFuncrefType(const Type *Ty) {
+  return isa<PointerType>(Ty) &&
+         Ty->getPointerAddressSpace() == WasmAddressSpace::FUNCREF;
+}
+
+bool WebAssemblyTargetLowering::isExternrefType(const Type *Ty) {
+  return isa<PointerType>(Ty) &&
+         Ty->getPointerAddressSpace() == WasmAddressSpace::EXTERNREF;
+}
+
 SDValue WebAssemblyTargetLowering::LowerStore(SDValue Op,
                                               SelectionDAG &DAG) const {
   SDLoc DL(Op);
@@ -1380,7 +1492,7 @@ SDValue WebAssemblyTargetLowering::LowerRETURNADDR(SDValue Op,
   if (verifyReturnAddressArgumentIsConstant(Op, DAG))
     return SDValue();
 
-  unsigned Depth = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+  unsigned Depth = Op.getConstantOperandVal(0);
   MakeLibCallOptions CallOptions;
   return makeLibCall(DAG, RTLIB::RETURN_ADDRESS, Op.getValueType(),
                      {DAG.getConstant(Depth, DL, MVT::i32)}, CallOptions, DL)
@@ -1552,21 +1664,6 @@ SDValue WebAssemblyTargetLowering::LowerVASTART(SDValue Op,
                       MachinePointerInfo(SV));
 }
 
-static SDValue getCppExceptionSymNode(SDValue Op, unsigned TagIndex,
-                                      SelectionDAG &DAG) {
-  // We only support C++ exceptions for now
-  int Tag =
-      cast<ConstantSDNode>(Op.getOperand(TagIndex).getNode())->getZExtValue();
-  if (Tag != WebAssembly::CPP_EXCEPTION)
-    llvm_unreachable("Invalid tag: We only support C++ exceptions for now");
-  auto &MF = DAG.getMachineFunction();
-  const auto &TLI = DAG.getTargetLoweringInfo();
-  MVT PtrVT = TLI.getPointerTy(DAG.getDataLayout());
-  const char *SymName = MF.createExternalSymbolName("__cpp_exception");
-  return DAG.getNode(WebAssemblyISD::Wrapper, SDLoc(Op), PtrVT,
-                     DAG.getTargetExternalSymbol(SymName, PtrVT));
-}
-
 SDValue WebAssemblyTargetLowering::LowerIntrinsic(SDValue Op,
                                                   SelectionDAG &DAG) const {
   MachineFunction &MF = DAG.getMachineFunction();
@@ -1574,10 +1671,10 @@ SDValue WebAssemblyTargetLowering::LowerIntrinsic(SDValue Op,
   switch (Op.getOpcode()) {
   case ISD::INTRINSIC_VOID:
   case ISD::INTRINSIC_W_CHAIN:
-    IntNo = cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue();
+    IntNo = Op.getConstantOperandVal(1);
     break;
   case ISD::INTRINSIC_WO_CHAIN:
-    IntNo = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+    IntNo = Op.getConstantOperandVal(0);
     break;
   default:
     llvm_unreachable("Invalid intrinsic");
@@ -1597,30 +1694,6 @@ SDValue WebAssemblyTargetLowering::LowerIntrinsic(SDValue Op,
                                             Twine(MF.getFunctionNumber()));
     return DAG.getNode(WebAssemblyISD::Wrapper, DL, VT,
                        DAG.getMCSymbol(S, PtrVT));
-  }
-
-  case Intrinsic::wasm_throw: {
-    SDValue SymNode = getCppExceptionSymNode(Op, 2, DAG);
-    return DAG.getNode(WebAssemblyISD::THROW, DL,
-                       MVT::Other, // outchain type
-                       {
-                           Op.getOperand(0), // inchain
-                           SymNode,          // exception symbol
-                           Op.getOperand(3)  // thrown value
-                       });
-  }
-
-  case Intrinsic::wasm_catch: {
-    SDValue SymNode = getCppExceptionSymNode(Op, 2, DAG);
-    return DAG.getNode(WebAssemblyISD::CATCH, DL,
-                       {
-                           MVT::i32,  // outchain type
-                           MVT::Other // return value
-                       },
-                       {
-                           Op.getOperand(0), // inchain
-                           SymNode           // exception symbol
-                       });
   }
 
   case Intrinsic::wasm_shuffle: {

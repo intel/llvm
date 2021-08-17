@@ -2857,6 +2857,7 @@ def : Pat<(int_ppc_fmsub f64:$A, f64:$B, f64:$C), (XSMSUBMDP $A, $B, $C)>;
 def : Pat<(int_ppc_fnmsub f64:$A, f64:$B, f64:$C), (XSNMSUBMDP $A, $B, $C)>;
 def : Pat<(int_ppc_fnmadd f64:$A, f64:$B, f64:$C), (XSNMADDMDP $A, $B, $C)>;
 def : Pat<(int_ppc_fre f64:$A), (XSREDP $A)>;
+def : Pat<(int_ppc_frsqrte vsfrc:$XB), (XSRSQRTEDP $XB)>;
 } // HasVSX
 
 // Any big endian VSX subtarget.
@@ -2961,11 +2962,11 @@ def : Pat<(v2i64 (fp_to_uint
 def : Pat<WToDPExtractConv.BV02S,
           (v2f64 (XVCVSXWDP $A))>;
 def : Pat<WToDPExtractConv.BV13S,
-          (v2f64 (XVCVSXWDP (XXSLDWI $A, $A, 3)))>;
+          (v2f64 (XVCVSXWDP (XXSLDWI $A, $A, 1)))>;
 def : Pat<WToDPExtractConv.BV02U,
           (v2f64 (XVCVUXWDP $A))>;
 def : Pat<WToDPExtractConv.BV13U,
-          (v2f64 (XVCVUXWDP (XXSLDWI $A, $A, 3)))>;
+          (v2f64 (XVCVUXWDP (XXSLDWI $A, $A, 1)))>;
 def : Pat<(v2f64 (insertelt v2f64:$A, f64:$B, 0)),
           (v2f64 (XXPERMDI (SUBREG_TO_REG (i64 1), $B, sub_64), $A, 1))>;
 def : Pat<(v2f64 (insertelt v2f64:$A, f64:$B, 1)),
@@ -3264,6 +3265,10 @@ def : Pat<(int_ppc_extract_sig f64:$A),
           (XSXSIGDP (COPY_TO_REGCLASS $A, VSFRC))>;
 def : Pat<(f64 (int_ppc_insert_exp f64:$A, i64:$B)),
           (COPY_TO_REGCLASS (XSIEXPDP (COPY_TO_REGCLASS $A, G8RC), $B), F8RC)>;
+
+def : Pat<(int_ppc_stfiw ForceXForm:$dst, f64:$XT),
+          (STXSIWX f64:$XT, ForceXForm:$dst)>;
+def : Pat<(int_ppc_frsqrtes vssrc:$XB), (XSRSQRTESP $XB)>;
 } // HasVSX, HasP8Vector
 
 // Any big endian Power8 VSX subtarget.
@@ -3542,7 +3547,7 @@ defm : ScalToVecWPermute<
   (SUBREG_TO_REG (i64 1), (MTVSRWZ $A), sub_64)>;
 defm : ScalToVecWPermute<
   v8i16, (i32 i32:$A),
-  (SUBREG_TO_REG (i64 1), MovesToVSR.BE_BYTE_0, sub_64),
+  (SUBREG_TO_REG (i64 1), MovesToVSR.BE_HALF_0, sub_64),
   (SUBREG_TO_REG (i64 1), (MTVSRWZ $A), sub_64)>;
 defm : ScalToVecWPermute<
   v4i32, (i32 i32:$A),

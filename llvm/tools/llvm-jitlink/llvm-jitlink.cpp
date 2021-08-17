@@ -61,113 +61,116 @@ using namespace llvm;
 using namespace llvm::jitlink;
 using namespace llvm::orc;
 
+static cl::OptionCategory JITLinkCategory("JITLink Options");
+
 static cl::list<std::string> InputFiles(cl::Positional, cl::OneOrMore,
-                                        cl::desc("input files"));
+                                        cl::desc("input files"),
+                                        cl::cat(JITLinkCategory));
 
 static cl::opt<bool> NoExec("noexec", cl::desc("Do not execute loaded code"),
-                            cl::init(false));
+                            cl::init(false), cl::cat(JITLinkCategory));
 
 static cl::list<std::string>
     CheckFiles("check", cl::desc("File containing verifier checks"),
-               cl::ZeroOrMore);
+               cl::ZeroOrMore, cl::cat(JITLinkCategory));
 
 static cl::opt<std::string>
     CheckName("check-name", cl::desc("Name of checks to match against"),
-              cl::init("jitlink-check"));
+              cl::init("jitlink-check"), cl::cat(JITLinkCategory));
 
 static cl::opt<std::string>
     EntryPointName("entry", cl::desc("Symbol to call as main entry point"),
-                   cl::init(""));
+                   cl::init(""), cl::cat(JITLinkCategory));
 
 static cl::list<std::string> JITLinkDylibs(
-    "jld", cl::desc("Specifies the JITDylib to be used for any subsequent "
-                    "input file arguments"));
+    "jld",
+    cl::desc("Specifies the JITDylib to be used for any subsequent "
+             "input file arguments"),
+    cl::cat(JITLinkCategory));
 
 static cl::list<std::string>
     Dylibs("dlopen", cl::desc("Dynamic libraries to load before linking"),
-           cl::ZeroOrMore);
+           cl::ZeroOrMore, cl::cat(JITLinkCategory));
 
 static cl::list<std::string> InputArgv("args", cl::Positional,
                                        cl::desc("<program arguments>..."),
-                                       cl::ZeroOrMore, cl::PositionalEatsArgs);
+                                       cl::ZeroOrMore, cl::PositionalEatsArgs,
+                                       cl::cat(JITLinkCategory));
 
 static cl::opt<bool>
     NoProcessSymbols("no-process-syms",
                      cl::desc("Do not resolve to llvm-jitlink process symbols"),
-                     cl::init(false));
+                     cl::init(false), cl::cat(JITLinkCategory));
 
 static cl::list<std::string> AbsoluteDefs(
     "define-abs",
     cl::desc("Inject absolute symbol definitions (syntax: <name>=<addr>)"),
-    cl::ZeroOrMore);
+    cl::ZeroOrMore, cl::cat(JITLinkCategory));
 
 static cl::list<std::string> TestHarnesses("harness", cl::Positional,
                                            cl::desc("Test harness files"),
                                            cl::ZeroOrMore,
-                                           cl::PositionalEatsArgs);
+                                           cl::PositionalEatsArgs,
+                                           cl::cat(JITLinkCategory));
 
 static cl::opt<bool> ShowInitialExecutionSessionState(
     "show-init-es",
     cl::desc("Print ExecutionSession state before resolving entry point"),
-    cl::init(false));
+    cl::init(false), cl::cat(JITLinkCategory));
 
 static cl::opt<bool> ShowAddrs(
     "show-addrs",
     cl::desc("Print registered symbol, section, got and stub addresses"),
-    cl::init(false));
+    cl::init(false), cl::cat(JITLinkCategory));
 
 static cl::opt<bool> ShowLinkGraph(
     "show-graph",
     cl::desc("Print the link graph after fixups have been applied"),
-    cl::init(false));
+    cl::init(false), cl::cat(JITLinkCategory));
 
 static cl::opt<bool> ShowSizes(
     "show-sizes",
     cl::desc("Show sizes pre- and post-dead stripping, and allocations"),
-    cl::init(false));
+    cl::init(false), cl::cat(JITLinkCategory));
 
 static cl::opt<bool> ShowTimes("show-times",
                                cl::desc("Show times for llvm-jitlink phases"),
-                               cl::init(false));
+                               cl::init(false), cl::cat(JITLinkCategory));
 
 static cl::opt<std::string> SlabAllocateSizeString(
     "slab-allocate",
     cl::desc("Allocate from a slab of the given size "
              "(allowable suffixes: Kb, Mb, Gb. default = "
              "Kb)"),
-    cl::init(""));
+    cl::init(""), cl::cat(JITLinkCategory));
 
 static cl::opt<uint64_t> SlabAddress(
     "slab-address",
     cl::desc("Set slab target address (requires -slab-allocate and -noexec)"),
-    cl::init(~0ULL));
+    cl::init(~0ULL), cl::cat(JITLinkCategory));
 
 static cl::opt<bool> ShowRelocatedSectionContents(
     "show-relocated-section-contents",
     cl::desc("show section contents after fixups have been applied"),
-    cl::init(false));
+    cl::init(false), cl::cat(JITLinkCategory));
 
 static cl::opt<bool> PhonyExternals(
     "phony-externals",
     cl::desc("resolve all otherwise unresolved externals to null"),
-    cl::init(false));
+    cl::init(false), cl::cat(JITLinkCategory));
 
 static cl::opt<std::string> OutOfProcessExecutor(
     "oop-executor", cl::desc("Launch an out-of-process executor to run code"),
-    cl::ValueOptional);
+    cl::ValueOptional, cl::cat(JITLinkCategory));
 
 static cl::opt<std::string> OutOfProcessExecutorConnect(
     "oop-executor-connect",
-    cl::desc("Connect to an out-of-process executor via TCP"));
-
-// TODO: Default to false if compiler-rt is not built.
-static cl::opt<bool> UseOrcRuntime("use-orc-runtime",
-                                   cl::desc("Do not required/load ORC runtime"),
-                                   cl::init(true));
+    cl::desc("Connect to an out-of-process executor via TCP"),
+    cl::cat(JITLinkCategory));
 
 static cl::opt<std::string>
-    OrcRuntimePath("orc-runtime-path", cl::desc("Add orc runtime to session"),
-                   cl::init(""));
+    OrcRuntime("orc-runtime", cl::desc("Use ORC runtime from given path"),
+               cl::init(""), cl::cat(JITLinkCategory));
 
 ExitOnError ExitOnErr;
 
@@ -613,7 +616,7 @@ static Error loadProcessSymbols(Session &S) {
       };
   S.MainJD->addGenerator(
       ExitOnErr(orc::EPCDynamicLibrarySearchGenerator::GetForTargetProcess(
-          *S.EPC, std::move(FilterMainEntryPoint))));
+          S.ES, std::move(FilterMainEntryPoint))));
 
   return Error::success();
 }
@@ -622,7 +625,7 @@ static Error loadDylibs(Session &S) {
   LLVM_DEBUG(dbgs() << "Loading dylibs...\n");
   for (const auto &Dylib : Dylibs) {
     LLVM_DEBUG(dbgs() << "  " << Dylib << "\n");
-    auto G = orc::EPCDynamicLibrarySearchGenerator::Load(*S.EPC, Dylib.c_str());
+    auto G = orc::EPCDynamicLibrarySearchGenerator::Load(S.ES, Dylib.c_str());
     if (!G)
       return G.takeError();
     S.MainJD->addGenerator(std::move(*G));
@@ -872,13 +875,11 @@ Expected<std::unique_ptr<Session>> Session::Create(Triple TT) {
 Session::~Session() {
   if (auto Err = ES.endSession())
     ES.reportError(std::move(Err));
-  if (auto Err = EPC->disconnect())
-    ES.reportError(std::move(Err));
 }
 
 Session::Session(std::unique_ptr<ExecutorProcessControl> EPC, Error &Err)
-    : EPC(std::move(EPC)), ES(this->EPC->getSymbolStringPool()),
-      ObjLayer(*this, this->EPC->getMemMgr()) {
+    : ES(std::move(EPC)),
+      ObjLayer(*this, ES.getExecutorProcessControl().getMemMgr()) {
 
   /// Local ObjectLinkingLayer::Plugin class to forward modifyPassConfig to the
   /// Session.
@@ -917,20 +918,20 @@ Session::Session(std::unique_ptr<ExecutorProcessControl> EPC, Error &Err)
   ExitOnErr(loadDylibs(*this));
 
   // Set up the platform.
-  if (this->EPC->getTargetTriple().isOSBinFormatMachO() && UseOrcRuntime) {
-    if (auto P = MachOPlatform::Create(ES, ObjLayer, *this->EPC, *MainJD,
-                                       OrcRuntimePath.c_str()))
+  auto &TT = ES.getExecutorProcessControl().getTargetTriple();
+  if (TT.isOSBinFormatMachO() && !OrcRuntime.empty()) {
+    if (auto P =
+            MachOPlatform::Create(ES, ObjLayer, *MainJD, OrcRuntime.c_str()))
       ES.setPlatform(std::move(*P));
     else {
       Err = P.takeError();
       return;
     }
-  } else if (!NoExec && !this->EPC->getTargetTriple().isOSWindows() &&
-             !this->EPC->getTargetTriple().isOSBinFormatMachO()) {
+  } else if (!NoExec && !TT.isOSWindows() && !TT.isOSBinFormatMachO()) {
     ObjLayer.addPlugin(std::make_unique<EHFrameRegistrationPlugin>(
-        ES, ExitOnErr(EPCEHFrameRegistrar::Create(*this->EPC))));
+        ES, ExitOnErr(EPCEHFrameRegistrar::Create(this->ES))));
     ObjLayer.addPlugin(std::make_unique<DebugObjectManagerPlugin>(
-        ES, ExitOnErr(createJITLoaderGDBRegistrar(*this->EPC))));
+        ES, ExitOnErr(createJITLoaderGDBRegistrar(this->ES))));
   }
 
   ObjLayer.addPlugin(std::make_unique<JITLinkSessionPlugin>(*this));
@@ -977,10 +978,11 @@ void Session::modifyPassConfig(const Triple &TT,
                                PassConfiguration &PassConfig) {
   if (!CheckFiles.empty())
     PassConfig.PostFixupPasses.push_back([this](LinkGraph &G) {
-      if (EPC->getTargetTriple().getObjectFormat() == Triple::ELF)
+      auto &EPC = ES.getExecutorProcessControl();
+      if (EPC.getTargetTriple().getObjectFormat() == Triple::ELF)
         return registerELFGraphInfo(*this, G);
 
-      if (EPC->getTargetTriple().getObjectFormat() == Triple::MachO)
+      if (EPC.getTargetTriple().getObjectFormat() == Triple::MachO)
         return registerMachOGraphInfo(*this, G);
 
       return make_error<StringError>("Unsupported object format for GOT/stub "
@@ -1107,37 +1109,11 @@ static Triple getFirstFileTriple() {
   return FirstTT;
 }
 
-static bool isOrcRuntimeSupported(const Triple &TT) {
-  switch (TT.getObjectFormat()) {
-  case Triple::MachO:
-    switch (TT.getArch()) {
-    case Triple::x86_64:
-      return true;
-    default:
-      return false;
-    }
-  default:
-    return false;
-  }
-}
-
 static Error sanitizeArguments(const Triple &TT, const char *ArgV0) {
-
-  // If we're in noexec mode and the user didn't explicitly specify
-  // -use-orc-runtime then don't use it.
-  if (NoExec && UseOrcRuntime.getNumOccurrences() == 0)
-    UseOrcRuntime = false;
 
   // -noexec and --args should not be used together.
   if (NoExec && !InputArgv.empty())
     errs() << "Warning: --args passed to -noexec run will be ignored.\n";
-
-  // Turn off UseOrcRuntime on platforms where it's not supported.
-  if (UseOrcRuntime && !isOrcRuntimeSupported(TT)) {
-    errs() << "Warning: Orc runtime not available for target platform. "
-              "Use -use-orc-runtime=false to suppress this warning.\n";
-    UseOrcRuntime = false;
-  }
 
   // Set the entry point name if not specified.
   if (EntryPointName.empty())
@@ -1170,23 +1146,6 @@ static Error sanitizeArguments(const Triple &TT, const char *ArgV0) {
     OutOfProcessExecutor = OOPExecutorPath.str().str();
   }
 
-  // If we're loading the Orc runtime then determine the path for it.
-  if (UseOrcRuntime) {
-    if (OrcRuntimePath.empty()) {
-      SmallString<256> DefaultOrcRuntimePath(sys::fs::getMainExecutable(
-          ArgV0, reinterpret_cast<void *>(&sanitizeArguments)));
-      sys::path::remove_filename(
-          DefaultOrcRuntimePath); // remove 'llvm-jitlink'
-      while (!DefaultOrcRuntimePath.empty() &&
-             DefaultOrcRuntimePath.back() == '/')
-        DefaultOrcRuntimePath.pop_back();
-      if (DefaultOrcRuntimePath.endswith("bin"))
-        sys::path::remove_filename(DefaultOrcRuntimePath); // remove 'bin'
-      sys::path::append(DefaultOrcRuntimePath,
-                        "lib/clang/13.0.0/lib/darwin/libclang_rt.orc_osx.a");
-      OrcRuntimePath = DefaultOrcRuntimePath.str().str();
-    }
-  }
   return Error::success();
 }
 
@@ -1257,7 +1216,8 @@ static Error loadObjects(Session &S) {
     if (Magic == file_magic::archive ||
         Magic == file_magic::macho_universal_binary)
       JD.addGenerator(ExitOnErr(StaticLibraryDefinitionGenerator::Load(
-          S.ObjLayer, InputFile.c_str(), S.EPC->getTargetTriple())));
+          S.ObjLayer, InputFile.c_str(),
+          S.ES.getExecutorProcessControl().getTargetTriple())));
     else
       ExitOnErr(S.ObjLayer.add(JD, std::move(ObjBuffer)));
   }
@@ -1304,13 +1264,14 @@ static Error loadObjects(Session &S) {
 }
 
 static Error runChecks(Session &S) {
+  const auto &TT = S.ES.getExecutorProcessControl().getTargetTriple();
 
   if (CheckFiles.empty())
     return Error::success();
 
   LLVM_DEBUG(dbgs() << "Running checks...\n");
 
-  auto TripleName = S.EPC->getTargetTriple().str();
+  auto TripleName = TT.str();
   std::string ErrorStr;
   const Target *TheTarget = TargetRegistry::lookupTarget(TripleName, ErrorStr);
   if (!TheTarget)
@@ -1376,9 +1337,8 @@ static Error runChecks(Session &S) {
 
   RuntimeDyldChecker Checker(
       IsSymbolValid, GetSymbolInfo, GetSectionInfo, GetStubInfo, GetGOTInfo,
-      S.EPC->getTargetTriple().isLittleEndian() ? support::little
-                                                : support::big,
-      Disassembler.get(), InstPrinter.get(), dbgs());
+      TT.isLittleEndian() ? support::little : support::big, Disassembler.get(),
+      InstPrinter.get(), dbgs());
 
   std::string CheckLineStart = "# " + CheckName + ":";
   for (auto &CheckFile : CheckFiles) {
@@ -1395,7 +1355,7 @@ static Error runChecks(Session &S) {
 static void dumpSessionStats(Session &S) {
   if (!ShowSizes)
     return;
-  if (UseOrcRuntime)
+  if (!OrcRuntime.empty())
     outs() << "Note: Session stats include runtime and entry point lookup, but "
               "not JITDylib initialization/deinitialization.\n";
   if (ShowSizes)
@@ -1411,7 +1371,8 @@ static Expected<JITEvaluatedSymbol> getMainEntryPoint(Session &S) {
 
 static Expected<JITEvaluatedSymbol> getOrcRuntimeEntryPoint(Session &S) {
   std::string RuntimeEntryPoint = "__orc_rt_run_program_wrapper";
-  if (S.EPC->getTargetTriple().getObjectFormat() == Triple::MachO)
+  const auto &TT = S.ES.getExecutorProcessControl().getTargetTriple();
+  if (TT.getObjectFormat() == Triple::MachO)
     RuntimeEntryPoint = '_' + RuntimeEntryPoint;
   return S.ES.lookup(S.JDSearchOrder, RuntimeEntryPoint);
 }
@@ -1419,13 +1380,14 @@ static Expected<JITEvaluatedSymbol> getOrcRuntimeEntryPoint(Session &S) {
 static Expected<int> runWithRuntime(Session &S,
                                     JITTargetAddress EntryPointAddress) {
   StringRef DemangledEntryPoint = EntryPointName;
-  if (S.EPC->getTargetTriple().getObjectFormat() == Triple::MachO &&
+  const auto &TT = S.ES.getExecutorProcessControl().getTargetTriple();
+  if (TT.getObjectFormat() == Triple::MachO &&
       DemangledEntryPoint.front() == '_')
     DemangledEntryPoint = DemangledEntryPoint.drop_front();
   using SPSRunProgramSig =
       int64_t(SPSString, SPSString, SPSSequence<SPSString>);
   int64_t Result;
-  if (auto Err = S.EPC->runSPSWrapper<SPSRunProgramSig>(
+  if (auto Err = S.ES.callSPSWrapper<SPSRunProgramSig>(
           EntryPointAddress, Result, S.MainJD->getName(), DemangledEntryPoint,
           static_cast<std::vector<std::string> &>(InputArgv)))
     return std::move(Err);
@@ -1434,7 +1396,8 @@ static Expected<int> runWithRuntime(Session &S,
 
 static Expected<int> runWithoutRuntime(Session &S,
                                        JITTargetAddress EntryPointAddress) {
-  return S.EPC->runAsMain(EntryPointAddress, InputArgv);
+  return S.ES.getExecutorProcessControl().runAsMain(EntryPointAddress,
+                                                    InputArgv);
 }
 
 namespace {
@@ -1453,6 +1416,7 @@ int main(int argc, char *argv[]) {
   InitializeAllTargetMCs();
   InitializeAllDisassemblers();
 
+  cl::HideUnrelatedOptions({&JITLinkCategory, &getColorCategory()});
   cl::ParseCommandLineOptions(argc, argv, "llvm jitlink tool");
   ExitOnErr.setBanner(std::string(argv[0]) + ": ");
 
@@ -1484,7 +1448,7 @@ int main(int argc, char *argv[]) {
 
     // If we're running with the ORC runtime then replace the entry-point
     // with the __orc_rt_run_program symbol.
-    if (UseOrcRuntime)
+    if (!OrcRuntime.empty())
       EntryPoint = ExitOnErr(getOrcRuntimeEntryPoint(*S));
   }
 
@@ -1502,7 +1466,7 @@ int main(int argc, char *argv[]) {
   {
     LLVM_DEBUG(dbgs() << "Running \"" << EntryPointName << "\"...\n");
     TimeRegion TR(Timers ? &Timers->RunTimer : nullptr);
-    if (UseOrcRuntime)
+    if (!OrcRuntime.empty())
       Result = ExitOnErr(runWithRuntime(*S, EntryPoint.getAddress()));
     else
       Result = ExitOnErr(runWithoutRuntime(*S, EntryPoint.getAddress()));

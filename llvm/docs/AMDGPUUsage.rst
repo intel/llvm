@@ -1165,6 +1165,7 @@ The AMDGPU backend uses the following ELF header:
      ``EF_AMDGPU_MACH_AMDGCN_GFX1013``    0x042      ``gfx1013``
      *reserved*                           0x043      Reserved.
      *reserved*                           0x044      Reserved.
+     *reserved*                           0x045      Reserved.
      ==================================== ========== =============================
 
 Sections
@@ -3141,6 +3142,37 @@ same *vendor-name*.
                                                                   a register allocator
                                                                   created spill
                                                                   location.
+     ".kind"                             string                   The kind of the kernel
+                                                                  with the following
+                                                                  values:
+
+                                                                  "normal"
+                                                                    Regular kernels.
+
+                                                                  "init"
+                                                                    These kernels must be
+                                                                    invoked after loading
+                                                                    the containing code
+                                                                    object and must
+                                                                    complete before any
+                                                                    normal and fini
+                                                                    kernels in the same
+                                                                    code object are
+                                                                    invoked.
+
+                                                                  "fini"
+                                                                    These kernels must be
+                                                                    invoked before
+                                                                    unloading the
+                                                                    containing code object
+                                                                    and after all init and
+                                                                    normal kernels in the
+                                                                    same code object have
+                                                                    been invoked and
+                                                                    completed.
+
+                                                                  If omitted, "normal" is
+                                                                  assumed.
      =================================== ============== ========= ================================
 
 ..

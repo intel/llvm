@@ -65,6 +65,10 @@ set( LIBCLC_TARGETS_TO_BUILD "all"
 option( ENABLE_RUNTIME_SUBNORMAL "Enable runtime linking of subnormal support."
 OFF )
 
+option( LIBCLC_GENERATE_REMANGLED_VARIANTS
+				"Generate remangled variants of enabled libclc targets."
+				OFF )
+
 # mesa3d environment is only available since LLVM 4.0
 if( ${LLVM_VERSION} VERSION_GREATER "3.9.0" )
 	set( LIBCLC_TARGETS_ALL ${LIBCLC_TARGETS_ALL} amdgcn-mesa-mesa3d )
@@ -119,6 +123,8 @@ find_program( LLVM_AS llvm-as PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
 find_program( LLVM_LINK llvm-link PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
 find_program( LLVM_OPT opt PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
 find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
+find_program( LIBCLC_REMANGLER libclc-remangler PATHS ${LLVM_BINDIR}
+							NO_DEFAULT_PATH )
 
 # Print toolchain
 message( "clang: ${LLVM_CLANG}" )
@@ -126,8 +132,10 @@ message( "llvm-as: ${LLVM_AS}" )
 message( "llvm-link: ${LLVM_LINK}" )
 message( "opt: ${LLVM_OPT}" )
 message( "llvm-spirv: ${LLVM_SPIRV}" )
+message( "libclc-remangler: ${LIBCLC_REMANGLER}" )
 message( "" )
-if( NOT LLVM_CLANG OR NOT LLVM_OPT OR NOT LLVM_AS OR NOT LLVM_LINK )
+if( NOT LLVM_CLANG OR NOT LLVM_OPT OR NOT LLVM_AS OR NOT LLVM_LINK
+		OR NOT LIBCLC_REMANGLER )
 	message( FATAL_ERROR "toolchain incomplete!" )
 endif()
 

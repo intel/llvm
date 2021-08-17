@@ -104,7 +104,7 @@ namespace lldb {
 // and get the packet history dumped to a file.
 void DumpProcessGDBRemotePacketHistory(void *p, const char *path) {
   auto file = FileSystem::Instance().Open(
-      FileSpec(path), File::eOpenOptionWrite | File::eOpenOptionCanCreate);
+      FileSpec(path), File::eOpenOptionWriteOnly | File::eOpenOptionCanCreate);
   if (!file) {
     llvm::consumeError(file.takeError());
     return;
@@ -2789,6 +2789,14 @@ ProcessGDBRemote::DoReadMemoryTags(lldb::addr_t addr, size_t len,
   got.reserve(tag_data.size());
   std::copy(tag_data.begin(), tag_data.end(), std::back_inserter(got));
   return got;
+}
+
+Status ProcessGDBRemote::DoWriteMemoryTags(lldb::addr_t addr, size_t len,
+                                           int32_t type,
+                                           const std::vector<uint8_t> &tags) {
+  // By now WriteMemoryTags should have validated that tagging is enabled
+  // for this target/process.
+  return m_gdb_comm.WriteMemoryTags(addr, len, type, tags);
 }
 
 Status ProcessGDBRemote::WriteObjectFile(

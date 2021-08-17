@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 #include "clang/Driver/Driver.h"
-#include "InputInfo.h"
 #include "ToolChains/AIX.h"
 #include "ToolChains/AMDGPU.h"
 #include "ToolChains/AMDGPUOpenMP.h"
@@ -54,6 +53,7 @@
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Job.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
@@ -63,6 +63,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/BinaryFormat/Magic.h"
@@ -169,28 +170,9 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
   ResourceDir = GetResourcesPath(ClangExecutable, CLANG_RESOURCE_DIR);
 }
 
-void Driver::ParseDriverMode(StringRef ProgramName,
-                             ArrayRef<const char *> Args) {
-  if (ClangNameParts.isEmpty())
-    ClangNameParts = ToolChain::getTargetAndModeFromProgramName(ProgramName);
-  setDriverModeFromOption(ClangNameParts.DriverMode);
-
-  for (const char *ArgPtr : Args) {
-    // Ignore nullptrs, they are the response file's EOL markers.
-    if (ArgPtr == nullptr)
-      continue;
-    const StringRef Arg = ArgPtr;
-    setDriverModeFromOption(Arg);
-  }
-}
-
-void Driver::setDriverModeFromOption(StringRef Opt) {
-  const std::string OptName =
+void Driver::setDriverMode(StringRef Value) {
+  static const std::string OptName =
       getOpts().getOption(options::OPT_driver_mode).getPrefixedName();
-  if (!Opt.startswith(OptName))
-    return;
-  StringRef Value = Opt.drop_front(OptName.size());
-
   if (auto M = llvm::StringSwitch<llvm::Optional<DriverMode>>(Value)
                    .Case("gcc", GCCMode)
                    .Case("g++", GXXMode)
@@ -718,6 +700,23 @@ static bool isValidSYCLTriple(llvm::Triple T) {
   return true;
 }
 
+static void addSYCLDefaultTriple(Compilation &C,
+                                 SmallVectorImpl<llvm::Triple> &SYCLTriples) {
+  if (!C.getDriver().isSYCLDefaultTripleImplied())
+    return;
+  for (const auto &SYCLTriple : SYCLTriples) {
+    if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
+        SYCLTriple.isSPIR())
+      return;
+    // If we encounter a known non-spir* target, do not add the default triple.
+    if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
+      return;
+  }
+  // Add the default triple as it was not found.
+  llvm::Triple DefaultTriple = C.getDriver().MakeSYCLDeviceTriple("spir64");
+  SYCLTriples.insert(SYCLTriples.begin(), DefaultTriple);
+}
+
 void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                               InputList &Inputs) {
 
@@ -929,6 +928,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           FoundNormalizedTriples[NormalizedName] = Val;
           UniqueSYCLTriplesVec.push_back(TT);
         }
+        addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
       } else
         Diag(clang::diag::warn_drv_empty_joined_argument)
             << SYCLTargetsValues->getAsString(C.getInputArgs());
@@ -987,8 +987,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     else if (HasValidSYCLRuntime)
       // Triple for -fintelfpga is spir64_fpga-unknown-unknown-sycldevice.
       SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
-    if (!SYCLTargetArch.empty())
+    if (!SYCLTargetArch.empty()) {
       UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(SYCLTargetArch));
+      addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
+    }
   }
   // We'll need to use the SYCL and host triples as the key into
   // getOffloadingDeviceToolChain, because the device toolchains we're
@@ -1224,7 +1226,10 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
 
   // We look for the driver mode option early, because the mode can affect
   // how other options are parsed.
-  ParseDriverMode(ClangExecutable, ArgList.slice(1));
+
+  auto DriverMode = getDriverMode(ClangExecutable, ArgList.slice(1));
+  if (!DriverMode.empty())
+    setDriverMode(DriverMode);
 
   // FIXME: What are we going to do with -V and -b?
 
@@ -1418,6 +1423,11 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   if (checkForOffloadStaticLib(*C, *TranslatedArgs))
     setOffloadStaticLibSeen();
 
+  // Check for any objects/archives that need to be compiled with the default
+  // triple.
+  if (checkForSYCLDefaultDevice(*C, *TranslatedArgs))
+    setSYCLDefaultTriple(true);
+
   // Populate the tool chains for the offloading devices, if any.
   CreateOffloadingDeviceToolChains(*C, Inputs);
 
@@ -1428,7 +1438,8 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     const ToolChain *TC = SYCLTCRange.first->second;
     const toolchains::SYCLToolChain *SYCLTC =
         static_cast<const toolchains::SYCLToolChain *>(TC);
-    SYCLTC->TranslateBackendTargetArgs(*TranslatedArgs, TargetArgs);
+    SYCLTC->TranslateBackendTargetArgs(SYCLTC->getTriple(), *TranslatedArgs,
+                                       TargetArgs);
     for (StringRef ArgString : TargetArgs) {
       if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
         setFPGAEmulationMode(false);
@@ -2762,6 +2773,30 @@ bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   return runBundler(BundlerArgs, C);
 }
 
+static bool hasSYCLDefaultSection(Compilation &C, const StringRef &File) {
+  // Do not do the check if the file doesn't exist
+  if (!llvm::sys::fs::exists(File))
+    return false;
+
+  bool IsArchive = isStaticArchiveFile(File);
+  if (!(IsArchive || isObjectFile(File.str())))
+    return false;
+
+  llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple("spir64"));
+  // Checking uses -check-section option with the input file, no output
+  // file and the target triple being looked for.
+  const char *Targets =
+      C.getArgs().MakeArgString(Twine("-targets=sycl-") + TT.str());
+  const char *Inputs =
+      C.getArgs().MakeArgString(Twine("-inputs=") + File.str());
+  // Always use -type=ao for bundle checking.  The 'bundles' are
+  // actually archives.
+  SmallVector<StringRef, 6> BundlerArgs = {"clang-offload-bundler",
+                                           IsArchive ? "-type=ao" : "-type=o",
+                                           Targets, Inputs, "-check-section"};
+  return runBundler(BundlerArgs, C);
+}
+
 static bool hasOffloadSections(Compilation &C, const StringRef &Archive,
                                DerivedArgList &Args) {
   // Do not do the check if the file doesn't exist
@@ -2792,14 +2827,15 @@ static bool optionMatches(const std::string &Option,
 // Process linker inputs for use with offload static libraries.  We are only
 // handling options and explicitly named static archives as these need to be
 // partially linked.
-static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
-                                                   DerivedArgList &Args) {
+static SmallVector<const char *, 16>
+getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
   SmallVector<const char *, 16> LibArgs;
   for (const auto *A : Args) {
     std::string FileName = A->getAsString(Args);
     if (A->getOption().getKind() == Option::InputClass) {
       StringRef Value(A->getValue());
-      if (isStaticArchiveFile(Value)) {
+      if (isStaticArchiveFile(Value) ||
+          (IncludeObj && isObjectFile(Value.str()))) {
         LibArgs.push_back(Args.MakeArgString(FileName));
         continue;
       }
@@ -2818,7 +2854,7 @@ static SmallVector<const char *, 16> getLinkerArgs(Compilation &C,
           // Only add named static libs objects and --whole-archive options.
           if (optionMatches("-whole-archive", V.str()) ||
               optionMatches("-no-whole-archive", V.str()) ||
-              isStaticArchiveFile(V)) {
+              isStaticArchiveFile(V) || (IncludeObj && isObjectFile(V.str()))) {
             LibArgs.push_back(Args.MakeArgString(V));
             return;
           }
@@ -2882,6 +2918,26 @@ static bool IsSYCLDeviceLibObj(std::string ObjFilePath, bool isMSVCEnv) {
           ? true
           : false;
   return Ret;
+}
+
+// Goes through all of the arguments, including inputs expected for the
+// linker directly, to determine if we need to potentially add the SYCL
+// default triple.
+bool Driver::checkForSYCLDefaultDevice(Compilation &C,
+                                       DerivedArgList &Args) const {
+  // Check only if enabled with -fsycl
+  if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
+    return false;
+
+  if (Args.hasArg(options::OPT_fno_sycl_link_spirv))
+    return false;
+
+  SmallVector<const char *, 16> AllArgs(getLinkerArgs(C, Args, true));
+  for (StringRef Arg : AllArgs) {
+    if (hasSYCLDefaultSection(C, Arg))
+      return true;
+  }
+  return false;
 }
 
 // Goes through all of the arguments, including inputs expected for the
@@ -3512,12 +3568,9 @@ class OffloadingActionBuilder final {
         // a fat binary containing all the code objects for different GPU's.
         // The fat binary is then an input to the host action.
         for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
-          if (GPUSanitize || C.getDriver().isUsingLTO(/*IsOffload=*/true)) {
-            // When GPU sanitizer is enabled, since we need to link in the
-            // the sanitizer runtime library after the sanitize pass, we have
-            // to skip the backend and assemble phases and use lld to link
-            // the bitcode. The same happens if users request to use LTO
-            // explicitly.
+          if (C.getDriver().isUsingLTO(/*IsOffload=*/true)) {
+            // When LTO is enabled, skip the backend and assemble phases and
+            // use lld to link the bitcode.
             ActionList AL;
             AL.push_back(CudaDeviceActions[I]);
             // Create a link action to link device IR with device library
@@ -3525,7 +3578,7 @@ class OffloadingActionBuilder final {
             CudaDeviceActions[I] =
                 C.MakeAction<LinkJobAction>(AL, types::TY_Image);
           } else {
-            // When GPU sanitizer is not enabled, we follow the conventional
+            // When LTO is not enabled, we follow the conventional
             // compiler phases, including backend and assemble phases.
             ActionList AL;
             auto BackendAction = C.getDriver().ConstructPhaseAction(
@@ -4657,6 +4710,7 @@ class OffloadingActionBuilder final {
             if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
               SYCLfpgaTriple = true;
           }
+          addSYCLDefaultTriple(C, SYCLTripleList);
         }
         if (SYCLAddTargets) {
           for (StringRef Val : SYCLAddTargets->getValues()) {
@@ -4679,6 +4733,7 @@ class OffloadingActionBuilder final {
         const char *SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
         SYCLTripleList.push_back(
             C.getDriver().MakeSYCLDeviceTriple(SYCLTargetArch));
+        addSYCLDefaultTriple(C, SYCLTripleList);
         if (SYCLfpga)
           SYCLfpgaTriple = true;
       }
@@ -5296,6 +5351,14 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
           llvm::sys::path::stem(SrcFileName).str() + "-footer", "h");
       StringRef TmpFileFooter =
           C.addTempFile(C.getArgs().MakeArgString(TmpFileNameFooter));
+      // Use of -fsycl-footer-path puts the integration footer into that
+      // specified location.
+      if (Arg *A = C.getArgs().getLastArg(options::OPT_fsycl_footer_path_EQ)) {
+        SmallString<128> OutName(A->getValue());
+        llvm::sys::path::append(OutName,
+                                llvm::sys::path::filename(TmpFileNameFooter));
+        TmpFileFooter = C.addTempFile(C.getArgs().MakeArgString(OutName));
+      }
       addIntegrationFiles(TmpFileHeader, TmpFileFooter, SrcFileName);
     }
   }
@@ -7618,3 +7681,21 @@ bool clang::driver::willEmitRemarks(const ArgList &Args) {
     return true;
   return false;
 }
+
+llvm::StringRef clang::driver::getDriverMode(StringRef ProgName,
+                                             ArrayRef<const char *> Args) {
+  static const std::string OptName =
+      getDriverOptTable().getOption(options::OPT_driver_mode).getPrefixedName();
+  llvm::StringRef Opt;
+  for (StringRef Arg : Args) {
+    if (!Arg.startswith(OptName))
+      continue;
+    Opt = Arg;
+    break;
+  }
+  if (Opt.empty())
+    Opt = ToolChain::getTargetAndModeFromProgramName(ProgName).DriverMode;
+  return Opt.consume_front(OptName) ? Opt : "";
+}
+
+bool driver::IsClangCL(StringRef DriverMode) { return DriverMode.equals("cl"); }
