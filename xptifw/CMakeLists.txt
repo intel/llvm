@@ -43,7 +43,7 @@ add_subdirectory(src)
 # TODO enable samples and tests back once build problems are resolved.
 # Currently builds for unit tests and samples fail mostly with dllimport/dllexport
 # mismatch problems:
-# syclpi_collector.cpp(32): error C2491: 'xptiTraceInit': definition of dllimport function not allowed 
+# syclpi_collector.cpp(32): error C2491: 'xptiTraceInit': definition of dllimport function not allowed
 if (0)
 add_subdirectory(unit_test)
 add_subdirectory(samples/basic_collector)
@@ -52,6 +52,6 @@ endif()
 
 # The tests in basic_test are written using TBB, so these tests are enabled
 # only if TBB has been enabled.
-if (XPTI_ENABLE_TBB)
+if (0)
   add_subdirectory(basic_test)
 endif()

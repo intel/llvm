@@ -135,6 +135,10 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     visitCallSPIRVAvcINTELInstructionBuiltin(&CI, OC);
     return;
   }
+  if (OC == OpBuildNDRange) {
+    visitCallBuildNDRangeBuiltIn(&CI, OC, DemangledName);
+    return;
+  }
   if (OC == OpGenericCastToPtrExplicit) {
     visitCallGenericCastToPtrExplicitBuiltIn(&CI, OC);
     return;
@@ -573,6 +577,34 @@ void SPIRVToOCLBase::visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC) {
         }
 
         return OCLSPIRVBuiltinMap::rmap(OC) + FuncPostfix;
+      },
+      &Attrs);
+}
+void SPIRVToOCLBase::visitCallBuildNDRangeBuiltIn(CallInst *CI, Op OC,
+                                                  StringRef DemangledName) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *Call, std::vector<Value *> &Args) {
+        assert(Args.size() == 3);
+        // OpenCL built-in has another order of parameters.
+        auto *GlobalWorkSize = Args[0];
+        auto *LocalWorkSize = Args[1];
+        auto *GlobalWorkOffset = Args[2];
+        Args[0] = GlobalWorkOffset;
+        Args[1] = GlobalWorkSize;
+        Args[2] = LocalWorkSize;
+        // __spirv_BuildNDRange_nD, drop __spirv_
+        StringRef S = DemangledName;
+        S = S.drop_front(strlen(kSPIRVName::Prefix));
+        SmallVector<StringRef, 8> Split;
+        // BuildNDRange_nD
+        S.split(Split, kSPIRVPostfix::Divider,
+                /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+        assert(Split.size() >= 2 && "Invalid SPIRV function name");
+        // Cut _nD and add it to function name.
+        return std::string(kOCLBuiltinName::NDRangePrefix) +
+               Split[1].substr(0, 3).str();
       },
       &Attrs);
 }

@@ -419,6 +419,9 @@ struct _pi_context : _pi_object {
         OwnZeContext{OwnZeContext}, Devices{Devs, Devs + NumDevices},
         ZeCommandListInit{nullptr}, ZeEventPool{nullptr},
         NumEventsAvailableInEventPool{}, NumEventsUnreleasedInEventPool{} {
+    // NOTE: one must additionally call initialize() to complete
+    // PI context creation.
+
     // Create USM allocator context for each pair (device, context).
     for (uint32_t I = 0; I < NumDevices; I++) {
       pi_device Device = Devs[I];
@@ -430,8 +433,6 @@ struct _pi_context : _pi_object {
           std::piecewise_construct, std::make_tuple(Device),
           std::make_tuple(std::unique_ptr<SystemMemory>(
               new USMDeviceMemoryAlloc(this, Device))));
-      // NOTE: one must additionally call initialize() to complete
-      // PI context creation.
     }
     // Create USM allocator context for host. Device and Shared USM allocations
     // are device-specific. Host allocations are not device-dependent therefore
@@ -441,27 +442,40 @@ struct _pi_context : _pi_object {
 
     if (NumDevices == 1) {
       SingleRootDevice = Devices[0];
-      return;
-    }
+    } else {
 
-    // Check if we have context with subdevices of the same device (context may
-    // include root device itself as well)
-    SingleRootDevice =
-        Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
+      // Check if we have context with subdevices of the same device (context
+      // may include root device itself as well)
+      SingleRootDevice =
+          Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
 
-    // For context with sub subdevices, the SingleRootDevice might still
-    // not be the root device.
-    // Check whether the SingleRootDevice is the subdevice or root device.
-    if (SingleRootDevice->isSubDevice()) {
-      SingleRootDevice = SingleRootDevice->RootDevice;
-    }
-
-    for (auto &Device : Devices) {
-      if ((!Device->RootDevice && Device != SingleRootDevice) ||
-          (Device->RootDevice && Device->RootDevice != SingleRootDevice)) {
-        SingleRootDevice = nullptr;
-        break;
+      // For context with sub subdevices, the SingleRootDevice might still
+      // not be the root device.
+      // Check whether the SingleRootDevice is the subdevice or root device.
+      if (SingleRootDevice->isSubDevice()) {
+        SingleRootDevice = SingleRootDevice->RootDevice;
       }
+
+      for (auto &Device : Devices) {
+        if ((!Device->RootDevice && Device != SingleRootDevice) ||
+            (Device->RootDevice && Device->RootDevice != SingleRootDevice)) {
+          SingleRootDevice = nullptr;
+          break;
+        }
+      }
+    }
+
+    // We may allocate memory to this root device so create allocators.
+    if (SingleRootDevice && DeviceMemAllocContexts.find(SingleRootDevice) ==
+                                DeviceMemAllocContexts.end()) {
+      SharedMemAllocContexts.emplace(
+          std::piecewise_construct, std::make_tuple(SingleRootDevice),
+          std::make_tuple(std::unique_ptr<SystemMemory>(
+              new USMSharedMemoryAlloc(this, SingleRootDevice))));
+      DeviceMemAllocContexts.emplace(
+          std::piecewise_construct, std::make_tuple(SingleRootDevice),
+          std::make_tuple(std::unique_ptr<SystemMemory>(
+              new USMDeviceMemoryAlloc(this, SingleRootDevice))));
     }
   }
 

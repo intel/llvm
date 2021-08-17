@@ -157,8 +157,8 @@ TEST(xptiApiTest, xptiQueryPayloadGoodInput) {
   EXPECT_STREQ(Payload.name, NewResult->name);
   EXPECT_STREQ(Payload.source_file, NewResult->source_file);
   // NewResult->name_sid will have a string ID whereas 'Payload' will not
-  EXPECT_NE(Payload.name_sid, NewResult->name_sid);
-  EXPECT_NE(Payload.source_file_sid, NewResult->source_file_sid);
+  EXPECT_NE(Payload.name_sid(), NewResult->name_sid());
+  EXPECT_NE(Payload.source_file_sid(), NewResult->source_file_sid());
   EXPECT_EQ(Payload.line_no, NewResult->line_no);
 }
 
