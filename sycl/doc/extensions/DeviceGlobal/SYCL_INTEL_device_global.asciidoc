@@ -434,8 +434,8 @@ public:
   template <typename T, typename PropertyListT>
   event copy(const std::remove_all_extents_t<T> *src,
     device_global<T, PropertyListT>& dest,
-     size_t count, size_t startIndex,
-     const std::vector<event> &depEvents);
+    size_t count, size_t startIndex,
+    const std::vector<event> &depEvents);
 
   // Copy from device_global
   template <typename T, typename PropertyListT>
