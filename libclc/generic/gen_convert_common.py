@@ -1,10 +1,10 @@
 # This file contains common variables and helper functions used by the
 # `gen_convert.py` in both the libclc and libspirv libraries.
 
-types = ['char', 'uchar', 'short', 'ushort', 'int', 'uint', 'long', 'ulong', 'half', 'float', 'double']
-int_types = ['char', 'uchar', 'short', 'ushort', 'int', 'uint', 'long', 'ulong']
+types = ['char', 'schar', 'uchar', 'short', 'ushort', 'int', 'uint', 'long', 'ulong', 'half', 'float', 'double']
+int_types = ['char', 'schar', 'uchar', 'short', 'ushort', 'int', 'uint', 'long', 'ulong']
 unsigned_types = ['uchar', 'ushort', 'uint', 'ulong']
-signed_types = ['char', 'short', 'int', 'long']
+signed_types = ['char', 'schar', 'short', 'int', 'long']
 float_types = ['half', 'float', 'double']
 int64_types = ['long', 'ulong']
 float64_types = ['double']
@@ -18,7 +18,8 @@ float_prefix = {'float':'FLT_', 'double':'DBL_'}
 float_suffix = {'float':'f', 'double':''}
 
 bool_type = {'char'   : 'char',
-             'uchar'  : 'char',
+             'schar'  : 'schar',
+             'uchar'  : 'schar',
              'short'  : 'short',
              'ushort' : 'short',
              'int'    : 'int',
@@ -30,6 +31,7 @@ bool_type = {'char'   : 'char',
              'double' : 'long'}
 
 unsigned_type = {'char'  : 'uchar',
+                 'schar' : 'uchar',
                  'uchar' : 'uchar',
                  'short' : 'ushort',
                  'ushort': 'ushort',
@@ -38,7 +40,7 @@ unsigned_type = {'char'  : 'uchar',
                  'long'  : 'ulong',
                  'ulong' : 'ulong'}
 
-sizeof_type = {'char'  : 1, 'uchar'  : 1,
+sizeof_type = {'char'  : 1, 'schar'  : 1, 'uchar'  : 1,
                'short' : 2, 'ushort' : 2,
                'int'   : 4, 'uint'   : 4,
                'long'  : 8, 'ulong'  : 8,
@@ -46,6 +48,7 @@ sizeof_type = {'char'  : 1, 'uchar'  : 1,
                'double': 8}
 
 limit_max = {'char'  : 'CHAR_MAX',
+             'schar' : 'CHAR_MAX',
              'uchar' : 'UCHAR_MAX',
              'short' : 'SHRT_MAX',
              'ushort': 'USHRT_MAX',
@@ -55,6 +58,7 @@ limit_max = {'char'  : 'CHAR_MAX',
              'ulong' : 'ULONG_MAX'}
 
 limit_min = {'char'  : 'CHAR_MIN',
+             'schar' : 'CHAR_MIN',
              'uchar' : '0',
              'short' : 'SHRT_MIN',
              'ushort': '0',
