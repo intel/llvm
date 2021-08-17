@@ -60,26 +60,41 @@ static const bool UseCopyEngineForD2DCopy = [] {
   return (CopyEngineForD2DCopy && (std::stoi(CopyEngineForD2DCopy) != 0));
 }();
 
-// TODO: Add support for non-zero values of SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE
-static const bool CopyEngineRequested = [] {
-  const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
-  bool UseCopyEngine = (!CopyEngine || ((CopyEngine[1] == '\0') &&
-                                        (std::stoi(CopyEngine) != 0)));
-  return UseCopyEngine;
+// SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE can be set to an integer value, or
+// a pair of integer values of the form "lower_index:upper_index".
+// Here, the indices point to copy engines in a list of all available copy
+// engines.
+// This functions returns this pair of indices.
+// If the user specifies only a single integer, a value of 0 indicates that
+// the copy engines will not be used at all. A value of 1 indicates that all
+// available copy engines can be used.
+static const std::pair<int, int> getRangeOfAllowedCopyEngines = [] {
+  std::string CopyEngineRange =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  // If the environment variable is not set, all available copy engines can be
+  // used.
+  if (CopyEngineRange.empty()) {
+    return std::pair<int, int>(0, INT_MAX);
+  }
+  // Environment variable can be a single integer or a pair of integers
+  // separated by ":"
+  auto pos = CopyEngineRange.find(":");
+  if (pos == std::string::npos) {
+    bool UseCopyEngine = (std::stoi(CopyEngineRange) != 0);
+    if (UseCopyEngine)
+      return std::pair<int, int>(0, INT_MAX); // All copy engines can be used.
+    else
+      return std::pair<int, int>(-1, -1); // No copy engines will be used.
+  }
+  int LowerCopyEngineIndex = std::stoi(CopyEngineRange.substr(0, pos));
+  int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
+  return std::pair<int, int>(LowerCopyEngineIndex, UpperCopyEngineIndex);
 }();
 
-static const std::pair<int, int> getRangeOfAllowedCopyEngines = [] {
-  const char *CopyEngineRange =
-      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
-  if (CopyEngineRange && (CopyEngineRange[1] == '\0')) {
-    if (CopyEngineRange[0] == '0')
-      return std::pair<int, int>(-1, -1);
-    else
-      return std::pair<int, int>(0, 8);
-  }
-  int LowerCopyEngineIndex = (CopyEngineRange) ? (CopyEngineRange[0] - '0') : 0;
-  int UpperCopyEngineIndex = (CopyEngineRange) ? (CopyEngineRange[2] - '0') : 8;
-  return std::pair<int, int>(LowerCopyEngineIndex, UpperCopyEngineIndex);
+static const bool CopyEngineRequested = [] {
+  const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
+  return UseCopyEngine;
 }();
 
 // This class encapsulates actions taken along with a call to Level Zero API.
@@ -1077,13 +1092,15 @@ _pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
   LowerCopyQueueIndex = std::max(0, LowerCopyQueueIndex);
   UpperCopyQueueIndex = std::min(UpperCopyQueueIndex, n - 1);
 
-  // Return nullptr when no copy command queues are available
-  if (n == 0) {
+  // Return nullptr when no copy command queues are allowed to be used or if
+  // no copy command queues are available.
+  if ((LowerCopyQueueIndex > UpperCopyQueueIndex) || (n == 0)) {
     if (CopyQueueGroupIndex)
       *CopyQueueGroupIndex = -1;
     *CopyQueueIndex = -1;
     return nullptr;
   }
+
   // If there is only one copy queue, it is the main copy queue, which is the
   // first, and only entry in ZeCopyCommandQueues.
   if (n == 1) {
@@ -1096,7 +1113,8 @@ _pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
 
   // Round robin logic is used here to access copy command queues.
   // Initial value of LastUsedCopyCommandQueueIndex is -1.
-  // So, the round robin logic will start its access at 0th queue.
+  // So, the round robin logic will start its access at 'LowerCopyQueueIndex'
+  // queue.
   // TODO: In this implementation, all the copy engines (main and link)
   // have equal priority. It is expected that main copy engine will be
   // advantageous for H2D and D2H copies, whereas the link copy engines will
@@ -2596,11 +2614,9 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
            &ZeCommandQueueDesc, // TODO: translate properties
            &ZeComputeCommandQueue));
 
-  // Create additional queues to link copy engines and push them into
-  // ZeCopyCommandQueues vector.
   std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
 
-  // Create second queue to main copy engine
+  // Create queue to main copy engine
   ze_command_queue_handle_t ZeMainCopyCommandQueue = nullptr;
   if (Device->hasMainCopyEngine()) {
     zePrint("NOTE: Main Copy Engine ZeCommandQueueDesc.ordinal = %d, "
@@ -2618,6 +2634,8 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   }
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  // Create additional queues to link copy engines and push them into
+  // ZeCopyCommandQueues vector.
   if (Device->hasLinkCopyEngine()) {
     auto ZeNumLinkCopyQueues = Device->ZeLinkCopyQueueGroupProperties.numQueues;
     for (uint32_t i = 0; i < ZeNumLinkCopyQueues; ++i) {
