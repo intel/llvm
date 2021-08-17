@@ -10,9 +10,9 @@
 
 #include <CL/sycl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
+#include <gtest/gtest.h>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
-#include <gtest/gtest.h>
 
 class KBTKernel;
 static constexpr const char *KBTKernelName = "KBTKernel";
@@ -77,7 +77,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
                  "",                                     // Link options
                  std::move(Bin),
                  std::move(Entries),
-                 {}};                                    // Property set
+                 {}}; // Property set
 }
 
 sycl::unittest::PiImage KBTImg = generateDefaultImage();
