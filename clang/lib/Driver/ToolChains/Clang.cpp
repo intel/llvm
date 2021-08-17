@@ -8722,7 +8722,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back("-o");
   TranslatorArgs.push_back(Output.getFilename());
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
-    TranslatorArgs.push_back("-spirv-max-version=1.3");
+    TranslatorArgs.push_back("-spirv-max-version=1.4");
     // TODO: align debug info for FPGA H/W when its SPIR-V consumer is ready
     if (C.getDriver().isFPGAEmulationMode())
       TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
