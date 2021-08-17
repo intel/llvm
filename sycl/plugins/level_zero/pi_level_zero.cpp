@@ -69,13 +69,13 @@ static const bool UseCopyEngineForD2DCopy = [] {
 // the copy engines will not be used at all. A value of 1 indicates that all
 // available copy engines can be used.
 static const std::pair<int, int> getRangeOfAllowedCopyEngines = [] {
-  std::string CopyEngineRange =
-      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
   // If the environment variable is not set, all available copy engines can be
   // used.
-  if (CopyEngineRange.empty()) {
+  if (!EnvVar) {
     return std::pair<int, int>(0, INT_MAX);
   }
+  std::string CopyEngineRange = EnvVar;
   // Environment variable can be a single integer or a pair of integers
   // separated by ":"
   auto pos = CopyEngineRange.find(":");
@@ -1089,7 +1089,8 @@ _pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
   int n = ZeCopyCommandQueues.size();
   int LowerCopyQueueIndex = getRangeOfAllowedCopyEngines.first;
   int UpperCopyQueueIndex = getRangeOfAllowedCopyEngines.second;
-  LowerCopyQueueIndex = std::max(0, LowerCopyQueueIndex);
+  LowerCopyQueueIndex =
+      (LowerCopyQueueIndex == -1) ? -1 : std::max(0, LowerCopyQueueIndex);
   UpperCopyQueueIndex = std::min(UpperCopyQueueIndex, n - 1);
 
   // Return nullptr when no copy command queues are allowed to be used or if
