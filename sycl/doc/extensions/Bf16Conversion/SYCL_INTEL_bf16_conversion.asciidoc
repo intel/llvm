@@ -137,6 +137,7 @@ public:
 
   // Convert from float to bfloat16
   bfloat16(const float &a);
+  bfloat16 &operator=(const float &a);
 
   // Convert from bfloat16 to float
   operator float() const;
@@ -194,6 +195,9 @@ Table 1. Member functions of `bfloat16` class.
 
 | `bfloat16(const float& a);`
 | Construct `bfloat16` from `float`. Converts `float` to `bfloat16`.
+
+| `bfloat16 &operator=(const float &a);`
+| Replace the value with `a` converted to `bfloat16`
 
 | `operator float() const;`
 |  Return `bfloat16` value converted to `float`.
