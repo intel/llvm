@@ -849,7 +849,6 @@ private:
       setType(detail::CG::Kernel);
 #endif
     }
-    this->finalize();
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
