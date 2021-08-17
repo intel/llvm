@@ -391,8 +391,8 @@ struct UnrollContractionPattern
       auto extractOperand = [&](unsigned index, Value operand,
                                 AffineMap permutationMap,
                                 ArrayRef<int64_t> operandOffets) {
-        SmallVector<int64_t> operandShape =
-            applyPermuationMap(permutationMap, ArrayRef<int64_t>(*targetShape));
+        SmallVector<int64_t> operandShape = applyPermutationMap(
+            permutationMap, ArrayRef<int64_t>(*targetShape));
         SmallVector<int64_t, 4> operandStrides(operandOffets.size(), 1);
         slicesOperands[index] = rewriter.create<vector::ExtractStridedSliceOp>(
             loc, operand, operandOffets, operandShape, operandStrides);
@@ -401,7 +401,7 @@ struct UnrollContractionPattern
       // Extract the new lhs operand.
       AffineMap lhsPermutationMap = contractOp.getIndexingMaps()[0];
       SmallVector<int64_t> lhsOffets =
-          applyPermuationMap(lhsPermutationMap, ArrayRef<int64_t>(offsets));
+          applyPermutationMap(lhsPermutationMap, ArrayRef<int64_t>(offsets));
       extractOperand(0, contractOp.lhs(), lhsPermutationMap, lhsOffets);
       // If there is a mask associated to lhs, extract it as well.
       if (slicesOperands.size() > 3)
@@ -410,7 +410,7 @@ struct UnrollContractionPattern
       // Extract the new rhs operand.
       AffineMap rhsPermutationMap = contractOp.getIndexingMaps()[1];
       SmallVector<int64_t> rhsOffets =
-          applyPermuationMap(rhsPermutationMap, ArrayRef<int64_t>(offsets));
+          applyPermutationMap(rhsPermutationMap, ArrayRef<int64_t>(offsets));
       extractOperand(1, contractOp.rhs(), rhsPermutationMap, rhsOffets);
       // If there is a mask associated to rhs, extract it as well.
       if (slicesOperands.size() > 4)
@@ -418,7 +418,7 @@ struct UnrollContractionPattern
 
       AffineMap accPermutationMap = contractOp.getIndexingMaps()[2];
       SmallVector<int64_t> accOffets =
-          applyPermuationMap(accPermutationMap, ArrayRef<int64_t>(offsets));
+          applyPermutationMap(accPermutationMap, ArrayRef<int64_t>(offsets));
       // If a version of the accumulator has already been computed, use it
       // otherwise extract the first version from the original operand.
       auto accIt = accCache.find(accOffets);
@@ -428,13 +428,13 @@ struct UnrollContractionPattern
         extractOperand(2, contractOp.acc(), accPermutationMap, accOffets);
 
       SmallVector<int64_t> dstShape =
-          applyPermuationMap(dstAffineMap, ArrayRef<int64_t>(*targetShape));
+          applyPermutationMap(dstAffineMap, ArrayRef<int64_t>(*targetShape));
       auto targetType = VectorType::get(dstShape, dstVecType.getElementType());
       Operation *newOp = cloneOpWithOperandsAndTypes(
           rewriter, loc, contractOp, slicesOperands, targetType);
 
       SmallVector<int64_t> dstOffets =
-          applyPermuationMap(dstAffineMap, ArrayRef<int64_t>(offsets));
+          applyPermutationMap(dstAffineMap, ArrayRef<int64_t>(offsets));
       // Save the accumulated value untill all the loops are unrolled since
       // reduction loop keep updating the accumulator.
       accCache[dstOffets] = newOp->getResult(0);
@@ -1324,15 +1324,14 @@ LogicalResult ContractionOpToOuterProductOpLowering::matchAndRewrite(
   VectorType lhsType = op.getLhsType();
   Value lhs = op.lhs(), rhs = op.rhs(), res = op.acc();
 
-  // Set up the parallel/reduction structure in right form.
-  AffineExpr m, n, k;
-  bindDims(rewriter.getContext(), m, n, k);
-
   //
   // Two outer parallel, one inner reduction (matmat flavor).
   //
   UnrolledOuterProductEmitter e(rewriter, op);
   if (e.iters({Par(), Par(), Red()})) {
+    // Set up the parallel/reduction structure in right form.
+    AffineExpr m, n, k;
+    bindDims(rewriter.getContext(), m, n, k);
     // Classical row-major matmul:  Just permute the lhs.
     if (e.layout({{m, k}, {k, n}, {m, n}}))
       return e.outer_prod(e.t(lhs), rhs, res, lhsType.getDimSize(1));
@@ -1367,17 +1366,42 @@ LogicalResult ContractionOpToOuterProductOpLowering::matchAndRewrite(
   // One outer parallel, one inner reduction (matvec flavor)
   //
   if (e.iters({Par(), Red()})) {
+    AffineExpr m, k;
+    bindDims(rewriter.getContext(), m, k);
+
     // Case mat-vec: transpose.
-    if (e.layout({{m, n}, {n}, {m}}))
+    if (e.layout({{m, k}, {k}, {m}}))
       return e.outer_prod(e.t(lhs), rhs, res, lhsType.getDimSize(1));
     // Case mat-trans-vec: ready to go.
-    if (e.layout({{n, m}, {n}, {m}}))
+    if (e.layout({{k, m}, {k}, {m}}))
       return e.outer_prod(lhs, rhs, res, lhsType.getDimSize(0));
     // Case vec-mat: swap and transpose.
-    if (e.layout({{n}, {m, n}, {m}}))
+    if (e.layout({{k}, {m, k}, {m}}))
       return e.outer_prod(e.t(rhs), lhs, res, lhsType.getDimSize(0));
     // Case vec-mat-trans: swap and ready to go.
-    if (e.layout({{n}, {n, m}, {m}}))
+    if (e.layout({{k}, {k, m}, {m}}))
+      return e.outer_prod(rhs, lhs, res, lhsType.getDimSize(0));
+    return failure();
+  }
+
+  //
+  // One outer reduction, one inner parallel (tmatvec flavor)
+  //
+  if (e.iters({Red(), Par()})) {
+    AffineExpr k, m;
+    bindDims(rewriter.getContext(), k, m);
+
+    // Case mat-vec: transpose.
+    if (e.layout({{m, k}, {k}, {m}}))
+      return e.outer_prod(e.t(lhs), rhs, res, lhsType.getDimSize(1));
+    // Case mat-trans-vec: ready to go.
+    if (e.layout({{k, m}, {k}, {m}}))
+      return e.outer_prod(lhs, rhs, res, lhsType.getDimSize(0));
+    // Case vec-mat: swap and transpose.
+    if (e.layout({{k}, {m, k}, {m}}))
+      return e.outer_prod(e.t(rhs), lhs, res, lhsType.getDimSize(0));
+    // Case vec-mat-trans: swap and ready to go.
+    if (e.layout({{k}, {k, m}, {m}}))
       return e.outer_prod(rhs, lhs, res, lhsType.getDimSize(0));
     return failure();
   }
@@ -2804,6 +2828,18 @@ struct TransferOpReduceRank : public OpRewritePattern<vector::TransferReadOp> {
     // with broadasting. Otherwise we first want to permute the map.
     if (!newMap.isMinorIdentityWithBroadcasting())
       return failure();
+
+    // TODO: support zero-dimension vectors natively.  See:
+    // https://llvm.discourse.group/t/should-we-have-0-d-vectors/3097.
+    // In the meantime, lower these to a scalar load when they pop up.
+    if (reducedShapeRank == 0) {
+      Value newRead = rewriter.create<memref::LoadOp>(
+          op.getLoc(), originalVecType.getElementType(), op.source(),
+          op.indices());
+      rewriter.replaceOpWithNewOp<vector::BroadcastOp>(op, originalVecType,
+                                                       newRead);
+      return success();
+    }
     SmallVector<int64_t> newShape = llvm::to_vector<4>(
         originalVecType.getShape().take_back(reducedShapeRank));
     // Vector rank cannot be zero. Handled by TransferReadToVectorLoadLowering.

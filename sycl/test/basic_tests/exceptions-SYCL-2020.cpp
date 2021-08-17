@@ -11,7 +11,7 @@ int main() {
   const char *emptyCharPtr = "";
 
   // Going to set the error code values to each of the enum (0-12).
-  exception ex1(make_error_code(errc::runtime), emptyStr);
+  exception ex1(make_error_code(errc::runtime), emptyStr); // errc::runtime == 1
   exception ex2(make_error_code(errc::kernel), emptyCharPtr);
   exception ex3(make_error_code(errc::accessor));
   exception ex4(static_cast<int>(errc::nd_range), sycl_category(), emptyStr);
@@ -34,7 +34,8 @@ int main() {
                            ex7, ex8, ex9, ex10, ex11, ex12};
   for (int i = 0; i < 12; i++) {
     exception ex = v[i];
-    assert(ex.code().value() == i && "unexpected error_code.value() retrieved");
+    assert(ex.code().value() == i + 1 &&
+           "unexpected error_code.value() retrieved");
     assert(ex.category() == sycl_category() && "expected SYCL error category");
     if (i < 6) {
       assert(!ex.has_context() &&
@@ -63,14 +64,14 @@ int main() {
   assert(strcmp(ex_string2.what(), testCharPtr) == 0);
 
   // Test sycl_category.
-  assert(std::string("SYCL").compare(sycl_category().name()) == 0 &&
-         "sycl_category name should be SYCL");
+  assert(std::string("sycl").compare(sycl_category().name()) == 0 &&
+         "sycl_category name should be 'sycl'");
 
   // Test make_error_code.
   std::error_code ec = make_error_code(errc::feature_not_supported);
   assert(ec.value() == static_cast<int>(errc::feature_not_supported));
-  assert(std::string("SYCL").compare(ec.category().name()) == 0 &&
-         "error code category name should be SYCL");
+  assert(std::string("sycl").compare(ec.category().name()) == 0 &&
+         "error code category name should be 'sycl'");
 
   // Test enum
   static_assert(std::is_error_code_enum<sycl::errc>::value, "errc enum should identify as error code");

@@ -25,7 +25,6 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
-#include "llvm/CodeGen/WasmEHFuncInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/Function.h"
@@ -33,6 +32,7 @@
 #include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/KnownBits.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetOptions.h"
@@ -823,6 +823,30 @@ bool WebAssemblyTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
   }
 }
 
+void WebAssemblyTargetLowering::computeKnownBitsForTargetNode(
+    const SDValue Op, KnownBits &Known, const APInt &DemandedElts,
+    const SelectionDAG &DAG, unsigned Depth) const {
+  switch (Op.getOpcode()) {
+  default:
+    break;
+  case ISD::INTRINSIC_WO_CHAIN: {
+    unsigned IntNo = Op.getConstantOperandVal(0);
+    switch (IntNo) {
+    default:
+      break;
+    case Intrinsic::wasm_bitmask: {
+      unsigned BitWidth = Known.getBitWidth();
+      EVT VT = Op.getOperand(1).getSimpleValueType();
+      unsigned PossibleBits = VT.getVectorNumElements();
+      APInt ZeroMask = APInt::getHighBitsSet(BitWidth, BitWidth - PossibleBits);
+      Known.Zero |= ZeroMask;
+      break;
+    }
+    }
+  }
+  }
+}
+
 //===----------------------------------------------------------------------===//
 // WebAssembly Lowering private implementation.
 //===----------------------------------------------------------------------===//
@@ -1468,7 +1492,7 @@ SDValue WebAssemblyTargetLowering::LowerRETURNADDR(SDValue Op,
   if (verifyReturnAddressArgumentIsConstant(Op, DAG))
     return SDValue();
 
-  unsigned Depth = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+  unsigned Depth = Op.getConstantOperandVal(0);
   MakeLibCallOptions CallOptions;
   return makeLibCall(DAG, RTLIB::RETURN_ADDRESS, Op.getValueType(),
                      {DAG.getConstant(Depth, DL, MVT::i32)}, CallOptions, DL)
@@ -1640,21 +1664,6 @@ SDValue WebAssemblyTargetLowering::LowerVASTART(SDValue Op,
                       MachinePointerInfo(SV));
 }
 
-static SDValue getCppExceptionSymNode(SDValue Op, unsigned TagIndex,
-                                      SelectionDAG &DAG) {
-  // We only support C++ exceptions for now
-  int Tag =
-      cast<ConstantSDNode>(Op.getOperand(TagIndex).getNode())->getZExtValue();
-  if (Tag != WebAssembly::CPP_EXCEPTION)
-    llvm_unreachable("Invalid tag: We only support C++ exceptions for now");
-  auto &MF = DAG.getMachineFunction();
-  const auto &TLI = DAG.getTargetLoweringInfo();
-  MVT PtrVT = TLI.getPointerTy(DAG.getDataLayout());
-  const char *SymName = MF.createExternalSymbolName("__cpp_exception");
-  return DAG.getNode(WebAssemblyISD::Wrapper, SDLoc(Op), PtrVT,
-                     DAG.getTargetExternalSymbol(SymName, PtrVT));
-}
-
 SDValue WebAssemblyTargetLowering::LowerIntrinsic(SDValue Op,
                                                   SelectionDAG &DAG) const {
   MachineFunction &MF = DAG.getMachineFunction();
@@ -1662,10 +1671,10 @@ SDValue WebAssemblyTargetLowering::LowerIntrinsic(SDValue Op,
   switch (Op.getOpcode()) {
   case ISD::INTRINSIC_VOID:
   case ISD::INTRINSIC_W_CHAIN:
-    IntNo = cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue();
+    IntNo = Op.getConstantOperandVal(1);
     break;
   case ISD::INTRINSIC_WO_CHAIN:
-    IntNo = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+    IntNo = Op.getConstantOperandVal(0);
     break;
   default:
     llvm_unreachable("Invalid intrinsic");
@@ -1685,30 +1694,6 @@ SDValue WebAssemblyTargetLowering::LowerIntrinsic(SDValue Op,
                                             Twine(MF.getFunctionNumber()));
     return DAG.getNode(WebAssemblyISD::Wrapper, DL, VT,
                        DAG.getMCSymbol(S, PtrVT));
-  }
-
-  case Intrinsic::wasm_throw: {
-    SDValue SymNode = getCppExceptionSymNode(Op, 2, DAG);
-    return DAG.getNode(WebAssemblyISD::THROW, DL,
-                       MVT::Other, // outchain type
-                       {
-                           Op.getOperand(0), // inchain
-                           SymNode,          // exception symbol
-                           Op.getOperand(3)  // thrown value
-                       });
-  }
-
-  case Intrinsic::wasm_catch: {
-    SDValue SymNode = getCppExceptionSymNode(Op, 2, DAG);
-    return DAG.getNode(WebAssemblyISD::CATCH, DL,
-                       {
-                           MVT::i32,  // outchain type
-                           MVT::Other // return value
-                       },
-                       {
-                           Op.getOperand(0), // inchain
-                           SymNode           // exception symbol
-                       });
   }
 
   case Intrinsic::wasm_shuffle: {

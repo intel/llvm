@@ -4687,7 +4687,8 @@ TargetLowering::ParseConstraints(const DataLayout &DL,
             getSimpleValueType(DL, STy->getElementType(ResNo));
       } else {
         assert(ResNo == 0 && "Asm only has one result!");
-        OpInfo.ConstraintVT = getSimpleValueType(DL, Call.getType());
+        OpInfo.ConstraintVT =
+            getAsmOperandValueType(DL, Call.getType()).getSimpleVT();
       }
       ++ResNo;
       break;
@@ -5605,7 +5606,7 @@ TargetLowering::prepareUREMEqFold(EVT SETCCVT, SDValue REMNode,
     return SDValue();
 
   SDValue PVal, KVal, QVal;
-  if (VT.isVector()) {
+  if (D.getOpcode() == ISD::BUILD_VECTOR) {
     if (HadTautologicalLanes) {
       // Try to turn PAmts into a splat, since we don't care about the values
       // that are currently '0'. If we can't, just keep '0'`s.
@@ -5619,6 +5620,13 @@ TargetLowering::prepareUREMEqFold(EVT SETCCVT, SDValue REMNode,
     PVal = DAG.getBuildVector(VT, DL, PAmts);
     KVal = DAG.getBuildVector(ShVT, DL, KAmts);
     QVal = DAG.getBuildVector(VT, DL, QAmts);
+  } else if (D.getOpcode() == ISD::SPLAT_VECTOR) {
+    assert(PAmts.size() == 1 && KAmts.size() == 1 && QAmts.size() == 1 &&
+           "Expected matchBinaryPredicate to return one element for "
+           "SPLAT_VECTORs");
+    PVal = DAG.getSplatVector(VT, DL, PAmts[0]);
+    KVal = DAG.getSplatVector(ShVT, DL, KAmts[0]);
+    QVal = DAG.getSplatVector(VT, DL, QAmts[0]);
   } else {
     PVal = PAmts[0];
     KVal = KAmts[0];
@@ -6960,6 +6968,35 @@ SDValue TargetLowering::expandFMINNUM_FMAXNUM(SDNode *Node,
   }
 
   return SDValue();
+}
+
+SDValue TargetLowering::expandISNAN(EVT ResultVT, SDValue Op, SDNodeFlags Flags,
+                                    const SDLoc &DL, SelectionDAG &DAG) const {
+  EVT OperandVT = Op.getValueType();
+  assert(OperandVT.isFloatingPoint());
+
+  // If floating point exceptions are ignored, expand to unordered comparison.
+  if (Flags.hasNoFPExcept() &&
+      isOperationLegalOrCustom(ISD::SETCC, OperandVT.getScalarType()))
+    return DAG.getSetCC(DL, ResultVT, Op, DAG.getConstantFP(0.0, DL, OperandVT),
+                        ISD::SETUO);
+
+  // In general case use integer operations to avoid traps if argument is SNaN.
+
+  // NaN has all exp bits set and a non zero significand. Therefore:
+  // isnan(V) == exp mask < abs(V)
+  unsigned BitSize = OperandVT.getScalarSizeInBits();
+  EVT IntVT = OperandVT.changeTypeToInteger();
+  SDValue ArgV = DAG.getBitcast(IntVT, Op);
+  APInt AndMask = APInt::getSignedMaxValue(BitSize);
+  SDValue AndMaskV = DAG.getConstant(AndMask, DL, IntVT);
+  SDValue AbsV = DAG.getNode(ISD::AND, DL, IntVT, ArgV, AndMaskV);
+  EVT ScalarFloatVT = OperandVT.getScalarType();
+  const Type *FloatTy = ScalarFloatVT.getTypeForEVT(*DAG.getContext());
+  const llvm::fltSemantics &Semantics = FloatTy->getFltSemantics();
+  APInt ExpMask = APFloat::getInf(Semantics).bitcastToAPInt();
+  SDValue ExpMaskV = DAG.getConstant(ExpMask, DL, IntVT);
+  return DAG.getSetCC(DL, ResultVT, ExpMaskV, AbsV, ISD::SETLT);
 }
 
 bool TargetLowering::expandCTPOP(SDNode *Node, SDValue &Result,

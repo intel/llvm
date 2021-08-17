@@ -53,11 +53,12 @@ device_filter::device_filter(const std::string &FilterString) {
 
   // Handle the optional 1st field of the filter, backend
   // Check if the first entry matches with a known backend type
-  auto It =
+  auto It = std::find_if(std::begin(getSyclBeMap()), std::end(getSyclBeMap()),
       std::find_if(std::begin(SyclBeMap), std::end(SyclBeMap), FindElement);
+                         FindElement);
   // If no match is found, set the backend type backend::all
   // which actually means 'any backend' will be a match.
-  if (It == SyclBeMap.end())
+  if (It == getSyclBeMap().end())
     Backend = backend::all;
   else {
     Backend = It->second;
@@ -69,11 +70,11 @@ device_filter::device_filter(const std::string &FilterString) {
   if (I >= Tokens.size()) {
     DeviceType = info::device_type::all;
   } else {
-    auto Iter = std::find_if(std::begin(SyclDeviceTypeMap),
-                             std::end(SyclDeviceTypeMap), FindElement);
+    auto Iter = std::find_if(std::begin(getSyclDeviceTypeMap()),
+                             std::end(getSyclDeviceTypeMap()), FindElement);
     // If no match is found, set device_type 'all',
     // which actually means 'any device_type' will be a match.
-    if (Iter == SyclDeviceTypeMap.end())
+    if (Iter == getSyclDeviceTypeMap().end())
       DeviceType = info::device_type::all;
     else {
       DeviceType = Iter->second;

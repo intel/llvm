@@ -696,7 +696,12 @@ pi_result rocm_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
             return;
           }
           int numDevices = 0;
-          err = PI_CHECK_ERROR(hipGetDeviceCount(&numDevices));
+          hipError_t hipErrorCode = hipGetDeviceCount(&numDevices);
+          if (hipErrorCode == hipErrorNoDevice) {
+            numPlatforms = 0;
+            return;
+          }
+          err = PI_CHECK_ERROR(hipErrorCode);
           if (numDevices == 0) {
             numPlatforms = 0;
             return;
@@ -3751,7 +3756,8 @@ pi_result rocm_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
       result = retImplEv->start();
     }
 
-    auto dstDevice = buffer->mem_.buffer_mem_.get_with_offset(offset);
+    auto dstDevice =
+        (uint8_t *)buffer->mem_.buffer_mem_.get_with_offset(offset);
     auto stream = command_queue->get();
     auto N = size / pattern_size;
 
@@ -3774,7 +3780,37 @@ pi_result rocm_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     }
 
     default: {
-      result = PI_INVALID_VALUE;
+      // HIP has no memset functions that allow setting values more than 4
+      // bytes. PI API lets you pass an arbitrary "pattern" to the buffer
+      // fill, which can be more than 4 bytes. We must break up the pattern
+      // into 1 byte values, and set the buffer using multiple strided calls.
+      // The first 4 patterns are set using hipMemsetD32Async then all
+      // subsequent 1 byte patterns are set using hipMemset2DAsync which is
+      // called for each pattern.
+
+      // Calculate the number of patterns, stride, number of times the pattern
+      // needs to be applied, and the number of times the first 32 bit pattern
+      // needs to be applied.
+      auto number_of_steps = pattern_size / sizeof(uint8_t);
+      auto pitch = number_of_steps * sizeof(uint8_t);
+      auto height = size / number_of_steps;
+      auto count_32 = size / sizeof(uint32_t);
+
+      // Get 4-byte chunk of the pattern and call hipMemsetD32Async
+      auto value = *(static_cast<const uint32_t *>(pattern));
+      result =
+          PI_CHECK_ERROR(hipMemsetD32Async(dstDevice, value, count_32, stream));
+      for (auto step = 4u; step < number_of_steps; ++step) {
+        // take 1 byte of the pattern
+        value = *(static_cast<const uint8_t *>(pattern) + step);
+
+        // offset the pointer to the part of the buffer we want to write to
+        auto offset_ptr = dstDevice + (step * sizeof(uint8_t));
+
+        // set all of the pattern chunks
+        result = PI_CHECK_ERROR(hipMemset2DAsync(
+            offset_ptr, pitch, value, sizeof(uint8_t), height, stream));
+      }
       break;
     }
     }

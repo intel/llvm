@@ -129,3 +129,5 @@ if(NOT LLVM_INTEGRATED_CRT_ALLOC)
   # The test doesn't pass when using a custom allocator, PR47881.
   add_subdirectory(DynamicLibrary)
 endif()
+
+add_subdirectory(CommandLineInit)

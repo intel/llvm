@@ -2830,8 +2830,7 @@ Instruction *InstCombinerImpl::foldICmpSelectConstant(ICmpInst &Cmp,
   return nullptr;
 }
 
-static Instruction *foldICmpBitCast(ICmpInst &Cmp,
-                                    InstCombiner::BuilderTy &Builder) {
+Instruction *InstCombinerImpl::foldICmpBitCast(ICmpInst &Cmp) {
   auto *Bitcast = dyn_cast<BitCastInst>(Cmp.getOperand(0));
   if (!Bitcast)
     return nullptr;
@@ -2917,6 +2916,39 @@ static Instruction *foldICmpBitCast(ICmpInst &Cmp,
     return new ICmpInst(Pred, BCSrcOp, Op1);
   }
 
+  const APInt *C;
+  if (!match(Cmp.getOperand(1), m_APInt(C)) ||
+      !Bitcast->getType()->isIntegerTy() ||
+      !Bitcast->getSrcTy()->isIntOrIntVectorTy())
+    return nullptr;
+
+  // If this is checking if all elements of a vector compare are set or not,
+  // invert the casted vector equality compare and test if all compare
+  // elements are clear or not. Compare against zero is generally easier for
+  // analysis and codegen.
+  // icmp eq/ne (bitcast (not X) to iN), -1 --> icmp eq/ne (bitcast X to iN), 0
+  // Example: are all elements equal? --> are zero elements not equal?
+  // TODO: Try harder to reduce compare of 2 freely invertible operands?
+  if (Cmp.isEquality() && C->isAllOnesValue() && Bitcast->hasOneUse() &&
+      isFreeToInvert(BCSrcOp, BCSrcOp->hasOneUse())) {
+    Type *ScalarTy = Bitcast->getType();
+    Value *Cast = Builder.CreateBitCast(Builder.CreateNot(BCSrcOp), ScalarTy);
+    return new ICmpInst(Pred, Cast, ConstantInt::getNullValue(ScalarTy));
+  }
+
+  // If this is checking if all elements of an extended vector are clear or not,
+  // compare in a narrow type to eliminate the extend:
+  // icmp eq/ne (bitcast (ext X) to iN), 0 --> icmp eq/ne (bitcast X to iM), 0
+  Value *X;
+  if (Cmp.isEquality() && C->isNullValue() && Bitcast->hasOneUse() &&
+      match(BCSrcOp, m_ZExtOrSExt(m_Value(X)))) {
+    if (auto *VecTy = dyn_cast<FixedVectorType>(X->getType())) {
+      Type *NewType = Builder.getIntNTy(VecTy->getPrimitiveSizeInBits());
+      Value *NewCast = Builder.CreateBitCast(X, NewType);
+      return new ICmpInst(Pred, NewCast, ConstantInt::getNullValue(NewType));
+    }
+  }
+
   // Folding: icmp <pred> iN X, C
   //  where X = bitcast <M x iK> (shufflevector <M x iK> %vec, undef, SC)) to iN
   //    and C is a splat of a K-bit pattern
@@ -2924,12 +2956,6 @@ static Instruction *foldICmpBitCast(ICmpInst &Cmp,
   // Into:
   //   %E = extractelement <M x iK> %vec, i32 C'
   //   icmp <pred> iK %E, trunc(C)
-  const APInt *C;
-  if (!match(Cmp.getOperand(1), m_APInt(C)) ||
-      !Bitcast->getType()->isIntegerTy() ||
-      !Bitcast->getSrcTy()->isIntOrIntVectorTy())
-    return nullptr;
-
   Value *Vec;
   ArrayRef<int> Mask;
   if (match(BCSrcOp, m_Shuffle(m_Value(Vec), m_Undef(), m_Mask(Mask)))) {
@@ -5777,7 +5803,7 @@ Instruction *InstCombinerImpl::visitICmpInst(ICmpInst &I) {
         return New;
   }
 
-  if (Instruction *Res = foldICmpBitCast(I, Builder))
+  if (Instruction *Res = foldICmpBitCast(I))
     return Res;
 
   // TODO: Hoist this above the min/max bailout.

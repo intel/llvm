@@ -73,7 +73,7 @@ let Command = "breakpoint modify" in {
     "index matches this argument.">;
   def breakpoint_modify_thread_id : Option<"thread-id", "t">, Group<1>,
     Arg<"ThreadID">, Desc<"The breakpoint stops only for the thread whose TID "
-    "matches this argument.">;
+    "matches this argument.  The token 'current' resolves to the current thread's ID.">;
   def breakpoint_modify_thread_name : Option<"thread-name", "T">, Group<1>,
     Arg<"ThreadName">, Desc<"The breakpoint stops only for the thread whose "
     "thread name matches this argument.">;
@@ -502,6 +502,14 @@ let Command = "memory write" in {
     Required, Desc<"Write memory using the contents of a file.">;
   def memory_write_offset : Option<"offset", "o">, Group<1>, Arg<"Offset">,
     Desc<"Start writing bytes from an offset within the input file.">;
+}
+
+let Command = "memory tag write" in {
+  def memory_write_end_addr : Option<"end-addr", "e">, Group<1>,
+  Arg<"AddressOrExpression">, Desc<
+    "Set tags for start address to end-addr, repeating tags as needed"
+    " to cover the range. (instead of calculating the range from the"
+    " number of tags given)">;
 }
 
 let Command = "register read" in {

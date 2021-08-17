@@ -2867,6 +2867,12 @@ The compiler may assume execution will continue after a volatile operation,
 so operations which modify memory or may have undefined behavior can be
 hoisted past a volatile operation.
 
+As an exception to the preceding rule, the compiler may not assume execution
+will continue after a volatile store operation. This restriction is necessary
+to support the somewhat common pattern in C of intentionally storing to an
+invalid pointer to crash the program. In the future, it might make sense to
+allow frontends to control this behavior.
+
 IR-level volatile loads and stores cannot safely be optimized into llvm.memcpy
 or llvm.memmove intrinsics even when those intrinsics are flagged volatile.
 Likewise, the backend should never split or merge target-legal volatile
@@ -4773,6 +4779,8 @@ RISC-V:
 - ``f``: A 32- or 64-bit floating-point register (requires F or D extension).
 - ``r``: A 32- or 64-bit general-purpose register (depending on the platform
   ``XLEN``).
+- ``vr``: A vector register. (requires V extension).
+- ``vm``: A vector mask register. (requires V extension).
 
 Sparc:
 
@@ -5558,7 +5566,7 @@ DILocalVariable
 
 ``DILocalVariable`` nodes represent local variables in the source language. If
 the ``arg:`` field is set to non-zero, then this variable is a subprogram
-parameter, and it will be included in the ``variables:`` field of its
+parameter, and it will be included in the ``retainedNodes:`` field of its
 :ref:`DISubprogram`.
 
 .. code-block:: text
@@ -14204,7 +14212,7 @@ all types however.
 
 ::
 
-      declare float     @llvm.maxnum.f32(float  %Val0, float  %Val1l)
+      declare float     @llvm.maxnum.f32(float  %Val0, float  %Val1)
       declare double    @llvm.maxnum.f64(double %Val0, double %Val1)
       declare x86_fp80  @llvm.maxnum.f80(x86_fp80  %Val0, x86_fp80  %Val1)
       declare fp128     @llvm.maxnum.f128(fp128 %Val0, fp128 %Val1)
@@ -20975,6 +20983,52 @@ The '``llvm.set.rounding``' intrinsic sets the current rounding mode. It is
 similar to C library function 'fesetround', however this intrinsic does not
 return any value and uses platform-independent representation of IEEE rounding
 modes.
+
+
+Floating Point Test Intrinsics
+------------------------------
+
+These functions get properties of floating point values.
+
+
+'``llvm.isnan``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare i1 @llvm.isnan(<fptype> <op>)
+      declare <N x i1> @llvm.isnan(<vector-fptype> <op>)
+
+Overview:
+"""""""""
+
+The '``llvm.isnan``' intrinsic returns a boolean value or vector of boolean
+values depending on whether the value is NaN.
+
+If the operand is a floating-point scalar, then the result type is a
+boolean (:ref:`i1 <t_integer>`).
+
+If the operand is a floating-point vector, then the result type is a
+vector of boolean with the same number of elements as the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.isnan``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>`
+of floating-point values.
+
+
+Semantics:
+""""""""""
+
+The function tests if ``op`` is NaN. If ``op`` is a vector, then the
+check is made element by element. Each test yields an :ref:`i1 <t_integer>`
+result, which is ``true``, if the value is NaN. The function never raises
+floating point exceptions.
 
 
 General Intrinsics

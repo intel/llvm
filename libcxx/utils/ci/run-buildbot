@@ -170,7 +170,14 @@ check-generated-output)
     echo "+++ Making sure the generator scripts were run"
     ${NINJA} -vC "${BUILD_DIR}" libcxx-generate-files
     git diff | tee ${BUILD_DIR}/generated_output.patch
+    git ls-files -o --exclude-standard | tee ${BUILD_DIR}/generated_output.status
     ! grep -q '^--- a' ${BUILD_DIR}/generated_output.patch || false
+    if [ -s ${BUILD_DIR}/generated_output.status ]; then
+        echo "It looks like not all the generator scripts were run,"
+        echo "did you forget to build the libcxx-generate-files target?"
+        echo "Did you add all new files it generated?"
+        false
+    fi
 
     # Reject patches that introduce non-ASCII characters or hard tabs.
     # Depends on LC_COLLATE set at the top of this script.
@@ -180,9 +187,6 @@ check-generated-output)
     python3 libcxx/utils/graph_header_deps.py >/dev/null
 ;;
 generic-cxx03)
-    # TODO: Switch to compiling with Clang ToT once issues with https://reviews.llvm.org/D104500 are resolved.
-    export CC=clang-12
-    export CXX=clang++-12
     clean
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx03.cmake" \
                    -DLIBCXX_TEST_CONFIG="${MONOREPO_ROOT}/libcxx/test/configs/libcxx-trunk-shared.cfg.in"
@@ -476,15 +480,11 @@ legacy-standalone)
     ${NINJA} -vC "${BUILD_DIR}/libcxxabi" check-cxxabi
 ;;
 aarch64)
-    export CC=/usr/local/bin/cc
-    export CXX=/usr/local/bin/c++
     clean
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/AArch64.cmake"
     check-cxx-cxxabi
 ;;
 aarch64-noexceptions)
-    export CC=/usr/local/bin/cc
-    export CXX=/usr/local/bin/c++
     clean
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/AArch64.cmake" \
                    -DLIBCXX_ENABLE_EXCEPTIONS=OFF \
@@ -493,30 +493,22 @@ aarch64-noexceptions)
 ;;
 # Aka Armv8 32 bit
 armv8)
-    export CC=/usr/local/bin/cc
-    export CXX=/usr/local/bin/c++
     clean
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Armv8Arm.cmake"
     check-cxx-cxxabi
 ;;
 armv8-noexceptions)
-    export CC=/usr/local/bin/cc
-    export CXX=/usr/local/bin/c++
     clean
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Armv8Thumb-noexceptions.cmake"
     check-cxx-cxxabi
 ;;
 # Armv7 32 bit. One building Arm only one Thumb only code.
 armv7)
-    export CC=/usr/local/bin/cc
-    export CXX=/usr/local/bin/c++
     clean
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Armv7Arm.cmake"
     check-cxx-cxxabi
 ;;
 armv7-noexceptions)
-    export CC=/usr/local/bin/cc
-    export CXX=/usr/local/bin/c++
     clean
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Armv7Thumb-noexceptions.cmake"
     check-cxx-cxxabi

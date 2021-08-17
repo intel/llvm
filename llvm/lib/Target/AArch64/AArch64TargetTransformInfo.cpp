@@ -14,6 +14,7 @@
 #include "llvm/CodeGen/BasicTTIImpl.h"
 #include "llvm/CodeGen/CostTable.h"
 #include "llvm/CodeGen/TargetLowering.h"
+#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsAArch64.h"
 #include "llvm/IR/PatternMatch.h"
@@ -220,19 +221,15 @@ AArch64TTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
   auto *RetTy = ICA.getReturnType();
   switch (ICA.getID()) {
   case Intrinsic::umin:
-  case Intrinsic::umax: {
-    auto LT = TLI->getTypeLegalizationCost(DL, RetTy);
-    // umin(x,y) -> sub(x,usubsat(x,y))
-    // umax(x,y) -> add(x,usubsat(y,x))
-    if (LT.second == MVT::v2i64)
-      return LT.first * 2;
-    LLVM_FALLTHROUGH;
-  }
+  case Intrinsic::umax:
   case Intrinsic::smin:
   case Intrinsic::smax: {
     static const auto ValidMinMaxTys = {MVT::v8i8,  MVT::v16i8, MVT::v4i16,
                                         MVT::v8i16, MVT::v2i32, MVT::v4i32};
     auto LT = TLI->getTypeLegalizationCost(DL, RetTy);
+    // v2i64 types get converted to cmp+bif hence the cost of 2
+    if (LT.second == MVT::v2i64)
+      return LT.first * 2;
     if (any_of(ValidMinMaxTys, [&LT](MVT M) { return M == LT.second; }))
       return LT.first;
     break;
@@ -547,13 +544,33 @@ static Optional<Instruction *> instCombineSVECmpNE(InstCombiner &IC,
 
 static Optional<Instruction *> instCombineSVELast(InstCombiner &IC,
                                                   IntrinsicInst &II) {
+  IRBuilder<> Builder(II.getContext());
+  Builder.SetInsertPoint(&II);
   Value *Pg = II.getArgOperand(0);
   Value *Vec = II.getArgOperand(1);
-  bool IsAfter = II.getIntrinsicID() == Intrinsic::aarch64_sve_lasta;
+  auto IntrinsicID = II.getIntrinsicID();
+  bool IsAfter = IntrinsicID == Intrinsic::aarch64_sve_lasta;
 
   // lastX(splat(X)) --> X
   if (auto *SplatVal = getSplatValue(Vec))
     return IC.replaceInstUsesWith(II, SplatVal);
+
+  // If x and/or y is a splat value then:
+  // lastX (binop (x, y)) --> binop(lastX(x), lastX(y))
+  Value *LHS, *RHS;
+  if (match(Vec, m_OneUse(m_BinOp(m_Value(LHS), m_Value(RHS))))) {
+    if (isSplatValue(LHS) || isSplatValue(RHS)) {
+      auto *OldBinOp = cast<BinaryOperator>(Vec);
+      auto OpC = OldBinOp->getOpcode();
+      auto *NewLHS =
+          Builder.CreateIntrinsic(IntrinsicID, {Vec->getType()}, {Pg, LHS});
+      auto *NewRHS =
+          Builder.CreateIntrinsic(IntrinsicID, {Vec->getType()}, {Pg, RHS});
+      auto *NewBinOp = BinaryOperator::CreateWithCopiedFlags(
+          OpC, NewLHS, NewRHS, OldBinOp, OldBinOp->getName(), &II);
+      return IC.replaceInstUsesWith(II, NewBinOp);
+    }
+  }
 
   auto *C = dyn_cast<Constant>(Pg);
   if (IsAfter && C && C->isNullValue()) {
@@ -766,6 +783,28 @@ static Optional<Instruction *> instCombineSVEVectorMul(InstCombiner &IC,
   return None;
 }
 
+static Optional<Instruction *> instCombineSVEUnpack(InstCombiner &IC,
+                                                    IntrinsicInst &II) {
+  IRBuilder<> Builder(II.getContext());
+  Builder.SetInsertPoint(&II);
+  Value *UnpackArg = II.getArgOperand(0);
+  auto *RetTy = cast<ScalableVectorType>(II.getType());
+  bool IsSigned = II.getIntrinsicID() == Intrinsic::aarch64_sve_sunpkhi ||
+                  II.getIntrinsicID() == Intrinsic::aarch64_sve_sunpklo;
+
+  // Hi = uunpkhi(splat(X)) --> Hi = splat(extend(X))
+  // Lo = uunpklo(splat(X)) --> Lo = splat(extend(X))
+  if (auto *ScalarArg = getSplatValue(UnpackArg)) {
+    ScalarArg =
+        Builder.CreateIntCast(ScalarArg, RetTy->getScalarType(), IsSigned);
+    Value *NewVal =
+        Builder.CreateVectorSplat(RetTy->getElementCount(), ScalarArg);
+    NewVal->takeName(&II);
+    return IC.replaceInstUsesWith(II, NewVal);
+  }
+
+  return None;
+}
 static Optional<Instruction *> instCombineSVETBL(InstCombiner &IC,
                                                  IntrinsicInst &II) {
   auto *OpVal = II.getOperand(0);
@@ -831,6 +870,11 @@ AArch64TTIImpl::instCombineIntrinsic(InstCombiner &IC,
     return instCombineSVEVectorMul(IC, II);
   case Intrinsic::aarch64_sve_tbl:
     return instCombineSVETBL(IC, II);
+  case Intrinsic::aarch64_sve_uunpkhi:
+  case Intrinsic::aarch64_sve_uunpklo:
+  case Intrinsic::aarch64_sve_sunpkhi:
+  case Intrinsic::aarch64_sve_sunpklo:
+    return instCombineSVEUnpack(IC, II);
   }
 
   return None;
@@ -1543,14 +1587,9 @@ InstructionCost AArch64TTIImpl::getGatherScatterOpCost(
     return InstructionCost::getInvalid();
 
   ElementCount LegalVF = LT.second.getVectorElementCount();
-  Optional<unsigned> MaxNumVScale = getMaxVScale();
-  assert(MaxNumVScale && "Expected valid max vscale value");
-
   InstructionCost MemOpCost =
       getMemoryOpCost(Opcode, VT->getElementType(), Alignment, 0, CostKind, I);
-  unsigned MaxNumElementsPerGather =
-      MaxNumVScale.getValue() * LegalVF.getKnownMinValue();
-  return LT.first * MaxNumElementsPerGather * MemOpCost;
+  return LT.first * MemOpCost * getMaxNumElements(LegalVF);
 }
 
 bool AArch64TTIImpl::useNeonVector(const Type *Ty) const {
@@ -1710,9 +1749,10 @@ getFalkorUnrollingPreferences(Loop *L, ScalarEvolution &SE,
 }
 
 void AArch64TTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
-                                             TTI::UnrollingPreferences &UP) {
+                                             TTI::UnrollingPreferences &UP,
+                                             OptimizationRemarkEmitter *ORE) {
   // Enable partial unrolling and runtime unrolling.
-  BaseT::getUnrollingPreferences(L, SE, UP);
+  BaseT::getUnrollingPreferences(L, SE, UP, ORE);
 
   // For inner loop, it is more likely to be a hot one, and the runtime check
   // can be promoted out from LICM pass, so the overhead is less, let's try
@@ -1907,23 +1947,23 @@ InstructionCost
 AArch64TTIImpl::getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
                                        bool IsUnsigned,
                                        TTI::TargetCostKind CostKind) {
-  if (!isa<ScalableVectorType>(Ty))
-    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, CostKind);
-  assert((isa<ScalableVectorType>(Ty) && isa<ScalableVectorType>(CondTy)) &&
-         "Both vector needs to be scalable");
-
   std::pair<InstructionCost, MVT> LT = TLI->getTypeLegalizationCost(DL, Ty);
+
+  if (LT.second.getScalarType() == MVT::f16 && !ST->hasFullFP16())
+    return BaseT::getMinMaxReductionCost(Ty, CondTy, IsUnsigned, CostKind);
+
+  assert((isa<ScalableVectorType>(Ty) == isa<ScalableVectorType>(CondTy)) &&
+         "Both vector needs to be equally scalable");
+
   InstructionCost LegalizationCost = 0;
   if (LT.first > 1) {
     Type *LegalVTy = EVT(LT.second).getTypeForEVT(Ty->getContext());
-    unsigned CmpOpcode =
-        Ty->isFPOrFPVectorTy() ? Instruction::FCmp : Instruction::ICmp;
-    LegalizationCost =
-        getCmpSelInstrCost(CmpOpcode, LegalVTy, LegalVTy,
-                           CmpInst::BAD_ICMP_PREDICATE, CostKind) +
-        getCmpSelInstrCost(Instruction::Select, LegalVTy, LegalVTy,
-                           CmpInst::BAD_ICMP_PREDICATE, CostKind);
-    LegalizationCost *= LT.first - 1;
+    unsigned MinMaxOpcode =
+        Ty->isFPOrFPVectorTy()
+            ? Intrinsic::maxnum
+            : (IsUnsigned ? Intrinsic::umin : Intrinsic::smin);
+    IntrinsicCostAttributes Attrs(MinMaxOpcode, LegalVTy, {LegalVTy, LegalVTy});
+    LegalizationCost = getIntrinsicInstrCost(Attrs, CostKind) * (LT.first - 1);
   }
 
   return LegalizationCost + /*Cost of horizontal reduction*/ 2;
@@ -1956,7 +1996,22 @@ InstructionCost AArch64TTIImpl::getArithmeticReductionCostSVE(
 
 InstructionCost
 AArch64TTIImpl::getArithmeticReductionCost(unsigned Opcode, VectorType *ValTy,
+                                           Optional<FastMathFlags> FMF,
                                            TTI::TargetCostKind CostKind) {
+  if (TTI::requiresOrderedReduction(FMF)) {
+    if (!isa<ScalableVectorType>(ValTy))
+      return BaseT::getArithmeticReductionCost(Opcode, ValTy, FMF, CostKind);
+
+    if (Opcode != Instruction::FAdd)
+      return InstructionCost::getInvalid();
+
+    auto *VTy = cast<ScalableVectorType>(ValTy);
+    InstructionCost Cost =
+        getArithmeticInstrCost(Opcode, VTy->getScalarType(), CostKind);
+    Cost *= getMaxNumElements(VTy->getElementCount());
+    return Cost;
+  }
+
   if (isa<ScalableVectorType>(ValTy))
     return getArithmeticReductionCostSVE(Opcode, ValTy, CostKind);
 
@@ -2031,7 +2086,7 @@ AArch64TTIImpl::getArithmeticReductionCost(unsigned Opcode, VectorType *ValTy,
     }
     break;
   }
-  return BaseT::getArithmeticReductionCost(Opcode, ValTy, CostKind);
+  return BaseT::getArithmeticReductionCost(Opcode, ValTy, FMF, CostKind);
 }
 
 InstructionCost AArch64TTIImpl::getSpliceCost(VectorType *Tp, int Index) {
