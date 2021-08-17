@@ -1089,18 +1089,19 @@ _pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
   int n = ZeCopyCommandQueues.size();
   int LowerCopyQueueIndex = getRangeOfAllowedCopyEngines.first;
   int UpperCopyQueueIndex = getRangeOfAllowedCopyEngines.second;
-  LowerCopyQueueIndex =
-      (LowerCopyQueueIndex == -1) ? -1 : std::max(0, LowerCopyQueueIndex);
-  UpperCopyQueueIndex = std::min(UpperCopyQueueIndex, n - 1);
 
   // Return nullptr when no copy command queues are allowed to be used or if
   // no copy command queues are available.
-  if ((LowerCopyQueueIndex > UpperCopyQueueIndex) || (n == 0)) {
+  if ((LowerCopyQueueIndex == -1) || (UpperCopyQueueIndex == -1) ||
+      (LowerCopyQueueIndex > UpperCopyQueueIndex) || (n == 0)) {
     if (CopyQueueGroupIndex)
       *CopyQueueGroupIndex = -1;
     *CopyQueueIndex = -1;
     return nullptr;
   }
+
+  LowerCopyQueueIndex = std::max(0, LowerCopyQueueIndex);
+  UpperCopyQueueIndex = std::min(UpperCopyQueueIndex, n - 1);
 
   // If there is only one copy queue, it is the main copy queue, which is the
   // first, and only entry in ZeCopyCommandQueues.
