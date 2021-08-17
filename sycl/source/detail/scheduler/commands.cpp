@@ -1754,15 +1754,10 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
             "device",
             PI_INVALID_OPERATION);
       }
-      if (DeviceImageImpl != nullptr) {
-        RT::PiMem SpecConstsBuffer =
-            DeviceImageImpl->get_spec_const_buffer_ref();
-        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                        &SpecConstsBuffer);
-      } else {
-        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                        nullptr);
-      }
+      assert(DeviceImageImpl != nullptr);
+      RT::PiMem SpecConstsBuffer = DeviceImageImpl->get_spec_const_buffer_ref();
+      Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                      &SpecConstsBuffer);
       break;
     }
     }
