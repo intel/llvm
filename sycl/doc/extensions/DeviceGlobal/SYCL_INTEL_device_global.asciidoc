@@ -103,7 +103,7 @@ important use cases.
 
 === Examples
 
-Two example `device_global` can be declared at namespace scope, as follows:
+Two example `device_global` variables can be declared at namespace scope, as follows:
 
 [source,c++]
 ----
