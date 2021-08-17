@@ -374,7 +374,7 @@ a|
 template<typename propertyT>
 static constexpr bool has_property();
 ----
-| Returns true if the `property_listT` contains the property specified by `propertyT`. Returns false if it does not.
+| Returns true if the `PropertyListT` contains the property specified by `propertyT`. Returns false if it does not.
 Available only if `sycl::is_property_of_v<propertyT, sycl::ext::oneapi::device_global>` is true.
 
 // --- ROW BREAK ---
