@@ -2,13 +2,7 @@
 
 #include "Inputs/sycl.hpp"
 
-#ifdef __SYCL_DEVICE_ONLY__
-#define CONSTANT __attribute__((opencl_constant))
-#else
-#define CONSTANT
-#endif
-
-static const CONSTANT char format_2[] = "Hello! %d %f\n";
+static const __SYCL_CONSTANT_AS char format_2[] = "Hello! %d %f\n";
 
 int main() {
   // Make sure that device printf is dispatched to CUDA's vprintf syscall.
