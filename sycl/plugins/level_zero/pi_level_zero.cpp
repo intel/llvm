@@ -62,11 +62,11 @@ static const bool UseCopyEngineForD2DCopy = [] {
 
 // This is an experiemental option that allows the use of copy engine, if
 // available in the device, in Level Zero plugin for copy operations submitted
-// to an in-order queue. The default is 0.
+// to an in-order queue. The default is 1.
 static const bool UseCopyEngineForInOrderQueue = [] {
   const char *CopyEngineForInOrderQueue =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_IN_ORDER_QUEUE");
-  return (CopyEngineForInOrderQueue &&
+  return (!CopyEngineForInOrderQueue ||
           (std::stoi(CopyEngineForInOrderQueue) != 0));
 }();
 
