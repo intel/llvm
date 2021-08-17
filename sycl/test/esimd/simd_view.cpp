@@ -31,7 +31,7 @@ SYCL_ESIMD_FUNCTION bool test_simd_view_unary_ops() {
   ref0 <<= ref1;
   ref1 = -ref0;
   ref0 = ~ref1;
-  ref1 = !ref0;
+  auto mask = !ref0;
   return v1[0] == 1;
 }
 

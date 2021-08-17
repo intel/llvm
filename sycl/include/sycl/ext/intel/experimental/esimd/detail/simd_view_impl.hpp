@@ -295,9 +295,6 @@ public:
 
 #undef DEF_UNARY_OP
 
-  // negation operator
-  auto operator!() { return *this == 0; }
-
   // Operator ++, --
   simd_view_impl &operator++() {
     *this += 1;
