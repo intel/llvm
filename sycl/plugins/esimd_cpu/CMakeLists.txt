@@ -18,7 +18,7 @@ if (NOT MSVC)
     GIT_TAG           bef69c5f380a27b6908d6daea0fc18ce50e33bb9
     BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/libva_build
     INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/libva_install
-    CONFIGURE_COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}/libva-prefix/src/libva && ./autogen.sh --prefix=${CMAKE_CURRENT_BINARY_DIR}/libva_install
+    CONFIGURE_COMMAND cd ${CMAKE_CURRENT_BINARY_DIR}/libva-prefix/src/libva && ./autogen.sh --prefix=${CMAKE_CURRENT_BINARY_DIR}/libva_install --enable-drm=no
     BUILD_COMMAND     cd ${CMAKE_CURRENT_BINARY_DIR}/libva-prefix/src/libva && make -j
     INSTALL_COMMAND   cd ${CMAKE_CURRENT_BINARY_DIR}/libva-prefix/src/libva && make install
   )
