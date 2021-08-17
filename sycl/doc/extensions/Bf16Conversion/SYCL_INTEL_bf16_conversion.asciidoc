@@ -145,15 +145,15 @@ public:
   operator storage_t() const;
 
   // Convert to bool type
-  explicit operator bool()
+  explicit operator bool();
 
-  friend bfloat16 operator-() { /* ... */ }
+  friend bfloat16 operator-(bfloat16 &bf) { /* ... */ }
 
   // OP is: prefix ++, --
-  friend bfloat16 &operatorOP() { /* ... */ }
+  friend bfloat16 &operatorOP(bfloat16 &bf) { /* ... */ }
 
   // OP is: postfix ++, --
-  friend bfloat16 operatorOP(int) { /* ... */ }
+  friend bfloat16 operatorOP(bfloat16 &bf, int) { /* ... */ }
 
   // OP is: +=, -=, *=, /=
   friend bfloat16 &operatorOP(bfloat16 &lhs, const bfloat16 &rhs) { /* ... */ }
@@ -189,7 +189,7 @@ Table 1. Member functions of `bfloat16` class.
 |  `static float to_float(const storage_t &a);`
 |  Interpret `a` as `bfloat16` and explicitly convert it to `float`.
 
-| `bfloat16(const storage_t& a)`
+| `bfloat16(const storage_t& a);`
 | Initialize with an integer value which is interpreted as a `bfloat16` type.
 
 | `bfloat16(const float& a);`
