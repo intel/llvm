@@ -363,12 +363,12 @@ public:
 
   /// Return the attribute for the given attribute kind.
   Attribute getFnAttribute(Attribute::AttrKind Kind) const {
-    return getAttribute(AttributeList::FunctionIndex, Kind);
+    return AttributeSets.getFnAttr(Kind);
   }
 
   /// Return the attribute for the given attribute kind.
   Attribute getFnAttribute(StringRef Kind) const {
-    return getAttribute(AttributeList::FunctionIndex, Kind);
+    return AttributeSets.getFnAttr(Kind);
   }
 
   /// Return the stack alignment for the function.
@@ -453,6 +453,11 @@ public:
   /// gets the specified attribute from the list of attributes.
   Attribute getParamAttribute(unsigned ArgNo, Attribute::AttrKind Kind) const {
     return getAttributes().getParamAttr(ArgNo, Kind);
+  }
+
+  /// check if an attribute is in the list of attributes for the return value.
+  bool hasRetAttribute(Attribute::AttrKind Kind) const {
+    return getAttributes().hasRetAttr(Kind);
   }
 
   /// gets the attribute from the list of attributes.
@@ -699,8 +704,7 @@ public:
   /// Determine if the parameter or return value is marked with NoAlias
   /// attribute.
   bool returnDoesNotAlias() const {
-    return AttributeSets.hasAttribute(AttributeList::ReturnIndex,
-                                      Attribute::NoAlias);
+    return AttributeSets.hasRetAttr(Attribute::NoAlias);
   }
   void setReturnDoesNotAlias() {
     addAttribute(AttributeList::ReturnIndex, Attribute::NoAlias);

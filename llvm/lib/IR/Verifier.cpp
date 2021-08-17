@@ -1825,8 +1825,7 @@ void Verifier::verifyParameterAttrs(AttributeSet Attrs, Type *Ty,
 void Verifier::checkUnsignedBaseTenFuncAttr(AttributeList Attrs, StringRef Attr,
                                             const Value *V) {
   if (Attrs.hasFnAttr(Attr)) {
-    StringRef S = Attrs.getAttribute(AttributeList::FunctionIndex, Attr)
-                      .getValueAsString();
+    StringRef S = Attrs.getFnAttr(Attr).getValueAsString();
     unsigned N;
     if (S.getAsInteger(10, N))
       CheckFailed("\"" + Attr + "\" takes an unsigned integer: " + S, V);
@@ -1861,7 +1860,7 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
   bool SawSwiftError = false;
 
   // Verify return value attributes.
-  AttributeSet RetAttrs = Attrs.getRetAttributes();
+  AttributeSet RetAttrs = Attrs.getRetAttrs();
   for (Attribute RetAttr : RetAttrs)
     Assert(RetAttr.isStringAttribute() ||
            Attribute::canUseAsRetAttr(RetAttr.getKindAsEnum()),
@@ -1874,7 +1873,7 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
   // Verify parameter attributes.
   for (unsigned i = 0, e = FT->getNumParams(); i != e; ++i) {
     Type *Ty = FT->getParamType(i);
-    AttributeSet ArgAttrs = Attrs.getParamAttributes(i);
+    AttributeSet ArgAttrs = Attrs.getParamAttrs(i);
 
     if (!IsIntrinsic) {
       Assert(!ArgAttrs.hasAttribute(Attribute::ImmArg),
@@ -1928,11 +1927,11 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
     }
   }
 
-  if (!Attrs.hasAttributes(AttributeList::FunctionIndex))
+  if (!Attrs.hasFnAttrs())
     return;
 
-  verifyAttributeTypes(Attrs.getFnAttributes(), V);
-  for (Attribute FnAttr : Attrs.getFnAttributes())
+  verifyAttributeTypes(Attrs.getFnAttrs(), V);
+  for (Attribute FnAttr : Attrs.getFnAttrs())
     Assert(FnAttr.isStringAttribute() ||
            Attribute::canUseAsFnAttr(FnAttr.getKindAsEnum()),
            "Attribute '" + FnAttr.getAsString() +
@@ -2018,8 +2017,7 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
   }
 
   if (Attrs.hasFnAttr("frame-pointer")) {
-    StringRef FP = Attrs.getAttribute(AttributeList::FunctionIndex,
-                                      "frame-pointer").getValueAsString();
+    StringRef FP = Attrs.getFnAttr("frame-pointer").getValueAsString();
     if (FP != "all" && FP != "non-leaf" && FP != "none")
       CheckFailed("invalid value for 'frame-pointer' attribute: " + FP, V);
   }
@@ -2168,7 +2166,7 @@ void Verifier::verifyStatepoint(const CallBase &Call) {
            Call);
 
     if (TargetFuncType->isVarArg()) {
-      AttributeSet ArgAttrs = Attrs.getParamAttributes(5 + i);
+      AttributeSet ArgAttrs = Attrs.getParamAttrs(5 + i);
       Assert(!ArgAttrs.hasAttribute(Attribute::StructRet),
              "Attribute 'sret' cannot be used for vararg call arguments!",
              Call);
@@ -2693,6 +2691,7 @@ void Verifier::visitReturnInst(ReturnInst &RI) {
 }
 
 void Verifier::visitSwitchInst(SwitchInst &SI) {
+  Assert(SI.getType()->isVoidTy(), "Switch must have void result type!", &SI);
   // Check to make sure that all of the constants in the switch instruction
   // have the same type as the switched-on value.
   Type *SwitchTy = SI.getCondition()->getType();
@@ -3159,7 +3158,7 @@ void Verifier::visitCallBase(CallBase &Call) {
     // Check attributes on the varargs part.
     for (unsigned Idx = FTy->getNumParams(); Idx < Call.arg_size(); ++Idx) {
       Type *Ty = Call.getArgOperand(Idx)->getType();
-      AttributeSet ArgAttrs = Attrs.getParamAttributes(Idx);
+      AttributeSet ArgAttrs = Attrs.getParamAttrs(Idx);
       verifyParameterAttrs(ArgAttrs, Ty, &Call);
 
       if (ArgAttrs.hasAttribute(Attribute::Nest)) {
@@ -3323,7 +3322,7 @@ static AttrBuilder getParameterABIAttributes(int I, AttributeList Attrs) {
       Attribute::ByRef};
   AttrBuilder Copy;
   for (auto AK : ABIAttrs) {
-    Attribute Attr = Attrs.getParamAttributes(I).getAttribute(AK);
+    Attribute Attr = Attrs.getParamAttrs(I).getAttribute(AK);
     if (Attr.isValid())
       Copy.addAttribute(Attr);
   }
