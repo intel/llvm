@@ -60,43 +60,6 @@ static const bool UseCopyEngineForD2DCopy = [] {
   return (CopyEngineForD2DCopy && (std::stoi(CopyEngineForD2DCopy) != 0));
 }();
 
-// SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE can be set to an integer value, or
-// a pair of integer values of the form "lower_index:upper_index".
-// Here, the indices point to copy engines in a list of all available copy
-// engines.
-// This functions returns this pair of indices.
-// If the user specifies only a single integer, a value of 0 indicates that
-// the copy engines will not be used at all. A value of 1 indicates that all
-// available copy engines can be used.
-static const std::pair<int, int> getRangeOfAllowedCopyEngines = [] {
-  const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
-  // If the environment variable is not set, all available copy engines can be
-  // used.
-  if (!EnvVar) {
-    return std::pair<int, int>(0, INT_MAX);
-  }
-  std::string CopyEngineRange = EnvVar;
-  // Environment variable can be a single integer or a pair of integers
-  // separated by ":"
-  auto pos = CopyEngineRange.find(":");
-  if (pos == std::string::npos) {
-    bool UseCopyEngine = (std::stoi(CopyEngineRange) != 0);
-    if (UseCopyEngine)
-      return std::pair<int, int>(0, INT_MAX); // All copy engines can be used.
-    else
-      return std::pair<int, int>(-1, -1); // No copy engines will be used.
-  }
-  int LowerCopyEngineIndex = std::stoi(CopyEngineRange.substr(0, pos));
-  int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
-  return std::pair<int, int>(LowerCopyEngineIndex, UpperCopyEngineIndex);
-}();
-
-static const bool CopyEngineRequested = [] {
-  int LowerCopyQueueIndex = getRangeOfAllowedCopyEngines.first;
-  int UpperCopyQueueIndex = getRangeOfAllowedCopyEngines.second;
-  return ((LowerCopyQueueIndex != -1) || (UpperCopyQueueIndex != -1));
-}();
-
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
@@ -321,6 +284,48 @@ private:
 };
 
 } // anonymous namespace
+
+// SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE can be set to an integer value, or
+// a pair of integer values of the form "lower_index:upper_index".
+// Here, the indices point to copy engines in a list of all available copy
+// engines.
+// This functions returns this pair of indices.
+// If the user specifies only a single integer, a value of 0 indicates that
+// the copy engines will not be used at all. A value of 1 indicates that all
+// available copy engines can be used.
+static const std::pair<int, int> getRangeOfAllowedCopyEngines = [] {
+  const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  // If the environment variable is not set, all available copy engines can be
+  // used.
+  if (!EnvVar)
+    return std::pair<int, int>(0, INT_MAX);
+  std::string CopyEngineRange = EnvVar;
+  // Environment variable can be a single integer or a pair of integers
+  // separated by ":"
+  auto pos = CopyEngineRange.find(":");
+  if (pos == std::string::npos) {
+    bool UseCopyEngine = (std::stoi(CopyEngineRange) != 0);
+    if (UseCopyEngine)
+      return std::pair<int, int>(0, INT_MAX); // All copy engines can be used.
+    return std::pair<int, int>(-1, -1);       // No copy engines will be used.
+  }
+  int LowerCopyEngineIndex = std::stoi(CopyEngineRange.substr(0, pos));
+  int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
+  if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
+      (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
+    zePrint("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
+            "default set.\n");
+    LowerCopyEngineIndex = 0;
+    UpperCopyEngineIndex = INT_MAX;
+  }
+  return std::pair<int, int>(LowerCopyEngineIndex, UpperCopyEngineIndex);
+}();
+
+static const bool CopyEngineRequested = [] {
+  int LowerCopyQueueIndex = getRangeOfAllowedCopyEngines.first;
+  int UpperCopyQueueIndex = getRangeOfAllowedCopyEngines.second;
+  return ((LowerCopyQueueIndex != -1) || (UpperCopyQueueIndex != -1));
+}();
 
 // Global variables used in PI_Level_Zero
 // Note we only create a simple pointer variables such that C++ RT won't
@@ -1092,8 +1097,7 @@ _pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
 
   // Return nullptr when no copy command queues are allowed to be used or if
   // no copy command queues are available.
-  if ((LowerCopyQueueIndex == -1) || (UpperCopyQueueIndex == -1) ||
-      (LowerCopyQueueIndex > UpperCopyQueueIndex) || (n == 0)) {
+  if ((LowerCopyQueueIndex == -1) || (UpperCopyQueueIndex == -1) || (n == 0)) {
     if (CopyQueueGroupIndex)
       *CopyQueueGroupIndex = -1;
     *CopyQueueIndex = -1;
