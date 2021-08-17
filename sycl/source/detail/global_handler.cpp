@@ -91,6 +91,7 @@ void shutdown() {
       // Currently, it is not used.
       void *PluginParameter = nullptr;
       Plugin.call<PiApiKind::piTearDown>(PluginParameter);
+      Plugin.resetPiPlatforms();
       Plugin.unload();
     }
     GlobalHandler::instance().MPlugins.Inst.reset(nullptr);
