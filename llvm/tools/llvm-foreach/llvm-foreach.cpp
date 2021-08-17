@@ -19,6 +19,7 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/SystemUtils.h"
 
+#include <list>
 #include <vector>
 
 using namespace llvm;
@@ -68,6 +69,11 @@ static cl::opt<std::string> OutIncrement{
         "Specify output file which should be incrementally named with each "
         "pass."),
     cl::init(""), cl::value_desc("R")};
+
+static cl::opt<bool> ExecuteInParallel{
+    "parallel-exec",
+    cl::desc("Enable launching input commands in parallel mode"),
+    cl::init(false)};
 
 static void error(const Twine &Msg) {
   errs() << "llvm-foreach: " << Msg << '\n';
@@ -170,6 +176,7 @@ int main(int argc, char **argv) {
   std::string IncOutArg;
   std::vector<std::string> ResInArgs(InReplaceArgs.size());
   std::string ResFileList = "";
+  std::list<sys::ProcessInfo> CommandsStarted;
   for (size_t j = 0; j != FileLists[0].size(); ++j) {
     for (size_t i = 0; i < InReplaceArgs.size(); ++i) {
       ArgumentReplace CurReplace = InReplaceArgs[i];
@@ -222,7 +229,12 @@ int main(int argc, char **argv) {
     }
 
     std::string ErrMsg;
-    // TODO: Add possibility to execute commands in parallel.
+    if (ExecuteInParallel) {
+      CommandsStarted.emplace_back(sys::ExecuteNoWait(
+          Prog, Args, /*Env=*/None, /*Redirects=*/None, /*MemoryLimit=*/0));
+      continue;
+    }
+
     int Result =
         sys::ExecuteAndWait(Prog, Args, /*Env=*/None, /*Redirects=*/None,
                             /*SecondsToWait=*/0, /*MemoryLimit=*/0, &ErrMsg);
@@ -230,6 +242,19 @@ int main(int argc, char **argv) {
       errs() << "llvm-foreach: " << ErrMsg << '\n';
       Res = Result;
     }
+  }
+
+  // Wait for all commands to be executed.
+  std::string ErrMsg;
+  auto It = CommandsStarted.begin();
+  while (It != CommandsStarted.end()) {
+    sys::ProcessInfo WaitResult =
+        sys::Wait(*It, 0, /*WaitUntilTerminates*/ true, &ErrMsg);
+    if (WaitResult.ReturnCode != 0) {
+      errs() << "llvm-foreach: " << ErrMsg << '\n';
+      Res = WaitResult.ReturnCode;
+    }
+    It = CommandsStarted.erase(It);
   }
 
   if (!OutputFileList.empty()) {
