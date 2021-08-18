@@ -5220,10 +5220,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
                                                           EventWaitList, Queue))
     return Res;
 
-  // TODO: Fill operations on copy engine fails to fill a buffer at expected
-  // offset. Perform fill operations on compute engine for now.
-  // PreferCopyEngine will be initialized with 'true' once issue is resolved.
-  bool PreferCopyEngine = false;
+  bool PreferCopyEngine = true;
   size_t MaxPatternSize =
       Queue->Device->ZeComputeQueueGroupProperties.maxMemoryFillPatternSize;
 
