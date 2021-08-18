@@ -1516,6 +1516,8 @@ void AArch64TargetLowering::addTypeForFixedLengthSVE(MVT VT) {
     MVT InnerVT = VT.changeVectorElementType(MVT::i8);
     while (InnerVT != VT) {
       setTruncStoreAction(VT, InnerVT, Custom);
+      setLoadExtAction(ISD::ZEXTLOAD, VT, InnerVT, Custom);
+      setLoadExtAction(ISD::SEXTLOAD, VT, InnerVT, Custom);
       InnerVT = InnerVT.changeVectorElementType(
           MVT::getIntegerVT(2 * InnerVT.getScalarSizeInBits()));
     }
@@ -4176,7 +4178,9 @@ bool AArch64TargetLowering::shouldRemoveExtendFromGSIndex(EVT VT) const {
 }
 
 bool AArch64TargetLowering::isVectorLoadExtDesirable(SDValue ExtVal) const {
-  return ExtVal.getValueType().isScalableVector();
+  return ExtVal.getValueType().isScalableVector() ||
+         useSVEForFixedLengthVectorVT(ExtVal.getValueType(),
+                                      /*OverrideNEON=*/true);
 }
 
 unsigned getGatherVecOpcode(bool IsScaled, bool IsSigned, bool NeedsExtend) {
@@ -11646,7 +11650,7 @@ bool AArch64TargetLowering::shouldSinkOperands(
     // can sink them too.
     auto Ext1 = cast<Instruction>(I->getOperand(0));
     auto Ext2 = cast<Instruction>(I->getOperand(1));
-    if (areExtractShuffleVectors(Ext1, Ext2)) {
+    if (areExtractShuffleVectors(Ext1->getOperand(0), Ext2->getOperand(0))) {
       Ops.push_back(&Ext1->getOperandUse(0));
       Ops.push_back(&Ext2->getOperandUse(0));
     }
