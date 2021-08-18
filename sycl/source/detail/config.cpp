@@ -111,6 +111,30 @@ void dumpConfig() {
 #undef CONFIG
 }
 
-} // __SYCL_INLINE_NAMESPACE(cl)
-} // namespace sycl
+// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
+const std::array<std::pair<std::string, info::device_type>, 5> &
+getSyclDeviceTypeMap() {
+  static const std::array<std::pair<std::string, info::device_type>, 5>
+      SyclDeviceTypeMap = {{{"host", info::device_type::host},
+                            {"cpu", info::device_type::cpu},
+                            {"gpu", info::device_type::gpu},
+                            {"acc", info::device_type::accelerator},
+                            {"*", info::device_type::all}}};
+  return SyclDeviceTypeMap;
+}
+
+// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
+const std::array<std::pair<std::string, backend>, 6> &getSyclBeMap() {
+  static const std::array<std::pair<std::string, backend>, 6> SyclBeMap = {
+      {{"host", backend::host},
+       {"opencl", backend::opencl},
+       {"level_zero", backend::level_zero},
+       {"cuda", backend::cuda},
+       {"rocm", backend::rocm},
+       {"*", backend::all}}};
+  return SyclBeMap;
+}
+
 } // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -420,6 +420,8 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
 bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
+    if (FD->getBuiltinID() == Builtin::BIprintf)
+      return true;
     const DeclContext *DC = FD->getDeclContext();
     if (II && II->isStr("__spirv_ocl_printf") &&
         !FD->isDefined() &&
@@ -3870,7 +3872,7 @@ void Sema::SetSYCLKernelNames() {
       getASTContext().createMangleContext());
   // We assume the list of KernelDescs is the complete list of kernels needing
   // to be rewritten.
-  for (const std::pair<const FunctionDecl *, FunctionDecl *> Pair :
+  for (const std::pair<const FunctionDecl *, FunctionDecl *> &Pair :
        SyclKernelsToOpenCLKernels) {
     std::string CalculatedName, StableName;
     std::tie(CalculatedName, StableName) =
