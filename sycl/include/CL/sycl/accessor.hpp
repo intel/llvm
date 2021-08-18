@@ -834,7 +834,14 @@ protected:
 #endif // __SYCL_DEVICE_ONLY__
 
     size_t Result = 0;
-#pragma unroll
+    // Unroll the following loop for both host and device code
+#if defined (__clang__) || defined (__INTEL_COMPILER)
+    #pragma unroll
+#elif defined (__GNUC__) || defined (__GNUG__)
+    #pragma GCC unroll 3
+#elif defined (_MSC_VER)
+    // MSVC pragma loop don't have unroll option
+#endif // switch over the compilers is over
     for (int I = 0; I < Dims; ++I)
       Result = Result * getMemoryRange()[I] + getOffset()[I] + Id[I];
     return Result;
