@@ -212,7 +212,7 @@ public:
     static size_t GF;
     static size_t MR;
     if (!ProcessedFactors) {
-      // Parse optional parameters of this form:
+      // Parse optional parameters of this form (all values required):
       // MinRound:PreferredRound:MinRange
       std::string Params(RoundParams);
       size_t Pos = Params.find(':');
