@@ -30,9 +30,6 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
-NOTE: This document is better viewed when rendered as html with asciidoctor.
-GitHub does not render image icons.
-
 == Dependencies
 
 This extension is written against the SYCL 2020 specification, Revision 3.
@@ -51,7 +48,6 @@ products.
 
 == Version
 
-Built On: {docdate} +
 Revision: 2
 
 == Introduction
@@ -119,7 +115,7 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-bfloat16 {
+class bfloat16 {
   using storage_t = uint16_t;
   storage_t value;
 
