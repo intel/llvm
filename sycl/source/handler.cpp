@@ -108,13 +108,8 @@ event handler::finalize() {
   if (getCGTypeVersion(MCGType) >
       static_cast<unsigned int>(detail::CG::CG_VERSION::V0)) {
     // If there were uses of set_specialization_constant build the kernel_bundle
-    bool HasSpecConstArgs =
-        std::any_of(MArgs.begin(), MArgs.end(), [](detail::ArgDesc Arg) {
-          return Arg.MType == detail::kernel_param_kind_t::
-                                  kind_specialization_constants_buffer;
-        });
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/HasSpecConstArgs);
+        getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       switch (KernelBundleImpPtr->get_bundle_state()) {
       case bundle_state::input: {
