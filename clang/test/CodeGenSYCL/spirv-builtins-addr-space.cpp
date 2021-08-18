@@ -10,19 +10,19 @@
 
 #include "Inputs/sycl.hpp"
 
-// CHECK:     __spirv_ocl_modffPU8SYglobal
+// CHECK: __spirv_ocl_modf{{.*}}SYglobal
 void modf_global(float a) {
   __attribute__((opencl_global)) float *ptr = nullptr;
   sycl::kernel_single_task<class fake_kernel>([=]() { __spirv_ocl_modf(a, ptr); });
 }
 
-// CHECK:     __spirv_ocl_modffPU7SYlocal
+// CHECK: __spirv_ocl_modf{{.*}}SYlocal
 void modf_local(float a) {
   __attribute__((opencl_local)) float *ptr = nullptr;
   sycl::kernel_single_task<class fake_kernel>([=]() { __spirv_ocl_modf(a, ptr); });
 }
 
-// CHECK:     __spirv_ocl_modffPU9SYprivate
+// CHECK: __spirv_ocl_modf{{.*}}SYprivate
 void modf_private(float a) {
   __attribute__((opencl_private)) float *ptr = nullptr;
   sycl::kernel_single_task<class fake_kernel>([=]() { __spirv_ocl_modf(a, ptr); });

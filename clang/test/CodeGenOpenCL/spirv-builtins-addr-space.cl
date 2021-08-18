@@ -5,13 +5,13 @@
 // are mangled with the CL prefix and SYCL address spaces are mangled with the
 // SY prefix.
 
-// CHECK:     __spirv_ocl_modffPU8CLglobal
+// CHECK: __spirv_ocl_modf{{.*}}CLglobal
 void modf_global(float a, global float *ptr) { __spirv_ocl_modf(a, ptr); }
 
-// CHECK:     __spirv_ocl_modffPU7CLlocal
+// CHECK: __spirv_ocl_modf{{.*}}CLlocal
 void modf_local(float a, local float *ptr) { __spirv_ocl_modf(a, ptr); }
 
-// CHECK:     __spirv_ocl_modffPU9CLprivate
+// CHECK: __spirv_ocl_modf{{.*}}CLprivate
 void modf_private(float a) {
   float *ptr;
   __spirv_ocl_modf(a, ptr);
