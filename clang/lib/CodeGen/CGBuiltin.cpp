@@ -18325,22 +18325,18 @@ RValue CodeGenFunction::EmitIntelFPGARegBuiltin(const CallExpr *E,
                                                 ReturnValueSlot ReturnValue) {
   const Expr *PtrArg = E->getArg(0);
   QualType ArgType = PtrArg->getType();
-  llvm::Value *V = nullptr;
   StringRef AnnotStr = "__builtin_intel_fpga_reg";
 
-  if (ArgType->isStructureOrClassType() || ArgType->isUnionType()) {
-    RValue RV = EmitAnyExpr(PtrArg);
-    Address A = EmitIntelFPGAFieldAnnotations(E->getExprLoc(),
-                                              RV.getAggregateAddress(),
-                                              AnnotStr);
-    llvm::Type *VTy = ReturnValue.getValue().getPointer()->getType();
-    uint64_t SizeVal = CGM.getDataLayout().getTypeAllocSize(VTy);
-    Builder.CreateMemCpy(ReturnValue.getValue(), A, SizeVal, false);
+  if (ArgType->isRecordType()) {
+    Address DstAddr = ReturnValue.getValue();
+    EmitAnyExprToMem(PtrArg, DstAddr, ArgType.getQualifiers(), true);
+    Address A =
+        EmitIntelFPGAFieldAnnotations(E->getExprLoc(), DstAddr, AnnotStr);
     return RValue::getAggregate(A);
   }
 
   // if scalar type
-  V = EmitScalarExpr(PtrArg);
+  llvm::Value *V = EmitScalarExpr(PtrArg);
 
   // llvm.annotation does not accept anything but integer types.
   llvm::Type *OrigVType = V->getType();
