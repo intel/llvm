@@ -88,12 +88,9 @@ must be encountered by all work-items in the group in converged control flow.
 === Group Masks
 
 The group mask type is an opaque type, permitting implementations to use any
-mask representation subject to the following restrictions:
-
-- The size and alignment of the mask type must be the same on the host and
-  device
-- A SYCL implementation supporting OpenCL interoperability must use a 128-bit
-  mask convertible to a `vec<uint,4>`
+mask representation that has the same size and alignment across host and
+device. The maximum number of bits that can be stored in a `group_mask` is
+exposed as a static member variable, `group_mask::max_bits`.
 
 Functions declared in the `group_mask` class can be called independently by
 different work-items in the same group.  An instance of a group class (e.g.
@@ -140,16 +137,16 @@ work-item with the id `max_local_range()-1`.
 |Return the highest `id` with a corresponding bit set in the mask. If no bits
  are set, the return value is equal to `size()`.
 
-|`template <typename T = vec<uint32_t,4>> void insert_bits(T bits, id<1> pos = 0)`
+|`template <typename T = marray<uint32_t, max_bits/sizeof(uint32_t)>> void insert_bits(T bits, id<1> pos = 0)`
 |Insert `CHAR_BIT * sizeof(T)` bits into the mask, starting from _pos_.  `T`
- must be an integral type or a SYCL vector of integral types.  _pos_ must be a
+ must be an integral type or a SYCL `marray` of integral types.  _pos_ must be a
  multiple of `CHAR_BIT * sizeof(T)` in the range [0, `size()`).  If _pos_ pass:[+]
  `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ pass:[+]
  `CHAR_BIT * sizeof(T)`) bits are ignored.
 
-|`template <typename T = vec<uint32_t,4>> T extract_bits(id<1> pos = 0) const`
+|`template <typename T = marray<uint32_t, max_bits/sizeof(uint32_t)>> T extract_bits(id<1> pos = 0) const`
 |Return `CHAR_BIT * sizeof(T)` bits from the mask, starting from _pos_.  `T`
- must be an integral type or a SYCL vector of integral types.  _pos_ must be a
+ must be an integral type or a SYCL `marray` of integral types.  _pos_ must be a
  multiple of `CHAR_BIT * sizeof(T)` in the range [0, `size()`).  If _pos_ pass:[+]
  `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ pass:[+]
  `CHAR_BIT * sizeof(T)`) bits of the return value are zero.
@@ -261,6 +258,8 @@ struct group_mask {
     reference& flip();
   };
 
+  static constexpr size_t max_bits = /* implementation-defined */;
+
   bool operator[](id<1> id) const;
   reference operator[](id<1> id);
   bool test(id<1> id) const;
@@ -272,10 +271,10 @@ struct group_mask {
   id<1> find_low() const;
   id<1> find_high() const;
 
-  template <typename T = vec<uint32_t,4>>
+  template <typename T = marray<uint32_t, max_bits/sizeof(uint32_t)>>
   void insert_bits(T bits, id<1> pos = 0);
 
-  template <typename T = vec<uint32_t,4>>
+  template <typename T = marray<uint32_t, max_bits/sizeof(uint32_t)>>
   T extract_bits(id<1> pos = 0);
 
   void set();
