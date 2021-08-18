@@ -227,7 +227,7 @@ int main() {
     cgh.parallel_for<class RAT>(range<1>(1), [=](id<1> I) { f(); });
 
     // This kernel calls sycl::ext::oneapi::experimental::this_item
-    cgh.parallel_for<class CAT>(range<1>(1), [=](id<1> I) { s(); });
+    cgh.parallel_for<class CAT>(range<1>(1), [=](id<1> I) { h(); });
 
     // This kernel does not call sycl::this_item, but does call this_id
     cgh.parallel_for<class FOX>(range<1>(1), [=](id<1> I) { this_id<1>(); });
