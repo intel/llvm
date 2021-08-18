@@ -3,6 +3,5 @@ add_definitions(-DSYCL_LIB_DIR="${sycl_lib_dir}")
 add_sycl_unittest(MiscTests SHARED
   CircularBuffer.cpp
   KernelBuildOptions.cpp
-  KernelBundle.cpp
   OsUtils.cpp
 )
