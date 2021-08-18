@@ -149,6 +149,7 @@ multi_ptr<T, Group::address_space> group_local_memory_for_overwrite(Group g);
  multi_ptr<T, Group::address_space> group_local_memory(Group g, Args&&... args)` |
 Constructs an object of type `T` in an address space accessible by all
 work-items in group _g_, forwarding _args_ to the constructor's parameter list.
+If _args_ is empty, the object is value initialized.
 The constructor is called once per group, upon or before the first call to
 `group_local_memory`.  The storage for the object is allocated upon or before
 the first call to `group_local_memory`, and deallocated when all work-items in
