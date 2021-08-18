@@ -1648,7 +1648,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
     return false;
   }
 
-  void checkAccessorType(QualType Ty, SourceRange Loc) {
+  void checkSyclSpecialType(QualType Ty, SourceRange Loc) {
     const RecordDecl *RecD = Ty->getAsRecordDecl();
     if (const ClassTemplateSpecializationDecl *CTSD =
             dyn_cast<ClassTemplateSpecializationDecl>(RecD)) {
@@ -1682,12 +1682,12 @@ public:
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                              QualType FieldTy) final {
-    checkAccessorType(FieldTy, BS.getBeginLoc());
+    checkSyclSpecialType(FieldTy, BS.getBeginLoc());
     return isValid();
   }
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
-    checkAccessorType(FieldTy, FD->getLocation());
+    checkSyclSpecialType(FieldTy, FD->getLocation());
     return isValid();
   }
 
