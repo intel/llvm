@@ -3177,25 +3177,32 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   ASTContext &Ctx = S.getASTContext();
 
-  if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
-      !ZDimExpr->isValueDependent()) {
-    llvm::APSInt XDimVal, YDimVal, ZDimVal;
-    ExprResult XDim = S.VerifyIntegerConstantExpression(XDimExpr, &XDimVal);
-    ExprResult YDim = S.VerifyIntegerConstantExpression(YDimExpr, &YDimVal);
-    ExprResult ZDim = S.VerifyIntegerConstantExpression(ZDimExpr, &ZDimVal);
+  bool YDimExprIsDereferencable = YDimExpr && (!YDimExpr->isValueDependent());
+  bool ZDimExprIsDereferencable = ZDimExpr && (!ZDimExpr->isValueDependent());
 
+  llvm::APSInt XDimVal, YDimVal, ZDimVal;
+  if (!XDimExpr->isValueDependent()) {
+    ExprResult XDim = S.VerifyIntegerConstantExpression(XDimExpr, &XDimVal);
     if (XDim.isInvalid())
       return;
     XDimExpr = XDim.get();
+  }
 
+  if (YDimExprIsDereferencable) {
+    ExprResult YDim = S.VerifyIntegerConstantExpression(YDimExpr, &YDimVal);
     if (YDim.isInvalid())
       return;
     YDimExpr = YDim.get();
+  }
 
+  if (ZDimExprIsDereferencable) {
+    ExprResult ZDim = S.VerifyIntegerConstantExpression(ZDimExpr, &ZDimVal);
     if (ZDim.isInvalid())
       return;
     ZDimExpr = ZDim.get();
+  }
 
+  if ((XDimVal >= 1) && (YDimVal >= 1) && (ZDimVal >= 1)) {
     // If the num_simd_work_items attribute is specified on a declaration it
     // must evenly divide the index that increments fastest in the
     // reqd_work_group_size attribute. In OpenCL, the first argument increments
