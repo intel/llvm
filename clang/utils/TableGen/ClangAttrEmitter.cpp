@@ -3823,14 +3823,10 @@ static void GenerateLangOptRequirements(const Record &R,
   if (LangOpts.empty())
     return;
 
-  OS << "bool diagLangOpts(Sema &S, const ParsedAttr &PA) ";
-  OS << "const override {\n";
-  OS << "  const auto &LangOpts = S.LangOpts;\n";
+  OS << "bool acceptsLangOpts(const LangOptions &LangOpts) const override {\n";
   OS << "  if (" << GenerateTestExpression(LangOpts, true) << ")\n";
   OS << "    return true;\n\n";
-  OS << "  if (" << GenerateTestExpression(LangOpts, false) << ")\n";
-  OS << "    S.Diag(PA.getLoc(), diag::warn_attribute_ignored) << PA;\n";
-  OS << "  return false;\n";
+  OS << "  return !" << GenerateTestExpression(LangOpts, false) << ";\n";
   OS << "}\n\n";
 }
 
@@ -4230,6 +4226,26 @@ void EmitClangAttrParserStringSwitches(RecordKeeper &Records,
 void EmitClangAttrSubjectMatchRulesParserStringSwitches(RecordKeeper &Records,
                                                         raw_ostream &OS) {
   getPragmaAttributeSupport(Records).generateParsingHelpers(OS);
+}
+
+void EmitClangAttrDocTable(RecordKeeper &Records, raw_ostream &OS) {
+  emitSourceFileHeader("Clang attribute documentation", OS);
+
+  std::vector<Record *> Attrs = Records.getAllDerivedDefinitions("Attr");
+  for (const auto *A : Attrs) {
+    if (!A->getValueAsBit("ASTNode"))
+      continue;
+    std::vector<Record *> Docs = A->getValueAsListOfDefs("Documentation");
+    for (const auto *D : Docs) {
+      OS << "\nstatic const char AttrDoc_" << A->getName() << "[] = "
+         << "R\"reST("
+         << D->getValueAsOptionalString("Content").getValueOr("").trim()
+         << ")reST\";\n";
+      // Only look at the first documentation if there are several.
+      // (Currently there's only one such attr, revisit if this becomes common).
+      break;
+    }
+  }
 }
 
 enum class SpellingKind {
