@@ -1037,6 +1037,23 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
 // Transform all builtin variables into calls
 bool lowerBuiltinVariablesToCalls(Module *M);
 
+/// \brief Post-process OpenCL or SPIRV builtin function returning struct type.
+///
+/// Some builtin functions are translated to SPIR-V instructions with
+/// struct type result, e.g. NDRange creation functions. Such functions
+/// need to be post-processed to return the struct through sret argument.
+bool postProcessBuiltinReturningStruct(Function *F);
+
+/// \brief Post-process OpenCL or SPIRV builtin function having array argument.
+///
+/// These functions are translated to functions with array type argument
+/// first, then post-processed to have pointer arguments.
+bool postProcessBuiltinWithArrayArguments(Function *F, StringRef DemangledName);
+
+bool postProcessBuiltinsReturningStruct(Module *M, bool IsCpp = false);
+
+bool postProcessBuiltinsWithArrayArguments(Module *M, bool IsCpp = false);
+
 } // namespace SPIRV
 
 #endif // SPIRV_SPIRVINTERNAL_H

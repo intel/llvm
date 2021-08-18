@@ -220,8 +220,7 @@ CudaInstallationDetector::CudaInstallationDetector(
       VersionInfo.Version = (FS.exists(LibDevicePath + "/libdevice.10.bc"))
                                 ? Version = CudaVersion::LATEST
                                 : Version = CudaVersion::CUDA_70;
-      VersionInfo.DetectedVersion =
-          "No version found in version.txt or cuda.h.";
+      VersionInfo.DetectedVersion = "no version found in version.txt or cuda.h";
     }
 
     Version = VersionInfo.Version;
@@ -687,7 +686,8 @@ void CudaToolChain::addClangTargetOptions(
          "Only OpenMP, SYCL or CUDA offloading kinds are supported for NVIDIA GPUs.");
 
   if (DeviceOffloadingKind == Action::OFK_Cuda) {
-    CC1Args.push_back("-fcuda-is-device");
+    CC1Args.append(
+        {"-fcuda-is-device", "-mllvm", "-enable-memcpyopt-without-libcalls"});
 
     if (DriverArgs.hasFlag(options::OPT_fcuda_approx_transcendentals,
                            options::OPT_fno_cuda_approx_transcendentals, false))
@@ -722,7 +722,8 @@ void CudaToolChain::addClangTargetOptions(
       llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
       LibraryPaths.emplace_back(WithInstallPath.c_str());
 
-      std::string LibSpirvTargetName = "libspirv-nvptx64--nvidiacl.bc";
+      std::string LibSpirvTargetName =
+          "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc";
       for (StringRef LibraryPath : LibraryPaths) {
         SmallString<128> LibSpirvTargetFile(LibraryPath);
         llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
