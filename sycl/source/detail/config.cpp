@@ -72,7 +72,7 @@ void readConfig() {
       // ConfigName=Value
       // TODO: Skip spaces before and after '='
       std::getline(File, BufString);
-      if (File.fail()) {
+      if  (File.fail() && !File.eof()) {
         // Fail to process the line.
         File.clear(File.rdstate() & ~std::ios_base::failbit);
         File.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
