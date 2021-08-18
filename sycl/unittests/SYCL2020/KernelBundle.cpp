@@ -114,7 +114,8 @@ TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
   const sycl::context Ctx = Queue.get_context();
 
   sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<TestKernel, sycl::bundle_state::input>(Ctx, {Dev});
+      sycl::get_kernel_bundle<TestKernel, sycl::bundle_state::input>(Ctx,
+                                                                     {Dev});
 
   auto ObjBundle = sycl::compile(KernelBundle, KernelBundle.get_devices());
   EXPECT_FALSE(ObjBundle.empty()) << "Expect non-empty obj kernel bundle";
