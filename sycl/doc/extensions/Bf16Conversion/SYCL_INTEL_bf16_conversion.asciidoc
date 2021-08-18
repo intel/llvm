@@ -48,7 +48,7 @@ products.
 
 == Version
 
-Revision: 2
+Revision: 3
 
 == Introduction
 
@@ -128,9 +128,6 @@ public:
   static storage_t from_float(const float &a);
   static float to_float(const storage_t &a);
 
-  // Direct initialization
-  bfloat16(const storage_t &a);
-
   // Convert from float to bfloat16
   bfloat16(const float &a);
   bfloat16 &operator=(const float &a);
@@ -185,9 +182,6 @@ Table 1. Member functions of `bfloat16` class.
 
 |  `static float to_float(const storage_t &a);`
 |  Interpret `a` as `bfloat16` and explicitly convert it to `float`.
-
-| `bfloat16(const storage_t& a);`
-| Initialize with an integer value which is interpreted as a `bfloat16` type.
 
 | `bfloat16(const float& a);`
 | Construct `bfloat16` from `float`. Converts `float` to `bfloat16`.
@@ -334,4 +328,5 @@ None.
 |2|2021-08-17|Alexey Sotkin |Add explicit conversion functions +
                              Add operator overloadings +
                              Apply code review suggestions
+|3|2021-08-18|Alexey Sotkin |Remove `uint16_t` constructor
 |========================================
