@@ -257,6 +257,10 @@ static cl::opt<bool> SaveTemps(
              "This option forces print-out of the temporary files' names."),
     cl::Hidden);
 
+static cl::opt<bool> AddOpenMPOffloadNotes(
+    "add-omp-offload-notes",
+    cl::desc("Add LLVMOMPOFFLOAD ELF notes to ELF device images."), cl::Hidden);
+
 namespace {
 
 struct OffloadKindToUint {
@@ -967,7 +971,8 @@ private:
       if (!BinOrErr)
         return BinOrErr.takeError();
       MemoryBuffer *Bin = *BinOrErr;
-      if (Img.File != "-" && Kind == OffloadKind::OpenMP) {
+      if (Img.File != "-" && Kind == OffloadKind::OpenMP &&
+          AddOpenMPOffloadNotes) {
         // Adding ELF notes for STDIN is not supported yet.
         Bin = addELFNotes(Bin, Img.File);
       }
