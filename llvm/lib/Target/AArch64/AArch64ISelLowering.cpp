@@ -10461,11 +10461,10 @@ SDValue AArch64TargetLowering::LowerCONCAT_VECTORS(SDValue Op,
 
   if (isTypeLegal(Op.getOperand(0).getValueType())) {
     unsigned NumOperands = Op->getNumOperands();
-    (void)NumOperands;
     assert(NumOperands > 1 && isPowerOf2_32(NumOperands) &&
            "Unexpected number of operands in CONCAT_VECTORS");
 
-    if (Op.getNumOperands() == 2)
+    if (NumOperands == 2)
       return Op;
 
     // Concat each pair of subvectors and pack into the lower half of the array.
@@ -17745,7 +17744,7 @@ void AArch64TargetLowering::insertSSPDeclarations(Module &M) const {
         Type::getInt8PtrTy(M.getContext()));
     if (Function *F = dyn_cast<Function>(SecurityCheckCookie.getCallee())) {
       F->setCallingConv(CallingConv::Win64);
-      F->addAttribute(1, Attribute::AttrKind::InReg);
+      F->addParamAttr(0, Attribute::AttrKind::InReg);
     }
     return;
   }
