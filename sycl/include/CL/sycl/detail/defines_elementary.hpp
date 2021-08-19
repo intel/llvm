@@ -8,6 +8,9 @@
 
 #pragma once
 
+#ifndef STRINGIFY
+#define STRINGIFY(x) #x
+
 #ifndef __SYCL_DISABLE_NAMESPACE_INLINE__
 #define __SYCL_INLINE_NAMESPACE(X) inline namespace X
 #else
@@ -89,8 +92,7 @@
 
 // define __SYCL_WARNING convenience macro to report compiler warnings
 #if defined(__GNUC__)
-#define __SYCL_GCC_PRAGMA(x) _Pragma(#x)
-#define __SYCL_WARNING(msg) __SYCL_GCC_PRAGMA(GCC warning msg)
+#define __SYCL_WARNING(msg) _Pragma(STRINGIFY(GCC warning msg))
 #elif defined(_MSC_VER) && !defined(__clang__)
 #define __SYCL_QUOTE1(x) #x
 #define __SYCL_QUOTE(x) __SYCL_QUOTE1(x)
@@ -104,16 +106,15 @@
 // defined __SYCL_UNROLL to add pragma/attribute unroll to a loop
 #ifndef __SYCL_UNROLL
 #if defined(__clang__)
-#define STRINGIFY(x) #x
 #define __SYCL_UNROLL(x) _Pragma(STRINGIFY(unroll_count x))
 #elif defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
-#define STRINGIFY(x) #x
 #define __SYCL_UNROLL(x) _Pragma(STRINGIFY(unroll x))
 #elif (defined(__GNUC__) && __GNUC__ >= 8) ||                                  \
     (defined(__GNUG__) && __GNUG__ >= 8)
-#define STRINGIFY(x) #x
 #define __SYCL_UNROLL(x) _Pragma(STRINGIFY(GCC unroll x))
 #else
 #define __SYCL_UNROLL(x)
 #endif // compiler switch
 #endif // __SYCL_UNROLL
+
+#endif // STRINGIFY
