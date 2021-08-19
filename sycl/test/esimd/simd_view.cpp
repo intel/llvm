@@ -129,10 +129,10 @@ void test_simd_view_impl_api_ret_types() SYCL_ESIMD_FUNCTION {
           // 1, 1>, region_base<false, float, 1, 0, 2, 1>>>
   static_assert(detail::is_simd_view_v<decltype(v1)>::value, "");
 
-  auto v_int = x.bit_cast_view<int>();
-  static_assert(detail::is_simd_view_v<decltype(v_int)>::value, "");
-  auto v_int_2D = x.bit_cast_view<int, 2, 2>();
-  static_assert(detail::is_simd_view_v<decltype(v_int_2D)>::value, "");
+  auto v2_int = v2.bit_cast_view<int>();
+  static_assert(detail::is_simd_view_v<decltype(v2_int)>::value, "");
+  auto v2_int_2D = v2.bit_cast_view<int, 1, 1>();
+  static_assert(detail::is_simd_view_v<decltype(v2_int_2D)>::value, "");
 
   auto v3 = x.select<2, 1>(2);
   auto &v4 = (v1 += v3);
