@@ -104,10 +104,10 @@
 // defined __SYCL_UNROLL to add pragma/attribute unroll to a loop
 #ifndef __SYCL_UNROLL
 #if defined(__clang__) || defined(__INTEL_COMPILER)
-#define __SYCL_UNROLL(x) _Pragma(unroll (x))
-#elif (defined(__GNUC__) && __GNUC__ >= 8) || \
+#define __SYCL_UNROLL(x) _Pragma(unroll(x))
+#elif (defined(__GNUC__) && __GNUC__ >= 8) ||                                  \
     (defined(__GNUG__) && __GNUG__ >= 8)
-#define __SYCL_UNROLL(x) _Pragma(GCC unroll (x))
+#define __SYCL_UNROLL(x) _Pragma(GCC unroll(x))
 #else
 #define __SYCL_UNROLL(x)
 #endif // compiler switch
