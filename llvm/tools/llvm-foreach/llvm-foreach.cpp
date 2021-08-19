@@ -73,7 +73,7 @@ static cl::opt<std::string> OutIncrement{
 static cl::opt<unsigned int> ExecuteInParallel{
     "parallel-exec",
     cl::Optional,
-    cl::init(1),
+    cl::init(4),
     cl::desc("Specify the number of threads for launching input commands in "
              "parallel mode"),
 };
