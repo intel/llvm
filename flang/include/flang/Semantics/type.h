@@ -258,6 +258,7 @@ public:
   bool IsForwardReferenced() const;
   bool HasDefaultInitialization() const;
   bool HasDestruction() const;
+  bool HasFinalization() const;
 
   // The "raw" type parameter list is a simple transcription from the
   // parameter list in the parse tree, built by calling AddRawParamValue().
@@ -286,6 +287,9 @@ public:
   bool MightBeAssignmentCompatibleWith(const DerivedTypeSpec &) const;
   bool operator==(const DerivedTypeSpec &that) const {
     return RawEquals(that) && parameters_ == that.parameters_;
+  }
+  bool operator!=(const DerivedTypeSpec &that) const {
+    return !(*this == that);
   }
   std::string AsFortran() const;
 

@@ -795,6 +795,64 @@ static Instruction *foldClampRangeOfTwo(IntrinsicInst *II,
   return SelectInst::Create(Cmp, ConstantInt::get(II->getType(), *C0), I1);
 }
 
+/// Reduce a sequence of min/max intrinsics with a common operand.
+static Instruction *factorizeMinMaxTree(IntrinsicInst *II,
+                                        InstCombiner::BuilderTy &Builder) {
+  // Match 3 of the same min/max ops. Example: umin(umin(), umin()).
+  auto *LHS = dyn_cast<IntrinsicInst>(II->getArgOperand(0));
+  auto *RHS = dyn_cast<IntrinsicInst>(II->getArgOperand(1));
+  Intrinsic::ID MinMaxID = II->getIntrinsicID();
+  if (!LHS || !RHS || LHS->getIntrinsicID() !=  MinMaxID ||
+      RHS->getIntrinsicID() != MinMaxID ||
+      (!LHS->hasOneUse() && !RHS->hasOneUse()))
+    return nullptr;
+
+  Value *A = LHS->getArgOperand(0);
+  Value *B = LHS->getArgOperand(1);
+  Value *C = RHS->getArgOperand(0);
+  Value *D = RHS->getArgOperand(1);
+
+  // Look for a common operand.
+  Value *MinMaxOp = nullptr;
+  Value *ThirdOp = nullptr;
+  if (LHS->hasOneUse()) {
+    // If the LHS is only used in this chain and the RHS is used outside of it,
+    // reuse the RHS min/max because that will eliminate the LHS.
+    if (D == A || C == A) {
+      // min(min(a, b), min(c, a)) --> min(min(c, a), b)
+      // min(min(a, b), min(a, d)) --> min(min(a, d), b)
+      MinMaxOp = RHS;
+      ThirdOp = B;
+    } else if (D == B || C == B) {
+      // min(min(a, b), min(c, b)) --> min(min(c, b), a)
+      // min(min(a, b), min(b, d)) --> min(min(b, d), a)
+      MinMaxOp = RHS;
+      ThirdOp = A;
+    }
+  } else {
+    assert(RHS->hasOneUse() && "Expected one-use operand");
+    // Reuse the LHS. This will eliminate the RHS.
+    if (D == A || D == B) {
+      // min(min(a, b), min(c, a)) --> min(min(a, b), c)
+      // min(min(a, b), min(c, b)) --> min(min(a, b), c)
+      MinMaxOp = LHS;
+      ThirdOp = C;
+    } else if (C == A || C == B) {
+      // min(min(a, b), min(b, d)) --> min(min(a, b), d)
+      // min(min(a, b), min(c, b)) --> min(min(a, b), d)
+      MinMaxOp = LHS;
+      ThirdOp = D;
+    }
+  }
+
+  if (!MinMaxOp || !ThirdOp)
+    return nullptr;
+
+  Module *Mod = II->getModule();
+  Function *MinMax = Intrinsic::getDeclaration(Mod, MinMaxID, II->getType());
+  return CallInst::Create(MinMax, { MinMaxOp, ThirdOp });
+}
+
 /// CallInst simplification. This mostly only handles folding of intrinsic
 /// instructions. For normal calls, it allows visitCallBase to do the heavy
 /// lifting.
@@ -1055,6 +1113,9 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
       if (auto *Sel = dyn_cast<SelectInst>(I0))
         if (Instruction *R = FoldOpIntoSelect(*II, Sel))
           return R;
+
+    if (Instruction *NewMinMax = factorizeMinMaxTree(II, Builder))
+       return NewMinMax;
 
     break;
   }
@@ -1466,6 +1527,18 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
          II->getFastMathFlags().noSignedZeros()))
       return BinaryOperator::CreateFMulFMF(Src0, Src1, II);
 
+    break;
+  }
+  case Intrinsic::isnan: {
+    Value *Arg = II->getArgOperand(0);
+    if (const auto *FPMO = dyn_cast<FPMathOperator>(Arg)) {
+      // If argument of this intrinsic call is an instruction that has 'nnan'
+      // flag, we can assume that NaN cannot be produced, otherwise it is
+      // undefined behavior.
+      if (FPMO->getFastMathFlags().noNaNs())
+        return replaceInstUsesWith(
+            *II, ConstantInt::get(II->getType(), APInt::getNullValue(1)));
+    }
     break;
   }
   case Intrinsic::copysign: {
@@ -2024,26 +2097,22 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
   }
   case Intrinsic::vector_reduce_xor: {
     if (IID == Intrinsic::vector_reduce_xor) {
-      // Convert vector_reduce_xor(zext(<n x i1>)) to
-      // (ZExtOrTrunc(ctpop(bitcast <n x i1> to iN) & 1)).
-      // Convert vector_reduce_xor(sext(<n x i1>)) to
-      // -(ZExtOrTrunc(ctpop(bitcast <n x i1> to iN) & 1)).
-      // Convert vector_reduce_xor(<n x i1>) to
-      // ZExtOrTrunc(ctpop(bitcast <n x i1> to iN) & 1).
+      // Exclusive disjunction reduction over the vector with
+      // (potentially-extended) i1 element type is actually a
+      // (potentially-extended) arithmetic `add` reduction over the original
+      // non-extended value:
+      //   vector_reduce_xor(?ext(<n x i1>))
+      //     -->
+      //   ?ext(vector_reduce_add(<n x i1>))
       Value *Arg = II->getArgOperand(0);
       Value *Vect;
       if (match(Arg, m_ZExtOrSExtOrSelf(m_Value(Vect)))) {
         if (auto *FTy = dyn_cast<FixedVectorType>(Vect->getType()))
           if (FTy->getElementType() == Builder.getInt1Ty()) {
-            Value *V = Builder.CreateBitCast(
-                Vect, Builder.getIntNTy(FTy->getNumElements()));
-            Value *Res = Builder.CreateUnaryIntrinsic(Intrinsic::ctpop, V);
-            Res = Builder.CreateAnd(Res, ConstantInt::get(Res->getType(), 1));
-            if (Res->getType() != II->getType())
-              Res = Builder.CreateZExtOrTrunc(Res, II->getType());
-            if (Arg != Vect &&
-                cast<Instruction>(Arg)->getOpcode() == Instruction::SExt)
-              Res = Builder.CreateNeg(Res);
+            Value *Res = Builder.CreateAddReduce(Vect);
+            if (Arg != Vect)
+              Res = Builder.CreateCast(cast<CastInst>(Arg)->getOpcode(), Res,
+                                       II->getType());
             return replaceInstUsesWith(CI, Res);
           }
       }
@@ -2767,12 +2836,12 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
     if (Call.isInAllocaArgument(i))
       return false;   // Cannot transform to and from inalloca.
 
-    if (CallerPAL.hasParamAttribute(i, Attribute::SwiftError))
+    if (CallerPAL.hasParamAttr(i, Attribute::SwiftError))
       return false;
 
     // If the parameter is passed as a byval argument, then we have to have a
     // sized type and the sized type has to have the same size as the old type.
-    if (ParamTy != ActTy && CallerPAL.hasParamAttribute(i, Attribute::ByVal)) {
+    if (ParamTy != ActTy && CallerPAL.hasParamAttr(i, Attribute::ByVal)) {
       PointerType *ParamPTy = dyn_cast<PointerType>(ParamTy);
       if (!ParamPTy || !ParamPTy->getElementType()->isSized())
         return false;
@@ -2842,7 +2911,7 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
     Args.push_back(NewArg);
 
     // Add any parameter attributes.
-    if (CallerPAL.hasParamAttribute(i, Attribute::ByVal)) {
+    if (CallerPAL.hasParamAttr(i, Attribute::ByVal)) {
       AttrBuilder AB(CallerPAL.getParamAttributes(i));
       AB.addByValAttr(NewArg->getType()->getPointerElementType());
       ArgAttrs.push_back(AttributeSet::get(Ctx, AB));

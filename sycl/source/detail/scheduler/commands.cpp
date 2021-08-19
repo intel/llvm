@@ -1106,7 +1106,8 @@ bool UnMapMemObject::producesPiEvent() const {
   // an event waitlist and Level Zero plugin attempts to batch these commands,
   // so the execution of kernel B starts only on step 4. This workaround
   // restores the old behavior in this case until this is resolved.
-  return MQueue->getPlugin().getBackend() != backend::level_zero;
+  return MQueue->getPlugin().getBackend() != backend::level_zero ||
+         MEvent->getHandleRef() != nullptr;
 }
 
 cl_int UnMapMemObject::enqueueImp() {
@@ -1202,7 +1203,8 @@ bool MemCpyCommand::producesPiEvent() const {
   // so the execution of kernel B starts only on step 4. This workaround
   // restores the old behavior in this case until this is resolved.
   return MQueue->is_host() ||
-         MQueue->getPlugin().getBackend() != backend::level_zero;
+         MQueue->getPlugin().getBackend() != backend::level_zero ||
+         MEvent->getHandleRef() != nullptr;
 }
 
 cl_int MemCpyCommand::enqueueImp() {
@@ -1752,15 +1754,10 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
             "device",
             PI_INVALID_OPERATION);
       }
-      if (DeviceImageImpl != nullptr) {
-        RT::PiMem SpecConstsBuffer =
-            DeviceImageImpl->get_spec_const_buffer_ref();
-        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                        &SpecConstsBuffer);
-      } else {
-        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                        nullptr);
-      }
+      assert(DeviceImageImpl != nullptr);
+      RT::PiMem SpecConstsBuffer = DeviceImageImpl->get_spec_const_buffer_ref();
+      Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                      &SpecConstsBuffer);
       break;
     }
     }
@@ -2063,7 +2060,7 @@ cl_int ExecCGCommand::enqueueImp() {
       Program = SyclProg->getHandleRef();
       if (SyclProg->is_cacheable()) {
         RT::PiKernel FoundKernel = nullptr;
-        std::tie(FoundKernel, KernelMutex) =
+        std::tie(FoundKernel, KernelMutex, std::ignore) =
             detail::ProgramManager::getInstance().getOrCreateKernel(
                 ExecKernel->MOSModuleHandle, ContextImpl, DeviceImpl,
                 ExecKernel->MKernelName, SyclProg.get());
@@ -2071,13 +2068,10 @@ cl_int ExecCGCommand::enqueueImp() {
       } else
         KnownProgram = false;
     } else {
-      std::tie(Kernel, KernelMutex) =
+      std::tie(Kernel, KernelMutex, Program) =
           detail::ProgramManager::getInstance().getOrCreateKernel(
               ExecKernel->MOSModuleHandle, ContextImpl, DeviceImpl,
               ExecKernel->MKernelName, nullptr);
-      MQueue->getPlugin().call<PiApiKind::piKernelGetInfo>(
-          Kernel, PI_KERNEL_INFO_PROGRAM, sizeof(RT::PiProgram), &Program,
-          nullptr);
     }
 
     pi_result Error = PI_SUCCESS;

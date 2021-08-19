@@ -33,9 +33,5 @@ IMPL(long, l, global, AS1, __spirv_AtomicSMax, __clc, max_global_8)
 IMPL(unsigned long, m, global, AS1, __spirv_AtomicUMax, __clc, umax_global_8)
 IMPL(long, l, local, AS3, __spirv_AtomicSMax, __clc, max_local_8)
 IMPL(unsigned long, m, local, AS3, __spirv_AtomicUMax, __clc, umax_local_8)
-IMPL(long, x, global, AS1, __spirv_AtomicSMax, __clc, max_global_8)
-IMPL(unsigned long, y, global, AS1, __spirv_AtomicUMax, __clc, umax_global_8)
-IMPL(long, x, local, AS3, __spirv_AtomicSMax, __clc, max_local_8)
-IMPL(unsigned long, y, local, AS3, __spirv_AtomicUMax, __clc, umax_local_8)
 #endif
 #undef IMPL

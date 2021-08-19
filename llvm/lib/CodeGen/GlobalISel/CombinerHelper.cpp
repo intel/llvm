@@ -1710,13 +1710,6 @@ bool CombinerHelper::matchPtrAddImmedChain(MachineInstr &MI,
   if (!MaybeImmVal)
     return false;
 
-  // Don't do this combine if there multiple uses of the first PTR_ADD,
-  // since we may be able to compute the second PTR_ADD as an immediate
-  // offset anyway. Folding the first offset into the second may cause us
-  // to go beyond the bounds of our legal addressing modes.
-  if (!MRI.hasOneNonDBGUse(Add2))
-    return false;
-
   MachineInstr *Add2Def = MRI.getUniqueVRegDef(Add2);
   if (!Add2Def || Add2Def->getOpcode() != TargetOpcode::G_PTR_ADD)
     return false;
@@ -1727,8 +1720,36 @@ bool CombinerHelper::matchPtrAddImmedChain(MachineInstr &MI,
   if (!MaybeImm2Val)
     return false;
 
+  // Check if the new combined immediate forms an illegal addressing mode.
+  // Do not combine if it was legal before but would get illegal.
+  // To do so, we need to find a load/store user of the pointer to get
+  // the access type.
+  Type *AccessTy = nullptr;
+  auto &MF = *MI.getMF();
+  for (auto &UseMI : MRI.use_nodbg_instructions(MI.getOperand(0).getReg())) {
+    if (auto *LdSt = dyn_cast<GLoadStore>(&UseMI)) {
+      AccessTy = getTypeForLLT(MRI.getType(LdSt->getReg(0)),
+                               MF.getFunction().getContext());
+      break;
+    }
+  }
+  TargetLoweringBase::AddrMode AMNew;
+  APInt CombinedImm = MaybeImmVal->Value + MaybeImm2Val->Value;
+  AMNew.BaseOffs = CombinedImm.getSExtValue();
+  if (AccessTy) {
+    AMNew.HasBaseReg = true;
+    TargetLoweringBase::AddrMode AMOld;
+    AMOld.BaseOffs = MaybeImm2Val->Value.getSExtValue();
+    AMOld.HasBaseReg = true;
+    unsigned AS = MRI.getType(Add2).getAddressSpace();
+    const auto &TLI = *MF.getSubtarget().getTargetLowering();
+    if (TLI.isLegalAddressingMode(MF.getDataLayout(), AMOld, AccessTy, AS) &&
+        !TLI.isLegalAddressingMode(MF.getDataLayout(), AMNew, AccessTy, AS))
+      return false;
+  }
+
   // Pass the combined immediate to the apply function.
-  MatchInfo.Imm = (MaybeImmVal->Value + MaybeImm2Val->Value).getSExtValue();
+  MatchInfo.Imm = AMNew.BaseOffs;
   MatchInfo.Base = Base;
   return true;
 }
@@ -1932,8 +1953,8 @@ void CombinerHelper::applyShiftOfShiftedLogic(MachineInstr &MI,
   Builder.buildInstr(MatchInfo.Logic->getOpcode(), {Dest}, {Shift1, Shift2});
 
   // These were one use so it's safe to remove them.
-  MatchInfo.Shift2->eraseFromParent();
-  MatchInfo.Logic->eraseFromParent();
+  MatchInfo.Shift2->eraseFromParentAndMarkDBGValuesForRemoval();
+  MatchInfo.Logic->eraseFromParentAndMarkDBGValuesForRemoval();
 
   MI.eraseFromParent();
 }
@@ -2659,12 +2680,14 @@ bool CombinerHelper::matchEqualDefs(const MachineOperand &MOP1,
                                     const MachineOperand &MOP2) {
   if (!MOP1.isReg() || !MOP2.isReg())
     return false;
-  MachineInstr *I1 = getDefIgnoringCopies(MOP1.getReg(), MRI);
-  if (!I1)
+  auto InstAndDef1 = getDefSrcRegIgnoringCopies(MOP1.getReg(), MRI);
+  if (!InstAndDef1)
     return false;
-  MachineInstr *I2 = getDefIgnoringCopies(MOP2.getReg(), MRI);
-  if (!I2)
+  auto InstAndDef2 = getDefSrcRegIgnoringCopies(MOP2.getReg(), MRI);
+  if (!InstAndDef2)
     return false;
+  MachineInstr *I1 = InstAndDef1->MI;
+  MachineInstr *I2 = InstAndDef2->MI;
 
   // Handle a case like this:
   //
@@ -2724,7 +2747,17 @@ bool CombinerHelper::matchEqualDefs(const MachineOperand &MOP1,
   //
   // On the off-chance that there's some target instruction feeding into the
   // instruction, let's use produceSameValue instead of isIdenticalTo.
-  return Builder.getTII().produceSameValue(*I1, *I2, &MRI);
+  if (Builder.getTII().produceSameValue(*I1, *I2, &MRI)) {
+    // Handle instructions with multiple defs that produce same values. Values
+    // are same for operands with same index.
+    // %0:_(s8), %1:_(s8), %2:_(s8), %3:_(s8) = G_UNMERGE_VALUES %4:_(<4 x s8>)
+    // %5:_(s8), %6:_(s8), %7:_(s8), %8:_(s8) = G_UNMERGE_VALUES %4:_(<4 x s8>)
+    // I1 and I2 are different instructions but produce same values,
+    // %1 and %6 are same, %1 and %7 are not the same value.
+    return I1->findRegisterDefOperandIdx(InstAndDef1->Reg) ==
+           I2->findRegisterDefOperandIdx(InstAndDef2->Reg);
+  }
+  return false;
 }
 
 bool CombinerHelper::matchConstantOp(const MachineOperand &MOP, int64_t C) {
@@ -4124,6 +4157,55 @@ bool CombinerHelper::matchBitfieldExtractFromAnd(
     auto WidthCst = B.buildConstant(ExtractTy, Width);
     auto LSBCst = B.buildConstant(ExtractTy, LSBImm);
     B.buildInstr(TargetOpcode::G_UBFX, {Dst}, {ShiftSrc, LSBCst, WidthCst});
+  };
+  return true;
+}
+
+bool CombinerHelper::matchBitfieldExtractFromShr(
+    MachineInstr &MI, std::function<void(MachineIRBuilder &)> &MatchInfo) {
+  const unsigned Opcode = MI.getOpcode();
+  assert(Opcode == TargetOpcode::G_ASHR || Opcode == TargetOpcode::G_LSHR);
+
+  const Register Dst = MI.getOperand(0).getReg();
+
+  const unsigned ExtrOpcode = Opcode == TargetOpcode::G_ASHR
+                                  ? TargetOpcode::G_SBFX
+                                  : TargetOpcode::G_UBFX;
+
+  // Check if the type we would use for the extract is legal
+  LLT Ty = MRI.getType(Dst);
+  LLT ExtractTy = getTargetLowering().getPreferredShiftAmountTy(Ty);
+  if (!LI || !LI->isLegalOrCustom({ExtrOpcode, {Ty, ExtractTy}}))
+    return false;
+
+  Register ShlSrc;
+  int64_t ShrAmt;
+  int64_t ShlAmt;
+  const unsigned Size = Ty.getScalarSizeInBits();
+
+  // Try to match shr (shl x, c1), c2
+  if (!mi_match(Dst, MRI,
+                m_BinOp(Opcode,
+                        m_OneNonDBGUse(m_GShl(m_Reg(ShlSrc), m_ICst(ShlAmt))),
+                        m_ICst(ShrAmt))))
+    return false;
+
+  // Make sure that the shift sizes can fit a bitfield extract
+  if (ShlAmt < 0 || ShlAmt > ShrAmt || ShrAmt >= Size)
+    return false;
+
+  // Skip this combine if the G_SEXT_INREG combine could handle it
+  if (Opcode == TargetOpcode::G_ASHR && ShlAmt == ShrAmt)
+    return false;
+
+  // Calculate start position and width of the extract
+  const int64_t Pos = ShrAmt - ShlAmt;
+  const int64_t Width = Size - ShrAmt;
+
+  MatchInfo = [=](MachineIRBuilder &B) {
+    auto WidthCst = B.buildConstant(ExtractTy, Width);
+    auto PosCst = B.buildConstant(ExtractTy, Pos);
+    B.buildInstr(ExtrOpcode, {Dst}, {ShlSrc, PosCst, WidthCst});
   };
   return true;
 }

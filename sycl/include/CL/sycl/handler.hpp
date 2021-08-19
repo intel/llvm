@@ -551,6 +551,13 @@ private:
       // arguments.
       MArgs = std::move(MAssociatedAccesors);
     }
+
+    // If the kernel lambda is callable with a kernel_handler argument, manifest
+    // the associated kernel handler.
+    if (detail::isKernelLambdaCallableWithKernelHandler<KernelType,
+                                                        LambdaArgType>()) {
+      getOrInsertHandlerKernelBundle(/*Insert=*/true);
+    }
   }
 
   /// Checks whether it is possible to copy the source shape to the destination

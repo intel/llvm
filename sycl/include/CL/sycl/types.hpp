@@ -650,7 +650,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
   vec(const vec &Rhs) = default;
 #else
-  vec(const vec &Rhs) : m_Data(Rhs.m_Data) {}
+  constexpr vec(const vec &Rhs) : m_Data(Rhs.m_Data) {}
 #endif
 
   vec(vec &&Rhs) = default;
@@ -682,7 +682,7 @@ public:
       T>;
 
   template <typename Ty = DataT>
-  explicit vec(const EnableIfNotHostHalf<Ty> &arg) {
+  explicit constexpr vec(const EnableIfNotHostHalf<Ty> &arg) {
     m_Data = (DataType)arg;
   }
 
@@ -696,7 +696,8 @@ public:
     return *this;
   }
 
-  template <typename Ty = DataT> explicit vec(const EnableIfHostHalf<Ty> &arg) {
+  template <typename Ty = DataT>
+  explicit constexpr vec(const EnableIfHostHalf<Ty> &arg) {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, arg);
     }
@@ -714,7 +715,7 @@ public:
     return *this;
   }
 #else
-  explicit vec(const DataT &arg) {
+  explicit constexpr vec(const DataT &arg) {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, arg);
     }
@@ -743,28 +744,32 @@ public:
   using EnableIfMultipleElems = typename detail::enable_if_t<
       std::is_convertible<T, DataT>::value && NumElements == IdxNum, DataT>;
   template <typename Ty = DataT>
-  vec(const EnableIfMultipleElems<2, Ty> Arg0,
-      const EnableIfNotHostHalf<Ty> Arg1)
+  constexpr vec(const EnableIfMultipleElems<2, Ty> Arg0,
+                const EnableIfNotHostHalf<Ty> Arg1)
       : m_Data{Arg0, Arg1} {}
   template <typename Ty = DataT>
-  vec(const EnableIfMultipleElems<3, Ty> Arg0,
-      const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2)
+  constexpr vec(const EnableIfMultipleElems<3, Ty> Arg0,
+                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2)
       : m_Data{Arg0, Arg1, Arg2} {}
   template <typename Ty = DataT>
-  vec(const EnableIfMultipleElems<4, Ty> Arg0,
-      const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2, const Ty Arg3)
+  constexpr vec(const EnableIfMultipleElems<4, Ty> Arg0,
+                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
+                const Ty Arg3)
       : m_Data{Arg0, Arg1, Arg2, Arg3} {}
   template <typename Ty = DataT>
-  vec(const EnableIfMultipleElems<8, Ty> Arg0,
-      const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2, const DataT Arg3,
-      const DataT Arg4, const DataT Arg5, const DataT Arg6, const DataT Arg7)
+  constexpr vec(const EnableIfMultipleElems<8, Ty> Arg0,
+                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
+                const DataT Arg3, const DataT Arg4, const DataT Arg5,
+                const DataT Arg6, const DataT Arg7)
       : m_Data{Arg0, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7} {}
   template <typename Ty = DataT>
-  vec(const EnableIfMultipleElems<16, Ty> Arg0,
-      const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2, const DataT Arg3,
-      const DataT Arg4, const DataT Arg5, const DataT Arg6, const DataT Arg7,
-      const DataT Arg8, const DataT Arg9, const DataT ArgA, const DataT ArgB,
-      const DataT ArgC, const DataT ArgD, const DataT ArgE, const DataT ArgF)
+  constexpr vec(const EnableIfMultipleElems<16, Ty> Arg0,
+                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
+                const DataT Arg3, const DataT Arg4, const DataT Arg5,
+                const DataT Arg6, const DataT Arg7, const DataT Arg8,
+                const DataT Arg9, const DataT ArgA, const DataT ArgB,
+                const DataT ArgC, const DataT ArgD, const DataT ArgE,
+                const DataT ArgF)
       : m_Data{Arg0, Arg1, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7,
                Arg8, Arg9, ArgA, ArgB, ArgC, ArgD, ArgE, ArgF} {}
 #endif
@@ -773,7 +778,7 @@ public:
   // base types are match and that the NumElements == sum of lengths of args.
   template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
             typename = EnableIfSuitableNumElements<argTN...>>
-  vec(const argTN &... args) {
+  constexpr vec(const argTN &... args) {
     vaargCtorHelper(0, args...);
   }
 
@@ -792,7 +797,7 @@ public:
             typename = typename detail::enable_if_t<
                 std::is_same<vector_t_, vector_t>::value &&
                 !std::is_same<vector_t_, DataT>::value>>
-  vec(vector_t openclVector) : m_Data(openclVector) {}
+  constexpr vec(vector_t openclVector) : m_Data(openclVector) {}
   operator vector_t() const { return m_Data; }
 #endif
 
@@ -805,7 +810,10 @@ public:
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   static constexpr size_t get_count() { return size(); }
   static constexpr size_t size() noexcept { return NumElements; }
-  static constexpr size_t get_size() { return sizeof(m_Data); }
+  __SYCL2020_DEPRECATED(
+      "get_size() is deprecated, please use byte_size() instead")
+  static constexpr size_t get_size() { return byte_size(); }
+  static constexpr size_t byte_size() { return sizeof(m_Data); }
 
   template <typename convertT,
             rounding_mode roundingMode = rounding_mode::automatic>
@@ -1197,7 +1205,8 @@ private:
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <int Num = NumElements, typename Ty = int,
             typename = typename detail::enable_if_t<1 != Num>>
-  void setValue(EnableIfNotHostHalf<Ty> Index, const DataT &Value, int) {
+  constexpr void setValue(EnableIfNotHostHalf<Ty> Index, const DataT &Value,
+                          int) {
     m_Data[Index] = Value;
   }
 
@@ -1209,7 +1218,7 @@ private:
 
   template <int Num = NumElements, typename Ty = int,
             typename = typename detail::enable_if_t<1 != Num>>
-  void setValue(EnableIfHostHalf<Ty> Index, const DataT &Value, int) {
+  constexpr void setValue(EnableIfHostHalf<Ty> Index, const DataT &Value, int) {
     m_Data.s[Index] = Value;
   }
 
@@ -1221,7 +1230,7 @@ private:
 #else  // __SYCL_USE_EXT_VECTOR_TYPE__
   template <int Num = NumElements,
             typename = typename detail::enable_if_t<1 != Num>>
-  void setValue(int Index, const DataT &Value, int) {
+  constexpr void setValue(int Index, const DataT &Value, int) {
     m_Data.s[Index] = Value;
   }
 
@@ -1234,7 +1243,7 @@ private:
 
   template <int Num = NumElements,
             typename = typename detail::enable_if_t<1 == Num>>
-  void setValue(int, const DataT &Value, float) {
+  constexpr void setValue(int, const DataT &Value, float) {
     m_Data = Value;
   }
 
@@ -1245,7 +1254,7 @@ private:
   }
 
   // Special proxies as specialization is not allowed in class scope.
-  void setValue(int Index, const DataT &Value) {
+  constexpr void setValue(int Index, const DataT &Value) {
     if (NumElements == 1)
       setValue(Index, Value, 0);
     else
@@ -1258,13 +1267,13 @@ private:
 
   // Helpers for variadic template constructor of vec.
   template <typename T, typename... argTN>
-  int vaargCtorHelper(int Idx, const T &arg) {
+  constexpr int vaargCtorHelper(int Idx, const T &arg) {
     setValue(Idx, arg);
     return Idx + 1;
   }
 
   template <typename DataT_, int NumElements_>
-  int vaargCtorHelper(int Idx, const vec<DataT_, NumElements_> &arg) {
+  constexpr int vaargCtorHelper(int Idx, const vec<DataT_, NumElements_> &arg) {
     for (size_t I = 0; I < NumElements_; ++I) {
       setValue(Idx + I, arg.getValue(I));
     }
@@ -1273,9 +1282,9 @@ private:
 
   template <typename DataT_, int NumElements_, typename T2, typename T3,
             template <typename> class T4, int... T5>
-  int vaargCtorHelper(int Idx,
-                      const detail::SwizzleOp<vec<DataT_, NumElements_>, T2, T3,
-                                              T4, T5...> &arg) {
+  constexpr int
+  vaargCtorHelper(int Idx, const detail::SwizzleOp<vec<DataT_, NumElements_>,
+                                                   T2, T3, T4, T5...> &arg) {
     size_t NumElems = sizeof...(T5);
     for (size_t I = 0; I < NumElems; ++I) {
       setValue(Idx + I, arg.getValue(I));
@@ -1285,9 +1294,10 @@ private:
 
   template <typename DataT_, int NumElements_, typename T2, typename T3,
             template <typename> class T4, int... T5>
-  int vaargCtorHelper(int Idx,
-                      const detail::SwizzleOp<const vec<DataT_, NumElements_>,
-                                              T2, T3, T4, T5...> &arg) {
+  constexpr int
+  vaargCtorHelper(int Idx,
+                  const detail::SwizzleOp<const vec<DataT_, NumElements_>, T2,
+                                          T3, T4, T5...> &arg) {
     size_t NumElems = sizeof...(T5);
     for (size_t I = 0; I < NumElems; ++I) {
       setValue(Idx + I, arg.getValue(I));
@@ -1296,14 +1306,15 @@ private:
   }
 
   template <typename T1, typename... argTN>
-  void vaargCtorHelper(int Idx, const T1 &arg, const argTN &... args) {
+  constexpr void vaargCtorHelper(int Idx, const T1 &arg,
+                                 const argTN &... args) {
     int NewIdx = vaargCtorHelper(Idx, arg);
     vaargCtorHelper(NewIdx, args...);
   }
 
   template <typename DataT_, int NumElements_, typename... argTN>
-  void vaargCtorHelper(int Idx, const vec<DataT_, NumElements_> &arg,
-                       const argTN &... args) {
+  constexpr void vaargCtorHelper(int Idx, const vec<DataT_, NumElements_> &arg,
+                                 const argTN &... args) {
     int NewIdx = vaargCtorHelper(Idx, arg);
     vaargCtorHelper(NewIdx, args...);
   }
@@ -1400,7 +1411,15 @@ public:
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   size_t get_count() const { return size(); }
   size_t size() const noexcept { return getNumElements(); }
-  template <int Num = getNumElements()> size_t get_size() const {
+
+  template <int Num = getNumElements()>
+  __SYCL2020_DEPRECATED(
+      "get_size() is deprecated, please use byte_size() instead")
+  size_t get_size() const {
+    return byte_size<Num>();
+  }
+
+  template <int Num = getNumElements()> size_t byte_size() const noexcept {
     return sizeof(DataT) * (Num == 3 ? 4 : Num);
   }
 
