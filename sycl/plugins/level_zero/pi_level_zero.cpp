@@ -23,6 +23,7 @@
 #include <string>
 #include <thread>
 #include <utility>
+#include <chrono>
 
 #include <level_zero/zet_api.h>
 
@@ -796,6 +797,14 @@ static const int ZeMaxCommandListCacheSize = [] {
   return CommandListCacheSizeValue;
 }();
 
+static const pi_uint32 ZeMaxRunningCommandLists = [] {
+  const char *MaxRunningCommandLists =
+      std::getenv("SYCL_PI_LEVEL_ZERO_MAX_RUNNING_COMMAND_LISTS");
+  pi_uint32 MaxRunningCommandListsValue =
+  MaxRunningCommandLists ? std::stoi(MaxRunningCommandLists) : ZeMaxCommandListCacheSize;
+  return MaxRunningCommandListsValue;
+}();
+
 static const pi_uint32 ZeCommandListBatchSize = [] {
   // Default value of 0. This specifies to use dynamic batch size adjustment.
   pi_uint32 BatchSizeVal = 0;
@@ -889,21 +898,25 @@ pi_result _pi_context::getAvailableCommandList(
   // if a command list has completed dispatch of its commands and is ready for
   // reuse. If a command list is found to have been signalled, then the
   // command list & fence are reset and we return.
-  for (auto it = Queue->CommandListMap.begin();
-       it != Queue->CommandListMap.end(); ++it) {
-    // Make sure this is the command list type needed.
-    if (UseCopyEngine != it->second.isCopy())
-      continue;
+  bool Wait = Queue->CommandListMap.size() >= ZeMaxRunningCommandLists;
+  do {
+    for (auto it = Queue->CommandListMap.begin();
+        it != Queue->CommandListMap.end(); ++it) {
+      // Make sure this is the command list type needed.
+      if (UseCopyEngine != it->second.isCopy())
+        continue;
 
-    ze_result_t ZeResult =
-        ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-    if (ZeResult == ZE_RESULT_SUCCESS) {
-      Queue->resetCommandList(it, false);
-      CommandList = it;
-      CommandList->second.InUse = true;
-      return PI_SUCCESS;
+      ze_result_t ZeResult =
+          ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+      if (ZeResult == ZE_RESULT_SUCCESS) {
+        Queue->resetCommandList(it, false);
+        CommandList = it;
+        CommandList->second.InUse = true;
+        return PI_SUCCESS;
+      }
     }
-  }
+    if (Wait) std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  } while (Wait);
 
   // If there are no available command lists nor signalled command lists, then
   // we must create another command list if we have not exceed the maximum
