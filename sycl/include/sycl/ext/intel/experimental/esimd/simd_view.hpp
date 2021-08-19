@@ -92,9 +92,6 @@ public:
   DEF_RELOP(!=)
 
 #undef DEF_RELOP
-
-  // negation operator
-  auto operator!() { return *this == 0; }
 };
 
 /// This is a specialization of simd_view class with a single element.
@@ -148,9 +145,6 @@ public:
   DEF_RELOP(!=)
 
 #undef DEF_RELOP
-
-  // negation operator
-  auto operator!() { return *this == 0; }
 };
 
 } // namespace esimd

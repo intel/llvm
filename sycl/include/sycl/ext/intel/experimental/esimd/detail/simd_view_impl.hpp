@@ -296,7 +296,7 @@ public:
 #undef DEF_UNARY_OP
 
   // negation operator
-  auto operator!() { return *this == 0; }
+  auto operator!() { return cast_this_to_derived() == 0; }
 
   // Operator ++, --
   Derived &operator++() {
