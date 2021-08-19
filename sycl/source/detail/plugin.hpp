@@ -189,16 +189,15 @@ public:
   int getPlatformId(RT::PiPlatform Platform) {
     if (PiPlatforms) {
       auto It = std::find(PiPlatforms->begin(), PiPlatforms->end(), Platform);
-      if (It != PiPlatforms->end()) {
+      if (It != PiPlatforms->end())
         return It - PiPlatforms->begin();
-      } else {
-        PiPlatforms->push_back(Platform);
-        LastDeviceIds.push_back(0);
-        return PiPlatforms->size() - 1;
-      }
-    } else {
-      return -1;
+
+      PiPlatforms->push_back(Platform);
+      LastDeviceIds.push_back(0);
+      return PiPlatforms->size() - 1;
     }
+
+    return -1;
   }
   // Device ids are consecutive across platforms within a plugin.
   // We need to return the same starting index for the given platform.
