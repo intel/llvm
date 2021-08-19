@@ -46,6 +46,7 @@ macro(configure_out_of_tree_llvm)
   get_property(LLVM_AS TARGET llvm-as PROPERTY LOCATION)
   get_property(LLVM_LINK TARGET llvm-link PROPERTY LOCATION)
   get_property(LLVM_OPT TARGET opt PROPERTY LOCATION)
+  get_property(LIBCLC_REMANGLER TARGET libclc-remangler PROPERTY LOCATION)
 
   set(LLVM_ENABLE_PIC OFF)
 

@@ -53,7 +53,7 @@ def getStdFlag(cfg, std):
   return None
 
 DEFAULT_PARAMETERS = [
-  Parameter(name='target_triple', type=str, default=getHostTriple,
+  Parameter(name='target_triple', type=str,
             help="The target triple to compile the test suite for. This must be "
                  "compatible with the target that the tests will be run on.",
             actions=lambda triple: filter(None, [
@@ -156,6 +156,13 @@ DEFAULT_PARAMETERS = [
             help="Whether to enable tests that exercise the libc++ debugging mode.",
             actions=lambda enabled: [] if enabled else [
               AddFeature('libcxx-no-debug-mode')
+            ]),
+
+  Parameter(name='enable_32bit', choices=[True, False], type=bool, default=False,
+            help="Whether to build the test suite in 32 bit mode even on a 64 bit target. This basically controls "
+                 "whether -m32 is used when building the test suite.",
+            actions=lambda enabled: [] if not enabled else [
+              AddFlag('-m32')
             ]),
 
   Parameter(name='additional_features', type=list, default=[],

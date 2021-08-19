@@ -109,30 +109,44 @@ private:
 template <typename T> class PiArray {
 public:
   explicit PiArray(std::vector<T> Entries) : MMockEntries(std::move(Entries)) {
-    std::transform(MMockEntries.begins(), MMockEntries.end(),
-                   std::back_inserter(MEntries),
-                   [](const T &Entry) { return Entry.convertToNativeType(); });
+    updateEntries();
   }
 
   PiArray(std::initializer_list<T> Entries) : MMockEntries(std::move(Entries)) {
-    std::transform(MMockEntries.begin(), MMockEntries.end(),
-                   std::back_inserter(MEntries),
-                   [](const T &Entry) { return Entry.convertToNativeType(); });
+    updateEntries();
   }
 
   PiArray() = default;
 
   void push_back(const T &Entry) {
     MMockEntries.push_back(Entry);
-    MEntries.push_back(MMockEntries.back().convertToNativeType());
+    MEntriesNeedUpdate = true;
   }
 
-  typename T::NativeType *begin() { return &*MEntries.begin(); }
-  typename T::NativeType *end() { return begin() + MEntries.size(); }
+  typename T::NativeType *begin() {
+    if (MEntriesNeedUpdate) {
+      updateEntries();
+    }
+
+    return &*MEntries.begin();
+  }
+  typename T::NativeType *end() {
+    if (MEntriesNeedUpdate) {
+      updateEntries();
+    }
+    return &*MEntries.end();
+  }
 
 private:
+  void updateEntries() {
+    MEntries.clear();
+    std::transform(MMockEntries.begin(), MMockEntries.end(),
+                   std::back_inserter(MEntries),
+                   [](const T &Entry) { return Entry.convertToNativeType(); });
+  }
   std::vector<T> MMockEntries;
   std::vector<typename T::NativeType> MEntries;
+  bool MEntriesNeedUpdate = false;
 };
 
 /// Convenience wrapper for pi_device_binary_property_set.

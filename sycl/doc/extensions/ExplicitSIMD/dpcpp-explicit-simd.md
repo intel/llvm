@@ -357,13 +357,13 @@ template <typename T, int n, ChannelMaskType Mask,
           CacheHint L3H = CacheHint::Default>
     typename std::enable_if<(n == 16 || n == 32),
                             simd<T, n * NumChannels(Mask)>>::type
-    flat_load4(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1);
+    gather_rgba(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1);
 
 template <typename T, int n, ChannelMaskType Mask,
           CacheHint L1H = CacheHint::Default,
           CacheHint L3H = CacheHint::Default>
 typename std::enable_if<(n == 16 || n == 32), void>::type
-    flat_store4(T *p, simd<T, n * NumChannels(Mask)> vals,
+    scatter_rgba(T *p, simd<T, n * NumChannels(Mask)> vals,
             simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1);
 ```
 

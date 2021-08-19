@@ -118,7 +118,7 @@ public:
         DeviceImplPtr(new device_impl(Device, Context->getPlatformImpl()));
 
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piQueueRetain>(MQueues[0]);
+    getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
   }
 
   ~queue_impl() {
@@ -147,6 +147,8 @@ public:
   const plugin &getPlugin() const { return MContext->getPlugin(); }
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
+
+  const DeviceImplPtr &getDeviceImplPtr() const { return MDevice; }
 
   /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
@@ -272,7 +274,7 @@ public:
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
-    // CL_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
+    // PI_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
     if (MSupportOOO && Error == PI_INVALID_QUEUE_PROPERTIES) {
       MSupportOOO = false;
       Queue = createQueue(QueueOrder::Ordered);

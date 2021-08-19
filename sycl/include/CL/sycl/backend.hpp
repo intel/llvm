@@ -39,6 +39,10 @@ template <backend Backend, typename T> struct BackendReturn {
   // TODO replace usage of interop with specializations.
   using type = typename interop<Backend, T>::type;
 };
+
+// TODO each backend can have its own custom errc enumeration
+// but the details for this are not fully specified yet
+enum class backend_errc : unsigned int {};
 } // namespace detail
 
 template <backend Backend> class backend_traits {
@@ -49,7 +53,7 @@ public:
   template <class T>
   using return_type = typename detail::BackendReturn<Backend, T>::type;
 
-  // TODO define errc once SYCL2020-style exceptions are supported.
+  using errc = detail::backend_errc;
 };
 
 template <backend Backend, typename SyclType>
@@ -91,10 +95,16 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
                                    const async_handler &Handler,
                                    backend Backend);
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+                               const context &TargetContext, bool KeepOwnership,
+                               const async_handler &Handler, backend Backend);
+__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &TargetContext,
                                const async_handler &Handler, backend Backend);
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, backend Backend);
+__SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
+                               const context &TargetContext, bool KeepOwnership,
+                               backend Backend);
 __SYCL_EXPORT kernel make_kernel(pi_native_handle NativeHandle,
                                  const context &TargetContext, backend Backend);
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
@@ -139,9 +149,21 @@ typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
+           const context &TargetContext, bool KeepOwnership,
+           const async_handler Handler = {}) {
+  return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
+                            TargetContext, KeepOwnership, Handler, Backend);
+}
+
+// TODO: remove this version (without ownership) when allowed to break ABI.
+template <backend Backend>
+typename std::enable_if<
+    detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
+make_queue(const typename backend_traits<Backend>::template input_type<queue>
+               &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, Handler, Backend);
+                            TargetContext, false, Handler, Backend);
 }
 
 template <backend Backend>
@@ -152,6 +174,16 @@ make_event(const typename backend_traits<Backend>::template input_type<event>
            const context &TargetContext) {
   return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
                             TargetContext, Backend);
+}
+
+template <backend Backend>
+typename std::enable_if<
+    detail::InteropFeatureSupportMap<Backend>::MakeEvent == true, event>::type
+make_event(const typename backend_traits<Backend>::template input_type<event>
+               &BackendObject,
+           const context &TargetContext, bool KeepOwnership) {
+  return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
+                            TargetContext, KeepOwnership, Backend);
 }
 
 template <backend Backend, typename T, int Dimensions = 1,

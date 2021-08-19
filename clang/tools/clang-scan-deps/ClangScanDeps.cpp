@@ -83,8 +83,8 @@ public:
     llvm::FileRemover ErrorRemover(ErrorFile.c_str());
     llvm::Optional<StringRef> Redirects[] = {
         {""}, // Stdin
-        StringRef(OutputFile),
-        StringRef(ErrorFile),
+        OutputFile.str(),
+        ErrorFile.str(),
     };
     if (const int RC = llvm::sys::ExecuteAndWait(
             ClangBinaryPath, PrintResourceDirArgs, {}, Redirects)) {
@@ -200,24 +200,6 @@ llvm::cl::opt<bool> Verbose("v", llvm::cl::Optional,
                             llvm::cl::cat(DependencyScannerCategory));
 
 } // end anonymous namespace
-
-class SingleCommandCompilationDatabase : public tooling::CompilationDatabase {
-public:
-  SingleCommandCompilationDatabase(tooling::CompileCommand Cmd)
-      : Command(std::move(Cmd)) {}
-
-  std::vector<tooling::CompileCommand>
-  getCompileCommands(StringRef FilePath) const override {
-    return {Command};
-  }
-
-  std::vector<tooling::CompileCommand> getAllCompileCommands() const override {
-    return {Command};
-  }
-
-private:
-  tooling::CompileCommand Command;
-};
 
 /// Takes the result of a dependency scan and prints error / dependency files
 /// based on the result.

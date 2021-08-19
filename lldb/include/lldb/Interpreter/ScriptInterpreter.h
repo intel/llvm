@@ -71,6 +71,28 @@ private:
   bool m_maskout_errors = true;
 };
 
+class LoadScriptOptions {
+public:
+  LoadScriptOptions() = default;
+
+  bool GetInitSession() const { return m_init_session; }
+  bool GetSilent() const { return m_silent; }
+
+  LoadScriptOptions &SetInitSession(bool b) {
+    m_init_session = b;
+    return *this;
+  }
+
+  LoadScriptOptions &SetSilent(bool b) {
+    m_silent = b;
+    return *this;
+  }
+
+private:
+  bool m_init_session = false;
+  bool m_silent = false;
+};
+
 class ScriptInterpreterIORedirect {
 public:
   /// Create an IO redirect. If IO is enabled, this will redirects the output
@@ -122,7 +144,8 @@ public:
 
   ScriptInterpreter(
       Debugger &debugger, lldb::ScriptLanguage script_lang,
-      lldb::ScriptedProcessInterfaceUP scripted_process_interface_up = {});
+      lldb::ScriptedProcessInterfaceUP scripted_process_interface_up =
+          std::make_unique<ScriptedProcessInterface>());
 
   ~ScriptInterpreter() override = default;
 
@@ -509,7 +532,7 @@ public:
   virtual bool CheckObjectExists(const char *name) { return false; }
 
   virtual bool
-  LoadScriptingModule(const char *filename, bool init_session,
+  LoadScriptingModule(const char *filename, const LoadScriptOptions &options,
                       lldb_private::Status &error,
                       StructuredData::ObjectSP *module_sp = nullptr,
                       FileSpec extra_search_dir = {});

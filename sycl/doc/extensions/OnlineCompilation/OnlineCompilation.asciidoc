@@ -64,7 +64,7 @@ public:
 
 === Compiler API
 
-To compile a source, a user program must first construct an instance of the `sycl::INTEL::online_compiler` class. Then pass the source as an `std::string` object to online compiler's `compile` function along with other relevant parameters. The `online_compiler` is templated by the source language, and the `compile` function is a variadic template function. Instantiations of the `online_compiler::compile` for different languages may have different sets of formal parameters. The `compile` function returns a binary blob - an `std::vector<unsigned char>` - with the device code compiled according to the compilation target specification provided at online compiler construction time.
+To compile a source, a user program must first construct an instance of the `sycl::ext::intel::online_compiler` class. Then pass the source as an `std::string` object to online compiler's `compile` function along with other relevant parameters. The `online_compiler` is templated by the source language, and the `compile` function is a variadic template function. Instantiations of the `online_compiler::compile` for different languages may have different sets of formal parameters. The `compile` function returns a binary blob - an `std::vector<unsigned char>` - with the device code compiled according to the compilation target specification provided at online compiler construction time.
 
 ==== Online compiler
 [source,c++]
@@ -97,12 +97,12 @@ template <source_language Lang> class online_compiler;
 |===
 
 Online compiler construction or source compilation may be unsuccessful, in which case an instance
-of `sycl::INTEL::online_compile_error` is thrown. For example, when some of the compilation
+of `sycl::ext::intel::online_compile_error` is thrown. For example, when some of the compilation
 target specification elements are not supported by the implementation, or there is a syntax error
 in the source program.
 
 
-==== `sycl::INTEL::online_compiler` constructors.
+==== `sycl::ext::intel::online_compiler` constructors.
 [cols="40,60",options="header"]
 |===
 |Constructor |Description
@@ -164,7 +164,7 @@ std::vector<byte> online_compiler<source_language::cm>::compile(
 This example compiles an OpenCL source to a generic SPIR-V.
 [source,c++]
 -----------------
-#include "CL/sycl/INTEL/online_compiler.hpp"
+#include "sycl/ext/intel/online_compiler.hpp"
 
 #include <iostream>
 #include <vector>

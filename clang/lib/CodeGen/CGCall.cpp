@@ -66,6 +66,7 @@ unsigned CodeGenTypes::ClangCallConvToLLVMCallConv(CallingConv CC) {
   case CC_PreserveMost: return llvm::CallingConv::PreserveMost;
   case CC_PreserveAll: return llvm::CallingConv::PreserveAll;
   case CC_Swift: return llvm::CallingConv::Swift;
+  case CC_SwiftAsync: return llvm::CallingConv::SwiftTail;
   }
 }
 
@@ -780,7 +781,7 @@ CodeGenTypes::arrangeLLVMFunctionInfo(CanQualType resultType,
     // Force target independent argument handling for the host visible
     // kernel functions.
     computeSPIRKernelABIInfo(CGM, *FI);
-  } else if (info.getCC() == CC_Swift) {
+  } else if (info.getCC() == CC_Swift || info.getCC() == CC_SwiftAsync) {
     swiftcall::computeABIInfo(CGM, *FI);
   } else {
     getABIInfo().computeInfo(*FI);
@@ -1019,8 +1020,8 @@ static void forConstantArrayExpansion(CodeGenFunction &CGF,
     BaseAddr.getAlignment().alignmentOfArrayElement(EltSize);
 
   for (int i = 0, n = CAE->NumElts; i < n; i++) {
-    llvm::Value *EltAddr =
-      CGF.Builder.CreateConstGEP2_32(nullptr, BaseAddr.getPointer(), 0, i);
+    llvm::Value *EltAddr = CGF.Builder.CreateConstGEP2_32(
+        BaseAddr.getElementType(), BaseAddr.getPointer(), 0, i);
     Fn(Address(EltAddr, EltAlign));
   }
 }
@@ -1277,12 +1278,26 @@ static llvm::Value *CreateCoercedLoad(Address Src, llvm::Type *Ty,
   // perform the conversion.
   if (auto *ScalableDst = dyn_cast<llvm::ScalableVectorType>(Ty)) {
     if (auto *FixedSrc = dyn_cast<llvm::FixedVectorType>(SrcTy)) {
+      // If we are casting a fixed i8 vector to a scalable 16 x i1 predicate
+      // vector, use a vector insert and bitcast the result.
+      bool NeedsBitcast = false;
+      auto PredType =
+          llvm::ScalableVectorType::get(CGF.Builder.getInt1Ty(), 16);
+      llvm::Type *OrigType = Ty;
+      if (ScalableDst == PredType &&
+          FixedSrc->getElementType() == CGF.Builder.getInt8Ty()) {
+        ScalableDst = llvm::ScalableVectorType::get(CGF.Builder.getInt8Ty(), 2);
+        NeedsBitcast = true;
+      }
       if (ScalableDst->getElementType() == FixedSrc->getElementType()) {
         auto *Load = CGF.Builder.CreateLoad(Src);
         auto *UndefVec = llvm::UndefValue::get(ScalableDst);
         auto *Zero = llvm::Constant::getNullValue(CGF.CGM.Int64Ty);
-        return CGF.Builder.CreateInsertVector(ScalableDst, UndefVec, Load, Zero,
-                                              "castScalableSve");
+        llvm::Value *Result = CGF.Builder.CreateInsertVector(
+            ScalableDst, UndefVec, Load, Zero, "castScalableSve");
+        if (NeedsBitcast)
+          Result = CGF.Builder.CreateBitCast(Result, OrigType);
+        return Result;
       }
     }
   }
@@ -2233,7 +2248,7 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
   // C++ explicitly makes returning undefined values UB. C's rule only applies
   // to used values, so we never mark them noundef for now.
   bool HasStrictReturn = getLangOpts().CPlusPlus;
-  if (TargetDecl) {
+  if (TargetDecl && HasStrictReturn) {
     if (const FunctionDecl *FDecl = dyn_cast<FunctionDecl>(TargetDecl))
       HasStrictReturn &= !FDecl->isExternC();
     else if (const VarDecl *VDecl = dyn_cast<VarDecl>(TargetDecl))
@@ -2671,6 +2686,9 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
     unsigned FirstIRArg, NumIRArgs;
     std::tie(FirstIRArg, NumIRArgs) = IRFunctionArgs.getIRArgs(ArgNo);
 
+    if (Arg->hasAttr<SYCLAccessorReadonlyAttr>())
+      Fn->getArg(FirstIRArg)->addAttr(llvm::Attribute::ReadOnly);
+
     switch (ArgI.getKind()) {
     case ABIArgInfo::InAlloca: {
       assert(NumIRArgs == 0);
@@ -2867,9 +2885,18 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
       // llvm.experimental.vector.extract to convert back to the original
       // VLST.
       if (auto *VecTyTo = dyn_cast<llvm::FixedVectorType>(ConvertType(Ty))) {
-        auto *Coerced = Fn->getArg(FirstIRArg);
+        llvm::Value *Coerced = Fn->getArg(FirstIRArg);
         if (auto *VecTyFrom =
                 dyn_cast<llvm::ScalableVectorType>(Coerced->getType())) {
+          // If we are casting a scalable 16 x i1 predicate vector to a fixed i8
+          // vector, bitcast the source and use a vector extract.
+          auto PredType =
+              llvm::ScalableVectorType::get(Builder.getInt1Ty(), 16);
+          if (VecTyFrom == PredType &&
+              VecTyTo->getElementType() == Builder.getInt8Ty()) {
+            VecTyFrom = llvm::ScalableVectorType::get(Builder.getInt8Ty(), 2);
+            Coerced = Builder.CreateBitCast(Coerced, VecTyFrom);
+          }
           if (VecTyFrom->getElementType() == VecTyTo->getElementType()) {
             llvm::Value *Zero = llvm::Constant::getNullValue(CGM.Int64Ty);
 
@@ -3448,7 +3475,8 @@ void CodeGenFunction::EmitFunctionEpilog(const CGFunctionInfo &FI,
       --EI;
       llvm::Value *ArgStruct = &*EI;
       llvm::Value *SRet = Builder.CreateStructGEP(
-          nullptr, ArgStruct, RetAI.getInAllocaFieldIndex());
+          EI->getType()->getPointerElementType(), ArgStruct,
+          RetAI.getInAllocaFieldIndex());
       llvm::Type *Ty =
           cast<llvm::GetElementPtrInst>(SRet)->getResultElementType();
       RV = Builder.CreateAlignedLoad(Ty, SRet, getPointerAlign(), "sret");
@@ -4039,11 +4067,11 @@ void CodeGenFunction::EmitNonNullArgCheck(RValue RV, QualType ArgType,
 // later, so we can't check it directly.
 static bool hasInAllocaArgs(CodeGenModule &CGM, CallingConv ExplicitCC,
                             ArrayRef<QualType> ArgTypes) {
-  // The Swift calling convention doesn't go through the target-specific
-  // argument classification, so it never uses inalloca.
+  // The Swift calling conventions don't go through the target-specific
+  // argument classification, they never use inalloca.
   // TODO: Consider limiting inalloca use to only calling conventions supported
   // by MSVC.
-  if (ExplicitCC == CC_Swift)
+  if (ExplicitCC == CC_Swift || ExplicitCC == CC_SwiftAsync)
     return false;
   if (!CGM.getTarget().getCXXABI().isMicrosoft())
     return false;

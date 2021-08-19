@@ -107,9 +107,12 @@ static bool remainsLegalAfterInline(OpTy op, Region *src, Region *dest,
 
 /// Checks if an affine apply operation remains legal after inlining from `src`
 /// to `dest`.
+//  Use "unused attribute" marker to silence clang-tidy warning stemming from
+//  the inability to see through "llvm::TypeSwitch".
 template <>
-bool remainsLegalAfterInline(AffineApplyOp op, Region *src, Region *dest,
-                             const BlockAndValueMapping &mapping) {
+bool LLVM_ATTRIBUTE_UNUSED
+remainsLegalAfterInline(AffineApplyOp op, Region *src, Region *dest,
+                        const BlockAndValueMapping &mapping) {
   // If it's a valid dimension, we need to check that it remains so.
   if (isValidDim(op.getResult(), src))
     return remainsLegalAfterInline(
@@ -1628,7 +1631,8 @@ static LogicalResult canonicalizeLoopBounds(AffineForOp forOp) {
 }
 
 namespace {
-/// This is a pattern to fold trivially empty loops.
+/// This is a pattern to fold trivially empty loop bodies.
+/// TODO: This should be moved into the folding hook.
 struct AffineForEmptyLoopFolder : public OpRewritePattern<AffineForOp> {
   using OpRewritePattern<AffineForOp>::OpRewritePattern;
 
@@ -1637,7 +1641,8 @@ struct AffineForEmptyLoopFolder : public OpRewritePattern<AffineForOp> {
     // Check that the body only contains a yield.
     if (!llvm::hasSingleElement(*forOp.getBody()))
       return failure();
-    rewriter.eraseOp(forOp);
+    // The initial values of the iteration arguments would be the op's results.
+    rewriter.replaceOp(forOp, forOp.getIterOperands());
     return success();
   }
 };
@@ -1648,10 +1653,25 @@ void AffineForOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.add<AffineForEmptyLoopFolder>(context);
 }
 
+/// Returns true if the affine.for has zero iterations in trivial cases.
+static bool hasTrivialZeroTripCount(AffineForOp op) {
+  if (!op.hasConstantBounds())
+    return false;
+  int64_t lb = op.getConstantLowerBound();
+  int64_t ub = op.getConstantUpperBound();
+  return ub - lb <= 0;
+}
+
 LogicalResult AffineForOp::fold(ArrayRef<Attribute> operands,
                                 SmallVectorImpl<OpFoldResult> &results) {
   bool folded = succeeded(foldLoopBounds(*this));
   folded |= succeeded(canonicalizeLoopBounds(*this));
+  if (hasTrivialZeroTripCount(*this)) {
+    // The initial values of the loop-carried variables (iter_args) are the
+    // results of the op.
+    results.assign(getIterOperands().begin(), getIterOperands().end());
+    folded = true;
+  }
   return success(folded);
 }
 
@@ -1883,6 +1903,49 @@ void mlir::buildAffineLoopNest(
                           buildAffineLoopFromValues);
 }
 
+AffineForOp mlir::replaceForOpWithNewYields(OpBuilder &b, AffineForOp loop,
+                                            ValueRange newIterOperands,
+                                            ValueRange newYieldedValues,
+                                            ValueRange newIterArgs,
+                                            bool replaceLoopResults) {
+  assert(newIterOperands.size() == newYieldedValues.size() &&
+         "newIterOperands must be of the same size as newYieldedValues");
+  // Create a new loop before the existing one, with the extra operands.
+  OpBuilder::InsertionGuard g(b);
+  b.setInsertionPoint(loop);
+  auto operands = llvm::to_vector<4>(loop.getIterOperands());
+  operands.append(newIterOperands.begin(), newIterOperands.end());
+  SmallVector<Value, 4> lbOperands(loop.getLowerBoundOperands());
+  SmallVector<Value, 4> ubOperands(loop.getUpperBoundOperands());
+  SmallVector<Value, 4> steps(loop.getStep());
+  auto lbMap = loop.getLowerBoundMap();
+  auto ubMap = loop.getUpperBoundMap();
+  AffineForOp newLoop =
+      b.create<AffineForOp>(loop.getLoc(), lbOperands, lbMap, ubOperands, ubMap,
+                            loop.getStep(), operands);
+  // Take the body of the original parent loop.
+  newLoop.getLoopBody().takeBody(loop.getLoopBody());
+  for (Value val : newIterArgs)
+    newLoop.getLoopBody().addArgument(val.getType());
+
+  // Update yield operation with new values to be added.
+  if (!newYieldedValues.empty()) {
+    auto yield = cast<AffineYieldOp>(newLoop.getBody()->getTerminator());
+    b.setInsertionPoint(yield);
+    auto yieldOperands = llvm::to_vector<4>(yield.getOperands());
+    yieldOperands.append(newYieldedValues.begin(), newYieldedValues.end());
+    b.create<AffineYieldOp>(yield.getLoc(), yieldOperands);
+    yield.erase();
+  }
+  if (replaceLoopResults) {
+    for (auto it : llvm::zip(loop.getResults(), newLoop.getResults().take_front(
+                                                    loop.getNumResults()))) {
+      std::get<0>(it).replaceAllUsesWith(std::get<1>(it));
+    }
+  }
+  return newLoop;
+}
+
 //===----------------------------------------------------------------------===//
 // AffineIfOp
 //===----------------------------------------------------------------------===//
@@ -1905,7 +1968,7 @@ struct SimplifyDeadElse : public OpRewritePattern<AffineIfOp> {
   }
 };
 
-/// Removes Affine.If cond if the condition is always true or false in certain
+/// Removes affine.if cond if the condition is always true or false in certain
 /// trivial cases. Promotes the then/else block in the parent operation block.
 struct AlwaysTrueOrFalseIf : public OpRewritePattern<AffineIfOp> {
   using OpRewritePattern<AffineIfOp>::OpRewritePattern;
@@ -1913,35 +1976,48 @@ struct AlwaysTrueOrFalseIf : public OpRewritePattern<AffineIfOp> {
   LogicalResult matchAndRewrite(AffineIfOp op,
                                 PatternRewriter &rewriter) const override {
 
-    // If affine.if is returning results then don't remove it.
-    // TODO: Similar simplication can be done when affine.if return results.
-    if (op.getNumResults() > 0)
-      return failure();
+    auto isTriviallyFalse = [](IntegerSet iSet) {
+      return iSet.isEmptyIntegerSet();
+    };
 
-    IntegerSet conditionSet = op.getIntegerSet();
+    auto isTriviallyTrue = [](IntegerSet iSet) {
+      return (iSet.getNumEqualities() == 1 && iSet.getNumInequalities() == 0 &&
+              iSet.getConstraint(0) == 0);
+    };
+
+    IntegerSet affineIfConditions = op.getIntegerSet();
     Block *blockToMove;
-    if (conditionSet.isEmptyIntegerSet()) {
-      // If the else region is not there, simply remove the Affine.if
-      // operation.
-      if (!op.hasElse()) {
+    if (isTriviallyFalse(affineIfConditions)) {
+      // The absence, or equivalently, the emptiness of the else region need not
+      // be checked when affine.if is returning results because if an affine.if
+      // operation is returning results, it always has a non-empty else region.
+      if (op.getNumResults() == 0 && !op.hasElse()) {
+        // If the else region is absent, or equivalently, empty, remove the
+        // affine.if operation (which is not returning any results).
         rewriter.eraseOp(op);
         return success();
       }
       blockToMove = op.getElseBlock();
-    } else if (conditionSet.getNumEqualities() == 1 &&
-               conditionSet.getNumInequalities() == 0 &&
-               conditionSet.getConstraint(0) == 0) {
-      // Condition to check for trivially true condition (0==0).
+    } else if (isTriviallyTrue(affineIfConditions)) {
       blockToMove = op.getThenBlock();
     } else {
       return failure();
     }
-    // Remove the terminator from the block as it already exists in parent
-    // block.
-    Operation *blockTerminator = blockToMove->getTerminator();
-    rewriter.eraseOp(blockTerminator);
+    Operation *blockToMoveTerminator = blockToMove->getTerminator();
+    // Promote the "blockToMove" block to the parent operation block between the
+    // prologue and epilogue of "op".
     rewriter.mergeBlockBefore(blockToMove, op);
-    rewriter.eraseOp(op);
+    // Replace the "op" operation with the operands of the
+    // "blockToMoveTerminator" operation. Note that "blockToMoveTerminator" is
+    // the affine.yield operation present in the "blockToMove" block. It has no
+    // operands when affine.if is not returning results and therefore, in that
+    // case, replaceOp just erases "op". When affine.if is not returning
+    // results, the affine.yield operation can be omitted. It gets inserted
+    // implicitly.
+    rewriter.replaceOp(op, blockToMoveTerminator->getOperands());
+    // Erase the "blockToMoveTerminator" operation since it is now in the parent
+    // operation block, which already has its own terminator.
+    rewriter.eraseOp(blockToMoveTerminator);
     return success();
   }
 };
@@ -2051,6 +2127,7 @@ IntegerSet AffineIfOp::getIntegerSet() {
       ->getAttrOfType<IntegerSetAttr>(getConditionAttrName())
       .getValue();
 }
+
 void AffineIfOp::setIntegerSet(IntegerSet newSet) {
   (*this)->setAttr(getConditionAttrName(), IntegerSetAttr::get(newSet));
 }
@@ -2524,6 +2601,20 @@ struct MergeAffineMinMaxOp : public OpRewritePattern<T> {
   }
 };
 
+template <typename T>
+struct CanonicalizeSingleResultAffineMinMaxOp : public OpRewritePattern<T> {
+  using OpRewritePattern<T>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(T affineOp,
+                                PatternRewriter &rewriter) const override {
+    if (affineOp.map().getNumResults() != 1)
+      return failure();
+    rewriter.replaceOpWithNewOp<AffineApplyOp>(affineOp, affineOp.map(),
+                                               affineOp.getOperands());
+    return success();
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // AffineMinOp
 //===----------------------------------------------------------------------===//
@@ -2537,7 +2628,8 @@ OpFoldResult AffineMinOp::fold(ArrayRef<Attribute> operands) {
 
 void AffineMinOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                               MLIRContext *context) {
-  patterns.add<DeduplicateAffineMinMaxExpressions<AffineMinOp>,
+  patterns.add<CanonicalizeSingleResultAffineMinMaxOp<AffineMinOp>,
+               DeduplicateAffineMinMaxExpressions<AffineMinOp>,
                MergeAffineMinMaxOp<AffineMinOp>, SimplifyAffineOp<AffineMinOp>>(
       context);
 }
@@ -2555,7 +2647,8 @@ OpFoldResult AffineMaxOp::fold(ArrayRef<Attribute> operands) {
 
 void AffineMaxOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                               MLIRContext *context) {
-  patterns.add<DeduplicateAffineMinMaxExpressions<AffineMaxOp>,
+  patterns.add<CanonicalizeSingleResultAffineMinMaxOp<AffineMaxOp>,
+               DeduplicateAffineMinMaxExpressions<AffineMaxOp>,
                MergeAffineMinMaxOp<AffineMaxOp>, SimplifyAffineOp<AffineMaxOp>>(
       context);
 }

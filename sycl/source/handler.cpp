@@ -133,8 +133,8 @@ event handler::finalize() {
 
   std::unique_ptr<detail::CG> CommandGroup;
   switch (getType()) {
-  case detail::CG::KERNEL:
-  case detail::CG::RUN_ON_HOST_INTEL: {
+  case detail::CG::Kernel:
+  case detail::CG::RunOnHostIntel: {
     // Copy kernel name here instead of move so that it's available after
     // running of this method by reductions implementation. This allows for
     // assert feature to check if kernel uses assertions
@@ -146,71 +146,71 @@ event handler::finalize() {
         std::move(MStreamStorage), MCGType, MCodeLoc));
     break;
   }
-  case detail::CG::CODEPLAY_INTEROP_TASK:
+  case detail::CG::CodeplayInteropTask:
     CommandGroup.reset(new detail::CGInteropTask(
         std::move(MInteropTask), std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
-  case detail::CG::COPY_ACC_TO_PTR:
-  case detail::CG::COPY_PTR_TO_ACC:
-  case detail::CG::COPY_ACC_TO_ACC:
+  case detail::CG::CopyAccToPtr:
+  case detail::CG::CopyPtrToAcc:
+  case detail::CG::CopyAccToAcc:
     CommandGroup.reset(new detail::CGCopy(
         MCGType, MSrcPtr, MDstPtr, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
-  case detail::CG::FILL:
+  case detail::CG::Fill:
     CommandGroup.reset(new detail::CGFill(
         std::move(MPattern), MDstPtr, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
-  case detail::CG::UPDATE_HOST:
+  case detail::CG::UpdateHost:
     CommandGroup.reset(new detail::CGUpdateHost(
         MDstPtr, std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MCodeLoc));
     break;
-  case detail::CG::COPY_USM:
+  case detail::CG::CopyUSM:
     CommandGroup.reset(new detail::CGCopyUSM(
         MSrcPtr, MDstPtr, MLength, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
-  case detail::CG::FILL_USM:
+  case detail::CG::FillUSM:
     CommandGroup.reset(new detail::CGFillUSM(
         std::move(MPattern), MDstPtr, MLength, std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCodeLoc));
     break;
-  case detail::CG::PREFETCH_USM:
+  case detail::CG::PrefetchUSM:
     CommandGroup.reset(new detail::CGPrefetchUSM(
         MDstPtr, MLength, std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MCodeLoc));
     break;
-  case detail::CG::ADVISE_USM:
+  case detail::CG::AdviseUSM:
     CommandGroup.reset(new detail::CGAdviseUSM(
         MDstPtr, MLength, std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MCGType, MCodeLoc));
     break;
-  case detail::CG::CODEPLAY_HOST_TASK:
+  case detail::CG::CodeplayHostTask:
     CommandGroup.reset(new detail::CGHostTask(
         std::move(MHostTask), MQueue, MQueue->getContextImplPtr(),
         std::move(MArgs), std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), MCGType, MCodeLoc));
     break;
-  case detail::CG::BARRIER:
-  case detail::CG::BARRIER_WAITLIST:
+  case detail::CG::Barrier:
+  case detail::CG::BarrierWaitlist:
     CommandGroup.reset(new detail::CGBarrier(
         std::move(MEventsWaitWithBarrier), std::move(MArgsStorage),
         std::move(MAccStorage), std::move(MSharedPtrStorage),
         std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
     break;
-  case detail::CG::NONE:
+  case detail::CG::None:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
@@ -406,6 +406,16 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
   }
 }
 
+// The argument can take up more space to store additional information about
+// MAccessRange, MMemoryRange, and MOffset added with addArgsForGlobalAccessor.
+// We use the worst-case estimate because the lifetime of the vector is short.
+// In processArg the kind_stream case introduces the maximum number of
+// additional arguments. The case adds additional 12 arguments to the currently
+// processed argument, hence worst-case estimate is 12+1=13.
+// TODO: the constant can be removed if the size of MArgs will be calculated at
+// compile time.
+inline constexpr size_t MaxNumAdditionalArgs = 13;
+
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
   std::vector<detail::ArgDesc> UnPreparedArgs = std::move(MArgs);
@@ -418,6 +428,7 @@ void handler::extractArgsAndReqs() {
       });
 
   const bool IsKernelCreatedFromSource = MKernel->isCreatedFromSource();
+  MArgs.reserve(MaxNumAdditionalArgs * UnPreparedArgs.size());
 
   size_t IndexShift = 0;
   for (size_t I = 0; I < UnPreparedArgs.size(); ++I) {
@@ -442,6 +453,8 @@ void handler::extractArgsAndReqsFromLambda(
     const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
   const bool IsKernelCreatedFromSource = false;
   size_t IndexShift = 0;
+  MArgs.reserve(MaxNumAdditionalArgs * KernelArgsNum);
+
   for (size_t I = 0; I < KernelArgsNum; ++I) {
     void *Ptr = LambdaPtr + KernelArgs[I].offset;
     const detail::kernel_param_kind_t &Kind = KernelArgs[I].kind;
@@ -478,7 +491,7 @@ std::string handler::getKernelName() {
 
 void handler::barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
-  MCGType = detail::CG::BARRIER_WAITLIST;
+  MCGType = detail::CG::BarrierWaitlist;
   MEventsWaitWithBarrier.resize(WaitList.size());
   std::transform(
       WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
@@ -490,7 +503,7 @@ void handler::memcpy(void *Dest, const void *Src, size_t Count) {
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = Dest;
   MLength = Count;
-  setType(detail::CG::COPY_USM);
+  setType(detail::CG::CopyUSM);
 }
 
 void handler::memset(void *Dest, int Value, size_t Count) {
@@ -498,21 +511,21 @@ void handler::memset(void *Dest, int Value, size_t Count) {
   MDstPtr = Dest;
   MPattern.push_back(static_cast<char>(Value));
   MLength = Count;
-  setType(detail::CG::FILL_USM);
+  setType(detail::CG::FillUSM);
 }
 
 void handler::prefetch(const void *Ptr, size_t Count) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
-  setType(detail::CG::PREFETCH_USM);
+  setType(detail::CG::PrefetchUSM);
 }
 
-void handler::mem_advise(const void *Ptr, size_t Count, pi_mem_advice Advice) {
+void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(Ptr);
   MLength = Count;
-  setType(detail::CG::ADVISE_USM);
+  setType(detail::CG::AdviseUSM);
 
   assert(!MSharedPtrStorage.empty());
 
@@ -524,7 +537,7 @@ void handler::mem_advise(const void *Ptr, size_t Count, pi_mem_advice Advice) {
 
   detail::ExtendedMemberT EMember = {
       detail::ExtendedMembersType::HANDLER_MEM_ADVICE,
-      std::make_shared<pi_mem_advice>(Advice)};
+      std::make_shared<pi_mem_advice>(pi_mem_advice(Advice))};
 
   ExtendedMembersVec->push_back(EMember);
 }

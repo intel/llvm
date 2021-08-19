@@ -217,11 +217,21 @@ public:
   std::optional<DataEdit> GetNextDataEdit(
       IoStatementState &, int maxRepeat = 1);
 
+  // Each NAMELIST input item is a distinct "list-directed"
+  // input statement.  This member function resets this state
+  // so that repetition and null values work correctly for each
+  // successive NAMELIST input item.
+  void ResetForNextNamelistItem() {
+    remaining_ = 0;
+    eatComma_ = false;
+    realPart_ = imaginaryPart_ = false;
+  }
+
 private:
   int remaining_{0}; // for "r*" repetition
-  std::int64_t initialRecordNumber_;
-  std::int64_t initialPositionInRecord_;
-  bool isFirstItem_{true}; // leading separator implies null first item
+  std::int64_t repeatRecordNumber_;
+  std::int64_t repeatPositionInRecord_;
+  bool eatComma_{false}; // consume comma after previously read item
   bool hitSlash_{false}; // once '/' is seen, nullify further items
   bool realPart_{false};
   bool imaginaryPart_{false};

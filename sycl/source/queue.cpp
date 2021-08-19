@@ -105,17 +105,21 @@ event queue::memcpy(void *Dest, const void *Src, size_t Count,
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice) {
-  return impl->mem_advise(impl, Ptr, Length, Advice, {});
+  return mem_advise(Ptr, Length, int(Advice));
 }
 
-event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
+event queue::mem_advise(const void *Ptr, size_t Length, int Advice) {
+  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {});
+}
+
+event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         event DepEvent) {
-  return impl->mem_advise(impl, Ptr, Length, Advice, {DepEvent});
+  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {DepEvent});
 }
 
-event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
+event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const vector_class<event> &DepEvents) {
-  return impl->mem_advise(impl, Ptr, Length, Advice, DepEvents);
+  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), DepEvents);
 }
 
 event queue::submit_impl(std::function<void(handler &)> CGH,

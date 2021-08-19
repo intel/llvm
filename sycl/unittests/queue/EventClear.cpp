@@ -88,12 +88,6 @@ bool preparePiMock(platform &Plt) {
               << std::endl;
     return false;
   }
-  // TODO: Skip tests for CUDA temporarily
-  if (detail::getSyclObjImpl(Plt)->getPlugin().getBackend() == backend::cuda) {
-    std::cout << "Not run on CUDA - usm is not supported for CUDA backend yet"
-              << std::endl;
-    return false;
-  }
 
   unittest::PiMock Mock{Plt};
   Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
@@ -114,7 +108,7 @@ TEST(QueueEventClear, ClearOnQueueWait) {
   if (!preparePiMock(Plt))
     return;
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
   queue Q{Ctx, default_selector()};
 
@@ -135,7 +129,7 @@ TEST(QueueEventClear, CleanupOnThreshold) {
   if (!preparePiMock(Plt))
     return;
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
   queue Q{Ctx, default_selector()};
 

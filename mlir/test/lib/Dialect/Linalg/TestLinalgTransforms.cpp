@@ -97,6 +97,10 @@ struct TestLinalgTransforms
       *this, "test-transform-pad-tensor",
       llvm::cl::desc("Test transform pad tensor by copying with generic ops"),
       llvm::cl::init(false)};
+  Option<bool> testGeneralizePadTensor{
+      *this, "test-generalize-pad-tensor",
+      llvm::cl::desc("Test transform pad tensor by copying with generic ops"),
+      llvm::cl::init(false)};
   Option<bool> testSwapSubTensorPadTensor{
       *this, "test-swap-subtensor-padtensor",
       llvm::cl::desc("Test rewrite of subtensor(pad_tensor) into "
@@ -530,6 +534,12 @@ static void applyPadTensorToGenericPatterns(FuncOp funcOp) {
   (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
 }
 
+static void applyGeneralizePadTensorPatterns(FuncOp funcOp) {
+  RewritePatternSet patterns(funcOp.getContext());
+  patterns.add<GeneralizePadTensorOpPattern>(funcOp.getContext());
+  (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
+}
+
 static void applyExtractSliceOfPadTensorSwapPattern(FuncOp funcOp) {
   RewritePatternSet patterns(funcOp.getContext());
   patterns.add<ExtractSliceOfPadTensorSwapPattern>(funcOp.getContext());
@@ -541,11 +551,11 @@ static void applyAffineMinSCFCanonicalizationPatterns(FuncOp funcOp) {
   foldPattern.add<AffineMinSCFCanonicalizationPattern>(funcOp.getContext());
   FrozenRewritePatternSet frozenPatterns(std::move(foldPattern));
 
-  // Explicitly walk and apply the pattern locally to avoid more general folding
+  // Explicitly apply the pattern on affected ops to avoid more general folding
   // on the rest of the IR.
-  funcOp.walk([&frozenPatterns](AffineMinOp minOp) {
-    (void)applyOpPatternsAndFold(minOp, frozenPatterns);
-  });
+  SmallVector<Operation *, 4> minOps;
+  funcOp.walk([&](AffineMinOp minOp) { minOps.push_back(minOp); });
+  (void)applyOpPatternsAndFold(minOps, frozenPatterns, /*strict=*/false);
 }
 
 // For now, just assume it is the zero of type.
@@ -614,6 +624,8 @@ void TestLinalgTransforms::runOnFunction() {
     return applyLinalgToVectorPatterns(getFunction());
   if (testTransformPadTensor)
     return applyPadTensorToGenericPatterns(getFunction());
+  if (testGeneralizePadTensor)
+    return applyGeneralizePadTensorPatterns(getFunction());
   if (testSwapSubTensorPadTensor)
     return applyExtractSliceOfPadTensorSwapPattern(getFunction());
   if (testAffineMinSCFCanonicalizationPatterns)

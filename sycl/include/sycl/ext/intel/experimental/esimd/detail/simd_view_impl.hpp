@@ -59,9 +59,9 @@ protected:
       : M_base(Base), M_region(Region) {}
 
 public:
-  // Disallow copy and move constructors.
-  simd_view_impl(const simd_view_impl &Other) = delete;
-  simd_view_impl(simd_view_impl &&Other) = delete;
+  // Default copy and move constructors.
+  simd_view_impl(const simd_view_impl &Other) = default;
+  simd_view_impl(simd_view_impl &&Other) = default;
   /// @}
 
   /// Conversion to simd type.
@@ -79,6 +79,11 @@ public:
   }
   simd_view_impl &operator=(const value_type &Val) { return write(Val); }
   /// @}
+
+  /// Move assignment operator.
+  simd_view_impl &operator=(simd_view_impl &&Other) {
+    return write(Other.read());
+  }
 
   /// @{
   /// Region accessors.
@@ -193,6 +198,8 @@ public:
   }
 
 #define DEF_BINOP(BINOP, OPASSIGN)                                             \
+  template <class T1 = simd_view_impl,                                         \
+            class = std::enable_if_t<T1::length != 1>>                         \
   ESIMD_INLINE friend auto operator BINOP(const simd_view_impl &X,             \
                                           const value_type &Y) {               \
     using ComputeTy = detail::compute_type_t<value_type>;                      \
@@ -202,6 +209,8 @@ public:
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
   }                                                                            \
+  template <class T1 = simd_view_impl,                                         \
+            class = std::enable_if_t<T1::length != 1>>                         \
   ESIMD_INLINE friend auto operator BINOP(const value_type &X,                 \
                                           const simd_view_impl &Y) {           \
     using ComputeTy = detail::compute_type_t<value_type>;                      \
@@ -237,12 +246,16 @@ public:
 #undef DEF_BINOP
 
 #define DEF_BITWISE_OP(BITWISE_OP, OPASSIGN)                                   \
+  template <class T1 = simd_view_impl,                                         \
+            class = std::enable_if_t<T1::length != 1>>                         \
   ESIMD_INLINE friend auto operator BITWISE_OP(const simd_view_impl &X,        \
                                                const value_type &Y) {          \
     static_assert(std::is_integral<element_type>(), "not integral type");      \
     auto V2 = X.read().data() BITWISE_OP Y.data();                             \
     return simd<element_type, length>(V2);                                     \
   }                                                                            \
+  template <class T1 = simd_view_impl,                                         \
+            class = std::enable_if_t<T1::length != 1>>                         \
   ESIMD_INLINE friend auto operator BITWISE_OP(const value_type &X,            \
                                                const simd_view_impl &Y) {      \
     static_assert(std::is_integral<element_type>(), "not integral type");      \
@@ -276,7 +289,6 @@ public:
     auto V = UNARY_OP(read().data());                                          \
     return simd<element_type, length>(V);                                      \
   }
-  DEF_UNARY_OP(!)
   DEF_UNARY_OP(~)
   DEF_UNARY_OP(+)
   DEF_UNARY_OP(-)
@@ -324,6 +336,15 @@ public:
   template <typename T = simd_view_impl,
             typename = sycl::detail::enable_if_t<T::is1D()>>
   element_type operator[](int i) const {
+    const auto v = read();
+    return v[i];
+  }
+
+  /// Read a single element from a 1D region, by value only.
+  template <typename T = simd_view_impl,
+            typename = sycl::detail::enable_if_t<T::is1D()>>
+  __SYCL_DEPRECATED("use operator[] form.")
+  element_type operator()(int i) const {
     const auto v = read();
     return v[i];
   }

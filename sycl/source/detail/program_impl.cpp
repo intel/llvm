@@ -256,7 +256,8 @@ void program_impl::build_with_kernel_name(std::string KernelName,
     MProgramAndKernelCachingAllowed = true;
     MBuildOptions = BuildOptions;
     MProgram = ProgramManager::getInstance().getBuiltPIProgram(
-        Module, get_context(), get_devices()[0], KernelName, this,
+        Module, detail::getSyclObjImpl(get_context()),
+        detail::getSyclObjImpl(get_devices()[0]), KernelName, this,
         /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
     const detail::plugin &Plugin = getPlugin();
     Plugin.call<PiApiKind::piProgramRetain>(MProgram);
@@ -360,6 +361,10 @@ void program_impl::create_cl_program_with_source(const std::string &Source) {
         "program::compile_with_source is not supported by the selected backend",
         PI_INVALID_OPERATION);
   }
+
+  if (Err != PI_SUCCESS) {
+    Plugin.reportPiError(Err, "create_cl_program_with_source()");
+  }
 }
 
 void program_impl::compile(const std::string &Options) {
@@ -434,10 +439,10 @@ RT::PiKernel program_impl::get_pi_kernel(const std::string &KernelName) const {
   RT::PiKernel Kernel = nullptr;
 
   if (is_cacheable()) {
-    std::tie(Kernel, std::ignore) =
+    std::tie(Kernel, std::ignore, std::ignore) =
         ProgramManager::getInstance().getOrCreateKernel(
-            MProgramModuleHandle, get_context(), get_devices()[0], KernelName,
-            this);
+            MProgramModuleHandle, detail::getSyclObjImpl(get_context()),
+            detail::getSyclObjImpl(get_devices()[0]), KernelName, this);
     getPlugin().call<PiApiKind::piKernelRetain>(Kernel);
   } else {
     const detail::plugin &Plugin = getPlugin();
@@ -518,7 +523,7 @@ std::vector<device> program_impl::get_info<info::program::devices>() const {
 void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
                                           size_t ValSize) {
   if (MState != program_state::none)
-    throw cl::sycl::ONEAPI::experimental::spec_const_error(
+    throw cl::sycl::ext::oneapi::experimental::spec_const_error(
         "Invalid program state", PI_INVALID_PROGRAM);
   // Reuse cached programs lock as opposed to introducing a new lock.
   auto LockGuard = MContext->getKernelProgramCache().acquireCachedPrograms();

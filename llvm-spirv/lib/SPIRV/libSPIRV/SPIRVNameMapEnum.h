@@ -47,7 +47,7 @@
 #define SPIRV_LIBSPIRV_SPIRVNAMEMAPENUM_H
 
 #include "SPIRVEnum.h"
-#include "spirv.hpp"
+#include "spirv/unified1/spirv.hpp"
 #include "spirv_internal.hpp"
 
 using namespace spv;
@@ -160,8 +160,6 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationCacheSizeINTEL, "CacheSizeINTEL");
   add(DecorationDontStaticallyCoalesceINTEL, "DontStaticallyCoalesceINTEL");
   add(DecorationPrefetchINTEL, "PrefetchINTEL");
-  add(DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
-  add(DecorationFuncParamDescINTEL, "FuncParamDescINTEL");
   add(DecorationStallEnableINTEL, "StallEnableINTEL");
   add(DecorationFuseLoopsInFunctionINTEL, "FuseLoopsInFunctionINTEL");
   add(DecorationBufferLocationINTEL, "BufferLocationINTEL");
@@ -173,6 +171,8 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
       "VectorComputeCallableFunctionINTEL");
 
   // From spirv_internal.hpp
+  add(internal::DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
+  add(internal::DecorationFuncParamDescINTEL, "FuncParamDescINTEL");
   add(internal::DecorationCallableFunctionINTEL, "CallableFunctionINTEL");
   add(internal::DecorationMathOpDSPModeINTEL, "MathOpDSPModeINTEL");
   add(internal::DecorationAliasScopeINTEL, "AliasScopeINTEL");
@@ -180,6 +180,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(internal::DecorationInitiationIntervalINTEL, "InitiationIntervalINTEL");
   add(internal::DecorationMaxConcurrencyINTEL, "MaxConcurrencyINTEL");
   add(internal::DecorationPipelineEnableINTEL, "PipelineEnableINTEL");
+  add(internal::DecorationRuntimeAlignedINTEL, "RuntimeAlignedINTEL");
 
   add(DecorationMax, "Max");
 }
@@ -575,7 +576,11 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityFPGAInvocationPipeliningAttributesINTEL,
       "FPGAInvocationPipeliningAttributesINTEL");
   add(internal::CapabilityTokenTypeINTEL, "TokenTypeINTEL");
+  add(internal::CapabilityRuntimeAlignedAttributeINTEL,
+      "RuntimeAlignedAttributeINTEL");
   add(CapabilityMax, "Max");
+  add(internal::CapabilityFPArithmeticFenceINTEL, "FPArithmeticFenceINTEL");
+  add(internal::CapabilityBfloat16ConversionINTEL, "Bfloat16ConversionINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

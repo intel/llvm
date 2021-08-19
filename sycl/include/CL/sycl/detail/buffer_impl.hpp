@@ -147,7 +147,7 @@ public:
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr, RT::PiEvent &OutEventToWait) override;
 
-  MemObjType getType() const override { return MemObjType::BUFFER; }
+  MemObjType getType() const override { return MemObjType::Buffer; }
 
   ~buffer_impl() {
     try {

@@ -82,11 +82,11 @@ def err_typecheck_converted_constant_expression_indirect : Error<
   "bind reference to a temporary">;
 def err_expr_not_cce : Error<
   "%select{case value|enumerator value|non-type template argument|"
-  "array size|constexpr if condition|explicit specifier argument}0 "
+  "array size|explicit specifier argument|noexcept specifier argument}0 "
   "is not a constant expression">;
 def ext_cce_narrowing : ExtWarn<
   "%select{case value|enumerator value|non-type template argument|"
-  "array size|constexpr if condition|explicit specifier argument}0 "
+  "array size|explicit specifier argument|noexcept specifier argument}0 "
   "%select{cannot be narrowed from type %2 to %3|"
   "evaluates to %2, which cannot be narrowed to type %3}1">,
   InGroup<CXX11Narrowing>, DefaultError, SFINAEFailure;
@@ -849,6 +849,11 @@ def warn_fortify_source_size_mismatch : Warning<
   "'%0' size argument is too large; destination buffer has size %1,"
   " but size argument is %2">, InGroup<FortifySource>;
 
+def warn_fortify_strlen_overflow: Warning<
+  "'%0' will always overflow; destination buffer has size %1,"
+  " but the source string has length %2 (including NUL byte)">,
+  InGroup<FortifySource>;
+
 def warn_fortify_source_format_overflow : Warning<
   "'%0' will always overflow; destination buffer has size %1,"
   " but format string expands to at least %2">,
@@ -966,7 +971,8 @@ def warn_pragma_pack_pop_identifier_and_alignment : Warning<
 def warn_pragma_pop_failed : Warning<"#pragma %0(pop, ...) failed: %1">,
   InGroup<IgnoredPragmas>;
 def err_pragma_fc_pp_scope : Error<
-  "'#pragma float_control push/pop' can only appear at file scope or namespace scope">;
+  "'#pragma float_control push/pop' can only appear at file or namespace scope "
+  "or within a language linkage specification">;
 def err_pragma_fc_noprecise_requires_nofenv : Error<
   "'#pragma float_control(precise, off)' is illegal when fenv_access is enabled">;
 def err_pragma_fc_except_requires_precise : Error<
@@ -1520,6 +1526,8 @@ def err_messaging_class_with_direct_method : Error<
 // C++ declarations
 def err_static_assert_expression_is_not_constant : Error<
   "static_assert expression is not an integral constant expression">;
+def err_constexpr_if_condition_expression_is_not_constant : Error<
+  "constexpr if condition is not a constant expression">;
 def err_static_assert_failed : Error<"static_assert failed%select{ %1|}0">;
 def err_static_assert_requirement_failed : Error<
   "static_assert failed due to requirement '%0'%select{ %2|}1">;
@@ -2990,7 +2998,7 @@ def err_attribute_requires_positive_integer : Error<
   "%0 attribute requires a %select{positive|non-negative}1 "
   "integral compile time constant expression">;
 def err_attribute_requires_opencl_version : Error<
-  "%0 attribute requires OpenCL version %1%select{| or above}2">;
+  "attribute %0 is supported in the OpenCL version %1%select{| onwards}2">;
 def err_invalid_branch_protection_spec : Error<
   "invalid or misplaced branch protection specification '%0'">;
 def warn_unsupported_target_attribute
@@ -3017,6 +3025,8 @@ def err_alignas_mismatch : Error<
   "redeclaration has different alignment requirement (%1 vs %0)">;
 def err_alignas_underaligned : Error<
   "requested alignment is less than minimum alignment of %1 for type %0">;
+def warn_aligned_attr_underaligned : Warning<err_alignas_underaligned.Text>,
+  InGroup<IgnoredAttributes>;
 def err_attribute_sizeless_type : Error<
   "%0 attribute cannot be applied to sizeless type %1">;
 def err_attribute_argument_n_type : Error<
@@ -3193,7 +3203,8 @@ def warn_nsdictionary_duplicate_key : Warning<
 def note_nsdictionary_duplicate_key_here : Note<
   "previous equal key is here">;
 def err_swift_param_attr_not_swiftcall : Error<
-  "'%0' parameter can only be used with swiftcall calling convention">;
+  "'%0' parameter can only be used with swiftcall%select{ or swiftasynccall|}1 "
+  "calling convention%select{|s}1">;
 def err_swift_indirect_result_not_first : Error<
   "'swift_indirect_result' parameters must be first parameters of function">;
 def err_swift_error_result_not_after_swift_context : Error<
@@ -3290,6 +3301,10 @@ def warn_assume_aligned_too_great
     : Warning<"requested alignment must be %0 bytes or smaller; maximum "
               "alignment assumed">,
       InGroup<DiagGroup<"builtin-assume-aligned-alignment">>;
+def warn_not_xl_compatible
+    : Warning<"requesting an alignment of 16 bytes or greater for struct"
+              " members is not binary compatible with AIX XL 16.1 and older">,
+      InGroup<AIXCompat>;
 def warn_redeclaration_without_attribute_prev_attribute_ignored : Warning<
   "%q0 redeclared without %1 attribute: previous %1 ignored">,
   InGroup<MicrosoftInconsistentDllImport>;
@@ -3585,6 +3600,10 @@ def warn_at_available_unchecked_use : Warning<
   "%select{@available|__builtin_available}0 does not guard availability here; "
   "use if (%select{@available|__builtin_available}0) instead">,
   InGroup<DiagGroup<"unsupported-availability-guard">>;
+
+def warn_missing_sdksettings_for_availability_checking : Warning<
+  "%0 availability is ignored without a valid 'SDKSettings.json' in the SDK">,
+  InGroup<DiagGroup<"ignored-availability-without-sdk-settings">>;
 
 // Thread Safety Attributes
 def warn_thread_attribute_ignored : Warning<
@@ -5596,8 +5615,8 @@ def warn_undefined_inline : Warning<"inline function %q0 is not defined">,
 def err_undefined_inline_var : Error<"inline variable %q0 is not defined">;
 def note_used_here : Note<"used here">;
 
-def err_internal_linkage_redeclaration : Error<
-  "'internal_linkage' attribute does not appear on the first declaration of %0">;
+def err_attribute_missing_on_first_decl : Error<
+  "%0 attribute does not appear on the first declaration">;
 def warn_internal_linkage_local_storage : Warning<
   "'internal_linkage' attribute on a non-static local variable is ignored">,
   InGroup<IgnoredAttributes>;
@@ -5760,7 +5779,7 @@ def warn_typecheck_function_qualifiers_unspecified : Warning<
   "'%0' qualifier on function type %1 has unspecified behavior">;
 def warn_typecheck_reference_qualifiers : Warning<
   "'%0' qualifier on reference type %1 has no effect">,
-  InGroup<IgnoredQualifiers>;
+  InGroup<IgnoredReferenceQualifiers>;
 def err_typecheck_invalid_restrict_not_pointer : Error<
   "restrict requires a pointer or reference (%0 is invalid)">;
 def err_typecheck_invalid_restrict_not_pointer_noarg : Error<
@@ -5880,11 +5899,8 @@ def err_anon_bitfield_has_negative_width : Error<
   "anonymous bit-field has negative width (%0)">;
 def err_bitfield_has_zero_width : Error<"named bit-field %0 has zero width">;
 def err_bitfield_width_exceeds_type_width : Error<
-  "width of bit-field %0 (%1 bits) exceeds %select{width|size}2 "
-  "of its type (%3 bit%s3)">;
-def err_anon_bitfield_width_exceeds_type_width : Error<
-  "width of anonymous bit-field (%0 bits) exceeds %select{width|size}1 "
-  "of its type (%2 bit%s2)">;
+  "width of%select{ anonymous|}0 bit-field%select{| %1}0 (%2 bits) exceeds the "
+  "%select{width|size}3 of its type (%4 bit%s4)">;
 def err_incorrect_number_of_vector_initializers : Error<
   "number of elements must be either one or match the size of the vector">;
 
@@ -6430,6 +6446,9 @@ def warn_pointer_arith_null_ptr : Warning<
 def warn_gnu_null_ptr_arith : Warning<
   "arithmetic on a null pointer treated as a cast from integer to pointer is a GNU extension">,
   InGroup<NullPointerArithmetic>, DefaultIgnore;
+def warn_pointer_sub_null_ptr : Warning<
+  "performing pointer subtraction with a null pointer %select{has|may have}0 undefined behavior">,
+  InGroup<NullPointerSubtraction>, DefaultIgnore;
 def err_kernel_invalidates_sycl_unique_stable_name
     : Error<"kernel %select{naming|instantiation}0 changes the result of an "
             "evaluated '__builtin_sycl_unique_stable_%select{name|id}1'">;
@@ -9707,10 +9726,6 @@ def warn_falloff_noreturn_function : Warning<
   InGroup<InvalidNoreturn>;
 def err_noreturn_block_has_return_expr : Error<
   "block declared 'noreturn' should not return">;
-def err_noreturn_missing_on_first_decl : Error<
-  "function declared '[[noreturn]]' after its first declaration">;
-def note_noreturn_missing_first_decl : Note<
-  "declaration missing '[[noreturn]]' attribute is here">;
 def err_carries_dependency_missing_on_first_decl : Error<
   "%select{function|parameter}0 declared '[[carries_dependency]]' "
   "after its first declaration">;
@@ -9768,6 +9783,9 @@ def err_argument_invalid_range : Error<
 def warn_argument_invalid_range : Warning<
   "argument value %0 is outside the valid range [%1, %2]">, DefaultError,
   InGroup<DiagGroup<"argument-outside-range">>;
+def warn_argument_undefined_behaviour : Warning<
+  "argument value %0 will result in undefined behaviour">,
+  InGroup<DiagGroup<"argument-undefined-behaviour">>;
 def err_argument_not_multiple : Error<
   "argument should be a multiple of %0">;
 def err_argument_not_power_of_2 : Error<
@@ -9776,6 +9794,8 @@ def err_argument_not_shifted_byte : Error<
   "argument should be an 8-bit value shifted by a multiple of 8 bits">;
 def err_argument_not_shifted_byte_or_xxff : Error<
   "argument should be an 8-bit value shifted by a multiple of 8 bits, or in the form 0x??FF">;
+def err_argument_not_contiguous_bit_field : Error<
+  "argument %0 value should represent a contiguous bit field">;
 def err_rotation_argument_to_cadd
     : Error<"argument should be the value 90 or 270">;
 def err_rotation_argument_to_cmla
@@ -9804,8 +9824,8 @@ def err_mips_builtin_requires_dspr2 : Error<
   "this builtin requires 'dsp r2' ASE, please use -mdspr2">;
 def err_mips_builtin_requires_msa : Error<
   "this builtin requires 'msa' ASE, please use -mmsa">;
-def err_ppc_builtin_only_on_pwr7 : Error<
-  "this builtin is only valid on POWER7 or later CPUs">;
+def err_ppc_builtin_only_on_arch : Error<
+  "this builtin is only valid on POWER%0 or later CPUs">;
 def err_ppc_invalid_use_mma_type : Error<
   "invalid use of PPC MMA type">;
 def err_x86_builtin_invalid_rounding : Error<
@@ -10128,8 +10148,7 @@ def err_opencl_type_can_only_be_used_as_function_parameter : Error <
 def err_opencl_type_not_found : Error<
   "%0 type %1 not found; include the base header with -finclude-default-header">;
 def warn_opencl_attr_deprecated_ignored : Warning <
-  "%0 attribute is deprecated and ignored in OpenCL version %1">,
-  InGroup<IgnoredAttributes>;
+  "%0 attribute is deprecated and ignored in %1">, InGroup<IgnoredAttributes>;
 def err_opencl_variadic_function : Error<
   "invalid prototype, variadic arguments are not allowed in OpenCL">;
 def err_opencl_requires_extension : Error<
@@ -10137,8 +10156,6 @@ def err_opencl_requires_extension : Error<
 def ext_opencl_double_without_pragma : Extension<
   "Clang permits use of type 'double' regardless pragma if 'cl_khr_fp64' is"
   " supported">;
-def err_opencl_double_requires_extension :  Error<
-    "use of type 'double' requires %select{cl_khr_fp64|cl_khr_fp64 and __opencl_c_fp64}0 support">;
 def warn_opencl_generic_address_space_arg : Warning<
   "passing non-generic address space pointer to %0"
   " may cause dynamic conversion affecting performance">,
@@ -10160,7 +10177,8 @@ def err_opencl_builtin_pipe_invalid_access_modifier : Error<
 def err_opencl_invalid_access_qualifier : Error<
   "access qualifier can only be used for pipe and image type">;
 def err_opencl_invalid_read_write : Error<
-  "access qualifier %0 can not be used for %1 %select{|prior to OpenCL version 2.0}2">;
+  "access qualifier %0 can not be used for %1 %select{|prior to OpenCL C version 2.0 or in version 3.0 "
+  "and without __opencl_c_read_write_images feature}2">;
 def err_opencl_multiple_access_qualifiers : Error<
   "multiple access qualifiers">;
 def note_opencl_typedef_access_qualifier : Note<
@@ -10197,7 +10215,7 @@ def err_opencl_builtin_expected_type : Error<
 
 // OpenCL v3.0 s6.3.7 - Vector Components
 def ext_opencl_ext_vector_type_rgba_selector: ExtWarn<
-  "vector component name '%0' is an OpenCL C version 3.0 feature">,
+  "vector component name '%0' is a feature from OpenCL version 3.0 onwards">,
   InGroup<OpenCLUnsupportedRGBA>;
 
 def err_openclcxx_placement_new : Error<

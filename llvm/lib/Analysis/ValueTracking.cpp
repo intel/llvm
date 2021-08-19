@@ -5274,6 +5274,10 @@ bool llvm::isGuaranteedToTransferExecutionToSuccessor(const Instruction *I) {
   if (isa<UnreachableInst>(I))
     return false;
 
+  // Note: Do not add new checks here; instead, change Instruction::mayThrow or
+  // Instruction::willReturn.
+  //
+  // FIXME: Move this check into Instruction::willReturn.
   if (isa<CatchPadInst>(I)) {
     switch (classifyEHPersonality(I->getFunction()->getPersonalityFn())) {
     default:
@@ -6249,6 +6253,16 @@ CmpInst::Predicate llvm::getInverseMinMaxPred(SelectPatternFlavor SPF) {
   return getMinMaxPred(getInverseMinMaxFlavor(SPF));
 }
 
+APInt llvm::getMinMaxLimit(SelectPatternFlavor SPF, unsigned BitWidth) {
+  switch (SPF) {
+  case SPF_SMAX: return APInt::getSignedMaxValue(BitWidth);
+  case SPF_SMIN: return APInt::getSignedMinValue(BitWidth);
+  case SPF_UMAX: return APInt::getMaxValue(BitWidth);
+  case SPF_UMIN: return APInt::getMinValue(BitWidth);
+  default: llvm_unreachable("Unexpected flavor");
+  }
+}
+
 std::pair<Intrinsic::ID, bool>
 llvm::canConvertToMinOrMaxIntrinsic(ArrayRef<Value *> VL) {
   // Check if VL contains select instructions that can be folded into a min/max
@@ -7033,7 +7047,7 @@ ConstantRange llvm::computeConstantRange(const Value *V, bool UseInstrInfo,
       ConstantRange RHS = computeConstantRange(Cmp->getOperand(1), UseInstrInfo,
                                                AC, I, Depth + 1);
       CR = CR.intersectWith(
-          ConstantRange::makeSatisfyingICmpRegion(Cmp->getPredicate(), RHS));
+          ConstantRange::makeAllowedICmpRegion(Cmp->getPredicate(), RHS));
     }
   }
 

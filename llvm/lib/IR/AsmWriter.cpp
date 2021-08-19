@@ -1931,10 +1931,9 @@ static void writeDIGenericSubrange(raw_ostream &Out, const DIGenericSubrange *N,
 
   auto IsConstant = [&](Metadata *Bound) -> bool {
     if (auto *BE = dyn_cast_or_null<DIExpression>(Bound)) {
-      return BE->isConstant()
-                 ? DIExpression::SignedOrUnsignedConstant::SignedConstant ==
-                       *BE->isConstant()
-                 : false;
+      return BE->isConstant() &&
+             DIExpression::SignedOrUnsignedConstant::SignedConstant ==
+                 *BE->isConstant();
     }
     return false;
   };
@@ -3846,8 +3845,7 @@ void AssemblyWriter::printArgument(const Argument *Arg, AttributeSet Attrs) {
 
 /// printBasicBlock - This member is called for each basic block in a method.
 void AssemblyWriter::printBasicBlock(const BasicBlock *BB) {
-  assert(BB && BB->getParent() && "block without parent!");
-  bool IsEntryBlock = BB->isEntryBlock();
+  bool IsEntryBlock = BB->getParent() && BB->isEntryBlock();
   if (BB->hasName()) {              // Print out the label if it exists...
     Out << "\n";
     PrintLLVMName(Out, BB->getName(), LabelPrefix);
@@ -4416,20 +4414,7 @@ void AssemblyWriter::writeAttribute(const Attribute &Attr, bool InAttrGroup) {
     return;
   }
 
-  if (Attr.hasAttribute(Attribute::ByVal)) {
-    Out << "byval";
-  } else if (Attr.hasAttribute(Attribute::StructRet)) {
-    Out << "sret";
-  } else if (Attr.hasAttribute(Attribute::ByRef)) {
-    Out << "byref";
-  } else if (Attr.hasAttribute(Attribute::Preallocated)) {
-    Out << "preallocated";
-  } else if (Attr.hasAttribute(Attribute::InAlloca)) {
-    Out << "inalloca";
-  } else {
-    llvm_unreachable("unexpected type attr");
-  }
-
+  Out << Attribute::getNameFromAttrKind(Attr.getKindAsEnum());
   if (Type *Ty = Attr.getValueAsType()) {
     Out << '(';
     TypePrinter.print(Ty, Out);
@@ -4567,8 +4552,8 @@ void Comdat::print(raw_ostream &ROS, bool /*IsForDebug*/) const {
   case Comdat::Largest:
     ROS << "largest";
     break;
-  case Comdat::NoDuplicates:
-    ROS << "noduplicates";
+  case Comdat::NoDeduplicate:
+    ROS << "nodeduplicate";
     break;
   case Comdat::SameSize:
     ROS << "samesize";

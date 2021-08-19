@@ -282,17 +282,7 @@ public:
   /// success and failure orderings for an atomic operation.  (For operations
   /// other than cmpxchg, this is equivalent to getSuccessOrdering().)
   AtomicOrdering getMergedOrdering() const {
-    AtomicOrdering Ordering = getSuccessOrdering();
-    AtomicOrdering FailureOrdering = getFailureOrdering();
-    if (FailureOrdering == AtomicOrdering::SequentiallyConsistent)
-      return AtomicOrdering::SequentiallyConsistent;
-    if (FailureOrdering == AtomicOrdering::Acquire) {
-      if (Ordering == AtomicOrdering::Monotonic)
-        return AtomicOrdering::Acquire;
-      if (Ordering == AtomicOrdering::Release)
-        return AtomicOrdering::AcquireRelease;
-    }
-    return Ordering;
+    return getMergedAtomicOrdering(getSuccessOrdering(), getFailureOrdering());
   }
 
   bool isLoad() const { return FlagVals & MOLoad; }
@@ -328,6 +318,11 @@ public:
   void setValue(const Value *NewSV) { PtrInfo.V = NewSV; }
   void setValue(const PseudoSourceValue *NewSV) { PtrInfo.V = NewSV; }
   void setOffset(int64_t NewOffset) { PtrInfo.Offset = NewOffset; }
+
+  /// Reset the tracked memory type.
+  void setType(LLT NewTy) {
+    MemoryType = NewTy;
+  }
 
   /// Profile - Gather unique data for the object.
   ///

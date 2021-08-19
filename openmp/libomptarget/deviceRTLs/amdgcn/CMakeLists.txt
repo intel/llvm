@@ -54,7 +54,7 @@ set(optimization_level 2)
 
 # Activate RTL message dumps if requested by the user.
 if(LIBOMPTARGET_NVPTX_DEBUG)
-  set(CUDA_DEBUG -DOMPTARGET_NVPTX_DEBUG=-1)
+  set(CUDA_DEBUG -DOMPTARGET_NVPTX_DEBUG=-1 -g)
 endif()
 
 get_filename_component(devicertl_base_directory
@@ -107,6 +107,7 @@ macro(add_cuda_bc_library)
   set(cu_cmd ${CLANG_TOOL}
     -xc++
     -c
+    -mllvm -openmp-opt-disable-internalization
     -std=c++14
     -ffreestanding
     -target amdgcn-amd-amdhsa
@@ -156,7 +157,7 @@ foreach(mcpu ${mcpus})
   add_custom_command(
     OUTPUT ${bc_libname}
     COMMAND ${LINK_TOOL} ${bc_files} | ${OPT_TOOL} --always-inline -o ${OUTPUTDIR}/${bc_libname}
-    DEPENDS ${bc_files})
+    DEPENDS ${bc_files} opt)
 
   add_custom_target(lib${libname}-${mcpu} ALL DEPENDS ${bc_libname})
 

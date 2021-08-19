@@ -151,6 +151,7 @@ __clc__SubgroupBitwiseAny(uint op, bool predicate, bool *carry) {
 #define __CLC_MAX(x, y) ((x > y) ? (x) : (y))
 #define __CLC_OR(x, y) (x | y)
 #define __CLC_AND(x, y) (x & y)
+#define __CLC_MUL(x, y) (x * y)
 
 #define __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, IDENTITY)                     \
   uint sg_lid = __spirv_SubgroupLocalInvocationId();                           \
@@ -210,6 +211,18 @@ __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, half, 0)
 __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, float, 0)
 __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, double, 0)
 
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, char, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, uchar, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, short, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, ushort, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, int, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, uint, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, long, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, ulong, 1)
+__CLC_SUBGROUP_COLLECTIVE(FMul, __CLC_MUL, half, 1)
+__CLC_SUBGROUP_COLLECTIVE(FMul, __CLC_MUL, float, 1)
+__CLC_SUBGROUP_COLLECTIVE(FMul, __CLC_MUL, double, 1)
+
 __CLC_SUBGROUP_COLLECTIVE(SMin, __CLC_MIN, char, CHAR_MAX)
 __CLC_SUBGROUP_COLLECTIVE(UMin, __CLC_MIN, uchar, UCHAR_MAX)
 __CLC_SUBGROUP_COLLECTIVE(SMin, __CLC_MIN, short, SHRT_MAX)
@@ -238,12 +251,12 @@ __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
 #undef __CLC_SUBGROUP_COLLECTIVE
 #undef __CLC_SUBGROUP_COLLECTIVE_REDUX
 
-#define __CLC_GROUP_COLLECTIVE(NAME, OP, TYPE, IDENTITY)                       \
+#define __CLC_GROUP_COLLECTIVE_INNER(SPIRV_NAME, CLC_NAME, OP, TYPE, IDENTITY) \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
-      __spirv_Group, NAME)(uint scope, uint op, TYPE x) {                      \
+      __spirv_Group, SPIRV_NAME)(uint scope, uint op, TYPE x) {                \
     TYPE carry = IDENTITY;                                                     \
     /* Perform GroupOperation within sub-group */                              \
-    TYPE sg_x = __CLC_APPEND(__clc__Subgroup, NAME)(op, x, &carry);            \
+    TYPE sg_x = __CLC_APPEND(__clc__Subgroup, CLC_NAME)(op, x, &carry);        \
     if (scope == Subgroup) {                                                   \
       return sg_x;                                                             \
     }                                                                          \
@@ -283,6 +296,18 @@ __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
     return result;                                                             \
   }
 
+#define __CLC_GROUP_COLLECTIVE_4(NAME, OP, TYPE, IDENTITY)                     \
+  __CLC_GROUP_COLLECTIVE_INNER(NAME, NAME, OP, TYPE, IDENTITY)
+#define __CLC_GROUP_COLLECTIVE_5(SPIRV_NAME, CLC_NAME, OP, TYPE, IDENTITY)     \
+  __CLC_GROUP_COLLECTIVE_INNER(SPIRV_NAME, CLC_NAME, OP, TYPE, IDENTITY)
+
+#define DISPATCH_TO_CLC_GROUP_COLLECTIVE_MACRO(_1, _2, _3, _4, _5, NAME, ...)  \
+  NAME
+#define __CLC_GROUP_COLLECTIVE(...)                                            \
+  DISPATCH_TO_CLC_GROUP_COLLECTIVE_MACRO(                                      \
+      __VA_ARGS__, __CLC_GROUP_COLLECTIVE_5, __CLC_GROUP_COLLECTIVE_4)         \
+  (__VA_ARGS__)
+
 __CLC_GROUP_COLLECTIVE(BitwiseOr, __CLC_OR, bool, false);
 __CLC_GROUP_COLLECTIVE(BitwiseAny, __CLC_AND, bool, true);
 _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool __spirv_GroupAny(uint scope,
@@ -305,6 +330,19 @@ __CLC_GROUP_COLLECTIVE(IAdd, __CLC_ADD, ulong, 0)
 __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, half, 0)
 __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, float, 0)
 __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, double, 0)
+
+// There is no Mul group op in SPIR-V, use non-uniform variant instead.
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, char, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, uchar, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, short, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, ushort, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, int, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, uint, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, long, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, ulong, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformFMul, FMul, __CLC_MUL, half, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformFMul, FMul, __CLC_MUL, float, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformFMul, FMul, __CLC_MUL, double, 1)
 
 __CLC_GROUP_COLLECTIVE(SMin, __CLC_MIN, char, CHAR_MAX)
 __CLC_GROUP_COLLECTIVE(UMin, __CLC_MIN, uchar, UCHAR_MAX)
@@ -344,6 +382,9 @@ _CLC_DECL _CLC_CONVERGENT half _Z17__spirv_GroupFMaxjjDF16_(uint scope, uint op,
   return __spirv_GroupFMax(scope, op, x);
 }
 
+#undef __CLC_GROUP_COLLECTIVE_4
+#undef __CLC_GROUP_COLLECTIVE_5
+#undef DISPATCH_TO_CLC_GROUP_COLLECTIVE_MACRO
 #undef __CLC_GROUP_COLLECTIVE
 
 #undef __CLC_AND
@@ -351,6 +392,7 @@ _CLC_DECL _CLC_CONVERGENT half _Z17__spirv_GroupFMaxjjDF16_(uint scope, uint op,
 #undef __CLC_MAX
 #undef __CLC_MIN
 #undef __CLC_ADD
+#undef __CLC_MUL
 
 long __clc__get_linear_local_id() {
   size_t id_x = __spirv_LocalInvocationId_x();

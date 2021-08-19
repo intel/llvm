@@ -927,6 +927,8 @@ bool LowOverheadLoop::ValidateLiveOuts() {
   SmallPtrSet<MachineInstr *, 4> Predicated;
   MachineBasicBlock *Header = ML.getHeader();
 
+  LLVM_DEBUG(dbgs() << "ARM Loops: Validating Live outs\n");
+
   for (auto &MI : *Header) {
     if (!shouldInspect(MI))
       continue;
@@ -944,11 +946,25 @@ bool LowOverheadLoop::ValidateLiveOuts() {
       FalseLanesZero.insert(&MI);
     else if (MI.getNumDefs() == 0)
       continue;
-    else if (!isPredicated && retainsOrReduces)
+    else if (!isPredicated && retainsOrReduces) {
+      LLVM_DEBUG(dbgs() << "  Unpredicated instruction that retainsOrReduces: " << MI);
       return false;
+    }
     else if (!isPredicated)
       FalseLanesUnknown.insert(&MI);
   }
+
+  LLVM_DEBUG({
+    dbgs() << "  Predicated:\n";
+    for (auto *I : Predicated)
+      dbgs() << "  " << *I;
+    dbgs() << "  FalseLanesZero:\n";
+    for (auto *I : FalseLanesZero)
+      dbgs() << "  " << *I;
+    dbgs() << "  FalseLanesUnknown:\n";
+    for (auto *I : FalseLanesUnknown)
+      dbgs() << "  " << *I;
+  });
 
   auto HasPredicatedUsers = [this](MachineInstr *MI, const MachineOperand &MO,
                               SmallPtrSetImpl<MachineInstr *> &Predicated) {
@@ -973,7 +989,7 @@ bool LowOverheadLoop::ValidateLiveOuts() {
       if (!isRegInClass(MO, QPRs) || !MO.isDef())
         continue;
       if (!HasPredicatedUsers(MI, MO, Predicated)) {
-        LLVM_DEBUG(dbgs() << "ARM Loops: Found an unknown def of : "
+        LLVM_DEBUG(dbgs() << "  Found an unknown def of : "
                           << TRI.getRegAsmName(MO.getReg()) << " at " << *MI);
         NonPredicated.insert(MI);
         break;
@@ -993,8 +1009,10 @@ bool LowOverheadLoop::ValidateLiveOuts() {
   for (const MachineBasicBlock::RegisterMaskPair &RegMask : ExitBB->liveins()) {
     // TODO: Instead of blocking predication, we could move the vctp to the exit
     // block and calculate it's operand there in or the preheader.
-    if (RegMask.PhysReg == ARM::VPR)
+    if (RegMask.PhysReg == ARM::VPR) {
+      LLVM_DEBUG(dbgs() << "  VPR is live in to the exit block.");
       return false;
+    }
     // Check Q-regs that are live in the exit blocks. We don't collect scalars
     // because they won't be affected by lane predication.
     if (QPRs->contains(RegMask.PhysReg))
@@ -1010,7 +1028,7 @@ bool LowOverheadLoop::ValidateLiveOuts() {
   // legality.
   for (auto *MI : LiveOutMIs) {
     if (NonPredicated.count(MI) && FalseLanesUnknown.contains(MI)) {
-      LLVM_DEBUG(dbgs() << "ARM Loops: Unable to handle live out: " << *MI);
+      LLVM_DEBUG(dbgs() << "  Unable to handle live out: " << *MI);
       return false;
     }
   }
@@ -1084,7 +1102,85 @@ bool LowOverheadLoop::AddVCTP(MachineInstr *MI) {
   return true;
 }
 
-bool LowOverheadLoop::ValidateMVEInst(MachineInstr* MI) {
+static bool ValidateMVEStore(MachineInstr *MI, MachineLoop *ML) {
+
+  auto GetFrameIndex = [](MachineMemOperand *Operand) {
+    const PseudoSourceValue *PseudoValue = Operand->getPseudoValue();
+    if (PseudoValue && PseudoValue->kind() == PseudoSourceValue::FixedStack) {
+      if (const auto *FS = dyn_cast<FixedStackPseudoSourceValue>(PseudoValue)) {
+        return FS->getFrameIndex();
+      }
+    }
+    return -1;
+  };
+
+  auto IsStackOp = [GetFrameIndex](MachineInstr *I) {
+    switch (I->getOpcode()) {
+    case ARM::MVE_VSTRWU32:
+    case ARM::MVE_VLDRWU32: {
+      return I->getOperand(1).getReg() == ARM::SP &&
+             I->memoperands().size() == 1 &&
+             GetFrameIndex(I->memoperands().front()) >= 0;
+    }
+    default:
+      return false;
+    }
+  };
+
+  // An unpredicated vector register spill is allowed if all of the uses of the
+  // stack slot are within the loop
+  if (MI->getOpcode() != ARM::MVE_VSTRWU32 || !IsStackOp(MI))
+    return false;
+
+  // Search all blocks after the loop for accesses to the same stack slot.
+  // ReachingDefAnalysis doesn't work for sp as it relies on registers being
+  // live-out (which sp never is) to know what blocks to look in
+  if (MI->memoperands().size() == 0)
+    return false;
+  int FI = GetFrameIndex(MI->memoperands().front());
+
+  auto &FrameInfo = MI->getParent()->getParent()->getFrameInfo();
+  if (FI == -1 || !FrameInfo.isSpillSlotObjectIndex(FI))
+    return false;
+
+  SmallVector<MachineBasicBlock *> Frontier;
+  ML->getExitBlocks(Frontier);
+  SmallPtrSet<MachineBasicBlock *, 4> Visited{MI->getParent()};
+  unsigned Idx = 0;
+  while (Idx < Frontier.size()) {
+    MachineBasicBlock *BB = Frontier[Idx];
+    bool LookAtSuccessors = true;
+    for (auto &I : *BB) {
+      if (!IsStackOp(&I) || I.memoperands().size() == 0)
+        continue;
+      if (GetFrameIndex(I.memoperands().front()) != FI)
+        continue;
+      // If this block has a store to the stack slot before any loads then we
+      // can ignore the block
+      if (I.getOpcode() == ARM::MVE_VSTRWU32) {
+        LookAtSuccessors = false;
+        break;
+      }
+      // If the store and the load are using the same stack slot then the
+      // store isn't valid for tail predication
+      if (I.getOpcode() == ARM::MVE_VLDRWU32)
+        return false;
+    }
+
+    if (LookAtSuccessors) {
+      for (auto Succ : BB->successors()) {
+        if (!Visited.contains(Succ) && !is_contained(Frontier, Succ))
+          Frontier.push_back(Succ);
+      }
+    }
+    Visited.insert(BB);
+    Idx++;
+  }
+
+  return true;
+}
+
+bool LowOverheadLoop::ValidateMVEInst(MachineInstr *MI) {
   if (CannotTailPredicate)
     return false;
 
@@ -1140,7 +1236,7 @@ bool LowOverheadLoop::ValidateMVEInst(MachineInstr* MI) {
 
   // If the instruction is already explicitly predicated, then the conversion
   // will be fine, but ensure that all store operations are predicated.
-  if (MI->mayStore())
+  if (MI->mayStore() && !ValidateMVEStore(MI, &ML))
     return IsUse;
 
   // If this instruction defines the VPR, update the predicate for the

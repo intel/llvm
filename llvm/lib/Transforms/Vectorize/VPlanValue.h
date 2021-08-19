@@ -90,18 +90,23 @@ public:
   /// type identification.
   enum {
     VPValueSC,
-    VPVBlendSC,
     VPVInstructionSC,
     VPVMemoryInstructionSC,
-    VPVPredInstPHI,
     VPVReductionSC,
     VPVReplicateSC,
     VPVWidenSC,
     VPVWidenCallSC,
     VPVWidenGEPSC,
-    VPVWidenIntOrFpIndcutionSC,
-    VPVWidenPHISC,
     VPVWidenSelectSC,
+
+    // Phi-like VPValues. Need to be kept together.
+    VPVBlendSC,
+    VPVFirstOrderRecurrencePHISC,
+    VPVWidenPHISC,
+    VPVWidenCanonicalIVSC,
+    VPVWidenIntOrFpInductionSC,
+    VPVPredInstPHI,
+    VPVReductionPHISC,
   };
 
   VPValue(Value *UV = nullptr, VPDef *Def = nullptr)
@@ -314,21 +319,27 @@ public:
   /// SubclassID field of the VPRecipeBase objects. They are used for concrete
   /// type identification.
   using VPRecipeTy = enum {
-    VPBlendSC,
     VPBranchOnMaskSC,
     VPInstructionSC,
     VPInterleaveSC,
-    VPPredInstPHISC,
     VPReductionSC,
     VPReplicateSC,
     VPWidenCallSC,
-    VPWidenCanonicalIVSC,
     VPWidenGEPSC,
-    VPWidenIntOrFpInductionSC,
     VPWidenMemoryInstructionSC,
-    VPWidenPHISC,
     VPWidenSC,
-    VPWidenSelectSC
+    VPWidenSelectSC,
+
+    // Phi-like recipes. Need to be kept together.
+    VPBlendSC,
+    VPFirstOrderRecurrencePHISC,
+    VPWidenPHISC,
+    VPWidenCanonicalIVSC,
+    VPWidenIntOrFpInductionSC,
+    VPPredInstPHISC,
+    VPReductionPHISC,
+    VPFirstPHISC = VPBlendSC,
+    VPLastPHISC = VPReductionPHISC,
   };
 
   VPDef(const unsigned char SC) : SubclassID(SC) {}
@@ -362,7 +373,7 @@ public:
     assert(DefinedValues[I] && "defined value must be non-null");
     return DefinedValues[I];
   }
-  const VPValue *getVPValue(unsigned I = 0) const {
+  const VPValue *getVPValue(unsigned I) const {
     assert(DefinedValues[I] && "defined value must be non-null");
     return DefinedValues[I];
   }

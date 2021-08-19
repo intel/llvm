@@ -31,6 +31,9 @@ namespace detail {
 constexpr const char *SYCL_STREAM_NAME = "sycl";
 // Stream name being used for traces generated from the SYCL plugin layer
 constexpr const char *SYCL_PICALL_STREAM_NAME = "sycl.pi";
+// Stream name being used for traces generated from PI calls. This stream
+// contains information about function arguments.
+constexpr const char *SYCL_PIDEBUGCALL_STREAM_NAME = "sycl.pi.debug";
 // Data structure that captures the user code location information using the
 // builtin capabilities of the compiler
 struct code_location {
@@ -45,8 +48,10 @@ struct code_location {
     return code_location(fileName, funcName, lineNo, columnNo);
   }
 #else
+  // FIXME Having a nullptr for fileName here is a short-term solution to
+  // workaround leak of full paths in builds
   static constexpr code_location
-  current(const char *fileName = __builtin_FILE(),
+  current(const char *fileName = nullptr,
           const char *funcName = __builtin_FUNCTION(),
           unsigned long lineNo = __builtin_LINE(),
           unsigned long columnNo = 0) noexcept {

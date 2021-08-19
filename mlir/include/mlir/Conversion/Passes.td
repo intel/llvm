@@ -256,6 +256,62 @@ def ConvertMathToLibm : Pass<"convert-math-to-libm", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// MathToLLVM
+//===----------------------------------------------------------------------===//
+
+def ConvertMathToLLVM : FunctionPass<"convert-math-to-llvm"> {
+  let summary = "Convert Math dialect to LLVM dialect";
+  let description = [{
+    This pass converts supported Math ops to LLVM dialect intrinsics.
+  }];
+  let constructor = "mlir::createConvertMathToLLVMPass()";
+  let dependentDialects = ["LLVM::LLVMDialect"];
+}
+
+//===----------------------------------------------------------------------===//
+// MathToSPIRV
+//===----------------------------------------------------------------------===//
+
+def ConvertMathToSPIRV : Pass<"convert-math-to-spirv", "ModuleOp"> {
+  let summary = "Convert Math dialect to SPIR-V dialect";
+  let constructor = "mlir::createConvertMathToSPIRVPass()";
+  let dependentDialects = ["spirv::SPIRVDialect"];
+}
+
+//===----------------------------------------------------------------------===//
+// MemRefToLLVM
+//===----------------------------------------------------------------------===//
+
+def ConvertMemRefToLLVM : Pass<"convert-memref-to-llvm", "ModuleOp"> {
+  let summary = "Convert operations from the MemRef dialect to the LLVM "
+                "dialect";
+  let constructor = "mlir::createMemRefToLLVMPass()";
+  let dependentDialects = ["LLVM::LLVMDialect"];
+  let options = [
+    Option<"useAlignedAlloc", "use-aligned-alloc", "bool", /*default=*/"false",
+           "Use aligned_alloc in place of malloc for heap allocations">,
+    Option<"indexBitwidth", "index-bitwidth", "unsigned",
+           /*default=kDeriveIndexBitwidthFromDataLayout*/"0",
+           "Bitwidth of the index type, 0 to use size of machine word">,
+  ];
+}
+
+//===----------------------------------------------------------------------===//
+// MemRefToSPIRV
+//===----------------------------------------------------------------------===//
+
+def ConvertMemRefToSPIRV : Pass<"convert-memref-to-spirv", "ModuleOp"> {
+  let summary = "Convert MemRef dialect to SPIR-V dialect";
+  let constructor = "mlir::createConvertMemRefToSPIRVPass()";
+  let dependentDialects = ["spirv::SPIRVDialect"];
+  let options = [
+    Option<"boolNumBits", "bool-num-bits",
+           "int", /*default=*/"8",
+           "The number of bits to store a boolean value">
+  ];
+}
+
+//===----------------------------------------------------------------------===//
 // OpenACCToSCF
 //===----------------------------------------------------------------------===//
 
@@ -434,8 +490,6 @@ def ConvertStandardToLLVM : Pass<"convert-std-to-llvm", "ModuleOp"> {
   let constructor = "mlir::createLowerToLLVMPass()";
   let dependentDialects = ["LLVM::LLVMDialect"];
   let options = [
-    Option<"useAlignedAlloc", "use-aligned-alloc", "bool", /*default=*/"false",
-           "Use aligned_alloc in place of malloc for heap allocations">,
     Option<"useBarePtrCallConv", "use-bare-ptr-memref-call-conv", "bool",
            /*default=*/"false",
            "Replace FuncOp's MemRef arguments with bare pointers to the MemRef "

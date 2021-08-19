@@ -341,7 +341,9 @@ The device code image are stored on file system using structure below:
           <n>.bin
 ```
 
-- `<cache_root>` - root directory storing cache files;
+- `<cache_root>` - root directory storing cache files, that depends on
+  environment variables (see SYCL_CACHE_DIR description in the
+  [EnvironmentVariables.md](EnvironmentVariables.md));
 - `<device_hash>` - hash out of device information used to identify target
   device;
 - `<device_image_hash>` - hash made out of device image used as input for the

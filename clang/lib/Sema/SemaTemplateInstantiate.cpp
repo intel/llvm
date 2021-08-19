@@ -1541,9 +1541,8 @@ TemplateInstantiator::TransformSYCLIntelFPGAInitiationIntervalAttr(
     const SYCLIntelFPGAInitiationIntervalAttr *II) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(II->getIntervalExpr()).get();
-  return getSema()
-      .BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAInitiationIntervalAttr>(
-          *II, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGAInitiationIntervalAttr(*II,
+                                                            TransformedExpr);
 }
 
 const SYCLIntelFPGAMaxConcurrencyAttr *
@@ -1551,33 +1550,29 @@ TemplateInstantiator::TransformSYCLIntelFPGAMaxConcurrencyAttr(
     const SYCLIntelFPGAMaxConcurrencyAttr *MC) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(MC->getNThreadsExpr()).get();
-  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAMaxConcurrencyAttr>(
-      *MC, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGAMaxConcurrencyAttr(*MC, TransformedExpr);
 }
 
 const SYCLIntelFPGALoopCoalesceAttr *
 TemplateInstantiator::TransformSYCLIntelFPGALoopCoalesceAttr(
     const SYCLIntelFPGALoopCoalesceAttr *LC) {
   Expr *TransformedExpr = getDerived().TransformExpr(LC->getNExpr()).get();
-  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGALoopCoalesceAttr>(
-      *LC, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGALoopCoalesceAttr(*LC, TransformedExpr);
 }
 
 const SYCLIntelFPGAMaxInterleavingAttr *
 TemplateInstantiator::TransformSYCLIntelFPGAMaxInterleavingAttr(
     const SYCLIntelFPGAMaxInterleavingAttr *MI) {
   Expr *TransformedExpr = getDerived().TransformExpr(MI->getNExpr()).get();
-  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGAMaxInterleavingAttr>(
-      *MI, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGAMaxInterleavingAttr(*MI, TransformedExpr);
 }
 
 const SYCLIntelFPGASpeculatedIterationsAttr *
 TemplateInstantiator::TransformSYCLIntelFPGASpeculatedIterationsAttr(
     const SYCLIntelFPGASpeculatedIterationsAttr *SI) {
   Expr *TransformedExpr = getDerived().TransformExpr(SI->getNExpr()).get();
-  return getSema()
-      .BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGASpeculatedIterationsAttr>(
-          *SI, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGASpeculatedIterationsAttr(*SI,
+                                                              TransformedExpr);
 }
 
 const SYCLIntelFPGALoopCountAttr *
@@ -1585,8 +1580,7 @@ TemplateInstantiator::TransformSYCLIntelFPGALoopCountAttr(
     const SYCLIntelFPGALoopCountAttr *LCA) {
   Expr *TransformedExpr =
       getDerived().TransformExpr(LCA->getNTripCount()).get();
-  return getSema().BuildSYCLIntelFPGALoopAttr<SYCLIntelFPGALoopCountAttr>(
-      *LCA, TransformedExpr);
+  return getSema().BuildSYCLIntelFPGALoopCountAttr(*LCA, TransformedExpr);
 }
 
 const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
@@ -2028,25 +2022,23 @@ TemplateInstantiator::TransformExprRequirement(concepts::ExprRequirement *Req) {
     return Req;
 
   Sema::SFINAETrap Trap(SemaRef);
-  TemplateDeductionInfo Info(Req->getExpr()->getBeginLoc());
 
   llvm::PointerUnion<Expr *, concepts::Requirement::SubstitutionDiagnostic *>
       TransExpr;
   if (Req->isExprSubstitutionFailure())
     TransExpr = Req->getExprSubstitutionDiagnostic();
   else {
-    Sema::InstantiatingTemplate ExprInst(SemaRef, Req->getExpr()->getBeginLoc(),
-                                         Req, Info,
-                                         Req->getExpr()->getSourceRange());
+    Expr *E = Req->getExpr();
+    TemplateDeductionInfo Info(E->getBeginLoc());
+    Sema::InstantiatingTemplate ExprInst(SemaRef, E->getBeginLoc(), Req, Info,
+                                         E->getSourceRange());
     if (ExprInst.isInvalid())
       return nullptr;
-    ExprResult TransExprRes = TransformExpr(Req->getExpr());
+    ExprResult TransExprRes = TransformExpr(E);
     if (TransExprRes.isInvalid() || Trap.hasErrorOccurred())
-      TransExpr = createSubstDiag(SemaRef, Info,
-          [&] (llvm::raw_ostream& OS) {
-              Req->getExpr()->printPretty(OS, nullptr,
-                                          SemaRef.getPrintingPolicy());
-          });
+      TransExpr = createSubstDiag(SemaRef, Info, [&](llvm::raw_ostream &OS) {
+        E->printPretty(OS, nullptr, SemaRef.getPrintingPolicy());
+      });
     else
       TransExpr = TransExprRes.get();
   }
@@ -2060,6 +2052,7 @@ TemplateInstantiator::TransformExprRequirement(concepts::ExprRequirement *Req) {
   else if (RetReq.isTypeConstraint()) {
     TemplateParameterList *OrigTPL =
         RetReq.getTypeConstraintTemplateParameterList();
+    TemplateDeductionInfo Info(OrigTPL->getTemplateLoc());
     Sema::InstantiatingTemplate TPLInst(SemaRef, OrigTPL->getTemplateLoc(),
                                         Req, Info, OrigTPL->getSourceRange());
     if (TPLInst.isInvalid())

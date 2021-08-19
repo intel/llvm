@@ -140,20 +140,20 @@ bool Argument::hasPreallocatedAttr() const {
 bool Argument::hasPassPointeeByValueCopyAttr() const {
   if (!getType()->isPointerTy()) return false;
   AttributeList Attrs = getParent()->getAttributes();
-  return Attrs.hasParamAttribute(getArgNo(), Attribute::ByVal) ||
-         Attrs.hasParamAttribute(getArgNo(), Attribute::InAlloca) ||
-         Attrs.hasParamAttribute(getArgNo(), Attribute::Preallocated);
+  return Attrs.hasParamAttr(getArgNo(), Attribute::ByVal) ||
+         Attrs.hasParamAttr(getArgNo(), Attribute::InAlloca) ||
+         Attrs.hasParamAttr(getArgNo(), Attribute::Preallocated);
 }
 
 bool Argument::hasPointeeInMemoryValueAttr() const {
   if (!getType()->isPointerTy())
     return false;
   AttributeList Attrs = getParent()->getAttributes();
-  return Attrs.hasParamAttribute(getArgNo(), Attribute::ByVal) ||
-         Attrs.hasParamAttribute(getArgNo(), Attribute::StructRet) ||
-         Attrs.hasParamAttribute(getArgNo(), Attribute::InAlloca) ||
-         Attrs.hasParamAttribute(getArgNo(), Attribute::Preallocated) ||
-         Attrs.hasParamAttribute(getArgNo(), Attribute::ByRef);
+  return Attrs.hasParamAttr(getArgNo(), Attribute::ByVal) ||
+         Attrs.hasParamAttr(getArgNo(), Attribute::StructRet) ||
+         Attrs.hasParamAttr(getArgNo(), Attribute::InAlloca) ||
+         Attrs.hasParamAttr(getArgNo(), Attribute::Preallocated) ||
+         Attrs.hasParamAttr(getArgNo(), Attribute::ByRef);
 }
 
 /// For a byval, sret, inalloca, or preallocated parameter, get the in-memory
@@ -278,8 +278,8 @@ bool Argument::hasSExtAttr() const {
 
 bool Argument::onlyReadsMemory() const {
   AttributeList Attrs = getParent()->getAttributes();
-  return Attrs.hasParamAttribute(getArgNo(), Attribute::ReadOnly) ||
-         Attrs.hasParamAttribute(getArgNo(), Attribute::ReadNone);
+  return Attrs.hasParamAttr(getArgNo(), Attribute::ReadOnly) ||
+         Attrs.hasParamAttr(getArgNo(), Attribute::ReadNone);
 }
 
 void Argument::addAttrs(AttrBuilder &B) {
@@ -598,12 +598,6 @@ void Function::removeParamAttr(unsigned ArgNo, StringRef Kind) {
 void Function::removeParamAttrs(unsigned ArgNo, const AttrBuilder &Attrs) {
   AttributeList PAL = getAttributes();
   PAL = PAL.removeParamAttributes(getContext(), ArgNo, Attrs);
-  setAttributes(PAL);
-}
-
-void Function::removeParamUndefImplyingAttrs(unsigned ArgNo) {
-  AttributeList PAL = getAttributes();
-  PAL = PAL.removeParamUndefImplyingAttributes(getContext(), ArgNo);
   setAttributes(PAL);
 }
 
@@ -1676,11 +1670,26 @@ Optional<Function *> Intrinsic::remangleIntrinsicFunction(Function *F) {
 
   Intrinsic::ID ID = F->getIntrinsicID();
   StringRef Name = F->getName();
-  if (Name ==
-      Intrinsic::getName(ID, ArgTys, F->getParent(), F->getFunctionType()))
+  std::string WantedName =
+      Intrinsic::getName(ID, ArgTys, F->getParent(), F->getFunctionType());
+  if (Name == WantedName)
     return None;
 
-  auto NewDecl = Intrinsic::getDeclaration(F->getParent(), ID, ArgTys);
+  Function *NewDecl = [&] {
+    if (auto *ExistingGV = F->getParent()->getNamedValue(WantedName)) {
+      if (auto *ExistingF = dyn_cast<Function>(ExistingGV))
+        if (ExistingF->getFunctionType() == F->getFunctionType())
+          return ExistingF;
+
+      // The name already exists, but is not a function or has the wrong
+      // prototype. Make place for the new one by renaming the old version.
+      // Either this old version will be removed later on or the module is
+      // invalid and we'll get an error.
+      ExistingGV->setName(WantedName + ".renamed");
+    }
+    return Intrinsic::getDeclaration(F->getParent(), ID, ArgTys);
+  }();
+
   NewDecl->setCallingConv(F->getCallingConv());
   assert(NewDecl->getFunctionType() == F->getFunctionType() &&
          "Shouldn't change the signature");

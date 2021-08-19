@@ -177,21 +177,11 @@ public:
 };
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
-static const std::array<std::pair<std::string, info::device_type>, 5>
-    SyclDeviceTypeMap = {{{"host", info::device_type::host},
-                          {"cpu", info::device_type::cpu},
-                          {"gpu", info::device_type::gpu},
-                          {"acc", info::device_type::accelerator},
-                          {"*", info::device_type::all}}};
+const std::array<std::pair<std::string, info::device_type>, 5> &
+getSyclDeviceTypeMap();
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
-static const std::array<std::pair<std::string, backend>, 6> SyclBeMap = {
-    {{"host", backend::host},
-     {"opencl", backend::opencl},
-     {"level_zero", backend::level_zero},
-     {"cuda", backend::cuda},
-     {"rocm", backend::rocm},
-     {"*", backend::all}}};
+const std::array<std::pair<std::string, backend>, 6> &getSyclBeMap();
 
 template <> class SYCLConfig<SYCL_DEVICE_FILTER> {
   using BaseT = SYCLConfigBase<SYCL_DEVICE_FILTER>;

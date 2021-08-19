@@ -280,6 +280,7 @@ class schedule_node_mark;
 class schedule_node_sequence;
 class schedule_node_set;
 class set;
+class set_list;
 class space;
 class union_access_info;
 class union_flow;
@@ -1489,6 +1490,7 @@ public:
   inline isl::checked::map_list map_list() const;
   inline isl::checked::multi_pw_aff max_multi_pw_aff() const;
   inline isl::checked::multi_pw_aff min_multi_pw_aff() const;
+  inline class size n_basic_map() const;
   inline isl::checked::basic_map polyhedral_hull() const;
   inline isl::checked::map preimage_domain(const isl::checked::multi_aff &ma) const;
   inline isl::checked::map preimage_domain(const isl::checked::multi_pw_aff &mpa) const;
@@ -1622,6 +1624,7 @@ public:
   inline isl::checked::val max_val(const isl::checked::aff &obj) const;
   inline isl::checked::multi_pw_aff min_multi_pw_aff() const;
   inline isl::checked::val min_val(const isl::checked::aff &obj) const;
+  inline class size n_basic_set() const;
   inline isl::checked::basic_set params() const;
   inline isl::checked::multi_val plain_multi_val_if_fixed() const;
   inline isl::checked::basic_set polyhedral_hull() const;
@@ -1637,12 +1640,13 @@ public:
   inline isl::checked::pw_multi_aff pw_multi_aff_on_domain(const isl::checked::multi_val &mv) const;
   inline isl::checked::basic_set sample() const;
   inline isl::checked::point sample_point() const;
+  inline isl::checked::set_list set_list() const;
   inline isl::checked::fixed_box simple_fixed_box_hull() const;
   inline isl::checked::space space() const;
   inline isl::checked::val stride(int pos) const;
   inline isl::checked::set subtract(const isl::checked::set &set2) const;
   inline isl::checked::union_set subtract(const isl::checked::union_set &uset2) const;
-  inline isl::checked::union_set_list to_list() const;
+  inline isl::checked::set_list to_list() const;
   inline isl::checked::set to_set() const;
   inline isl::checked::union_set to_union_set() const;
   inline isl::checked::map translation() const;
@@ -1906,6 +1910,7 @@ public:
   inline isl::checked::map_list map_list() const;
   inline isl::checked::multi_pw_aff max_multi_pw_aff() const;
   inline isl::checked::multi_pw_aff min_multi_pw_aff() const;
+  inline class size n_basic_map() const;
   inline isl::checked::basic_map polyhedral_hull() const;
   inline isl::checked::map preimage_domain(isl::checked::multi_aff ma) const;
   inline isl::checked::map preimage_domain(isl::checked::multi_pw_aff mpa) const;
@@ -2540,6 +2545,7 @@ public:
   inline isl::checked::val min_val(const isl::checked::aff &obj) const;
   inline isl::checked::multi_val multi_val() const;
   inline isl::checked::multi_val get_multi_val() const;
+  inline class size n_basic_set() const;
   inline isl::checked::basic_set params() const;
   inline isl::checked::multi_val plain_multi_val_if_fixed() const;
   inline isl::checked::basic_set polyhedral_hull() const;
@@ -2555,12 +2561,13 @@ public:
   inline isl::checked::pw_multi_aff pw_multi_aff_on_domain(const isl::checked::multi_val &mv) const;
   inline isl::checked::basic_set sample() const;
   inline isl::checked::point sample_point() const;
+  inline isl::checked::set_list set_list() const;
   inline isl::checked::fixed_box simple_fixed_box_hull() const;
   inline isl::checked::space space() const;
   inline isl::checked::val stride(int pos) const;
   inline isl::checked::set subtract(const isl::checked::set &set2) const;
   inline isl::checked::union_set subtract(const isl::checked::union_set &uset2) const;
-  inline isl::checked::union_set_list to_list() const;
+  inline isl::checked::set_list to_list() const;
   inline isl::checked::set to_set() const;
   inline isl::checked::union_set to_union_set() const;
   inline isl::checked::map translation() const;
@@ -2716,6 +2723,7 @@ public:
   inline isl::checked::pw_multi_aff set_range_tuple(const std::string &id) const;
   inline class size size() const;
   inline isl::checked::space space() const;
+  inline isl::checked::space get_space() const;
   inline isl::checked::multi_pw_aff sub(const isl::checked::multi_pw_aff &multi2) const;
   inline isl::checked::multi_union_pw_aff sub(const isl::checked::multi_union_pw_aff &multi2) const;
   inline isl::checked::pw_aff sub(isl::checked::pw_aff pwaff2) const;
@@ -3485,6 +3493,7 @@ public:
   inline isl::checked::val max_val(const isl::checked::aff &obj) const;
   inline isl::checked::multi_pw_aff min_multi_pw_aff() const;
   inline isl::checked::val min_val(const isl::checked::aff &obj) const;
+  inline class size n_basic_set() const;
   inline isl::checked::set params() const;
   inline isl::checked::multi_val plain_multi_val_if_fixed() const;
   inline isl::checked::multi_val get_plain_multi_val_if_fixed() const;
@@ -3501,6 +3510,7 @@ public:
   inline isl::checked::pw_multi_aff pw_multi_aff_on_domain(isl::checked::multi_val mv) const;
   inline isl::checked::basic_set sample() const;
   inline isl::checked::point sample_point() const;
+  inline isl::checked::set_list set_list() const;
   inline isl::checked::fixed_box simple_fixed_box_hull() const;
   inline isl::checked::fixed_box get_simple_fixed_box_hull() const;
   inline isl::checked::space space() const;
@@ -3511,7 +3521,7 @@ public:
   inline isl::checked::union_set subtract(const isl::checked::union_set &uset2) const;
   inline isl::checked::set subtract(const isl::checked::basic_set &set2) const;
   inline isl::checked::set subtract(const isl::checked::point &set2) const;
-  inline isl::checked::union_set_list to_list() const;
+  inline isl::checked::set_list to_list() const;
   inline isl::checked::union_set to_union_set() const;
   inline isl::checked::map translation() const;
   inline class size tuple_dim() const;
@@ -3526,6 +3536,45 @@ public:
   inline isl::checked::map unwrap() const;
   inline isl::checked::set upper_bound(isl::checked::multi_pw_aff upper) const;
   inline isl::checked::set upper_bound(isl::checked::multi_val upper) const;
+};
+
+// declarations for isl::set_list
+inline set_list manage(__isl_take isl_set_list *ptr);
+inline set_list manage_copy(__isl_keep isl_set_list *ptr);
+
+class set_list {
+  friend inline set_list manage(__isl_take isl_set_list *ptr);
+  friend inline set_list manage_copy(__isl_keep isl_set_list *ptr);
+
+protected:
+  isl_set_list *ptr = nullptr;
+
+  inline explicit set_list(__isl_take isl_set_list *ptr);
+
+public:
+  inline /* implicit */ set_list();
+  inline /* implicit */ set_list(const set_list &obj);
+  inline explicit set_list(isl::checked::ctx ctx, int n);
+  inline explicit set_list(isl::checked::set el);
+  inline explicit set_list(isl::checked::ctx ctx, const std::string &str);
+  inline set_list &operator=(set_list obj);
+  inline ~set_list();
+  inline __isl_give isl_set_list *copy() const &;
+  inline __isl_give isl_set_list *copy() && = delete;
+  inline __isl_keep isl_set_list *get() const;
+  inline __isl_give isl_set_list *release();
+  inline bool is_null() const;
+  inline isl::checked::ctx ctx() const;
+
+  inline isl::checked::set_list add(isl::checked::set el) const;
+  inline isl::checked::set at(int index) const;
+  inline isl::checked::set get_at(int index) const;
+  inline isl::checked::set_list clear() const;
+  inline isl::checked::set_list concat(isl::checked::set_list list2) const;
+  inline isl::checked::set_list drop(unsigned int first, unsigned int n) const;
+  inline stat foreach(const std::function<stat(isl::checked::set)> &fn) const;
+  inline isl::checked::set_list insert(unsigned int pos, isl::checked::set el) const;
+  inline class size size() const;
 };
 
 // declarations for isl::space
@@ -4053,6 +4102,8 @@ public:
   inline isl::checked::union_set preimage(isl::checked::pw_multi_aff pma) const;
   inline isl::checked::union_set preimage(isl::checked::union_pw_multi_aff upma) const;
   inline isl::checked::point sample_point() const;
+  inline isl::checked::set_list set_list() const;
+  inline isl::checked::set_list get_set_list() const;
   inline isl::checked::space space() const;
   inline isl::checked::space get_space() const;
   inline isl::checked::union_set subtract(isl::checked::union_set uset2) const;
@@ -4948,7 +4999,7 @@ class size aff::size() const
 
 isl::checked::space aff::space() const
 {
-  return isl::checked::multi_aff(*this).space();
+  return isl::checked::pw_aff(*this).space();
 }
 
 isl::checked::aff aff::sub(isl::checked::aff aff2) const
@@ -7632,6 +7683,11 @@ isl::checked::multi_pw_aff basic_map::min_multi_pw_aff() const
   return isl::checked::map(*this).min_multi_pw_aff();
 }
 
+class size basic_map::n_basic_map() const
+{
+  return isl::checked::map(*this).n_basic_map();
+}
+
 isl::checked::basic_map basic_map::polyhedral_hull() const
 {
   return isl::checked::map(*this).polyhedral_hull();
@@ -8246,6 +8302,11 @@ isl::checked::val basic_set::min_val(const isl::checked::aff &obj) const
   return isl::checked::set(*this).min_val(obj);
 }
 
+class size basic_set::n_basic_set() const
+{
+  return isl::checked::set(*this).n_basic_set();
+}
+
 isl::checked::basic_set basic_set::params() const
 {
   auto res = isl_basic_set_params(copy());
@@ -8324,6 +8385,11 @@ isl::checked::point basic_set::sample_point() const
   return manage(res);
 }
 
+isl::checked::set_list basic_set::set_list() const
+{
+  return isl::checked::set(*this).set_list();
+}
+
 isl::checked::fixed_box basic_set::simple_fixed_box_hull() const
 {
   return isl::checked::set(*this).simple_fixed_box_hull();
@@ -8349,7 +8415,7 @@ isl::checked::union_set basic_set::subtract(const isl::checked::union_set &uset2
   return isl::checked::set(*this).subtract(uset2);
 }
 
-isl::checked::union_set_list basic_set::to_list() const
+isl::checked::set_list basic_set::to_list() const
 {
   return isl::checked::set(*this).to_list();
 }
@@ -9481,6 +9547,12 @@ isl::checked::multi_pw_aff map::max_multi_pw_aff() const
 isl::checked::multi_pw_aff map::min_multi_pw_aff() const
 {
   auto res = isl_map_min_multi_pw_aff(copy());
+  return manage(res);
+}
+
+class size map::n_basic_map() const
+{
+  auto res = isl_map_n_basic_map(get());
   return manage(res);
 }
 
@@ -12389,6 +12461,11 @@ isl::checked::multi_val point::get_multi_val() const
   return multi_val();
 }
 
+class size point::n_basic_set() const
+{
+  return isl::checked::basic_set(*this).n_basic_set();
+}
+
 isl::checked::basic_set point::params() const
 {
   return isl::checked::basic_set(*this).params();
@@ -12464,6 +12541,11 @@ isl::checked::point point::sample_point() const
   return isl::checked::basic_set(*this).sample_point();
 }
 
+isl::checked::set_list point::set_list() const
+{
+  return isl::checked::basic_set(*this).set_list();
+}
+
 isl::checked::fixed_box point::simple_fixed_box_hull() const
 {
   return isl::checked::basic_set(*this).simple_fixed_box_hull();
@@ -12489,7 +12571,7 @@ isl::checked::union_set point::subtract(const isl::checked::union_set &uset2) co
   return isl::checked::basic_set(*this).subtract(uset2);
 }
 
-isl::checked::union_set_list point::to_list() const
+isl::checked::set_list point::to_list() const
 {
   return isl::checked::basic_set(*this).to_list();
 }
@@ -13235,7 +13317,13 @@ class size pw_aff::size() const
 
 isl::checked::space pw_aff::space() const
 {
-  return isl::checked::union_pw_aff(*this).space();
+  auto res = isl_pw_aff_get_space(get());
+  return manage(res);
+}
+
+isl::checked::space pw_aff::get_space() const
+{
+  return space();
 }
 
 isl::checked::multi_pw_aff pw_aff::sub(const isl::checked::multi_pw_aff &multi2) const
@@ -16162,6 +16250,12 @@ isl::checked::val set::min_val(const isl::checked::aff &obj) const
   return manage(res);
 }
 
+class size set::n_basic_set() const
+{
+  auto res = isl_set_n_basic_set(get());
+  return manage(res);
+}
+
 isl::checked::set set::params() const
 {
   auto res = isl_set_params(copy());
@@ -16255,6 +16349,11 @@ isl::checked::point set::sample_point() const
   return manage(res);
 }
 
+isl::checked::set_list set::set_list() const
+{
+  return isl::checked::union_set(*this).set_list();
+}
+
 isl::checked::fixed_box set::simple_fixed_box_hull() const
 {
   auto res = isl_set_get_simple_fixed_box_hull(get());
@@ -16309,9 +16408,10 @@ isl::checked::set set::subtract(const isl::checked::point &set2) const
   return this->subtract(isl::checked::set(set2));
 }
 
-isl::checked::union_set_list set::to_list() const
+isl::checked::set_list set::to_list() const
 {
-  return isl::checked::union_set(*this).to_list();
+  auto res = isl_set_to_list(copy());
+  return manage(res);
 }
 
 isl::checked::union_set set::to_union_set() const
@@ -16398,6 +16498,150 @@ isl::checked::set set::upper_bound(isl::checked::multi_val upper) const
 inline std::ostream &operator<<(std::ostream &os, const set &obj)
 {
   char *str = isl_set_to_str(obj.get());
+  if (!str) {
+    os.setstate(std::ios_base::badbit);
+    return os;
+  }
+  os << str;
+  free(str);
+  return os;
+}
+
+// implementations for isl::set_list
+set_list manage(__isl_take isl_set_list *ptr) {
+  return set_list(ptr);
+}
+set_list manage_copy(__isl_keep isl_set_list *ptr) {
+  ptr = isl_set_list_copy(ptr);
+  return set_list(ptr);
+}
+
+set_list::set_list()
+    : ptr(nullptr) {}
+
+set_list::set_list(const set_list &obj)
+    : ptr(nullptr)
+{
+  ptr = obj.copy();
+}
+
+set_list::set_list(__isl_take isl_set_list *ptr)
+    : ptr(ptr) {}
+
+set_list::set_list(isl::checked::ctx ctx, int n)
+{
+  auto res = isl_set_list_alloc(ctx.release(), n);
+  ptr = res;
+}
+
+set_list::set_list(isl::checked::set el)
+{
+  auto res = isl_set_list_from_set(el.release());
+  ptr = res;
+}
+
+set_list::set_list(isl::checked::ctx ctx, const std::string &str)
+{
+  auto res = isl_set_list_read_from_str(ctx.release(), str.c_str());
+  ptr = res;
+}
+
+set_list &set_list::operator=(set_list obj) {
+  std::swap(this->ptr, obj.ptr);
+  return *this;
+}
+
+set_list::~set_list() {
+  if (ptr)
+    isl_set_list_free(ptr);
+}
+
+__isl_give isl_set_list *set_list::copy() const & {
+  return isl_set_list_copy(ptr);
+}
+
+__isl_keep isl_set_list *set_list::get() const {
+  return ptr;
+}
+
+__isl_give isl_set_list *set_list::release() {
+  isl_set_list *tmp = ptr;
+  ptr = nullptr;
+  return tmp;
+}
+
+bool set_list::is_null() const {
+  return ptr == nullptr;
+}
+
+isl::checked::ctx set_list::ctx() const {
+  return isl::checked::ctx(isl_set_list_get_ctx(ptr));
+}
+
+isl::checked::set_list set_list::add(isl::checked::set el) const
+{
+  auto res = isl_set_list_add(copy(), el.release());
+  return manage(res);
+}
+
+isl::checked::set set_list::at(int index) const
+{
+  auto res = isl_set_list_get_at(get(), index);
+  return manage(res);
+}
+
+isl::checked::set set_list::get_at(int index) const
+{
+  return at(index);
+}
+
+isl::checked::set_list set_list::clear() const
+{
+  auto res = isl_set_list_clear(copy());
+  return manage(res);
+}
+
+isl::checked::set_list set_list::concat(isl::checked::set_list list2) const
+{
+  auto res = isl_set_list_concat(copy(), list2.release());
+  return manage(res);
+}
+
+isl::checked::set_list set_list::drop(unsigned int first, unsigned int n) const
+{
+  auto res = isl_set_list_drop(copy(), first, n);
+  return manage(res);
+}
+
+stat set_list::foreach(const std::function<stat(isl::checked::set)> &fn) const
+{
+  struct fn_data {
+    std::function<stat(isl::checked::set)> func;
+  } fn_data = { fn };
+  auto fn_lambda = [](isl_set *arg_0, void *arg_1) -> isl_stat {
+    auto *data = static_cast<struct fn_data *>(arg_1);
+    auto ret = (data->func)(manage(arg_0));
+    return ret.release();
+  };
+  auto res = isl_set_list_foreach(get(), fn_lambda, &fn_data);
+  return manage(res);
+}
+
+isl::checked::set_list set_list::insert(unsigned int pos, isl::checked::set el) const
+{
+  auto res = isl_set_list_insert(copy(), pos, el.release());
+  return manage(res);
+}
+
+class size set_list::size() const
+{
+  auto res = isl_set_list_size(get());
+  return manage(res);
+}
+
+inline std::ostream &operator<<(std::ostream &os, const set_list &obj)
+{
+  char *str = isl_set_list_to_str(obj.get());
   if (!str) {
     os.setstate(std::ios_base::badbit);
     return os;
@@ -18759,6 +19003,17 @@ isl::checked::point union_set::sample_point() const
 {
   auto res = isl_union_set_sample_point(copy());
   return manage(res);
+}
+
+isl::checked::set_list union_set::set_list() const
+{
+  auto res = isl_union_set_get_set_list(get());
+  return manage(res);
+}
+
+isl::checked::set_list union_set::get_set_list() const
+{
+  return set_list();
 }
 
 isl::checked::space union_set::space() const

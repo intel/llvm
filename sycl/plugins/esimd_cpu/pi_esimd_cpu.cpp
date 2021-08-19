@@ -675,7 +675,7 @@ pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
-                                           pi_queue *) {
+                                           pi_queue *, bool) {
   DIE_NO_IMPLEMENTATION;
   return PI_SUCCESS;
 }
@@ -740,6 +740,7 @@ pi_result piProgramCreate(pi_context, const void *, size_t, pi_program *) {
 
 pi_result piProgramCreateWithBinary(pi_context, pi_uint32, const pi_device *,
                                     const size_t *, const unsigned char **,
+                                    size_t, const pi_device_binary_property *,
                                     pi_int32 *, pi_program *) {
   DIE_NO_IMPLEMENTATION;
   return PI_SUCCESS;
@@ -918,10 +919,12 @@ pi_result piextEventGetNativeHandle(pi_event, pi_native_handle *) {
   return PI_SUCCESS;
 }
 
-pi_result piextEventCreateWithNativeHandle(pi_native_handle, pi_event *) {
+pi_result piextEventCreateWithNativeHandle(pi_native_handle, pi_context, bool,
+                                           pi_event *) {
   DIE_NO_IMPLEMENTATION;
   return PI_SUCCESS;
 }
+
 pi_result piSamplerCreate(pi_context, const pi_sampler_properties *,
                           pi_sampler *) {
   DIE_NO_IMPLEMENTATION;

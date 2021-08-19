@@ -28,9 +28,12 @@ namespace XCOFF {
 constexpr size_t FileNamePadSize = 6;
 constexpr size_t NameSize = 8;
 constexpr size_t FileHeaderSize32 = 20;
+constexpr size_t FileHeaderSize64 = 24;
 constexpr size_t SectionHeaderSize32 = 40;
+constexpr size_t SectionHeaderSize64 = 72;
 constexpr size_t SymbolTableEntrySize = 18;
 constexpr size_t RelocationSerializationSize32 = 10;
+constexpr size_t RelocationSerializationSize64 = 14;
 constexpr uint16_t RelocOverflow = 65535;
 constexpr uint8_t AllocRegNo = 31;
 
@@ -350,8 +353,8 @@ struct TracebackTable {
   static constexpr uint32_t FPRSavedShift = 24;
 
   // Byte 6
-  static constexpr uint32_t HasVectorInfoMask = 0x0080'0000;
-  static constexpr uint32_t HasExtensionTableMask = 0x0040'0000;
+  static constexpr uint32_t HasExtensionTableMask = 0x0080'0000;
+  static constexpr uint32_t HasVectorInfoMask = 0x0040'0000;
   static constexpr uint32_t GPRSavedMask = 0x003F'0000;
   static constexpr uint32_t GPRSavedShift = 16;
 

@@ -240,7 +240,7 @@ xptiMakeEvent(const char *name, xpti::payload_t *payload, uint16_t event,
 /// performed
 /// @return The trace event with unique ID equal to uid. If the unique ID is not
 /// present, then nullptr will be returned.
-XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(int64_t uid);
+XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(uint64_t uid);
 
 /// @brief Retrieves the payload information associated with an event
 /// @details An event encapsulates the unique payload it represents and this

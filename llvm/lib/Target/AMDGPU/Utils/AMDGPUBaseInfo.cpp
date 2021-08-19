@@ -1344,6 +1344,17 @@ unsigned getInitialPSInputAddr(const Function &F) {
   return getIntegerAttribute(F, "InitialPSInputAddr", 0);
 }
 
+bool getHasColorExport(const Function &F) {
+  // As a safe default always respond as if PS has color exports.
+  return getIntegerAttribute(
+             F, "amdgpu-color-export",
+             F.getCallingConv() == CallingConv::AMDGPU_PS ? 1 : 0) != 0;
+}
+
+bool getHasDepthExport(const Function &F) {
+  return getIntegerAttribute(F, "amdgpu-depth-export", 0) != 0;
+}
+
 bool isShader(CallingConv::ID cc) {
   switch(cc) {
     case CallingConv::AMDGPU_VS:
@@ -1814,8 +1825,8 @@ bool isArgPassedInSGPR(const Argument *A) {
   case CallingConv::AMDGPU_Gfx:
     // For non-compute shaders, SGPR inputs are marked with either inreg or byval.
     // Everything else is in VGPRs.
-    return F->getAttributes().hasParamAttribute(A->getArgNo(), Attribute::InReg) ||
-           F->getAttributes().hasParamAttribute(A->getArgNo(), Attribute::ByVal);
+    return F->getAttributes().hasParamAttr(A->getArgNo(), Attribute::InReg) ||
+           F->getAttributes().hasParamAttr(A->getArgNo(), Attribute::ByVal);
   default:
     // TODO: Should calls support inreg for SGPR inputs?
     return false;

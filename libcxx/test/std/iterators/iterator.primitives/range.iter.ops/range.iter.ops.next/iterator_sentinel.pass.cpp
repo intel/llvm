@@ -8,7 +8,6 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 
 // ranges::next(it, bound)
 
@@ -32,12 +31,12 @@ public:
     return false;
   }
 
-  constexpr friend std::ptrdiff_t operator-(std::input_or_output_iterator auto const&,
+  friend constexpr std::ptrdiff_t operator-(std::input_or_output_iterator auto const&,
                                             distance_apriori_sentinel const y) {
     return -y.count_;
   }
 
-  constexpr friend std::ptrdiff_t operator-(distance_apriori_sentinel const x,
+  friend constexpr std::ptrdiff_t operator-(distance_apriori_sentinel const x,
                                             std::input_or_output_iterator auto const&) {
     return x.count_;
   }

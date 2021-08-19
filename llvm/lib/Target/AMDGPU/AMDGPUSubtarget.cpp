@@ -163,6 +163,7 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
     WavefrontSizeLog2 = 5;
 
   HasFminFmaxLegacy = getGeneration() < AMDGPUSubtarget::VOLCANIC_ISLANDS;
+  HasSMulHi = getGeneration() >= AMDGPUSubtarget::GFX9;
 
   TargetID.setTargetIDFromFeaturesString(FS);
 
@@ -185,6 +186,7 @@ AMDGPUSubtarget::AMDGPUSubtarget(const Triple &TT) :
   HasVOP3PInsts(false),
   HasMulI24(true),
   HasMulU24(true),
+  HasSMulHi(false),
   HasInv2PiInlineImm(false),
   HasFminFmaxLegacy(true),
   EnablePromoteAlloca(false),
@@ -262,6 +264,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasGFX10A16(false),
     HasG16(false),
     HasNSAEncoding(false),
+    NSAMaxSize(0),
     GFX10_AEncoding(false),
     GFX10_BEncoding(false),
     HasDLInsts(false),

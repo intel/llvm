@@ -37,7 +37,7 @@ namespace __hwasan {
 class ScopedReport {
  public:
   ScopedReport(bool fatal = false) : error_message_(1), fatal(fatal) {
-    BlockingMutexLock lock(&error_message_lock_);
+    Lock lock(&error_message_lock_);
     error_message_ptr_ = fatal ? &error_message_ : nullptr;
     ++hwasan_report_count;
   }
@@ -45,7 +45,7 @@ class ScopedReport {
   ~ScopedReport() {
     void (*report_cb)(const char *);
     {
-      BlockingMutexLock lock(&error_message_lock_);
+      Lock lock(&error_message_lock_);
       report_cb = error_report_callback_;
       error_message_ptr_ = nullptr;
     }
@@ -61,7 +61,7 @@ class ScopedReport {
   }
 
   static void MaybeAppendToErrorMessage(const char *msg) {
-    BlockingMutexLock lock(&error_message_lock_);
+    Lock lock(&error_message_lock_);
     if (!error_message_ptr_)
       return;
     uptr len = internal_strlen(msg);
@@ -72,7 +72,7 @@ class ScopedReport {
   }
 
   static void SetErrorReportCallback(void (*callback)(const char *)) {
-    BlockingMutexLock lock(&error_message_lock_);
+    Lock lock(&error_message_lock_);
     error_report_callback_ = callback;
   }
 
@@ -82,12 +82,12 @@ class ScopedReport {
   bool fatal;
 
   static InternalMmapVector<char> *error_message_ptr_;
-  static BlockingMutex error_message_lock_;
+  static Mutex error_message_lock_;
   static void (*error_report_callback_)(const char *);
 };
 
 InternalMmapVector<char> *ScopedReport::error_message_ptr_;
-BlockingMutex ScopedReport::error_message_lock_;
+Mutex ScopedReport::error_message_lock_;
 void (*ScopedReport::error_report_callback_)(const char *);
 
 // If there is an active ScopedReport, append to its error message.
@@ -296,8 +296,8 @@ static uptr GetGlobalSizeFromDescriptor(uptr ptr) {
   return 0;
 }
 
-static void ShowCandidate(uptr untagged_addr, tag_t *candidate, tag_t *left,
-                          tag_t *right) {
+static void ShowHeapOrGlobalCandidate(uptr untagged_addr, tag_t *candidate,
+                                      tag_t *left, tag_t *right) {
   Decorator d;
   uptr mem = ShadowToMem(reinterpret_cast<uptr>(candidate));
   HwasanChunkView chunk = FindHeapChunkByAddress(mem);
@@ -372,6 +372,12 @@ void PrintAddressDescription(
   int num_descriptions_printed = 0;
   uptr untagged_addr = UntagAddr(tagged_addr);
 
+  if (MemIsShadow(untagged_addr)) {
+    Printf("%s%p is HWAsan shadow memory.\n%s", d.Location(), untagged_addr,
+           d.Default());
+    return;
+  }
+
   // Print some very basic information about the address, if it's a heap.
   HwasanChunkView chunk = FindHeapChunkByAddress(untagged_addr);
   if (uptr beg = chunk.Beg()) {
@@ -386,36 +392,14 @@ void PrintAddressDescription(
            d.Default());
   }
 
-  // Check if this looks like a heap buffer overflow by scanning
-  // the shadow left and right and looking for the first adjacent
-  // object with a different memory tag. If that tag matches addr_tag,
-  // check the allocator if it has a live chunk there.
   tag_t addr_tag = GetTagFromPointer(tagged_addr);
-  tag_t *tag_ptr = reinterpret_cast<tag_t*>(MemToShadow(untagged_addr));
-  tag_t *candidate = nullptr, *left = tag_ptr, *right = tag_ptr;
-  uptr candidate_distance = 0;
-  for (; candidate_distance < 1000; candidate_distance++) {
-    if (TagsEqual(addr_tag, left)) {
-      candidate = left;
-      break;
-    }
-    --left;
-    if (TagsEqual(addr_tag, right)) {
-      candidate = right;
-      break;
-    }
-    ++right;
-  }
 
-  constexpr auto kCloseCandidateDistance = 1;
-
-  if (candidate && candidate_distance <= kCloseCandidateDistance) {
-    ShowCandidate(untagged_addr, candidate, left, right);
-    num_descriptions_printed++;
-  }
-
+  bool on_stack = false;
+  // Check stack first. If the address is on the stack of a live thread, we
+  // know it cannot be a heap / global overflow.
   hwasanThreadList().VisitAllLiveThreads([&](Thread *t) {
     if (t->AddrIsInStack(untagged_addr)) {
+      on_stack = true;
       // TODO(fmayer): figure out how to distinguish use-after-return and
       // stack-buffer-overflow.
       Printf("%s", d.Error());
@@ -433,6 +417,35 @@ void PrintAddressDescription(
       num_descriptions_printed++;
     }
   });
+
+  // Check if this looks like a heap buffer overflow by scanning
+  // the shadow left and right and looking for the first adjacent
+  // object with a different memory tag. If that tag matches addr_tag,
+  // check the allocator if it has a live chunk there.
+  tag_t *tag_ptr = reinterpret_cast<tag_t*>(MemToShadow(untagged_addr));
+  tag_t *candidate = nullptr, *left = tag_ptr, *right = tag_ptr;
+  uptr candidate_distance = 0;
+  for (; candidate_distance < 1000; candidate_distance++) {
+    if (MemIsShadow(reinterpret_cast<uptr>(left)) &&
+        TagsEqual(addr_tag, left)) {
+      candidate = left;
+      break;
+    }
+    --left;
+    if (MemIsShadow(reinterpret_cast<uptr>(right)) &&
+        TagsEqual(addr_tag, right)) {
+      candidate = right;
+      break;
+    }
+    ++right;
+  }
+
+  constexpr auto kCloseCandidateDistance = 1;
+
+  if (!on_stack && candidate && candidate_distance <= kCloseCandidateDistance) {
+    ShowHeapOrGlobalCandidate(untagged_addr, candidate, left, right);
+    num_descriptions_printed++;
+  }
 
   hwasanThreadList().VisitAllLiveThreads([&](Thread *t) {
     // Scan all threads' ring buffers to find if it's a heap-use-after-free.
@@ -472,7 +485,7 @@ void PrintAddressDescription(
   });
 
   if (candidate && num_descriptions_printed == 0) {
-    ShowCandidate(untagged_addr, candidate, left, right);
+    ShowHeapOrGlobalCandidate(untagged_addr, candidate, left, right);
     num_descriptions_printed++;
   }
 
@@ -542,28 +555,48 @@ static void PrintTagsAroundAddr(tag_t *tag_ptr) {
       "description of short granule tags\n");
 }
 
+uptr GetTopPc(StackTrace *stack) {
+  return stack->size ? StackTrace::GetPreviousInstructionPc(stack->trace[0])
+                     : 0;
+}
+
 void ReportInvalidFree(StackTrace *stack, uptr tagged_addr) {
   ScopedReport R(flags()->halt_on_error);
 
   uptr untagged_addr = UntagAddr(tagged_addr);
   tag_t ptr_tag = GetTagFromPointer(tagged_addr);
-  tag_t *tag_ptr = reinterpret_cast<tag_t*>(MemToShadow(untagged_addr));
-  tag_t mem_tag = *tag_ptr;
+  tag_t *tag_ptr = nullptr;
+  tag_t mem_tag = 0;
+  if (MemIsApp(untagged_addr)) {
+    tag_ptr = reinterpret_cast<tag_t *>(MemToShadow(untagged_addr));
+    if (MemIsShadow(reinterpret_cast<uptr>(tag_ptr)))
+      mem_tag = *tag_ptr;
+    else
+      tag_ptr = nullptr;
+  }
   Decorator d;
   Printf("%s", d.Error());
-  uptr pc = stack->size ? stack->trace[0] : 0;
+  uptr pc = GetTopPc(stack);
   const char *bug_type = "invalid-free";
-  Report("ERROR: %s: %s on address %p at pc %p\n", SanitizerToolName, bug_type,
-         untagged_addr, pc);
+  const Thread *thread = GetCurrentThread();
+  if (thread) {
+    Report("ERROR: %s: %s on address %p at pc %p on thread T%zd\n",
+           SanitizerToolName, bug_type, untagged_addr, pc, thread->unique_id());
+  } else {
+    Report("ERROR: %s: %s on address %p at pc %p on unknown thread\n",
+           SanitizerToolName, bug_type, untagged_addr, pc);
+  }
   Printf("%s", d.Access());
-  Printf("tags: %02x/%02x (ptr/mem)\n", ptr_tag, mem_tag);
+  if (tag_ptr)
+    Printf("tags: %02x/%02x (ptr/mem)\n", ptr_tag, mem_tag);
   Printf("%s", d.Default());
 
   stack->Print();
 
   PrintAddressDescription(tagged_addr, 0, nullptr);
 
-  PrintTagsAroundAddr(tag_ptr);
+  if (tag_ptr)
+    PrintTagsAroundAddr(tag_ptr);
 
   ReportErrorSummary(bug_type, stack);
 }
@@ -644,7 +677,7 @@ void ReportTagMismatch(StackTrace *stack, uptr tagged_addr, uptr access_size,
   uptr untagged_addr = UntagAddr(tagged_addr);
   // TODO: when possible, try to print heap-use-after-free, etc.
   const char *bug_type = "tag-mismatch";
-  uptr pc = stack->size ? stack->trace[0] : 0;
+  uptr pc = GetTopPc(stack);
   Report("ERROR: %s: %s on address %p at pc %p\n", SanitizerToolName, bug_type,
          untagged_addr, pc);
 

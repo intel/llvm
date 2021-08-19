@@ -431,7 +431,8 @@ bool AArch64TargetInfo::hasFeature(StringRef Feature) const {
            Feature == "sve2-aes" || Feature == "sve2-sha3" ||
            Feature == "sve2-sm4" || Feature == "f64mm" || Feature == "f32mm" ||
            Feature == "i8mm" || Feature == "bf16") &&
-          (FPU & SveMode));
+          (FPU & SveMode)) ||
+         (Feature == "ls64" && HasLS64);
 }
 
 bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
@@ -576,6 +577,7 @@ AArch64TargetInfo::checkCallingConvention(CallingConv CC) const {
   switch (CC) {
   case CC_C:
   case CC_Swift:
+  case CC_SwiftAsync:
   case CC_PreserveMost:
   case CC_PreserveAll:
   case CC_OpenCLKernel:
@@ -751,6 +753,9 @@ bool AArch64TargetInfo::validateConstraintModifier(
       if (Size == 64)
         return true;
 
+      if (Size == 512)
+        return HasLS64;
+
       SuggestedModifier = "w";
       return false;
     }
@@ -850,6 +855,7 @@ WindowsARM64TargetInfo::checkCallingConvention(CallingConv CC) const {
   case CC_PreserveMost:
   case CC_PreserveAll:
   case CC_Swift:
+  case CC_SwiftAsync:
   case CC_Win64:
     return CCCR_OK;
   default:

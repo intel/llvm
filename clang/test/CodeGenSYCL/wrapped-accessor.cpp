@@ -21,7 +21,7 @@
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 
-// CHECK: template <> struct KernelInfo<class wrapped_access> {
+// CHECK: template <> struct KernelInfo<wrapped_access> {
 
 #include "Inputs/sycl.hpp"
 

@@ -781,7 +781,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         only works with permutation affine maps.
         A more advanced Tensor-Comprehension like inference is possible but has
         proven to be ambiguous in unfavorable case.
-        A safer and more robust alternative is to allow each each op to define
+        A safer and more robust alternative is to allow each op to define
         its own AffineMap.
       }],
       /*retTy=*/"AffineMap",
@@ -928,8 +928,8 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
 
     /// Returns the value that expresses the shape of the output in terms of
     /// shape of the input operands where possible
-    LogicalResult reifyReturnTypeShapesPerResultDim(OpBuilder &b,
-        SmallVectorImpl<SmallVector<Value>> &reifiedReturnShapes);
+    LogicalResult reifyResultShapes(OpBuilder &b,
+        ReifiedRankedShapedTypeDims &reifiedReturnShapes);
 
     //========================================================================//
     // Helper functions to mutate the `operand_segment_sizes` attribute.

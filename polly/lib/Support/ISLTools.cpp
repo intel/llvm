@@ -90,11 +90,11 @@ isl::map polly::beforeScatter(isl::map Map, bool Strict) {
 }
 
 isl::union_map polly::beforeScatter(isl::union_map UMap, bool Strict) {
-  isl::union_map Result = isl::union_map::empty(UMap.get_space());
+  isl::union_map Result = isl::union_map::empty(UMap.ctx());
 
   for (isl::map Map : UMap.get_map_list()) {
     isl::map After = beforeScatter(Map, Strict);
-    Result = Result.add_map(After);
+    Result = Result.unite(After);
   }
 
   return Result;
@@ -108,10 +108,10 @@ isl::map polly::afterScatter(isl::map Map, bool Strict) {
 }
 
 isl::union_map polly::afterScatter(const isl::union_map &UMap, bool Strict) {
-  isl::union_map Result = isl::union_map::empty(UMap.get_space());
+  isl::union_map Result = isl::union_map::empty(UMap.ctx());
   for (isl::map Map : UMap.get_map_list()) {
     isl::map After = afterScatter(Map, Strict);
-    Result = Result.add_map(After);
+    Result = Result.unite(After);
   }
   return Result;
 }
@@ -166,7 +166,7 @@ isl_size polly::getNumScatterDims(const isl::union_map &Schedule) {
     if (Map.is_null())
       continue;
 
-    Dims = std::max(Dims, Map.dim(isl::dim::out));
+    Dims = std::max(Dims, Map.range_tuple_dim());
   }
   return Dims;
 }
@@ -188,10 +188,10 @@ isl::map polly::makeIdentityMap(const isl::set &Set, bool RestrictDomain) {
 
 isl::union_map polly::makeIdentityMap(const isl::union_set &USet,
                                       bool RestrictDomain) {
-  isl::union_map Result = isl::union_map::empty(USet.get_space());
+  isl::union_map Result = isl::union_map::empty(USet.ctx());
   for (isl::set Set : USet.get_set_list()) {
     isl::map IdentityMap = makeIdentityMap(Set, RestrictDomain);
-    Result = Result.add_map(IdentityMap);
+    Result = Result.unite(IdentityMap);
   }
   return Result;
 }
@@ -205,16 +205,16 @@ isl::map polly::reverseDomain(isl::map Map) {
 }
 
 isl::union_map polly::reverseDomain(const isl::union_map &UMap) {
-  isl::union_map Result = isl::union_map::empty(UMap.get_space());
+  isl::union_map Result = isl::union_map::empty(UMap.ctx());
   for (isl::map Map : UMap.get_map_list()) {
     auto Reversed = reverseDomain(std::move(Map));
-    Result = Result.add_map(Reversed);
+    Result = Result.unite(Reversed);
   }
   return Result;
 }
 
 isl::set polly::shiftDim(isl::set Set, int Pos, int Amount) {
-  int NumDims = Set.dim(isl::dim::set);
+  int NumDims = Set.tuple_dim();
   if (Pos < 0)
     Pos = NumDims + Pos;
   assert(Pos < NumDims && "Dimension index must be in range");
@@ -226,10 +226,10 @@ isl::set polly::shiftDim(isl::set Set, int Pos, int Amount) {
 }
 
 isl::union_set polly::shiftDim(isl::union_set USet, int Pos, int Amount) {
-  isl::union_set Result = isl::union_set::empty(USet.get_space());
+  isl::union_set Result = isl::union_set::empty(USet.ctx());
   for (isl::set Set : USet.get_set_list()) {
     isl::set Shifted = shiftDim(Set, Pos, Amount);
-    Result = Result.add_set(Shifted);
+    Result = Result.unite(Shifted);
   }
   return Result;
 }
@@ -265,11 +265,11 @@ isl::map polly::shiftDim(isl::map Map, isl::dim Dim, int Pos, int Amount) {
 
 isl::union_map polly::shiftDim(isl::union_map UMap, isl::dim Dim, int Pos,
                                int Amount) {
-  isl::union_map Result = isl::union_map::empty(UMap.get_space());
+  isl::union_map Result = isl::union_map::empty(UMap.ctx());
 
   for (isl::map Map : UMap.get_map_list()) {
     isl::map Shifted = shiftDim(Map, Dim, Pos, Amount);
-    Result = Result.add_map(Shifted);
+    Result = Result.unite(Shifted);
   }
   return Result;
 }
@@ -486,10 +486,10 @@ isl::map polly::distributeDomain(isl::map Map) {
 }
 
 isl::union_map polly::distributeDomain(isl::union_map UMap) {
-  isl::union_map Result = isl::union_map::empty(UMap.get_space());
+  isl::union_map Result = isl::union_map::empty(UMap.ctx());
   for (isl::map Map : UMap.get_map_list()) {
     auto Distributed = distributeDomain(Map);
-    Result = Result.add_map(Distributed);
+    Result = Result.unite(Distributed);
   }
   return Result;
 }
@@ -548,7 +548,7 @@ isl::val polly::getConstant(isl::pw_aff PwAff, bool Max, bool Min) {
         // TODO: If Min/Max, we can also determine a minimum/maximum value if
         // Set is constant-bounded.
         if (!Aff.is_cst()) {
-          Result = isl::val::nan(Aff.get_ctx());
+          Result = isl::val::nan(Aff.ctx());
           return isl::stat::error();
         }
 
@@ -572,7 +572,7 @@ isl::val polly::getConstant(isl::pw_aff PwAff, bool Max, bool Min) {
         }
 
         // Not compatible
-        Result = isl::val::nan(Aff.get_ctx());
+        Result = isl::val::nan(Aff.ctx());
         return isl::stat::error();
       });
 
@@ -824,10 +824,10 @@ static isl::set expand(const isl::set &Set) {
 ///
 /// @see expand(const isl::set)
 static isl::union_set expand(const isl::union_set &USet) {
-  isl::union_set Expanded = isl::union_set::empty(USet.get_space());
+  isl::union_set Expanded = isl::union_set::empty(USet.ctx());
   for (isl::set Set : USet.get_set_list()) {
     isl::set SetExpanded = expand(Set);
-    Expanded = Expanded.add_set(SetExpanded);
+    Expanded = Expanded.unite(SetExpanded);
   }
   return Expanded;
 }

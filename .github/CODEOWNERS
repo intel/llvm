@@ -4,7 +4,7 @@
 clang/ @premanandrao @elizabethandrews @AaronBallman
 
 # Driver
-clang/**/Driver @mdtoguchi @AGindinson
+clang/**/Driver @mdtoguchi @AGindinson @hchilama
 
 # LLVM-SPIRV translator
 llvm-spirv/ @AlexeySotkin @AlexeySachkov
@@ -28,9 +28,9 @@ sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 
 # Sub-groups
 sycl/include/CL/sycl/detail/spirv.hpp @Pennycook @AlexeySachkov
-sycl/include/CL/sycl/intel/group_algorithm.hpp @Pennycook @AlexeySachkov
-sycl/include/CL/sycl/intel/sub_group.hpp @Pennycook @AlexeySachkov
-sycl/include/CL/sycl/intel/sub_group_host.hpp @Pennycook @AlexeySachkov
+sycl/include/sycl/ext/intel/group_algorithm.hpp @Pennycook @AlexeySachkov
+sycl/include/sycl/ext/intel/sub_group.hpp @Pennycook @AlexeySachkov
+sycl/include/sycl/ext/intel/sub_group_host.hpp @Pennycook @AlexeySachkov
 
 # PI API
 sycl/include/CL/sycl/detail/pi.def @smaslov-intel
@@ -53,17 +53,17 @@ sycl/source/detail/stream_impl.cpp @againull
 sycl/source/stream.cpp @againull
 
 # FPGA extensions
-sycl/include/CL/sycl/intel/fpga_device_selector.hpp @MrSidims
-sycl/include/CL/sycl/intel/fpga_extensions.hpp @MrSidims
-sycl/include/CL/sycl/intel/fpga_reg.hpp @MrSidims
-sycl/include/CL/sycl/intel/pipes.hpp @MrSidims
+sycl/include/sycl/ext/intel/fpga_device_selector.hpp @MrSidims
+sycl/include/sycl/ext/intel/fpga_extensions.hpp @MrSidims
+sycl/include/sycl/ext/intel/fpga_reg.hpp @MrSidims
+sycl/include/sycl/ext/intel/pipes.hpp @MrSidims
 sycl/include/CL/sycl/pipes.hpp @MrSidims
 
 # Reduction extension
-sycl/include/CL/sycl/intel/reduction.hpp @v-klochkov
+sycl/include/sycl/ext/intel/reduction.hpp @v-klochkov
 
 # Function pointers
-sycl/include/CL/sycl/intel/function_pointer.hpp @AlexeySachkov
+sycl/include/sycl/ext/intel/function_pointer.hpp @AlexeySachkov
 sycl/source/function_pointer.cpp @AlexeySachkov
 
 # Half Type
@@ -99,10 +99,10 @@ clang/tools/clang-offload-deps/ @sndmitriev @mlychkov @AlexeySachkov
 clang/tools/clang-offload-extract/ @sndmitriev @mlychkov @AlexeySachkov
 
 # Explicit SIMD
-SYCLLowerIR/ @kbobrovs @DenisBakhvalov
-esimd/ @kbobrovs @DenisBakhvalov
-sycl/include/sycl/ext/intel/experimental/esimd.hpp @kbobrovs @DenisBakhvalov
-sycl/doc/extensions/ExplicitSIMD/ @kbobrovs
+SYCLLowerIR/ @kbobrovs @DenisBakhvalov @kychendev
+esimd/ @kbobrovs @DenisBakhvalov @kychendev
+sycl/include/sycl/ext/intel/experimental/esimd.hpp @kbobrovs @DenisBakhvalov @kychendev
+sycl/doc/extensions/ExplicitSIMD/ @kbobrovs @DenisBakhvalov @kychendev
 
 # ITT annotations
 llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @MrSidims @vzakhari

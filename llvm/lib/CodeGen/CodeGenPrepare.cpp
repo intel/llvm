@@ -2041,6 +2041,10 @@ static bool despeculateCountZeros(IntrinsicInst *CountZeros,
   if (Ty->isVectorTy() || SizeInBits > DL->getLargestLegalIntTypeSizeInBits())
     return false;
 
+  // Bail if the value is never zero.
+  if (llvm::isKnownNonZero(CountZeros->getOperand(0), *DL))
+    return false;
+
   // The intrinsic will be sunk behind a compare against zero and branch.
   BasicBlock *StartBlock = CountZeros->getParent();
   BasicBlock *CallBlock = StartBlock->splitBasicBlock(CountZeros, "cond.false");
@@ -6465,6 +6469,10 @@ bool CodeGenPrepare::optimizeLoadExt(LoadInst *Load) {
 
   EVT LoadResultVT = TLI->getValueType(*DL, Load->getType());
   unsigned BitWidth = LoadResultVT.getSizeInBits();
+  // If the BitWidth is 0, do not try to optimize the type
+  if (BitWidth == 0)
+    return false;
+
   APInt DemandBits(BitWidth, 0);
   APInt WidestAndBits(BitWidth, 0);
 
@@ -7994,7 +8002,9 @@ bool CodeGenPrepare::fixupDbgValue(Instruction *I) {
 
   // Does this dbg.value refer to a sunk address calculation?
   bool AnyChange = false;
-  for (Value *Location : DVI.getValues()) {
+  SmallDenseSet<Value *> LocationOps(DVI.location_ops().begin(),
+                                     DVI.location_ops().end());
+  for (Value *Location : LocationOps) {
     WeakTrackingVH SunkAddrVH = SunkAddrs[Location];
     Value *SunkAddr = SunkAddrVH.pointsToAliveValue() ? SunkAddrVH : nullptr;
     if (SunkAddr) {
