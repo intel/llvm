@@ -70,10 +70,13 @@ static cl::opt<std::string> OutIncrement{
         "pass."),
     cl::init(""), cl::value_desc("R")};
 
-static cl::opt<bool> ExecuteInParallel{
+static cl::opt<unsigned int> ExecuteInParallel{
     "parallel-exec",
-    cl::desc("Enable launching input commands in parallel mode"),
-    cl::init(false)};
+    cl::Optional,
+    cl::init(1),
+    cl::desc("Specify the number of threads for launching input commands in "
+             "parallel mode"),
+};
 
 static void error(const Twine &Msg) {
   errs() << "llvm-foreach: " << Msg << '\n';
@@ -83,6 +86,31 @@ static void error(const Twine &Msg) {
 static void error(std::error_code EC, const Twine &Prefix) {
   if (EC)
     error(Prefix + ": " + EC.message());
+}
+
+// With WaitUntilTerminates=false this function just goes through the all
+// submitted jobs to check if one of them has finished.
+// TODO: give a proper naming as this function doesn't wait for jobs with
+// WaitUntilTerminates=false
+void waitJobsToBeFinished(std::list<sys::ProcessInfo> &JobsSubmitted, int &Res,
+                          bool WaitUntilTerminates = true) {
+  std::string ErrMsg;
+  auto It = JobsSubmitted.begin();
+  while (It != JobsSubmitted.end()) {
+    sys::ProcessInfo WaitResult =
+        sys::Wait(*It, 0, /*WaitUntilTerminates*/ WaitUntilTerminates, &ErrMsg);
+
+    // Check if the job has finished (PID will be 0 if it's not).
+    if (!WaitUntilTerminates && !WaitResult.Pid) {
+      It++;
+      continue;
+    }
+    if (WaitResult.ReturnCode != 0) {
+      errs() << "llvm-foreach: " << ErrMsg << '\n';
+      Res = WaitResult.ReturnCode;
+    }
+    It = JobsSubmitted.erase(It);
+  }
 }
 
 int main(int argc, char **argv) {
@@ -166,6 +194,13 @@ int main(int argc, char **argv) {
     PrevNumOfLines = FileLists[i].size();
   }
 
+  if (!ExecuteInParallel)
+    error("Number of parallel threads should be a positive integer");
+  if (ExecuteInParallel > 16) {
+    ExecuteInParallel = 16;
+    errs() << "llvm-foreach: adjusted number of threads to 16 (max available)";
+  }
+
   std::error_code EC;
   raw_fd_ostream OS{OutputFileList, EC, sys::fs::OpenFlags::OF_None};
   if (!OutputFileList.empty())
@@ -176,7 +211,7 @@ int main(int argc, char **argv) {
   std::string IncOutArg;
   std::vector<std::string> ResInArgs(InReplaceArgs.size());
   std::string ResFileList = "";
-  std::list<sys::ProcessInfo> CommandsStarted;
+  std::list<sys::ProcessInfo> JobsSubmitted;
   for (size_t j = 0; j != FileLists[0].size(); ++j) {
     for (size_t i = 0; i < InReplaceArgs.size(); ++i) {
       ArgumentReplace CurReplace = InReplaceArgs[i];
@@ -228,34 +263,17 @@ int main(int argc, char **argv) {
       Args[OutIncrementArg.ArgNum] = IncOutArg;
     }
 
-    std::string ErrMsg;
-    if (ExecuteInParallel) {
-      CommandsStarted.emplace_back(sys::ExecuteNoWait(
-          Prog, Args, /*Env=*/None, /*Redirects=*/None, /*MemoryLimit=*/0));
-      continue;
-    }
+    // Do not start execution of a new job until previous one(s) are finished,
+    // if the maximum number of parallel workers is reached.
+    while (JobsSubmitted.size() == ExecuteInParallel)
+      waitJobsToBeFinished(JobsSubmitted, Res, /*WaitUntilTerminates*/ false);
 
-    int Result =
-        sys::ExecuteAndWait(Prog, Args, /*Env=*/None, /*Redirects=*/None,
-                            /*SecondsToWait=*/0, /*MemoryLimit=*/0, &ErrMsg);
-    if (Result != 0) {
-      errs() << "llvm-foreach: " << ErrMsg << '\n';
-      Res = Result;
-    }
+    JobsSubmitted.emplace_back(sys::ExecuteNoWait(
+        Prog, Args, /*Env=*/None, /*Redirects=*/None, /*MemoryLimit=*/0));
   }
 
   // Wait for all commands to be executed.
-  std::string ErrMsg;
-  auto It = CommandsStarted.begin();
-  while (It != CommandsStarted.end()) {
-    sys::ProcessInfo WaitResult =
-        sys::Wait(*It, 0, /*WaitUntilTerminates*/ true, &ErrMsg);
-    if (WaitResult.ReturnCode != 0) {
-      errs() << "llvm-foreach: " << ErrMsg << '\n';
-      Res = WaitResult.ReturnCode;
-    }
-    It = CommandsStarted.erase(It);
-  }
+  waitJobsToBeFinished(JobsSubmitted, Res, /*WaitUntilTerminates*/ true);
 
   if (!OutputFileList.empty()) {
     OS.close();
