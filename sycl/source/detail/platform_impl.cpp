@@ -146,9 +146,9 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   if (!FilterList)
     return;
   std::vector<plugin> &Plugins = GlobalHandler::instance().getPlugins();
-  if (Plugins.size() == 0) {
+  if (Plugins.size() == 0)
     RT::initialize();
-  }
+
   unsigned I;
   for (I = 0; I < Plugins.size(); I++) {
     if (Plugins[I].containsPiPlatform(Platform))
