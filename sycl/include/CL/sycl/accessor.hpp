@@ -837,7 +837,8 @@ protected:
     // Unroll the following loop for both host and device code
 #if defined(__clang__) || defined(__INTEL_COMPILER)
 #pragma unroll
-#elif defined(__GNUC__) || defined(__GNUG__)
+#elif (defined(__GNUC__) && __GNUC__ >= 8) || \
+      (defined(__GNUG__) && __GNUG__ >= 8)
 #pragma GCC unroll 3
 #elif defined(_MSC_VER)
     // MSVC pragma loop doesn't have unroll option
