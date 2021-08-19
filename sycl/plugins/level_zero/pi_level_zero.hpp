@@ -609,8 +609,8 @@ struct _pi_queue : _pi_object {
   // Vector of Level Zero copy command command queue handles.
   // Some (or all) of these handles may not be available depending on user
   // preference and/or target device.
-  // In this vector, link copy engines, if available, come first followed by
-  // main copy engine, if available.
+  // In this vector, main copy engine, if available, come first followed by
+  // link copy engines, if available.
   std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
 
   // One of the many available copy command queues will be used for

@@ -312,6 +312,8 @@ def llvm_v1i128_ty     : LLVMType<v1i128>;   //  1 x i128
 def llvm_v2f16_ty      : LLVMType<v2f16>;    //  2 x half (__fp16)
 def llvm_v4f16_ty      : LLVMType<v4f16>;    //  4 x half (__fp16)
 def llvm_v8f16_ty      : LLVMType<v8f16>;    //  8 x half (__fp16)
+def llvm_v16f16_ty     : LLVMType<v16f16>;   // 16 x half (__fp16)
+def llvm_v32f16_ty     : LLVMType<v32f16>;   // 32 x half (__fp16)
 def llvm_v2bf16_ty     : LLVMType<v2bf16>;   //  2 x bfloat (__bf16)
 def llvm_v4bf16_ty     : LLVMType<v4bf16>;   //  4 x bfloat (__bf16)
 def llvm_v8bf16_ty     : LLVMType<v8bf16>;   //  8 x bfloat (__bf16)
@@ -1666,7 +1668,7 @@ def int_matrix_multiply
 
 def int_matrix_column_major_load
   : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
-              [LLVMPointerToElt<0>, llvm_i64_ty, llvm_i1_ty,
+              [LLVMPointerToElt<0>, llvm_anyint_ty, llvm_i1_ty,
                llvm_i32_ty, llvm_i32_ty],
               [IntrNoSync, IntrWillReturn, IntrArgMemOnly, IntrReadMem,
                NoCapture<ArgIndex<0>>, ImmArg<ArgIndex<2>>, ImmArg<ArgIndex<3>>,
@@ -1675,7 +1677,7 @@ def int_matrix_column_major_load
 def int_matrix_column_major_store
   : DefaultAttrsIntrinsic<[],
               [llvm_anyvector_ty, LLVMPointerToElt<0>,
-               llvm_i64_ty, llvm_i1_ty, llvm_i32_ty, llvm_i32_ty],
+               llvm_anyint_ty, llvm_i1_ty, llvm_i32_ty, llvm_i32_ty],
               [IntrNoSync, IntrWillReturn, IntrArgMemOnly, IntrWriteMem,
                WriteOnly<ArgIndex<1>>, NoCapture<ArgIndex<1>>,
                ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>, ImmArg<ArgIndex<5>>]>;
