@@ -209,8 +209,8 @@ public:
     int PlatformId = getPlatformId(Platform);
     if (PlatformId == 0)
       return 0;
-    else
-      return LastDeviceIds[PlatformId - 1];
+
+    return LastDeviceIds[PlatformId - 1];
   }
   // set the id of the last device for the given platform
   void setLastDeviceId(RT::PiPlatform Platform, int Id) {
