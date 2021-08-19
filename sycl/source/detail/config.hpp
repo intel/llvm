@@ -176,6 +176,64 @@ public:
   }
 };
 
+template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE> {
+  using BaseT = SYCLConfigBase<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE>;
+
+public:
+  static bool get() {
+    static const char *ValStr = BaseT::getRawValue();
+    return ValStr != nullptr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING> {
+  using BaseT = SYCLConfigBase<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>;
+
+public:
+  static bool get() {
+    static const char *ValStr = BaseT::getRawValue();
+    return ValStr != nullptr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS> {
+  using BaseT = SYCLConfigBase<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>;
+
+private:
+public:
+  static void GetSettings(size_t &MinFactor, size_t &GoodFactor,
+                          size_t &MinRange) {
+    static const char *RoundParams = BaseT::getRawValue();
+    if (RoundParams == nullptr)
+      return;
+
+    static bool ProcessedFactors = false;
+    static size_t MF;
+    static size_t GF;
+    static size_t MR;
+    if (!ProcessedFactors) {
+      // Parse optional parameters of this form (all values required):
+      // MinRound:PreferredRound:MinRange
+      std::string Params(RoundParams);
+      size_t Pos = Params.find(':');
+      if (Pos != std::string::npos) {
+        MF = std::stoi(Params.substr(0, Pos));
+        Params.erase(0, Pos + 1);
+        Pos = Params.find(':');
+        if (Pos != std::string::npos) {
+          GF = std::stoi(Params.substr(0, Pos));
+          Params.erase(0, Pos + 1);
+          MR = std::stoi(Params);
+        }
+      }
+      ProcessedFactors = true;
+    }
+    MinFactor = MF;
+    GoodFactor = GF;
+    MinRange = MR;
+  }
+};
+
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
 const std::array<std::pair<std::string, info::device_type>, 5> &
 getSyclDeviceTypeMap();
