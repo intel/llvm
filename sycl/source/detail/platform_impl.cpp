@@ -154,9 +154,9 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
     if (Plugins[I].containsPiPlatform(Platform))
       break;
   }
-  if (I == Plugins.size()) {
+  if (I == Plugins.size())
     return;
-  }
+
   plugin &Plugin = Plugins[I];
   backend Backend = Plugin.getBackend();
   int InsertIDx = 0;
