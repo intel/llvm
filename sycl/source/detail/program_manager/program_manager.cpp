@@ -1042,6 +1042,13 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
         auto Result = KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
         (void)Result;
         assert(Result.second && "Kernel sets are not disjoint");
+        // ... and create a unique kernel ID for the entry
+        std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
+            std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
+        sycl::kernel_id KernelID =
+            detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
+        m_KernelIDs.insert(
+            std::make_pair(EntriesIt->name, std::move(KernelID)));
       }
       m_DeviceImages[KSId].reset(new std::vector<RTDeviceBinaryImageUPtr>());
       m_DeviceImages[KSId]->push_back(std::move(Img));
@@ -1266,6 +1273,25 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
+kernel_id ProgramManager::getSYCLKernelID(std::string KernelName) {
+  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+
+  auto KernelID = m_KernelIDs.find(KernelName);
+  assert(KernelID != m_KernelIDs.end() && "Kernel ID missing");
+  return KernelID->second;
+}
+
+std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
+  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+
+  std::vector<sycl::kernel_id> AllKernelIDs;
+  AllKernelIDs.reserve(m_KernelIDs.size());
+  for (std::pair<std::string, kernel_id> KernelID : m_KernelIDs) {
+    AllKernelIDs.push_back(KernelID.second);
+  }
+  return AllKernelIDs;
+}
+
 std::vector<device_image_plain>
 ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     const context &Ctx, const std::vector<device> &Devs,
@@ -1319,12 +1345,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
           const_cast<pi_device_binary>(&BinImage->getRawData());
       for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
            EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
-
-        std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
-            std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
-
-        KernelIDs.push_back(
-            detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl));
+        KernelIDs.push_back(getSYCLKernelID(EntriesIt->name));
       }
       // device_image_impl expects kernel ids to be sorted for fast search
       std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});

@@ -153,6 +153,14 @@ public:
                                            const std::string &KernelName,
                                            bool KnownProgram);
 
+  // The function returns the unique SYCL kernel identifier associated with a
+  // kernel name.
+  kernel_id getSYCLKernelID(std::string KernelName);
+
+  // The function returns a vector containing all unique SYCL kernel identifiers
+  // in SYCL device images.
+  std::vector<kernel_id> getAllSYCLKernelIDs();
+
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
   std::vector<device_image_plain>
@@ -271,6 +279,10 @@ private:
   /// Such images are assumed to contain all kernel associated with the module.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
   std::unordered_map<OSModuleHandle, KernelSetId> m_OSModuleKernelSets;
+
+  /// Maps names of kernels to their unique kernel IDs.
+  /// Access must be guarded by the \ref Sync::getGlobalLock()
+  std::unordered_map<std::string, kernel_id> m_KernelIDs;
 
   // Keeps track of pi_program to image correspondence. Needed for:
   // - knowing which specialization constants are used in the program and
