@@ -60,22 +60,45 @@ public:
   // Get raw bits representation of bfloat16
   operator storage_t() const { return value; }
 
-// Assignment operators overloading
+  // Logical operators (!,||,&&) are covered if we can cast to bool
+  explicit operator bool() { return to_float(value) != 0.0f; }
+
+  // Unary minus operator overloading
+  friend bfloat16 operator-(bfloat16 &lhs) {
+    return bfloat16{-to_float(lhs.value)};
+  }
+
+// Increment and decrement operators overloading
 #define OP(op)                                                                 \
-  friend bfloat16 operator op(bfloat16 &lhs, const bfloat16 &rhs) {            \
+  friend bfloat16 &operator op(bfloat16 &lhs) {                                \
+    float f = to_float(lhs.value);                                             \
+    lhs.value = from_float(op f);                                              \
+    return lhs;                                                                \
+  }                                                                            \
+  friend bfloat16 operator op(bfloat16 &lhs, int) {                            \
+    bfloat16 old = lhs;                                                        \
+    operator op(lhs);                                                          \
+    return old;                                                                \
+  }
+  OP(++)
+  OP(--)
+#undef OP
+
+  // Assignment operators overloading
+#define OP(op)                                                                 \
+  friend bfloat16 &operator op(bfloat16 &lhs, const bfloat16 &rhs) {           \
     float f = static_cast<float>(lhs);                                         \
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
   }                                                                            \
                                                                                \
   template <typename T>                                                        \
-  friend bfloat16 operator op(bfloat16 &lhs, const T &rhs) {                   \
+  friend bfloat16 &operator op(bfloat16 &lhs, const T &rhs) {                  \
     float f = static_cast<float>(lhs);                                         \
-                                                                               \
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
   }                                                                            \
-  template <typename T> friend T operator op(T &lhs, const bfloat16 &rhs) {    \
+  template <typename T> friend T &operator op(T &lhs, const bfloat16 &rhs) {   \
     float f = static_cast<float>(lhs);                                         \
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
@@ -85,28 +108,6 @@ public:
   OP(*=)
   OP(/=)
 #undef OP
-
-// Increment and decrement operators overloading
-#define OP(op)                                                                 \
-  bfloat16 &operator op() {                                                    \
-    float f = to_float(value);                                                 \
-    value = from_float(op f);                                                  \
-    return *this;                                                              \
-  }                                                                            \
-  bfloat16 operator op(int) {                                                  \
-    bfloat16 old = *this;                                                      \
-    operator op();                                                             \
-    return old;                                                                \
-  }
-  OP(++)
-  OP(--)
-#undef OP
-
-  // Unary minus operator overloading
-  bfloat16 operator-() { return bfloat16{-to_float(value)}; }
-
-  // Logical operators (!,||,&&) are covered if we can cast to bool
-  explicit operator bool() { return to_float(value) != 0.0f; }
 
 // Binary operators overloading
 #define OP(type, op)                                                           \
@@ -132,6 +133,7 @@ public:
   OP(bool, <=)
   OP(bool, >=)
 #undef OP
+
   // Bitwise(|,&,~,^), modulo(%) and shift(<<,>>) operations are not supported
   // for floating-point types.
 };

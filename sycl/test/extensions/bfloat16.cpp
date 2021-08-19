@@ -7,6 +7,7 @@ using sycl::ext::intel::experimental::bfloat16;
 
 SYCL_EXTERNAL uint16_t some_bf16_intrinsic(uint16_t x, uint16_t y);
 
+__attribute__((noinline))
 float op(float a, float b) {
   bfloat16 A {a};
 // CHECK: [[A:%.*]] = tail call spir_func zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float %a)
@@ -16,11 +17,11 @@ float op(float a, float b) {
 // CHECK: [[B:%.*]] = tail call spir_func zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float %b)
 // CHECK-NOT: fptoui
 
-  bfloat16 C = static_cast<float>(A) + static_cast<float>(B);
+  bfloat16 C = A + B;
 // CHECK: [[A_float:%.*]] = tail call spir_func float @_Z27__spirv_ConvertBF16ToFINTELt(i16 zeroext [[A]])
 // CHECK: [[B_float:%.*]] = tail call spir_func float @_Z27__spirv_ConvertBF16ToFINTELt(i16 zeroext [[B]])
-// CHECK: %add = fadd float [[A_float]], [[B_float]]
-// CHECK: [[C:%.*]] = tail call spir_func zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float %add)
+// CHECK: [[Add:%.*]] = fadd float [[A_float]], [[B_float]]
+// CHECK: [[C:%.*]] = tail call spir_func zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float [[Add]])
 // CHECK-NOT: uitofp
 // CHECK-NOT: fptoui
 
