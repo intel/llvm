@@ -242,11 +242,12 @@ if gpu_count > 0:
        config.available_features.add('level_zero')
     elif rocm_amd:
        config.available_features.add('rocm_amd')
-       # For AMD the specific GPU has to be specified with -mcpu
-       if not re.match('.*-mcpu.*', config.sycl_clang_extra_flags):
-           raise Exception("Error: missing -mcpu flag when trying to run lit "  \
-                           "tests for AMD GPU, please add `-mcpu=<target>` to " \
-                           "the CMake variable SYCL_CLANG_EXTRA_FLAGS")
+       # For AMD the specific GPU has to be specified with --offload-arch
+       if not re.match('.*--offload-arch.*', config.sycl_clang_extra_flags):
+        raise Exception("Error: missing --offload-arch flag when trying to "  \
+                        "run lit tests for AMD GPU, please add "              \
+                        "`-Xsycl-target-backend=amdgcn-amd-amdhsa-sycldevice --offload-arch=<target>` to " \
+                        "the CMake variable SYCL_CLANG_EXTRA_FLAGS")
     elif rocm_nvidia:
        config.available_features.add('rocm_nvidia')
 
