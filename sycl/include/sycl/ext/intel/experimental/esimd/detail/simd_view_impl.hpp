@@ -289,7 +289,6 @@ public:
     auto V = UNARY_OP(read().data());                                          \
     return simd<element_type, length>(V);                                      \
   }
-  DEF_UNARY_OP(!)
   DEF_UNARY_OP(~)
   DEF_UNARY_OP(+)
   DEF_UNARY_OP(-)
