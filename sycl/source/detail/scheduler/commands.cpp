@@ -214,7 +214,7 @@ public:
       : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
 
   void operator()() const {
-    assert(MThisCmd->getCG().getType() == CG::CGTYPE::CODEPLAY_HOST_TASK);
+    assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 

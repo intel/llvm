@@ -427,7 +427,7 @@ private:
     event Event;
 
     if (PostProcess) {
-      bool IsKernel = Handler.getType() == CG::KERNEL;
+      bool IsKernel = Handler.getType() == CG::Kernel;
       bool KernelUsesAssert = false;
       if (IsKernel)
         KernelUsesAssert = Handler.MKernel
