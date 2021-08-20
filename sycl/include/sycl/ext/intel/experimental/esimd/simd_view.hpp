@@ -140,8 +140,7 @@ public:
 #define DEF_RELOP(RELOP)                                                       \
   ESIMD_INLINE friend bool operator RELOP(const simd_view &X,                  \
                                           const simd_view &Y) {                \
-    return (element_type)X RELOP(element_type)                                 \
-    Y;                                                                         \
+    return (element_type)X RELOP(element_type) Y;                              \
   }                                                                            \
   template <typename T1, typename = sycl::detail::enable_if_t<                 \
                              detail::is_esimd_scalar<T1>::value &&             \
@@ -205,8 +204,7 @@ public:
 #define DEF_RELOP(RELOP)                                                       \
   ESIMD_INLINE friend bool operator RELOP(const simd_view &X,                  \
                                           const simd_view &Y) {                \
-    return (element_type)X RELOP(element_type)                                 \
-    Y;                                                                         \
+    return (element_type)X RELOP(element_type) Y;                              \
   }                                                                            \
   template <typename T1, typename = sycl::detail::enable_if_t<                 \
                              detail::is_esimd_scalar<T1>::value &&             \

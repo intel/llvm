@@ -215,8 +215,7 @@ public:
   template <class T1 = Derived, class = std::enable_if_t<T1::length != 1>>     \
   ESIMD_INLINE friend auto operator BINOP(const Derived &X,                    \
                                           const element_type &Y) {             \
-    return X BINOP(value_type)                                                 \
-    Y;                                                                         \
+    return X BINOP(value_type) Y;                                              \
   }                                                                            \
   template <class T1 = Derived, class = std::enable_if_t<T1::length != 1>>     \
   ESIMD_INLINE friend auto operator BINOP(const value_type &X,                 \
