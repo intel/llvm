@@ -1533,8 +1533,9 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
                              QueueImplPtr Queue)
     : Command(CommandType::RUN_CG, std::move(Queue)),
       MCommandGroup(std::move(CommandGroup)) {
-  if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) 
-    MSubmittedQueue = static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue;
+  if (MCommandGroup->getType() == detail::CG::CodeplayHostTask)
+    MSubmittedQueue =
+        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue;
   emitInstrumentationDataProxy();
 }
 
