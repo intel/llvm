@@ -131,7 +131,7 @@ TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
 
   sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
-    
+
   std::vector<sycl::kernel_id> BundleKernelIDs = KernelBundle.get_kernel_ids();
 
   sycl::kernel_id TestKernel1ID = sycl::get_kernel_id<TestKernel1>();
