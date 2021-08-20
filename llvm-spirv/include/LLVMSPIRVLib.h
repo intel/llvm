@@ -219,7 +219,8 @@ ModulePass *createSPIRVWriterPass(std::ostream &Str,
 
 /// Create a pass for removing bitcast instructions to non-standard SPIR-V
 /// types
-FunctionPass *createSPIRVLowerBitCastToNonStandardTypeLegacy();
+FunctionPass *createSPIRVLowerBitCastToNonStandardTypeLegacy(
+    const SPIRV::TranslatorOpts &Opts);
 
 } // namespace llvm
 

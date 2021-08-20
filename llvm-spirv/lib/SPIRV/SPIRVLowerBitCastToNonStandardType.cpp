@@ -43,6 +43,7 @@
 #define DEBUG_TYPE "spv-lower-bitcast-to-nonstandard-type"
 
 #include "SPIRVInternal.h"
+#include "LLVMSPIRVOpts.h"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/PassManager.h"
@@ -140,7 +141,8 @@ bool lowerBitCastToNonStdVec(Instruction *OldInst, Value *NewInst,
 class SPIRVLowerBitCastToNonStandardTypePass
     : public llvm::PassInfoMixin<SPIRVLowerBitCastToNonStandardTypePass> {
 public:
-  SPIRVLowerBitCastToNonStandardTypePass() {}
+  SPIRVLowerBitCastToNonStandardTypePass(const SPIRV::TranslatorOpts &Opts)
+      : Opts(Opts) {}
 
   PreservedAnalyses
   runLowerBitCastToNonStandardType(Function &F, FunctionAnalysisManager &FAM) {
@@ -159,7 +161,11 @@ public:
         VectorType *SrcVecTy = getVectorType(BC->getSrcTy());
         if (SrcVecTy) {
           uint64_t NumElemsInSrcVec = SrcVecTy->getElementCount().getValue();
-          if (!isValidVectorSize(NumElemsInSrcVec))
+          // SPV_INTEL_vector_compute allows 1-element vectors
+          if (!isValidVectorSize(NumElemsInSrcVec) &&
+              !(Opts.isAllowedToUseExtension(
+                    ExtensionID::SPV_INTEL_vector_compute) &&
+                NumElemsInSrcVec == 1))
             report_fatal_error("Unsupported vector type with the size of: " +
                                    std::to_string(NumElemsInSrcVec),
                                false);
@@ -167,7 +173,11 @@ public:
         VectorType *DestVecTy = getVectorType(BC->getDestTy());
         if (DestVecTy) {
           uint64_t NumElemsInDestVec = DestVecTy->getElementCount().getValue();
-          if (!isValidVectorSize(NumElemsInDestVec))
+          // SPV_INTEL_vector_compute allows 1-element vectors
+          if (!isValidVectorSize(NumElemsInDestVec) &&
+              !(Opts.isAllowedToUseExtension(
+                    ExtensionID::SPV_INTEL_vector_compute) &&
+                NumElemsInDestVec == 1))
             BCastsToNonStdVec.push_back(&I);
         }
       }
@@ -184,14 +194,21 @@ public:
 
     return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
   }
+
+private:
+  SPIRV::TranslatorOpts Opts;
 };
 
 class SPIRVLowerBitCastToNonStandardTypeLegacy : public FunctionPass {
 public:
   static char ID;
+  SPIRVLowerBitCastToNonStandardTypeLegacy(const SPIRV::TranslatorOpts &Opts)
+      : FunctionPass(ID), Opts(Opts) {}
+
   SPIRVLowerBitCastToNonStandardTypeLegacy() : FunctionPass(ID) {}
 
   bool runOnFunction(Function &F) override {
+    SPIRVLowerBitCastToNonStandardTypePass Impl(Opts);
     FunctionAnalysisManager FAM;
     auto PA = Impl.runLowerBitCastToNonStandardType(F, FAM);
     return !PA.areAllPreserved();
@@ -205,7 +222,7 @@ public:
   StringRef getPassName() const override { return "Lower nonstandard type"; }
 
 private:
-  SPIRVLowerBitCastToNonStandardTypePass Impl;
+  SPIRV::TranslatorOpts Opts;
 };
 
 char SPIRVLowerBitCastToNonStandardTypeLegacy::ID = 0;
@@ -216,6 +233,7 @@ INITIALIZE_PASS(SPIRVLowerBitCastToNonStandardTypeLegacy,
                 "spv-lower-bitcast-to-nonstandard-type",
                 "Remove bitcast to nonstandard types", false, false)
 
-llvm::FunctionPass *llvm::createSPIRVLowerBitCastToNonStandardTypeLegacy() {
-  return new SPIRVLowerBitCastToNonStandardTypeLegacy();
+llvm::FunctionPass *llvm::createSPIRVLowerBitCastToNonStandardTypeLegacy(
+    const SPIRV::TranslatorOpts &Opts) {
+  return new SPIRVLowerBitCastToNonStandardTypeLegacy(Opts);
 }
