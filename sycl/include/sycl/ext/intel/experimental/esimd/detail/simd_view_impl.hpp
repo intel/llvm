@@ -25,9 +25,10 @@ namespace detail {
 /// It is an internal class implementing basic functionality of simd_view.
 ///
 /// \ingroup sycl_esimd
-template <typename BaseTy, typename RegionTy> class simd_view_impl {
+template <typename BaseTy, typename RegionTy, typename Derived>
+class simd_view_impl {
   template <typename, int> friend class simd;
-  template <typename, typename> friend class simd_view_impl;
+  template <typename, typename, typename> friend class simd_view_impl;
 
 public:
   static_assert(!detail::is_simd_view_v<BaseTy>::value);
@@ -51,6 +52,9 @@ public:
 
   /// @{
   /// Constructors.
+
+private:
+  Derived &cast_this_to_derived() { return reinterpret_cast<Derived &>(*this); }
 
 protected:
   simd_view_impl(BaseTy &Base, RegionTy Region)
@@ -109,9 +113,9 @@ public:
   }
 
   /// Write to this object.
-  simd_view_impl &write(const value_type &Val) {
+  Derived &write(const value_type &Val) {
     M_base.writeRegion(M_region, Val.data());
-    return *this;
+    return cast_this_to_derived();
   }
 
   /// @{
@@ -129,9 +133,9 @@ public:
 
   /// View this object in a different element type.
   template <typename EltTy> auto bit_cast_view() {
-    using TopRegionTy = detail::compute_format_type_t<simd_view_impl, EltTy>;
+    using TopRegionTy = detail::compute_format_type_t<Derived, EltTy>;
     using NewRegionTy = std::pair<TopRegionTy, RegionTy>;
-    using RetTy = simd_view_impl<BaseTy, NewRegionTy>;
+    using RetTy = simd_view<BaseTy, NewRegionTy>;
     TopRegionTy TopReg(0);
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
   }
@@ -145,9 +149,9 @@ public:
   /// View as a 2-dimensional simd_view.
   template <typename EltTy, int Height, int Width> auto bit_cast_view() {
     using TopRegionTy =
-        detail::compute_format_type_2d_t<simd_view_impl, EltTy, Height, Width>;
+        detail::compute_format_type_2d_t<Derived, EltTy, Height, Width>;
     using NewRegionTy = std::pair<TopRegionTy, RegionTy>;
-    using RetTy = simd_view_impl<BaseTy, NewRegionTy>;
+    using RetTy = simd_view<BaseTy, NewRegionTy>;
     TopRegionTy TopReg(0, 0);
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
   }
@@ -164,12 +168,12 @@ public:
   /// \tparam Stride is the element distance between two consecutive elements.
   /// \param Offset is the starting element offset.
   /// \return the representing region object.
-  template <int Size, int Stride, typename T = simd_view_impl,
+  template <int Size, int Stride, typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is1D()>>
   auto select(uint16_t Offset = 0) {
     using TopRegionTy = region1d_t<element_type, Size, Stride>;
     using NewRegionTy = std::pair<TopRegionTy, RegionTy>;
-    using RetTy = simd_view_impl<BaseTy, NewRegionTy>;
+    using RetTy = simd_view<BaseTy, NewRegionTy>;
     TopRegionTy TopReg(Offset);
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
   }
@@ -186,21 +190,20 @@ public:
   /// \param OffsetY is the starting element offset in Y-dimension.
   /// \return the representing region object.
   template <int SizeY, int StrideY, int SizeX, int StrideX,
-            typename T = simd_view_impl,
+            typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is2D()>>
   auto select(uint16_t OffsetY = 0, uint16_t OffsetX = 0) {
     using TopRegionTy =
         region2d_t<element_type, SizeY, StrideY, SizeX, StrideX>;
     using NewRegionTy = std::pair<TopRegionTy, RegionTy>;
-    using RetTy = simd_view_impl<BaseTy, NewRegionTy>;
+    using RetTy = simd_view<BaseTy, NewRegionTy>;
     TopRegionTy TopReg(OffsetY, OffsetX);
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
   }
 
 #define DEF_BINOP(BINOP, OPASSIGN)                                             \
-  template <class T1 = simd_view_impl,                                         \
-            class = std::enable_if_t<T1::length != 1>>                         \
-  ESIMD_INLINE friend auto operator BINOP(const simd_view_impl &X,             \
+  template <class T1 = Derived, class = std::enable_if_t<T1::length != 1>>     \
+  ESIMD_INLINE friend auto operator BINOP(const Derived &X,                    \
                                           const value_type &Y) {               \
     using ComputeTy = detail::compute_type_t<value_type>;                      \
     auto V0 =                                                                  \
@@ -209,10 +212,9 @@ public:
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
   }                                                                            \
-  template <class T1 = simd_view_impl,                                         \
-            class = std::enable_if_t<T1::length != 1>>                         \
+  template <class T1 = Derived, class = std::enable_if_t<T1::length != 1>>     \
   ESIMD_INLINE friend auto operator BINOP(const value_type &X,                 \
-                                          const simd_view_impl &Y) {           \
+                                          const Derived &Y) {                  \
     using ComputeTy = detail::compute_type_t<value_type>;                      \
     auto V0 = detail::convert<typename ComputeTy::vector_type>(X.data());      \
     auto V1 =                                                                  \
@@ -220,20 +222,20 @@ public:
     auto V2 = V0 BINOP V1;                                                     \
     return ComputeTy(V2);                                                      \
   }                                                                            \
-  ESIMD_INLINE friend auto operator BINOP(const simd_view_impl &X,             \
-                                          const simd_view_impl &Y) {           \
+  ESIMD_INLINE friend auto operator BINOP(const Derived &X,                    \
+                                          const Derived &Y) {                  \
     return (X BINOP Y.read());                                                 \
   }                                                                            \
-  simd_view_impl &operator OPASSIGN(const value_type &RHS) {                   \
+  Derived &operator OPASSIGN(const value_type &RHS) {                          \
     using ComputeTy = detail::compute_type_t<value_type>;                      \
     auto V0 = detail::convert<typename ComputeTy::vector_type>(read().data()); \
     auto V1 = detail::convert<typename ComputeTy::vector_type>(RHS.data());    \
     auto V2 = V0 BINOP V1;                                                     \
     auto V3 = detail::convert<vector_type>(V2);                                \
     write(V3);                                                                 \
-    return *this;                                                              \
+    return cast_this_to_derived();                                             \
   }                                                                            \
-  simd_view_impl &operator OPASSIGN(const simd_view_impl &RHS) {               \
+  Derived &operator OPASSIGN(const Derived &RHS) {                             \
     return (*this OPASSIGN RHS.read());                                        \
   }
 
@@ -246,34 +248,32 @@ public:
 #undef DEF_BINOP
 
 #define DEF_BITWISE_OP(BITWISE_OP, OPASSIGN)                                   \
-  template <class T1 = simd_view_impl,                                         \
-            class = std::enable_if_t<T1::length != 1>>                         \
-  ESIMD_INLINE friend auto operator BITWISE_OP(const simd_view_impl &X,        \
+  template <class T1 = Derived, class = std::enable_if_t<T1::length != 1>>     \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const Derived &X,               \
                                                const value_type &Y) {          \
     static_assert(std::is_integral<element_type>(), "not integral type");      \
     auto V2 = X.read().data() BITWISE_OP Y.data();                             \
     return simd<element_type, length>(V2);                                     \
   }                                                                            \
-  template <class T1 = simd_view_impl,                                         \
-            class = std::enable_if_t<T1::length != 1>>                         \
+  template <class T1 = Derived, class = std::enable_if_t<T1::length != 1>>     \
   ESIMD_INLINE friend auto operator BITWISE_OP(const value_type &X,            \
-                                               const simd_view_impl &Y) {      \
+                                               const Derived &Y) {             \
     static_assert(std::is_integral<element_type>(), "not integral type");      \
     auto V2 = X.data() BITWISE_OP Y.read().data();                             \
     return simd<element_type, length>(V2);                                     \
   }                                                                            \
-  ESIMD_INLINE friend auto operator BITWISE_OP(const simd_view_impl &X,        \
-                                               const simd_view_impl &Y) {      \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const Derived &X,               \
+                                               const Derived &Y) {             \
     return (X BITWISE_OP Y.read());                                            \
   }                                                                            \
-  simd_view_impl &operator OPASSIGN(const value_type &RHS) {                   \
+  Derived &operator OPASSIGN(const value_type &RHS) {                          \
     static_assert(std::is_integral<element_type>(), "not integeral type");     \
     auto V2 = read().data() BITWISE_OP RHS.data();                             \
     auto V3 = detail::convert<vector_type>(V2);                                \
     write(V3);                                                                 \
-    return *this;                                                              \
+    return cast_this_to_derived();                                             \
   }                                                                            \
-  simd_view_impl &operator OPASSIGN(const simd_view_impl &RHS) {               \
+  Derived &operator OPASSIGN(const Derived &RHS) {                             \
     return (*this OPASSIGN RHS.read());                                        \
   }
   DEF_BITWISE_OP(&, &=)
@@ -295,19 +295,22 @@ public:
 
 #undef DEF_UNARY_OP
 
+  // negation operator
+  auto operator!() { return cast_this_to_derived() == 0; }
+
   // Operator ++, --
-  simd_view_impl &operator++() {
+  Derived &operator++() {
     *this += 1;
-    return *this;
+    return cast_this_to_derived();
   }
   value_type operator++(int) {
     value_type Ret(read());
     operator++();
     return Ret;
   }
-  simd_view_impl &operator--() {
+  Derived &operator--() {
     *this -= 1;
-    return *this;
+    return cast_this_to_derived();
   }
   value_type operator--(int) {
     value_type Ret(read());
@@ -317,7 +320,7 @@ public:
 
   /// Reference a row from a 2D region.
   /// \return a 1D region.
-  template <typename T = simd_view_impl,
+  template <typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is2D()>>
   auto row(int i) {
     return select<1, 0, getSizeX(), 1>(i, 0)
@@ -326,14 +329,14 @@ public:
 
   /// Reference a column from a 2D region.
   /// \return a 2D region.
-  template <typename T = simd_view_impl,
+  template <typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is2D()>>
   auto column(int i) {
     return select<getSizeY(), 1, 1, 0>(0, i);
   }
 
   /// Read a single element from a 1D region, by value only.
-  template <typename T = simd_view_impl,
+  template <typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is1D()>>
   element_type operator[](int i) const {
     const auto v = read();
@@ -341,7 +344,7 @@ public:
   }
 
   /// Read a single element from a 1D region, by value only.
-  template <typename T = simd_view_impl,
+  template <typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is1D()>>
   __SYCL_DEPRECATED("use operator[] form.")
   element_type operator()(int i) const {
