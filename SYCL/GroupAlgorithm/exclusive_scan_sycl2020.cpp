@@ -153,8 +153,17 @@ int main() {
   constexpr int N = 128;
   std::array<int, N> input;
   std::array<int, N> output;
-  std::iota(input.begin(), input.end(), 0);
+  std::iota(input.begin(), input.end(), 2);
   std::fill(output.begin(), output.end(), 0);
+
+  // Smaller size as the multiplication test
+  // will result in computing of a factorial
+  // 12! fits in a 32 bits integer.
+  constexpr int M = 12;
+  std::array<int, M> input_small;
+  std::array<int, M> output_small;
+  std::iota(input_small.begin(), input_small.end(), 1);
+  std::fill(output_small.begin(), output_small.end(), 0);
 
   test<class KernelNamePlusV>(q, input, output, sycl::plus<>(), 0);
   test<class KernelNameMinimumV>(q, input, output, sycl::minimum<>(),
@@ -169,11 +178,12 @@ int main() {
                                  std::numeric_limits<int>::lowest());
 
 #ifdef SPIRV_1_3
-  test<class KernelNameMultipliesI>(q, input, output, sycl::multiplies<int>(),
-                                    1);
+  test<class KernelNameMultipliesI>(q, input_small, output_small,
+                                    sycl::multiplies<int>(), 1);
   test<class KernelNameBitOrI>(q, input, output, sycl::bit_or<int>(), 0);
   test<class KernelNameBitXorI>(q, input, output, sycl::bit_xor<int>(), 0);
-  test<class KernelNameBitAndI>(q, input, output, sycl::bit_and<int>(), ~0);
+  test<class KernelNameBitAndI>(q, input_small, output_small,
+                                sycl::bit_and<int>(), ~0);
 #endif // SPIRV_1_3
 
   std::cout << "Test passed." << std::endl;
