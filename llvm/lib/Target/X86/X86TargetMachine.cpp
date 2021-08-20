@@ -78,6 +78,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeX86Target() {
   initializeX86FastTileConfigPass(PR);
   initializeX86LowerTileCopyPass(PR);
   initializeX86ExpandPseudoPass(PR);
+  initializeX86LowerMatrixOperationPassPass(PR);
   initializeX86ExecutionDomainFixPass(PR);
   initializeX86DomainReassignmentPass(PR);
   initializeX86AvoidSFBPassPass(PR);
@@ -414,6 +415,7 @@ void X86PassConfig::addIRPasses() {
 
   // We add both pass anyway and when these two passes run, we skip the pass
   // based on the option level and option attribute.
+  addPass(createX86LowerMatrixOperationPass());
   addPass(createX86LowerAMXIntrinsicsPass());
   addPass(createX86LowerAMXTypePass());
 

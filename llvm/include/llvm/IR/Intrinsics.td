@@ -1681,6 +1681,24 @@ def int_matrix_column_major_store
               [IntrNoSync, IntrWillReturn, IntrArgMemOnly, IntrWriteMem,
                WriteOnly<ArgIndex<1>>, NoCapture<ArgIndex<1>>,
                ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>, ImmArg<ArgIndex<5>>]>;
+def int_experimental_matrix_load
+  : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
+              [llvm_anyptr_ty, llvm_i64_ty, llvm_i1_ty,
+               llvm_i32_ty, llvm_i32_ty, llvm_metadata_ty, llvm_metadata_ty,
+               llvm_metadata_ty]>;
+
+def int_experimental_matrix_store
+  : DefaultAttrsIntrinsic<[],
+              [llvm_anyvector_ty, llvm_anyptr_ty,
+               llvm_i64_ty, llvm_i1_ty, llvm_i32_ty, llvm_i32_ty,
+               llvm_metadata_ty, llvm_metadata_ty, llvm_metadata_ty]>;
+
+def int_experimental_matrix_mad
+  : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
+              [llvm_anyvector_ty, llvm_metadata_ty,
+               llvm_anyvector_ty, llvm_metadata_ty,
+               LLVMMatchType<0>, llvm_metadata_ty,
+               llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_metadata_ty]>;
 
 //===---------- Intrinsics to control hardware supported loops ----------===//
 

@@ -39,6 +39,7 @@ set(sources
   X86TileConfig.cpp
   X86FastTileConfig.cpp
   X86PreTileConfig.cpp
+  X86LowerMatrixOperation.cpp
   X86ExpandPseudo.cpp
   X86FastISel.cpp
   X86FixupBWInsts.cpp
