@@ -2738,13 +2738,16 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
 pi_result piQueueRetain(pi_queue Queue) {
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
+  Queue->RefCountExternal++;
   piQueueRetainNoLock(Queue);
   return PI_SUCCESS;
 }
 
 pi_result piQueueRelease(pi_queue Queue) {
-  return QueueRelease(Queue, nullptr);
+  // Lock automatically releases when this goes out of scope.
+  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+  Queue->RefCountExternal--;
+  return QueueRelease(Queue, Queue);
 }
 
 static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
@@ -2758,8 +2761,10 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
                      ? std::unique_lock<std::mutex>()
                      : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
 
+    // Note that we decrement the total reference count here, but check
+    // the external reference count for becoming zero. This is...
     Queue->RefCount--;
-    if (Queue->RefCount == 0)
+    if (Queue->RefCountExternal == 0)
       RefCountZero = true;
 
     if (RefCountZero) {
@@ -2785,6 +2790,13 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
         ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
       }
       Queue->CommandListMap.clear();
+
+      // Just before finally destroying the command-queue check that the above
+      // wait/reset resulted in total references count go to zero.
+      if (Queue->RefCount != 0) {
+        fprintf(stderr, "RefCount=%d\n", (int)Queue->RefCount);
+      }
+      PI_ASSERT(Queue->RefCount == 0, PI_INVALID_QUEUE);
 
       if (Queue->OwnZeCommandQueue) {
         ZE_CALL(zeCommandQueueDestroy, (Queue->ZeComputeCommandQueue));
