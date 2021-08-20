@@ -5002,6 +5002,19 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   return Queue->executeCommandList(CommandList);
 }
 
+// Helper function to check if a pointer is a device pointer.
+static bool IsDevicePointer(pi_context Context, const void *Ptr) {
+  ze_device_handle_t ZeDeviceHandle;
+  ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
+
+  // Query memory type of the pointer
+  ZE_CALL(zeMemGetAllocProperties,
+          (Context->ZeContext, Ptr, &ZeMemoryAllocationProperties,
+           &ZeDeviceHandle));
+
+  return (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_DEVICE);
+}
+
 pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
                                  pi_bool BlockingRead, size_t Offset,
                                  size_t Size, void *Dst,
@@ -5011,10 +5024,18 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   PI_ASSERT(Src, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
-  return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_READ, Queue, Dst,
-                              BlockingRead, Size,
-                              pi_cast<char *>(Src->getZeHandle()) + Offset,
-                              NumEventsInWaitList, EventWaitList, Event);
+  // Device to Device copies are found to execute slower on copy engine
+  // (versus compute engine).
+  bool PreferCopyEngine =
+      (Src->OnHost) || !IsDevicePointer(Queue->Context, Dst);
+
+  // Temporary option added to use copy engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
+  return enqueueMemCopyHelper(
+      PI_COMMAND_TYPE_MEM_BUFFER_READ, Queue, Dst, BlockingRead, Size,
+      pi_cast<char *>(Src->getZeHandle()) + Offset, NumEventsInWaitList,
+      EventWaitList, Event, PreferCopyEngine);
 }
 
 pi_result piEnqueueMemBufferReadRect(
@@ -5028,11 +5049,20 @@ pi_result piEnqueueMemBufferReadRect(
   PI_ASSERT(Buffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  // Device to Device copies are found to execute slower on copy engine
+  // (versus compute engine).
+  bool PreferCopyEngine =
+      (Buffer->OnHost) || !IsDevicePointer(Queue->Context, Ptr);
+
+  // Temporary option added to use copy engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
   return enqueueMemCopyRectHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_READ_RECT, Queue, Buffer->getZeHandle(),
       static_cast<char *>(Ptr), BufferOffset, HostOffset, Region,
       BufferRowPitch, HostRowPitch, BufferSlicePitch, HostSlicePitch,
-      BlockingRead, NumEventsInWaitList, EventWaitList, Event);
+      BlockingRead, NumEventsInWaitList, EventWaitList, Event,
+      PreferCopyEngine);
 }
 
 } // extern "C"
@@ -5201,12 +5231,20 @@ pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
   PI_ASSERT(Buffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
-  return enqueueMemCopyHelper(PI_COMMAND_TYPE_MEM_BUFFER_WRITE, Queue,
-                              pi_cast<char *>(Buffer->getZeHandle()) +
-                                  Offset, // dst
-                              BlockingWrite, Size,
-                              Ptr, // src
-                              NumEventsInWaitList, EventWaitList, Event);
+  // Device to Device copies are found to execute slower on copy engine
+  // (versus compute engine).
+  bool PreferCopyEngine =
+      (Buffer->OnHost) || !IsDevicePointer(Queue->Context, Ptr);
+
+  // Temporary option added to use copy engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
+  return enqueueMemCopyHelper(
+      PI_COMMAND_TYPE_MEM_BUFFER_WRITE, Queue,
+      pi_cast<char *>(Buffer->getZeHandle()) + Offset, // dst
+      BlockingWrite, Size,
+      Ptr, // src
+      NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
 }
 
 pi_result piEnqueueMemBufferWriteRect(
@@ -5220,12 +5258,20 @@ pi_result piEnqueueMemBufferWriteRect(
   PI_ASSERT(Buffer, PI_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  // Device to Device copies are found to execute slower on copy engine
+  // (versus compute engine).
+  bool PreferCopyEngine =
+      (Buffer->OnHost) || !IsDevicePointer(Queue->Context, Ptr);
+
+  // Temporary option added to use copy engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
   return enqueueMemCopyRectHelper(
       PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT, Queue,
       const_cast<char *>(static_cast<const char *>(Ptr)), Buffer->getZeHandle(),
       HostOffset, BufferOffset, Region, HostRowPitch, BufferRowPitch,
       HostSlicePitch, BufferSlicePitch, BlockingWrite, NumEventsInWaitList,
-      EventWaitList, Event);
+      EventWaitList, Event, PreferCopyEngine);
 }
 
 pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
@@ -6468,19 +6514,6 @@ pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
       &Value, // It will be interpreted as an 8-bit value,
       1,      // which is indicated with this pattern_size==1
       Count, NumEventsInWaitlist, EventsWaitlist, Event);
-}
-
-// Helper function to check if a pointer is a device pointer.
-static bool IsDevicePointer(pi_context Context, const void *Ptr) {
-  ze_device_handle_t ZeDeviceHandle;
-  ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
-
-  // Query memory type of the pointer
-  ZE_CALL(zeMemGetAllocProperties,
-          (Context->ZeContext, Ptr, &ZeMemoryAllocationProperties,
-           &ZeDeviceHandle));
-
-  return (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_DEVICE);
 }
 
 pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
