@@ -1343,9 +1343,15 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
       // Collect kernel names for the image
       pi_device_binary DevBin =
           const_cast<pi_device_binary>(&BinImage->getRawData());
-      for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
-           EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
-        KernelIDs.push_back(getSYCLKernelID(EntriesIt->name));
+      {
+        std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+        for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
+             EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
+          auto KernelID = m_KernelIDs.find(EntriesIt->name);
+          assert(KernelID != m_KernelIDs.end() &&
+                 "Kernel ID in device binary missing from cache");
+          KernelIDs.push_back(KernelID->second);
+        }
       }
       // device_image_impl expects kernel ids to be sorted for fast search
       std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
