@@ -30,6 +30,14 @@ void check_result_length_4(ResultVecT &res, ResultVecT &expected_res) {
                            expected_res.template swizzle<s::elem::s3>()));
 }
 
+template <typename T, int N> void check_vector_size() {
+  using vec_type = s::vec<T, N>;
+  vec_type Vec;
+  constexpr auto length = (N == 3 ? 4 : N);
+  assert(Vec.size() == N);
+  assert(Vec.byte_size() == sizeof(T) * length);
+}
+
 int main() {
 
   /* Separate checks for NumElements=1 edge case */
@@ -265,6 +273,14 @@ int main() {
                           1080033280 /*0x40600000*/,
                           -1054867456 /*0xc1200000*/);
     check_result_length_4<res_vec_type>(res, expected);
+  }
+
+  // size() and byte_size() functions
+  {
+    check_vector_size<char, 1>();
+    check_vector_size<int, 2>();
+    check_vector_size<float, 3>();
+    check_vector_size<double, 4>();
   }
 
   return 0;

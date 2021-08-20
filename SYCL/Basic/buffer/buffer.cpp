@@ -693,6 +693,13 @@ int main() {
     });
   }
 
+  {
+    int data = 5;
+    buffer<int, 1> Buffer(&data, range<1>(1));
+    assert(Buffer.size() == 1);
+    assert(Buffer.byte_size() == 1 * sizeof(int));
+  }
+
   // TODO tests with mutex property
   return failed;
 }
