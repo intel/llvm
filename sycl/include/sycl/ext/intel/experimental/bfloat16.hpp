@@ -91,7 +91,6 @@ public:
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
   }                                                                            \
-                                                                               \
   template <typename T>                                                        \
   friend bfloat16 &operator op(bfloat16 &lhs, const T &rhs) {                  \
     float f = static_cast<float>(lhs);                                         \
