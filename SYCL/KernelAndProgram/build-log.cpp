@@ -1,8 +1,11 @@
-// XFAIL: cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %CPU_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="--unknown-option" %t.out
+// RUN: %GPU_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="--unknown-option" %t.out
+// RUN: %ACC_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="--unknown-option" %t.out
+//
+// Unknown options are silently ignored by IGC and CUDA JIT compilers. The issue
+// is under investigation.
+// XFAIL: (opencl || level_zero || cuda) && gpu
 
 //==--- build-log.cpp - Test log message from faild build ----------==//
 //
@@ -14,19 +17,12 @@
 
 #include <CL/sycl.hpp>
 
-SYCL_EXTERNAL
-void symbol_that_does_not_exist();
-
 void test() {
   cl::sycl::queue Queue;
 
   // Submitting this kernel should result in a compile_program_error exception
-  // with a message indicating that "symbol_that_does_not_exist" is undefined.
-  auto Kernel = []() {
-#ifdef __SYCL_DEVICE_ONLY__
-    symbol_that_does_not_exist();
-#endif
-  };
+  // with a message indicating "Unrecognized build options".
+  auto Kernel = []() {};
 
   std::string Msg;
   int Result;
@@ -38,7 +34,8 @@ void test() {
     assert(false && "There must be compilation error");
   } catch (const cl::sycl::compile_program_error &e) {
     std::string Msg(e.what());
-    assert(Msg.find("symbol_that_does_not_exist") != std::string::npos);
+    std::cerr << Msg << std::endl;
+    assert(Msg.find("unknown-option") != std::string::npos);
   } catch (...) {
     assert(false && "There must be cl::sycl::compile_program_error");
   }

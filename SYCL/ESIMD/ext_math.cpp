@@ -9,8 +9,6 @@
 // UNSUPPORTED: cuda || rocm
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// Enable when driver fixes will be propagated into the official release
-// XFAIL: windows
 
 // This test checks extended math operations.
 
