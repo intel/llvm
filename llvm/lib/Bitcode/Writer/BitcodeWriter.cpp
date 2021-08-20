@@ -373,7 +373,6 @@ private:
   void writeModuleMetadata();
   void writeFunctionMetadata(const Function &F);
   void writeFunctionMetadataAttachment(const Function &F);
-  void writeGlobalVariableMetadataAttachment(const GlobalVariable &GV);
   void pushGlobalMetadataAttachment(SmallVectorImpl<uint64_t> &Record,
                                     const GlobalObject &GO);
   void writeModuleMetadataKinds();
@@ -1715,6 +1714,7 @@ void ModuleBitcodeWriter::writeDICompositeType(
   Record.push_back(VE.getMetadataOrNullID(N->getRawAssociated()));
   Record.push_back(VE.getMetadataOrNullID(N->getRawAllocated()));
   Record.push_back(VE.getMetadataOrNullID(N->getRawRank()));
+  Record.push_back(VE.getMetadataOrNullID(N->getAnnotations().get()));
 
   Stream.EmitRecord(bitc::METADATA_COMPOSITE_TYPE, Record, Abbrev);
   Record.clear();
