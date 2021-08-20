@@ -86,12 +86,9 @@ get_local_linear_id<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
 // ---- is_native_op
 template <typename T>
 using native_op_list =
-    type_list<ext::oneapi::plus<T>, ext::oneapi::bit_or<T>,
-              ext::oneapi::bit_xor<T>, ext::oneapi::bit_and<T>,
-              ext::oneapi::maximum<T>, ext::oneapi::minimum<T>,
-              ext::oneapi::multiplies<T>, sycl::plus<T>, sycl::bit_or<T>,
-              sycl::bit_xor<T>, sycl::bit_and<T>, sycl::maximum<T>,
-              sycl::minimum<T>, sycl::multiplies<T>>;
+    type_list<sycl::plus<T>, sycl::bit_or<T>, sycl::bit_xor<T>,
+              sycl::bit_and<T>, sycl::maximum<T>, sycl::minimum<T>,
+              sycl::multiplies<T>>;
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
