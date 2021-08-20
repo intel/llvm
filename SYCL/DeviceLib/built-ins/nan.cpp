@@ -41,7 +41,7 @@ template <typename T, typename R> void check_nan(s::queue &Queue) {
 }
 
 int main() {
-  test_nan_call<s::ushort, half>();
+  test_nan_call<s::ushort, s::half>();
   test_nan_call<s::uint, float>();
   test_nan_call<s::ulong, double>();
   test_nan_call<s::ulonglong, double>();
@@ -63,7 +63,7 @@ int main() {
   });
 #ifdef HALF_IS_SUPPORTED
   if (Queue.get_device().has_extension("cl_khr_fp16"))
-    check_nan<unsigned short, half>(Queue);
+    check_nan<unsigned short, s::half>(Queue);
 #endif
   check_nan<unsigned int, float>(Queue);
   if (Queue.get_device().has_extension("cl_khr_fp64")) {
