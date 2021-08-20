@@ -21,6 +21,7 @@ an obvious way. These include:
  * SPIR-V instructions mapped to LLVM metadata
  * SPIR-V types mapped to LLVM opaque types
  * SPIR-V decorations mapped to LLVM metadata or named attributes
+ * Additional requirements for LLVM module
 
 SPIR-V Types Mapped to LLVM Types
 =================================
@@ -73,6 +74,28 @@ The above SPIR-V types are mapped to LLVM opaque type spirv.{TypeName} and
 mangled as __spirv_{TypeName}, where {TypeName} is the name of the SPIR-V
 type with "OpType" removed, e.g., OpTypeEvent is mapped to spirv.Event and
 mangled as __spirv_Event.
+
+Address spaces
+--------------
+
+The following
+`SPIR-V storage classes <https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#Storage_Class>`_
+are naturally represented as LLVM IR address spaces with the following mapping:
+
+====================    ====================================
+SPIR-V storage class    LLVM IR address space
+====================    ====================================
+``Function``            No address space or ``addrspace(0)``
+``CrossWorkgroup``      ``addrspace(1)``
+``UniformConstant``     ``addrspace(2)``
+``Workgroup``           ``addrspace(3)``
+``Generic``             ``addrspace(4)``
+====================    ====================================
+
+SPIR-V extensions are allowed to add new storage classes. For example,
+SPV_INTEL_usm_storage_classes extension adds ``DeviceOnlyINTEL`` and
+``HostOnlyINTEL`` storage classes which are mapped to ``addrspace(5)`` and
+``addrspace(6)`` respectively.
 
 SPIR-V Instructions Mapped to LLVM Function Calls
 =================================================
@@ -269,6 +292,48 @@ following format:
   !<InstructionMetadata1> = !{<Operand1>, <Operand2>, ..}
   !<InstructionMetadata2> = !{<Operand1>, <Operand2>, ..}
 
++--------------------+---------------------------------------------------------+
+| SPIR-V instruction | LLVM IR                                                 |
++====================+=========================================================+
+| OpSource           | .. code-block:: llvm                                    |
+|                    |                                                         |
+|                    |    !spirv.Source = !{!0}                                |
+|                    |    !0 = !{i32 3, i32 66048, !1}                         |
+|                    |    ; 3 - OpenCL_C                                       |
+|                    |    ; 66048 = 0x10200 - OpenCL version 1.2               |
+|                    |    ; !1 - optional file id.                             |
+|                    |    !1 = !{!"/tmp/opencl/program.cl"}                    |
++--------------------+---------------------------------------------------------+
+| OpSourceExtension  | .. code-block:: llvm                                    |
+|                    |                                                         |
+|                    |    !spirv.SourceExtension = !{!0, !1}                   |
+|                    |    !0 = !{!"cl_khr_fp16"}                               |
+|                    |    !1 = !{!"cl_khr_gl_sharing"}                         |
++--------------------+---------------------------------------------------------+
+| OpExtension        | .. code-block:: llvm                                    |
+|                    |                                                         |
+|                    |    !spirv.Extension = !{!0}                             |
+|                    |    !0 = !{!"SPV_KHR_expect_assume"}                     |
++--------------------+---------------------------------------------------------+
+| OpCapability       | .. code-block:: llvm                                    |
+|                    |                                                         |
+|                    |    !spirv.Capability = !{!0}                            |
+|                    |    !0 = !{i32 10} ; Float64 - program uses doubles      |
++--------------------+---------------------------------------------------------+
+| OpExecutionMode    | .. code-block:: llvm                                    |
+|                    |                                                         |
+|                    |    !spirv.ExecutionMode = !{!0}                         |
+|                    |    !0 = !{void ()* @worker, i32 30, i32 262149}         |
+|                    |    ; Set execution mode with id 30 (VecTypeHint) and    |
+|                    |    ; literal `262149` operand.                          |
++--------------------+---------------------------------------------------------+
+| Generator's magic  | .. code-block:: llvm                                    |
+| number - word # 2  |                                                         |
+| in SPIR-V module   |    !spirv.Generator = !{!0}                             |
+|                    |    !0 = !{i16 6, i16 123}                               |
+|                    |    ; 6 - Generator Id, 123 - Generator Version          |
++--------------------+---------------------------------------------------------+
+
 For example:
 
 .. code-block:: llvm
@@ -295,3 +360,58 @@ For example:
   !9 = !{!7, i32 32}     ; independent forward progress is required for 'kernel2'
   !10 = !{i16 6, i16 123} ; 6 - Generator Id, 123 - Generator Version 
 
+Additional requirements for LLVM module
+=======================================
+
+Target triple and datalayout string
+-----------------------------------
+
+Target triple architecture must be ``spir`` (32-bit architecture) or ``spir64``
+(64-bit architecture) and ``datalayout`` string must be aligned with OpenCL
+environment specification requirements for data type sizes and alignments (e.g.
+3-element vector must have 4-element vector alignment). For example:
+
+.. code-block:: llvm
+
+   target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
+   target triple = "spir-unknown-unknown"
+
+Target triple architecture is translated to
+`addressing model operand <https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#_a_id_addressing_model_a_addressing_model>`_
+of
+`OpMemoryModel <https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#_a_id_mode_setting_a_mode_setting_instructions>`_
+SPIR-V instruction.
+
+- ``spir`` -> Physical32
+- ``spir64`` -> Physical64
+
+Calling convention
+------------------
+
+``OpEntryPoint`` information is represented in LLVM IR in calling convention.
+A function with ``spir_kernel`` calling convention will be translated as an entry
+point of the SPIR-V module.
+
+Function metadata
+-----------------
+
+Some kernel parameter information is stored in LLVM IR as a function metadata.
+
+For example:
+
+.. code-block:: llvm
+
+  !kernel_arg_addr_space !1
+  !kernel_arg_access_qual !2
+  !kernel_arg_type !3
+  !kernel_arg_base_type !4
+  !kernel_arg_type_qual !5
+
+**NOTE**: All metadata from the example above are optional. Access qualifiers
+are translated for image types, but they should be encoded in LLVM IR type name
+rather than function metadata.
+
+Debug information extension
+===========================
+
+**TBD**
