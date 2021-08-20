@@ -1,14 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-
-// TODO: test disabled due to Jenkins testing failure on unrelated commit
-// Sporadic failure
-// UNSUPPORTED: linux && level_zero
-
-// TODO: accelerator may not suport atomics required by the current
-// implementation. Enable testing when implementation is fixed.
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // This test performs basic checks of parallel_for(range<1>, reduction, func)
 // with reductions initialized with 1-dimensional read_write accessor
@@ -34,15 +27,15 @@ int main() {
 
   // Fast-reduce and Fast-atomics. Try various range types/sizes.
   tests<class A1, int>(Q, 0, 99, std::plus<int>{}, 1);
-  tests<class A2, int64_t>(Q, 0, 99, std::plus<>{}, 7);
-  tests<class A3, int64_t>(Q, 0, 99, std::plus<>{}, 64);
+  tests<class A2, int>(Q, 0, 99, std::plus<>{}, 7);
+  tests<class A3, int>(Q, 0, 99, std::plus<>{}, 64);
   tests<class A4, int>(Q, 0, 99, std::plus<>{}, MaxWGSize * 2);
   tests<class A5, int>(Q, 0, 99, std::plus<>{}, MaxWGSize * 2 + 5);
 
   // Try various types & ranges.
   tests<class B1, int>(Q, ~0, ~0, std::bit_and<>{}, 8);
   tests<class B2, int>(Q, 0, 0x12340000, std::bit_xor<>{}, 16);
-  tests<class B3, int>(Q, 0, 0x3400, std::bit_or<>{}, MaxWGSize * 4);
+  tests<class B3, int>(Q, 0, 0x3400, std::bit_or<>{}, MaxWGSize * 3);
   tests<class B4, uint64_t>(Q, 1, 2, std::multiplies<>{}, 16);
   tests<class B5, float>(Q, 1, 3, std::multiplies<>{}, 11);
   tests<class B6, int>(Q, (std::numeric_limits<int>::max)(), -99,

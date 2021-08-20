@@ -1,10 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-
-// TODO: accelerator may not suport atomics required by the current
-// implementation. Enable testing when implementation is fixed.
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include "reduction_range_scalar.hpp"
 
@@ -30,15 +27,15 @@ int main() {
 
   // Fast-reduce and Fast-atomics. Try various range types/sizes.
   tests<class A1, int>(Q, 0, 99, std::plus<int>{}, 1);
-  tests<class A2, int64_t>(Q, 0, 99, std::plus<>{}, 7);
-  tests<class A3, int64_t>(Q, 0, 99, std::plus<>{}, 64);
+  tests<class A2, int>(Q, 0, 99, std::plus<>{}, 7);
+  tests<class A3, int>(Q, 0, 99, std::plus<>{}, 64);
   tests<class A4, int>(Q, 0, 99, std::plus<>{}, MaxWGSize * 2);
   tests<class A5, int>(Q, 0, 99, std::plus<>{}, MaxWGSize * 2 + 5);
 
   // Try various types & ranges.
-  tests<class B1, int>(Q, ~0, 99, std::bit_and<>{}, 7);
-  tests<class B2, int>(Q, 0, 0xff99, std::bit_xor<>{}, MaxWGSize);
-  tests<class B3, int>(Q, 0, 0xff99, std::bit_or<>{}, 3);
+  tests<class B1, int>(Q, ~0, 0xfefefefe, std::bit_and<>{}, 7);
+  tests<class B2, int>(Q, 0, 0xfedcff99, std::bit_xor<>{}, MaxWGSize);
+  tests<class B3, int>(Q, 0, 0xfedcff99, std::bit_or<>{}, 3);
   tests<class B4, short>(Q, 1, 2, std::multiplies<>{}, 7);
   tests<class B5, int>(Q, (std::numeric_limits<int>::max)(), -99,
                        ext::oneapi::minimum<>{}, MaxWGSize * 2);

@@ -14,6 +14,15 @@ void initInputData(buffer<T, 1> &InBuf, T &ExpectedOut, T Identity,
     if (std::is_same_v<BinaryOperation, std::multiplies<T>> ||
         std::is_same_v<BinaryOperation, std::multiplies<>>)
       In[I] = 1.1 + (((I % 11) == 0) ? 1 : 0);
+    else if (std::is_same_v<BinaryOperation, std::bit_and<T>> ||
+             std::is_same_v<BinaryOperation, std::bit_and<>>)
+      In[I] = (I + 1) | 0x10203040;
+    else if (std::is_same_v<BinaryOperation, sycl::minimum<T>> ||
+             std::is_same_v<BinaryOperation, sycl::minimum<>>)
+      In[I] = Range[0] - I;
+    else if (std::is_same_v<BinaryOperation, sycl::maximum<T>> ||
+             std::is_same_v<BinaryOperation, sycl::maximum<>>)
+      In[I] = I;
     else
       In[I] = ((I + 1) % 5) + 1.1;
     ExpectedOut = BOp(ExpectedOut, In[I]);
@@ -32,6 +41,15 @@ void initInputData(buffer<T, 2> &InBuf, T &ExpectedOut, T Identity,
       if (std::is_same_v<BinaryOperation, std::multiplies<T>> ||
           std::is_same_v<BinaryOperation, std::multiplies<>>)
         In[J][I] = 1.1 + ((((I + J * 3) % 11) == 0) ? 1 : 0);
+      else if (std::is_same_v<BinaryOperation, std::bit_and<T>> ||
+               std::is_same_v<BinaryOperation, std::bit_and<>>)
+        In[J][I] = (I + J + 1) | 0x10203040;
+      else if (std::is_same_v<BinaryOperation, sycl::minimum<T>> ||
+               std::is_same_v<BinaryOperation, sycl::minimum<>>)
+        In[J][I] = Range[0] + Range[1] - I - J;
+      else if (std::is_same_v<BinaryOperation, sycl::maximum<T>> ||
+               std::is_same_v<BinaryOperation, sycl::maximum<>>)
+        In[J][I] = I + J;
       else
         In[J][I] = ((I + 1 + J) % 5) + 1.1;
       ExpectedOut = BOp(ExpectedOut, In[J][I]);
@@ -52,6 +70,15 @@ void initInputData(buffer<T, 3> &InBuf, T &ExpectedOut, T Identity,
         if (std::is_same_v<BinaryOperation, std::multiplies<T>> ||
             std::is_same_v<BinaryOperation, std::multiplies<>>)
           In[K][J][I] = 1.1 + ((((I + J * 3 + K) % 11) == 0) ? 1 : 0);
+        else if (std::is_same_v<BinaryOperation, std::bit_and<T>> ||
+                 std::is_same_v<BinaryOperation, std::bit_and<>>)
+          In[K][J][I] = (I + J + K + 1) | 0x10203040;
+        else if (std::is_same_v<BinaryOperation, sycl::minimum<T>> ||
+                 std::is_same_v<BinaryOperation, sycl::minimum<>>)
+          In[K][J][I] = Range[0] + Range[1] + Range[2] - I - J - K;
+        else if (std::is_same_v<BinaryOperation, sycl::maximum<T>> ||
+                 std::is_same_v<BinaryOperation, sycl::maximum<>>)
+          In[K][J][I] = I + J + K;
         else
           In[K][J][I] = ((I + 1 + J + K * 3) % 5) + 1.1;
         ExpectedOut = BOp(ExpectedOut, In[K][J][I]);

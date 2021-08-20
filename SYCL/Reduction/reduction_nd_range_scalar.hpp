@@ -14,11 +14,21 @@ int test(queue &Q, T Identity, T Init, BinaryOperation BOp,
          const nd_range<Dims> &Range) {
   printTestLabel<T, BinaryOperation>(IsSYCL2020, Range);
 
-  // Skip the test for such big arrays now.
-  constexpr size_t TwoGB = 2LL * 1024 * 1024 * 1024;
+  // It is a known problem with passing data that is close to 4Gb in size
+  // to device. Such data breaks the execution pretty badly.
+  // Some of test cases calling this function try to verify the correctness
+  // of reduction with the global range bigger than the maximal work-group size
+  // for the device. Maximal WG size for device may be very big, e.g. it is
+  // 67108864 for ACC emulator. Multiplying that by some factor
+  // (to exceed max WG-Size) and multiplying it by the element size may exceed
+  // the safe size of data passed to device.
+  // Let's set it to 1 GB for now, and just skip the test if it exceeds 1Gb.
+  constexpr size_t OneGB = 1LL * 1024 * 1024 * 1024;
   range<Dims> GlobalRange = Range.get_global_range();
-  if (GlobalRange.size() > TwoGB)
+  if (GlobalRange.size() * sizeof(T) > OneGB) {
+    std::cout << " SKIPPED due to too big data size" << std::endl;
     return 0;
+  }
 
   buffer<T, Dims> InBuf(GlobalRange);
   buffer<T, 1> OutBuf(1);
