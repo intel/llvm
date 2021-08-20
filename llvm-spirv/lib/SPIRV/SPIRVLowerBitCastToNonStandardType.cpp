@@ -43,7 +43,6 @@
 #define DEBUG_TYPE "spv-lower-bitcast-to-nonstandard-type"
 
 #include "SPIRVInternal.h"
-#include "LLVMSPIRVOpts.h"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/PassManager.h"
