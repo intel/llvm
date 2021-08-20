@@ -27,7 +27,7 @@ template <> struct KernelInfo<TestKernel1> {
     static kernel_param_desc_t Dummy;
     return Dummy;
   }
-  static constexpr const char *getName() { return "TestKernel1"; }
+  static constexpr const char *getName() { return "KernelID_TestKernel1"; }
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
@@ -39,7 +39,7 @@ template <> struct KernelInfo<TestKernel2> {
     static kernel_param_desc_t Dummy;
     return Dummy;
   }
-  static constexpr const char *getName() { return "TestKernel2"; }
+  static constexpr const char *getName() { return "KernelID_TestKernel2"; }
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
@@ -51,7 +51,7 @@ template <> struct KernelInfo<TestKernel3> {
     static kernel_param_desc_t Dummy;
     return Dummy;
   }
-  static constexpr const char *getName() { return "TestKernel3"; }
+  static constexpr const char *getName() { return "KernelID_TestKernel3"; }
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
@@ -83,8 +83,8 @@ generateDefaultImage(std::initializer_list<std::string> Kernels) {
 }
 
 static sycl::unittest::PiImage Imgs[2] = {
-    generateDefaultImage({"TestKernel1", "TestKernel3"}),
-    generateDefaultImage({"TestKernel2"})};
+    generateDefaultImage({"KernelID_TestKernel1", "KernelID_TestKernel3"}),
+    generateDefaultImage({"KernelID_TestKernel2"})};
 static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 
 TEST(KernelID, AllProgramKernelIds) {
