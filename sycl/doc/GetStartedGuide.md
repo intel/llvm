@@ -547,11 +547,14 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
-When building for ROCm, please note that the option `mcpu` must be specified, use the ROCm target triple as follows:
+When building for ROCm, use the ROCm target triple and specify the
+target architecture with `-Xsycl-target-backend --offload-arch=<arch>`
+as follows:
 
 ```bash
 clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa-sycldevice \
-  -mcpu=gfx906 simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
+  -Xsycl-target-backend --offload-arch=gfx906              \
+  simple-sycl-app.cpp -o simple-sycl-app-amd.exe
 ```
 
 To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,
