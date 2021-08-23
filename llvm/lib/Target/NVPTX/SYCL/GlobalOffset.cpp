@@ -118,7 +118,7 @@ public:
         Builder.CreateMemSet(ImplicitOffset, Builder.getInt8(0), AllocByteSize,
                              ImplicitOffset->getAlign());
     MemsetCall->addParamAttr(0, Attribute::NonNull);
-    MemsetCall->addDereferenceableAttr(1, AllocByteSize);
+    MemsetCall->addDereferenceableParamAttr(1, AllocByteSize);
     ProcessedFunctions[Func] = Builder.CreateConstInBoundsGEP2_32(
         ImplicitOffsetType, ImplicitOffset, 0, 0);
   }
