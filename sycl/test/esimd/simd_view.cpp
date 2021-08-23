@@ -189,4 +189,8 @@ void test_nested_simd_view_len1_bitcast() SYCL_ESIMD_FUNCTION {
   auto v = s.bit_cast_view<float>(); // generic simd_view
   float f = v[0]; // result of v[0] is a specialized nested simd_view
                   // with length 1, which then converts to a scalar.
+
+  // checking nested views with several bitcasts.
+  simd<double, 4> s2;
+  ((s2[0].bit_cast_view<float>())[1].bit_cast_view<int>())[0] = 1;
 }
