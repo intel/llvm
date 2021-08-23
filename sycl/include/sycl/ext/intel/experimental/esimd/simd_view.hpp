@@ -25,12 +25,14 @@ namespace esimd {
 ///
 /// \ingroup sycl_esimd
 template <typename BaseTy, typename RegionTy>
-class simd_view : public detail::simd_view_impl<BaseTy, RegionTy> {
+class simd_view : public detail::simd_view_impl<BaseTy, RegionTy,
+                                                simd_view<BaseTy, RegionTy>> {
   template <typename, int> friend class simd;
-  // template <typename, typename> friend class simd_view;
+  template <typename, typename, typename> friend class detail::simd_view_impl;
 
 public:
-  using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
+  using BaseClass =
+      detail::simd_view_impl<BaseTy, RegionTy, simd_view<BaseTy, RegionTy>>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
 
@@ -42,9 +44,9 @@ private:
   simd_view(BaseTy &&Base, RegionTy Region) : BaseClass(Base, Region) {}
 
 public:
-  // Disallow copy and move constructors for simd_view.
-  simd_view(const simd_view &Other) = delete;
-  simd_view(simd_view &&Other) = delete;
+  // Default copy and move constructors for simd_view.
+  simd_view(const simd_view &Other) = default;
+  simd_view(simd_view &&Other) = default;
 
   /// @{
   /// Assignment operators.
@@ -57,6 +59,12 @@ public:
     return *this;
   }
   /// @}
+
+  /// Move assignment operator.
+  simd_view &operator=(simd_view &&Other) {
+    *this = Other.read();
+    return *this;
+  }
 
 #define DEF_RELOP(RELOP)                                                       \
   ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
@@ -95,15 +103,18 @@ public:
 ///   bool b = v[0] > v[1] && v[2] < 42;
 ///
 /// \ingroup sycl_esimd
-template <typename BaseTy, bool Is2D, typename T, int StrideY, int StrideX>
-class simd_view<BaseTy, region_base_1<Is2D, T, StrideY, StrideX>>
-    : public detail::simd_view_impl<BaseTy,
-                                    region_base_1<Is2D, T, StrideY, StrideX>> {
+template <typename BaseTy>
+class simd_view<BaseTy, region_base_1<typename BaseTy::element_type>>
+    : public detail::simd_view_impl<
+          BaseTy, region_base_1<typename BaseTy::element_type>,
+          simd_view<BaseTy, region_base_1<typename BaseTy::element_type>>> {
   template <typename, int> friend class simd;
+  template <typename, typename, typename> friend class detail::simd_view_impl;
 
 public:
-  using RegionTy = region_base_1<Is2D, T, StrideY, StrideX>;
-  using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
+  using RegionTy = region_base_1<typename BaseTy::element_type>;
+  using BaseClass =
+      detail::simd_view_impl<BaseTy, RegionTy, simd_view<BaseTy, RegionTy>>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
   static_assert(1 == length, "length of this view is not equal to 1");
@@ -112,10 +123,8 @@ public:
   using element_type = typename ShapeTy::element_type;
 
 private:
-  simd_view(BaseTy &Base, RegionTy Region)
-      : detail::simd_view_impl<BaseTy, RegionTy>(Base, Region) {}
-  simd_view(BaseTy &&Base, RegionTy Region)
-      : detail::simd_view_impl<BaseTy, RegionTy>(Base, Region) {}
+  simd_view(BaseTy &Base, RegionTy Region) : BaseClass(Base, Region) {}
+  simd_view(BaseTy &&Base, RegionTy Region) : BaseClass(Base, Region) {}
 
 public:
   operator element_type() const { return (*this)[0]; }

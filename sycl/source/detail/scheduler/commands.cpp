@@ -160,8 +160,11 @@ static std::string commandToName(Command::CommandType Type) {
 static std::vector<RT::PiEvent>
 getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
   std::vector<RT::PiEvent> RetPiEvents;
-  for (auto &EventImpl : EventImpls)
-    RetPiEvents.push_back(EventImpl->getHandleRef());
+  for (auto &EventImpl : EventImpls) {
+    if (EventImpl->getHandleRef() != nullptr)
+      RetPiEvents.push_back(EventImpl->getHandleRef());
+  }
+
   return RetPiEvents;
 }
 
@@ -1759,15 +1762,10 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
             "device",
             PI_INVALID_OPERATION);
       }
-      if (DeviceImageImpl != nullptr) {
-        RT::PiMem SpecConstsBuffer =
-            DeviceImageImpl->get_spec_const_buffer_ref();
-        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                        &SpecConstsBuffer);
-      } else {
-        Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                        nullptr);
-      }
+      assert(DeviceImageImpl != nullptr);
+      RT::PiMem SpecConstsBuffer = DeviceImageImpl->get_spec_const_buffer_ref();
+      Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                      &SpecConstsBuffer);
       break;
     }
     }
@@ -2241,12 +2239,12 @@ cl_int ExecCGCommand::enqueueImp() {
   case CG::CGTYPE::BarrierWaitlist: {
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
-    if (MQueue->get_device().is_host() || Events.empty()) {
+    std::vector<RT::PiEvent> PiEvents = getPiEvents(Events);
+    if (MQueue->get_device().is_host() || PiEvents.empty()) {
       // NOP for host device.
       // If Events is empty, then the barrier has no effect.
       return PI_SUCCESS;
     }
-    std::vector<RT::PiEvent> PiEvents = getPiEvents(Events);
     const detail::plugin &Plugin = MQueue->getPlugin();
     Plugin.call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], &Event);

@@ -15,6 +15,7 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stream.hpp>
+#include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -494,6 +495,21 @@ void handler::barrier(const std::vector<event> &WaitList) {
   std::transform(
       WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
       [](const event &Event) { return detail::getSyclObjImpl(Event); });
+}
+
+using namespace sycl::detail;
+bool handler::DisableRangeRounding() {
+  return SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>::get();
+}
+
+bool handler::RangeRoundingTrace() {
+  return SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE>::get();
+}
+
+void handler::GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
+                                       size_t &MinRange) {
+  SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
+      MinFactor, GoodFactor, MinRange);
 }
 
 void handler::memcpy(void *Dest, const void *Src, size_t Count) {

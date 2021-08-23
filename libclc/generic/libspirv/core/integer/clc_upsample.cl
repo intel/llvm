@@ -41,6 +41,7 @@
 
 #define __CLC_UPSAMPLE_TYPES()                                                 \
   __CLC_UPSAMPLE_IMPL(short, char, uchar, 8)                                   \
+  __CLC_UPSAMPLE_IMPL(short, schar, uchar, 8)                                  \
   __CLC_UPSAMPLE_IMPL(ushort, uchar, uchar, 8)                                 \
   __CLC_UPSAMPLE_IMPL(int, short, ushort, 16)                                  \
   __CLC_UPSAMPLE_IMPL(uint, ushort, ushort, 16)                                \
