@@ -32,6 +32,8 @@ posix_defines = [
     "HAVE_PTHREAD_GETNAME_NP=1",
     "HAVE_PTHREAD_SETNAME_NP=1",
     "HAVE_PTHREAD_GETSPECIFIC=1",
+    "HAVE_REGISTER_FRAME=1",
+    "HAVE_DEREGISTER_FRAME=1",
 ]
 
 linux_defines = posix_defines + [
@@ -49,6 +51,7 @@ macos_defines = posix_defines + [
     "HAVE_MALLOC_MALLOC_H=1",
     "HAVE_MALLOC_ZONE_STATISTICS=1",
     "HAVE_PROC_PID_RUSAGE=1",
+    "HAVE_UNW_ADD_DYNAMIC_FDE=1",
 ]
 
 win32_defines = [

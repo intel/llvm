@@ -947,6 +947,25 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
   // Verify properties of various specific instruction types
   unsigned Opc = MI->getOpcode();
   switch (Opc) {
+  case TargetOpcode::G_ISNAN: {
+    LLT DstTy = MRI->getType(MI->getOperand(0).getReg());
+    LLT SrcTy = MRI->getType(MI->getOperand(1).getReg());
+    LLT S1 = DstTy.isVector() ? DstTy.getElementType() : DstTy;
+    if (S1 != LLT::scalar(1)) {
+      report("Destination must be a 1-bit scalar or vector of 1-bit elements",
+             MI);
+      break;
+    }
+
+    // Disallow pointers.
+    LLT SrcOrElt = SrcTy.isVector() ? SrcTy.getElementType() : SrcTy;
+    if (!SrcOrElt.isScalar()) {
+      report("Source must be a scalar or vector of scalars", MI);
+      break;
+    }
+    verifyVectorElementMatch(DstTy, SrcTy, MI);
+    break;
+  }
   case TargetOpcode::G_ASSERT_SEXT:
   case TargetOpcode::G_ASSERT_ZEXT: {
     std::string OpcName =
@@ -1392,7 +1411,7 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
       AttributeList Attrs
         = Intrinsic::getAttributes(MF->getFunction().getContext(),
                                    static_cast<Intrinsic::ID>(IntrID));
-      bool DeclHasSideEffects = !Attrs.hasFnAttribute(Attribute::ReadNone);
+      bool DeclHasSideEffects = !Attrs.hasFnAttr(Attribute::ReadNone);
       if (NoSideEffects && DeclHasSideEffects) {
         report("G_INTRINSIC used with intrinsic that accesses memory", MI);
         break;
@@ -1570,11 +1589,8 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
   case TargetOpcode::G_VECREDUCE_UMAX:
   case TargetOpcode::G_VECREDUCE_UMIN: {
     LLT DstTy = MRI->getType(MI->getOperand(0).getReg());
-    LLT SrcTy = MRI->getType(MI->getOperand(1).getReg());
     if (!DstTy.isScalar())
       report("Vector reduction requires a scalar destination type", MI);
-    if (!SrcTy.isVector())
-      report("Vector reduction requires vector source=", MI);
     break;
   }
 
@@ -1596,6 +1612,13 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
              MI);
       break;
     }
+    break;
+  }
+
+  case TargetOpcode::G_LROUND: {
+    if (!MRI->getType(MI->getOperand(0).getReg()).isScalar() ||
+        !MRI->getType(MI->getOperand(1).getReg()).isScalar())
+      report("lround only supports scalars", MI);
     break;
   }
 

@@ -496,14 +496,18 @@ getRegClassForTypeOnBank(LLT Ty, const RegisterBank &RB,
   }
 
   if (RB.getID() == AArch64::FPRRegBankID) {
-    if (Ty.getSizeInBits() <= 16)
+    switch (Ty.getSizeInBits()) {
+    case 8:
+      return &AArch64::FPR8RegClass;
+    case 16:
       return &AArch64::FPR16RegClass;
-    if (Ty.getSizeInBits() == 32)
+    case 32:
       return &AArch64::FPR32RegClass;
-    if (Ty.getSizeInBits() == 64)
+    case 64:
       return &AArch64::FPR64RegClass;
-    if (Ty.getSizeInBits() == 128)
+    case 128:
       return &AArch64::FPR128RegClass;
+    }
     return nullptr;
   }
 
@@ -3830,6 +3834,10 @@ static bool getLaneCopyOpcode(unsigned &CopyOpc, unsigned &ExtractSubReg,
   // Choose a lane copy opcode and subregister based off of the size of the
   // vector's elements.
   switch (EltSize) {
+  case 8:
+    CopyOpc = AArch64::CPYi8;
+    ExtractSubReg = AArch64::bsub;
+    break;
   case 16:
     CopyOpc = AArch64::CPYi16;
     ExtractSubReg = AArch64::hsub;

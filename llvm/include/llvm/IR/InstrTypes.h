@@ -1499,6 +1499,26 @@ public:
     setAttributes(PAL);
   }
 
+  /// Adds the attribute to the function.
+  void addFnAttr(Attribute::AttrKind Kind) {
+    Attrs = Attrs.addFnAttribute(getContext(), Kind);
+  }
+
+  /// Adds the attribute to the function.
+  void addFnAttr(Attribute Attr) {
+    Attrs = Attrs.addFnAttribute(getContext(), Attr);
+  }
+
+  /// Adds the attribute to the return value.
+  void addRetAttr(Attribute::AttrKind Kind) {
+    Attrs = Attrs.addRetAttribute(getContext(), Kind);
+  }
+
+  /// Adds the attribute to the return value.
+  void addRetAttr(Attribute Attr) {
+    Attrs = Attrs.addRetAttribute(getContext(), Attr);
+  }
+
   /// Adds the attribute to the indicated argument
   void addParamAttr(unsigned ArgNo, Attribute::AttrKind Kind) {
     assert(ArgNo < getNumArgOperands() && "Out of bounds");
@@ -1529,9 +1549,31 @@ public:
     setAttributes(PAL);
   }
 
-  void removeAttributes(unsigned i, const AttrBuilder &Attrs) {
+  /// Removes the attributes from the function
+  void removeFnAttrs(const AttrBuilder &Attrs) {
     AttributeList PAL = getAttributes();
-    PAL = PAL.removeAttributes(getContext(), i, Attrs);
+    PAL = PAL.removeFnAttributes(getContext(), Attrs);
+    setAttributes(PAL);
+  }
+
+  /// Removes the attribute from the function
+  void removeFnAttr(Attribute::AttrKind Kind) {
+    AttributeList PAL = getAttributes();
+    PAL = PAL.removeFnAttribute(getContext(), Kind);
+    setAttributes(PAL);
+  }
+
+  /// Removes the attribute from the return value
+  void removeRetAttr(Attribute::AttrKind Kind) {
+    AttributeList PAL = getAttributes();
+    PAL = PAL.removeRetAttribute(getContext(), Kind);
+    setAttributes(PAL);
+  }
+
+  /// Removes the attributes from the return value
+  void removeRetAttrs(const AttrBuilder &Attrs) {
+    AttributeList PAL = getAttributes();
+    PAL = PAL.removeRetAttributes(getContext(), Attrs);
     setAttributes(PAL);
   }
 
@@ -1559,9 +1601,16 @@ public:
   }
 
   /// adds the dereferenceable attribute to the list of attributes.
-  void addDereferenceableAttr(unsigned i, uint64_t Bytes) {
+  void addDereferenceableParamAttr(unsigned i, uint64_t Bytes) {
     AttributeList PAL = getAttributes();
-    PAL = PAL.addDereferenceableAttr(getContext(), i, Bytes);
+    PAL = PAL.addDereferenceableParamAttr(getContext(), i, Bytes);
+    setAttributes(PAL);
+  }
+
+  /// adds the dereferenceable attribute to the list of attributes.
+  void addDereferenceableRetAttr(uint64_t Bytes) {
+    AttributeList PAL = getAttributes();
+    PAL = PAL.addDereferenceableRetAttr(getContext(), Bytes);
     setAttributes(PAL);
   }
 
@@ -1591,6 +1640,16 @@ public:
   /// Get the attribute of a given kind at a position.
   Attribute getAttribute(unsigned i, StringRef Kind) const {
     return getAttributes().getAttribute(i, Kind);
+  }
+
+  /// Get the attribute of a given kind for the function.
+  Attribute getFnAttr(StringRef Kind) const {
+    return getAttributes().getFnAttr(Kind);
+  }
+
+  /// Get the attribute of a given kind for the function.
+  Attribute getFnAttr(Attribute::AttrKind Kind) const {
+    return getAttributes().getFnAttr(Kind);
   }
 
   /// Get the attribute of a given kind from a given arg
@@ -1743,14 +1802,26 @@ public:
 
   /// Extract the number of dereferenceable bytes for a call or
   /// parameter (0=unknown).
-  uint64_t getDereferenceableBytes(unsigned i) const {
-    return Attrs.getDereferenceableBytes(i);
+  uint64_t getRetDereferenceableBytes() const {
+    return Attrs.getRetDereferenceableBytes();
   }
 
-  /// Extract the number of dereferenceable_or_null bytes for a call or
+  /// Extract the number of dereferenceable bytes for a call or
   /// parameter (0=unknown).
-  uint64_t getDereferenceableOrNullBytes(unsigned i) const {
-    return Attrs.getDereferenceableOrNullBytes(i);
+  uint64_t getParamDereferenceableBytes(unsigned i) const {
+    return Attrs.getParamDereferenceableBytes(i);
+  }
+
+  /// Extract the number of dereferenceable_or_null bytes for a call
+  /// (0=unknown).
+  uint64_t getRetDereferenceableOrNullBytes() const {
+    return Attrs.getRetDereferenceableOrNullBytes();
+  }
+
+  /// Extract the number of dereferenceable_or_null bytes for a
+  /// parameter (0=unknown).
+  uint64_t getParamDereferenceableOrNullBytes(unsigned i) const {
+    return Attrs.getParamDereferenceableOrNullBytes(i);
   }
 
   /// Return true if the return value is known to be not null.
@@ -1760,7 +1831,7 @@ public:
 
   /// Determine if the return value is marked with NoAlias attribute.
   bool returnDoesNotAlias() const {
-    return Attrs.hasAttribute(AttributeList::ReturnIndex, Attribute::NoAlias);
+    return Attrs.hasRetAttr(Attribute::NoAlias);
   }
 
   /// If one of the arguments has the 'returned' attribute, returns its
@@ -1779,40 +1850,30 @@ public:
 
   /// Return true if the call should not be inlined.
   bool isNoInline() const { return hasFnAttr(Attribute::NoInline); }
-  void setIsNoInline() {
-    addAttribute(AttributeList::FunctionIndex, Attribute::NoInline);
-  }
+  void setIsNoInline() { addFnAttr(Attribute::NoInline); }
   /// Determine if the call does not access memory.
   bool doesNotAccessMemory() const { return hasFnAttr(Attribute::ReadNone); }
-  void setDoesNotAccessMemory() {
-    addAttribute(AttributeList::FunctionIndex, Attribute::ReadNone);
-  }
+  void setDoesNotAccessMemory() { addFnAttr(Attribute::ReadNone); }
 
   /// Determine if the call does not access or only reads memory.
   bool onlyReadsMemory() const {
     return doesNotAccessMemory() || hasFnAttr(Attribute::ReadOnly);
   }
 
-  void setOnlyReadsMemory() {
-    addAttribute(AttributeList::FunctionIndex, Attribute::ReadOnly);
-  }
+  void setOnlyReadsMemory() { addFnAttr(Attribute::ReadOnly); }
 
   /// Determine if the call does not access or only writes memory.
   bool doesNotReadMemory() const {
     return doesNotAccessMemory() || hasFnAttr(Attribute::WriteOnly);
   }
-  void setDoesNotReadMemory() {
-    addAttribute(AttributeList::FunctionIndex, Attribute::WriteOnly);
-  }
+  void setDoesNotReadMemory() { addFnAttr(Attribute::WriteOnly); }
 
   /// Determine if the call can access memmory only using pointers based
   /// on its arguments.
   bool onlyAccessesArgMemory() const {
     return hasFnAttr(Attribute::ArgMemOnly);
   }
-  void setOnlyAccessesArgMemory() {
-    addAttribute(AttributeList::FunctionIndex, Attribute::ArgMemOnly);
-  }
+  void setOnlyAccessesArgMemory() { addFnAttr(Attribute::ArgMemOnly); }
 
   /// Determine if the function may only access memory that is
   /// inaccessible from the IR.
@@ -1820,7 +1881,7 @@ public:
     return hasFnAttr(Attribute::InaccessibleMemOnly);
   }
   void setOnlyAccessesInaccessibleMemory() {
-    addAttribute(AttributeList::FunctionIndex, Attribute::InaccessibleMemOnly);
+    addFnAttr(Attribute::InaccessibleMemOnly);
   }
 
   /// Determine if the function may only access memory that is
@@ -1829,44 +1890,31 @@ public:
     return hasFnAttr(Attribute::InaccessibleMemOrArgMemOnly);
   }
   void setOnlyAccessesInaccessibleMemOrArgMem() {
-    addAttribute(AttributeList::FunctionIndex,
-                 Attribute::InaccessibleMemOrArgMemOnly);
+    addFnAttr(Attribute::InaccessibleMemOrArgMemOnly);
   }
   /// Determine if the call cannot return.
   bool doesNotReturn() const { return hasFnAttr(Attribute::NoReturn); }
-  void setDoesNotReturn() {
-    addAttribute(AttributeList::FunctionIndex, Attribute::NoReturn);
-  }
+  void setDoesNotReturn() { addFnAttr(Attribute::NoReturn); }
 
   /// Determine if the call should not perform indirect branch tracking.
   bool doesNoCfCheck() const { return hasFnAttr(Attribute::NoCfCheck); }
 
   /// Determine if the call cannot unwind.
   bool doesNotThrow() const { return hasFnAttr(Attribute::NoUnwind); }
-  void setDoesNotThrow() {
-    addAttribute(AttributeList::FunctionIndex, Attribute::NoUnwind);
-  }
+  void setDoesNotThrow() { addFnAttr(Attribute::NoUnwind); }
 
   /// Determine if the invoke cannot be duplicated.
   bool cannotDuplicate() const { return hasFnAttr(Attribute::NoDuplicate); }
-  void setCannotDuplicate() {
-    addAttribute(AttributeList::FunctionIndex, Attribute::NoDuplicate);
-  }
+  void setCannotDuplicate() { addFnAttr(Attribute::NoDuplicate); }
 
   /// Determine if the call cannot be tail merged.
   bool cannotMerge() const { return hasFnAttr(Attribute::NoMerge); }
-  void setCannotMerge() {
-    addAttribute(AttributeList::FunctionIndex, Attribute::NoMerge);
-  }
+  void setCannotMerge() { addFnAttr(Attribute::NoMerge); }
 
   /// Determine if the invoke is convergent
   bool isConvergent() const { return hasFnAttr(Attribute::Convergent); }
-  void setConvergent() {
-    addAttribute(AttributeList::FunctionIndex, Attribute::Convergent);
-  }
-  void setNotConvergent() {
-    removeAttribute(AttributeList::FunctionIndex, Attribute::Convergent);
-  }
+  void setConvergent() { addFnAttr(Attribute::Convergent); }
+  void setNotConvergent() { removeFnAttr(Attribute::Convergent); }
 
   /// Determine if the call returns a structure through first
   /// pointer argument.
@@ -2258,7 +2306,7 @@ private:
   bool hasFnAttrOnCalledFunction(StringRef Kind) const;
 
   template <typename AttrKind> bool hasFnAttrImpl(AttrKind Kind) const {
-    if (Attrs.hasFnAttribute(Kind))
+    if (Attrs.hasFnAttr(Kind))
       return true;
 
     // Operand bundles override attributes on the called function, but don't
@@ -2272,12 +2320,12 @@ private:
   /// Determine whether the return value has the given attribute. Supports
   /// Attribute::AttrKind and StringRef as \p AttrKind types.
   template <typename AttrKind> bool hasRetAttrImpl(AttrKind Kind) const {
-    if (Attrs.hasAttribute(AttributeList::ReturnIndex, Kind))
+    if (Attrs.hasRetAttr(Kind))
       return true;
 
     // Look at the callee, if available.
     if (const Function *F = getCalledFunction())
-      return F->getAttributes().hasAttribute(AttributeList::ReturnIndex, Kind);
+      return F->getAttributes().hasRetAttr(Kind);
     return false;
   }
 };
