@@ -100,11 +100,9 @@ TEST(KernelID, AllProgramKernelIds) {
 
   for (const sycl::kernel_id &TestKernelID :
        {TestKernel1ID, TestKernel2ID, TestKernel3ID}) {
-    bool Found = std::any_of(AllKernelIDs.begin(), AllKernelIDs.end(),
-                             [&TestKernelID](const sycl::kernel_id &KernelID) {
-                               return TestKernelID == KernelID;
-                             });
-    EXPECT_TRUE(Found);
+    auto FoundKernelID =
+        std::find(AllKernelIDs.begin(), AllKernelIDs.end(), TestKernelID);
+    EXPECT_NE(FoundKernelID, AllKernelIDs.end());
   }
 }
 
@@ -140,12 +138,9 @@ TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
 
   for (const sycl::kernel_id &TestKernelID :
        {TestKernel1ID, TestKernel2ID, TestKernel3ID}) {
-    bool Found =
-        std::any_of(BundleKernelIDs.begin(), BundleKernelIDs.end(),
-                    [&TestKernelID](const sycl::kernel_id &BundleKernelID) {
-                      return TestKernelID == BundleKernelID;
-                    });
-    EXPECT_TRUE(Found);
+    auto FoundKernelID =
+        std::find(BundleKernelIDs.begin(), BundleKernelIDs.end(), TestKernelID);
+    EXPECT_NE(FoundKernelID, BundleKernelIDs.end());
   }
 }
 
@@ -177,12 +172,9 @@ TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
   std::vector<sycl::kernel_id> AllKernelIDs = sycl::get_kernel_ids();
 
   for (const sycl::kernel_id &BundleKernelID : BundleKernelIDs) {
-    bool Found =
-        std::any_of(AllKernelIDs.begin(), AllKernelIDs.end(),
-                    [&BundleKernelID](const sycl::kernel_id &KernelID) {
-                      return BundleKernelID == KernelID;
-                    });
-    EXPECT_TRUE(Found);
+    auto FoundKernelID =
+        std::find(AllKernelIDs.begin(), AllKernelIDs.end(), BundleKernelID);
+    EXPECT_NE(FoundKernelID, AllKernelIDs.end());
   }
 }
 
