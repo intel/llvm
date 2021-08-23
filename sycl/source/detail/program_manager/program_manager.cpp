@@ -1273,7 +1273,7 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
-kernel_id ProgramManager::getSYCLKernelID(std::string KernelName) {
+kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
 
   auto KernelID = m_KernelIDs.find(KernelName);

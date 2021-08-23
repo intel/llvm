@@ -98,12 +98,12 @@ TEST(KernelID, AllProgramKernelIds) {
   sycl::kernel_id TestKernel2ID = sycl::get_kernel_id<TestKernel2>();
   sycl::kernel_id TestKernel3ID = sycl::get_kernel_id<TestKernel3>();
 
-  for (sycl::kernel_id TestKernelID :
+  for (const sycl::kernel_id &TestKernelID :
        {TestKernel1ID, TestKernel2ID, TestKernel3ID}) {
-    bool Found = false;
-    for (sycl::kernel_id KernelID : AllKernelIDs) {
-      Found = TestKernelID == KernelID || Found;
-    }
+    bool Found = std::any_of(AllKernelIDs.begin(), AllKernelIDs.end(),
+                             [&TestKernelID](const sycl::kernel_id &KernelID) {
+                               return TestKernelID == KernelID;
+                             });
     EXPECT_TRUE(Found);
   }
 }
@@ -138,12 +138,13 @@ TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
   sycl::kernel_id TestKernel2ID = sycl::get_kernel_id<TestKernel2>();
   sycl::kernel_id TestKernel3ID = sycl::get_kernel_id<TestKernel3>();
 
-  for (sycl::kernel_id TestKernelID :
+  for (const sycl::kernel_id &TestKernelID :
        {TestKernel1ID, TestKernel2ID, TestKernel3ID}) {
-    bool Found = false;
-    for (sycl::kernel_id BundleKernelID : BundleKernelIDs) {
-      Found = TestKernelID == BundleKernelID || Found;
-    }
+    bool Found =
+        std::any_of(BundleKernelIDs.begin(), BundleKernelIDs.end(),
+                    [&TestKernelID](const sycl::kernel_id &BundleKernelID) {
+                      return TestKernelID == BundleKernelID;
+                    });
     EXPECT_TRUE(Found);
   }
 }
@@ -175,11 +176,12 @@ TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
   std::vector<sycl::kernel_id> BundleKernelIDs = KernelBundle.get_kernel_ids();
   std::vector<sycl::kernel_id> AllKernelIDs = sycl::get_kernel_ids();
 
-  for (sycl::kernel_id BundleKernelID : BundleKernelIDs) {
-    bool Found = false;
-    for (sycl::kernel_id KernelID : AllKernelIDs) {
-      Found = KernelID == BundleKernelID || Found;
-    }
+  for (const sycl::kernel_id &BundleKernelID : BundleKernelIDs) {
+    bool Found =
+        std::any_of(AllKernelIDs.begin(), AllKernelIDs.end(),
+                    [&BundleKernelID](const sycl::kernel_id &KernelID) {
+                      return BundleKernelID == KernelID;
+                    });
     EXPECT_TRUE(Found);
   }
 }
@@ -210,7 +212,7 @@ TEST(KernelID, KernelIDHasKernel) {
 
   std::vector<sycl::kernel_id> BundleKernelIDs = KernelBundle.get_kernel_ids();
 
-  for (sycl::kernel_id BundleKernelID : BundleKernelIDs) {
+  for (const sycl::kernel_id &BundleKernelID : BundleKernelIDs) {
     EXPECT_TRUE(KernelBundle.has_kernel(BundleKernelID));
   }
 

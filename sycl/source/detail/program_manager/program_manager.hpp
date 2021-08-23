@@ -155,7 +155,7 @@ public:
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name.
-  kernel_id getSYCLKernelID(std::string KernelName);
+  kernel_id getSYCLKernelID(const std::string &KernelName);
 
   // The function returns a vector containing all unique SYCL kernel identifiers
   // in SYCL device images.
