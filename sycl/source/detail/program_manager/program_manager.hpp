@@ -281,6 +281,8 @@ private:
   std::unordered_map<OSModuleHandle, KernelSetId> m_OSModuleKernelSets;
 
   /// Maps names of kernels to their unique kernel IDs.
+  /// TODO: Use std::unordered_set with transparent hash and equality functions
+  ///       when C++20 is enabled for the runtime library.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
   std::unordered_map<std::string, kernel_id> m_KernelIDs;
 
