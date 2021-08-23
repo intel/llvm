@@ -117,6 +117,29 @@ SYCL_ESIMD_FUNCTION void bar() {
   foo(v0.select<8, 1>(0)); // rvalue
 }
 
+// This test checks that simd_view_impl APIs return objects of derived class.
+// I.e. they never return objects of simd_view_impl class.
+void test_simd_view_impl_api_ret_types() SYCL_ESIMD_FUNCTION {
+  simd<float, 4> x = 0;
+  auto v1 =
+      x.select<2, 1>(0); // simd_view<simd<float, 4>, region1d_t<float, 2, 1>>
+  static_assert(detail::is_simd_view_v<decltype(v1)>::value, "");
+  auto v2 = v1.select<1, 1>(
+      0); // simd_view<simd<float, 4>, std::pair<region_base<false, float, 1, 0,
+          // 1, 1>, region_base<false, float, 1, 0, 2, 1>>>
+  static_assert(detail::is_simd_view_v<decltype(v1)>::value, "");
+
+  auto v2_int = v2.bit_cast_view<int>();
+  static_assert(detail::is_simd_view_v<decltype(v2_int)>::value, "");
+  auto v2_int_2D = v2.bit_cast_view<int, 1, 1>();
+  static_assert(detail::is_simd_view_v<decltype(v2_int_2D)>::value, "");
+
+  auto v3 = x.select<2, 1>(2);
+  auto &v4 = (v1 += v3);
+  static_assert(detail::is_simd_view_v<decltype(v4)>::value, "");
+  static_assert(detail::is_simd_view_v<decltype(++v4)>::value, "");
+}
+
 void test_simd_view_subscript() SYCL_ESIMD_FUNCTION {
   simd<int, 4> v = 1;
   auto vv = v.select<2, 1>(0);
