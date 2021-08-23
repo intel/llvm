@@ -30,6 +30,13 @@ int test(queue &Q, T Identity, T Init, BinaryOperation BOp,
     return 0;
   }
 
+  // TODO: Perhaps, this is a _temporary_ fix for CI. The test may run
+  // for too long when the range is big. That is especially bad on ACC.
+  if (Range.size() > 65536) {
+    std::cout << " SKIPPED due to risk of timeout in CI" << std::endl;
+    return 0;
+  }
+
   buffer<T, Dims> InBuf(Range);
   buffer<T, 1> OutBuf(1);
 
@@ -91,6 +98,13 @@ int testUSM(queue &Q, T Identity, T Init, BinaryOperation BOp,
   constexpr size_t OneGB = 1LL * 1024 * 1024 * 1024;
   if (Range.size() * sizeof(T) > OneGB) {
     std::cout << " SKIPPED due to too big data size" << std::endl;
+    return 0;
+  }
+
+  // TODO: Perhaps, this is a _temporary_ fix for CI. The test may run
+  // for too long when the range is big. That is especially bad on ACC.
+  if (Range.size() > 65536) {
+    std::cout << " SKIPPED due to risk of timeout in CI" << std::endl;
     return 0;
   }
 
