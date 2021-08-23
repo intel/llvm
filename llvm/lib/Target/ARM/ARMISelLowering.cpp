@@ -982,6 +982,7 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
   if (Subtarget->hasNEON() || Subtarget->hasMVEIntegerOps()) {
     setTargetDAGCombine(ISD::BUILD_VECTOR);
     setTargetDAGCombine(ISD::VECTOR_SHUFFLE);
+    setTargetDAGCombine(ISD::INSERT_SUBVECTOR);
     setTargetDAGCombine(ISD::INSERT_VECTOR_ELT);
     setTargetDAGCombine(ISD::EXTRACT_VECTOR_ELT);
     setTargetDAGCombine(ISD::SIGN_EXTEND_INREG);
@@ -13088,7 +13089,8 @@ static SDValue TryDistrubutionADDVecReduce(SDNode *N, SelectionDAG &DAG) {
     //   add(add(X, vecreduce(Y)), vecreduce(Z))
     // to make better use of vaddva style instructions.
     if (VT == MVT::i32 && N1.getOpcode() == ISD::ADD && !IsVecReduce(N0) &&
-        IsVecReduce(N1.getOperand(0)) && IsVecReduce(N1.getOperand(1))) {
+        IsVecReduce(N1.getOperand(0)) && IsVecReduce(N1.getOperand(1)) &&
+        !isa<ConstantSDNode>(N0)) {
       SDValue Add0 = DAG.getNode(ISD::ADD, dl, VT, N0, N1.getOperand(0));
       return DAG.getNode(ISD::ADD, dl, VT, Add0, N1.getOperand(1));
     }
@@ -15034,6 +15036,47 @@ static SDValue FlattenVectorShuffle(ShuffleVectorSDNode *N, SelectionDAG &DAG) {
 
   return DAG.getNode(Op.getOpcode(), SDLoc(Op), Op.getValueType(),
                      Op0->getOperand(0), Op1->getOperand(0));
+}
+
+static SDValue
+PerformInsertSubvectorCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
+  SDValue Vec = N->getOperand(0);
+  SDValue SubVec = N->getOperand(1);
+  uint64_t IdxVal = N->getConstantOperandVal(2);
+  EVT VecVT = Vec.getValueType();
+  EVT SubVT = SubVec.getValueType();
+
+  // Only do this for legal fixed vector types.
+  if (!VecVT.isFixedLengthVector() ||
+      !DCI.DAG.getTargetLoweringInfo().isTypeLegal(VecVT) ||
+      !DCI.DAG.getTargetLoweringInfo().isTypeLegal(SubVT))
+    return SDValue();
+
+  // Ignore widening patterns.
+  if (IdxVal == 0 && Vec.isUndef())
+    return SDValue();
+
+  // Subvector must be half the width and an "aligned" insertion.
+  unsigned NumSubElts = SubVT.getVectorNumElements();
+  if ((SubVT.getSizeInBits() * 2) != VecVT.getSizeInBits() ||
+      (IdxVal != 0 && IdxVal != NumSubElts))
+    return SDValue();
+
+  // Fold insert_subvector -> concat_vectors
+  // insert_subvector(Vec,Sub,lo) -> concat_vectors(Sub,extract(Vec,hi))
+  // insert_subvector(Vec,Sub,hi) -> concat_vectors(extract(Vec,lo),Sub)
+  SDLoc DL(N);
+  SDValue Lo, Hi;
+  if (IdxVal == 0) {
+    Lo = SubVec;
+    Hi = DCI.DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, SubVT, Vec,
+                         DCI.DAG.getVectorIdxConstant(NumSubElts, DL));
+  } else {
+    Lo = DCI.DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, SubVT, Vec,
+                         DCI.DAG.getVectorIdxConstant(0, DL));
+    Hi = SubVec;
+  }
+  return DCI.DAG.getNode(ISD::CONCAT_VECTORS, DL, VecVT, Lo, Hi);
 }
 
 // shuffle(MVETrunc(x, y)) -> VMOVN(x, y)
@@ -17846,6 +17889,7 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::EXTRACT_VECTOR_ELT:
     return PerformExtractEltCombine(N, DCI, Subtarget);
   case ISD::SIGN_EXTEND_INREG: return PerformSignExtendInregCombine(N, DCI.DAG);
+  case ISD::INSERT_SUBVECTOR: return PerformInsertSubvectorCombine(N, DCI);
   case ISD::VECTOR_SHUFFLE: return PerformVECTOR_SHUFFLECombine(N, DCI.DAG);
   case ARMISD::VDUPLANE: return PerformVDUPLANECombine(N, DCI, Subtarget);
   case ARMISD::VDUP: return PerformVDUPCombine(N, DCI.DAG, Subtarget);

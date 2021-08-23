@@ -17252,11 +17252,12 @@ Overview:
 
 The '``llvm.matrix.column.major.load.*``' intrinsics load a ``<Rows> x <Cols>``
 matrix using a stride of ``%Stride`` to compute the start address of the
-different columns.  This allows for convenient loading of sub matrixes. If
-``<IsVolatile>`` is true, the intrinsic is considered a :ref:`volatile memory
-access <volatile>`. The result matrix is returned in the result vector. If the
-``%Ptr`` argument is known to be aligned to some boundary, this can be
-specified as an attribute on the argument.
+different columns.  The offset is computed using ``%Stride``'s bitwidth. This
+allows for convenient loading of sub matrixes. If ``<IsVolatile>`` is true, the
+intrinsic is considered a :ref:`volatile memory access <volatile>`. The result
+matrix is returned in the result vector. If the ``%Ptr`` argument is known to
+be aligned to some boundary, this can be specified as an attribute on the
+argument.
 
 Arguments:
 """"""""""
@@ -17291,7 +17292,8 @@ Overview:
 
 The '``llvm.matrix.column.major.store.*``' intrinsics store the ``<Rows> x
 <Cols>`` matrix in ``%In`` to memory using a stride of ``%Stride`` between
-columns.  If ``<IsVolatile>`` is true, the intrinsic is considered a
+columns. The offset is computed using ``%Stride``'s bitwidth. If
+``<IsVolatile>`` is true, the intrinsic is considered a
 :ref:`volatile memory access <volatile>`.
 
 If the ``%Ptr`` argument is known to be aligned to some boundary, this can be
@@ -20983,6 +20985,52 @@ The '``llvm.set.rounding``' intrinsic sets the current rounding mode. It is
 similar to C library function 'fesetround', however this intrinsic does not
 return any value and uses platform-independent representation of IEEE rounding
 modes.
+
+
+Floating Point Test Intrinsics
+------------------------------
+
+These functions get properties of floating point values.
+
+
+'``llvm.isnan``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare i1 @llvm.isnan(<fptype> <op>)
+      declare <N x i1> @llvm.isnan(<vector-fptype> <op>)
+
+Overview:
+"""""""""
+
+The '``llvm.isnan``' intrinsic returns a boolean value or vector of boolean
+values depending on whether the value is NaN.
+
+If the operand is a floating-point scalar, then the result type is a
+boolean (:ref:`i1 <t_integer>`).
+
+If the operand is a floating-point vector, then the result type is a
+vector of boolean with the same number of elements as the operand.
+
+Arguments:
+""""""""""
+
+The argument to the '``llvm.isnan``' intrinsic must be
+:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>`
+of floating-point values.
+
+
+Semantics:
+""""""""""
+
+The function tests if ``op`` is NaN. If ``op`` is a vector, then the
+check is made element by element. Each test yields an :ref:`i1 <t_integer>`
+result, which is ``true``, if the value is NaN. The function never raises
+floating point exceptions.
 
 
 General Intrinsics

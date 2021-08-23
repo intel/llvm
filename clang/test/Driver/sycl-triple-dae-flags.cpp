@@ -1,7 +1,7 @@
 // RUN: %clangxx -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice -fsycl-dead-args-optimization %s 2> %t.cuda.out
 // RUN: FileCheck %s --input-file %t.cuda.out
 //
-// RUN: %clangxx -### -fsycl -fsycl-targets=amdgcn-amd-amdhsa-sycldevice -fsycl-dead-args-optimization %s 2> %t.rocm.out
+// RUN: %clangxx -### -fsycl -fsycl-targets=amdgcn-amd-amdhsa-sycldevice -Xsycl-target-backend --offload-arch=gfx906 -fsycl-dead-args-optimization %s 2> %t.rocm.out
 // RUN: FileCheck %s --input-file %t.rocm.out
 // CHECK-NOT: -fenable-sycl-dae
 // CHECK-NOT: -emit-param-info

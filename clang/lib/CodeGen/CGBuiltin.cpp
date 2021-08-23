@@ -3068,37 +3068,17 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     // ZExt bool to int type.
     return RValue::get(Builder.CreateZExt(LHS, ConvertType(E->getType())));
   }
+
   case Builtin::BI__builtin_isnan: {
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(*this, E);
     Value *V = EmitScalarExpr(E->getArg(0));
-    llvm::Type *Ty = V->getType();
-    const llvm::fltSemantics &Semantics = Ty->getFltSemantics();
-    if (!Builder.getIsFPConstrained() ||
-        Builder.getDefaultConstrainedExcept() == fp::ebIgnore ||
-        !Ty->isIEEE()) {
-      V = Builder.CreateFCmpUNO(V, V, "cmp");
-      return RValue::get(Builder.CreateZExt(V, ConvertType(E->getType())));
-    }
 
     if (Value *Result = getTargetHooks().testFPKind(V, BuiltinID, Builder, CGM))
       return RValue::get(Result);
 
-    // NaN has all exp bits set and a non zero significand. Therefore:
-    // isnan(V) == ((exp mask - (abs(V) & exp mask)) < 0)
-    unsigned bitsize = Ty->getScalarSizeInBits();
-    llvm::IntegerType *IntTy = Builder.getIntNTy(bitsize);
-    Value *IntV = Builder.CreateBitCast(V, IntTy);
-    APInt AndMask = APInt::getSignedMaxValue(bitsize);
-    Value *AbsV =
-        Builder.CreateAnd(IntV, llvm::ConstantInt::get(IntTy, AndMask));
-    APInt ExpMask = APFloat::getInf(Semantics).bitcastToAPInt();
-    Value *Sub =
-        Builder.CreateSub(llvm::ConstantInt::get(IntTy, ExpMask), AbsV);
-    // V = sign bit (Sub) <=> V = (Sub < 0)
-    V = Builder.CreateLShr(Sub, llvm::ConstantInt::get(IntTy, bitsize - 1));
-    if (bitsize > 32)
-      V = Builder.CreateTrunc(V, ConvertType(E->getType()));
-    return RValue::get(V);
+    Function *F = CGM.getIntrinsic(Intrinsic::isnan, V->getType());
+    Value *Call = Builder.CreateCall(F, V);
+    return RValue::get(Builder.CreateZExt(Call, ConvertType(E->getType())));
   }
 
   case Builtin::BI__builtin_matrix_transpose: {
@@ -12697,6 +12677,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_storeups512_mask:
     return EmitX86MaskedStore(*this, Ops, Align(1));
 
+  case X86::BI__builtin_ia32_storesh128_mask:
   case X86::BI__builtin_ia32_storess128_mask:
   case X86::BI__builtin_ia32_storesd128_mask:
     return EmitX86MaskedStore(*this, Ops, Align(1));
@@ -12832,6 +12813,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_loaddqudi512_mask:
     return EmitX86MaskedLoad(*this, Ops, Align(1));
 
+  case X86::BI__builtin_ia32_loadsh128_mask:
   case X86::BI__builtin_ia32_loadss128_mask:
   case X86::BI__builtin_ia32_loadsd128_mask:
     return EmitX86MaskedLoad(*this, Ops, Align(1));
@@ -13711,6 +13693,9 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_selectq_128:
   case X86::BI__builtin_ia32_selectq_256:
   case X86::BI__builtin_ia32_selectq_512:
+  case X86::BI__builtin_ia32_selectph_128:
+  case X86::BI__builtin_ia32_selectph_256:
+  case X86::BI__builtin_ia32_selectph_512:
   case X86::BI__builtin_ia32_selectps_128:
   case X86::BI__builtin_ia32_selectps_256:
   case X86::BI__builtin_ia32_selectps_512:
@@ -13718,6 +13703,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_selectpd_256:
   case X86::BI__builtin_ia32_selectpd_512:
     return EmitX86Select(*this, Ops[0], Ops[1], Ops[2]);
+  case X86::BI__builtin_ia32_selectsh_128:
   case X86::BI__builtin_ia32_selectss_128:
   case X86::BI__builtin_ia32_selectsd_128: {
     Value *A = Builder.CreateExtractElement(Ops[1], (uint64_t)0);
@@ -16203,6 +16189,74 @@ Value *CodeGenFunction::EmitAMDGPUBuiltinExpr(unsigned BuiltinID,
     Src0 = Builder.CreatePointerBitCastOrAddrSpaceCast(Src0, PTy);
     return Builder.CreateCall(F, { Src0, Src1, Src2, Src3, Src4 });
   }
+  case AMDGPU::BI__builtin_amdgcn_global_atomic_fadd_f64:
+  case AMDGPU::BI__builtin_amdgcn_global_atomic_fadd_f32:
+  case AMDGPU::BI__builtin_amdgcn_global_atomic_fadd_v2f16:
+  case AMDGPU::BI__builtin_amdgcn_global_atomic_fmin_f64:
+  case AMDGPU::BI__builtin_amdgcn_global_atomic_fmax_f64:
+  case AMDGPU::BI__builtin_amdgcn_flat_atomic_fadd_f64:
+  case AMDGPU::BI__builtin_amdgcn_flat_atomic_fmin_f64:
+  case AMDGPU::BI__builtin_amdgcn_flat_atomic_fmax_f64: {
+    Intrinsic::ID IID;
+    llvm::Type *ArgTy = llvm::Type::getDoubleTy(getLLVMContext());
+    switch (BuiltinID) {
+    case AMDGPU::BI__builtin_amdgcn_global_atomic_fadd_f32:
+      ArgTy = llvm::Type::getFloatTy(getLLVMContext());
+      IID = Intrinsic::amdgcn_global_atomic_fadd;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_global_atomic_fadd_v2f16:
+      ArgTy = llvm::FixedVectorType::get(
+          llvm::Type::getHalfTy(getLLVMContext()), 2);
+      IID = Intrinsic::amdgcn_global_atomic_fadd;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_global_atomic_fadd_f64:
+      IID = Intrinsic::amdgcn_global_atomic_fadd;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_global_atomic_fmin_f64:
+      IID = Intrinsic::amdgcn_global_atomic_fmin;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_global_atomic_fmax_f64:
+      IID = Intrinsic::amdgcn_global_atomic_fmax;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_flat_atomic_fadd_f64:
+      IID = Intrinsic::amdgcn_flat_atomic_fadd;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_flat_atomic_fmin_f64:
+      IID = Intrinsic::amdgcn_flat_atomic_fmin;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_flat_atomic_fmax_f64:
+      IID = Intrinsic::amdgcn_flat_atomic_fmax;
+      break;
+    }
+    llvm::Value *Addr = EmitScalarExpr(E->getArg(0));
+    llvm::Value *Val = EmitScalarExpr(E->getArg(1));
+    llvm::Function *F =
+        CGM.getIntrinsic(IID, {ArgTy, Addr->getType(), Val->getType()});
+    return Builder.CreateCall(F, {Addr, Val});
+  }
+  case AMDGPU::BI__builtin_amdgcn_ds_atomic_fadd_f64:
+  case AMDGPU::BI__builtin_amdgcn_ds_atomic_fadd_f32: {
+    Intrinsic::ID IID;
+    llvm::Type *ArgTy;
+    switch (BuiltinID) {
+    case AMDGPU::BI__builtin_amdgcn_ds_atomic_fadd_f32:
+      ArgTy = llvm::Type::getFloatTy(getLLVMContext());
+      IID = Intrinsic::amdgcn_ds_fadd;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_ds_atomic_fadd_f64:
+      ArgTy = llvm::Type::getDoubleTy(getLLVMContext());
+      IID = Intrinsic::amdgcn_ds_fadd;
+      break;
+    }
+    llvm::Value *Addr = EmitScalarExpr(E->getArg(0));
+    llvm::Value *Val = EmitScalarExpr(E->getArg(1));
+    llvm::Constant *ZeroI32 = llvm::ConstantInt::getIntegerValue(
+        llvm::Type::getInt32Ty(getLLVMContext()), APInt(32, 0, true));
+    llvm::Constant *ZeroI1 = llvm::ConstantInt::getIntegerValue(
+        llvm::Type::getInt1Ty(getLLVMContext()), APInt(1, 0));
+    llvm::Function *F = CGM.getIntrinsic(IID, {ArgTy});
+    return Builder.CreateCall(F, {Addr, Val, ZeroI32, ZeroI32, ZeroI1});
+  }
   case AMDGPU::BI__builtin_amdgcn_read_exec: {
     CallInst *CI = cast<CallInst>(
       EmitSpecialRegisterBuiltin(*this, E, Int64Ty, Int64Ty, NormalRead, "exec"));
@@ -18271,22 +18325,18 @@ RValue CodeGenFunction::EmitIntelFPGARegBuiltin(const CallExpr *E,
                                                 ReturnValueSlot ReturnValue) {
   const Expr *PtrArg = E->getArg(0);
   QualType ArgType = PtrArg->getType();
-  llvm::Value *V = nullptr;
   StringRef AnnotStr = "__builtin_intel_fpga_reg";
 
-  if (ArgType->isStructureOrClassType() || ArgType->isUnionType()) {
-    RValue RV = EmitAnyExpr(PtrArg);
-    Address A = EmitIntelFPGAFieldAnnotations(E->getExprLoc(),
-                                              RV.getAggregateAddress(),
-                                              AnnotStr);
-    llvm::Type *VTy = ReturnValue.getValue().getPointer()->getType();
-    uint64_t SizeVal = CGM.getDataLayout().getTypeAllocSize(VTy);
-    Builder.CreateMemCpy(ReturnValue.getValue(), A, SizeVal, false);
+  if (ArgType->isRecordType()) {
+    Address DstAddr = ReturnValue.getValue();
+    EmitAnyExprToMem(PtrArg, DstAddr, ArgType.getQualifiers(), true);
+    Address A =
+        EmitIntelFPGAFieldAnnotations(E->getExprLoc(), DstAddr, AnnotStr);
     return RValue::getAggregate(A);
   }
 
   // if scalar type
-  V = EmitScalarExpr(PtrArg);
+  llvm::Value *V = EmitScalarExpr(PtrArg);
 
   // llvm.annotation does not accept anything but integer types.
   llvm::Type *OrigVType = V->getType();

@@ -240,6 +240,11 @@ static void performChecks() {
     return;
   }
 
+  if (Plt.get_backend() == sycl::backend::rocm) {
+    std::cerr << "Test is not supported on ROCm platform, skipping\n";
+    return;
+  }
+
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 

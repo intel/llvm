@@ -107,8 +107,11 @@ std::shared_ptr<ProbeBasedCtxKey> ProbeStack::getContextKey() {
   for (auto CallProbe : Stack) {
     ProbeBasedKey->Probes.emplace_back(CallProbe);
   }
-  CSProfileGenerator::compressRecursionContext<const PseudoProbe *>(
+  CSProfileGenerator::compressRecursionContext<const MCDecodedPseudoProbe *>(
       ProbeBasedKey->Probes);
+  CSProfileGenerator::trimContext<const MCDecodedPseudoProbe *>(
+      ProbeBasedKey->Probes);
+
   ProbeBasedKey->genHashCode();
   return ProbeBasedKey;
 }

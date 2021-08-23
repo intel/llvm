@@ -20,7 +20,9 @@
 #include "clang/AST/NestedNameSpecifier.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
 #include "clang/AST/TemplateBase.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
@@ -479,6 +481,30 @@ llvm::Optional<QualType> getDeducedType(ASTContext &ASTCtx,
   if (V.DeducedType.isNull())
     return llvm::None;
   return V.DeducedType;
+}
+
+std::vector<const Attr *> getAttributes(const DynTypedNode &N) {
+  std::vector<const Attr *> Result;
+  if (const auto *TL = N.get<TypeLoc>()) {
+    for (AttributedTypeLoc ATL = TL->getAs<AttributedTypeLoc>(); !ATL.isNull();
+         ATL = ATL.getModifiedLoc().getAs<AttributedTypeLoc>()) {
+      if (const Attr *A = ATL.getAttr())
+        Result.push_back(A);
+      assert(!ATL.getModifiedLoc().isNull());
+    }
+  }
+  if (const auto *S = N.get<AttributedStmt>()) {
+    for (; S != nullptr; S = dyn_cast<AttributedStmt>(S->getSubStmt()))
+      for (const Attr *A : S->getAttrs())
+        if (A)
+          Result.push_back(A);
+  }
+  if (const auto *D = N.get<Decl>()) {
+    for (const Attr *A : D->attrs())
+      if (A)
+        Result.push_back(A);
+  }
+  return Result;
 }
 
 std::string getQualification(ASTContext &Context,

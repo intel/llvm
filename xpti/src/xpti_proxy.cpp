@@ -235,7 +235,7 @@ xptiMakeEvent(const char *name, xpti::payload_t *payload, uint16_t event,
   return nullptr;
 }
 
-XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(int64_t uid) {
+XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(uint64_t uid) {
   if (xpti::g_loader.noErrors()) {
     auto f = xpti::g_loader.functionByIndex(XPTI_FIND_EVENT);
     if (f) {

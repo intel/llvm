@@ -2,6 +2,8 @@
 // RUN: %t.out
 
 // UNSUPPORTED: cuda
+// UNSUPPORTED: rocm_nvidia
+// UNSUPPORTED: rocm_amd
 
 #include <sycl/sycl.hpp>
 
