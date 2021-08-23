@@ -2744,30 +2744,27 @@ pi_result piQueueRetain(pi_queue Queue) {
 }
 
 pi_result piQueueRelease(pi_queue Queue) {
-  // Lock automatically releases when this goes out of scope.
-  std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-  Queue->RefCountExternal--;
-  return QueueRelease(Queue, Queue);
-}
-
-static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
+
   // We need to use a bool variable here to check the condition that
   // RefCount becomes zero atomically with PiQueueMutex lock.
   // Then, we can release the lock before we remove the Queue below.
   bool RefCountZero = false;
   {
-    auto Lock = ((Queue == LockedQueue)
-                     ? std::unique_lock<std::mutex>()
-                     : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
+    // Lock automatically releases when this goes out of scope.
+    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-    // Note that we decrement the total reference count here, but check
-    // the external reference count for becoming zero. This is...
-    Queue->RefCount--;
+    PI_CALL(QueueRelease(Queue, Queue));
+    Queue->RefCountExternal--;
     if (Queue->RefCountExternal == 0)
       RefCountZero = true;
 
     if (RefCountZero) {
+      // When external reference count goes to zero it is still possible
+      // that internal references still exists, e.g. command-lists that
+      // are not yet completed. So do full queue synchronization here
+      // and perform proper cleanup.
+      //
       // It is possible to get to here and still have an open command list
       // if no wait or finish ever occurred for this queue.
       if (auto Res = Queue->executeOpenCommandList())
@@ -2793,9 +2790,6 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
 
       // Just before finally destroying the command-queue check that the above
       // wait/reset resulted in total references count go to zero.
-      if (Queue->RefCount != 0) {
-        fprintf(stderr, "RefCount=%d\n", (int)Queue->RefCount);
-      }
       PI_ASSERT(Queue->RefCount == 0, PI_INVALID_QUEUE);
 
       if (Queue->OwnZeCommandQueue) {
@@ -2818,6 +2812,17 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
 
   if (RefCountZero)
     delete Queue;
+  return PI_SUCCESS;
+}
+
+static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
+  PI_ASSERT(Queue, PI_INVALID_QUEUE);
+  PI_ASSERT(Queue->RefCount, PI_INVALID_QUEUE);
+
+  auto Lock = ((Queue == LockedQueue)
+                   ? std::unique_lock<std::mutex>()
+                   : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
+  Queue->RefCount--;
   return PI_SUCCESS;
 }
 
