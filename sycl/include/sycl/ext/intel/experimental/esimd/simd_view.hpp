@@ -36,8 +36,10 @@ public:
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
 
+  using element_type = typename ShapeTy::element_type;
+
   /// The simd type if reading this simd_view object.
-  using value_type = simd<typename ShapeTy::element_type, length>;
+  using value_type = simd<element_type, length>;
 
 private:
   simd_view(BaseTy &Base, RegionTy Region) : BaseClass(Base, Region) {}
@@ -80,7 +82,11 @@ public:
     return M & detail::convert<mask_type_t<length>>(R);                        \
   }                                                                            \
   ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
-      const simd_view &X, const simd_view &Y) {                                \
+      const simd_view &X, const element_type &Y) {                             \
+    return X RELOP(value_type) Y;                                              \
+  }                                                                            \
+  ESIMD_INLINE friend simd<uint16_t, length>                                   \
+  operator RELOP(const simd_view &X, const simd_view &Y) {                     \
     return (X RELOP Y.read());                                                 \
   }
 

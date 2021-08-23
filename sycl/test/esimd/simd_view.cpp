@@ -169,7 +169,9 @@ void test_simd_view_writeable_subscript() SYCL_ESIMD_FUNCTION {
 void test_simd_view_binop_with_conv_to_scalar() SYCL_ESIMD_FUNCTION {
   simd<ushort, 64> s = 0;
   auto g = s.bit_cast_view<ushort, 4, 16>();
-  auto x = g.row(1) - (g.row(1))[0];
+  auto x = g.row(1) - (g.row(1))[0]; // binary op
+  auto y = g.row(1) & (g.row(1))[0]; // bitwise op
+  auto z = g.row(1) < (g.row(1))[0]; // relational op
 }
 
 // This code is OK. The result of bit_cast_view should be mapped

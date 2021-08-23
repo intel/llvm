@@ -215,7 +215,7 @@ public:
   template <class T1 = Derived, class = std::enable_if_t<T1::length != 1>>     \
   ESIMD_INLINE friend auto operator BINOP(const Derived &X,                    \
                                           const element_type &Y) {             \
-    return X BINOP(value_type) Y;                                              \
+    return X BINOP(value_type)Y;                                               \
   }                                                                            \
   template <class T1 = Derived, class = std::enable_if_t<T1::length != 1>>     \
   ESIMD_INLINE friend auto operator BINOP(const value_type &X,                 \
@@ -259,6 +259,11 @@ public:
     static_assert(std::is_integral<element_type>(), "not integral type");      \
     auto V2 = X.read().data() BITWISE_OP Y.data();                             \
     return simd<element_type, length>(V2);                                     \
+  }                                                                            \
+  template <class T1 = Derived, class = std::enable_if_t<T1::length != 1>>     \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const Derived &X,               \
+                                               const element_type &Y) {        \
+    return X BITWISE_OP(value_type)Y;                                          \
   }                                                                            \
   template <class T1 = Derived, class = std::enable_if_t<T1::length != 1>>     \
   ESIMD_INLINE friend auto operator BITWISE_OP(const value_type &X,            \
