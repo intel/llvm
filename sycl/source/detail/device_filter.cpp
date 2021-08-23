@@ -46,7 +46,6 @@ device_filter::device_filter(const std::string &FilterString) {
 
   auto FindElement = [&](auto Element) {
     return std::string::npos != Tokens[I].find(Element.first);
-    return true;
   };
 
   // Handle the optional 1st field of the filter, backend
