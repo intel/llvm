@@ -42,7 +42,7 @@ std::vector<std::string> tokenize(const std::string &Filter,
 
 device_filter::device_filter(const std::string &FilterString) {
   std::vector<std::string> Tokens = tokenize(FilterString, ":");
-  size_t I = 0;
+  size_t TripleValueID = 0;
 
   auto FindElement = [&](auto Element) {
     return std::string::npos != Tokens[I].find(Element.first);
