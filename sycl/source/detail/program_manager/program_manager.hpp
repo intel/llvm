@@ -22,7 +22,6 @@
 #include <map>
 #include <memory>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 // +++ Entry points referenced by the offload wrapper object {
@@ -281,11 +280,9 @@ private:
   /// Access must be guarded by the \ref Sync::getGlobalLock()
   std::unordered_map<OSModuleHandle, KernelSetId> m_OSModuleKernelSets;
 
-  /// Set of unique kernel identifiers, exclusive by the corresponding kernel
-  /// name.
+  /// Maps names of kernels to their unique kernel IDs.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::unordered_set<kernel_id, detail::HashByName, detail::EqualByNameComp>
-      m_KernelIDs;
+  std::unordered_map<std::string, kernel_id> m_KernelIDs;
 
   // Keeps track of pi_program to image correspondence. Needed for:
   // - knowing which specialization constants are used in the program and

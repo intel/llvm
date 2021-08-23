@@ -18,7 +18,6 @@
 #include <CL/sycl/kernel_bundle_enums.hpp>
 
 #include <cassert>
-#include <cstring>
 #include <memory>
 #include <vector>
 
@@ -61,27 +60,6 @@ private:
 };
 
 namespace detail {
-// Used for sorting vector of kernel_id's
-struct LessByNameComp {
-  bool operator()(const sycl::kernel_id &LHS,
-                  const sycl::kernel_id &RHS) const {
-    return std::strcmp(LHS.get_name(), RHS.get_name()) < 0;
-  }
-};
-
-struct EqualByNameComp {
-  bool operator()(const sycl::kernel_id &LHS,
-                  const sycl::kernel_id &RHS) const {
-    return strcmp(LHS.get_name(), RHS.get_name()) == 0;
-  }
-};
-
-struct HashByName {
-  size_t operator()(const sycl::kernel_id &KernelID) const {
-    return std::hash<std::string>{}(KernelID.get_name());
-  }
-};
-
 class device_image_impl;
 using DeviceImageImplPtr = std::shared_ptr<device_image_impl>;
 
