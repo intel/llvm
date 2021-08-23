@@ -1047,8 +1047,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
             std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
         sycl::kernel_id KernelID =
             detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
-        m_KernelIDs.insert(
-            std::make_pair(EntriesIt->name, std::move(KernelID)));
+        m_KernelIDs.insert(std::move(KernelID));
       }
       m_DeviceImages[KSId].reset(new std::vector<RTDeviceBinaryImageUPtr>());
       m_DeviceImages[KSId]->push_back(std::move(Img));
@@ -1276,20 +1275,18 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
 kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
 
-  auto KernelID = m_KernelIDs.find(KernelName);
+  std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
+      std::make_shared<detail::kernel_id_impl>(KernelName);
+  sycl::kernel_id KernelIDToFind =
+      detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
+  auto KernelID = m_KernelIDs.find(KernelIDToFind);
   assert(KernelID != m_KernelIDs.end() && "Kernel ID missing");
-  return KernelID->second;
+  return *KernelID;
 }
 
 std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
-
-  std::vector<sycl::kernel_id> AllKernelIDs;
-  AllKernelIDs.reserve(m_KernelIDs.size());
-  for (std::pair<std::string, kernel_id> KernelID : m_KernelIDs) {
-    AllKernelIDs.push_back(KernelID.second);
-  }
-  return AllKernelIDs;
+  return std::vector<sycl::kernel_id>{m_KernelIDs.begin(), m_KernelIDs.end()};
 }
 
 std::vector<device_image_plain>
@@ -1347,10 +1344,14 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
         std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
         for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
              EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
-          auto KernelID = m_KernelIDs.find(EntriesIt->name);
+          std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
+              std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
+          sycl::kernel_id KernelIDToFind =
+              detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
+          auto KernelID = m_KernelIDs.find(KernelIDToFind);
           assert(KernelID != m_KernelIDs.end() &&
                  "Kernel ID in device binary missing from cache");
-          KernelIDs.push_back(KernelID->second);
+          KernelIDs.push_back(*KernelID);
         }
       }
       // device_image_impl expects kernel ids to be sorted for fast search
