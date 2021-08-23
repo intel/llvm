@@ -45,9 +45,7 @@ device_filter::device_filter(const std::string &FilterString) {
   size_t I = 0;
 
   auto FindElement = [&](auto Element) {
-    size_t Found = Tokens[I].find(Element.first);
-    if (Found == std::string::npos)
-      return false;
+    return std::string::npos != Tokens[I].find(Element.first);
     return true;
   };
 
