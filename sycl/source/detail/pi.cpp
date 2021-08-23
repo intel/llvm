@@ -376,8 +376,8 @@ const std::vector<plugin> &initialize() {
   });
 
   // reset LastDeviceIds to zeros
-  vector_class<plugin> Plugins = GlobalHandler::instance().getPlugins();
-  for (plugin Plugin : Plugins) {
+  vector_class<plugin> &Plugins = GlobalHandler::instance().getPlugins();
+  for (plugin &Plugin : Plugins) {
     Plugin.resetLastDeviceIds();
   }
 
