@@ -8385,7 +8385,7 @@ Value *CodeGenFunction::vectorWrapScalar16(Value *Op) {
 /// SVEBuiltinMemEltTy - Returns the memory element type for this memory
 /// access builtin.  Only required if it can't be inferred from the base pointer
 /// operand.
-llvm::Type *CodeGenFunction::SVEBuiltinMemEltTy(SVETypeFlags TypeFlags) {
+llvm::Type *CodeGenFunction::SVEBuiltinMemEltTy(const SVETypeFlags &TypeFlags) {
   switch (TypeFlags.getMemEltType()) {
   case SVETypeFlags::MemEltTyDefault:
     return getEltType(TypeFlags);
@@ -8401,7 +8401,7 @@ llvm::Type *CodeGenFunction::SVEBuiltinMemEltTy(SVETypeFlags TypeFlags) {
   llvm_unreachable("Unknown MemEltType");
 }
 
-llvm::Type *CodeGenFunction::getEltType(SVETypeFlags TypeFlags) {
+llvm::Type *CodeGenFunction::getEltType(const SVETypeFlags &TypeFlags) {
   switch (TypeFlags.getEltType()) {
   default:
     llvm_unreachable("Invalid SVETypeFlag!");
@@ -8436,7 +8436,7 @@ llvm::Type *CodeGenFunction::getEltType(SVETypeFlags TypeFlags) {
 // Return the llvm predicate vector type corresponding to the specified element
 // TypeFlags.
 llvm::ScalableVectorType *
-CodeGenFunction::getSVEPredType(SVETypeFlags TypeFlags) {
+CodeGenFunction::getSVEPredType(const SVETypeFlags &TypeFlags) {
   switch (TypeFlags.getEltType()) {
   default: llvm_unreachable("Unhandled SVETypeFlag!");
 
@@ -8505,7 +8505,8 @@ CodeGenFunction::getSVEType(const SVETypeFlags &TypeFlags) {
   }
 }
 
-llvm::Value *CodeGenFunction::EmitSVEAllTruePred(SVETypeFlags TypeFlags) {
+llvm::Value *
+CodeGenFunction::EmitSVEAllTruePred(const SVETypeFlags &TypeFlags) {
   Function *Ptrue =
       CGM.getIntrinsic(Intrinsic::aarch64_sve_ptrue, getSVEPredType(TypeFlags));
   return Builder.CreateCall(Ptrue, {Builder.getInt32(/*SV_ALL*/ 31)});
@@ -8549,7 +8550,7 @@ Value *CodeGenFunction::EmitSVEPredicateCast(Value *Pred,
   return C;
 }
 
-Value *CodeGenFunction::EmitSVEGatherLoad(SVETypeFlags TypeFlags,
+Value *CodeGenFunction::EmitSVEGatherLoad(const SVETypeFlags &TypeFlags,
                                           SmallVectorImpl<Value *> &Ops,
                                           unsigned IntID) {
   auto *ResultTy = getSVEType(TypeFlags);
@@ -8601,7 +8602,7 @@ Value *CodeGenFunction::EmitSVEGatherLoad(SVETypeFlags TypeFlags,
                                   : Builder.CreateSExt(Call, ResultTy);
 }
 
-Value *CodeGenFunction::EmitSVEScatterStore(SVETypeFlags TypeFlags,
+Value *CodeGenFunction::EmitSVEScatterStore(const SVETypeFlags &TypeFlags,
                                             SmallVectorImpl<Value *> &Ops,
                                             unsigned IntID) {
   auto *SrcDataTy = getSVEType(TypeFlags);
@@ -8656,7 +8657,7 @@ Value *CodeGenFunction::EmitSVEScatterStore(SVETypeFlags TypeFlags,
   return Builder.CreateCall(F, Ops);
 }
 
-Value *CodeGenFunction::EmitSVEGatherPrefetch(SVETypeFlags TypeFlags,
+Value *CodeGenFunction::EmitSVEGatherPrefetch(const SVETypeFlags &TypeFlags,
                                               SmallVectorImpl<Value *> &Ops,
                                               unsigned IntID) {
   // The gather prefetches are overloaded on the vector input - this can either
@@ -8689,7 +8690,7 @@ Value *CodeGenFunction::EmitSVEGatherPrefetch(SVETypeFlags TypeFlags,
   return Builder.CreateCall(F, Ops);
 }
 
-Value *CodeGenFunction::EmitSVEStructLoad(SVETypeFlags TypeFlags,
+Value *CodeGenFunction::EmitSVEStructLoad(const SVETypeFlags &TypeFlags,
                                           SmallVectorImpl<Value*> &Ops,
                                           unsigned IntID) {
   llvm::ScalableVectorType *VTy = getSVEType(TypeFlags);
@@ -8723,7 +8724,7 @@ Value *CodeGenFunction::EmitSVEStructLoad(SVETypeFlags TypeFlags,
   return Builder.CreateCall(F, { Predicate, BasePtr });
 }
 
-Value *CodeGenFunction::EmitSVEStructStore(SVETypeFlags TypeFlags,
+Value *CodeGenFunction::EmitSVEStructStore(const SVETypeFlags &TypeFlags,
                                            SmallVectorImpl<Value*> &Ops,
                                            unsigned IntID) {
   llvm::ScalableVectorType *VTy = getSVEType(TypeFlags);
@@ -8770,7 +8771,7 @@ Value *CodeGenFunction::EmitSVEStructStore(SVETypeFlags TypeFlags,
 // SVE2's svpmullb and svpmullt builtins are similar to the svpmullb_pair and
 // svpmullt_pair intrinsics, with the exception that their results are bitcast
 // to a wider type.
-Value *CodeGenFunction::EmitSVEPMull(SVETypeFlags TypeFlags,
+Value *CodeGenFunction::EmitSVEPMull(const SVETypeFlags &TypeFlags,
                                      SmallVectorImpl<Value *> &Ops,
                                      unsigned BuiltinID) {
   // Splat scalar operand to vector (intrinsics with _n infix)
@@ -8788,14 +8789,14 @@ Value *CodeGenFunction::EmitSVEPMull(SVETypeFlags TypeFlags,
   return EmitSVEReinterpret(Call, Ty);
 }
 
-Value *CodeGenFunction::EmitSVEMovl(SVETypeFlags TypeFlags,
+Value *CodeGenFunction::EmitSVEMovl(const SVETypeFlags &TypeFlags,
                                     ArrayRef<Value *> Ops, unsigned BuiltinID) {
   llvm::Type *OverloadedTy = getSVEType(TypeFlags);
   Function *F = CGM.getIntrinsic(BuiltinID, OverloadedTy);
   return Builder.CreateCall(F, {Ops[0], Builder.getInt32(0)});
 }
 
-Value *CodeGenFunction::EmitSVEPrefetchLoad(SVETypeFlags TypeFlags,
+Value *CodeGenFunction::EmitSVEPrefetchLoad(const SVETypeFlags &TypeFlags,
                                             SmallVectorImpl<Value *> &Ops,
                                             unsigned BuiltinID) {
   auto *MemEltTy = SVEBuiltinMemEltTy(TypeFlags);
@@ -8904,8 +8905,10 @@ static void InsertExplicitUndefOperand(CGBuilderTy &Builder, llvm::Type *Ty,
   Ops.insert(Ops.begin(), SplatUndef);
 }
 
-SmallVector<llvm::Type *, 2> CodeGenFunction::getSVEOverloadTypes(
-    SVETypeFlags TypeFlags, llvm::Type *ResultType, ArrayRef<Value *> Ops) {
+SmallVector<llvm::Type *, 2>
+CodeGenFunction::getSVEOverloadTypes(const SVETypeFlags &TypeFlags,
+                                     llvm::Type *ResultType,
+                                     ArrayRef<Value *> Ops) {
   if (TypeFlags.isOverloadNone())
     return {};
 
@@ -13965,15 +13968,28 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
     }
     return Builder.CreateInsertElement(Ops[0], A, (uint64_t)0);
   }
+  case X86::BI__builtin_ia32_sqrtsh_round_mask:
   case X86::BI__builtin_ia32_sqrtsd_round_mask:
   case X86::BI__builtin_ia32_sqrtss_round_mask: {
     unsigned CC = cast<llvm::ConstantInt>(Ops[4])->getZExtValue();
     // Support only if the rounding mode is 4 (AKA CUR_DIRECTION),
     // otherwise keep the intrinsic.
     if (CC != 4) {
-      Intrinsic::ID IID = BuiltinID == X86::BI__builtin_ia32_sqrtsd_round_mask ?
-                          Intrinsic::x86_avx512_mask_sqrt_sd :
-                          Intrinsic::x86_avx512_mask_sqrt_ss;
+      Intrinsic::ID IID;
+
+      switch (BuiltinID) {
+      default:
+        llvm_unreachable("Unsupported intrinsic!");
+      case X86::BI__builtin_ia32_sqrtsh_round_mask:
+        IID = Intrinsic::x86_avx512fp16_mask_sqrt_sh;
+        break;
+      case X86::BI__builtin_ia32_sqrtsd_round_mask:
+        IID = Intrinsic::x86_avx512_mask_sqrt_sd;
+        break;
+      case X86::BI__builtin_ia32_sqrtss_round_mask:
+        IID = Intrinsic::x86_avx512_mask_sqrt_ss;
+        break;
+      }
       return Builder.CreateCall(CGM.getIntrinsic(IID), Ops);
     }
     Value *A = Builder.CreateExtractElement(Ops[1], (uint64_t)0);
@@ -13995,6 +14011,9 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_sqrtpd:
   case X86::BI__builtin_ia32_sqrtps256:
   case X86::BI__builtin_ia32_sqrtps:
+  case X86::BI__builtin_ia32_sqrtph256:
+  case X86::BI__builtin_ia32_sqrtph:
+  case X86::BI__builtin_ia32_sqrtph512:
   case X86::BI__builtin_ia32_sqrtps512:
   case X86::BI__builtin_ia32_sqrtpd512: {
     if (Ops.size() == 2) {
@@ -14002,9 +14021,21 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
       // Support only if the rounding mode is 4 (AKA CUR_DIRECTION),
       // otherwise keep the intrinsic.
       if (CC != 4) {
-        Intrinsic::ID IID = BuiltinID == X86::BI__builtin_ia32_sqrtps512 ?
-                            Intrinsic::x86_avx512_sqrt_ps_512 :
-                            Intrinsic::x86_avx512_sqrt_pd_512;
+        Intrinsic::ID IID;
+
+        switch (BuiltinID) {
+        default:
+          llvm_unreachable("Unsupported intrinsic!");
+        case X86::BI__builtin_ia32_sqrtph512:
+          IID = Intrinsic::x86_avx512fp16_sqrt_ph_512;
+          break;
+        case X86::BI__builtin_ia32_sqrtps512:
+          IID = Intrinsic::x86_avx512_sqrt_ps_512;
+          break;
+        case X86::BI__builtin_ia32_sqrtpd512:
+          IID = Intrinsic::x86_avx512_sqrt_pd_512;
+          break;
+        }
         return Builder.CreateCall(CGM.getIntrinsic(IID), Ops);
       }
     }
@@ -14321,6 +14352,9 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_fpclassps128_mask:
   case X86::BI__builtin_ia32_fpclassps256_mask:
   case X86::BI__builtin_ia32_fpclassps512_mask:
+  case X86::BI__builtin_ia32_fpclassph128_mask:
+  case X86::BI__builtin_ia32_fpclassph256_mask:
+  case X86::BI__builtin_ia32_fpclassph512_mask:
   case X86::BI__builtin_ia32_fpclasspd128_mask:
   case X86::BI__builtin_ia32_fpclasspd256_mask:
   case X86::BI__builtin_ia32_fpclasspd512_mask: {
@@ -14332,6 +14366,15 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
     Intrinsic::ID ID;
     switch (BuiltinID) {
     default: llvm_unreachable("Unsupported intrinsic!");
+    case X86::BI__builtin_ia32_fpclassph128_mask:
+      ID = Intrinsic::x86_avx512fp16_fpclass_ph_128;
+      break;
+    case X86::BI__builtin_ia32_fpclassph256_mask:
+      ID = Intrinsic::x86_avx512fp16_fpclass_ph_256;
+      break;
+    case X86::BI__builtin_ia32_fpclassph512_mask:
+      ID = Intrinsic::x86_avx512fp16_fpclass_ph_512;
+      break;
     case X86::BI__builtin_ia32_fpclassps128_mask:
       ID = Intrinsic::x86_avx512_fpclass_ps_128;
       break;
@@ -17826,6 +17869,22 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
     Value *RHS = EmitScalarExpr(E->getArg(1));
     Function *Callee =
         CGM.getIntrinsic(Intrinsic::maximum, ConvertType(E->getType()));
+    return Builder.CreateCall(Callee, {LHS, RHS});
+  }
+  case WebAssembly::BI__builtin_wasm_pmin_f32x4:
+  case WebAssembly::BI__builtin_wasm_pmin_f64x2: {
+    Value *LHS = EmitScalarExpr(E->getArg(0));
+    Value *RHS = EmitScalarExpr(E->getArg(1));
+    Function *Callee =
+        CGM.getIntrinsic(Intrinsic::wasm_pmin, ConvertType(E->getType()));
+    return Builder.CreateCall(Callee, {LHS, RHS});
+  }
+  case WebAssembly::BI__builtin_wasm_pmax_f32x4:
+  case WebAssembly::BI__builtin_wasm_pmax_f64x2: {
+    Value *LHS = EmitScalarExpr(E->getArg(0));
+    Value *RHS = EmitScalarExpr(E->getArg(1));
+    Function *Callee =
+        CGM.getIntrinsic(Intrinsic::wasm_pmax, ConvertType(E->getType()));
     return Builder.CreateCall(Callee, {LHS, RHS});
   }
   case WebAssembly::BI__builtin_wasm_ceil_f32x4:
