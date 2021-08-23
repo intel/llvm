@@ -85,8 +85,8 @@ public:
       const simd_view &X, const element_type &Y) {                             \
     return X RELOP(value_type) Y;                                              \
   }                                                                            \
-  ESIMD_INLINE friend simd<uint16_t, length>                                   \
-  operator RELOP(const simd_view &X, const simd_view &Y) {                     \
+  ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
+      const simd_view &X, const simd_view &Y) {                                \
     return (X RELOP Y.read());                                                 \
   }
 
