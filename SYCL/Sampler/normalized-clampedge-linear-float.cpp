@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %HOST_RUN_PLACEHOLDER %t.out %HOST_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
+// RUN: %HOST_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
 // XFAIL: cuda
 
 // CUDA works with image_channel_type::fp32, but not with any 8-bit per channel
@@ -15,6 +15,7 @@
 
 */
 
+#include "common.hpp"
 #include <CL/sycl.hpp>
 
 using namespace cl::sycl;
@@ -22,15 +23,16 @@ using namespace cl::sycl;
 // pixel data-type for RGBA operations (which is the minimum image type)
 using pixelT = sycl::float4;
 
-// will output a pixel as {r,g,b,a}.  provide override if a different pixelT is
-// defined.
-void outputPixel(sycl::float4 somePixel) {
-  std::cout << "{" << somePixel[0] << "," << somePixel[1] << "," << somePixel[2]
-            << "," << somePixel[3] << "} ";
-}
-
-// some constants.
-
+// Three pixels at inner boundary locations
+// sample: Normalized + ClampEdge + Linear
+std::vector<pixelT> ref_in = {
+    {0.4, 0.4, 0.4, 0.4}, {0.4, 0.4, 0.4, 0.4}, {0.4, 0.4, 0.4, 0.4}};
+// Four pixels at either side of outer boundary
+// sample: Normlized + ClampEdge + Linear
+std::vector<pixelT> ref_out = {{0.2, 0.4, 0.6, 0.8},
+                               {0.2, 0.4, 0.6, 0.8},
+                               {0.6, 0.4, 0.2, 0},
+                               {0.6, 0.4, 0.2, 0}};
 // 4 pixels on a side. 1D at the moment
 constexpr long width = 4;
 
@@ -114,28 +116,17 @@ void test_normalized_clampedge_linear_sampler(image_channel_order ChanOrder,
     E_Test.wait();
 
     // REPORT RESULTS
+    size_t offset = 0;
     auto test_acc = testResults.get_access<access::mode::read>();
-    for (int i = 0, idx = 0; i < numTests; i++, idx++) {
-      if (i == 0) {
-        idx = 1;
-        std::cout << "read three pixels at inner boundary locations,  sample:  "
-                     " Normalized +  ClampEdge  + Linear"
-                  << std::endl;
-      }
-      if (i == 3) {
-        idx = -1;
-        std::cout << "read four pixels at either side of outer boundary with "
-                     "Normlized + ClampEdge + Linear"
-                  << std::endl;
-      }
-      if (i == 5) {
-        idx = 3;
-      }
-      pixelT testPixel = test_acc[i];
-      std::cout << i << " -- " << idx << ": ";
-      outputPixel(testPixel);
-      std::cout << std::endl;
-    }
+    std::cout << "read three pixels at inner boundary locations,  sample:  "
+                 " Normalized +  ClampEdge  + Linear"
+              << std::endl;
+    check_pixels(test_acc, ref_in, offset);
+
+    std::cout << "read four pixels at either side of outer boundary with "
+                 "Normlized + ClampEdge + Linear"
+              << std::endl;
+    check_pixels(test_acc, ref_out, offset);
   } // ~image / ~buffer
 }
 
@@ -163,26 +154,3 @@ int main() {
 
   return 0;
 }
-
-// clang-format off
-// CHECK: fp32 -------------
-// CHECK-NEXT: read three pixels at inner boundary locations,  sample:   Normalized +  ClampEdge  + Linear
-// CHECK-NEXT: 0 -- 1: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: 1 -- 2: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: 2 -- 3: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: read four pixels at either side of outer boundary with Normlized + ClampEdge + Linear
-// CHECK-NEXT: 3 -- -1: {0.2,0.4,0.6,0.8} 
-// CHECK-NEXT: 4 -- 0: {0.2,0.4,0.6,0.8} 
-// CHECK-NEXT: 5 -- 3: {0.6,0.4,0.2,0} 
-// CHECK-NEXT: 6 -- 4: {0.6,0.4,0.2,0} 
-// CHECK-NEXT: unorm_int8 -------
-// CHECK-NEXT: read three pixels at inner boundary locations,  sample:   Normalized +  ClampEdge  + Linear
-// CHECK-NEXT: 0 -- 1: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: 1 -- 2: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: 2 -- 3: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: read four pixels at either side of outer boundary with Normlized + ClampEdge + Linear
-// CHECK-NEXT: 3 -- -1: {0.2,0.4,0.6,0.8} 
-// CHECK-NEXT: 4 -- 0: {0.2,0.4,0.6,0.8} 
-// CHECK-NEXT: 5 -- 3: {0.6,0.4,0.2,0} 
-// CHECK-NEXT: 6 -- 4: {0.6,0.4,0.2,0}
-// clang-format on

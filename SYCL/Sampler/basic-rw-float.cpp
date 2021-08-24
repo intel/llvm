@@ -1,21 +1,21 @@
 // UNSUPPORTED: rocm
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %HOST_RUN_PLACEHOLDER %t.out %HOST_CHECK_PLACEHOLDER
-// RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
+// RUN: %HOST_RUN_PLACEHOLDER %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 
+#include "common.hpp"
 #include <CL/sycl.hpp>
 
 using namespace cl::sycl;
 
 using pixelT = sycl::float4;
 
-// will output a pixel as {r,g,b,a}.  provide override if a different pixelT is
-// defined.
-void outputPixel(sycl::float4 somePixel) {
-  std::cout << "{" << somePixel[0] << "," << somePixel[1] << "," << somePixel[2]
-            << "," << somePixel[3] << "} ";
-}
+// Refernece for four pixels, no sampler
+std::vector<pixelT> ref = {{0.2, 0.4, 0.6, 0.8},
+                           {0.6, 0.4, 0.2, 0},
+                           {0.2, 0.4, 0.6, 0.8},
+                           {0.6, 0.4, 0.2, 0}};
 
 // 4 pixels on a side. 1D at the moment
 constexpr long width = 4;
@@ -73,18 +73,10 @@ void test_rw(image_channel_order ChanOrder, image_channel_type ChanType) {
     E_Test.wait();
 
     // REPORT RESULTS
+    size_t offset = 0;
     auto test_acc = testResults.get_access<access::mode::read>();
-    for (int i = 0, idx = 0; i < numTests; i++, idx++) {
-      if (i == 0) {
-        idx = 0;
-        std::cout << "read four pixels, no sampler" << std::endl;
-      }
-
-      pixelT testPixel = test_acc[i];
-      std::cout << i << /* " -- " << idx << */ ": ";
-      outputPixel(testPixel);
-      std::cout << std::endl;
-    }
+    std::cout << "read four pixels, no sampler" << std::endl;
+    check_pixels(test_acc, ref, offset);
   } // ~image / ~buffer
 }
 
@@ -112,10 +104,3 @@ int main() {
 
   return 0;
 }
-
-// CHECK: fp32 -------------
-// CHECK-NEXT: read four pixels, no sampler
-// CHECK-NEXT: 0: {0.2,0.4,0.6,0.8}
-// CHECK-NEXT: 1: {0.6,0.4,0.2,0}
-// CHECK-NEXT: 2: {0.2,0.4,0.6,0.8}
-// CHECK-NEXT: 3: {0.6,0.4,0.2,0}

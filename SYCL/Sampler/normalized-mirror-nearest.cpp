@@ -1,8 +1,8 @@
 // UNSUPPORTED: rocm
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %HOST_RUN_PLACEHOLDER %t.out %HOST_CHECK_PLACEHOLDER
-// RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
+// RUN: %HOST_RUN_PLACEHOLDER %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
 // XFAIL: cuda
 
 // CUDA is not handling repeat or mirror correctly with normalized coordinates.
@@ -16,6 +16,7 @@
 
 */
 
+#include "common.hpp"
 #include <CL/sycl.hpp>
 
 using namespace cl::sycl;
@@ -23,14 +24,18 @@ using namespace cl::sycl;
 // pixel data-type for RGBA operations (which is the minimum image type)
 using pixelT = sycl::uint4;
 
-// will output a pixel as {r,g,b,a}.  provide override if a different pixelT is
-// defined.
-void outputPixel(sycl::uint4 somePixel) {
-  std::cout << "{" << somePixel[0] << "," << somePixel[1] << "," << somePixel[2]
-            << "," << somePixel[3] << "} ";
-}
-
-// some constants.
+// Four pixels at low-boundary locations
+// sample: Normalized + Mirrored Repeat + Nearest
+std::vector<pixelT> ref_boundary = {
+    {1, 2, 3, 4}, {49, 48, 47, 46}, {59, 58, 57, 56}, {11, 12, 13, 14}};
+// Four pixels outside rightmost boundary
+// sample: Normalized + Mirrored Repeat + Nearest
+std::vector<pixelT> ref_right = {
+    {1, 2, 3, 4}, {49, 48, 47, 46}, {59, 58, 57, 56}, {11, 12, 13, 14}};
+// Four pixels outside leftmost boundary
+// sample: Normalized + Mirrored Repeat + Nearest
+std::vector<pixelT> ref_left = {
+    {1, 2, 3, 4}, {49, 48, 47, 46}, {59, 58, 57, 56}, {11, 12, 13, 14}};
 
 // 4 pixels on a side. 1D at the moment
 constexpr long width = 4;
@@ -124,31 +129,22 @@ void test_normalized_mirrored_nearest_sampler(image_channel_order ChanOrder,
     E_Test.wait();
 
     // REPORT RESULTS
+    size_t offset = 0;
     auto test_acc = testResults.get_access<access::mode::read>();
-    for (int i = 0, idx = 0; i < numTests; i++, idx++) {
-      if (i == 0) {
-        idx = 0;
-        std::cout << "read four pixels at low-boundary locations,  sample:   "
-                     "Normalized + Mirrored Repeat  + Nearest"
-                  << std::endl;
-      }
-      if (i == 4) {
-        idx = 0;
-        std::cout << "read four pixels outside rightmost boundary,   sample: "
-                     "Normalized + Mirrored Repeat + Nearest"
-                  << std::endl;
-      }
-      if (i == 8) {
-        idx = 0;
-        std::cout << "read four pixels outside leftmost boundary,   sample: "
-                     "Normalized + Mirrored Repeat + Nearest"
-                  << std::endl;
-      }
-      pixelT testPixel = test_acc[i];
-      std::cout << i << " -- " << idx << ": ";
-      outputPixel(testPixel);
-      std::cout << std::endl;
-    }
+    std::cout << "read four pixels at low-boundary locations,  sample:   "
+                 "Normalized + Mirrored Repeat  + Nearest"
+              << std::endl;
+    check_pixels(test_acc, ref_boundary, offset);
+
+    std::cout << "read four pixels outside rightmost boundary,   sample: "
+                 "Normalized + Mirrored Repeat + Nearest"
+              << std::endl;
+    check_pixels(test_acc, ref_right, offset);
+
+    std::cout << "read four pixels outside leftmost boundary,   sample: "
+                 "Normalized + Mirrored Repeat + Nearest"
+              << std::endl;
+    check_pixels(test_acc, ref_left, offset);
   } // ~image / ~buffer
 }
 
@@ -172,21 +168,3 @@ int main() {
 
   return 0;
 }
-
-// clang-format off
-// CHECK: read four pixels at low-boundary locations,  sample:   Normalized + Mirrored Repeat  + Nearest
-// CHECK-NEXT: 0 -- 0: {1,2,3,4}
-// CHECK-NEXT: 1 -- 1: {49,48,47,46}
-// CHECK-NEXT: 2 -- 2: {59,58,57,56}
-// CHECK-NEXT: 3 -- 3: {11,12,13,14}
-// CHECK-NEXT: read four pixels outside rightmost boundary,   sample: Normalized + Mirrored Repeat + Nearest
-// CHECK-NEXT: 4 -- 0: {1,2,3,4}
-// CHECK-NEXT: 5 -- 1: {49,48,47,46}
-// CHECK-NEXT: 6 -- 2: {59,58,57,56}
-// CHECK-NEXT: 7 -- 3: {11,12,13,14}
-// CHECK-NEXT: read four pixels outside leftmost boundary,   sample: Normalized + Mirrored Repeat + Nearest
-// CHECK-NEXT: 8 -- 0: {1,2,3,4}
-// CHECK-NEXT: 9 -- 1: {49,48,47,46}
-// CHECK-NEXT: 10 -- 2: {59,58,57,56}
-// CHECK-NEXT: 11 -- 3: {11,12,13,14}
-// clang-format on

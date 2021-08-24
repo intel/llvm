@@ -1,8 +1,8 @@
 // UNSUPPORTED: rocm
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %HOST_RUN_PLACEHOLDER %t.out %HOST_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
+// RUN: %HOST_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
 // XFAIL: cuda
 
 // CUDA works with image_channel_type::fp32, but not with any 8-bit per channel
@@ -18,20 +18,19 @@
     CLAMPEDGE address_mode and LINEAR filter_mode
 */
 
+#include "common.hpp"
 #include <CL/sycl.hpp>
 
 using namespace cl::sycl;
 
 using pixelT = sycl::float4;
 
-// will output a pixel as {r,g,b,a}.  provide override if a different pixelT is
-// defined.
-void outputPixel(sycl::float4 somePixel) {
-  std::cout << "{" << somePixel[0] << "," << somePixel[1] << "," << somePixel[2]
-            << "," << somePixel[3] << "} ";
-}
-
-// some constants.
+// Six pixels, float coordinates, sample: NonNormalized + ClampEDGE + Linear
+std::vector<pixelT> ref_pixel = {{0.2, 0.4, 0.6, 0.8}, {0.2, 0.4, 0.6, 0.8},
+                                 {0.4, 0.4, 0.4, 0.4}, {0.4, 0.4, 0.4, 0.4},
+                                 {0.4, 0.4, 0.4, 0.4}, {0.6, 0.4, 0.2, 0}};
+// Two pixels on either side of 1. float coordinates.ClampEDGE
+std::vector<pixelT> ref_side = {{0.4, 0.4, 0.4, 0.4}, {0.4, 0.4, 0.4, 0.4}};
 
 // 4 pixels on a side. 1D at the moment
 constexpr long width = 4;
@@ -115,29 +114,18 @@ void test_unnormalized_clampedge_linear_sampler(image_channel_order ChanOrder,
     E_Test.wait();
 
     // REPORT RESULTS
+    size_t offset = 0;
     auto test_acc = testResults.get_access<access::mode::read>();
-    for (int i = 0, idx = 0; i < numTests; i++, idx++) {
-      if (i == 0) {
-        idx = -1;
-        std::cout << "read six pixels, float coordinates,   sample:   "
-                     "NonNormalized + ClampEDGE + Linear"
-                  << std::endl;
-      }
-      if (i == 6) {
-        idx = 1;
-        std::cout << "read two pixels on either side of 1. float coordinates. "
-                     "ClampEDGE"
-                  << std::endl;
-      }
-      if (i == 7) {
-        idx = 1;
-      }
 
-      pixelT testPixel = test_acc[i];
-      std::cout << i << " -- " << idx << ": ";
-      outputPixel(testPixel);
-      std::cout << std::endl;
-    }
+    std::cout << "read six pixels, float coordinates,   sample:   "
+                 "NonNormalized + ClampEDGE + Linear"
+              << std::endl;
+    check_pixels(test_acc, ref_pixel, offset);
+
+    std::cout << "read two pixels on either side of 1. float coordinates. "
+                 "ClampEDGE"
+              << std::endl;
+    check_pixels(test_acc, ref_pixel, offset);
   } // ~image / ~buffer
 }
 
@@ -166,28 +154,3 @@ int main() {
 
   return 0;
 }
-
-// clang-format off
-// CHECK: fp32 -------------
-// CHECK-NEXT: read six pixels, float coordinates,   sample:   NonNormalized + ClampEDGE + Linear
-// CHECK-NEXT: 0 -- -1: {0.2,0.4,0.6,0.8} 
-// CHECK-NEXT: 1 -- 0: {0.2,0.4,0.6,0.8} 
-// CHECK-NEXT: 2 -- 1: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: 3 -- 2: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: 4 -- 3: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: 5 -- 4: {0.6,0.4,0.2,0} 
-// CHECK-NEXT: read two pixels on either side of 1. float coordinates. ClampEDGE
-// CHECK-NEXT: 6 -- 1: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: 7 -- 1: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: unorm_int8 -------
-// CHECK-NEXT: read six pixels, float coordinates,   sample:   NonNormalized + ClampEDGE + Linear
-// CHECK-NEXT: 0 -- -1: {0.2,0.4,0.6,0.8} 
-// CHECK-NEXT: 1 -- 0: {0.2,0.4,0.6,0.8} 
-// CHECK-NEXT: 2 -- 1: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: 3 -- 2: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: 4 -- 3: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: 5 -- 4: {0.6,0.4,0.2,0} 
-// CHECK-NEXT: read two pixels on either side of 1. float coordinates. ClampEDGE
-// CHECK-NEXT: 6 -- 1: {0.4,0.4,0.4,0.4} 
-// CHECK-NEXT: 7 -- 1: {0.4,0.4,0.4,0.4}
-// clang-format on
