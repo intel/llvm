@@ -8303,10 +8303,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // types (aocx/aocr) are always list files.  We should represent this
     // better in the output extension and type for improved understanding
     // of file contents and debuggability.
-    if (getToolChain().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_fpga)
-      TypeArg = (InputType == types::TY_FPGA_AOCX) ? "aocx" : "aocr";
-    else
+    TypeArg = (InputType == types::TY_FPGA_AOCX) ? "aocx" : "aocr";
+    if (!getToolChain().getTriple().isSPIR())
       TypeArg = "aoo";
   }
   if (InputType == types::TY_FPGA_AOCO || IsFPGADepLibUnbundle)
@@ -8327,28 +8325,25 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // aocx or aocr type bundles.  Also, we only do a specific target
     // unbundling, skipping the host side or device side.
     if (types::isFPGA(InputType)) {
-      if (getToolChain().getTriple().getSubArch() ==
-              llvm::Triple::SPIRSubArch_fpga &&
-          Dep.DependentOffloadKind == Action::OFK_SYCL) {
-        if (J++)
-          Triples += ',';
-        llvm::Triple TT;
-        TT.setArchName(types::getTypeName(InputType));
-        TT.setVendorName("intel");
-        TT.setOS(getToolChain().getTriple().getOS());
-        TT.setEnvironment(llvm::Triple::SYCLDevice);
-        Triples += "sycl-";
-        Triples += TT.normalize();
-      } else if (getToolChain().getTriple().getSubArch() !=
-                     llvm::Triple::SPIRSubArch_fpga &&
-                 Dep.DependentOffloadKind == Action::OFK_Host) {
-        if (J++)
-          Triples += ',';
-        Triples += Action::GetOffloadKindName(Dep.DependentOffloadKind);
-        Triples += '-';
-        Triples += Dep.DependentToolChain->getTriple().normalize();
-      }
-      continue;
+      if (getToolChain().getTriple().isSPIR()) {
+        if (Dep.DependentToolChain->getTriple().getSubArch() ==
+            llvm::Triple::SPIRSubArch_fpga) {
+          if (J++)
+            Triples += ',';
+          llvm::Triple TT;
+          TT.setArchName(types::getTypeName(InputType));
+          TT.setVendorName("intel");
+          TT.setOS(getToolChain().getTriple().getOS());
+          TT.setEnvironment(llvm::Triple::SYCLDevice);
+          Triples += "sycl-";
+          Triples += TT.normalize();
+          continue;
+        } else if (Dep.DependentOffloadKind == Action::OFK_Host) {
+          // No host unbundle for FPGA binaries.
+          continue;
+        }
+      } else if (Dep.DependentOffloadKind == Action::OFK_SYCL)
+        continue;
     } else if (InputType == types::TY_Archive ||
                (getToolChain().getTriple().getSubArch() ==
                     llvm::Triple::SPIRSubArch_fpga &&
