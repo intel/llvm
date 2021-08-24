@@ -46,8 +46,7 @@
 #include "xpti_trace_framework.hpp"
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -1682,7 +1681,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<
       range<3>,
-      cl::sycl::info::kernel_device_specific::compile_work_group_size>::
+      __sycl_ns_alias::info::kernel_device_specific::compile_work_group_size>::
       get(Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
 
   if (WGSize[0] == 0) {
@@ -1754,7 +1753,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     }
     case kernel_param_kind_t::kind_specialization_constants_buffer: {
       if (MQueue->is_host()) {
-        throw cl::sycl::feature_not_supported(
+        throw __sycl_ns_alias::feature_not_supported(
             "SYCL2020 specialization constants are not yet supported on host "
             "device",
             PI_INVALID_OPERATION);
@@ -1988,12 +1987,12 @@ cl_int ExecCGCommand::enqueueImp() {
 
     switch (Error) {
     case PI_INVALID_OPERATION:
-      throw cl::sycl::runtime_error(
+      throw __sycl_ns_alias::runtime_error(
           "Device doesn't support run_on_host_intel tasks.", Error);
     case PI_SUCCESS:
       return Error;
     default:
-      throw cl::sycl::runtime_error(
+      throw __sycl_ns_alias::runtime_error(
           "Enqueueing run_on_host_intel task has failed.", Error);
     }
   }
@@ -2259,5 +2258,4 @@ bool ExecCGCommand::producesPiEvent() const {
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

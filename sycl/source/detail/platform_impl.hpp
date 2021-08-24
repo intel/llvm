@@ -14,8 +14,7 @@
 #include <detail/platform_info.hpp>
 #include <detail/plugin.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 // Forward declaration
 class device_selector;
@@ -189,5 +188,4 @@ private:
 };
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

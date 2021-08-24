@@ -19,17 +19,16 @@
 
 #include <tuple>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace oneapi {
 
 namespace detail {
 
-using cl::sycl::detail::bool_constant;
-using cl::sycl::detail::enable_if_t;
-using cl::sycl::detail::queue_impl;
-using cl::sycl::detail::remove_AS;
+using __sycl_ns_alias::detail::bool_constant;
+using __sycl_ns_alias::detail::enable_if_t;
+using __sycl_ns_alias::detail::queue_impl;
+using __sycl_ns_alias::detail::remove_AS;
 
 // This type trait is used to detect if the atomic operation BinaryOperation
 // used with operands of the type T is available for using in reduction.
@@ -2072,12 +2071,11 @@ __SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
   namespace detail {
-  using cl::sycl::detail::queue_impl;
+  using __sycl_ns_alias::detail::queue_impl;
   __SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
                                         size_t LocalMemBytesPerWorkItem);
   __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
                                          size_t &NWorkGroups);
   } // namespace detail
 } // namespace ONEAPI
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

@@ -11,8 +11,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/property_helper.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace property {
 namespace context {
 namespace cuda {
@@ -21,5 +20,4 @@ class use_primary_context
 } // namespace cuda
 } // namespace context
 } // namespace property
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

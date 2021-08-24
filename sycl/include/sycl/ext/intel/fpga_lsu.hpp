@@ -11,8 +11,7 @@
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/pointers.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace intel {
 constexpr uint8_t BURST_COALESCE = 0x1;
@@ -127,5 +126,4 @@ private:
 namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
   using namespace ext::intel;
 }
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

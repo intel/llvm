@@ -14,7 +14,7 @@
 
 #include <cmath>
 
-namespace s = cl::sycl;
+namespace s = __sycl_ns_alias;
 namespace d = s::detail;
 
 __SYCL_INLINE_NAMESPACE(cl) {

@@ -12,8 +12,7 @@
 
 #include <cstdio>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
@@ -35,7 +34,7 @@ stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
 GlobalBufAccessorT stream_impl::accessGlobalBuf(handler &CGH) {
   return detail::Scheduler::getInstance()
       .StreamBuffersPool.find(this)
-      ->second->Buf.get_access<cl::sycl::access::mode::read_write>(
+      ->second->Buf.get_access<__sycl_ns_alias::access::mode::read_write>(
           CGH, range<1>(BufferSize_), id<1>(OffsetSize));
 }
 
@@ -43,7 +42,7 @@ GlobalBufAccessorT stream_impl::accessGlobalBuf(handler &CGH) {
 GlobalBufAccessorT stream_impl::accessGlobalFlushBuf(handler &CGH) {
   return detail::Scheduler::getInstance()
       .StreamBuffersPool.find(this)
-      ->second->FlushBuf.get_access<cl::sycl::access::mode::read_write>(
+      ->second->FlushBuf.get_access<__sycl_ns_alias::access::mode::read_write>(
           CGH, range<1>(MaxStatementSize_ + FLUSH_BUF_OFFSET_SIZE), id<1>(0));
 }
 
@@ -55,7 +54,7 @@ GlobalOffsetAccessorT stream_impl::accessGlobalOffset(handler &CGH) {
                                           ->second->Buf,
                                       id<1>(0), range<1>(OffsetSize));
   auto ReinterpretedBuf = OffsetSubBuf.reinterpret<unsigned, 1>(range<1>(2));
-  return ReinterpretedBuf.get_access<cl::sycl::access::mode::atomic>(
+  return ReinterpretedBuf.get_access<__sycl_ns_alias::access::mode::atomic>(
       CGH, range<1>(2), id<1>(0));
 }
 size_t stream_impl::get_size() const { return BufferSize_; }
@@ -67,7 +66,7 @@ void stream_impl::flush() {
   // host task to print stream buffer. It will fire up as soon as the kernel
   // finishes execution.
   auto Q = detail::createSyclObjFromImpl<queue>(
-      cl::sycl::detail::Scheduler::getInstance().getDefaultHostQueue());
+      __sycl_ns_alias::detail::Scheduler::getInstance().getDefaultHostQueue());
   Q.submit([&](handler &cgh) {
     auto BufHostAcc =
         detail::Scheduler::getInstance()
@@ -92,6 +91,5 @@ void stream_impl::flush() {
   });
 }
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 

@@ -21,8 +21,7 @@
 #include "xpti_trace_framework.h"
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GPICallEvent;
@@ -107,16 +106,16 @@ public:
   /// Checks return value from PI calls.
   ///
   /// \throw Exception if pi_result is not a PI_SUCCESS.
-  template <typename Exception = cl::sycl::runtime_error>
+  template <typename Exception = __sycl_ns_alias::runtime_error>
   void checkPiResult(RT::PiResult pi_result) const {
     __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception);
   }
 
   void reportPiError(RT::PiResult pi_result, const char *context) const {
     if (pi_result != PI_SUCCESS) {
-      throw cl::sycl::runtime_error(
+      throw __sycl_ns_alias::runtime_error(
           std::string(context) + " API failed with error: " +
-              cl::sycl::detail::codeToString(pi_result),
+              __sycl_ns_alias::detail::codeToString(pi_result),
           pi_result);
     }
   }
@@ -172,7 +171,7 @@ public:
 
   /// Calls the API, traces the call, checks the result
   ///
-  /// \throw cl::sycl::runtime_exception if the call was not successful.
+  /// \throw __sycl_ns_alias::runtime_exception if the call was not successful.
   template <PiApiKind PiApiOffset, typename... ArgsT>
   void call(ArgsT... Args) const {
     RT::PiResult Err = call_nocheck<PiApiOffset>(Args...);
@@ -191,5 +190,4 @@ private:
   std::shared_ptr<std::mutex> TracingMutex;
 }; // class plugin
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

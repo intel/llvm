@@ -10,8 +10,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/sampler_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
@@ -92,5 +91,4 @@ sampler_impl::get_coordinate_normalization_mode() const {
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

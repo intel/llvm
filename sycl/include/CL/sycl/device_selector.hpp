@@ -13,8 +13,7 @@
 
 // 4.6.1 Device selection class
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 // Forward declarations
 class device;
@@ -87,5 +86,4 @@ class __SYCL_EXPORT host_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

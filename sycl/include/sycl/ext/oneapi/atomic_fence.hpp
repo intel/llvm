@@ -16,12 +16,11 @@
 #include <atomic>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace oneapi {
 namespace detail {
-using namespace cl::sycl::detail;
+using namespace __sycl_ns_alias::detail;
 }
 
 __SYCL2020_DEPRECATED("use sycl::atomic_fence instead")
@@ -43,5 +42,4 @@ static inline void atomic_fence(memory_order order, memory_scope scope) {
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
 }
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

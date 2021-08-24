@@ -15,8 +15,7 @@
 #include <istream>
 #include <string>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 enum class backend : char {
   host = 0,
@@ -65,5 +64,4 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   return Out;
 }
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

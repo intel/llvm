@@ -10,22 +10,20 @@
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/usm/usm_enums.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 namespace usm {
 
 __SYCL_EXPORT void *alignedAlloc(size_t Alignment, size_t Bytes,
                                  const context &Ctxt, const device &Dev,
-                                 cl::sycl::usm::alloc Kind);
+                                 __sycl_ns_alias::usm::alloc Kind);
 
 __SYCL_EXPORT void *alignedAllocHost(size_t Alignment, size_t Bytes,
                                      const context &Ctxt,
-                                     cl::sycl::usm::alloc Kind);
+                                     __sycl_ns_alias::usm::alloc Kind);
 
 __SYCL_EXPORT void free(void *Ptr, const context &Ctxt);
 
 } // namespace usm
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

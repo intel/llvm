@@ -13,8 +13,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 /// Defines the iteration domain of both the work-groups and the overall
 /// dispatch.
@@ -64,5 +63,4 @@ public:
   }
 };
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

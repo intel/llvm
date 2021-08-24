@@ -19,8 +19,7 @@
 
 #include <cstdint>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -2479,5 +2478,4 @@ simd<T, N> esimd_dp4(simd<T, N> v1, simd<T, N> v2) {
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

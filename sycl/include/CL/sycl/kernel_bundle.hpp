@@ -21,8 +21,7 @@
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 // Forward declaration
 template <backend Backend> class backend_traits;
 
@@ -667,30 +666,29 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
   return build(InputBundle, InputBundle.get_devices(), PropList);
 }
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 namespace std {
-template <> struct hash<cl::sycl::kernel_id> {
-  size_t operator()(const cl::sycl::kernel_id &KernelID) const {
-    return hash<std::shared_ptr<cl::sycl::detail::kernel_id_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(KernelID));
+template <> struct hash<__sycl_ns_alias::kernel_id> {
+  size_t operator()(const __sycl_ns_alias::kernel_id &KernelID) const {
+    return hash<std::shared_ptr<__sycl_ns_alias::detail::kernel_id_impl>>()(
+        __sycl_ns_alias::detail::getSyclObjImpl(KernelID));
   }
 };
 
-template <cl::sycl::bundle_state State>
-struct hash<cl::sycl::device_image<State>> {
-  size_t operator()(const cl::sycl::device_image<State> &DeviceImage) const {
-    return hash<std::shared_ptr<cl::sycl::detail::device_image_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(DeviceImage));
+template <__sycl_ns_alias::bundle_state State>
+struct hash<__sycl_ns_alias::device_image<State>> {
+  size_t operator()(const __sycl_ns_alias::device_image<State> &DeviceImage) const {
+    return hash<std::shared_ptr<__sycl_ns_alias::detail::device_image_impl>>()(
+        __sycl_ns_alias::detail::getSyclObjImpl(DeviceImage));
   }
 };
 
-template <cl::sycl::bundle_state State>
-struct hash<cl::sycl::kernel_bundle<State>> {
-  size_t operator()(const cl::sycl::kernel_bundle<State> &KernelBundle) const {
-    return hash<std::shared_ptr<cl::sycl::detail::kernel_bundle_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(KernelBundle));
+template <__sycl_ns_alias::bundle_state State>
+struct hash<__sycl_ns_alias::kernel_bundle<State>> {
+  size_t operator()(const __sycl_ns_alias::kernel_bundle<State> &KernelBundle) const {
+    return hash<std::shared_ptr<__sycl_ns_alias::detail::kernel_bundle_impl>>()(
+        __sycl_ns_alias::detail::getSyclObjImpl(KernelBundle));
   }
 };
 } // namespace std

@@ -16,10 +16,9 @@
 
 #include <cstdlib>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
-using alloc = cl::sycl::usm::alloc;
+using alloc = __sycl_ns_alias::usm::alloc;
 
 namespace detail {
 namespace usm {
@@ -416,5 +415,4 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
                       PI_INVALID_OPERATION);
 }
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

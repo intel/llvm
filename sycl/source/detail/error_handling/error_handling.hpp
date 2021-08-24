@@ -12,8 +12,7 @@
 #include <CL/sycl/detail/pi.h>
 #include <detail/device_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 namespace enqueue_kernel_launch {
@@ -29,5 +28,4 @@ bool handleError(pi_result, const device_impl &, pi_kernel, const NDRDescT &);
 } // namespace enqueue_kernel_launch
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

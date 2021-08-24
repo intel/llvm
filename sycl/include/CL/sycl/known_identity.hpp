@@ -13,8 +13,7 @@
 #include <limits>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 template <typename T, class BinaryOperation>
@@ -115,7 +114,7 @@ struct known_identity_impl<BinaryOperation, half,
 #ifdef __SYCL_DEVICE_ONLY__
       0;
 #else
-      cl::sycl::detail::host_half_impl::half_v2(static_cast<uint16_t>(0));
+      __sycl_ns_alias::detail::host_half_impl::half_v2(static_cast<uint16_t>(0));
 #endif
 };
 
@@ -135,7 +134,7 @@ struct known_identity_impl<BinaryOperation, half,
 #ifdef __SYCL_DEVICE_ONLY__
       1;
 #else
-      cl::sycl::detail::host_half_impl::half_v2(static_cast<uint16_t>(0x3C00));
+      __sycl_ns_alias::detail::host_half_impl::half_v2(static_cast<uint16_t>(0x3C00));
 #endif
 };
 
@@ -192,5 +191,4 @@ template <typename BinaryOperation, typename AccumulatorT>
 __SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
     sycl::known_identity<BinaryOperation, AccumulatorT>::value;
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

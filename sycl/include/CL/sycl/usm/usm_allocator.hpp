@@ -17,8 +17,7 @@
 #include <cstdlib>
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 // Forward declarations.
 __SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t size,
@@ -120,5 +119,4 @@ private:
   property_list MPropList;
 };
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

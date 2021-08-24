@@ -19,8 +19,7 @@
 #include <io.h>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 /* Lock file suffix */
@@ -410,5 +409,4 @@ std::string PersistentDeviceCodeCache::getRootDir() {
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

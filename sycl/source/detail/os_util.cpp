@@ -42,8 +42,7 @@
 
 #endif // __SYCL_RT_OS
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 #if defined(__SYCL_RT_OS_LINUX)
@@ -300,5 +299,4 @@ int OSUtil::makeDir(const char *Dir) {
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

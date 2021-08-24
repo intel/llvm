@@ -24,8 +24,7 @@
 #include <set>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 /// Checks whether two requirements overlap or not.
@@ -1264,5 +1263,4 @@ Command *Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

@@ -4788,8 +4788,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       FwdDeclEmitter.Visit(K.NameType);
   O << "\n";
 
-  O << "__SYCL_INLINE_NAMESPACE(cl) {\n";
-  O << "namespace sycl {\n";
+  O << "__SYCL_OPEN_NS\n";
   O << "namespace detail {\n";
 
   O << "\n";
@@ -4868,8 +4867,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   O << "\n";
   O << "} // namespace detail\n";
-  O << "} // namespace sycl\n";
-  O << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
+  O << "__SYCL_CLOSE_NS\n";
   O << "\n";
 }
 
@@ -5151,8 +5149,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     VisitedSpecConstants.insert(VD);
     std::string TopShim = EmitSpecIdShims(OS, ShimCounter, Policy, VD);
-    OS << "__SYCL_INLINE_NAMESPACE(cl) {\n";
-    OS << "namespace sycl {\n";
+    OS << "__SYCL_OPEN_NS\n";
     OS << "namespace detail {\n";
     OS << "template<>\n";
     OS << "inline const char *get_spec_constant_symbolic_ID_impl<";
@@ -5170,8 +5167,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "\";\n";
     OS << "}\n";
     OS << "} // namespace detail\n";
-    OS << "} // namespace sycl\n";
-    OS << "} // __SYCL_INLINE_NAMESPACE(cl)\n";
+    OS << "__SYCL_CLOSE_NS\n";
   }
 
   if (EmittedFirstSpecConstant)

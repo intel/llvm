@@ -33,23 +33,21 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 // Type trait to get the associated sampled image type for a given image type.
 template <typename ImageType> struct sampled_opencl_image_type;
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 #define __SYCL_INVOKE_SPIRV_CALL_ARG1(call)                                    \
   template <typename R, typename T1> inline R __invoke_##call(T1 ParT1) {      \
-    using Ret = cl::sycl::detail::ConvertToOpenCLType_t<R>;                    \
+    using Ret = __sycl_ns_alias::detail::ConvertToOpenCLType_t<R>;                    \
     T1 Arg1 = ParT1;                                                           \
     Ret RetVar = __spirv_##call<Ret, T1>(Arg1);                                \
-    return cl::sycl::detail::convertDataToType<Ret, R>(RetVar);                \
+    return __sycl_ns_alias::detail::convertDataToType<Ret, R>(RetVar);                \
   }
 
 // The macro defines the function __invoke_ImageXXXX,
@@ -62,12 +60,12 @@ template <typename ImageT, typename CoordT, typename ValT>
 static void __invoke__ImageWrite(ImageT Img, CoordT Coords, ValT Val) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
-  using TmpValT = cl::sycl::detail::ConvertToOpenCLType_t<ValT>;
-  using TmpCoordT = cl::sycl::detail::ConvertToOpenCLType_t<CoordT>;
+  using TmpValT = __sycl_ns_alias::detail::ConvertToOpenCLType_t<ValT>;
+  using TmpCoordT = __sycl_ns_alias::detail::ConvertToOpenCLType_t<CoordT>;
 
   TmpCoordT TmpCoord =
-      cl::sycl::detail::convertDataToType<CoordT, TmpCoordT>(Coords);
-  TmpValT TmpVal = cl::sycl::detail::convertDataToType<ValT, TmpValT>(Val);
+      __sycl_ns_alias::detail::convertDataToType<CoordT, TmpCoordT>(Coords);
+  TmpValT TmpVal = __sycl_ns_alias::detail::convertDataToType<ValT, TmpValT>(Val);
   __spirv_ImageWrite<ImageT, TmpCoordT, TmpValT>(Img, TmpCoord, TmpVal);
 }
 
@@ -75,12 +73,12 @@ template <typename RetType, typename ImageT, typename CoordT>
 static RetType __invoke__ImageRead(ImageT Img, CoordT Coords) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
-  using TempRetT = cl::sycl::detail::ConvertToOpenCLType_t<RetType>;
-  using TempArgT = cl::sycl::detail::ConvertToOpenCLType_t<CoordT>;
+  using TempRetT = __sycl_ns_alias::detail::ConvertToOpenCLType_t<RetType>;
+  using TempArgT = __sycl_ns_alias::detail::ConvertToOpenCLType_t<CoordT>;
 
-  TempArgT Arg = cl::sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
+  TempArgT Arg = __sycl_ns_alias::detail::convertDataToType<CoordT, TempArgT>(Coords);
   TempRetT Ret = __spirv_ImageRead<TempRetT, ImageT, TempArgT>(Img, Arg);
-  return cl::sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
+  return __sycl_ns_alias::detail::convertDataToType<TempRetT, RetType>(Ret);
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
@@ -88,13 +86,13 @@ static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
                                           const __ocl_sampler_t &Smpl) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
-  using TempRetT = cl::sycl::detail::ConvertToOpenCLType_t<RetType>;
-  using TempArgT = cl::sycl::detail::ConvertToOpenCLType_t<CoordT>;
+  using TempRetT = __sycl_ns_alias::detail::ConvertToOpenCLType_t<RetType>;
+  using TempArgT = __sycl_ns_alias::detail::ConvertToOpenCLType_t<CoordT>;
   using SampledT =
-      typename cl::sycl::detail::sampled_opencl_image_type<ImageT>::type;
+      typename __sycl_ns_alias::detail::sampled_opencl_image_type<ImageT>::type;
 
   TempArgT TmpCoords =
-      cl::sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
+      __sycl_ns_alias::detail::convertDataToType<CoordT, TempArgT>(Coords);
   // According to validation rules(SPIR-V specification, section 2.16.1) result
   // of __spirv_SampledImage is allowed to be an operand of image lookup
   // and query instructions explicitly specified to take an operand whose
@@ -110,11 +108,10 @@ static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
   TempRetT Ret = __spirv_ImageSampleExplicitLod<SampledT, TempRetT, TempArgT>(
       __spirv_SampledImage<ImageT, SampledT>(Img, Smpl), TmpCoords,
       ImageOperands::Lod, 0.0f);
-  return cl::sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
+  return __sycl_ns_alias::detail::convertDataToType<TempRetT, RetType>(Ret);
 }
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 // Function to return the number of channels for Image Channel Order returned by
@@ -256,8 +253,7 @@ __SYCL_IMAGETY_WRITE_2_DIM_IARRAY
 __SYCL_IMAGETY_DISCARD_WRITE_2_DIM_IARRAY
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 #undef __SYCL_SAMPLED_AND_IMAGETY_DEFINE
 #undef __SYCL_INVOKE_SPIRV_CALL_ARG1

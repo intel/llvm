@@ -10,8 +10,7 @@
 #include <detail/program_impl.hpp>
 #include <sycl/ext/oneapi/function_pointer.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 ext::oneapi::device_func_ptr_holder_t
 getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
@@ -19,7 +18,7 @@ getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
   // FIXME: return value must be checked here, but since we cannot yet check
   // if corresponding extension is supported, let's silently ignore it here.
   const detail::plugin &Plugin = detail::getSyclObjImpl(P)->getPlugin();
-  Plugin.call<cl::sycl::detail::PiApiKind::piextGetDeviceFunctionPointer>(
+  Plugin.call<__sycl_ns_alias::detail::PiApiKind::piextGetDeviceFunctionPointer>(
       detail::pi::cast<pi_device>(detail::getSyclObjImpl(D)->getHandleRef()),
       detail::pi::cast<pi_program>(detail::getSyclObjImpl(P)->getHandleRef()),
       FuncName, &FPtr);
@@ -27,5 +26,4 @@ getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

@@ -20,8 +20,7 @@
 #endif
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 // Forward declaration
 template <typename pointerT, access::address_space AddressSpace>
@@ -32,16 +31,16 @@ namespace oneapi {
 namespace detail {
 
 // Import from detail:: into ext::oneapi::detail:: to improve readability later
-using namespace ::cl::sycl::detail;
+using namespace ::__sycl_ns_alias::detail;
 
-using memory_order = cl::sycl::ext::oneapi::memory_order;
-using memory_scope = cl::sycl::ext::oneapi::memory_scope;
+using memory_order = __sycl_ns_alias::ext::oneapi::memory_order;
+using memory_scope = __sycl_ns_alias::ext::oneapi::memory_scope;
 
 template <typename T>
 using IsValidAtomicType =
     bool_constant<std::is_arithmetic<T>::value || std::is_pointer<T>::value>;
 
-template <cl::sycl::access::address_space AS>
+template <__sycl_ns_alias::access::address_space AS>
 using IsValidAtomicAddressSpace =
     bool_constant<AS == access::address_space::global_space ||
                   AS == access::address_space::local_space ||
@@ -677,5 +676,4 @@ public:
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
 }
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

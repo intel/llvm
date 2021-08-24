@@ -13,8 +13,7 @@
 
 #include <cstddef>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 ///
 // Explicit USM
 ///
@@ -233,5 +232,4 @@ __SYCL_EXPORT usm::alloc get_pointer_type(const void *ptr, const context &ctxt);
 /// \param ctxt is the sycl context the ptr was allocated in
 __SYCL_EXPORT device get_pointer_device(const void *ptr, const context &ctxt);
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

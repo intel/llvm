@@ -11,8 +11,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 /// Profiling info for the host execution.
@@ -36,5 +35,4 @@ public:
   void end();
 };
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

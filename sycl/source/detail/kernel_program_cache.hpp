@@ -24,13 +24,12 @@
 // For testing purposes
 class MockKernelProgramCache;
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 class context_impl;
 class KernelProgramCache {
 public:
-  /// Denotes build error data. The data is filled in from cl::sycl::exception
+  /// Denotes build error data. The data is filled in from __sycl_ns_alias::exception
   /// class instance.
   struct BuildError {
     std::string Msg;
@@ -143,5 +142,4 @@ private:
   friend class ::MockKernelProgramCache;
 };
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

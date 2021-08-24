@@ -13,8 +13,7 @@
 
 #include <cstring>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 device_filter::device_filter(const std::string &FilterString) {
@@ -79,7 +78,7 @@ device_filter::device_filter(const std::string &FilterString) {
           "{host,opencl,level_zero,cuda,rocm,*}.\n"
           "Possible device types are {host,cpu,gpu,acc,*}.\n"
           "Device number should be an non-negative integer.\n";
-      throw cl::sycl::invalid_parameter_error(Message, PI_INVALID_VALUE);
+      throw __sycl_ns_alias::invalid_parameter_error(Message, PI_INVALID_VALUE);
     }
   }
 }
@@ -156,5 +155,4 @@ bool device_filter_list::containsHost() {
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

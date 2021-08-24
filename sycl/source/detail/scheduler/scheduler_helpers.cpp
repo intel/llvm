@@ -12,8 +12,7 @@
 #include <detail/scheduler/scheduler_helpers.hpp>
 #include <detail/stream_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {
@@ -51,5 +50,4 @@ void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

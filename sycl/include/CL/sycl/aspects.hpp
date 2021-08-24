@@ -9,8 +9,7 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 enum class aspect {
   host = 0,
@@ -48,5 +47,4 @@ enum class aspect {
   ext_oneapi_srgb = 30,
 };
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

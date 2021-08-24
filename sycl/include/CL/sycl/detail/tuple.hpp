@@ -15,8 +15,7 @@
 #include <tuple>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 template <typename... T> struct tuple;
@@ -189,21 +188,20 @@ template <> struct tuple<> {
 };
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 namespace std {
 
 template <size_t I, typename... Types>
 constexpr typename tuple_element<I, tuple<Types...>>::type &
-get(cl::sycl::detail::tuple<Types...> &Arg) noexcept {
-  return cl::sycl::detail::get<I>()(Arg);
+get(__sycl_ns_alias::detail::tuple<Types...> &Arg) noexcept {
+  return __sycl_ns_alias::detail::get<I>()(Arg);
 }
 
 template <size_t I, typename... Types>
 constexpr typename tuple_element<I, tuple<Types...>>::type const &
-get(const cl::sycl::detail::tuple<Types...> &Arg) noexcept {
-  return cl::sycl::detail::get<I>()(Arg);
+get(const __sycl_ns_alias::detail::tuple<Types...> &Arg) noexcept {
+  return __sycl_ns_alias::detail::get<I>()(Arg);
 }
 
 } // namespace std

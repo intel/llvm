@@ -14,9 +14,8 @@
 
 // 4.6.2 Platform class
 #include <utility>
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-// TODO: make code thread-safe
+
+__SYCL_OPEN_NS
 
 // Forward declaration
 class device_selector;
@@ -143,14 +142,13 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
 }; // class platform
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 namespace std {
-template <> struct hash<cl::sycl::platform> {
-  size_t operator()(const cl::sycl::platform &p) const {
-    return hash<std::shared_ptr<cl::sycl::detail::platform_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(p));
+template <> struct hash<__sycl_ns_alias::platform> {
+  size_t operator()(const __sycl_ns_alias::platform &p) const {
+    return hash<std::shared_ptr<__sycl_ns_alias::detail::platform_impl>>()(
+        __sycl_ns_alias::detail::getSyclObjImpl(p));
   }
 };
 } // namespace std

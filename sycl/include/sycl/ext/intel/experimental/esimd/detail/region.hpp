@@ -15,8 +15,7 @@
 #include <type_traits>
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -123,5 +122,4 @@ template <typename T, typename U> T getBaseRegion(std::pair<T, U> Reg) {
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

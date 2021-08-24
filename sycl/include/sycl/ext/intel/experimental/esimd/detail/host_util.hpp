@@ -16,18 +16,15 @@
 
 #define SIMDCF_ELEMENT_SKIP(i)
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 namespace half_impl {
 class half;
 } // namespace half_impl
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -478,7 +475,6 @@ template <> struct dwordtype<unsigned int> { static const bool value = true; };
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 #endif // #ifndef __SYCL_DEVICE_ONLY__

@@ -12,8 +12,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/id.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 class program;
 class device;
@@ -336,5 +335,4 @@ template <typename T, T param> struct compatibility_param_traits {};
 #undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 
 } // namespace info
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

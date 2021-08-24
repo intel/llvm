@@ -18,8 +18,7 @@
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 // cos
 template <int SZ>
@@ -65,7 +64,6 @@ log(__ESIMD_NS::simd<float, SZ> x) __NOEXC {
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 #undef __NOEXC

@@ -22,8 +22,7 @@
 #include <memory>
 #include <mutex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 program_impl::program_impl(ContextImplPtr Context,
@@ -523,7 +522,7 @@ std::vector<device> program_impl::get_info<info::program::devices>() const {
 void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
                                           size_t ValSize) {
   if (MState != program_state::none)
-    throw cl::sycl::ext::oneapi::experimental::spec_const_error(
+    throw __sycl_ns_alias::ext::oneapi::experimental::spec_const_error(
         "Invalid program state", PI_INVALID_PROGRAM);
   // Reuse cached programs lock as opposed to introducing a new lock.
   auto LockGuard = MContext->getKernelProgramCache().acquireCachedPrograms();
@@ -581,5 +580,4 @@ pi_native_handle program_impl::getNative() const {
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

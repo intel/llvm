@@ -18,8 +18,7 @@
 
 #include <exception>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 // Forward declaration
 class context;
@@ -202,9 +201,8 @@ public:
 };
 } // namespace detail
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 namespace std {
-template <> struct is_error_code_enum<cl::sycl::errc> : true_type {};
+template <> struct is_error_code_enum<sycl::errc> : true_type {};
 } // namespace std

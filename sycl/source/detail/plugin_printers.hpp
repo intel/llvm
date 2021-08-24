@@ -14,8 +14,7 @@
 
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 namespace pi {
 
@@ -178,5 +177,4 @@ void printOuts(Arg0 arg0, Args... args) {
 
 } // namespace pi
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

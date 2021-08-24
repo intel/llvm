@@ -9,8 +9,7 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/ext/oneapi/reduction.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace oneapi {
 namespace detail {
@@ -131,5 +130,4 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   }
   } // namespace detail
 } // namespace ONEAPI
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

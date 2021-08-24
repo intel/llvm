@@ -16,14 +16,13 @@
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
     t = ft;
   } else if (ft != info::device_type::all && t != ft) {
-    throw cl::sycl::invalid_parameter_error("No device of forced type.",
+    throw __sycl_ns_alias::invalid_parameter_error("No device of forced type.",
                                             PI_INVALID_OPERATION);
   }
 }
@@ -162,5 +161,4 @@ pi_native_handle device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

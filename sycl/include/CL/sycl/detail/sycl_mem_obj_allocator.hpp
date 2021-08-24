@@ -8,8 +8,7 @@
 
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 template <typename T>

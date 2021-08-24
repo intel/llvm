@@ -3,16 +3,21 @@
   /* because vtable and typeinfo symbols make extern "C++" patterns more    */
   /* complicated than patterns against mangled names.                       */
   /*                                                                        */
-  /* With extern "C++" we have to match for "vtable for cl::sycl::foo", but */
-  /* not match for "vtable for std::__internal<cl::sycl::foo>".             */
+  /* With extern "C++" we have to match for "vtable for sycl::foo", but     */
+  /* not match for "vtable for std::__internal<sycl::foo>".                 */
 
   global:
-    /* Export everything from cl::sycl namespace */
+    /* Export everything from sycl namespace */
     _ZNK2cl4sycl*;  /* function */
     _ZN2cl4sycl*;   /* function */
     _ZTIN2cl4sycl*; /* typeinfo */
     _ZTSN2cl4sycl*; /* typeinfo name */
     _ZTVN2cl4sycl*; /* vtable */
+    _ZNK15__sycl_internal4__v1*;  /* function */
+    _ZN15__sycl_internal4__v1*;   /* function */
+    _ZTIN15__sycl_internal4__v1*; /* typeinfo */
+    _ZTSN15__sycl_internal4__v1*; /* typeinfo name */
+    _ZTVN15__sycl_internal4__v1*; /* vtable */
 
     /* Some functions are also in cl::__host_std, export them as well */
     _ZN2cl10__host_std*;

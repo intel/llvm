@@ -21,8 +21,7 @@
 #include <type_traits>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 class context;
 class event;
 template <int Dims, bool WithOffset> class item;
@@ -47,10 +46,10 @@ class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
 __SYCL_EXPORT std::vector<RT::PiEvent>
-getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
-                std::shared_ptr<cl::sycl::detail::context_impl> Context);
+getOrWaitEvents(std::vector<__sycl_ns_alias::event> DepEvents,
+                std::shared_ptr<__sycl_ns_alias::detail::context_impl> Context);
 
-__SYCL_EXPORT void waitEvents(std::vector<cl::sycl::event> DepEvents);
+__SYCL_EXPORT void waitEvents(std::vector<__sycl_ns_alias::event> DepEvents);
 
 template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
 
@@ -116,7 +115,7 @@ public:
   }
 
   template <int Dims, bool WithOffset>
-  static void updateItemIndex(cl::sycl::item<Dims, WithOffset> &Item,
+  static void updateItemIndex(__sycl_ns_alias::item<Dims, WithOffset> &Item,
                               const id<Dims> &NextIndex) {
     Item.MImpl.MIndex = NextIndex;
   }
@@ -242,5 +241,4 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
 
 } // namespace detail
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

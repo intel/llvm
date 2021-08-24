@@ -14,8 +14,7 @@
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/property_list.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 enum class addressing_mode : unsigned int {
   mirrored_repeat = CL_ADDRESS_MIRRORED_REPEAT,
   repeat = CL_ADDRESS_REPEAT,
@@ -117,22 +116,21 @@ private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
-  template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
-            cl::sycl::access::target AccessTarget, access::placeholder IsPlaceholder>
+  template <typename DataT, int Dimensions, __sycl_ns_alias::access::mode AccessMode,
+            __sycl_ns_alias::access::target AccessTarget, access::placeholder IsPlaceholder>
   friend class detail::image_accessor;
 };
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 namespace std {
-template <> struct hash<cl::sycl::sampler> {
-  size_t operator()(const cl::sycl::sampler &s) const {
+template <> struct hash<__sycl_ns_alias::sampler> {
+  size_t operator()(const __sycl_ns_alias::sampler &s) const {
 #ifdef __SYCL_DEVICE_ONLY__
     (void)s;
     return 0;
 #else
-    return hash<std::shared_ptr<cl::sycl::detail::sampler_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(s));
+    return hash<std::shared_ptr<__sycl_ns_alias::detail::sampler_impl>>()(
+        __sycl_ns_alias::detail::getSyclObjImpl(s));
 #endif
   }
 };

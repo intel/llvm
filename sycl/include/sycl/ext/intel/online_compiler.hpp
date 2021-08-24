@@ -15,8 +15,7 @@
 #include <string>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace intel {
 
@@ -361,5 +360,4 @@ namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
   }
 
 } // namespace INTEL
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

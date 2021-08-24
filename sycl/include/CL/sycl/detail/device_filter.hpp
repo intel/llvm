@@ -15,8 +15,7 @@
 #include <iostream>
 #include <string>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 struct device_filter {
@@ -83,5 +82,4 @@ inline std::ostream &operator<<(std::ostream &Out,
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

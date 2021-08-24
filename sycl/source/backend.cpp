@@ -25,8 +25,7 @@
 #include <algorithm>
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 static const plugin &getPlugin(backend Backend) {
@@ -211,5 +210,4 @@ kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
       std::make_shared<kernel_impl>(PiKernel, ContextImpl));
 }
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

@@ -19,8 +19,7 @@
 
 // 4.6.2 Context class
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 // Forward declarations
 class device;
 class platform;
@@ -240,14 +239,13 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 namespace std {
-template <> struct hash<cl::sycl::context> {
-  size_t operator()(const cl::sycl::context &Context) const {
-    return hash<std::shared_ptr<cl::sycl::detail::context_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Context));
+template <> struct hash<__sycl_ns_alias::context> {
+  size_t operator()(const __sycl_ns_alias::context &Context) const {
+    return hash<std::shared_ptr<__sycl_ns_alias::detail::context_impl>>()(
+        __sycl_ns_alias::detail::getSyclObjImpl(Context));
   }
 };
 } // namespace std

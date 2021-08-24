@@ -17,8 +17,7 @@
 
 #include <limits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 template <typename T> using is_floatn = is_contained<T, gtl::vector_float_list>;
@@ -396,7 +395,7 @@ using select_cl_scalar_t = conditional_t<
         // half is a special case: it is implemented differently on host and
         // device and therefore, might lower to different types
         conditional_t<std::is_same<T, half>::value,
-                      cl::sycl::detail::half_impl::BIsRepresentationT, T>>>;
+                      __sycl_ns_alias::detail::half_impl::BIsRepresentationT, T>>>;
 
 // select_cl_vector_or_scalar does cl_* type selection for element type of
 // a vector type T and does scalar type substitution.  If T is not
@@ -627,5 +626,4 @@ template <typename... Args> inline void check_vector_size() {
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

@@ -23,8 +23,7 @@
 #include <chrono>
 #include <thread>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 inline std::vector<info::fp_config> read_fp_bitfield(cl_device_fp_config bits) {
@@ -1136,5 +1135,4 @@ get_device_info_host<info::device::ext_intel_device_info_uuid>() {
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

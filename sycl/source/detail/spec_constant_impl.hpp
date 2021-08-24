@@ -16,8 +16,7 @@
 #include <map>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 // Represents a specialization constant value in SYCL runtime.
@@ -47,5 +46,4 @@ void stableSerializeSpecConstRegistry(const SpecConstRegistryT &Reg,
                                       SerializedObj &Dst);
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

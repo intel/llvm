@@ -11,8 +11,7 @@
 #include <CL/sycl/detail/defines.hpp>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace intel {
 
@@ -49,8 +48,7 @@ fpga_reg(_T t) {
 namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
   using namespace ext::intel;
 }
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 // Keep it consistent with FPGA attributes like intelfpga::memory()
 // Currently clang does not support nested namespace for attributes
@@ -58,6 +56,6 @@ namespace intelfpga {
 template <typename _T>
 [[deprecated("intelfpga::fpga_reg will be removed in a future release.")]] _T
 fpga_reg(const _T &t) {
-  return cl::sycl::ext::intel::fpga_reg(t);
+  return __sycl_ns_alias::ext::intel::fpga_reg(t);
 }
 } // namespace intelfpga

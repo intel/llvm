@@ -13,8 +13,7 @@
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 class platform_impl;
 class Scheduler;
@@ -86,5 +85,4 @@ private:
   InstWithLock<std::mutex> MHandlerExtendedMembersMutex;
 };
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

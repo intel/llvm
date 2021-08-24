@@ -20,8 +20,7 @@
 #include <thread>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 /* This is temporary solution until std::filesystem is available when SYCL RT
@@ -192,5 +191,4 @@ public:
   }
 };
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

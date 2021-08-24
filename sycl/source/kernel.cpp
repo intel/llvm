@@ -13,8 +13,7 @@
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
@@ -127,5 +126,4 @@ kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
 pi_native_handle kernel::getNativeImpl() const { return impl->getNative(); }
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

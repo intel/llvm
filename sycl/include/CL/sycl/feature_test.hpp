@@ -7,9 +7,6 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-
 // Feature test macro definitions
 
 // TODO: Move these feature-test macros to compiler driver.
@@ -23,6 +20,3 @@ namespace sycl {
 #ifndef SYCL_EXT_ONEAPI_MATRIX
 #define SYCL_EXT_ONEAPI_MATRIX 2
 #endif
-
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

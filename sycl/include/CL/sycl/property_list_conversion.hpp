@@ -13,12 +13,10 @@
 #include <CL/sycl/property_list.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 template <typename... T>
 inline property_list::operator ext::oneapi::accessor_property_list<T...>() {
   return ext::oneapi::accessor_property_list<T...>(MDataLessProps,
                                                    MPropsWithData);
 }
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

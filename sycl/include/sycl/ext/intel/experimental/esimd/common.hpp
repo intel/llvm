@@ -22,8 +22,7 @@
 #define SYCL_ESIMD_FUNCTION
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -248,5 +247,4 @@ using EsimdSbarrierType = split_barrier_action;
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

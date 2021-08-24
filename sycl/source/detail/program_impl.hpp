@@ -24,8 +24,7 @@
 #include <memory>
 #include <mutex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 // Forward declarations
 class kernel;
@@ -459,5 +458,4 @@ template <>
 std::vector<device> program_impl::get_info<info::program::devices>() const;
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

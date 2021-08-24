@@ -345,8 +345,7 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION int __esimd_lane_id();
     return retv;                                                               \
   }
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -361,8 +360,7 @@ ESIMD_MATH_INTRINSIC_IMPL(float, log)
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 #undef __ESIMD_SIMT_BEGIN
 #undef __ESIMD_SIMT_END

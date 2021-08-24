@@ -11,8 +11,7 @@
 
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 exception_list::size_type exception_list::size() const { return MList.size(); }
 
@@ -26,5 +25,4 @@ void exception_list::PushBack(value_type&& Value) { MList.emplace_back(std::move
 
 void exception_list::Clear() noexcept { MList.clear(); }
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

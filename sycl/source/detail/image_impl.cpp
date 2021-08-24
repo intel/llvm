@@ -14,8 +14,7 @@
 #include <algorithm>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 template <info::device Param>
@@ -455,5 +454,4 @@ template class image_impl<2>;
 template class image_impl<3>;
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

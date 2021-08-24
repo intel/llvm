@@ -23,8 +23,7 @@
 #include <sstream>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
@@ -99,7 +98,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
       MOpenCLInterop(true), MHostEvent(false), MState(HES_Complete) {
 
   if (MContext->is_host()) {
-    throw cl::sycl::invalid_parameter_error(
+    throw __sycl_ns_alias::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
         PI_INVALID_CONTEXT);
@@ -110,7 +109,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
                                               sizeof(RT::PiContext),
                                               &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
-    throw cl::sycl::invalid_parameter_error(
+    throw __sycl_ns_alias::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
         PI_INVALID_CONTEXT);
@@ -185,7 +184,7 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 }
 
 void event_impl::wait(
-    std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+    std::shared_ptr<__sycl_ns_alias::detail::event_impl> Self) const {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
   uint64_t IId;
@@ -208,7 +207,7 @@ void event_impl::wait(
 }
 
 void event_impl::wait_and_throw(
-    std::shared_ptr<cl::sycl::detail::event_impl> Self) {
+    std::shared_ptr<__sycl_ns_alias::detail::event_impl> Self) {
   wait(Self);
   for (auto &EventImpl :
        detail::Scheduler::getInstance().getWaitList(std::move(Self))) {
@@ -222,7 +221,7 @@ void event_impl::wait_and_throw(
 }
 
 void event_impl::cleanupCommand(
-    std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+    std::shared_ptr<__sycl_ns_alias::detail::event_impl> Self) const {
   if (MCommand && !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
     detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
 }
@@ -320,5 +319,4 @@ pi_native_handle event_impl::getNative() const {
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

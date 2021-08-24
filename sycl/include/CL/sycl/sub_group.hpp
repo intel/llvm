@@ -11,8 +11,7 @@
 #include <CL/sycl/group.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 using ext::oneapi::sub_group;
 // TODO move the entire sub_group class implementation to this file once
 // breaking changes are allowed.
@@ -31,5 +30,4 @@ inline sub_group this_sub_group() {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

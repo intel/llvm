@@ -41,8 +41,7 @@
 #define SYCL_VERSION_STR                                                       \
   "sycl " STR(__LIBSYCL_MAJOR_VERSION) "." STR(__LIBSYCL_MINOR_VERSION)
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Global (to the SYCL runtime) graph handle that all command groups are a
@@ -60,20 +59,20 @@ constexpr uint32_t GMinVer = __LIBSYCL_MINOR_VERSION;
 constexpr const char *GVerStr = SYCL_VERSION_STR;
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
-template <cl::sycl::backend BE>
+template <__sycl_ns_alias::backend BE>
 void *getPluginOpaqueData(void *OpaqueDataParam) {
   void *ReturnOpaqueData = nullptr;
-  const cl::sycl::detail::plugin &Plugin =
-      cl::sycl::detail::pi::getPlugin<BE>();
+  const __sycl_ns_alias::detail::plugin &Plugin =
+      __sycl_ns_alias::detail::pi::getPlugin<BE>();
 
-  Plugin.call<cl::sycl::detail::PiApiKind::piextPluginGetOpaqueData>(
+  Plugin.call<__sycl_ns_alias::detail::PiApiKind::piextPluginGetOpaqueData>(
       OpaqueDataParam, &ReturnOpaqueData);
 
   return ReturnOpaqueData;
 }
 
 template __SYCL_EXPORT void *
-getPluginOpaqueData<cl::sycl::backend::esimd_cpu>(void *);
+getPluginOpaqueData<__sycl_ns_alias::backend::esimd_cpu>(void *);
 
 namespace pi {
 
@@ -179,7 +178,7 @@ void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
 #endif
 }
 
-void contextSetExtendedDeleter(const cl::sycl::context &context,
+void contextSetExtendedDeleter(const __sycl_ns_alias::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
   auto impl = getSyclObjImpl(context);
@@ -203,7 +202,7 @@ std::string platformInfoToString(pi_platform_info info) {
     return "PI_PLATFORM_INFO_EXTENSIONS";
   }
   die("Unknown pi_platform_info value passed to "
-      "cl::sycl::detail::pi::platformInfoToString");
+      "__sycl_ns_alias::detail::pi::platformInfoToString");
 }
 
 std::string memFlagToString(pi_mem_flags Flag) {
@@ -714,5 +713,4 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
 
 } // namespace pi
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

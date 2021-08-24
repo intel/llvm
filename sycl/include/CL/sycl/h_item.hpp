@@ -13,8 +13,7 @@
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/range.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 namespace detail {
 class Builder;
@@ -134,5 +133,4 @@ private:
   item<dimensions, false> logicalLocalItem;
 };
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

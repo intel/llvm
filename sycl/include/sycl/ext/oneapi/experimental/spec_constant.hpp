@@ -19,8 +19,7 @@
 #include <CL/sycl/detail/sycl_fe_intrins.hpp>
 #include <CL/sycl/exception.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 class program;
 
 namespace ext {
@@ -44,7 +43,7 @@ private:
 #else
   char padding[sizeof(T)];
 #endif // __SYCL_DEVICE_ONLY__
-  friend class cl::sycl::program;
+  friend class __sycl_ns_alias::program;
 
 public:
   template <typename V = T>
@@ -83,5 +82,4 @@ public:
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
 }
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

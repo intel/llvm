@@ -15,8 +15,7 @@
 #include <map>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 using DeviceDescT = std::map<std::string, std::string>;
@@ -31,5 +30,4 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
                     RT::PiPlatform PiPlatform, const plugin &Plugin);
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

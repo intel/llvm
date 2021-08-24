@@ -17,8 +17,7 @@
 #include <tuple>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 template <int Dimensions> class group;
 namespace ext {
 namespace oneapi {
@@ -210,7 +209,7 @@ using is_gen_based_on_type_sizeof =
 
 template <typename> struct is_vec : std::false_type {};
 template <typename T, std::size_t N>
-struct is_vec<cl::sycl::vec<T, N>> : std::true_type {};
+struct is_vec<__sycl_ns_alias::vec<T, N>> : std::true_type {};
 
 // is_integral
 template <typename T>
@@ -359,5 +358,4 @@ template <typename Ret, typename... Args> struct function_traits<Ret(Args...)> {
 };
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

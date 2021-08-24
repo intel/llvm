@@ -10,9 +10,9 @@
 
 #include <sycl/ext/intel/pipes.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
+
 template <class name, class dataT, int32_t min_capacity = 0>
 using pipe = ext::intel::pipe<name, dataT, min_capacity>;
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+
+__SYCL_CLOSE_NS

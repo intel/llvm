@@ -16,8 +16,7 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/kernel_bundle.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 template <> struct interop<backend::opencl, platform> {
   using type = cl_platform_id;
@@ -151,5 +150,4 @@ T make(const context &Context,
 }
 
 } // namespace opencl
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

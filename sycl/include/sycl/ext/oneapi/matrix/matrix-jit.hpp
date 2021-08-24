@@ -12,8 +12,7 @@
 #include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/feature_test.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace oneapi {
 namespace experimental::matrix {
@@ -183,5 +182,4 @@ joint_matrix_mad(Group sg, joint_matrix<T1, M, K, LayoutA, Group> &mA,
 } // namespace experimental::matrix
 } // namespace oneapi
 } // namespace ext
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

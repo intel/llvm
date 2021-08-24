@@ -37,8 +37,7 @@ extern "C" __SYCL_EXPORT void __sycl_unregister_lib(pi_device_binaries desc);
 
 // +++ }
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 class context;
 namespace detail {
 
@@ -300,5 +299,4 @@ private:
   bool m_UseSpvFile = false;
 };
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

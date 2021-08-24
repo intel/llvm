@@ -10,8 +10,7 @@
 #include <detail/kernel_program_cache.hpp>
 #include <detail/plugin.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 KernelProgramCache::~KernelProgramCache() {
   for (auto &ProgIt : MCachedPrograms) {

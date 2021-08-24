@@ -24,8 +24,7 @@
 #include <cctype>
 #include <regex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 // Utility function to check if device is of the preferred backend.
 // Currently preference is given to the level_zero backend.
@@ -121,7 +120,7 @@ device device_selector::select_device() const {
     return *res;
   }
 
-  throw cl::sycl::runtime_error("No device of requested type available.",
+  throw __sycl_ns_alias::runtime_error("No device of requested type available.",
                                 PI_DEVICE_NOT_FOUND);
 }
 
@@ -285,5 +284,4 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
     return ext::oneapi::filter_selector::select_device();
   }
 } // namespace ONEAPI
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

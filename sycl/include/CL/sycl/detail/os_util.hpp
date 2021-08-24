@@ -39,8 +39,7 @@
 #error "Unsupported compiler or OS"
 #endif // _WIN32
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 /// Uniquely identifies an operating system module (executable or a dynamic
@@ -99,5 +98,4 @@ public:
 };
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

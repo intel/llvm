@@ -7,12 +7,10 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace usm {
 
 enum class alloc { host = 0, device = 1, shared = 2, unknown = 3 };
 
 } // namespace usm
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

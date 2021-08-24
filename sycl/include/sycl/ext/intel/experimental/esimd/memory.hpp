@@ -19,8 +19,7 @@
 
 #include <cstdint>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -505,9 +504,9 @@ constexpr bool check_atomic() {
       static_assert(NumSrc == 1, "One source operand is expected");
       return false;
     }
-    if constexpr (!is_type<T, float, cl::sycl::detail::half_impl::StorageT>()) {
+    if constexpr (!is_type<T, float, __sycl_ns_alias::detail::half_impl::StorageT>()) {
       static_assert(
-          (is_type<T, float, cl::sycl::detail::half_impl::StorageT>()),
+          (is_type<T, float, __sycl_ns_alias::detail::half_impl::StorageT>()),
           "Type F or HF is expected");
       return false;
     }
@@ -527,9 +526,9 @@ constexpr bool check_atomic() {
       return false;
     }
     if constexpr (Op == atomic_op::fcmpwr &&
-                  !is_type<T, float, cl::sycl::detail::half_impl::StorageT>()) {
+                  !is_type<T, float, __sycl_ns_alias::detail::half_impl::StorageT>()) {
       static_assert(
-          (is_type<T, float, cl::sycl::detail::half_impl::StorageT>()),
+          (is_type<T, float, __sycl_ns_alias::detail::half_impl::StorageT>()),
           "Type F or HF is expected");
       return false;
     }
@@ -1028,5 +1027,4 @@ esimd_raw_send_store(simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

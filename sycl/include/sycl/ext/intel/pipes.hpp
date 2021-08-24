@@ -12,8 +12,7 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace intel {
 
@@ -205,5 +204,4 @@ private:
 namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
   using namespace ext::intel;
 }
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

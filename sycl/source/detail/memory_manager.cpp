@@ -16,8 +16,7 @@
 #include <cstring>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 static void waitForEvents(const std::vector<EventImplPtr> &Events) {
@@ -717,5 +716,4 @@ void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

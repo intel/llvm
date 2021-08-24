@@ -16,8 +16,7 @@
 
 #include <cstddef>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 // Forward declaration
 namespace detail {
@@ -50,7 +49,6 @@ private:
   std::vector<std::exception_ptr> MList;
 };
 
-using async_handler = std::function<void(cl::sycl::exception_list)>;
+using async_handler = std::function<void(__sycl_ns_alias::exception_list)>;
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

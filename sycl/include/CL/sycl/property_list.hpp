@@ -11,8 +11,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/property_list_base.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace oneapi {
 template <typename... PropsT> class accessor_property_list;
@@ -59,5 +58,4 @@ private:
   friend class ext::oneapi::accessor_property_list;
 };
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

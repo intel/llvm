@@ -18,8 +18,7 @@
 #include <CL/sycl/stl.hpp>
 #include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 // Forward declarations
 class context;
@@ -416,14 +415,13 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 namespace std {
-template <> struct hash<cl::sycl::program> {
-  size_t operator()(const cl::sycl::program &prg) const {
-    return hash<std::shared_ptr<cl::sycl::detail::program_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(prg));
+template <> struct hash<__sycl_ns_alias::program> {
+  size_t operator()(const __sycl_ns_alias::program &prg) const {
+    return hash<std::shared_ptr<__sycl_ns_alias::detail::program_impl>>()(
+        __sycl_ns_alias::detail::getSyclObjImpl(prg));
   }
 };
 } // namespace std

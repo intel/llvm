@@ -13,8 +13,7 @@
 #include <functional>
 #include <mutex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
   /// Represents a reference to value with appropriate lock acquired.
   /// Employed for acquire/release logic. Acquire action is construction

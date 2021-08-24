@@ -19,8 +19,7 @@
 #include <memory>
 #include <unordered_set>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 event::event() : impl(std::make_shared<detail::event_impl>()) {}
 
@@ -90,5 +89,4 @@ backend event::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle event::getNative() const { return impl->getNative(); }
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

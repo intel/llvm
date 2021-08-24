@@ -20,8 +20,7 @@
 // sRGB Extension Support
 #define SYCL_EXT_ONEAPI_SRGB 1
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 enum class image_channel_order : unsigned int {
   a = 0,
@@ -72,7 +71,7 @@ using image_allocator = detail::aligned_allocator<byte>;
 /// \sa sampler
 ///
 /// \ingroup sycl_api
-template <int Dimensions = 1, typename AllocatorT = cl::sycl::image_allocator>
+template <int Dimensions = 1, typename AllocatorT = __sycl_ns_alias::image_allocator>
 class image {
 public:
   image(image_channel_order Order, image_channel_type Type,
@@ -313,15 +312,14 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 };
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 namespace std {
 template <int Dimensions, typename AllocatorT>
-struct hash<cl::sycl::image<Dimensions, AllocatorT>> {
-  size_t operator()(const cl::sycl::image<Dimensions, AllocatorT> &I) const {
-    return hash<std::shared_ptr<cl::sycl::detail::image_impl<Dimensions>>>()(
-        cl::sycl::detail::getSyclObjImpl(I));
+struct hash<__sycl_ns_alias::image<Dimensions, AllocatorT>> {
+  size_t operator()(const __sycl_ns_alias::image<Dimensions, AllocatorT> &I) const {
+    return hash<std::shared_ptr<__sycl_ns_alias::detail::image_impl<Dimensions>>>()(
+        __sycl_ns_alias::detail::getSyclObjImpl(I));
   }
 };
 } // namespace std

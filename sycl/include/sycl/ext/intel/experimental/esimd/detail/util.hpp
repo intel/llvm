@@ -15,8 +15,7 @@
 
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -84,7 +83,7 @@ struct is_esimd_vector<simd<T, N>> : public std::true_type {};
 
 template <typename T>
 using is_esimd_scalar =
-    typename std::bool_constant<cl::sycl::detail::is_arithmetic<T>::value>;
+    typename std::bool_constant<__sycl_ns_alias::detail::is_arithmetic<T>::value>;
 
 template <typename T, int N>
 using is_hw_int_type =
@@ -147,5 +146,4 @@ template <> struct word_type<uint> { using type = ushort; };
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

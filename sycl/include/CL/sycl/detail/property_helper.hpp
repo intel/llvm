@@ -10,8 +10,7 @@
 
 #include <CL/sycl/detail/common.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 namespace detail {
 
@@ -85,5 +84,4 @@ public:
 
 } // namespace detail
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

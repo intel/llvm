@@ -58,8 +58,7 @@
 #define _KERNELFUNCPARAM(a) const KernelType &a
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 // Forward declaration
 class context;
@@ -1015,14 +1014,13 @@ private:
   }
 };
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 namespace std {
-template <> struct hash<cl::sycl::queue> {
-  size_t operator()(const cl::sycl::queue &Q) const {
-    return std::hash<std::shared_ptr<cl::sycl::detail::queue_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Q));
+template <> struct hash<__sycl_ns_alias::queue> {
+  size_t operator()(const __sycl_ns_alias::queue &Q) const {
+    return std::hash<std::shared_ptr<__sycl_ns_alias::detail::queue_impl>>()(
+        __sycl_ns_alias::detail::getSyclObjImpl(Q));
   }
 };
 } // namespace std

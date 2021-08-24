@@ -20,50 +20,49 @@
 #include <sycl/ext/oneapi/sub_group.hpp>
 
 #ifndef __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace oneapi {
 
 // EnableIf shorthands for algorithms that depend only on type
 template <typename T>
-using EnableIfIsScalarArithmetic = cl::sycl::detail::enable_if_t<
-    cl::sycl::detail::is_scalar_arithmetic<T>::value, T>;
+using EnableIfIsScalarArithmetic = __sycl_ns_alias::detail::enable_if_t<
+    __sycl_ns_alias::detail::is_scalar_arithmetic<T>::value, T>;
 
 template <typename T>
-using EnableIfIsVectorArithmetic = cl::sycl::detail::enable_if_t<
-    cl::sycl::detail::is_vector_arithmetic<T>::value, T>;
+using EnableIfIsVectorArithmetic = __sycl_ns_alias::detail::enable_if_t<
+    __sycl_ns_alias::detail::is_vector_arithmetic<T>::value, T>;
 
 template <typename Ptr, typename T>
 using EnableIfIsPointer =
-    cl::sycl::detail::enable_if_t<cl::sycl::detail::is_pointer<Ptr>::value, T>;
+    __sycl_ns_alias::detail::enable_if_t<__sycl_ns_alias::detail::is_pointer<Ptr>::value, T>;
 
 template <typename T>
-using EnableIfIsTriviallyCopyable = cl::sycl::detail::enable_if_t<
+using EnableIfIsTriviallyCopyable = __sycl_ns_alias::detail::enable_if_t<
     std::is_trivially_copyable<T>::value &&
-        !cl::sycl::detail::is_vector_arithmetic<T>::value,
+        !__sycl_ns_alias::detail::is_vector_arithmetic<T>::value,
     T>;
 
 // EnableIf shorthands for algorithms that depend on type and an operator
 template <typename T, typename BinaryOperation>
-using EnableIfIsScalarArithmeticNativeOp = cl::sycl::detail::enable_if_t<
-    cl::sycl::detail::is_scalar_arithmetic<T>::value &&
-        cl::sycl::detail::is_native_op<T, BinaryOperation>::value,
+using EnableIfIsScalarArithmeticNativeOp = __sycl_ns_alias::detail::enable_if_t<
+    __sycl_ns_alias::detail::is_scalar_arithmetic<T>::value &&
+        __sycl_ns_alias::detail::is_native_op<T, BinaryOperation>::value,
     T>;
 
 template <typename T, typename BinaryOperation>
-using EnableIfIsVectorArithmeticNativeOp = cl::sycl::detail::enable_if_t<
-    cl::sycl::detail::is_vector_arithmetic<T>::value &&
-        cl::sycl::detail::is_native_op<T, BinaryOperation>::value,
+using EnableIfIsVectorArithmeticNativeOp = __sycl_ns_alias::detail::enable_if_t<
+    __sycl_ns_alias::detail::is_vector_arithmetic<T>::value &&
+        __sycl_ns_alias::detail::is_native_op<T, BinaryOperation>::value,
     T>;
 
 // TODO: Lift TriviallyCopyable restriction eventually
 template <typename T, typename BinaryOperation>
-using EnableIfIsNonNativeOp = cl::sycl::detail::enable_if_t<
-    (!cl::sycl::detail::is_scalar_arithmetic<T>::value &&
-     !cl::sycl::detail::is_vector_arithmetic<T>::value &&
+using EnableIfIsNonNativeOp = __sycl_ns_alias::detail::enable_if_t<
+    (!__sycl_ns_alias::detail::is_scalar_arithmetic<T>::value &&
+     !__sycl_ns_alias::detail::is_vector_arithmetic<T>::value &&
      std::is_trivially_copyable<T>::value) ||
-        !cl::sycl::detail::is_native_op<T, BinaryOperation>::value,
+        !__sycl_ns_alias::detail::is_native_op<T, BinaryOperation>::value,
     T>;
 
 template <typename Group>
@@ -552,6 +551,5 @@ leader(Group g) {
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
 }
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 #endif // __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__

@@ -11,8 +11,7 @@
 #include <CL/sycl/sampler.hpp>
 #include <detail/sampler_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 sampler::sampler(coordinate_normalization_mode normalizationMode,
                  addressing_mode addressingMode, filtering_mode filteringMode,
                  const property_list &propList)
@@ -60,5 +59,4 @@ bool sampler::operator!=(const sampler &rhs) const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

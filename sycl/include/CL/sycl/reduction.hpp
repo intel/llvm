@@ -12,8 +12,7 @@
 
 #include "sycl/ext/oneapi/reduction.hpp"
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
 /// reduction operation \p Combiner, and optional reduction properties.
@@ -100,5 +99,4 @@ reduction(T *Var, const T &Identity, BinaryOperation Combiner,
   return {Var, Identity, Combiner, InitializeToIdentity};
 }
 
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

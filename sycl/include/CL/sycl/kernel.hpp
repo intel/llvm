@@ -17,8 +17,7 @@
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 // Forward declaration
 class program;
 class context;
@@ -223,14 +222,13 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 namespace std {
-template <> struct hash<cl::sycl::kernel> {
-  size_t operator()(const cl::sycl::kernel &Kernel) const {
-    return hash<std::shared_ptr<cl::sycl::detail::kernel_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Kernel));
+template <> struct hash<__sycl_ns_alias::kernel> {
+  size_t operator()(const __sycl_ns_alias::kernel &Kernel) const {
+    return hash<std::shared_ptr<__sycl_ns_alias::detail::kernel_impl>>()(
+        __sycl_ns_alias::detail::getSyclObjImpl(Kernel));
   }
 };
 } // namespace std

@@ -19,8 +19,7 @@
 #include <sycl/ext/oneapi/atomic_enums.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace oneapi {
 struct sub_group;
@@ -39,7 +38,7 @@ template <int Dimensions> struct group_scope<group<Dimensions>> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Workgroup;
 };
 
-template <> struct group_scope<::cl::sycl::ext::oneapi::sub_group> {
+template <> struct group_scope<::__sycl_ns_alias::ext::oneapi::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
 
@@ -129,7 +128,7 @@ using EnableIfGenericBroadcast = detail::enable_if_t<
 // Work-group supports any integral type
 // Sub-group currently supports only uint32_t
 template <typename Group> struct GroupId { using type = size_t; };
-template <> struct GroupId<::cl::sycl::ext::oneapi::sub_group> {
+template <> struct GroupId<::__sycl_ns_alias::ext::oneapi::sub_group> {
   using type = uint32_t;
 };
 template <typename Group, typename T, typename IdT>
@@ -747,6 +746,5 @@ EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
 
 } // namespace spirv
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 #endif //  __SYCL_DEVICE_ONLY__

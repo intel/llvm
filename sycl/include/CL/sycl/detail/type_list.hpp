@@ -11,8 +11,7 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 template <typename T> using head_t = typename T::head;
@@ -134,5 +133,4 @@ template <typename TL, typename T>
 using find_twice_as_large_type_t = find_type_t<TL, is_type_size_double_of, T>;
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

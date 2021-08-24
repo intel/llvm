@@ -15,8 +15,7 @@
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 
 namespace ext {
 namespace intel {
@@ -261,5 +260,4 @@ constexpr access::target deduceAccessTarget(access::target defaultTarget) {
 #endif
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

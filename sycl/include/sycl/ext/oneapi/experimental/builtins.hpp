@@ -16,8 +16,7 @@
 #define __SYCL_CONSTANT_AS
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -51,7 +50,7 @@ namespace experimental {
 // argument has 'long' type which is 64-bit wide by the OpenCL C spec. However,
 // by C++ spec long is just at least 32-bit wide, so, you need to ensure (by
 // performing a cast, for example) that if you use %ld specifier, you pass
-// 64-bit argument to the cl::sycl::experimental::printf
+// 64-bit argument to the __sycl_ns_alias::experimental::printf
 //
 // - OpenCL spec defines several additional features, like, for example, 'v'
 // modifier which allows to print OpenCL vectors: note that these features are
@@ -75,7 +74,6 @@ int printf(const __SYCL_CONSTANT_AS char *__format, Args... args) {
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
 }
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
 
 #undef __SYCL_CONSTANT_AS

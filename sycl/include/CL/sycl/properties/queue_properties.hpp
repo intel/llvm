@@ -10,8 +10,7 @@
 
 #include <CL/sycl/detail/property_helper.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace property {
 namespace queue {
 class in_order : public detail::DataLessProperty<detail::InOrder> {};
@@ -23,5 +22,4 @@ class use_default_stream
 } // namespace cuda
 } // namespace queue
 } // namespace property
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

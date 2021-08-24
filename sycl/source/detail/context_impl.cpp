@@ -21,8 +21,7 @@
 #include <detail/context_info.hpp>
 #include <detail/platform_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
@@ -32,7 +31,7 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
   MKernelProgramCache.setContextPtr(this);
 }
 
-context_impl::context_impl(const std::vector<cl::sycl::device> Devices,
+context_impl::context_impl(const std::vector<__sycl_ns_alias::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
@@ -95,7 +94,7 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
   //
   // TODO: Move this backend-specific retain of the context to SYCL-2020 style
   //       make_context<backend::opencl> interop, when that is created.
-  if (getPlugin().getBackend() == cl::sycl::backend::opencl) {
+  if (getPlugin().getBackend() == __sycl_ns_alias::backend::opencl) {
     getPlugin().call<PiApiKind::piContextRetain>(MContext);
   }
   MKernelProgramCache.setContextPtr(this);
@@ -142,18 +141,18 @@ template <> platform context_impl::get_info<info::context::platform>() const {
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 template <>
-std::vector<cl::sycl::device>
+std::vector<__sycl_ns_alias::device>
 context_impl::get_info<info::context::devices>() const {
   return MDevices;
 }
 template <>
-std::vector<cl::sycl::memory_order>
+std::vector<__sycl_ns_alias::memory_order>
 context_impl::get_info<info::context::atomic_memory_order_capabilities>()
     const {
   if (is_host())
-    return {cl::sycl::memory_order::relaxed, cl::sycl::memory_order::acquire,
-            cl::sycl::memory_order::release, cl::sycl::memory_order::acq_rel,
-            cl::sycl::memory_order::seq_cst};
+    return {__sycl_ns_alias::memory_order::relaxed, __sycl_ns_alias::memory_order::acquire,
+            __sycl_ns_alias::memory_order::release, __sycl_ns_alias::memory_order::acq_rel,
+            __sycl_ns_alias::memory_order::seq_cst};
 
   pi_memory_order_capabilities Result;
   getPlugin().call<PiApiKind::piContextGetInfo>(
@@ -189,5 +188,4 @@ pi_native_handle context_impl::getNative() const {
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

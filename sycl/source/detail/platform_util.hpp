@@ -16,8 +16,7 @@
 #define __builtin_expect(a, b) (a)
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 struct PlatformUtil {
@@ -44,5 +43,4 @@ struct PlatformUtil {
 };
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS

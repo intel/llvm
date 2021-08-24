@@ -21,8 +21,7 @@
 #include <CL/sycl/detail/cg.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS
 namespace detail {
 
 class queue_impl;
@@ -566,5 +565,4 @@ private:
 };
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS
