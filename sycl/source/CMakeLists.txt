@@ -149,6 +149,7 @@ set(SYCL_SOURCES
     "detail/sycl_mem_obj_t.cpp"
     "detail/usm/usm_impl.cpp"
     "detail/util.cpp"
+    "ext/group_mask.cpp"
     "accessor.cpp"
     "context.cpp"
     "device.cpp"
