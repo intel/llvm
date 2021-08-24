@@ -8,14 +8,16 @@
 
 #include <CL/sycl.hpp>
 
+#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
 #include <gtest/gtest.h>
 
-#include <chrono>
-#include <set>
-#include <thread>
+#ifndef _WIN32
+#include <sys/ioctl.h>
+#include <unistd.h>
+#endif
 
 class TestKernel;
 
@@ -107,77 +109,47 @@ sycl::unittest::PiImage Imgs[] = {generateDefaultImage(),
                                   generateCopierKernelImage()};
 sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 
+struct AssertHappened {
+  int Flag = 0;
+  char Expr[256 + 1] = "";
+  char File[256 + 1] = "";
+  char Func[128 + 1] = "";
+
+  int32_t Line = 0;
+
+  uint64_t GID0 = 0;
+  uint64_t GID1 = 0;
+  uint64_t GID2 = 0;
+
+  uint64_t LID0 = 0;
+  uint64_t LID1 = 0;
+  uint64_t LID2 = 0;
+};
+
+// This should be modified
+// Substituted in memory map operation
+static AssertHappened ExpectedToOutput = {
+    2, // assert copying done
+    "TestExpression",
+    "TestFile",
+    "TestFunc",
+    123, // line
+
+    0, // global id
+    1, // global id
+    2, // global id
+    3, // local id
+    4, // local id
+    5  // local id
+};
+
 static constexpr int KernelLaunchCounterBase = 0;
 static int KernelLaunchCounter = KernelLaunchCounterBase;
 static constexpr int MemoryMapCounterBase = 1000;
 static int MemoryMapCounter = MemoryMapCounterBase;
-static std::mutex WaitedEventsMutex;
-static std::set<int> WaitedEvents;
 static constexpr int PauseWaitOnIdx = KernelLaunchCounterBase + 1;
-static std::atomic<bool> StartedWait{false};
-static std::atomic<bool> ContinueWait{false};
-static std::atomic<bool> PausedWaitDone{false};
 
 // Mock redifinitions
-static pi_result redefinedProgramCreate(pi_context, const void *, size_t,
-                                        pi_program *) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedProgramGetInfo(pi_program program,
-                                         pi_program_info param_name,
-                                         size_t param_value_size,
-                                         void *param_value,
-                                         size_t *param_value_size_ret) {
-  if (param_name == PI_PROGRAM_INFO_NUM_DEVICES) {
-    auto value = reinterpret_cast<unsigned int *>(param_value);
-    *value = 1;
-  }
-
-  if (param_name == PI_PROGRAM_INFO_BINARY_SIZES) {
-    auto value = reinterpret_cast<size_t *>(param_value);
-    value[0] = 1;
-  }
-
-  if (param_name == PI_PROGRAM_INFO_BINARIES) {
-    auto value = reinterpret_cast<unsigned char *>(param_value);
-    value[0] = 1;
-  }
-
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedProgramBuild(
-    pi_program prog, pi_uint32, const pi_device *, const char *,
-    void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
-  if (pfn_notify) {
-    pfn_notify(prog, user_data);
-  }
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelCreate(pi_program program,
-                                       const char *kernel_name,
-                                       pi_kernel *ret_kernel) {
-  *ret_kernel = reinterpret_cast<pi_kernel>(new int[1]);
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelSetExecInfo(pi_kernel kernel,
-                                            pi_kernel_exec_info value_name,
-                                            size_t param_value_size,
-                                            const void *param_value) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelGetInfo(pi_kernel kernel,
-                                        pi_kernel_info param_name,
-                                        size_t param_value_size,
-                                        void *param_value,
-                                        size_t *param_value_size_ret) {
-  return PI_SUCCESS;
-}
-
 static pi_result redefinedKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                                              pi_kernel_group_info param_name,
                                              size_t param_value_size,
@@ -226,22 +198,6 @@ static pi_result redefinedEventsWait(pi_uint32 num_events,
   int EventIdx1 = reinterpret_cast<int *>(event_list[0])[0];
   int EventIdx2 = reinterpret_cast<int *>(event_list[1])[0];
   printf("Waiting for events %i, %i\n", EventIdx1, EventIdx2);
-
-  {
-    std::lock_guard<std::mutex> Lock{WaitedEventsMutex};
-    WaitedEvents.insert(EventIdx1);
-    WaitedEvents.insert(EventIdx2);
-  }
-
-  if (PauseWaitOnIdx == EventIdx1 || PauseWaitOnIdx == EventIdx2) {
-    StartedWait = true;
-    while (!ContinueWait)
-      ;
-
-    // fail so that host-task isn't going to be executed
-    return PI_ERROR_UNKNOWN;
-  }
-
   return PI_SUCCESS;
 }
 
@@ -255,17 +211,6 @@ redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
 
 static pi_result redefinedMemRelease(pi_mem mem) { return PI_SUCCESS; }
 
-static pi_result redefinedProgramRetain(pi_program program) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedKernelRetain(pi_kernel kernel) { return PI_SUCCESS; }
-
-static pi_result redefinedKernelRelease(pi_kernel kernel) {
-  delete[] reinterpret_cast<int *>(kernel);
-  return PI_SUCCESS;
-}
-
 static pi_result redefinedKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
                                        size_t arg_size, const void *arg_value) {
   return PI_SUCCESS;
@@ -275,11 +220,14 @@ static pi_result redefinedEnqueueMemBufferMap(
     pi_queue command_queue, pi_mem buffer, pi_bool blocking_map,
     pi_map_flags map_flags, size_t offset, size_t size,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *RetEvent, void **ret_map) {
+    pi_event *RetEvent, void **RetMap) {
   int *Ret = new int[1];
   *Ret = MemoryMapCounter++;
   printf("Memory map %i\n", *Ret);
   *RetEvent = reinterpret_cast<pi_event>(Ret);
+
+  *RetMap = (void *)&ExpectedToOutput;
+
   return PI_SUCCESS;
 }
 
@@ -291,19 +239,12 @@ static pi_result redefinedExtKernelSetArgMemObj(pi_kernel kernel,
 
 static void setupMock(sycl::unittest::PiMock &Mock) {
   using namespace sycl::detail;
-  Mock.redefine<PiApiKind::piProgramCreate>(redefinedProgramCreate);
-  Mock.redefine<PiApiKind::piProgramGetInfo>(redefinedProgramGetInfo);
-  Mock.redefine<PiApiKind::piProgramBuild>(redefinedProgramBuild);
-  Mock.redefine<PiApiKind::piKernelCreate>(redefinedKernelCreate);
-  Mock.redefine<PiApiKind::piKernelSetExecInfo>(redefinedKernelSetExecInfo);
-  Mock.redefine<PiApiKind::piKernelGetInfo>(redefinedKernelGetInfo);
+  setupDefaultMockAPIs(Mock);
+
   Mock.redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
   Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
   Mock.redefine<PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
   Mock.redefine<PiApiKind::piMemRelease>(redefinedMemRelease);
-  Mock.redefine<PiApiKind::piProgramRetain>(redefinedProgramRetain);
-  Mock.redefine<PiApiKind::piKernelRetain>(redefinedKernelRetain);
-  Mock.redefine<PiApiKind::piKernelRelease>(redefinedKernelRelease);
   Mock.redefine<PiApiKind::piKernelSetArg>(redefinedKernelSetArg);
   Mock.redefine<PiApiKind::piEnqueueMemBufferMap>(redefinedEnqueueMemBufferMap);
   Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
@@ -311,34 +252,30 @@ static void setupMock(sycl::unittest::PiMock &Mock) {
       redefinedExtKernelSetArgMemObj);
 }
 
-TEST(Assert, Test) {
+void ChildProcess(int StdErrFD) {
+  static constexpr int StandardStdErrFD = 2;
+  if (dup2(StdErrFD, StandardStdErrFD) < 0) {
+    printf("Can't duplicate stderr fd for %i: %s\n", StdErrFD, strerror(errno));
+    exit(1);
+  }
+
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
+    printf("Test is not supported on host, skipping\n");
+    exit(1);
   }
 
   if (Plt.get_backend() == sycl::backend::cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
+    printf("Test is not supported on CUDA platform, skipping\n");
+    exit(1);
   }
 
   sycl::unittest::PiMock Mock{Plt};
 
   setupMock(Mock);
 
-  std::atomic<bool> ErrorCaptured{false};
-
   const sycl::device Dev = Plt.get_devices()[0];
-  sycl::queue Queue{Dev, [&](sycl::exception_list EL) {
-                      for (auto &EPtr : EL)
-                        try {
-                          std::rethrow_exception(EPtr);
-                        } catch (sycl::exception &E) {
-                          if (E.get_cl_code() == PI_ERROR_UNKNOWN)
-                            ErrorCaptured = true;
-                        }
-                    }};
+  sycl::queue Queue{Dev};
 
   const sycl::context Ctx = Queue.get_context();
 
@@ -349,37 +286,62 @@ TEST(Assert, Test) {
     H.use_kernel_bundle(ExecBundle);
     H.single_task<TestKernel>([] {});
   });
+}
 
-  while (!StartedWait)
-    ;
+void ParentProcess(int ChildPID, int ChildStdErrFD) {
+  static constexpr char StandardMessage[] =
+      "TestFile:123: TestFunc: global id:"
+      " [0,1,2], local id: [3,4,5] Assertion `TestExpression` failed.";
 
-  ContinueWait = true;
+  int Status = 0;
 
-  // Can't return from redefinedEventsWait and report atomically. Hence, here
-  // is this wait. Single second wait should be more than enough.
-  {
-    using namespace std::chrono_literals;
-    std::this_thread::sleep_for(1000ms);
+  printf("Parent process waiting for child %i\n", ChildPID);
+
+  waitpid(ChildPID, &Status, /*options = */ 0);
+
+  int SigNum = WTERMSIG(Status);
+
+  int PipeUnread = 0;
+  if (ioctl(ChildStdErrFD, FIONREAD, &PipeUnread) < 0) {
+    perror("Couldn't fetch pipe size: ");
+    exit(1);
   }
 
-  Queue.throw_asynchronous();
+  std::vector<char> Buf(PipeUnread + 1, '\0');
 
-  while (!ErrorCaptured)
-    ;
+  read(ChildStdErrFD, Buf.data(), PipeUnread);
 
-  // Host-task didn't finish as we returned PI_ERROR_UNKNOWN
-  EXPECT_EQ(ErrorCaptured, true);
-  // Two kernels to be enqueued: the test kernel and assert info copier
-  EXPECT_EQ(KernelLaunchCounter, 2);
+  std::string BufStr(Buf.data());
 
-  {
-    std::lock_guard<std::mutex> Lock{WaitedEventsMutex};
-    // Host-task was waiting on the Copier kernel
-    EXPECT_EQ(WaitedEvents.count(PauseWaitOnIdx) != 0, true);
-    // The first (an the only memory map should be waited on
-    EXPECT_EQ(WaitedEvents.count(MemoryMapCounterBase + 0), true);
-    EXPECT_EQ(WaitedEvents.size(), 2LU);
+  printf("Status: %i, Signal: %i, Buffer: >>> %s <<<\n", Status, SigNum,
+         Buf.data());
+
+  EXPECT_EQ(!!WIFSIGNALED(Status), true);
+  EXPECT_EQ(SigNum, SIGABRT);
+  EXPECT_NE(BufStr.find(StandardMessage), std::string::npos);
+}
+
+TEST(Assert, TestPositive) {
+#ifndef _WIN32
+  static constexpr int ReadFDIdx = 0;
+  static constexpr int WriteFDIdx = 1;
+  int PipeFD[2];
+
+  if (pipe(PipeFD) < 0) {
+    perror("Failed to create pipe for stderr: ");
+    exit(1);
   }
 
-  EXPECT_EQ(MemoryMapCounter - MemoryMapCounterBase, 1);
+  int ChildPID = fork();
+
+  if (ChildPID) {
+    close(PipeFD[WriteFDIdx]);
+    ParentProcess(ChildPID, PipeFD[ReadFDIdx]);
+    close(PipeFD[ReadFDIdx]);
+  } else {
+    close(PipeFD[ReadFDIdx]);
+    ChildProcess(PipeFD[WriteFDIdx]);
+    close(PipeFD[WriteFDIdx]);
+  }
+#endif
 }
