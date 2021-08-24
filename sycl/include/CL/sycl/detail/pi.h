@@ -690,6 +690,12 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
 #define __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN "amdgcn"
 
+/// Extension to denote native support of assert feature by an arbitrary device
+/// piDeviceGetInfo call should return this extension when the device supports
+/// native asserts if supported extensions' names are requested
+#define __SYCL_PI_DEVICE_DEVICELIB_ASSERT_EXTENSION \
+    "pi_ext_intel_devicelib_assert"
+
 /// Device binary image property set names recognized by the SYCL runtime.
 /// Name must be consistent with
 /// PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS defined in
@@ -928,6 +934,9 @@ __SYCL_EXPORT pi_result piDevicesGet(pi_platform platform,
                                      pi_uint32 num_entries, pi_device *devices,
                                      pi_uint32 *num_devices);
 
+/// Returns requested info for provided native device
+/// TODO Return __SYCL_PI_DEVICE_DEVICELIB_ASSERT_EXTENSION when the device
+/// supports native asserts
 __SYCL_EXPORT pi_result piDeviceGetInfo(pi_device device,
                                         pi_device_info param_name,
                                         size_t param_value_size,
