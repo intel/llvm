@@ -192,7 +192,6 @@ public:
     // TODO: Unify with c'tor for sycl::comile and sycl::build by calling
     // sycl::join on vector of kernel_bundles
 
-    std::vector<device_image_plain> DeviceImages;
     for (const kernel_bundle<bundle_state::object> &ObjectBundle :
          ObjectBundles) {
       for (const device_image_plain &DeviceImage : ObjectBundle) {
@@ -205,12 +204,14 @@ public:
                          }))
           continue;
 
-        DeviceImages.insert(DeviceImages.end(), DeviceImage);
+        const std::vector<device_image_plain> VectorOfOneImage{DeviceImage};
+        std::vector<device_image_plain> LinkedResults =
+            detail::ProgramManager::getInstance().link(VectorOfOneImage,
+                                                       MDevices, PropList);
+        MDeviceImages.insert(MDeviceImages.end(), LinkedResults.begin(),
+                             LinkedResults.end());
       }
     }
-
-    MDeviceImages = detail::ProgramManager::getInstance().link(
-        std::move(DeviceImages), MDevices, PropList);
 
     for (const kernel_bundle<bundle_state::object> &Bundle : ObjectBundles) {
       const KernelBundleImplPtr BundlePtr = getSyclObjImpl(Bundle);
