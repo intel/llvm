@@ -15,6 +15,7 @@ entry:
   %1 = extractelement <4 x i8> %0, i32 0
   %2 = bitcast <1 x i32> <i32 131586> to <4 x i8>
   %3 = extractelement <4 x i8> %2, i32 0
+  %4 = bitcast <5 x i32> <i32 1, i32 1, i32 1, i32 1, i32 1> to <20 x i8>
   ret void
 }
 

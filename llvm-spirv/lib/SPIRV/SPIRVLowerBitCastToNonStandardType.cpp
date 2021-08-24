@@ -160,11 +160,11 @@ public:
         VectorType *SrcVecTy = getVectorType(BC->getSrcTy());
         if (SrcVecTy) {
           uint64_t NumElemsInSrcVec = SrcVecTy->getElementCount().getValue();
-          // SPV_INTEL_vector_compute allows 1-element vectors
+          // SPV_INTEL_vector_compute allows to use vectors with any number of
+          // components
           if (!isValidVectorSize(NumElemsInSrcVec) &&
-              !(Opts.isAllowedToUseExtension(
-                    ExtensionID::SPV_INTEL_vector_compute) &&
-                NumElemsInSrcVec == 1))
+              !Opts.isAllowedToUseExtension(
+                  ExtensionID::SPV_INTEL_vector_compute))
             report_fatal_error("Unsupported vector type with the size of: " +
                                    std::to_string(NumElemsInSrcVec),
                                false);
@@ -172,11 +172,11 @@ public:
         VectorType *DestVecTy = getVectorType(BC->getDestTy());
         if (DestVecTy) {
           uint64_t NumElemsInDestVec = DestVecTy->getElementCount().getValue();
-          // SPV_INTEL_vector_compute allows 1-element vectors
+          // SPV_INTEL_vector_compute allows to use vectors with any number of
+          // components
           if (!isValidVectorSize(NumElemsInDestVec) &&
-              !(Opts.isAllowedToUseExtension(
-                    ExtensionID::SPV_INTEL_vector_compute) &&
-                NumElemsInDestVec == 1))
+              !Opts.isAllowedToUseExtension(
+                  ExtensionID::SPV_INTEL_vector_compute))
             BCastsToNonStdVec.push_back(&I);
         }
       }
