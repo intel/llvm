@@ -709,7 +709,8 @@ static void LowerEsimdConstructs(Module &M) {
 using TableFiles = std::map<StringRef, string_vector>;
 
 static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
-                                   bool SyclAndEsimdCode) {
+                                   bool SyclAndEsimdCode,
+                                   bool IsLLVMUsedRemoved) {
   TableFiles TblFiles;
   if (!M)
     return TblFiles;
@@ -773,7 +774,8 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     // no spec constants and no splitting.
     // We cannot reuse input module for ESIMD code since it was transformed.
     bool CanReuseInputModule = !SpecConstsMet && (ResultModules.size() == 1) &&
-                               !SyclAndEsimdCode && !IsEsimd;
+                               !SyclAndEsimdCode && !IsEsimd &&
+                               !IsLLVMUsedRemoved;
     string_vector Files =
         CanReuseInputModule
             ? string_vector{InputFilename}
@@ -851,9 +853,10 @@ static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
                         std::move(ResultModules[1]));
 }
 
-static TableFiles processInputModule(std::unique_ptr<Module> M) {
+static TableFiles processInputModule(std::unique_ptr<Module> M,
+                                     bool RemovedLLVMUsed) {
   if (!SplitEsimd)
-    return processOneModule(std::move(M), false, false);
+    return processOneModule(std::move(M), false, false, RemovedLLVMUsed);
 
   std::unique_ptr<Module> SyclModule;
   std::unique_ptr<Module> EsimdModule;
@@ -862,10 +865,10 @@ static TableFiles processInputModule(std::unique_ptr<Module> M) {
   // Do we have both Sycl and Esimd code?
   bool SyclAndEsimdCode = SyclModule && EsimdModule;
 
-  TableFiles SyclTblFiles =
-      processOneModule(std::move(SyclModule), false, SyclAndEsimdCode);
-  TableFiles EsimdTblFiles =
-      processOneModule(std::move(EsimdModule), true, SyclAndEsimdCode);
+  TableFiles SyclTblFiles = processOneModule(std::move(SyclModule), false,
+                                             SyclAndEsimdCode, RemovedLLVMUsed);
+  TableFiles EsimdTblFiles = processOneModule(
+      std::move(EsimdModule), true, SyclAndEsimdCode, RemovedLLVMUsed);
 
   // Merge the two resulting file maps
   TableFiles MergedTblFiles;
@@ -988,15 +991,17 @@ int main(int argc, char **argv) {
   // and these declarations cause an assertion in llvm-spirv. To workaround this
   // issue remove "llvm.used" from the input module before performing any other
   // actions.
+  bool RemovedLLVMUsed = false;
   if (GlobalVariable *GV = MPtr->getGlobalVariable("llvm.used")) {
     assert(GV->user_empty() && "unexpected llvm.used users");
     GV->eraseFromParent();
+    RemovedLLVMUsed = true;
   }
 
   if (OutputFilename.getNumOccurrences() == 0)
     OutputFilename = (Twine(sys::path::stem(InputFilename)) + ".files").str();
 
-  TableFiles TblFiles = processInputModule(std::move(M));
+  TableFiles TblFiles = processInputModule(std::move(M), RemovedLLVMUsed);
 
   // Input module was processed and a single output file was requested.
   if (IROutputOnly)
