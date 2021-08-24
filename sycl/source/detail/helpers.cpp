@@ -17,8 +17,9 @@
 __SYCL_OPEN_NS
 using ContextImplPtr = std::shared_ptr<__sycl_ns_alias::detail::context_impl>;
 namespace detail {
-std::vector<RT::PiEvent> getOrWaitEvents(std::vector<__sycl_ns_alias::event> DepEvents,
-                                         ContextImplPtr Context) {
+std::vector<RT::PiEvent>
+getOrWaitEvents(std::vector<__sycl_ns_alias::event> DepEvents,
+                ContextImplPtr Context) {
   std::vector<RT::PiEvent> Events;
   for (auto SyclEvent : DepEvents) {
     auto SyclEventImplPtr = detail::getSyclObjImpl(SyclEvent);

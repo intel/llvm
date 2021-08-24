@@ -116,8 +116,10 @@ private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
-  template <typename DataT, int Dimensions, __sycl_ns_alias::access::mode AccessMode,
-            __sycl_ns_alias::access::target AccessTarget, access::placeholder IsPlaceholder>
+  template <typename DataT, int Dimensions,
+            __sycl_ns_alias::access::mode AccessMode,
+            __sycl_ns_alias::access::target AccessTarget,
+            access::placeholder IsPlaceholder>
   friend class detail::image_accessor;
 };
 __SYCL_CLOSE_NS

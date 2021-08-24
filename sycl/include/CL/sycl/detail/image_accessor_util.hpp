@@ -485,14 +485,16 @@ convertWriteData(const vec<cl_uint, 4> WriteData,
     // convert_uchar_sat(Data)
     cl_uint MinVal = min_v<cl_uchar>();
     cl_uint MaxVal = max_v<cl_uchar>();
-    vec<cl_uint, 4> PixelData = __sycl_ns_alias::clamp(WriteData, MinVal, MaxVal);
+    vec<cl_uint, 4> PixelData =
+        __sycl_ns_alias::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::unsigned_int16: {
     // convert_ushort_sat(Data)
     cl_uint MinVal = min_v<cl_ushort>();
     cl_uint MaxVal = max_v<cl_ushort>();
-    vec<cl_uint, 4> PixelData = __sycl_ns_alias::clamp(WriteData, MinVal, MaxVal);
+    vec<cl_uint, 4> PixelData =
+        __sycl_ns_alias::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::unsigned_int32:
@@ -519,14 +521,16 @@ convertWriteData(const vec<cl_int, 4> WriteData,
     // convert_char_sat(Data)
     cl_int MinVal = min_v<cl_char>();
     cl_int MaxVal = max_v<cl_char>();
-    vec<cl_int, 4> PixelData = __sycl_ns_alias::clamp(WriteData, MinVal, MaxVal);
+    vec<cl_int, 4> PixelData =
+        __sycl_ns_alias::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::signed_int16: {
     // convert_short_sat(Data)
     cl_int MinVal = min_v<cl_short>();
     cl_int MaxVal = max_v<cl_short>();
-    vec<cl_int, 4> PixelData = __sycl_ns_alias::clamp(WriteData, MinVal, MaxVal);
+    vec<cl_int, 4> PixelData =
+        __sycl_ns_alias::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::signed_int32:
@@ -547,8 +551,8 @@ vec<ChannelType, 4> processFloatDataToPixel(vec<cl_float, 4> WriteData,
                                             float MulFactor) {
   vec<cl_float, 4> Temp = WriteData * MulFactor;
   vec<cl_int, 4> TempInInt = Temp.convert<int, rounding_mode::rte>();
-  vec<cl_int, 4> TempInIntSaturated =
-      __sycl_ns_alias::clamp(TempInInt, min_v<ChannelType>(), max_v<ChannelType>());
+  vec<cl_int, 4> TempInIntSaturated = __sycl_ns_alias::clamp(
+      TempInInt, min_v<ChannelType>(), max_v<ChannelType>());
   return TempInIntSaturated.convert<ChannelType>();
 }
 
@@ -586,7 +590,8 @@ convertWriteData(const vec<cl_float, 4> WriteData,
     {
       vec<cl_ushort, 4> PixelData =
           processFloatDataToPixel<cl_ushort>(WriteData, 32.0f);
-      PixelData = __sycl_ns_alias::min(PixelData, static_cast<ChannelType>(0x1f));
+      PixelData =
+          __sycl_ns_alias::min(PixelData, static_cast<ChannelType>(0x1f));
       // Compressing the data into the first element of PixelData.
       // This is needed so that the data can be directly stored into the pixel
       // location from the first element.
@@ -603,7 +608,8 @@ convertWriteData(const vec<cl_float, 4> WriteData,
     {
       vec<cl_uint, 4> PixelData =
           processFloatDataToPixel<cl_uint>(WriteData, 1023.0f);
-      PixelData = __sycl_ns_alias::min(PixelData, static_cast<ChannelType>(0x3ff));
+      PixelData =
+          __sycl_ns_alias::min(PixelData, static_cast<ChannelType>(0x3ff));
       PixelData.x() =
           (PixelData.x() << 20) | (PixelData.y() << 10) | PixelData.z();
       return PixelData.convert<ChannelType>();

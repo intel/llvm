@@ -114,7 +114,8 @@ struct known_identity_impl<BinaryOperation, half,
 #ifdef __SYCL_DEVICE_ONLY__
       0;
 #else
-      __sycl_ns_alias::detail::host_half_impl::half_v2(static_cast<uint16_t>(0));
+      __sycl_ns_alias::detail::host_half_impl::half_v2(
+          static_cast<uint16_t>(0));
 #endif
 };
 
@@ -134,7 +135,8 @@ struct known_identity_impl<BinaryOperation, half,
 #ifdef __SYCL_DEVICE_ONLY__
       1;
 #else
-      __sycl_ns_alias::detail::host_half_impl::half_v2(static_cast<uint16_t>(0x3C00));
+      __sycl_ns_alias::detail::host_half_impl::half_v2(
+          static_cast<uint16_t>(0x3C00));
 #endif
 };
 

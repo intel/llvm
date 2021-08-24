@@ -44,10 +44,10 @@ __SYCL_CLOSE_NS
 
 #define __SYCL_INVOKE_SPIRV_CALL_ARG1(call)                                    \
   template <typename R, typename T1> inline R __invoke_##call(T1 ParT1) {      \
-    using Ret = __sycl_ns_alias::detail::ConvertToOpenCLType_t<R>;                    \
+    using Ret = __sycl_ns_alias::detail::ConvertToOpenCLType_t<R>;             \
     T1 Arg1 = ParT1;                                                           \
     Ret RetVar = __spirv_##call<Ret, T1>(Arg1);                                \
-    return __sycl_ns_alias::detail::convertDataToType<Ret, R>(RetVar);                \
+    return __sycl_ns_alias::detail::convertDataToType<Ret, R>(RetVar);         \
   }
 
 // The macro defines the function __invoke_ImageXXXX,
@@ -65,7 +65,8 @@ static void __invoke__ImageWrite(ImageT Img, CoordT Coords, ValT Val) {
 
   TmpCoordT TmpCoord =
       __sycl_ns_alias::detail::convertDataToType<CoordT, TmpCoordT>(Coords);
-  TmpValT TmpVal = __sycl_ns_alias::detail::convertDataToType<ValT, TmpValT>(Val);
+  TmpValT TmpVal =
+      __sycl_ns_alias::detail::convertDataToType<ValT, TmpValT>(Val);
   __spirv_ImageWrite<ImageT, TmpCoordT, TmpValT>(Img, TmpCoord, TmpVal);
 }
 
@@ -76,7 +77,8 @@ static RetType __invoke__ImageRead(ImageT Img, CoordT Coords) {
   using TempRetT = __sycl_ns_alias::detail::ConvertToOpenCLType_t<RetType>;
   using TempArgT = __sycl_ns_alias::detail::ConvertToOpenCLType_t<CoordT>;
 
-  TempArgT Arg = __sycl_ns_alias::detail::convertDataToType<CoordT, TempArgT>(Coords);
+  TempArgT Arg =
+      __sycl_ns_alias::detail::convertDataToType<CoordT, TempArgT>(Coords);
   TempRetT Ret = __spirv_ImageRead<TempRetT, ImageT, TempArgT>(Img, Arg);
   return __sycl_ns_alias::detail::convertDataToType<TempRetT, RetType>(Ret);
 }

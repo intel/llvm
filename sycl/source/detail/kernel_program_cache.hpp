@@ -29,8 +29,8 @@ namespace detail {
 class context_impl;
 class KernelProgramCache {
 public:
-  /// Denotes build error data. The data is filled in from __sycl_ns_alias::exception
-  /// class instance.
+  /// Denotes build error data. The data is filled in from
+  /// __sycl_ns_alias::exception class instance.
   struct BuildError {
     std::string Msg;
     pi_int32 Code;

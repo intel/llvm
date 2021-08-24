@@ -27,10 +27,9 @@ class accessor;
 /// \ingroup sycl_api
 template <typename ElementType, access::address_space Space> class multi_ptr {
 public:
-  using element_type =
-      detail::conditional_t<std::is_same<ElementType, half>::value,
-                    __sycl_ns_alias::detail::half_impl::BIsRepresentationT,
-                    ElementType>;
+  using element_type = detail::conditional_t<
+      std::is_same<ElementType, half>::value,
+      __sycl_ns_alias::detail::half_impl::BIsRepresentationT, ElementType>;
   using difference_type = std::ptrdiff_t;
 
   // Implementation defined pointer and reference types that correspond to

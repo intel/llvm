@@ -265,9 +265,9 @@ class half;
 
 // Several aliases are defined below:
 // - StorageT: actual representation of half data type. It is used by scalar
-//   half values and by '__sycl_ns_alias::vec' class. On device side, it points to some
-//   native half data type, while on host some custom data type is used to
-//   emulate operations of 16-bit floating-point values
+//   half values and by '__sycl_ns_alias::vec' class. On device side, it points
+//   to some native half data type, while on host some custom data type is used
+//   to emulate operations of 16-bit floating-point values
 //
 // - BIsRepresentationT: data type which is used by built-in functions. It is
 //   distinguished from StorageT, because on host, we can still operate on the
@@ -458,7 +458,8 @@ template <> struct numeric_limits<__sycl_ns_alias::half> {
     return 9.765625e-04f; // half epsilon
   }
 
-  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half round_error() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half
+  round_error() noexcept {
     return 0.5f;
   }
 
@@ -471,22 +472,26 @@ template <> struct numeric_limits<__sycl_ns_alias::half> {
 #endif
   }
 
-  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half quiet_NaN() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half
+  quiet_NaN() noexcept {
     return __builtin_nanf("");
   }
 
-  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half signaling_NaN() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half
+  signaling_NaN() noexcept {
     return __builtin_nansf("");
   }
 
-  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half denorm_min() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half
+  denorm_min() noexcept {
     return 5.96046e-08f;
   }
 };
 
 } // namespace std
 
-inline std::ostream &operator<<(std::ostream &O, __sycl_ns_alias::half const &rhs) {
+inline std::ostream &operator<<(std::ostream &O,
+                                __sycl_ns_alias::half const &rhs) {
   O << static_cast<float>(rhs);
   return O;
 }

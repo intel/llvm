@@ -25,8 +25,8 @@ namespace detail {
 // The structure represents kernel argument.
 class ArgDesc {
 public:
-  ArgDesc(__sycl_ns_alias::detail::kernel_param_kind_t Type, void *Ptr, int Size,
-          int Index)
+  ArgDesc(__sycl_ns_alias::detail::kernel_param_kind_t Type, void *Ptr,
+          int Size, int Index)
       : MType(Type), MPtr(Ptr), MSize(Size), MIndex(Index) {}
 
   __sycl_ns_alias::detail::kernel_param_kind_t MType;

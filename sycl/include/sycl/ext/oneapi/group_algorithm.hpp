@@ -34,8 +34,8 @@ using EnableIfIsVectorArithmetic = __sycl_ns_alias::detail::enable_if_t<
     __sycl_ns_alias::detail::is_vector_arithmetic<T>::value, T>;
 
 template <typename Ptr, typename T>
-using EnableIfIsPointer =
-    __sycl_ns_alias::detail::enable_if_t<__sycl_ns_alias::detail::is_pointer<Ptr>::value, T>;
+using EnableIfIsPointer = __sycl_ns_alias::detail::enable_if_t<
+    __sycl_ns_alias::detail::is_pointer<Ptr>::value, T>;
 
 template <typename T>
 using EnableIfIsTriviallyCopyable = __sycl_ns_alias::detail::enable_if_t<

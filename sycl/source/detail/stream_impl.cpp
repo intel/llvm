@@ -92,4 +92,3 @@ void stream_impl::flush() {
 }
 } // namespace detail
 __SYCL_CLOSE_NS
-

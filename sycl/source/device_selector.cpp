@@ -121,7 +121,7 @@ device device_selector::select_device() const {
   }
 
   throw __sycl_ns_alias::runtime_error("No device of requested type available.",
-                                PI_DEVICE_NOT_FOUND);
+                                       PI_DEVICE_NOT_FOUND);
 }
 
 /// Devices of different kinds are prioritized in the following order:

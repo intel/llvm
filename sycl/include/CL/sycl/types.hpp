@@ -333,7 +333,8 @@ convertImpl(T Value) {
                             std::is_same<DestType, char>::value)),             \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
-    OpenCLT OpValue = __sycl_ns_alias::detail::convertDataToType<T, OpenCLT>(Value);  \
+    OpenCLT OpValue =                                                          \
+        __sycl_ns_alias::detail::convertDataToType<T, OpenCLT>(Value);         \
     return __spirv_SConvert##_R##DestType(OpValue);                            \
   }
 
@@ -353,7 +354,8 @@ __SYCL_GENERATE_CONVERT_IMPL(long)
                           std::is_same<OpenCLR, cl_##DestType>::value,         \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
-    OpenCLT OpValue = __sycl_ns_alias::detail::convertDataToType<T, OpenCLT>(Value);  \
+    OpenCLT OpValue =                                                          \
+        __sycl_ns_alias::detail::convertDataToType<T, OpenCLT>(Value);         \
     return __spirv_UConvert##_R##DestType(OpValue);                            \
   }
 
@@ -385,7 +387,8 @@ convertImpl(T Value) {
                             std::is_same<DestType, half>::value)),             \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
-    OpenCLT OpValue = __sycl_ns_alias::detail::convertDataToType<T, OpenCLT>(Value);  \
+    OpenCLT OpValue =                                                          \
+        __sycl_ns_alias::detail::convertDataToType<T, OpenCLT>(Value);         \
     return __spirv_Convert##SPIRVOp##_R##DestType(OpValue);                    \
   }
 
@@ -405,7 +408,8 @@ __SYCL_GENERATE_CONVERT_IMPL(SToF, double)
                             std::is_same<DestType, half>::value)),             \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
-    OpenCLT OpValue = __sycl_ns_alias::detail::convertDataToType<T, OpenCLT>(Value);  \
+    OpenCLT OpValue =                                                          \
+        __sycl_ns_alias::detail::convertDataToType<T, OpenCLT>(Value);         \
     return __spirv_Convert##SPIRVOp##_R##DestType(OpValue);                    \
   }
 
@@ -428,7 +432,8 @@ __SYCL_GENERATE_CONVERT_IMPL(UToF, double)
                           RoundingModeCondition<roundingMode>::value,          \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
-    OpenCLT OpValue = __sycl_ns_alias::detail::convertDataToType<T, OpenCLT>(Value);  \
+    OpenCLT OpValue =                                                          \
+        __sycl_ns_alias::detail::convertDataToType<T, OpenCLT>(Value);         \
     return __spirv_FConvert##_R##DestType##_##RoundingMode(OpValue);           \
   }
 
@@ -458,7 +463,8 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
                           RoundingModeCondition<roundingMode>::value,          \
                       R>                                                       \
   convertImpl(T Value) {                                                       \
-    OpenCLT OpValue = __sycl_ns_alias::detail::convertDataToType<T, OpenCLT>(Value);  \
+    OpenCLT OpValue =                                                          \
+        __sycl_ns_alias::detail::convertDataToType<T, OpenCLT>(Value);         \
     return __spirv_Convert##SPIRVOp##_R##DestType##_##RoundingMode(OpValue);   \
   }
 
@@ -670,8 +676,9 @@ public:
   template <typename T = void>
   using EnableIfNotHostHalf = typename detail::enable_if_t<
       !std::is_same<DataT, __sycl_ns_alias::detail::half_impl::half>::value ||
-          !std::is_same<__sycl_ns_alias::detail::half_impl::StorageT,
-                        __sycl_ns_alias::detail::host_half_impl::half_v2>::value,
+          !std::is_same<
+              __sycl_ns_alias::detail::half_impl::StorageT,
+              __sycl_ns_alias::detail::host_half_impl::half_v2>::value,
       T>;
   template <typename T = void>
   using EnableIfHostHalf = typename detail::enable_if_t<
@@ -2030,31 +2037,30 @@ __SYCL_RELLOGOP(||)
 
 __SYCL_CLOSE_NS
 
-
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
 #define __SYCL_DECLARE_TYPE_VIA_CL_T(type)                                     \
-  using __##type##_t = __sycl_ns_alias::cl_##type;                                    \
+  using __##type##_t = __sycl_ns_alias::cl_##type;                             \
   using __##type##2_vec_t =                                                    \
-      __sycl_ns_alias::cl_##type __attribute__((ext_vector_type(2)));                 \
+      __sycl_ns_alias::cl_##type __attribute__((ext_vector_type(2)));          \
   using __##type##3_vec_t =                                                    \
-      __sycl_ns_alias::cl_##type __attribute__((ext_vector_type(3)));                 \
+      __sycl_ns_alias::cl_##type __attribute__((ext_vector_type(3)));          \
   using __##type##4_vec_t =                                                    \
-      __sycl_ns_alias::cl_##type __attribute__((ext_vector_type(4)));                 \
+      __sycl_ns_alias::cl_##type __attribute__((ext_vector_type(4)));          \
   using __##type##8_vec_t =                                                    \
-      __sycl_ns_alias::cl_##type __attribute__((ext_vector_type(8)));                 \
+      __sycl_ns_alias::cl_##type __attribute__((ext_vector_type(8)));          \
   using __##type##16_vec_t =                                                   \
       __sycl_ns_alias::cl_##type __attribute__((ext_vector_type(16)));
 
 #define __SYCL_DECLARE_TYPE_T(type)                                            \
-  using __##type##_t = __sycl_ns_alias::type;                                         \
+  using __##type##_t = __sycl_ns_alias::type;                                  \
   using __##type##2_vec_t =                                                    \
-      __sycl_ns_alias::type __attribute__((ext_vector_type(2)));                      \
+      __sycl_ns_alias::type __attribute__((ext_vector_type(2)));               \
   using __##type##3_vec_t =                                                    \
-      __sycl_ns_alias::type __attribute__((ext_vector_type(3)));                      \
+      __sycl_ns_alias::type __attribute__((ext_vector_type(3)));               \
   using __##type##4_vec_t =                                                    \
-      __sycl_ns_alias::type __attribute__((ext_vector_type(4)));                      \
+      __sycl_ns_alias::type __attribute__((ext_vector_type(4)));               \
   using __##type##8_vec_t =                                                    \
-      __sycl_ns_alias::type __attribute__((ext_vector_type(8)));                      \
+      __sycl_ns_alias::type __attribute__((ext_vector_type(8)));               \
   using __##type##16_vec_t =                                                   \
       __sycl_ns_alias::type __attribute__((ext_vector_type(16)));
 

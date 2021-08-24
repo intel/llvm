@@ -490,8 +490,8 @@ __SYCL_CLOSE_NS
 namespace std {
 template <typename T, int dimensions, typename AllocatorT>
 struct hash<__sycl_ns_alias::buffer<T, dimensions, AllocatorT>> {
-  size_t
-  operator()(const __sycl_ns_alias::buffer<T, dimensions, AllocatorT> &b) const {
+  size_t operator()(
+      const __sycl_ns_alias::buffer<T, dimensions, AllocatorT> &b) const {
     return hash<std::shared_ptr<__sycl_ns_alias::detail::buffer_impl>>()(
         __sycl_ns_alias::detail::getSyclObjImpl(b));
   }

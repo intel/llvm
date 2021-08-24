@@ -18,10 +18,13 @@ getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
   // FIXME: return value must be checked here, but since we cannot yet check
   // if corresponding extension is supported, let's silently ignore it here.
   const detail::plugin &Plugin = detail::getSyclObjImpl(P)->getPlugin();
-  Plugin.call<__sycl_ns_alias::detail::PiApiKind::piextGetDeviceFunctionPointer>(
-      detail::pi::cast<pi_device>(detail::getSyclObjImpl(D)->getHandleRef()),
-      detail::pi::cast<pi_program>(detail::getSyclObjImpl(P)->getHandleRef()),
-      FuncName, &FPtr);
+  Plugin
+      .call<__sycl_ns_alias::detail::PiApiKind::piextGetDeviceFunctionPointer>(
+          detail::pi::cast<pi_device>(
+              detail::getSyclObjImpl(D)->getHandleRef()),
+          detail::pi::cast<pi_program>(
+              detail::getSyclObjImpl(P)->getHandleRef()),
+          FuncName, &FPtr);
   return FPtr;
 }
 

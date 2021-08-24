@@ -9,7 +9,6 @@
 #pragma once
 #include <CL/sycl/access/access.hpp>
 
-
 __SYCL_OPEN_NS
 
 template <typename ElementType, access::address_space Space> class multi_ptr;

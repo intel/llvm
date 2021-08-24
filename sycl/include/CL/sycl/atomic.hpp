@@ -43,7 +43,8 @@ template <typename T> struct IsValidAtomicType {
        std::is_same<T, float>::value);
 };
 
-template <__sycl_ns_alias::access::address_space AS> struct IsValidAtomicAddressSpace {
+template <__sycl_ns_alias::access::address_space AS>
+struct IsValidAtomicAddressSpace {
   static constexpr bool value =
       (AS == access::address_space::global_space ||
        AS == access::address_space::local_space ||
@@ -134,7 +135,8 @@ extern T __spirv_AtomicXor(std::atomic<T> *Ptr, __spv::Scope::Flag,
 template <typename T>
 extern T __spirv_AtomicMin(std::atomic<T> *Ptr, __spv::Scope::Flag,
                            __spv::MemorySemanticsMask::Flag MS, T V) {
-  std::memory_order MemoryOrder = ::__sycl_ns_alias::detail::getStdMemoryOrder(MS);
+  std::memory_order MemoryOrder =
+      ::__sycl_ns_alias::detail::getStdMemoryOrder(MS);
   T Val = Ptr->load(MemoryOrder);
   while (V < Val) {
     if (Ptr->compare_exchange_strong(Val, V, MemoryOrder, MemoryOrder))
@@ -147,7 +149,8 @@ extern T __spirv_AtomicMin(std::atomic<T> *Ptr, __spv::Scope::Flag,
 template <typename T>
 extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope::Flag,
                            __spv::MemorySemanticsMask::Flag MS, T V) {
-  std::memory_order MemoryOrder = ::__sycl_ns_alias::detail::getStdMemoryOrder(MS);
+  std::memory_order MemoryOrder =
+      ::__sycl_ns_alias::detail::getStdMemoryOrder(MS);
   T Val = Ptr->load(MemoryOrder);
   while (V > Val) {
     if (Ptr->compare_exchange_strong(Val, V, MemoryOrder, MemoryOrder))

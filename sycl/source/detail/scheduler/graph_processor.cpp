@@ -39,8 +39,8 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
                                              ReadLockT &GraphReadLock,
                                              bool LockTheLock) {
   Command *Cmd = getCommand(Event);
-  // Command can be nullptr if user creates __sycl_ns_alias::event explicitly or the
-  // event has been waited on by another thread
+  // Command can be nullptr if user creates __sycl_ns_alias::event explicitly or
+  // the event has been waited on by another thread
   if (!Cmd)
     return;
 

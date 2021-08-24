@@ -92,7 +92,7 @@ struct get_kernel_device_specific_info {
 template <info::kernel_device_specific Param>
 struct get_kernel_device_specific_info<__sycl_ns_alias::range<3>, Param> {
   static __sycl_ns_alias::range<3> get(RT::PiKernel Kernel, RT::PiDevice Device,
-                                const plugin &Plugin) {
+                                       const plugin &Plugin) {
     size_t Result[3];
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piKernelGetGroupInfo>(
@@ -109,7 +109,8 @@ get_kernel_device_specific_info_host(const __sycl_ns_alias::device &Device);
 
 template <>
 inline __sycl_ns_alias::range<3> get_kernel_device_specific_info_host<
-    info::kernel_device_specific::global_work_size>(const __sycl_ns_alias::device &) {
+    info::kernel_device_specific::global_work_size>(
+    const __sycl_ns_alias::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
                              PI_INVALID_KERNEL);
 }
@@ -138,7 +139,8 @@ inline size_t get_kernel_device_specific_info_host<
 
 template <>
 inline cl_ulong get_kernel_device_specific_info_host<
-    info::kernel_device_specific::private_mem_size>(const __sycl_ns_alias::device &) {
+    info::kernel_device_specific::private_mem_size>(
+    const __sycl_ns_alias::device &) {
   return 0;
 }
 

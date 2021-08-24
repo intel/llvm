@@ -52,4 +52,3 @@ bool stream::operator==(const stream &RHS) const { return (impl == RHS.impl); }
 bool stream::operator!=(const stream &RHS) const { return !(impl == RHS.impl); }
 
 __SYCL_CLOSE_NS
-

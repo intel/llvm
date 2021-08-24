@@ -46,12 +46,12 @@ cl_int4 getPixelCoordNearestFiltMode(cl_float4 Coorduvw,
   case addressing_mode::repeat: {
 
     cl_float4 Tempuvw(0);
-    Tempuvw =
-        (Coorduvw - __sycl_ns_alias::floor(Coorduvw)) * Rangewhd.convert<cl_float>();
+    Tempuvw = (Coorduvw - __sycl_ns_alias::floor(Coorduvw)) *
+              Rangewhd.convert<cl_float>();
     Coordijk = (__sycl_ns_alias::floor(Tempuvw)).convert<cl_int>();
     cl_int4 GreaterThanEqual = (Coordijk >= Rangewhd);
-    Coordijk =
-        __sycl_ns_alias::select(Coordijk, (Coordijk - Rangewhd), GreaterThanEqual);
+    Coordijk = __sycl_ns_alias::select(Coordijk, (Coordijk - Rangewhd),
+                                       GreaterThanEqual);
     // Eg:
     // u = 2.3; v = 1.5; w = 0.5; // normalized coordinates.
     // w,h,d  = {9,9,9};
@@ -95,7 +95,8 @@ cl_int8 getPixelCoordLinearFiltMode(cl_float4 Coorduvw,
   cl_int4 Rangewhd(ImgRange[0], ImgRange[1], ImgRange[2], 0);
   cl_int4 Ci0j0k0(0);
   cl_int4 Ci1j1k1(0);
-  cl_int4 Int_uvwsubhalf = __sycl_ns_alias::floor(Coorduvw - 0.5f).convert<cl_int>();
+  cl_int4 Int_uvwsubhalf =
+      __sycl_ns_alias::floor(Coorduvw - 0.5f).convert<cl_int>();
 
   switch (SmplAddrMode) {
   case addressing_mode::mirrored_repeat: {
@@ -113,27 +114,30 @@ cl_int8 getPixelCoordLinearFiltMode(cl_float4 Coorduvw,
   } break;
   case addressing_mode::repeat: {
 
-    Coorduvw =
-        (Coorduvw - __sycl_ns_alias::floor(Coorduvw)) * Rangewhd.convert<cl_float>();
+    Coorduvw = (Coorduvw - __sycl_ns_alias::floor(Coorduvw)) *
+               Rangewhd.convert<cl_float>();
     Int_uvwsubhalf = __sycl_ns_alias::floor(Coorduvw - 0.5f).convert<cl_int>();
 
     Ci0j0k0 = Int_uvwsubhalf;
     Ci1j1k1 = Ci0j0k0 + 1;
 
-    Ci0j0k0 =
-        __sycl_ns_alias::select(Ci0j0k0, (Ci0j0k0 + Rangewhd), Ci0j0k0 < cl_int4(0));
-    Ci1j1k1 =
-        __sycl_ns_alias::select(Ci1j1k1, (Ci1j1k1 - Rangewhd), Ci1j1k1 >= Rangewhd);
+    Ci0j0k0 = __sycl_ns_alias::select(Ci0j0k0, (Ci0j0k0 + Rangewhd),
+                                      Ci0j0k0 < cl_int4(0));
+    Ci1j1k1 = __sycl_ns_alias::select(Ci1j1k1, (Ci1j1k1 - Rangewhd),
+                                      Ci1j1k1 >= Rangewhd);
 
   } break;
   case addressing_mode::clamp_to_edge: {
-    Ci0j0k0 = __sycl_ns_alias::clamp(Int_uvwsubhalf, cl_int4(0), (Rangewhd - 1));
-    Ci1j1k1 = __sycl_ns_alias::clamp((Int_uvwsubhalf + 1), cl_int4(0), (Rangewhd - 1));
+    Ci0j0k0 =
+        __sycl_ns_alias::clamp(Int_uvwsubhalf, cl_int4(0), (Rangewhd - 1));
+    Ci1j1k1 = __sycl_ns_alias::clamp((Int_uvwsubhalf + 1), cl_int4(0),
+                                     (Rangewhd - 1));
     break;
   }
   case addressing_mode::clamp: {
     Ci0j0k0 = __sycl_ns_alias::clamp(Int_uvwsubhalf, cl_int4(-1), Rangewhd);
-    Ci1j1k1 = __sycl_ns_alias::clamp((Int_uvwsubhalf + 1), cl_int4(-1), Rangewhd);
+    Ci1j1k1 =
+        __sycl_ns_alias::clamp((Int_uvwsubhalf + 1), cl_int4(-1), Rangewhd);
     break;
   }
   case addressing_mode::none: {

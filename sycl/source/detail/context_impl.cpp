@@ -150,8 +150,10 @@ std::vector<__sycl_ns_alias::memory_order>
 context_impl::get_info<info::context::atomic_memory_order_capabilities>()
     const {
   if (is_host())
-    return {__sycl_ns_alias::memory_order::relaxed, __sycl_ns_alias::memory_order::acquire,
-            __sycl_ns_alias::memory_order::release, __sycl_ns_alias::memory_order::acq_rel,
+    return {__sycl_ns_alias::memory_order::relaxed,
+            __sycl_ns_alias::memory_order::acquire,
+            __sycl_ns_alias::memory_order::release,
+            __sycl_ns_alias::memory_order::acq_rel,
             __sycl_ns_alias::memory_order::seq_cst};
 
   pi_memory_order_capabilities Result;

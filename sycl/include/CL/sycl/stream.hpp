@@ -63,9 +63,10 @@ using EnableIfFP =
                                      std::is_same<F, half>::value,
                                  T>;
 
-using GlobalBufAccessorT = accessor<char, 1, __sycl_ns_alias::access::mode::read_write,
-                                    __sycl_ns_alias::access::target::global_buffer,
-                                    __sycl_ns_alias::access::placeholder::false_t>;
+using GlobalBufAccessorT =
+    accessor<char, 1, __sycl_ns_alias::access::mode::read_write,
+             __sycl_ns_alias::access::target::global_buffer,
+             __sycl_ns_alias::access::placeholder::false_t>;
 
 constexpr static access::address_space GlobalBufAS =
     TargetToAS<__sycl_ns_alias::access::target::global_buffer>::AS;

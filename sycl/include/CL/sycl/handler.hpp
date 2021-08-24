@@ -40,7 +40,8 @@
 #define __SYCL_NONCONST_FUNCTOR__
 #endif
 
-template <typename DataT, int Dimensions, __sycl_ns_alias::access::mode AccessMode,
+template <typename DataT, int Dimensions,
+          __sycl_ns_alias::access::mode AccessMode,
           __sycl_ns_alias::access::target AccessTarget,
           __sycl_ns_alias::access::placeholder IsPlaceholder>
 class __fill;
@@ -59,7 +60,8 @@ template <typename T_Src, typename T_Dst, int Dims,
           __sycl_ns_alias::access::placeholder IsPlaceholder>
 class __copyPtr2Acc;
 
-template <typename T_Src, int Dims_Src, __sycl_ns_alias::access::mode AccessMode_Src,
+template <typename T_Src, int Dims_Src,
+          __sycl_ns_alias::access::mode AccessMode_Src,
           __sycl_ns_alias::access::target AccessTarget_Src, typename T_Dst,
           int Dims_Dst, __sycl_ns_alias::access::mode AccessMode_Dst,
           __sycl_ns_alias::access::target AccessTarget_Dst,

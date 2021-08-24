@@ -41,16 +41,16 @@ using half = __sycl_ns_alias::detail::half_impl::half;
   __SYCL_MAKE_VECTOR_ALIAS(half, half, N)
 
 #define __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                         \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_char, __sycl_ns_alias::cl_char, N)                      \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_uchar, __sycl_ns_alias::cl_uchar, N)                    \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_short, __sycl_ns_alias::cl_short, N)                    \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_ushort, __sycl_ns_alias::cl_ushort, N)                  \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_int, __sycl_ns_alias::cl_int, N)                        \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_uint, __sycl_ns_alias::cl_uint, N)                      \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_long, __sycl_ns_alias::cl_long, N)                      \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_ulong, __sycl_ns_alias::cl_ulong, N)                    \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_float, __sycl_ns_alias::cl_float, N)                    \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_double, __sycl_ns_alias::cl_double, N)                  \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_char, __sycl_ns_alias::cl_char, N)               \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_uchar, __sycl_ns_alias::cl_uchar, N)             \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_short, __sycl_ns_alias::cl_short, N)             \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_ushort, __sycl_ns_alias::cl_ushort, N)           \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_int, __sycl_ns_alias::cl_int, N)                 \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_uint, __sycl_ns_alias::cl_uint, N)               \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_long, __sycl_ns_alias::cl_long, N)               \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_ulong, __sycl_ns_alias::cl_ulong, N)             \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_float, __sycl_ns_alias::cl_float, N)             \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_double, __sycl_ns_alias::cl_double, N)           \
   __SYCL_MAKE_VECTOR_ALIAS(cl_half, __sycl_ns_alias::cl_half, N)
 
 #define __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)            \

@@ -111,7 +111,7 @@ __SYCL_CLOSE_NS
     auto code = expr;                                                          \
     if (code != CL_SUCCESS) {                                                  \
       std::cerr << __SYCL_OCL_ERROR_REPORT                                     \
-                << __sycl_ns_alias::detail::codeToString(code) << std::endl;          \
+                << __sycl_ns_alias::detail::codeToString(code) << std::endl;   \
     }                                                                          \
   }
 #endif
@@ -124,7 +124,7 @@ __SYCL_CLOSE_NS
     auto code = expr;                                                          \
     if (code != CL_SUCCESS) {                                                  \
       throw exc(__SYCL_OCL_ERROR_REPORT +                                      \
-                    __sycl_ns_alias::detail::codeToString(code),                      \
+                    __sycl_ns_alias::detail::codeToString(code),               \
                 code);                                                         \
     }                                                                          \
   }

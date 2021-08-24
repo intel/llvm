@@ -73,7 +73,8 @@ ESIMDDeviceInterface *getESIMDDeviceInterface() {
   // tight loop)
   void *PIOpaqueData = nullptr;
 
-  PIOpaqueData = getPluginOpaqueData<__sycl_ns_alias::backend::esimd_cpu>(nullptr);
+  PIOpaqueData =
+      getPluginOpaqueData<__sycl_ns_alias::backend::esimd_cpu>(nullptr);
 
   ESIMDEmuPluginOpaqueData *OpaqueData =
       reinterpret_cast<ESIMDEmuPluginOpaqueData *>(PIOpaqueData);

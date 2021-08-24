@@ -2347,13 +2347,14 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
 __SYCL_CLOSE_NS
 
 namespace std {
-template <typename DataT, int Dimensions, __sycl_ns_alias::access::mode AccessMode,
+template <typename DataT, int Dimensions,
+          __sycl_ns_alias::access::mode AccessMode,
           __sycl_ns_alias::access::target AccessTarget,
           __sycl_ns_alias::access::placeholder IsPlaceholder>
-struct hash<__sycl_ns_alias::accessor<DataT, Dimensions, AccessMode, AccessTarget,
-                               IsPlaceholder>> {
+struct hash<__sycl_ns_alias::accessor<DataT, Dimensions, AccessMode,
+                                      AccessTarget, IsPlaceholder>> {
   using AccType = __sycl_ns_alias::accessor<DataT, Dimensions, AccessMode,
-                                     AccessTarget, IsPlaceholder>;
+                                            AccessTarget, IsPlaceholder>;
 
   size_t operator()(const AccType &A) const {
 #ifdef __SYCL_DEVICE_ONLY__
