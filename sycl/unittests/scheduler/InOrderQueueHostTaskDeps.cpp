@@ -110,6 +110,5 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
       })
       .wait();
 
-  std::cout << GEventsWaitCounter << "\n";
   EXPECT_TRUE(GEventsWaitCounter == 1);
 }
