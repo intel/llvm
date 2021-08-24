@@ -29,8 +29,7 @@ namespace detail {
   char SYCLConfigBase<Name>::MStorage[MaxSize + 1];                            \
   const char *const SYCLConfigBase<Name>::MCompileTimeDef =                    \
       getStrOrNullptr(__SYCL_STRINGIFY(CompileTimeDef));                       \
-  const char *const SYCLConfigBase<Name>::MConfigName =                        \
-      __SYCL_STRINGIFY(Name);
+  const char *const SYCLConfigBase<Name>::MConfigName = __SYCL_STRINGIFY(Name);
 #include "detail/config.def"
 #undef CONFIG
 
