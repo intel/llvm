@@ -48,10 +48,11 @@ static void initValue(const char *Key, const char *Value) {
 #undef CONFIG
 }
 
-void readConfig() {
+void readConfig(bool ForceInitialization) {
   static bool Initialized = false;
-  if (Initialized)
+  if (!ForceInitialization && Initialized) {
     return;
+  }
 
   std::fstream File;
   if (const char *ConfigFile = getenv("SYCL_CONFIG_FILE_NAME"))
@@ -69,6 +70,7 @@ void readConfig() {
     while (!File.eof()) {
       // Expected format:
       // ConfigName=Value\r
+      // ConfigName=Value #comment
       // ConfigName=Value
       // TODO: Skip spaces before and after '='
       std::getline(File, BufString);
@@ -80,9 +82,21 @@ void readConfig() {
             make_error_code(errc::runtime),
             "An error occurred while attempting to read a line");
       }
-      // Skip lines with a length = 0 | which have a comment | don't have "="
+      // Handle '\r'
+      if ((BufString.length() > 0) &&
+          (BufString[BufString.length() - 1] == '\r')) {
+        BufString.pop_back();
+      }
+      // Handle comments
+      if (BufString.find("#") != std::string::npos) {
+        BufString.erase(BufString.find("#"));
+        while ((BufString.length() > 0) &&
+               (BufString[BufString.length() - 1] == ' ')) {
+          BufString.pop_back();
+        }
+      }
+      // Skip lines with a length = 0 or which don't have "="
       if ((BufString.length() == 0) ||
-          (BufString.find("#") != std::string::npos) ||
           (BufString.find("=") == std::string::npos)) {
         continue;
       }
@@ -91,20 +105,21 @@ void readConfig() {
       // Checking that the variable name is less than MAX_CONFIG_NAME and more
       // than zero character
       if ((Position <= MAX_CONFIG_NAME) && (Position > 0)) {
-        // Checking for spaces at the beginning and end of the line,
-        // before and after '='
-        if ((BufString[0] == ' ') ||
-            (BufString[BufString.length() - 1] == ' ') ||
-            (BufString[Position - 1] == ' ') ||
-            (BufString[Position + 1] == ' ')) {
-          throw sycl::exception(make_error_code(errc::runtime),
-                                "SPACE found at the beginning/end of the line "
-                                "or before/after '='");
-        }
         // Checking that the value is less than MAX_CONFIG_VALUE and
         // more than zero character
         if ((BufString.length() - (Position + 1) <= MAX_CONFIG_VALUE) &&
             (BufString.length() != Position + 1)) {
+          // Checking for spaces at the beginning and end of the line,
+          // before and after '='
+          if ((BufString[0] == ' ') ||
+              (BufString[BufString.length() - 1] == ' ') ||
+              (BufString[Position - 1] == ' ') ||
+              (BufString[Position + 1] == ' ')) {
+            throw sycl::exception(
+                make_error_code(errc::runtime),
+                "SPACE found at the beginning/end of the line "
+                "or before/after '='");
+          }
           // Creating pairs of (key, value)
           BufString.copy(Key, Position, 0);
           Key[Position] = '\0';
@@ -124,12 +139,10 @@ void readConfig() {
                                   std::to_string(MAX_CONFIG_NAME) +
                                   " or less than one character");
       }
-      // Handle '\r' by nullifying it
-      if ('\r' == Value[BufString.length() - Position - 3])
-        Value[BufString.length() - Position - 3] = '\0';
 
       initValue(Key, Value);
     }
+    File.close();
   }
   Initialized = true;
 }
@@ -146,6 +159,6 @@ void dumpConfig() {
 #undef CONFIG
 }
 
-} // __SYCL_INLINE_NAMESPACE(cl)
-} // namespace sycl
 } // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)

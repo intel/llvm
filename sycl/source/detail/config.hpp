@@ -58,7 +58,7 @@ constexpr const char *getStrOrNullptr(const char *Str) {
 }
 
 // Intializes configs from the configuration file
-void readConfig();
+void readConfig(bool ForceInitialization = false);
 
 template <ConfigID Config> class SYCLConfigBase;
 
