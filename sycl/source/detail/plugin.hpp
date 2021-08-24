@@ -231,10 +231,9 @@ public:
 
   bool containsPiPlatform(RT::PiPlatform Platform) {
     if (PiPlatforms) {
-      for (RT::PiPlatform Plt : *PiPlatforms) {
-        if (Platform == Plt)
-          return true;
-      }
+      auto It = std::find(PiPlatforms->begin(), PiPlatforms->end(), Platform);
+      if (It != PiPlatforms->end())
+        return true;
     }
     return false;
   }

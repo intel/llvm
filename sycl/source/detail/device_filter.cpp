@@ -45,7 +45,7 @@ device_filter::device_filter(const std::string &FilterString) {
   size_t TripleValueID = 0;
 
   auto FindElement = [&](auto Element) {
-    return std::string::npos != Tokens[I].find(Element.first);
+    return std::string::npos != Tokens[TripleValueID].find(Element.first);
   };
 
   // Handle the optional 1st field of the filter, backend
@@ -58,12 +58,12 @@ device_filter::device_filter(const std::string &FilterString) {
     Backend = backend::all;
   else {
     Backend = It->second;
-    I++;
+    TripleValueID++;
   }
 
   // Handle the optional 2nd field of the filter - device type.
   // Check if the 2nd entry matches with any known device type.
-  if (I >= Tokens.size()) {
+  if (TripleValueID >= Tokens.size()) {
     DeviceType = info::device_type::all;
   } else {
     auto Iter = std::find_if(std::begin(getSyclDeviceTypeMap()),
@@ -74,16 +74,16 @@ device_filter::device_filter(const std::string &FilterString) {
       DeviceType = info::device_type::all;
     else {
       DeviceType = Iter->second;
-      I++;
+      TripleValueID++;
     }
   }
 
   // Handle the optional 3rd field of the filter, device number
   // Try to convert the remaining string to an integer.
   // If succeessful, the converted integer is the desired device num.
-  if (I < Tokens.size()) {
+  if (TripleValueID < Tokens.size()) {
     try {
-      DeviceNum = stoi(Tokens[I]);
+      DeviceNum = stoi(Tokens[TripleValueID]);
       HasDeviceNum = true;
     } catch (...) {
       std::string Message =

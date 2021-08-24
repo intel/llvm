@@ -149,15 +149,14 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   if (Plugins.size() == 0)
     RT::initialize();
 
-  unsigned I;
-  for (I = 0; I < Plugins.size(); I++) {
-    if (Plugins[I].containsPiPlatform(Platform))
-      break;
-  }
-  if (I == Plugins.size())
+  auto It =
+      std::find_if(Plugins.begin(), Plugins.end(), [Platform](plugin &Plugin) {
+        return Plugin.containsPiPlatform(Platform);
+      });
+  if (It == Plugins.end())
     return;
 
-  plugin &Plugin = Plugins[I];
+  plugin &Plugin = *It;
   backend Backend = Plugin.getBackend();
   int InsertIDx = 0;
   // DeviceIds should be given consecutive numbers across platforms in the same
