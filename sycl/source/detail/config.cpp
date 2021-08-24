@@ -159,6 +159,6 @@ void dumpConfig() {
 #undef CONFIG
 }
 
-} // namespace detail
-} // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace sycl
+} // namespace detail
