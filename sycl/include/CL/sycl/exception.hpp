@@ -204,5 +204,5 @@ public:
 __SYCL_CLOSE_NS
 
 namespace std {
-template <> struct is_error_code_enum<sycl::errc> : true_type {};
+template <> struct is_error_code_enum<__sycl_ns_alias::errc> : true_type {};
 } // namespace std

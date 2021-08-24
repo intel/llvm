@@ -801,9 +801,9 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   pi_uint32 ImgInd = 0;
   RTDeviceBinaryImage *Img = nullptr;
 
-  // TODO: There may be cases with __sycl_ns_alias::program class usage in
-  // source code that will result in a multi-device context. This case needs to
-  // be handled here or at the program_impl class level
+  // TODO: There may be cases with sycl::program class usage in source code
+  // that will result in a multi-device context. This case needs to be handled
+  // here or at the program_impl class level
 
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
@@ -1526,14 +1526,12 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
 
   const detail::plugin &Plugin = ContextImpl->getPlugin();
 
-  for (const device_image_plain &DeviceImage : DeviceImages) {
-    RT::PiProgram LinkedProg = nullptr;
-    RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
-        ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
-        /*options=*/nullptr, PIPrograms.size(), PIPrograms.data(),
-        /*pfn_notify=*/nullptr,
-        /*user_data=*/nullptr, &LinkedProg);
-  }
+  RT::PiProgram LinkedProg = nullptr;
+  RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramLink>(
+      ContextImpl->getHandleRef(), PIDevices.size(), PIDevices.data(),
+      /*options=*/nullptr, PIPrograms.size(), PIPrograms.data(),
+      /*pfn_notify=*/nullptr,
+      /*user_data=*/nullptr, &LinkedProg);
 
   if (Error != PI_SUCCESS) {
     if (LinkedProg) {
