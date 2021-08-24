@@ -14,18 +14,22 @@
 #define __SYCL_INLINE_NAMESPACE(X) namespace X
 #endif // __SYCL_DISABLE_NAMESPACE_INLINE__
 
+// TODO: Disable macro should be removed once transition to sycl:: is done.
 #ifndef __SYCL_DISABLE_SYCL121_NAMESPACE
 #define __SYCL_ENABLE_SYCL121_NAMESPACE
 #endif
 
+
 #ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-#define __SYCL_NS_OPEN_1 __SYCL_INLINE_NAMESPACE(cl)
-#define __SYCL_NS_OPEN_2 namespace sycl
-#define __SYCL_NS cl::sycl
+  // Old SYCL1.2.1 namespace scheme
+  #define __SYCL_NS_OPEN_1 __SYCL_INLINE_NAMESPACE(cl)
+  #define __SYCL_NS_OPEN_2 namespace sycl
+  #define __SYCL_NS cl::sycl
 #else
-#define __SYCL_NS_OPEN_1 namespace __sycl_internal
-#define __SYCL_NS_OPEN_2 namespace __v1
-#define __SYCL_NS __sycl_internal::__v1
+  // New SYCL2020 friendly namespace scheme, defaulted to __v1
+  #define __SYCL_NS_OPEN_1 namespace __sycl_internal
+  #define __SYCL_NS_OPEN_2 namespace __v1
+  #define __SYCL_NS __sycl_internal::__v1
 #endif
 
 #ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
@@ -40,6 +44,11 @@
 
 #else
 
+// The macro:
+// 1. Forward declares an empty "target" namespace for the alias
+// 2. An alias which will be used to refer to "target" namepsace outside of
+//    namespace itself
+// 3. Opens "target" namespace
 #define __SYCL_OPEN_NS                                                         \
   __SYCL_NS_OPEN_1 {                                                           \
     __SYCL_NS_OPEN_2 {}                                                        \
