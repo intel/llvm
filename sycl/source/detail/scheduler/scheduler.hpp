@@ -64,8 +64,8 @@
 /// \code{.cpp}
 /// {
 ///   // Creating SYCL CPU and GPU queues
-///   __sycl_ns_alias::queue CPU_Queue = ...;
-///   __sycl_ns_alias::queue GPU_Queue = ...;
+///   sycl::queue CPU_Queue = ...;
+///   sycl::queue GPU_Queue = ...;
 ///
 ///   // Creating 3 SYCL buffers
 ///   auto BufferA = ...; // Buffer is initialized with host memory.

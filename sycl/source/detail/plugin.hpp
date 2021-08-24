@@ -171,7 +171,7 @@ public:
 
   /// Calls the API, traces the call, checks the result
   ///
-  /// \throw __sycl_ns_alias::runtime_exception if the call was not successful.
+  /// \throw sycl::runtime_exception if the call was not successful.
   template <PiApiKind PiApiOffset, typename... ArgsT>
   void call(ArgsT... Args) const {
     RT::PiResult Err = call_nocheck<PiApiOffset>(Args...);

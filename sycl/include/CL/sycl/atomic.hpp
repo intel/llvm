@@ -51,8 +51,8 @@ struct IsValidAtomicAddressSpace {
        AS == access::address_space::global_device_space);
 };
 
-// Type trait to translate a __sycl_ns_alias::access::address_space to
-// a SPIR-V memory scope
+// Type trait to translate a sycl::access::address_space to a SPIR-V memory
+// scope
 template <access::address_space AS> struct GetSpirvMemoryScope {};
 template <> struct GetSpirvMemoryScope<access::address_space::global_space> {
   static constexpr auto scope = __spv::Scope::Device;
@@ -72,8 +72,8 @@ __SYCL_CLOSE_NS
 // host implementation of SYCL atomics
 __SYCL_OPEN_NS
 namespace detail {
-// Translate __sycl_ns_alias::memory_order or __spv::MemorySemanticsMask::Flag
-// into std::memory_order
+// Translate sycl::memory_order or __spv::MemorySemanticsMask::Flag into
+// std::memory_order
 // Only relaxed memory semantics are supported currently
 static inline std::memory_order
 getStdMemoryOrder(__spv::MemorySemanticsMask::Flag) {

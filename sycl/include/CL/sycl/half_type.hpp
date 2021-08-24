@@ -265,9 +265,9 @@ class half;
 
 // Several aliases are defined below:
 // - StorageT: actual representation of half data type. It is used by scalar
-//   half values and by '__sycl_ns_alias::vec' class. On device side, it points
-//   to some native half data type, while on host some custom data type is used
-//   to emulate operations of 16-bit floating-point values
+//   half values and by 'sycl::vec' class. On device side, it points to some
+//   native half data type, while on host some custom data type is used to
+//   emulate operations of 16-bit floating-point values
 //
 // - BIsRepresentationT: data type which is used by built-in functions. It is
 //   distinguished from StorageT, because on host, we can still operate on the
@@ -406,14 +406,14 @@ __SYCL_CLOSE_NS
 // Partial specialization of some functions in namespace `std`
 namespace std {
 
-// Partial specialization of `std::hash<__sycl_ns_alias::half>`
+// Partial specialization of `std::hash<sycl::half>`
 template <> struct hash<__sycl_ns_alias::half> {
   size_t operator()(__sycl_ns_alias::half const &Key) const noexcept {
     return hash<uint16_t>{}(reinterpret_cast<const uint16_t &>(Key));
   }
 };
 
-// Partial specialization of `std::numeric<__sycl_ns_alias::half>`
+// Partial specialization of `std::numeric<sycl::half>`
 template <> struct numeric_limits<__sycl_ns_alias::half> {
   // All following values are either calculated based on description of each
   // function/value on https://en.cppreference.com/w/cpp/types/numeric_limits,

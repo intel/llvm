@@ -24,7 +24,7 @@ __SYCL_CLOSE_NS
 
 // FIXME: line below exports 'half' into global namespace, which seems incorrect
 // However, SYCL 1.2.1 spec considers 'half' to be a fundamental C++ data type
-// which doesn't exist within the '__sycl_ns_alias' namespace.
+// which doesn't exist within the 'sycl' namespace.
 // Related spec issue: KhronosGroup/SYCL-Docs#40
 using half = __sycl_ns_alias::detail::half_impl::half;
 
