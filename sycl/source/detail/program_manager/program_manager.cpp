@@ -1037,18 +1037,21 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       }
       // ... or create the set first if it hasn't been
       KernelSetId KSId = getNextKernelSetId();
-      for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
-           ++EntriesIt) {
-        auto Result = KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
-        (void)Result;
-        assert(Result.second && "Kernel sets are not disjoint");
-        // ... and create a unique kernel ID for the entry
-        std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
-            std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
-        sycl::kernel_id KernelID =
-            detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
-        m_KernelIDs.insert(
-            std::make_pair(EntriesIt->name, std::move(KernelID)));
+      {
+        std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+        for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+             ++EntriesIt) {
+          auto Result = KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
+          (void)Result;
+          assert(Result.second && "Kernel sets are not disjoint");
+          // ... and create a unique kernel ID for the entry
+          std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
+              std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
+          sycl::kernel_id KernelID =
+              detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
+          m_KernelIDs.insert(
+              std::make_pair(EntriesIt->name, std::move(KernelID)));
+        }
       }
       m_DeviceImages[KSId].reset(new std::vector<RTDeviceBinaryImageUPtr>());
       m_DeviceImages[KSId]->push_back(std::move(Img));
@@ -1274,7 +1277,7 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
 }
 
 kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
-  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
   auto KernelID = m_KernelIDs.find(KernelName);
   assert(KernelID != m_KernelIDs.end() && "Kernel ID missing");
@@ -1282,7 +1285,7 @@ kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
 }
 
 std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
-  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
   std::vector<sycl::kernel_id> AllKernelIDs;
   AllKernelIDs.reserve(m_KernelIDs.size());
@@ -1344,7 +1347,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
       pi_device_binary DevBin =
           const_cast<pi_device_binary>(&BinImage->getRawData());
       {
-        std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
+        std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
         for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
              EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
           auto KernelID = m_KernelIDs.find(EntriesIt->name);
