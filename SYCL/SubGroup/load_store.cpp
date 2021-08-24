@@ -233,7 +233,7 @@ int main() {
     check<aligned_short, 4>(Queue);
     check<aligned_short, 8>(Queue);
     check<aligned_short, 16>(Queue);
-    if (Queue.get_device().has_extension("cl_khr_fp16") ||
+    if (Queue.get_device().has(sycl::aspect::fp16) ||
         PlatformName.find("CUDA") != std::string::npos) {
       typedef half aligned_half __attribute__((aligned(16)));
       check<aligned_half>(Queue);

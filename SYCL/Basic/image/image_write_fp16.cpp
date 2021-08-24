@@ -11,7 +11,7 @@ int main() {
   s::queue myQueue(selector);
 
   // Device doesn't support cl_khr_fp16 extension - skip.
-  if (!myQueue.get_device().has_extension("cl_khr_fp16"))
+  if (!myQueue.get_device().has(sycl::aspect::fp16))
     return 0;
 
   // Half image

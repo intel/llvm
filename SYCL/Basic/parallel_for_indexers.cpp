@@ -17,7 +17,7 @@ using namespace cl::sycl;
 int main() {
   // Id indexer
   {
-    vector_class<int> data(10, -1);
+    std::vector<int> data(10, -1);
     const range<1> globalRange(6);
     {
       buffer<int, 1> b(data.data(), range<1>(10),
@@ -40,7 +40,7 @@ int main() {
   }
   // Item indexer without offset
   {
-    vector_class<int2> data(10, int2{-1});
+    std::vector<int2> data(10, int2{-1});
     const range<1> globalRange(6);
     {
       buffer<int2, 1> b(data.data(), range<1>(10),
@@ -68,7 +68,7 @@ int main() {
   }
   // Item indexer with offset
   {
-    vector_class<int3> data(10, int3{-1});
+    std::vector<int3> data(10, int3{-1});
     const range<1> globalRange(6);
     const id<1> globalOffset(4);
     {
@@ -101,7 +101,7 @@ int main() {
   }
   // ND_Item indexer
   {
-    vector_class<int3> data(10, int3{-1});
+    std::vector<int3> data(10, int3{-1});
     const range<1> globalRange(6);
     const range<1> localRange(3);
     const id<1> globalOffset(4);

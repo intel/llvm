@@ -34,7 +34,7 @@ int main() {
     cgh.single_task<class SingleTask>(krn, [=]() { acc[0] = acc[0] + 1; });
   });
 
-  const string_class krnName = krn.get_info<info::kernel::function_name>();
+  const std::string krnName = krn.get_info<info::kernel::function_name>();
   assert(!krnName.empty());
   const cl_uint krnArgCount = krn.get_info<info::kernel::num_args>();
   assert(krnArgCount > 0);
@@ -44,7 +44,7 @@ int main() {
   assert(krnPrg == prg);
   const cl_uint krnRefCount = krn.get_info<info::kernel::reference_count>();
   assert(krnRefCount > 0);
-  const string_class krnAttr = krn.get_info<info::kernel::attributes>();
+  const std::string krnAttr = krn.get_info<info::kernel::attributes>();
   assert(krnAttr.empty());
 
   device dev = q.get_device();

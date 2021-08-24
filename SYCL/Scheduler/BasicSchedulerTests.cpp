@@ -27,7 +27,7 @@ template <class TestFuncT> void runTest(TestFuncT TestFunc) {
 
   sycl::queue Queue([&AsyncException](sycl::exception_list ExceptionList) {
     AsyncException = true;
-    for (sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
+    for (std::exception_ptr ExceptionPtr : ExceptionList) {
       try {
         std::rethrow_exception(ExceptionPtr);
       } catch (sycl::exception &E) {

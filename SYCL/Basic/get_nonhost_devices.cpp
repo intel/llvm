@@ -11,7 +11,7 @@
 using namespace cl::sycl;
 
 void check(info::device_type DT) {
-  vector_class<device> Devices = device::get_devices(DT);
+  std::vector<device> Devices = device::get_devices(DT);
   for (const auto &Device : Devices)
     assert(!Device.is_host());
 }

@@ -12,9 +12,9 @@ void submitKernel() {
 }
 
 int main() {
-  const cl::sycl::string_class CompileOpts{"-DCOMPILE_OPTS"};
-  const cl::sycl::string_class LinkOpts{"-cl-fast-relaxed-math"};
-  const cl::sycl::string_class BuildOpts{"-DBUILD_OPTS"};
+  const std::string CompileOpts{"-DCOMPILE_OPTS"};
+  const std::string LinkOpts{"-cl-fast-relaxed-math"};
+  const std::string BuildOpts{"-DBUILD_OPTS"};
 
   try {
     cl::sycl::context Ctx;

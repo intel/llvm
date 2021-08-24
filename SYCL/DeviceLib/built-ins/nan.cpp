@@ -51,7 +51,7 @@ int main() {
   test_nan_call<s::ulonglong2, s::double2>();
 
   s::queue Queue([](cl::sycl::exception_list ExceptionList) {
-    for (cl::sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
+    for (std::exception_ptr ExceptionPtr : ExceptionList) {
       try {
         std::rethrow_exception(ExceptionPtr);
       } catch (cl::sycl::exception &E) {
@@ -62,11 +62,11 @@ int main() {
     }
   });
 #ifdef HALF_IS_SUPPORTED
-  if (Queue.get_device().has_extension("cl_khr_fp16"))
+  if (Queue.get_device().has(sycl::aspect::fp16))
     check_nan<unsigned short, s::half>(Queue);
 #endif
   check_nan<unsigned int, float>(Queue);
-  if (Queue.get_device().has_extension("cl_khr_fp64")) {
+  if (Queue.get_device().has(sycl::aspect::fp64)) {
     check_nan<unsigned long, double>(Queue);
     check_nan<unsigned long long, double>(Queue);
   }

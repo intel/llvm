@@ -91,7 +91,7 @@ int main() {
   check<long, true>(Queue);
   check<unsigned long, true>(Queue);
   check<float, true>(Queue);
-  if (Queue.get_device().has_extension("cl_khr_fp64")) {
+  if (Queue.get_device().has(sycl::aspect::fp64)) {
     check<double>(Queue);
     check<double, true>(Queue);
   }

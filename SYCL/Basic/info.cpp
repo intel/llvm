@@ -31,7 +31,7 @@ template <typename T> std::string info_to_string(T info) {
   return std::to_string(info);
 }
 
-template <> std::string info_to_string(string_class info) {
+template <> std::string info_to_string(std::string info) {
   if (info.empty()) {
     return "none";
   }
@@ -183,7 +183,7 @@ template <> std::string info_to_string(id<3> info) {
   return str;
 }
 
-template <typename T> std::string info_to_string(vector_class<T> info) {
+template <typename T> std::string info_to_string(std::vector<T> info) {
   if (info.empty()) {
     return "none";
   }
@@ -279,11 +279,11 @@ int main() {
                                                        "Max parameter size");
   print_info<info::device::mem_base_addr_align, cl::sycl::cl_uint>(
       dev, "Mem base addr align");
-  print_info<info::device::half_fp_config, vector_class<info::fp_config>>(
+  print_info<info::device::half_fp_config, std::vector<info::fp_config>>(
       dev, "Half fp config");
-  print_info<info::device::single_fp_config, vector_class<info::fp_config>>(
+  print_info<info::device::single_fp_config, std::vector<info::fp_config>>(
       dev, "Single fp config");
-  print_info<info::device::double_fp_config, vector_class<info::fp_config>>(
+  print_info<info::device::double_fp_config, std::vector<info::fp_config>>(
       dev, "Double fp config");
   print_info<info::device::global_mem_cache_type, info::global_mem_cache_type>(
       dev, "Global mem cache type");
@@ -314,21 +314,21 @@ int main() {
   print_info<info::device::is_linker_available, bool>(dev,
                                                       "Is linker available");
   print_info<info::device::execution_capabilities,
-             vector_class<info::execution_capability>>(
-      dev, "Execution capabilities");
+             std::vector<info::execution_capability>>(dev,
+                                                      "Execution capabilities");
   print_info<info::device::queue_profiling, bool>(dev, "Queue profiling");
-  print_info<info::device::built_in_kernels, vector_class<string_class>>(
+  print_info<info::device::built_in_kernels, std::vector<std::string>>(
       dev, "Built in kernels");
   print_info<info::device::platform, platform>(dev, "Platform");
-  print_info<info::device::name, string_class>(dev, "Name");
-  print_info<info::device::vendor, string_class>(dev, "Vendor");
-  print_info<info::device::driver_version, string_class>(dev, "Driver version");
-  print_info<info::device::profile, string_class>(dev, "Profile");
-  print_info<info::device::version, string_class>(dev, "Version");
-  print_info<info::device::opencl_c_version, string_class>(dev,
-                                                           "OpenCL C version");
-  print_info<info::device::extensions, vector_class<string_class>>(
-      dev, "Extensions");
+  print_info<info::device::name, std::string>(dev, "Name");
+  print_info<info::device::vendor, std::string>(dev, "Vendor");
+  print_info<info::device::driver_version, std::string>(dev, "Driver version");
+  print_info<info::device::profile, std::string>(dev, "Profile");
+  print_info<info::device::version, std::string>(dev, "Version");
+  print_info<info::device::opencl_c_version, std::string>(dev,
+                                                          "OpenCL C version");
+  print_info<info::device::extensions, std::vector<std::string>>(dev,
+                                                                 "Extensions");
   print_info<info::device::printf_buffer_size, size_t>(dev,
                                                        "Printf buffer size");
   print_info<info::device::preferred_interop_user_sync, bool>(
@@ -346,10 +346,10 @@ int main() {
   print_info<info::device::partition_max_sub_devices, cl::sycl::cl_uint>(
       dev, "Partition max sub devices");
   print_info<info::device::partition_properties,
-             vector_class<info::partition_property>>(dev,
-                                                     "Partition properties");
+             std::vector<info::partition_property>>(dev,
+                                                    "Partition properties");
   print_info<info::device::partition_affinity_domains,
-             vector_class<info::partition_affinity_domain>>(
+             std::vector<info::partition_affinity_domain>>(
       dev, "Partition affinity domains");
   // TODO test once subdevice creation is enabled
   // print_info<info::device::partition_type_property,
@@ -362,27 +362,27 @@ int main() {
 
   std::cout << separator << "Platform information\n" << separator;
   platform plt(dev.get_platform());
-  print_info<info::platform::profile, string_class>(plt, "Profile");
-  print_info<info::platform::version, string_class>(plt, "Version");
-  print_info<info::platform::name, string_class>(plt, "Name");
-  print_info<info::platform::vendor, string_class>(plt, "Vendor");
-  print_info<info::platform::extensions, vector_class<string_class>>(
+  print_info<info::platform::profile, std::string>(plt, "Profile");
+  print_info<info::platform::version, std::string>(plt, "Version");
+  print_info<info::platform::name, std::string>(plt, "Name");
+  print_info<info::platform::vendor, std::string>(plt, "Vendor");
+  print_info<info::platform::extensions, std::vector<std::string>>(
       plt, "Extensions");
 
   std::cout << separator << "Queue information\n" << separator;
   queue q(selector);
   auto qdev = q.get_info<cl::sycl::info::queue::device>();
   std::cout << "Device from queue information\n";
-  print_info<info::device::name, string_class>(qdev, "Name");
+  print_info<info::device::name, std::string>(qdev, "Name");
   auto ctx = q.get_info<cl::sycl::info::queue::context>();
 
   std::cout << separator << "Context information\n" << separator;
   std::cout << "Devices from context information\n";
   auto cdevs = ctx.get_info<cl::sycl::info::context::devices>();
   for (auto cdev : cdevs) {
-    print_info<info::device::name, string_class>(cdev, "Name");
+    print_info<info::device::name, std::string>(cdev, "Name");
   }
   std::cout << separator << "Platform from context information\n" << separator;
   auto cplt = ctx.get_info<cl::sycl::info::context::platform>();
-  print_info<info::platform::name, string_class>(cplt, "Name");
+  print_info<info::platform::name, std::string>(cplt, "Name");
 }

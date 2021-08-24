@@ -17,7 +17,7 @@ int main() {
   cl::sycl::queue Q;
   int Status = 0;
   cl::sycl::buffer<int> A{&Status, 1};
-  cl::sycl::vector_class<cl::sycl::event> Events;
+  std::vector<cl::sycl::event> Events;
 
   Events.push_back(submit(Q, A));
   Events.push_back(submit(Q, A));

@@ -21,9 +21,9 @@ int main() {
   queue Q;
   auto Dev = Q.get_device();
   if (Dev.has_extension("cl_intel_required_subgroup_size")) {
-    cl::sycl::vector_class<size_t> SubGroupSizes =
+    std::vector<size_t> SubGroupSizes =
         Dev.get_info<cl::sycl::info::device::sub_group_sizes>();
-    cl::sycl::vector_class<size_t>::const_iterator MaxIter =
+    std::vector<size_t>::const_iterator MaxIter =
         std::max_element(SubGroupSizes.begin(), SubGroupSizes.end());
     int MaxSubGroup_size = *MaxIter;
   }

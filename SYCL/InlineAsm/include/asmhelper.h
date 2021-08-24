@@ -70,13 +70,12 @@ private:
 
 bool isInlineASMSupported(sycl::device Device) {
 
-  sycl::string_class DriverVersion =
+  std::string DriverVersion =
       Device.get_info<sycl::info::device::driver_version>();
-  sycl::string_class DeviceVendorName =
-      Device.get_info<sycl::info::device::vendor>();
+  std::string DeviceVendorName = Device.get_info<sycl::info::device::vendor>();
   // TODO: query for some extension/capability/whatever once interface is
   // defined
-  if (DeviceVendorName.find("Intel") == sycl::string_class::npos)
+  if (DeviceVendorName.find("Intel") == std::string::npos)
     return false;
 
   return true;

@@ -58,7 +58,7 @@ int main() {
       }
 
       try {
-        vector_class<size_t> Counts(MaxSubDevices, 1);
+        std::vector<size_t> Counts(MaxSubDevices, 1);
         auto SubDevicesByCount = dev.create_sub_devices<
             info::partition_property::partition_by_counts>(Counts);
         assert(SubDevicesByCount.size() == MaxSubDevices &&

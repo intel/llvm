@@ -21,7 +21,7 @@ int main() {
   cl::sycl::queue Q(AsyncHandler);
 
   cl::sycl::device D = Q.get_device();
-  if (!D.has_extension("cl_khr_fp16"))
+  if (!D.has(sycl::aspect::fp16))
     return 0; // Skip the test if halfs are not supported
 
   cl::sycl::buffer<cl::sycl::cl_half> Buf(1);

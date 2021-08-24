@@ -39,7 +39,7 @@ int main() {
   auto Event2 = Q2.submit(
       [&](sycl::handler &cgh) { cgh.single_task<class kernel6>([]() {}); });
 
-  // call handler::barrier(const vector_class<event> &WaitList)
+  // call handler::barrier(const std::vector<event> &WaitList)
   Q3.submit([&](cl::sycl::handler &cgh) { cgh.barrier({Event1, Event2}); });
 
   Q3.submit(
@@ -51,7 +51,7 @@ int main() {
   auto Event4 = Q2.submit(
       [&](sycl::handler &cgh) { cgh.single_task<class kernel9>([]() {}); });
 
-  // call queue::submit_barrier(const vector_class<event> &WaitList)
+  // call queue::submit_barrier(const std::vector<event> &WaitList)
   Q3.submit_barrier({Event3, Event4});
 
   Q3.submit(

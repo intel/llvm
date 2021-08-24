@@ -74,7 +74,7 @@ int main() {
 
       // Store the `cl::sycl::kernel` into a vector because `cl::sycl::kernel`
       // doesn't have default constructor
-      cl::sycl::vector_class<cl::sycl::kernel> TheKernel;
+      std::vector<cl::sycl::kernel> TheKernel;
 
       switch (ReqdSize) {
       case 64:

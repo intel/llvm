@@ -37,7 +37,7 @@ template <typename T, size_t N>
 void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
                  std::array<T, N> &VC) {
   queue deviceQueue([](cl::sycl::exception_list ExceptionList) {
-    for (cl::sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
+    for (std::exception_ptr ExceptionPtr : ExceptionList) {
       try {
         std::rethrow_exception(ExceptionPtr);
       } catch (cl::sycl::exception &E) {

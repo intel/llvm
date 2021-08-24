@@ -123,53 +123,49 @@ void test_constructors(cl::sycl::range<Dims> r, void *imageHostPtr) {
     assert(img.get_range() == r);
   }
 
-  /* Constructor (shared_ptr_class<void>&, image_channel_order,
+  /* Constructor (std::shared_ptr<void>&, image_channel_order,
    *              image_channel_type, const range<Dims>&,
    *              const property_list& = {})
    */
   {
-    auto hostPointer =
-        cl::sycl::shared_ptr_class<void>(imageHostPtr, &no_delete);
+    auto hostPointer = std::shared_ptr<void>(imageHostPtr, &no_delete);
     cl::sycl::image<Dims> img =
         cl::sycl::image<Dims>(hostPointer, channelOrder, channelType, r);
     assert(img.get_count() == numElems);
     assert(img.get_range() == r);
   }
 
-  /* Constructor (shared_ptr_class<void>&, image_channel_order,
+  /* Constructor (std::shared_ptr<void>&, image_channel_order,
    *              image_channel_type, const range<Dims>&, const property_list&)
    */
   {
-    auto hostPointer =
-        cl::sycl::shared_ptr_class<void>(imageHostPtr, &no_delete);
+    auto hostPointer = std::shared_ptr<void>(imageHostPtr, &no_delete);
     cl::sycl::image<Dims> img = cl::sycl::image<Dims>(hostPointer, channelOrder,
                                                       channelType, r, propList);
     assert(img.get_count() == numElems);
     assert(img.get_range() == r);
   }
 
-  /* Constructor (shared_ptr_class<void>&, image_channel_order,
+  /* Constructor (std::shared_ptr<void>&, image_channel_order,
    *              image_channel_type, const range<Dims>&, allocator,
    *              const property_list& = {})
    */
   {
     cl::sycl::image_allocator imgAlloc;
-    auto hostPointer =
-        cl::sycl::shared_ptr_class<void>(imageHostPtr, &no_delete);
+    auto hostPointer = std::shared_ptr<void>(imageHostPtr, &no_delete);
     cl::sycl::image<Dims> img = cl::sycl::image<Dims>(hostPointer, channelOrder,
                                                       channelType, r, imgAlloc);
     assert(img.get_count() == numElems);
     assert(img.get_range() == r);
   }
 
-  /* Constructor (shared_ptr_class<void>&, image_channel_order,
+  /* Constructor (std::shared_ptr<void>&, image_channel_order,
    *              image_channel_type, const range<Dims>&, allocator,
    *              const property_list&)
    */
   {
     cl::sycl::image_allocator imgAlloc;
-    auto hostPointer =
-        cl::sycl::shared_ptr_class<void>(imageHostPtr, &no_delete);
+    auto hostPointer = std::shared_ptr<void>(imageHostPtr, &no_delete);
     cl::sycl::image<Dims> img = cl::sycl::image<Dims>(
         hostPointer, channelOrder, channelType, r, imgAlloc, propList);
     assert(img.get_count() == numElems);
@@ -279,55 +275,51 @@ void test_constructors_with_pitch(cl::sycl::range<Dims> r,
     assert(img.get_range() == r);
   }
 
-  /* Constructor (shared_ptr_class<void>&, image_channel_order,
+  /* Constructor (std::shared_ptr<void>&, image_channel_order,
    *              image_channel_type, const range<Dims>&,
    *              const range<Dims - 1>&, const property_list& = {})
    */
   {
-    auto hostPointer =
-        cl::sycl::shared_ptr_class<void>(imageHostPtr, &no_delete);
+    auto hostPointer = std::shared_ptr<void>(imageHostPtr, &no_delete);
     cl::sycl::image<Dims> img =
         cl::sycl::image<Dims>(hostPointer, channelOrder, channelType, r, pitch);
     assert(img.get_count() == numElems);
     assert(img.get_range() == r);
   }
 
-  /* Constructor (shared_ptr_class<void>&, image_channel_order,
+  /* Constructor (std::shared_ptr<void>&, image_channel_order,
    *              image_channel_type, const range<Dims>&,
    *              const range<Dims - 1>&, const property_list&)
    */
   {
-    auto hostPointer =
-        cl::sycl::shared_ptr_class<void>(imageHostPtr, &no_delete);
+    auto hostPointer = std::shared_ptr<void>(imageHostPtr, &no_delete);
     cl::sycl::image<Dims> img = cl::sycl::image<Dims>(
         hostPointer, channelOrder, channelType, r, pitch, propList);
     assert(img.get_count() == numElems);
     assert(img.get_range() == r);
   }
 
-  /* Constructor (shared_ptr_class<void>&, image_channel_order,
+  /* Constructor (std::shared_ptr<void>&, image_channel_order,
    *              image_channel_type, const range<Dims>&,
    *              const range<Dims - 1>&, allocator,
    *              const property_list& = {})
    */
   {
     cl::sycl::image_allocator imgAlloc;
-    auto hostPointer =
-        cl::sycl::shared_ptr_class<void>(imageHostPtr, &no_delete);
+    auto hostPointer = std::shared_ptr<void>(imageHostPtr, &no_delete);
     cl::sycl::image<Dims> img = cl::sycl::image<Dims>(
         hostPointer, channelOrder, channelType, r, pitch, imgAlloc);
     assert(img.get_count() == numElems);
     assert(img.get_range() == r);
   }
 
-  /* Constructor (shared_ptr_class<void>&, image_channel_order,
+  /* Constructor (std::shared_ptr<void>&, image_channel_order,
    *              image_channel_type, const range<Dims>&,
    *              const range<Dims - 1>&, allocator, const property_list&)
    */
   {
     cl::sycl::image_allocator imgAlloc;
-    auto hostPointer =
-        cl::sycl::shared_ptr_class<void>(imageHostPtr, &no_delete);
+    auto hostPointer = std::shared_ptr<void>(imageHostPtr, &no_delete);
     cl::sycl::image<Dims> img = cl::sycl::image<Dims>(
         hostPointer, channelOrder, channelType, r, pitch, imgAlloc, propList);
     assert(img.get_count() == numElems);

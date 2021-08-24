@@ -35,7 +35,7 @@ int main() {
     });
 
     // Check common reference semantics
-    hash_class<stream> Hasher;
+    std::hash<stream> Hasher;
 
     Queue.submit([&](handler &CGH) {
       stream Out1(1024, 80, CGH);

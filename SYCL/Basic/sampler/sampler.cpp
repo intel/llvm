@@ -58,7 +58,7 @@ int main() {
   assert(B.get_filtering_mode() == sycl::filtering_mode::linear);
 
   // Check hasher
-  sycl::hash_class<cl::sycl::sampler> Hasher;
+  std::hash<cl::sycl::sampler> Hasher;
   assert(Hasher(A) != Hasher(B));
 
   // Check move assignment

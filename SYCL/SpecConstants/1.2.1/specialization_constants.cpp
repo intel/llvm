@@ -56,7 +56,7 @@ float float_ref = rnd() % std::numeric_limits<uint32_t>::max();
 double double_ref = rnd() % std::numeric_limits<uint64_t>::max();
 
 template <typename T1, typename T2>
-bool check(const T1 &test, const T2 &ref, cl::sycl::string_class type) {
+bool check(const T1 &test, const T2 &ref, std::string type) {
 
   if (test != ref) {
     std::cout << "Test != Reference: " << std::to_string(test)
@@ -75,7 +75,7 @@ int main(int argc, char **argv) {
         std::rethrow_exception(e);
       } catch (sycl::exception const &e) {
         std::cout << "an async SYCL exception was caught: "
-                  << string_class(e.what());
+                  << std::string(e.what());
       }
     }
   };
@@ -201,7 +201,7 @@ int main(int argc, char **argv) {
       return 1;
   } catch (const exception &e) {
     std::cout << "an async SYCL exception was caught: "
-              << string_class(e.what());
+              << std::string(e.what());
     return 1;
   }
   return 0;

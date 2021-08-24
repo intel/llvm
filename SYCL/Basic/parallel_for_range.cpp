@@ -23,13 +23,13 @@ int main() {
   queue Q(AsyncHandler);
   device D(Q.get_device());
 
-  string_class DeviceVendorName = D.get_info<info::device::vendor>();
+  std::string DeviceVendorName = D.get_info<info::device::vendor>();
   auto DeviceType = D.get_info<info::device::device_type>();
 
   const bool OCLBackend = D.get_platform().get_backend() == backend::opencl;
-  string_class OCLVersionStr = D.get_info<info::device::version>();
+  std::string OCLVersionStr = D.get_info<info::device::version>();
   assert((OCLVersionStr.size() == 3) && "Unexpected device version string");
-  assert(OCLVersionStr.find(".") != string_class::npos &&
+  assert(OCLVersionStr.find(".") != std::string::npos &&
          "Unexpected device version string");
   const char OCLVersionMajor = OCLVersionStr[0];
   const char OCLVersionMinor = OCLVersionStr[2];
@@ -53,10 +53,10 @@ int main() {
                "thrown\n";
         return 1; // We shouldn't be here, exception is expected
       } catch (nd_range_error &E) {
-        if (string_class(E.what()).find("The specified local size {8, 8, 8} "
-                                        "doesn't match the required work-group "
-                                        "size specified in the program source "
-                                        "{4, 4, 4}") == string_class::npos) {
+        if (std::string(E.what()).find("The specified local size {8, 8, 8} "
+                                       "doesn't match the required work-group "
+                                       "size specified in the program source "
+                                       "{4, 4, 4}") == std::string::npos) {
           std::cerr
               << "Test case ReqdWGSizeNegativeA failed: unexpected exception: "
               << E.what() << std::endl;
@@ -121,16 +121,16 @@ int main() {
       // FIXME: some Intel runtimes contain bug and don't return expected
       // error code
       if (info::device_type::accelerator != DeviceType ||
-          DeviceVendorName.find("Intel") == string_class::npos) {
+          DeviceVendorName.find("Intel") == std::string::npos) {
         std::cerr
             << "Test case OpenCL1XNegativeA failed: no exception has been "
                "thrown\n";
         return 1; // We shouldn't be here, exception is expected
       }
     } catch (nd_range_error &E) {
-      if (string_class(E.what()).find("Non-uniform work-groups are not "
-                                      "supported by the target device") ==
-          string_class::npos) {
+      if (std::string(E.what()).find("Non-uniform work-groups are not "
+                                     "supported by the target device") ==
+          std::string::npos) {
         std::cerr
             << "Test case OpenCL1XNegativeA failed: unexpected exception: "
             << E.what() << std::endl;
@@ -158,16 +158,16 @@ int main() {
       // FIXME: some Intel runtimes contain bug and don't return expected
       // error code
       if (info::device_type::accelerator != DeviceType ||
-          DeviceVendorName.find("Intel") == string_class::npos) {
+          DeviceVendorName.find("Intel") == std::string::npos) {
         std::cerr
             << "Test case OpenCL1XNegativeB failed: no exception has been "
                "thrown\n";
         return 1; // We shouldn't be here, exception is expected
       }
     } catch (nd_range_error &E) {
-      if (string_class(E.what()).find("Non-uniform work-groups are not "
-                                      "supported by the target device") ==
-          string_class::npos) {
+      if (std::string(E.what()).find("Non-uniform work-groups are not "
+                                     "supported by the target device") ==
+          std::string::npos) {
         std::cerr
             << "Test case OpenCL1XNegativeB failed: unexpected exception: "
             << E.what() << std::endl;
@@ -198,19 +198,19 @@ int main() {
       // FIXME: some Intel runtimes contain bug and don't return expected
       // error code
       if (info::device_type::accelerator != DeviceType ||
-          DeviceVendorName.find("Intel") == string_class::npos) {
+          DeviceVendorName.find("Intel") == std::string::npos) {
         std::cerr
             << "Test case OpenCL1XNegativeA2 failed: no exception has been "
                "thrown\n";
         return 1; // We shouldn't be here, exception is expected
       }
     } catch (nd_range_error &E) {
-      if ((string_class(E.what()).find("Local workgroup size cannot be greater "
-                                       "than global range in any dimension") ==
-           string_class::npos) &&
-          (string_class(E.what()).find("Non-uniform work-groups are not "
-                                       "supported by the target device") ==
-           string_class::npos)) {
+      if ((std::string(E.what()).find("Local workgroup size cannot be greater "
+                                      "than global range in any dimension") ==
+           std::string::npos) &&
+          (std::string(E.what()).find("Non-uniform work-groups are not "
+                                      "supported by the target device") ==
+           std::string::npos)) {
         std::cerr
             << "Test case OpenCL1XNegativeA2 failed: unexpected exception: "
             << E.what() << std::endl;
@@ -240,19 +240,19 @@ int main() {
       // FIXME: some Intel runtimes contain bug and don't return expected
       // error code
       if (info::device_type::accelerator != DeviceType ||
-          DeviceVendorName.find("Intel") == string_class::npos) {
+          DeviceVendorName.find("Intel") == std::string::npos) {
         std::cerr
             << "Test case OpenCL1XNegativeB2 failed: no exception has been "
                "thrown\n";
         return 1; // We shouldn't be here, exception is expected
       }
     } catch (nd_range_error &E) {
-      if ((string_class(E.what()).find("Local workgroup size cannot be greater "
-                                       "than global range in any dimension") ==
-           string_class::npos) &&
-          (string_class(E.what()).find("Non-uniform work-groups are not "
-                                       "supported by the target device") ==
-           string_class::npos)) {
+      if ((std::string(E.what()).find("Local workgroup size cannot be greater "
+                                      "than global range in any dimension") ==
+           std::string::npos) &&
+          (std::string(E.what()).find("Non-uniform work-groups are not "
+                                      "supported by the target device") ==
+           std::string::npos)) {
         std::cerr
             << "Test case OpenCL1XNegativeB2 failed: unexpected exception: "
             << E.what() << std::endl;
@@ -287,12 +287,12 @@ int main() {
                    "thrown\n";
       return 1; // We shouldn't be here, exception is expected
     } catch (nd_range_error &E) {
-      if ((string_class(E.what()).find(
+      if ((std::string(E.what()).find(
                "Total number of work-items in a work-group cannot exceed " +
-               std::to_string(MaxDeviceWGSize)) == string_class::npos) &&
-          (string_class(E.what()).find("Non-uniform work-groups are not "
-                                       "supported by the target device") ==
-           string_class::npos)) {
+               std::to_string(MaxDeviceWGSize)) == std::string::npos) &&
+          (std::string(E.what()).find("Non-uniform work-groups are not "
+                                      "supported by the target device") ==
+           std::string::npos)) {
         std::cerr
             << "Test case OpenCL1XNegativeC failed: unexpected exception: "
             << E.what() << std::endl;
@@ -338,10 +338,10 @@ int main() {
                "thrown\n";
         return 1; // We shouldn't be here, exception is expected
       } catch (nd_range_error &E) {
-        if (string_class(E.what()).find(
+        if (std::string(E.what()).find(
                 "Total number of work-items in a work-group cannot exceed " +
                 std::to_string(MaxKernelWGSize) + " for this kernel") ==
-            string_class::npos) {
+            std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeA failed: unexpected exception: "
               << E.what() << std::endl;
@@ -376,18 +376,18 @@ int main() {
         // FIXME: some Intel runtimes contain bug and don't return expected
         // error code
         if (info::device_type::cpu != DeviceType ||
-            DeviceVendorName.find("Intel") == string_class::npos) {
+            DeviceVendorName.find("Intel") == std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeB failed: no exception has been "
                  "thrown\n";
           return 1; // We shouldn't be here, exception is expected
         }
       } catch (nd_range_error &E) {
-        if (string_class(E.what()).find(
+        if (std::string(E.what()).find(
                 "Non-uniform work-groups are not allowed by default. "
                 "Underlying OpenCL 2.x implementation supports this feature "
                 "and to enable it, build device program with -cl-std=CL2.0") ==
-            string_class::npos) {
+            std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeB failed: unexpected exception: "
               << E.what() << std::endl;
@@ -416,18 +416,18 @@ int main() {
         // FIXME: some Intel runtimes contain bug and don't return expected
         // error code
         if (info::device_type::cpu != DeviceType ||
-            DeviceVendorName.find("Intel") == string_class::npos) {
+            DeviceVendorName.find("Intel") == std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeC failed: no exception has been "
                  "thrown\n";
           return 1; // We shouldn't be here, exception is expected
         }
       } catch (nd_range_error &E) {
-        if (string_class(E.what()).find(
+        if (std::string(E.what()).find(
                 "Non-uniform work-groups are not allowed by default. "
                 "Underlying OpenCL 2.x implementation supports this feature "
                 "and to enable it, build device program with -cl-std=CL2.0") ==
-            string_class::npos) {
+            std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeC failed: unexpected exception: "
               << E.what() << std::endl;
@@ -461,20 +461,20 @@ int main() {
         // FIXME: some Intel runtimes contain bug and don't return expected
         // error code
         if (info::device_type::cpu != DeviceType ||
-            DeviceVendorName.find("Intel") == string_class::npos) {
+            DeviceVendorName.find("Intel") == std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeB2 failed: no exception has been "
                  "thrown\n";
           return 1; // We shouldn't be here, exception is expected
         }
       } catch (nd_range_error &E) {
-        if (string_class(E.what()).find(
+        if (std::string(E.what()).find(
                 "Local workgroup size greater than global range size. "
                 "Non-uniform work-groups are not allowed by default. "
                 "Underlying "
                 "OpenCL 2.x implementation supports this feature and to enable "
                 "it, build device program with -cl-std=CL2.0") ==
-            string_class::npos) {
+            std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeB2 failed: unexpected exception: "
               << E.what() << std::endl;
@@ -506,19 +506,19 @@ int main() {
         // FIXME: some Intel runtimes contain bug and don't return expected
         // error code
         if (info::device_type::cpu != DeviceType ||
-            DeviceVendorName.find("Intel") == string_class::npos) {
+            DeviceVendorName.find("Intel") == std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeC2 failed: no exception has been "
                  "thrown\n";
           return 1; // We shouldn't be here, exception is expected
         }
       } catch (nd_range_error &E) {
-        if (string_class(E.what()).find(
+        if (std::string(E.what()).find(
                 "Local workgroup size greater than global range size. "
                 "Non-uniform work-groups are not allowed by default. "
                 "Underlying OpenCL 2.x implementation supports this feature "
                 "and to enable it, build device program with -cl-std=CL2.0") ==
-            string_class::npos) {
+            std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeC2 failed: unexpected exception: "
               << E.what() << std::endl;
@@ -622,14 +622,14 @@ int main() {
         // FIXME: some Intel runtimes contain bug and don't return expected
         // error code
         if (info::device_type::cpu != DeviceType ||
-            DeviceVendorName.find("Intel") == string_class::npos) {
+            DeviceVendorName.find("Intel") == std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeD failed: no exception has been "
                  "thrown\n";
           return 1; // We shouldn't be here, exception is expected
         }
       } catch (nd_range_error &E) {
-        if (string_class(E.what()).find(
+        if (std::string(E.what()).find(
                 "Global work size {100, 1, 1} is not evenly divisible "
                 "by local work-group size {3, 1, 1}. "
                 "Non-uniform work-groups are not allowed by when "
@@ -637,7 +637,7 @@ int main() {
                 "OpenCL 2.x implementation supports this feature, but it is "
                 "being "
                 "disabled by -cl-uniform-work-group-size build flag") ==
-            string_class::npos) {
+            std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeD failed: unexpected exception: "
               << E.what() << std::endl;
@@ -673,14 +673,14 @@ int main() {
         // FIXME: some Intel runtimes contain bug and don't return expected
         // error code
         if (info::device_type::cpu != DeviceType ||
-            DeviceVendorName.find("Intel") == string_class::npos) {
+            DeviceVendorName.find("Intel") == std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeE failed: no exception has been "
                  "thrown\n";
           return 1; // We shouldn't be here, exception is expected
         }
       } catch (nd_range_error &E) {
-        if (string_class(E.what()).find(
+        if (std::string(E.what()).find(
                 "Global work size {16, 33, 100} is not evenly divisible by "
                 "local work-group size {5, 3, 2}. "
                 "Non-uniform work-groups are not allowed by when "
@@ -688,7 +688,7 @@ int main() {
                 "OpenCL 2.x implementation supports this feature, but it is "
                 "being "
                 "disabled by -cl-uniform-work-group-size build flag") ==
-            string_class::npos) {
+            std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeE failed: unexpected exception: "
               << E.what() << std::endl;
@@ -727,14 +727,14 @@ int main() {
         // FIXME: some Intel runtimes contain bug and don't return expected
         // error code
         if (info::device_type::cpu != DeviceType ||
-            DeviceVendorName.find("Intel") == string_class::npos) {
+            DeviceVendorName.find("Intel") == std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeD2 failed: no exception has been "
                  "thrown\n";
           return 1; // We shouldn't be here, exception is expected
         }
       } catch (nd_range_error &E) {
-        if (string_class(E.what()).find(
+        if (std::string(E.what()).find(
                 "Local work-group size {17, 1, 1} is greater than global range "
                 "size {16, 1, 1}. "
                 "Non-uniform work-groups are not allowed by when "
@@ -742,7 +742,7 @@ int main() {
                 "OpenCL 2.x implementation supports this feature, but it is "
                 "being "
                 "disabled by -cl-uniform-work-group-size build flag") ==
-            string_class::npos) {
+            std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeD2 failed: unexpected exception: "
               << E.what() << std::endl;
@@ -779,14 +779,14 @@ int main() {
         // FIXME: some Intel runtimes contain bug and don't return expected
         // error code
         if (info::device_type::cpu != DeviceType ||
-            DeviceVendorName.find("Intel") == string_class::npos) {
+            DeviceVendorName.find("Intel") == std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeE2 failed: no exception has been "
                  "thrown\n";
           return 1; // We shouldn't be here, exception is expected
         }
       } catch (nd_range_error &E) {
-        if (string_class(E.what()).find(
+        if (std::string(E.what()).find(
                 "Local work-group size {7, 2, 2} is greater than global range "
                 "size {6, 6, 6}. "
                 "Non-uniform work-groups are not allowed by when "
@@ -794,7 +794,7 @@ int main() {
                 "OpenCL 2.x implementation supports this feature, but it is "
                 "being "
                 "disabled by -cl-uniform-work-group-size build flag") ==
-            string_class::npos) {
+            std::string::npos) {
           std::cerr
               << "Test case OpenCL2XNegativeE2 failed: unexpected exception: "
               << E.what() << std::endl;

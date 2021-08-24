@@ -74,12 +74,12 @@ int main() {
       break;
     }
     case 2: {
-      cl::sycl::vector_class<cl::sycl::event> EventList = Event.get_wait_list();
+      std::vector<cl::sycl::event> EventList = Event.get_wait_list();
       cl::sycl::event::wait(EventList);
       break;
     }
     case 3: {
-      cl::sycl::vector_class<cl::sycl::event> EventList = Event.get_wait_list();
+      std::vector<cl::sycl::event> EventList = Event.get_wait_list();
       cl::sycl::event::wait_and_throw(EventList);
       break;
     }

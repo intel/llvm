@@ -28,11 +28,11 @@ int main() {
   {
     constexpr size_t Size = 8;
 
-    vector_class<char> DataRaw(Size, 'x');
+    std::vector<char> DataRaw(Size, 'x');
     {
       buffer<char> Buffer{DataRaw.data(), range<1>{Size}};
 
-      vector_class<char> DataGold(Size);
+      std::vector<char> DataGold(Size);
       std::iota(DataGold.begin(), DataGold.end(), '0');
 
       queue Queue;
@@ -46,16 +46,16 @@ int main() {
       Queue.wait();
     }
 
-    vector_class<char> Expected{'x', 'x', '0', '1', '2', '3', 'x', 'x'};
+    std::vector<char> Expected{'x', 'x', '0', '1', '2', '3', 'x', 'x'};
     if (DataRaw != Expected)
       throw std::runtime_error("Check of handler.copy(ptr, acc) was failed");
   }
 
   {
     constexpr size_t Size = 8;
-    vector_class<char> DataRaw(Size, 'x');
+    std::vector<char> DataRaw(Size, 'x');
     {
-      vector_class<char> DataGold(Size);
+      std::vector<char> DataGold(Size);
       std::iota(DataGold.begin(), DataGold.end(), '0');
       buffer<char> Buffer{DataGold.data(), range<1>{Size}};
 
@@ -69,7 +69,7 @@ int main() {
       });
       Queue.wait();
     }
-    vector_class<char> Expected{'2', '3', '4', '5', 'x', 'x', 'x', 'x'};
+    std::vector<char> Expected{'2', '3', '4', '5', 'x', 'x', 'x', 'x'};
     if (DataRaw != Expected)
       throw std::runtime_error("Check of handler.copy(acc, ptr) was failed");
   }

@@ -27,7 +27,7 @@ int main() {
   zeContextCreate(ZeDriver, &ZeContextDesc, &ZeContext);
 
   { // Scope in which SYCL interop context object is live
-    vector_class<device> Devices{};
+    std::vector<device> Devices{};
     Devices.push_back(Device);
     auto Context = level_zero::make<context>(Devices, ZeContext,
                                              level_zero::ownership::keep);

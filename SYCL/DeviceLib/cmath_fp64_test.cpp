@@ -162,7 +162,7 @@ template <class T> void device_cmath_test(s::queue &deviceQueue) {
 
 int main() {
   s::queue deviceQueue;
-  if (deviceQueue.get_device().has_extension("cl_khr_fp64")) {
+  if (deviceQueue.get_device().has(sycl::aspect::fp64)) {
     device_cmath_test<double>(deviceQueue);
     std::cout << "Pass" << std::endl;
   }

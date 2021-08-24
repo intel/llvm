@@ -19,10 +19,9 @@ void submitKernel() {
 }
 
 int main() {
-  const cl::sycl::string_class CompileOpts{"-cl-opt-disable"};
-  const cl::sycl::string_class LinkOpts{"-cl-fast-relaxed-math"};
-  const cl::sycl::string_class BuildOpts{
-      "-cl-opt-disable -cl-fast-relaxed-math"};
+  const std::string CompileOpts{"-cl-opt-disable"};
+  const std::string LinkOpts{"-cl-fast-relaxed-math"};
+  const std::string BuildOpts{"-cl-opt-disable -cl-fast-relaxed-math"};
 
   cl::sycl::context Ctx;
   cl::sycl::program PrgA{Ctx};
