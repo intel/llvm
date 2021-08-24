@@ -25,12 +25,14 @@ namespace esimd {
 ///
 /// \ingroup sycl_esimd
 template <typename BaseTy, typename RegionTy>
-class simd_view : public detail::simd_view_impl<BaseTy, RegionTy> {
+class simd_view : public detail::simd_view_impl<BaseTy, RegionTy,
+                                                simd_view<BaseTy, RegionTy>> {
   template <typename, int> friend class simd;
-  // template <typename, typename> friend class simd_view;
+  template <typename, typename, typename> friend class detail::simd_view_impl;
 
 public:
-  using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
+  using BaseClass =
+      detail::simd_view_impl<BaseTy, RegionTy, simd_view<BaseTy, RegionTy>>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
 
@@ -90,9 +92,6 @@ public:
   DEF_RELOP(!=)
 
 #undef DEF_RELOP
-
-  // negation operator
-  auto operator!() { return *this == 0; }
 };
 
 /// This is a specialization of simd_view class with a single element.
@@ -107,12 +106,15 @@ public:
 template <typename BaseTy>
 class simd_view<BaseTy, region_base_1<typename BaseTy::element_type>>
     : public detail::simd_view_impl<
-          BaseTy, region_base_1<typename BaseTy::element_type>> {
+          BaseTy, region_base_1<typename BaseTy::element_type>,
+          simd_view<BaseTy, region_base_1<typename BaseTy::element_type>>> {
   template <typename, int> friend class simd;
+  template <typename, typename, typename> friend class detail::simd_view_impl;
 
 public:
   using RegionTy = region_base_1<typename BaseTy::element_type>;
-  using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
+  using BaseClass =
+      detail::simd_view_impl<BaseTy, RegionTy, simd_view<BaseTy, RegionTy>>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
   static_assert(1 == length, "length of this view is not equal to 1");
@@ -121,10 +123,8 @@ public:
   using element_type = typename ShapeTy::element_type;
 
 private:
-  simd_view(BaseTy &Base, RegionTy Region)
-      : detail::simd_view_impl<BaseTy, RegionTy>(Base, Region) {}
-  simd_view(BaseTy &&Base, RegionTy Region)
-      : detail::simd_view_impl<BaseTy, RegionTy>(Base, Region) {}
+  simd_view(BaseTy &Base, RegionTy Region) : BaseClass(Base, Region) {}
+  simd_view(BaseTy &&Base, RegionTy Region) : BaseClass(Base, Region) {}
 
 public:
   operator element_type() const { return (*this)[0]; }
@@ -145,9 +145,6 @@ public:
   DEF_RELOP(!=)
 
 #undef DEF_RELOP
-
-  // negation operator
-  auto operator!() { return *this == 0; }
 };
 
 } // namespace esimd

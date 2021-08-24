@@ -596,6 +596,7 @@
 ?Any@__host_std@cl@@YAHV?$vec@_J$0BA@@sycl@2@@Z
 ?Clear@exception_list@sycl@cl@@AEAAXXZ
 ?DirSep@OSUtil@detail@sycl@cl@@2QEBDEB
+?DisableRangeRounding@handler@sycl@cl@@AEAA_NXZ
 ?Dot@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$00@62@0@Z
 ?Dot@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$01@62@0@Z
 ?Dot@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$02@62@0@Z
@@ -747,6 +748,7 @@
 ?FUnordNotEqual@__host_std@cl@@YAHVhalf@half_impl@detail@sycl@2@0@Z
 ?GetNativeMem@interop_handler@sycl@cl@@AEBA_KPEAVAccessorImplHost@detail@23@@Z
 ?GetNativeQueue@interop_handler@sycl@cl@@AEBA_KXZ
+?GetRangeRoundingSettings@handler@sycl@cl@@AEAAXAEA_K00@Z
 ?IsFinite@__host_std@cl@@YA?AV?$vec@F$00@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$00@42@@Z
 ?IsFinite@__host_std@cl@@YA?AV?$vec@F$01@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$01@42@@Z
 ?IsFinite@__host_std@cl@@YA?AV?$vec@F$02@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$02@42@@Z
@@ -877,6 +879,7 @@
 ?PushBack@exception_list@sycl@cl@@AEAAX$$QEAVexception_ptr@std@@@Z
 ?PushBack@exception_list@sycl@cl@@AEAAXAEBVexception_ptr@std@@@Z
 ?REJECT_DEVICE_SCORE@device_selector@sycl@cl@@1HB
+?RangeRoundingTrace@handler@sycl@cl@@AEAA_NXZ
 ?SignBitSet@__host_std@cl@@YA?AV?$vec@F$00@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$00@42@@Z
 ?SignBitSet@__host_std@cl@@YA?AV?$vec@F$01@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$01@42@@Z
 ?SignBitSet@__host_std@cl@@YA?AV?$vec@F$02@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$02@42@@Z

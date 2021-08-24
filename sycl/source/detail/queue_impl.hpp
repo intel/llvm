@@ -424,6 +424,14 @@ private:
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
 
+    // Scheduler will later omit events, that are not required to execute tasks.
+    // Host and interop tasks, however, are not submitted to low-level runtimes
+    // and require separate dependency management.
+    if (has_property<property::queue::in_order>() &&
+        (Handler.getType() == CG::CGTYPE::CodeplayHostTask ||
+         Handler.getType() == CG::CGTYPE::CodeplayInteropTask))
+      Handler.depends_on(MLastEvent);
+
     event Event;
 
     if (PostProcess) {
@@ -440,6 +448,9 @@ private:
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
     } else
       Event = Handler.finalize();
+
+    if (has_property<property::queue::in_order>())
+      MLastEvent = Event;
 
     addEvent(Event);
     return Event;
@@ -500,6 +511,8 @@ private:
 
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
+
+  event MLastEvent;
 };
 
 } // namespace detail

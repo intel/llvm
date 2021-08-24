@@ -3945,8 +3945,9 @@ class OffloadingActionBuilder final {
     /// List of static archives to extract FPGA dependency info from
     ActionList FPGAArchiveInputs;
 
-    /// List of CUDA architectures to use in this compilation with NVPTX targets.
-    SmallVector<CudaArch, 8> GpuArchList;
+    /// List of GPU architectures to use in this compilation with NVPTX/AMDGCN
+    /// targets.
+    SmallVector<std::pair<llvm::Triple, std::string>, 8> GpuArchList;
 
     /// Build the last steps for CUDA after all BC files have been linked.
     JobAction *finalizeNVPTXDependences(Action *Input, const llvm::Triple &TT) {
@@ -3983,13 +3984,17 @@ class OffloadingActionBuilder final {
                       const Driver::InputList &Inputs)
         : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL) {}
 
-    void withBoundArchForToolChain(const ToolChain* TC,
+    void withBoundArchForToolChain(const ToolChain *TC,
                                    llvm::function_ref<void(const char *)> Op) {
-      if (TC->getTriple().isNVPTX())
-        for (CudaArch A : GpuArchList)
-          Op(CudaArchToString(A));
-      else
-        Op(nullptr);
+      for (auto &A : GpuArchList) {
+        if (TC->getTriple() == A.first) {
+          Op(Args.MakeArgString(A.second.c_str()));
+          return;
+        }
+      }
+
+      // no bound arch for this toolchain
+      Op(nullptr);
     }
 
     ActionBuilderReturnCode
@@ -4043,8 +4048,8 @@ class OffloadingActionBuilder final {
         }
         const auto *TC = ToolChains.front();
         const char *BoundArch = nullptr;
-        if (TC->getTriple().isNVPTX())
-          BoundArch = CudaArchToString(GpuArchList.front());
+        if (TC->getTriple().isNVPTX() || TC->getTriple().isAMDGCN())
+          BoundArch = GpuArchList.front().second.c_str();
         DA.add(*DeviceCompilerInput, *TC, BoundArch, Action::OFK_SYCL);
         // Clear the input file, it is already a dependence to a host
         // action.
@@ -4383,12 +4388,15 @@ class OffloadingActionBuilder final {
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
         for (const auto &Input : LI) {
-          // FPGA aoco does not go through the link, everything else does.
-          if (Input->getType() == types::TY_FPGA_AOCO)
-            DeviceLibObjects.push_back(Input);
-          // FPGA aocr/aocx does not go through the link and is passed
-          // directly to the backend compilation step (aocr) or wrapper (aocx)
-          else if (types::isFPGA(Input->getType())) {
+          if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
+              types::isFPGA(Input->getType())) {
+            // FPGA aoco does not go through the link, everything else does.
+            if (Input->getType() == types::TY_FPGA_AOCO) {
+              DeviceLibObjects.push_back(Input);
+              continue;
+            }
+            // FPGA aocr/aocx does not go through the link and is passed
+            // directly to the backend compilation step (aocr) or wrapper (aocx)
             Action *FPGAAOTAction;
             if (Input->getType() == types::TY_FPGA_AOCR ||
                 Input->getType() == types::TY_FPGA_AOCR_EMU)
@@ -4408,7 +4416,8 @@ class OffloadingActionBuilder final {
                 RenameAction, types::TY_Object);
             DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
                    Action::OFK_SYCL);
-          } else
+            continue;
+          } else if (!types::isFPGA(Input->getType()))
             LinkObjects.push_back(Input);
         }
         if (LinkObjects.empty())
@@ -4627,39 +4636,94 @@ class OffloadingActionBuilder final {
       }
     }
 
-    /// Initialize the GPU architecture list from arguments - this populates `GpuArchList` from
-    /// `--cuda-gpu-arch` flags. Only relevant if compiling to CUDA. Return true if any
-    /// initialization errors are found.
+    /// Initialize the GPU architecture list from arguments - this populates
+    /// `GpuArchList` from `--offload-arch` flags. Only relevant if compiling to
+    /// CUDA or AMDGCN. Return true if any initialization errors are found.
+    /// FIXME: "offload-arch" and the BoundArch mechanism should also be
+    // used in the SYCLToolChain for SPIR-V AOT to track the offload
+    // architecture instead of the Triple sub-arch it currently uses.
     bool initializeGpuArchMap() {
       const OptTable &Opts = C.getDriver().getOpts();
       for (auto *A : Args) {
         unsigned Index;
+        llvm::Triple *TargetBE = nullptr;
 
-        if (A->getOption().matches(options::OPT_Xsycl_backend_EQ))
+        auto GetTripleIt = [&, this](llvm::StringRef Triple) {
+          llvm::Triple TargetTriple{Triple};
+          auto TripleIt = llvm::find_if(SYCLTripleList, [&](auto &SYCLTriple) {
+            return SYCLTriple == TargetTriple;
+          });
+          return TripleIt != SYCLTripleList.end() ? &*TripleIt : nullptr;
+        };
+
+        if (A->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
+          TargetBE = GetTripleIt(A->getValue(0));
           // Passing device args: -Xsycl-target-backend=<triple> -opt=val.
-          if (llvm::Triple(A->getValue(0)).isNVPTX())
+          if (TargetBE)
             Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
           else
             continue;
-        else if (A->getOption().matches(options::OPT_Xsycl_backend))
+        } else if (A->getOption().matches(options::OPT_Xsycl_backend)) {
+          if (SYCLTripleList.size() > 1) {
+            C.getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
+                << A->getSpelling();
+            continue;
+          }
           // Passing device args: -Xsycl-target-backend -opt=val.
+          TargetBE = &SYCLTripleList.front();
           Index = Args.getBaseArgs().MakeIndex(A->getValue(0));
-        else
+        } else
           continue;
 
         A->claim();
         auto ParsedArg = Opts.ParseOneArg(Args, Index);
+
         // TODO: Support --no-cuda-gpu-arch, --{,no-}cuda-gpu-arch=all.
         if (ParsedArg &&
             ParsedArg->getOption().matches(options::OPT_offload_arch_EQ)) {
+          llvm::StringRef ArchStr = ParsedArg->getValue(0);
+          if (TargetBE->isNVPTX()) {
+            // CUDA arch also applies to AMDGCN ...
+            CudaArch Arch = StringToCudaArch(ArchStr);
+            if (Arch == CudaArch::UNKNOWN || !IsNVIDIAGpuArch(Arch)) {
+              C.getDriver().Diag(clang::diag::err_drv_cuda_bad_gpu_arch)
+                  << ArchStr;
+              continue;
+            }
+            ArchStr = CudaArchToString(Arch);
+          } else if (TargetBE->isAMDGCN()) {
+            llvm::StringMap<bool> Features;
+            auto Arch =
+                parseTargetID(getHIPOffloadTargetTriple(), ArchStr, &Features);
+            if (!Arch) {
+              C.getDriver().Diag(clang::diag::err_drv_bad_target_id) << ArchStr;
+              continue;
+            }
+            auto CanId = getCanonicalTargetID(Arch.getValue(), Features);
+            ArchStr = Args.MakeArgStringRef(CanId);
+          }
           ParsedArg->claim();
-          GpuArchList.push_back(StringToCudaArch(ParsedArg->getValue(0)));
+          GpuArchList.emplace_back(*TargetBE, ArchStr);
         }
       }
 
-      // If there are no CUDA architectures provided then default to SM_50.
-      if (GpuArchList.empty()) {
-        GpuArchList.push_back(CudaArch::SM_50);
+      // Handle defaults architectures
+      for (auto &Triple : SYCLTripleList) {
+        // For NVIDIA use SM_50 as a default
+        if (Triple.isNVPTX() && llvm::none_of(GpuArchList, [&](auto &P) {
+              return P.first.isNVPTX();
+            })) {
+          llvm::StringRef DefaultArch = CudaArchToString(CudaArch::SM_50);
+          GpuArchList.emplace_back(Triple, DefaultArch);
+        }
+
+        // For AMD require the architecture to be set by the user
+        if (Triple.isAMDGCN() && llvm::none_of(GpuArchList, [&](auto &P) {
+              return P.first.isAMDGCN();
+            })) {
+          C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch);
+          return true;
+        }
       }
 
       return false;
@@ -6589,7 +6653,9 @@ InputInfo Driver::BuildJobsForActionNoCache(
       } else if (types::isFPGA(JA->getType())) {
         std::string Ext(types::getTypeTempSuffix(JA->getType()));
         types::ID TI = types::TY_Object;
-        if (EffectiveTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+        if (EffectiveTriple.isSPIR()) {
+          if (!UI.DependentToolChain->getTriple().isSPIR())
+            continue;
           // Output file from unbundle is FPGA device. Name the file
           // accordingly.
           if (UI.DependentOffloadKind == Action::OFK_Host) {
@@ -6605,13 +6671,11 @@ InputInfo Driver::BuildJobsForActionNoCache(
               JA->getType() == types::TY_FPGA_AOCR_EMU)
             // AOCR files are always unbundled into a list file.
             TI = types::TY_Tempfilelist;
-        } else if (EffectiveTriple.getSubArch() !=
-                   llvm::Triple::SPIRSubArch_fpga) {
-          if (UI.DependentOffloadKind == Action::OFK_SYCL) {
+        } else {
+          if (UI.DependentOffloadKind == Action::OFK_SYCL)
             // Do not add the current info for device with FPGA device.  The
             // device side isn't used
             continue;
-          }
           TI = types::TY_Tempfilelist;
           Ext = "txt";
         }

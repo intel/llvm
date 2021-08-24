@@ -269,8 +269,8 @@ public:
     // We will always start our ID
     // stream from 1. 0 is null_id
     // and -1 is invalid_id
-    MUId = {1};
-    MInsertions = MRetrievals = {0};
+    MUId = 1;
+    MInsertions = MRetrievals = 0;
     MPayloads.clear();
     MEvents.clear();
   }
@@ -776,7 +776,7 @@ public:
   }
 
   void clear() {
-    MUniversalIDs = {1};
+    MUniversalIDs = 1;
     MTracepoints.clear();
     MStringTableRef.clear();
   }
