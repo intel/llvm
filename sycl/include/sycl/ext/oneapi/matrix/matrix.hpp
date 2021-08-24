@@ -23,4 +23,5 @@
 #endif
 #if (SYCL_EXT_ONEAPI_MATRIX == 2)
 #include <sycl/ext/oneapi/matrix/matrix-jit.hpp>
+#include <sycl/ext/oneapi/matrix/static-query.hpp>
 #endif
