@@ -3153,9 +3153,8 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
              AL.getScopeName()->isStr("intel"))) &&
            "Attribute does not exist in sycl:: or intel:: scope");
 
-    Expr *E = IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
-                                     S.Context.IntTy, AL.getLoc());
-    return E;
+    return (IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
+                                   S.Context.IntTy, AL.getLoc()));
   };
 
   Expr *YDimExpr = AL.isArgExpr(1) ? AL.getArgAsExpr(1)
@@ -3176,6 +3175,7 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   ASTContext &Ctx = S.getASTContext();
+
   if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
       !ZDimExpr->isValueDependent()) {
     llvm::APSInt XDimVal, YDimVal, ZDimVal;
