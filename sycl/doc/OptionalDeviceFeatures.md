@@ -602,7 +602,7 @@ property set.
 
 The configuration file uses a simple YAML format where each top-level key is
 a name of a device architecture. There are sub-keys under each device for
-the supported aspects, sub-group sizes and AOT compiler ID.  For example:
+the supported aspects and sub-group sizes.  For example:
 
 ```
 intel_gpu_11_1:
