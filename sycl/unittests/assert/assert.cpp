@@ -309,7 +309,19 @@ void ParentProcess(int ChildPID, int ChildStdErrFD) {
 
   std::vector<char> Buf(PipeUnread + 1, '\0');
 
-  read(ChildStdErrFD, Buf.data(), PipeUnread);
+  size_t TotalReadCnt = 0;
+
+  while (TotalReadCnt < static_cast<size_t>(PipeUnread)) {
+    ssize_t ReadCnt = read(
+        ChildStdErrFD, Buf.data() + TotalReadCnt, PipeUnread - TotalReadCnt);
+
+    if (ReadCnt < 0) {
+      perror("Couldn't read from pipe");
+      exit(1);
+    }
+
+    TotalReadCnt += ReadCnt;
+  }
 
   std::string BufStr(Buf.data());
 
