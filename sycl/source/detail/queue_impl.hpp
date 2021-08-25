@@ -412,9 +412,8 @@ private:
     // and require separate dependency management.
     bool IsInOrder = has_property<property::queue::in_order>();
     bool NeedSeparateDependencyMgmt =
-        IsInOrder &&
-        (Handler.getType() == CG::CGTYPE::CodeplayHostTask ||
-         Handler.getType() == CG::CGTYPE::CodeplayInteropTask);
+        IsInOrder && (Handler.getType() == CG::CGTYPE::CodeplayHostTask ||
+                      Handler.getType() == CG::CGTYPE::CodeplayInteropTask);
 
     event Event;
 
