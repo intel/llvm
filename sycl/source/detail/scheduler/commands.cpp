@@ -486,7 +486,6 @@ void Command::makeTraceEventEpilog() {
 
 Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   const QueueImplPtr &WorkerQueue = getWorkerQueue();
-  const ContextImplPtr &WorkerContext = WorkerQueue->getContextImplPtr();
 
   // 1. Async work is not supported for host device.
   // 2. Some types of commands do not produce PI events after they are enqueued
@@ -510,18 +509,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
       WorkerQueue->has_property<property::queue::in_order>())
     return nullptr;
 
-  ContextImplPtr DepEventContext = DepEvent->getContextImpl();
-  // If contexts don't match we'll connect them using host task
-  if (DepEventContext != WorkerContext && !WorkerContext->is_host() &&
-      !(WorkerQueue->get_device().get_backend() ==
-            DepEventContext->getDevices()[0].get_platform().get_backend() &&
-        WorkerQueue->get_device()
-            .get_platform()
-            .get_info<info::platform::P2P>())) {
-    Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
-    ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep);
-  } else
-    MPreparedDepsEvents.push_back(std::move(DepEvent));
+  MPreparedDepsEvents.push_back(std::move(DepEvent));
 
   return ConnectionCmd;
 }

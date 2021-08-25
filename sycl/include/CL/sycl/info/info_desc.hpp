@@ -30,7 +30,6 @@ enum class platform {
   name        = PI_PLATFORM_INFO_NAME,
   vendor      = PI_PLATFORM_INFO_VENDOR,
   extensions  = PI_PLATFORM_INFO_EXTENSIONS,
-  P2P         = PI_PLATFORM_INFO_P2P,
 };
 
 // A.2 Context information desctiptors

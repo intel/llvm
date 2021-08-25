@@ -126,8 +126,7 @@ typedef enum {
   PI_PLATFORM_INFO_NAME = CL_PLATFORM_NAME,
   PI_PLATFORM_INFO_PROFILE = CL_PLATFORM_PROFILE,
   PI_PLATFORM_INFO_VENDOR = CL_PLATFORM_VENDOR,
-  PI_PLATFORM_INFO_VERSION = CL_PLATFORM_VERSION,
-  PI_PLATFORM_INFO_P2P = 0x40110
+  PI_PLATFORM_INFO_VERSION = CL_PLATFORM_VERSION
 } _pi_platform_info;
 
 typedef enum {
@@ -1057,6 +1056,10 @@ __SYCL_EXPORT pi_result piextEnqueueMemBufferCopyPeer(
                                pi_uint32 num_events_in_wait_list,
                                const pi_event *event_wait_list,
                                pi_event *event);
+
+/// p2p is set true if PI API's, piextEnqueueMemBufferCopyPeer/piextEnqueueMemBufferCopyRectPeer/piextEnqueueMemImageCopyPeer, for peer to peer memory copy may be called.
+///
+__SYCL_EXPORT pi_result piextP2P(pi_device src_device, pi_device dst_device, bool* p2p);
 
 __SYCL_EXPORT pi_result piQueueRetain(pi_queue command_queue);
 

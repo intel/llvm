@@ -6806,6 +6806,16 @@ pi_result piextPluginGetOpaqueData(void *opaque_data_param,
   return PI_ERROR_UNKNOWN;
 }
 
+// TODO properly implement this function when level_zero Peer to Peer copies are enabled.
+// Currently Peer to Peer copies are unimplemented using the level_zero backend so p2p is always set false.
+pi_result piextP2P(pi_device src_device, pi_device dst_device, bool* p2p)
+{
+  assert(src_device != nullptr);
+  assert(dst_device != nullptr);
+  *p2p = false;
+  return PI_SUCCESS;
+}
+
 // SYCL RT calls this api to notify the end of plugin lifetime.
 // It can include all the jobs to tear down resources before
 // the plugin is unloaded from memory.

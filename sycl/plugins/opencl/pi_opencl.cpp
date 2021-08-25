@@ -1223,6 +1223,15 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
   return piextGetNativeHandle(kernel, nativeHandle);
 }
 
+// Peer to Peer copies are not supported using the OpenCL backend so p2p is always set false.
+pi_result piextP2P(pi_device src_device, pi_device dst_device, bool* p2p)
+{
+  assert(src_device != nullptr);
+  assert(dst_device != nullptr);
+  *p2p = false;
+  return PI_SUCCESS;
+}
+
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.

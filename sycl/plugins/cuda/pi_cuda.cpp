@@ -2605,8 +2605,8 @@ pi_result cuda_piEnqueueKernelLaunch(
           return err;
       }
     } else {
-      auto err = guessLocalWorkSize(threadsPerBlock, global_work_size,
-                                    maxThreadsPerBlock, kernel);
+      auto err = guessLocalWorkSize(threadsPerBlock, global_work_size, maxThreadsPerBlock,
+                         kernel, local_size);
       if (err != PI_SUCCESS)
         return err;
     }
@@ -5074,6 +5074,14 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
+pi_result cuda_piextP2P(pi_device src_device, pi_device dst_device, bool* p2p)
+{
+  assert(src_device != nullptr);
+  assert(dst_device != nullptr);
+  *p2p = true;
+  return PI_SUCCESS;
+}
+
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
@@ -5115,6 +5123,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextDeviceGetNativeHandle, cuda_piextDeviceGetNativeHandle)
   _PI_CL(piextDeviceCreateWithNativeHandle,
          cuda_piextDeviceCreateWithNativeHandle)
+  _PI_CL(piextP2P, cuda_piextP2P)
   // Context
   _PI_CL(piextContextSetExtendedDeleter, cuda_piextContextSetExtendedDeleter)
   _PI_CL(piContextCreate, cuda_piContextCreate)

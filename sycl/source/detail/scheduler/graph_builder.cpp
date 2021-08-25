@@ -52,6 +52,21 @@ static bool IsSuitableSubReq(const Requirement *Req) {
   return Req->MIsSubBuffer;
 }
 
+/// Finds the correct AllocaCommand matching the context of Record.
+AllocaCommandBase *findAllocaCmd(MemObjRecord *Record){
+    auto IsSuitableAlloca = [Record](AllocaCommandBase *AllocaCmd) {
+      bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(),
+                         Record->MCurContext) &&
+                 // Looking for a parent buffer alloca command
+                 AllocaCmd->getType() == Command::CommandType::ALLOCA;
+      return Res;
+    };
+    const auto It =
+        std::find_if(Record->MAllocaCommands.begin(),
+                     Record->MAllocaCommands.end(), IsSuitableAlloca);
+    return (Record->MAllocaCommands.end() != It) ? *It : nullptr;
+}
+
 /// Checks if the required access mode is allowed under the current one.
 static bool isAccessModeAllowed(access::mode Required, access::mode Current) {
   switch (Current) {
@@ -328,17 +343,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
     // Since no alloca command for the sub buffer requirement was found in the
     // current context, need to find a parent alloca command for it (it must be
     // there)
-    auto IsSuitableAlloca = [Record](AllocaCommandBase *AllocaCmd) {
-      bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(),
-                         Record->MCurContext) &&
-                 // Looking for a parent buffer alloca command
-                 AllocaCmd->getType() == Command::CommandType::ALLOCA;
-      return Res;
-    };
-    const auto It =
-        std::find_if(Record->MAllocaCommands.begin(),
-                     Record->MAllocaCommands.end(), IsSuitableAlloca);
-    AllocaCmdSrc = (Record->MAllocaCommands.end() != It) ? *It : nullptr;
+    AllocaCmdSrc = findAllocaCmd(Record);
   }
   if (!AllocaCmdSrc)
     throw runtime_error("Cannot find buffer allocation", PI_INVALID_VALUE);
@@ -942,16 +947,16 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
           NeedMemMoveToHost = true;
           MemMoveTargetQueue = HT.MQueue;
         }
-      } else if (!Queue->is_host() && !Record->MCurContext->is_host() &&
-                 !(Queue->get_device().get_platform().get_backend() ==
-                       Record->MCurContext->getDevices()[0]
+      } else if (!Queue->is_host() && !Record->MCurContext->is_host())
+      {
+        bool p2p = false;
+        Queue->getPlugin().call<PiApiKind::piextP2P>(Queue->getDeviceImplPtr()->getHandleRef(),
+                                            findAllocaCmd(Record)->getQueue()->getDeviceImplPtr()->getHandleRef(), &p2p);
+        if(!(p2p && Queue->get_device().get_platform().get_backend() == Record->MCurContext->getDevices()[0]
                            .get_platform()
-                           .get_backend() &&
-                   Queue->get_device()
-                       .get_platform()
-                       .get_info<info::platform::P2P>()))
-        NeedMemMoveToHost = true;
-
+                           .get_backend()))
+            NeedMemMoveToHost = true;
+      }
       if (NeedMemMoveToHost)
         insertMemoryMove(Record, Req,
                          Scheduler::getInstance().getDefaultHostQueue(),

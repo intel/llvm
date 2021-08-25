@@ -33,6 +33,7 @@ _PI_API(piextDeviceSelectBinary)
 _PI_API(piextGetDeviceFunctionPointer)
 _PI_API(piextDeviceGetNativeHandle)
 _PI_API(piextDeviceCreateWithNativeHandle)
+_PI_API(piextP2P)
 // Context
 _PI_API(piContextCreate)
 _PI_API(piContextGetInfo)
