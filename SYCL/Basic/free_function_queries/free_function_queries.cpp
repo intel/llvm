@@ -4,9 +4,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// TODO: Support global work offset on Level Zero.
-// UNSUPPORTED: level_zero
-
 //==- free_function_queries.cpp - SYCL free function queries test -=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -42,10 +39,10 @@ int main() {
                        sycl::access::target::global_buffer>
             results_acc(results_buf.get_access<sycl::access::mode::write>(cgh));
         cgh.parallel_for<class IdTest>(n, [=](sycl::id<1> i) {
-          auto that_id = sycl::this_id<1>();
+          auto that_id = sycl::ext::oneapi::experimental::this_id<1>();
           results_acc[0] = that_id == i;
 
-          auto that_item = sycl::this_item<1>();
+          auto that_item = sycl::ext::oneapi::experimental::this_item<1>();
           results_acc[1] = that_item.get_id() == i;
           results_acc[2] = that_item.get_range() == sycl::range<1>(n);
           acc[i]++;
@@ -78,9 +75,9 @@ int main() {
         cgh.parallel_for<class ItemTest>(n, [=](auto i) {
           static_assert(std::is_same<decltype(i), sycl::item<1>>::value,
                         "lambda arg type is unexpected");
-          auto that_id = sycl::this_id<1>();
+          auto that_id = sycl::ext::oneapi::experimental::this_id<1>();
           results_acc[0] = i.get_id() == that_id;
-          auto that_item = sycl::this_item<1>();
+          auto that_item = sycl::ext::oneapi::experimental::this_item<1>();
           results_acc[1] = i == that_item;
           acc[i]++;
         });
@@ -112,9 +109,9 @@ int main() {
             results_acc(results_buf.get_access<sycl::access::mode::write>(cgh));
         cgh.parallel_for<class ItemOffsetTest>(
             sycl::range<1>{n}, offset, [=](sycl::item<1, true> i) {
-              auto that_id = sycl::this_id<1>();
+              auto that_id = sycl::ext::oneapi::experimental::this_id<1>();
               results_acc[0] = i.get_id() == that_id;
-              auto that_item = sycl::this_item<1>();
+              auto that_item = sycl::ext::oneapi::experimental::this_item<1>();
               results_acc[1] = i == that_item;
               acc[that_item.get_linear_id()]++;
             });
@@ -147,13 +144,16 @@ int main() {
         cgh.parallel_for<class NdItemTest>(NDR, [=](auto nd_i) {
           static_assert(std::is_same<decltype(nd_i), sycl::nd_item<1>>::value,
                         "lambda arg type is unexpected");
-          auto that_nd_item = sycl::this_nd_item<1>();
+          auto that_nd_item =
+              sycl::ext::oneapi::experimental::this_nd_item<1>();
           results_acc[0] = that_nd_item == nd_i;
           auto nd_item_group = that_nd_item.get_group();
-          results_acc[1] = nd_item_group == sycl::this_group<1>();
+          results_acc[1] =
+              nd_item_group == sycl::ext::oneapi::experimental::this_group<1>();
           auto nd_item_id = that_nd_item.get_global_id();
-          results_acc[2] = nd_item_id == sycl::this_id<1>();
-          auto that_item = sycl::this_item<1>();
+          results_acc[2] =
+              nd_item_id == sycl::ext::oneapi::experimental::this_id<1>();
+          auto that_item = sycl::ext::oneapi::experimental::this_item<1>();
           results_acc[3] = nd_item_id == that_item.get_id();
           results_acc[4] =
               that_nd_item.get_global_range() == that_item.get_range();
