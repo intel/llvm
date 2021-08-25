@@ -2605,8 +2605,8 @@ pi_result cuda_piEnqueueKernelLaunch(
           return err;
       }
     } else {
-      auto err = guessLocalWorkSize(threadsPerBlock, global_work_size, maxThreadsPerBlock,
-                         kernel, local_size);
+      auto err = guessLocalWorkSize(threadsPerBlock, global_work_size,
+                                    maxThreadsPerBlock, kernel, local_size);
       if (err != PI_SUCCESS)
         return err;
     }
@@ -5074,8 +5074,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
-pi_result cuda_piextP2P(pi_device src_device, pi_device dst_device, bool* p2p)
-{
+pi_result cuda_piextP2P(pi_device src_device, pi_device dst_device, bool *p2p) {
   assert(src_device != nullptr);
   assert(dst_device != nullptr);
   *p2p = true;

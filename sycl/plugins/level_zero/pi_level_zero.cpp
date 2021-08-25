@@ -6806,10 +6806,10 @@ pi_result piextPluginGetOpaqueData(void *opaque_data_param,
   return PI_ERROR_UNKNOWN;
 }
 
-// TODO properly implement this function when level_zero Peer to Peer copies are enabled.
-// Currently Peer to Peer copies are unimplemented using the level_zero backend so p2p is always set false.
-pi_result piextP2P(pi_device src_device, pi_device dst_device, bool* p2p)
-{
+// TODO properly implement this function when level_zero Peer to Peer copies are
+// enabled. Currently Peer to Peer copies are unimplemented using the level_zero
+// backend so p2p is always set false.
+pi_result piextP2P(pi_device src_device, pi_device dst_device, bool *p2p) {
   assert(src_device != nullptr);
   assert(dst_device != nullptr);
   *p2p = false;

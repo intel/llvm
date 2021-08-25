@@ -1223,9 +1223,9 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
   return piextGetNativeHandle(kernel, nativeHandle);
 }
 
-// Peer to Peer copies are not supported using the OpenCL backend so p2p is always set false.
-pi_result piextP2P(pi_device src_device, pi_device dst_device, bool* p2p)
-{
+// Peer to Peer copies are not supported using the OpenCL backend so p2p is
+// always set false.
+pi_result piextP2P(pi_device src_device, pi_device dst_device, bool *p2p) {
   assert(src_device != nullptr);
   assert(dst_device != nullptr);
   *p2p = false;
