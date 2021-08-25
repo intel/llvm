@@ -3646,10 +3646,10 @@ pi_result cuda_piSamplerRelease(pi_sampler sampler) {
 }
 
 void copyRectAsserts(const pi_buff_rect_region &region,
-                    const pi_buff_rect_offset &src_offset,
-                    const pi_buff_rect_offset &dst_offset,
-                    const CUmemorytype_enum &src_type,
-                    const CUmemorytype_enum &dst_type) {
+                     const pi_buff_rect_offset &src_offset,
+                     const pi_buff_rect_offset &dst_offset,
+                     const CUmemorytype_enum &src_type,
+                     const CUmemorytype_enum &dst_type) {
   assert(region != nullptr);
   assert(src_offset != nullptr);
   assert(dst_offset != nullptr);
@@ -5152,7 +5152,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextMemGetNativeHandle, cuda_piextMemGetNativeHandle)
   _PI_CL(piextMemCreateWithNativeHandle, cuda_piextMemCreateWithNativeHandle)
   _PI_CL(piextEnqueueMemBufferCopyPeer, cuda_piextEnqueueMemBufferCopyPeer)
-  _PI_CL(piextEnqueueMemBufferCopyRectPeer, cuda_piextEnqueueMemBufferCopyRectPeer)
+  _PI_CL(piextEnqueueMemBufferCopyRectPeer,
+         cuda_piextEnqueueMemBufferCopyRectPeer)
   _PI_CL(piextEnqueueMemImageCopyPeer, cuda_piextEnqueueMemImageCopyPeer)
   // Program
   _PI_CL(piProgramCreate, cuda_piProgramCreate)

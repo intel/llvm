@@ -1048,14 +1048,11 @@ __SYCL_EXPORT pi_result piQueueGetInfo(pi_queue command_queue,
                                        void *param_value,
                                        size_t *param_value_size_ret);
 
-
 __SYCL_EXPORT pi_result piextEnqueueMemBufferCopyPeer(
-                               pi_queue src_queue, pi_mem src_buffer, pi_queue dst_queue,
-                               pi_mem dst_buffer, size_t src_offset,
-                               size_t dst_offset, size_t size,
-                               pi_uint32 num_events_in_wait_list,
-                               const pi_event *event_wait_list,
-                               pi_event *event);
+    pi_queue src_queue, pi_mem src_buffer, pi_queue dst_queue,
+    pi_mem dst_buffer, size_t src_offset, size_t dst_offset, size_t size,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
 
 /// p2p is set true if PI API's,
 /// piextEnqueueMemBufferCopyPeer/piextEnqueueMemBufferCopyRectPeer/piextEnqueueMemImageCopyPeer,
@@ -1469,12 +1466,12 @@ __SYCL_EXPORT pi_result piEnqueueMemBufferCopyRect(
     pi_event *event);
 
 __SYCL_EXPORT pi_result piextEnqueueMemBufferCopyRectPeer(
-    pi_queue src_queue, pi_mem src_buffer, pi_queue dst_queue, pi_mem dst_buffer,
-    pi_buff_rect_offset src_origin, pi_buff_rect_offset dst_origin,
-    pi_buff_rect_region region, size_t src_row_pitch, size_t src_slice_pitch,
-    size_t dst_row_pitch, size_t dst_slice_pitch,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event);
+    pi_queue src_queue, pi_mem src_buffer, pi_queue dst_queue,
+    pi_mem dst_buffer, pi_buff_rect_offset src_origin,
+    pi_buff_rect_offset dst_origin, pi_buff_rect_region region,
+    size_t src_row_pitch, size_t src_slice_pitch, size_t dst_row_pitch,
+    size_t dst_slice_pitch, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
 
 __SYCL_EXPORT pi_result
 piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
@@ -1502,8 +1499,8 @@ __SYCL_EXPORT pi_result piEnqueueMemImageCopy(
     const pi_event *event_wait_list, pi_event *event);
 
 __SYCL_EXPORT pi_result piextEnqueueMemImageCopyPeer(
-    pi_queue command_queue, pi_mem src_image, pi_queue dst_queue, pi_mem dst_image,
-    pi_image_offset src_origin, pi_image_offset dst_origin,
+    pi_queue command_queue, pi_mem src_image, pi_queue dst_queue,
+    pi_mem dst_image, pi_image_offset src_origin, pi_image_offset dst_origin,
     pi_image_region region, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
 

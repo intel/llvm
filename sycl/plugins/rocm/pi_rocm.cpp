@@ -4730,7 +4730,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueMemBufferCopy, rocm_piEnqueueMemBufferCopy)
   _PI_CL(piextEnqueueMemBufferCopyPeer, rocm_piextEnqueueMemBufferCopyPeer)
   _PI_CL(piEnqueueMemBufferCopyRect, rocm_piEnqueueMemBufferCopyRect)
-  _PI_CL(piextEnqueueMemBufferCopyRectPeer, rocm_piextEnqueueMemBufferCopyRectPeer)
+  _PI_CL(piextEnqueueMemBufferCopyRectPeer,
+         rocm_piextEnqueueMemBufferCopyRectPeer)
   _PI_CL(piEnqueueMemBufferFill, rocm_piEnqueueMemBufferFill)
   _PI_CL(piEnqueueMemImageRead, rocm_piEnqueueMemImageRead)
   _PI_CL(piEnqueueMemImageWrite, rocm_piEnqueueMemImageWrite)
