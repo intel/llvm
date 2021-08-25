@@ -58,7 +58,7 @@ using region2d_t = region_base<true, T, SizeY, StrideY, SizeX, StrideX>;
 
 // A region with a single element.
 template <typename T, int StrideY, int StrideX>
-using region_base_1 = region_base<false, T, 1, StrideY, 1, StrideX>;
+using region1d_scalar_t = region_base<false, T, 1, StrideY, 1, StrideX>;
 
 // simd_view forward declaration.
 template <typename BaseTy, typename RegionTy> class simd_view;

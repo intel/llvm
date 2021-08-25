@@ -113,15 +113,15 @@ public:
 ///
 /// \ingroup sycl_esimd
 template <typename BaseTy, typename T, int StrideY, int StrideX>
-class simd_view<BaseTy, region_base_1<T, StrideY, StrideX>>
+class simd_view<BaseTy, region1d_scalar_t<T, StrideY, StrideX>>
     : public detail::simd_view_impl<
-          BaseTy, region_base_1<T, StrideY, StrideX>,
-          simd_view<BaseTy, region_base_1<T, StrideY, StrideX>>> {
+          BaseTy, region1d_scalar_t<T, StrideY, StrideX>,
+          simd_view<BaseTy, region1d_scalar_t<T, StrideY, StrideX>>> {
   template <typename, int> friend class simd;
   template <typename, typename, typename> friend class detail::simd_view_impl;
 
 public:
-  using RegionTy = region_base_1<T, StrideY, StrideX>;
+  using RegionTy = region1d_scalar_t<T, StrideY, StrideX>;
   using BaseClass =
       detail::simd_view_impl<BaseTy, RegionTy, simd_view<BaseTy, RegionTy>>;
   using ShapeTy = typename shape_type<RegionTy>::type;
@@ -176,16 +176,18 @@ public:
 template <typename BaseTy, typename T, int StrideY, int StrideX,
           typename NestedRegion>
 class simd_view<BaseTy,
-                std::pair<region_base_1<T, StrideY, StrideX>, NestedRegion>>
+                std::pair<region1d_scalar_t<T, StrideY, StrideX>, NestedRegion>>
     : public detail::simd_view_impl<
-          BaseTy, std::pair<region_base_1<T, StrideY, StrideX>, NestedRegion>,
-          simd_view<BaseTy, std::pair<region_base_1<T, StrideY, StrideX>,
+          BaseTy,
+          std::pair<region1d_scalar_t<T, StrideY, StrideX>, NestedRegion>,
+          simd_view<BaseTy, std::pair<region1d_scalar_t<T, StrideY, StrideX>,
                                       NestedRegion>>> {
   template <typename, int> friend class simd;
   template <typename, typename, typename> friend class detail::simd_view_impl;
 
 public:
-  using RegionTy = std::pair<region_base_1<T, StrideY, StrideX>, NestedRegion>;
+  using RegionTy =
+      std::pair<region1d_scalar_t<T, StrideY, StrideX>, NestedRegion>;
   using BaseClass =
       detail::simd_view_impl<BaseTy, RegionTy, simd_view<BaseTy, RegionTy>>;
   using ShapeTy = typename shape_type<RegionTy>::type;
