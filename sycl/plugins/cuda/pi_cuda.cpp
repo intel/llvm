@@ -137,19 +137,15 @@ pi_result check_error(CUresult result, const char *function, int line,
 /// \cond NODOXY
 #define PI_CHECK_ERROR(result) check_error(result, __func__, __LINE__, __FILE__)
 
-/// RAII type to guarantee recovering original CUDA context
 /// Scoped context is used across all PI CUDA plugin implementation
-/// to activate the PI Context on the current thread, matching the
-/// CUDA driver semantics where the context used for the CUDA Driver
-/// API is the one active on the thread.
-/// The implementation tries to avoid replacing the CUcontext if it cans
+/// to activate the PI Context on the current thread.
+/// The implementation tries to avoid replacing the CUcontext if it cans.
 class ScopedContext {
   pi_context placedContext_;
   CUcontext original_;
-  bool needToRecover_;
 
 public:
-  ScopedContext(pi_context ctxt) : placedContext_{ctxt}, needToRecover_{false} {
+  ScopedContext(pi_context ctxt) : placedContext_{ctxt} {
 
     if (!placedContext_) {
       throw PI_INVALID_CONTEXT;
@@ -160,23 +156,18 @@ public:
     if (original_ != desired) {
       // Sets the desired context as the active one for the thread
       PI_CHECK_ERROR(cuCtxSetCurrent(desired));
-      if (original_ == nullptr) {
-        // No context is installed on the current thread
-        // This is the most common case. We can activate the context in the
-        // thread and leave it there until all the PI context referring to the
-        // same underlying CUDA context are destroyed. This emulates
-        // the behaviour of the CUDA runtime api, and avoids costly context
-        // switches. No action is required on this side of the if.
-      } else {
-        needToRecover_ = true;
-      }
     }
   }
 
   ~ScopedContext() {
-    if (needToRecover_) {
-      PI_CHECK_ERROR(cuCtxSetCurrent(original_));
-    }
+    // Leave the context active, this avoids costly context switches for
+    // subsequent calls that use the same context.
+    //
+    // Calls using a different context will simply set their own context as
+    // active, so it will context switch as necessary.
+    //
+    // This does mean that interop tasks shouldn't make any assumptions about
+    // the state of the CUDA context after or in between calls to SYCL.
   }
 };
 
