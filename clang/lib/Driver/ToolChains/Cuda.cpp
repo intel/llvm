@@ -202,6 +202,8 @@ CudaInstallationDetector::CudaInstallationDetector(
         LibPath = InstallPath + "/lib/x64";
       else if (FS.exists(InstallPath + "/lib/Win32"))
         LibPath = InstallPath + "/lib/Win32";
+      else if (FS.exists(InstallPath + "/lib"))
+        LibPath = InstallPath + "/lib";
       else
         continue;
     } else {
@@ -746,7 +748,7 @@ void CudaToolChain::addClangTargetOptions(
       for (StringRef LibraryPath : LibraryPaths) {
         SmallString<128> LibSpirvTargetFile(LibraryPath);
         llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
-        if (llvm::sys::fs::exists(LibSpirvTargetFile)) {
+        if (llvm::sys::fs::exists(LibSpirvTargetFile) || DriverArgs.hasArg(options::OPT__HASH_HASH_HASH)) {
           LibSpirvFile = std::string(LibSpirvTargetFile.str());
           break;
         }
