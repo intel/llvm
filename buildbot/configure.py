@@ -118,6 +118,9 @@ def do_configure(args):
         "-DSYCL_BUILD_PI_ESIMD_CPU={}".format(sycl_build_pi_esimd_cpu)
     ]
 
+    if args.cuda_stubs:
+        cmake_cmd.append("-DCMAKE_LIBRARY_PATH={}".format(args.cuda_stubs))
+
     if args.l0_headers and args.l0_loader:
       cmake_cmd.extend([
             "-DL0_INCLUDE_DIR={}".format(args.l0_headers),
@@ -175,6 +178,7 @@ def main():
     parser.add_argument("-t", "--build-type",
                         metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
+    parser.add_argument("--cuda-stubs", help="set location of cuda shared library stubs")
     parser.add_argument("--rocm", action='store_true', help="switch from OpenCL to ROCm")
     parser.add_argument("--rocm-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose ROCm backend")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
