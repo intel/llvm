@@ -418,14 +418,17 @@ private:
 
     event Event;
 
-    if (NeedSeparateDependencyMgmt) {
+    if (IsInOrder) {
+      // Accessing and changing of an event isn't atomic operation.
+      // Hence, here is the lock for thread-safety.
       std::lock_guard<std::mutex> Lock{MLastEventMtx};
-      Handler.depends_on(MLastEvent);
+
+      if (NeedSeparateDependencyMgmt)
+        Handler.depends_on(MLastEvent);
 
       Event = Handler.finalize();
 
-      if (IsInOrder)
-        MLastEvent = Event;
+      MLastEvent = Event;
     } else
       Event = Handler.finalize();
 
@@ -486,6 +489,8 @@ private:
   // The thread pool is instantiated upon the very first call to getThreadPool()
   std::unique_ptr<ThreadPool> MHostTaskThreadPool;
 
+  // This event is employed for enhanced dependency tracking with in-order queue
+  // Access to the event should be guarded with MLastEventMtx
   event MLastEvent;
   std::mutex MLastEventMtx;
 };
