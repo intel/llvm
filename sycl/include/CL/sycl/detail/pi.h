@@ -1058,7 +1058,7 @@ __SYCL_EXPORT pi_result piextEnqueueMemBufferCopyPeer(
 /// piextEnqueueMemBufferCopyPeer/piextEnqueueMemBufferCopyRectPeer/piextEnqueueMemImageCopyPeer,
 /// for peer to peer memory copy may be called.
 ///
-__SYCL_EXPORT pi_result piextP2P(pi_device src_device, pi_device dst_device,
+__SYCL_EXPORT pi_result piextDevicesSupportP2P(pi_device src_device, pi_device dst_device,
                                  bool *p2p);
 
 __SYCL_EXPORT pi_result piQueueRetain(pi_queue command_queue);

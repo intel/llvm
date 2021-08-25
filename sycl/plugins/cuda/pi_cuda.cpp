@@ -5074,7 +5074,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
-pi_result cuda_piextP2P(pi_device src_device, pi_device dst_device, bool *p2p) {
+pi_result cuda_piextDevicesSupportP2P(pi_device src_device, pi_device dst_device, bool *p2p) {
   assert(src_device != nullptr);
   assert(dst_device != nullptr);
   *p2p = true;
@@ -5122,7 +5122,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextDeviceGetNativeHandle, cuda_piextDeviceGetNativeHandle)
   _PI_CL(piextDeviceCreateWithNativeHandle,
          cuda_piextDeviceCreateWithNativeHandle)
-  _PI_CL(piextP2P, cuda_piextP2P)
+  _PI_CL(piextDevicesSupportP2P, cuda_piextDevicesSupportP2P)
   // Context
   _PI_CL(piextContextSetExtendedDeleter, cuda_piextContextSetExtendedDeleter)
   _PI_CL(piContextCreate, cuda_piContextCreate)

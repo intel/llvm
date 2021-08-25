@@ -4602,7 +4602,7 @@ pi_result rocm_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
 // TODO properly implement this function when rocm Peer to Peer copies are
 // enabled. Currently Peer to Peer copies are unimplemented using the rocm
 // backend so p2p is always set false.
-pi_result rocm_piextP2P(pi_device src_device, pi_device dst_device, bool *p2p) {
+pi_result rocm_piextDevicesSupportP2P(pi_device src_device, pi_device dst_device, bool *p2p) {
   assert(src_device != nullptr);
   assert(dst_device != nullptr);
   *p2p = false;
@@ -4650,7 +4650,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextDeviceGetNativeHandle, rocm_piextDeviceGetNativeHandle)
   _PI_CL(piextDeviceCreateWithNativeHandle,
          rocm_piextDeviceCreateWithNativeHandle)
-  _PI_CL(piextP2P, rocm_piextP2P)
+  _PI_CL(piextDevicesSupportP2P, rocm_piextDevicesSupportP2P)
   // Context
   _PI_CL(piextContextSetExtendedDeleter, rocm_piextContextSetExtendedDeleter)
   _PI_CL(piContextCreate, rocm_piContextCreate)

@@ -1263,7 +1263,7 @@ pi_result piTearDown(void *) {
 // TODO properly implement this function if pi_esimd_cpu Peer to Peer copies
 // become enabled. Currently Peer to Peer copies are unimplemented using the
 // pi_esimd_cpu backend so p2p is always set false.
-pi_result piextP2P(pi_device src_device, pi_device dst_device, bool *p2p) {
+pi_result piextDevicesSupportP2P(pi_device src_device, pi_device dst_device, bool *p2p) {
   assert(src_device != nullptr);
   assert(dst_device != nullptr);
   *p2p = false;
