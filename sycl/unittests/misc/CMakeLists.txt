@@ -4,5 +4,4 @@ add_sycl_unittest(MiscTests SHARED
   CircularBuffer.cpp
   KernelBuildOptions.cpp
   OsUtils.cpp
-  Assert.cpp
 )
