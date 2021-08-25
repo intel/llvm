@@ -19,6 +19,7 @@
 #include <CL/sycl/properties/queue_properties.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
@@ -50,8 +51,12 @@ enum QueueOrder { Ordered, OOO };
 class queue_impl {
 public:
   // \return a default context for the platform if it includes the device
-  // passed, a new context otherwise.
+  // passed and defaualt contexts are enabled, a new context otherwise.
   static ContextImplPtr getDefaultOrNew(const DeviceImplPtr &Device) {
+    if (!SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
+      return detail::getSyclObjImpl(
+          context{createSyclObjFromImpl<device>(Device), {}, {}});
+
     ContextImplPtr DefaultContext = detail::getSyclObjImpl(
         Device->get_platform().ext_oneapi_get_default_context());
 

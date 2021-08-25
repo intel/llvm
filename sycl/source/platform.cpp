@@ -11,6 +11,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/platform.hpp>
 #include <detail/backend_impl.hpp>
+#include <detail/config.hpp>
 #include <detail/force_device.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
@@ -67,6 +68,8 @@ bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 context platform::ext_oneapi_get_default_context() const {
+  if (!detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
+    throw std::runtime_error("SYCL default contexts are not enabled");
 
   // Keeping the default context for platforms in the global cache to avoid
   // shared_ptr based circular dependency between platform and context classes

@@ -13,7 +13,22 @@
 
 #include <gtest/gtest.h>
 
+#include <stdlib.h>
+
+// Same as defined in config.def
+inline constexpr auto EnableDefaultContextsName =
+    "SYCL_ENABLE_DEFAULT_CONTEXTS";
+
+static void set_env(const char *name, const char *value) {
+#ifdef _WIN32
+  (void)_putenv_s(name, value);
+#else
+  (void)setenv(name, value, /*overwrite*/ 1);
+#endif
+}
+
 TEST(DefaultContextTest, DefaultContextTest) {
+  set_env(EnableDefaultContextsName, "1");
 
   sycl::platform Plt1{sycl::default_selector()};
   sycl::unittest::PiMock Mock1{Plt1};
@@ -33,4 +48,22 @@ TEST(DefaultContextTest, DefaultContextTest) {
 
   ASSERT_EQ(Dev1.get_platform().ext_oneapi_get_default_context(),
             Dev2.get_platform().ext_oneapi_get_default_context());
+}
+
+TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
+  set_env(EnableDefaultContextsName, "0");
+
+  sycl::platform Plt{sycl::default_selector()};
+  sycl::unittest::PiMock Mock{Plt};
+  setupDefaultMockAPIs(Mock);
+
+  bool catchException = false;
+  try {
+    (void)Plt.ext_oneapi_get_default_context();
+  } catch (std::runtime_error) {
+    catchException = true;
+  }
+
+  ASSERT_TRUE(catchException)
+      << "ext_oneapi_get_default_context did not throw and exception";
 }

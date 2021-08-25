@@ -233,6 +233,26 @@ public:
   }
 };
 
+template <> class SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS> {
+  using BaseT = SYCLConfigBase<SYCL_ENABLE_DEFAULT_CONTEXTS>;
+
+public:
+  static bool get() {
+#ifdef WIN32
+    constexpr bool DefaultValue = false;
+#else
+    constexpr bool DefaultValue = true;
+#endif
+
+    const char *ValStr = BaseT::getRawValue();
+
+    if (!ValStr)
+      return DefaultValue;
+
+    return ValStr[0] == '1';
+  }
+};
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
