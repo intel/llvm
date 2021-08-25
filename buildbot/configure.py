@@ -15,6 +15,9 @@ def do_configure(args):
 
     llvm_external_projects = 'sycl;llvm-spirv;opencl;libdevice;xpti;xptifw'
 
+    if args.llvm_external_projects:
+        llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")
+
     llvm_dir = os.path.join(abs_src_dir, "llvm")
     sycl_dir = os.path.join(abs_src_dir, "sycl")
     spirv_dir = os.path.join(abs_src_dir, "llvm-spirv")
@@ -24,9 +27,11 @@ def do_configure(args):
     llvm_targets_to_build = 'X86'
     llvm_enable_projects = 'clang;' + llvm_external_projects
     libclc_targets_to_build = ''
+    libclc_gen_remangled_variants = 'OFF'
     sycl_build_pi_cuda = 'OFF'
     sycl_build_pi_esimd_cpu = 'ON'
     sycl_build_pi_rocm = 'OFF'
+    sycl_build_pi_rocm_platform = 'AMD'
     sycl_werror = 'ON'
     llvm_enable_assertions = 'ON'
     llvm_enable_doxygen = 'OFF'
@@ -40,21 +45,28 @@ def do_configure(args):
     if args.arm:
         llvm_targets_to_build = 'ARM;AArch64'
 
-    if args.cuda:
-        llvm_targets_to_build += ';NVPTX'
-        llvm_enable_projects += ';libclc'
-        libclc_targets_to_build = 'nvptx64--;nvptx64--nvidiacl'
-        sycl_build_pi_cuda = 'ON'
-
     if args.disable_esimd_cpu:
         sycl_build_pi_esimd_cpu = 'OFF'
-    
-    if args.rocm:
-        llvm_targets_to_build += ';AMDGPU'
-        # TODO libclc should be added once,
-        # TODO when we build DPC++ with both CUDA and ROCM support
+
+    if args.cuda or args.rocm:
         llvm_enable_projects += ';libclc'
-        libclc_targets_to_build = 'amdgcn--;amdgcn--amdhsa'
+
+    if args.cuda:
+        llvm_targets_to_build += ';NVPTX'
+        libclc_targets_to_build = 'nvptx64--;nvptx64--nvidiacl'
+        libclc_gen_remangled_variants = 'ON'
+        sycl_build_pi_cuda = 'ON'
+
+    if args.rocm:
+        if args.rocm_platform == 'AMD':
+            llvm_targets_to_build += ';AMDGPU'
+            libclc_targets_to_build += ';amdgcn--;amdgcn--amdhsa'
+        elif args.rocm_platform == 'NVIDIA' and not args.cuda:
+            llvm_targets_to_build += ';NVPTX'
+            libclc_targets_to_build += ';nvptx64--;nvptx64--nvidiacl'
+        libclc_gen_remangled_variants = 'ON'
+
+        sycl_build_pi_rocm_platform = args.rocm_platform
         sycl_build_pi_rocm = 'ON'
 
     if args.no_werror:
@@ -90,8 +102,10 @@ def do_configure(args):
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
+        "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(libclc_gen_remangled_variants),
         "-DSYCL_BUILD_PI_CUDA={}".format(sycl_build_pi_cuda),
         "-DSYCL_BUILD_PI_ROCM={}".format(sycl_build_pi_rocm),
+        "-DSYCL_BUILD_PI_ROCM_PLATFORM={}".format(sycl_build_pi_rocm_platform),
         "-DLLVM_BUILD_TOOLS=ON",
         "-DSYCL_ENABLE_WERROR={}".format(sycl_werror),
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
@@ -161,7 +175,8 @@ def main():
     parser.add_argument("-t", "--build-type",
                         metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
-    parser.add_argument("--rocm", action='store_true', help="swith from OpenCL to ROCM")
+    parser.add_argument("--rocm", action='store_true', help="switch from OpenCL to ROCm")
+    parser.add_argument("--rocm-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose ROCm backend")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
     parser.add_argument("--disable-esimd-cpu", action='store_true', help="build without ESIMD_CPU support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
@@ -174,6 +189,7 @@ def main():
     parser.add_argument("--libcxx-include", metavar="LIBCXX_INCLUDE_PATH", help="libcxx include path")
     parser.add_argument("--libcxx-library", metavar="LIBCXX_LIBRARY_PATH", help="libcxx library path")
     parser.add_argument("--use-lld", action="store_true", help="Use LLD linker for build")
+    parser.add_argument("--llvm-external-projects", help="Add external projects to build. Add as comma seperated list.")
     args = parser.parse_args()
 
     print("args:{}".format(args))

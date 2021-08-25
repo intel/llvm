@@ -1,9 +1,8 @@
 //===--------- RegisterEHFrames.cpp - Register EH frame sections ----------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -167,14 +166,14 @@ static Error deregisterEHFrameWrapper(JITTargetAddress Addr, uint64_t Size) {
 
 extern "C" orc::shared::detail::CWrapperFunctionResult
 llvm_orc_registerEHFrameSectionWrapper(const char *Data, uint64_t Size) {
-  return WrapperFunction<SPSError(SPSTargetAddress, uint64_t)>::handle(
+  return WrapperFunction<SPSError(SPSExecutorAddress, uint64_t)>::handle(
              Data, Size, registerEHFrameWrapper)
       .release();
 }
 
 extern "C" orc::shared::detail::CWrapperFunctionResult
 llvm_orc_deregisterEHFrameSectionWrapper(const char *Data, uint64_t Size) {
-  return WrapperFunction<SPSError(SPSTargetAddress, uint64_t)>::handle(
+  return WrapperFunction<SPSError(SPSExecutorAddress, uint64_t)>::handle(
              Data, Size, deregisterEHFrameWrapper)
       .release();
 }

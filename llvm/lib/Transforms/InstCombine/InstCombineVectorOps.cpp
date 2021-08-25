@@ -52,20 +52,29 @@ STATISTIC(NumAggregateReconstructionsSimplified,
           "original aggregate");
 
 /// Return true if the value is cheaper to scalarize than it is to leave as a
-/// vector operation. IsConstantExtractIndex indicates whether we are extracting
-/// one known element from a vector constant.
+/// vector operation. If the extract index \p EI is a constant integer then
+/// some operations may be cheap to scalarize.
 ///
 /// FIXME: It's possible to create more instructions than previously existed.
-static bool cheapToScalarize(Value *V, bool IsConstantExtractIndex) {
+static bool cheapToScalarize(Value *V, Value *EI) {
+  ConstantInt *CEI = dyn_cast<ConstantInt>(EI);
+
   // If we can pick a scalar constant value out of a vector, that is free.
   if (auto *C = dyn_cast<Constant>(V))
-    return IsConstantExtractIndex || C->getSplatValue();
+    return CEI || C->getSplatValue();
+
+  if (CEI && match(V, m_Intrinsic<Intrinsic::experimental_stepvector>())) {
+    ElementCount EC = cast<VectorType>(V->getType())->getElementCount();
+    // Index needs to be lower than the minimum size of the vector, because
+    // for scalable vector, the vector size is known at run time.
+    return CEI->getValue().ult(EC.getKnownMinValue());
+  }
 
   // An insertelement to the same constant index as our extract will simplify
   // to the scalar inserted element. An insertelement to a different constant
   // index is irrelevant to our extract.
   if (match(V, m_InsertElt(m_Value(), m_Value(), m_ConstantInt())))
-    return IsConstantExtractIndex;
+    return CEI;
 
   if (match(V, m_OneUse(m_Load(m_Value()))))
     return true;
@@ -75,14 +84,12 @@ static bool cheapToScalarize(Value *V, bool IsConstantExtractIndex) {
 
   Value *V0, *V1;
   if (match(V, m_OneUse(m_BinOp(m_Value(V0), m_Value(V1)))))
-    if (cheapToScalarize(V0, IsConstantExtractIndex) ||
-        cheapToScalarize(V1, IsConstantExtractIndex))
+    if (cheapToScalarize(V0, EI) || cheapToScalarize(V1, EI))
       return true;
 
   CmpInst::Predicate UnusedPred;
   if (match(V, m_OneUse(m_Cmp(UnusedPred, m_Value(V0), m_Value(V1)))))
-    if (cheapToScalarize(V0, IsConstantExtractIndex) ||
-        cheapToScalarize(V1, IsConstantExtractIndex))
+    if (cheapToScalarize(V0, EI) || cheapToScalarize(V1, EI))
       return true;
 
   return false;
@@ -119,7 +126,8 @@ Instruction *InstCombinerImpl::scalarizePHI(ExtractElementInst &EI,
   // and that it is a binary operation which is cheap to scalarize.
   // otherwise return nullptr.
   if (!PHIUser->hasOneUse() || !(PHIUser->user_back() == PN) ||
-      !(isa<BinaryOperator>(PHIUser)) || !cheapToScalarize(PHIUser, true))
+      !(isa<BinaryOperator>(PHIUser)) ||
+      !cheapToScalarize(PHIUser, EI.getIndexOperand()))
     return nullptr;
 
   // Create a scalar PHI node that will replace the vector PHI node
@@ -365,6 +373,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
         return replaceInstUsesWith(EI, Idx);
       }
     }
+
     // InstSimplify should handle cases where the index is invalid.
     // For fixed-length vector, it's invalid to extract out-of-range element.
     if (!EC.isScalable() && IndexC->getValue().uge(NumElts))
@@ -400,6 +409,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
         }
       }
     }
+
     if (Instruction *I = foldBitcastExtElt(EI, Builder, DL.isBigEndian()))
       return I;
 
@@ -413,7 +423,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
   // TODO come up with a n-ary matcher that subsumes both unary and
   // binary matchers.
   UnaryOperator *UO;
-  if (match(SrcVec, m_UnOp(UO)) && cheapToScalarize(SrcVec, IndexC)) {
+  if (match(SrcVec, m_UnOp(UO)) && cheapToScalarize(SrcVec, Index)) {
     // extelt (unop X), Index --> unop (extelt X, Index)
     Value *X = UO->getOperand(0);
     Value *E = Builder.CreateExtractElement(X, Index);
@@ -421,7 +431,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
   }
 
   BinaryOperator *BO;
-  if (match(SrcVec, m_BinOp(BO)) && cheapToScalarize(SrcVec, IndexC)) {
+  if (match(SrcVec, m_BinOp(BO)) && cheapToScalarize(SrcVec, Index)) {
     // extelt (binop X, Y), Index --> binop (extelt X, Index), (extelt Y, Index)
     Value *X = BO->getOperand(0), *Y = BO->getOperand(1);
     Value *E0 = Builder.CreateExtractElement(X, Index);
@@ -432,7 +442,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
   Value *X, *Y;
   CmpInst::Predicate Pred;
   if (match(SrcVec, m_Cmp(Pred, m_Value(X), m_Value(Y))) &&
-      cheapToScalarize(SrcVec, IndexC)) {
+      cheapToScalarize(SrcVec, Index)) {
     // extelt (cmp X, Y), Index --> cmp (extelt X, Index), (extelt Y, Index)
     Value *E0 = Builder.CreateExtractElement(X, Index);
     Value *E1 = Builder.CreateExtractElement(Y, Index);
@@ -796,12 +806,12 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
 
   // Try to find a value of each element of an aggregate.
   // FIXME: deal with more complex, not one-dimensional, aggregate types
-  SmallVector<Optional<Value *>, 2> AggElts(NumAggElts, NotFound);
+  SmallVector<Optional<Instruction *>, 2> AggElts(NumAggElts, NotFound);
 
   // Do we know values for each element of the aggregate?
   auto KnowAllElts = [&AggElts]() {
     return all_of(AggElts,
-                  [](Optional<Value *> Elt) { return Elt != NotFound; });
+                  [](Optional<Instruction *> Elt) { return Elt != NotFound; });
   };
 
   int Depth = 0;
@@ -816,7 +826,11 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
        Depth < DepthLimit && CurrIVI && !KnowAllElts();
        CurrIVI = dyn_cast<InsertValueInst>(CurrIVI->getAggregateOperand()),
                        ++Depth) {
-    Value *InsertedValue = CurrIVI->getInsertedValueOperand();
+    auto *InsertedValue =
+        dyn_cast<Instruction>(CurrIVI->getInsertedValueOperand());
+    if (!InsertedValue)
+      return nullptr; // Inserted value must be produced by an instruction.
+
     ArrayRef<unsigned int> Indices = CurrIVI->getIndices();
 
     // Don't bother with more than single-level aggregates.
@@ -826,7 +840,7 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
     // Now, we may have already previously recorded the value for this element
     // of an aggregate. If we did, that means the CurrIVI will later be
     // overwritten with the already-recorded value. But if not, let's record it!
-    Optional<Value *> &Elt = AggElts[Indices.front()];
+    Optional<Instruction *> &Elt = AggElts[Indices.front()];
     Elt = Elt.getValueOr(InsertedValue);
 
     // FIXME: should we handle chain-terminating undef base operand?
@@ -870,15 +884,15 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
   // If found, return the source aggregate from which the extraction was.
   // If \p PredBB is provided, does PHI translation of an \p Elt first.
   auto FindSourceAggregate =
-      [&](Value *Elt, unsigned EltIdx, Optional<BasicBlock *> UseBB,
+      [&](Instruction *Elt, unsigned EltIdx, Optional<BasicBlock *> UseBB,
           Optional<BasicBlock *> PredBB) -> Optional<Value *> {
     // For now(?), only deal with, at most, a single level of PHI indirection.
     if (UseBB && PredBB)
-      Elt = Elt->DoPHITranslation(*UseBB, *PredBB);
+      Elt = dyn_cast<Instruction>(Elt->DoPHITranslation(*UseBB, *PredBB));
     // FIXME: deal with multiple levels of PHI indirection?
 
     // Did we find an extraction?
-    auto *EVI = dyn_cast<ExtractValueInst>(Elt);
+    auto *EVI = dyn_cast_or_null<ExtractValueInst>(Elt);
     if (!EVI)
       return NotFound;
 
@@ -966,13 +980,8 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
   // they all should be defined in the same basic block.
   BasicBlock *UseBB = nullptr;
 
-  for (const Optional<Value *> &Elt : AggElts) {
-    // If this element's value was not defined by an instruction, ignore it.
-    auto *I = dyn_cast<Instruction>(*Elt);
-    if (!I)
-      continue;
-    // Otherwise, in which basic block is this instruction located?
-    BasicBlock *BB = I->getParent();
+  for (const Optional<Instruction *> &I : AggElts) {
+    BasicBlock *BB = (*I)->getParent();
     // If it's the first instruction we've encountered, record the basic block.
     if (!UseBB) {
       UseBB = BB;

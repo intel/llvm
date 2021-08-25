@@ -2113,8 +2113,9 @@ FunctionDecl *Sema::CreateBuiltin(IdentifierInfo *II, QualType Type,
   }
 
   FunctionDecl *New = FunctionDecl::Create(Context, Parent, Loc, Loc, II, Type,
-                                           /*TInfo=*/nullptr, SC_Extern, false,
-                                           Type->isFunctionProtoType());
+                                           /*TInfo=*/nullptr, SC_Extern,
+                                           getCurFPFeatures().isFPConstrained(),
+                                           false, Type->isFunctionProtoType());
   New->setImplicit();
   New->addAttr(BuiltinAttr::CreateImplicit(Context, ID));
 
@@ -2699,6 +2700,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeWorkGroupSizeHintAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(Attr))
     NewAttr = S.MergeSYCLIntelMaxGlobalWorkDimAttr(D, *A);
+  else if (const auto *BTFA = dyn_cast<BTFTagAttr>(Attr))
+    NewAttr = S.mergeBTFTagAttr(D, *BTFA);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
@@ -3403,14 +3406,13 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
 
     checkDimensionsAndSetDiagnostics<SYCLIntelMaxWorkGroupSizeAttr>(*this, New,
                                                                     Old);
-
-  if (New->hasAttr<InternalLinkageAttr>() &&
-      !Old->hasAttr<InternalLinkageAttr>()) {
-    Diag(New->getLocation(), diag::err_internal_linkage_redeclaration)
-        << New->getDeclName();
-    notePreviousDefinition(Old, New->getLocation());
-    New->dropAttr<InternalLinkageAttr>();
-  }
+  if (const auto *ILA = New->getAttr<InternalLinkageAttr>())
+    if (!Old->hasAttr<InternalLinkageAttr>()) {
+      Diag(New->getLocation(), diag::err_attribute_missing_on_first_decl)
+          << ILA;
+      Diag(Old->getLocation(), diag::note_previous_declaration);
+      New->dropAttr<InternalLinkageAttr>();
+    }
 
   if (CheckRedeclarationModuleOwnership(New, Old))
     return true;
@@ -3729,12 +3731,12 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
     //   The first declaration of a function shall specify the noreturn
     //   attribute if any declaration of that function specifies the noreturn
     //   attribute.
-    const CXX11NoReturnAttr *NRA = New->getAttr<CXX11NoReturnAttr>();
-    if (NRA && !Old->hasAttr<CXX11NoReturnAttr>()) {
-      Diag(NRA->getLocation(), diag::err_noreturn_missing_on_first_decl);
-      Diag(Old->getFirstDecl()->getLocation(),
-           diag::note_noreturn_missing_first_decl);
-    }
+    if (const auto *NRA = New->getAttr<CXX11NoReturnAttr>())
+      if (!Old->hasAttr<CXX11NoReturnAttr>()) {
+        Diag(NRA->getLocation(), diag::err_attribute_missing_on_first_decl)
+            << NRA;
+        Diag(Old->getLocation(), diag::note_previous_declaration);
+      }
 
     // C++11 [dcl.attr.depend]p2:
     //   The first declaration of a function shall specify the
@@ -4212,18 +4214,18 @@ void Sema::MergeVarDecl(VarDecl *New, LookupResult &Previous) {
       Old->getStorageClass() == SC_None &&
       !Old->hasAttr<WeakImportAttr>()) {
     Diag(New->getLocation(), diag::warn_weak_import) << New->getDeclName();
-    notePreviousDefinition(Old, New->getLocation());
+    Diag(Old->getLocation(), diag::note_previous_declaration);
     // Remove weak_import attribute on new declaration.
     New->dropAttr<WeakImportAttr>();
   }
 
-  if (New->hasAttr<InternalLinkageAttr>() &&
-      !Old->hasAttr<InternalLinkageAttr>()) {
-    Diag(New->getLocation(), diag::err_internal_linkage_redeclaration)
-        << New->getDeclName();
-    notePreviousDefinition(Old, New->getLocation());
-    New->dropAttr<InternalLinkageAttr>();
-  }
+  if (const auto *ILA = New->getAttr<InternalLinkageAttr>())
+    if (!Old->hasAttr<InternalLinkageAttr>()) {
+      Diag(New->getLocation(), diag::err_attribute_missing_on_first_decl)
+          << ILA;
+      Diag(Old->getLocation(), diag::note_previous_declaration);
+      New->dropAttr<InternalLinkageAttr>();
+    }
 
   // Merge the types.
   VarDecl *MostRecent = Old->getMostRecentDecl();
@@ -6476,7 +6478,11 @@ void Sema::deduceOpenCLAddressSpace(ValueDecl *Decl) {
     if (Type->isSamplerT() || Type->isVoidType())
       return;
     LangAS ImplAS = LangAS::opencl_private;
-    if ((getLangOpts().OpenCLCPlusPlus || getLangOpts().OpenCLVersion >= 200) &&
+    // OpenCL C v3.0 s6.7.8 - For OpenCL C 2.0 or with the
+    // __opencl_c_program_scope_global_variables feature, the address space
+    // for a variable at program scope or a static or extern variable inside
+    // a function are inferred to be __global.
+    if (getOpenCLOptions().areProgramScopeVariablesSupported(getLangOpts()) &&
         Var->hasGlobalStorage())
       ImplAS = LangAS::opencl_global;
     // If the original type from a decayed type is an array type and that array
@@ -7381,10 +7387,9 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
     DeclSpec::TSCS TSC = D.getDeclSpec().getThreadStorageClassSpec();
     if (TSC != TSCS_unspecified) {
-      bool IsCXX = getLangOpts().OpenCLCPlusPlus;
       Diag(D.getDeclSpec().getThreadStorageClassSpecLoc(),
            diag::err_opencl_unknown_type_specifier)
-          << IsCXX << getLangOpts().getOpenCLVersionTuple().getAsString()
+          << getLangOpts().getOpenCLVersionString()
           << DeclSpec::getSpecifierName(TSC) << 1;
       NewVD->setInvalidDecl();
     }
@@ -8077,23 +8082,16 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
       }
     }
 
-    // OpenCL C v1.2 s6.5 - All program scope variables must be declared in the
-    // __constant address space.
-    // OpenCL C v2.0 s6.5.1 - Variables defined at program scope and static
-    // variables inside a function can also be declared in the global
-    // address space.
-    // C++ for OpenCL inherits rule from OpenCL C v2.0.
     // FIXME: Adding local AS in C++ for OpenCL might make sense.
     if (NewVD->isFileVarDecl() || NewVD->isStaticLocal() ||
         NewVD->hasExternalStorage()) {
-      if (!T->isSamplerT() &&
-          !T->isDependentType() &&
+      if (!T->isSamplerT() && !T->isDependentType() &&
           !(T.getAddressSpace() == LangAS::opencl_constant ||
             (T.getAddressSpace() == LangAS::opencl_global &&
-             (getLangOpts().OpenCLVersion == 200 ||
-              getLangOpts().OpenCLCPlusPlus)))) {
+             getOpenCLOptions().areProgramScopeVariablesSupported(
+                 getLangOpts())))) {
         int Scope = NewVD->isStaticLocal() | NewVD->hasExternalStorage() << 1;
-        if (getLangOpts().OpenCLVersion == 200 || getLangOpts().OpenCLCPlusPlus)
+        if (getOpenCLOptions().areProgramScopeVariablesSupported(getLangOpts()))
           Diag(NewVD->getLocation(), diag::err_opencl_global_invalid_addr_space)
               << Scope << "global or constant";
         else
@@ -8614,10 +8612,11 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
       (D.isFunctionDeclarator() && D.getFunctionTypeInfo().hasPrototype) ||
       (!R->getAsAdjusted<FunctionType>() && R->isFunctionProtoType());
 
-    NewFD = FunctionDecl::Create(SemaRef.Context, DC, D.getBeginLoc(), NameInfo,
-                                 R, TInfo, SC, isInline, HasPrototype,
-                                 ConstexprSpecKind::Unspecified,
-                                 /*TrailingRequiresClause=*/nullptr);
+    NewFD = FunctionDecl::Create(
+        SemaRef.Context, DC, D.getBeginLoc(), NameInfo, R, TInfo, SC,
+        SemaRef.getCurFPFeatures().isFPConstrained(), isInline, HasPrototype,
+        ConstexprSpecKind::Unspecified,
+        /*TrailingRequiresClause=*/nullptr);
     if (D.isInvalidType())
       NewFD->setInvalidDecl();
 
@@ -8653,9 +8652,9 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
     R = SemaRef.CheckConstructorDeclarator(D, R, SC);
     return CXXConstructorDecl::Create(
         SemaRef.Context, cast<CXXRecordDecl>(DC), D.getBeginLoc(), NameInfo, R,
-        TInfo, ExplicitSpecifier, isInline,
-        /*isImplicitlyDeclared=*/false, ConstexprKind, InheritedConstructor(),
-        TrailingRequiresClause);
+        TInfo, ExplicitSpecifier, SemaRef.getCurFPFeatures().isFPConstrained(),
+        isInline, /*isImplicitlyDeclared=*/false, ConstexprKind,
+        InheritedConstructor(), TrailingRequiresClause);
 
   } else if (Name.getNameKind() == DeclarationName::CXXDestructorName) {
     // This is a C++ destructor declaration.
@@ -8664,7 +8663,8 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
       CXXRecordDecl *Record = cast<CXXRecordDecl>(DC);
       CXXDestructorDecl *NewDD = CXXDestructorDecl::Create(
           SemaRef.Context, Record, D.getBeginLoc(), NameInfo, R, TInfo,
-          isInline, /*isImplicitlyDeclared=*/false, ConstexprKind,
+          SemaRef.getCurFPFeatures().isFPConstrained(), isInline,
+          /*isImplicitlyDeclared=*/false, ConstexprKind,
           TrailingRequiresClause);
 
       // If the destructor needs an implicit exception specification, set it
@@ -8682,11 +8682,10 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
 
       // Create a FunctionDecl to satisfy the function definition parsing
       // code path.
-      return FunctionDecl::Create(SemaRef.Context, DC, D.getBeginLoc(),
-                                  D.getIdentifierLoc(), Name, R, TInfo, SC,
-                                  isInline,
-                                  /*hasPrototype=*/true, ConstexprKind,
-                                  TrailingRequiresClause);
+      return FunctionDecl::Create(
+          SemaRef.Context, DC, D.getBeginLoc(), D.getIdentifierLoc(), Name, R,
+          TInfo, SC, SemaRef.getCurFPFeatures().isFPConstrained(), isInline,
+          /*hasPrototype=*/true, ConstexprKind, TrailingRequiresClause);
     }
 
   } else if (Name.getNameKind() == DeclarationName::CXXConversionFunctionName) {
@@ -8703,7 +8702,8 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
     IsVirtualOkay = true;
     return CXXConversionDecl::Create(
         SemaRef.Context, cast<CXXRecordDecl>(DC), D.getBeginLoc(), NameInfo, R,
-        TInfo, isInline, ExplicitSpecifier, ConstexprKind, SourceLocation(),
+        TInfo, SemaRef.getCurFPFeatures().isFPConstrained(), isInline,
+        ExplicitSpecifier, ConstexprKind, SourceLocation(),
         TrailingRequiresClause);
 
   } else if (Name.getNameKind() == DeclarationName::CXXDeductionGuideName) {
@@ -8732,8 +8732,8 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
     // This is a C++ method declaration.
     CXXMethodDecl *Ret = CXXMethodDecl::Create(
         SemaRef.Context, cast<CXXRecordDecl>(DC), D.getBeginLoc(), NameInfo, R,
-        TInfo, SC, isInline, ConstexprKind, SourceLocation(),
-        TrailingRequiresClause);
+        TInfo, SC, SemaRef.getCurFPFeatures().isFPConstrained(), isInline,
+        ConstexprKind, SourceLocation(), TrailingRequiresClause);
     IsVirtualOkay = !Ret->isStatic();
     return Ret;
   } else {
@@ -8745,9 +8745,10 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
     // Determine whether the function was written with a
     // prototype. This true when:
     //   - we're in C++ (where every function has a prototype),
-    return FunctionDecl::Create(SemaRef.Context, DC, D.getBeginLoc(), NameInfo,
-                                R, TInfo, SC, isInline, true /*HasPrototype*/,
-                                ConstexprKind, TrailingRequiresClause);
+    return FunctionDecl::Create(
+        SemaRef.Context, DC, D.getBeginLoc(), NameInfo, R, TInfo, SC,
+        SemaRef.getCurFPFeatures().isFPConstrained(), isInline,
+        true /*HasPrototype*/, ConstexprKind, TrailingRequiresClause);
   }
 }
 
@@ -8881,7 +8882,7 @@ static void checkIsValidOpenCLKernelParameter(
     // OpenCL v3.0 s6.11.a:
     // A kernel function argument cannot be declared as a pointer to a pointer
     // type. [...] This restriction only applies to OpenCL C 1.2 or below.
-    if (S.getLangOpts().OpenCLVersion < 120 &&
+    if (S.getLangOpts().OpenCLVersion <= 120 &&
         !S.getLangOpts().OpenCLCPlusPlus) {
       S.Diag(Param->getLocation(), diag::err_opencl_ptrptr_kernel_param);
       D.setInvalidType();
@@ -13380,16 +13381,6 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
     CheckCompleteDecompositionDeclaration(DD);
 }
 
-/// Determines if a variable's alignment is dependent.
-static bool hasDependentAlignment(VarDecl *VD) {
-  if (VD->getType()->isDependentType())
-    return true;
-  for (auto *I : VD->specific_attrs<AlignedAttr>())
-    if (I->isAlignmentDependent())
-      return true;
-  return false;
-}
-
 /// Check if VD needs to be dllexport/dllimport due to being in a
 /// dllexport/import function.
 void Sema::CheckStaticLocalForDllExport(VarDecl *VD) {
@@ -13478,8 +13469,7 @@ void Sema::FinalizeDeclaration(Decl *ThisDecl) {
   if (unsigned MaxAlign = Context.getTargetInfo().getMaxTLSAlign()) {
     // Protect the check so that it's not performed on dependent types and
     // dependent alignments (we can't determine the alignment in that case).
-    if (VD->getTLSKind() && !hasDependentAlignment(VD) &&
-        !VD->isInvalidDecl()) {
+    if (VD->getTLSKind() && !VD->hasDependentAlignment()) {
       CharUnits MaxAlignChars = Context.toCharUnitsFromBits(MaxAlign);
       if (Context.getDeclAlign(VD) > MaxAlignChars) {
         Diag(VD->getLocation(), diag::err_tls_var_aligned_over_maximum)
@@ -16766,14 +16756,9 @@ ExprResult Sema::VerifyBitField(SourceLocation FieldLoc,
     if (CStdConstraintViolation || MSBitfieldViolation) {
       unsigned DiagWidth =
           CStdConstraintViolation ? TypeWidth : TypeStorageSize;
-      if (FieldName)
-        return Diag(FieldLoc, diag::err_bitfield_width_exceeds_type_width)
-               << FieldName << toString(Value, 10)
-               << !CStdConstraintViolation << DiagWidth;
-
-      return Diag(FieldLoc, diag::err_anon_bitfield_width_exceeds_type_width)
-             << toString(Value, 10) << !CStdConstraintViolation
-             << DiagWidth;
+      return Diag(FieldLoc, diag::err_bitfield_width_exceeds_type_width)
+             << (bool)FieldName << FieldName << toString(Value, 10)
+             << !CStdConstraintViolation << DiagWidth;
     }
 
     // Warn on types where the user might conceivably expect to get all

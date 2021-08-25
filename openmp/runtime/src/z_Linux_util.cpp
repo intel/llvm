@@ -25,7 +25,9 @@
 #include <alloca.h>
 #endif
 #include <math.h> // HUGE_VAL.
+#if KMP_OS_LINUX
 #include <semaphore.h>
+#endif // KMP_OS_LINUX
 #include <sys/resource.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
@@ -63,8 +65,6 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <fcntl.h>
-
-#include "tsan_annotations.h"
 
 struct kmp_sys_timer {
   struct timespec start;
@@ -1051,6 +1051,8 @@ void __kmp_reap_worker(kmp_info_t *th) {
                   "exit_val = %p\n",
                   th->th.th_info.ds.ds_gtid, exit_val));
   }
+#else
+  (void)status; // unused variable
 #endif /* KMP_DEBUG */
 
   KA_TRACE(10, ("__kmp_reap_worker: done reaping T#%d\n",
@@ -1326,7 +1328,6 @@ void __kmp_suspend_initialize(void) {
 }
 
 void __kmp_suspend_initialize_thread(kmp_info_t *th) {
-  ANNOTATE_HAPPENS_AFTER(&th->th.th_suspend_init_count);
   int old_value = KMP_ATOMIC_LD_RLX(&th->th.th_suspend_init_count);
   int new_value = __kmp_fork_count + 1;
   // Return if already initialized
@@ -1348,7 +1349,6 @@ void __kmp_suspend_initialize_thread(kmp_info_t *th) {
                                 &__kmp_suspend_mutex_attr);
     KMP_CHECK_SYSFAIL("pthread_mutex_init", status);
     KMP_ATOMIC_ST_REL(&th->th.th_suspend_init_count, new_value);
-    ANNOTATE_HAPPENS_BEFORE(&th->th.th_suspend_init_count);
   }
 }
 
@@ -2526,6 +2526,7 @@ int __kmp_invoke_microtask(microtask_t pkfn, int gtid, int tid, int argc,
 
 #endif
 
+#if KMP_OS_LINUX
 // Functions for hidden helper task
 namespace {
 // Condition variable for initializing hidden helper team
@@ -2686,5 +2687,42 @@ void __kmp_hidden_helper_threads_deinitz_release() {
   status = pthread_mutex_unlock(&hidden_helper_threads_deinitz_lock);
   KMP_CHECK_SYSFAIL("pthread_mutex_unlock", status);
 }
+#else // KMP_OS_LINUX
+void __kmp_hidden_helper_worker_thread_wait() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on this OS");
+}
+
+void __kmp_do_initialize_hidden_helper_threads() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on this OS");
+}
+
+void __kmp_hidden_helper_threads_initz_wait() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on this OS");
+}
+
+void __kmp_hidden_helper_initz_release() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on this OS");
+}
+
+void __kmp_hidden_helper_main_thread_wait() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on this OS");
+}
+
+void __kmp_hidden_helper_main_thread_release() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on this OS");
+}
+
+void __kmp_hidden_helper_worker_thread_signal() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on this OS");
+}
+
+void __kmp_hidden_helper_threads_deinitz_wait() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on this OS");
+}
+
+void __kmp_hidden_helper_threads_deinitz_release() {
+  KMP_ASSERT(0 && "Hidden helper task is not supported on this OS");
+}
+#endif // KMP_OS_LINUX
 
 // end of file //

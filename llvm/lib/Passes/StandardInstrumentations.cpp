@@ -647,13 +647,12 @@ void ChangedIRComparer::compare(Any IR, StringRef Prefix, StringRef PassID,
 
   ChangedIRData::report(
       Before, After, [&](const ChangedFuncData *B, const ChangedFuncData *A) {
+        assert((B || A) && "Both functions cannot be missing.");
         ChangedFuncData Missing;
         if (!B)
           B = &Missing;
         else if (!A)
           A = &Missing;
-        assert(B != &Missing && A != &Missing &&
-               "Both functions cannot be missing.");
         handleFunctionCompare(Name, Prefix, PassID, true, *B, *A);
       });
 }
@@ -709,7 +708,6 @@ PrintIRInstrumentation::~PrintIRInstrumentation() {
 }
 
 void PrintIRInstrumentation::pushModuleDesc(StringRef PassID, Any IR) {
-  assert(StoreModuleDesc);
   const Module *M = unwrapModule(IR);
   ModuleDescStack.emplace_back(M, getIRName(IR), PassID);
 }
@@ -730,7 +728,7 @@ void PrintIRInstrumentation::printBeforePass(StringRef PassID, Any IR) {
   // Note: here we rely on a fact that we do not change modules while
   // traversing the pipeline, so the latest captured module is good
   // for all print operations that has not happen yet.
-  if (StoreModuleDesc && shouldPrintAfterPass(PassID))
+  if (shouldPrintAfterPass(PassID))
     pushModuleDesc(PassID, IR);
 
   if (!shouldPrintBeforePass(PassID))
@@ -751,25 +749,22 @@ void PrintIRInstrumentation::printAfterPass(StringRef PassID, Any IR) {
   if (!shouldPrintAfterPass(PassID))
     return;
 
-  if (StoreModuleDesc) {
-    const Module *M;
-    std::string IRName;
-    StringRef StoredPassID;
-    std::tie(M, IRName, StoredPassID) = popModuleDesc(PassID);
-    assert(StoredPassID == PassID && "mismatched PassID");
-  }
+  const Module *M;
+  std::string IRName;
+  StringRef StoredPassID;
+  std::tie(M, IRName, StoredPassID) = popModuleDesc(PassID);
+  assert(StoredPassID == PassID && "mismatched PassID");
 
   if (!shouldPrintIR(IR))
     return;
 
-  dbgs() << "*** IR Dump After " << PassID << " on " << getIRName(IR)
-         << " ***\n";
+  dbgs() << "*** IR Dump After " << PassID << " on " << IRName << " ***\n";
   unwrapAndPrint(dbgs(), IR);
 }
 
 void PrintIRInstrumentation::printAfterPassInvalidated(StringRef PassID) {
   StringRef PassName = PIC->getPassNameForClassName(PassID);
-  if (!StoreModuleDesc || !shouldPrintAfterPass(PassName))
+  if (!shouldPrintAfterPass(PassName))
     return;
 
   if (isIgnored(PassID))
@@ -813,8 +808,7 @@ void PrintIRInstrumentation::registerCallbacks(
 
   // BeforePass callback is not just for printing, it also saves a Module
   // for later use in AfterPassInvalidated.
-  StoreModuleDesc = forcePrintModuleIR() && shouldPrintAfterSomePass();
-  if (shouldPrintBeforeSomePass() || StoreModuleDesc)
+  if (shouldPrintBeforeSomePass() || shouldPrintAfterSomePass())
     PIC.registerBeforeNonSkippedPassCallback(
         [this](StringRef P, Any IR) { this->printBeforePass(P, IR); });
 

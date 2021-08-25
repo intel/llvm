@@ -31,9 +31,9 @@
 // CHECK-EMPTY:
 // CHECK-NEXT: };
 
-// CHECK: template <> struct KernelInfo<class kernel_B> {
-// CHECK: template <> struct KernelInfo<class kernel_C> {
-// CHECK: template <> struct KernelInfo<class kernel_D> {
+// CHECK: template <> struct KernelInfo<kernel_B> {
+// CHECK: template <> struct KernelInfo<kernel_C> {
+// CHECK: template <> struct KernelInfo<kernel_D> {
 
 #include "Inputs/sycl.hpp"
 

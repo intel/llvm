@@ -817,7 +817,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
 // TODO: Non-standard intrinsic functions
 //  AND, OR, XOR, LSHIFT, RSHIFT, SHIFT, ZEXT, IZEXT,
 //  COMPL, EQV, NEQV, INT8, JINT, JNINT, KNINT,
-//  QCMPLX, DFLOAT, QEXT, QFLOAT, QREAL, DNUM,
+//  QCMPLX, QEXT, QFLOAT, QREAL, DNUM,
 //  INUM, JNUM, KNUM, QNUM, RNUM, RAN, RANF, ILEN,
 //  MCLOCK, SECNDS, COTAN, IBCHNG, ISHA, ISHC, ISHL, IXOR
 //  IARG, IARGC, NARGS, NUMARG, BADDRESS, IADDR, CACHESIZE,
@@ -924,6 +924,7 @@ static const SpecificIntrinsicInterface specificIntrinsicFunction[]{
              {"y", AnyIntOrReal, Rank::elementalOrBOZ, Optionality::optional}},
          DoublePrecisionComplex},
         "cmplx", true},
+    {{"dfloat", {{"i", AnyInt}}, DoublePrecision}, "real", true},
     {{"dreal", {{"a", AnyComplex}}, DoublePrecision}, "real", true},
     {{"dconjg", {{"a", DoublePrecisionComplex}}, DoublePrecisionComplex},
         "conjg"},
@@ -1247,7 +1248,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     if (!type) {
       CHECK(arg->Rank() == 0);
       const Expr<SomeType> &expr{DEREF(arg->UnwrapExpr())};
-      if (std::holds_alternative<BOZLiteralConstant>(expr.u)) {
+      if (IsBOZLiteral(expr)) {
         if (d.typePattern.kindCode == KindCode::typeless ||
             d.rank == Rank::elementalOrBOZ) {
           continue;
@@ -1355,6 +1356,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
 
   // Check the ranks of the arguments against the intrinsic's interface.
   const ActualArgument *arrayArg{nullptr};
+  const char *arrayArgName{nullptr};
   const ActualArgument *knownArg{nullptr};
   std::optional<int> shapeArgSize;
   int elementalRank{0};
@@ -1411,6 +1413,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
         argOk = rank > 0;
         if (!arrayArg) {
           arrayArg = arg;
+          arrayArgName = d.keyword;
         } else {
           argOk &= rank == arrayArg->Rank();
         }
@@ -1424,9 +1427,22 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       case Rank::anyOrAssumedRank:
         argOk = true;
         break;
-      case Rank::conformable:
+      case Rank::conformable: // arg must be conformable with previous arrayArg
         CHECK(arrayArg);
-        argOk = rank == 0 || rank == arrayArg->Rank();
+        CHECK(arrayArgName);
+        if (const std::optional<Shape> &arrayArgShape{
+                GetShape(context, *arrayArg)}) {
+          if (const std::optional<Shape> &argShape{GetShape(context, *arg)}) {
+            std::string arrayArgMsg{"'"};
+            arrayArgMsg = arrayArgMsg + arrayArgName + "='" + " argument";
+            std::string argMsg{"'"};
+            argMsg = argMsg + d.keyword + "='" + " argument";
+            CheckConformance(context.messages(), *arrayArgShape, *argShape,
+                CheckConformanceFlags::RightScalarExpandable,
+                arrayArgMsg.c_str(), argMsg.c_str());
+          }
+        }
+        argOk = true; // Avoid an additional error message
         break;
       case Rank::dimReduced:
       case Rank::dimRemovedOrScalar:

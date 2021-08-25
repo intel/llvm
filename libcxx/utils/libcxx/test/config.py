@@ -232,11 +232,6 @@ class Configuration(object):
                 self.libcxx_obj_root = self.project_obj_root
 
     def configure_features(self):
-        additional_features = self.get_lit_conf('additional_features')
-        if additional_features:
-            for f in additional_features.split(','):
-                self.config.available_features.add(f.strip())
-
         if self.target_info.is_windows():
             if self.cxx_stdlib_under_test == 'libc++':
                 # LIBCXX-WINDOWS-FIXME is the feature name used to XFAIL the
@@ -272,10 +267,6 @@ class Configuration(object):
         self.configure_compile_flags_header_includes()
         self.target_info.add_cxx_compile_flags(self.cxx.compile_flags)
         self.target_info.add_cxx_flags(self.cxx.flags)
-        # Configure feature flags.
-        enable_32bit = self.get_lit_bool('enable_32bit', False)
-        if enable_32bit:
-            self.cxx.flags += ['-m32']
         # Use verbose output for better errors
         self.cxx.flags += ['-v']
         sysroot = self.get_lit_conf('sysroot')
@@ -294,12 +285,6 @@ class Configuration(object):
         # Add includes for support headers used in the tests.
         support_path = os.path.join(self.libcxx_src_root, 'test/support')
         self.cxx.compile_flags += ['-I' + support_path]
-
-        # On GCC, the libc++ headers cause errors due to throw() decorators
-        # on operator new clashing with those from the test suite, so we
-        # don't enable warnings in system headers on GCC.
-        if self.cxx.type != 'gcc':
-            self.cxx.compile_flags += ['-D_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER']
 
         # Add includes for the PSTL headers
         pstl_src_root = self.get_lit_conf('pstl_src_root')

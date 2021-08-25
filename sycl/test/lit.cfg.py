@@ -35,7 +35,7 @@ config.test_source_root = os.path.dirname(__file__)
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.sycl_obj_root, 'test')
 
-llvm_config.use_clang()
+llvm_config.use_clang(additional_flags=config.sycl_clang_extra_flags.split(' '))
 
 # Propagate some variables from the host environment.
 llvm_config.with_system_environment(['PATH', 'OCL_ICD_FILENAMES', 'SYCL_DEVICE_ALLOWLIST', 'SYCL_CONFIG_FILE_NAME'])
@@ -62,8 +62,6 @@ if platform.system() == "Linux":
         config.available_features.add('libcxx')
     llvm_config.with_system_environment('LD_LIBRARY_PATH')
     llvm_config.with_environment('LD_LIBRARY_PATH', config.sycl_libs_dir, append_path=True)
-    llvm_config.with_system_environment('CFLAGS')
-    llvm_config.with_environment('CFLAGS', config.sycl_clang_extra_flags)
 
 elif platform.system() == "Windows":
     config.available_features.add('windows')
@@ -104,6 +102,15 @@ config.substitutions.append( ('%sycl_triple',  triple ) )
 
 if triple == 'nvptx64-nvidia-cuda-sycldevice':
     config.available_features.add('cuda')
+
+if triple == 'amdgcn-amd-amdhsa-sycldevice':
+    config.available_features.add('rocm_amd')
+    # For AMD the specific GPU has to be specified with --offload-arch
+    if not re.match('.*--offload-arch.*', config.sycl_clang_extra_flags):
+        raise Exception("Error: missing --offload-arch flag when trying to "  \
+                        "run lit tests for AMD GPU, please add "              \
+                        "`-Xsycl-target-backend=amdgcn-amd-amdhsa-sycldevice --offload-arch=<target>` to " \
+                        "the CMake variable SYCL_CLANG_EXTRA_FLAGS")
 
 # Set timeout for test = 10 mins
 try:

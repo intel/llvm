@@ -8,10 +8,10 @@
 
 #include "Hexagon.h"
 #include "CommonArgs.h"
-#include "InputInfo.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Option/ArgList.h"
@@ -588,21 +588,43 @@ void HexagonToolChain::addClangTargetOptions(const ArgList &DriverArgs,
 
 void HexagonToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                                  ArgStringList &CC1Args) const {
-  if (DriverArgs.hasArg(options::OPT_nostdinc) ||
-      DriverArgs.hasArg(options::OPT_nostdlibinc))
+  if (DriverArgs.hasArg(options::OPT_nostdinc))
     return;
 
+  const bool IsELF = !getTriple().isMusl() && !getTriple().isOSLinux();
+  const bool IsLinuxMusl = getTriple().isMusl() && getTriple().isOSLinux();
+
   const Driver &D = getDriver();
-  if (!D.SysRoot.empty()) {
+  SmallString<128> ResourceDirInclude(D.ResourceDir);
+  if (!IsELF) {
+    llvm::sys::path::append(ResourceDirInclude, "include");
+    if (!DriverArgs.hasArg(options::OPT_nobuiltininc) &&
+        (!IsLinuxMusl || DriverArgs.hasArg(options::OPT_nostdlibinc)))
+      addSystemInclude(DriverArgs, CC1Args, ResourceDirInclude);
+  }
+  if (DriverArgs.hasArg(options::OPT_nostdlibinc))
+    return;
+
+  const bool HasSysRoot = !D.SysRoot.empty();
+  if (HasSysRoot) {
     SmallString<128> P(D.SysRoot);
-    if (getTriple().isMusl())
+    if (IsLinuxMusl)
       llvm::sys::path::append(P, "usr/include");
     else
       llvm::sys::path::append(P, "include");
+
     addExternCSystemInclude(DriverArgs, CC1Args, P.str());
-    return;
+    // LOCAL_INCLUDE_DIR
+    addSystemInclude(DriverArgs, CC1Args, P + "/usr/local/include");
+    // TOOL_INCLUDE_DIR
+    AddMultilibIncludeArgs(DriverArgs, CC1Args);
   }
 
+  if (!DriverArgs.hasArg(options::OPT_nobuiltininc) && IsLinuxMusl)
+    addSystemInclude(DriverArgs, CC1Args, ResourceDirInclude);
+
+  if (HasSysRoot)
+    return;
   std::string TargetDir = getHexagonTargetDir(D.getInstalledDir(),
                                               D.PrefixDirs);
   addExternCSystemInclude(DriverArgs, CC1Args, TargetDir + "/hexagon/include");

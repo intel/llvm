@@ -191,7 +191,6 @@ getKindForOp(Operation *reductionOp) {
 static Value reduceIfNeeded(OpBuilder &b, VectorType targetVectorType,
                             Value value, OpOperand *outputOperand) {
   auto linalgOp = cast<LinalgOp>(outputOperand->getOwner());
-  assert(targetVectorType.getShape() == linalgOp.getShape(outputOperand));
   auto vecType = value.getType().dyn_cast<VectorType>();
   if (!vecType || vecType.getShape() == targetVectorType.getShape())
     return value;
@@ -245,6 +244,9 @@ static Value buildVectorWrite(OpBuilder &b, Value value,
     auto linalgOp = cast<LinalgOp>(outputOperand->getOwner());
     AffineMap map =
         reindexIndexingMap(linalgOp.getTiedIndexingMap(outputOperand));
+    SmallVector<int64_t> transposeShape =
+        applyPermutationMap(inversePermutation(map), vectorType.getShape());
+    vectorType = VectorType::get(transposeShape, vectorType.getElementType());
     SmallVector<Value> indices(linalgOp.getRank(outputOperand),
                                b.create<ConstantIndexOp>(loc, 0));
     value = broadcastIfNeeded(b, value, vectorType.getShape());
@@ -569,9 +571,16 @@ static LogicalResult vectorizeContraction(OpBuilder &b, LinalgOp linalgOp,
       return VectorizationResult{VectorizationStatus::Failure, nullptr};
     ArrayRef<int64_t> outShape =
         linalgOp.getShape(linalgOp.getOutputOperand(0));
-    auto vType = outShape.empty()
-                     ? op->getResult(0).getType()
-                     : VectorType::get(outShape, op->getResult(0).getType());
+    Type vType;
+    if (outShape.empty()) {
+      vType = op->getResult(0).getType();
+    } else {
+      SmallVector<int64_t> resultShape = applyPermutationMap(
+          inversePermutation(reindexIndexingMap(
+              linalgOp.getTiedIndexingMap(linalgOp.getOutputOperand(0)))),
+          outShape);
+      vType = VectorType::get(resultShape, op->getResult(0).getType());
+    }
     auto zero = b.create<ConstantOp>(loc, vType, b.getZeroAttr(vType));
     // Indexing maps at the time of vector.transfer_read are adjusted to order
     // vector dimensions in the same order as the canonical linalg op iteration
@@ -682,104 +691,15 @@ static SmallVector<Value> ofrToIndexValues(OpBuilder &builder, Location loc,
 /// If there is enough static type information, TransferReadOps and
 /// TransferWriteOps may be generated instead of InsertSliceOps.
 struct GenericPadTensorOpVectorizationPattern
-    : public OpRewritePattern<PadTensorOp> {
-  using OpRewritePattern<PadTensorOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(PadTensorOp padOp,
-                                PatternRewriter &rewriter) const final {
-    // Given an OpFoldResult, return an index-typed value.
-    auto getIdxValue = [&](OpFoldResult ofr) {
-      if (auto val = ofr.dyn_cast<Value>())
-        return val;
-      return rewriter.create<ConstantIndexOp>(
-          padOp.getLoc(), getIntFromAttr(ofr.get<Attribute>())).getResult();
-    };
-
-    auto resultType = padOp.getResultType();
-    // Compute size of InitTensorOp. Any combination of static/dynamic is
-    // supported.
-    SmallVector<Value> dynSizes;
-    SmallVector<int64_t> staticSizes;
-    for (unsigned dim = 0; dim < resultType.getRank(); ++dim) {
-      if (resultType.isDynamicDim(dim)) {
-        auto srcSize = rewriter.createOrFold<memref::DimOp>(
-            padOp.getLoc(), padOp.source(), dim);
-        // Add low and high padding value.
-        auto plusLow = rewriter.createOrFold<AddIOp>(
-            padOp.getLoc(), srcSize, getIdxValue(padOp.getMixedLowPad()[dim]));
-        auto plusHigh = rewriter.createOrFold<AddIOp>(
-            padOp.getLoc(), plusLow, getIdxValue(padOp.getMixedHighPad()[dim]));
-        dynSizes.push_back(plusHigh);
-      }
-      staticSizes.push_back(resultType.getDimSize(dim));
-    }
-
-    // Init tensor and fill it with padding.
-    Value init = rewriter.create<InitTensorOp>(
-        padOp.getLoc(), dynSizes, staticSizes, resultType.getElementType());
-    Value fill = tryVectorizeFill(rewriter, padOp, init, dynSizes);
-
-    // Try vectorizing the copy of source.
-    if (tryVectorizeCopy(rewriter, padOp, fill).succeeded())
-      return success();
-
-    // Neither source type nor PadTensorOp result type have static shape. Such
-    // PadTensorOps cannot be vectorized. Generate a InsertSliceOp instead
-    // for copying the PadOp source.
-
-    auto sourceType = padOp.getSourceType();
-    // Compute size of source of PadTensorOp.
-    SmallVector<OpFoldResult> srcSizes;
-    for (unsigned dim = 0; dim < sourceType.getRank(); ++dim) {
-      if (sourceType.isDynamicDim(dim)) {
-        srcSizes.push_back(rewriter.createOrFold<memref::DimOp>(
-            padOp.getLoc(), padOp.source(), dim));
-      } else {
-        srcSizes.push_back(rewriter.getIndexAttr(sourceType.getDimSize(dim)));
-      }
-    }
-    // Strides of InsertSliceOp are all 1.
-    SmallVector<OpFoldResult> strides(sourceType.getRank(),
-                                      rewriter.getIndexAttr(1));
-    rewriter.replaceOpWithNewOp<tensor::InsertSliceOp>(
-        padOp, padOp.source(), fill, padOp.getMixedLowPad(), srcSizes, strides);
-
-    return success();
-  }
-
-  /// Vectorize the filling of `dest`. This is possible if the padOp is padding
-  /// with a constant value. Otherwise, generate a tensor::GenerateOp.
-  Value tryVectorizeFill(PatternRewriter &rewriter, PadTensorOp padOp,
-                         Value dest, const SmallVector<Value> &dynSizes) const {
-    // Fill can be vectorized if padValue is a constant. (If there is enough
-    // static type information, the FillOp will be vectorized by another
-    // pattern.)
-    auto padValue = padOp.getConstantPaddingValue();
-    if (padValue)
-      return rewriter.create<FillOp>(padOp.getLoc(), padValue, dest).result();
-
-    // Fill could not be vectorized: Lower to tensor::GenerateOp with region.
-    auto generateOp = rewriter.create<tensor::GenerateOp>(
-        padOp.getLoc(), padOp.getResultType(), dynSizes);
-    // Copy region to new op.
-    BlockAndValueMapping bvm;
-    padOp.region().cloneInto(&generateOp.getRegion(), bvm);
-    // Rewrite linalg::YieldOp to tensor::YieldOp.
-    OpBuilder::InsertionGuard guard(rewriter);
-    auto yieldOp = dyn_cast<linalg::YieldOp>(
-        generateOp.getRegion().front().getTerminator());
-    assert(yieldOp && "malformed PadTensorOp: expected YieldOp terminator");
-    assert(yieldOp.values().size() == 1);
-    rewriter.setInsertionPoint(yieldOp);
-    rewriter.replaceOpWithNewOp<tensor::YieldOp>(yieldOp, yieldOp.values()[0]);
-    return generateOp;
-  }
-
+    : public GeneralizePadTensorOpPattern {
+  GenericPadTensorOpVectorizationPattern(MLIRContext *context,
+                                         PatternBenefit benefit = 1)
+      : GeneralizePadTensorOpPattern(context, tryVectorizeCopy, benefit) {}
   /// Vectorize the copying of a PadTensorOp's source. This is possible if each
   /// dimension size is statically know in the source type or the result type
   /// (or both).
-  LogicalResult tryVectorizeCopy(PatternRewriter &rewriter, PadTensorOp padOp,
-                                 Value dest) const {
+  static LogicalResult tryVectorizeCopy(PatternRewriter &rewriter,
+                                        PadTensorOp padOp, Value dest) {
     auto sourceType = padOp.getSourceType();
     auto resultType = padOp.getResultType();
 
@@ -959,6 +879,9 @@ struct PadTensorOpVectorizationWithTransferWritePattern
     // trimPadding must remove the amount of padding that was added earlier.
     if (!hasSameTensorSize(padOp.source(), trimPadding)) return failure();
 
+    // Insert the new TransferWriteOp at position of the old TransferWriteOp.
+    rewriter.setInsertionPoint(xferOp);
+
     SmallVector<bool> inBounds(xferOp.getVectorType().getRank(), false);
     auto newXferOp = rewriter.replaceOpWithNewOp<vector::TransferWriteOp>(
         xferOp, padOp.source().getType(), xferOp.vector(), padOp.source(),
@@ -1102,6 +1025,10 @@ struct PadTensorOpVectorizationWithInsertSlicePattern
               return getConstantIntValue(std::get<0>(it)) == std::get<1>(it);
             }))
       return failure();
+
+    // Insert the TransferReadOp and TransferWriteOp at the position of the
+    // InsertSliceOp.
+    rewriter.setInsertionPoint(insertOp);
 
     // Generate TransferReadOp: Read entire source tensor and add high padding.
     SmallVector<Value> readIndices(
@@ -1259,8 +1186,8 @@ void mlir::linalg::populateConvVectorizationPatterns(
   populateVectorizationPatterns<ConvInputNHWCFilterHWCFOp, 4>(
       tiling, promotion, vectorization, tileSizes);
 
-  populateVectorizationPatterns<ConvNCHWOp, 4>(tiling, promotion, vectorization,
-                                               tileSizes);
+  populateVectorizationPatterns<Conv2DNchwOp, 4>(tiling, promotion,
+                                                 vectorization, tileSizes);
   populateVectorizationPatterns<ConvInputNCHWFilterHWCFOp, 4>(
       tiling, promotion, vectorization, tileSizes);
 

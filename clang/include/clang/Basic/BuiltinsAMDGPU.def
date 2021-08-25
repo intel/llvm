@@ -196,6 +196,19 @@ TARGET_BUILTIN(__builtin_amdgcn_perm, "UiUiUiUi", "nc", "gfx8-insts")
 
 TARGET_BUILTIN(__builtin_amdgcn_fmed3h, "hhhh", "nc", "gfx9-insts")
 
+TARGET_BUILTIN(__builtin_amdgcn_global_atomic_fadd_f64, "dd*1d", "t", "gfx90a-insts")
+TARGET_BUILTIN(__builtin_amdgcn_global_atomic_fadd_f32, "ff*1f", "t", "gfx90a-insts")
+TARGET_BUILTIN(__builtin_amdgcn_global_atomic_fadd_v2f16, "V2hV2h*1V2h", "t", "gfx90a-insts")
+TARGET_BUILTIN(__builtin_amdgcn_global_atomic_fmin_f64, "dd*1d", "t", "gfx90a-insts")
+TARGET_BUILTIN(__builtin_amdgcn_global_atomic_fmax_f64, "dd*1d", "t", "gfx90a-insts")
+
+TARGET_BUILTIN(__builtin_amdgcn_flat_atomic_fadd_f64, "dd*0d", "t", "gfx90a-insts")
+TARGET_BUILTIN(__builtin_amdgcn_flat_atomic_fmin_f64, "dd*0d", "t", "gfx90a-insts")
+TARGET_BUILTIN(__builtin_amdgcn_flat_atomic_fmax_f64, "dd*0d", "t", "gfx90a-insts")
+
+TARGET_BUILTIN(__builtin_amdgcn_ds_atomic_fadd_f64, "dd*3d", "t", "gfx90a-insts")
+TARGET_BUILTIN(__builtin_amdgcn_ds_atomic_fadd_f32, "ff*3f", "t", "gfx8-insts")
+
 //===----------------------------------------------------------------------===//
 // Deep learning builtins.
 //===----------------------------------------------------------------------===//
@@ -214,6 +227,17 @@ TARGET_BUILTIN(__builtin_amdgcn_udot8, "UiUiUiUiIb", "nc", "dot7-insts")
 TARGET_BUILTIN(__builtin_amdgcn_permlane16, "UiUiUiUiUiIbIb", "nc", "gfx10-insts")
 TARGET_BUILTIN(__builtin_amdgcn_permlanex16, "UiUiUiUiUiIbIb", "nc", "gfx10-insts")
 TARGET_BUILTIN(__builtin_amdgcn_mov_dpp8, "UiUiIUi", "nc", "gfx10-insts")
+
+//===----------------------------------------------------------------------===//
+// Raytracing builtins.
+// By default the 1st argument is i32 and the 4/5-th arguments are float4.
+// Postfix l indicates the 1st argument is i64.
+// Postfix h indicates the 4/5-th arguments are half4.
+//===----------------------------------------------------------------------===//
+TARGET_BUILTIN(__builtin_amdgcn_image_bvh_intersect_ray, "V4UiUifV4fV4fV4fV4Ui", "nc", "gfx10-insts")
+TARGET_BUILTIN(__builtin_amdgcn_image_bvh_intersect_ray_h, "V4UiUifV4fV4hV4hV4Ui", "nc", "gfx10-insts")
+TARGET_BUILTIN(__builtin_amdgcn_image_bvh_intersect_ray_l, "V4UiWUifV4fV4fV4fV4Ui", "nc", "gfx10-insts")
+TARGET_BUILTIN(__builtin_amdgcn_image_bvh_intersect_ray_lh, "V4UiWUifV4fV4hV4hV4Ui", "nc", "gfx10-insts")
 
 //===----------------------------------------------------------------------===//
 // Special builtins.

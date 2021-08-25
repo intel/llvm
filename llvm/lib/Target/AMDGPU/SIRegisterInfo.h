@@ -70,6 +70,10 @@ public:
                                        CallingConv::ID) const override;
   const uint32_t *getNoPreservedMask() const override;
 
+  bool addAllocPriorityToGlobalRanges() const override {
+    return true;
+  }
+
   // Stack access is very expensive. CSRs are also the high registers, and we
   // want to minimize the number of used registers.
   unsigned getCSRFirstUseCost() const override {
@@ -114,10 +118,12 @@ public:
   /// If \p OnlyToVGPR is true, this will only succeed if this
   bool spillSGPR(MachineBasicBlock::iterator MI,
                  int FI, RegScavenger *RS,
+                 LiveIntervals *LIS = nullptr,
                  bool OnlyToVGPR = false) const;
 
   bool restoreSGPR(MachineBasicBlock::iterator MI,
                    int FI, RegScavenger *RS,
+                   LiveIntervals *LIS = nullptr,
                    bool OnlyToVGPR = false) const;
 
   void eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj,
@@ -125,7 +131,8 @@ public:
                            RegScavenger *RS) const override;
 
   bool eliminateSGPRToVGPRSpillFrameIndex(MachineBasicBlock::iterator MI,
-                                          int FI, RegScavenger *RS) const;
+                                          int FI, RegScavenger *RS,
+                                          LiveIntervals *LIS = nullptr) const;
 
   StringRef getRegAsmName(MCRegister Reg) const override;
 

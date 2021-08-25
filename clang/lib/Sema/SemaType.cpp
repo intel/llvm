@@ -117,6 +117,7 @@ static void diagnoseBadTypeAttribute(Sema &S, const ParsedAttr &attr,
   case ParsedAttr::AT_RegCall:                                                 \
   case ParsedAttr::AT_Pascal:                                                  \
   case ParsedAttr::AT_SwiftCall:                                               \
+  case ParsedAttr::AT_SwiftAsyncCall:                                          \
   case ParsedAttr::AT_VectorCall:                                              \
   case ParsedAttr::AT_AArch64VectorPcs:                                        \
   case ParsedAttr::AT_MSABI:                                                   \
@@ -639,7 +640,7 @@ static void distributeFunctionTypeAttrFromDeclSpec(TypeProcessingState &state,
   // C++11 attributes before the decl specifiers actually appertain to
   // the declarators. Move them straight there. We don't support the
   // 'put them wherever you like' semantics we allow for GNU attributes.
-  if (attr.isCXX11Attribute()) {
+  if (attr.isStandardAttributeSyntax()) {
     moveAttrFromListToList(attr, state.getCurrentAttributes(),
                            state.getDeclarator().getAttributes());
     return;
@@ -692,9 +693,9 @@ static void distributeTypeAttrsFromDeclarator(TypeProcessingState &state,
   // non-owning copy and iterate over that.
   ParsedAttributesView AttrsCopy{state.getDeclarator().getAttributes()};
   for (ParsedAttr &attr : AttrsCopy) {
-    // Do not distribute C++11 attributes. They have strict rules for what
+    // Do not distribute [[]] attributes. They have strict rules for what
     // they appertain to.
-    if (attr.isCXX11Attribute())
+    if (attr.isStandardAttributeSyntax())
       continue;
 
     switch (attr.getKind()) {
@@ -1533,18 +1534,20 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     break;
   case DeclSpec::TST_float:   Result = Context.FloatTy; break;
   case DeclSpec::TST_double:
-    if (S.getLangOpts().OpenCL) {
-      if (!S.getOpenCLOptions().isSupported("cl_khr_fp64", S.getLangOpts()))
-        S.Diag(DS.getTypeSpecTypeLoc(),
-               diag::err_opencl_double_requires_extension)
-            << (S.getLangOpts().OpenCLVersion >= 300);
-      else if (!S.getOpenCLOptions().isAvailableOption("cl_khr_fp64", S.getLangOpts()))
-        S.Diag(DS.getTypeSpecTypeLoc(), diag::ext_opencl_double_without_pragma);
-    }
     if (DS.getTypeSpecWidth() == TypeSpecifierWidth::Long)
       Result = Context.LongDoubleTy;
     else
       Result = Context.DoubleTy;
+    if (S.getLangOpts().OpenCL) {
+      if (!S.getOpenCLOptions().isSupported("cl_khr_fp64", S.getLangOpts()))
+        S.Diag(DS.getTypeSpecTypeLoc(), diag::err_opencl_requires_extension)
+            << 0 << Result
+            << (S.getLangOpts().OpenCLVersion == 300
+                    ? "cl_khr_fp64 and __opencl_c_fp64"
+                    : "cl_khr_fp64");
+      else if (!S.getOpenCLOptions().isAvailableOption("cl_khr_fp64", S.getLangOpts()))
+        S.Diag(DS.getTypeSpecTypeLoc(), diag::ext_opencl_double_without_pragma);
+    }
     break;
   case DeclSpec::TST_float128:
     if (!S.Context.getTargetInfo().hasFloat128Type() &&
@@ -1732,21 +1735,28 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
 
   if (S.getLangOpts().OpenCL) {
     const auto &OpenCLOptions = S.getOpenCLOptions();
-    StringRef OptName;
+    bool IsOpenCLC30 = (S.getLangOpts().OpenCLVersion == 300);
     // OpenCL C v3.0 s6.3.3 - OpenCL image types require __opencl_c_images
-    // support
+    // support.
+    // OpenCL C v3.0 s6.2.1 - OpenCL 3d image write types requires support
+    // for OpenCL C 2.0, or OpenCL C 3.0 or newer and the
+    // __opencl_c_3d_image_writes feature. OpenCL C v3.0 API s4.2 - For devices
+    // that support OpenCL 3.0, cl_khr_3d_image_writes must be returned when and
+    // only when the optional feature is supported
     if ((Result->isImageType() || Result->isSamplerT()) &&
-        (S.getLangOpts().OpenCLVersion >= 300 &&
-         !OpenCLOptions.isSupported("__opencl_c_images", S.getLangOpts())))
-      OptName = "__opencl_c_images";
-    else if (Result->isOCLImage3dWOType() &&
-             !OpenCLOptions.isSupported("cl_khr_3d_image_writes",
-                                        S.getLangOpts()))
-      OptName = "cl_khr_3d_image_writes";
-
-    if (!OptName.empty()) {
+        (IsOpenCLC30 &&
+         !OpenCLOptions.isSupported("__opencl_c_images", S.getLangOpts()))) {
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_opencl_requires_extension)
-          << 0 << Result << OptName;
+          << 0 << Result << "__opencl_c_images";
+      declarator.setInvalidType();
+    } else if (Result->isOCLImage3dWOType() &&
+               !OpenCLOptions.isSupported("cl_khr_3d_image_writes",
+                                          S.getLangOpts())) {
+      S.Diag(DS.getTypeSpecTypeLoc(), diag::err_opencl_requires_extension)
+          << 0 << Result
+          << (IsOpenCLC30
+                  ? "cl_khr_3d_image_writes and __opencl_c_3d_image_writes"
+                  : "cl_khr_3d_image_writes");
       declarator.setInvalidType();
     }
   }
@@ -2791,16 +2801,21 @@ static void checkExtParameterInfos(Sema &S, ArrayRef<QualType> paramTypes,
                     llvm::function_ref<SourceLocation(unsigned)> getParamLoc) {
   assert(EPI.ExtParameterInfos && "shouldn't get here without param infos");
 
-  bool hasCheckedSwiftCall = false;
-  auto checkForSwiftCC = [&](unsigned paramIndex) {
-    // Only do this once.
-    if (hasCheckedSwiftCall) return;
-    hasCheckedSwiftCall = true;
-    if (EPI.ExtInfo.getCC() == CC_Swift) return;
+  bool emittedError = false;
+  auto actualCC = EPI.ExtInfo.getCC();
+  enum class RequiredCC { OnlySwift, SwiftOrSwiftAsync };
+  auto checkCompatible = [&](unsigned paramIndex, RequiredCC required) {
+    bool isCompatible =
+        (required == RequiredCC::OnlySwift)
+            ? (actualCC == CC_Swift)
+            : (actualCC == CC_Swift || actualCC == CC_SwiftAsync);
+    if (isCompatible || emittedError)
+      return;
     S.Diag(getParamLoc(paramIndex), diag::err_swift_param_attr_not_swiftcall)
-      << getParameterABISpelling(EPI.ExtParameterInfos[paramIndex].getABI());
+        << getParameterABISpelling(EPI.ExtParameterInfos[paramIndex].getABI())
+        << (required == RequiredCC::OnlySwift);
+    emittedError = true;
   };
-
   for (size_t paramIndex = 0, numParams = paramTypes.size();
           paramIndex != numParams; ++paramIndex) {
     switch (EPI.ExtParameterInfos[paramIndex].getABI()) {
@@ -2811,7 +2826,7 @@ static void checkExtParameterInfos(Sema &S, ArrayRef<QualType> paramTypes,
     // swift_indirect_result parameters must be a prefix of the function
     // arguments.
     case ParameterABI::SwiftIndirectResult:
-      checkForSwiftCC(paramIndex);
+      checkCompatible(paramIndex, RequiredCC::SwiftOrSwiftAsync);
       if (paramIndex != 0 &&
           EPI.ExtParameterInfos[paramIndex - 1].getABI()
             != ParameterABI::SwiftIndirectResult) {
@@ -2821,16 +2836,16 @@ static void checkExtParameterInfos(Sema &S, ArrayRef<QualType> paramTypes,
       continue;
 
     case ParameterABI::SwiftContext:
-      checkForSwiftCC(paramIndex);
+      checkCompatible(paramIndex, RequiredCC::SwiftOrSwiftAsync);
       continue;
 
+    // SwiftAsyncContext is not limited to swiftasynccall functions.
     case ParameterABI::SwiftAsyncContext:
-      // FIXME: might want to require swiftasynccc when it exists
       continue;
 
     // swift_error parameters must be preceded by a swift_context parameter.
     case ParameterABI::SwiftErrorResult:
-      checkForSwiftCC(paramIndex);
+      checkCompatible(paramIndex, RequiredCC::OnlySwift);
       if (paramIndex == 0 ||
           EPI.ExtParameterInfos[paramIndex - 1].getABI() !=
               ParameterABI::SwiftContext) {
@@ -7443,6 +7458,8 @@ static Attr *getCCTypeAttr(ASTContext &Ctx, ParsedAttr &Attr) {
     return createSimpleAttr<PascalAttr>(Ctx, Attr);
   case ParsedAttr::AT_SwiftCall:
     return createSimpleAttr<SwiftCallAttr>(Ctx, Attr);
+  case ParsedAttr::AT_SwiftAsyncCall:
+    return createSimpleAttr<SwiftAsyncCallAttr>(Ctx, Attr);
   case ParsedAttr::AT_VectorCall:
     return createSimpleAttr<VectorCallAttr>(Ctx, Attr);
   case ParsedAttr::AT_AArch64VectorPcs:
@@ -8141,7 +8158,7 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
     if (attr.isInvalid())
       continue;
 
-    if (attr.isCXX11Attribute()) {
+    if (attr.isStandardAttributeSyntax()) {
       // [[gnu::...]] attributes are treated as declaration attributes, so may
       // not appertain to a DeclaratorChunk. If we handle them as type
       // attributes, accept them in that position and diagnose the GCC
@@ -8170,8 +8187,8 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
     // otherwise, add it to the FnAttrs list for rechaining.
     switch (attr.getKind()) {
     default:
-      // A C++11 attribute on a declarator chunk must appertain to a type.
-      if (attr.isCXX11Attribute() && TAL == TAL_DeclChunk &&
+      // A [[]] attribute on a declarator chunk must appertain to a type.
+      if (attr.isStandardAttributeSyntax() && TAL == TAL_DeclChunk &&
           (!state.isProcessingLambdaExpr() ||
            !attr.supportsNonconformingLambdaSyntax())) {
         state.getSema().Diag(attr.getLoc(), diag::err_attribute_not_type_attr)
@@ -8181,7 +8198,7 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       break;
 
     case ParsedAttr::UnknownAttribute:
-      if (attr.isCXX11Attribute() && TAL == TAL_DeclChunk)
+      if (attr.isStandardAttributeSyntax() && TAL == TAL_DeclChunk)
         state.getSema().Diag(attr.getLoc(),
                              diag::warn_unknown_attribute_ignored)
             << attr << attr.getRange();
@@ -8972,29 +8989,6 @@ QualType Sema::BuildTypeofExprType(Expr *E, SourceLocation Loc) {
   return Context.getTypeOfExprType(E);
 }
 
-/// getDecltypeForParenthesizedExpr - Given an expr, will return the type for
-/// that expression, as in [dcl.type.simple]p4 but without taking id-expressions
-/// and class member access into account.
-QualType Sema::getDecltypeForParenthesizedExpr(Expr *E) {
-  // C++11 [dcl.type.simple]p4:
-  //   [...]
-  QualType T = E->getType();
-  switch (E->getValueKind()) {
-  //     - otherwise, if e is an xvalue, decltype(e) is T&&, where T is the
-  //       type of e;
-  case VK_XValue:
-    return Context.getRValueReferenceType(T);
-  //     - otherwise, if e is an lvalue, decltype(e) is T&, where T is the
-  //       type of e;
-  case VK_LValue:
-    return Context.getLValueReferenceType(T);
-  //  - otherwise, decltype(e) is the type of e.
-  case VK_PRValue:
-    return T;
-  }
-  llvm_unreachable("Unknown value kind");
-}
-
 /// getDecltypeForExpr - Given an expr, will return the decltype for
 /// that expression, according to the rules in C++11
 /// [dcl.type.simple]p4 and C++11 [expr.lambda.prim]p18.
@@ -9064,7 +9058,7 @@ static QualType getDecltypeForExpr(Sema &S, Expr *E) {
     }
   }
 
-  return S.getDecltypeForParenthesizedExpr(E);
+  return S.Context.getReferenceQualifiedType(E);
 }
 
 QualType Sema::BuildDecltypeType(Expr *E, SourceLocation Loc,

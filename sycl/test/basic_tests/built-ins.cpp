@@ -3,6 +3,10 @@
 
 // CUDA does not support printf.
 // UNSUPPORTED: cuda
+//
+// Hits an assertion with AMD:
+// XFAIL: rocm_amd
+
 #include <CL/sycl.hpp>
 
 #include <cassert>
@@ -25,12 +29,12 @@ int main() {
   // Test printf
   q.submit([&](s::handler &CGH) {
      CGH.single_task<class printf>([=]() {
-       s::ONEAPI::experimental::printf(format, 123, 1.23);
+       s::ext::oneapi::experimental::printf(format, 123, 1.23);
        // CHECK: {{(Hello, World! 123 1.23)?}}
      });
    }).wait();
 
-  s::ONEAPI::experimental::printf(format, 321, 3.21);
+  s::ext::oneapi::experimental::printf(format, 321, 3.21);
   // CHECK: {{(Hello, World! 123 1.23)?}}
 
   // Test common

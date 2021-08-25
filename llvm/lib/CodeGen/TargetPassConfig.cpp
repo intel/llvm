@@ -857,8 +857,8 @@ void TargetPassConfig::addIRPasses() {
 
   // Run GC lowering passes for builtin collectors
   // TODO: add a pass insertion point here
-  addPass(createGCLoweringPass());
-  addPass(createShadowStackGCLoweringPass());
+  addPass(&GCLoweringID);
+  addPass(&ShadowStackGCLoweringID);
   addPass(createLowerConstantIntrinsicsPass());
 
   // Make sure that no unreachable blocks are instruction selected.
@@ -1113,6 +1113,12 @@ void TargetPassConfig::addMachinePasses() {
   // where it becomes safe again so stop debugifying here.
   DebugifyIsSafe = false;
 
+  // Add a FSDiscriminator pass right before RA, so that we could get
+  // more precise SampleFDO profile for RA.
+  if (EnableFSDiscriminator)
+    addPass(createMIRAddFSDiscriminatorsPass(
+        sampleprof::FSDiscriminatorPass::Pass1));
+
   // Run register allocation and passes that are tightly coupled with it,
   // including phi elimination and scheduling.
   if (getOptimizeRegAlloc())
@@ -1122,6 +1128,8 @@ void TargetPassConfig::addMachinePasses() {
 
   // Run post-ra passes.
   addPostRegAlloc();
+
+  addPass(&RemoveRedundantDebugValuesID, false);
 
   addPass(&FixupStatepointCallerSavedID);
 
@@ -1333,8 +1341,8 @@ FunctionPass *TargetPassConfig::createRegAllocPass(bool Optimized) {
 }
 
 bool TargetPassConfig::addRegAssignAndRewriteFast() {
-  if (RegAlloc != &useDefaultRegisterAllocator &&
-      RegAlloc != &createFastRegisterAllocator)
+  if (RegAlloc != (RegisterRegAlloc::FunctionPassCtor)&useDefaultRegisterAllocator &&
+      RegAlloc != (RegisterRegAlloc::FunctionPassCtor)&createFastRegisterAllocator)
     report_fatal_error("Must use fast (default) register allocator for unoptimized regalloc.");
 
   addPass(createRegAllocPass(false));
@@ -1463,6 +1471,9 @@ bool TargetPassConfig::addGCPasses() {
 
 /// Add standard basic block placement passes.
 void TargetPassConfig::addBlockPlacement() {
+  if (EnableFSDiscriminator)
+    addPass(createMIRAddFSDiscriminatorsPass(
+        sampleprof::FSDiscriminatorPass::Pass2));
   if (addPass(&MachineBlockPlacementID)) {
     // Run a separate pass to collect block placement statistics.
     if (EnableBlockPlacementStats)

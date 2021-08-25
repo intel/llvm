@@ -1,4 +1,4 @@
-// RUN: %clangxx -c -fno-color-diagnostics -std=c++17 -I %sycl_include/sycl -Xclang -ast-dump %s | FileCheck %s
+// RUN: %clangxx -c -fno-color-diagnostics -std=c++17 -I %sycl_include/sycl -I %sycl_include -Xclang -ast-dump %s | FileCheck %s
 // UNSUPPORTED: windows
 #include <CL/sycl/accessor.hpp>
 

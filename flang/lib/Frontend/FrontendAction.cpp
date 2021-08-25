@@ -10,12 +10,15 @@
 #include "flang/Frontend/CompilerInstance.h"
 #include "flang/Frontend/FrontendActions.h"
 #include "flang/Frontend/FrontendOptions.h"
+#include "flang/Frontend/FrontendPluginRegistry.h"
 #include "flang/FrontendTool/Utils.h"
 #include "clang/Basic/DiagnosticFrontend.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/VirtualFileSystem.h"
 
 using namespace Fortran::frontend;
+
+LLVM_INSTANTIATE_REGISTRY(FrontendPluginRegistry)
 
 void FrontendAction::set_currentInput(const FrontendInputFile &currentInput) {
   this->currentInput_ = currentInput;
@@ -73,8 +76,8 @@ bool FrontendAction::BeginSourceFile(
   //  * `-cpp/-nocpp`, or
   //  * the file extension (if the user didn't express any preference)
   // to decide whether to include them or not.
-  if ((invoc.preprocessorOpts().macrosFlag_ == PPMacrosFlag::Include) ||
-      (invoc.preprocessorOpts().macrosFlag_ == PPMacrosFlag::Unknown &&
+  if ((invoc.preprocessorOpts().macrosFlag == PPMacrosFlag::Include) ||
+      (invoc.preprocessorOpts().macrosFlag == PPMacrosFlag::Unknown &&
           currentInput().MustBePreprocessed())) {
     invoc.setDefaultPredefinitions();
     invoc.collectMacroDefinitions();
@@ -82,7 +85,7 @@ bool FrontendAction::BeginSourceFile(
 
   // Decide between fixed and free form (if the user didn't express any
   // preference, use the file extension to decide)
-  if (invoc.frontendOpts().fortranForm_ == FortranForm::Unknown) {
+  if (invoc.frontendOpts().fortranForm == FortranForm::Unknown) {
     invoc.fortranOpts().isFixedForm = currentInput().IsFixedForm();
   }
 

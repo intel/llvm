@@ -7344,7 +7344,7 @@ bool OpenMPIterationSpaceChecker::setLCDeclAndLB(ValueDecl *NewLCDecl,
   // State consistency checking to ensure correct usage.
   assert(LCDecl == nullptr && LB == nullptr && LCRef == nullptr &&
          UB == nullptr && Step == nullptr && !TestIsLessOp && !TestIsStrictOp);
-  if (!NewLCDecl || !NewLB)
+  if (!NewLCDecl || !NewLB || NewLB->containsErrors())
     return true;
   LCDecl = getCanonicalDecl(NewLCDecl);
   LCRef = NewLCRefExpr;
@@ -7367,7 +7367,7 @@ bool OpenMPIterationSpaceChecker::setUB(Expr *NewUB,
   // State consistency checking to ensure correct usage.
   assert(LCDecl != nullptr && LB != nullptr && UB == nullptr &&
          Step == nullptr && !TestIsLessOp && !TestIsStrictOp);
-  if (!NewUB)
+  if (!NewUB || NewUB->containsErrors())
     return true;
   UB = NewUB;
   if (LessOp)
@@ -7382,7 +7382,7 @@ bool OpenMPIterationSpaceChecker::setUB(Expr *NewUB,
 bool OpenMPIterationSpaceChecker::setStep(Expr *NewStep, bool Subtract) {
   // State consistency checking to ensure correct usage.
   assert(LCDecl != nullptr && LB != nullptr && Step == nullptr);
-  if (!NewStep)
+  if (!NewStep || NewStep->containsErrors())
     return true;
   if (!NewStep->isValueDependent()) {
     // Check that the step is integer expression.
@@ -9403,11 +9403,21 @@ checkOpenMPLoop(OpenMPDirectiveKind DKind, Expr *CollapseLoopCountExpr,
 
     // Build expression: UB = min(UB, prevUB) for #for in composite or combined
     // construct
+    ExprResult NewPrevUB = PrevUB;
     SourceLocation DistEUBLoc = AStmt->getBeginLoc();
-    ExprResult IsUBGreater =
-        SemaRef.BuildBinOp(CurScope, DistEUBLoc, BO_GT, UB.get(), PrevUB.get());
+    if (!SemaRef.Context.hasSameType(UB.get()->getType(),
+                                     PrevUB.get()->getType())) {
+      NewPrevUB = SemaRef.BuildCStyleCastExpr(
+          DistEUBLoc,
+          SemaRef.Context.getTrivialTypeSourceInfo(UB.get()->getType()),
+          DistEUBLoc, NewPrevUB.get());
+      if (!NewPrevUB.isUsable())
+        return 0;
+    }
+    ExprResult IsUBGreater = SemaRef.BuildBinOp(CurScope, DistEUBLoc, BO_GT,
+                                                UB.get(), NewPrevUB.get());
     ExprResult CondOp = SemaRef.ActOnConditionalOp(
-        DistEUBLoc, DistEUBLoc, IsUBGreater.get(), PrevUB.get(), UB.get());
+        DistEUBLoc, DistEUBLoc, IsUBGreater.get(), NewPrevUB.get(), UB.get());
     PrevEUB = SemaRef.BuildBinOp(CurScope, DistIncLoc, BO_Assign, UB.get(),
                                  CondOp.get());
     PrevEUB =
@@ -17071,7 +17081,6 @@ static bool actOnOMPReductionKindClause(
       auto *DRDRef = DeclareReductionRef.getAs<DeclRefExpr>();
       auto *DRD = cast<OMPDeclareReductionDecl>(DRDRef->getDecl());
       if (DRD->getInitializer()) {
-        S.ActOnUninitializedDecl(PrivateVD);
         Init = DRDRef;
         RHSVD->setInit(DRDRef);
         RHSVD->setInitStyle(VarDecl::CallInit);
@@ -18436,11 +18445,8 @@ OMPClause *Sema::ActOnOpenMPDeviceClause(OpenMPDeviceClauseModifier Modifier,
 static bool checkTypeMappable(SourceLocation SL, SourceRange SR, Sema &SemaRef,
                               DSAStackTy *Stack, QualType QTy,
                               bool FullCheck = true) {
-  NamedDecl *ND;
-  if (QTy->isIncompleteType(&ND)) {
-    SemaRef.Diag(SL, diag::err_incomplete_type) << QTy << SR;
+  if (SemaRef.RequireCompleteType(SL, QTy, diag::err_incomplete_type))
     return false;
-  }
   if (FullCheck && !SemaRef.CurContext->isDependentContext() &&
       !QTy.isTriviallyCopyableType(SemaRef.Context))
     SemaRef.Diag(SL, diag::warn_omp_non_trivial_type_mapped) << QTy << SR;

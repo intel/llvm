@@ -36,7 +36,7 @@ ThreadPlanStepOverBreakpoint::ThreadPlanStepOverBreakpoint(Thread &thread)
           m_breakpoint_addr);
 }
 
-ThreadPlanStepOverBreakpoint::~ThreadPlanStepOverBreakpoint() {}
+ThreadPlanStepOverBreakpoint::~ThreadPlanStepOverBreakpoint() = default;
 
 void ThreadPlanStepOverBreakpoint::GetDescription(
     Stream *s, lldb::DescriptionLevel level) {
@@ -124,9 +124,7 @@ bool ThreadPlanStepOverBreakpoint::WillStop() {
   return true;
 }
 
-void ThreadPlanStepOverBreakpoint::WillPop() {
-  ReenableBreakpointSite();
-}
+void ThreadPlanStepOverBreakpoint::DidPop() { ReenableBreakpointSite(); }
 
 bool ThreadPlanStepOverBreakpoint::MischiefManaged() {
   lldb::addr_t pc_addr = GetThread().GetRegisterContext()->GetPC();

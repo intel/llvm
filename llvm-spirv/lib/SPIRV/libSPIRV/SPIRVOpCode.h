@@ -41,7 +41,7 @@
 #define SPIRV_LIBSPIRV_SPIRVOPCODE_H
 
 #include "SPIRVUtil.h"
-#include "spirv.hpp"
+#include "spirv/unified1/spirv.hpp"
 #include "spirv_internal.hpp"
 #include <string>
 

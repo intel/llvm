@@ -18,12 +18,14 @@
 #include "TestTU.h"
 #include "TidyProvider.h"
 #include "URI.h"
+#include "refactor/Tweak.h"
 #include "support/MemoryTree.h"
 #include "support/Path.h"
 #include "support/Threading.h"
 #include "clang/Config/config.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
+#include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
@@ -31,6 +33,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -621,10 +624,8 @@ TEST(ClangdServerTest, InvalidCompileCommand) {
   ClangdServer Server(CDB, FS, ClangdServer::optsForTest(), &DiagConsumer);
 
   auto FooCpp = testPath("foo.cpp");
-  // clang cannot create CompilerInvocation if we pass two files in the
-  // CompileCommand. We pass the file in ExtraFlags once and CDB adds another
-  // one in getCompileCommand().
-  CDB.ExtraClangFlags.push_back(FooCpp);
+  // clang cannot create CompilerInvocation in this case.
+  CDB.ExtraClangFlags.push_back("-###");
 
   // Clang can't parse command args in that case, but we shouldn't crash.
   runAddDocument(Server, FooCpp, "int main() {}");
@@ -1077,7 +1078,7 @@ TEST(ClangdServerTest, FallbackWhenPreambleIsNotReady) {
   Opts.RunParser = CodeCompleteOptions::ParseIfReady;
 
   // This will make compile command broken and preamble absent.
-  CDB.ExtraClangFlags = {"yolo.cc"};
+  CDB.ExtraClangFlags = {"-###"};
   Server.addDocument(FooCpp, Code.code());
   ASSERT_TRUE(Server.blockUntilIdleForTest());
   auto Res = cantFail(runCodeComplete(Server, FooCpp, Code.point(), Opts));
@@ -1258,6 +1259,60 @@ TEST(ClangdServer, MemoryUsageTest) {
   Server.profile(MT);
   ASSERT_TRUE(MT.children().count("tuscheduler"));
   EXPECT_TRUE(MT.child("tuscheduler").children().count(FooCpp));
+}
+
+TEST(ClangdServer, RespectsTweakFormatting) {
+  static constexpr const char *TweakID = "ModuleTweak";
+  static constexpr const char *NewContents = "{not;\nformatted;}";
+
+  // Contributes a tweak that generates a non-formatted insertion and disables
+  // formatting.
+  struct TweakContributingModule final : public FeatureModule {
+    struct ModuleTweak final : public Tweak {
+      const char *id() const override { return TweakID; }
+      bool prepare(const Selection &Sel) override { return true; }
+      Expected<Effect> apply(const Selection &Sel) override {
+        auto &SM = Sel.AST->getSourceManager();
+        llvm::StringRef FilePath = SM.getFilename(Sel.Cursor);
+        tooling::Replacements Reps;
+        llvm::cantFail(
+            Reps.add(tooling::Replacement(FilePath, 0, 0, NewContents)));
+        auto E = llvm::cantFail(Effect::mainFileEdit(SM, std::move(Reps)));
+        E.FormatEdits = false;
+        return E;
+      }
+      std::string title() const override { return id(); }
+      llvm::StringLiteral kind() const override {
+        return llvm::StringLiteral("");
+      };
+    };
+
+    void contributeTweaks(std::vector<std::unique_ptr<Tweak>> &Out) override {
+      Out.emplace_back(new ModuleTweak);
+    }
+  };
+
+  MockFS FS;
+  MockCompilationDatabase CDB;
+  auto Opts = ClangdServer::optsForTest();
+  FeatureModuleSet Set;
+  Set.add(std::make_unique<TweakContributingModule>());
+  Opts.FeatureModules = &Set;
+  ClangdServer Server(CDB, FS, Opts);
+
+  auto FooCpp = testPath("foo.cpp");
+  Server.addDocument(FooCpp, "");
+  ASSERT_TRUE(Server.blockUntilIdleForTest());
+
+  // Ensure that disabled formatting is respected.
+  Notification N;
+  Server.applyTweak(FooCpp, {}, TweakID, [&](llvm::Expected<Tweak::Effect> E) {
+    ASSERT_TRUE(static_cast<bool>(E));
+    EXPECT_THAT(llvm::cantFail(E->ApplyEdits.lookup(FooCpp).apply()),
+                NewContents);
+    N.notify();
+  });
+  N.wait();
 }
 } // namespace
 } // namespace clangd

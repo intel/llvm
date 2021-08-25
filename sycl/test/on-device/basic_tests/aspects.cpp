@@ -1,5 +1,9 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_FILTER=%sycl_be %t.out
+//
+// Hip is missing some of the parameters tested here so it fails with ROCm for
+// NVIDIA
+// XFAIL: rocm_nvidia
 
 //==--------------- aspects.cpp - SYCL device test ------------------------==//
 //
@@ -92,6 +96,9 @@ int main() {
     }
     if (plt.has(aspect::usm_system_allocator)) {
       std::cout << "  USM system allocator" << std::endl;
+    }
+    if (plt.has(aspect::usm_system_allocations)) {
+      std::cout << "  USM system allocations" << std::endl;
     }
   }
   std::cout << "Passed." << std::endl;

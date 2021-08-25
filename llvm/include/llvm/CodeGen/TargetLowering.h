@@ -290,8 +290,7 @@ public:
     bool IsSwiftError : 1;
     bool IsCFGuardTarget : 1;
     MaybeAlign Alignment = None;
-    Type *ByValType = nullptr;
-    Type *PreallocatedType = nullptr;
+    Type *IndirectType = nullptr;
 
     ArgListEntry()
         : IsSExt(false), IsZExt(false), IsInReg(false), IsSRet(false),
@@ -350,7 +349,7 @@ public:
   /// Return the in-memory pointer type for the given address space, defaults to
   /// the pointer type from the data layout.  FIXME: The default needs to be
   /// removed once all the code is updated.
-  MVT getPointerMemTy(const DataLayout &DL, uint32_t AS = 0) const {
+  virtual MVT getPointerMemTy(const DataLayout &DL, uint32_t AS = 0) const {
     return MVT::getIntegerVT(DL.getPointerSizeInBits(AS));
   }
 
@@ -592,7 +591,7 @@ public:
 
   /// Returns if it's reasonable to merge stores to MemVT size.
   virtual bool canMergeStoresTo(unsigned AS, EVT MemVT,
-                                const SelectionDAG &DAG) const {
+                                const MachineFunction &MF) const {
     return true;
   }
 
@@ -1272,6 +1271,14 @@ public:
        getTruncStoreAction(ValVT, MemVT) == Custom);
   }
 
+  virtual bool canCombineTruncStore(EVT ValVT, EVT MemVT,
+                                    bool LegalOnly) const {
+    if (LegalOnly)
+      return isTruncStoreLegal(ValVT, MemVT);
+
+    return isTruncStoreLegalOrCustom(ValVT, MemVT);
+  }
+
   /// Return how the indexed load should be treated: either it is legal, needs
   /// to be promoted to a larger size, needs to be expanded to some other code
   /// sequence, or the target has a custom expander for it.
@@ -1387,6 +1394,11 @@ public:
     } while (!isTypeLegal(NVT) ||
               getOperationAction(Op, NVT) == Promote);
     return NVT;
+  }
+
+  virtual EVT getAsmOperandValueType(const DataLayout &DL, Type *Ty,
+                                     bool AllowUnknown = false) const {
+    return getValueType(DL, Ty, AllowUnknown);
   }
 
   /// Return the EVT corresponding to this LLVM type.  This is fixed by the LLVM
@@ -1756,9 +1768,7 @@ public:
   Align getPrefFunctionAlignment() const { return PrefFunctionAlignment; }
 
   /// Return the preferred loop alignment.
-  virtual Align getPrefLoopAlignment(MachineLoop *ML = nullptr) const {
-    return PrefLoopAlignment;
-  }
+  virtual Align getPrefLoopAlignment(MachineLoop *ML = nullptr) const;
 
   /// Should loops be aligned even when the function is marked OptSize (but not
   /// MinSize).
@@ -1879,8 +1889,8 @@ public:
   /// corresponding pointee type. This may entail some non-trivial operations to
   /// truncate or reconstruct types that will be illegal in the backend. See
   /// ARMISelLowering for an example implementation.
-  virtual Value *emitLoadLinked(IRBuilderBase &Builder, Value *Addr,
-                                AtomicOrdering Ord) const {
+  virtual Value *emitLoadLinked(IRBuilderBase &Builder, Type *ValueTy,
+                                Value *Addr, AtomicOrdering Ord) const {
     llvm_unreachable("Load linked unimplemented on this target");
   }
 
@@ -3484,6 +3494,13 @@ public:
       SDValue Op, const APInt &DemandedBits, const APInt &DemandedElts,
       SelectionDAG &DAG, unsigned Depth) const;
 
+  /// Return true if this function can prove that \p Op is never poison
+  /// and, if \p PoisonOnly is false, does not have undef bits. The DemandedElts
+  /// argument limits the check to the requested vector elements.
+  virtual bool isGuaranteedNotToBeUndefOrPoisonForTargetNode(
+      SDValue Op, const APInt &DemandedElts, const SelectionDAG &DAG,
+      bool PoisonOnly, unsigned Depth) const;
+
   /// Tries to build a legal vector shuffle using the provided parameters
   /// or equivalent variations. The Mask argument maybe be modified as the
   /// function tries different variations.
@@ -4407,6 +4424,10 @@ public:
   /// \returns The expansion result
   SDValue expandFP_TO_INT_SAT(SDNode *N, SelectionDAG &DAG) const;
 
+  /// Expand isnan depending on function attributes.
+  SDValue expandISNAN(EVT ResultVT, SDValue Op, SDNodeFlags Flags,
+                      const SDLoc &DL, SelectionDAG &DAG) const;
+
   /// Expand CTPOP nodes. Expands vector/scalar CTPOP nodes,
   /// vector nodes can only succeed if all operations are legal/custom.
   /// \param N Node to expand
@@ -4487,6 +4508,14 @@ public:
   /// bounds.
   SDValue getVectorElementPointer(SelectionDAG &DAG, SDValue VecPtr, EVT VecVT,
                                   SDValue Index) const;
+
+  /// Get a pointer to a sub-vector of type \p SubVecVT at index \p Idx located
+  /// in memory for a vector of type \p VecVT starting at a base address of
+  /// \p VecPtr. If \p Idx plus the size of \p SubVecVT is out of bounds the
+  /// returned pointer is unspecified, but the value returned will be such that
+  /// the entire subvector would be within the vector bounds.
+  SDValue getVectorSubVecPointer(SelectionDAG &DAG, SDValue VecPtr, EVT VecVT,
+                                 EVT SubVecVT, SDValue Index) const;
 
   /// Method for building the DAG expansion of ISD::[US][MIN|MAX]. This
   /// method accepts integers as its arguments.

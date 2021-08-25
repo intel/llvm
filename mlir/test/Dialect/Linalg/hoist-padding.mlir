@@ -38,12 +38,12 @@ func @matmul_tensors(
   %c0 = constant 0 : index
   %c1 = constant 1 : index
 
-  //  CHECK-DAG: %[[dM:.*]] = memref.dim %[[TA]], %[[C0]] : tensor<?x?xf32>
-  //  CHECK-DAG: %[[dK:.*]] = memref.dim %[[TA]], %[[C1]] : tensor<?x?xf32>
-  //  CHECK-DAG: %[[dN:.*]] = memref.dim %[[TB]], %[[C1]] : tensor<?x?xf32>
-  %0 = memref.dim %arg0, %c0 : tensor<?x?xf32>
-  %1 = memref.dim %arg0, %c1 : tensor<?x?xf32>
-  %2 = memref.dim %arg1, %c1 : tensor<?x?xf32>
+  //  CHECK-DAG: %[[dM:.*]] = tensor.dim %[[TA]], %[[C0]] : tensor<?x?xf32>
+  //  CHECK-DAG: %[[dK:.*]] = tensor.dim %[[TA]], %[[C1]] : tensor<?x?xf32>
+  //  CHECK-DAG: %[[dN:.*]] = tensor.dim %[[TB]], %[[C1]] : tensor<?x?xf32>
+  %0 = tensor.dim %arg0, %c0 : tensor<?x?xf32>
+  %1 = tensor.dim %arg0, %c1 : tensor<?x?xf32>
+  %2 = tensor.dim %arg1, %c1 : tensor<?x?xf32>
 
   //      CHECK: scf.for %[[I:[0-9a-z]+]] =
   // First padded tensor is MxKx2x4 under loop M so Kx2x4
@@ -94,19 +94,19 @@ func @matmul_tensors(
   %3 = scf.for %arg3 = %c0 to %0 step %c2 iter_args(%arg4 = %arg2) -> (tensor<?x?xf32>) {
     %4 = scf.for %arg5 = %c0 to %2 step %c3 iter_args(%arg6 = %arg4) -> (tensor<?x?xf32>) {
       %5 = scf.for %arg7 = %c0 to %1 step %c4 iter_args(%arg8 = %arg6) -> (tensor<?x?xf32>) {
-        %6 = memref.dim %arg0, %c0 : tensor<?x?xf32>
+        %6 = tensor.dim %arg0, %c0 : tensor<?x?xf32>
         %7 = affine.min #map0(%arg3)[%6]
-        %8 = memref.dim %arg0, %c1 : tensor<?x?xf32>
+        %8 = tensor.dim %arg0, %c1 : tensor<?x?xf32>
         %9 = affine.min #map1(%arg7)[%8]
         %10 = tensor.extract_slice %arg0[%arg3, %arg7] [%7, %9] [1, 1] : tensor<?x?xf32> to tensor<?x?xf32>
-        %11 = memref.dim %arg1, %c0 : tensor<?x?xf32>
+        %11 = tensor.dim %arg1, %c0 : tensor<?x?xf32>
         %12 = affine.min #map1(%arg7)[%11]
-        %13 = memref.dim %arg1, %c1 : tensor<?x?xf32>
+        %13 = tensor.dim %arg1, %c1 : tensor<?x?xf32>
         %14 = affine.min #map2(%arg5)[%13]
         %15 = tensor.extract_slice %arg1[%arg7, %arg5] [%12, %14] [1, 1] : tensor<?x?xf32> to tensor<?x?xf32>
-        %16 = memref.dim %arg8, %c0 : tensor<?x?xf32>
+        %16 = tensor.dim %arg8, %c0 : tensor<?x?xf32>
         %17 = affine.min #map3(%16, %arg3)
-        %18 = memref.dim %arg8, %c1 : tensor<?x?xf32>
+        %18 = tensor.dim %arg8, %c1 : tensor<?x?xf32>
         %19 = affine.min #map4(%18, %arg5)
         %20 = tensor.extract_slice %arg8[%arg3, %arg5] [%17, %19] [1, 1] : tensor<?x?xf32> to tensor<?x?xf32>
         %21 = subi %c2, %7 : index
@@ -141,8 +141,10 @@ func @matmul_tensors(
 
 // -----
 
+
 // CHECK-DAG: #[[$MIN_REST8:[0-9a-z]+]] = affine_map<(d0)[s0] -> (8, -d0 + s0)>
-// CHECK-DAG: #[[$MIN_MOD4:[0-9a-z]+]] = affine_map<(d0) -> (4, d0 - ((d0 - 1) floordiv 4) * 4)>
+// CHECK-DAG: #[[$MIN_REST4:[0-9a-z]+]] = affine_map<(d0, d1) -> (4, d0 - d1)>
+// CHECK-DAG: #[[$MIN_REST2:[0-9a-z]+]] = affine_map<(d0, d1) -> (2, d0 - d1)>
 // CHECK-DAG: #[[$DIV4:[0-9a-z]+]] = affine_map<(d0) -> (d0 ceildiv 4)>
 // CHECK-DAG: #[[$DIV2:[0-9a-z]+]] = affine_map<(d0) -> (d0 ceildiv 2)>
 #map0 = affine_map<(d0)[s0] -> (8, -d0 + s0)>
@@ -159,28 +161,26 @@ func @dot(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>, %arg2: tensor<f32>)
   %cst = constant 0.000000e+00 : f32
   %c2 = constant 2 : index
   %c0 = constant 0 : index
-  %1 = memref.dim %arg0, %c0 : tensor<?xf32>
-  %2 = memref.dim %arg0, %c0 : tensor<?xf32>
-  %3 = memref.dim %arg1, %c0 : tensor<?xf32>
+  %1 = tensor.dim %arg0, %c0 : tensor<?xf32>
+  %2 = tensor.dim %arg0, %c0 : tensor<?xf32>
+  %3 = tensor.dim %arg1, %c0 : tensor<?xf32>
 
   //      CHECK: scf.for %[[I:[0-9a-z]+]] =
   //
   //      CHECK:   %[[MR8:.*]] = affine.min #[[$MIN_REST8]](%[[I]])
   //      CHECK:   %[[D0:.*]] = affine.apply #[[$DIV4]](%[[MR8]])
-  //      CHECK:   %[[MM4:.*]] = affine.min #[[$MIN_MOD4]](%[[MR8]])
-  //      CHECK:   %[[D1:.*]] = affine.apply #[[$DIV2]](%[[MM4]])
   // Init tensor and pack.
-  //      CHECK:   %[[INIT_PACKED_A:.*]] = linalg.init_tensor [%[[D0]], %[[D1]], 2] : tensor<?x?x2xf32>
-  //      CHECK:   %[[PACKED_A:.*]] = scf.for %[[II:[0-9a-z]+]] = {{.*}} iter_args(%{{.*}} = %[[INIT_PACKED_A]]) -> (tensor<?x?x2xf32>) {
+  //      CHECK:   %[[INIT_PACKED_A:.*]] = linalg.init_tensor [%[[D0]], 2, 2] : tensor<?x2x2xf32>
+  //      CHECK:   %[[CAST_INIT_PACKED_A:.*]] = tensor.cast %[[INIT_PACKED_A]] : tensor<?x2x2xf32> to tensor<?x?x2xf32>
+  //      CHECK:   %[[PACKED_A:.*]] = scf.for %[[II:[0-9a-z]+]] = {{.*}} iter_args(%{{.*}} = %[[CAST_INIT_PACKED_A]]) -> (tensor<?x?x2xf32>) {
   //      CHECK:     scf.for %[[III:[0-9a-z]+]] =
   //      CHECK:       tensor.insert_slice %{{.*}} into %{{.*}}[%{{.*}}, %{{.*}}, 0] [1, 1, 2] [1, 1, 1] : tensor<2xf32> into tensor<?x?x2xf32>
   //
   //      CHECK:   %[[D0_2:.*]] = affine.apply #[[$DIV4]](%[[MR8]])
-  //      CHECK:   %[[MM4_2:.*]] = affine.min #[[$MIN_MOD4]](%[[MR8]])
-  //      CHECK:   %[[D1_2:.*]] = affine.apply #[[$DIV2]](%[[MM4_2]])
   // Init tensor and pack.
-  //      CHECK:   %[[INIT_PACKED_B:.*]] = linalg.init_tensor [%[[D0_2]], %[[D1_2]], 2] : tensor<?x?x2xf32>
-  //      CHECK:   %[[PACKED_B:.*]] = scf.for %[[II_2:[0-9a-z]+]] = {{.*}} iter_args(%{{.*}} = %[[INIT_PACKED_B]]) -> (tensor<?x?x2xf32>) {
+  //      CHECK:   %[[INIT_PACKED_B:.*]] = linalg.init_tensor [%[[D0_2]], 2, 2] : tensor<?x2x2xf32>
+  //      CHECK:   %[[CAST_INIT_PACKED_B:.*]] = tensor.cast %[[INIT_PACKED_B]] : tensor<?x2x2xf32> to tensor<?x?x2xf32>
+  //      CHECK:   %[[PACKED_B:.*]] = scf.for %[[II_2:[0-9a-z]+]] = {{.*}} iter_args(%{{.*}} = %[[CAST_INIT_PACKED_B]]) -> (tensor<?x?x2xf32>) {
   //      CHECK:     scf.for %[[III_2:[0-9a-z]+]] =
   //      CHECK:       tensor.insert_slice %{{.*}} into %{{.*}}[%{{.*}}, %{{.*}}, 0] [1, 1, 2] [1, 1, 1] : tensor<2xf32> into tensor<?x?x2xf32>
   // Compute.

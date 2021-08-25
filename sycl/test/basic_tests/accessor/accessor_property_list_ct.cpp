@@ -4,7 +4,7 @@
 
 #include <type_traits>
 
-using namespace sycl::ONEAPI;
+using namespace sycl::ext::oneapi;
 
 void foo(sycl::accessor<int, 1, sycl::access::mode::read_write,
                         sycl::access::target::global_buffer,

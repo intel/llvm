@@ -764,4 +764,138 @@ TEST(STLExtras, Unique) {
   EXPECT_EQ(3, V[3]);
 }
 
+TEST(STLExtrasTest, MakeVisitorOneCallable) {
+  auto IdentityLambda = [](auto X) { return X; };
+  auto IdentityVisitor = makeVisitor(IdentityLambda);
+  EXPECT_EQ(IdentityLambda(1), IdentityVisitor(1));
+  EXPECT_EQ(IdentityLambda(2.0f), IdentityVisitor(2.0f));
+  EXPECT_TRUE((std::is_same<decltype(IdentityLambda(IdentityLambda)),
+                            decltype(IdentityLambda)>::value));
+  EXPECT_TRUE((std::is_same<decltype(IdentityVisitor(IdentityVisitor)),
+                            decltype(IdentityVisitor)>::value));
+}
+
+TEST(STLExtrasTest, MakeVisitorTwoCallables) {
+  auto Visitor =
+      makeVisitor([](int) { return 0; }, [](std::string) { return 1; });
+  EXPECT_EQ(Visitor(42), 0);
+  EXPECT_EQ(Visitor("foo"), 1);
+}
+
+TEST(STLExtrasTest, MakeVisitorCallableMultipleOperands) {
+  auto Second = makeVisitor([](int I, float F) { return F; },
+                            [](float F, int I) { return I; });
+  EXPECT_EQ(Second(1.f, 1), 1);
+  EXPECT_EQ(Second(1, 1.f), 1.f);
+}
+
+TEST(STLExtrasTest, MakeVisitorDefaultCase) {
+  {
+    auto Visitor = makeVisitor([](int I) { return I + 100; },
+                               [](float F) { return F * 2; },
+                               [](auto) { return -1; });
+    EXPECT_EQ(Visitor(24), 124);
+    EXPECT_EQ(Visitor(2.f), 4.f);
+    EXPECT_EQ(Visitor(2.), -1);
+    EXPECT_EQ(Visitor(Visitor), -1);
+  }
+  {
+    auto Visitor = makeVisitor([](auto) { return -1; },
+                               [](int I) { return I + 100; },
+                               [](float F) { return F * 2; });
+    EXPECT_EQ(Visitor(24), 124);
+    EXPECT_EQ(Visitor(2.f), 4.f);
+    EXPECT_EQ(Visitor(2.), -1);
+    EXPECT_EQ(Visitor(Visitor), -1);
+  }
+}
+
+template <bool Moveable, bool Copyable>
+struct Functor : Counted<Moveable, Copyable> {
+  using Counted<Moveable, Copyable>::Counted;
+  void operator()() {}
+};
+
+TEST(STLExtrasTest, MakeVisitorLifetimeSemanticsPRValue) {
+  int Copies = 0;
+  int Moves = 0;
+  int Destructors = 0;
+  {
+    auto V = makeVisitor(Functor<true, false>(Copies, Moves, Destructors));
+    (void)V;
+    EXPECT_EQ(0, Copies);
+    EXPECT_EQ(1, Moves);
+    EXPECT_EQ(1, Destructors);
+  }
+  EXPECT_EQ(0, Copies);
+  EXPECT_EQ(1, Moves);
+  EXPECT_EQ(2, Destructors);
+}
+
+TEST(STLExtrasTest, MakeVisitorLifetimeSemanticsRValue) {
+  int Copies = 0;
+  int Moves = 0;
+  int Destructors = 0;
+  {
+    Functor<true, false> F(Copies, Moves, Destructors);
+    {
+      auto V = makeVisitor(std::move(F));
+      (void)V;
+      EXPECT_EQ(0, Copies);
+      EXPECT_EQ(1, Moves);
+      EXPECT_EQ(0, Destructors);
+    }
+    EXPECT_EQ(0, Copies);
+    EXPECT_EQ(1, Moves);
+    EXPECT_EQ(1, Destructors);
+  }
+  EXPECT_EQ(0, Copies);
+  EXPECT_EQ(1, Moves);
+  EXPECT_EQ(2, Destructors);
+}
+
+TEST(STLExtrasTest, MakeVisitorLifetimeSemanticsLValue) {
+  int Copies = 0;
+  int Moves = 0;
+  int Destructors = 0;
+  {
+    Functor<true, true> F(Copies, Moves, Destructors);
+    {
+      auto V = makeVisitor(F);
+      (void)V;
+      EXPECT_EQ(1, Copies);
+      EXPECT_EQ(0, Moves);
+      EXPECT_EQ(0, Destructors);
+    }
+    EXPECT_EQ(1, Copies);
+    EXPECT_EQ(0, Moves);
+    EXPECT_EQ(1, Destructors);
+  }
+  EXPECT_EQ(1, Copies);
+  EXPECT_EQ(0, Moves);
+  EXPECT_EQ(2, Destructors);
+}
+
+TEST(STLExtrasTest, AllOfZip) {
+  std::vector<int> v1 = {0, 4, 2, 1};
+  std::vector<int> v2 = {1, 4, 3, 6};
+  EXPECT_TRUE(all_of_zip(v1, v2, [](int v1, int v2) { return v1 <= v2; }));
+  EXPECT_FALSE(all_of_zip(v1, v2, [](int L, int R) { return L < R; }));
+
+  // Triple vectors
+  std::vector<int> v3 = {1, 6, 5, 7};
+  EXPECT_EQ(true, all_of_zip(v1, v2, v3, [](int a, int b, int c) {
+              return a <= b && b <= c;
+            }));
+  EXPECT_EQ(false, all_of_zip(v1, v2, v3, [](int a, int b, int c) {
+              return a < b && b < c;
+            }));
+
+  // Shorter vector should fail even with an always-true predicate.
+  std::vector<int> v_short = {1, 4};
+  EXPECT_EQ(false, all_of_zip(v1, v_short, [](int, int) { return true; }));
+  EXPECT_EQ(false,
+            all_of_zip(v1, v2, v_short, [](int, int, int) { return true; }));
+}
+
 } // namespace

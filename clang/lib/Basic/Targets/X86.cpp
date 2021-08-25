@@ -117,7 +117,20 @@ bool X86TargetInfo::initFeatureMap(
   for (auto &F : CPUFeatures)
     setFeatureEnabled(Features, F, true);
 
-  if (!TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec))
+  std::vector<std::string> UpdatedFeaturesVec;
+  for (const auto &Feature : FeaturesVec) {
+    // Expand general-regs-only to -x86, -mmx and -sse
+    if (Feature == "+general-regs-only") {
+      UpdatedFeaturesVec.push_back("-x87");
+      UpdatedFeaturesVec.push_back("-mmx");
+      UpdatedFeaturesVec.push_back("-sse");
+      continue;
+    }
+
+    UpdatedFeaturesVec.push_back(Feature);
+  }
+
+  if (!TargetInfo::initFeatureMap(Features, Diags, CPU, UpdatedFeaturesVec))
     return false;
 
   // Can't do this earlier because we need to be able to explicitly enable
@@ -126,20 +139,20 @@ bool X86TargetInfo::initFeatureMap(
   // Enable popcnt if sse4.2 is enabled and popcnt is not explicitly disabled.
   auto I = Features.find("sse4.2");
   if (I != Features.end() && I->getValue() &&
-      llvm::find(FeaturesVec, "-popcnt") == FeaturesVec.end())
+      llvm::find(UpdatedFeaturesVec, "-popcnt") == UpdatedFeaturesVec.end())
     Features["popcnt"] = true;
 
   // Additionally, if SSE is enabled and mmx is not explicitly disabled,
   // then enable MMX.
   I = Features.find("sse");
   if (I != Features.end() && I->getValue() &&
-      llvm::find(FeaturesVec, "-mmx") == FeaturesVec.end())
+      llvm::find(UpdatedFeaturesVec, "-mmx") == UpdatedFeaturesVec.end())
     Features["mmx"] = true;
 
   // Enable xsave if avx is enabled and xsave is not explicitly disabled.
   I = Features.find("avx");
   if (I != Features.end() && I->getValue() &&
-      llvm::find(FeaturesVec, "-xsave") == FeaturesVec.end())
+      llvm::find(UpdatedFeaturesVec, "-xsave") == UpdatedFeaturesVec.end())
     Features["xsave"] = true;
 
   return true;
@@ -218,6 +231,9 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasAVX512BF16 = true;
     } else if (Feature == "+avx512er") {
       HasAVX512ER = true;
+    } else if (Feature == "+avx512fp16") {
+      HasAVX512FP16 = true;
+      HasFloat16 = true;
     } else if (Feature == "+avx512pf") {
       HasAVX512PF = true;
     } else if (Feature == "+avx512dq") {
@@ -655,6 +671,8 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__AVX512BF16__");
   if (HasAVX512ER)
     Builder.defineMacro("__AVX512ER__");
+  if (HasAVX512FP16)
+    Builder.defineMacro("__AVX512FP16__");
   if (HasAVX512PF)
     Builder.defineMacro("__AVX512PF__");
   if (HasAVX512DQ)
@@ -843,6 +861,7 @@ bool X86TargetInfo::isValidFeatureName(StringRef Name) const {
       .Case("avx512vnni", true)
       .Case("avx512bf16", true)
       .Case("avx512er", true)
+      .Case("avx512fp16", true)
       .Case("avx512pf", true)
       .Case("avx512dq", true)
       .Case("avx512bitalg", true)
@@ -866,6 +885,7 @@ bool X86TargetInfo::isValidFeatureName(StringRef Name) const {
       .Case("fma4", true)
       .Case("fsgsbase", true)
       .Case("fxsr", true)
+      .Case("general-regs-only", true)
       .Case("gfni", true)
       .Case("hreset", true)
       .Case("invpcid", true)
@@ -934,6 +954,7 @@ bool X86TargetInfo::hasFeature(StringRef Feature) const {
       .Case("avx512vnni", HasAVX512VNNI)
       .Case("avx512bf16", HasAVX512BF16)
       .Case("avx512er", HasAVX512ER)
+      .Case("avx512fp16", HasAVX512FP16)
       .Case("avx512pf", HasAVX512PF)
       .Case("avx512dq", HasAVX512DQ)
       .Case("avx512bitalg", HasAVX512BITALG)

@@ -707,7 +707,6 @@ def assertsext : SDNode<"ISD::AssertSext", SDT_assert>;
 def assertzext : SDNode<"ISD::AssertZext", SDT_assert>;
 def assertalign : SDNode<"ISD::AssertAlign", SDT_assert>;
 
-
 //===----------------------------------------------------------------------===//
 // Selection DAG Condition Codes
 
@@ -1050,6 +1049,10 @@ def extloadvi16 : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
 def extloadvi32 : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
   let IsLoad = true;
   let ScalarMemoryVT = i32;
+}
+def extloadvf16 : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
+  let IsLoad = true;
+  let ScalarMemoryVT = f16;
 }
 def extloadvf32 : PatFrag<(ops node:$ptr), (extload node:$ptr)> {
   let IsLoad = true;

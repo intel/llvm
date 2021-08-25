@@ -12,13 +12,7 @@
 // UNSUPPORTED: no-exceptions, c++03
 
 // These tests fail on previously released dylibs, investigation needed.
-// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.15
-// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.14
-// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.13
-// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.12
-// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.11
-// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.10
-// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.9
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14|15}}
 
 #include <stdlib.h>
 #include <string.h>
@@ -26,11 +20,6 @@
 #include <tuple>
 #include <__cxxabi_config.h>
 
-#if defined(_LIBCXXABI_ARM_EHABI)
-int main(int, char**) {
-  return 0;
-}
-#else
 static int bits = 0;
 
 struct C {
@@ -90,4 +79,3 @@ int main(int, char**) {
   test();
   return bits != 15;
 }
-#endif

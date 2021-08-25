@@ -254,16 +254,8 @@ private:
 /// This is a single point for managing tracepoints.
 class Tracepoints {
 public:
-#ifdef XPTI_USE_TBB
-  using va_uid_t = tbb::concurrent_unordered_map<uint64_t, int64_t>;
-  using uid_payload_t = tbb::concurrent_unordered_map<int64_t, xpti::payload_t>;
-  using uid_event_t =
-      tbb::concurrent_unordered_map<int64_t, xpti::trace_event_data_t>;
-#else
-  using va_uid_t = std::unordered_map<uint64_t, int64_t>;
-  using uid_payload_t = std::unordered_map<int64_t, xpti::payload_t>;
-  using uid_event_t = std::unordered_map<int64_t, xpti::trace_event_data_t>;
-#endif
+  using uid_payload_lut = std::unordered_map<uint64_t, xpti::payload_t>;
+  using uid_event_lut = std::unordered_map<uint64_t, xpti::trace_event_data_t>;
 
   Tracepoints(xpti::StringTable &st)
       : MUId(1), MStringTableRef(st), MInsertions(0), MRetrievals(0) {
@@ -277,17 +269,15 @@ public:
     // We will always start our ID
     // stream from 1. 0 is null_id
     // and -1 is invalid_id
-    MUId = {1};
-    MPayloadLUT.clear();
-    MInsertions = MRetrievals = {0};
+    MUId = 1;
+    MInsertions = MRetrievals = 0;
     MPayloads.clear();
     MEvents.clear();
-    MCodePtrLUT.clear();
   }
 
   inline uint64_t makeUniqueID() { return MUId++; }
 
-  //  Create an event with the payload information. If one already exists, the
+  //  Create an event with the payload information. If one already exists, then
   //  retrieve the previously added event. If not, we register the provided
   //  payload as we are seeing it for the first time. We will register all of
   //  the strings in the payload and used the string ids for generating a hash
@@ -302,10 +292,8 @@ public:
   //
   //  At the end of the function, the following tasks will be complete:
   //  1. Create a hash for the payload and cache it
-  //  2. Create a mapping from hash <--> Universal ID
-  //  3. Create a mapping from code_ptr <--> Universal ID
-  //  4. Create a mapping from Universal ID <--> Payload
-  //  5. Create a mapping from Universal ID <--> Event
+  //  2. Create a mapping from Universal ID <--> Payload
+  //  3. Create a mapping from Universal ID <--> Event
   xpti::trace_event_data_t *create(const xpti::payload_t *Payload,
                                    uint64_t *InstanceNo) {
     return register_event(Payload, InstanceNo);
@@ -316,27 +304,26 @@ public:
   //
   // This method is thread-safe
   const xpti::payload_t *payloadData(xpti::trace_event_data_t *Event) {
-    if (!Event || Event->unique_id == xpti::invalid_id)
+    if (!Event || Event->unique_id == xpti::invalid_uid)
       return nullptr;
-#ifndef XPTI_USE_TBB
-    std::lock_guard<std::mutex> Lock(MMutex);
-#endif
-    if (Event->reserved.payload)
-      return Event->reserved.payload;
-    else {
-      // Cache it in case it is not already cached
-      Event->reserved.payload = &MPayloads[Event->unique_id];
-      return Event->reserved.payload;
+    // Scoped lock until the information is retrieved from the map
+    {
+      std::lock_guard<std::mutex> Lock(MEventMutex);
+      if (Event->reserved.payload)
+        return Event->reserved.payload;
+      else {
+        // Cache it in case it is not already cached
+        Event->reserved.payload = &MPayloads[Event->unique_id];
+        return Event->reserved.payload;
+      }
     }
   }
 
-  const xpti::trace_event_data_t *eventData(int64_t UId) {
-    if (UId == xpti::invalid_id)
+  const xpti::trace_event_data_t *eventData(uint64_t UId) {
+    if (UId == xpti::invalid_uid)
       return nullptr;
 
-#ifndef XPTI_USE_TBB
-    std::lock_guard<std::mutex> Lock(MMutex);
-#endif
+    std::lock_guard<std::mutex> Lock(MEventMutex);
     auto EvLoc = MEvents.find(UId);
     if (EvLoc != MEvents.end())
       return &(EvLoc->second);
@@ -363,17 +350,14 @@ public:
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
     }
     // Protect simultaneous insert operations on the metadata tables
-#ifdef XPTI_USE_TBB
-    tbb::spin_mutex::scoped_lock HashLock(MMetadataMutex);
-#else
-    std::lock_guard<std::mutex> HashLock(MMetadataMutex);
-#endif
-
-    if (Event->reserved.metadata.count(KeyID)) {
-      return xpti::result_t::XPTI_RESULT_DUPLICATE;
+    {
+      std::lock_guard<std::mutex> HashLock(MMetadataMutex);
+      if (Event->reserved.metadata.count(KeyID)) {
+        return xpti::result_t::XPTI_RESULT_DUPLICATE;
+      }
+      Event->reserved.metadata[KeyID] = ValueID;
+      return xpti::result_t::XPTI_RESULT_SUCCESS;
     }
-    Event->reserved.metadata[KeyID] = ValueID;
-    return xpti::result_t::XPTI_RESULT_SUCCESS;
   }
 
   // Method to get the access statistics of the tracepoints.
@@ -398,9 +382,10 @@ private:
   ///  present or the code pointer information, otherwise
   ///  3. Add the payload and generate a unique ID
   ///  4. Cache the computed hash in the payload
-  int64_t makeHash(xpti::payload_t *Payload) {
+  uint64_t makeHash(xpti::payload_t *Payload) {
+    uint32_t name_id = 0, stack_id = 0, source_id = 0, line_no = 0;
     // Initialize to invalid hash value
-    int64_t HashValue = xpti::invalid_id;
+    uint64_t HashValue = xpti::invalid_uid;
     // If no flags are set, then the payload is not valid
     if (Payload->flags == 0)
       return HashValue;
@@ -412,107 +397,36 @@ private:
     //  (in addition to any unique addresses) to create a hash value
     if ((Payload->flags &
          static_cast<uint64_t>(payload_flag_t::NameAvailable))) {
-      // Add the kernel name to the string table; if the add() returns the
-      // address to the string in the string table, we can avoid a query [TBD]
-      Payload->name_sid = MStringTableRef.add(Payload->name, &Payload->name);
-      // Payload->name = MStringTableRef.query(Payload->name_sid);
-      if (Payload->flags &
-          static_cast<uint64_t>(payload_flag_t::SourceFileAvailable)) {
-        // Add source file information ot string table
-        Payload->source_file_sid =
-            MStringTableRef.add(Payload->source_file, &Payload->source_file);
-        // Payload->source_file =
-        // MStringTableRef.query(Payload->source_file_sid);
-        if (Payload->flags & (uint64_t)payload_flag_t::CodePointerAvailable) {
-          // We have source file, kernel name info and kernel address;
-          // so we combine all of them to make it unique:
-          //
-          // <32-bits of address bits 5-36><16-bit source_file_sid><16-bit
-          // kernel name sid>
-          //
-          // Using the code pointer address works better than using the line
-          // number and column number as the column numbers are not set in all
-          // compilers that support builtin functions. If two objects are
-          // declared on the same line, then the line numbers, function name,
-          // source file are all the same and it would be hard to disambiguate
-          // them. However, if we use the address, which would be the object
-          // address, they both will have different addresses even if they
-          // happen to be on the same line.
-          // TODO think of a more portable way to do the same thing.
-          uint16_t NamePack =
-              static_cast<uint16_t>(Payload->name_sid & 0x0000ffff);
-          uint16_t SrcFileNamePack =
-              static_cast<uint16_t>(Payload->source_file_sid & 0x0000ffff);
-          uint32_t KernelIDPack = XPTI_PACK16_RET32(SrcFileNamePack, NamePack);
-          uint32_t Address = static_cast<uint32_t>(
-              (reinterpret_cast<uint64_t>(Payload->code_ptr_va) &
-               0x0000000ffffffff0) >>
-              4);
-          HashValue = XPTI_PACK32_RET64(Address, KernelIDPack);
-          // Cache the hash once it is computed
-          Payload->flags |=
-              static_cast<uint64_t>(payload_flag_t::HashAvailable);
-          Payload->internal = HashValue;
-          return HashValue;
-        } else {
-          // We have both source file and kernel name info
-          //
-          // If we happen to have the line number, then we will combine all
-          // three integer values (22-bits) to form a 64-bit hash. If not, we
-          // will use 22 bits of the source file and kernel name ids and form a
-          // 64-bit value with the middle 22-bits being zero representing the
-          // line number.
-          uint64_t LeftPart = 0, MiddlePart = 0, RightPart = 0;
-          constexpr uint64_t Mask22Bits = 0x00000000003fffff;
-          // If line number info is available, extract 22-bits of it
-          if (Payload->flags &
-              static_cast<uint64_t>(payload_flag_t::LineInfoAvailable)) {
-            MiddlePart = Payload->line_no & Mask22Bits;
-            MiddlePart = MiddlePart << 22;
-          }
-          // The leftmost 22-bits will represent the file name string id
-          LeftPart = Payload->source_file_sid & Mask22Bits;
-          LeftPart = LeftPart << 44;
-          // The rightmost 22-bits will represent the kernel name string id
-          RightPart = Payload->name_sid & Mask22Bits;
-          HashValue = LeftPart | MiddlePart | RightPart;
-          Payload->flags |=
-              static_cast<uint64_t>(payload_flag_t::HashAvailable);
-          Payload->internal = HashValue;
-          return HashValue;
-        }
-      } else if (Payload->flags &
-                 static_cast<uint64_t>(payload_flag_t::CodePointerAvailable)) {
-        // We have both kernel name and kernel address; we use bits 5-36 from
-        // the address and combine it with the kernel name string ID
-        uint32_t Address = static_cast<uint32_t>(
-            (reinterpret_cast<uint64_t>(Payload->code_ptr_va) &
-             0x0000000ffffffff0) >>
-            4);
-        HashValue = XPTI_PACK32_RET64(Address, Payload->name_sid);
-        Payload->flags |= static_cast<uint64_t>(payload_flag_t::HashAvailable);
-        Payload->internal = HashValue;
-        return HashValue;
-      } else {
-        // We only have kernel name and this is suspect if the kernel names are
-        // not unique and will replace any previously stored payload information
-        if (Payload->name_sid != xpti::invalid_id) {
-          HashValue = XPTI_PACK32_RET64(0, Payload->name_sid);
-          Payload->flags |=
-              static_cast<uint64_t>(payload_flag_t::HashAvailable);
-          Payload->internal = HashValue;
-          return HashValue;
-        }
-      }
-    } else if (Payload->flags &
-               static_cast<uint64_t>(payload_flag_t::CodePointerAvailable)) {
-      // We are only going to look at Kernel address when kernel name is not
-      // available.
-      HashValue = reinterpret_cast<uint64_t>(Payload->code_ptr_va);
-      Payload->flags |= static_cast<uint64_t>(payload_flag_t::HashAvailable);
-      Payload->internal = HashValue;
-      return HashValue;
+      // Add the kernel name to the string table
+      name_id = MStringTableRef.add(Payload->name, &Payload->name);
     }
+    if ((Payload->flags &
+         static_cast<uint64_t>(payload_flag_t::SourceFileAvailable))) {
+      // Add source file information ot string table
+      source_id =
+          MStringTableRef.add(Payload->source_file, &Payload->source_file);
+    }
+    if ((Payload->flags &
+         static_cast<uint64_t>(payload_flag_t::StackTraceAvailable))) {
+      // Add caller/callee information ot string table
+      stack_id =
+          MStringTableRef.add(Payload->stack_trace, &Payload->stack_trace);
+    }
+    // Pack the 1st 64-bit value with string ID from source file name and line
+    // number; pack the 2nd 54-bit value with stack backtrace string ID and the
+    // kernel name string ID
+    Payload->uid.p1 = XPTI_PACK32_RET64(source_id, line_no);
+    Payload->uid.p2 = XPTI_PACK32_RET64(stack_id, name_id);
+    // The code pointer for the kernel is already in 64-bit format
+    if ((Payload->flags &
+         static_cast<uint64_t>(payload_flag_t::CodePointerAvailable)))
+      Payload->uid.p3 = (uint64_t)Payload->code_ptr_va;
+    // Generate the had from the information available and this will be our
+    // unique ID for the trace point.
+    HashValue = Payload->uid.hash();
+    Payload->flags |= static_cast<uint64_t>(payload_flag_t::HashAvailable);
+    Payload->internal = HashValue;
+
     return HashValue;
   }
 
@@ -532,107 +446,61 @@ private:
     // written to the same field in the structure. If we have a lock guard, we
     // may be spinning and wasting time instead. We will just compute this in
     // parallel.
-    // 2. MPayloadLUT is queried by two threads and and both queries return
-    // "not found"
-    // 3. This takes both threads to the else clause both threads will create a
-    // unique_id for the payload being registered and add them to the hash table
-    // [with DIFFERENT IDs] and MPayloads[unique_id] gets updated twice for the
-    // same payload with different IDs
-    // 4. ev.unique_id is undefined as it could be one of the two IDs generated
-    // for the payload
+    // 2. MPayloads is queried and updated in a critical section. So, multiple
+    // threads attempting to register the same payload to receive an event
+    // should get the same event.
     //
-    int64_t UId = xpti::invalid_id;
     //  Make a hash value from the payload. If the hash value created is
     //  invalid, return immediately
-    int64_t HashValue = makeHash(&TempPayload);
-    if (HashValue == xpti::invalid_id)
+    uint64_t HashValue = makeHash(&TempPayload);
+    if (HashValue == xpti::invalid_uid)
       return nullptr;
-      // If it's valid, we check to see if we can retrieve the previously added
-      // event structure; we do this as a critical section
-#ifdef XPTI_USE_TBB
-    tbb::speculative_spin_mutex::scoped_lock HashLock(MHashLock);
-#else
-    std::lock_guard<std::mutex> HashLock(MHashLock);
-#endif
-    UId = MPayloadLUT.find(HashValue);
-    if (UId != xpti::invalid_id) {
+
+    std::lock_guard<std::mutex> Lock(MEventMutex);
+    auto EvLoc = MEvents.find(HashValue);
+    if (EvLoc != MEvents.end()) {
 #ifdef XPTI_STATISTICS
       MRetrievals++;
 #endif
-#ifndef XPTI_USE_TBB
-      std::lock_guard<std::mutex> Lock(MMutex);
-#endif
-      auto EvLoc = MEvents.find(UId);
-      if (EvLoc != MEvents.end()) {
-        EvLoc->second.instance_id++;
-        // Guarantees that the returned instance ID will be accurate as
-        // it is on the stack
-        if (InstanceNo)
-          *InstanceNo = EvLoc->second.instance_id;
-        return &(EvLoc->second);
-      } else
-        return nullptr; // we have a problem!
+      EvLoc->second.instance_id++;
+      // Guarantees that the returned instance ID will be accurate as
+      // it is on the stack
+      if (InstanceNo)
+        *InstanceNo = EvLoc->second.instance_id;
+      return &(EvLoc->second);
     } else {
 #ifdef XPTI_STATISTICS
       MInsertions++;
 #endif
-      // Create a new unique ID
-      //
-      UId = MUId++;
-      // And add it as a pair
-      //
-      MPayloadLUT.add(HashValue, UId);
-      // The API allows you to query a Universal ID from the kernel address; so
-      // build the necessary data structures for this.
-      if (TempPayload.flags & (uint64_t)payload_flag_t::HashAvailable) {
-#ifndef XPTI_USE_TBB
-        std::lock_guard<std::mutex> Lock(MCodePtrMutex);
-#endif
-        MCodePtrLUT[reinterpret_cast<uint64_t>(TempPayload.code_ptr_va)] = UId;
-      }
       // We also want to query the payload by universal ID that has been
       // generated
-#ifndef XPTI_USE_TBB
-      std::lock_guard<std::mutex> Lock(MMutex);
-#endif
-      MPayloads[UId] = TempPayload; // when it uses tbb, should be thread-safe
-      {
-        xpti::trace_event_data_t *Event = &MEvents[UId];
-        // We are seeing this unique ID for the first time, so we will
-        // initialize the event structure with defaults and set the unique_id to
-        // the newly generated unique id (uid)
-        Event->unique_id = UId;
-        Event->unused = 0;
-        Event->reserved.payload = &MPayloads[UId];
-        Event->data_id = Event->source_id = Event->target_id = 0;
-        Event->instance_id = 1;
-        Event->global_user_data = nullptr;
-        Event->event_type = (uint16_t)xpti::trace_event_type_t::unknown_event;
-        Event->activity_type =
-            (uint16_t)xpti::trace_activity_type_t::unknown_activity;
-        *InstanceNo = Event->instance_id;
-        return Event;
-      }
+      auto &CurrentPayload = MPayloads[HashValue];
+      CurrentPayload = TempPayload; // when it uses tbb, should be thread-safe
+      xpti::trace_event_data_t *Event = &MEvents[HashValue];
+      // We are seeing this unique ID for the first time, so we will
+      // initialize the event structure with defaults and set the unique_id to
+      // the newly generated unique id (uid)
+      Event->unique_id = HashValue;
+      Event->unused = 0;
+      Event->reserved.payload = &CurrentPayload;
+      Event->data_id = Event->source_id = Event->target_id = 0;
+      Event->instance_id = 1;
+      Event->global_user_data = nullptr;
+      Event->event_type = (uint16_t)xpti::trace_event_type_t::unknown_event;
+      Event->activity_type =
+          (uint16_t)xpti::trace_activity_type_t::unknown_activity;
+      *InstanceNo = Event->instance_id;
+      return Event;
     }
-    return nullptr;
   }
 
   xpti::safe_int64_t MUId;
-  xpti::Hash64x64Table MPayloadLUT;
   xpti::StringTable &MStringTableRef;
   xpti::safe_uint64_t MInsertions, MRetrievals;
-  uid_payload_t MPayloads;
-  uid_event_t MEvents;
-  va_uid_t MCodePtrLUT;
-#ifdef XPTI_USE_TBB
-  tbb::spin_mutex MMetadataMutex;
-  tbb::speculative_spin_mutex MHashLock;
-#else
+  uid_payload_lut MPayloads;
+  uid_event_lut MEvents;
   std::mutex MMetadataMutex;
-  std::mutex MHashLock;
-  std::mutex MMutex;
-  std::mutex MCodePtrMutex;
-#endif
+  std::mutex MEventMutex;
 };
 
 /// \brief Helper class to manage subscriber callbacks for a given tracepoint
@@ -642,7 +510,6 @@ private:
 /// The class also provided a way to notify registered callbacks for a given
 /// stream and trace point type. This will be used by framework to trigger
 /// notifications are instrumentation points.
-///
 class Notifications {
 public:
   using cb_entry_t = std::pair<bool, xpti::tracepoint_callback_api_t>;
@@ -704,8 +571,8 @@ public:
     // has already been registered. If so, we return XPTI_RESULT_DUPLICATE.
     //
     // If not, we set the first element of new entry to 'true' indicating that
-    // it is valid. Unregister will just set this flag to false, indicating that
-    // it is no longer valid and is unregistered.
+    // it is valid. Unregister will just set this flag to false, indicating
+    // that it is no longer valid and is unregistered.
     for (auto &Ele : Acc->second) {
       if (Ele.second == cbFunc) {
         if (Ele.first) // Already here and active
@@ -909,7 +776,7 @@ public:
   }
 
   void clear() {
-    MUniversalIDs = {1};
+    MUniversalIDs = 1;
     MTracepoints.clear();
     MStringTableRef.clear();
   }
@@ -936,12 +803,12 @@ public:
 
     xpti::trace_event_data_t *Event = MTracepoints.create(Payload, InstanceNo);
 
-    // Event is not managed by anyone. The unique_id that is a part of the event
-    // structure can be used to determine the payload that forms the event. The
-    // attribute 'ev.UserData' and 'ev.reserved' can be used to store user
-    // defined and system defined data respectively. Currently the 'reserved'
-    // field is not used, but object lifetime management must be employed once
-    // this is active.
+    // Event is not managed by anyone. The unique_id that is a part of the
+    // event structure can be used to determine the payload that forms the
+    // event. The attribute 'ev.UserData' and 'ev.reserved' can be used to
+    // store user defined and system defined data respectively. Currently the
+    // 'reserved' field is not used, but object lifetime management must be
+    // employed once this is active.
     //
     // On the other hand, the 'UserData' field is for user data and should be
     // managed by the user code. The framework will NOT free any memory
@@ -951,7 +818,7 @@ public:
     return Event;
   }
 
-  inline const xpti::trace_event_data_t *findEvent(int64_t UniversalID) {
+  inline const xpti::trace_event_data_t *findEvent(uint64_t UniversalID) {
     return MTracepoints.eventData(UniversalID);
   }
 
@@ -1022,13 +889,17 @@ public:
     if (!MTraceEnabled)
       return xpti::result_t::XPTI_RESULT_FALSE;
     if (!Object) {
-      // We have relaxed the rules for notifications: Notifications can now have
-      // 'nullptr' for both the Parent and Object only if UserData is provided
-      // and the trace_point_type is function_begin/function_end. This allows us
-      // to trace function calls without too much effort.
+      // We have relaxed the rules for notifications: Notifications can now
+      // have 'nullptr' for both the Parent and Object only if UserData is
+      // provided and the trace_point_type is function_begin/function_end.
+      // This allows us to trace function calls without too much effort.
       if (!(UserData &&
             (TraceType == (uint16_t)trace_point_type_t::function_begin ||
-             TraceType == (uint16_t)trace_point_type_t::function_end))) {
+             TraceType == (uint16_t)trace_point_type_t::function_end ||
+             TraceType ==
+                 (uint16_t)trace_point_type_t::function_with_args_begin ||
+             TraceType ==
+                 (uint16_t)trace_point_type_t::function_with_args_end))) {
         return xpti::result_t::XPTI_RESULT_INVALIDARG;
       }
     }
@@ -1136,7 +1007,7 @@ xptiMakeEvent(const char * /*Name*/, xpti::payload_t *Payload, uint16_t Event,
 
 XPTI_EXPORT_API void xptiReset() { xpti::GXPTIFramework.clear(); }
 
-XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(int64_t UId) {
+XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(uint64_t UId) {
   return xpti::GXPTIFramework.findEvent(UId);
 }
 

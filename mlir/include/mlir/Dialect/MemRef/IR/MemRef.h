@@ -10,6 +10,7 @@
 #define MLIR_DIALECT_MEMREF_IR_MEMREF_H_
 
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/Interfaces/CastInterfaces.h"
@@ -30,10 +31,6 @@ raw_ostream &operator<<(raw_ostream &os, Range &range);
 /// with `b` at location `loc`.
 SmallVector<Range, 8> getOrCreateRanges(OffsetSizeAndStrideOpInterface op,
                                         OpBuilder &b, Location loc);
-
-/// Given an operation, retrieves the value of each dynamic dimension through
-/// constructing the necessary DimOp operators.
-SmallVector<Value, 4> getDynOperands(Location loc, Value val, OpBuilder &b);
 } // namespace mlir
 
 //===----------------------------------------------------------------------===//

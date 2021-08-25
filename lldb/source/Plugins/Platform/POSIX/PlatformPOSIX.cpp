@@ -46,7 +46,7 @@ PlatformPOSIX::PlatformPOSIX(bool is_host)
 ///
 /// The destructor is virtual since this class is designed to be
 /// inherited from by the plug-in instance.
-PlatformPOSIX::~PlatformPOSIX() {}
+PlatformPOSIX::~PlatformPOSIX() = default;
 
 lldb_private::OptionGroupOptions *PlatformPOSIX::GetConnectionOptions(
     lldb_private::CommandInterpreter &interpreter) {
@@ -205,7 +205,7 @@ lldb_private::Status PlatformPOSIX::GetFile(
     // close dst
     LLDB_LOGF(log, "[GetFile] Using block by block transfer....\n");
     Status error;
-    user_id_t fd_src = OpenFile(source, File::eOpenOptionRead,
+    user_id_t fd_src = OpenFile(source, File::eOpenOptionReadOnly,
                                 lldb::eFilePermissionsFileDefault, error);
 
     if (fd_src == UINT64_MAX)
@@ -218,7 +218,7 @@ lldb_private::Status PlatformPOSIX::GetFile(
       permissions = lldb::eFilePermissionsFileDefault;
 
     user_id_t fd_dst = FileCache::GetInstance().OpenFile(
-        destination, File::eOpenOptionCanCreate | File::eOpenOptionWrite |
+        destination, File::eOpenOptionCanCreate | File::eOpenOptionWriteOnly |
                          File::eOpenOptionTruncate,
         permissions, error);
 

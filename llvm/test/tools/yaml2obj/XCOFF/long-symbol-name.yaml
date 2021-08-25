@@ -1,7 +1,6 @@
 ## Test that the string table works well for long symbol names.
-## TODO: Dump the raw string table and check the contents.
 # RUN: yaml2obj %s -o %t
-# RUN: llvm-readobj --symbols %t | FileCheck %s
+# RUN: llvm-readobj --symbols --string-table %t | FileCheck %s
 
 # CHECK:      AddressSize: 32bit
 # CHECK-NEXT: Symbols [
@@ -24,6 +23,10 @@
 # CHECK-NEXT:     NumberOfAuxEntries: 0
 # CHECK-NEXT:   }
 # CHECK-NEXT: ]
+# CHECK-NEXT: StringTable {
+# CHECK-NEXT:   Length: 14
+# CHECK-NEXT:   [     4]   .longname
+# CHECK-NEXT: }
 
 --- !XCOFF
 FileHeader:

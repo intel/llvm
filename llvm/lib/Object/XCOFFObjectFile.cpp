@@ -187,6 +187,13 @@ XCOFFObjectFile::getStringTableEntry(uint32_t Offset) const {
                                         object_error::parse_failed);
 }
 
+StringRef XCOFFObjectFile::getStringTable() const {
+  // If the size is less than or equal to 4, then the string table contains no
+  // string data.
+  return StringRef(StringTable.Data,
+                   StringTable.Size <= 4 ? 0 : StringTable.Size);
+}
+
 Expected<StringRef>
 XCOFFObjectFile::getCFileName(const XCOFFFileAuxEnt *CFileEntPtr) const {
   if (CFileEntPtr->NameInStrTbl.Magic != XCOFFSymbolRef::NAME_IN_STR_TBL_MAGIC)

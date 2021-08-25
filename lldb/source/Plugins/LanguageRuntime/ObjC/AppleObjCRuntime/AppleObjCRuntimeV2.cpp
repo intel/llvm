@@ -668,7 +668,7 @@ AppleObjCRuntimeV2::AppleObjCRuntimeV2(Process *process,
   static const ConstString g_gdb_object_getClass("gdb_object_getClass");
   m_has_object_getClass = HasSymbol(g_gdb_object_getClass);
   static const ConstString g_objc_copyRealizedClassList(
-      "objc_copyRealizedClassList_nolock");
+      "_ZL33objc_copyRealizedClassList_nolockPj");
   m_has_objc_copyRealizedClassList = HasSymbol(g_objc_copyRealizedClassList);
 
   RegisterObjCExceptionRecognizer(process);
@@ -1383,7 +1383,7 @@ private:
   lldb::addr_t m_invalid_key = 0;
 };
 
-AppleObjCRuntimeV2::HashTableSignature::HashTableSignature() {}
+AppleObjCRuntimeV2::HashTableSignature::HashTableSignature() = default;
 
 void AppleObjCRuntimeV2::HashTableSignature::UpdateSignature(
     const RemoteNXMapTable &hash_table) {
@@ -2967,11 +2967,13 @@ bool AppleObjCRuntimeV2::GetCFBooleanValuesIfNeeded() {
   if (m_CFBoolean_values)
     return true;
 
-  static ConstString g_kCFBooleanFalse("__kCFBooleanFalse");
-  static ConstString g_kCFBooleanTrue("__kCFBooleanTrue");
+  static ConstString g___kCFBooleanFalse("__kCFBooleanFalse");
+  static ConstString g___kCFBooleanTrue("__kCFBooleanTrue");
+  static ConstString g_kCFBooleanFalse("kCFBooleanFalse");
+  static ConstString g_kCFBooleanTrue("kCFBooleanTrue");
 
-  std::function<lldb::addr_t(ConstString)> get_symbol =
-      [this](ConstString sym) -> lldb::addr_t {
+  std::function<lldb::addr_t(ConstString, ConstString)> get_symbol =
+      [this](ConstString sym, ConstString real_sym) -> lldb::addr_t {
     SymbolContextList sc_list;
     GetProcess()->GetTarget().GetImages().FindSymbolsWithNameAndType(
         sym, lldb::eSymbolTypeData, sc_list);
@@ -2981,12 +2983,26 @@ bool AppleObjCRuntimeV2::GetCFBooleanValuesIfNeeded() {
       if (sc.symbol)
         return sc.symbol->GetLoadAddress(&GetProcess()->GetTarget());
     }
+    GetProcess()->GetTarget().GetImages().FindSymbolsWithNameAndType(
+        real_sym, lldb::eSymbolTypeData, sc_list);
+    if (sc_list.GetSize() != 1)
+      return LLDB_INVALID_ADDRESS;
 
-    return LLDB_INVALID_ADDRESS;
+    SymbolContext sc;
+    sc_list.GetContextAtIndex(0, sc);
+    if (!sc.symbol)
+      return LLDB_INVALID_ADDRESS;
+
+    lldb::addr_t addr = sc.symbol->GetLoadAddress(&GetProcess()->GetTarget());
+    Status error;
+    addr = GetProcess()->ReadPointerFromMemory(addr, error);
+    if (error.Fail())
+      return LLDB_INVALID_ADDRESS;
+    return addr;
   };
 
-  lldb::addr_t false_addr = get_symbol(g_kCFBooleanFalse);
-  lldb::addr_t true_addr = get_symbol(g_kCFBooleanTrue);
+  lldb::addr_t false_addr = get_symbol(g___kCFBooleanFalse, g_kCFBooleanFalse);
+  lldb::addr_t true_addr = get_symbol(g___kCFBooleanTrue, g_kCFBooleanTrue);
 
   return (m_CFBoolean_values = {false_addr, true_addr}).operator bool();
 }

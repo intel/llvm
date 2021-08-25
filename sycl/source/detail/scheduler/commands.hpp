@@ -189,6 +189,9 @@ public:
   /// for memory copy commands.
   virtual const QueueImplPtr &getWorkerQueue() const;
 
+  /// Returns true iff the command produces a PI event on non-host devices.
+  virtual bool producesPiEvent() const;
+
 protected:
   EventImplPtr MEvent;
   QueueImplPtr MQueue;
@@ -306,6 +309,8 @@ public:
 
   void emitInstrumentationData() override;
 
+  bool producesPiEvent() const final;
+
 private:
   cl_int enqueueImp() final;
 
@@ -323,6 +328,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() override;
+  bool producesPiEvent() const final;
 
 private:
   cl_int enqueueImp() final;
@@ -346,6 +352,8 @@ public:
   const Requirement *getRequirement() const final { return &MRequirement; }
 
   void emitInstrumentationData() override;
+
+  bool producesPiEvent() const final;
 
   void *MMemAllocation = nullptr;
 
@@ -433,6 +441,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() override;
+  bool producesPiEvent() const final;
 
 private:
   cl_int enqueueImp() final;
@@ -455,6 +464,7 @@ public:
   void emitInstrumentationData() final;
   const ContextImplPtr &getWorkerContext() const final;
   const QueueImplPtr &getWorkerQueue() const final;
+  bool producesPiEvent() const final;
 
 private:
   cl_int enqueueImp() final;
@@ -518,6 +528,8 @@ public:
     MCommandGroup.release();
   }
 
+  bool producesPiEvent() const final;
+
 private:
   cl_int enqueueImp() final;
 
@@ -527,11 +539,13 @@ private:
       CGExecKernel *ExecKernel,
       std::shared_ptr<device_image_impl> DeviceImageImpl, RT::PiKernel Kernel,
       NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents,
-      RT::PiEvent &Event, ProgramManager::KernelArgMask EliminatedArgMask);
+      RT::PiEvent &Event,
+      const ProgramManager::KernelArgMask &EliminatedArgMask);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 
   friend class Command;
+  friend class Scheduler;
 };
 
 class UpdateHostRequirementCommand : public Command {

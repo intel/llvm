@@ -340,6 +340,35 @@ protected:
   llvm::Value *emitUpdateLocation(CodeGenFunction &CGF, SourceLocation Loc,
                                   unsigned Flags = 0);
 
+  /// Emit the number of teams for a target directive.  Inspect the num_teams
+  /// clause associated with a teams construct combined or closely nested
+  /// with the target directive.
+  ///
+  /// Emit a team of size one for directives such as 'target parallel' that
+  /// have no associated teams construct.
+  ///
+  /// Otherwise, return nullptr.
+  const Expr *getNumTeamsExprForTargetDirective(CodeGenFunction &CGF,
+                                                const OMPExecutableDirective &D,
+                                                int32_t &DefaultVal);
+  llvm::Value *emitNumTeamsForTargetDirective(CodeGenFunction &CGF,
+                                              const OMPExecutableDirective &D);
+  /// Emit the number of threads for a target directive.  Inspect the
+  /// thread_limit clause associated with a teams construct combined or closely
+  /// nested with the target directive.
+  ///
+  /// Emit the num_threads clause for directives such as 'target parallel' that
+  /// have no associated teams construct.
+  ///
+  /// Otherwise, return nullptr.
+  const Expr *
+  getNumThreadsExprForTargetDirective(CodeGenFunction &CGF,
+                                      const OMPExecutableDirective &D,
+                                      int32_t &DefaultVal);
+  llvm::Value *
+  emitNumThreadsForTargetDirective(CodeGenFunction &CGF,
+                                   const OMPExecutableDirective &D);
+
   /// Returns pointer to ident_t type.
   llvm::Type *getIdentTyPointerTy();
 
@@ -861,10 +890,6 @@ private:
                             const OMPExecutableDirective &D,
                             llvm::Function *TaskFunction, QualType SharedsTy,
                             Address Shareds, const OMPTaskDataTy &Data);
-
-  /// Returns default address space for the constant firstprivates, 0 by
-  /// default.
-  virtual unsigned getDefaultFirstprivateAddressSpace() const { return 0; }
 
   /// Emit code that pushes the trip count of loops associated with constructs
   /// 'target teams distribute' and 'teams distribute parallel for'.
@@ -1590,11 +1615,6 @@ public:
   /// registers it when emitting code for the host.
   virtual void registerTargetGlobalVariable(const VarDecl *VD,
                                             llvm::Constant *Addr);
-
-  /// Registers provided target firstprivate variable as global on the
-  /// target.
-  llvm::Constant *registerTargetFirstprivateCopy(CodeGenFunction &CGF,
-                                                 const VarDecl *VD);
 
   /// Emit the global \a GD if it is meaningful for the target. Returns
   /// if it was emitted successfully.

@@ -2,9 +2,14 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.bc
-; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
-
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPIRV
+; RUN: llvm-spirv %t.rev.bc -o %t.rev.spv
+; RUN: spirv-val %t.rev.spv
+; RUN: llvm-spirv %t.rev.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir-unknown-unknown"
@@ -19,18 +24,29 @@ define spir_kernel void @f(%opencl.image2d_ro_t addrspace(1)* %img, i32 addrspac
 ; CHECK-LLVM: [[DTSUB:%.+]] = sub i32 [[DTCALL]], 4304
 ; CHECK-LLVM: [[DTADD:%.+]] = add i32 [[DTSUB]], 4304
 ; CHECK-LLVM: store i32 [[DTADD]]
+
+; CHECK-LLVM-SPIRV: [[DTCALL:%.+]] = call spir_func i32 @_Z24__spirv_ImageQueryFormatPU3AS133__spirv_Image__void_1_0_0_0_0_0_0(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %img)
+; CHECK-LLVM-SPIRV: add i32 [[DTCALL]], 4304
+
 ; CHECK-SPIRV: 4 ImageQueryFormat {{[0-9]+}} [[DataTypeID:[0-9]+]]
 ; CHECK-SPIRV: 5 IAdd {{[0-9]+}} [[DTAddID:[0-9]+]] [[DataTypeID]] [[DataTypeOffsetId]]
 ; CHECK-SPIRV: 5 Store {{[0-9]+}} [[DTAddID]]
+
   %1 = tail call spir_func i32 @_Z27get_image_channel_data_type14ocl_image2d_ro(%opencl.image2d_ro_t addrspace(1)* %img) #2
   store i32 %1, i32 addrspace(1)* %type, align 4
+
 ; CHECK-LLVM-DAG: [[OCALL:%.+]] ={{.*}} call spir_func i32 @_Z23get_image_channel_order14ocl_image2d_ro
 ; CHECK-LLVM: [[OSUB:%.+]] = sub i32 [[OCALL]], 4272
 ; CHECK-LLVM: [[OADD:%.+]] = add i32 [[OSUB]], 4272
 ; CHECK-LLVM: store i32 [[OADD]]
+
+; CHECK-LLVM-SPIRV: [[OCALL:%.+]] = call spir_func i32 @_Z23__spirv_ImageQueryOrderPU3AS133__spirv_Image__void_1_0_0_0_0_0_0(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)* %img)
+; CHECK-LLVM-SPIRV: add i32 [[OCALL]], 4272
+
 ; CHECK-SPIRV: 4 ImageQueryOrder {{[0-9]+}} [[OrderID:[0-9]+]]
 ; CHECK-SPIRV: 5 IAdd {{[0-9]+}} [[OrderAddID:[0-9]+]] [[OrderID]] [[OrderOffsetId]]
 ; CHECK-SPIRV: 5 Store {{[0-9]+}} [[OrderAddID]]
+
   %2 = tail call spir_func i32 @_Z23get_image_channel_order14ocl_image2d_ro(%opencl.image2d_ro_t addrspace(1)* %img) #2
   store i32 %2, i32 addrspace(1)* %order, align 4
   ret void

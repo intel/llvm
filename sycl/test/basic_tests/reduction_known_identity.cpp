@@ -10,10 +10,10 @@
 using namespace cl::sycl;
 
 template <typename T> void checkCommonBasicKnownIdentity() {
-  static_assert(has_known_identity<ONEAPI::maximum<>, T>::value);
-  static_assert(has_known_identity<ONEAPI::maximum<T>, T>::value);
-  static_assert(has_known_identity<ONEAPI::minimum<>, T>::value);
-  static_assert(has_known_identity<ONEAPI::minimum<T>, T>::value);
+  static_assert(has_known_identity<sycl::maximum<>, T>::value);
+  static_assert(has_known_identity<sycl::maximum<T>, T>::value);
+  static_assert(has_known_identity<sycl::minimum<>, T>::value);
+  static_assert(has_known_identity<sycl::minimum<T>, T>::value);
 }
 
 template <typename T> void checkCommonKnownIdentity() {
@@ -100,7 +100,7 @@ int main() {
 
   // Few negative tests just to check that it does not always return true.
   static_assert(!has_known_identity<std::minus<>, int>::value);
-  static_assert(!has_known_identity<ONEAPI::bit_or<>, float>::value);
+  static_assert(!has_known_identity<sycl::bit_or<>, float>::value);
 
   return 0;
 }

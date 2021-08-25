@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestDialect.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/FuncConversions.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -43,6 +43,11 @@ static bool getFirstI32Result(Operation *op, Value &value) {
 }
 
 static Value bindNativeCodeCallResult(Value value) { return value; }
+
+static SmallVector<Value, 2> bindMultipleNativeCodeCallResult(Value input1,
+                                                              Value input2) {
+  return SmallVector<Value, 2>({input2, input1});
+}
 
 // Test that natives calls are only called once during rewrites.
 // OpM_Test will return Pi, increased by 1 for each subsequent calls.
@@ -159,7 +164,7 @@ static void reifyReturnShape(Operation *op) {
 struct TestReturnTypeDriver
     : public PassWrapper<TestReturnTypeDriver, FunctionPass> {
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<memref::MemRefDialect>();
+    registry.insert<tensor::TensorDialect>();
   }
   StringRef getArgument() const final { return "test-return-type"; }
   StringRef getDescription() const final { return "Run return type functions"; }

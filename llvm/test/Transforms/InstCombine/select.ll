@@ -99,7 +99,7 @@ define <2 x i1> @test9vec(<2 x i1> %C, <2 x i1> %X) {
 
 define <vscale x 2 x i1> @test9vvec(<vscale x 2 x i1> %C, <vscale x 2 x i1> %X) {
 ; CHECK-LABEL: @test9vvec(
-; CHECK-NEXT:    [[NOT_C:%.*]] = xor <vscale x 2 x i1> [[C:%.*]], shufflevector (<vscale x 2 x i1> insertelement (<vscale x 2 x i1> undef, i1 true, i32 0), <vscale x 2 x i1> undef, <vscale x 2 x i32> zeroinitializer)
+; CHECK-NEXT:    [[NOT_C:%.*]] = xor <vscale x 2 x i1> [[C:%.*]], shufflevector (<vscale x 2 x i1> insertelement (<vscale x 2 x i1> poison, i1 true, i32 0), <vscale x 2 x i1> poison, <vscale x 2 x i32> zeroinitializer)
 ; CHECK-NEXT:    [[R:%.*]] = select <vscale x 2 x i1> [[NOT_C]], <vscale x 2 x i1> [[X:%.*]], <vscale x 2 x i1> zeroinitializer
 ; CHECK-NEXT:    ret <vscale x 2 x i1> [[R]]
 ;
@@ -1072,7 +1072,7 @@ entry:
 
 ; Test that we can speculate the loads around the select even when we can't
 ; fold the load completely away.
-define i32 @test78_deref(i1 %flag, i32* dereferenceable(4) align 4 %x, i32* dereferenceable(4) align 4 %y, i32* %z) {
+define i32 @test78_deref(i1 %flag, i32* dereferenceable(4) align 4 %x, i32* dereferenceable(4) align 4 %y, i32* %z) nofree nosync {
 ; CHECK-LABEL: @test78_deref(
 ; CHECK-NEXT:    [[X_VAL:%.*]] = load i32, i32* [[X:%.*]], align 4
 ; CHECK-NEXT:    [[Y_VAL:%.*]] = load i32, i32* [[Y:%.*]], align 4
@@ -1106,7 +1106,7 @@ define i32 @test78_neg(i1 %flag, i32* %x, i32* %y, i32* %z) {
 
 ; The same as @test78_deref but we can't speculate the load because
 ; one of the arguments is not sufficiently dereferenceable.
-define i32 @test78_deref_neg(i1 %flag, i32* dereferenceable(2) %x, i32* dereferenceable(4) %y, i32* %z) {
+define i32 @test78_deref_neg(i1 %flag, i32* dereferenceable(2) %x, i32* dereferenceable(4) %y, i32* %z) nofree nosync {
 ; CHECK-LABEL: @test78_deref_neg(
 ; CHECK-NEXT:    [[P:%.*]] = select i1 [[FLAG:%.*]], i32* [[X:%.*]], i32* [[Y:%.*]]
 ; CHECK-NEXT:    [[V:%.*]] = load i32, i32* [[P]], align 4

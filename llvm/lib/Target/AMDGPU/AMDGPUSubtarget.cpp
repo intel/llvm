@@ -163,6 +163,7 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
     WavefrontSizeLog2 = 5;
 
   HasFminFmaxLegacy = getGeneration() < AMDGPUSubtarget::VOLCANIC_ISLANDS;
+  HasSMulHi = getGeneration() >= AMDGPUSubtarget::GFX9;
 
   TargetID.setTargetIDFromFeaturesString(FS);
 
@@ -185,6 +186,7 @@ AMDGPUSubtarget::AMDGPUSubtarget(const Triple &TT) :
   HasVOP3PInsts(false),
   HasMulI24(true),
   HasMulU24(true),
+  HasSMulHi(false),
   HasInv2PiInlineImm(false),
   HasFminFmaxLegacy(true),
   EnablePromoteAlloca(false),
@@ -262,6 +264,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasGFX10A16(false),
     HasG16(false),
     HasNSAEncoding(false),
+    NSAMaxSize(0),
     GFX10_AEncoding(false),
     GFX10_BEncoding(false),
     HasDLInsts(false),
@@ -821,15 +824,17 @@ unsigned GCNSubtarget::getReservedNumSGPRs(const MachineFunction &MF) const {
 
 unsigned GCNSubtarget::getReservedNumSGPRs(const Function &F) const {
   // The logic to detect if the function has
-  // flat scratch init is same as how MachineFunctionInfo derives.
+  // flat scratch init is slightly different than how
+  // SIMachineFunctionInfo constructor derives.
+  // We don't use amdgpu-calls, amdgpu-stack-objects
+  // attributes and isAmdHsaOrMesa here as it doesn't really matter.
+  // TODO: Outline this derivation logic and have just
+  // one common function in the backend to avoid duplication.
+  bool isEntry = AMDGPU::isEntryFunctionCC(F.getCallingConv());
   bool FunctionHasFlatScratchInit = false;
-  bool HasCalls = F.hasFnAttribute("amdgpu-calls");
-  bool HasStackObjects = F.hasFnAttribute("amdgpu-stack-objects");
-  if (hasFlatAddressSpace() && AMDGPU::isEntryFunctionCC(F.getCallingConv()) &&
-      (isAmdHsaOrMesa(F) || enableFlatScratch()) &&
-      !flatScratchIsArchitected()) {
-    if (HasCalls || HasStackObjects || enableFlatScratch())
-      FunctionHasFlatScratchInit = true;
+  if (hasFlatAddressSpace() && isEntry && !flatScratchIsArchitected() &&
+      enableFlatScratch()) {
+    FunctionHasFlatScratchInit = true;
   }
   return getBaseReservedNumSGPRs(FunctionHasFlatScratchInit);
 }

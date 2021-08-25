@@ -14,6 +14,7 @@
 #include "Compiler.h"
 #include "Config.h"
 #include "Diagnostics.h"
+#include "Feature.h"
 #include "FeatureModule.h"
 #include "Headers.h"
 #include "HeuristicResolver.h"
@@ -60,8 +61,10 @@
 
 // Force the linker to link in Clang-tidy modules.
 // clangd doesn't support the static analyzer.
+#if CLANGD_TIDY_CHECKS
 #define CLANG_TIDY_DISABLE_STATIC_ANALYZER_CHECKS
 #include "../clang-tidy/ClangTidyForceLinker.h"
+#endif
 
 namespace clang {
 namespace clangd {
@@ -289,8 +292,15 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
       std::move(CI), PreamblePCH,
       llvm::MemoryBuffer::getMemBufferCopy(Inputs.Contents, Filename), VFS,
       ASTDiags);
-  if (!Clang)
+  if (!Clang) {
+    // The last diagnostic contains information about the reason of this
+    // failure.
+    std::vector<Diag> Diags(ASTDiags.take());
+    elog("Failed to prepare a compiler instance: {0}",
+         !Diags.empty() ? static_cast<DiagBase &>(Diags.back()).Message
+                        : "unknown error");
     return None;
+  }
 
   auto Action = std::make_unique<ClangdFrontendAction>();
   const FrontendInputFile &MainInput = Clang->getFrontendOpts().Inputs[0];
@@ -298,6 +308,16 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
     log("BeginSourceFile() failed when building AST for {0}",
         MainInput.getFile());
     return None;
+  }
+  // If we saw an include guard in the preamble section of the main file,
+  // mark the main-file as include-guarded.
+  // This information is part of the HeaderFileInfo but is not loaded from the
+  // preamble as the file's size is part of its identity and may have changed.
+  // (The rest of HeaderFileInfo is not relevant for our purposes).
+  if (Preamble && Preamble->MainIsIncludeGuarded) {
+    const SourceManager &SM = Clang->getSourceManager();
+    const FileEntry *MainFE = SM.getFileEntryForID(SM.getMainFileID());
+    Clang->getPreprocessor().getHeaderSearchInfo().MarkFileIncludeOnce(MainFE);
   }
 
   // Set up ClangTidy. Must happen after BeginSourceFile() so ASTContext exists.

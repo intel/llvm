@@ -184,6 +184,7 @@ def DeprecatedThisCapture : DiagGroup<"deprecated-this-capture">;
 def DeprecatedVolatile : DiagGroup<"deprecated-volatile">;
 def DeprecatedWritableStr : DiagGroup<"deprecated-writable-strings",
                                       [CXX11CompatDeprecatedWritableStr]>;
+def DeprecatedPragma : DiagGroup<"deprecated-pragma">;
 // FIXME: Why is DeprecatedImplementations not in this group?
 def Deprecated : DiagGroup<"deprecated", [DeprecatedAnonEnumEnumConversion,
                                           DeprecatedArrayCompare,
@@ -198,6 +199,7 @@ def Deprecated : DiagGroup<"deprecated", [DeprecatedAnonEnumEnumConversion,
                                           DeprecatedEnumEnumConversion,
                                           DeprecatedEnumFloatConversion,
                                           DeprecatedIncrementBool,
+                                          DeprecatedPragma,
                                           DeprecatedRegister,
                                           DeprecatedThisCapture,
                                           DeprecatedVolatile,
@@ -400,7 +402,8 @@ def IncrementBool : DiagGroup<"increment-bool", [DeprecatedIncrementBool]>;
 def InfiniteRecursion : DiagGroup<"infinite-recursion">;
 def PureVirtualCallFromCtorDtor: DiagGroup<"call-to-pure-virtual-from-ctor-dtor">;
 def GNUImaginaryConstant : DiagGroup<"gnu-imaginary-constant">;
-def IgnoredQualifiers : DiagGroup<"ignored-qualifiers">;
+def IgnoredReferenceQualifiers : DiagGroup<"ignored-reference-qualifiers">;
+def IgnoredQualifiers : DiagGroup<"ignored-qualifiers", [IgnoredReferenceQualifiers]>;
 def : DiagGroup<"import">;
 def GNUIncludeNext : DiagGroup<"gnu-include-next">;
 def IncompatibleMSStruct : DiagGroup<"incompatible-ms-struct">;
@@ -462,6 +465,7 @@ def MismatchedParameterTypes : DiagGroup<"mismatched-parameter-types">;
 def MismatchedReturnTypes : DiagGroup<"mismatched-return-types">;
 def MismatchedTags : DiagGroup<"mismatched-tags">;
 def MissingFieldInitializers : DiagGroup<"missing-field-initializers">;
+def ModuleLock : DiagGroup<"module-lock">;
 def ModuleBuild : DiagGroup<"module-build">;
 def ModuleImport : DiagGroup<"module-import">;
 def ModuleConflict : DiagGroup<"module-conflict">;
@@ -487,6 +491,7 @@ def ClassVarargs : DiagGroup<"class-varargs", [NonPODVarargs]>;
 def : DiagGroup<"nonportable-cfstrings">;
 def NonVirtualDtor : DiagGroup<"non-virtual-dtor">;
 def NullPointerArithmetic : DiagGroup<"null-pointer-arithmetic">;
+def NullPointerSubtraction : DiagGroup<"null-pointer-subtraction">;
 def : DiagGroup<"effc++", [NonVirtualDtor]>;
 def OveralignedType : DiagGroup<"over-aligned">;
 def OldStyleCast : DiagGroup<"old-style-cast">;
@@ -934,6 +939,7 @@ def Extra : DiagGroup<"extra", [
     UnusedParameter,
     UnusedButSetParameter,
     NullPointerArithmetic,
+    NullPointerSubtraction,
     EmptyInitStatement,
     StringConcatation,
     FUseLdPath,
@@ -1085,6 +1091,9 @@ def GNU : DiagGroup<"gnu", [GNUAlignofExpression, GNUAnonymousStruct,
 // A warning group for warnings about code that clang accepts but gcc doesn't.
 def GccCompat : DiagGroup<"gcc-compat">;
 
+// A warning group for warnings about code that may be incompatible on AIX.
+def AIXCompat : DiagGroup<"aix-compat">;
+
 // Warnings for Microsoft extensions.
 def MicrosoftCharize : DiagGroup<"microsoft-charize">;
 def MicrosoftDrectveSection : DiagGroup<"microsoft-drectve-section">;
@@ -1188,8 +1197,11 @@ def OpenMPClauses : DiagGroup<"openmp-clauses">;
 def OpenMPLoopForm : DiagGroup<"openmp-loop-form">;
 def OpenMPMapping : DiagGroup<"openmp-mapping">;
 def OpenMPTarget : DiagGroup<"openmp-target", [OpenMPMapping]>;
+def OpenMPPre51Compat : DiagGroup<"pre-openmp-51-compat">;
+def OpenMP51Ext : DiagGroup<"openmp-51-extensions">;
 def OpenMP : DiagGroup<"openmp", [
-    SourceUsesOpenMP, OpenMPClauses, OpenMPLoopForm, OpenMPTarget, OpenMPMapping
+    SourceUsesOpenMP, OpenMPClauses, OpenMPLoopForm, OpenMPTarget,
+    OpenMPMapping, OpenMP51Ext
   ]>;
 
 // SYCL warnings

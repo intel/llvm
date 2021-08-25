@@ -257,8 +257,7 @@ private:
   // of debug prints can cause the function to be too large for inlining.  So
   // it's important that we define this function out of line so that it can't be
   // inlined.
-  LLVM_ATTRIBUTE_NORETURN
-  void fatalUncheckedError() const;
+  [[noreturn]] void fatalUncheckedError() const;
 #endif
 
   void assertIsChecked() {
@@ -436,6 +435,39 @@ inline Error joinErrors(Error E1, Error E2) {
 /// Error cannot be copied, this class replaces getError() with
 /// takeError(). It also adds an bool errorIsA<ErrT>() method for testing the
 /// error class type.
+///
+/// Example usage of 'Expected<T>' as a function return type:
+///
+///   @code{.cpp}
+///     Expected<int> myDivide(int A, int B) {
+///       if (B == 0) {
+///         // return an Error
+///         return createStringError(inconvertibleErrorCode(),
+///                                  "B must not be zero!");
+///       }
+///       // return an integer
+///       return A / B;
+///     }
+///   @endcode
+///
+///   Checking the results of to a function returning 'Expected<T>':
+///   @code{.cpp}
+///     if (auto E = Result.takeError()) {
+///       // We must consume the error. Typically one of:
+///       // - return the error to our caller
+///       // - toString(), when logging
+///       // - consumeError(), to silently swallow the error
+///       // - handleErrors(), to distinguish error types
+///       errs() << "Problem with division " << toString(std::move(E)) << "\n";
+///       return;
+///     }
+///     // use the result
+///     outs() << "The answer is " << *Result << "\n";
+///   @endcode
+///
+///  For unit-testing a function returning an 'Expceted<T>', see the
+///  'EXPECT_THAT_EXPECTED' macros in llvm/Testing/Support/Error.h
+
 template <class T> class LLVM_NODISCARD Expected {
   template <class T1> friend class ExpectedAsOutParameter;
   template <class OtherT> friend class Expected;
@@ -655,9 +687,7 @@ private:
   }
 
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
-  LLVM_ATTRIBUTE_NORETURN
-  LLVM_ATTRIBUTE_NOINLINE
-  void fatalUncheckedExpected() const {
+  [[noreturn]] LLVM_ATTRIBUTE_NOINLINE void fatalUncheckedExpected() const {
     dbgs() << "Expected<T> must be checked before access or destruction.\n";
     if (HasError) {
       dbgs() << "Unchecked Expected<T> contained error:\n";
@@ -670,7 +700,7 @@ private:
   }
 #endif
 
-  void assertIsChecked() {
+  void assertIsChecked() const {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
     if (LLVM_UNLIKELY(Unchecked))
       fatalUncheckedExpected();
@@ -689,8 +719,7 @@ private:
 
 /// Report a serious error, calling any installed error handler. See
 /// ErrorHandling.h.
-LLVM_ATTRIBUTE_NORETURN void report_fatal_error(Error Err,
-                                                bool gen_crash_diag = true);
+[[noreturn]] void report_fatal_error(Error Err, bool gen_crash_diag = true);
 
 /// Report a fatal error if Err is a failure value.
 ///

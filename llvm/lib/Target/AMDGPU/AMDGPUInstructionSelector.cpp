@@ -755,6 +755,30 @@ bool AMDGPUInstructionSelector::selectG_INSERT(MachineInstr &I) const {
   return true;
 }
 
+bool AMDGPUInstructionSelector::selectG_SBFX_UBFX(MachineInstr &MI) const {
+  Register DstReg = MI.getOperand(0).getReg();
+  Register SrcReg = MI.getOperand(1).getReg();
+  Register OffsetReg = MI.getOperand(2).getReg();
+  Register WidthReg = MI.getOperand(3).getReg();
+
+  assert(RBI.getRegBank(DstReg, *MRI, TRI)->getID() == AMDGPU::VGPRRegBankID &&
+         "scalar BFX instructions are expanded in regbankselect");
+  assert(MRI->getType(MI.getOperand(0).getReg()).getSizeInBits() == 32 &&
+         "64-bit vector BFX instructions are expanded in regbankselect");
+
+  const DebugLoc &DL = MI.getDebugLoc();
+  MachineBasicBlock *MBB = MI.getParent();
+
+  bool IsSigned = MI.getOpcode() == TargetOpcode::G_SBFX;
+  unsigned Opc = IsSigned ? AMDGPU::V_BFE_I32_e64 : AMDGPU::V_BFE_U32_e64;
+  auto MIB = BuildMI(*MBB, &MI, DL, TII.get(Opc), DstReg)
+                 .addReg(SrcReg)
+                 .addReg(OffsetReg)
+                 .addReg(WidthReg);
+  MI.eraseFromParent();
+  return constrainSelectedInstRegOperands(*MIB, TII, TRI, RBI);
+}
+
 bool AMDGPUInstructionSelector::selectInterpP1F16(MachineInstr &MI) const {
   if (STI.getLDSBankCount() != 16)
     return selectImpl(MI, *CoverageInfo);
@@ -2441,6 +2465,27 @@ bool AMDGPUInstructionSelector::selectG_AMDGPU_ATOMIC_CMPXCHG(
   return constrainSelectedInstRegOperands(*MIB, TII, TRI, RBI);
 }
 
+static bool isVCmpResult(Register Reg, MachineRegisterInfo &MRI) {
+  if (Reg.isPhysical())
+    return false;
+
+  MachineInstr &MI = *MRI.getUniqueVRegDef(Reg);
+  const unsigned Opcode = MI.getOpcode();
+
+  if (Opcode == AMDGPU::COPY)
+    return isVCmpResult(MI.getOperand(1).getReg(), MRI);
+
+  if (Opcode == AMDGPU::G_AND || Opcode == AMDGPU::G_OR ||
+      Opcode == AMDGPU::G_XOR)
+    return isVCmpResult(MI.getOperand(1).getReg(), MRI) &&
+           isVCmpResult(MI.getOperand(2).getReg(), MRI);
+
+  if (Opcode == TargetOpcode::G_INTRINSIC)
+    return MI.getIntrinsicID() == Intrinsic::amdgcn_class;
+
+  return Opcode == AMDGPU::G_ICMP || Opcode == AMDGPU::G_FCMP;
+}
+
 bool AMDGPUInstructionSelector::selectG_BRCOND(MachineInstr &I) const {
   MachineBasicBlock *BB = I.getParent();
   MachineOperand &CondOp = I.getOperand(0);
@@ -2464,11 +2509,22 @@ bool AMDGPUInstructionSelector::selectG_BRCOND(MachineInstr &I) const {
     BrOpcode = AMDGPU::S_CBRANCH_SCC1;
     ConstrainRC = &AMDGPU::SReg_32RegClass;
   } else {
-    // FIXME: Do we have to insert an and with exec here, like in SelectionDAG?
-    // We sort of know that a VCC producer based on the register bank, that ands
-    // inactive lanes with 0. What if there was a logical operation with vcc
-    // producers in different blocks/with different exec masks?
     // FIXME: Should scc->vcc copies and with exec?
+
+    // Unless the value of CondReg is a result of a V_CMP* instruction then we
+    // need to insert an and with exec.
+    if (!isVCmpResult(CondReg, *MRI)) {
+      const bool Is64 = STI.isWave64();
+      const unsigned Opcode = Is64 ? AMDGPU::S_AND_B64 : AMDGPU::S_AND_B32;
+      const Register Exec = Is64 ? AMDGPU::EXEC : AMDGPU::EXEC_LO;
+
+      Register TmpReg = MRI->createVirtualRegister(TRI.getBoolRC());
+      BuildMI(*BB, &I, DL, TII.get(Opcode), TmpReg)
+          .addReg(CondReg)
+          .addReg(Exec);
+      CondReg = TmpReg;
+    }
+
     CondPhysReg = TRI.getVCC();
     BrOpcode = AMDGPU::S_CBRANCH_VCCNZ;
     ConstrainRC = TRI.getBoolRC();
@@ -3189,6 +3245,9 @@ bool AMDGPUInstructionSelector::select(MachineInstr &I) {
     return selectBVHIntrinsic(I);
   case AMDGPU::G_AMDGPU_BUFFER_ATOMIC_FADD:
     return selectAMDGPU_BUFFER_ATOMIC_FADD(I);
+  case AMDGPU::G_SBFX:
+  case AMDGPU::G_UBFX:
+    return selectG_SBFX_UBFX(I);
   default:
     return selectImpl(I, *CoverageInfo);
   }

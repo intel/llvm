@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/sycl_fe_intrins.hpp>
 #include <CL/sycl/exception.hpp>
 
 #include <type_traits>

@@ -8,7 +8,6 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 
 // regex_iterator
 
@@ -23,3 +22,4 @@ static_assert(std::sentinel_for<std::cregex_iterator, std::cregex_iterator>);
 static_assert(!std::sized_sentinel_for<std::cregex_iterator, std::cregex_iterator>);
 static_assert(!std::indirectly_movable<std::cregex_iterator, std::cregex_iterator>);
 static_assert(!std::indirectly_movable_storable<std::cregex_iterator, std::cregex_iterator>);
+static_assert(!std::indirectly_swappable<std::cregex_iterator, std::cregex_iterator>);

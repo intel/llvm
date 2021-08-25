@@ -490,6 +490,8 @@ DeclRefExpr *DeclRefExpr::CreateEmpty(const ASTContext &Context,
 
 void DeclRefExpr::setDecl(ValueDecl *NewD) {
   D = NewD;
+  if (getType()->isUndeducedType())
+    setType(NewD->getType());
   setDependence(computeDependence(this, NewD->getASTContext()));
 }
 
@@ -1453,7 +1455,7 @@ CallExpr::CallExpr(StmtClass SC, Expr *Fn, ArrayRef<Expr *> PreArgs,
   for (unsigned I = Args.size(); I != NumArgs; ++I)
     setArg(I, nullptr);
 
-  setDependence(computeDependence(this, PreArgs));
+  this->computeDependence();
 
   CallExprBits.HasFPFeatures = FPFeatures.requiresTrailingStorage();
   if (hasStoredFPFeatures())
@@ -1777,8 +1779,10 @@ MemberExpr *MemberExpr::CreateEmpty(const ASTContext &Context,
   return new (Mem) MemberExpr(EmptyShell());
 }
 
-void MemberExpr::setMemberDecl(ValueDecl *D) {
-  MemberDecl = D;
+void MemberExpr::setMemberDecl(ValueDecl *NewD) {
+  MemberDecl = NewD;
+  if (getType()->isUndeducedType())
+    setType(NewD->getType());
   setDependence(computeDependence(this));
 }
 
@@ -1968,6 +1972,7 @@ Expr *CastExpr::getSubExprAsWritten() {
       SubExpr =
         skipImplicitTemporary(cast<CXXConstructExpr>(SubExpr->IgnoreImplicit())->getArg(0));
     else if (E->getCastKind() == CK_UserDefinedConversion) {
+      SubExpr = SubExpr->IgnoreImplicit();
       assert((isa<CXXMemberCallExpr>(SubExpr) ||
               isa<BlockExpr>(SubExpr)) &&
              "Unexpected SubExpr for CK_UserDefinedConversion.");
@@ -2283,8 +2288,11 @@ APValue SourceLocExpr::EvaluateInContext(const ASTContext &Ctx,
   };
 
   switch (getIdentKind()) {
-  case SourceLocExpr::File:
-    return MakeStringLiteral(PLoc.getFilename());
+  case SourceLocExpr::File: {
+    SmallString<256> Path(PLoc.getFilename());
+    Ctx.getLangOpts().remapPathPrefix(Path);
+    return MakeStringLiteral(Path);
+  }
   case SourceLocExpr::Function: {
     const Decl *CurDecl = dyn_cast_or_null<Decl>(Context);
     return MakeStringLiteral(
@@ -2456,7 +2464,7 @@ bool Expr::isReadIfDiscardedInCPlusPlus11() const {
   // In C++11, discarded-value expressions of a certain form are special,
   // according to [expr]p10:
   //   The lvalue-to-rvalue conversion (4.1) is applied only if the
-  //   expression is an lvalue of volatile-qualified type and it has
+  //   expression is a glvalue of volatile-qualified type and it has
   //   one of the following forms:
   if (!isGLValue() || !getType().isVolatileQualified())
     return false;
@@ -3929,8 +3937,7 @@ Expr::isNullPointerConstant(ASTContext &Ctx,
 const ObjCPropertyRefExpr *Expr::getObjCProperty() const {
   const Expr *E = this;
   while (true) {
-    assert((E->getValueKind() == VK_LValue &&
-            E->getObjectKind() == OK_ObjCProperty) &&
+    assert((E->isLValue() && E->getObjectKind() == OK_ObjCProperty) &&
            "expression is not a property reference");
     E = E->IgnoreParenCasts();
     if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
@@ -3969,7 +3976,7 @@ FieldDecl *Expr::getSourceBitField() {
 
   while (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E)) {
     if (ICE->getCastKind() == CK_LValueToRValue ||
-        (ICE->getValueKind() != VK_PRValue && ICE->getCastKind() == CK_NoOp))
+        (ICE->isGLValue() && ICE->getCastKind() == CK_NoOp))
       E = ICE->getSubExpr()->IgnoreParens();
     else
       break;
@@ -4016,7 +4023,7 @@ bool Expr::refersToVectorElement() const {
   const Expr *E = this->IgnoreParens();
 
   while (const ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E)) {
-    if (ICE->getValueKind() != VK_PRValue && ICE->getCastKind() == CK_NoOp)
+    if (ICE->isGLValue() && ICE->getCastKind() == CK_NoOp)
       E = ICE->getSubExpr()->IgnoreParens();
     else
       break;

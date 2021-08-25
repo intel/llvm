@@ -14,6 +14,7 @@
 
 #include "UnwrappedLineParser.h"
 #include "FormatToken.h"
+#include "clang/Basic/TokenKinds.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -431,7 +432,7 @@ void UnwrappedLineParser::parseLevel(bool HasOpeningBrace) {
       }
       LLVM_FALLTHROUGH;
     default:
-      parseStructuralElement();
+      parseStructuralElement(/*IsTopLevel=*/true);
       break;
     }
   } while (!eof());
@@ -994,6 +995,33 @@ static bool isJSDeclOrStmt(const AdditionalKeywords &Keywords,
       Keywords.kw_import, tok::kw_export);
 }
 
+// This function checks whether a token starts the first parameter declaration
+// in a K&R C (aka C78) function definition, e.g.:
+//   int f(a, b)
+//   short a, b;
+//   {
+//      return a + b;
+//   }
+static bool isC78ParameterDecl(const FormatToken *Tok) {
+  if (!Tok)
+    return false;
+
+  if (!Tok->isOneOf(tok::kw_int, tok::kw_char, tok::kw_float, tok::kw_double,
+                    tok::kw_struct, tok::kw_union, tok::kw_long, tok::kw_short,
+                    tok::kw_unsigned, tok::kw_register))
+    return false;
+
+  Tok = Tok->Previous;
+  if (!Tok || Tok->isNot(tok::r_paren))
+    return false;
+
+  Tok = Tok->Previous;
+  if (!Tok || Tok->isNot(tok::identifier))
+    return false;
+
+  return Tok->Previous && Tok->Previous->isOneOf(tok::l_paren, tok::comma);
+}
+
 // readTokenWithJavaScriptASI reads the next token and terminates the current
 // line if JavaScript Automatic Semicolon Insertion must
 // happen between the current token and the next token.
@@ -1041,7 +1069,7 @@ void UnwrappedLineParser::readTokenWithJavaScriptASI() {
     return addUnwrappedLine();
 }
 
-void UnwrappedLineParser::parseStructuralElement() {
+void UnwrappedLineParser::parseStructuralElement(bool IsTopLevel) {
   assert(!FormatTok->is(tok::l_brace));
   if (Style.Language == FormatStyle::LK_TableGen &&
       FormatTok->is(tok::pp_include)) {
@@ -1343,6 +1371,19 @@ void UnwrappedLineParser::parseStructuralElement() {
       return;
     case tok::l_paren:
       parseParens();
+      // Break the unwrapped line if a K&R C function definition has a parameter
+      // declaration.
+      if (!IsTopLevel || !Style.isCpp())
+        break;
+      if (!Previous || Previous->isNot(tok::identifier))
+        break;
+      if (Previous->Previous && Previous->Previous->is(tok::at))
+        break;
+      if (!Line->Tokens.begin()->Tok->is(tok::kw_typedef) &&
+          isC78ParameterDecl(FormatTok)) {
+        addUnwrappedLine();
+        return;
+      }
       break;
     case tok::kw_operator:
       nextToken();
@@ -1482,8 +1523,8 @@ void UnwrappedLineParser::parseStructuralElement() {
     }
     case tok::equal:
       // Fat arrows (=>) have tok::TokenKind tok::equal but TokenType
-      // TT_FatArrow. The always start an expression or a child block if
-      // followed by a curly.
+      // TT_FatArrow. They always start an expression or a child block if
+      // followed by a curly brace.
       if (FormatTok->is(TT_FatArrow)) {
         nextToken();
         if (FormatTok->is(tok::l_brace)) {
@@ -1790,14 +1831,20 @@ bool UnwrappedLineParser::parseBracedList(bool ContinueOnSemicolons,
   bool HasError = false;
 
   // FIXME: Once we have an expression parser in the UnwrappedLineParser,
-  // replace this by using parseAssigmentExpression() inside.
+  // replace this by using parseAssignmentExpression() inside.
   do {
     if (Style.isCSharp()) {
+      // Fat arrows (=>) have tok::TokenKind tok::equal but TokenType
+      // TT_FatArrow. They always start an expression or a child block if
+      // followed by a curly brace.
       if (FormatTok->is(TT_FatArrow)) {
         nextToken();
-        // Fat arrows can be followed by simple expressions or by child blocks
-        // in curly braces.
         if (FormatTok->is(tok::l_brace)) {
+          // C# may break after => if the next character is a newline.
+          if (Style.isCSharp() && Style.BraceWrapping.AfterFunction == true) {
+            // calling `addUnwrappedLine()` here causes odd parsing errors.
+            FormatTok->MustBreakBefore = true;
+          }
           parseChildBlock();
           continue;
         }
@@ -1926,6 +1973,12 @@ void UnwrappedLineParser::parseParens() {
         nextToken();
         parseBracedList();
       }
+      break;
+    case tok::equal:
+      if (Style.isCSharp() && FormatTok->is(TT_FatArrow))
+        parseStructuralElement();
+      else
+        nextToken();
       break;
     case tok::kw_class:
       if (Style.Language == FormatStyle::LK_JavaScript)
@@ -2464,6 +2517,8 @@ bool UnwrappedLineParser::parseEnum() {
   if (FormatTok->Tok.is(tok::kw_enum))
     nextToken();
 
+  const FormatToken &InitialToken = *FormatTok;
+
   // In TypeScript, "enum" can also be used as property name, e.g. in interface
   // declarations. An "enum" keyword followed by a colon would be a syntax
   // error and thus assume it is just an identifier.
@@ -2510,7 +2565,8 @@ bool UnwrappedLineParser::parseEnum() {
     return true;
   }
 
-  if (!Style.AllowShortEnumsOnASingleLine)
+  if (!Style.AllowShortEnumsOnASingleLine &&
+      ShouldBreakBeforeBrace(Style, InitialToken))
     addUnwrappedLine();
   // Parse enum body.
   nextToken();

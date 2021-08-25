@@ -56,9 +56,9 @@ void DefaultInlineAdvice::recordUnsuccessfulInliningImpl(
                                          "; " + inlineCostStr(*OIC));
   ORE.emit([&]() {
     return OptimizationRemarkMissed(DEBUG_TYPE, "NotInlined", DLoc, Block)
-           << NV("Callee", Callee) << " will not be inlined into "
-           << NV("Caller", Caller) << ": "
-           << NV("Reason", Result.getFailureReason());
+           << "'" << NV("Callee", Callee) << "' is not inlined into '"
+           << "'" << NV("Caller", Caller)
+           << "': " << NV("Reason", Result.getFailureReason());
   });
 }
 
@@ -157,6 +157,7 @@ bool InlineAdvisorAnalysis::Result::tryCreate(InlineParams Params,
   auto &FAM = MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   switch (Mode) {
   case InliningAdvisorMode::Default:
+    LLVM_DEBUG(dbgs() << "Using default inliner heuristic.\n");
     Advisor.reset(new DefaultInlineAdvisor(M, FAM, Params));
     // Restrict replay to default advisor, ML advisors are stateful so
     // replay will need augmentations to interleave with them correctly.
@@ -168,6 +169,7 @@ bool InlineAdvisorAnalysis::Result::tryCreate(InlineParams Params,
     break;
   case InliningAdvisorMode::Development:
 #ifdef LLVM_HAVE_TF_API
+    LLVM_DEBUG(dbgs() << "Using development-mode inliner policy.\n");
     Advisor =
         llvm::getDevelopmentModeAdvisor(M, MAM, [&FAM, Params](CallBase &CB) {
           auto OIC = getDefaultInlineAdvice(CB, FAM, Params);
@@ -177,6 +179,7 @@ bool InlineAdvisorAnalysis::Result::tryCreate(InlineParams Params,
     break;
   case InliningAdvisorMode::Release:
 #ifdef LLVM_HAVE_TF_AOT
+    LLVM_DEBUG(dbgs() << "Using release-mode inliner policy.\n");
     Advisor = llvm::getReleaseModeAdvisor(M, MAM);
 #endif
     break;
@@ -340,15 +343,15 @@ llvm::shouldInline(CallBase &CB,
     if (IC.isNever()) {
       ORE.emit([&]() {
         return OptimizationRemarkMissed(DEBUG_TYPE, "NeverInline", Call)
-               << NV("Callee", Callee) << " not inlined into "
-               << NV("Caller", Caller) << " because it should never be inlined "
-               << IC;
+               << "'" << NV("Callee", Callee) << "' not inlined into '"
+               << NV("Caller", Caller)
+               << "' because it should never be inlined " << IC;
       });
     } else {
       ORE.emit([&]() {
         return OptimizationRemarkMissed(DEBUG_TYPE, "TooCostly", Call)
-               << NV("Callee", Callee) << " not inlined into "
-               << NV("Caller", Caller) << " because too costly to inline "
+               << "'" << NV("Callee", Callee) << "' not inlined into '"
+               << NV("Caller", Caller) << "' because too costly to inline "
                << IC;
       });
     }
@@ -365,9 +368,9 @@ llvm::shouldInline(CallBase &CB,
     ORE.emit([&]() {
       return OptimizationRemarkMissed(DEBUG_TYPE, "IncreaseCostInOtherContexts",
                                       Call)
-             << "Not inlining. Cost of inlining " << NV("Callee", Callee)
-             << " increases the cost of inlining " << NV("Caller", Caller)
-             << " in other contexts";
+             << "Not inlining. Cost of inlining '" << NV("Callee", Callee)
+             << "' increases the cost of inlining '" << NV("Caller", Caller)
+             << "' in other contexts";
     });
     setInlineRemark(CB, "deferred");
     // IC does not bool() to false, so get an InlineCost that will.
@@ -441,8 +444,8 @@ void llvm::emitInlinedInto(OptimizationRemarkEmitter &ORE, DebugLoc DLoc,
     StringRef RemarkName = AlwaysInline ? "AlwaysInline" : "Inlined";
     OptimizationRemark Remark(PassName ? PassName : DEBUG_TYPE, RemarkName,
                               DLoc, Block);
-    Remark << ore::NV("Callee", &Callee) << " inlined into ";
-    Remark << ore::NV("Caller", &Caller);
+    Remark << "'" << ore::NV("Callee", &Callee) << "' inlined into '"
+           << ore::NV("Caller", &Caller) << "'";
     if (ForProfileContext)
       Remark << " to match profiling context";
     Remark << " with " << IC;

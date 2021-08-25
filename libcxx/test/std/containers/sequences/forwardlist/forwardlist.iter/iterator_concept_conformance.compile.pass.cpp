@@ -8,7 +8,6 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 
 // iterator, const_iterator
 
@@ -31,6 +30,7 @@ static_assert( std::indirectly_movable<iterator, iterator>);
 static_assert( std::indirectly_movable_storable<iterator, iterator>);
 static_assert(!std::indirectly_movable<iterator, const_iterator>);
 static_assert(!std::indirectly_movable_storable<iterator, const_iterator>);
+static_assert(std::indirectly_swappable<iterator, iterator>);
 
 static_assert(std::forward_iterator<const_iterator>);
 static_assert(!std::bidirectional_iterator<const_iterator>);
@@ -43,3 +43,4 @@ static_assert( std::indirectly_movable<const_iterator, iterator>);
 static_assert( std::indirectly_movable_storable<const_iterator, iterator>);
 static_assert(!std::indirectly_movable<const_iterator, const_iterator>);
 static_assert(!std::indirectly_movable_storable<const_iterator, const_iterator>);
+static_assert(!std::indirectly_swappable<const_iterator, const_iterator>);

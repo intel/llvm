@@ -8,7 +8,6 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 
 // iterator, const_iterator, local_iterator, const_local_iterator
 
@@ -35,6 +34,7 @@ static_assert(!std::sized_sentinel_for<iterator, local_iterator>);
 static_assert(!std::sized_sentinel_for<iterator, const_local_iterator>);
 static_assert(std::indirectly_movable<iterator, std::pair<int, int>*>);
 static_assert(!std::indirectly_movable_storable<iterator, std::pair<int, int>*>);
+static_assert(!std::indirectly_swappable<iterator, iterator>);
 
 static_assert(std::forward_iterator<const_iterator>);
 static_assert(!std::bidirectional_iterator<const_iterator>);
@@ -47,6 +47,7 @@ static_assert(!std::sized_sentinel_for<const_iterator, iterator>);
 static_assert(!std::sized_sentinel_for<const_iterator, const_iterator>);
 static_assert(!std::sized_sentinel_for<const_iterator, local_iterator>);
 static_assert(!std::sized_sentinel_for<const_iterator, const_local_iterator>);
+static_assert(!std::indirectly_swappable<const_iterator, const_iterator>);
 
 static_assert(std::forward_iterator<local_iterator>);
 static_assert(!std::bidirectional_iterator<local_iterator>);
@@ -61,6 +62,7 @@ static_assert(!std::sized_sentinel_for<local_iterator, local_iterator>);
 static_assert(!std::sized_sentinel_for<local_iterator, const_local_iterator>);
 static_assert(std::indirectly_movable<local_iterator, std::pair<int, int>*>);
 static_assert(!std::indirectly_movable_storable<local_iterator, std::pair<int, int>*>);
+static_assert(!std::indirectly_swappable<local_iterator, local_iterator>);
 
 static_assert(std::forward_iterator<const_local_iterator>);
 static_assert(!std::bidirectional_iterator<const_local_iterator>);
@@ -73,3 +75,4 @@ static_assert(!std::sized_sentinel_for<const_local_iterator, iterator>);
 static_assert(!std::sized_sentinel_for<const_local_iterator, const_iterator>);
 static_assert(!std::sized_sentinel_for<const_local_iterator, local_iterator>);
 static_assert(!std::sized_sentinel_for<const_local_iterator, const_local_iterator>);
+static_assert(!std::indirectly_swappable<const_local_iterator, const_local_iterator>);

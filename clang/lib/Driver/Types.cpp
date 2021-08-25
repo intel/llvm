@@ -148,6 +148,45 @@ bool types::isAcceptedByClang(ID Id) {
   }
 }
 
+bool types::isDerivedFromC(ID Id) {
+  switch (Id) {
+  default:
+    return false;
+
+  case TY_PP_C:
+  case TY_C:
+  case TY_CL:
+  case TY_CLCXX:
+  case TY_PP_CUDA:
+  case TY_CUDA:
+  case TY_CUDA_DEVICE:
+  case TY_PP_HIP:
+  case TY_HIP:
+  case TY_HIP_DEVICE:
+  case TY_PP_ObjC:
+  case TY_PP_ObjC_Alias:
+  case TY_ObjC:
+  case TY_PP_CXX:
+  case TY_CXX:
+  case TY_PP_ObjCXX:
+  case TY_PP_ObjCXX_Alias:
+  case TY_ObjCXX:
+  case TY_RenderScript:
+  case TY_PP_CHeader:
+  case TY_CHeader:
+  case TY_CLHeader:
+  case TY_PP_ObjCHeader:
+  case TY_ObjCHeader:
+  case TY_PP_CXXHeader:
+  case TY_CXXHeader:
+  case TY_PP_ObjCXXHeader:
+  case TY_ObjCXXHeader:
+  case TY_CXXModule:
+  case TY_PP_CXXModule:
+    return true;
+  }
+}
+
 bool types::isObjC(ID Id) {
   switch (Id) {
   default:
@@ -237,7 +276,6 @@ bool types::isFPGA(ID Id) {
   case TY_FPGA_AOCX:
   case TY_FPGA_AOCO:
   case TY_FPGA_AOCR_EMU:
-  case TY_FPGA_AOCX_EMU:
     return true;
   }
 }

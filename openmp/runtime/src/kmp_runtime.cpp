@@ -47,8 +47,6 @@ static char *ProfileTraceFile = nullptr;
 #include <process.h>
 #endif
 
-#include "tsan_annotations.h"
-
 #if KMP_OS_WINDOWS
 // windows does not need include files as it doesn't use shared memory
 #else
@@ -5539,7 +5537,6 @@ void __kmp_free_team(kmp_root_t *root,
   int use_hot_team = team == root->r.r_hot_team;
 #if KMP_NESTED_HOT_TEAMS
   int level;
-  kmp_hot_team_ptr_t *hot_teams;
   if (master) {
     level = team->t.t_active_level - 1;
     if (master->th.th_teams_microtask) { // in teams construct?
@@ -5553,7 +5550,9 @@ void __kmp_free_team(kmp_root_t *root,
         // team_of_workers before the parallel
       } // team->t.t_level will be increased inside parallel
     }
-    hot_teams = master->th.th_hot_teams;
+#if KMP_DEBUG
+    kmp_hot_team_ptr_t *hot_teams = master->th.th_hot_teams;
+#endif
     if (level < __kmp_hot_teams_max_level) {
       KMP_DEBUG_ASSERT(team == hot_teams[level].hot_team);
       use_hot_team = 1;
@@ -6066,7 +6065,6 @@ static void __kmp_reap_thread(kmp_info_t *thread, int is_root) {
       } else {
         /* Need release fence here to prevent seg faults for tree forkjoin
            barrier (GEH) */
-        ANNOTATE_HAPPENS_BEFORE(thread);
         kmp_flag_64<> flag(&thread->th.th_bar[bs_forkjoin_barrier].bb.b_go,
                            thread);
         __kmp_release_64(&flag);
@@ -6312,6 +6310,16 @@ void __kmp_internal_end_library(int gtid_req) {
     return;
   }
 
+  // If hidden helper team has been initialized, we need to deinit it
+  if (TCR_4(__kmp_init_hidden_helper) &&
+      !TCR_4(__kmp_hidden_helper_team_done)) {
+    TCW_SYNC_4(__kmp_hidden_helper_team_done, TRUE);
+    // First release the main thread to let it continue its work
+    __kmp_hidden_helper_main_thread_release();
+    // Wait until the hidden helper team has been destroyed
+    __kmp_hidden_helper_threads_deinitz_wait();
+  }
+
   KMP_MB(); /* Flush all pending memory write invalidates.  */
   /* find out who we are and what we should do */
   {
@@ -6425,7 +6433,8 @@ void __kmp_internal_end_thread(int gtid_req) {
   }
 
   // If hidden helper team has been initialized, we need to deinit it
-  if (TCR_4(__kmp_init_hidden_helper)) {
+  if (TCR_4(__kmp_init_hidden_helper) &&
+      !TCR_4(__kmp_hidden_helper_team_done)) {
     TCW_SYNC_4(__kmp_hidden_helper_team_done, TRUE);
     // First release the main thread to let it continue its work
     __kmp_hidden_helper_main_thread_release();
@@ -6586,7 +6595,7 @@ void __kmp_register_library_startup(void) {
 
     char *value = NULL; // Actual value of the environment variable.
 
-#if KMP_OS_UNIX && KMP_DYNAMIC_LIB // shared memory is with dynamic library
+#if defined(KMP_USE_SHM)
     char *shm_name = __kmp_str_format("/%s", name);
     int shm_preexist = 0;
     char *data1;
@@ -6652,7 +6661,7 @@ void __kmp_register_library_startup(void) {
       __kmp_str_split(tail, '-', &flag_val_str, &tail);
       file_name = tail;
       if (tail != NULL) {
-        long *flag_addr = 0;
+        unsigned long *flag_addr = 0;
         unsigned long flag_val = 0;
         KMP_SSCANF(flag_addr_str, "%p", RCAST(void **, &flag_addr));
         KMP_SSCANF(flag_val_str, "%lx", &flag_val);
@@ -6691,7 +6700,7 @@ void __kmp_register_library_startup(void) {
       } break;
       case 2: { // Neighbor is dead.
 
-#if KMP_OS_UNIX && KMP_DYNAMIC_LIB // shared memory is with dynamic library
+#if defined(KMP_USE_SHM)
         // close shared memory.
         shm_unlink(shm_name); // this removes file in /dev/shm
 #else
@@ -6705,7 +6714,7 @@ void __kmp_register_library_startup(void) {
       }
     }
     KMP_INTERNAL_FREE((void *)value);
-#if KMP_OS_UNIX && KMP_DYNAMIC_LIB // shared memory is with dynamic library
+#if defined(KMP_USE_SHM)
     KMP_INTERNAL_FREE((void *)shm_name);
 #endif
   } // while
@@ -6718,7 +6727,7 @@ void __kmp_unregister_library(void) {
   char *name = __kmp_reg_status_name();
   char *value = NULL;
 
-#if KMP_OS_UNIX && KMP_DYNAMIC_LIB // shared memory is with dynamic library
+#if defined(KMP_USE_SHM)
   char *shm_name = __kmp_str_format("/%s", name);
   int fd1 = shm_open(shm_name, O_RDONLY, 0666);
   if (fd1 == -1) {
@@ -6739,14 +6748,14 @@ void __kmp_unregister_library(void) {
   KMP_DEBUG_ASSERT(__kmp_registration_str != NULL);
   if (value != NULL && strcmp(value, __kmp_registration_str) == 0) {
 //  Ok, this is our variable. Delete it.
-#if KMP_OS_UNIX && KMP_DYNAMIC_LIB // shared memory is with dynamic library
+#if defined(KMP_USE_SHM)
     shm_unlink(shm_name); // this removes file in /dev/shm
 #else
     __kmp_env_unset(name);
 #endif
   }
 
-#if KMP_OS_UNIX && KMP_DYNAMIC_LIB // shared memory is with dynamic library
+#if defined(KMP_USE_SHM)
   KMP_INTERNAL_FREE(shm_name);
 #endif
 
@@ -8895,11 +8904,12 @@ void __kmp_add_threads_to_team(kmp_team_t *team, int new_nthreads) {
 // Globals and functions for hidden helper task
 kmp_info_t **__kmp_hidden_helper_threads;
 kmp_info_t *__kmp_hidden_helper_main_thread;
-kmp_int32 __kmp_hidden_helper_threads_num = 8;
 std::atomic<kmp_int32> __kmp_unexecuted_hidden_helper_tasks;
 #if KMP_OS_LINUX
+kmp_int32 __kmp_hidden_helper_threads_num = 8;
 kmp_int32 __kmp_enable_hidden_helper = TRUE;
 #else
+kmp_int32 __kmp_hidden_helper_threads_num = 0;
 kmp_int32 __kmp_enable_hidden_helper = FALSE;
 #endif
 

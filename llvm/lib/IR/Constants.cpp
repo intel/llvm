@@ -442,6 +442,7 @@ Constant *Constant::getAggregateElement(unsigned Elt) const {
   if (const auto *CDS = dyn_cast<ConstantDataSequential>(this))
     return Elt < CDS->getNumElements() ? CDS->getElementAsConstant(Elt)
                                        : nullptr;
+
   return nullptr;
 }
 
@@ -1429,12 +1430,12 @@ Constant *ConstantVector::getSplat(ElementCount EC, Constant *V) {
   Type *I32Ty = Type::getInt32Ty(VTy->getContext());
 
   // Move scalar into vector.
-  Constant *UndefV = UndefValue::get(VTy);
-  V = ConstantExpr::getInsertElement(UndefV, V, ConstantInt::get(I32Ty, 0));
+  Constant *PoisonV = PoisonValue::get(VTy);
+  V = ConstantExpr::getInsertElement(PoisonV, V, ConstantInt::get(I32Ty, 0));
   // Build shuffle mask to perform the splat.
   SmallVector<int, 8> Zeros(EC.getKnownMinValue(), 0);
   // Splat.
-  return ConstantExpr::getShuffleVector(V, UndefV, Zeros);
+  return ConstantExpr::getShuffleVector(V, PoisonV, Zeros);
 }
 
 ConstantTokenNone *ConstantTokenNone::get(LLVMContext &Context) {
@@ -1829,8 +1830,8 @@ BlockAddress *BlockAddress::get(Function *F, BasicBlock *BB) {
 }
 
 BlockAddress::BlockAddress(Function *F, BasicBlock *BB)
-: Constant(Type::getInt8PtrTy(F->getContext()), Value::BlockAddressVal,
-           &Op<0>(), 2) {
+    : Constant(Type::getInt8PtrTy(F->getContext(), F->getAddressSpace()),
+               Value::BlockAddressVal, &Op<0>(), 2) {
   setOperand(0, F);
   setOperand(1, BB);
   BB->AdjustBlockAddressRefCount(1);
@@ -2426,10 +2427,8 @@ Constant *ConstantExpr::getGetElementPtr(Type *Ty, Constant *C,
                                          Optional<unsigned> InRangeIndex,
                                          Type *OnlyIfReducedTy) {
   PointerType *OrigPtrTy = cast<PointerType>(C->getType()->getScalarType());
-  if (!Ty)
-    Ty = OrigPtrTy->getElementType();
-  else
-    assert(OrigPtrTy->isOpaqueOrPointeeTypeMatches(Ty));
+  assert(Ty && "Must specify element type");
+  assert(OrigPtrTy->isOpaqueOrPointeeTypeMatches(Ty));
 
   if (Constant *FC =
           ConstantFoldGetElementPtr(Ty, C, InBounds, InRangeIndex, Idxs))

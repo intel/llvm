@@ -128,7 +128,7 @@ option specifies "``-``", then the output will also be sent to standard output.
   Specify the size of the load queue in the load/store unit emulated by the tool.
   By default, the tool assumes an unbound number of entries in the load queue.
   A value of zero for this flag is ignored, and the default load queue size is
-  used instead. 
+  used instead.
 
 .. option:: -squeue=<store queue size>
 
@@ -203,20 +203,24 @@ option specifies "``-``", then the output will also be sent to standard output.
 .. option:: -bottleneck-analysis
 
   Print information about bottlenecks that affect the throughput. This analysis
-  can be expensive, and it is disabled by default.  Bottlenecks are highlighted
+  can be expensive, and it is disabled by default. Bottlenecks are highlighted
   in the summary view. Bottleneck analysis is currently not supported for
   processors with an in-order backend.
 
 .. option:: -json
 
-  Print the requested views in JSON format. The instructions and the processor
-  resources are printed as members of special top level JSON objects.  The
-  individual views refer to them by index.
-  
+  Print the requested views in valid JSON format. The instructions and the
+  processor resources are printed as members of special top level JSON objects.
+  The individual views refer to them by index. However, not all views are
+  currently supported. For example, the report from the bottleneck analysis is
+  not printed out in JSON. All the default views are currently supported.
+
 .. option:: -disable-cb
 
-  Force usage of the generic CustomBehaviour class rather than using the target
-  specific class. The generic class never detects any custom hazards.
+  Force usage of the generic CustomBehaviour and InstrPostProcess classes rather
+  than using the target specific implementation. The generic classes never
+  detect any custom hazards or make any post processing modifications to
+  instructions.
 
 
 EXIT STATUS
@@ -987,7 +991,7 @@ an instruction is allowed to commit writes and retire out-of-order if
 Custom Behaviour
 """"""""""""""""""""""""""""""""""""
 Due to certain instructions not being expressed perfectly within their
-scheduling model, :program:`llvm-ma` isn't always able to simulate them
+scheduling model, :program:`llvm-mca` isn't always able to simulate them
 perfectly. Modifying the scheduling model isn't always a viable
 option though (maybe because the instruction is modeled incorrectly on
 purpose or the instruction's behaviour is quite complex). The
@@ -1011,4 +1015,5 @@ if you don't know the exact number and a value of 0 represents no stall).
 
 If you'd like to add a CustomBehaviour class for a target that doesn't
 already have one, refer to an existing implementation to see how to set it
-up. Remember to look at (and add to) `/llvm-mca/lib/CMakeLists.txt`.
+up. The classes are implemented within the target specific backend (for
+example `/llvm/lib/Target/AMDGPU/MCA/`) so that they can access backend symbols.

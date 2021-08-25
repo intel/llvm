@@ -14,6 +14,35 @@
 #define KMP_BARRIER_H
 
 #include "kmp.h"
+#include "kmp_i18n.h"
+
+#if KMP_HAVE_XMMINTRIN_H && KMP_HAVE__MM_MALLOC
+#include <xmmintrin.h>
+#define KMP_ALIGNED_ALLOCATE(size, alignment) _mm_malloc(size, alignment)
+#define KMP_ALIGNED_FREE(ptr) _mm_free(ptr)
+#elif KMP_HAVE_ALIGNED_ALLOC
+#define KMP_ALIGNED_ALLOCATE(size, alignment) aligned_alloc(alignment, size)
+#define KMP_ALIGNED_FREE(ptr) free(ptr)
+#elif KMP_HAVE_POSIX_MEMALIGN
+static inline void *KMP_ALIGNED_ALLOCATE(size_t size, size_t alignment) {
+  void *ptr;
+  int n = posix_memalign(&ptr, alignment, size);
+  if (n != 0) {
+    if (ptr)
+      free(ptr);
+    return nullptr;
+  }
+  return ptr;
+}
+#define KMP_ALIGNED_FREE(ptr) free(ptr)
+#elif KMP_HAVE__ALIGNED_MALLOC
+#include <malloc.h>
+#define KMP_ALIGNED_ALLOCATE(size, alignment) _aligned_malloc(size, alignment)
+#define KMP_ALIGNED_FREE(ptr) _aligned_free(ptr)
+#else
+#define KMP_ALIGNED_ALLOCATE(size, alignment) KMP_INTERNAL_MALLOC(size)
+#define KMP_ALIGNED_FREE(ptr) KMP_INTERNAL_FREE(ptr)
+#endif
 
 // Use four cache lines: MLC tends to prefetch the next or previous cache line
 // creating a possible fake conflict between cores, so this is the only way to
@@ -79,8 +108,11 @@ public:
 
   // Used instead of constructor to create aligned data
   static distributedBarrier *allocate(int nThreads) {
-    distributedBarrier *d = (distributedBarrier *)_mm_malloc(
+    distributedBarrier *d = (distributedBarrier *)KMP_ALIGNED_ALLOCATE(
         sizeof(distributedBarrier), 4 * CACHE_LINE);
+    if (!d) {
+      KMP_FATAL(MemoryAllocFailed);
+    }
     d->num_threads = 0;
     d->max_threads = 0;
     for (int i = 0; i < MAX_ITERS; ++i)
@@ -96,7 +128,7 @@ public:
     return d;
   }
 
-  static void deallocate(distributedBarrier *db) { _mm_free(db); }
+  static void deallocate(distributedBarrier *db) { KMP_ALIGNED_FREE(db); }
 
   void update_num_threads(size_t nthr) { init(nthr); }
 

@@ -3679,6 +3679,78 @@ TEST_P(ImportVariables, InitAndDefinitionAreInTheFromContext) {
   EXPECT_TRUE(ImportedD->getDefinition());
 }
 
+TEST_P(ImportVariables, ImportBindingDecl) {
+  Decl *From, *To;
+  std::tie(From, To) = getImportedDecl(
+      R"(
+      void declToImport() {
+        int a[2] = {1,2};
+        auto [x1,y1] = a;
+        auto& [x2,y2] = a;
+        
+        struct S {
+          mutable int x1 : 2;
+          volatile double y1;
+        };
+        S b;
+        const auto [x3, y3] = b;
+      };
+      )",
+      Lang_CXX17, "", Lang_CXX17);
+
+  TranslationUnitDecl *FromTU = From->getTranslationUnitDecl();
+  auto *FromF = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("declToImport")));
+  auto *ToF = Import(FromF, Lang_CXX17);
+  EXPECT_TRUE(ToF);
+
+  auto VerifyImport = [&](llvm::StringRef BindName) {
+    auto *FromB = FirstDeclMatcher<BindingDecl>().match(
+        FromF, bindingDecl(hasName(BindName)));
+    ASSERT_TRUE(FromB);
+    auto *ToB = Import(FromB, Lang_CXX17);
+    EXPECT_TRUE(ToB);
+    EXPECT_EQ(FromB->getBinding() != nullptr, ToB->getBinding() != nullptr);
+    EXPECT_EQ(FromB->getDecomposedDecl() != nullptr,
+              ToB->getDecomposedDecl() != nullptr);
+    EXPECT_EQ(FromB->getHoldingVar() != nullptr,
+              ToB->getHoldingVar() != nullptr);
+  };
+
+  VerifyImport("x1");
+  VerifyImport("y1");
+  VerifyImport("x2");
+  VerifyImport("y2");
+  VerifyImport("x3");
+  VerifyImport("y3");
+}
+
+TEST_P(ImportVariables, ImportDecompositionDeclArray) {
+  Decl *From, *To;
+  std::tie(From, To) = getImportedDecl(
+      R"(
+      void declToImport() {
+        int a[2] = {1,2};
+        auto [x1,y1] = a;
+      };
+      )",
+      Lang_CXX17, "", Lang_CXX17);
+
+  TranslationUnitDecl *FromTU = From->getTranslationUnitDecl();
+  auto *FromDecomp =
+      FirstDeclMatcher<DecompositionDecl>().match(FromTU, decompositionDecl());
+  auto *ToDecomp = Import(FromDecomp, Lang_CXX17);
+  EXPECT_TRUE(ToDecomp);
+
+  ArrayRef<BindingDecl *> FromB = FromDecomp->bindings();
+  ArrayRef<BindingDecl *> ToB = ToDecomp->bindings();
+  EXPECT_EQ(FromB.size(), ToB.size());
+  for (unsigned int I = 0; I < FromB.size(); ++I) {
+    auto *ToBI = Import(FromB[I], Lang_CXX17);
+    EXPECT_EQ(ToBI, ToB[I]);
+  }
+}
+
 struct ImportClasses : ASTImporterOptionSpecificTestBase {};
 
 TEST_P(ImportClasses, ImportDefinitionWhenProtoIsInNestedToContext) {

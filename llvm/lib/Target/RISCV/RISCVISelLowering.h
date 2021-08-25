@@ -84,6 +84,16 @@ enum NodeType : unsigned {
   FMV_X_ANYEXTH,
   FMV_W_X_RV64,
   FMV_X_ANYEXTW_RV64,
+  // FP to XLen int conversions. Corresponds to fcvt.l(u).s/d/h on RV64 and
+  // fcvt.w(u).s/d/h on RV32. Unlike FP_TO_S/UINT these saturate out of
+  // range inputs. These are used for FP_TO_S/UINT_SAT lowering.
+  FCVT_X_RTZ,
+  FCVT_XU_RTZ,
+  // FP to 32 bit int conversions for RV64. These are used to keep track of the
+  // result being sign extended to 64 bit. These saturate out of range inputs.
+  // Used for FP_TO_S/UINT and FP_TO_S/UINT_SAT lowering.
+  FCVT_W_RTZ_RV64,
+  FCVT_WU_RTZ_RV64,
   // READ_CYCLE_WIDE - A read of the 64-bit cycle CSR on a 32-bit target
   // (returns (Lo, Hi)). It takes a chain operand.
   READ_CYCLE_WIDE,
@@ -192,6 +202,12 @@ enum NodeType : unsigned {
   UDIV_VL,
   UREM_VL,
   XOR_VL,
+
+  SADDSAT_VL,
+  UADDSAT_VL,
+  SSUBSAT_VL,
+  USUBSAT_VL,
+
   FADD_VL,
   FSUB_VL,
   FMUL_VL,
@@ -215,6 +231,10 @@ enum NodeType : unsigned {
   UINT_TO_FP_VL,
   FP_ROUND_VL,
   FP_EXTEND_VL,
+
+  // Widening instructions
+  VWMUL_VL,
+  VWMULU_VL,
 
   // Vector compare producing a mask. Fourth operand is input mask. Fifth
   // operand is VL.
@@ -241,6 +261,7 @@ enum NodeType : unsigned {
   // Vector sign/zero extend with additional mask & VL operands.
   VSEXT_VL,
   VZEXT_VL,
+
   //  vpopc.m with additional mask and VL operands.
   VPOPC_VL,
 
@@ -552,6 +573,7 @@ private:
   SDValue lowerFixedLengthVectorLogicOpToRVV(SDValue Op, SelectionDAG &DAG,
                                              unsigned MaskOpc,
                                              unsigned VecOpc) const;
+  SDValue lowerFixedLengthVectorShiftToRVV(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFixedLengthVectorSelectToRVV(SDValue Op,
                                             SelectionDAG &DAG) const;
   SDValue lowerToScalableOp(SDValue Op, SelectionDAG &DAG, unsigned NewOpc,

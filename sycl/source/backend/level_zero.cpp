@@ -79,10 +79,26 @@ __SYCL_EXPORT program make_program(const context &Context,
 //----------------------------------------------------------------------------
 // Implementation of level_zero::make<queue>
 __SYCL_EXPORT queue make_queue(const context &Context,
-                               pi_native_handle NativeHandle) {
+                               pi_native_handle NativeHandle,
+                               bool KeepOwnership) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context,
+  return detail::make_queue(NativeHandle, Context, KeepOwnership,
                             ContextImpl->get_async_handler(),
+                            backend::level_zero);
+}
+
+// TODO: remove this version (without ownership) when allowed to break ABI.
+__SYCL_EXPORT queue make_queue(const context &Context,
+                               pi_native_handle NativeHandle) {
+  return make_queue(Context, NativeHandle, false);
+}
+
+//----------------------------------------------------------------------------
+// Implementation of level_zero::make<event>
+__SYCL_EXPORT event make_event(const context &Context,
+                               pi_native_handle NativeHandle,
+                               bool KeepOwnership) {
+  return detail::make_event(NativeHandle, Context, KeepOwnership,
                             backend::level_zero);
 }
 

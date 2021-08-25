@@ -28,7 +28,7 @@
 #include "ConfigFragment.h"
 #include "ConfigProvider.h"
 #include "Diagnostics.h"
-#include "Features.inc"
+#include "Feature.h"
 #include "TidyProvider.h"
 #include "support/Logger.h"
 #include "support/Path.h"

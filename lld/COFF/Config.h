@@ -223,6 +223,9 @@ struct Configuration {
   // Used for /lto-cs-profile-path
   llvm::StringRef ltoCSProfileFile;
 
+  // Used for /lto-pgo-warn-mismatch:
+  bool ltoPGOWarnMismatch = true;
+
   // Used for /call-graph-ordering-file:
   llvm::MapVector<std::pair<const SectionChunk *, const SectionChunk *>,
                   uint64_t>
@@ -263,6 +266,7 @@ struct Configuration {
   bool warnLocallyDefinedImported = true;
   bool warnDebugInfoUnusable = true;
   bool warnLongSectionNames = true;
+  bool warnStdcallFixup = true;
   bool incremental = true;
   bool integrityCheck = false;
   bool killAt = false;
@@ -273,6 +277,7 @@ struct Configuration {
   bool thinLTOIndexOnly;
   bool autoImport = false;
   bool pseudoRelocs = false;
+  bool stdcallFixup = false;
 };
 
 extern Configuration *config;

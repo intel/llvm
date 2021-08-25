@@ -36,6 +36,7 @@ def DestructiveBinary             : DestructiveInstTypeEnum<5>;
 def DestructiveBinaryComm         : DestructiveInstTypeEnum<6>;
 def DestructiveBinaryCommWithRev  : DestructiveInstTypeEnum<7>;
 def DestructiveTernaryCommWithRev : DestructiveInstTypeEnum<8>;
+def DestructiveUnaryPassthru      : DestructiveInstTypeEnum<9>;
 
 class FalseLanesEnum<bits<2> val> {
   bits<2> Value = val;
@@ -721,6 +722,7 @@ def tvecshiftR64 : Operand<i32>, TImmLeaf<i32, [{
 }
 
 def Imm0_1Operand : AsmImmRange<0, 1>;
+def Imm0_3Operand : AsmImmRange<0, 3>;
 def Imm0_7Operand : AsmImmRange<0, 7>;
 def Imm0_15Operand : AsmImmRange<0, 15>;
 def Imm0_31Operand : AsmImmRange<0, 31>;
@@ -944,6 +946,13 @@ def imm0_7 : Operand<i64>, ImmLeaf<i64, [{
   return ((uint64_t)Imm) < 8;
 }]> {
   let ParserMatchClass = Imm0_7Operand;
+}
+
+// imm0_3 predicate - True if the immediate is in the range [0,3]
+def imm0_3 : Operand<i64>, ImmLeaf<i64, [{
+  return ((uint64_t)Imm) < 4;
+}]> {
+  let ParserMatchClass = Imm0_3Operand;
 }
 
 // imm32_0_7 predicate - True if the 32-bit immediate is in the range [0,7]
@@ -3126,6 +3135,13 @@ def am_indexed16 : ComplexPattern<i64, 2, "SelectAddrModeIndexed16", []>;
 def am_indexed32 : ComplexPattern<i64, 2, "SelectAddrModeIndexed32", []>;
 def am_indexed64 : ComplexPattern<i64, 2, "SelectAddrModeIndexed64", []>;
 def am_indexed128 : ComplexPattern<i64, 2, "SelectAddrModeIndexed128", []>;
+
+// (unsigned immediate)
+// Indexed for 8-bit registers. offset is in range [0,63].
+def am_indexed8_6b : ComplexPattern<i64, 2, "SelectAddrModeIndexedUImm<1,63>", []>;
+def am_indexed16_6b : ComplexPattern<i64, 2, "SelectAddrModeIndexedUImm<2,63>", []>;
+def am_indexed32_6b : ComplexPattern<i64, 2, "SelectAddrModeIndexedUImm<4,63>", []>;
+def am_indexed64_6b : ComplexPattern<i64, 2, "SelectAddrModeIndexedUImm<8,63>", []>;
 
 def gi_am_indexed8 :
     GIComplexOperandMatcher<s64, "selectAddrModeIndexed<8>">,

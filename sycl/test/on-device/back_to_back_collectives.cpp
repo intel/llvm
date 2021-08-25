@@ -3,12 +3,15 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+//
+// Missing __spirv_GroupIAdd on AMD:
+// XFAIL: rocm_amd
 
 #include <CL/sycl.hpp>
 #include <numeric>
 #include <vector>
 using namespace cl::sycl;
-using namespace cl::sycl::ONEAPI;
+using namespace cl::sycl::ext::oneapi;
 
 class back_to_back;
 

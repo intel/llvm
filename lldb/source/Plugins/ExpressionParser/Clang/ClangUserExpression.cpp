@@ -6,12 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/Host/Config.h"
-
 #include <cstdio>
-#if HAVE_SYS_TYPES_H
 #include <sys/types.h>
-#endif
 
 #include <cstdlib>
 #include <map>
@@ -90,7 +86,7 @@ ClangUserExpression::ClangUserExpression(
   }
 }
 
-ClangUserExpression::~ClangUserExpression() {}
+ClangUserExpression::~ClangUserExpression() = default;
 
 void ClangUserExpression::ScanContext(ExecutionContext &exe_ctx, Status &err) {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));

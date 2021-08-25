@@ -78,13 +78,14 @@ void AsmPrinter::emitInlineAsm(StringRef Str, const MCSubtargetInfo &STI,
     Str = Str.substr(0, Str.size()-1);
 
   // If the output streamer does not have mature MC support or the integrated
-  // assembler has been disabled, just emit the blob textually.
+  // assembler has been disabled or not required, just emit the blob textually.
   // Otherwise parse the asm and emit it via MC support.
   // This is useful in case the asm parser doesn't handle something but the
   // system assembler does.
   const MCAsmInfo *MCAI = TM.getMCAsmInfo();
   assert(MCAI && "No MCAsmInfo");
   if (!MCAI->useIntegratedAssembler() &&
+      !MCAI->parseInlineAsmUsingAsmParser() &&
       !OutStreamer->isIntegratedAssemblerRequired()) {
     emitInlineAsmStart();
     OutStreamer->emitRawText(Str);
@@ -129,7 +130,7 @@ void AsmPrinter::emitInlineAsm(StringRef Str, const MCSubtargetInfo &STI,
 
 static void EmitMSInlineAsmStr(const char *AsmStr, const MachineInstr *MI,
                                MachineModuleInfo *MMI, AsmPrinter *AP,
-                               unsigned LocCookie, raw_ostream &OS) {
+                               uint64_t LocCookie, raw_ostream &OS) {
   // Switch to the inline assembly variant.
   OS << "\t.intel_syntax\n\t";
 
@@ -271,7 +272,7 @@ static void EmitMSInlineAsmStr(const char *AsmStr, const MachineInstr *MI,
 
 static void EmitGCCInlineAsmStr(const char *AsmStr, const MachineInstr *MI,
                                 MachineModuleInfo *MMI, const MCAsmInfo *MAI,
-                                AsmPrinter *AP, unsigned LocCookie,
+                                AsmPrinter *AP, uint64_t LocCookie,
                                 raw_ostream &OS) {
   int CurVariant = -1;            // The number of the {.|.|.} region we are in.
   const char *LastEmitted = AsmStr; // One past the last character emitted.
@@ -482,7 +483,7 @@ void AsmPrinter::emitInlineAsm(const MachineInstr *MI) const {
 
   // Get the !srcloc metadata node if we have it, and decode the loc cookie from
   // it.
-  unsigned LocCookie = 0;
+  uint64_t LocCookie = 0;
   const MDNode *LocMD = nullptr;
   for (unsigned i = MI->getNumOperands(); i != 0; --i) {
     if (MI->getOperand(i-1).isMetadata() &&

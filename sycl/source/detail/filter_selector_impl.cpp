@@ -1,4 +1,4 @@
-//==------ filter_selector.cpp - ONEAPI filter selector --------------------==//
+//==------ filter_selector.cpp - oneapi filter selector --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,7 +21,8 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 namespace detail {
 
 std::vector<std::string> tokenize(const std::string &Filter,
@@ -182,6 +183,11 @@ void filter_selector_impl::reset() const {
 }
 
 } // namespace detail
-} // namespace ONEAPI
+} // namespace oneapi
+} // namespace ext
+
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
+}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

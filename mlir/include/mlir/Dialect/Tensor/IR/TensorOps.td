@@ -12,6 +12,7 @@
 include "mlir/Dialect/Tensor/IR/TensorBase.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
 
@@ -58,6 +59,57 @@ def Tensor_CastOp : Tensor_Op<"cast", [
 
   let hasCanonicalizer = 1;
   let verifier = ?;
+}
+
+//===----------------------------------------------------------------------===//
+// DimOp
+//===----------------------------------------------------------------------===//
+
+def Tensor_DimOp : Tensor_Op<"dim", [NoSideEffect]> {
+  let summary = "dimension index operation";
+  let description = [{
+    The `dim` operation takes a tensor and a dimension operand of type `index`.
+    It returns the size of the requested dimension of the given tensor.
+    If the dimension index is out of bounds, the behavior is undefined.
+
+    The specified tensor type is that of the first operand.
+
+    Example:
+
+    ```mlir
+    // Always returns 4, can be constant folded:
+    %c0 = constant 0 : index
+    %x = tensor.dim %A, %c0 : tensor<4x?xf32>
+
+    // Returns the dynamic dimension of %A.
+    %c1 = constant 1 : index
+    %y = tensor.dim %A, %c1 : memref<4x?xf32>
+
+    // Equivalent generic form:
+    %x = "tensor.dim"(%A, %c0) : (memref<4x?xf32>, index) -> index
+    %y = "tensor.dim"(%A, %c1) : (memref<4x?xf32>, index) -> index
+    ```
+  }];
+
+  let arguments = (ins AnyTensor:$source,
+                       Index:$index);
+  let results = (outs Index:$result);
+
+  let assemblyFormat = [{
+    attr-dict $source `,` $index `:` type($source)
+  }];
+
+  let builders = [
+    OpBuilder<(ins "Value":$source, "int64_t":$index)>
+  ];
+
+  let extraClassDeclaration = [{
+    /// Helper function to get the index as a simple integer if it is constant.
+    Optional<int64_t> getConstantIndex();
+  }];
+
+  let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -380,6 +432,7 @@ def Tensor_InsertOp : Tensor_Op<"insert",
 def Tensor_InsertSliceOp : BaseOpWithOffsetSizesAndStrides<
     Tensor_Dialect, "insert_slice",
     [NoSideEffect, AttrSizedOperandSegments, OffsetSizeAndStrideOpInterface,
+     DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface>,
      TypesMatchWith<"expected result type to match dest type",
                     "dest", "result", "$_self">]> {
   let summary = "insert_slice operation";

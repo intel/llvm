@@ -55,7 +55,7 @@ def time_trace_file_eq: Joined<["--"], "time-trace-file=">,
     HelpText<"Specify time trace output file">,
     Group<grp_lld>;
 def deduplicate_literals: Flag<["--"], "deduplicate-literals">,
-    HelpText<"Enable literal deduplication">,
+    HelpText<"Enable literal deduplication. This is implied by --icf={safe,all}">,
     Group<grp_lld>;
 def print_dylib_search: Flag<["--"], "print-dylib-search">,
     HelpText<"Print which paths lld searched when trying to find dylibs">,
@@ -64,6 +64,15 @@ def icf_eq: Joined<["--"], "icf=">,
     HelpText<"Set level for identical code folding (default: none)">,
     MetaVarName<"[none,safe,all]">,
     Group<grp_lld>;
+def lto_O: Joined<["--"], "lto-O">,
+    HelpText<"Set optimization level for LTO (default: 2)">,
+    MetaVarName<"<opt-level>">,
+    Group<grp_lld>;
+def thinlto_cache_policy: Joined<["--"], "thinlto-cache-policy=">,
+    HelpText<"Pruning policy for the ThinLTO cache">,
+    Group<grp_lld>;
+def O : JoinedOrSeparate<["-"], "O">,
+    HelpText<"Optimize output file size">;
 
 // This is a complete Options.td compiled from Apple's ld(1) manpage
 // dated 2018-03-07 and cross checked with ld64 source code in repo
@@ -420,8 +429,7 @@ def allow_stack_execute : Flag<["-"], "allow_stack_execute">,
     Flags<[HelpHidden]>,
     Group<grp_main>;
 def export_dynamic : Flag<["-"], "export_dynamic">,
-    HelpText<"Preserve all global symbols during LTO">,
-    Flags<[HelpHidden]>,
+    HelpText<"Preserve all global symbols during LTO and when dead-stripping executables">,
     Group<grp_main>;
 
 def grp_bundle : OptionGroup<"bundle">, HelpText<"CREATING A BUNDLE">;
@@ -686,12 +694,10 @@ def allow_heap_execute : Flag<["-"], "allow_heap_execute">,
     Flags<[HelpHidden]>,
     Group<grp_rare>;
 def application_extension : Flag<["-"], "application_extension">,
-    HelpText<"Designate the linker output as safe for use in an application extension">,
-    Flags<[HelpHidden]>,
+    HelpText<"Mark output as safe for use in an application extension, and validate that linked dylibs are safe">,
     Group<grp_rare>;
 def no_application_extension : Flag<["-"], "no_application_extension">,
-    HelpText<"Designate the linker output as unsafe for use in an application extension">,
-    Flags<[HelpHidden]>,
+    HelpText<"Disable application extension functionality (default)">,
     Group<grp_rare>;
 def fatal_warnings : Flag<["-"], "fatal_warnings">,
     HelpText<"Treat warnings as errors">,
@@ -776,9 +782,8 @@ def client_name : Separate<["-"], "client_name">,
     Flags<[HelpHidden]>,
     Group<grp_rare>;
 def umbrella : Separate<["-"], "umbrella">,
-    MetaVarName<"<<name>>">,
-    HelpText<"Re-export this dylib through the umbrella framework <name>a">,
-    Flags<[HelpHidden]>,
+    MetaVarName<"<name>">,
+    HelpText<"Re-export this dylib through the umbrella framework <name>">,
     Group<grp_rare>;
 def headerpad : Separate<["-"], "headerpad">,
     MetaVarName<"<size>">,
@@ -870,12 +875,10 @@ def w : Flag<["-"], "w">,
     Group<grp_rare>;
 def final_output : Separate<["-"], "final_output">,
     MetaVarName<"<name>">,
-    HelpText<"Specify the dylib install name if -install_name is not used--used by compiler driver for multiple -arch arguments">,
-    Flags<[HelpHidden]>,
+    HelpText<"Specify dylib install name if -install_name is not used; used by compiler driver for multiple -arch arguments">,
     Group<grp_rare>;
 def arch_multiple : Flag<["-"], "arch_multiple">,
     HelpText<"Augment error and warning messages with the architecture name">,
-    Flags<[HelpHidden]>,
     Group<grp_rare>;
 def dot : Separate<["-"], "dot">,
     MetaVarName<"<path>">,
@@ -917,22 +920,18 @@ def object_path_lto : Separate<["-"], "object_path_lto">,
 def cache_path_lto : Separate<["-"], "cache_path_lto">,
     MetaVarName<"<path>">,
     HelpText<"Use <path> as a directory for the incremental LTO cache">,
-    Flags<[HelpHidden]>,
     Group<grp_rare>;
 def prune_interval_lto : Separate<["-"], "prune_interval_lto">,
     MetaVarName<"<seconds>">,
     HelpText<"Prune the incremental LTO cache after <seconds> (-1 disables pruning)">,
-    Flags<[HelpHidden]>,
     Group<grp_rare>;
 def prune_after_lto : Separate<["-"], "prune_after_lto">,
     MetaVarName<"<seconds>">,
     HelpText<"Remove LTO cache entries after <seconds>">,
-    Flags<[HelpHidden]>,
     Group<grp_rare>;
 def max_relative_cache_size_lto : Separate<["-"], "max_relative_cache_size_lto">,
     MetaVarName<"<percent>">,
     HelpText<"Limit the incremental LTO cache growth to <percent> of free disk, space">,
-    Flags<[HelpHidden]>,
     Group<grp_rare>;
 def page_align_data_atoms : Flag<["-"], "page_align_data_atoms">,
     HelpText<"Distribute global variables on separate pages so page used/dirty status can guide creation of an order file to cluster commonly used/dirty globals">,

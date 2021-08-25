@@ -4,6 +4,7 @@
 ; void foo() {}
 
 ; RUN: llvm-as %s -o - | llvm-spirv -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.spv -r -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 

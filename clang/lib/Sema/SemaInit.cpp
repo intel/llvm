@@ -5066,9 +5066,9 @@ static void TryReferenceInitializationCore(Sema &S,
   //        than, cv2; otherwise, the program is ill-formed.
   unsigned T1CVRQuals = T1Quals.getCVRQualifiers();
   unsigned T2CVRQuals = T2Quals.getCVRQualifiers();
-  if ((RefRelationship == Sema::Ref_Related &&
-       (T1CVRQuals | T2CVRQuals) != T1CVRQuals) ||
-      !T1Quals.isAddressSpaceSupersetOf(T2Quals)) {
+  if (RefRelationship == Sema::Ref_Related &&
+      ((T1CVRQuals | T2CVRQuals) != T1CVRQuals ||
+       !T1Quals.isAddressSpaceSupersetOf(T2Quals))) {
     Sequence.SetFailed(InitializationSequence::FK_ReferenceInitDropsQualifiers);
     return;
   }
@@ -5833,7 +5833,7 @@ void InitializationSequence::InitializeFrom(Sema &S,
                                          Entity.getType()) &&
         canPerformArrayCopy(Entity)) {
       // If source is a prvalue, use it directly.
-      if (Initializer->getValueKind() == VK_PRValue) {
+      if (Initializer->isPRValue()) {
         AddArrayInitStep(DestType, /*IsGNUExtension*/false);
         return;
       }

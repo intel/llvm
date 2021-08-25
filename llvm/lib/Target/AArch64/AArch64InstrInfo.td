@@ -122,6 +122,24 @@ def HasSVE2SHA3      : Predicate<"Subtarget->hasSVE2SHA3()">,
                                  AssemblerPredicate<(all_of FeatureSVE2SHA3), "sve2-sha3">;
 def HasSVE2BitPerm   : Predicate<"Subtarget->hasSVE2BitPerm()">,
                                  AssemblerPredicate<(all_of FeatureSVE2BitPerm), "sve2-bitperm">;
+def HasSME           : Predicate<"Subtarget->hasSME()">,
+                                 AssemblerPredicate<(all_of FeatureSME), "sme">;
+def HasSMEF64        : Predicate<"Subtarget->hasSMEF64()">,
+                                 AssemblerPredicate<(all_of FeatureSMEF64), "sme-f64">;
+def HasSMEI64        : Predicate<"Subtarget->hasSMEI64()">,
+                                 AssemblerPredicate<(all_of FeatureSMEI64), "sme-i64">;
+def HasStreamingSVE  : Predicate<"Subtarget->hasStreamingSVE()">,
+                                 AssemblerPredicate<(all_of FeatureStreamingSVE), "streaming-sve">;
+// A subset of SVE(2) instructions are legal in Streaming SVE execution mode,
+// they should be enabled if either has been specified.
+def HasSVEorStreamingSVE
+    : Predicate<"Subtarget->hasSVE() || Subtarget->hasStreamingSVE()">,
+                AssemblerPredicate<(any_of FeatureSVE, FeatureStreamingSVE),
+                "streaming-sve or sve">;
+def HasSVE2orStreamingSVE
+    : Predicate<"Subtarget->hasSVE2() || Subtarget->hasStreamingSVE()">,
+                AssemblerPredicate<(any_of FeatureSVE2, FeatureStreamingSVE),
+                "streaming-sve or sve2">;
 def HasRCPC          : Predicate<"Subtarget->hasRCPC()">,
                                  AssemblerPredicate<(all_of FeatureRCPC), "rcpc">;
 def HasAltNZCV       : Predicate<"Subtarget->hasAlternativeNZCV()">,
@@ -642,6 +660,7 @@ let RecomputePerFunction = 1 in {
 
 include "AArch64InstrFormats.td"
 include "SVEInstrFormats.td"
+include "SMEInstrFormats.td"
 
 //===----------------------------------------------------------------------===//
 
@@ -4223,6 +4242,37 @@ multiclass SIMDVectorLShiftLongBySizeBHSPats<SDPatternOperator ext> {
 defm : SIMDVectorLShiftLongBySizeBHSPats<anyext>;
 defm : SIMDVectorLShiftLongBySizeBHSPats<zext>;
 defm : SIMDVectorLShiftLongBySizeBHSPats<sext>;
+
+// Constant vector values, used in the S/UQXTN patterns below.
+def VImmFF:   PatLeaf<(AArch64NvCast (v2i64 (AArch64movi_edit (i32 85))))>;
+def VImmFFFF: PatLeaf<(AArch64NvCast (v2i64 (AArch64movi_edit (i32 51))))>;
+def VImm7F:   PatLeaf<(AArch64movi_shift (i32 127), (i32 0))>;
+def VImm80:   PatLeaf<(AArch64mvni_shift (i32 127), (i32 0))>;
+def VImm7FFF: PatLeaf<(AArch64movi_msl (i32 127), (i32 264))>;
+def VImm8000: PatLeaf<(AArch64mvni_msl (i32 127), (i32 264))>;
+
+// trunc(umin(X, 255)) -> UQXTRN v8i8
+def : Pat<(v8i8 (trunc (umin (v8i16 V128:$Vn), (v8i16 VImmFF)))),
+          (UQXTNv8i8 V128:$Vn)>;
+// trunc(umin(X, 65535)) -> UQXTRN v4i16
+def : Pat<(v4i16 (trunc (umin (v4i32 V128:$Vn), (v4i32 VImmFFFF)))),
+          (UQXTNv4i16 V128:$Vn)>;
+// trunc(smin(smax(X, -128), 128)) -> SQXTRN
+//  with reversed min/max
+def : Pat<(v8i8 (trunc (smin (smax (v8i16 V128:$Vn), (v8i16 VImm80)),
+                             (v8i16 VImm7F)))),
+          (SQXTNv8i8 V128:$Vn)>;
+def : Pat<(v8i8 (trunc (smax (smin (v8i16 V128:$Vn), (v8i16 VImm7F)),
+                             (v8i16 VImm80)))),
+          (SQXTNv8i8 V128:$Vn)>;
+// trunc(smin(smax(X, -32768), 32767)) -> SQXTRN
+//  with reversed min/max
+def : Pat<(v4i16 (trunc (smin (smax (v4i32 V128:$Vn), (v4i32 VImm8000)),
+                              (v4i32 VImm7FFF)))),
+          (SQXTNv4i16 V128:$Vn)>;
+def : Pat<(v4i16 (trunc (smax (smin (v4i32 V128:$Vn), (v4i32 VImm7FFF)),
+                              (v4i32 VImm8000)))),
+          (SQXTNv4i16 V128:$Vn)>;
 
 //===----------------------------------------------------------------------===//
 // Advanced SIMD three vector instructions.
@@ -8054,6 +8104,20 @@ let AddedComplexity = 10 in {
   // FIXME: add SVE dot-product patterns.
 }
 
+// Custom DAG nodes and isel rules to make a 64-byte block out of eight GPRs,
+// so that it can be used as input to inline asm, and vice versa.
+def LS64_BUILD : SDNode<"AArch64ISD::LS64_BUILD", SDTypeProfile<1, 8, []>>;
+def LS64_EXTRACT : SDNode<"AArch64ISD::LS64_EXTRACT", SDTypeProfile<1, 2, []>>;
+def : Pat<(i64x8 (LS64_BUILD GPR64:$x0, GPR64:$x1, GPR64:$x2, GPR64:$x3,
+                             GPR64:$x4, GPR64:$x5, GPR64:$x6, GPR64:$x7)),
+          (REG_SEQUENCE GPR64x8Class,
+              $x0, x8sub_0, $x1, x8sub_1, $x2, x8sub_2, $x3, x8sub_3,
+              $x4, x8sub_4, $x5, x8sub_5, $x6, x8sub_6, $x7, x8sub_7)>;
+foreach i = 0-7 in {
+  def : Pat<(i64 (LS64_EXTRACT (i64x8 GPR64x8:$val), (i32 i))),
+            (EXTRACT_SUBREG $val, !cast<SubRegIndex>("x8sub_"#i))>;
+}
+
 let Predicates = [HasLS64] in {
   def LD64B: LoadStore64B<0b101, "ld64b", (ins GPR64sp:$Rn),
                                           (outs GPR64x8:$Rt)>;
@@ -8078,5 +8142,5 @@ def StoreSwiftAsyncContext
 
 include "AArch64InstrAtomics.td"
 include "AArch64SVEInstrInfo.td"
-
+include "AArch64SMEInstrInfo.td"
 include "AArch64InstrGISel.td"

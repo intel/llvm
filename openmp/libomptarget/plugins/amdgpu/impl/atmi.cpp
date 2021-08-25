@@ -1,13 +1,14 @@
-/*===--------------------------------------------------------------------------
- *              ATMI (Asynchronous Task and Memory Interface)
- *
- * This file is distributed under the MIT License. See LICENSE.txt for details.
- *===------------------------------------------------------------------------*/
+//===--- amdgpu/impl/atmi.cpp ------------------------------------- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 #include "atmi_runtime.h"
+#include "hsa_api.h"
 #include "internal.h"
 #include "rt.h"
-#include <hsa.h>
-#include <hsa_ext_amd.h>
 #include <memory>
 
 /*
@@ -62,7 +63,7 @@ hsa_status_t atmi_memcpy_h2d(hsa_signal_t signal, void *deviceDest,
   void *tempHostPtr;
   hsa_status_t ret = core::Runtime::HostMalloc(&tempHostPtr, size);
   if (ret != HSA_STATUS_SUCCESS) {
-    DEBUG_PRINT("HostMalloc: Unable to alloc %d bytes for temp scratch\n",
+    DEBUG_PRINT("HostMalloc: Unable to alloc %zu bytes for temp scratch\n",
                 size);
     return ret;
   }
@@ -89,10 +90,9 @@ hsa_status_t atmi_memcpy_d2h(hsa_signal_t signal, void *dest,
   }
 
   void *tempHostPtr;
-
   hsa_status_t ret = core::Runtime::HostMalloc(&tempHostPtr, size);
   if (ret != HSA_STATUS_SUCCESS) {
-    DEBUG_PRINT("HostMalloc: Unable to alloc %d bytes for temp scratch\n",
+    DEBUG_PRINT("HostMalloc: Unable to alloc %zu bytes for temp scratch\n",
                 size);
     return ret;
   }

@@ -687,7 +687,8 @@ public:
   }
 
   /// Return the value for the C99 FLT_EVAL_METHOD macro.
-  virtual unsigned getFloatEvalMethod() const { return 0; }
+  //  Note: implementation defined values may be negative.
+  virtual int getFPEvalMethod() const { return 0; }
 
   // getLargeArrayMinWidth/Align - Return the minimum array size that is
   // 'large' and its alignment.
@@ -1162,7 +1163,7 @@ public:
   /// Apply changes to the target information with respect to certain
   /// language options which change the target configuration and adjust
   /// the language based on the target options where applicable.
-  virtual void adjust(LangOptions &Opts);
+  virtual void adjust(DiagnosticsEngine &Diags, LangOptions &Opts);
 
   /// Adjust target options based on codegen options.
   virtual void adjustTargetOptions(const CodeGenOptions &CGOpts,
@@ -1423,6 +1424,9 @@ public:
 
   /// Whether the option -fextend-arguments={32,64} is supported on the target.
   virtual bool supportsExtendIntArgs() const { return false; }
+
+  /// Controls if __arithmetic_fence is supported in the targeted backend.
+  virtual bool checkArithmeticFenceSupported() const { return false; }
 
   /// Gets the default calling convention for the given target and
   /// declaration context.

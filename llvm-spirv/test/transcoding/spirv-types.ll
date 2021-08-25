@@ -7,9 +7,17 @@
 ; RUN: llvm-spirv -to-binary %t.spv.txt -o %t.from-text.spv
 ; RUN: cmp %t.from-llvm.spv %t.from-text.spv
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv --spirv-target-env=SPV-IR -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-SPIRV
+
+; Check that produced SPIR-V friendly IR is correctly recognized
+; RUN: llvm-spirv %t.rev.bc -spirv-text -o %t.spv.txt
+; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
 
 ; CHECK-SPIRV: 2 Capability Float16
 ; CHECK-SPIRV: 2 Capability ImageBasic
@@ -74,6 +82,25 @@ target triple = "spir-unknown-unknown"
 %spirv.Sampler              = type opaque ; sampler_t
 %spirv.SampledImage._float_1_1_0_0_0_0_0 = type opaque
 
+; TODO: translate pipe types to SPIR-V friendly IR
+; CHECK-LLVM-SPIRV-DAG: %opencl.pipe_ro_t = type opaque
+; CHECK-LLVM-SPIRV-DAG: %opencl.pipe_wo_t = type opaque
+
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._void_0_0_0_0_0_0_0 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._uint_1_0_0_0_0_0_0 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._uint_2_0_0_0_0_0_0 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._float_1_1_0_0_0_0_0 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._half_1_0_1_0_0_0_0 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._float_5_0_0_0_0_0_0 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._void_0_0_0_0_0_0_1 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._void_1_0_0_0_0_0_2 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.DeviceEvent          = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Event                = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Queue                = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.ReserveId            = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Sampler              = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.SampledImage._float_1_1_0_0_0_0_0 = type opaque
+
 ; CHECK-SPIRV: {{[0-9]+}} Function
 ; CHECK-SPIRV: 3 FunctionParameter [[PIPE_RD]] {{[0-9]+}}
 ; CHECK-SPIRV: 3 FunctionParameter [[PIPE_WR]] {{[0-9]+}}
@@ -99,7 +126,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM-SAME:     !kernel_arg_access_qual [[AQ:![0-9]+]]
 ; CHECK-LLVM-SAME:     !kernel_arg_type [[TYPE:![0-9]+]]
 ; CHECK-LLVM-SAME:     !kernel_arg_type_qual [[TQ:![0-9]+]]
-; CHECK-LLVM-SAME:     !kernel_arg_base_type [[BT:![0-9]+]]
+; CHECK-LLVM-SAME:     !kernel_arg_base_type [[TYPE]]
 
 ; Function Attrs: nounwind readnone
 define spir_kernel void @foo(
@@ -147,6 +174,9 @@ define spir_func void @bar(
 ; CHECK-LLVM:  %opencl.sampler_t addrspace(2)* %s.coerce)
 ; CHECK-LLVM:  call spir_func float @_Z11read_imagef20ocl_image2d_depth_ro11ocl_samplerDv4_if(%opencl.image2d_depth_ro_t addrspace(1)* %srcimg.coerce, %opencl.sampler_t addrspace(2)* %s.coerce, <4 x i32> zeroinitializer, float 1.000000e+00)
 
+; CHECK-LLVM-SPIRV: call spir_func %spirv.SampledImage._float_1_1_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImagePU3AS134__spirv_Image__float_1_1_0_0_0_0_0PU3AS215__spirv_Sampler(%spirv.Image._float_1_1_0_0_0_0_0 addrspace(1)* %srcimg.coerce, %spirv.Sampler addrspace(2)* %s.coerce)
+; CHECK-LLVM-SPIRV: call spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS141__spirv_SampledImage__float_1_1_0_0_0_0_0Dv4_iif(%spirv.SampledImage._float_1_1_0_0_0_0_0 addrspace(1)* %1, <4 x i32> zeroinitializer, i32 2, float 1.000000e+00)
+
 define spir_func void @test_sampler(%spirv.Image._float_1_1_0_0_0_0_0 addrspace(1)* %srcimg.coerce,
                                     %spirv.Sampler addrspace(1)* %s.coerce) {
   %1 = tail call spir_func %spirv.SampledImage._float_1_1_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImagePU3AS1K34__spirv_Image__float_1_1_0_0_0_0_0PU3AS1K15__spirv_Sampler(%spirv.Image._float_1_1_0_0_0_0_0 addrspace(1)* %srcimg.coerce, %spirv.Sampler addrspace(1)* %s.coerce) #1
@@ -169,8 +199,7 @@ attributes #0 = { nounwind readnone "less-precise-fpmad"="false" "no-frame-point
 
 ; CHECK-LLVM-DAG: [[AS]] = !{i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1}
 ; CHECK-LLVM-DAG: [[AQ]] = !{!"read_only", !"write_only", !"read_only", !"read_only", !"read_only", !"read_only", !"read_only", !"write_only", !"read_write"}
-; CHECK-LLVM-DAG: [[TYPE]] = !{!"int", !"int", !"image1d_t", !"image2d_t", !"image3d_t", !"image2d_array_t", !"image1d_buffer_t", !"image1d_t", !"image2d_t"}
-; CHECK-LLVM-DAG: [[BT]] = !{!"pipe", !"pipe", !"image1d_t", !"image2d_t", !"image3d_t", !"image2d_array_t", !"image1d_buffer_t", !"image1d_t", !"image2d_t"}
+; CHECK-LLVM-DAG: [[TYPE]] = !{!"pipe", !"pipe", !"image1d_t", !"image2d_t", !"image3d_t", !"image2d_array_t", !"image1d_buffer_t", !"image1d_t", !"image2d_t"}
 ; CHECK-LLVM-DAG: [[TQ]] = !{!"pipe", !"pipe", !"", !"", !"", !"", !"", !"", !""}
 
 !1 = !{i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1}

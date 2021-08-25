@@ -353,6 +353,7 @@ enum Kind {
   _SPIRV_OP(cl_khr_mipmap_image_writes)
   _SPIRV_OP(cl_khr_egl_event)
   _SPIRV_OP(cl_khr_srgb_image_writes)
+  _SPIRV_OP(cl_khr_extended_bit_ops)
 #undef _SPIRV_OP
 };
 // clang-format on
@@ -506,6 +507,9 @@ template <typename T> std::string toString(const T *Object) {
 // Scalar data assumed to be represented as vector of one element.
 std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
                                              unsigned VectorNumElements);
+
+void insertImageNameAccessQualifier(SPIRVAccessQualifierKind Acc,
+                                    std::string &Name);
 } // namespace OCLUtil
 
 using namespace OCLUtil;

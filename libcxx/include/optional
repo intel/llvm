@@ -883,11 +883,7 @@ public:
     operator->() const
     {
         _LIBCPP_ASSERT(this->has_value(), "optional operator-> called on a disengaged value");
-#ifndef _LIBCPP_HAS_NO_BUILTIN_ADDRESSOF
         return _VSTD::addressof(this->__get());
-#else
-        return __operator_arrow(__has_operator_addressof<value_type>{}, this->__get());
-#endif
     }
 
     _LIBCPP_INLINE_VISIBILITY
@@ -896,17 +892,13 @@ public:
     operator->()
     {
         _LIBCPP_ASSERT(this->has_value(), "optional operator-> called on a disengaged value");
-#ifndef _LIBCPP_HAS_NO_BUILTIN_ADDRESSOF
         return _VSTD::addressof(this->__get());
-#else
-        return __operator_arrow(__has_operator_addressof<value_type>{}, this->__get());
-#endif
     }
 
     _LIBCPP_INLINE_VISIBILITY
     constexpr
     const value_type&
-    operator*() const&
+    operator*() const& noexcept
     {
         _LIBCPP_ASSERT(this->has_value(), "optional operator* called on a disengaged value");
         return this->__get();
@@ -915,7 +907,7 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     constexpr
     value_type&
-    operator*() &
+    operator*() & noexcept
     {
         _LIBCPP_ASSERT(this->has_value(), "optional operator* called on a disengaged value");
         return this->__get();
@@ -924,7 +916,7 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     constexpr
     value_type&&
-    operator*() &&
+    operator*() && noexcept
     {
         _LIBCPP_ASSERT(this->has_value(), "optional operator* called on a disengaged value");
         return _VSTD::move(this->__get());
@@ -933,7 +925,7 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     constexpr
     const value_type&&
-    operator*() const&&
+    operator*() const&& noexcept
     {
         _LIBCPP_ASSERT(this->has_value(), "optional operator* called on a disengaged value");
         return _VSTD::move(this->__get());
@@ -1006,23 +998,6 @@ public:
     }
 
     using __base::reset;
-
-private:
-    template <class _Up>
-    _LIBCPP_INLINE_VISIBILITY
-    static _LIBCPP_CONSTEXPR_AFTER_CXX17 _Up*
-    __operator_arrow(true_type, _Up& __x)
-    {
-        return _VSTD::addressof(__x);
-    }
-
-    template <class _Up>
-    _LIBCPP_INLINE_VISIBILITY
-    static constexpr _Up*
-    __operator_arrow(false_type, _Up& __x)
-    {
-        return &__x;
-    }
 };
 
 #ifndef _LIBCPP_HAS_NO_DEDUCTION_GUIDES

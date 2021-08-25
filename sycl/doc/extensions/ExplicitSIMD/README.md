@@ -5,7 +5,7 @@ lower-level Intel GPU programming. It provides APIs closely matching Intel GPU I
 yet allows to write explicitly vectorized device code. This helps programmer to
 have more control over the generated code and depend less on compiler
 optimizations. The [specification](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/ExplicitSIMD/dpcpp-explicit-simd.md),
-[documented ESIMD APIs headers](https://github.com/intel/llvm/tree/sycl/sycl/include/CL/sycl/INTEL/esimd) and
+[documented ESIMD APIs headers](https://github.com/intel/llvm/tree/sycl/sycl/include/sycl/ext/intel/experimental/esimd) and
 [working code examples](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) are available on the Intel DPC++ project's github.
 
 **_NOTE:_** _This extension is under active development and lots of APIs are

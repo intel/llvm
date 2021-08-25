@@ -49,6 +49,9 @@ void getEnclosingAffineForAndIfOps(Operation &op,
 /// surrounding this operation.
 unsigned getNestingDepth(Operation *op);
 
+/// Returns whether a loop is a parallel loop and contains a reduction loop.
+bool isLoopParallelAndContainsReduction(AffineForOp forOp);
+
 /// Returns in 'sequentialLoops' all sequential loops in loop nest rooted
 /// at 'forOp'.
 void getSequentialLoops(AffineForOp forOp,
@@ -184,6 +187,18 @@ void getComputationSliceState(Operation *depSourceOp, Operation *depSinkOp,
                               unsigned loopDepth, bool isBackwardSlice,
                               ComputationSliceState *sliceState);
 
+/// Return the number of iterations for the `slicetripCountMap` provided.
+uint64_t getSliceIterationCount(
+    const llvm::SmallDenseMap<Operation *, uint64_t, 8> &sliceTripCountMap);
+
+/// Builds a map 'tripCountMap' from AffineForOp to constant trip count for
+/// loop nest surrounding represented by slice loop bounds in 'slice'. Returns
+/// true on success, false otherwise (if a non-constant trip count was
+/// encountered).
+bool buildSliceTripCountMap(
+    const ComputationSliceState &slice,
+    llvm::SmallDenseMap<Operation *, uint64_t, 8> *tripCountMap);
+
 /// Computes in 'sliceUnion' the union of all slice bounds computed at
 /// 'loopDepth' between all dependent pairs of ops in 'opsA' and 'opsB', and
 /// then verifies if it is valid. The parameter 'numCommonLoops' is the number
@@ -279,10 +294,11 @@ struct MemRefRegion {
   /// otherwise. Note that the symbols of the region are treated specially,
   /// i.e., the returned bounding constant holds for *any given* value of the
   /// symbol identifiers. The 'shape' vector is set to the corresponding
-  /// dimension-wise bounds major to minor. We use int64_t instead of uint64_t
-  /// since index types can be at most int64_t. `lbs` are set to the lower
-  /// bounds for each of the rank dimensions, and lbDivisors contains the
-  /// corresponding denominators for floorDivs.
+  /// dimension-wise bounds major to minor. The number of elements and all the
+  /// dimension-wise bounds are guaranteed to be non-negative. We use int64_t
+  /// instead of uint64_t since index types can be at most int64_t. `lbs` are
+  /// set to the lower bounds for each of the rank dimensions, and lbDivisors
+  /// contains the corresponding denominators for floorDivs.
   Optional<int64_t> getConstantBoundingSizeAndShape(
       SmallVectorImpl<int64_t> *shape = nullptr,
       std::vector<SmallVector<int64_t, 4>> *lbs = nullptr,

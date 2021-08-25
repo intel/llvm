@@ -125,7 +125,7 @@ public:
         DeviceImplPtr(new device_impl(Device, Context->getPlatformImpl()));
 
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piQueueRetain>(MQueues[0]);
+    getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
   }
 
   ~queue_impl() {
@@ -154,6 +154,8 @@ public:
   const plugin &getPlugin() const { return MContext->getPlugin(); }
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
+
+  const DeviceImplPtr &getDeviceImplPtr() const { return MDevice; }
 
   /// \return an associated SYCL device.
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
@@ -273,7 +275,7 @@ public:
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
-    // CL_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
+    // PI_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
     if (MSupportOOO && Error == PI_INVALID_QUEUE_PROPERTIES) {
       MSupportOOO = false;
       Queue = createQueue(QueueOrder::Ordered);
@@ -414,7 +416,16 @@ private:
     handler Handler(Self, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
+    // Scheduler will later omit events, that are not required to execute tasks.
+    // Host and interop tasks, however, are not submitted to low-level runtimes
+    // and require separate dependency management.
+    if (has_property<property::queue::in_order>() &&
+        (Handler.getType() == CG::CGTYPE::CodeplayHostTask ||
+         Handler.getType() == CG::CGTYPE::CodeplayInteropTask))
+      Handler.depends_on(MLastEvent);
     event Event = Handler.finalize();
+    if (has_property<property::queue::in_order>())
+      MLastEvent = Event;
     addEvent(Event);
     return Event;
   }
@@ -471,6 +482,8 @@ private:
   // Thread pool for host task and event callbacks execution.
   // The thread pool is instantiated upon the very first call to getThreadPool()
   std::unique_ptr<ThreadPool> MHostTaskThreadPool;
+
+  event MLastEvent;
 };
 
 } // namespace detail

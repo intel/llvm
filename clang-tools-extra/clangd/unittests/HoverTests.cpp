@@ -12,6 +12,7 @@
 #include "TestIndex.h"
 #include "TestTU.h"
 #include "index/MemIndex.h"
+#include "clang/AST/Attr.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/None.h"
@@ -68,8 +69,9 @@ TEST(Hover, Structured) {
       // Field
       {R"cpp(
           namespace ns1 { namespace ns2 {
-            struct Foo {
+            class Foo {
               char [[b^ar]];
+              double y[2];
             };
           }}
           )cpp",
@@ -82,6 +84,41 @@ TEST(Hover, Structured) {
          HI.Type = "char";
          HI.Offset = 0;
          HI.Size = 1;
+         HI.Padding = 7;
+         HI.AccessSpecifier = "private";
+       }},
+      // Union field
+      {R"cpp(
+            union Foo {
+              char [[b^ar]];
+              double y[2];
+            };
+          )cpp",
+       [](HoverInfo &HI) {
+         HI.NamespaceScope = "";
+         HI.LocalScope = "Foo::";
+         HI.Name = "bar";
+         HI.Kind = index::SymbolKind::Field;
+         HI.Definition = "char bar";
+         HI.Type = "char";
+         HI.Size = 1;
+         HI.Padding = 15;
+         HI.AccessSpecifier = "public";
+       }},
+      // Bitfield
+      {R"cpp(
+            struct Foo {
+              int [[^x]] : 1;
+              int y : 1;
+            };
+          )cpp",
+       [](HoverInfo &HI) {
+         HI.NamespaceScope = "";
+         HI.LocalScope = "Foo::";
+         HI.Name = "x";
+         HI.Kind = index::SymbolKind::Field;
+         HI.Definition = "int x : 1";
+         HI.Type = "int";
          HI.AccessSpecifier = "public";
        }},
       // Local to class method.
@@ -2341,6 +2378,15 @@ TEST(Hover, All) {
          HI.NamespaceScope = "";
          HI.Value = "0";
        }},
+      {R"cpp(
+         void foo(int * __attribute__(([[non^null]], noescape)) );
+         )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "nonnull";
+         HI.Kind = index::SymbolKind::Unknown; // FIXME: no suitable value
+         HI.Definition = "__attribute__((nonnull))";
+         HI.Documentation = Attr::getDocumentation(attr::NonNull).str();
+       }},
   };
 
   // Create a tiny index, so tests above can verify documentation is fetched.
@@ -2558,13 +2604,14 @@ template <typename T, typename C = bool> class Foo {})",
             HI.Definition = "def";
             HI.Size = 4;
             HI.Offset = 12;
+            HI.Padding = 4;
           },
           R"(field foo
 
 Type: type
 Value = value
 Offset: 12 bytes
-Size: 4 bytes
+Size: 4 bytes (+4 padding)
 
 // In test::Bar
 def)",
@@ -2713,6 +2760,15 @@ Passed by const reference as arg_a (converted to int)
 
 // In test::Bar
 int foo = 3)",
+      },
+      {
+          [](HoverInfo &HI) {
+            HI.Name = "stdio.h";
+            HI.Definition = "/usr/include/stdio.h";
+          },
+          R"(stdio.h
+
+/usr/include/stdio.h)",
       }};
 
   for (const auto &C : Cases) {

@@ -154,6 +154,9 @@ public:
       : kmp_flag<FlagType>(), loc(p), checker(c) {}
   kmp_flag_native(volatile PtrType *p, PtrType c, std::atomic<bool> *sloc)
       : kmp_flag<FlagType>(sloc), loc(p), checker(c) {}
+  virtual ~kmp_flag_native() {}
+  void *operator new(size_t size) { return __kmp_allocate(size); }
+  void operator delete(void *p) { __kmp_free(p); }
   volatile PtrType *get() { return loc; }
   void *get_void_p() { return RCAST(void *, CCAST(PtrType *, loc)); }
   void set(volatile PtrType *new_loc) { loc = new_loc; }
@@ -951,11 +954,14 @@ public:
       : kmp_flag_native<kmp_uint64, flag_oncore, false>(p, c), offset(idx),
         flag_switch(false), bt(bar_t),
         this_thr(thr) USE_ITT_BUILD_ARG(itt_sync_obj(itt)) {}
-  bool done_check_val(kmp_uint64 old_loc) {
+  virtual ~kmp_flag_oncore() override {}
+  void *operator new(size_t size) { return __kmp_allocate(size); }
+  void operator delete(void *p) { __kmp_free(p); }
+  bool done_check_val(kmp_uint64 old_loc) override {
     return byteref(&old_loc, offset) == checker;
   }
-  bool done_check() { return done_check_val(*get()); }
-  bool notdone_check() {
+  bool done_check() override { return done_check_val(*get()); }
+  bool notdone_check() override {
     // Calculate flag_switch
     if (this_thr->th.th_bar[bt].bb.wait_flag == KMP_BARRIER_SWITCH_TO_OWN_FLAG)
       flag_switch = true;

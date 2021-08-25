@@ -7,8 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/IR/Attributes.h"
-#include "llvm/IR/LLVMContext.h"
+#include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/Support/SourceMgr.h"
 #include "gtest/gtest.h"
 using namespace llvm;
 
@@ -154,7 +158,7 @@ TEST(Attributes, AddMatchingAlignAttr) {
   AL = AL.addAttributes(C, AttributeList::FirstArgIndex, B);
   EXPECT_EQ(Align(8), AL.getParamAlignment(0));
   EXPECT_EQ(Align(32), AL.getParamAlignment(1));
-  EXPECT_TRUE(AL.hasParamAttribute(0, Attribute::NonNull));
+  EXPECT_TRUE(AL.hasParamAttr(0, Attribute::NonNull));
 }
 
 TEST(Attributes, EmptyGet) {
@@ -249,6 +253,46 @@ TEST(Attributes, AttributeListPrinting) {
     EXPECT_EQ(S, "AttributeList[\n"
                  "  { arg(5) => zeroext }\n"
                  "]\n");
+  }
+}
+
+TEST(Attributes, MismatchedABIAttrs) {
+  const char *IRString = R"IR(
+    declare void @f1(i32* byval(i32))
+    define void @g() {
+      call void @f1(i32* null)
+      ret void
+    }
+    declare void @f2(i32* preallocated(i32))
+    define void @h() {
+      call void @f2(i32* null)
+      ret void
+    }
+    declare void @f3(i32* inalloca(i32))
+    define void @i() {
+      call void @f3(i32* null)
+      ret void
+    }
+  )IR";
+
+  SMDiagnostic Err;
+  LLVMContext Context;
+  std::unique_ptr<Module> M = parseAssemblyString(IRString, Err, Context);
+  ASSERT_TRUE(M);
+
+  {
+    auto *I = cast<CallBase>(&M->getFunction("g")->getEntryBlock().front());
+    ASSERT_TRUE(I->isByValArgument(0));
+    ASSERT_TRUE(I->getParamByValType(0));
+  }
+  {
+    auto *I = cast<CallBase>(&M->getFunction("h")->getEntryBlock().front());
+    ASSERT_TRUE(I->getParamPreallocatedType(0));
+  }
+  {
+    auto *I = cast<CallBase>(&M->getFunction("i")->getEntryBlock().front());
+    ASSERT_TRUE(I->isInAllocaArgument(0));
+    ASSERT_TRUE(I->getParamInAllocaType(0));
   }
 }
 

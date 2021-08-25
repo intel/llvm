@@ -60,7 +60,7 @@ static mode_t ParsePermissionString(llvm::StringRef permissions) {
 
 class OptionPermissions : public OptionGroup {
 public:
-  OptionPermissions() {}
+  OptionPermissions() = default;
 
   ~OptionPermissions() override = default;
 
@@ -498,8 +498,8 @@ public:
                 lldb::eFilePermissionsWorldRead;
       lldb::user_id_t fd = platform_sp->OpenFile(
           FileSpec(cmd_line),
-          File::eOpenOptionRead | File::eOpenOptionWrite |
-              File::eOpenOptionAppend | File::eOpenOptionCanCreate,
+          File::eOpenOptionReadWrite | File::eOpenOptionAppend |
+               File::eOpenOptionCanCreate,
           perms, error);
       if (error.Success()) {
         result.AppendMessageWithFormat("File Descriptor = %" PRIu64 "\n", fd);

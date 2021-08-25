@@ -42,7 +42,7 @@
 
 #include "LLVMSPIRVOpts.h"
 #include "SPIRVOpCode.h"
-#include "spirv.hpp"
+#include "spirv/unified1/spirv.hpp"
 #include "spirv_internal.hpp"
 #include <cstdint>
 using namespace spv;
@@ -405,8 +405,10 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
   ADD_VEC_INIT(DecorationFuncParamIOKindINTEL, {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(DecorationStackCallINTEL, {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(DecorationSIMTCallINTEL, {CapabilityVectorComputeINTEL});
-  ADD_VEC_INIT(DecorationFuncParamKindINTEL, {CapabilityVectorComputeINTEL});
-  ADD_VEC_INIT(DecorationFuncParamDescINTEL, {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(internal::DecorationFuncParamKindINTEL,
+               {CapabilityVectorComputeINTEL});
+  ADD_VEC_INIT(internal::DecorationFuncParamDescINTEL,
+               {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(DecorationBurstCoalesceINTEL,
                {CapabilityFPGAMemoryAccessesINTEL});
   ADD_VEC_INIT(DecorationCacheSizeINTEL, {CapabilityFPGAMemoryAccessesINTEL});
@@ -440,6 +442,8 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
                {internal::CapabilityFPGAInvocationPipeliningAttributesINTEL});
   ADD_VEC_INIT(internal::DecorationPipelineEnableINTEL,
                {internal::CapabilityFPGAInvocationPipeliningAttributesINTEL});
+  ADD_VEC_INIT(internal::DecorationRuntimeAlignedINTEL,
+               {internal::CapabilityRuntimeAlignedAttributeINTEL});
 }
 
 template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {

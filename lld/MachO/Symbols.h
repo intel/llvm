@@ -129,7 +129,7 @@ public:
     return isWeakDef() && isExternal() && !privateExtern;
   }
   bool isTlv() const override {
-    return !isAbsolute() && isThreadLocalVariables(isec->flags);
+    return !isAbsolute() && isThreadLocalVariables(isec->getFlags());
   }
 
   bool isExternal() const { return external; }
@@ -306,8 +306,10 @@ T *replaceSymbol(Symbol *s, ArgT &&...arg) {
          "Not a Symbol");
 
   bool isUsedInRegularObj = s->isUsedInRegularObj;
+  bool used = s->used;
   T *sym = new (s) T(std::forward<ArgT>(arg)...);
   sym->isUsedInRegularObj |= isUsedInRegularObj;
+  sym->used |= used;
   return sym;
 }
 

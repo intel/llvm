@@ -13,88 +13,16 @@
 // flang/module/__fortran_type_info.f90.
 
 #include "descriptor.h"
+#include "terminator.h"
 #include "flang/Common/Fortran.h"
+#include "flang/Common/bit-population-count.h"
 #include <cinttypes>
 #include <memory>
 #include <optional>
 
 namespace Fortran::runtime::typeInfo {
 
-class Component;
-
-class DerivedType {
-public:
-  ~DerivedType(); // never defined
-
-  const Descriptor &binding() const { return binding_.descriptor(); }
-  const Descriptor &name() const { return name_.descriptor(); }
-  std::uint64_t sizeInBytes() const { return sizeInBytes_; }
-  const Descriptor &parent() const { return parent_.descriptor(); }
-  std::uint64_t typeHash() const { return typeHash_; }
-  const Descriptor &uninstatiated() const {
-    return uninstantiated_.descriptor();
-  }
-  const Descriptor &kindParameter() const {
-    return kindParameter_.descriptor();
-  }
-  const Descriptor &lenParameterKind() const {
-    return lenParameterKind_.descriptor();
-  }
-  const Descriptor &component() const { return component_.descriptor(); }
-  const Descriptor &procPtr() const { return procPtr_.descriptor(); }
-  const Descriptor &special() const { return special_.descriptor(); }
-
-  std::size_t LenParameters() const { return lenParameterKind().Elements(); }
-
-  // Finds a data component by name in this derived type or tis ancestors.
-  const Component *FindDataComponent(
-      const char *name, std::size_t nameLen) const;
-
-  FILE *Dump(FILE * = stdout) const;
-
-private:
-  // This member comes first because it's used like a vtable by generated code.
-  // It includes all of the ancestor types' bindings, if any, first,
-  // with any overrides from descendants already applied to them.  Local
-  // bindings then follow in alphabetic order of binding name.
-  StaticDescriptor<1, true>
-      binding_; // TYPE(BINDING), DIMENSION(:), POINTER, CONTIGUOUS
-
-  StaticDescriptor<0> name_; // CHARACTER(:), POINTER
-
-  std::uint64_t sizeInBytes_{0};
-  StaticDescriptor<0, true> parent_; // TYPE(DERIVEDTYPE), POINTER
-
-  // Instantiations of a parameterized derived type with KIND type
-  // parameters will point this data member to the description of
-  // the original uninstantiated type, which may be shared from a
-  // module via use association.  The original uninstantiated derived
-  // type description will point to itself.  Derived types that have
-  // no KIND type parameters will have a null pointer here.
-  StaticDescriptor<0, true> uninstantiated_; // TYPE(DERIVEDTYPE), POINTER
-
-  // TODO: flags for SEQUENCE, BIND(C), any PRIVATE component(? see 7.5.2)
-  std::uint64_t typeHash_{0};
-
-  // These pointer targets include all of the items from the parent, if any.
-  StaticDescriptor<1> kindParameter_; // pointer to rank-1 array of INTEGER(8)
-  StaticDescriptor<1>
-      lenParameterKind_; // pointer to rank-1 array of INTEGER(1)
-
-  // This array of local data components includes the parent component.
-  // Components are in component order, not collation order of their names.
-  // It does not include procedure pointer components.
-  StaticDescriptor<1, true>
-      component_; // TYPE(COMPONENT), POINTER, DIMENSION(:), CONTIGUOUS
-
-  // Procedure pointer components
-  StaticDescriptor<1, true>
-      procPtr_; // TYPE(PROCPTR), POINTER, DIMENSION(:), CONTIGUOUS
-
-  // Does not include special bindings from ancestral types.
-  StaticDescriptor<1, true>
-      special_; // TYPE(SPECIALBINDING), POINTER, DIMENSION(:), CONTIGUOUS
-};
+class DerivedType;
 
 using ProcedurePointer = void (*)(); // TYPE(C_FUNPTR)
 
@@ -147,8 +75,19 @@ public:
   }
   const char *initialization() const { return initialization_; }
 
-  // Creates a pointer descriptor from a component description.
-  void EstablishDescriptor(Descriptor &, const Descriptor &container,
+  std::size_t GetElementByteSize(const Descriptor &) const;
+  std::size_t GetElements(const Descriptor &) const;
+
+  // For ocmponents that are descriptors, returns size of descriptor;
+  // for Genre::Data, returns elemental byte size times element count.
+  std::size_t SizeInBytes(const Descriptor &) const;
+
+  // Establishes a descriptor from this component description.
+  void EstablishDescriptor(
+      Descriptor &, const Descriptor &container, Terminator &) const;
+
+  // Creates a pointer descriptor from this component description.
+  void CreatePointerDescriptor(Descriptor &, const Descriptor &container,
       const SubscriptValue[], Terminator &) const;
 
   FILE *Dump(FILE * = stdout) const;
@@ -174,28 +113,41 @@ private:
 struct ProcPtrComponent {
   StaticDescriptor<0> name; // CHARACTER(:), POINTER
   std::uint64_t offset{0};
-  ProcedurePointer procInitialization; // for Genre::Procedure
+  ProcedurePointer procInitialization;
 };
 
-struct SpecialBinding {
+class SpecialBinding {
+public:
   enum class Which : std::uint8_t {
     None = 0,
-    Assignment = 4,
-    ElementalAssignment = 5,
-    Final = 8,
-    ElementalFinal = 9,
-    AssumedRankFinal = 10,
-    ReadFormatted = 16,
-    ReadUnformatted = 17,
-    WriteFormatted = 18,
-    WriteUnformatted = 19
-  } which{Which::None};
+    ScalarAssignment = 1,
+    ElementalAssignment = 2,
+    ReadFormatted = 3,
+    ReadUnformatted = 4,
+    WriteFormatted = 5,
+    WriteUnformatted = 6,
+    ElementalFinal = 7,
+    AssumedRankFinal = 8,
+    ScalarFinal = 9,
+    // higher-ranked final procedures follow
+  };
 
-  // Used for Which::Final only.  Which::Assignment always has rank 0, as
-  // type-bound defined assignment for rank > 0 must be elemental
-  // due to the required passed object dummy argument, which are scalar.
-  // User defined derived type I/O is always scalar.
-  std::uint8_t rank{0};
+  static constexpr Which RankFinal(int rank) {
+    return static_cast<Which>(static_cast<int>(Which::ScalarFinal) + rank);
+  }
+
+  Which which() const { return which_; }
+  bool IsArgDescriptor(int zeroBasedArg) const {
+    return (isArgDescriptorSet_ >> zeroBasedArg) & 1;
+  }
+  template <typename PROC> PROC GetProc() const {
+    return reinterpret_cast<PROC>(proc_);
+  }
+
+  FILE *Dump(FILE *) const;
+
+private:
+  Which which_{Which::None};
 
   // The following little bit-set identifies which dummy arguments are
   // passed via descriptors for their derived type arguments.
@@ -222,9 +174,114 @@ struct SpecialBinding {
   //     the case when and only when the derived type is extensible.
   //     When false, the user derived type I/O subroutine must have been
   //     called via a generic interface, not a generic TBP.
-  std::uint8_t isArgDescriptorSet{0};
+  std::uint8_t isArgDescriptorSet_{0};
 
-  ProcedurePointer proc{nullptr};
+  ProcedurePointer proc_{nullptr};
 };
+
+class DerivedType {
+public:
+  ~DerivedType(); // never defined
+
+  const Descriptor &binding() const { return binding_.descriptor(); }
+  const Descriptor &name() const { return name_.descriptor(); }
+  std::uint64_t sizeInBytes() const { return sizeInBytes_; }
+  const Descriptor &uninstatiated() const {
+    return uninstantiated_.descriptor();
+  }
+  const Descriptor &kindParameter() const {
+    return kindParameter_.descriptor();
+  }
+  const Descriptor &lenParameterKind() const {
+    return lenParameterKind_.descriptor();
+  }
+  const Descriptor &component() const { return component_.descriptor(); }
+  const Descriptor &procPtr() const { return procPtr_.descriptor(); }
+  const Descriptor &special() const { return special_.descriptor(); }
+  bool hasParent() const { return hasParent_; }
+  bool noInitializationNeeded() const { return noInitializationNeeded_; }
+  bool noDestructionNeeded() const { return noDestructionNeeded_; }
+  bool noFinalizationNeeded() const { return noFinalizationNeeded_; }
+
+  std::size_t LenParameters() const { return lenParameterKind().Elements(); }
+
+  const DerivedType *GetParentType() const;
+
+  // Finds a data component by name in this derived type or tis ancestors.
+  const Component *FindDataComponent(
+      const char *name, std::size_t nameLen) const;
+
+  // O(1) look-up of special procedure bindings
+  const SpecialBinding *FindSpecialBinding(SpecialBinding::Which which) const {
+    auto bitIndex{static_cast<std::uint32_t>(which)};
+    auto bit{std::uint32_t{1} << bitIndex};
+    if (specialBitSet_ & bit) {
+      // The index of this special procedure in the sorted array is the
+      // number of special bindings that are present with smaller "which"
+      // code values.
+      int offset{common::BitPopulationCount(specialBitSet_ & (bit - 1))};
+      const auto *binding{
+          special_.descriptor().ZeroBasedIndexedElement<SpecialBinding>(
+              offset)};
+      INTERNAL_CHECK(binding && binding->which() == which);
+      return binding;
+    } else {
+      return nullptr;
+    }
+  }
+
+  FILE *Dump(FILE * = stdout) const;
+
+private:
+  // This member comes first because it's used like a vtable by generated code.
+  // It includes all of the ancestor types' bindings, if any, first,
+  // with any overrides from descendants already applied to them.  Local
+  // bindings then follow in alphabetic order of binding name.
+  StaticDescriptor<1, true>
+      binding_; // TYPE(BINDING), DIMENSION(:), POINTER, CONTIGUOUS
+
+  StaticDescriptor<0> name_; // CHARACTER(:), POINTER
+
+  std::uint64_t sizeInBytes_{0};
+
+  // Instantiations of a parameterized derived type with KIND type
+  // parameters will point this data member to the description of
+  // the original uninstantiated type, which may be shared from a
+  // module via use association.  The original uninstantiated derived
+  // type description will point to itself.  Derived types that have
+  // no KIND type parameters will have a null pointer here.
+  StaticDescriptor<0, true> uninstantiated_; // TYPE(DERIVEDTYPE), POINTER
+
+  // These pointer targets include all of the items from the parent, if any.
+  StaticDescriptor<1> kindParameter_; // pointer to rank-1 array of INTEGER(8)
+  StaticDescriptor<1>
+      lenParameterKind_; // pointer to rank-1 array of INTEGER(1)
+
+  // This array of local data components includes the parent component.
+  // Components are in component order, not collation order of their names.
+  // It does not include procedure pointer components.
+  StaticDescriptor<1, true>
+      component_; // TYPE(COMPONENT), POINTER, DIMENSION(:), CONTIGUOUS
+
+  // Procedure pointer components
+  StaticDescriptor<1, true>
+      procPtr_; // TYPE(PROCPTR), POINTER, DIMENSION(:), CONTIGUOUS
+
+  // Packed in ascending order of "which" code values.
+  // Does not include special bindings from ancestral types.
+  StaticDescriptor<1, true>
+      special_; // TYPE(SPECIALBINDING), POINTER, DIMENSION(:), CONTIGUOUS
+
+  // Little-endian bit-set of special procedure binding "which" code values
+  // for O(1) look-up in FindSpecialBinding() above.
+  std::uint32_t specialBitSet_{0};
+
+  // Flags
+  bool hasParent_{false};
+  bool noInitializationNeeded_{false};
+  bool noDestructionNeeded_{false};
+  bool noFinalizationNeeded_{false};
+};
+
 } // namespace Fortran::runtime::typeInfo
 #endif // FORTRAN_RUNTIME_TYPE_INFO_H_

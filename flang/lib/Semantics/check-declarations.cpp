@@ -329,12 +329,14 @@ void CheckHelper::Check(const Symbol &symbol) {
       messages_.Say(
           "A dummy argument may not also be a named constant"_err_en_US);
     }
-    if (IsSaved(symbol)) {
+    if (!symbol.test(Symbol::Flag::InDataStmt) /*caught elsewhere*/ &&
+        IsSaved(symbol)) {
       messages_.Say(
           "A dummy argument may not have the SAVE attribute"_err_en_US);
     }
   } else if (IsFunctionResult(symbol)) {
-    if (IsSaved(symbol)) {
+    if (!symbol.test(Symbol::Flag::InDataStmt) /*caught elsewhere*/ &&
+        IsSaved(symbol)) {
       messages_.Say(
           "A function result may not have the SAVE attribute"_err_en_US);
     }
@@ -842,6 +844,10 @@ void CheckHelper::CheckSubprogram(
         }
       }
     }
+  }
+  // See comment on the similar check in CheckProcEntity()
+  if (details.isDummy() && symbol.attrs().test(Attr::ELEMENTAL)) {
+    messages_.Say("A dummy procedure may not be ELEMENTAL"_err_en_US);
   }
 }
 
@@ -1797,9 +1803,15 @@ void CheckHelper::CheckAlreadySeenDefinedIo(const DerivedTypeSpec *derivedType,
 void CheckHelper::CheckDioDummyIsDerived(
     const Symbol &subp, const Symbol &arg, GenericKind::DefinedIo ioKind) {
   if (const DeclTypeSpec * type{arg.GetType()}) {
-    const DerivedTypeSpec *derivedType{type->AsDerived()};
-    if (derivedType) {
+    if (const DerivedTypeSpec * derivedType{type->AsDerived()}) {
       CheckAlreadySeenDefinedIo(derivedType, ioKind, subp);
+      bool isPolymorphic{type->IsPolymorphic()};
+      if (isPolymorphic != IsExtensibleType(derivedType)) {
+        messages_.Say(arg.name(),
+            "Dummy argument '%s' of a defined input/output procedure must be %s when the derived type is %s"_err_en_US,
+            arg.name(), isPolymorphic ? "TYPE()" : "CLASS()",
+            isPolymorphic ? "not extensible" : "extensible");
+      }
     } else {
       messages_.Say(arg.name(),
           "Dummy argument '%s' of a defined input/output procedure must have a"
