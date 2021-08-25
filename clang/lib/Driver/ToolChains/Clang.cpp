@@ -1203,6 +1203,12 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     C.getDriver().addFPGATempDepFile(DepFile, BaseName);
   };
 
+  // Do not add dependency generation information when compiling the source +
+  // footer combination.  The dependency generation is done in a separate
+  // compile step so we can retain original source information.
+  if (ContainsAppendFooterAction(&JA))
+    ArgM = nullptr;
+
   if (ArgM) {
     // Determine the output location.
     const char *DepFile;
@@ -1216,6 +1222,12 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
             DepFile, Clang::getBaseInputName(Args, Inputs[0]));
     } else if (Output.getType() == types::TY_Dependencies) {
       DepFile = Output.getFilename();
+      if (!ContainsAppendFooterAction(&JA) && Args.hasArg(options::OPT_fsycl) &&
+          !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
+          !JA.isDeviceOffloading(Action::OFK_SYCL))
+        // Name the dependency file for the specific dependency generation
+        // step created for the integration footer enabled compilation.
+        DepFile = getDependencyFileName(Args, Inputs);
     } else if (!ArgMD) {
       DepFile = "-";
     } else if (IsIntelFPGA && JA.isDeviceOffloading(Action::OFK_SYCL)) {

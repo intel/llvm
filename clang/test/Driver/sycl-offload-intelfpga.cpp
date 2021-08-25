@@ -322,11 +322,11 @@
 /// -fintelfpga dependency file check with host .d enabled
 // RUN: %clangxx -### -MMD -fsycl -fintelfpga -Xshardware %t-1.cpp %t-2.cpp 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-DEP-FILES-HOST %s
-// CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-dependency-file" "[[INPUT1:.+\.d]]" "-MT" "{{.*}}.o"
-// CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-dependency-file" "[[INPUT2:.+\.d]]" "-MT" "{{.*}}.o"
+// CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown-sycldevice"{{.*}} "-dependency-file" "[[INPUT1:.+\.d]]" "-MT" "{{.*}}.o"
+// CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown-sycldevice"{{.*}} "-dependency-file" "[[INPUT2:.+\.d]]" "-MT" "{{.*}}.o"
 // CHK-FPGA-DEP-FILES-HOST: aoc{{.*}} "-dep-files={{.*}}[[INPUT1]],{{.*}}[[INPUT2]]"
-// CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-fsycl-is-host"{{.*}} "-dependency-file"
-// CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-fsycl-is-host"{{.*}} "-dependency-file"
+// CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-fsycl-is-host"{{.*}}
+// CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-fsycl-is-host"{{.*}}
 
 /// -fintelfpga dependency file generation test to object
 // RUN: %clangxx -### -fsycl -fintelfpga -target x86_64-unknown-linux-gnu %t-1.cpp %t-2.cpp -c 2>&1 \
@@ -348,7 +348,7 @@
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-DEP-FILES3,CHK-FPGA-DEP-FILES3-LIN %s
 // RUN: %clang_cl -### --target=x86_64-pc-windows-msvc -fsycl -fintelfpga %t-1.cpp -c -Fodummy.obj 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-DEP-FILES3,CHK-FPGA-DEP-FILES3-WIN %s
-// CHK-FPGA-DEP-FILES3: clang{{.*}} "-dependency-file" "[[OUTPUT:.+\.d]]"
+// CHK-FPGA-DEP-FILES3: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown-sycldevice"{{.*}} "-dependency-file" "[[OUTPUT:.+\.d]]"
 // CHK-FPGA-DEP-FILES3-LIN: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_fpga-unknown-unknown-sycldevice,host-x86_64-unknown-linux-gnu,sycl-fpga_dep" {{.*}} "-inputs={{.*}}.bc,{{.*}}.o,[[OUTPUT]]"
 // CHK-FPGA-DEP-FILES3-WIN: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_fpga-unknown-unknown-sycldevice,host-x86_64-pc-windows-msvc,sycl-fpga_dep" {{.*}} "-inputs={{.*}}.bc,{{.*}}.obj,[[OUTPUT]]"
 
