@@ -70,18 +70,18 @@
 
 /// Check behaviors for dependency generation
 // RUN:  %clangxx -fsycl -MD -c %s -### 2>&1 \
-// RUN:   | FileCheck -check-prefix DEP_GEN -DINPUTFILE=%/s %s
+// RUN:   | FileCheck -check-prefix DEP_GEN %s
 // DEP_GEN:  clang{{.*}} "-Eonly"
 // DEP_GEN-SAME: "-dependency-file"
 // DEP_GEN-SAME: "-MT"
-// DEP_GEN-SAME: "-x" "c++" "[[INPUTFILE]]"
-// DEP_GEN: append-file{{.*}}
+// DEP_GEN-SAME: "-x" "c++" "[[INPUTFILE:.+\.cpp]]"
+// DEP_GEN: append-file{{.*}} "[[INPUTFILE]]"
 // DEP_GEN-NOT: clang{{.*}} "-dependency-file"
 
 /// Dependency generation phases
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -MD -c %s -ccc-print-phases 2>&1 \
-// RUN:   | FileCheck -check-prefix DEP_GEN_PHASES -DINPUTFILE=%/s %s
-// DEP_GEN_PHASES: 0: input, "[[INPUTFILE]]", c++, (host-sycl)
+// RUN:   | FileCheck -check-prefix DEP_GEN_PHASES %s
+// DEP_GEN_PHASES: 0: input, "[[INPUTFILE:.+\.cpp]]", c++, (host-sycl)
 // DEP_GEN_PHASES: 1: preprocessor, {0}, dependencies
 // DEP_GEN_PHASES: 2: input, "[[INPUTFILE]]", c++, (device-sycl)
 // DEP_GEN_PHASES: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
