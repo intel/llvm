@@ -75,8 +75,8 @@ int main(int argc, char **argv) {
   if (NamedMDNode *OCLVersion = M->getNamedMetadata("opencl.ocl.version"))
       M->eraseNamedMetadata(OCLVersion);
 
-  //wchar_size flag can cause a mismatch between libclc libraries and 
-  //modules using them. Since wchar is not used by libclc we drop the flag
+  // wchar_size flag can cause a mismatch between libclc libraries and
+  // modules using them. Since wchar is not used by libclc we drop the flag
   if (M->getModuleFlag("wchar_size")) {
     SmallVector<Module::ModuleFlagEntry, 4> ModuleFlags;
     M->getModuleFlagsMetadata(ModuleFlags);
