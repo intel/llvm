@@ -990,7 +990,7 @@ pi_result _pi_context::getAvailableCommandList(
     ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
     std::tie(CommandList, std::ignore) = Queue->CommandListMap.insert(
         std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
-            ZeCommandList, {ZeFence, false, CopyQueueIndex}));
+            ZeCommandList, {ZeFence, true, CopyQueueIndex}));
     pi_result = PI_SUCCESS;
   }
 
@@ -2739,31 +2739,26 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
 pi_result piQueueRetain(pi_queue Queue) {
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
+  Queue->RefCountExternal++;
   piQueueRetainNoLock(Queue);
   return PI_SUCCESS;
 }
 
 pi_result piQueueRelease(pi_queue Queue) {
-  return QueueRelease(Queue, nullptr);
-}
-
-static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-  // We need to use a bool variable here to check the condition that
-  // RefCount becomes zero atomically with PiQueueMutex lock.
-  // Then, we can release the lock before we remove the Queue below.
-  bool RefCountZero = false;
   {
-    auto Lock = ((Queue == LockedQueue)
-                     ? std::unique_lock<std::mutex>()
-                     : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
+    // Have this scope such that the lock is released before the
+    // queue is potentially deleted in QueueRelease.
+    // Lock automatically releases when this goes out of scope.
+    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-    Queue->RefCount--;
-    if (Queue->RefCount == 0)
-      RefCountZero = true;
-
-    if (RefCountZero) {
+    Queue->RefCountExternal--;
+    if (Queue->RefCountExternal == 0) {
+      // When external reference count goes to zero it is still possible
+      // that internal references still exists, e.g. command-lists that
+      // are not yet completed. So do full queue synchronization here
+      // and perform proper cleanup.
+      //
       // It is possible to get to here and still have an open command list
       // if no wait or finish ever occurred for this queue.
       if (auto Res = Queue->executeOpenCommandList())
@@ -2786,6 +2781,29 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
         ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
       }
       Queue->CommandListMap.clear();
+    }
+  }
+  PI_CALL(QueueRelease(Queue, nullptr));
+  return PI_SUCCESS;
+}
+
+static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
+  PI_ASSERT(Queue, PI_INVALID_QUEUE);
+  PI_ASSERT(Queue->RefCount, PI_INVALID_QUEUE);
+
+  // We need to use a bool variable here to check the condition that
+  // RefCount becomes zero atomically with PiQueueMutex lock.
+  // Then, we can release the lock before we remove the Queue below.
+  bool RefCountZero = false;
+  {
+    // Lock automatically releases when this goes out of scope.
+    auto Lock = ((Queue == LockedQueue)
+                     ? std::unique_lock<std::mutex>()
+                     : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
+
+    Queue->RefCount--;
+    if (Queue->RefCount == 0) {
+      RefCountZero = true;
 
       if (Queue->OwnZeCommandQueue) {
         ZE_CALL(zeCommandQueueDestroy, (Queue->ZeComputeCommandQueue));
@@ -2804,9 +2822,9 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
               Queue->NumTimesClosedFull, Queue->NumTimesClosedEarly);
     }
   }
-
   if (RefCountZero)
     delete Queue;
+
   return PI_SUCCESS;
 }
 
