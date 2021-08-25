@@ -2932,6 +2932,18 @@ bool Driver::checkForSYCLDefaultDevice(Compilation &C,
   if (Args.hasArg(options::OPT_fno_sycl_link_spirv))
     return false;
 
+  // Do not do the check if the default device is passed in -fsycl-targets
+  // or if -fsycl-targets isn't passed (that implies default device)
+  if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+    for (const char *Val : A->getValues()) {
+      llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
+      if (TT.isSPIR() && TT.getSubArch() == llvm::Triple::NoSubArch)
+        // Default triple found
+        return false;
+    }
+  } else if (!Args.hasArg(options::OPT_fintelfpga))
+    return false;
+
   SmallVector<const char *, 16> AllArgs(getLinkerArgs(C, Args, true));
   for (StringRef Arg : AllArgs) {
     if (hasSYCLDefaultSection(C, Arg))
