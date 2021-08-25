@@ -61,6 +61,9 @@ def do_configure(args):
         if args.rocm_platform == 'AMD':
             llvm_targets_to_build += ';AMDGPU'
             libclc_targets_to_build += ';amdgcn--;amdgcn--amdhsa'
+
+            # The ROCm plugin for AMD uses lld for linking
+            llvm_enable_projects += ';lld'
         elif args.rocm_platform == 'NVIDIA' and not args.cuda:
             llvm_targets_to_build += ';NVPTX'
             libclc_targets_to_build += ';nvptx64--;nvptx64--nvidiacl'
