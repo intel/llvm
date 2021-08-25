@@ -10,14 +10,12 @@
 
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 
 #include <cstdint>
 #include <string>
-
-#define __SYCL_STRINGIFY_LINE_HELP(s) #s
-#define __SYCL_STRINGIFY_LINE(s) __SYCL_STRINGIFY_LINE_HELP(s)
 
 // Default signature enables the passing of user code location information to
 // public methods as a default argument. If the end-user wants to disable the
@@ -106,8 +104,8 @@ static inline std::string codeToString(cl_int code) {
 #define __SYCL_OCL_ERROR_REPORT                                                \
   "Native API failed. " /*__FILE__*/                                           \
   /* TODO: replace __FILE__ to report only relative path*/                     \
-  /* ":" __SYCL_STRINGIFY_LINE(__LINE__) ": " */                               \
-                               "Native API returns: "
+  /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
+                          "Native API returns: "
 
 #ifndef __SYCL_SUPPRESS_OCL_ERROR_REPORT
 #include <iostream>

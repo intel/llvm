@@ -2891,6 +2891,9 @@ struct AAKernelInfoFunction : AAKernelInfo {
       // in an invalid state, we won't change the value that is in the IR.
       if (!isValidState())
         return nullptr;
+      // If we have disabled state machine rewrites, don't make a custom one.
+      if (DisableOpenMPOptStateMachineRewrite)
+        return nullptr;
       if (AA)
         A.recordDependence(*this, *AA, DepClassTy::OPTIONAL);
       UsedAssumedInformation = !isAtFixpoint();
@@ -2969,6 +2972,9 @@ struct AAKernelInfoFunction : AAKernelInfo {
         dyn_cast<ConstantInt>(KernelInitCB->getArgOperand(InitIsSPMDArgNo));
     if (IsSPMDArg && !IsSPMDArg->isZero())
       SPMDCompatibilityTracker.indicateOptimisticFixpoint();
+    // This is a generic region but SPMDization is disabled so stop tracking.
+    else if (DisableOpenMPOptSPMDization)
+      SPMDCompatibilityTracker.indicatePessimisticFixpoint();
   }
 
   /// Modify the IR based on the KernelInfoState as the fixpoint iteration is
@@ -2992,10 +2998,6 @@ struct AAKernelInfoFunction : AAKernelInfo {
   }
 
   bool changeToSPMDMode(Attributor &A) {
-    // If we have disabled SPMD-ization, stop
-    if (DisableOpenMPOptSPMDization)
-      indicatePessimisticFixpoint();
-
     auto &OMPInfoCache = static_cast<OMPInformationCache &>(A.getInfoCache());
 
     if (!SPMDCompatibilityTracker.isAssumed()) {

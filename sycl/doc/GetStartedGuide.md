@@ -424,6 +424,11 @@ skipped.
 If CUDA support has been built, it is tested only if there are CUDA devices
 available.
 
+If testing with ROCm for AMD make sure to specify the GPU being used
+by adding `-Xsycl-target-backend=amdgcn-amd-amdhsa-sycldevice
+--offload-arch=<target>` to the CMake variable
+`SYCL_CLANG_EXTRA_FLAGS`.
+
 #### Run DPC++ E2E test suite
 
 Follow instructions from the link below to build and run tests:
@@ -547,11 +552,14 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
-When building for ROCm, please note that the option `mcpu` must be specified, use the ROCm target triple as follows:
+When building for ROCm, use the ROCm target triple and specify the
+target architecture with `-Xsycl-target-backend --offload-arch=<arch>`
+as follows:
 
 ```bash
 clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa-sycldevice \
-  -mcpu=gfx906 simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
+  -Xsycl-target-backend --offload-arch=gfx906              \
+  simple-sycl-app.cpp -o simple-sycl-app-amd.exe
 ```
 
 To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,

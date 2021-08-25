@@ -12677,6 +12677,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_storeups512_mask:
     return EmitX86MaskedStore(*this, Ops, Align(1));
 
+  case X86::BI__builtin_ia32_storesh128_mask:
   case X86::BI__builtin_ia32_storess128_mask:
   case X86::BI__builtin_ia32_storesd128_mask:
     return EmitX86MaskedStore(*this, Ops, Align(1));
@@ -12812,6 +12813,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_loaddqudi512_mask:
     return EmitX86MaskedLoad(*this, Ops, Align(1));
 
+  case X86::BI__builtin_ia32_loadsh128_mask:
   case X86::BI__builtin_ia32_loadss128_mask:
   case X86::BI__builtin_ia32_loadsd128_mask:
     return EmitX86MaskedLoad(*this, Ops, Align(1));
@@ -13691,6 +13693,9 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_selectq_128:
   case X86::BI__builtin_ia32_selectq_256:
   case X86::BI__builtin_ia32_selectq_512:
+  case X86::BI__builtin_ia32_selectph_128:
+  case X86::BI__builtin_ia32_selectph_256:
+  case X86::BI__builtin_ia32_selectph_512:
   case X86::BI__builtin_ia32_selectps_128:
   case X86::BI__builtin_ia32_selectps_256:
   case X86::BI__builtin_ia32_selectps_512:
@@ -13698,6 +13703,7 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_selectpd_256:
   case X86::BI__builtin_ia32_selectpd_512:
     return EmitX86Select(*this, Ops[0], Ops[1], Ops[2]);
+  case X86::BI__builtin_ia32_selectsh_128:
   case X86::BI__builtin_ia32_selectss_128:
   case X86::BI__builtin_ia32_selectsd_128: {
     Value *A = Builder.CreateExtractElement(Ops[1], (uint64_t)0);
@@ -18319,22 +18325,18 @@ RValue CodeGenFunction::EmitIntelFPGARegBuiltin(const CallExpr *E,
                                                 ReturnValueSlot ReturnValue) {
   const Expr *PtrArg = E->getArg(0);
   QualType ArgType = PtrArg->getType();
-  llvm::Value *V = nullptr;
   StringRef AnnotStr = "__builtin_intel_fpga_reg";
 
-  if (ArgType->isStructureOrClassType() || ArgType->isUnionType()) {
-    RValue RV = EmitAnyExpr(PtrArg);
-    Address A = EmitIntelFPGAFieldAnnotations(E->getExprLoc(),
-                                              RV.getAggregateAddress(),
-                                              AnnotStr);
-    llvm::Type *VTy = ReturnValue.getValue().getPointer()->getType();
-    uint64_t SizeVal = CGM.getDataLayout().getTypeAllocSize(VTy);
-    Builder.CreateMemCpy(ReturnValue.getValue(), A, SizeVal, false);
+  if (ArgType->isRecordType()) {
+    Address DstAddr = ReturnValue.getValue();
+    EmitAnyExprToMem(PtrArg, DstAddr, ArgType.getQualifiers(), true);
+    Address A =
+        EmitIntelFPGAFieldAnnotations(E->getExprLoc(), DstAddr, AnnotStr);
     return RValue::getAggregate(A);
   }
 
   // if scalar type
-  V = EmitScalarExpr(PtrArg);
+  llvm::Value *V = EmitScalarExpr(PtrArg);
 
   // llvm.annotation does not accept anything but integer types.
   llvm::Type *OrigVType = V->getType();

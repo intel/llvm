@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/allowlist.hpp>
-#include <detail/config.hpp> // for SyclBeMap and SyclDeviceTypeMap
+#include <detail/config.hpp> // for getSyclBeMap() and getSyclDeviceTypeMap()
 
 #include <gtest/gtest.h>
 
@@ -157,7 +157,7 @@ TEST(ParseAllowListTests, CheckMissingClosedDoubleCurlyBracesAreHandled) {
 
 TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
   std::string AllowList;
-  for (const auto &SyclBe : sycl::detail::SyclBeMap) {
+  for (const auto &SyclBe : sycl::detail::getSyclBeMap()) {
     if (!AllowList.empty())
       AllowList += "|";
     AllowList += "BackendName:" + SyclBe.first;
@@ -173,7 +173,7 @@ TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
 
 TEST(ParseAllowListTests, CheckAllValidDeviceTypeValuesAreProcessed) {
   std::string AllowList;
-  for (const auto &SyclDeviceType : sycl::detail::SyclDeviceTypeMap) {
+  for (const auto &SyclDeviceType : sycl::detail::getSyclDeviceTypeMap()) {
     if (!AllowList.empty())
       AllowList += "|";
     AllowList += "DeviceType:" + SyclDeviceType.first;
