@@ -260,15 +260,6 @@ void ChildProcess(int StdErrFD) {
   }
 
   sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    printf("Test is not supported on host, skipping\n");
-    exit(1);
-  }
-
-  if (Plt.get_backend() == sycl::backend::cuda) {
-    printf("Test is not supported on CUDA platform, skipping\n");
-    exit(1);
-  }
 
   sycl::unittest::PiMock Mock{Plt};
 
@@ -334,6 +325,20 @@ void ParentProcess(int ChildPID, int ChildStdErrFD) {
 }
 
 TEST(Assert, TestPositive) {
+  // Preliminary checks
+  {
+    sycl::platform Plt{sycl::default_selector()};
+    if (Plt.is_host()) {
+      printf("Test is not supported on host, skipping\n");
+      exit(1);
+    }
+
+    if (Plt.get_backend() == sycl::backend::cuda) {
+      printf("Test is not supported on CUDA platform, skipping\n");
+      exit(1);
+    }
+  }
+
 #ifndef _WIN32
   static constexpr int ReadFDIdx = 0;
   static constexpr int WriteFDIdx = 1;
