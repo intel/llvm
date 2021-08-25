@@ -60,7 +60,7 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
   bool catchException = false;
   try {
     (void)Plt.ext_oneapi_get_default_context();
-  } catch (std::runtime_error) {
+  } catch (const std::runtime_error &) {
     catchException = true;
   }
 
