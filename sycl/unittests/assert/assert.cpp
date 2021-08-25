@@ -312,8 +312,8 @@ void ParentProcess(int ChildPID, int ChildStdErrFD) {
   size_t TotalReadCnt = 0;
 
   while (TotalReadCnt < static_cast<size_t>(PipeUnread)) {
-    ssize_t ReadCnt = read(
-        ChildStdErrFD, Buf.data() + TotalReadCnt, PipeUnread - TotalReadCnt);
+    ssize_t ReadCnt = read(ChildStdErrFD, Buf.data() + TotalReadCnt,
+                           PipeUnread - TotalReadCnt);
 
     if (ReadCnt < 0) {
       perror("Couldn't read from pipe");
