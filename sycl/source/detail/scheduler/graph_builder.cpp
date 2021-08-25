@@ -14,6 +14,7 @@
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/backend_impl.hpp>
 
 #include <cstdlib>
 #include <cstring>
@@ -947,19 +948,21 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
           MemMoveTargetQueue = HT.MQueue;
         }
       } else if (!Queue->is_host() && !Record->MCurContext->is_host()) {
-        bool p2p = false;
-        Queue->getPlugin().call<PiApiKind::piextP2P>(
-            Queue->getDeviceImplPtr()->getHandleRef(),
-            findAllocaCmd(Record)
-                ->getQueue()
-                ->getDeviceImplPtr()
-                ->getHandleRef(),
-            &p2p);
-        if (!(p2p && Queue->get_device().get_platform().get_backend() ==
-                         Record->MCurContext->getDevices()[0]
-                             .get_platform()
-                             .get_backend()))
+        if (detail::getImplBackend(Queue) !=
+            detail::getImplBackend(Record->MCurContext))
           NeedMemMoveToHost = true;
+        else {
+          bool p2p = false;
+          Queue->getPlugin().call<PiApiKind::piextDevicesSupportP2P>(
+              Queue->getDeviceImplPtr()->getHandleRef(),
+              findAllocaCmd(Record)
+                  ->getQueue()
+                  ->getDeviceImplPtr()
+                  ->getHandleRef(),
+              &p2p);
+          if (!p2p)
+            NeedMemMoveToHost = true;
+        }
       }
       if (NeedMemMoveToHost)
         insertMemoryMove(Record, Req,
