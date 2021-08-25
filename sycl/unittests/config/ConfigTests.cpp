@@ -10,13 +10,20 @@
 #include <gtest/gtest.h>
 #include <regex>
 
-TEST(ConfigTests, CheckSpaceAtFirstPosition) {
-  std::ofstream file("conf.txt");
-  if (file.is_open()) {
-    file << " a=b" << std::endl;
-    file.close();
-  }
+TEST(ConfigTests, CheckConfigProcessing) {
+#ifdef _WIN32
+  _putenv_s("SYCL_CONFIG_FILE_NAME", "conf.txt");
+#else
   setenv("SYCL_CONFIG_FILE_NAME", "conf.txt", 1);
+#endif
+
+  // Check SPACE at first position
+  std::ofstream File;
+  File.open("conf.txt");
+  if (File.is_open()) {
+    File << " a=b" << std::endl;
+    File.close();
+  }
   try {
     sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
     throw std::logic_error("sycl::exception didn't throw");
@@ -26,17 +33,15 @@ TEST(ConfigTests, CheckSpaceAtFirstPosition) {
             "SPACE found at the beginning/end of the line or before/after '='"),
         e.what());
   } catch (...) {
-    FAIL() << "Expected sycl::exception";
+    FAIL() << "Check SPACE at first position failed";
   }
-}
 
-TEST(ConfigTests, CheckSpaceAtLastPosition) {
-  std::ofstream file("conf.txt");
-  if (file.is_open()) {
-    file << "a=b " << std::endl;
-    file.close();
+  // Check SPACE at last position
+  File.open("conf.txt");
+  if (File.is_open()) {
+    File << "a=b " << std::endl;
+    File.close();
   }
-  setenv("SYCL_CONFIG_FILE_NAME", "conf.txt", 1);
   try {
     sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
     throw std::logic_error("sycl::exception didn't throw");
@@ -46,17 +51,15 @@ TEST(ConfigTests, CheckSpaceAtLastPosition) {
             "SPACE found at the beginning/end of the line or before/after '='"),
         e.what());
   } catch (...) {
-    FAIL() << "Expected sycl::exception";
+    FAIL() << "Check SPACE at last position failed";
   }
-}
 
-TEST(ConfigTests, CheckSpaceBeforeAssignment) {
-  std::ofstream file("conf.txt");
-  if (file.is_open()) {
-    file << "a =b" << std::endl;
-    file.close();
+  // Check SPACE before assignment
+  File.open("conf.txt");
+  if (File.is_open()) {
+    File << "a =b" << std::endl;
+    File.close();
   }
-  setenv("SYCL_CONFIG_FILE_NAME", "conf.txt", 1);
   try {
     sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
     throw std::logic_error("sycl::exception didn't throw");
@@ -66,17 +69,15 @@ TEST(ConfigTests, CheckSpaceBeforeAssignment) {
             "SPACE found at the beginning/end of the line or before/after '='"),
         e.what());
   } catch (...) {
-    FAIL() << "Expected sycl::exception";
+    FAIL() << "Check SPACE before assignment failed";
   }
-}
 
-TEST(ConfigTests, CheckSpaceAfterAssignment) {
-  std::ofstream file("conf.txt");
-  if (file.is_open()) {
-    file << "a= b" << std::endl;
-    file.close();
+  // Check SPACE after assignment
+  File.open("conf.txt");
+  if (File.is_open()) {
+    File << "a= b" << std::endl;
+    File.close();
   }
-  setenv("SYCL_CONFIG_FILE_NAME", "conf.txt", 1);
   try {
     sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
     throw std::logic_error("sycl::exception didn't throw");
@@ -86,20 +87,18 @@ TEST(ConfigTests, CheckSpaceAfterAssignment) {
             "SPACE found at the beginning/end of the line or before/after '='"),
         e.what());
   } catch (...) {
-    FAIL() << "Expected sycl::exception";
+    FAIL() << "Check SPACE after assignment failed";
   }
-}
 
-TEST(ConfigTests, CheckVariableNameBiggerThanMaxConfigName) {
-  std::ofstream file("conf.txt");
-  if (file.is_open()) {
+  // Check variable name bigger than MAX_CONFIG_NAME
+  File.open("conf.txt");
+  if (File.is_open()) {
     for (int i = 0; i <= 256; i++) {
-      file << "a";
+      File << "a";
     }
-    file << "=b" << std::endl;
-    file.close();
+    File << "=b" << std::endl;
+    File.close();
   }
-  setenv("SYCL_CONFIG_FILE_NAME", "conf.txt", 1);
   try {
     sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
     throw std::logic_error("sycl::exception didn't throw");
@@ -109,41 +108,36 @@ TEST(ConfigTests, CheckVariableNameBiggerThanMaxConfigName) {
         std::regex(
             "Variable name is more than ([\\d]+) or less than one character")));
   } catch (...) {
-    FAIL() << "Expected sycl::exception";
+    FAIL() << "Check variable name bigger than MAX_CONFIG_NAME failed";
   }
-}
 
-TEST(ConfigTests, CheckVariableWithoutName) {
-  std::ofstream file("conf.txt");
-  if (file.is_open()) {
-    file << "=b" << std::endl;
-    file.close();
+  // Check variable without name
+  File.open("conf.txt");
+  if (File.is_open()) {
+    File << "=b" << std::endl;
+    File.close();
   }
-  setenv("SYCL_CONFIG_FILE_NAME", "conf.txt", 1);
   try {
     sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
     throw std::logic_error("sycl::exception didn't throw");
   } catch (sycl::exception &e) {
     EXPECT_TRUE(std::regex_match(
-        e.what(),
-        std::regex(
-            "Variable name is more than ([\\d]+) or less than one character")));
+        e.what(), std::regex("Variable name is more than ([\\d]+) or less "
+                             "than one character")));
   } catch (...) {
-    FAIL() << "Expected sycl::exception";
+    FAIL() << "Check variable without name failed";
   }
-}
 
-TEST(ConfigTests, CheckVariableValueBiggerThanMaxConfigValue) {
-  std::ofstream file("conf.txt");
-  if (file.is_open()) {
-    file << "a=";
+  // Check variable value bigger than MAX_CONFIG_VALUE
+  File.open("conf.txt");
+  if (File.is_open()) {
+    File << "a=";
     for (int i = 0; i <= 1024; i++) {
-      file << "b";
+      File << "b";
     }
-    file << std::endl;
-    file.close();
+    File << std::endl;
+    File.close();
   }
-  setenv("SYCL_CONFIG_FILE_NAME", "conf.txt", 1);
   try {
     sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
     throw std::logic_error("sycl::exception didn't throw");
@@ -152,17 +146,15 @@ TEST(ConfigTests, CheckVariableValueBiggerThanMaxConfigValue) {
         e.what(), std::regex("The value contains more than ([\\d]+) characters "
                              "or does not contain them at all")));
   } catch (...) {
-    FAIL() << "Expected sycl::exception";
+    FAIL() << "Check variable value bigger than MAX_CONFIG_VALUE failed";
   }
-}
 
-TEST(ConfigTests, CheckVariableWithoutValue) {
-  std::ofstream file("conf.txt");
-  if (file.is_open()) {
-    file << "a=" << std::endl;
-    file.close();
+  // Check variable without value
+  File.open("conf.txt");
+  if (File.is_open()) {
+    File << "a=" << std::endl;
+    File.close();
   }
-  setenv("SYCL_CONFIG_FILE_NAME", "conf.txt", 1);
   try {
     sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
     throw std::logic_error("sycl::exception didn't throw");
@@ -171,17 +163,15 @@ TEST(ConfigTests, CheckVariableWithoutValue) {
         e.what(), std::regex("The value contains more than ([\\d]+) characters "
                              "or does not contain them at all")));
   } catch (...) {
-    FAIL() << "Expected sycl::exception";
+    FAIL() << "Check variable without value failed";
   }
-}
 
-TEST(ConfigTests, CheckIncorrectComplexConfigProcessing) {
-  std::ofstream file("conf.txt");
-  if (file.is_open()) {
-    file << "#\n   #\r\n#a=b\n\n\na\r\n aaa \r\na=b\r\na=\r" << std::endl;
-    file.close();
+  // Check incorrect complex config processing
+  File.open("conf.txt");
+  if (File.is_open()) {
+    File << "#\n   #\r\n#a=b\n\n\na\r\n aaa \r\na=b\r\na=\r" << std::endl;
+    File.close();
   }
-  setenv("SYCL_CONFIG_FILE_NAME", "conf.txt", 1);
   try {
     sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get();
     throw std::logic_error("sycl::exception didn't throw");
@@ -190,58 +180,50 @@ TEST(ConfigTests, CheckIncorrectComplexConfigProcessing) {
         e.what(), std::regex("The value contains more than ([\\d]+) characters "
                              "or does not contain them at all")));
   } catch (...) {
-    FAIL() << "Expected sycl::exception";
+    FAIL() << "Check incorrect complex config processing failed";
   }
-}
 
-TEST(ConfigTests, CheckSimpleCorrectConfigProcessing) {
-  std::ofstream file("conf.txt");
-  if (file.is_open()) {
-    file << "SYCL_DEVICE_ALLOWLIST=1" << std::endl;
-    file.close();
+  // Check simple correct config processing
+  File.open("conf.txt");
+  if (File.is_open()) {
+    File << "SYCL_DEVICE_ALLOWLIST=1" << std::endl;
+    File.close();
   }
-  setenv("SYCL_CONFIG_FILE_NAME", "conf.txt", 1);
   sycl::detail::readConfig(true);
   EXPECT_EQ(
       std::string("1"),
       sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get());
-}
 
-TEST(ConfigTests, CheckCorrectConfigProcessing) {
-  std::ofstream file("conf.txt");
-  if (file.is_open()) {
-    file
-        << "#a\r\n # b \r\n #a=b\r\n # a = b\r\n\r\nSYCL_DEVICE_ALLOWLIST=2\r\n"
-        << std::endl;
-    file.close();
+  // Check correct config processing
+  File.open("conf.txt");
+  if (File.is_open()) {
+    File << "#a\r\n # b \r\n #a=b\r\n # a = "
+            "b\r\n\r\nSYCL_DEVICE_ALLOWLIST=2\r\n"
+         << std::endl;
+    File.close();
   }
-  setenv("SYCL_CONFIG_FILE_NAME", "conf.txt", 1);
   sycl::detail::readConfig(true);
   EXPECT_EQ(
       std::string("2"),
       sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get());
-}
 
-TEST(ConfigTests, CheckMultiAssignment) {
-  std::ofstream file("conf.txt");
-  if (file.is_open()) {
-    file << "a=b\r\nb=c\nSYCL_DEVICE_ALLOWLIST=3\r\nc=d";
-    file.close();
+  // Check multi assignment
+  File.open("conf.txt");
+  if (File.is_open()) {
+    File << "a=b\r\nb=c\nSYCL_DEVICE_ALLOWLIST=3\r\nc=d";
+    File.close();
   }
-  setenv("SYCL_CONFIG_FILE_NAME", "conf.txt", 1);
   sycl::detail::readConfig(true);
   EXPECT_EQ(
       std::string("3"),
       sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get());
-}
 
-TEST(ConfigTests, CheckAssignmentWithComment) {
-  std::ofstream file("conf.txt");
-  if (file.is_open()) {
-    file << "SYCL_DEVICE_ALLOWLIST=4 #comment\r\n";
-    file.close();
+  // Check assignment with comment
+  File.open("conf.txt");
+  if (File.is_open()) {
+    File << "SYCL_DEVICE_ALLOWLIST=4 #comment\r\n";
+    File.close();
   }
-  setenv("SYCL_CONFIG_FILE_NAME", "conf.txt", 1);
   sycl::detail::readConfig(true);
   EXPECT_EQ(
       std::string("4"),
