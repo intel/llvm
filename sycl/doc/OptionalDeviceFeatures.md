@@ -630,11 +630,11 @@ to select an alternate configuration file.
 
 #### New features in clang compilation driver and tools
 
-NOTE: the term *device binary image* or *image* is used to refer to a device
-code form consumable by the DPC++ runtime library. Earlier device code forms are referred
-to as *device code module* or *device IR module*. In case of AOT, device binary
-image is a natively compiled binary, and IR module - either a SPIR-V or LLVM IR
-bitcode module.
+NOTE: the term *device binary image* used to refer to a device
+code form consumable by the DPC++ runtime library. Earlier device code forms are
+referred to as *device code module* or *device IR module*. In case of AOT,
+device binary image is a natively compiled binary, and IR module - either a
+SPIR-V or LLVM IR bitcode module.
 
 ##### Overview
 
@@ -642,16 +642,16 @@ After the `sycl-post-link` performs necessary aspect usage analysis and splits
 the incoming monolithic device code module into pieces - smaller device code
 modules - it outputs a file table as a result. Each row in the table corresponds
 to an individual output module, and each element of a row is a name of a file
-containing necessary information about the module, such as the code itself, and its
-properties.
+containing necessary information about the module, such as the code itself, and
+its properties.
 
 At the action graph building stage for each requested AOT compilation target -
-SPIR-V-based (such as Intel Graphics targets) and/or non-SPIR-V-based (such as PTX) - the
-driver adds an `aspect-filter` action which filters out input file table rows
-with device code modules using features unsupported on current target. Then the
-output table goes as input into the AOT stage, and the prior filtering
-guarantees that the AOT compiler will not encounter device code it can't
-compile. In the extreme case when all device code
+SPIR-V-based (such as Intel Graphics targets) and/or non-SPIR-V-based (such as
+PTX) - the driver adds an `aspect-filter` action which filters out input file
+table rows with device code modules using features unsupported on current
+target. Then the output table goes as input into the AOT stage, and the prior
+filtering guarantees that the AOT compiler will not encounter device code it
+can't compile. In the extreme case when all device code
 modules use unsupported aspects, the input file table will be empty. The picture
 below illustrates the action graph built by the clang driver along with file
 lists and tables generated and consumed by various nodes of the graph. The
@@ -704,7 +704,8 @@ In more details, the tool performs the following actions:
    - checks if there is the `SYCL/device-requirements` property
    - if no, copies current row to the output file table and goes to the next
    - if yes, checks if all the requirements listed in the property are supported
-     by the target architecture as specified by entry `E` in the device configuration file
+     by the target architecture as specified by entry `E` in the device
+     configuration file
        - if yes, copies current row to the output file table and goes to the
          next
        - otherwise skips this row
@@ -723,7 +724,8 @@ architectures need to be identified:
 - `-fsycl-targets` option
 - a device configuration file entry
 - `-target` option of the `sycl-aspec-filter` tool
-- a SYCL aspect enum identifier (we expect to add a new SYCL aspect for each device target architecture)
+- a SYCL aspect enum identifier (we expect to add a new SYCL aspect for each
+  device target architecture)
 
 In all such places architecture naming should be the same. In some cases aliases
 are allowed. Below is a list of target architectures supported by DPC++:
@@ -736,7 +738,8 @@ are allowed. Below is a list of target architectures supported by DPC++:
 | spir64 | Generic 64-bit SPIR-V target |
 | x86_64 | Generic 64-bit x86 architecture |
 
-TODO: Provide full list of AOT targets supported by the identification mechanism.
+TODO: Provide full list of AOT targets supported by the identification
+mechanism.
 
 Example of clang compilation invocation with 2 AOT targets and generic SPIR-V:
 ```
