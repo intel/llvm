@@ -274,10 +274,15 @@ void ChildProcess(int StdErrFD) {
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
   auto ExecBundle = sycl::build(KernelBundle);
+  printf("Child process launching kernel\n");
   Queue.submit([&](sycl::handler &H) {
     H.use_kernel_bundle(ExecBundle);
     H.single_task<TestKernel>([] {});
   });
+  printf("Child process waiting on the queue\n");
+  Queue.wait();
+  printf("Child process done waiting on the queue. That's unexpected\n");
+  exit(1);
 }
 
 void ParentProcess(int ChildPID, int ChildStdErrFD) {
@@ -332,12 +337,12 @@ TEST(Assert, TestPositive) {
     sycl::platform Plt{sycl::default_selector()};
     if (Plt.is_host()) {
       printf("Test is not supported on host, skipping\n");
-      exit(0);
+      return;
     }
 
     if (Plt.get_backend() == sycl::backend::cuda) {
       printf("Test is not supported on CUDA platform, skipping\n");
-      exit(0);
+      return;
     }
   }
 
