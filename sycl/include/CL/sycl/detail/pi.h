@@ -935,8 +935,8 @@ __SYCL_EXPORT pi_result piDevicesGet(pi_platform platform,
                                      pi_uint32 *num_devices);
 
 /// Returns requested info for provided native device
-/// TODO Return __SYCL_PI_DEVICE_DEVICELIB_ASSERT_EXTENSION when the device
-/// supports native asserts
+/// Return PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT for
+/// PI_DEVICE_INFO_EXTENSIONS query when the device supports native asserts
 __SYCL_EXPORT pi_result piDeviceGetInfo(pi_device device,
                                         pi_device_info param_name,
                                         size_t param_value_size,
