@@ -338,7 +338,7 @@ bool device_impl::isAssertFailSupported() const {
   if (MIsHostDevice)
     return true;
 
-  return has_extension(__SYCL_PI_DEVICE_DEVICELIB_ASSERT_EXTENSION);
+  return has_extension(PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT);
 }
 
 } // namespace detail
