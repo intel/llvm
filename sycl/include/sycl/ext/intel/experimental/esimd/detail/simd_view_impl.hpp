@@ -213,6 +213,11 @@ public:
     return ComputeTy(V2);                                                      \
   }                                                                            \
   template <class T1 = Derived, class = std::enable_if_t<T1::length != 1>>     \
+  ESIMD_INLINE friend auto operator BINOP(const Derived &X,                    \
+                                          const element_type &Y) {             \
+    return X BINOP(value_type) Y;                                              \
+  }                                                                            \
+  template <class T1 = Derived, class = std::enable_if_t<T1::length != 1>>     \
   ESIMD_INLINE friend auto operator BINOP(const value_type &X,                 \
                                           const Derived &Y) {                  \
     using ComputeTy = detail::compute_type_t<value_type>;                      \
@@ -254,6 +259,11 @@ public:
     static_assert(std::is_integral<element_type>(), "not integral type");      \
     auto V2 = X.read().data() BITWISE_OP Y.data();                             \
     return simd<element_type, length>(V2);                                     \
+  }                                                                            \
+  template <class T1 = Derived, class = std::enable_if_t<T1::length != 1>>     \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const Derived &X,               \
+                                               const element_type &Y) {        \
+    return X BITWISE_OP(value_type) Y;                                         \
   }                                                                            \
   template <class T1 = Derived, class = std::enable_if_t<T1::length != 1>>     \
   ESIMD_INLINE friend auto operator BITWISE_OP(const value_type &X,            \
@@ -350,6 +360,21 @@ public:
   element_type operator()(int i) const {
     const auto v = read();
     return v[i];
+  }
+
+  /// Return a writeable view of a single element.
+  template <typename T = Derived,
+            typename = sycl::detail::enable_if_t<T::is1D()>>
+  auto operator[](int i) {
+    return select<1, 0>(i);
+  }
+
+  /// Return a writeable view of a single element.
+  template <typename T = Derived,
+            typename = sycl::detail::enable_if_t<T::is1D()>>
+  __SYCL_DEPRECATED("use operator[] form.")
+  auto operator()(int i) {
+    return select<1, 0>(i);
   }
 
   /// \name Replicate

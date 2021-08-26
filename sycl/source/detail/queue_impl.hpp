@@ -406,7 +406,16 @@ private:
     handler Handler(Self, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
+    // Scheduler will later omit events, that are not required to execute tasks.
+    // Host and interop tasks, however, are not submitted to low-level runtimes
+    // and require separate dependency management.
+    if (has_property<property::queue::in_order>() &&
+        (Handler.getType() == CG::CGTYPE::CodeplayHostTask ||
+         Handler.getType() == CG::CGTYPE::CodeplayInteropTask))
+      Handler.depends_on(MLastEvent);
     event Event = Handler.finalize();
+    if (has_property<property::queue::in_order>())
+      MLastEvent = Event;
     addEvent(Event);
     return Event;
   }
@@ -463,6 +472,8 @@ private:
   // Thread pool for host task and event callbacks execution.
   // The thread pool is instantiated upon the very first call to getThreadPool()
   std::unique_ptr<ThreadPool> MHostTaskThreadPool;
+
+  event MLastEvent;
 };
 
 } // namespace detail
