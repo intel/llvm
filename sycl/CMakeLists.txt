@@ -12,7 +12,7 @@ option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 
-# This macro is defined only when DPCPP RT lib is building
+# This macro is defined only when DPCPP RT lib is being built.
 # The intended use of this macro is to guard API endpoints with it, so they
 # are not available for end users when they are building their applications,
 # but that such API endpoints are available when we are building DPC++ RT
