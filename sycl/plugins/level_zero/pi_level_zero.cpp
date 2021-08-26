@@ -801,7 +801,7 @@ static const pi_uint32 ZeMaxRunningCommandLists = [] {
   const char *MaxRunningCommandLists =
       std::getenv("SYCL_PI_LEVEL_ZERO_MAX_RUNNING_COMMAND_LISTS");
   pi_uint32 MaxRunningCommandListsValue =
-  MaxRunningCommandLists ? std::stoi(MaxRunningCommandLists) : ZeMaxCommandListCacheSize;
+  MaxRunningCommandLists ? std::stoi(MaxRunningCommandLists) : 2; // ZeMaxCommandListCacheSize;
   return MaxRunningCommandListsValue;
 }();
 
