@@ -94,3 +94,8 @@
 // DEP_GEN_PHASES: 10: backend, {9}, assembler, (host-sycl)
 // DEP_GEN_PHASES: 11: assembler, {10}, object, (host-sycl)
 // DEP_GEN_PHASES: 12: clang-offload-bundler, {5, 11}, object, (host-sycl)
+
+/// Allow for -o and preprocessing
+// RUN:  %clangxx -fsycl -MD -c %s -o dummy -### 2>&1 \
+// RUN:   | FileCheck -check-prefix DEP_GEN_OUT_ERROR %s
+// DEP_GEN_OUT_ERROR-NOT: cannot specify -o when generating multiple output files
