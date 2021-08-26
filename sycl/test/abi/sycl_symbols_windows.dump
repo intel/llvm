@@ -2133,7 +2133,9 @@
 ?get_kernel_bundle_impl@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@5@AEBV?$vector@Vkernel_id@sycl@cl@@V?$allocator@Vkernel_id@sycl@cl@@@std@@@5@W4bundle_state@23@@Z
 ?get_kernel_bundle_impl@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@5@W4bundle_state@23@@Z
 ?get_kernel_bundle_impl@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@5@W4bundle_state@23@AEBV?$function@$$A6A_NAEBV?$shared_ptr@Vdevice_image_impl@detail@sycl@cl@@@std@@@Z@5@@Z
+?get_kernel_id_impl@detail@sycl@cl@@YA?AVkernel_id@23@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?get_kernel_ids@kernel_bundle_plain@detail@sycl@cl@@QEBA?AV?$vector@Vkernel_id@sycl@cl@@V?$allocator@Vkernel_id@sycl@cl@@@std@@@std@@XZ
+?get_kernel_ids@sycl@cl@@YA?AV?$vector@Vkernel_id@sycl@cl@@V?$allocator@Vkernel_id@sycl@cl@@@std@@@std@@XZ
 ?get_link_options@program@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ?get_max_statement_size@stream@sycl@cl@@QEBA_KXZ
 ?get_max_statement_size@stream_impl@detail@sycl@cl@@QEBA_KXZ

@@ -44,6 +44,7 @@
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include "xpti_trace_framework.hpp"
+#include <detail/xpti_registry.hpp>
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -491,7 +492,8 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
   // 2. Some types of commands do not produce PI events after they are enqueued
   // (e.g. alloca). Note that we can't check the pi event to make that
   // distinction since the command might still be unenqueued at this point.
-  bool PiEventExpected = !DepEvent->is_host();
+  bool PiEventExpected =
+      !DepEvent->is_host() || getType() == CommandType::HOST_TASK;
   if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
     PiEventExpected &= DepCmd->producesPiEvent();
 
@@ -506,7 +508,8 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
 
   // Do not add redundant event dependencies for in-order queues.
   if (Dep.MDepCommand && Dep.MDepCommand->getWorkerQueue() == WorkerQueue &&
-      WorkerQueue->has_property<property::queue::in_order>())
+      WorkerQueue->has_property<property::queue::in_order>() &&
+      getType() != CommandType::HOST_TASK)
     return nullptr;
 
   MPreparedDepsEvents.push_back(std::move(DepEvent));

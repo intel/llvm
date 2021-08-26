@@ -4388,12 +4388,15 @@ class OffloadingActionBuilder final {
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
         for (const auto &Input : LI) {
-          // FPGA aoco does not go through the link, everything else does.
-          if (Input->getType() == types::TY_FPGA_AOCO)
-            DeviceLibObjects.push_back(Input);
-          // FPGA aocr/aocx does not go through the link and is passed
-          // directly to the backend compilation step (aocr) or wrapper (aocx)
-          else if (types::isFPGA(Input->getType())) {
+          if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
+              types::isFPGA(Input->getType())) {
+            // FPGA aoco does not go through the link, everything else does.
+            if (Input->getType() == types::TY_FPGA_AOCO) {
+              DeviceLibObjects.push_back(Input);
+              continue;
+            }
+            // FPGA aocr/aocx does not go through the link and is passed
+            // directly to the backend compilation step (aocr) or wrapper (aocx)
             Action *FPGAAOTAction;
             if (Input->getType() == types::TY_FPGA_AOCR ||
                 Input->getType() == types::TY_FPGA_AOCR_EMU)
@@ -4413,7 +4416,8 @@ class OffloadingActionBuilder final {
                 RenameAction, types::TY_Object);
             DA.add(*DeviceWrappingAction, **TC, /*BoundArch=*/nullptr,
                    Action::OFK_SYCL);
-          } else
+            continue;
+          } else if (!types::isFPGA(Input->getType()))
             LinkObjects.push_back(Input);
         }
         if (LinkObjects.empty())
@@ -5488,6 +5492,16 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         break;
       }
 
+      // When performing -fsycl based compilations and generating dependency
+      // information, perform a specific dependency generation compilation which
+      // is not based on the source + footer compilation.
+      if (Phase == phases::Preprocess && Args.hasArg(options::OPT_fsycl) &&
+          Args.hasArg(options::OPT_M_Group) &&
+          !Args.hasArg(options::OPT_fno_sycl_use_footer)) {
+        Actions.push_back(
+            C.MakeAction<PreprocessJobAction>(Current, types::TY_Dependencies));
+      }
+
       // FIXME: Should we include any prior module file outputs as inputs of
       // later actions in the same command line?
 
@@ -5852,6 +5866,9 @@ void Driver::BuildJobs(Compilation &C) const {
   // we are also generating .o files. So we allow more than one output file in
   // this case as well.
   //
+  // Preprocessing job performed for -fsycl enabled compilation specifically
+  // for dependency generation (TY_Dependencies)
+  //
   if (FinalOutput) {
     unsigned NumOutputs = 0;
     unsigned NumIfsOutputs = 0;
@@ -5862,7 +5879,10 @@ void Driver::BuildJobs(Compilation &C) const {
              A->getKind() == clang::driver::Action::CompileJobClass &&
              0 == NumIfsOutputs++) ||
             (A->getKind() == Action::BindArchClass && A->getInputs().size() &&
-             A->getInputs().front()->getKind() == Action::IfsMergeJobClass)))
+             A->getInputs().front()->getKind() == Action::IfsMergeJobClass) ||
+            (A->getKind() == Action::PreprocessJobClass &&
+             A->getType() == types::TY_Dependencies &&
+             C.getArgs().hasArg(options::OPT_fsycl))))
         ++NumOutputs;
 
     if (NumOutputs > 1) {
@@ -6649,7 +6669,9 @@ InputInfo Driver::BuildJobsForActionNoCache(
       } else if (types::isFPGA(JA->getType())) {
         std::string Ext(types::getTypeTempSuffix(JA->getType()));
         types::ID TI = types::TY_Object;
-        if (EffectiveTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+        if (EffectiveTriple.isSPIR()) {
+          if (!UI.DependentToolChain->getTriple().isSPIR())
+            continue;
           // Output file from unbundle is FPGA device. Name the file
           // accordingly.
           if (UI.DependentOffloadKind == Action::OFK_Host) {
@@ -6665,13 +6687,11 @@ InputInfo Driver::BuildJobsForActionNoCache(
               JA->getType() == types::TY_FPGA_AOCR_EMU)
             // AOCR files are always unbundled into a list file.
             TI = types::TY_Tempfilelist;
-        } else if (EffectiveTriple.getSubArch() !=
-                   llvm::Triple::SPIRSubArch_fpga) {
-          if (UI.DependentOffloadKind == Action::OFK_SYCL) {
+        } else {
+          if (UI.DependentOffloadKind == Action::OFK_SYCL)
             // Do not add the current info for device with FPGA device.  The
             // device side isn't used
             continue;
-          }
           TI = types::TY_Tempfilelist;
           Ext = "txt";
         }
