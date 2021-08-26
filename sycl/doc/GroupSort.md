@@ -11,27 +11,29 @@ Example usage:
 ```cpp
 #include <sycl/sycl.hpp>
 
-using namespace sycl;
-void do_sort(buffer<int> buf) {
-  queue myQueue;
-
-  myQueue.submit([&](handler &cgh) {
-    accessor in_acc { in, cgh };
-
-    cgh.parallel_for(
-        nd_range(in.get_range(), 256), [=](nd_item item_id) {
-            auto idx = item_id.get_global_id();
-
-            in_acc[item_id.get_global_id()] =
-                ext::oneapi::sort_over_group(
-                    item_id.get_group(),
-                    in_acc[item_id.get_global_id()],
-                    ext::oneapi::radix_sorter<int, ext::oneapi::radix_order::descending>());
-        });
+namespace my_sycl = sycl::ext::oneapi;
+namespace my_sycl_exp = sycl::ext::oneapi::experimental;
+sycl::range<1> local_range{256};
+// predefine radix_sorter to calculate local memory size
+using RSorter = my_sycl_exp::radix_sorter<T, my_sycl_exp::sorting_order::descending>;
+// calculate required local memory size
+size_t temp_memory_size =
+    RSorter::memory_required(sycl::memory_scope::work_group, local_range);
+q.submit([&](sycl::handler& h) {
+  auto acc = sycl::accessor(buf, h);
+  auto scratch = sycl::local_accessor<uint8_t, 1>( {temp_memory_size}, h);
+  h.parallel_for(
+    sycl::nd_range<1>{ local_range, local_range },
+    [=](sycl::nd_item<1> id) {
+      acc[id.get_local_id()] =
+        my_sycl::sort_over_group(
+          id.get_group(),
+          acc[id.get_local_id()],
+          RSorter(sycl::span{scratch.get_pointer(), temp_memory_size})
+      );
+    });
   });
-
-  myQueue.wait();
-}
+...
 ```
 
 ## Design objectives
@@ -48,11 +50,13 @@ The following should be implemented:
 
 5. The `radix_order` enum class.
 
-6. `default_sorter` and `radix_sorter` for `sycl::ext::oneapi` namespace.
+6. `default_sorter` and `radix_sorter`.
 
-7. Backend support for sorting algorithms.
+7. `group_with_scratchpad` predefined group helper.
 
-8. `SYCL_EXT_ONEAPI_GROUP_SORT` feature macro.
+8. Backend support for sorting algorithms.
+
+9. `SYCL_EXT_ONEAPI_GROUP_SORT` feature macro.
 
 Data types that should be supported by backends: arithmetic types
 (https://en.cppreference.com/w/c/language/arithmetic_types), `sycl::half`.
@@ -100,27 +104,37 @@ Interface for the library and backends:
 
 ```cpp
 // for default sorting algorithm
-void __devicelib_default_work_group_sort(T* first, T* last,
-                                         bool is_ascending_or_descending);
+void __devicelib_default_work_group_sort_ascending(T* first, T* last, T* temp_memory);
 
-void __devicelib_default_sub_group_sort(T* first, T* last,
-                                        bool is_ascending_or_descending);
+void __devicelib_default_work_group_sort_descending(T* first, T* last, T* temp_memory);
+
+void __devicelib_default_sub_group_sort_ascending(T* first, T* last, T* temp_memory);
+
+void __devicelib_default_sub_group_sort_descending(T* first, T* last, T* temp_memory);
 
 // for key value sorting using the default algorithm
-void __devicelib_default_work_group_sort(T* keys_first, T* keys_last,
-                                         U* values_first, U* values_last, bool is_ascending_or_descending);
-void __devicelib_default_sub_group_sort(T* keys_first, T* keys_last,
-                                        U* values_first, U* values_last, bool is_ascending_or_descending);
+void __devicelib_default_work_group_sort_ascending(T* keys_first, T* keys_last,
+                                                   U* values_first, U* values_last,
+                                                   T* temp_memory);
+
+void __devicelib_default_work_group_sort_descending(T* keys_first, T* keys_last,
+                                                    U* values_first, U* values_last,
+                                                    T* temp_memory);
+
+void __devicelib_default_sub_group_sort_ascending(T* keys_first, T* keys_last,
+                                                  U* values_first, U* values_last,
+                                                  T* temp_memory);
+
+void __devicelib_default_sub_group_sort_descending(T* keys_first, T* keys_last,
+                                                   U* values_first, U* values_last,
+                                                   T* temp_memory);
 ```
 
 Notes:
 - `T`, `U` are arithmetic types or `sycl::half`.
 - `first`, `last` describe the range of actual data for sorting.
-- `is_ascending_or_descending` equals `1` when ascending sort is requested, equals `0`
-when descending sort is requested.
 - `keys_first`, `keys_last` describe the range of "keys" for key-value sorting. "Keys" are comparing
 and moving during the sorting.
+- `temp_memory` is a temporary storage (local or global) that can be used by backends
 - `values_first`, `values_last` describe the range of "values" for key-value sorting. "Keys" are
 only moving corresponding the "keys" order during the sorting.
-- `BitsPerPass` describes how much bits of the value are taken into account
-- `radix_iter` describes the iteration for radix sorting.
