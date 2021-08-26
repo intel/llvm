@@ -14,6 +14,7 @@
 #include "pi_level_zero.hpp"
 #include <CL/sycl/detail/spinlock.hpp>
 #include <algorithm>
+#include <chrono>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -23,7 +24,6 @@
 #include <string>
 #include <thread>
 #include <utility>
-#include <chrono>
 
 #include <level_zero/zet_api.h>
 
@@ -801,7 +801,8 @@ static const pi_uint32 ZeMaxRunningCommandLists = [] {
   const char *MaxRunningCommandLists =
       std::getenv("SYCL_PI_LEVEL_ZERO_MAX_RUNNING_COMMAND_LISTS");
   pi_uint32 MaxRunningCommandListsValue =
-  MaxRunningCommandLists ? std::stoi(MaxRunningCommandLists) : 2; // ZeMaxCommandListCacheSize;
+      MaxRunningCommandLists ? std::stoi(MaxRunningCommandLists)
+                             : 2; // ZeMaxCommandListCacheSize;
   return MaxRunningCommandListsValue;
 }();
 
@@ -901,7 +902,7 @@ pi_result _pi_context::getAvailableCommandList(
   bool Wait = Queue->CommandListMap.size() >= ZeMaxRunningCommandLists;
   do {
     for (auto it = Queue->CommandListMap.begin();
-        it != Queue->CommandListMap.end(); ++it) {
+         it != Queue->CommandListMap.end(); ++it) {
       // Make sure this is the command list type needed.
       if (UseCopyEngine != it->second.isCopy())
         continue;
@@ -915,7 +916,8 @@ pi_result _pi_context::getAvailableCommandList(
         return PI_SUCCESS;
       }
     }
-    if (Wait) std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    if (Wait)
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
   } while (Wait);
 
   // If there are no available command lists nor signalled command lists, then
