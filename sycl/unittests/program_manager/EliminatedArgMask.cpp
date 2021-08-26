@@ -67,7 +67,7 @@ static sycl::unittest::PiImage generateEAMTestKernelImage() {
   PropSet.insert(__SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO,
                  std::move(ImgKPOI));
 
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
+  std::vector<unsigned char> Bin{0, 1, 2, 3, 4}; // Random data
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
 
@@ -87,7 +87,7 @@ static sycl::unittest::PiImage generateEAMTestKernel2Image() {
 
   PiPropertySet PropSet;
 
-  std::vector<unsigned char> Bin{6, 7, 8, 9, 10, 11}; // Random data
+  std::vector<unsigned char> Bin{5, 6, 7, 8, 9, 10}; // Random data
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels({EAMTestKernel2Name});
 
@@ -107,13 +107,16 @@ static sycl::unittest::PiImage EAM2Img = generateEAMTestKernel2Image();
 static sycl::unittest::PiImageArray<1> EAMImgArray{&EAMImg};
 static sycl::unittest::PiImageArray<1> EAM2ImgArray{&EAM2Img};
 
+// pi_program address is used as a key for ProgramManager::NativePrograms
+// storage.
 // redefinedProgramLinkCommon makes pi_program address equal to 0x1.
-// Make pi_program address unique for compiled kernels and the result of their
-// linkage.
-inline pi_result redefinedProgramCreateEAM(pi_context, const void *Data, size_t,
+// Current redifinition uses image binary size as pseudo result of program
+// creation. Make sure that size of Bin is different for device images used in
+// these tests and greater than 1.
+inline pi_result redefinedProgramCreateEAM(pi_context, const void *,
+                                           size_t Size,
                                            pi_program *ret_program) {
-  auto DataBytes = reinterpret_cast<const unsigned char *>(Data);
-  *ret_program = reinterpret_cast<pi_program>(DataBytes[0] + 10);
+  *ret_program = reinterpret_cast<pi_program>(Size);
   return PI_SUCCESS;
 }
 
