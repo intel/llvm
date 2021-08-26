@@ -1,8 +1,8 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: env SYCL_DEVICE_FILTER=level_zero ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_DEVICE_FILTER=level_zero ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 //
-// CHECK-NOT: ---> LEAK
+// CHECK-NOT: LEAK
 
 // The test is to check that there are no leaks reported with the embedded
 // ZE_DEBUG=4 testing capability. Example of a leak reported is this:
