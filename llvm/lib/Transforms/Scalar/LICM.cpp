@@ -151,7 +151,8 @@ cl::opt<unsigned> llvm::SetLicmMssaNoAccForPromotionCap(
 static bool inSubLoop(BasicBlock *BB, Loop *CurLoop, LoopInfo *LI);
 static bool isNotUsedOrFreeInLoop(const Instruction &I, const Loop *CurLoop,
                                   const LoopSafetyInfo *SafetyInfo,
-                                  TargetTransformInfo *TTI, bool &FreeInLoop);
+                                  TargetTransformInfo *TTI, bool &FreeInLoop,
+                                  bool LoopNestMode);
 static void hoist(Instruction &I, const DominatorTree *DT, const Loop *CurLoop,
                   BasicBlock *Dest, ICFLoopSafetyInfo *SafetyInfo,
                   MemorySSAUpdater *MSSAU, ScalarEvolution *SE,
@@ -196,7 +197,7 @@ struct LoopInvariantCodeMotion {
   bool runOnLoop(Loop *L, AAResults *AA, LoopInfo *LI, DominatorTree *DT,
                  BlockFrequencyInfo *BFI, TargetLibraryInfo *TLI,
                  TargetTransformInfo *TTI, ScalarEvolution *SE, MemorySSA *MSSA,
-                 OptimizationRemarkEmitter *ORE);
+                 OptimizationRemarkEmitter *ORE, bool LoopNestMode = false);
 
   LoopInvariantCodeMotion(unsigned LicmMssaOptCap,
                           unsigned LicmMssaNoAccForPromotionCap)
@@ -295,6 +296,33 @@ PreservedAnalyses LICMPass::run(Loop &L, LoopAnalysisManager &AM,
   return PA;
 }
 
+PreservedAnalyses LNICMPass::run(LoopNest &LN, LoopAnalysisManager &AM,
+                                 LoopStandardAnalysisResults &AR,
+                                 LPMUpdater &) {
+  // For the new PM, we also can't use OptimizationRemarkEmitter as an analysis
+  // pass.  Function analyses need to be preserved across loop transformations
+  // but ORE cannot be preserved (see comment before the pass definition).
+  OptimizationRemarkEmitter ORE(LN.getParent());
+
+  LoopInvariantCodeMotion LICM(LicmMssaOptCap, LicmMssaNoAccForPromotionCap);
+
+  Loop &OutermostLoop = LN.getOutermostLoop();
+  bool Changed = LICM.runOnLoop(&OutermostLoop, &AR.AA, &AR.LI, &AR.DT, AR.BFI,
+                                &AR.TLI, &AR.TTI, &AR.SE, AR.MSSA, &ORE, true);
+
+  if (!Changed)
+    return PreservedAnalyses::all();
+
+  auto PA = getLoopPassPreservedAnalyses();
+
+  PA.preserve<DominatorTreeAnalysis>();
+  PA.preserve<LoopAnalysis>();
+  if (AR.MSSA)
+    PA.preserve<MemorySSAAnalysis>();
+
+  return PA;
+}
+
 char LegacyLICMPass::ID = 0;
 INITIALIZE_PASS_BEGIN(LegacyLICMPass, "licm", "Loop Invariant Code Motion",
                       false, false)
@@ -347,7 +375,8 @@ llvm::SinkAndHoistLICMFlags::SinkAndHoistLICMFlags(
 bool LoopInvariantCodeMotion::runOnLoop(
     Loop *L, AAResults *AA, LoopInfo *LI, DominatorTree *DT,
     BlockFrequencyInfo *BFI, TargetLibraryInfo *TLI, TargetTransformInfo *TTI,
-    ScalarEvolution *SE, MemorySSA *MSSA, OptimizationRemarkEmitter *ORE) {
+    ScalarEvolution *SE, MemorySSA *MSSA, OptimizationRemarkEmitter *ORE,
+    bool LoopNestMode) {
   bool Changed = false;
 
   assert(L->isLCSSAForm(*DT) && "Loop is not in LCSSA form.");
@@ -408,13 +437,18 @@ bool LoopInvariantCodeMotion::runOnLoop(
   // instructions, we perform another pass to hoist them out of the loop.
   if (L->hasDedicatedExits())
     Changed |=
-        sinkRegion(DT->getNode(L->getHeader()), AA, LI, DT, BFI, TLI, TTI, L,
-                   CurAST.get(), MSSAU.get(), &SafetyInfo, *Flags.get(), ORE);
+        LoopNestMode
+            ? sinkRegionForLoopNest(DT->getNode(L->getHeader()), AA, LI, DT,
+                                    BFI, TLI, TTI, L, CurAST.get(), MSSAU.get(),
+                                    &SafetyInfo, *Flags.get(), ORE)
+            : sinkRegion(DT->getNode(L->getHeader()), AA, LI, DT, BFI, TLI, TTI,
+                         L, CurAST.get(), MSSAU.get(), &SafetyInfo,
+                         *Flags.get(), ORE);
   Flags->setIsSink(false);
   if (Preheader)
     Changed |= hoistRegion(DT->getNode(L->getHeader()), AA, LI, DT, BFI, TLI, L,
                            CurAST.get(), MSSAU.get(), SE, &SafetyInfo,
-                           *Flags.get(), ORE);
+                           *Flags.get(), ORE, LoopNestMode);
 
   // Now that all loop invariants have been removed from the loop, promote any
   // memory references to scalars that we can.
@@ -527,7 +561,7 @@ bool llvm::sinkRegion(DomTreeNode *N, AAResults *AA, LoopInfo *LI,
                       Loop *CurLoop, AliasSetTracker *CurAST,
                       MemorySSAUpdater *MSSAU, ICFLoopSafetyInfo *SafetyInfo,
                       SinkAndHoistLICMFlags &Flags,
-                      OptimizationRemarkEmitter *ORE) {
+                      OptimizationRemarkEmitter *ORE, Loop *OutermostLoop) {
 
   // Verify inputs.
   assert(N != nullptr && AA != nullptr && LI != nullptr && DT != nullptr &&
@@ -570,8 +604,10 @@ bool llvm::sinkRegion(DomTreeNode *N, AAResults *AA, LoopInfo *LI,
       // operands of the instruction are loop invariant.
       //
       bool FreeInLoop = false;
+      bool LoopNestMode = OutermostLoop != nullptr;
       if (!I.mayHaveSideEffects() &&
-          isNotUsedOrFreeInLoop(I, CurLoop, SafetyInfo, TTI, FreeInLoop) &&
+          isNotUsedOrFreeInLoop(I, LoopNestMode ? OutermostLoop : CurLoop,
+                                SafetyInfo, TTI, FreeInLoop, LoopNestMode) &&
           canSinkOrHoistInst(I, AA, DT, CurLoop, CurAST, MSSAU, true, &Flags,
                              ORE)) {
         if (sink(I, LI, DT, BFI, CurLoop, SafetyInfo, MSSAU, ORE)) {
@@ -587,6 +623,26 @@ bool llvm::sinkRegion(DomTreeNode *N, AAResults *AA, LoopInfo *LI,
   }
   if (MSSAU && VerifyMemorySSA)
     MSSAU->getMemorySSA()->verifyMemorySSA();
+  return Changed;
+}
+
+bool llvm::sinkRegionForLoopNest(
+    DomTreeNode *N, AAResults *AA, LoopInfo *LI, DominatorTree *DT,
+    BlockFrequencyInfo *BFI, TargetLibraryInfo *TLI, TargetTransformInfo *TTI,
+    Loop *CurLoop, AliasSetTracker *CurAST, MemorySSAUpdater *MSSAU,
+    ICFLoopSafetyInfo *SafetyInfo, SinkAndHoistLICMFlags &Flags,
+    OptimizationRemarkEmitter *ORE) {
+
+  bool Changed = false;
+  SmallPriorityWorklist<Loop *, 4> Worklist;
+  Worklist.insert(CurLoop);
+  appendLoopsToWorklist(*CurLoop, Worklist);
+  while (!Worklist.empty()) {
+    Loop *L = Worklist.pop_back_val();
+    Changed |=
+        sinkRegion(DT->getNode(L->getHeader()), AA, LI, DT, BFI, TLI, TTI, L,
+                   CurAST, MSSAU, SafetyInfo, Flags, ORE, CurLoop);
+  }
   return Changed;
 }
 
@@ -859,7 +915,7 @@ bool llvm::hoistRegion(DomTreeNode *N, AAResults *AA, LoopInfo *LI,
                        AliasSetTracker *CurAST, MemorySSAUpdater *MSSAU,
                        ScalarEvolution *SE, ICFLoopSafetyInfo *SafetyInfo,
                        SinkAndHoistLICMFlags &Flags,
-                       OptimizationRemarkEmitter *ORE) {
+                       OptimizationRemarkEmitter *ORE, bool LoopNestMode) {
   // Verify inputs.
   assert(N != nullptr && AA != nullptr && LI != nullptr && DT != nullptr &&
          CurLoop != nullptr && SafetyInfo != nullptr &&
@@ -882,7 +938,7 @@ bool llvm::hoistRegion(DomTreeNode *N, AAResults *AA, LoopInfo *LI,
   for (BasicBlock *BB : Worklist) {
     // Only need to process the contents of this block if it is not part of a
     // subloop (which would already have been processed).
-    if (inSubLoop(BB, CurLoop, LI))
+    if (!LoopNestMode && inSubLoop(BB, CurLoop, LI))
       continue;
 
     for (BasicBlock::iterator II = BB->begin(), E = BB->end(); II != E;) {
@@ -1415,7 +1471,8 @@ static bool isFreeInLoop(const Instruction &I, const Loop *CurLoop,
 /// (e.g.,  a GEP can be folded into a load as an addressing mode in the loop).
 static bool isNotUsedOrFreeInLoop(const Instruction &I, const Loop *CurLoop,
                                   const LoopSafetyInfo *SafetyInfo,
-                                  TargetTransformInfo *TTI, bool &FreeInLoop) {
+                                  TargetTransformInfo *TTI, bool &FreeInLoop,
+                                  bool LoopNestMode) {
   const auto &BlockColors = SafetyInfo->getBlockColors();
   bool IsFree = isFreeInLoop(I, CurLoop, TTI);
   for (const User *U : I.users()) {
@@ -1432,6 +1489,15 @@ static bool isNotUsedOrFreeInLoop(const Instruction &I, const Loop *CurLoop,
         if (!BlockColors.empty() &&
             BlockColors.find(const_cast<BasicBlock *>(BB))->second.size() != 1)
           return false;
+
+      if (LoopNestMode) {
+        while (isa<PHINode>(UI) && UI->hasOneUser() &&
+               UI->getNumOperands() == 1) {
+          if (!CurLoop->contains(UI))
+            break;
+          UI = cast<Instruction>(U->user_back());
+        }
+      }
     }
 
     if (CurLoop->contains(UI)) {
@@ -1782,12 +1848,16 @@ static void hoist(Instruction &I, const DominatorTree *DT, const Loop *CurLoop,
   // Conservatively strip all metadata on the instruction unless we were
   // guaranteed to execute I if we entered the loop, in which case the metadata
   // is valid in the loop preheader.
-  if (I.hasMetadataOtherThanDebugLoc() &&
+  // Similarly, If I is a call and it is not guaranteed to execute in the loop,
+  // then moving to the preheader means we should strip attributes on the call
+  // that can cause UB since we may be hoisting above conditions that allowed
+  // inferring those attributes. They may not be valid at the preheader.
+  if ((I.hasMetadataOtherThanDebugLoc() || isa<CallInst>(I)) &&
       // The check on hasMetadataOtherThanDebugLoc is to prevent us from burning
       // time in isGuaranteedToExecute if we don't actually have anything to
       // drop.  It is a compile time optimization, not required for correctness.
       !SafetyInfo->isGuaranteedToExecute(I, DT, CurLoop))
-    I.dropUnknownNonDebugMetadata();
+    I.dropUndefImplyingAttrsAndUnknownMetadata();
 
   if (isa<PHINode>(I))
     // Move the new node to the end of the phi list in the destination block.

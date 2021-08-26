@@ -15960,7 +15960,12 @@ SDValue PPCTargetLowering::LowerRETURNADDR(SDValue Op,
   auto PtrVT = getPointerTy(MF.getDataLayout());
 
   if (Depth > 0) {
-    SDValue FrameAddr = LowerFRAMEADDR(Op, DAG);
+    // The link register (return address) is saved in the caller's frame
+    // not the callee's stack frame. So we must get the caller's frame
+    // address and load the return address at the LR offset from there.
+    SDValue FrameAddr =
+        DAG.getLoad(Op.getValueType(), dl, DAG.getEntryNode(),
+                    LowerFRAMEADDR(Op, DAG), MachinePointerInfo());
     SDValue Offset =
         DAG.getConstant(Subtarget.getFrameLowering()->getReturnSaveOffset(), dl,
                         isPPC64 ? MVT::i64 : MVT::i32);
@@ -17495,12 +17500,10 @@ CCAssignFn *PPCTargetLowering::ccAssignFnForCall(CallingConv::ID CC,
 
 TargetLowering::AtomicExpansionKind
 PPCTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const {
-  if (AI->isFloatingPointOperation())
-    return AtomicExpansionKind::None;
   unsigned Size = AI->getType()->getPrimitiveSizeInBits();
   if (EnableQuadwordAtomics && Subtarget.hasQuadwordAtomics() && Size == 128)
     return AtomicExpansionKind::MaskedIntrinsic;
-  return AtomicExpansionKind::None;
+  return TargetLowering::shouldExpandAtomicRMWInIR(AI);
 }
 
 TargetLowering::AtomicExpansionKind
@@ -17511,7 +17514,7 @@ PPCTargetLowering::shouldExpandAtomicCmpXchgInIR(AtomicCmpXchgInst *AI) const {
                       ->getPrimitiveSizeInBits();
   if (EnableQuadwordAtomics && Subtarget.hasQuadwordAtomics() && Size == 128)
     return AtomicExpansionKind::MaskedIntrinsic;
-  return AtomicExpansionKind::None;
+  return TargetLowering::shouldExpandAtomicCmpXchgInIR(AI);
 }
 
 static Intrinsic::ID

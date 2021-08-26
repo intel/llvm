@@ -14,8 +14,8 @@
 #include "Compiler.h"
 #include "Config.h"
 #include "Diagnostics.h"
+#include "Feature.h"
 #include "FeatureModule.h"
-#include "Features.h"
 #include "Headers.h"
 #include "HeuristicResolver.h"
 #include "IncludeFixer.h"
@@ -308,6 +308,16 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
     log("BeginSourceFile() failed when building AST for {0}",
         MainInput.getFile());
     return None;
+  }
+  // If we saw an include guard in the preamble section of the main file,
+  // mark the main-file as include-guarded.
+  // This information is part of the HeaderFileInfo but is not loaded from the
+  // preamble as the file's size is part of its identity and may have changed.
+  // (The rest of HeaderFileInfo is not relevant for our purposes).
+  if (Preamble && Preamble->MainIsIncludeGuarded) {
+    const SourceManager &SM = Clang->getSourceManager();
+    const FileEntry *MainFE = SM.getFileEntryForID(SM.getMainFileID());
+    Clang->getPreprocessor().getHeaderSearchInfo().MarkFileIncludeOnce(MainFE);
   }
 
   // Set up ClangTidy. Must happen after BeginSourceFile() so ASTContext exists.

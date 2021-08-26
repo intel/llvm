@@ -11,6 +11,7 @@ set(ORC_SOURCES
 # Implementation files for all ORC architectures.
 set(x86_64_SOURCES
 # x86-64 specific assembly files will go here.
+  macho_tlv.x86-64.S
 )
 
 set(ORC_IMPL_HEADERS
@@ -58,6 +59,8 @@ if (TARGET cxx-headers OR HAVE_LIBCXX)
 endif()
 
 if (APPLE)
+   add_asm_sources(ORC_ASM_SOURCES macho_tlv.x86-64.S)
+
   add_compiler_rt_object_libraries(RTOrc
     OS ${ORC_SUPPORTED_OS}
     ARCHS ${ORC_SUPPORTED_ARCH}

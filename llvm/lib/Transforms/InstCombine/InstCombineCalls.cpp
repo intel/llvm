@@ -795,6 +795,64 @@ static Instruction *foldClampRangeOfTwo(IntrinsicInst *II,
   return SelectInst::Create(Cmp, ConstantInt::get(II->getType(), *C0), I1);
 }
 
+/// Reduce a sequence of min/max intrinsics with a common operand.
+static Instruction *factorizeMinMaxTree(IntrinsicInst *II,
+                                        InstCombiner::BuilderTy &Builder) {
+  // Match 3 of the same min/max ops. Example: umin(umin(), umin()).
+  auto *LHS = dyn_cast<IntrinsicInst>(II->getArgOperand(0));
+  auto *RHS = dyn_cast<IntrinsicInst>(II->getArgOperand(1));
+  Intrinsic::ID MinMaxID = II->getIntrinsicID();
+  if (!LHS || !RHS || LHS->getIntrinsicID() !=  MinMaxID ||
+      RHS->getIntrinsicID() != MinMaxID ||
+      (!LHS->hasOneUse() && !RHS->hasOneUse()))
+    return nullptr;
+
+  Value *A = LHS->getArgOperand(0);
+  Value *B = LHS->getArgOperand(1);
+  Value *C = RHS->getArgOperand(0);
+  Value *D = RHS->getArgOperand(1);
+
+  // Look for a common operand.
+  Value *MinMaxOp = nullptr;
+  Value *ThirdOp = nullptr;
+  if (LHS->hasOneUse()) {
+    // If the LHS is only used in this chain and the RHS is used outside of it,
+    // reuse the RHS min/max because that will eliminate the LHS.
+    if (D == A || C == A) {
+      // min(min(a, b), min(c, a)) --> min(min(c, a), b)
+      // min(min(a, b), min(a, d)) --> min(min(a, d), b)
+      MinMaxOp = RHS;
+      ThirdOp = B;
+    } else if (D == B || C == B) {
+      // min(min(a, b), min(c, b)) --> min(min(c, b), a)
+      // min(min(a, b), min(b, d)) --> min(min(b, d), a)
+      MinMaxOp = RHS;
+      ThirdOp = A;
+    }
+  } else {
+    assert(RHS->hasOneUse() && "Expected one-use operand");
+    // Reuse the LHS. This will eliminate the RHS.
+    if (D == A || D == B) {
+      // min(min(a, b), min(c, a)) --> min(min(a, b), c)
+      // min(min(a, b), min(c, b)) --> min(min(a, b), c)
+      MinMaxOp = LHS;
+      ThirdOp = C;
+    } else if (C == A || C == B) {
+      // min(min(a, b), min(b, d)) --> min(min(a, b), d)
+      // min(min(a, b), min(c, b)) --> min(min(a, b), d)
+      MinMaxOp = LHS;
+      ThirdOp = D;
+    }
+  }
+
+  if (!MinMaxOp || !ThirdOp)
+    return nullptr;
+
+  Module *Mod = II->getModule();
+  Function *MinMax = Intrinsic::getDeclaration(Mod, MinMaxID, II->getType());
+  return CallInst::Create(MinMax, { MinMaxOp, ThirdOp });
+}
+
 /// CallInst simplification. This mostly only handles folding of intrinsic
 /// instructions. For normal calls, it allows visitCallBase to do the heavy
 /// lifting.
@@ -1055,6 +1113,9 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
       if (auto *Sel = dyn_cast<SelectInst>(I0))
         if (Instruction *R = FoldOpIntoSelect(*II, Sel))
           return R;
+
+    if (Instruction *NewMinMax = factorizeMinMaxTree(II, Builder))
+       return NewMinMax;
 
     break;
   }
@@ -1466,6 +1527,18 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
          II->getFastMathFlags().noSignedZeros()))
       return BinaryOperator::CreateFMulFMF(Src0, Src1, II);
 
+    break;
+  }
+  case Intrinsic::isnan: {
+    Value *Arg = II->getArgOperand(0);
+    if (const auto *FPMO = dyn_cast<FPMathOperator>(Arg)) {
+      // If argument of this intrinsic call is an instruction that has 'nnan'
+      // flag, we can assume that NaN cannot be produced, otherwise it is
+      // undefined behavior.
+      if (FPMO->getFastMathFlags().noNaNs())
+        return replaceInstUsesWith(
+            *II, ConstantInt::get(II->getType(), APInt::getNullValue(1)));
+    }
     break;
   }
   case Intrinsic::copysign: {
@@ -1973,21 +2046,26 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     // %val = bitcast <ReduxWidth x i1> to iReduxWidth
     // %res = cmp eq iReduxWidth %val, 11111
     Value *Arg = II->getArgOperand(0);
-    Type *RetTy = II->getType();
-    if (RetTy == Builder.getInt1Ty())
-      if (auto *FVTy = dyn_cast<FixedVectorType>(Arg->getType())) {
-        Value *Res = Builder.CreateBitCast(
-            Arg, Builder.getIntNTy(FVTy->getNumElements()));
-        if (IID == Intrinsic::vector_reduce_and) {
-          Res = Builder.CreateICmpEQ(
-              Res, ConstantInt::getAllOnesValue(Res->getType()));
-        } else {
-          assert(IID == Intrinsic::vector_reduce_or &&
-                 "Expected or reduction.");
-          Res = Builder.CreateIsNotNull(Res);
+    Value *Vect;
+    if (match(Arg, m_ZExtOrSExtOrSelf(m_Value(Vect)))) {
+      if (auto *FTy = dyn_cast<FixedVectorType>(Vect->getType()))
+        if (FTy->getElementType() == Builder.getInt1Ty()) {
+          Value *Res = Builder.CreateBitCast(
+              Vect, Builder.getIntNTy(FTy->getNumElements()));
+          if (IID == Intrinsic::vector_reduce_and) {
+            Res = Builder.CreateICmpEQ(
+                Res, ConstantInt::getAllOnesValue(Res->getType()));
+          } else {
+            assert(IID == Intrinsic::vector_reduce_or &&
+                   "Expected or reduction.");
+            Res = Builder.CreateIsNotNull(Res);
+          }
+          if (Arg != Vect)
+            Res = Builder.CreateCast(cast<CastInst>(Arg)->getOpcode(), Res,
+                                     II->getType());
+          return replaceInstUsesWith(CI, Res);
         }
-        return replaceInstUsesWith(CI, Res);
-      }
+    }
     LLVM_FALLTHROUGH;
   }
   case Intrinsic::vector_reduce_add: {
@@ -2011,18 +2089,123 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
             if (Arg != Vect &&
                 cast<Instruction>(Arg)->getOpcode() == Instruction::SExt)
               Res = Builder.CreateNeg(Res);
-            return replaceInstUsesWith(CI, Res);;
+            return replaceInstUsesWith(CI, Res);
           }
       }
     }
     LLVM_FALLTHROUGH;
   }
-  case Intrinsic::vector_reduce_mul:
-  case Intrinsic::vector_reduce_xor:
-  case Intrinsic::vector_reduce_umax:
+  case Intrinsic::vector_reduce_xor: {
+    if (IID == Intrinsic::vector_reduce_xor) {
+      // Exclusive disjunction reduction over the vector with
+      // (potentially-extended) i1 element type is actually a
+      // (potentially-extended) arithmetic `add` reduction over the original
+      // non-extended value:
+      //   vector_reduce_xor(?ext(<n x i1>))
+      //     -->
+      //   ?ext(vector_reduce_add(<n x i1>))
+      Value *Arg = II->getArgOperand(0);
+      Value *Vect;
+      if (match(Arg, m_ZExtOrSExtOrSelf(m_Value(Vect)))) {
+        if (auto *FTy = dyn_cast<FixedVectorType>(Vect->getType()))
+          if (FTy->getElementType() == Builder.getInt1Ty()) {
+            Value *Res = Builder.CreateAddReduce(Vect);
+            if (Arg != Vect)
+              Res = Builder.CreateCast(cast<CastInst>(Arg)->getOpcode(), Res,
+                                       II->getType());
+            return replaceInstUsesWith(CI, Res);
+          }
+      }
+    }
+    LLVM_FALLTHROUGH;
+  }
+  case Intrinsic::vector_reduce_mul: {
+    if (IID == Intrinsic::vector_reduce_mul) {
+      // Multiplicative reduction over the vector with (potentially-extended)
+      // i1 element type is actually a (potentially zero-extended)
+      // logical `and` reduction over the original non-extended value:
+      //   vector_reduce_mul(?ext(<n x i1>))
+      //     -->
+      //   zext(vector_reduce_and(<n x i1>))
+      Value *Arg = II->getArgOperand(0);
+      Value *Vect;
+      if (match(Arg, m_ZExtOrSExtOrSelf(m_Value(Vect)))) {
+        if (auto *FTy = dyn_cast<FixedVectorType>(Vect->getType()))
+          if (FTy->getElementType() == Builder.getInt1Ty()) {
+            Value *Res = Builder.CreateAndReduce(Vect);
+            if (Res->getType() != II->getType())
+              Res = Builder.CreateZExt(Res, II->getType());
+            return replaceInstUsesWith(CI, Res);
+          }
+      }
+    }
+    LLVM_FALLTHROUGH;
+  }
   case Intrinsic::vector_reduce_umin:
-  case Intrinsic::vector_reduce_smax:
+  case Intrinsic::vector_reduce_umax: {
+    if (IID == Intrinsic::vector_reduce_umin ||
+        IID == Intrinsic::vector_reduce_umax) {
+      // UMin/UMax reduction over the vector with (potentially-extended)
+      // i1 element type is actually a (potentially-extended)
+      // logical `and`/`or` reduction over the original non-extended value:
+      //   vector_reduce_u{min,max}(?ext(<n x i1>))
+      //     -->
+      //   ?ext(vector_reduce_{and,or}(<n x i1>))
+      Value *Arg = II->getArgOperand(0);
+      Value *Vect;
+      if (match(Arg, m_ZExtOrSExtOrSelf(m_Value(Vect)))) {
+        if (auto *FTy = dyn_cast<FixedVectorType>(Vect->getType()))
+          if (FTy->getElementType() == Builder.getInt1Ty()) {
+            Value *Res = IID == Intrinsic::vector_reduce_umin
+                             ? Builder.CreateAndReduce(Vect)
+                             : Builder.CreateOrReduce(Vect);
+            if (Arg != Vect)
+              Res = Builder.CreateCast(cast<CastInst>(Arg)->getOpcode(), Res,
+                                       II->getType());
+            return replaceInstUsesWith(CI, Res);
+          }
+      }
+    }
+    LLVM_FALLTHROUGH;
+  }
   case Intrinsic::vector_reduce_smin:
+  case Intrinsic::vector_reduce_smax: {
+    if (IID == Intrinsic::vector_reduce_smin ||
+        IID == Intrinsic::vector_reduce_smax) {
+      // SMin/SMax reduction over the vector with (potentially-extended)
+      // i1 element type is actually a (potentially-extended)
+      // logical `and`/`or` reduction over the original non-extended value:
+      //   vector_reduce_s{min,max}(<n x i1>)
+      //     -->
+      //   vector_reduce_{or,and}(<n x i1>)
+      // and
+      //   vector_reduce_s{min,max}(sext(<n x i1>))
+      //     -->
+      //   sext(vector_reduce_{or,and}(<n x i1>))
+      // and
+      //   vector_reduce_s{min,max}(zext(<n x i1>))
+      //     -->
+      //   zext(vector_reduce_{and,or}(<n x i1>))
+      Value *Arg = II->getArgOperand(0);
+      Value *Vect;
+      if (match(Arg, m_ZExtOrSExtOrSelf(m_Value(Vect)))) {
+        if (auto *FTy = dyn_cast<FixedVectorType>(Vect->getType()))
+          if (FTy->getElementType() == Builder.getInt1Ty()) {
+            Instruction::CastOps ExtOpc = Instruction::CastOps::CastOpsEnd;
+            if (Arg != Vect)
+              ExtOpc = cast<CastInst>(Arg)->getOpcode();
+            Value *Res = ((IID == Intrinsic::vector_reduce_smin) ==
+                          (ExtOpc == Instruction::CastOps::ZExt))
+                             ? Builder.CreateAndReduce(Vect)
+                             : Builder.CreateOrReduce(Vect);
+            if (Arg != Vect)
+              Res = Builder.CreateCast(ExtOpc, Res, II->getType());
+            return replaceInstUsesWith(CI, Res);
+          }
+      }
+    }
+    LLVM_FALLTHROUGH;
+  }
   case Intrinsic::vector_reduce_fmax:
   case Intrinsic::vector_reduce_fmin:
   case Intrinsic::vector_reduce_fadd:
@@ -2653,12 +2836,12 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
     if (Call.isInAllocaArgument(i))
       return false;   // Cannot transform to and from inalloca.
 
-    if (CallerPAL.hasParamAttribute(i, Attribute::SwiftError))
+    if (CallerPAL.hasParamAttr(i, Attribute::SwiftError))
       return false;
 
     // If the parameter is passed as a byval argument, then we have to have a
     // sized type and the sized type has to have the same size as the old type.
-    if (ParamTy != ActTy && CallerPAL.hasParamAttribute(i, Attribute::ByVal)) {
+    if (ParamTy != ActTy && CallerPAL.hasParamAttr(i, Attribute::ByVal)) {
       PointerType *ParamPTy = dyn_cast<PointerType>(ParamTy);
       if (!ParamPTy || !ParamPTy->getElementType()->isSized())
         return false;
@@ -2728,7 +2911,7 @@ bool InstCombinerImpl::transformConstExprCastCall(CallBase &Call) {
     Args.push_back(NewArg);
 
     // Add any parameter attributes.
-    if (CallerPAL.hasParamAttribute(i, Attribute::ByVal)) {
+    if (CallerPAL.hasParamAttr(i, Attribute::ByVal)) {
       AttrBuilder AB(CallerPAL.getParamAttributes(i));
       AB.addByValAttr(NewArg->getType()->getPointerElementType());
       ArgAttrs.push_back(AttributeSet::get(Ctx, AB));

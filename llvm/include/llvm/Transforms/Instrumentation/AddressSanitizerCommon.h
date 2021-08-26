@@ -1,9 +1,8 @@
 //===--------- Definition of the AddressSanitizer class ---------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -55,22 +54,22 @@ public:
 // should remove End to ensure that work done at the other exits does not
 // happen outside of the lifetime.
 template <typename F>
-bool forAllReachableExits(DominatorTree *DT, PostDominatorTree *PDT,
+bool forAllReachableExits(const DominatorTree &DT, const PostDominatorTree &PDT,
                           const Instruction *Start, Instruction *End,
                           const SmallVectorImpl<Instruction *> &RetVec,
                           F Callback) {
   // We need to ensure that if we tag some object, we certainly untag it
   // before the function exits.
-  if (PDT != nullptr && PDT->dominates(End, Start)) {
+  if (PDT.dominates(End, Start)) {
     Callback(End);
   } else {
     SmallVector<Instruction *, 8> ReachableRetVec;
     unsigned NumCoveredExits = 0;
     for (auto &RI : RetVec) {
-      if (!isPotentiallyReachable(Start, RI, nullptr, DT))
+      if (!isPotentiallyReachable(Start, RI, nullptr, &DT))
         continue;
       ReachableRetVec.push_back(RI);
-      if (DT != nullptr && DT->dominates(End, RI))
+      if (DT.dominates(End, RI))
         ++NumCoveredExits;
     }
     // If there's a mix of covered and non-covered exits, just put the untag

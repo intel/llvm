@@ -166,10 +166,10 @@ To enable support for ROCm devices, follow the instructions for the Linux
 DPC++ toolchain, but add the `--rocm` flag to `configure.py`
 
 Enabling this flag requires an installation of
-ROCm 4.1.0 on the system, refer to
+ROCm 4.2.0 on the system, refer to
 [AMD ROCm Installation Guide for Linux](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
 
-Currently, the only combination tested is Ubuntu 18.04 with ROCm 4.1.0 using a Vega20 gfx906.
+Currently, the only combination tested is Ubuntu 18.04 with ROCm 4.2.0 using a Vega20 gfx906.
 
 [LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMD GPU compilation chain. 
 The AMDGPU backend generates a standard ELF [ELF] relocatable code object that can be linked by lld to 
@@ -424,6 +424,11 @@ skipped.
 If CUDA support has been built, it is tested only if there are CUDA devices
 available.
 
+If testing with ROCm for AMD make sure to specify the GPU being used
+by adding `-Xsycl-target-backend=amdgcn-amd-amdhsa-sycldevice
+--offload-arch=<target>` to the CMake variable
+`SYCL_CLANG_EXTRA_FLAGS`.
+
 #### Run DPC++ E2E test suite
 
 Follow instructions from the link below to build and run tests:
@@ -547,11 +552,14 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
-When building for ROCm, please note that the option `mcpu` must be specified, use the ROCm target triple as follows:
+When building for ROCm, use the ROCm target triple and specify the
+target architecture with `-Xsycl-target-backend --offload-arch=<arch>`
+as follows:
 
 ```bash
 clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa-sycldevice \
-  -mcpu=gfx906 simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
+  -Xsycl-target-backend --offload-arch=gfx906              \
+  simple-sycl-app.cpp -o simple-sycl-app-amd.exe
 ```
 
 To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,
@@ -734,7 +742,7 @@ which contains all the symbols required.
 ### ROCm back-end limitations
 
 * For supported Operating Systems, please refer to the [Supported Operating Systems](https://github.com/RadeonOpenCompute/ROCm#supported-operating-systems)
-* The only combination tested is Ubuntu 18.04 with ROCm 4.1 using a Vega20 gfx906.
+* The only combination tested is Ubuntu 18.04 with ROCm 4.2 using a Vega20 gfx906.
 * Judging from the current [test](https://github.com/zjin-lcf/oneAPI-DirectProgramming) results, 
   there is still a lot of room for improvement in ROCm back-end support. The current problems include three aspects. 
   The first one is at compile time: the `barrier` and `atomic` keywords are not supported. 

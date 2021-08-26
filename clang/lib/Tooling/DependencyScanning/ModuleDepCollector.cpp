@@ -1,9 +1,8 @@
 //===- ModuleDepCollector.cpp - Callbacks to collect deps -------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -170,8 +169,15 @@ void ModuleDepCollectorPP::EndOfMainFile() {
   if (!Instance.getPreprocessorOpts().ImplicitPCHInclude.empty())
     MDC.FileDeps.push_back(Instance.getPreprocessorOpts().ImplicitPCHInclude);
 
-  for (const Module *M : DirectModularDeps)
+  for (const Module *M : DirectModularDeps) {
+    // A top-level module might not be actually imported as a module when
+    // -fmodule-name is used to compile a translation unit that imports this
+    // module. In that case it can be skipped. The appropriate header
+    // dependencies will still be reported as expected.
+    if (!M->getASTFile())
+      continue;
     handleTopLevelModule(M);
+  }
 
   MDC.Consumer.handleDependencyOutputOpts(*MDC.Opts);
 

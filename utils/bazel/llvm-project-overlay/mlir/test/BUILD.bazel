@@ -160,10 +160,10 @@ gentbl_cc_library(
     ],
     tblgen = "//mlir:mlir-tblgen",
     td_file = "lib/Dialect/Test/TestAttrDefs.td",
-    td_srcs = [
+    test = True,
+    deps = [
         ":TestOpTdFiles",
     ],
-    test = True,
 )
 
 gentbl_cc_library(
@@ -409,7 +409,6 @@ cc_library(
     defines = ["MLIR_CUDA_CONVERSIONS_ENABLED"],
     includes = ["lib/Dialect/Test"],
     deps = [
-        "//mlir:LLVMDialect",
         "//mlir:MathDialect",
         "//mlir:MathTransforms",
         "//mlir:Pass",
@@ -428,6 +427,7 @@ cc_library(
         "//mlir:IR",
         "//mlir:Pass",
         "//mlir:SCFDialect",
+        "//mlir:SCFTransforms",
         "//mlir:TransformUtils",
     ],
 )

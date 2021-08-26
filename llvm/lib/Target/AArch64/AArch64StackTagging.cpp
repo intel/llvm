@@ -1,9 +1,8 @@
 //===- AArch64StackTagging.cpp - Stack tagging in IR --===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
@@ -651,7 +650,8 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
       tagAlloca(AI, Start->getNextNode(), Start->getArgOperand(1), Size);
 
       auto TagEnd = [&](Instruction *Node) { untagAlloca(AI, Node, Size); };
-      if (!forAllReachableExits(DT, PDT, Start, End, RetVec, TagEnd))
+      if (!DT || !PDT ||
+          !forAllReachableExits(*DT, *PDT, Start, End, RetVec, TagEnd))
         End->eraseFromParent();
     } else {
       uint64_t Size = Info.AI->getAllocationSizeInBits(*DL).getValue() / 8;

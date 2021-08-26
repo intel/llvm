@@ -195,6 +195,11 @@ void Parser::ParseGNUAttributes(ParsedAttributesWithRange &Attrs,
       // Expect an identifier or declaration specifier (const, int, etc.)
       if (Tok.isAnnotation())
         break;
+      if (Tok.is(tok::code_completion)) {
+        cutOffParsing();
+        Actions.CodeCompleteAttribute(AttributeCommonInfo::Syntax::AS_GNU);
+        break;
+      }
       IdentifierInfo *AttrName = Tok.getIdentifierInfo();
       if (!AttrName)
         break;
@@ -713,6 +718,12 @@ void Parser::ParseMicrosoftDeclSpecs(ParsedAttributes &Attrs,
       // Attribute not present.
       if (TryConsumeToken(tok::comma))
         continue;
+
+      if (Tok.is(tok::code_completion)) {
+        cutOffParsing();
+        Actions.CodeCompleteAttribute(AttributeCommonInfo::AS_Declspec);
+        return;
+      }
 
       // We expect either a well-known identifier or a generic string.  Anything
       // else is a malformed declspec.
@@ -3092,6 +3103,12 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       return true;
     };
 
+    // Turn off usual access checking for template specializations and
+    // instantiations.
+    bool IsTemplateSpecOrInst =
+        (TemplateInfo.Kind == ParsedTemplateInfo::ExplicitInstantiation ||
+         TemplateInfo.Kind == ParsedTemplateInfo::ExplicitSpecialization);
+
     switch (Tok.getKind()) {
     default:
     DoneWithDeclSpec:
@@ -3262,12 +3279,21 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
           isConstructorDeclarator(/*Unqualified*/ false))
         goto DoneWithDeclSpec;
 
+      // C++20 [temp.spec] 13.9/6.
+      // This disables the access checking rules for function template explicit
+      // instantiation and explicit specialization:
+      // - `return type`.
+      SuppressAccessChecks SAC(*this, IsTemplateSpecOrInst);
+
       ParsedType TypeRep =
           Actions.getTypeName(*Next.getIdentifierInfo(), Next.getLocation(),
                               getCurScope(), &SS, false, false, nullptr,
                               /*IsCtorOrDtorName=*/false,
                               /*WantNontrivialTypeSourceInfo=*/true,
                               isClassTemplateDeductionContext(DSContext));
+
+      if (IsTemplateSpecOrInst)
+        SAC.done();
 
       // If the referenced identifier is not a type, then this declspec is
       // erroneous: We already checked about that it has no type specifier, and
@@ -3378,10 +3404,24 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       // In C++, check to see if this is a scope specifier like foo::bar::, if
       // so handle it as such.  This is important for ctor parsing.
       if (getLangOpts().CPlusPlus) {
-        if (TryAnnotateCXXScopeToken(EnteringContext)) {
+        // C++20 [temp.spec] 13.9/6.
+        // This disables the access checking rules for function template
+        // explicit instantiation and explicit specialization:
+        // - `return type`.
+        SuppressAccessChecks SAC(*this, IsTemplateSpecOrInst);
+
+        const bool Success = TryAnnotateCXXScopeToken(EnteringContext);
+
+        if (IsTemplateSpecOrInst)
+          SAC.done();
+
+        if (Success) {
+          if (IsTemplateSpecOrInst)
+            SAC.redelay();
           DS.SetTypeSpecError();
           goto DoneWithDeclSpec;
         }
+
         if (!Tok.is(tok::identifier))
           continue;
       }
@@ -3953,8 +3993,12 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
         Tok.getIdentifierInfo()->revertTokenIDToIdentifier();
         Tok.setKind(tok::identifier);
         goto DoneWithDeclSpec;
-      }
-      isInvalid = DS.SetTypePipe(true, Loc, PrevSpec, DiagID, Policy);
+      } else if (!getLangOpts().OpenCLPipes) {
+        DiagID = diag::err_opencl_unknown_type_specifier;
+        PrevSpec = Tok.getIdentifierInfo()->getNameStart();
+        isInvalid = true;
+      } else
+        isInvalid = DS.SetTypePipe(true, Loc, PrevSpec, DiagID, Policy);
       break;
 // We only need to enumerate each image type once.
 #define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
@@ -4139,9 +4183,8 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
                           << FixItHint::CreateRemoval(
                                  SourceRange(Loc, DS.getEndLoc()));
       else if (DiagID == diag::err_opencl_unknown_type_specifier) {
-        Diag(Loc, DiagID) << getLangOpts().OpenCLCPlusPlus
-                          << getLangOpts().getOpenCLVersionTuple().getAsString()
-                          << PrevSpec << isStorageClass;
+        Diag(Loc, DiagID) << getLangOpts().getOpenCLVersionString() << PrevSpec
+                          << isStorageClass;
       } else
         Diag(Loc, DiagID) << PrevSpec;
     }
@@ -5127,8 +5170,10 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   switch (Tok.getKind()) {
   default: return false;
 
+  // OpenCL 2.0 and later define this keyword.
   case tok::kw_pipe:
-    return getLangOpts().OpenCLPipe;
+    return (getLangOpts().OpenCL && getLangOpts().OpenCLVersion >= 200) ||
+           getLangOpts().OpenCLCPlusPlus;
 
   case tok::identifier:   // foo::bar
     // Unfortunate hack to support "Class.factoryMethod" notation.
@@ -5657,7 +5702,9 @@ static bool isPtrOperatorToken(tok::TokenKind Kind, const LangOptions &Lang,
   if (Kind == tok::star || Kind == tok::caret)
     return true;
 
-  if (Kind == tok::kw_pipe && Lang.OpenCLPipe)
+  // OpenCL 2.0 and later define this keyword.
+  if (Kind == tok::kw_pipe &&
+      ((Lang.OpenCL && Lang.OpenCLVersion >= 200) || Lang.OpenCLCPlusPlus))
     return true;
 
   if (!Lang.CPlusPlus)

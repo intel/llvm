@@ -97,6 +97,30 @@ set(files
   __bits
   __bsd_locale_defaults.h
   __bsd_locale_fallbacks.h
+  __compare/common_comparison_category.h
+  __compare/ordering.h
+  __concepts/arithmetic.h
+  __concepts/assignable.h
+  __concepts/boolean_testable.h
+  __concepts/class_or_enum.h
+  __concepts/common_reference_with.h
+  __concepts/common_with.h
+  __concepts/constructible.h
+  __concepts/convertible_to.h
+  __concepts/copyable.h
+  __concepts/derived_from.h
+  __concepts/destructible.h
+  __concepts/different_from.h
+  __concepts/equality_comparable.h
+  __concepts/invocable.h
+  __concepts/movable.h
+  __concepts/predicate.h
+  __concepts/regular.h
+  __concepts/relation.h
+  __concepts/same_as.h
+  __concepts/semiregular.h
+  __concepts/swappable.h
+  __concepts/totally_ordered.h
   __config
   __debug
   __errc
@@ -106,10 +130,12 @@ set(files
   __functional_base
   __functional/binary_function.h
   __functional/binary_negate.h
+  __functional/bind_back.h
   __functional/bind_front.h
   __functional/bind.h
   __functional/binder1st.h
   __functional/binder2nd.h
+  __functional/compose.h
   __functional/default_searcher.h
   __functional/function.h
   __functional/hash.h
@@ -133,7 +159,9 @@ set(files
   __iterator/access.h
   __iterator/advance.h
   __iterator/back_insert_iterator.h
+  __iterator/common_iterator.h
   __iterator/concepts.h
+  __iterator/counted_iterator.h
   __iterator/data.h
   __iterator/default_sentinel.h
   __iterator/distance.h
@@ -158,6 +186,7 @@ set(files
   __iterator/reverse_access.h
   __iterator/reverse_iterator.h
   __iterator/size.h
+  __iterator/unreachable_sentinel.h
   __iterator/wrap_iter.h
   __libcpp_version
   __locale
@@ -183,17 +212,25 @@ set(files
   __random/uniform_int_distribution.h
   __ranges/access.h
   __ranges/all.h
+  __ranges/common_view.h
   __ranges/concepts.h
   __ranges/copyable_box.h
+  __ranges/counted.h
+  __ranges/dangling.h
   __ranges/data.h
   __ranges/drop_view.h
   __ranges/empty_view.h
   __ranges/empty.h
   __ranges/enable_borrowed_range.h
   __ranges/enable_view.h
+  __ranges/non_propagating_cache.h
   __ranges/ref_view.h
+  __ranges/reverse_view.h
+  __ranges/take_view.h
+  __ranges/single_view.h
   __ranges/size.h
   __ranges/subrange.h
+  __ranges/take_view.h
   __ranges/transform_view.h
   __ranges/view_interface.h
   __split_buffer

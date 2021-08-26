@@ -17,9 +17,11 @@
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
+#include <CL/sycl/version.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
+#include <detail/xpti_registry.hpp>
 
 #include <bitset>
 #include <cstdarg>
@@ -36,6 +38,10 @@
 #include "xpti_trace_framework.h"
 #endif
 
+#define STR(x) #x
+#define SYCL_VERSION_STR                                                       \
+  "sycl " STR(__LIBSYCL_MAJOR_VERSION) "." STR(__LIBSYCL_MINOR_VERSION)
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -50,9 +56,9 @@ xpti_td *GPICallEvent = nullptr;
 xpti_td *GPIArgCallEvent = nullptr;
 /// Constants being used as placeholder until one is able to reliably get the
 /// version of the SYCL runtime
-constexpr uint32_t GMajVer = 1;
-constexpr uint32_t GMinVer = 0;
-constexpr const char *GVerStr = "sycl 1.0";
+constexpr uint32_t GMajVer = __LIBSYCL_MAJOR_VERSION;
+constexpr uint32_t GMinVer = __LIBSYCL_MINOR_VERSION;
+constexpr const char *GVerStr = SYCL_VERSION_STR;
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
 template <cl::sycl::backend BE>
@@ -138,7 +144,8 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 }
 
 uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
-                                        unsigned char *ArgsData) {
+                                        unsigned char *ArgsData,
+                                        pi_plugin Plugin) {
   uint64_t CorrelationID = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
@@ -146,7 +153,7 @@ uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
     CorrelationID = xptiGetUniqueId();
 
     xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, nullptr,
-                                       nullptr};
+                                       &Plugin};
 
     xptiNotifySubscribers(
         StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin,
@@ -158,13 +165,13 @@ uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
 
 void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
                                   const char *FuncName, unsigned char *ArgsData,
-                                  pi_result Result) {
+                                  pi_result Result, pi_plugin Plugin) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
 
     xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, &Result,
-                                       nullptr};
+                                       &Plugin};
 
     xptiNotifySubscribers(
         StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,
@@ -472,12 +479,8 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
   uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
   //  Let all tool plugins know that a stream by the name of 'sycl' has been
   //  initialized and will be generating the trace stream.
-  //
-  //                                           +--- Minor version #
-  //            Major version # ------+        |   Version string
-  //                                  |        |       |
-  //                                  v        v       v
-  xptiInitialize(SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  GlobalHandler::instance().getXPTIRegistry().initializeStream(
+      SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   // Create a tracepoint to indicate the graph creation
   xpti::payload_t GraphPayload("application_graph");
   uint64_t GraphInstanceNo;
@@ -492,14 +495,16 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
   }
 
   // Let subscribers know a new stream is being initialized
-  xptiInitialize(SYCL_PICALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  GlobalHandler::instance().getXPTIRegistry().initializeStream(
+      SYCL_PICALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   xpti::payload_t PIPayload("Plugin Interface Layer");
   uint64_t PiInstanceNo;
   GPICallEvent =
       xptiMakeEvent("PI Layer", &PIPayload, xpti::trace_algorithm_event,
                     xpti_at::active, &PiInstanceNo);
 
-  xptiInitialize(SYCL_PIDEBUGCALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  GlobalHandler::instance().getXPTIRegistry().initializeStream(
+      SYCL_PIDEBUGCALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   xpti::payload_t PIArgPayload(
       "Plugin Interface Layer (with function arguments)");
   uint64_t PiArgInstanceNo;

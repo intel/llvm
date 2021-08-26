@@ -9,8 +9,8 @@
 #include "Annotations.h"
 #include "Config.h"
 #include "Diagnostics.h"
+#include "Feature.h"
 #include "FeatureModule.h"
-#include "Features.h"
 #include "ParsedAST.h"
 #include "Protocol.h"
 #include "SourceCode.h"
@@ -63,6 +63,11 @@ WithNote(::testing::Matcher<Note> NoteMatcher) {
 WithNote(::testing::Matcher<Note> NoteMatcher1,
          ::testing::Matcher<Note> NoteMatcher2) {
   return Field(&Diag::Notes, UnorderedElementsAre(NoteMatcher1, NoteMatcher2));
+}
+
+::testing::Matcher<const Diag &>
+WithTag(::testing::Matcher<DiagnosticTag> TagMatcher) {
+  return Field(&Diag::Tags, Contains(TagMatcher));
 }
 
 MATCHER_P2(Diag, Range, Message,
@@ -184,6 +189,26 @@ o]]();
                      "use of undeclared identifier 'fod'; did you mean 'foo'?"),
                 WithFix(Fix(Test.range("macroarg"), "foo",
                             "change 'fod' to 'foo'")))));
+}
+
+// Verify that the -Wswitch case-not-covered diagnostic range covers the
+// whole expression. This is important because the "populate-switch" tweak
+// fires for the full expression range (see tweaks/PopulateSwitchTests.cpp).
+// The quickfix flow only works end-to-end if the tweak can be triggered on
+// the diagnostic's range.
+TEST(DiagnosticsTest, WSwitch) {
+  Annotations Test(R"cpp(
+    enum A { X };
+    struct B { A a; };
+    void foo(B b) {
+      switch ([[b.a]]) {}
+    }
+  )cpp");
+  auto TU = TestTU::withCode(Test.code());
+  TU.ExtraArgs = {"-Wswitch"};
+  EXPECT_THAT(*TU.build().getDiagnostics(),
+              ElementsAre(Diag(Test.range(),
+                               "enumeration value 'X' not handled in switch")));
 }
 
 TEST(DiagnosticsTest, FlagsMatter) {
@@ -665,6 +690,7 @@ TEST(DiagnosticsTest, ToLSP) {
 
   clangd::Diag D;
   D.ID = clang::diag::err_undeclared_var_use;
+  D.Tags = {DiagnosticTag::Unnecessary};
   D.Name = "undeclared_var_use";
   D.Source = clangd::Diag::Clang;
   D.Message = "something terrible happened";
@@ -710,6 +736,7 @@ main.cpp:6:7: remark: declared somewhere in the main file
 
 ../foo/baz/header.h:10:11:
 note: declared somewhere in the header file)";
+  MainLSP.tags = {DiagnosticTag::Unnecessary};
 
   clangd::Diagnostic NoteInMainLSP;
   NoteInMainLSP.range = NoteInMain.Range;
@@ -1418,6 +1445,24 @@ TEST(Preamble, EndsOnNonEmptyLine) {
         *AST.getDiagnostics(),
         testing::Contains(Diag(Code.range(), "no newline at end of file")));
   }
+}
+
+TEST(Diagnostics, Tags) {
+  TestTU TU;
+  TU.ExtraArgs = {"-Wunused", "-Wdeprecated"};
+  Annotations Test(R"cpp(
+  void bar() __attribute__((deprecated));
+  void foo() {
+    int $unused[[x]];
+    $deprecated[[bar]]();
+  })cpp");
+  TU.Code = Test.code().str();
+  EXPECT_THAT(*TU.build().getDiagnostics(),
+              UnorderedElementsAre(
+                  AllOf(Diag(Test.range("unused"), "unused variable 'x'"),
+                        WithTag(DiagnosticTag::Unnecessary)),
+                  AllOf(Diag(Test.range("deprecated"), "'bar' is deprecated"),
+                        WithTag(DiagnosticTag::Deprecated))));
 }
 } // namespace
 } // namespace clangd

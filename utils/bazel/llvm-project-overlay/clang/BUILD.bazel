@@ -446,9 +446,9 @@ cc_library(
         ":basic_arm_sve_builtins_gen",
         ":basic_arm_sve_typeflags_gen",
         ":basic_attr_gen",
+        ":basic_internal_headers",
         ":basic_riscv_vector_builtin_cg_gen",
         ":basic_riscv_vector_builtins_gen",
-        ":basic_internal_headers",
         ":config",
         ":diagnostic_defs_gen",
         ":sema_attr_gen",
@@ -488,6 +488,10 @@ gentbl(
         (
             "-gen-clang-attr-classes",
             "include/clang/AST/Attrs.inc",
+        ),
+        (
+            "-gen-clang-attr-doc-table",
+            "lib/AST/AttrDocTable.inc",
         ),
         (
             "-gen-clang-attr-text-node-dump",
@@ -693,6 +697,7 @@ cc_library(
     ]),
     includes = [
         "include",
+        "lib/AST",
         "lib/AST/Interp",
     ],
     textual_hdrs = [
@@ -710,6 +715,7 @@ cc_library(
         "include/clang/AST/DeclNodes.inc",
         "include/clang/AST/StmtDataCollectors.inc",
         "include/clang/AST/StmtNodes.inc",
+        "lib/AST/AttrDocTable.inc",
         "lib/AST/Interp/Opcodes.inc",
     ] + glob([
         "include/clang/AST/*.def",

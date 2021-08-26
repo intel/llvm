@@ -1843,9 +1843,9 @@ INTERCEPTOR(int, ioctl, int d, unsigned long request, ...) {
   const ioctl_desc *desc = ioctl_lookup(request);
   ioctl_desc decoded_desc;
   if (!desc) {
-    VPrintf(2, "Decoding unknown ioctl 0x%x\n", request);
+    VPrintf(2, "Decoding unknown ioctl 0x%lx\n", request);
     if (!ioctl_decode(request, &decoded_desc))
-      Printf("WARNING: failed decoding unknown ioctl 0x%x\n", request);
+      Printf("WARNING: failed decoding unknown ioctl 0x%lx\n", request);
     else
       desc = &decoded_desc;
   }
@@ -3664,21 +3664,11 @@ INTERCEPTOR(char *, realpath, const char *path, char *resolved_path) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, realpath, path, resolved_path);
   if (path) COMMON_INTERCEPTOR_READ_RANGE(ctx, path, REAL(strlen)(path) + 1);
-
-  // Workaround a bug in glibc where dlsym(RTLD_NEXT, ...) returns the oldest
-  // version of a versioned symbol. For realpath(), this gives us something
-  // (called __old_realpath) that does not handle NULL in the second argument.
-  // Handle it as part of the interceptor.
-  char *allocated_path = nullptr;
-  if (!resolved_path)
-    allocated_path = resolved_path = (char *)WRAP(malloc)(path_max + 1);
-
   char *res = REAL(realpath)(path, resolved_path);
-  if (allocated_path && !res) WRAP(free)(allocated_path);
   if (res) COMMON_INTERCEPTOR_WRITE_RANGE(ctx, res, REAL(strlen)(res) + 1);
   return res;
 }
-#define INIT_REALPATH COMMON_INTERCEPT_FUNCTION(realpath);
+#define INIT_REALPATH COMMON_INTERCEPT_FUNCTION_GLIBC_VER_MIN(realpath, "GLIBC_2.3");
 #else
 #define INIT_REALPATH
 #endif
@@ -6104,6 +6094,40 @@ INTERCEPTOR(__sanitizer_FILE *, freopen, const char *path, const char *mode,
 #define INIT_FOPEN
 #endif
 
+#if SANITIZER_INTERCEPT_FLOPEN
+INTERCEPTOR(int, flopen, const char *path, int flags, ...) {
+  void *ctx;
+  va_list ap;
+  va_start(ap, flags);
+  u16 mode = static_cast<u16>(va_arg(ap, u32));
+  va_end(ap);
+  COMMON_INTERCEPTOR_ENTER(ctx, flopen, path, flags, mode);
+  if (path) {
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, path, REAL(strlen)(path) + 1);
+  }
+  return REAL(flopen)(path, flags, mode);
+}
+
+INTERCEPTOR(int, flopenat, int dirfd, const char *path, int flags, ...) {
+  void *ctx;
+  va_list ap;
+  va_start(ap, flags);
+  u16 mode = static_cast<u16>(va_arg(ap, u32));
+  va_end(ap);
+  COMMON_INTERCEPTOR_ENTER(ctx, flopen, path, flags, mode);
+  if (path) {
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, path, REAL(strlen)(path) + 1);
+  }
+  return REAL(flopenat)(dirfd, path, flags, mode);
+}
+
+#define INIT_FLOPEN    \
+  COMMON_INTERCEPT_FUNCTION(flopen); \
+  COMMON_INTERCEPT_FUNCTION(flopenat);
+#else
+#define INIT_FLOPEN
+#endif
+
 #if SANITIZER_INTERCEPT_FOPEN64
 INTERCEPTOR(__sanitizer_FILE *, fopen64, const char *path, const char *mode) {
   void *ctx;
@@ -6504,17 +6528,42 @@ INTERCEPTOR(int, sem_getvalue, __sanitizer_sem_t *s, int *sval) {
   }
   return res;
 }
-#define INIT_SEM                                                               \
-  COMMON_INTERCEPT_FUNCTION(sem_init);                                         \
-  COMMON_INTERCEPT_FUNCTION(sem_destroy);                                      \
-  COMMON_INTERCEPT_FUNCTION(sem_wait);                                         \
-  COMMON_INTERCEPT_FUNCTION(sem_trywait);                                      \
-  COMMON_INTERCEPT_FUNCTION(sem_timedwait);                                    \
-  COMMON_INTERCEPT_FUNCTION(sem_post);                                         \
-  COMMON_INTERCEPT_FUNCTION(sem_getvalue);
+
+INTERCEPTOR(__sanitizer_sem_t *, sem_open, const char *name, int oflag, ...) {
+  void *ctx;
+  va_list ap;
+  va_start(ap, oflag);
+  u32 mode = va_arg(ap, u32);
+  u32 value = va_arg(ap, u32);
+  COMMON_INTERCEPTOR_ENTER(ctx, sem_open, name, oflag, mode, value);
+  COMMON_INTERCEPTOR_READ_RANGE(ctx, name, REAL(strlen)(name) + 1);
+  __sanitizer_sem_t *s = REAL(sem_open)(name, oflag, mode, value);
+  if (s)
+    COMMON_INTERCEPTOR_INITIALIZE_RANGE(s, sizeof(*s));
+  va_end(ap);
+  return s;
+}
+
+INTERCEPTOR(int, sem_unlink, const char *name) {
+  void *ctx;
+  COMMON_INTERCEPTOR_ENTER(ctx, sem_unlink, name);
+  COMMON_INTERCEPTOR_READ_RANGE(ctx, name, REAL(strlen)(name) + 1);
+  return REAL(sem_unlink)(name);
+}
+
+#  define INIT_SEM                            \
+    COMMON_INTERCEPT_FUNCTION(sem_init);      \
+    COMMON_INTERCEPT_FUNCTION(sem_destroy);   \
+    COMMON_INTERCEPT_FUNCTION(sem_wait);      \
+    COMMON_INTERCEPT_FUNCTION(sem_trywait);   \
+    COMMON_INTERCEPT_FUNCTION(sem_timedwait); \
+    COMMON_INTERCEPT_FUNCTION(sem_post);      \
+    COMMON_INTERCEPT_FUNCTION(sem_getvalue);  \
+    COMMON_INTERCEPT_FUNCTION(sem_open);      \
+    COMMON_INTERCEPT_FUNCTION(sem_unlink);
 #else
-#define INIT_SEM
-#endif // SANITIZER_INTERCEPT_SEM
+#  define INIT_SEM
+#endif  // SANITIZER_INTERCEPT_SEM
 
 #if SANITIZER_INTERCEPT_PTHREAD_SETCANCEL
 INTERCEPTOR(int, pthread_setcancelstate, int state, int *oldstate) {
@@ -9903,7 +9952,7 @@ INTERCEPTOR(int, getentropy, void *buf, SIZE_T buflen) {
 typedef int (*qsort_compar_f)(const void *, const void *);
 static THREADLOCAL qsort_compar_f qsort_compar;
 static THREADLOCAL SIZE_T qsort_size;
-int wrapped_qsort_compar(const void *a, const void *b) {
+static int wrapped_qsort_compar(const void *a, const void *b) {
   COMMON_INTERCEPTOR_UNPOISON_PARAM(2);
   COMMON_INTERCEPTOR_INITIALIZE_RANGE(a, qsort_size);
   COMMON_INTERCEPTOR_INITIALIZE_RANGE(b, qsort_size);
@@ -9954,7 +10003,7 @@ INTERCEPTOR(void, qsort, void *base, SIZE_T nmemb, SIZE_T size,
 typedef int (*qsort_r_compar_f)(const void *, const void *, void *);
 static THREADLOCAL qsort_r_compar_f qsort_r_compar;
 static THREADLOCAL SIZE_T qsort_r_size;
-int wrapped_qsort_r_compar(const void *a, const void *b, void *arg) {
+static int wrapped_qsort_r_compar(const void *a, const void *b, void *arg) {
   COMMON_INTERCEPTOR_UNPOISON_PARAM(3);
   COMMON_INTERCEPTOR_INITIALIZE_RANGE(a, qsort_r_size);
   COMMON_INTERCEPTOR_INITIALIZE_RANGE(b, qsort_r_size);
@@ -9999,6 +10048,30 @@ INTERCEPTOR(void, qsort_r, void *base, SIZE_T nmemb, SIZE_T size,
 #define INIT_QSORT_R COMMON_INTERCEPT_FUNCTION(qsort_r)
 #else
 #define INIT_QSORT_R
+#endif
+
+#if SANITIZER_INTERCEPT_BSEARCH
+typedef int (*bsearch_compar_f)(const void *, const void *);
+static THREADLOCAL bsearch_compar_f bsearch_compar;
+static int wrapped_bsearch_compar(const void *a, const void *b) {
+  COMMON_INTERCEPTOR_UNPOISON_PARAM(2);
+  return bsearch_compar(a, b);
+}
+
+INTERCEPTOR(void *, bsearch, const void *key, const void *base, SIZE_T nmemb,
+            SIZE_T size, bsearch_compar_f compar) {
+  void *ctx;
+  COMMON_INTERCEPTOR_ENTER(ctx, bsearch, key, base, nmemb, size, compar);
+  // Unlike qsort, don't expect recursive implementation of bsearch.
+  CHECK_NE(compar, wrapped_bsearch_compar);
+  Swap(bsearch_compar, compar);
+  void *r = REAL(bsearch)(key, base, nmemb, size, wrapped_bsearch_compar);
+  bsearch_compar = compar;
+  return r;
+}
+#  define INIT_BSEARCH COMMON_INTERCEPT_FUNCTION(bsearch)
+#else
+#  define INIT_BSEARCH
 #endif
 
 #if SANITIZER_INTERCEPT_SIGALTSTACK
@@ -10269,6 +10342,7 @@ static void InitializeCommonInterceptors() {
   INIT_LIBIO_INTERNALS;
   INIT_FOPEN;
   INIT_FOPEN64;
+  INIT_FLOPEN;
   INIT_OPEN_MEMSTREAM;
   INIT_OBSTACK;
   INIT_FFLUSH;
@@ -10366,6 +10440,7 @@ static void InitializeCommonInterceptors() {
   INIT_GETENTROPY;
   INIT_QSORT;
   INIT_QSORT_R;
+  INIT_BSEARCH;
   INIT_SIGALTSTACK;
   INIT_UNAME;
   INIT___XUNAME;

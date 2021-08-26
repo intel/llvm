@@ -2830,8 +2830,7 @@ Instruction *InstCombinerImpl::foldICmpSelectConstant(ICmpInst &Cmp,
   return nullptr;
 }
 
-static Instruction *foldICmpBitCast(ICmpInst &Cmp,
-                                    InstCombiner::BuilderTy &Builder) {
+Instruction *InstCombinerImpl::foldICmpBitCast(ICmpInst &Cmp) {
   auto *Bitcast = dyn_cast<BitCastInst>(Cmp.getOperand(0));
   if (!Bitcast)
     return nullptr;
@@ -2917,6 +2916,39 @@ static Instruction *foldICmpBitCast(ICmpInst &Cmp,
     return new ICmpInst(Pred, BCSrcOp, Op1);
   }
 
+  const APInt *C;
+  if (!match(Cmp.getOperand(1), m_APInt(C)) ||
+      !Bitcast->getType()->isIntegerTy() ||
+      !Bitcast->getSrcTy()->isIntOrIntVectorTy())
+    return nullptr;
+
+  // If this is checking if all elements of a vector compare are set or not,
+  // invert the casted vector equality compare and test if all compare
+  // elements are clear or not. Compare against zero is generally easier for
+  // analysis and codegen.
+  // icmp eq/ne (bitcast (not X) to iN), -1 --> icmp eq/ne (bitcast X to iN), 0
+  // Example: are all elements equal? --> are zero elements not equal?
+  // TODO: Try harder to reduce compare of 2 freely invertible operands?
+  if (Cmp.isEquality() && C->isAllOnesValue() && Bitcast->hasOneUse() &&
+      isFreeToInvert(BCSrcOp, BCSrcOp->hasOneUse())) {
+    Type *ScalarTy = Bitcast->getType();
+    Value *Cast = Builder.CreateBitCast(Builder.CreateNot(BCSrcOp), ScalarTy);
+    return new ICmpInst(Pred, Cast, ConstantInt::getNullValue(ScalarTy));
+  }
+
+  // If this is checking if all elements of an extended vector are clear or not,
+  // compare in a narrow type to eliminate the extend:
+  // icmp eq/ne (bitcast (ext X) to iN), 0 --> icmp eq/ne (bitcast X to iM), 0
+  Value *X;
+  if (Cmp.isEquality() && C->isNullValue() && Bitcast->hasOneUse() &&
+      match(BCSrcOp, m_ZExtOrSExt(m_Value(X)))) {
+    if (auto *VecTy = dyn_cast<FixedVectorType>(X->getType())) {
+      Type *NewType = Builder.getIntNTy(VecTy->getPrimitiveSizeInBits());
+      Value *NewCast = Builder.CreateBitCast(X, NewType);
+      return new ICmpInst(Pred, NewCast, ConstantInt::getNullValue(NewType));
+    }
+  }
+
   // Folding: icmp <pred> iN X, C
   //  where X = bitcast <M x iK> (shufflevector <M x iK> %vec, undef, SC)) to iN
   //    and C is a splat of a K-bit pattern
@@ -2924,12 +2956,6 @@ static Instruction *foldICmpBitCast(ICmpInst &Cmp,
   // Into:
   //   %E = extractelement <M x iK> %vec, i32 C'
   //   icmp <pred> iK %E, trunc(C)
-  const APInt *C;
-  if (!match(Cmp.getOperand(1), m_APInt(C)) ||
-      !Bitcast->getType()->isIntegerTy() ||
-      !Bitcast->getSrcTy()->isIntOrIntVectorTy())
-    return nullptr;
-
   Value *Vec;
   ArrayRef<int> Mask;
   if (match(BCSrcOp, m_Shuffle(m_Value(Vec), m_Undef(), m_Mask(Mask)))) {
@@ -5158,6 +5184,83 @@ Instruction *InstCombinerImpl::foldICmpUsingKnownBits(ICmpInst &I) {
   if (!isa<Constant>(Op1) && Op1Min == Op1Max)
     return new ICmpInst(Pred, Op0, ConstantExpr::getIntegerValue(Ty, Op1Min));
 
+  // Don't break up a clamp pattern -- (min(max X, Y), Z) -- by replacing a
+  // min/max canonical compare with some other compare. That could lead to
+  // conflict with select canonicalization and infinite looping.
+  // FIXME: This constraint may go away if min/max intrinsics are canonical.
+  auto isMinMaxCmp = [&](Instruction &Cmp) {
+    if (!Cmp.hasOneUse())
+      return false;
+    Value *A, *B;
+    SelectPatternFlavor SPF = matchSelectPattern(Cmp.user_back(), A, B).Flavor;
+    if (!SelectPatternResult::isMinOrMax(SPF))
+      return false;
+    return match(Op0, m_MaxOrMin(m_Value(), m_Value())) ||
+           match(Op1, m_MaxOrMin(m_Value(), m_Value()));
+  };
+  if (!isMinMaxCmp(I)) {
+    switch (Pred) {
+    default:
+      break;
+    case ICmpInst::ICMP_ULT: {
+      if (Op1Min == Op0Max) // A <u B -> A != B if max(A) == min(B)
+        return new ICmpInst(ICmpInst::ICMP_NE, Op0, Op1);
+      const APInt *CmpC;
+      if (match(Op1, m_APInt(CmpC))) {
+        // A <u C -> A == C-1 if min(A)+1 == C
+        if (*CmpC == Op0Min + 1)
+          return new ICmpInst(ICmpInst::ICMP_EQ, Op0,
+                              ConstantInt::get(Op1->getType(), *CmpC - 1));
+        // X <u C --> X == 0, if the number of zero bits in the bottom of X
+        // exceeds the log2 of C.
+        if (Op0Known.countMinTrailingZeros() >= CmpC->ceilLogBase2())
+          return new ICmpInst(ICmpInst::ICMP_EQ, Op0,
+                              Constant::getNullValue(Op1->getType()));
+      }
+      break;
+    }
+    case ICmpInst::ICMP_UGT: {
+      if (Op1Max == Op0Min) // A >u B -> A != B if min(A) == max(B)
+        return new ICmpInst(ICmpInst::ICMP_NE, Op0, Op1);
+      const APInt *CmpC;
+      if (match(Op1, m_APInt(CmpC))) {
+        // A >u C -> A == C+1 if max(a)-1 == C
+        if (*CmpC == Op0Max - 1)
+          return new ICmpInst(ICmpInst::ICMP_EQ, Op0,
+                              ConstantInt::get(Op1->getType(), *CmpC + 1));
+        // X >u C --> X != 0, if the number of zero bits in the bottom of X
+        // exceeds the log2 of C.
+        if (Op0Known.countMinTrailingZeros() >= CmpC->getActiveBits())
+          return new ICmpInst(ICmpInst::ICMP_NE, Op0,
+                              Constant::getNullValue(Op1->getType()));
+      }
+      break;
+    }
+    case ICmpInst::ICMP_SLT: {
+      if (Op1Min == Op0Max) // A <s B -> A != B if max(A) == min(B)
+        return new ICmpInst(ICmpInst::ICMP_NE, Op0, Op1);
+      const APInt *CmpC;
+      if (match(Op1, m_APInt(CmpC))) {
+        if (*CmpC == Op0Min + 1) // A <s C -> A == C-1 if min(A)+1 == C
+          return new ICmpInst(ICmpInst::ICMP_EQ, Op0,
+                              ConstantInt::get(Op1->getType(), *CmpC - 1));
+      }
+      break;
+    }
+    case ICmpInst::ICMP_SGT: {
+      if (Op1Max == Op0Min) // A >s B -> A != B if min(A) == max(B)
+        return new ICmpInst(ICmpInst::ICMP_NE, Op0, Op1);
+      const APInt *CmpC;
+      if (match(Op1, m_APInt(CmpC))) {
+        if (*CmpC == Op0Max - 1) // A >s C -> A == C+1 if max(A)-1 == C
+          return new ICmpInst(ICmpInst::ICMP_EQ, Op0,
+                              ConstantInt::get(Op1->getType(), *CmpC + 1));
+      }
+      break;
+    }
+    }
+  }
+
   // Based on the range information we know about the LHS, see if we can
   // simplify this comparison.  For example, (x&4) < 8 is always true.
   switch (Pred) {
@@ -5219,21 +5322,6 @@ Instruction *InstCombinerImpl::foldICmpUsingKnownBits(ICmpInst &I) {
       return replaceInstUsesWith(I, ConstantInt::getTrue(I.getType()));
     if (Op0Min.uge(Op1Max)) // A <u B -> false if min(A) >= max(B)
       return replaceInstUsesWith(I, ConstantInt::getFalse(I.getType()));
-    if (Op1Min == Op0Max) // A <u B -> A != B if max(A) == min(B)
-      return new ICmpInst(ICmpInst::ICMP_NE, Op0, Op1);
-
-    const APInt *CmpC;
-    if (match(Op1, m_APInt(CmpC))) {
-      // A <u C -> A == C-1 if min(A)+1 == C
-      if (*CmpC == Op0Min + 1)
-        return new ICmpInst(ICmpInst::ICMP_EQ, Op0,
-                            ConstantInt::get(Op1->getType(), *CmpC - 1));
-      // X <u C --> X == 0, if the number of zero bits in the bottom of X
-      // exceeds the log2 of C.
-      if (Op0Known.countMinTrailingZeros() >= CmpC->ceilLogBase2())
-        return new ICmpInst(ICmpInst::ICMP_EQ, Op0,
-                            Constant::getNullValue(Op1->getType()));
-    }
     break;
   }
   case ICmpInst::ICMP_UGT: {
@@ -5241,21 +5329,6 @@ Instruction *InstCombinerImpl::foldICmpUsingKnownBits(ICmpInst &I) {
       return replaceInstUsesWith(I, ConstantInt::getTrue(I.getType()));
     if (Op0Max.ule(Op1Min)) // A >u B -> false if max(A) <= max(B)
       return replaceInstUsesWith(I, ConstantInt::getFalse(I.getType()));
-    if (Op1Max == Op0Min) // A >u B -> A != B if min(A) == max(B)
-      return new ICmpInst(ICmpInst::ICMP_NE, Op0, Op1);
-
-    const APInt *CmpC;
-    if (match(Op1, m_APInt(CmpC))) {
-      // A >u C -> A == C+1 if max(a)-1 == C
-      if (*CmpC == Op0Max - 1)
-        return new ICmpInst(ICmpInst::ICMP_EQ, Op0,
-                            ConstantInt::get(Op1->getType(), *CmpC + 1));
-      // X >u C --> X != 0, if the number of zero bits in the bottom of X
-      // exceeds the log2 of C.
-      if (Op0Known.countMinTrailingZeros() >= CmpC->getActiveBits())
-        return new ICmpInst(ICmpInst::ICMP_NE, Op0,
-                            Constant::getNullValue(Op1->getType()));
-    }
     break;
   }
   case ICmpInst::ICMP_SLT: {
@@ -5263,14 +5336,6 @@ Instruction *InstCombinerImpl::foldICmpUsingKnownBits(ICmpInst &I) {
       return replaceInstUsesWith(I, ConstantInt::getTrue(I.getType()));
     if (Op0Min.sge(Op1Max)) // A <s B -> false if min(A) >= max(C)
       return replaceInstUsesWith(I, ConstantInt::getFalse(I.getType()));
-    if (Op1Min == Op0Max) // A <s B -> A != B if max(A) == min(B)
-      return new ICmpInst(ICmpInst::ICMP_NE, Op0, Op1);
-    const APInt *CmpC;
-    if (match(Op1, m_APInt(CmpC))) {
-      if (*CmpC == Op0Min + 1) // A <s C -> A == C-1 if min(A)+1 == C
-        return new ICmpInst(ICmpInst::ICMP_EQ, Op0,
-                            ConstantInt::get(Op1->getType(), *CmpC - 1));
-    }
     break;
   }
   case ICmpInst::ICMP_SGT: {
@@ -5278,14 +5343,6 @@ Instruction *InstCombinerImpl::foldICmpUsingKnownBits(ICmpInst &I) {
       return replaceInstUsesWith(I, ConstantInt::getTrue(I.getType()));
     if (Op0Max.sle(Op1Min)) // A >s B -> false if max(A) <= min(B)
       return replaceInstUsesWith(I, ConstantInt::getFalse(I.getType()));
-    if (Op1Max == Op0Min) // A >s B -> A != B if min(A) == max(B)
-      return new ICmpInst(ICmpInst::ICMP_NE, Op0, Op1);
-    const APInt *CmpC;
-    if (match(Op1, m_APInt(CmpC))) {
-      if (*CmpC == Op0Max - 1) // A >s C -> A == C+1 if max(A)-1 == C
-        return new ICmpInst(ICmpInst::ICMP_EQ, Op0,
-                            ConstantInt::get(Op1->getType(), *CmpC + 1));
-    }
     break;
   }
   case ICmpInst::ICMP_SGE:
@@ -5698,9 +5755,6 @@ Instruction *InstCombinerImpl::visitICmpInst(ICmpInst &I) {
   if (Instruction *Res = foldICmpWithDominatingICmp(I))
     return Res;
 
-  if (Instruction *Res = foldICmpBinOp(I, Q))
-    return Res;
-
   if (Instruction *Res = foldICmpUsingKnownBits(I))
     return Res;
 
@@ -5746,6 +5800,15 @@ Instruction *InstCombinerImpl::visitICmpInst(ICmpInst &I) {
     }
   }
 
+  // The folds in here may rely on wrapping flags and special constants, so
+  // they can break up min/max idioms in some cases but not seemingly similar
+  // patterns.
+  // FIXME: It may be possible to enhance select folding to make this
+  //        unnecessary. It may also be moot if we canonicalize to min/max
+  //        intrinsics.
+  if (Instruction *Res = foldICmpBinOp(I, Q))
+    return Res;
+
   if (Instruction *Res = foldICmpInstWithConstant(I))
     return Res;
 
@@ -5777,7 +5840,7 @@ Instruction *InstCombinerImpl::visitICmpInst(ICmpInst &I) {
         return New;
   }
 
-  if (Instruction *Res = foldICmpBitCast(I, Builder))
+  if (Instruction *Res = foldICmpBitCast(I))
     return Res;
 
   // TODO: Hoist this above the min/max bailout.
