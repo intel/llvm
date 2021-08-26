@@ -44,7 +44,7 @@ Semantic:
 the function is called to read assert failure flag raised by
 `__devicelib_assert_fail`.
 The function is only used in fallback implementation.
-Invoking `__devicelib_assert_fail` after a kernel doesn't imply the kernel has
+Invoking `__devicelib_assert_read` after a kernel doesn't imply the kernel has
 assertion failed.
 
 See also: assert_extension_.
