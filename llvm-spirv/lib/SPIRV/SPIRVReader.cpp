@@ -443,6 +443,23 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
                                             SPIRAddressSpace::SPIRAS_Global));
   }
 
+  case internal::OpTypeJointMatrixINTEL: {
+    auto *MT = static_cast<SPIRVTypeJointMatrixINTEL *>(T);
+    auto R = static_cast<SPIRVConstant *>(MT->getRows())->getZExtIntValue();
+    auto C = static_cast<SPIRVConstant *>(MT->getColumns())->getZExtIntValue();
+    std::stringstream SS;
+    SS << kSPIRVTypeName::PostfixDelim;
+    SS << transTypeToOCLTypeName(MT->getCompType());
+    auto L = static_cast<SPIRVConstant *>(MT->getLayout())->getZExtIntValue();
+    auto S = static_cast<SPIRVConstant *>(MT->getScope())->getZExtIntValue();
+    SS << kSPIRVTypeName::PostfixDelim << R << kSPIRVTypeName::PostfixDelim << C
+       << kSPIRVTypeName::PostfixDelim << L << kSPIRVTypeName::PostfixDelim
+       << S;
+    std::string Name =
+        getSPIRVTypeName(kSPIRVTypeName::JointMatrixINTEL, SS.str());
+    return mapType(T, getOrCreateOpaquePtrType(M, Name));
+  }
+
   default: {
     auto OC = T->getOpCode();
     if (isOpaqueGenericTypeOpCode(OC) || isSubgroupAvcINTELTypeOpCode(OC))
@@ -3098,7 +3115,7 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   bool AddRetTypePostfix = false;
   if (OC == OpImageQuerySizeLod || OC == OpImageQuerySize ||
       OC == OpImageRead || OC == OpSubgroupImageBlockReadINTEL ||
-      OC == OpSubgroupBlockReadINTEL)
+      OC == OpSubgroupBlockReadINTEL || OC == internal::OpJointMatrixLoadINTEL)
     AddRetTypePostfix = true;
 
   bool IsRetSigned = false;
