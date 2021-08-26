@@ -1627,6 +1627,15 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     }
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
+  case PI_DEVICE_INFO_P2P_READ_DEVICES: {
+
+    std::vector<pi_device> devs;
+
+    for (const auto &dev : device->get_platform()->devices_) {
+      devs.emplace_back(dev.get());
+    }
+    return getInfo(param_value_size, param_value, param_value_size_ret, devs);
+  }
 
     // TODO: Investigate if this information is available on CUDA.
   case PI_DEVICE_INFO_PCI_ADDRESS:
@@ -5074,14 +5083,6 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
-pi_result cuda_piextDevicesSupportP2P(pi_device src_device,
-                                      pi_device dst_device, bool *p2p) {
-  assert(src_device != nullptr);
-  assert(dst_device != nullptr);
-  *p2p = true;
-  return PI_SUCCESS;
-}
-
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
@@ -5123,7 +5124,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextDeviceGetNativeHandle, cuda_piextDeviceGetNativeHandle)
   _PI_CL(piextDeviceCreateWithNativeHandle,
          cuda_piextDeviceCreateWithNativeHandle)
-  _PI_CL(piextDevicesSupportP2P, cuda_piextDevicesSupportP2P)
   // Context
   _PI_CL(piextContextSetExtendedDeleter, cuda_piextContextSetExtendedDeleter)
   _PI_CL(piContextCreate, cuda_piContextCreate)

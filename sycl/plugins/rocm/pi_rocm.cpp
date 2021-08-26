@@ -4599,17 +4599,6 @@ pi_result rocm_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
-// TODO properly implement this function when rocm Peer to Peer copies are
-// enabled. Currently Peer to Peer copies are unimplemented using the rocm
-// backend so p2p is always set false.
-pi_result rocm_piextDevicesSupportP2P(pi_device src_device,
-                                      pi_device dst_device, bool *p2p) {
-  assert(src_device != nullptr);
-  assert(dst_device != nullptr);
-  *p2p = false;
-  return PI_SUCCESS;
-}
-
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
@@ -4651,7 +4640,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextDeviceGetNativeHandle, rocm_piextDeviceGetNativeHandle)
   _PI_CL(piextDeviceCreateWithNativeHandle,
          rocm_piextDeviceCreateWithNativeHandle)
-  _PI_CL(piextDevicesSupportP2P, rocm_piextDevicesSupportP2P)
   // Context
   _PI_CL(piextContextSetExtendedDeleter, rocm_piextContextSetExtendedDeleter)
   _PI_CL(piContextCreate, rocm_piContextCreate)

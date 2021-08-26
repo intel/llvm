@@ -952,15 +952,24 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
             detail::getImplBackend(Record->MCurContext))
           NeedMemMoveToHost = true;
         else {
-          bool p2p = false;
-          Queue->getPlugin().call<PiApiKind::piextDevicesSupportP2P>(
+          std::vector<RT::PiDevice> devs;
+
+          Queue->getPlugin().call_nocheck<PiApiKind::piDeviceGetInfo>(
               Queue->getDeviceImplPtr()->getHandleRef(),
-              findAllocaCmd(Record)
-                  ->getQueue()
-                  ->getDeviceImplPtr()
-                  ->getHandleRef(),
-              &p2p);
-          if (!p2p)
+              PI_DEVICE_INFO_P2P_READ_DEVICES, sizeof(devs), &devs, nullptr);
+
+          bool can_read_peer = false;
+          const auto &src_dev = findAllocaCmd(Record)
+                                    ->getQueue()
+                                    ->getDeviceImplPtr()
+                                    ->getHandleRef();
+          for (const auto &dev : devs) {
+            if (dev == src_dev) {
+              can_read_peer = true;
+              break;
+            }
+          }
+          if (!can_read_peer)
             NeedMemMoveToHost = true;
         }
       }

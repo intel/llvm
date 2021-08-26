@@ -295,7 +295,8 @@ typedef enum {
   PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026,
   PI_DEVICE_INFO_IMAGE_SRGB = 0x10027,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
-  PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111
+  PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
+  PI_DEVICE_INFO_P2P_READ_DEVICES = 0x10112
 } _pi_device_info;
 
 typedef enum {
@@ -1053,13 +1054,6 @@ __SYCL_EXPORT pi_result piextEnqueueMemBufferCopyPeer(
     pi_mem dst_buffer, size_t src_offset, size_t dst_offset, size_t size,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event);
-
-/// p2p is set true if PI API's,
-/// piextEnqueueMemBufferCopyPeer/piextEnqueueMemBufferCopyRectPeer/piextEnqueueMemImageCopyPeer,
-/// for peer to peer memory copy may be called.
-///
-__SYCL_EXPORT pi_result piextDevicesSupportP2P(pi_device src_device,
-                                               pi_device dst_device, bool *p2p);
 
 __SYCL_EXPORT pi_result piQueueRetain(pi_queue command_queue);
 

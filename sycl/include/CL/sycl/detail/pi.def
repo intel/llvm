@@ -140,6 +140,5 @@ _PI_API(piTearDown)
 _PI_API(piextEnqueueMemBufferCopyPeer)
 _PI_API(piextEnqueueMemBufferCopyRectPeer)
 _PI_API(piextEnqueueMemImageCopyPeer)
-_PI_API(piextDevicesSupportP2P)
 
 #undef _PI_API
