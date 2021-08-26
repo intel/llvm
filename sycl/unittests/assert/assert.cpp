@@ -17,7 +17,7 @@
 #ifndef _WIN32
 #include <sys/ioctl.h>
 #include <unistd.h>
-#endif
+#endif // _WIN32
 
 class TestKernel;
 
@@ -252,6 +252,7 @@ static void setupMock(sycl::unittest::PiMock &Mock) {
       redefinedExtKernelSetArgMemObj);
 }
 
+#ifndef _WIN32
 void ChildProcess(int StdErrFD) {
   static constexpr int StandardStdErrFD = 2;
   if (dup2(StdErrFD, StandardStdErrFD) < 0) {
@@ -323,6 +324,7 @@ void ParentProcess(int ChildPID, int ChildStdErrFD) {
   EXPECT_EQ(SigNum, SIGABRT);
   EXPECT_NE(BufStr.find(StandardMessage), std::string::npos);
 }
+#endif // _WIN32
 
 TEST(Assert, TestPositive) {
   // Preliminary checks
@@ -330,12 +332,12 @@ TEST(Assert, TestPositive) {
     sycl::platform Plt{sycl::default_selector()};
     if (Plt.is_host()) {
       printf("Test is not supported on host, skipping\n");
-      exit(1);
+      exit(0);
     }
 
     if (Plt.get_backend() == sycl::backend::cuda) {
       printf("Test is not supported on CUDA platform, skipping\n");
-      exit(1);
+      exit(0);
     }
   }
 
@@ -360,5 +362,5 @@ TEST(Assert, TestPositive) {
     ChildProcess(PipeFD[WriteFDIdx]);
     close(PipeFD[WriteFDIdx]);
   }
-#endif
+#endif // _WIN32
 }
