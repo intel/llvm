@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl-device-only -S %s -o - | FileCheck %s
 
 #include <sycl/sycl.hpp>
 #include <sycl/ext/intel/experimental/bfloat16.hpp>
@@ -9,12 +9,13 @@ SYCL_EXTERNAL uint16_t some_bf16_intrinsic(uint16_t x, uint16_t y);
 
 __attribute__((noinline))
 float op(float a, float b) {
+// CHECK: define {{.*}} spir_func float @_Z2opff(float [[a:%.*]], float [[b:%.*]])
   bfloat16 A {a};
-// CHECK: [[A:%.*]] = tail call spir_func zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float %a)
+// CHECK: [[A:%.*]] = tail call spir_func zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float [[a]])
 // CHECK-NOT: fptoui
 
   bfloat16 B {b};
-// CHECK: [[B:%.*]] = tail call spir_func zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float %b)
+// CHECK: [[B:%.*]] = tail call spir_func zeroext i16 @_Z27__spirv_ConvertFToBF16INTELf(float [[b]])
 // CHECK-NOT: fptoui
 
   bfloat16 C = A + B;
