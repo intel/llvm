@@ -150,6 +150,13 @@ public:
     // parameter, since it added by an optimization.
     bool Changed = false;
 
+    // SPV_INTEL_vector_compute allows to use vectors with any number of
+    // components. Since this method only lowers vectors with non-standard
+    // in pure SPIR-V number of components, there is no need to do anything in
+    // case SPV_INTEL_vector_compute is enabled.
+    if (Opts.isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
+      return PreservedAnalyses::all();
+
     std::vector<Instruction *> BCastsToNonStdVec;
     std::vector<Instruction *> InstsToErase;
     for (auto &BB : F)
@@ -160,11 +167,7 @@ public:
         VectorType *SrcVecTy = getVectorType(BC->getSrcTy());
         if (SrcVecTy) {
           uint64_t NumElemsInSrcVec = SrcVecTy->getElementCount().getValue();
-          // SPV_INTEL_vector_compute allows to use vectors with any number of
-          // components
-          if (!isValidVectorSize(NumElemsInSrcVec) &&
-              !Opts.isAllowedToUseExtension(
-                  ExtensionID::SPV_INTEL_vector_compute))
+          if (!isValidVectorSize(NumElemsInSrcVec))
             report_fatal_error("Unsupported vector type with the size of: " +
                                    std::to_string(NumElemsInSrcVec),
                                false);
@@ -172,11 +175,7 @@ public:
         VectorType *DestVecTy = getVectorType(BC->getDestTy());
         if (DestVecTy) {
           uint64_t NumElemsInDestVec = DestVecTy->getElementCount().getValue();
-          // SPV_INTEL_vector_compute allows to use vectors with any number of
-          // components
-          if (!isValidVectorSize(NumElemsInDestVec) &&
-              !Opts.isAllowedToUseExtension(
-                  ExtensionID::SPV_INTEL_vector_compute))
+          if (!isValidVectorSize(NumElemsInDestVec))
             BCastsToNonStdVec.push_back(&I);
         }
       }
