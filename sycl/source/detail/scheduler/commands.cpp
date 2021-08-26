@@ -2029,7 +2029,6 @@ cl_int ExecCGCommand::enqueueImp() {
     RT::PiKernel Kernel = nullptr;
     std::mutex *KernelMutex = nullptr;
     RT::PiProgram Program = nullptr;
-    bool KnownProgram = true;
 
     std::shared_ptr<kernel_impl> SyclKernelImpl;
     std::shared_ptr<device_image_impl> DeviceImageImpl;
@@ -2070,8 +2069,7 @@ cl_int ExecCGCommand::enqueueImp() {
                 ExecKernel->MOSModuleHandle, ContextImpl, DeviceImpl,
                 ExecKernel->MKernelName, SyclProg.get());
         assert(FoundKernel == Kernel);
-      } else
-        KnownProgram = false;
+      }
     } else {
       std::tie(Kernel, KernelMutex, Program) =
           detail::ProgramManager::getInstance().getOrCreateKernel(
@@ -2086,7 +2084,7 @@ cl_int ExecCGCommand::enqueueImp() {
       EliminatedArgMask =
           detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
               ExecKernel->MOSModuleHandle, ContextImpl, DeviceImpl, Program,
-              ExecKernel->MKernelName, KnownProgram);
+              ExecKernel->MKernelName);
     }
     if (KernelMutex != nullptr) {
       // For cacheable kernels, we use per-kernel mutex
