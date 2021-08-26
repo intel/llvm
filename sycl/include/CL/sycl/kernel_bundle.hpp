@@ -345,8 +345,9 @@ private:
 
 /// \returns the kernel_id associated with the KernelName
 template <typename KernelName> kernel_id get_kernel_id() {
-  using KI = sycl::detail::KernelInfo<KernelName>;
-  return sycl::kernel_id(KI::getName());
+//  using KI = sycl::detail::KernelInfo<KernelName>;
+  auto KI = sycl::detail::getKernelInfoStruct<KernelName>();
+  return sycl::kernel_id(KI.getName());
 }
 
 /// \returns a vector with all kernel_id's defined in the application

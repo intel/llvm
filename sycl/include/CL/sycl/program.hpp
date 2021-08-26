@@ -157,9 +157,10 @@ public:
   /// \param CompileOptions is a string of valid OpenCL compile options.
   template <typename KernelT>
   void compile_with_kernel_type(std::string CompileOptions = "") {
+    auto KI = detail::getKernelInfoStruct<KernelT>();
     detail::OSModuleHandle M = detail::OSUtil::getOSModuleHandle(
-        detail::KernelInfo<KernelT>::getName());
-    compile_with_kernel_name(detail::KernelInfo<KernelT>::getName(),
+        KI.getName());
+    compile_with_kernel_name(KI.getName(),
                              CompileOptions, M);
   }
 
@@ -194,9 +195,10 @@ public:
   /// \param BuildOptions is a string containing OpenCL compile options.
   template <typename KernelT>
   void build_with_kernel_type(std::string BuildOptions = "") {
+    auto KI = detail::getKernelInfoStruct<KernelT>();
     detail::OSModuleHandle M = detail::OSUtil::getOSModuleHandle(
-        detail::KernelInfo<KernelT>::getName());
-    build_with_kernel_name(detail::KernelInfo<KernelT>::getName(), BuildOptions,
+        KI.getName());
+    build_with_kernel_name(KI.getName(), BuildOptions,
                            M);
   }
 
@@ -236,7 +238,8 @@ public:
   ///
   /// \return true if the SYCL kernel is available.
   template <typename KernelT> bool has_kernel() const {
-    return has_kernel(detail::KernelInfo<KernelT>::getName(),
+    auto KI = detail::getKernelInfoStruct<KernelT>();
+    return has_kernel(KI.getName(),
                       /*IsCreatedFromSource*/ false);
   }
 
@@ -258,7 +261,8 @@ public:
   ///
   /// \return a valid instance of SYCL kernel.
   template <typename KernelT> kernel get_kernel() const {
-    return get_kernel(detail::KernelInfo<KernelT>::getName(),
+    auto KI = detail::getKernelInfoStruct<KernelT>();
+    return get_kernel(KI.getName(),
                       /*IsCreatedFromSource*/ false);
   }
 
