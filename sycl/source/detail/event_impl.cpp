@@ -209,7 +209,7 @@ void event_impl::wait(
 
 void event_impl::wait_and_throw(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) {
-  Command *subCmd = static_cast<Command *>(Self->getCommand());
+  Command *Cmd = static_cast<Command *>(Self->getCommand());
   QueueImplPtr submittedQueue = nullptr;
   if (subCmd)
     submittedQueue = subCmd->getSubmittedQueue();
