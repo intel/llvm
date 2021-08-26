@@ -41,6 +41,9 @@ if("${SYCL_BUILD_PI_ROCM_PLATFORM}" STREQUAL "AMD")
 
   # Set HIP define to select AMD platform
   target_compile_definitions(pi_rocm PRIVATE __HIP_PLATFORM_AMD__)
+
+  # Make sure lld is built as part of the toolchain
+  add_dependencies(sycl-toolchain lld)
  elseif("${SYCL_BUILD_PI_ROCM_PLATFORM}" STREQUAL "NVIDIA")
   # Import CUDA libraries
   find_package(CUDA REQUIRED)
