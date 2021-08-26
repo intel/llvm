@@ -186,46 +186,46 @@ TEST(ConfigTests, CheckConfigProcessing) {
   // Check simple correct config processing
   File.open("conf.txt");
   if (File.is_open()) {
-    File << "SYCL_DEVICE_ALLOWLIST=1" << std::endl;
+    File << "SYCL_PRINT_EXECUTION_GRAPH=before_addCG" << std::endl;
     File.close();
   }
   sycl::detail::readConfig(true);
-  EXPECT_EQ(
-      std::string("1"),
-      sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get());
+  EXPECT_EQ(std::string("before_addCG"),
+            sycl::detail::SYCLConfig<
+                sycl::detail::SYCL_PRINT_EXECUTION_GRAPH>::get());
 
   // Check correct config processing
   File.open("conf.txt");
   if (File.is_open()) {
     File << "#a\r\n # b \r\n #a=b\r\n # a = "
-            "b\r\n\r\nSYCL_DEVICE_ALLOWLIST=2\r\n"
+            "b\r\n\r\nSYCL_PRINT_EXECUTION_GRAPH=after_addCG\r\n"
          << std::endl;
     File.close();
   }
   sycl::detail::readConfig(true);
-  EXPECT_EQ(
-      std::string("2"),
-      sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get());
+  EXPECT_EQ(std::string("after_addCG"),
+            sycl::detail::SYCLConfig<
+                sycl::detail::SYCL_PRINT_EXECUTION_GRAPH>::get());
 
   // Check multi assignment
   File.open("conf.txt");
   if (File.is_open()) {
-    File << "a=b\r\nb=c\nSYCL_DEVICE_ALLOWLIST=3\r\nc=d";
+    File << "a=b\r\nb=c\nSYCL_PRINT_EXECUTION_GRAPH=before_addCopyBack\r\nc=d";
     File.close();
   }
   sycl::detail::readConfig(true);
-  EXPECT_EQ(
-      std::string("3"),
-      sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get());
+  EXPECT_EQ(std::string("before_addCopyBack"),
+            sycl::detail::SYCLConfig<
+                sycl::detail::SYCL_PRINT_EXECUTION_GRAPH>::get());
 
   // Check assignment with comment
   File.open("conf.txt");
   if (File.is_open()) {
-    File << "SYCL_DEVICE_ALLOWLIST=4 #comment\r\n";
+    File << "SYCL_PRINT_EXECUTION_GRAPH=after_addCopyBack #comment\r\n";
     File.close();
   }
   sycl::detail::readConfig(true);
-  EXPECT_EQ(
-      std::string("4"),
-      sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICE_ALLOWLIST>::get());
+  EXPECT_EQ(std::string("after_addCopyBack"),
+            sycl::detail::SYCLConfig<
+                sycl::detail::SYCL_PRINT_EXECUTION_GRAPH>::get());
 }
