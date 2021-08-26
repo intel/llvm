@@ -631,17 +631,18 @@ to select an alternate configuration file.
 #### New features in clang compilation driver and tools
 
 NOTE: the term *device binary image* or *image* is used to refer to a device
-code form consumable by the SYCL runtime. Earlier device code forms are referred
+code form consumable by the DPC++ runtime library. Earlier device code forms are referred
 to as *device code module* or *device IR module*. In case of AOT, device binary
-image is a natively compiled binary, and IR module - either a SPIR-V or LLVMIR
+image is a natively compiled binary, and IR module - either a SPIR-V or LLVM IR
 bitcode module.
 
 ##### Overview
+
 After the `sycl-post-link` performs necessary aspect usage analysis and splits
-the incoming monolythic device code module into pieces - smaller device code
+the incoming monolithic device code module into pieces - smaller device code
 modules - it outputs a file table as a result. Each row in the table corresponds
 to an individual output module, and each element of a row is a name of a file
-containing necessary information about the module, such as the code itself, its
+containing necessary information about the module, such as the code itself, and its
 properties.
 
 At the action graph building stage for each requested AOT compilation target -
