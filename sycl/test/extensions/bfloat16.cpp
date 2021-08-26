@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -S %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl-device-only -fsycl-targets=spir-unknown-unknown -S %s -o - | FileCheck %s
 
 #include <sycl/sycl.hpp>
 #include <sycl/ext/intel/experimental/bfloat16.hpp>
