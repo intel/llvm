@@ -5177,6 +5177,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   if (EmittedFirstSpecConstant)
     OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
 
+  OS << "#include <CL/sycl/detail/kernel-info-integration.hpp>\n";
+
   return true;
 }
 

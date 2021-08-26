@@ -397,7 +397,8 @@ private:
     // kernel. Else it is necessary use set_atg(s) for resolve the order and
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
-    const std::string LambdaName = detail::KernelInfo<LambdaNameT>::getName();
+    auto KI = detail::getKernelInfoStruct<LambdaNameT>();
+    const std::string LambdaName = KI.getName();
     const std::string KernelName = getKernelName();
     return LambdaName == KernelName;
   }
@@ -535,16 +536,18 @@ private:
         new detail::HostKernel<KernelType, LambdaArgType, Dims, KernelName>(
             KernelFunc));
 
-    using KI = sycl::detail::KernelInfo<KernelName>;
+//    using KI = sycl::detail::KernelInfo<KernelName>;
+    auto KI = detail::getKernelInfoStruct<KernelName>();
     // Empty name indicates that the compilation happens without integration
     // header, so don't perform things that require it.
-    if (KI::getName() != nullptr && KI::getName()[0] != '\0') {
+    if (KI.getName() != nullptr && KI.getName()[0] != '\0') {
       // TODO support ESIMD in no-integration-header case too.
       MArgs.clear();
-      extractArgsAndReqsFromLambda(MHostKernel->getPtr(), KI::getNumParams(),
-                                   &KI::getParamDesc(0), KI::isESIMD());
-      MKernelName = KI::getName();
-      MOSModuleHandle = detail::OSUtil::getOSModuleHandle(KI::getName());
+      extractArgsAndReqsFromLambda(MHostKernel->getPtr(), KI.getNumParams(),
+          // FIXME: getKernelParamDesc
+                                   &detail::getKernelParamDesc<KernelName>(0), KI.isESIMD());
+      MKernelName = KI.getName();
+      MOSModuleHandle = detail::OSUtil::getOSModuleHandle(KI.getName());
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
@@ -802,11 +805,12 @@ private:
 
     // Get the kernel name to check condition 2.
     std::string KName = typeid(NameT *).name();
-    using KI = detail::KernelInfo<KernelName>;
+    //using KI = detail::KernelInfo<KernelName>;
+    auto KI = detail::getKernelInfoStruct<KernelName>();
     bool DisableRounding =
         this->DisableRangeRounding() ||
-        (KI::getName() == nullptr || KI::getName()[0] == '\0') ||
-        (KI::callsThisItem());
+        (KI.getName() == nullptr || KI.getName()[0] == '\0') ||
+        (KI.callsThisItem());
 
     // Perform range rounding if rounding-up is enabled
     // and there are sufficient work-items to need rounding
