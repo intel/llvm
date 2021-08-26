@@ -13,7 +13,10 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 
 # This macro is defined only when DPCPP RT lib is building
-# It can be used for the deprecated features, that must be available only when lib is building
+# The intended use of this macro is to guard API endpoints with it, so they
+# are not available for end users when they are building their applications,
+# but that such API endpoints are available when we are building DPC++ RT
+# so we can preserve ABI
 add_compile_definitions(__SYCL_INTERNAL_BUILD)
 
 set(SYCL_MAJOR_VERSION 5)
