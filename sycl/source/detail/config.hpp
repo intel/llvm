@@ -293,12 +293,24 @@ public:
     constexpr bool DefaultValue = true;
 #endif
 
-    const char *ValStr = BaseT::getRawValue();
+    const char *ValStr = getCachedValue();
 
     if (!ValStr)
       return DefaultValue;
 
     return ValStr[0] == '1';
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
   }
 };
 

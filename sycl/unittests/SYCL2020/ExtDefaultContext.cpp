@@ -1,4 +1,4 @@
-//==---- CircularBuffer.cpp ------------------------------------------------==//
+//==------------------ ExtDefaultContext.cpp -------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,27 +8,22 @@
 
 #include <CL/sycl.hpp>
 
+#include <detail/config.hpp>
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
+#include <helpers/ScopedEnvVar.hpp>
 
 #include <gtest/gtest.h>
-
-#include <stdlib.h>
 
 // Same as defined in config.def
 inline constexpr auto EnableDefaultContextsName =
     "SYCL_ENABLE_DEFAULT_CONTEXTS";
 
-static void set_env(const char *name, const char *value) {
-#ifdef _WIN32
-  (void)_putenv_s(name, value);
-#else
-  (void)setenv(name, value, /*overwrite*/ 1);
-#endif
-}
-
 TEST(DefaultContextTest, DefaultContextTest) {
-  set_env(EnableDefaultContextsName, "1");
+  using namespace sycl::detail;
+  using namespace sycl::unittest;
+  ScopedEnvVar var(EnableDefaultContextsName, "1",
+                   SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
   sycl::platform Plt1{sycl::default_selector()};
   sycl::unittest::PiMock Mock1{Plt1};
@@ -51,7 +46,10 @@ TEST(DefaultContextTest, DefaultContextTest) {
 }
 
 TEST(DefaultContextTest, DefaultContextCanBeDisabled) {
-  set_env(EnableDefaultContextsName, "0");
+  using namespace sycl::detail;
+  using namespace sycl::unittest;
+  ScopedEnvVar var(EnableDefaultContextsName, "0",
+                   SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
   sycl::platform Plt{sycl::default_selector()};
   sycl::unittest::PiMock Mock{Plt};

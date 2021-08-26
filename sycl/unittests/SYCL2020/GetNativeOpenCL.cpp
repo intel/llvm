@@ -10,6 +10,7 @@
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/opencl.hpp>
+#include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
@@ -112,6 +113,13 @@ TEST(GetNative, GetNativeHandle) {
   get_native<backend::opencl>(Event);
 
   // When creating a context, the piDeviceRetain is called so here is the 6
-  // retain calls
-  ASSERT_EQ(TestCounter, 6) << "Not all the retain methods was called";
+  // retain calls. However, if default contexts are enabled, that is not the
+  // case.
+  const int numRetainCalls = [] {
+    using namespace sycl::detail;
+    return SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get() ? 5 : 6;
+  }();
+
+  ASSERT_EQ(TestCounter, numRetainCalls)
+      << "Not all the retain methods was called";
 }
