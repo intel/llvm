@@ -653,6 +653,7 @@ class ObjectFileHandler final : public FileHandler {
             // Do not add globals with constant address space to the tgtsym.
             if (!GV.isDeclaration() && !GV.hasLocalLinkage() &&
                 GV.getAddressSpace() == 2) {
+              GV.replaceAllUsesWith(UndefValue::get(GV.getType()));
               GV.dropAllReferences();
               GV.eraseFromParent();
               UpdateBuf = true;

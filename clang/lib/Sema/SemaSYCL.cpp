@@ -5302,10 +5302,17 @@ bool Util::isSyclFunction(const FunctionDecl *FD, StringRef Name) {
   if (DC->isTranslationUnit())
     return false;
 
-  std::array<DeclContextDesc, 2> Scopes = {
+  std::array<DeclContextDesc, 2> ScopesSycl = {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl")};
-  return matchContext(DC, Scopes);
+  std::array<DeclContextDesc, 5> ScopesOneapiExp = {
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "experimental")};
+
+  return matchContext(DC, ScopesSycl) || matchContext(DC, ScopesOneapiExp);
 }
 
 bool Util::isAccessorPropertyListType(QualType Ty) {

@@ -86,8 +86,8 @@ static ThreadContextBase *CreateThreadContext(Tid tid) {
     ReleaseMemoryPagesToOS(hdr_end, hdr + sizeof(Trace));
     uptr unused = hdr + sizeof(Trace) - hdr_end;
     if (hdr_end != (uptr)MmapFixedNoAccess(hdr_end, unused)) {
-      Report("ThreadSanitizer: failed to mprotect(%p, %p)\n",
-          hdr_end, unused);
+      Report("ThreadSanitizer: failed to mprotect [0x%zx-0x%zx) \n", hdr_end,
+             unused);
       CHECK("unable to mprotect" && 0);
     }
   }
@@ -298,8 +298,8 @@ void MapShadow(uptr addr, uptr size) {
       Die();
     mapped_meta_end = meta_end;
   }
-  VPrintf(2, "mapped meta shadow for (%p-%p) at (%p-%p)\n",
-      addr, addr+size, meta_begin, meta_end);
+  VPrintf(2, "mapped meta shadow for (0x%zx-0x%zx) at (0x%zx-0x%zx)\n", addr,
+          addr + size, meta_begin, meta_end);
 }
 
 void MapThreadTrace(uptr addr, uptr size, const char *name) {
@@ -308,44 +308,9 @@ void MapThreadTrace(uptr addr, uptr size, const char *name) {
   CHECK_LE(addr + size, TraceMemEnd());
   CHECK_EQ(addr, addr & ~((64 << 10) - 1));  // windows wants 64K alignment
   if (!MmapFixedSuperNoReserve(addr, size, name)) {
-    Printf("FATAL: ThreadSanitizer can not mmap thread trace (%p/%p)\n",
-        addr, size);
+    Printf("FATAL: ThreadSanitizer can not mmap thread trace (0x%zx/0x%zx)\n",
+           addr, size);
     Die();
-  }
-}
-
-static void CheckShadowMapping() {
-  uptr beg, end;
-  for (int i = 0; GetUserRegion(i, &beg, &end); i++) {
-    // Skip cases for empty regions (heap definition for architectures that
-    // do not use 64-bit allocator).
-    if (beg == end)
-      continue;
-    VPrintf(3, "checking shadow region %p-%p\n", beg, end);
-    uptr prev = 0;
-    for (uptr p0 = beg; p0 <= end; p0 += (end - beg) / 4) {
-      for (int x = -(int)kShadowCell; x <= (int)kShadowCell; x += kShadowCell) {
-        const uptr p = RoundDown(p0 + x, kShadowCell);
-        if (p < beg || p >= end)
-          continue;
-        RawShadow *const s = MemToShadow(p);
-        u32 *const m = MemToMeta(p);
-        VPrintf(3, "  checking pointer %p: shadow=%p meta=%p\n", p, s, m);
-        CHECK(IsAppMem(p));
-        CHECK(IsShadowMem(s));
-        CHECK_EQ(p, ShadowToMem(s));
-        CHECK(IsMetaMem(m));
-        if (prev) {
-          // Ensure that shadow and meta mappings are linear within a single
-          // user range. Lots of code that processes memory ranges assumes it.
-          RawShadow *const prev_s = MemToShadow(prev);
-          u32 *const prev_m = MemToMeta(prev);
-          CHECK_EQ((s - prev_s) * kShadowSize, (p - prev) * kShadowMultiplier);
-          CHECK_EQ(m - prev_m, (p - prev) / kMetaShadowCell);
-        }
-        prev = p;
-      }
-    }
   }
 }
 
@@ -408,7 +373,6 @@ void Initialize(ThreadState *thr) {
   Processor *proc = ProcCreate();
   ProcWire(proc, thr);
   InitializeInterceptors();
-  CheckShadowMapping();
   InitializePlatform();
   InitializeDynamicAnnotations();
 #if !SANITIZER_GO
