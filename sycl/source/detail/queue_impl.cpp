@@ -63,11 +63,9 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
-  // FIXME these events are stored for level zero / esimd_cpu until as
-  // a workaround, remove once piEventRelease no longer calls wait on
-  // the event in the plugin.
-  if (!MSupportOOO || getPlugin().getBackend() == backend::level_zero ||
-      getPlugin().getBackend() == backend::esimd_cpu)
+  // FIXME these events are stored for level zero until as a workaround, remove
+  // once piEventRelease no longer calls wait on the event in the plugin.
+  if (!MSupportOOO || getPlugin().getBackend() == backend::level_zero)
     addSharedEvent(ResEvent);
   return ResEvent;
 }
@@ -84,11 +82,9 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
-  // FIXME these events are stored for level zero / esimd_cpu until as
-  // a workaround, remove once piEventRelease no longer calls wait on
-  // the event in the plugin.
-  if (!MSupportOOO || getPlugin().getBackend() == backend::level_zero ||
-      getPlugin().getBackend() == backend::esimd_cpu)
+  // FIXME these events are stored for level zero until as a workaround, remove
+  // once piEventRelease no longer calls wait on the event in the plugin.
+  if (!MSupportOOO || getPlugin().getBackend() == backend::level_zero)
     addSharedEvent(ResEvent);
   return ResEvent;
 }
@@ -106,11 +102,9 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
-  // FIXME these events are stored for level zero / esimd_cpu until as
-  // a workaround, remove once piEventRelease no longer calls wait on
-  // the event in the plugin.
-  if (!MSupportOOO || getPlugin().getBackend() == backend::level_zero ||
-      getPlugin().getBackend() == backend::esimd_cpu)
+  // FIXME these events are stored for level zero until as a workaround, remove
+  // once piEventRelease no longer calls wait on the event in the plugin.
+  if (!MSupportOOO || getPlugin().getBackend() == backend::level_zero)
     addSharedEvent(ResEvent);
   return ResEvent;
 }
@@ -119,15 +113,14 @@ void queue_impl::addEvent(const event &Event) {
   EventImplPtr Eimpl = getSyclObjImpl(Event);
   Command *Cmd = (Command *)(Eimpl->getCommand());
   if (!Cmd) {
-    // if there is no command on the event, we cannot track it with
-    // MEventsWeak as that will leave it with no owner. Track in
-    // MEventsShared only if we're unable to call piQueueFinish during
-    // wait.  FIXME these events are stored for level zero / esimd_cpu
-    // until as a workaround, remove once piEventRelease no longer
-    // calls wait on the event in the plugin.
+    // if there is no command on the event, we cannot track it with MEventsWeak
+    // as that will leave it with no owner. Track in MEventsShared only if we're
+    // unable to call piQueueFinish during wait.
+    // FIXME these events are stored for level zero until as a workaround,
+    // remove once piEventRelease no longer calls wait on the event in the
+    // plugin.
     if (is_host() || !MSupportOOO ||
-        getPlugin().getBackend() == backend::level_zero ||
-        getPlugin().getBackend() == backend::esimd_cpu)
+        getPlugin().getBackend() == backend::level_zero)
       addSharedEvent(Event);
   } else {
     std::weak_ptr<event_impl> EventWeakPtr{Eimpl};
@@ -140,11 +133,10 @@ void queue_impl::addEvent(const event &Event) {
 /// but some events have no other owner. In this case,
 /// addSharedEvent will have the queue track the events via a shared pointer.
 void queue_impl::addSharedEvent(const event &Event) {
-  // FIXME The assertion should be corrected once the Level Zero /
-  // ESIMD_CPU workaround is removed.
+  // FIXME The assertion should be corrected once the Level Zero workaround is
+  // removed.
   assert(is_host() || !MSupportOOO ||
-         getPlugin().getBackend() == backend::level_zero ||
-         getPlugin().getBackend() == backend::esimd_cpu);
+         getPlugin().getBackend() == backend::level_zero);
   std::lock_guard<std::mutex> Lock(MMutex);
   // Events stored in MEventsShared are not released anywhere else aside from
   // calls to queue::wait/wait_and_throw, which a user application might not
@@ -277,10 +269,9 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   // directly. Otherwise, only wait for unenqueued or host task events, starting
   // from the latest submitted task in order to minimize total amount of calls,
   // then handle the rest with piQueueFinish.
-  // TODO the new workflow has worse performance with Level Zero /
-  // ESIMD_CPU, keep the old behavior until this is addressed
-  if (!is_host() && (getPlugin().getBackend() == backend::level_zero ||
-                     getPlugin().getBackend() == backend::esimd_cpu)) {
+  // TODO the new workflow has worse performance with Level Zero, keep the old
+  // behavior until this is addressed
+  if (!is_host() && getPlugin().getBackend() == backend::level_zero) {
     for (std::weak_ptr<event_impl> &EventImplWeakPtr : WeakEvents)
       if (std::shared_ptr<event_impl> EventImplSharedPtr =
               EventImplWeakPtr.lock())
@@ -308,11 +299,10 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
         if (std::shared_ptr<event_impl> EventImplSharedPtr =
                 EventImplWeakPtr.lock())
           EventImplSharedPtr->cleanupCommand(EventImplSharedPtr);
-      // FIXME these events are stored for level zero / esimd_cpu
-      // until as a workaround, remove once piEventRelease no longer
-      // calls wait on the event in the plugin.
-      if (Plugin.getBackend() == backend::level_zero ||
-          Plugin.getBackend() == backend::esimd_cpu) {
+      // FIXME these events are stored for level zero until as a workaround,
+      // remove once piEventRelease no longer calls wait on the event in the
+      // plugin.
+      if (Plugin.getBackend() == backend::level_zero) {
         SharedEvents.clear();
       }
       assert(SharedEvents.empty() &&
