@@ -259,7 +259,7 @@ public:
 
       Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
     } else
-#endif // !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
+#endif // __SYCL_USE_FALLBACK_ASSERT
     {
       Event = submit_impl(CGF, CodeLoc);
     }
@@ -300,7 +300,7 @@ public:
         submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc, PostProcess);
 #else
     Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
-#endif // !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
+#endif // __SYCL_USE_FALLBACK_ASSERT
 
     return Event;
   }
@@ -1190,7 +1190,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
   return CheckerEv;
 }
 #undef __SYCL_ASSERT_START
-#endif // !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
+#endif // __SYCL_USE_FALLBACK_ASSERT
 } // namespace detail
 
 } // namespace sycl
