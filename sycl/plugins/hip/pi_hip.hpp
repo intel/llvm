@@ -1,4 +1,4 @@
-//===-- pi_rocm.hpp - ROCM Plugin -----------------------------------------===//
+//===-- pi_hip.hpp - HIP Plugin -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,17 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// \defgroup sycl_pi_rocm ROCM Plugin
+/// \defgroup sycl_pi_hip HIP Plugin
 /// \ingroup sycl_pi
 
-/// \file pi_rocm.hpp
-/// Declarations for ROCM Plugin. It is the interface between the
-/// device-agnostic SYCL runtime layer and underlying ROCM runtime.
+/// \file pi_hip.hpp
+/// Declarations for HIP Plugin. It is the interface between the
+/// device-agnostic SYCL runtime layer and underlying HIP runtime.
 ///
-/// \ingroup sycl_pi_rocm
+/// \ingroup sycl_pi_hip
 
-#ifndef PI_ROCM_HPP
-#define PI_ROCM_HPP
+#ifndef PI_HIP_HPP
+#define PI_HIP_HPP
 
 #include "CL/sycl/detail/pi.h"
 #include <array>
@@ -35,23 +35,23 @@
 extern "C" {
 
 /// \cond INGORE_BLOCK_IN_DOXYGEN
-pi_result rocm_piContextRetain(pi_context);
-pi_result rocm_piContextRelease(pi_context);
-pi_result rocm_piDeviceRelease(pi_device);
-pi_result rocm_piDeviceRetain(pi_device);
-pi_result rocm_piProgramRetain(pi_program);
-pi_result rocm_piProgramRelease(pi_program);
-pi_result rocm_piQueueRelease(pi_queue);
-pi_result rocm_piQueueRetain(pi_queue);
-pi_result rocm_piMemRetain(pi_mem);
-pi_result rocm_piMemRelease(pi_mem);
-pi_result rocm_piKernelRetain(pi_kernel);
-pi_result rocm_piKernelRelease(pi_kernel);
+pi_result hip_piContextRetain(pi_context);
+pi_result hip_piContextRelease(pi_context);
+pi_result hip_piDeviceRelease(pi_device);
+pi_result hip_piDeviceRetain(pi_device);
+pi_result hip_piProgramRetain(pi_program);
+pi_result hip_piProgramRelease(pi_program);
+pi_result hip_piQueueRelease(pi_queue);
+pi_result hip_piQueueRetain(pi_queue);
+pi_result hip_piMemRetain(pi_mem);
+pi_result hip_piMemRelease(pi_mem);
+pi_result hip_piKernelRetain(pi_kernel);
+pi_result hip_piKernelRelease(pi_kernel);
 /// \endcond
 }
 
 /// A PI platform stores all known PI devices,
-///  in the ROCM plugin this is just a vector of
+///  in the HIP plugin this is just a vector of
 ///  available devices since initialization is done
 ///  when devices are used.
 ///
@@ -62,7 +62,7 @@ struct _pi_platform {
 /// PI device mapping to a hipDevice_t.
 /// Includes an observer pointer to the platform,
 /// and implements the reference counting semantics since
-/// ROCM objects are not refcounted.
+/// HIP objects are not refcounted.
 ///
 class _pi_device {
   using native_type = hipDevice_t;
@@ -82,32 +82,32 @@ public:
   pi_platform get_platform() const noexcept { return platform_; };
 };
 
-/// PI context mapping to a ROCM context object.
+/// PI context mapping to a HIP context object.
 ///
-/// There is no direct mapping between a ROCM context and a PI context,
+/// There is no direct mapping between a HIP context and a PI context,
 /// main differences described below:
 ///
-/// <b> ROCM context vs PI context </b>
+/// <b> HIP context vs PI context </b>
 ///
-/// One of the main differences between the PI API and the ROCM driver API is
+/// One of the main differences between the PI API and the HIP driver API is
 /// that the second modifies the state of the threads by assigning
 /// `hipCtx_t` objects to threads. `hipCtx_t` objects store data associated
 /// with a given device and control access to said device from the user side.
 /// PI API context are objects that are passed to functions, and not bound
 /// to threads.
 /// The _pi_context object doesn't implement this behavior, only holds the
-/// ROCM context data. The RAII object \ref ScopedContext implements the active
+/// HIP context data. The RAII object \ref ScopedContext implements the active
 /// context behavior.
 ///
 /// <b> Primary vs User-defined context </b>
 ///
-/// ROCM has two different types of context, the Primary context,
+/// HIP has two different types of context, the Primary context,
 /// which is usable by all threads on a given process for a given device, and
 /// the aforementioned custom contexts.
-/// ROCM documentation, and performance analysis, indicates it is recommended
+/// HIP documentation, and performance analysis, indicates it is recommended
 /// to use Primary context whenever possible.
-/// Primary context is used as well by the ROCM Runtime API.
-/// For PI applications to interop with ROCM Runtime API, they have to use
+/// Primary context is used as well by the HIP Runtime API.
+/// For PI applications to interop with HIP Runtime API, they have to use
 /// the primary context - and make that active in the thread.
 /// The `_pi_context` object can be constructed with a `kind` parameter
 /// that allows to construct a Primary or `user-defined` context, so that
@@ -136,15 +136,15 @@ struct _pi_context {
   _pi_device *deviceId_;
   std::atomic_uint32_t refCount_;
 
-  hipEvent_t evBase_; // ROCM event used as base counter
+  hipEvent_t evBase_; // HIP event used as base counter
 
   _pi_context(kind k, hipCtx_t ctxt, _pi_device *devId)
       : kind_{k}, hipContext_{ctxt}, deviceId_{devId}, refCount_{1},
         evBase_(nullptr) {
-    rocm_piDeviceRetain(deviceId_);
+    hip_piDeviceRetain(deviceId_);
   };
 
-  ~_pi_context() { rocm_piDeviceRelease(deviceId_); }
+  ~_pi_context() { hip_piDeviceRelease(deviceId_); }
 
   void invoke_extended_deleters() {
     std::lock_guard<std::mutex> guard(mutex_);
@@ -176,8 +176,8 @@ private:
   std::vector<deleter_data> extended_deleters_;
 };
 
-/// PI Mem mapping to ROCM memory allocations, both data and texture/surface.
-/// \brief Represents non-SVM allocations on the ROCM backend.
+/// PI Mem mapping to HIP memory allocations, both data and texture/surface.
+/// \brief Represents non-SVM allocations on the HIP backend.
 /// Keeps tracks of all mapped regions used for Map/Unmap calls.
 /// Only one region can be active at the same time per allocation.
 struct _pi_mem {
@@ -194,18 +194,18 @@ struct _pi_mem {
 
   /// A PI Memory object represents either plain memory allocations ("Buffers"
   /// in OpenCL) or typed allocations ("Images" in OpenCL).
-  /// In ROCM their API handlers are different. Whereas "Buffers" are allocated
+  /// In HIP their API handlers are different. Whereas "Buffers" are allocated
   /// as pointer-like structs, "Images" are stored in Textures or Surfaces
   /// This union allows implementation to use either from the same handler.
   union mem_ {
-    // Handler for plain, pointer-based ROCM allocations
+    // Handler for plain, pointer-based HIP allocations
     struct buffer_mem_ {
       using native_type = hipDeviceptr_t;
 
       // If this allocation is a sub-buffer (i.e., a view on an existing
       // allocation), this is the pointer to the parent handler structure
       pi_mem parent_;
-      // ROCM handler for the pointer
+      // HIP handler for the pointer
       native_type ptr_;
 
       /// Pointer associated with this device on the host
@@ -220,7 +220,7 @@ struct _pi_mem {
       pi_map_flags mapFlags_;
 
       /** alloc_mode
-       * classic: Just a normal buffer allocated on the device via rocm malloc
+       * classic: Just a normal buffer allocated on the device via hip malloc
        * use_host_ptr: Use an address on the host for the device
        * copy_in: The data for the device comes from the host but the host
        pointer is not available later for re-use
@@ -250,7 +250,7 @@ struct _pi_mem {
 
       /// Returns a pointer to data visible on the host that contains
       /// the data on the device associated with this allocation.
-      /// The offset is used to index into the ROCM allocation.
+      /// The offset is used to index into the HIP allocation.
       ///
       void *map_to_ptr(size_t offset, pi_map_flags flags) noexcept {
         assert(mapPtr_ == nullptr);
@@ -309,9 +309,9 @@ struct _pi_mem {
     mem_.buffer_mem_.mapFlags_ = PI_MAP_WRITE;
     mem_.buffer_mem_.allocMode_ = mode;
     if (is_sub_buffer()) {
-      rocm_piMemRetain(mem_.buffer_mem_.parent_);
+      hip_piMemRetain(mem_.buffer_mem_.parent_);
     } else {
-      rocm_piContextRetain(context_);
+      hip_piContextRetain(context_);
     }
   };
 
@@ -322,17 +322,17 @@ struct _pi_mem {
     mem_.surface_mem_.array_ = array;
     mem_.surface_mem_.imageType_ = image_type;
     mem_.surface_mem_.surfObj_ = surf;
-    rocm_piContextRetain(context_);
+    hip_piContextRetain(context_);
   }
 
   ~_pi_mem() {
     if (mem_type_ == mem_type::buffer) {
       if (is_sub_buffer()) {
-        rocm_piMemRelease(mem_.buffer_mem_.parent_);
+        hip_piMemRelease(mem_.buffer_mem_.parent_);
         return;
       }
     }
-    rocm_piContextRelease(context_);
+    hip_piContextRelease(context_);
   }
 
   // TODO: Move as many shared funcs up as possible
@@ -369,13 +369,13 @@ struct _pi_queue {
             pi_queue_properties properties)
       : stream_{stream}, context_{context}, device_{device},
         properties_{properties}, refCount_{1}, eventCount_{0} {
-    rocm_piContextRetain(context_);
-    rocm_piDeviceRetain(device_);
+    hip_piContextRetain(context_);
+    hip_piDeviceRetain(device_);
   }
 
   ~_pi_queue() {
-    rocm_piContextRelease(context_);
-    rocm_piDeviceRelease(device_);
+    hip_piContextRelease(context_);
+    hip_piDeviceRelease(device_);
   }
 
   native_type get() const noexcept { return stream_; };
@@ -451,7 +451,7 @@ public:
   //
   pi_uint64 get_end_time() const;
 
-  // construct a native ROCM. This maps closely to the underlying ROCM event.
+  // construct a native HIP. This maps closely to the underlying HIP event.
   static pi_event make_native(pi_command_type type, pi_queue queue) {
     return new _pi_event(type, queue->get_context(), queue);
   }
@@ -462,7 +462,7 @@ public:
 
 private:
   // This constructor is private to force programmers to use the make_native /
-  // make_user static members in order to create a pi_event for ROCM.
+  // make_user static members in order to create a pi_event for HIP.
   _pi_event(pi_command_type type, pi_context context, pi_queue queue);
 
   pi_command_type commandType_; // The type of command associated with event.
@@ -472,7 +472,7 @@ private:
   bool isCompleted_; // Signifies whether the operations have completed
                      //
 
-  bool isRecorded_; // Signifies wether a native ROCM event has been recorded
+  bool isRecorded_; // Signifies wether a native HIP event has been recorded
                     // yet.
   bool isStarted_;  // Signifies wether the operation associated with the
                     // PI event has started or not
@@ -480,12 +480,12 @@ private:
 
   pi_uint32 eventId_; // Queue identifier of the event.
 
-  native_type evEnd_; // ROCM event handle. If this _pi_event represents a user
+  native_type evEnd_; // HIP event handle. If this _pi_event represents a user
                       // event, this will be nullptr.
 
-  native_type evStart_; // ROCM event handle associated with the start
+  native_type evStart_; // HIP event handle associated with the start
 
-  native_type evQueued_; // ROCM event handle associated with the time
+  native_type evQueued_; // HIP event handle associated with the time
                          // the command was enqueued
 
   pi_queue queue_; // pi_queue associated with the event. If this is a user
@@ -496,7 +496,7 @@ private:
                        // with the queue_ member.
 };
 
-/// Implementation of PI Program on ROCM Module object
+/// Implementation of PI Program on HIP Module object
 ///
 struct _pi_program {
   using native_type = hipModule_t;
@@ -530,20 +530,20 @@ struct _pi_program {
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 };
 
-/// Implementation of a PI Kernel for ROCM
+/// Implementation of a PI Kernel for HIP
 ///
 /// PI Kernels are used to set kernel arguments,
 /// creating a state on the Kernel object for a given
 /// invocation. This is not the case of HIPFunction objects,
 /// which are simply passed together with the arguments on the invocation.
-/// The PI Kernel implementation for ROCM stores the list of arguments,
+/// The PI Kernel implementation for HIP stores the list of arguments,
 /// argument sizes and offsets to emulate the interface of PI Kernel,
 /// saving the arguments for the later dispatch.
 /// Note that in PI API, the Local memory is specified as a size per
-/// individual argument, but in ROCM only the total usage of shared
+/// individual argument, but in HIP only the total usage of shared
 /// memory is required since it is not passed as a parameter.
 /// A compiler pass converts the PI API local memory model into the
-/// ROCM shared model. This object simply calculates the total of
+/// HIP shared model. This object simply calculates the total of
 /// shared memory, and the initial offsets of each parameter.
 ///
 struct _pi_kernel {
@@ -559,7 +559,7 @@ struct _pi_kernel {
   /// Structure that holds the arguments to the kernel.
   /// Note earch argument size is known, since it comes
   /// from the kernel signature.
-  /// This is not something can be queried from the ROCM API
+  /// This is not something can be queried from the HIP API
   /// so there is a hard-coded size (\ref MAX_PARAM_BYTES)
   /// and a storage.
   ///
@@ -630,8 +630,8 @@ struct _pi_kernel {
              const char *name, pi_program program, pi_context ctxt)
       : function_{func}, functionWithOffsetParam_{funcWithOffsetParam},
         name_{name}, context_{ctxt}, program_{program}, refCount_{1} {
-    rocm_piProgramRetain(program_);
-    rocm_piContextRetain(context_);
+    hip_piProgramRetain(program_);
+    hip_piContextRetain(context_);
   }
 
   _pi_kernel(hipFunction_t func, const char *name, pi_program program,
@@ -639,8 +639,8 @@ struct _pi_kernel {
       : _pi_kernel{func, nullptr, name, program, ctxt} {}
 
   ~_pi_kernel() {
-    rocm_piProgramRelease(program_);
-    rocm_piContextRelease(context_);
+    hip_piProgramRelease(program_);
+    hip_piContextRelease(context_);
   }
 
   pi_program get_program() const noexcept { return program_; }
@@ -668,7 +668,7 @@ struct _pi_kernel {
   /// Returns the number of arguments, excluding the implicit global offset.
   /// Note this only returns the current known number of arguments, not the
   /// real one required by the kernel, since this cannot be queried from
-  /// the ROCM Driver API
+  /// the HIP Driver API
   pi_uint32 get_num_args() const noexcept { return args_.indices_.size() - 1; }
 
   void set_kernel_arg(int index, size_t size, const void *arg) {
@@ -692,7 +692,7 @@ struct _pi_kernel {
   void clear_local_size() { args_.clear_local_size(); }
 };
 
-/// Implementation of samplers for ROCM
+/// Implementation of samplers for HIP
 ///
 /// Sampler property layout:
 /// | 31 30 ... 6 5 |      4 3 2      |     1      |         0        |
@@ -716,4 +716,4 @@ struct _pi_sampler {
 // Helper types and functions
 //
 
-#endif // PI_ROCM_HPP
+#endif // PI_HIP_HPP

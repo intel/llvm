@@ -12,7 +12,7 @@
 // UNSUPPORTED: cuda
 //
 // Linking issues with AMD:
-// XFAIL: rocm_amd
+// XFAIL: hip_amd
 
 #include <CL/sycl.hpp>
 #include <iostream>
