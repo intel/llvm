@@ -33,12 +33,16 @@ This file describes macros that have effect on SYCL compiler and run-time.
 
   Disables all deprecation warnings in SYCL runtime headers, including SYCL 1.2.1 deprecations.
 
-- `SYCL_DISABLE_FALLBACK_ASSERT`
+- **SYCL_DISABLE_FALLBACK_ASSERT**
 
-Forces fallback assert feature implementation disable i.e. the *copier kernel*
-and *checker host-task* are not enqueued. Also, DPCPP RT won't perform check if
-user's kernel uses `__devicelib_assert_fail`. Refer to [the document](Assert.md)
-for function behind *copier kernel* and *checker host-task*.
+  Defining this macro eliminates some overhead that is associated with
+  submitting kernels that call `assert()`. When this macro is defined, the logic
+  for detecting assertion failures in kernels is disabled, so a failed assert
+  will not cause a message to be printed and will not cause the program to
+  abort. However, this macro only affects kernels that are submitted to devices
+  that do **not** have native support for `assert()` because devices with native
+  support do not impose any extra overhead. One can check to see if a device has
+  native support for `assert()` via `aspect::ext_oneapi_native_assert`.
 
 ## Version macros
 
