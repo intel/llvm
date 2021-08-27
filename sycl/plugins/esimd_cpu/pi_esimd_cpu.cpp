@@ -351,7 +351,8 @@ extern "C" {
     std::cerr << "Warning : Not Implemented : " << __FUNCTION__                \
               << " - File : " << __FILE__;                                     \
     std::cerr << " / Line : " << __LINE__ << std::endl;                        \
-  }
+  }                                                                            \
+  return PI_SUCCESS;
 
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
@@ -684,6 +685,12 @@ pi_result piContextRelease(pi_context Context) {
 
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
+  if (Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+    // TODO : Support Out-of-order Queue with piQueueFinish
+    *Queue = nullptr;
+    return PI_INVALID_QUEUE_PROPERTIES;
+  }
+
   cm_support::CmQueue *CmQueue;
 
   int Result = Context->Device->CmDevicePtr->CreateQueue(CmQueue);
@@ -729,7 +736,9 @@ pi_result piQueueRelease(pi_queue Queue) {
 }
 
 pi_result piQueueFinish(pi_queue) {
-  DIE_NO_IMPLEMENTATION;
+  // TODO/FIXME : Only in-order queue is called for this API. Support
+  // Out-of-order Queue with piQueueCreate
+  CONTINUE_NO_IMPLEMENTATION;
 }
 
 pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
