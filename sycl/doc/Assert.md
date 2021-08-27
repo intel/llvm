@@ -149,10 +149,9 @@ The following sequence of events describes how user code gets notified:
    2. A host-task is enqueued to check value of assert failure flag.
    3. The host task calls abort whenever assert failure flag is set.
 
-DPCPP Runtime will automatically check if assertions are enabled in the kernel
+DPCPP Runtime will automatically check if assertions are used in the kernel
 being run, and won't enqueue the auxiliary kernels if assertions are not
-enabled. So there is no host-side runtime overhead when assertion are not
-enabled.
+used. So there is no host-side runtime overhead when assertion are not used.
 
 Illustrating this with an example, lets assume the user enqueues three kernels:
  - `Kernel #1`, uses assert
