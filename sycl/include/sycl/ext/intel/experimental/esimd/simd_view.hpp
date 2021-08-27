@@ -80,8 +80,7 @@ public:
   }                                                                            \
   ESIMD_INLINE friend auto operator BINOP(const simd_view &X,                  \
                                           const element_type &Y) {             \
-    return X BINOP(value_type)                                                 \
-    Y;                                                                         \
+    return X BINOP(value_type) Y;                                              \
   }                                                                            \
   ESIMD_INLINE friend auto operator BINOP(const value_type &X,                 \
                                           const simd_view &Y) {                \
@@ -110,8 +109,7 @@ public:
   }                                                                            \
   ESIMD_INLINE friend auto operator BITWISE_OP(const simd_view &X,             \
                                                const element_type &Y) {        \
-    return X BITWISE_OP(value_type)                                            \
-    Y;                                                                         \
+    return X BITWISE_OP(value_type) Y;                                         \
   }                                                                            \
   ESIMD_INLINE friend auto operator BITWISE_OP(const value_type &X,            \
                                                const simd_view &Y) {           \
