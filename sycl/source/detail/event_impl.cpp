@@ -20,6 +20,7 @@
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include "xpti_trace_framework.hpp"
 #include <atomic>
+#include <detail/xpti_registry.hpp>
 #include <sstream>
 #endif
 
@@ -209,16 +210,21 @@ void event_impl::wait(
 
 void event_impl::wait_and_throw(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) {
+  Command *Cmd = static_cast<Command *>(Self->getCommand());
+  QueueImplPtr submittedQueue = nullptr;
+  if (Cmd)
+    submittedQueue = Cmd->getSubmittedQueue();
+
   wait(Self);
+
   for (auto &EventImpl :
        detail::Scheduler::getInstance().getWaitList(std::move(Self))) {
     Command *Cmd = (Command *)EventImpl->getCommand();
     if (Cmd)
-      Cmd->getQueue()->throw_asynchronous();
+      Cmd->getSubmittedQueue()->throw_asynchronous();
   }
-  Command *Cmd = (Command *)getCommand();
-  if (Cmd)
-    Cmd->getQueue()->throw_asynchronous();
+  if (submittedQueue)
+    submittedQueue->throw_asynchronous();
 }
 
 void event_impl::cleanupCommand(

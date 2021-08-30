@@ -96,3 +96,10 @@
 // RUN:    | FileCheck -check-prefix NO_IMPLIED_DEVICE %s
 // NO_IMPLIED_DEVICE: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown-sycldevice"{{.*}} "-check-section"
 // NO_IMPLIED_DEVICE-NOT: clang-offload-bundler{{.*}} "-targets={{.*}}spir64-unknown-unknown-sycldevice{{.*}}" "-unbundle"
+
+/// Passing in the default triple should allow for -Xsycl-target options
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -Xsycl-target-backend=spir64 -DFOO -Xsycl-target-linker=spir64 -DFOO2 %S/Inputs/SYCL/objlin64.o 2>&1 \
+// RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT %s
+// SYCL_TARGET_OPT: clang-offload-wrapper{{.*}} "-compile-opts=-DFOO" "-link-opts=-DFOO2"

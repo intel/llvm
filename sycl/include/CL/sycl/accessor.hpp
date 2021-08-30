@@ -834,6 +834,8 @@ protected:
 #endif // __SYCL_DEVICE_ONLY__
 
     size_t Result = 0;
+    // Unroll the following loop for both host and device code
+    __SYCL_UNROLL(3)
     for (int I = 0; I < Dims; ++I)
       Result = Result * getMemoryRange()[I] + getOffset()[I] + Id[I];
     return Result;
