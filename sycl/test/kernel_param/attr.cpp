@@ -12,7 +12,7 @@ int main() {
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
       cgh.parallel_for<class C>(Size, [=](item<1> ITEM)
-                                          [[intel::reqd_work_group_size(4)]]{});
+                                          [[sycl::reqd_work_group_size(4)]]{});
     });
   }
 
