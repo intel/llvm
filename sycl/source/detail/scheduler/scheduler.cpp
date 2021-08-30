@@ -106,8 +106,9 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       if (MGraphBuilder
               .MPrintOptionsArray[GraphBuilder::PrintOptions::AfterAddCG])
         MGraphBuilder.printGraphAsDot("after_addCG");
-
+#if 0
       try {
+#endif
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         NewCmd->emitInstrumentation(xpti::trace_task_begin, nullptr);
 #endif
@@ -124,13 +125,14 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
           throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
         else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
+#if 0
       } catch (...) {
         // enqueueImp() func and if statement above may throw an exception,
         // so destroy required resources to avoid memory leak
         CleanUp();
         std::rethrow_exception(std::current_exception());
       }
-
+#endif
       CleanUp();
 
       for (auto StreamImplPtr : Streams) {
@@ -182,32 +184,39 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     for (Command *Cmd : AuxiliaryCmds) {
       Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
+#if 0
       try {
+#endif
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw runtime_error("Auxiliary enqueue process failed.",
                               PI_INVALID_OPERATION);
+#if 0
       } catch (...) {
         // enqueueCommand() func and if statement above may throw an exception,
         // so destroy required resources to avoid memory leak
         CleanUp();
         std::rethrow_exception(std::current_exception());
       }
+#endif
     }
 
     if (NewCmd) {
       // TODO: Check if lazy mode.
       EnqueueResultT Res;
+#if 0
       try {
+#endif
         bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+#if 0
       } catch (...) {
         // enqueueCommand() func and if statement above may throw an exception,
         // so destroy required resources to avoid memory leak
         CleanUp();
         std::rethrow_exception(std::current_exception());
       }
-
+#endif
       // If there are no memory dependencies decouple and free the command.
       // Though, dismiss ownership of native kernel command group as it's
       // resources may be in use by backend and synchronization point here is
