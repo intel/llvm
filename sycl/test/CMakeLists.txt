@@ -105,4 +105,3 @@ if(SYCL_BUILD_PI_ROCM)
 
   add_dependencies(check-sycl check-sycl-rocm)
 endif()
-add_subdirectory(on-device)
