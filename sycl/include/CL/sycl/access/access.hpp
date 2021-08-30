@@ -48,8 +48,12 @@ enum class address_space : int {
   local_space = 3,
   ext_intel_global_device_space = 4,
   ext_intel_host_device_space = 5,
-  global_device_space __SYCL2020_DEPRECATED("use ext_intel_global_device_space instead") = ext_intel_global_device_space,
-  global_host_space __SYCL2020_DEPRECATED("use ext_intel_host_device_space instead") = ext_intel_host_device_space,
+  global_device_space __SYCL2020_DEPRECATED(
+      "use 'ext_intel_global_device_space' instead") =
+      ext_intel_global_device_space,
+  global_host_space __SYCL2020_DEPRECATED(
+      "use 'ext_intel_host_device_space' instead") =
+      ext_intel_host_device_space,
 };
 
 } // namespace access

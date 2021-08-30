@@ -169,8 +169,9 @@ T make(const context &Context,
 } // namespace oneapi
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead") level_zero {
-  using ext::oneapi::level_zero;
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
+    level_zero {
+  using namespace ext::oneapi::level_zero;
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -497,7 +497,7 @@ void handler::ext_intel_barrier(const std::vector<event> &WaitList) {
       [](const event &Event) { return detail::getSyclObjImpl(Event); });
 }
 
-__SYCL2020_DEPRECATED("use ext_intel_barrier() instead")
+__SYCL2020_DEPRECATED("use 'ext_intel_barrier' instead")
 void handler::barrier(const std::vector<event> &WaitList) {
   handler::ext_intel_barrier(WaitList);
 }

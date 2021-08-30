@@ -221,12 +221,14 @@ online_compiler<source_language::cm>::compile(const std::string &src) {
 } // namespace ext
 
 namespace ext {
-namespace __SYCL2020_DEPRECATED("use 'ext::intel::experimental' instead") intel {
+namespace __SYCL2020_DEPRECATED(
+    "use 'ext::intel::experimental' instead") intel {
   using namespace ext::intel::experimental;
 } // namespace intel
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'ext::intel::experimental' instead") INTEL {
+namespace __SYCL2020_DEPRECATED(
+    "use 'ext::intel::experimental' instead") INTEL {
   using namespace ext::intel::experimental;
 } // namespace INTEL
 } // namespace sycl

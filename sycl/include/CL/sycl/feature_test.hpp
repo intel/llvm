@@ -29,6 +29,5 @@ namespace sycl {
 #define SYCL_EXT_INTEL_USM_ADDRESS_SPACES 1
 #define SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO 1
 
-
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -41,7 +41,7 @@ private:
 };
 
 class ext_intel_mem_channel : public detail::PropertyWithData<
-                        detail::PropWithDataKind::BufferMemChannel> {
+                                  detail::PropWithDataKind::BufferMemChannel> {
 public:
   ext_intel_mem_channel(uint32_t Channel) : MChannel(Channel) {}
   uint32_t get_channel() const { return MChannel; }
@@ -50,7 +50,7 @@ private:
   uint32_t MChannel;
 };
 
-class __SYCL2020_DEPRECATED("use ext_intel_mem_channel instead") mem_channel
+class __SYCL2020_DEPRECATED("use 'ext_intel_mem_channel' instead") mem_channel
     : public ext_intel_mem_channel {
 public:
   mem_channel(uint32_t Channel) : ext_intel_mem_channel(Channel) {}

@@ -2289,10 +2289,8 @@ public:
   /// Prevents any commands submitted afterward to this queue from executing
   /// until all commands previously submitted to this queue have entered the
   /// complete state.
-  __SYCL2020_DEPRECATED("use ext_intel_barrier instead")
-  void barrier() {
-    ext_intel_barrier();
-  }
+  __SYCL2020_DEPRECATED("use 'ext_intel_barrier' instead")
+  void barrier() { ext_intel_barrier(); }
 
   /// Prevents any commands submitted afterward to this queue from executing
   /// until all events in WaitList have entered the complete state. If WaitList
@@ -2308,7 +2306,7 @@ public:
   ///
   /// \param WaitList is a vector of valid SYCL events that need to complete
   /// before barrier command can be executed.
-  __SYCL2020_DEPRECATED("use ext_intel_barrier instead")
+  __SYCL2020_DEPRECATED("use 'ext_intel_barrier' instead")
   void barrier(const std::vector<event> &WaitList);
 
   /// Copies data from one memory region to another, both pointed by

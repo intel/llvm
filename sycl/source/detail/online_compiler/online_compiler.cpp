@@ -8,7 +8,7 @@
 
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <sycl/ext/intel/online_compiler.hpp>
+#include <sycl/ext/intel/experimental/online_compiler.hpp>
 
 #include <cstring>
 
@@ -235,12 +235,14 @@ __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
 } // namespace ext
 
 namespace ext {
-namespace __SYCL2020_DEPRECATED("use 'ext::intel::experimental' instead") intel {
+namespace __SYCL2020_DEPRECATED(
+    "use 'ext::intel::experimental' instead") intel {
   using namespace ext::intel::experimental;
 } // namespace intel
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'ext::intel::experimental' instead") INTEL {
+namespace __SYCL2020_DEPRECATED(
+    "use 'ext::intel::experimental' instead") INTEL {
   using namespace ext::intel::experimental;
 } // namespace INTEL
 } // namespace sycl
