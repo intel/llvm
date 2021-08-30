@@ -381,8 +381,9 @@ public:
     return rev_iterator(begin());
   }
 
-  _SYCL_SPAN_INLINE_VISIBILITY span<const std::byte, _Extent * sizeof(element_type)>
-  __as_bytes() const noexcept {
+  _SYCL_SPAN_INLINE_VISIBILITY
+      span<const std::byte, _Extent * sizeof(element_type)>
+      __as_bytes() const noexcept {
     return span<const std::byte, _Extent * sizeof(element_type)>{
         reinterpret_cast<const std::byte *>(data()), size_bytes()};
   }
