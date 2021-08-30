@@ -532,12 +532,10 @@ private:
   template <class KernelType, class NormalizedKernelType>
   KernelType *ResetHostKernelHelper(const KernelType &KernelFunc) {
     NormalizedKernelType NormalizedKernel(KernelFunc);
-    auto NormalizedKernelFunc =
-        std::function<void(void)>(NormalizedKernel);
+    auto NormalizedKernelFunc = std::function<void(void)>(NormalizedKernel);
     auto HostKernelPtr =
-        new detail::HostKernel<decltype(NormalizedKernelFunc),
-                               void, 0, KernelType>(
-            NormalizedKernelFunc);
+        new detail::HostKernel<decltype(NormalizedKernelFunc), void, 0,
+                               KernelType>(NormalizedKernelFunc);
     MHostKernel.reset(HostKernelPtr);
     return &HostKernelPtr->MKernel.template target<NormalizedKernelType>()
                 ->MKernelFunc;
@@ -559,17 +557,14 @@ private:
   }
 
   template <class KernelType, typename ArgT, int Dims>
-  typename std::enable_if<std::is_same<ArgT, void>::value,
-                          KernelType *>::type
+  typename std::enable_if<std::is_same<ArgT, void>::value, KernelType *>::type
   ResetHostKernel(const KernelType &KernelFunc) {
     static_assert(Dims == 0, "Dimension of 'void' argument must be zero");
     struct NormalizedKernelType {
       KernelType MKernelFunc;
       NormalizedKernelType(const KernelType &KernelFunc)
           : MKernelFunc(KernelFunc) {}
-      void operator()(void) {
-        MKernelFunc();
-      }
+      void operator()(void) { MKernelFunc(); }
     };
     return ResetHostKernelHelper<KernelType, struct NormalizedKernelType>(
         KernelFunc);
