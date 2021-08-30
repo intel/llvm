@@ -69,12 +69,14 @@ void test() {
   BCopyable IamBadButCopyable(1);
   C IamAlsoGood;
   DCopyable IamAlsoBadButCopyable{0};
+  marray<int, 5> MarrayForCopyableIsCopyable(0);
   queue Q;
   Q.single_task<class TestA>([=] {
     int A = IamGood.i;
     int B = IamBadButCopyable.i;
     int C = IamAlsoBadButCopyable.i;
     int D = IamAlsoGood.i;
+    int E = MarrayForCopyableIsCopyable[0];
   });
 
   Q.single_task<class TestB>(FunctorA{});
