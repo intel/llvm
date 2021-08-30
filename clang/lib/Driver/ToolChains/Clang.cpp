@@ -8945,13 +8945,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     // Symbol file and specialization constant info generation is mandatory -
     // add options unconditionally
     addArgs(CmdArgs, TCArgs, {"-symbols"});
-    // By default we split SYCL and ESIMD kernels into separate modules
-    if (TCArgs.hasFlag(options::OPT_fsycl_device_code_split_esimd,
-                       options::OPT_fno_sycl_device_code_split_esimd, true))
-      addArgs(CmdArgs, TCArgs, {"-split-esimd"});
-    if (TCArgs.hasFlag(options::OPT_fsycl_device_code_lower_esimd,
-                       options::OPT_fno_sycl_device_code_lower_esimd, true))
-      addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
+    addArgs(CmdArgs, TCArgs, {"-split-esimd"});
+    addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
   }
   addArgs(CmdArgs, TCArgs,
           {StringRef(getSYCLPostLinkOptimizationLevel(TCArgs))});
