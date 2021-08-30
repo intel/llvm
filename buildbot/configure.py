@@ -179,7 +179,7 @@ def main():
                         metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
     parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
-    parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose HIP backend")
+    parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
     parser.add_argument("--enable-esimd-cpu-emulation", action='store_true', help="build with ESIMD_CPU emulation support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
