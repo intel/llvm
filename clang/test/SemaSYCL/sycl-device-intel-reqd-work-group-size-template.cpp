@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
-// Test that checks template parameter support for 'intel::reqd_work_group_size' attribute on sycl device.
+// Test that checks template parameter support for 'sycl::reqd_work_group_size' attribute on sycl device.
 
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.

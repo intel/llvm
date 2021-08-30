@@ -2673,10 +2673,10 @@ allows the Y and Z arguments to be optional. If not provided by the user, the
 value of Y and Z defaults to 1. See section 5.8.1 Kernel Attributes for more
 details.
 
-In SYCL 1.2.1 mode, the ``intel::reqd_work_group_size``,
-``cl::reqd_work_group_size``, and ``sycl::reqd_work_group_size`` attributes are
-propagated from the function they are applied to onto the kernel which calls the
-function. In SYCL 2020 mode, the attributes are not propagated to the kernel.
+In SYCL 1.2.1 mode, the ``cl::reqd_work_group_size`` and
+``sycl::reqd_work_group_size`` attributes are propagated from the function they
+are applied to onto the kernel which calls the function. In SYCL 2020 mode, the
+attributes are not propagated to the kernel.
 
 .. code-block:: c++
 
@@ -2699,14 +2699,6 @@ function. In SYCL 2020 mode, the attributes are not propagated to the kernel.
 The ``[[cl::reqd_work_group_size(X, Y, Z)]]`` and
 ``__attribute__((reqd_work_group_size(X, Y, Z)))`` spellings are both
 deprecated in SYCL 2020.
-
-As an Intel extension, the ``[[intel::reqd_work_group_size(X, Y, Z)]]``
-spelling is supported with the same semantics as the
-``[[sycl::reqd_work_group_size(X, Y, Z)]]`` spelling.
-
-The ``[[intel::reqd_work_group_size(X, Y, Z)]]`` attribute spelling
-is deprecated in favor of the SYCL 2020 attribute spelling
-``[[sycl::reqd_work_group_size]]``.
 
 In OpenCL C, this attribute is available with the GNU spelling
 (``__attribute__((reqd_work_group_size(X, Y, Z)))``), see section
