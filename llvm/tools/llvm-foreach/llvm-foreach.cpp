@@ -18,6 +18,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/SystemUtils.h"
+#include "llvm/Support/Threading.h"
 
 #include <list>
 #include <vector>
@@ -196,9 +197,12 @@ int main(int argc, char **argv) {
 
   if (!ExecuteInParallel)
     error("Number of parallel threads should be a positive integer");
-  if (ExecuteInParallel > 16) {
-    ExecuteInParallel = 16;
-    errs() << "llvm-foreach: adjusted number of threads to 16 (max available)";
+
+  size_t MaxSafeNumThreads = optimal_concurrency().compute_thread_count();
+  if (ExecuteInParallel > MaxSafeNumThreads) {
+    ExecuteInParallel = MaxSafeNumThreads;
+    outs() << "llvm-foreach: adjusted number of threads to "
+           << MaxSafeNumThreads << " (max safe available).\n";
   }
 
   std::error_code EC;
