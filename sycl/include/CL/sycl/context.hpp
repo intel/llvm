@@ -243,10 +243,10 @@ private:
 __SYCL_CLOSE_NS()
 
 namespace std {
-template <> struct hash<__sycl_ns_alias::context> {
-  size_t operator()(const __sycl_ns_alias::context &Context) const {
-    return hash<std::shared_ptr<__sycl_ns_alias::detail::context_impl>>()(
-        __sycl_ns_alias::detail::getSyclObjImpl(Context));
+template <> struct hash<__sycl_ns::context> {
+  size_t operator()(const __sycl_ns::context &Context) const {
+    return hash<std::shared_ptr<__sycl_ns::detail::context_impl>>()(
+        __sycl_ns::detail::getSyclObjImpl(Context));
   }
 };
 } // namespace std

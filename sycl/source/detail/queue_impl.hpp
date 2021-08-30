@@ -80,7 +80,7 @@ public:
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()) {
     if (!Context->hasDevice(Device))
-      throw __sycl_ns_alias::invalid_parameter_error(
+      throw __sycl_ns::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
           "as the context does not contain the given device.",
           PI_INVALID_DEVICE);

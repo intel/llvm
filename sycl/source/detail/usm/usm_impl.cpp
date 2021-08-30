@@ -18,7 +18,7 @@
 
 __SYCL_OPEN_NS() {
 
-using alloc = __sycl_ns_alias::usm::alloc;
+using alloc = __sycl_ns::usm::alloc;
 
 namespace detail {
 namespace usm {

@@ -99,7 +99,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
       MOpenCLInterop(true), MHostEvent(false), MState(HES_Complete) {
 
   if (MContext->is_host()) {
-    throw __sycl_ns_alias::invalid_parameter_error(
+    throw __sycl_ns::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
         PI_INVALID_CONTEXT);
@@ -110,7 +110,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
                                               sizeof(RT::PiContext),
                                               &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
-    throw __sycl_ns_alias::invalid_parameter_error(
+    throw __sycl_ns::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
         PI_INVALID_CONTEXT);
@@ -185,7 +185,7 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 }
 
 void event_impl::wait(
-    std::shared_ptr<__sycl_ns_alias::detail::event_impl> Self) const {
+    std::shared_ptr<__sycl_ns::detail::event_impl> Self) const {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
   uint64_t IId;
@@ -208,7 +208,7 @@ void event_impl::wait(
 }
 
 void event_impl::wait_and_throw(
-    std::shared_ptr<__sycl_ns_alias::detail::event_impl> Self) {
+    std::shared_ptr<__sycl_ns::detail::event_impl> Self) {
   Command *Cmd = static_cast<Command *>(Self->getCommand());
   QueueImplPtr submittedQueue = nullptr;
   if (Cmd)
@@ -227,7 +227,7 @@ void event_impl::wait_and_throw(
 }
 
 void event_impl::cleanupCommand(
-    std::shared_ptr<__sycl_ns_alias::detail::event_impl> Self) const {
+    std::shared_ptr<__sycl_ns::detail::event_impl> Self) const {
   if (MCommand && !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
     detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
 }

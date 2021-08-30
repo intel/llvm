@@ -735,7 +735,7 @@ struct sub_group {
   }
 
 protected:
-  template <int dimensions> friend class __sycl_ns_alias::nd_item;
+  template <int dimensions> friend class __sycl_ns::nd_item;
   friend sub_group this_sub_group();
   friend sub_group experimental::this_sub_group();
   sub_group() = default;

@@ -27,10 +27,10 @@ __SYCL_CLOSE_NS()
 // However, SYCL 1.2.1 spec considers 'half' to be a fundamental C++ data type
 // which doesn't exist within the 'sycl' namespace.
 // Related spec issue: KhronosGroup/SYCL-Docs#40
-using half = __sycl_ns_alias::detail::half_impl::half;
+using half = __sycl_ns::detail::half_impl::half;
 
 #define __SYCL_MAKE_VECTOR_ALIAS(ALIAS, TYPE, N)                               \
-  using ALIAS##N = __sycl_ns_alias::vec<TYPE, N>;
+  using ALIAS##N = __sycl_ns::vec<TYPE, N>;
 
 #define __SYCL_MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES(N)                     \
   __SYCL_MAKE_VECTOR_ALIAS(char, char, N)                                      \
@@ -42,17 +42,17 @@ using half = __sycl_ns_alias::detail::half_impl::half;
   __SYCL_MAKE_VECTOR_ALIAS(half, half, N)
 
 #define __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                         \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_char, __sycl_ns_alias::cl_char, N)               \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_uchar, __sycl_ns_alias::cl_uchar, N)             \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_short, __sycl_ns_alias::cl_short, N)             \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_ushort, __sycl_ns_alias::cl_ushort, N)           \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_int, __sycl_ns_alias::cl_int, N)                 \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_uint, __sycl_ns_alias::cl_uint, N)               \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_long, __sycl_ns_alias::cl_long, N)               \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_ulong, __sycl_ns_alias::cl_ulong, N)             \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_float, __sycl_ns_alias::cl_float, N)             \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_double, __sycl_ns_alias::cl_double, N)           \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_half, __sycl_ns_alias::cl_half, N)
+  __SYCL_MAKE_VECTOR_ALIAS(cl_char, __sycl_ns::cl_char, N)                     \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_uchar, __sycl_ns::cl_uchar, N)                   \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_short, __sycl_ns::cl_short, N)                   \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_ushort, __sycl_ns::cl_ushort, N)                 \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_int, __sycl_ns::cl_int, N)                       \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_uint, __sycl_ns::cl_uint, N)                     \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_long, __sycl_ns::cl_long, N)                     \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_ulong, __sycl_ns::cl_ulong, N)                   \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_float, __sycl_ns::cl_float, N)                   \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_double, __sycl_ns::cl_double, N)                 \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_half, __sycl_ns::cl_half, N)
 
 #define __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)            \
   __SYCL_MAKE_VECTOR_ALIAS(schar, signed char, N)                              \
@@ -77,7 +77,7 @@ using uint = unsigned int;
 using ulong = unsigned long;
 using longlong = long long;
 using ulonglong = unsigned long long;
-using half = __sycl_ns_alias::detail::half_impl::half;
+using half = __sycl_ns::detail::half_impl::half;
 using cl_bool = bool;
 using cl_char = std::int8_t;
 using cl_uchar = std::uint8_t;

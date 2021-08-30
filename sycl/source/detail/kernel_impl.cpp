@@ -43,7 +43,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
   getPlugin().call<PiApiKind::piKernelGetInfo>(
       MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
   if (ContextImpl->getHandleRef() != Context)
-    throw __sycl_ns_alias::invalid_parameter_error(
+    throw __sycl_ns::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel",
         PI_INVALID_CONTEXT);
 }

@@ -195,14 +195,14 @@ namespace std {
 
 template <size_t I, typename... Types>
 constexpr typename tuple_element<I, tuple<Types...>>::type &
-get(__sycl_ns_alias::detail::tuple<Types...> &Arg) noexcept {
-  return __sycl_ns_alias::detail::get<I>()(Arg);
+get(__sycl_ns::detail::tuple<Types...> &Arg) noexcept {
+  return __sycl_ns::detail::get<I>()(Arg);
 }
 
 template <size_t I, typename... Types>
 constexpr typename tuple_element<I, tuple<Types...>>::type const &
-get(const __sycl_ns_alias::detail::tuple<Types...> &Arg) noexcept {
-  return __sycl_ns_alias::detail::get<I>()(Arg);
+get(const __sycl_ns::detail::tuple<Types...> &Arg) noexcept {
+  return __sycl_ns::detail::get<I>()(Arg);
 }
 
 } // namespace std

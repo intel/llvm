@@ -49,7 +49,7 @@ private:
   std::vector<std::exception_ptr> MList;
 };
 
-using async_handler = std::function<void(__sycl_ns_alias::exception_list)>;
+using async_handler = std::function<void(__sycl_ns::exception_list)>;
 
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()

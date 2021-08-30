@@ -40,7 +40,7 @@
 __SYCL_OPEN_NS() {
 namespace detail {
 
-using ContextImplPtr = std::shared_ptr<__sycl_ns_alias::detail::context_impl>;
+using ContextImplPtr = std::shared_ptr<__sycl_ns::detail::context_impl>;
 
 static constexpr int DbgProgMgr = 0;
 
@@ -1788,7 +1788,7 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
 __SYCL_CLOSE_NS()
 
 extern "C" void __sycl_register_lib(pi_device_binaries desc) {
-  __sycl_ns_alias::detail::ProgramManager::getInstance().addImages(desc);
+  __sycl_ns::detail::ProgramManager::getInstance().addImages(desc);
 }
 
 // Executed as a part of current module's (.exe, .dll) static initialization

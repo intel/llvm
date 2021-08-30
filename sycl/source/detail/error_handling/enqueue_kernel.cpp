@@ -27,7 +27,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
 
   const plugin &Plugin = DeviceImpl.getPlugin();
   RT::PiDevice Device = DeviceImpl.getHandleRef();
-  __sycl_ns_alias::platform Platform = DeviceImpl.get_platform();
+  __sycl_ns::platform Platform = DeviceImpl.get_platform();
 
   if (HasLocalSize) {
     size_t MaxThreadsPerBlock[3] = {};
@@ -53,7 +53,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
   bool IsOpenCL = false;    // Backend is any OpenCL version
   bool IsOpenCLV1x = false; // Backend is OpenCL 1.x
   bool IsOpenCLV20 = false; // Backend is OpenCL 2.0
-  if (Platform.get_backend() == __sycl_ns_alias::backend::opencl) {
+  if (Platform.get_backend() == __sycl_ns::backend::opencl) {
     std::string VersionString = DeviceImpl.get_info<info::device::version>();
     IsOpenCL = true;
     IsOpenCLV1x = (VersionString.find("1.") == 0);

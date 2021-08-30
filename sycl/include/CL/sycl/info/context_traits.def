@@ -1,4 +1,4 @@
 __SYCL_PARAM_TRAITS_SPEC(context, reference_count, cl_uint)
-__SYCL_PARAM_TRAITS_SPEC(context, platform, __sycl_ns_alias::platform)
-__SYCL_PARAM_TRAITS_SPEC(context, devices, std::vector<__sycl_ns_alias::device>)
-__SYCL_PARAM_TRAITS_SPEC(context, atomic_memory_order_capabilities, std::vector<__sycl_ns_alias::memory_order>)
+__SYCL_PARAM_TRAITS_SPEC(context, platform, __sycl_ns::platform)
+__SYCL_PARAM_TRAITS_SPEC(context, devices, std::vector<__sycl_ns::device>)
+__SYCL_PARAM_TRAITS_SPEC(context, atomic_memory_order_capabilities, std::vector<__sycl_ns::memory_order>)

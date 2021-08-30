@@ -674,28 +674,26 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
 __SYCL_CLOSE_NS()
 
 namespace std {
-template <> struct hash<__sycl_ns_alias::kernel_id> {
-  size_t operator()(const __sycl_ns_alias::kernel_id &KernelID) const {
-    return hash<std::shared_ptr<__sycl_ns_alias::detail::kernel_id_impl>>()(
-        __sycl_ns_alias::detail::getSyclObjImpl(KernelID));
+template <> struct hash<__sycl_ns::kernel_id> {
+  size_t operator()(const __sycl_ns::kernel_id &KernelID) const {
+    return hash<std::shared_ptr<__sycl_ns::detail::kernel_id_impl>>()(
+        __sycl_ns::detail::getSyclObjImpl(KernelID));
   }
 };
 
-template <__sycl_ns_alias::bundle_state State>
-struct hash<__sycl_ns_alias::device_image<State>> {
-  size_t
-  operator()(const __sycl_ns_alias::device_image<State> &DeviceImage) const {
-    return hash<std::shared_ptr<__sycl_ns_alias::detail::device_image_impl>>()(
-        __sycl_ns_alias::detail::getSyclObjImpl(DeviceImage));
+template <__sycl_ns::bundle_state State>
+struct hash<__sycl_ns::device_image<State>> {
+  size_t operator()(const __sycl_ns::device_image<State> &DeviceImage) const {
+    return hash<std::shared_ptr<__sycl_ns::detail::device_image_impl>>()(
+        __sycl_ns::detail::getSyclObjImpl(DeviceImage));
   }
 };
 
-template <__sycl_ns_alias::bundle_state State>
-struct hash<__sycl_ns_alias::kernel_bundle<State>> {
-  size_t
-  operator()(const __sycl_ns_alias::kernel_bundle<State> &KernelBundle) const {
-    return hash<std::shared_ptr<__sycl_ns_alias::detail::kernel_bundle_impl>>()(
-        __sycl_ns_alias::detail::getSyclObjImpl(KernelBundle));
+template <__sycl_ns::bundle_state State>
+struct hash<__sycl_ns::kernel_bundle<State>> {
+  size_t operator()(const __sycl_ns::kernel_bundle<State> &KernelBundle) const {
+    return hash<std::shared_ptr<__sycl_ns::detail::kernel_bundle_impl>>()(
+        __sycl_ns::detail::getSyclObjImpl(KernelBundle));
   }
 };
 } // namespace std

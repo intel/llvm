@@ -1,4 +1,4 @@
-__SYCL_PARAM_TRAITS_SPEC(program, context, __sycl_ns_alias::context)
-__SYCL_PARAM_TRAITS_SPEC(program, devices, std::vector<__sycl_ns_alias::device>)
+__SYCL_PARAM_TRAITS_SPEC(program, context, __sycl_ns::context)
+__SYCL_PARAM_TRAITS_SPEC(program, devices, std::vector<__sycl_ns::device>)
 __SYCL_PARAM_TRAITS_SPEC(program, reference_count, cl_uint)
 

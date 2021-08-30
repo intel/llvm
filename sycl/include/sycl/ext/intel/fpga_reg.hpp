@@ -57,6 +57,6 @@ namespace intelfpga {
 template <typename _T>
 [[deprecated("intelfpga::fpga_reg will be removed in a future release.")]] _T
 fpga_reg(const _T &t) {
-  return __sycl_ns_alias::ext::intel::fpga_reg(t);
+  return __sycl_ns::ext::intel::fpga_reg(t);
 }
 } // namespace intelfpga

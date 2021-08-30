@@ -25,10 +25,10 @@ namespace oneapi {
 
 namespace detail {
 
-using __sycl_ns_alias::detail::bool_constant;
-using __sycl_ns_alias::detail::enable_if_t;
-using __sycl_ns_alias::detail::queue_impl;
-using __sycl_ns_alias::detail::remove_AS;
+using __sycl_ns::detail::bool_constant;
+using __sycl_ns::detail::enable_if_t;
+using __sycl_ns::detail::queue_impl;
+using __sycl_ns::detail::remove_AS;
 
 // This type trait is used to detect if the atomic operation BinaryOperation
 // used with operands of the type T is available for using in reduction.
@@ -2071,7 +2071,7 @@ __SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
   namespace detail {
-  using __sycl_ns_alias::detail::queue_impl;
+  using __sycl_ns::detail::queue_impl;
   __SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
                                         size_t LocalMemBytesPerWorkItem);
   __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,

@@ -31,16 +31,16 @@ namespace oneapi {
 namespace detail {
 
 // Import from detail:: into ext::oneapi::detail:: to improve readability later
-using namespace ::__sycl_ns_alias::detail;
+using namespace ::__sycl_ns::detail;
 
-using memory_order = __sycl_ns_alias::ext::oneapi::memory_order;
-using memory_scope = __sycl_ns_alias::ext::oneapi::memory_scope;
+using memory_order = __sycl_ns::ext::oneapi::memory_order;
+using memory_scope = __sycl_ns::ext::oneapi::memory_scope;
 
 template <typename T>
 using IsValidAtomicType =
     bool_constant<std::is_arithmetic<T>::value || std::is_pointer<T>::value>;
 
-template <__sycl_ns_alias::access::address_space AS>
+template <__sycl_ns::access::address_space AS>
 using IsValidAtomicAddressSpace =
     bool_constant<AS == access::address_space::global_space ||
                   AS == access::address_space::local_space ||

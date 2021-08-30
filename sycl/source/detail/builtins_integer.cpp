@@ -15,7 +15,7 @@
 #include <algorithm>
 #include <type_traits>
 
-namespace s = __sycl_ns_alias;
+namespace s = __sycl_ns;
 namespace d = s::detail;
 
 __SYCL_INLINE_NAMESPACE(cl) {

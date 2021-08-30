@@ -146,10 +146,10 @@ private:
 __SYCL_CLOSE_NS()
 
 namespace std {
-template <> struct hash<__sycl_ns_alias::platform> {
-  size_t operator()(const __sycl_ns_alias::platform &p) const {
-    return hash<std::shared_ptr<__sycl_ns_alias::detail::platform_impl>>()(
-        __sycl_ns_alias::detail::getSyclObjImpl(p));
+template <> struct hash<__sycl_ns::platform> {
+  size_t operator()(const __sycl_ns::platform &p) const {
+    return hash<std::shared_ptr<__sycl_ns::detail::platform_impl>>()(
+        __sycl_ns::detail::getSyclObjImpl(p));
   }
 };
 } // namespace std

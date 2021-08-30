@@ -1018,10 +1018,10 @@ private:
 __SYCL_CLOSE_NS()
 
 namespace std {
-template <> struct hash<__sycl_ns_alias::queue> {
-  size_t operator()(const __sycl_ns_alias::queue &Q) const {
-    return std::hash<std::shared_ptr<__sycl_ns_alias::detail::queue_impl>>()(
-        __sycl_ns_alias::detail::getSyclObjImpl(Q));
+template <> struct hash<__sycl_ns::queue> {
+  size_t operator()(const __sycl_ns::queue &Q) const {
+    return std::hash<std::shared_ptr<__sycl_ns::detail::queue_impl>>()(
+        __sycl_ns::detail::getSyclObjImpl(Q));
   }
 };
 } // namespace std

@@ -60,20 +60,20 @@ constexpr uint32_t GMinVer = __LIBSYCL_MINOR_VERSION;
 constexpr const char *GVerStr = SYCL_VERSION_STR;
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
-template <__sycl_ns_alias::backend BE>
+template <__sycl_ns::backend BE>
 void *getPluginOpaqueData(void *OpaqueDataParam) {
   void *ReturnOpaqueData = nullptr;
-  const __sycl_ns_alias::detail::plugin &Plugin =
-      __sycl_ns_alias::detail::pi::getPlugin<BE>();
+  const __sycl_ns::detail::plugin &Plugin =
+      __sycl_ns::detail::pi::getPlugin<BE>();
 
-  Plugin.call<__sycl_ns_alias::detail::PiApiKind::piextPluginGetOpaqueData>(
+  Plugin.call<__sycl_ns::detail::PiApiKind::piextPluginGetOpaqueData>(
       OpaqueDataParam, &ReturnOpaqueData);
 
   return ReturnOpaqueData;
 }
 
 template __SYCL_EXPORT void *
-getPluginOpaqueData<__sycl_ns_alias::backend::esimd_cpu>(void *);
+getPluginOpaqueData<__sycl_ns::backend::esimd_cpu>(void *);
 
 namespace pi {
 
@@ -179,7 +179,7 @@ void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
 #endif
 }
 
-void contextSetExtendedDeleter(const __sycl_ns_alias::context &context,
+void contextSetExtendedDeleter(const __sycl_ns::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
   auto impl = getSyclObjImpl(context);
@@ -203,7 +203,7 @@ std::string platformInfoToString(pi_platform_info info) {
     return "PI_PLATFORM_INFO_EXTENSIONS";
   }
   die("Unknown pi_platform_info value passed to "
-      "__sycl_ns_alias::detail::pi::platformInfoToString");
+      "__sycl_ns::detail::pi::platformInfoToString");
 }
 
 std::string memFlagToString(pi_mem_flags Flag) {

@@ -40,33 +40,31 @@
 #define __SYCL_NONCONST_FUNCTOR__
 #endif
 
-template <typename DataT, int Dimensions,
-          __sycl_ns_alias::access::mode AccessMode,
-          __sycl_ns_alias::access::target AccessTarget,
-          __sycl_ns_alias::access::placeholder IsPlaceholder>
+template <typename DataT, int Dimensions, __sycl_ns::access::mode AccessMode,
+          __sycl_ns::access::target AccessTarget,
+          __sycl_ns::access::placeholder IsPlaceholder>
 class __fill;
 
 template <typename T> class __usmfill;
 
 template <typename T_Src, typename T_Dst, int Dims,
-          __sycl_ns_alias::access::mode AccessMode,
-          __sycl_ns_alias::access::target AccessTarget,
-          __sycl_ns_alias::access::placeholder IsPlaceholder>
+          __sycl_ns::access::mode AccessMode,
+          __sycl_ns::access::target AccessTarget,
+          __sycl_ns::access::placeholder IsPlaceholder>
 class __copyAcc2Ptr;
 
 template <typename T_Src, typename T_Dst, int Dims,
-          __sycl_ns_alias::access::mode AccessMode,
-          __sycl_ns_alias::access::target AccessTarget,
-          __sycl_ns_alias::access::placeholder IsPlaceholder>
+          __sycl_ns::access::mode AccessMode,
+          __sycl_ns::access::target AccessTarget,
+          __sycl_ns::access::placeholder IsPlaceholder>
 class __copyPtr2Acc;
 
-template <typename T_Src, int Dims_Src,
-          __sycl_ns_alias::access::mode AccessMode_Src,
-          __sycl_ns_alias::access::target AccessTarget_Src, typename T_Dst,
-          int Dims_Dst, __sycl_ns_alias::access::mode AccessMode_Dst,
-          __sycl_ns_alias::access::target AccessTarget_Dst,
-          __sycl_ns_alias::access::placeholder IsPlaceholder_Src,
-          __sycl_ns_alias::access::placeholder IsPlaceholder_Dst>
+template <typename T_Src, int Dims_Src, __sycl_ns::access::mode AccessMode_Src,
+          __sycl_ns::access::target AccessTarget_Src, typename T_Dst,
+          int Dims_Dst, __sycl_ns::access::mode AccessMode_Dst,
+          __sycl_ns::access::target AccessTarget_Dst,
+          __sycl_ns::access::placeholder IsPlaceholder_Src,
+          __sycl_ns::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
 
 // For unit testing purposes
@@ -208,8 +206,8 @@ template <typename T, class BinaryOperation, int Dims, bool IsUSM,
           access::placeholder IsPlaceholder>
 class reduction_impl;
 
-using __sycl_ns_alias::detail::enable_if_t;
-using __sycl_ns_alias::detail::queue_impl;
+using __sycl_ns::detail::enable_if_t;
+using __sycl_ns::detail::queue_impl;
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 void reduCGFunc(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
@@ -528,7 +526,7 @@ private:
     if (detail::isKernelLambdaCallableWithKernelHandler<KernelType,
                                                         LambdaArgType>() &&
         MIsHost) {
-      throw __sycl_ns_alias::feature_not_supported(
+      throw __sycl_ns::feature_not_supported(
           "kernel_handler is not yet supported by host device.",
           PI_INVALID_OPERATION);
     }

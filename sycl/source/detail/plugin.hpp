@@ -106,16 +106,16 @@ public:
   /// Checks return value from PI calls.
   ///
   /// \throw Exception if pi_result is not a PI_SUCCESS.
-  template <typename Exception = __sycl_ns_alias::runtime_error>
+  template <typename Exception = __sycl_ns::runtime_error>
   void checkPiResult(RT::PiResult pi_result) const {
     __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception);
   }
 
   void reportPiError(RT::PiResult pi_result, const char *context) const {
     if (pi_result != PI_SUCCESS) {
-      throw __sycl_ns_alias::runtime_error(
+      throw __sycl_ns::runtime_error(
           std::string(context) + " API failed with error: " +
-              __sycl_ns_alias::detail::codeToString(pi_result),
+              __sycl_ns::detail::codeToString(pi_result),
           pi_result);
     }
   }

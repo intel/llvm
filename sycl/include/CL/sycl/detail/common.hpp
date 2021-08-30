@@ -99,7 +99,7 @@ __SYCL_CLOSE_NS()
     auto code = expr;                                                          \
     if (code != CL_SUCCESS) {                                                  \
       std::cerr << __SYCL_OCL_ERROR_REPORT                                     \
-                << __sycl_ns_alias::detail::codeToString(code) << std::endl;   \
+                << __sycl_ns::detail::codeToString(code) << std::endl;         \
     }                                                                          \
   }
 #endif
@@ -112,14 +112,14 @@ __SYCL_CLOSE_NS()
     auto code = expr;                                                          \
     if (code != CL_SUCCESS) {                                                  \
       throw exc(__SYCL_OCL_ERROR_REPORT +                                      \
-                    __sycl_ns_alias::detail::codeToString(code),               \
+                    __sycl_ns::detail::codeToString(code),                     \
                 code);                                                         \
     }                                                                          \
   }
 #define __SYCL_REPORT_OCL_ERR_TO_EXC_THROW(code, exc)                          \
   __SYCL_REPORT_OCL_ERR_TO_EXC(code, exc)
 #define __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(code)                                \
-  __SYCL_REPORT_OCL_ERR_TO_EXC(code, __sycl_ns_alias::runtime_error)
+  __SYCL_REPORT_OCL_ERR_TO_EXC(code, __sycl_ns::runtime_error)
 #else
 #define __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(code)                                \
   __SYCL_REPORT_OCL_ERR_TO_STREAM(code)

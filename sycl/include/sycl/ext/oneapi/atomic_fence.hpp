@@ -20,7 +20,7 @@ __SYCL_OPEN_NS() {
 namespace ext {
 namespace oneapi {
 namespace detail {
-using namespace __sycl_ns_alias::detail;
+using namespace __sycl_ns::detail;
 }
 
 __SYCL2020_DEPRECATED("use sycl::atomic_fence instead")

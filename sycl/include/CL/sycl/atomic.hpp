@@ -32,7 +32,7 @@ class multi_ptr;
 
 namespace detail {
 
-using memory_order = __sycl_ns_alias::memory_order;
+using memory_order = __sycl_ns::memory_order;
 
 template <typename T> struct IsValidAtomicType {
   static constexpr bool value =
@@ -43,7 +43,7 @@ template <typename T> struct IsValidAtomicType {
        std::is_same<T, float>::value);
 };
 
-template <__sycl_ns_alias::access::address_space AS>
+template <__sycl_ns::access::address_space AS>
 struct IsValidAtomicAddressSpace {
   static constexpr bool value =
       (AS == access::address_space::global_space ||
@@ -89,56 +89,55 @@ __SYCL_CLOSE_NS()
 template <typename T>
 void __spirv_AtomicStore(std::atomic<T> *Ptr, __spv::Scope::Flag,
                          __spv::MemorySemanticsMask::Flag MS, T V) {
-  Ptr->store(V, __sycl_ns_alias::detail::getStdMemoryOrder(MS));
+  Ptr->store(V, __sycl_ns::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
 T __spirv_AtomicLoad(const std::atomic<T> *Ptr, __spv::Scope::Flag,
                      __spv::MemorySemanticsMask::Flag MS) {
-  return Ptr->load(__sycl_ns_alias::detail::getStdMemoryOrder(MS));
+  return Ptr->load(__sycl_ns::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
 T __spirv_AtomicExchange(std::atomic<T> *Ptr, __spv::Scope::Flag,
                          __spv::MemorySemanticsMask::Flag MS, T V) {
-  return Ptr->exchange(V, __sycl_ns_alias::detail::getStdMemoryOrder(MS));
+  return Ptr->exchange(V, __sycl_ns::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
 extern T __spirv_AtomicIAdd(std::atomic<T> *Ptr, __spv::Scope::Flag,
                             __spv::MemorySemanticsMask::Flag MS, T V) {
-  return Ptr->fetch_add(V, __sycl_ns_alias::detail::getStdMemoryOrder(MS));
+  return Ptr->fetch_add(V, __sycl_ns::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
 extern T __spirv_AtomicISub(std::atomic<T> *Ptr, __spv::Scope::Flag,
                             __spv::MemorySemanticsMask::Flag MS, T V) {
-  return Ptr->fetch_sub(V, __sycl_ns_alias::detail::getStdMemoryOrder(MS));
+  return Ptr->fetch_sub(V, __sycl_ns::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
 extern T __spirv_AtomicAnd(std::atomic<T> *Ptr, __spv::Scope::Flag,
                            __spv::MemorySemanticsMask::Flag MS, T V) {
-  return Ptr->fetch_and(V, __sycl_ns_alias::detail::getStdMemoryOrder(MS));
+  return Ptr->fetch_and(V, __sycl_ns::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
 extern T __spirv_AtomicOr(std::atomic<T> *Ptr, __spv::Scope::Flag,
                           __spv::MemorySemanticsMask::Flag MS, T V) {
-  return Ptr->fetch_or(V, __sycl_ns_alias::detail::getStdMemoryOrder(MS));
+  return Ptr->fetch_or(V, __sycl_ns::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
 extern T __spirv_AtomicXor(std::atomic<T> *Ptr, __spv::Scope::Flag,
                            __spv::MemorySemanticsMask::Flag MS, T V) {
-  return Ptr->fetch_xor(V, __sycl_ns_alias::detail::getStdMemoryOrder(MS));
+  return Ptr->fetch_xor(V, __sycl_ns::detail::getStdMemoryOrder(MS));
 }
 
 template <typename T>
 extern T __spirv_AtomicMin(std::atomic<T> *Ptr, __spv::Scope::Flag,
                            __spv::MemorySemanticsMask::Flag MS, T V) {
-  std::memory_order MemoryOrder =
-      __sycl_ns_alias::detail::getStdMemoryOrder(MS);
+  std::memory_order MemoryOrder = __sycl_ns::detail::getStdMemoryOrder(MS);
   T Val = Ptr->load(MemoryOrder);
   while (V < Val) {
     if (Ptr->compare_exchange_strong(Val, V, MemoryOrder, MemoryOrder))
@@ -151,8 +150,7 @@ extern T __spirv_AtomicMin(std::atomic<T> *Ptr, __spv::Scope::Flag,
 template <typename T>
 extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope::Flag,
                            __spv::MemorySemanticsMask::Flag MS, T V) {
-  std::memory_order MemoryOrder =
-      __sycl_ns_alias::detail::getStdMemoryOrder(MS);
+  std::memory_order MemoryOrder = __sycl_ns::detail::getStdMemoryOrder(MS);
   T Val = Ptr->load(MemoryOrder);
   while (V > Val) {
     if (Ptr->compare_exchange_strong(Val, V, MemoryOrder, MemoryOrder))

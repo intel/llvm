@@ -214,7 +214,7 @@ public:
 private:
   template <typename, int, access::mode, access::target, access::placeholder,
             typename PropertyListT>
-  friend class __sycl_ns_alias::accessor;
+  friend class __sycl_ns::accessor;
 
   template <typename... OtherProps> friend class accessor_property_list;
 

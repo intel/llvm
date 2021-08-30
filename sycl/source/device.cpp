@@ -22,8 +22,8 @@ void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
     t = ft;
   } else if (ft != info::device_type::all && t != ft) {
-    throw __sycl_ns_alias::invalid_parameter_error("No device of forced type.",
-                                                   PI_INVALID_OPERATION);
+    throw __sycl_ns::invalid_parameter_error("No device of forced type.",
+                                             PI_INVALID_OPERATION);
   }
 }
 } // namespace detail

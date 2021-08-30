@@ -505,9 +505,9 @@ constexpr bool check_atomic() {
       return false;
     }
     if constexpr (!is_type<T, float,
-                           __sycl_ns_alias::detail::half_impl::StorageT>()) {
+                           __sycl_ns::detail::half_impl::StorageT>()) {
       static_assert(
-          (is_type<T, float, __sycl_ns_alias::detail::half_impl::StorageT>()),
+          (is_type<T, float, __sycl_ns::detail::half_impl::StorageT>()),
           "Type F or HF is expected");
       return false;
     }
@@ -528,9 +528,9 @@ constexpr bool check_atomic() {
     }
     if constexpr (Op == atomic_op::fcmpwr &&
                   !is_type<T, float,
-                           __sycl_ns_alias::detail::half_impl::StorageT>()) {
+                           __sycl_ns::detail::half_impl::StorageT>()) {
       static_assert(
-          (is_type<T, float, __sycl_ns_alias::detail::half_impl::StorageT>()),
+          (is_type<T, float, __sycl_ns::detail::half_impl::StorageT>()),
           "Type F or HF is expected");
       return false;
     }

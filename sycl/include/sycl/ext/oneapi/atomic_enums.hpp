@@ -23,7 +23,7 @@ __SYCL_OPEN_NS() {
 namespace ext {
 namespace oneapi {
 
-using memory_order = __sycl_ns_alias::memory_order;
+using memory_order = __sycl_ns::memory_order;
 __SYCL_INLINE_CONSTEXPR memory_order memory_order_relaxed =
     memory_order::relaxed;
 __SYCL_INLINE_CONSTEXPR memory_order memory_order_acquire =
@@ -35,7 +35,7 @@ __SYCL_INLINE_CONSTEXPR memory_order memory_order_acq_rel =
 __SYCL_INLINE_CONSTEXPR memory_order memory_order_seq_cst =
     memory_order::seq_cst;
 
-using memory_scope = __sycl_ns_alias::memory_scope;
+using memory_scope = __sycl_ns::memory_scope;
 __SYCL_INLINE_CONSTEXPR memory_scope memory_scope_work_item =
     memory_scope::work_item;
 __SYCL_INLINE_CONSTEXPR memory_scope memory_scope_sub_group =
@@ -49,7 +49,7 @@ __SYCL_INLINE_CONSTEXPR memory_scope memory_scope_system = memory_scope::system;
 namespace detail {
 
 static inline constexpr std::memory_order
-getStdMemoryOrder(::__sycl_ns_alias::ext::oneapi::memory_order order) {
+getStdMemoryOrder(::__sycl_ns::ext::oneapi::memory_order order) {
   switch (order) {
   case memory_order::relaxed:
     return std::memory_order_relaxed;

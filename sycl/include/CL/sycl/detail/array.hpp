@@ -47,16 +47,16 @@ public:
   array() : array(0, 0, 0) {}
 
   // Conversion operators to derived classes
-  operator __sycl_ns_alias::id<dimensions>() const {
-    __sycl_ns_alias::id<dimensions> result;
+  operator __sycl_ns::id<dimensions>() const {
+    __sycl_ns::id<dimensions> result;
     for (int i = 0; i < dimensions; ++i) {
       result[i] = common_array[i];
     }
     return result;
   }
 
-  operator __sycl_ns_alias::range<dimensions>() const {
-    __sycl_ns_alias::range<dimensions> result;
+  operator __sycl_ns::range<dimensions>() const {
+    __sycl_ns::range<dimensions> result;
     for (int i = 0; i < dimensions; ++i) {
       result[i] = common_array[i];
     }
@@ -110,8 +110,8 @@ protected:
   __SYCL_ALWAYS_INLINE void check_dimension(int dimension) const {
 #ifndef __SYCL_DEVICE_ONLY__
     if (dimension >= dimensions || dimension < 0) {
-      throw __sycl_ns_alias::invalid_parameter_error("Index out of range",
-                                                     PI_INVALID_VALUE);
+      throw __sycl_ns::invalid_parameter_error("Index out of range",
+                                               PI_INVALID_VALUE);
     }
 #endif
     (void)dimension;

@@ -213,7 +213,7 @@ event handler::finalize() {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
     detail::EventImplPtr Event =
-        std::make_shared<__sycl_ns_alias::detail::event_impl>();
+        std::make_shared<__sycl_ns::detail::event_impl>();
     MLastEvent = detail::createSyclObjFromImpl<event>(Event);
     return MLastEvent;
   }
@@ -383,7 +383,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     case access::target::host_image:
     case access::target::host_buffer: {
-      throw __sycl_ns_alias::invalid_parameter_error(
+      throw __sycl_ns::invalid_parameter_error(
           "Unsupported accessor target case.", PI_INVALID_OPERATION);
       break;
     }

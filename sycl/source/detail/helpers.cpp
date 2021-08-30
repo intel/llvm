@@ -15,10 +15,10 @@
 #include <memory>
 
 __SYCL_OPEN_NS() {
-using ContextImplPtr = std::shared_ptr<__sycl_ns_alias::detail::context_impl>;
+using ContextImplPtr = std::shared_ptr<__sycl_ns::detail::context_impl>;
 namespace detail {
 std::vector<RT::PiEvent>
-getOrWaitEvents(std::vector<__sycl_ns_alias::event> DepEvents,
+getOrWaitEvents(std::vector<__sycl_ns::event> DepEvents,
                 ContextImplPtr Context) {
   std::vector<RT::PiEvent> Events;
   for (auto SyclEvent : DepEvents) {
@@ -33,7 +33,7 @@ getOrWaitEvents(std::vector<__sycl_ns_alias::event> DepEvents,
   return Events;
 }
 
-void waitEvents(std::vector<__sycl_ns_alias::event> DepEvents) {
+void waitEvents(std::vector<__sycl_ns::event> DepEvents) {
   for (auto SyclEvent : DepEvents) {
     detail::getSyclObjImpl(SyclEvent)->waitInternal();
   }

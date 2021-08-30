@@ -16,11 +16,11 @@ namespace usm {
 
 __SYCL_EXPORT void *alignedAlloc(size_t Alignment, size_t Bytes,
                                  const context &Ctxt, const device &Dev,
-                                 __sycl_ns_alias::usm::alloc Kind);
+                                 __sycl_ns::usm::alloc Kind);
 
 __SYCL_EXPORT void *alignedAllocHost(size_t Alignment, size_t Bytes,
                                      const context &Ctxt,
-                                     __sycl_ns_alias::usm::alloc Kind);
+                                     __sycl_ns::usm::alloc Kind);
 
 __SYCL_EXPORT void free(void *Ptr, const context &Ctxt);
 

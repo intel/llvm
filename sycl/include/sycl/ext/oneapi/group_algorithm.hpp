@@ -26,43 +26,44 @@ namespace oneapi {
 
 // EnableIf shorthands for algorithms that depend only on type
 template <typename T>
-using EnableIfIsScalarArithmetic = __sycl_ns_alias::detail::enable_if_t<
-    __sycl_ns_alias::detail::is_scalar_arithmetic<T>::value, T>;
+using EnableIfIsScalarArithmetic = __sycl_ns::detail::enable_if_t<
+    __sycl_ns::detail::is_scalar_arithmetic<T>::value, T>;
 
 template <typename T>
-using EnableIfIsVectorArithmetic = __sycl_ns_alias::detail::enable_if_t<
-    __sycl_ns_alias::detail::is_vector_arithmetic<T>::value, T>;
+using EnableIfIsVectorArithmetic = __sycl_ns::detail::enable_if_t<
+    __sycl_ns::detail::is_vector_arithmetic<T>::value, T>;
 
 template <typename Ptr, typename T>
-using EnableIfIsPointer = __sycl_ns_alias::detail::enable_if_t<
-    __sycl_ns_alias::detail::is_pointer<Ptr>::value, T>;
+using EnableIfIsPointer =
+    __sycl_ns::detail::enable_if_t<__sycl_ns::detail::is_pointer<Ptr>::value,
+                                   T>;
 
 template <typename T>
-using EnableIfIsTriviallyCopyable = __sycl_ns_alias::detail::enable_if_t<
+using EnableIfIsTriviallyCopyable = __sycl_ns::detail::enable_if_t<
     std::is_trivially_copyable<T>::value &&
-        !__sycl_ns_alias::detail::is_vector_arithmetic<T>::value,
+        !__sycl_ns::detail::is_vector_arithmetic<T>::value,
     T>;
 
 // EnableIf shorthands for algorithms that depend on type and an operator
 template <typename T, typename BinaryOperation>
-using EnableIfIsScalarArithmeticNativeOp = __sycl_ns_alias::detail::enable_if_t<
-    __sycl_ns_alias::detail::is_scalar_arithmetic<T>::value &&
-        __sycl_ns_alias::detail::is_native_op<T, BinaryOperation>::value,
+using EnableIfIsScalarArithmeticNativeOp = __sycl_ns::detail::enable_if_t<
+    __sycl_ns::detail::is_scalar_arithmetic<T>::value &&
+        __sycl_ns::detail::is_native_op<T, BinaryOperation>::value,
     T>;
 
 template <typename T, typename BinaryOperation>
-using EnableIfIsVectorArithmeticNativeOp = __sycl_ns_alias::detail::enable_if_t<
-    __sycl_ns_alias::detail::is_vector_arithmetic<T>::value &&
-        __sycl_ns_alias::detail::is_native_op<T, BinaryOperation>::value,
+using EnableIfIsVectorArithmeticNativeOp = __sycl_ns::detail::enable_if_t<
+    __sycl_ns::detail::is_vector_arithmetic<T>::value &&
+        __sycl_ns::detail::is_native_op<T, BinaryOperation>::value,
     T>;
 
 // TODO: Lift TriviallyCopyable restriction eventually
 template <typename T, typename BinaryOperation>
-using EnableIfIsNonNativeOp = __sycl_ns_alias::detail::enable_if_t<
-    (!__sycl_ns_alias::detail::is_scalar_arithmetic<T>::value &&
-     !__sycl_ns_alias::detail::is_vector_arithmetic<T>::value &&
+using EnableIfIsNonNativeOp = __sycl_ns::detail::enable_if_t<
+    (!__sycl_ns::detail::is_scalar_arithmetic<T>::value &&
+     !__sycl_ns::detail::is_vector_arithmetic<T>::value &&
      std::is_trivially_copyable<T>::value) ||
-        !__sycl_ns_alias::detail::is_native_op<T, BinaryOperation>::value,
+        !__sycl_ns::detail::is_native_op<T, BinaryOperation>::value,
     T>;
 
 template <typename Group>

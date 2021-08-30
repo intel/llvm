@@ -78,7 +78,7 @@ device_filter::device_filter(const std::string &FilterString) {
           "{host,opencl,level_zero,cuda,rocm,*}.\n"
           "Possible device types are {host,cpu,gpu,acc,*}.\n"
           "Device number should be an non-negative integer.\n";
-      throw __sycl_ns_alias::invalid_parameter_error(Message, PI_INVALID_VALUE);
+      throw __sycl_ns::invalid_parameter_error(Message, PI_INVALID_VALUE);
     }
   }
 }

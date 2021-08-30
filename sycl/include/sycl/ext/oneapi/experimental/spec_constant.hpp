@@ -43,7 +43,7 @@ private:
 #else
   char padding[sizeof(T)];
 #endif // __SYCL_DEVICE_ONLY__
-  friend class __sycl_ns_alias::program;
+  friend class __sycl_ns::program;
 
 public:
   template <typename V = T>

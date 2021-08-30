@@ -44,7 +44,7 @@ enum class PiApiKind {
 };
 class plugin;
 
-template <__sycl_ns_alias::backend BE>
+template <__sycl_ns::backend BE>
 __SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
 
 namespace pi {
@@ -93,7 +93,7 @@ void handleUnknownParamName(const char *functionName, T parameter) {
 // GetInfo functions. It will print the name of the function that invoked it
 // and the value of the unknown enumerator.
 #define __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(parameter)                         \
-  { __sycl_ns_alias::detail::pi::handleUnknownParamName(__func__, parameter); }
+  { __sycl_ns::detail::pi::handleUnknownParamName(__func__, parameter); }
 
 using PiPlugin = ::pi_plugin;
 using PiResult = ::pi_result;
@@ -122,9 +122,9 @@ using PiMemObjectType = ::pi_mem_type;
 using PiMemImageChannelOrder = ::pi_image_channel_order;
 using PiMemImageChannelType = ::pi_image_channel_type;
 
-__SYCL_EXPORT void
-contextSetExtendedDeleter(const __sycl_ns_alias::context &constext,
-                          pi_context_extended_deleter func, void *user_data);
+__SYCL_EXPORT void contextSetExtendedDeleter(const __sycl_ns::context &constext,
+                                             pi_context_extended_deleter func,
+                                             void *user_data);
 
 // Function to load the shared library
 // Implementation is OS dependent.
@@ -382,7 +382,7 @@ PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
 
 } // namespace pi
 
-namespace RT = __sycl_ns_alias::detail::pi;
+namespace RT = __sycl_ns::detail::pi;
 
 // Workaround for build with GCC 5.x
 // An explicit specialization shall be declared in the namespace block.
@@ -413,7 +413,7 @@ template <> inline pi::PiDevice cast(cl_device_id) {
 } // namespace detail
 
 // For shortness of using PI from the top-level sycl files.
-namespace RT = __sycl_ns_alias::detail::pi;
+namespace RT = __sycl_ns::detail::pi;
 
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()

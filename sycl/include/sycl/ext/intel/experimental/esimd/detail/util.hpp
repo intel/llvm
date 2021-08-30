@@ -82,8 +82,8 @@ template <typename T, int N>
 struct is_esimd_vector<simd<T, N>> : public std::true_type {};
 
 template <typename T>
-using is_esimd_scalar = typename std::bool_constant<
-    __sycl_ns_alias::detail::is_arithmetic<T>::value>;
+using is_esimd_scalar =
+    typename std::bool_constant<__sycl_ns::detail::is_arithmetic<T>::value>;
 
 template <typename T, int N>
 using is_hw_int_type =

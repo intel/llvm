@@ -46,5 +46,5 @@ __SYCL_EXPORT void __spirv_MemoryBarrier(__spv::Scope Memory,
 
 __SYCL_EXPORT void __spirv_ocl_prefetch(const char *Ptr,
                                         size_t NumBytes) noexcept {
-  __sycl_ns_alias::detail::PlatformUtil::prefetch(Ptr, NumBytes);
+  __sycl_ns::detail::PlatformUtil::prefetch(Ptr, NumBytes);
 }

@@ -64,23 +64,23 @@ using EnableIfFP =
                                  T>;
 
 using GlobalBufAccessorT =
-    accessor<char, 1, __sycl_ns_alias::access::mode::read_write,
-             __sycl_ns_alias::access::target::global_buffer,
-             __sycl_ns_alias::access::placeholder::false_t>;
+    accessor<char, 1, __sycl_ns::access::mode::read_write,
+             __sycl_ns::access::target::global_buffer,
+             __sycl_ns::access::placeholder::false_t>;
 
 constexpr static access::address_space GlobalBufAS =
-    TargetToAS<__sycl_ns_alias::access::target::global_buffer>::AS;
+    TargetToAS<__sycl_ns::access::target::global_buffer>::AS;
 using GlobalBufPtrType =
     typename detail::DecoratedType<char, GlobalBufAS>::type *;
 constexpr static int GlobalBufDim = 1;
 
 using GlobalOffsetAccessorT =
-    accessor<unsigned, 1, __sycl_ns_alias::access::mode::atomic,
-             __sycl_ns_alias::access::target::global_buffer,
-             __sycl_ns_alias::access::placeholder::false_t>;
+    accessor<unsigned, 1, __sycl_ns::access::mode::atomic,
+             __sycl_ns::access::target::global_buffer,
+             __sycl_ns::access::placeholder::false_t>;
 
 constexpr static access::address_space GlobalOffsetAS =
-    TargetToAS<__sycl_ns_alias::access::target::global_buffer>::AS;
+    TargetToAS<__sycl_ns::access::target::global_buffer>::AS;
 using GlobalOffsetPtrType =
     typename detail::DecoratedType<unsigned, GlobalBufAS>::type *;
 constexpr static int GlobalOffsetDim = 1;
@@ -645,11 +645,11 @@ template <typename> struct IsSwizzleOp : std::false_type {};
 
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
-struct IsSwizzleOp<__sycl_ns_alias::detail::SwizzleOp<
+struct IsSwizzleOp<__sycl_ns::detail::SwizzleOp<
     VecT, OperationLeftT, OperationRightT, OperationCurrentT, Indexes...>>
     : std::true_type {
   using T = typename VecT::element_type;
-  using Type = typename __sycl_ns_alias::vec<T, (sizeof...(Indexes))>;
+  using Type = typename __sycl_ns::vec<T, (sizeof...(Indexes))>;
 };
 
 template <typename T>
@@ -1143,14 +1143,14 @@ inline const stream &operator<<(const stream &Out, const T &RHS) {
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()
 namespace std {
-template <> struct hash<__sycl_ns_alias::stream> {
-  size_t operator()(const __sycl_ns_alias::stream &S) const {
+template <> struct hash<__sycl_ns::stream> {
+  size_t operator()(const __sycl_ns::stream &S) const {
 #ifdef __SYCL_DEVICE_ONLY__
     (void)S;
     return 0;
 #else
-    return hash<std::shared_ptr<__sycl_ns_alias::detail::stream_impl>>()(
-        __sycl_ns_alias::detail::getSyclObjImpl(S));
+    return hash<std::shared_ptr<__sycl_ns::detail::stream_impl>>()(
+        __sycl_ns::detail::getSyclObjImpl(S));
 #endif
   }
 };

@@ -71,8 +71,7 @@ using image_allocator = detail::aligned_allocator<byte>;
 /// \sa sampler
 ///
 /// \ingroup sycl_api
-template <int Dimensions = 1,
-          typename AllocatorT = __sycl_ns_alias::image_allocator>
+template <int Dimensions = 1, typename AllocatorT = __sycl_ns::image_allocator>
 class image {
 public:
   image(image_channel_order Order, image_channel_type Type,
@@ -318,12 +317,10 @@ __SYCL_CLOSE_NS()
 
 namespace std {
 template <int Dimensions, typename AllocatorT>
-struct hash<__sycl_ns_alias::image<Dimensions, AllocatorT>> {
-  size_t
-  operator()(const __sycl_ns_alias::image<Dimensions, AllocatorT> &I) const {
-    return hash<
-        std::shared_ptr<__sycl_ns_alias::detail::image_impl<Dimensions>>>()(
-        __sycl_ns_alias::detail::getSyclObjImpl(I));
+struct hash<__sycl_ns::image<Dimensions, AllocatorT>> {
+  size_t operator()(const __sycl_ns::image<Dimensions, AllocatorT> &I) const {
+    return hash<std::shared_ptr<__sycl_ns::detail::image_impl<Dimensions>>>()(
+        __sycl_ns::detail::getSyclObjImpl(I));
   }
 };
 } // namespace std

@@ -217,10 +217,10 @@ private:
 __SYCL_CLOSE_NS()
 
 namespace std {
-template <> struct hash<__sycl_ns_alias::device> {
-  size_t operator()(const __sycl_ns_alias::device &Device) const {
-    return hash<std::shared_ptr<__sycl_ns_alias::detail::device_impl>>()(
-        __sycl_ns_alias::detail::getSyclObjImpl(Device));
+template <> struct hash<__sycl_ns::device> {
+  size_t operator()(const __sycl_ns::device &Device) const {
+    return hash<std::shared_ptr<__sycl_ns::detail::device_impl>>()(
+        __sycl_ns::detail::getSyclObjImpl(Device));
   }
 };
 } // namespace std

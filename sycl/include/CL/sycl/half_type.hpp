@@ -408,14 +408,14 @@ __SYCL_CLOSE_NS()
 namespace std {
 
 // Partial specialization of `std::hash<sycl::half>`
-template <> struct hash<__sycl_ns_alias::half> {
-  size_t operator()(__sycl_ns_alias::half const &Key) const noexcept {
+template <> struct hash<__sycl_ns::half> {
+  size_t operator()(__sycl_ns::half const &Key) const noexcept {
     return hash<uint16_t>{}(reinterpret_cast<const uint16_t &>(Key));
   }
 };
 
 // Partial specialization of `std::numeric<sycl::half>`
-template <> struct numeric_limits<__sycl_ns_alias::half> {
+template <> struct numeric_limits<__sycl_ns::half> {
   // All following values are either calculated based on description of each
   // function/value on https://en.cppreference.com/w/cpp/types/numeric_limits,
   // or cl_platform.h.
@@ -443,61 +443,56 @@ template <> struct numeric_limits<__sycl_ns_alias::half> {
   static constexpr bool is_iec559 = true;
   static constexpr float_round_style round_style = round_to_nearest;
 
-  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half(min)() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_ns::half(min)() noexcept {
     return 6.103515625e-05f; // half minimum value
   }
 
-  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half(max)() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_ns::half(max)() noexcept {
     return 65504.0f; // half maximum value
   }
 
-  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half lowest() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_ns::half lowest() noexcept {
     return -65504.0f; // -1*(half maximum value)
   }
 
-  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half epsilon() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_ns::half epsilon() noexcept {
     return 9.765625e-04f; // half epsilon
   }
 
-  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half
-  round_error() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_ns::half round_error() noexcept {
     return 0.5f;
   }
 
-  static constexpr const __sycl_ns_alias::half infinity() noexcept {
+  static constexpr const __sycl_ns::half infinity() noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     return __builtin_huge_valf();
 #else
-    return __sycl_ns_alias::detail::host_half_impl::half_v2(
+    return __sycl_ns::detail::host_half_impl::half_v2(
         static_cast<uint16_t>(0x7C00));
 #endif
   }
 
-  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half
-  quiet_NaN() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_ns::half quiet_NaN() noexcept {
     return __builtin_nanf("");
   }
 
-  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half
-  signaling_NaN() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_ns::half signaling_NaN() noexcept {
     return __builtin_nansf("");
   }
 
-  static __SYCL_CONSTEXPR_HALF const __sycl_ns_alias::half
-  denorm_min() noexcept {
+  static __SYCL_CONSTEXPR_HALF const __sycl_ns::half denorm_min() noexcept {
     return 5.96046e-08f;
   }
 };
 
 } // namespace std
 
-inline std::ostream &operator<<(std::ostream &O,
-                                __sycl_ns_alias::half const &rhs) {
+inline std::ostream &operator<<(std::ostream &O, __sycl_ns::half const &rhs) {
   O << static_cast<float>(rhs);
   return O;
 }
 
-inline std::istream &operator>>(std::istream &I, __sycl_ns_alias::half &rhs) {
+inline std::istream &operator>>(std::istream &I, __sycl_ns::half &rhs) {
   float ValFloat = 0.0f;
   I >> ValFloat;
   rhs = ValFloat;

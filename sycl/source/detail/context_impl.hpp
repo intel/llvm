@@ -53,7 +53,7 @@ public:
   /// \param DeviceList is a list of SYCL device instances.
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
-  context_impl(const std::vector<__sycl_ns_alias::device> DeviceList,
+  context_impl(const std::vector<__sycl_ns::device> DeviceList,
                async_handler AsyncHandler, const property_list &PropList);
 
   /// Construct a context_impl using plug-in interoperability handle.

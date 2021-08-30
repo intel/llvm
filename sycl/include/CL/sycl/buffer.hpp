@@ -31,7 +31,7 @@ template <int dimensions> class range;
 ///
 /// \ingroup sycl_api
 template <typename T, int dimensions = 1,
-          typename AllocatorT = __sycl_ns_alias::buffer_allocator,
+          typename AllocatorT = __sycl_ns::buffer_allocator,
           typename = typename detail::enable_if_t<(dimensions > 0) &&
                                                   (dimensions <= 3)>>
 class buffer {
@@ -211,14 +211,14 @@ public:
         OffsetInBytes(getOffsetInBytes<T>(baseIndex, b.Range)),
         IsSubBuffer(true) {
     if (b.is_sub_buffer())
-      throw __sycl_ns_alias::invalid_object_error(
+      throw __sycl_ns::invalid_object_error(
           "Cannot create sub buffer from sub buffer.", PI_INVALID_VALUE);
     if (isOutOfBounds(baseIndex, subRange, b.Range))
-      throw __sycl_ns_alias::invalid_object_error(
+      throw __sycl_ns::invalid_object_error(
           "Requested sub-buffer size exceeds the size of the parent buffer",
           PI_INVALID_VALUE);
     if (!isContiguousRegion(baseIndex, subRange, b.Range))
-      throw __sycl_ns_alias::invalid_object_error(
+      throw __sycl_ns::invalid_object_error(
           "Requested sub-buffer region is not contiguous", PI_INVALID_VALUE);
   }
 
@@ -346,7 +346,7 @@ public:
   buffer<ReinterpretT, ReinterpretDim, AllocatorT>
   reinterpret(range<ReinterpretDim> reinterpretRange) const {
     if (sizeof(ReinterpretT) * reinterpretRange.size() != byte_size())
-      throw __sycl_ns_alias::invalid_object_error(
+      throw __sycl_ns::invalid_object_error(
           "Total size in bytes represented by the type and range of the "
           "reinterpreted SYCL buffer does not equal the total size in bytes "
           "represented by the type and range of this SYCL buffer",
@@ -373,7 +373,7 @@ public:
   reinterpret() const {
     long sz = byte_size();
     if (sz % sizeof(ReinterpretT) != 0)
-      throw __sycl_ns_alias::invalid_object_error(
+      throw __sycl_ns::invalid_object_error(
           "Total byte size of buffer is not evenly divisible by the size of "
           "the reinterpreted type",
           PI_INVALID_VALUE);
@@ -490,11 +490,11 @@ __SYCL_CLOSE_NS()
 
 namespace std {
 template <typename T, int dimensions, typename AllocatorT>
-struct hash<__sycl_ns_alias::buffer<T, dimensions, AllocatorT>> {
-  size_t operator()(
-      const __sycl_ns_alias::buffer<T, dimensions, AllocatorT> &b) const {
-    return hash<std::shared_ptr<__sycl_ns_alias::detail::buffer_impl>>()(
-        __sycl_ns_alias::detail::getSyclObjImpl(b));
+struct hash<__sycl_ns::buffer<T, dimensions, AllocatorT>> {
+  size_t
+  operator()(const __sycl_ns::buffer<T, dimensions, AllocatorT> &b) const {
+    return hash<std::shared_ptr<__sycl_ns::detail::buffer_impl>>()(
+        __sycl_ns::detail::getSyclObjImpl(b));
   }
 };
 } // namespace std

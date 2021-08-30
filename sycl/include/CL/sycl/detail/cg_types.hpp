@@ -25,11 +25,11 @@ namespace detail {
 // The structure represents kernel argument.
 class ArgDesc {
 public:
-  ArgDesc(__sycl_ns_alias::detail::kernel_param_kind_t Type, void *Ptr,
-          int Size, int Index)
+  ArgDesc(__sycl_ns::detail::kernel_param_kind_t Type, void *Ptr, int Size,
+          int Index)
       : MType(Type), MPtr(Ptr), MSize(Size), MIndex(Index) {}
 
-  __sycl_ns_alias::detail::kernel_param_kind_t MType;
+  __sycl_ns::detail::kernel_param_kind_t MType;
   void *MPtr;
   int MSize;
   int MIndex;
@@ -215,12 +215,12 @@ public:
 };
 
 class InteropTask {
-  std::function<void(__sycl_ns_alias::interop_handler)> MFunc;
+  std::function<void(__sycl_ns::interop_handler)> MFunc;
 
 public:
-  InteropTask(std::function<void(__sycl_ns_alias::interop_handler)> Func)
+  InteropTask(std::function<void(__sycl_ns::interop_handler)> Func)
       : MFunc(Func) {}
-  void call(__sycl_ns_alias::interop_handler &h) { MFunc(h); }
+  void call(__sycl_ns::interop_handler &h) { MFunc(h); }
 };
 
 class HostTask {
@@ -423,7 +423,7 @@ public:
   }
 
   template <typename ArgT = KernelArgType>
-  enable_if_t<std::is_same<ArgT, __sycl_ns_alias::group<Dims>>::value>
+  enable_if_t<std::is_same<ArgT, __sycl_ns::group<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
     sycl::range<Dims> NGroups(InitializedVal<Dims, range>::template get<0>());
 

@@ -37,7 +37,7 @@
   __SYCL_NS_OPEN_1 {                                                           \
     __SYCL_NS_OPEN_2 {}                                                        \
   }                                                                            \
-  namespace __sycl_ns_alias = __SYCL_NS;                                       \
+  namespace __sycl_ns = __SYCL_NS;                                             \
   __SYCL_NS_OPEN_1 {                                                           \
     __SYCL_NS_OPEN_2
 
@@ -55,7 +55,7 @@
   namespace sycl {                                                             \
   using namespace __SYCL_NS;                                                   \
   }                                                                            \
-  namespace __sycl_ns_alias = __SYCL_NS;                                       \
+  namespace __sycl_ns = __SYCL_NS;                                             \
   __SYCL_NS_OPEN_1 {                                                           \
     __SYCL_NS_OPEN_2
 

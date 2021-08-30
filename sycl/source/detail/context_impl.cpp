@@ -31,7 +31,7 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
   MKernelProgramCache.setContextPtr(this);
 }
 
-context_impl::context_impl(const std::vector<__sycl_ns_alias::device> Devices,
+context_impl::context_impl(const std::vector<__sycl_ns::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
@@ -94,7 +94,7 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
   //
   // TODO: Move this backend-specific retain of the context to SYCL-2020 style
   //       make_context<backend::opencl> interop, when that is created.
-  if (getPlugin().getBackend() == __sycl_ns_alias::backend::opencl) {
+  if (getPlugin().getBackend() == __sycl_ns::backend::opencl) {
     getPlugin().call<PiApiKind::piContextRetain>(MContext);
   }
   MKernelProgramCache.setContextPtr(this);
@@ -141,20 +141,18 @@ template <> platform context_impl::get_info<info::context::platform>() const {
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 template <>
-std::vector<__sycl_ns_alias::device>
+std::vector<__sycl_ns::device>
 context_impl::get_info<info::context::devices>() const {
   return MDevices;
 }
 template <>
-std::vector<__sycl_ns_alias::memory_order>
+std::vector<__sycl_ns::memory_order>
 context_impl::get_info<info::context::atomic_memory_order_capabilities>()
     const {
   if (is_host())
-    return {__sycl_ns_alias::memory_order::relaxed,
-            __sycl_ns_alias::memory_order::acquire,
-            __sycl_ns_alias::memory_order::release,
-            __sycl_ns_alias::memory_order::acq_rel,
-            __sycl_ns_alias::memory_order::seq_cst};
+    return {__sycl_ns::memory_order::relaxed, __sycl_ns::memory_order::acquire,
+            __sycl_ns::memory_order::release, __sycl_ns::memory_order::acq_rel,
+            __sycl_ns::memory_order::seq_cst};
 
   pi_memory_order_capabilities Result;
   getPlugin().call<PiApiKind::piContextGetInfo>(

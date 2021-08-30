@@ -26,7 +26,7 @@ SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
       MSharedPtrStorage(nullptr) {
   if (MInteropContext->is_host())
-    throw __sycl_ns_alias::invalid_parameter_error(
+    throw __sycl_ns::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
         "not allowed",
         PI_INVALID_CONTEXT);
@@ -38,7 +38,7 @@ SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
                                        &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
-    throw __sycl_ns_alias::invalid_parameter_error(
+    throw __sycl_ns::invalid_parameter_error(
         "Input context must be the same as the context of cl_mem",
         PI_INVALID_CONTEXT);
   Plugin.call<PiApiKind::piMemRetain>(Mem);

@@ -511,7 +511,7 @@ protected:
     /// (assuming that all its commands have been waited for).
     void cleanupFinishedCommands(
         Command *FinishedCmd,
-        std::vector<std::shared_ptr<__sycl_ns_alias::detail::stream_impl>> &);
+        std::vector<std::shared_ptr<__sycl_ns::detail::stream_impl>> &);
 
     /// Reschedules the command passed using Queue provided.
     ///
@@ -537,7 +537,7 @@ protected:
     /// Removes commands that use the given MemObjRecord from the graph.
     void cleanupCommandsForRecord(
         MemObjRecord *Record,
-        std::vector<std::shared_ptr<__sycl_ns_alias::detail::stream_impl>> &);
+        std::vector<std::shared_ptr<__sycl_ns::detail::stream_impl>> &);
 
     /// Removes the MemObjRecord for the memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);

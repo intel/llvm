@@ -30,9 +30,9 @@ template <typename BaseTy, typename RegionTy> class simd_view;
 
 namespace detail {
 
-namespace csd = __sycl_ns_alias::detail;
+namespace csd = __sycl_ns::detail;
 
-using half = __sycl_ns_alias::detail::half_impl::StorageT;
+using half = __sycl_ns::detail::half_impl::StorageT;
 
 template <typename T>
 using remove_cvref_t = csd::remove_cv_t<csd::remove_reference_t<T>>;
