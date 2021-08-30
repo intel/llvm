@@ -59,9 +59,7 @@ enum class image_channel_type : unsigned int {
   fp32 = 14
 };
 
-using byte = unsigned char;
-
-using image_allocator = detail::aligned_allocator<byte>;
+using image_allocator = detail::aligned_allocator<unsigned char>;
 
 /// Defines a shared image data.
 ///
