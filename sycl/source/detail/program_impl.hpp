@@ -24,7 +24,7 @@
 #include <memory>
 #include <mutex>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 // Forward declarations
 class kernel;
@@ -458,4 +458,4 @@ template <>
 std::vector<device> program_impl::get_info<info::program::devices>() const;
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

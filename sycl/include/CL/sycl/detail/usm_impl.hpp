@@ -10,7 +10,7 @@
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/usm/usm_enums.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 namespace usm {
 
@@ -26,4 +26,4 @@ __SYCL_EXPORT void free(void *Ptr, const context &Ctxt);
 
 } // namespace usm
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

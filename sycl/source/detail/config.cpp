@@ -16,7 +16,7 @@
 #include <iostream>
 #include <limits>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 #ifndef SYCL_CONFIG_FILE_NAME
@@ -135,4 +135,4 @@ const std::array<std::pair<std::string, backend>, 6> &getSyclBeMap() {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

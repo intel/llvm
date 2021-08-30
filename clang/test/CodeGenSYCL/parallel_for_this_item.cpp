@@ -4,8 +4,7 @@
 // This test checks that compiler generates correct kernel description
 // for parallel_for kernels that use the this_item API.
 
-// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-NEXT: namespace sycl {
+// CHECK: __SYCL_OPEN_NS {
 // CHECK-NEXT: namespace detail {
 
 // CHECK: static constexpr

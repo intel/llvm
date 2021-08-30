@@ -7,8 +7,7 @@
 
 // CHECK: class kernel_B;
 
-// CHECK: __SYCL_INLINE_NAMESPACE(cl) {
-// CHECK-NEXT: namespace sycl {
+// CHECK: __SYCL_OPEN_NS {
 // CHECK-NEXT: namespace detail {
 
 // CHECK: static constexpr

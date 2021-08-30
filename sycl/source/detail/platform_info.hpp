@@ -13,7 +13,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <detail/plugin.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 // The platform information methods
@@ -80,4 +80,4 @@ get_platform_info_host<info::platform::extensions>() {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

@@ -14,7 +14,7 @@
 
 #include <memory>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 using ContextImplPtr = std::shared_ptr<__sycl_ns_alias::detail::context_impl>;
 namespace detail {
 std::vector<RT::PiEvent>
@@ -40,4 +40,4 @@ void waitEvents(std::vector<__sycl_ns_alias::event> DepEvents) {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

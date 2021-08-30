@@ -21,7 +21,7 @@
 // public methods as a default argument. If the end-user wants to disable the
 // code location information, they must compile the code with
 // -DDISABLE_SYCL_INSTRUMENTATION_METADATA flag
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 // We define a sycl stream name and this will be used by the instrumentation
 // framework
@@ -75,9 +75,9 @@ private:
   unsigned long MColumnNo;
 };
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 __SYCL_EXPORT const char *stringifyErrorCode(cl_int error);
@@ -88,7 +88,7 @@ static inline std::string codeToString(cl_int code) {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS
 
 #ifdef __SYCL_DEVICE_ONLY__
 // TODO remove this when 'assert' is supported in device code
@@ -148,7 +148,7 @@ __SYCL_CLOSE_NS
 #define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_OCL_ERR_TO_STREAM(X)
 #endif
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 // Helper function for extracting implementation from SYCL's interface objects.
@@ -317,4 +317,4 @@ template <typename T> struct InlineVariableHelper {
 
 template <typename T> constexpr T InlineVariableHelper<T>::value;
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

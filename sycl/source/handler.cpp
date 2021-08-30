@@ -22,7 +22,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
     : MQueue(std::move(Queue)), MIsHost(IsHost) {
@@ -554,4 +554,4 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
 
   ExtendedMembersVec->push_back(EMember);
 }
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

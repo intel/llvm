@@ -32,7 +32,7 @@ struct trace_event_data_t;
 }
 #endif
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 class context;
 
@@ -415,6 +415,6 @@ template <> inline pi::PiDevice cast(cl_device_id) {
 // For shortness of using PI from the top-level sycl files.
 namespace RT = __sycl_ns_alias::detail::pi;
 
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS
 
 #undef _PI_API

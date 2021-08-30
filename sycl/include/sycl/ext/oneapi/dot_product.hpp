@@ -10,7 +10,7 @@
 
 #pragma once
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace ext {
 namespace oneapi {
 
@@ -77,4 +77,4 @@ int32_t dot_acc(vec<int8_t, 4> a, vec<uint8_t, 4> b, int32_t c) {
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
 }
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

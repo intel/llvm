@@ -13,7 +13,7 @@
 
 #include <memory>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 class platform_impl;
 class Scheduler;
@@ -85,4 +85,4 @@ private:
   InstWithLock<std::mutex> MHandlerExtendedMembersMutex;
 };
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

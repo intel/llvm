@@ -12,7 +12,7 @@
 
 #include <algorithm>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 device_impl::device_impl()
@@ -331,4 +331,4 @@ std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

@@ -18,7 +18,7 @@
 
 #include <memory>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 namespace detail {
 class AccessorBaseHost;
@@ -190,4 +190,4 @@ private:
   std::vector<ReqToMem> MMemObjs;
 };
 
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

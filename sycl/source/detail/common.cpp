@@ -9,7 +9,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/common_info.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 const char *stringifyErrorCode(cl_int error) {
@@ -240,4 +240,4 @@ std::vector<std::string> split_string(const std::string &str, char delimeter) {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

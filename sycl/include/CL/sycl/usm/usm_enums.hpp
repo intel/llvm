@@ -7,10 +7,10 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace usm {
 
 enum class alloc { host = 0, device = 1, shared = 2, unknown = 3 };
 
 } // namespace usm
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

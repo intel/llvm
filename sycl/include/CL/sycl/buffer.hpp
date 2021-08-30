@@ -16,7 +16,7 @@
 #include <CL/sycl/stl.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 class handler;
 class queue;
@@ -485,7 +485,7 @@ buffer(const T *, const range<dimensions> &, const property_list & = {})
     -> buffer<T, dimensions>;
 #endif // __cpp_deduction_guides
 
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS
 
 namespace std {
 template <typename T, int dimensions, typename AllocatorT>

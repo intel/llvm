@@ -11,7 +11,7 @@
 
 #include <set>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 kernel_id::kernel_id(const char *Name)
     : impl(std::make_shared<detail::kernel_id_impl>(Name)) {}
@@ -262,4 +262,4 @@ std::vector<sycl::device> find_device_intersection(
 
 } // namespace detail
 
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

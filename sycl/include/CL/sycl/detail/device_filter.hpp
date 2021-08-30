@@ -15,7 +15,7 @@
 #include <iostream>
 #include <string>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 struct device_filter {
@@ -82,4 +82,4 @@ inline std::ostream &operator<<(std::ostream &Out,
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

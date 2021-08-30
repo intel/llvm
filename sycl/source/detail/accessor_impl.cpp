@@ -11,7 +11,7 @@
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 AccessorImplHost::~AccessorImplHost() {

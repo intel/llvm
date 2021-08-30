@@ -10,9 +10,9 @@
 
 #include <sycl/ext/intel/pipes.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 template <class name, class dataT, int32_t min_capacity = 0>
 using pipe = ext::intel::pipe<name, dataT, min_capacity>;
 
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

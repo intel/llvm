@@ -16,7 +16,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/force_device.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
@@ -161,4 +161,4 @@ pi_native_handle device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

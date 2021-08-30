@@ -11,7 +11,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/stl.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 namespace detail {
 
@@ -76,4 +76,4 @@ protected:
 };
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

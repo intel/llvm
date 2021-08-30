@@ -16,7 +16,7 @@
 #include <cstring>
 #include <iostream>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 void spec_constant_impl::set(size_t Size, const void *Val) {
@@ -48,4 +48,4 @@ std::ostream &operator<<(std::ostream &Out, const spec_constant_impl &V) {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

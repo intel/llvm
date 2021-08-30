@@ -11,7 +11,7 @@
 
 #include <functional>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace ext {
 namespace oneapi {
 
@@ -107,4 +107,4 @@ static T calc(typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
 } // namespace detail
 #endif // __SYCL_DEVICE_ONLY__
 
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

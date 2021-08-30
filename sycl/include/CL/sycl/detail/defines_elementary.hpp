@@ -19,17 +19,16 @@
 #define __SYCL_ENABLE_SYCL121_NAMESPACE
 #endif
 
-
 #ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-  // Old SYCL1.2.1 namespace scheme
-  #define __SYCL_NS_OPEN_1 __SYCL_INLINE_NAMESPACE(cl)
-  #define __SYCL_NS_OPEN_2 namespace sycl
-  #define __SYCL_NS cl::sycl
+// Old SYCL1.2.1 namespace scheme
+#define __SYCL_NS_OPEN_1 __SYCL_INLINE_NAMESPACE(cl)
+#define __SYCL_NS_OPEN_2 namespace sycl
+#define __SYCL_NS cl::sycl
 #else
-  // New SYCL2020 friendly namespace scheme, defaulted to __v1
-  #define __SYCL_NS_OPEN_1 namespace __sycl_internal
-  #define __SYCL_NS_OPEN_2 namespace __v1
-  #define __SYCL_NS __sycl_internal::__v1
+// New SYCL2020 friendly namespace scheme, defaulted to __v1
+#define __SYCL_NS_OPEN_1 namespace __sycl_internal
+#define __SYCL_NS_OPEN_2 namespace __v1
+#define __SYCL_NS __sycl_internal::__v1
 #endif
 
 #ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
@@ -40,7 +39,7 @@
   }                                                                            \
   namespace __sycl_ns_alias = __SYCL_NS;                                       \
   __SYCL_NS_OPEN_1 {                                                           \
-    __SYCL_NS_OPEN_2 {
+    __SYCL_NS_OPEN_2
 
 #else
 
@@ -58,13 +57,11 @@
   }                                                                            \
   namespace __sycl_ns_alias = __SYCL_NS;                                       \
   __SYCL_NS_OPEN_1 {                                                           \
-    __SYCL_NS_OPEN_2 {
+    __SYCL_NS_OPEN_2
 
 #endif
 
-#define __SYCL_CLOSE_NS                                                        \
-  }                                                                            \
-  }
+#define __SYCL_CLOSE_NS }
 
 #ifndef __has_attribute
 #define __has_attribute(x) 0

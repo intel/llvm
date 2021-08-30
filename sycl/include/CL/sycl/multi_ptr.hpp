@@ -14,7 +14,7 @@
 #include <cassert>
 #include <cstddef>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 // Forward declaration
 template <typename dataT, int dimensions, access::mode accessMode,
           access::target accessTarget, access::placeholder isPlaceholder,
@@ -689,4 +689,4 @@ bool operator<=(std::nullptr_t, const multi_ptr<ElementType, Space> &rhs) {
   return rhs.get() == nullptr;
 }
 
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

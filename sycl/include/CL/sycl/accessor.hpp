@@ -201,7 +201,7 @@
 /// accessor_common contains several helpers common for both accessor(1) and
 /// accessor(3)
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 class stream;
 namespace ext {
 namespace intel {
@@ -2344,7 +2344,7 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
 
 #endif
 
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS
 
 namespace std {
 template <typename DataT, int Dimensions,

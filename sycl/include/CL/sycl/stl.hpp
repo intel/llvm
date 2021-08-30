@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 #if defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)
 // SYCL library is designed such a way that STL objects cross DLL boundary,
@@ -77,4 +77,4 @@ std::unique_ptr<T> make_unique_ptr(ArgsT &&... Args) {
   return std::unique_ptr<T>(new T(std::forward<ArgsT>(Args)...));
 }
 
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

@@ -13,7 +13,7 @@
 #include <detail/event_impl.hpp>
 #include <detail/plugin.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 template <info::event_profiling Param> struct get_event_profiling_info {
@@ -42,4 +42,4 @@ template <info::event Param> struct get_event_info {
 };
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

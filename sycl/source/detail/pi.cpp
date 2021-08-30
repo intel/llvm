@@ -41,7 +41,7 @@
 #define SYCL_VERSION_STR                                                       \
   "sycl " STR(__LIBSYCL_MAJOR_VERSION) "." STR(__LIBSYCL_MINOR_VERSION)
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Global (to the SYCL runtime) graph handle that all command groups are a
@@ -713,4 +713,4 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
 
 } // namespace pi
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

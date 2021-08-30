@@ -11,7 +11,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/property_helper.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace property {
 namespace image {
 class use_host_ptr : public detail::DataLessProperty<detail::ImageUseHostPtr> {
@@ -39,4 +39,4 @@ private:
 };
 } // namespace image
 } // namespace property
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

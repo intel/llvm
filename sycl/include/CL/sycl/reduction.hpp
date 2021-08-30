@@ -12,7 +12,7 @@
 
 #include "sycl/ext/oneapi/reduction.hpp"
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
 /// reduction operation \p Combiner, and optional reduction properties.
@@ -99,4 +99,4 @@ reduction(T *Var, const T &Identity, BinaryOperation Combiner,
   return {Var, Identity, Combiner, InitializeToIdentity};
 }
 
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

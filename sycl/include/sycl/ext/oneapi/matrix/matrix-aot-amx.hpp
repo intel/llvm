@@ -35,7 +35,7 @@
 #include <CL/sycl/detail/defines_elementary.hpp>
 #include <immintrin.h>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace ext {
 namespace intel {
 namespace detail {
@@ -443,4 +443,4 @@ joint_matrix_mad(Group sg,
 } // namespace experimental::matrix
 } // namespace intel
 } // namespace ext
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

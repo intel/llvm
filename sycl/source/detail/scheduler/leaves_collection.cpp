@@ -11,7 +11,7 @@
 
 #include <algorithm>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 // TODO merge with GraphBuilder's version of doOverlap (see graph_builder.cpp).
@@ -144,4 +144,4 @@ size_t LeavesCollection::eraseHostAccessorCommand(EmptyCommand *Cmd) {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

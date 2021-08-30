@@ -14,7 +14,7 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/half_type.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 /// Provides a cross-patform math array class template that works on
 /// SYCL devices as well as in host C++ code.
@@ -344,4 +344,4 @@ __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH(16)
 #undef __SYCL_MAKE_MARRAY_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES
 #undef __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH
 
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

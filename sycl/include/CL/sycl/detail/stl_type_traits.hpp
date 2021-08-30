@@ -13,7 +13,7 @@
 #include <memory>
 #include <type_traits>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 // Type traits identical to those in std in newer versions. Can be removed when
@@ -78,4 +78,4 @@ struct is_output_iterator<T, output_iterator_requirements<T>> {
 };
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

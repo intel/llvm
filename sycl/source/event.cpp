@@ -19,7 +19,7 @@
 #include <memory>
 #include <unordered_set>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 event::event() : impl(std::make_shared<detail::event_impl>()) {}
 
@@ -89,4 +89,4 @@ backend event::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle event::getNative() const { return impl->getNative(); }
 
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

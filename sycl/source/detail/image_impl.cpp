@@ -14,7 +14,7 @@
 #include <algorithm>
 #include <vector>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 template <info::device Param>
@@ -454,4 +454,4 @@ template class image_impl<2>;
 template class image_impl<3>;
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

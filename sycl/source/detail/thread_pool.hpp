@@ -18,7 +18,7 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 class ThreadPool {
@@ -94,4 +94,4 @@ public:
 };
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

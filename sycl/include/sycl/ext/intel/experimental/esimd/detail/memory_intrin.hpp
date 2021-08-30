@@ -19,7 +19,7 @@
 
 #include <cstdint>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -70,7 +70,7 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS
 
 #define __SEIEE sycl::ext::intel::experimental::esimd
 #define __SEIEED sycl::ext::intel::experimental::esimd::detail

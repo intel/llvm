@@ -22,7 +22,7 @@
 #include <thread>
 #include <vector>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
@@ -469,4 +469,4 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

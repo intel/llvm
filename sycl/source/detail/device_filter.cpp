@@ -13,7 +13,7 @@
 
 #include <cstring>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 device_filter::device_filter(const std::string &FilterString) {
@@ -155,4 +155,4 @@ bool device_filter_list::containsHost() {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

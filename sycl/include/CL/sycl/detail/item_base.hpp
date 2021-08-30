@@ -11,7 +11,7 @@
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/range.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 template <int dimensions> class id;
 template <int dimensions> class range;
 
@@ -71,4 +71,4 @@ template <int Dims> struct ItemBase<Dims, false> {
 };
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

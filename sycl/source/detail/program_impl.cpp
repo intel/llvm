@@ -22,7 +22,7 @@
 #include <memory>
 #include <mutex>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 program_impl::program_impl(ContextImplPtr Context,
@@ -580,4 +580,4 @@ pi_native_handle program_impl::getNative() const {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

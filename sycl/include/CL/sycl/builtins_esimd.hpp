@@ -18,7 +18,7 @@
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 // cos
 template <int SZ>
@@ -64,6 +64,6 @@ log(__ESIMD_NS::simd<float, SZ> x) __NOEXC {
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS
 
 #undef __NOEXC

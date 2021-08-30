@@ -12,7 +12,7 @@
 #include <functional>
 #include <stdexcept>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 template <int dimensions> class id;
 template <int dimensions> class range;
 namespace detail {
@@ -119,4 +119,4 @@ protected:
 };
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

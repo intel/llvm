@@ -10,7 +10,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/sampler_impl.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
@@ -91,4 +91,4 @@ sampler_impl::get_coordinate_normalization_mode() const {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

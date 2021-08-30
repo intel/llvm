@@ -37,7 +37,7 @@
 #include <sstream>
 #include <string>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<__sycl_ns_alias::detail::context_impl>;
@@ -1754,7 +1754,7 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS
 
 extern "C" void __sycl_register_lib(pi_device_binaries desc) {
   __sycl_ns_alias::detail::ProgramManager::getInstance().addImages(desc);

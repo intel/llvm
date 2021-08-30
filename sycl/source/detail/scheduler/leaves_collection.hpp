@@ -16,7 +16,7 @@
 #include <unordered_map>
 #include <utility>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 struct MemObjRecord;
@@ -263,4 +263,4 @@ public:
 };
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

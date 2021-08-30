@@ -15,7 +15,7 @@
 #include <tuple>
 #include <type_traits>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 template <typename... T> struct tuple;
@@ -188,7 +188,7 @@ template <> struct tuple<> {
 };
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS
 
 namespace std {
 

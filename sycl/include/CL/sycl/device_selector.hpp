@@ -13,7 +13,7 @@
 
 // 4.6.1 Device selection class
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 // Forward declarations
 class device;
@@ -86,4 +86,4 @@ class __SYCL_EXPORT host_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

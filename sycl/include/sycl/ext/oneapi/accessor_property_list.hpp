@@ -13,7 +13,7 @@
 #include <CL/sycl/detail/property_list_base.hpp>
 #include <CL/sycl/property_list.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 // Forward declaration
 template <typename, int, access::mode, access::target, access::placeholder,
           typename PropertyListT>
@@ -234,4 +234,4 @@ private:
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
 }
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

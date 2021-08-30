@@ -12,7 +12,7 @@
 // This header should be included by users.
 //#include <level_zero/ze_api.h>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 template <> struct interop<backend::level_zero, platform> {
   using type = ze_driver_handle_t;
@@ -163,4 +163,4 @@ T make(const context &Context,
 }
 
 } // namespace level_zero
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

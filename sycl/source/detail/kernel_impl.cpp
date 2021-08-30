@@ -13,7 +13,7 @@
 
 #include <memory>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context)
@@ -90,4 +90,4 @@ bool kernel_impl::isCreatedFromSource() const {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

@@ -10,7 +10,7 @@
 #include <detail/program_impl.hpp>
 #include <sycl/ext/oneapi/function_pointer.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 ext::oneapi::device_func_ptr_holder_t
 getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
@@ -29,4 +29,4 @@ getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

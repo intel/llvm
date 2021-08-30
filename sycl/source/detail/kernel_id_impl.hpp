@@ -8,7 +8,7 @@
 
 #pragma once
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 // Used for sorting vector of kernel_id's
@@ -41,4 +41,4 @@ private:
 };
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

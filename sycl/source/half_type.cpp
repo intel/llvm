@@ -13,7 +13,7 @@
 
 #include <cstring>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 namespace host_half_impl {
@@ -83,4 +83,4 @@ bool operator!=(const half &LHS, const half &RHS) { return !(LHS == RHS); }
 } // namespace host_half_impl
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

@@ -10,7 +10,7 @@
 
 #include <CL/sycl/handler.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 void associateWithHandler(handler &CGH, AccessorBaseHost *Acc,
@@ -19,4 +19,4 @@ void associateWithHandler(handler &CGH, AccessorBaseHost *Acc,
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

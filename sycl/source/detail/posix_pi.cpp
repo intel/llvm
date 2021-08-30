@@ -11,7 +11,7 @@
 #include <dlfcn.h>
 #include <string>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 namespace pi {
 
@@ -29,4 +29,4 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
 
 } // namespace pi
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

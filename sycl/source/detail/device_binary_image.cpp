@@ -12,7 +12,7 @@
 
 #include <CL/sycl/detail/device_binary_image.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
@@ -47,4 +47,4 @@ DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

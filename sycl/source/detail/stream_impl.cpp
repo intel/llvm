@@ -12,7 +12,7 @@
 
 #include <cstdio>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
@@ -91,4 +91,4 @@ void stream_impl::flush() {
   });
 }
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

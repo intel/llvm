@@ -14,7 +14,7 @@
 
 #include <type_traits>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 namespace pi {
 
@@ -177,4 +177,4 @@ void printOuts(Arg0 arg0, Args... args) {
 
 } // namespace pi
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

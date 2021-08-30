@@ -19,7 +19,7 @@
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/range.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 // The structure represents kernel argument.
@@ -453,4 +453,4 @@ public:
 };
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

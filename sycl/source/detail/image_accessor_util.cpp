@@ -9,7 +9,7 @@
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/builtins.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 // For Nearest Filtering mode, process cl_float4 Coordinates and return the
@@ -191,4 +191,4 @@ cl_float4 getBorderColor(const image_channel_order ImgChannelOrder) {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

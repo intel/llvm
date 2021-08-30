@@ -20,7 +20,7 @@
 #include <intrin.h>
 #endif
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 #if defined(__x86_64__) || defined(__i386__)
@@ -178,4 +178,4 @@ void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
 }
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

@@ -15,7 +15,7 @@
 #include <map>
 #include <vector>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 using DeviceDescT = std::map<std::string, std::string>;
@@ -30,4 +30,4 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
                     RT::PiPlatform PiPlatform, const plugin &Plugin);
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

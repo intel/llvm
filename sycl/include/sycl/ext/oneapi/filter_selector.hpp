@@ -15,7 +15,7 @@
 
 // 4.6.1 Device selection class
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 // Forward declarations
 class device;
@@ -50,4 +50,4 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
     device select_device() const override;
   };
 } // namespace ONEAPI
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

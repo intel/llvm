@@ -134,7 +134,7 @@ __esimd_wrindirect(__SEIEED::vector_type_t<T, N> OldVal,
                    __SEIEED::vector_type_t<uint16_t, M> Offset,
                    __SEIEE::mask_type_t<M> Mask = 1);
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -214,7 +214,7 @@ readRegion(const __SEIEED::vector_type_t<BT, BN> &Base,
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS
 
 // vload
 //

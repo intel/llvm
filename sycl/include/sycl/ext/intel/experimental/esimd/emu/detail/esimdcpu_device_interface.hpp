@@ -25,7 +25,7 @@
 // ESIMDDeviceInterface' definition.
 #include <cstdint>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 
 /// This is the device interface version required (and used) by this
@@ -115,4 +115,4 @@ ESIMDDeviceInterface *getESIMDDeviceInterface() {
 #undef ESIMD_EMU_PLUGIN_OPAQUE_DATA_VERSION
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

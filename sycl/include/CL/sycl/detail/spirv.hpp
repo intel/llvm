@@ -19,7 +19,7 @@
 #include <sycl/ext/oneapi/atomic_enums.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace ext {
 namespace oneapi {
 struct sub_group;
@@ -746,5 +746,5 @@ EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
 
 } // namespace spirv
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS
 #endif //  __SYCL_DEVICE_ONLY__

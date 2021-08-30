@@ -14,7 +14,7 @@
 #include <detail/platform_info.hpp>
 #include <detail/plugin.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 // Forward declaration
 class device_selector;
@@ -188,4 +188,4 @@ private:
 };
 
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

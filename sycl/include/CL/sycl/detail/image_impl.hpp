@@ -19,7 +19,7 @@
 #include <CL/sycl/range.hpp>
 #include <CL/sycl/stl.hpp>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 // forward declarations
 enum class image_channel_order : unsigned int;
@@ -288,4 +288,4 @@ private:
   size_t MSlicePitch = 0;
 };
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS

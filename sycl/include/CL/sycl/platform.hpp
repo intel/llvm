@@ -15,7 +15,7 @@
 // 4.6.2 Platform class
 #include <utility>
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 
 // Forward declaration
 class device_selector;
@@ -142,7 +142,7 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
 }; // class platform
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS
 
 namespace std {
 template <> struct hash<__sycl_ns_alias::platform> {

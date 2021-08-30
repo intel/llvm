@@ -21,7 +21,7 @@
 #include "xpti_trace_framework.h"
 #endif
 
-__SYCL_OPEN_NS
+__SYCL_OPEN_NS {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GPICallEvent;
@@ -190,4 +190,4 @@ private:
   std::shared_ptr<std::mutex> TracingMutex;
 }; // class plugin
 } // namespace detail
-__SYCL_CLOSE_NS
+} __SYCL_CLOSE_NS
