@@ -46,8 +46,8 @@
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif // __HAS_EXT_VECTOR_TYPE__
 
-#include <CL/sycl/aliases.hpp>
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/aliases.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
