@@ -43,7 +43,7 @@ void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {
         StrBufs->FlushBuf.get_access<access::mode::discard_write,
                                      access::target::host_buffer>(
             cgh, range<1>(FlushBufSize), id<1>(0));
-    cgh.codeplay_host_task([=] {
+    cgh.host_task([=] {
       char *FlushBufPtr = FlushBufAcc.get_pointer();
       std::memset(FlushBufPtr, 0, FlushBufAcc.get_size());
     });
