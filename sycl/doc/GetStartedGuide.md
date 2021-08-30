@@ -162,6 +162,7 @@ above. The default SM for the NVIDIA CUDA backend is 5.0. Users can specify
 lower values, but some features may not be supported.
 
 ### Build DPC++ toolchain with support for HIP AMD
+
 There is experimental support for DPC++ for HIP devices.
 
 To enable support for HIP devices, follow the instructions for the Linux
