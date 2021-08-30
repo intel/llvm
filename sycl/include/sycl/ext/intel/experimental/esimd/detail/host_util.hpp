@@ -22,10 +22,6 @@ namespace half_impl {
 class half;
 } // namespace half_impl
 } // namespace detail
-} // __SYCL_OPEN_NS()
-__SYCL_CLOSE_NS()
-
-__SYCL_OPEN_NS() {
 namespace ext {
 namespace intel {
 namespace experimental {

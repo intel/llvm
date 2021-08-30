@@ -66,12 +66,6 @@ private:
   unsigned long MLineNo;
   unsigned long MColumnNo;
 };
-} // namespace detail
-} // __SYCL_OPEN_NS()
-__SYCL_CLOSE_NS()
-
-__SYCL_OPEN_NS() {
-namespace detail {
 
 __SYCL_EXPORT const char *stringifyErrorCode(cl_int error);
 

@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines_elementary.hpp>
+
 __SYCL_OPEN_NS() {
 namespace detail {
 
@@ -86,5 +88,5 @@ private:
   std::size_t MValueSize;
 };
 } // namespace detail
-} // namespace sycl
-}
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

@@ -15,19 +15,16 @@
 // Generic type name description, which serves as a description for all valid
 // types of parameters to kernel functions
 
-// Forward declarations
 __SYCL_OPEN_NS() {
 template <typename T, int N> class vec;
+
 namespace detail {
 namespace half_impl {
 class half;
 }
 } // namespace detail
 using half = detail::half_impl::half;
-} // __SYCL_OPEN_NS()
-__SYCL_CLOSE_NS()
 
-__SYCL_OPEN_NS() {
 namespace detail {
 namespace gtl {
 // floating point types
