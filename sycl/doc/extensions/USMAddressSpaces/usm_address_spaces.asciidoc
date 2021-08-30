@@ -1,4 +1,4 @@
-= SYCL_INTEL_usm_address_spaces
+= SYCL_EXT_INTEL_USM_ADDRESS_SPACES
 
 == Introduction
 This extension introduces two new address spaces and their corresponding multi_ptr specializations.  
@@ -35,6 +35,22 @@ Revision: 1
 This extension is written against the SYCL 1.2.1 specification, Revision 7.  It requires the Unified Shared Memory SYCL proposal.
 
 If SPIR-V is used by the implementation, this extension also requires support for the SPV_INTEL_usm_storage_classes SPIR-V extension.
+
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_INTEL_USM_ADDRESS_SPACES` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
 
 == Overview
 
@@ -121,4 +137,5 @@ using host_ptr = multi_ptr<ElementType, access::address_space::host_space>
 |========================================
 |Rev|Date|Author|Changes
 |A|2020-06-18|Joe Garvey|Initial public draft
+|B|2021-08-30|Dmitry Vodopyanov|Updated according to SYCL 2020 reqs for extensions
 |======================================== 

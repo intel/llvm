@@ -18,6 +18,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace intel {
+namespace experimental {
 namespace detail {
 
 static std::vector<const char *>
@@ -229,27 +230,18 @@ __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
                                 DeviceStepping, CompileToSPIRVHandle,
                                 FreeSPIRVOutputsHandle, CMUserArgs);
 }
-
+} // namespace experimental
 } // namespace intel
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
-  using namespace ext::intel;
+namespace ext {
+namespace __SYCL2020_DEPRECATED("use 'ext::intel::experimental' instead") intel {
+  using namespace ext::intel::experimental;
+} // namespace intel
+} // namespace ext
 
-  template <>
-  template <>
-  __SYCL_EXPORT std::vector<byte>
-  online_compiler<source_language::opencl_c>::compile(
-      const std::string &Source, const std::vector<std::string> &UserArgs) {
-    return MOnlineCompiler.compile(Source, UserArgs);
-  }
-
-  template <>
-  template <>
-  __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
-      const std::string &Source, const std::vector<std::string> &UserArgs) {
-    return MOnlineCompiler.compile(Source, UserArgs);
-  }
+namespace __SYCL2020_DEPRECATED("use 'ext::intel::experimental' instead") INTEL {
+  using namespace ext::intel::experimental;
 } // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

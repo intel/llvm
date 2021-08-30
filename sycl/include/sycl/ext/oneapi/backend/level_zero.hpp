@@ -77,6 +77,8 @@ template <> struct InteropFeatureSupportMap<backend::level_zero> {
 };
 } // namespace detail
 
+namespace ext {
+namespace oneapi {
 namespace level_zero {
 
 // Since Level-Zero is not doing any reference counting itself, we have to
@@ -164,5 +166,11 @@ T make(const context &Context,
 }
 
 } // namespace level_zero
+} // namespace oneapi
+} // namespace ext
+
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead") level_zero {
+  using ext::oneapi::level_zero;
+}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

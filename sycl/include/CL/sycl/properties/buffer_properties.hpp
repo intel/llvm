@@ -40,14 +40,20 @@ private:
   sycl::context MCtx;
 };
 
-class mem_channel : public detail::PropertyWithData<
+class ext_intel_mem_channel : public detail::PropertyWithData<
                         detail::PropWithDataKind::BufferMemChannel> {
 public:
-  mem_channel(uint32_t Channel) : MChannel(Channel) {}
+  ext_intel_mem_channel(uint32_t Channel) : MChannel(Channel) {}
   uint32_t get_channel() const { return MChannel; }
 
 private:
   uint32_t MChannel;
+};
+
+class __SYCL2020_DEPRECATED("use ext_intel_mem_channel instead") mem_channel
+    : public ext_intel_mem_channel {
+public:
+  mem_channel(uint32_t Channel) : ext_intel_mem_channel(Channel) {}
 };
 
 } // namespace buffer

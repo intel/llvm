@@ -1,4 +1,4 @@
-= SYCL_INTEL_mem_channel_property
+= SYCL_EXT_INTEL_MEM_CHANNEL_PROPERTY
 
 == Introduction
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
@@ -31,6 +31,22 @@ This extension is written against the SYCL 2020 provisional specification, Revis
 
 The use of this extension requires a target that supports cl_intel_mem_channel_property or equivalent if OpenCL is used as the underlying device runtime.  
 
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_INTEL_MEM_CHANNEL_PROPERTY` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
 == Overview
 
 On some targets manual assignment of buffers to memory regions can improve memory bandwidth.  This extension adds a buffer property to indicate in which memory channel a particular buffer should be allocated.  This information is an optimization hint to the runtime and thus it is legal to ignore.  
@@ -45,7 +61,7 @@ Add a new property to Table 4.33: Properties supported by the SYCL buffer class 
 [options="header"]
 |===
 | Property | Description
-| property::buffer::mem_channel | The `mem_channel` property is a hint to the SYCL runtime that the buffer should be stored in a particular memory channel provided to the property.  
+| property::buffer::ext_intel_mem_channel | The `ext_intel_mem_channel` property is a hint to the SYCL runtime that the buffer should be stored in a particular memory channel provided to the property.  
 |===
 --
 
@@ -55,7 +71,7 @@ Add a new constructor to Table 4.34: Constructors of the buffer property classes
 [options="header"]
 |===
 | Constructor | Description
-| property::buffer::mem_channel::mem_channel(cl_uint channel) | Constructs a SYCL `mem_channel` property instance with the specified channel ID.  The range of valid values depends on the target and is implementation defined.  Invalid values do not need to result in an error as the property is only a hint.  
+| property::buffer::ext_intel_mem_channel::ext_intel_mem_channel(cl_uint channel) | Constructs a SYCL `ext_intel_mem_channel` property instance with the specified channel ID.  The range of valid values depends on the target and is implementation defined.  Invalid values do not need to result in an error as the property is only a hint.  
 |===
 --
 
@@ -65,7 +81,7 @@ Add a new member function to Table 4.35: Member functions of the buffer property
 [options="header"]
 |===
 | Member function | Description
-| cl_uint property::buffer::mem_channel::get_channel() const | Returns the cl_uint which was specified when constructing this SYCL `mem_channel` property.  
+| cl_uint property::buffer::ext_intel_mem_channel::get_channel() const | Returns the cl_uint which was specified when constructing this SYCL `ext_intel_mem_channel` property.  
 |===
 --
 
@@ -107,4 +123,6 @@ Add an entry for the new aspect to Table 4.20: Device aspects defined by the cor
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-10-26|Joe Garvey|*Initial public draft*
+|2|2021-08-30|Dmitry Vodopyanov|*Updated according to SYCL 2020 reqs for extensions*
+
 |========================================

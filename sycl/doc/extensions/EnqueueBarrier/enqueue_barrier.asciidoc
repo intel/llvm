@@ -1,4 +1,4 @@
-= SYCL_INTEL_enqueue_barrier
+= SYCL_EXT_INTEL_ENQUEUE_BARRIER
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
@@ -50,6 +50,22 @@ Revision: 1
 == Contact
 Please open an issue in the https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions/[extensions repository]
 
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_INTEL_ENQUEUE_BARRIER` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
 == Dependencies
 
 This extension is written against the SYCL 1.2.1 specification, Revision v1.2.1-6.
@@ -75,9 +91,9 @@ two new members to the `queue` class:
 [grid="rows"]
 [options="header"]
 |========================================
-|*handler::barrier*|*queue::submit_barrier*
-|`void barrier()` | `event submit_barrier()`
-|`void barrier( const vector_class<event> &waitList )` | `event submit_barrier( const vector_class<event> &waitList )`
+|*handler::ext_intel_barrier*|*queue::ext_intel_submit_barrier*
+|`void ext_intel_barrier()` | `event ext_intel_submit_barrier()`
+|`void ext_intel_barrier( const vector_class<event> &waitList )` | `event ext_intel_submit_barrier( const vector_class<event> &waitList )`
 |========================================
 
 The first variant of the barrier takes no parameters, and waits for all previously submitted commands to the queue to enter the `info::event_command_status::complete` state before any command later submitted to the same queue is allowed to execute. A second variant of the barrier accepts a list of events, with the behavior that no commands submitted to the same queue after barrier submission may execute until all events in the `waitList` have entered the `info::event_command_status::complete` state.  Both variants are non-blocking from the host program perspective, in that they do not wait for the barrier conditions to have been met before returning.
@@ -93,7 +109,7 @@ Some forms of the new barrier methods return an `event`, which can be used to pe
 
 CG4 doesn't execute until all previous command groups submitted to the same queue (CG1, CG2, CG3) have entered the completed state.
 
-==== 1. Using `handler::barrier()`:
+==== 1. Using `handler::ext_intel_barrier()`:
 
 [source,c++,NoName,linenums]
 ----
@@ -109,7 +125,7 @@ Queue.submit([&](cl::sycl::handler& cgh) {
 });
 
 Queue.submit([&](cl::sycl::handler& cgh) {
-  cgh.barrier();
+  cgh.ext_intel_barrier();
 });
 
 Queue.submit([&](cl::sycl::handler& cgh) {
@@ -118,7 +134,7 @@ Queue.submit([&](cl::sycl::handler& cgh) {
 ...
 ----
 
-==== 2. Using `queue::submit_barrier()`:
+==== 2. Using `queue::ext_intel_submit_barrier()`:
 
 [source,c++,NoName,linenums]
 ----
@@ -133,7 +149,7 @@ Queue.submit([&](cl::sycl::handler& cgh) {
   // CG3
 });
 
-Queue.submit_barrier();
+Queue.ext_intel_submit_barrier();
 
 Queue.submit([&](cl::sycl::handler& cgh) {
   // CG4
@@ -146,7 +162,7 @@ Queue.submit([&](cl::sycl::handler& cgh) {
 
 CG3 requires CG1 (in Queue1) and CG2 (in Queue2) to have completed before it (CG3) begins execution.
 
-==== 1. Using `handler::barrier()`:
+==== 1. Using `handler::ext_intel_barrier()`:
 
 [source,c++,NoName,linenums]
 ----
@@ -160,7 +176,7 @@ auto event_barrier2 = Queue2.submit([&](cl::sycl::handler& cgh) {
 });
 
 Queue3.submit([&](cl::sycl::handler& cgh) {
-  cgh.barrier( vector_class<event>{event_barrier1, event_barrier2} );
+  cgh.ext_intel_barrier( vector_class<event>{event_barrier1, event_barrier2} );
 });
 
 Queue3.submit([&](cl::sycl::handler& cgh) {
@@ -169,7 +185,7 @@ Queue3.submit([&](cl::sycl::handler& cgh) {
 ...
 ----
 
-==== 2. Using `queue::submit_barrier()`:
+==== 2. Using `queue::ext_intel_submit_barrier()`:
 
 [source,c++,NoName,linenums]
 ----
@@ -182,7 +198,7 @@ auto event_barrier2 = Queue2.submit([&](cl::sycl::handler& cgh) {
   // CG2
 });
 
-Queue3.submit_barrier( vector_class<event>{event_barrier1, event_barrier2} );
+Queue3.ext_intel_submit_barrier( vector_class<event>{event_barrier1, event_barrier2} );
 
 Queue3.submit([&](cl::sycl::handler& cgh) {
   // CG3
@@ -211,9 +227,9 @@ void wait();
 template <typename T>
 event submit(T cgf, const queue &secondaryQueue);
 
-event submit_barrier();
+event ext_intel_submit_barrier();
 
-event submit_barrier( const vector_class<event> &waitList );
+event ext_intel_submit_barrier( const vector_class<event> &waitList );
 
 void wait();
 ...
@@ -225,8 +241,8 @@ void wait();
 [options="header"]
 |========================================
 |*Member functions*|*Description*
-|`event submit_barrier()` | Same effect as submitting a `handler::barrier()` within a command group to this `queue`.  The returned event enters the `info::event_command_status::complete` state when all events that the barrier is dependent on (implicitly from all previously submitted commands to the same queue) have entered the `info::event_command_status::complete` state.
-|`event submit_barrier( const vector_class<event> &waitList )` | Same effect as submitting a `handler:barrier( const vector_class<event> &waitList )` within a command group to this `queue`.  The returned event enters the `info::event_command_status::complete` state when all events that the barrier is dependent on (explicitly from `waitList`) have entered the `info::event_command_status::complete` state.
+|`event ext_intel_submit_barrier()` | Same effect as submitting a `handler::ext_intel_barrier()` within a command group to this `queue`.  The returned event enters the `info::event_command_status::complete` state when all events that the barrier is dependent on (implicitly from all previously submitted commands to the same queue) have entered the `info::event_command_status::complete` state.
+|`event ext_intel_submit_barrier( const vector_class<event> &waitList )` | Same effect as submitting a `handler:ext_intel_barrier( const vector_class<event> &waitList )` within a command group to this `queue`.  The returned event enters the `info::event_command_status::complete` state when all events that the barrier is dependent on (explicitly from `waitList`) have entered the `info::event_command_status::complete` state.
 |========================================
 
 
@@ -261,9 +277,9 @@ void fill(accessor<T, dim, mode, tgt> dest, const T& src);
 template<typename T, int dim, access::mode mode, access::target tgt>
 void fill(accessor<T, dim, mode, tgt> dest, const T& src);
 
-void barrier();
+void ext_intel_barrier();
 
-void barrier( const vector_class<event> &waitList );
+void ext_intel_barrier( const vector_class<event> &waitList );
 
 };
 ...
@@ -284,8 +300,8 @@ Barriers can be created by two members of the `handler` class that force synchro
 [options="header"]
 |========================================
 |*Member functions*|*Description*
-|`void barrier()` | Prevents any commands submitted afterward to this queue from executing until all commands previously submitted to this queue have entered the `info::event_command_status::complete` state.
-|`void barrier( const vector_class<event> &waitList` ) | Prevents any commands submitted afterward to this queue from executing until all events in `waitList` have entered the `info::event_command_status::complete` state.  If `waitList` is empty, then the barrier has no effect.
+|`void ext_intel_barrier()` | Prevents any commands submitted afterward to this queue from executing until all commands previously submitted to this queue have entered the `info::event_command_status::complete` state.
+|`void ext_intel_barrier( const vector_class<event> &waitList` ) | Prevents any commands submitted afterward to this queue from executing until all events in `waitList` have entered the `info::event_command_status::complete` state.  If `waitList` is empty, then the barrier has no effect.
 |========================================
 
 == References
@@ -303,6 +319,7 @@ None.
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-02-26|Ye Ting|*Initial public release*
+|2|2021-08-30|Dmitry Vodopyanov|*Updated according to SYCL 2020 reqs for extensions*
 |========================================
 
 //************************************************************************

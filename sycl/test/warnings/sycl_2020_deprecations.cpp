@@ -148,7 +148,7 @@ int main() {
   sycl::ONEAPI::atomic_fence(sycl::ONEAPI::memory_order::relaxed,
                              sycl::ONEAPI::memory_scope::work_group);
 
-  // expected-warning@+1{{'INTEL' is deprecated: use 'ext::intel' instead}}
+  // expected-warning@+1{{'INTEL' is deprecated: use 'ext::intel::experimental' instead}}
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
 

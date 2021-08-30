@@ -22,7 +22,6 @@ namespace detail {
 inline void memcpy(void *Dst, const void *Src, std::size_t Size);
 }
 
-// sycl::bit_cast ( no longer sycl::detail::bit_cast )
 template <typename To, typename From>
 #if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
 constexpr
@@ -54,6 +53,7 @@ constexpr
 
 namespace detail {
 template <typename To, typename From>
+__SYCL2020_DEPRECATED("use sycl::bit_cast instead")
 #if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
 constexpr
 #endif
