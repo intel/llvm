@@ -11,7 +11,7 @@
 
 #include <utility>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 exception_list::size_type exception_list::size() const { return MList.size(); }
 
@@ -25,4 +25,5 @@ void exception_list::PushBack(value_type&& Value) { MList.emplace_back(std::move
 
 void exception_list::Clear() noexcept { MList.clear(); }
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

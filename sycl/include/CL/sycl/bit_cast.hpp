@@ -14,7 +14,7 @@
 #include <bit>
 #endif
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 // forward decl
 namespace detail {
@@ -62,4 +62,5 @@ constexpr
 }
 } // namespace detail
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

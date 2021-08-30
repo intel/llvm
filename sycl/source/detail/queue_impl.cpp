@@ -22,7 +22,7 @@
 #include <sstream>
 #endif
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 template <> cl_uint queue_impl::get_info<info::queue::reference_count>() const {
   RT::PiResult result = PI_SUCCESS;
@@ -351,4 +351,5 @@ pi_native_handle queue_impl::getNative() const {
 }
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

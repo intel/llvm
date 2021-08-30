@@ -15,7 +15,7 @@
 #include <istream>
 #include <string>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 enum class backend : char {
   host = 0,
@@ -64,4 +64,5 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   return Out;
 }
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

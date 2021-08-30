@@ -15,7 +15,7 @@
 #include <type_traits>
 #include <utility>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -123,4 +123,5 @@ template <typename T, typename U> T getBaseRegion(std::pair<T, U> Reg) {
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

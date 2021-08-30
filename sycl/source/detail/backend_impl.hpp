@@ -10,7 +10,7 @@
 #pragma once
 #include <CL/sycl/backend_types.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 template <class T> backend getImplBackend(const T &Impl) {
@@ -24,4 +24,5 @@ template <class T> backend getImplBackend(const T &Impl) {
 }
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

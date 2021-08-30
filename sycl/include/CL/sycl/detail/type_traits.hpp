@@ -17,7 +17,7 @@
 #include <tuple>
 #include <type_traits>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 template <int Dimensions> class group;
 namespace ext {
 namespace oneapi {
@@ -358,4 +358,5 @@ template <typename Ret, typename... Args> struct function_traits<Ret(Args...)> {
 };
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

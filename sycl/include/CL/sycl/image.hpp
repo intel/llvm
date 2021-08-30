@@ -20,7 +20,7 @@
 // sRGB Extension Support
 #define SYCL_EXT_ONEAPI_SRGB 1
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 enum class image_channel_order : unsigned int {
   a = 0,
@@ -313,7 +313,8 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 };
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 namespace std {
 template <int Dimensions, typename AllocatorT>

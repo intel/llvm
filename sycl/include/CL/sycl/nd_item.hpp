@@ -23,7 +23,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 class Builder;
 }
@@ -223,4 +223,5 @@ template <int Dims> nd_item<Dims> this_nd_item() {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

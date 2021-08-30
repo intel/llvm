@@ -8,7 +8,7 @@
 
 #pragma once
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 enum class memory_order : int {
   relaxed = 0,
@@ -80,4 +80,5 @@ static constexpr std::memory_order getStdMemoryOrder(sycl::memory_order order) {
 #endif // __SYCL_DEVICE_ONLY__
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

@@ -19,7 +19,7 @@
 #include <io.h>
 #endif
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 /* Lock file suffix */
@@ -409,4 +409,5 @@ std::string PersistentDeviceCodeCache::getRootDir() {
 }
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

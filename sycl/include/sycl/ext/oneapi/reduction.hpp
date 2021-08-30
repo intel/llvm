@@ -19,7 +19,7 @@
 
 #include <tuple>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace ext {
 namespace oneapi {
 
@@ -2078,4 +2078,5 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
                                          size_t &NWorkGroups);
   } // namespace detail
 } // namespace ONEAPI
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

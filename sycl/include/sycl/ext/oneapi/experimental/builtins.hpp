@@ -16,7 +16,7 @@
 #define __SYCL_CONSTANT_AS
 #endif
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -74,6 +74,7 @@ int printf(const __SYCL_CONSTANT_AS char *__format, Args... args) {
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
 }
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 #undef __SYCL_CONSTANT_AS

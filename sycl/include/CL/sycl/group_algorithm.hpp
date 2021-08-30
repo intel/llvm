@@ -19,7 +19,7 @@
 #include <CL/sycl/sub_group.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 // ---- linear_id_to_id
@@ -872,4 +872,5 @@ group_barrier(Group, memory_scope FenceScope = Group::fence_scope) {
 #endif
 }
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

@@ -13,7 +13,7 @@
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
                          const size_t SizeInBytes, event AvailableEvent,
@@ -130,4 +130,5 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
     HostPtrReadOnly = false;
 }
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

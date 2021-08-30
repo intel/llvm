@@ -20,7 +20,7 @@
 #include <thread>
 #include <vector>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 /* This is temporary solution until std::filesystem is available when SYCL RT
@@ -191,4 +191,5 @@ public:
   }
 };
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

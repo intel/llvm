@@ -42,7 +42,7 @@
 
 #endif // __SYCL_RT_OS
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 #if defined(__SYCL_RT_OS_LINUX)
@@ -299,4 +299,5 @@ int OSUtil::makeDir(const char *Dir) {
 }
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

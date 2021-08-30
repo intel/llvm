@@ -9,10 +9,11 @@
 #include <CL/sycl/detail/util.hpp>
 #include <detail/global_handler.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 Sync &Sync::getInstance() { return GlobalHandler::instance().getSync(); }
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

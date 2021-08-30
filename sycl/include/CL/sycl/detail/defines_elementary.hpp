@@ -33,7 +33,7 @@
 
 #ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 
-#define __SYCL_OPEN_NS                                                         \
+#define __SYCL_OPEN_NS()                                                       \
   __SYCL_NS_OPEN_1 {                                                           \
     __SYCL_NS_OPEN_2 {}                                                        \
   }                                                                            \
@@ -48,7 +48,7 @@
 // 2. An alias which will be used to refer to "target" namepsace outside of
 //    namespace itself
 // 3. Opens "target" namespace
-#define __SYCL_OPEN_NS                                                         \
+#define __SYCL_OPEN_NS()                                                       \
   __SYCL_NS_OPEN_1 {                                                           \
     __SYCL_NS_OPEN_2 {}                                                        \
   }                                                                            \
@@ -61,7 +61,7 @@
 
 #endif
 
-#define __SYCL_CLOSE_NS }
+#define __SYCL_CLOSE_NS() }
 
 #ifndef __has_attribute
 #define __has_attribute(x) 0

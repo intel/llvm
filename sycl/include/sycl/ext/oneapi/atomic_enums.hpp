@@ -19,7 +19,7 @@
 #endif
 #include <type_traits>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace ext {
 namespace oneapi {
 
@@ -75,4 +75,5 @@ getStdMemoryOrder(::__sycl_ns_alias::ext::oneapi::memory_order order) {
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
 }
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

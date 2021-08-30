@@ -24,7 +24,7 @@
 
 // 4.6.2 Context class
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 context::context(const property_list &PropList)
     : context(default_selector().select_device(), PropList) {}
 
@@ -131,4 +131,5 @@ context::context(std::shared_ptr<detail::context_impl> Impl) : impl(Impl) {}
 
 pi_native_handle context::getNative() const { return impl->getNative(); }
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

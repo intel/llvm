@@ -10,7 +10,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/defines.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace access {
 
 enum class target {
@@ -254,4 +254,5 @@ template <class T> struct deduce_AS<__OPENCL_CONSTANT_AS__ T> {
 #undef __OPENCL_PRIVATE_AS__
 } // namespace detail
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

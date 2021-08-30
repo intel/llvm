@@ -21,7 +21,7 @@
 #include <CL/sycl/detail/cg.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 class queue_impl;
@@ -568,4 +568,5 @@ private:
 };
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

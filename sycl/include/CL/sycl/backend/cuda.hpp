@@ -30,7 +30,7 @@ typedef unsigned long long CUdeviceptr;
 typedef unsigned int CUdeviceptr;
 #endif
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 template <> struct interop<backend::cuda, device> { using type = CUdevice; };
 
@@ -61,4 +61,5 @@ struct interop<backend::cuda, buffer<DataT, Dimensions, AllocatorT>> {
   using type = CUdeviceptr;
 };
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

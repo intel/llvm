@@ -24,7 +24,7 @@
 #include <memory>
 #include <vector>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 template <class T> struct LessByHash {
@@ -485,4 +485,5 @@ private:
 };
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

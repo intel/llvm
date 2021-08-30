@@ -10,7 +10,7 @@
 
 #include <CL/sycl/accessor.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 // Interoperability handler
 //
@@ -68,4 +68,5 @@ private:
   __SYCL_EXPORT pi_native_handle GetNativeQueue() const;
 };
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

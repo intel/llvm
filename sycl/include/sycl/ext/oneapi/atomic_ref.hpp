@@ -20,7 +20,7 @@
 #endif
 #include <type_traits>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 // Forward declaration
 template <typename pointerT, access::address_space AddressSpace>
@@ -676,4 +676,5 @@ public:
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
 }
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

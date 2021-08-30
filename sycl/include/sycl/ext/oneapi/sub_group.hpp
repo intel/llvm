@@ -24,7 +24,7 @@
 
 #include <type_traits>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 template <typename T, access::address_space Space> class multi_ptr;
 
 namespace detail {
@@ -758,4 +758,5 @@ inline sub_group this_sub_group() {
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
 }
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

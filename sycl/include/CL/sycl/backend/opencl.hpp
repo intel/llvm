@@ -16,7 +16,7 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/kernel_bundle.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 template <> struct interop<backend::opencl, platform> {
   using type = cl_platform_id;
@@ -150,4 +150,5 @@ T make(const context &Context,
 }
 
 } // namespace opencl
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

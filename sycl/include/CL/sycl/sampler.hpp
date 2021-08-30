@@ -14,7 +14,7 @@
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/property_list.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 enum class addressing_mode : unsigned int {
   mirrored_repeat = CL_ADDRESS_MIRRORED_REPEAT,
   repeat = CL_ADDRESS_REPEAT,
@@ -122,7 +122,8 @@ private:
             access::placeholder IsPlaceholder>
   friend class detail::image_accessor;
 };
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 namespace std {
 template <> struct hash<__sycl_ns_alias::sampler> {

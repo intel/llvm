@@ -14,7 +14,7 @@
 
 #include <vector>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 program::program(const context &context, const property_list &PropList)
     : impl(std::make_shared<detail::program_impl>(
@@ -157,4 +157,5 @@ void program::set_spec_constant_impl(const char *Name, void *Data,
   impl->set_spec_constant_impl(Name, Data, Size);
 }
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

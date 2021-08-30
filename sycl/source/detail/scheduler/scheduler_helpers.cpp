@@ -12,7 +12,7 @@
 #include <detail/scheduler/scheduler_helpers.hpp>
 #include <detail/stream_impl.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {
@@ -50,4 +50,5 @@ void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {
 }
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

@@ -16,7 +16,7 @@
 
 #include <algorithm>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 backend interop_handle::get_backend() const noexcept {
   return detail::getImplBackend(MQueue);
@@ -50,4 +50,5 @@ pi_native_handle interop_handle::getNativeQueue() const {
   return MQueue->getNative();
 }
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

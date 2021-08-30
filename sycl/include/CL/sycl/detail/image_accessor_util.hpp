@@ -22,7 +22,7 @@
 #include <cmath>
 #include <iostream>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 template <typename T>
@@ -1123,5 +1123,6 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
 }
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 #endif

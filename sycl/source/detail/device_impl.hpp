@@ -16,7 +16,7 @@
 
 #include <memory>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 // Forward declaration
 class platform;
@@ -232,4 +232,5 @@ private:
 }; // class device_impl
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

@@ -11,7 +11,7 @@
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/pointers.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace ext {
 namespace intel {
 constexpr uint8_t BURST_COALESCE = 0x1;
@@ -126,4 +126,5 @@ private:
 namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
   using namespace ext::intel;
 }
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

@@ -13,7 +13,7 @@
 #include <sycl/ext/oneapi/atomic_enums.hpp>
 #include <sycl/ext/oneapi/atomic_ref.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace ext {
 namespace oneapi {
 
@@ -131,4 +131,5 @@ atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
 }
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

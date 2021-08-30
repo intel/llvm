@@ -21,7 +21,7 @@
 #include <memory>
 #include <vector>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 // Forward declaration
 template <backend Backend> class backend_traits;
 
@@ -670,7 +670,8 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
   return build(InputBundle, InputBundle.get_devices(), PropList);
 }
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 namespace std {
 template <> struct hash<__sycl_ns_alias::kernel_id> {

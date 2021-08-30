@@ -19,7 +19,7 @@
 #include <memory>
 #include <utility>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 // Forward declarations
 class device_selector;
 namespace detail {
@@ -213,7 +213,8 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 namespace std {
 template <> struct hash<__sycl_ns_alias::device> {

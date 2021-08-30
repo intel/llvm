@@ -25,7 +25,7 @@
 #include <algorithm>
 #include <memory>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 static const plugin &getPlugin(backend Backend) {
@@ -210,4 +210,5 @@ kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
       std::make_shared<kernel_impl>(PiKernel, ContextImpl));
 }
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

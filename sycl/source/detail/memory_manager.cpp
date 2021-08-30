@@ -16,7 +16,7 @@
 #include <cstring>
 #include <vector>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 static void waitForEvents(const std::vector<EventImplPtr> &Events) {
@@ -716,4 +716,5 @@ void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
 }
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

@@ -24,7 +24,7 @@
 // For testing purposes
 class MockKernelProgramCache;
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 class context_impl;
 class KernelProgramCache {
@@ -142,4 +142,5 @@ private:
   friend class ::MockKernelProgramCache;
 };
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

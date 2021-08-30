@@ -10,7 +10,7 @@
 
 #include <CL/sycl/detail/property_helper.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace property {
 namespace queue {
 class in_order : public detail::DataLessProperty<detail::InOrder> {};
@@ -22,4 +22,5 @@ class use_default_stream
 } // namespace cuda
 } // namespace queue
 } // namespace property
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

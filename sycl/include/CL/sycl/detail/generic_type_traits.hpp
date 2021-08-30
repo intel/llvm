@@ -17,7 +17,7 @@
 
 #include <limits>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 template <typename T> using is_floatn = is_contained<T, gtl::vector_float_list>;
@@ -627,4 +627,5 @@ template <typename... Args> inline void check_vector_size() {
 }
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

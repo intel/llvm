@@ -10,7 +10,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/stream_impl.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 // Maximum possible size of a flush buffer statement in bytes
 static constexpr size_t MAX_STATEMENT_SIZE =
@@ -51,4 +51,5 @@ bool stream::operator==(const stream &RHS) const { return (impl == RHS.impl); }
 
 bool stream::operator!=(const stream &RHS) const { return !(impl == RHS.impl); }
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

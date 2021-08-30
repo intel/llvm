@@ -16,7 +16,7 @@
 #include <atomic>
 #endif
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 static inline void atomic_fence(memory_order order, memory_scope scope) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -30,4 +30,5 @@ static inline void atomic_fence(memory_order order, memory_scope scope) {
 #endif
 }
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

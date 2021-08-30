@@ -14,7 +14,7 @@
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/range.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 template <int dimensions> class range;
 template <int dimensions, bool with_offset> class item;
 
@@ -311,4 +311,5 @@ template <int Dims> id<Dims> this_id() {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

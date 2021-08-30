@@ -9,7 +9,7 @@
 #pragma once
 #include <CL/sycl/access/access.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 template <typename ElementType, access::address_space Space> class multi_ptr;
 // Template specialization aliases for different pointer address spaces
@@ -36,4 +36,5 @@ template <typename ElementType>
 using private_ptr =
     multi_ptr<ElementType, access::address_space::private_space>;
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

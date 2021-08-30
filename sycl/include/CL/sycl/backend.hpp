@@ -26,7 +26,7 @@
 
 #include <type_traits>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 namespace detail {
 template <backend Backend, typename T> struct BackendInput {
@@ -219,4 +219,5 @@ make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
           State, Backend);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(KBImpl);
 }
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

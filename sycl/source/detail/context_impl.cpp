@@ -21,7 +21,7 @@
 #include <detail/context_info.hpp>
 #include <detail/platform_impl.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
@@ -190,4 +190,5 @@ pi_native_handle context_impl::getNative() const {
 }
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

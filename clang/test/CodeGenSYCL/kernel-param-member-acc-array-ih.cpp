@@ -8,7 +8,7 @@
 
 // CHECK: class kernel_C;
 
-// CHECK: __SYCL_OPEN_NS {
+// CHECK: __SYCL_OPEN_NS() {
 // CHECK-NEXT: namespace detail {
 
 // CHECK: static constexpr

@@ -4,7 +4,7 @@
 // This test checks that compiler generates correct kernel description
 // for parallel_for kernels that use the this_item API.
 
-// CHECK: __SYCL_OPEN_NS {
+// CHECK: __SYCL_OPEN_NS() {
 // CHECK-NEXT: namespace detail {
 
 // CHECK: static constexpr

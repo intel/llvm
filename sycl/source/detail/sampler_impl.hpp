@@ -15,7 +15,7 @@
 
 #include <unordered_map>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 enum class addressing_mode : unsigned int;
 enum class filtering_mode : unsigned int;
@@ -70,4 +70,5 @@ private:
 };
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

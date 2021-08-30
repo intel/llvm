@@ -13,14 +13,15 @@
 #include <cstddef>
 #include <cstdint>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 template <typename T, int N> class vec;
 namespace detail {
 namespace half_impl {
 class half;
 } // namespace half_impl
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 // FIXME: line below exports 'half' into global namespace, which seems incorrect
 // However, SYCL 1.2.1 spec considers 'half' to be a fundamental C++ data type
@@ -67,7 +68,7 @@ using half = __sycl_ns_alias::detail::half_impl::half;
   __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                               \
   __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 using byte __SYCL2020_DEPRECATED("use std::byte instead") = std::uint8_t;
 using schar = signed char;
 using uchar = unsigned char;
@@ -95,7 +96,8 @@ __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(3)
 __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(4)
 __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(8)
 __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(16)
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 #undef __SYCL_MAKE_VECTOR_ALIAS
 #undef __SYCL_MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES

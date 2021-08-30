@@ -58,7 +58,7 @@
 #define _KERNELFUNCPARAM(a) const KernelType &a
 #endif
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 // Forward declaration
 class context;
@@ -1014,7 +1014,8 @@ private:
   }
 };
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 namespace std {
 template <> struct hash<__sycl_ns_alias::queue> {

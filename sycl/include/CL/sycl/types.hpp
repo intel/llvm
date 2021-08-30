@@ -64,7 +64,7 @@
 // 4.10.1: Scalar data types
 // 4.10.2: SYCL vector types
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 struct elem {
@@ -2035,7 +2035,8 @@ __SYCL_RELLOGOP(&&)
 __SYCL_RELLOGOP(||)
 #undef __SYCL_RELLOGOP
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
 #define __SYCL_DECLARE_TYPE_VIA_CL_T(type)                                     \
@@ -2098,7 +2099,7 @@ using __half8_vec_t = __sycl_ns_alias::detail::half_impl::Vec8StorageT;
 using __half16_vec_t = __sycl_ns_alias::detail::half_impl::Vec16StorageT;
 #define __SYCL_GET_CL_HALF_TYPE(target, num) __##target##num##_vec_t
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 // select_apply_cl_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types in IN.
@@ -2394,6 +2395,7 @@ struct CheckDeviceCopyable
 #endif // __SYCL_DEVICE_ONLY__
 } // namespace detail
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 #undef __SYCL_ALIGNAS

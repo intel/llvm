@@ -16,7 +16,7 @@
 
 #include <cstddef>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 // Forward declaration
 namespace detail {
@@ -51,4 +51,5 @@ private:
 
 using async_handler = std::function<void(__sycl_ns_alias::exception_list)>;
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

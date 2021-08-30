@@ -24,7 +24,7 @@
 #include <cctype>
 #include <regex>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 // Utility function to check if device is of the preferred backend.
 // Currently preference is given to the level_zero backend.
@@ -284,4 +284,5 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
     return ext::oneapi::filter_selector::select_device();
   }
 } // namespace ONEAPI
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

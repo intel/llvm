@@ -13,7 +13,7 @@
 #include <detail/program_impl.hpp>
 #include <detail/queue_impl.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace opencl {
 using namespace detail;
 
@@ -55,4 +55,5 @@ __SYCL_EXPORT queue make_queue(const context &Context,
                             ContextImpl->get_async_handler(), backend::opencl);
 }
 } // namespace opencl
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

@@ -17,7 +17,7 @@
 
 #include <vector>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 class __SYCL_EXPORT stream_impl {
@@ -58,4 +58,5 @@ private:
 };
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

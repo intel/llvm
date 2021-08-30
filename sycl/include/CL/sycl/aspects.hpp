@@ -9,7 +9,7 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 enum class aspect {
   host = 0,
@@ -47,4 +47,5 @@ enum class aspect {
   ext_oneapi_srgb = 30,
 };
 
-} __SYCL_CLOSE_NS
+}
+__SYCL_CLOSE_NS()

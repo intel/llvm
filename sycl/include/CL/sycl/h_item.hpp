@@ -13,7 +13,7 @@
 #include <CL/sycl/item.hpp>
 #include <CL/sycl/range.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 namespace detail {
 class Builder;
@@ -133,4 +133,5 @@ private:
   item<dimensions, false> logicalLocalItem;
 };
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

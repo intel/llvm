@@ -13,7 +13,7 @@
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <type_traits>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace property {
 
 class no_init : public detail::DataLessProperty<detail::NoInit> {};
@@ -127,4 +127,5 @@ template <>
 struct IsCompileTimePropertyInstance<
     ext::oneapi::property::no_offset::instance<>> : std::true_type {};
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

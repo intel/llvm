@@ -18,7 +18,7 @@
 #include <atomic>
 #include <cassert>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 class context;
 namespace detail {
 class plugin;
@@ -187,4 +187,5 @@ private:
 };
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

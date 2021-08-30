@@ -8,14 +8,14 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp> // for __SYCL_INLINE_NAMESPACE
+#include <CL/sycl/detail/defines_elementary.hpp> // for __SYCL_OPEN_NS
 #include <CL/sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <CL/sycl/device.hpp>
 
 #include <string>
 #include <vector>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace ext {
 namespace intel {
 
@@ -360,4 +360,5 @@ namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
   }
 
 } // namespace INTEL
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

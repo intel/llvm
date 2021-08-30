@@ -11,7 +11,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                   void *HostPtr, RT::PiEvent &OutEventToWait) {
@@ -27,4 +27,5 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
       BaseT::MInteropEvent, BaseT::MInteropContext, MProps, OutEventToWait);
 }
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

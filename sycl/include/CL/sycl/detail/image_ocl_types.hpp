@@ -33,14 +33,15 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 // Type trait to get the associated sampled image type for a given image type.
 template <typename ImageType> struct sampled_opencl_image_type;
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 #define __SYCL_INVOKE_SPIRV_CALL_ARG1(call)                                    \
   template <typename R, typename T1> inline R __invoke_##call(T1 ParT1) {      \
@@ -113,7 +114,7 @@ static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
   return __sycl_ns_alias::detail::convertDataToType<TempRetT, RetType>(Ret);
 }
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 // Function to return the number of channels for Image Channel Order returned by
@@ -255,7 +256,8 @@ __SYCL_IMAGETY_WRITE_2_DIM_IARRAY
 __SYCL_IMAGETY_DISCARD_WRITE_2_DIM_IARRAY
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 #undef __SYCL_SAMPLED_AND_IMAGETY_DEFINE
 #undef __SYCL_INVOKE_SPIRV_CALL_ARG1

@@ -13,7 +13,7 @@
 
 #include <CL/sycl/accessor.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -85,4 +85,5 @@ using EnableIfAccessor = sycl::detail::enable_if_t<
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

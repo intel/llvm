@@ -9,7 +9,7 @@
 #pragma once
 #include <functional>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 template <typename T = void> using plus = std::plus<T>;
 template <typename T = void> using multiplies = std::multiplies<T>;
@@ -52,4 +52,5 @@ template <> struct maximum<void> {
   }
 };
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

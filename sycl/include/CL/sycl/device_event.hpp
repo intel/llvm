@@ -11,7 +11,7 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 /// Encapsulates a single SYCL device event which is available only within SYCL
 /// kernel functions and can be used to wait for asynchronous operations within
@@ -35,4 +35,5 @@ public:
   }
 };
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

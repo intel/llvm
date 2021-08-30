@@ -16,7 +16,7 @@
 #define __builtin_expect(a, b) (a)
 #endif
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 struct PlatformUtil {
@@ -43,4 +43,5 @@ struct PlatformUtil {
 };
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

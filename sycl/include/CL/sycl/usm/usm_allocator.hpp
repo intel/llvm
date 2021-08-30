@@ -17,7 +17,7 @@
 #include <cstdlib>
 #include <memory>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 // Forward declarations.
 __SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t size,
@@ -119,4 +119,5 @@ private:
   property_list MPropList;
 };
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

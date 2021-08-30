@@ -11,7 +11,7 @@
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 template <backend Backend> struct InteropFeatureSupportMap {
   static constexpr bool MakePlatform = false;
@@ -23,4 +23,5 @@ template <backend Backend> struct InteropFeatureSupportMap {
   static constexpr bool MakeKernel = false;
 };
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

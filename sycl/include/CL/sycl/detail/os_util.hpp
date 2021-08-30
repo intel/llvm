@@ -39,7 +39,7 @@
 #error "Unsupported compiler or OS"
 #endif // _WIN32
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 /// Uniquely identifies an operating system module (executable or a dynamic
@@ -98,4 +98,5 @@ public:
 };
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

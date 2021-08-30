@@ -10,7 +10,7 @@
 
 #include <CL/sycl/detail/common.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 namespace detail {
 
@@ -84,4 +84,5 @@ public:
 
 } // namespace detail
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

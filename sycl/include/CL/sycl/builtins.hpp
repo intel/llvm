@@ -17,7 +17,7 @@
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 #ifdef __SYCL_DEVICE_ONLY__
 #define __sycl_std
 #else
@@ -1545,7 +1545,8 @@ detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
 }
 
 } // namespace half_precision
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" {

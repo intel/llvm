@@ -17,7 +17,7 @@
 
 #include <memory>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 // Forward declaration
 class program;
 class context;
@@ -222,7 +222,8 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 namespace std {
 template <> struct hash<__sycl_ns_alias::kernel> {

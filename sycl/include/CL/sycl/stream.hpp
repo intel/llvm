@@ -13,7 +13,7 @@
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/handler.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 namespace detail {
 
@@ -1140,7 +1140,8 @@ inline const stream &operator<<(const stream &Out, const T &RHS) {
   return Out;
 }
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 namespace std {
 template <> struct hash<__sycl_ns_alias::stream> {
   size_t operator()(const __sycl_ns_alias::stream &S) const {

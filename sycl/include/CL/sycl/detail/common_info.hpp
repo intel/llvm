@@ -10,11 +10,12 @@
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/stl.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 std::vector<std::string> __SYCL_EXPORT split_string(const std::string &str,
                                                     char delimeter);
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

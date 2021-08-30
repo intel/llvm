@@ -19,7 +19,7 @@
 #include <CL/sycl/detail/sycl_fe_intrins.hpp>
 #include <CL/sycl/exception.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 class program;
 
 namespace ext {
@@ -82,4 +82,5 @@ public:
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
 }
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

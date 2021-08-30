@@ -18,7 +18,7 @@
 #include <memory>
 #include <vector>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 class queue_impl;
@@ -157,4 +157,5 @@ public:
                          RT::PiEvent &OutEvent);
 };
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

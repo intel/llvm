@@ -171,7 +171,7 @@
 // For testing purposes
 class MockScheduler;
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 class queue_impl;
@@ -811,4 +811,5 @@ protected:
 };
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

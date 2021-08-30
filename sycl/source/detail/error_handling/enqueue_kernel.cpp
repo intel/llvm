@@ -16,7 +16,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 namespace enqueue_kernel_launch {
@@ -325,4 +325,5 @@ bool handleError(pi_result Error, const device_impl &DeviceImpl,
 } // namespace enqueue_kernel_launch
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

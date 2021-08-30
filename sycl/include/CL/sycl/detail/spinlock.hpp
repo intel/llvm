@@ -13,7 +13,7 @@
 #include <atomic>
 #include <thread>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 /// SpinLock is a synchronization primitive, that uses atomic variable and
 /// causes thread trying acquire lock wait in loop while repeatedly check if
@@ -35,4 +35,5 @@ private:
   std::atomic_flag MLock = ATOMIC_FLAG_INIT;
 };
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

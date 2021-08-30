@@ -14,7 +14,7 @@
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 // OpenCL kernel information methods
@@ -183,4 +183,5 @@ struct get_kernel_device_specific_info_with_input {
   }
 };
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

@@ -21,7 +21,7 @@
 #include <type_traits>
 #include <vector>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 class context;
 class event;
 template <int Dims, bool WithOffset> class item;
@@ -241,4 +241,5 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
 
 } // namespace detail
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

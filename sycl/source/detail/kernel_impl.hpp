@@ -21,7 +21,7 @@
 #include <cassert>
 #include <memory>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 // Forward declaration
 class program_impl;
@@ -288,4 +288,5 @@ kernel_impl::get_sub_group_info(
 }
 
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

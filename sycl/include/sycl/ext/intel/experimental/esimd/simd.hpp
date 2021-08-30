@@ -17,7 +17,7 @@
 #include <sycl/ext/intel/experimental/esimd/detail/sycl_util.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -684,7 +684,8 @@ ESIMD_INLINE
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
 #ifndef __SYCL_DEVICE_ONLY__
 template <typename Ty, int N>

@@ -11,7 +11,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/property_helper.hpp>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 namespace property {
 namespace buffer {
@@ -63,4 +63,5 @@ class use_pinned_host_memory : public sycl::detail::DataLessProperty<
 } // namespace property
 } // namespace oneapi
 } // namespace ext
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

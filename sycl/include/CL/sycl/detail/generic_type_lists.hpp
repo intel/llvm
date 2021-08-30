@@ -16,7 +16,7 @@
 // types of parameters to kernel functions
 
 // Forward declarations
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 template <typename T, int N> class vec;
 namespace detail {
 namespace half_impl {
@@ -24,9 +24,10 @@ class half;
 }
 } // namespace detail
 using half = detail::half_impl::half;
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace detail {
 namespace gtl {
 // floating point types
@@ -379,4 +380,5 @@ using nonlocal_address_space_list =
                        access::address_space::global_host_space>;
 } // namespace gvl
 } // namespace detail
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

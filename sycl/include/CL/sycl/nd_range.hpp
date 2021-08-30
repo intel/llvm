@@ -13,7 +13,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 
 /// Defines the iteration domain of both the work-groups and the overall
 /// dispatch.
@@ -63,4 +63,5 @@ public:
   }
 };
 
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

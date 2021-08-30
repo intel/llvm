@@ -14,7 +14,7 @@
 
 #include "ocloc_api.h"
 
-__SYCL_OPEN_NS {
+__SYCL_OPEN_NS() {
 namespace ext {
 namespace intel {
 namespace detail {
@@ -250,4 +250,5 @@ namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
     return MOnlineCompiler.compile(Source, UserArgs);
   }
 } // namespace INTEL
-} __SYCL_CLOSE_NS
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
