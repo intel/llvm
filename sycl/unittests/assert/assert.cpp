@@ -6,6 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
+/*
+ * This test checks that assert fallback assert feature works well.
+ * According to the doc, when assert is triggered on device host application
+ * should abort. That said, a standard `abort()` function is to be called. The
+ * function makes sure the app terminates due `SIGABRT` signal. This makes it
+ * impossible to verify the feature in uni-process environment. Hence, we employ
+ * multi-process envirnment i.e. we call a `fork()`. The child process is should
+ * abort and the parent process verifies it and checks that child prints correct
+ * error message to `stderr`. Verification of `stderr` output is performed via
+ * pipe.
+ */
+
 #include <CL/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
@@ -126,8 +138,8 @@ struct AssertHappened {
   uint64_t LID2 = 0;
 };
 
-// This should be modified
-// Substituted in memory map operation
+// This should not be modified.
+// Substituted in memory map operation.
 static AssertHappened ExpectedToOutput = {
     2, // assert copying done
     "TestExpression",
@@ -176,6 +188,8 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
                                               pi_event *RetEvent) {
   int *Ret = new int[1];
   *Ret = KernelLaunchCounter++;
+  // This output here is to reduce amount of time requried to debug/reproduce a
+  // failing test upon feature break
   printf("Enqueued %i\n", *Ret);
 
   if (PauseWaitOnIdx == *Ret) {
@@ -197,6 +211,8 @@ static pi_result redefinedEventsWait(pi_uint32 num_events,
 
   int EventIdx1 = reinterpret_cast<int *>(event_list[0])[0];
   int EventIdx2 = reinterpret_cast<int *>(event_list[1])[0];
+  // This output here is to reduce amount of time requried to debug/reproduce a
+  // failing test upon feature break
   printf("Waiting for events %i, %i\n", EventIdx1, EventIdx2);
   return PI_SUCCESS;
 }
@@ -223,6 +239,8 @@ static pi_result redefinedEnqueueMemBufferMap(
     pi_event *RetEvent, void **RetMap) {
   int *Ret = new int[1];
   *Ret = MemoryMapCounter++;
+  // This output here is to reduce amount of time requried to debug/reproduce a
+  // failing test upon feature break
   printf("Memory map %i\n", *Ret);
   *RetEvent = reinterpret_cast<pi_event>(Ret);
 
@@ -298,6 +316,7 @@ void ParentProcess(int ChildPID, int ChildStdErrFD) {
 
   int SigNum = WTERMSIG(Status);
 
+  // Fetch number of unread bytes in pipe
   int PipeUnread = 0;
   if (ioctl(ChildStdErrFD, FIONREAD, &PipeUnread) < 0) {
     perror("Couldn't fetch pipe size: ");
@@ -306,18 +325,21 @@ void ParentProcess(int ChildPID, int ChildStdErrFD) {
 
   std::vector<char> Buf(PipeUnread + 1, '\0');
 
-  size_t TotalReadCnt = 0;
+  // Read the pipe contents
+  {
+    size_t TotalReadCnt = 0;
 
-  while (TotalReadCnt < static_cast<size_t>(PipeUnread)) {
-    ssize_t ReadCnt = read(ChildStdErrFD, Buf.data() + TotalReadCnt,
-                           PipeUnread - TotalReadCnt);
+    while (TotalReadCnt < static_cast<size_t>(PipeUnread)) {
+      ssize_t ReadCnt = read(ChildStdErrFD, Buf.data() + TotalReadCnt,
+                             PipeUnread - TotalReadCnt);
 
-    if (ReadCnt < 0) {
-      perror("Couldn't read from pipe");
-      exit(1);
+      if (ReadCnt < 0) {
+        perror("Couldn't read from pipe");
+        exit(1);
+      }
+
+      TotalReadCnt += ReadCnt;
     }
-
-    TotalReadCnt += ReadCnt;
   }
 
   std::string BufStr(Buf.data());
