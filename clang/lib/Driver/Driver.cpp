@@ -2932,6 +2932,18 @@ bool Driver::checkForSYCLDefaultDevice(Compilation &C,
   if (Args.hasArg(options::OPT_fno_sycl_link_spirv))
     return false;
 
+  // Do not do the check if the default device is passed in -fsycl-targets
+  // or if -fsycl-targets isn't passed (that implies default device)
+  if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+    for (const char *Val : A->getValues()) {
+      llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
+      if (TT.isSPIR() && TT.getSubArch() == llvm::Triple::NoSubArch)
+        // Default triple found
+        return false;
+    }
+  } else if (!Args.hasArg(options::OPT_fintelfpga))
+    return false;
+
   SmallVector<const char *, 16> AllArgs(getLinkerArgs(C, Args, true));
   for (StringRef Arg : AllArgs) {
     if (hasSYCLDefaultSection(C, Arg))
@@ -5492,6 +5504,16 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         break;
       }
 
+      // When performing -fsycl based compilations and generating dependency
+      // information, perform a specific dependency generation compilation which
+      // is not based on the source + footer compilation.
+      if (Phase == phases::Preprocess && Args.hasArg(options::OPT_fsycl) &&
+          Args.hasArg(options::OPT_M_Group) &&
+          !Args.hasArg(options::OPT_fno_sycl_use_footer)) {
+        Actions.push_back(
+            C.MakeAction<PreprocessJobAction>(Current, types::TY_Dependencies));
+      }
+
       // FIXME: Should we include any prior module file outputs as inputs of
       // later actions in the same command line?
 
@@ -5856,6 +5878,9 @@ void Driver::BuildJobs(Compilation &C) const {
   // we are also generating .o files. So we allow more than one output file in
   // this case as well.
   //
+  // Preprocessing job performed for -fsycl enabled compilation specifically
+  // for dependency generation (TY_Dependencies)
+  //
   if (FinalOutput) {
     unsigned NumOutputs = 0;
     unsigned NumIfsOutputs = 0;
@@ -5866,7 +5891,10 @@ void Driver::BuildJobs(Compilation &C) const {
              A->getKind() == clang::driver::Action::CompileJobClass &&
              0 == NumIfsOutputs++) ||
             (A->getKind() == Action::BindArchClass && A->getInputs().size() &&
-             A->getInputs().front()->getKind() == Action::IfsMergeJobClass)))
+             A->getInputs().front()->getKind() == Action::IfsMergeJobClass) ||
+            (A->getKind() == Action::PreprocessJobClass &&
+             A->getType() == types::TY_Dependencies &&
+             C.getArgs().hasArg(options::OPT_fsycl))))
         ++NumOutputs;
 
     if (NumOutputs > 1) {

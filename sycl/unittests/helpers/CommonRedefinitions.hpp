@@ -106,12 +106,15 @@ inline pi_result redefinedEventsWaitCommon(pi_uint32 num_events,
 }
 
 inline pi_result redefinedEventReleaseCommon(pi_event event) {
+  if (event != nullptr)
+    delete reinterpret_cast<int *>(event);
   return PI_SUCCESS;
 }
 
 inline pi_result redefinedEnqueueKernelLaunchCommon(
     pi_queue, pi_kernel, pi_uint32, const size_t *, const size_t *,
-    const size_t *, pi_uint32, const pi_event *, pi_event *) {
+    const size_t *, pi_uint32, const pi_event *, pi_event *event) {
+  *event = reinterpret_cast<pi_event>(new int{});
   return PI_SUCCESS;
 }
 

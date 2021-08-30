@@ -44,6 +44,7 @@
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include "xpti_trace_framework.hpp"
+#include <detail/xpti_registry.hpp>
 #endif
 
 __SYCL_OPEN_NS {
@@ -309,6 +310,7 @@ void Command::waitForEvents(QueueImplPtr Queue,
 
 Command::Command(CommandType Type, QueueImplPtr Queue)
     : MQueue(std::move(Queue)), MType(Type) {
+  MSubmittedQueue = MQueue;
   MEvent.reset(new detail::event_impl(MQueue));
   MEvent->setCommand(this);
   MEvent->setContextImpl(MQueue->getContextImplPtr());
@@ -1533,7 +1535,9 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
                              QueueImplPtr Queue)
     : Command(CommandType::RUN_CG, std::move(Queue)),
       MCommandGroup(std::move(CommandGroup)) {
-
+  if (MCommandGroup->getType() == detail::CG::CodeplayHostTask)
+    MSubmittedQueue =
+        static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue;
   emitInstrumentationDataProxy();
 }
 

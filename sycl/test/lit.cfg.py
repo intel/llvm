@@ -27,7 +27,7 @@ config.test_format = lit.formats.ShTest()
 config.suffixes = ['.c', '.cpp', '.dump'] #add .spv. Currently not clear what to do with those
 
 # feature tests are considered not so lightweight, so, they are excluded by default
-config.excludes = ['Inputs', 'feature-tests', 'on-device']
+config.excludes = ['Inputs', 'feature-tests']
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
