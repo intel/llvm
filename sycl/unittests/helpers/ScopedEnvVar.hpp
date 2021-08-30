@@ -13,39 +13,47 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl::unittest {
-inline void set_env(const char *name, const char *value) {
+inline void set_env(const char *Name, const char *Value) {
 #ifdef _WIN32
-  (void)_putenv_s(name, value);
+  (void)_putenv_s(Name, Value);
 #else
-  (void)setenv(name, value, /*overwrite*/ 1);
+  (void)setenv(Name, Value, /*overwrite*/ 1);
 #endif
 }
 
-inline void unset_env(const char *name) {
+inline void unset_env(const char *Name) {
 #ifdef _WIN32
-  (void)_putenv_s(name, "");
+  (void)_putenv_s(Name, "");
 #else
-  unsetenv(name);
+  unsetenv(Name);
 #endif
 }
 
 class ScopedEnvVar {
 public:
-  ScopedEnvVar(const char *name, const char *value,
-               std::function<void()> configReset)
-      : mName(name), mConfigReset(configReset) {
-    set_env(name, value);
-    mConfigReset();
+  ScopedEnvVar(const char *Name, const char *Value,
+               std::function<void()> ConfigReset)
+      : MName(Name), MConfigReset(ConfigReset) {
+    if (getenv(Name)) {
+      MOriginalValue = std::string(getenv(Name));
+    }
+    set_env(Name, Value);
+    MConfigReset();
   }
 
   ~ScopedEnvVar() {
-    unset_env(mName);
-    mConfigReset();
+    if (!MOriginalValue.empty()) {
+      set_env(MName, MOriginalValue.c_str());
+    } else {
+      unset_env(MName);
+    }
+    MConfigReset();
   }
 
 private:
-  const char *mName;
-  std::function<void()> mConfigReset;
+  std::string MOriginalValue;
+  const char *MName;
+  std::function<void()> MConfigReset;
 };
 } // namespace sycl::unittest
 } // __SYCL_INLINE_NAMESPACE(cl)
