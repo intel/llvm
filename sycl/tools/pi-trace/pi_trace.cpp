@@ -25,7 +25,7 @@
 static uint8_t GStreamID = 0;
 std::mutex GIOMutex;
 
-sycl::xpti_helpers::PiArgumentsHandler ArgHandler;
+xpti_helpers::PiArgumentsHandler ArgHandler;
 
 // The lone callback function we are going to use to demonstrate how to attach
 // the collector to the running executable

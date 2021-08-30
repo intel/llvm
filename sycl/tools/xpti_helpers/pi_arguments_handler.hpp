@@ -16,9 +16,9 @@
 #include <optional>
 #include <tuple>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
 namespace xpti_helpers {
+
+using namespace sycl;
 
 template <typename TupleT, size_t... Is>
 inline auto get(char *Data, const std::index_sequence<Is...> &) {
@@ -102,5 +102,3 @@ private:
 #undef _PI_API
 };
 } // namespace xpti_helpers
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

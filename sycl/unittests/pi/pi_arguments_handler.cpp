@@ -15,7 +15,7 @@
 #include <array>
 
 TEST(PiArgumentsHandlerTest, CanUnpackArguments) {
-  sycl::xpti_helpers::PiArgumentsHandler Handler;
+  xpti_helpers::PiArgumentsHandler Handler;
 
   const pi_uint32 NumPlatforms = 42;
   pi_platform *Platforms = new pi_platform[NumPlatforms];

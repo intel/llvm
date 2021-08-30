@@ -360,7 +360,6 @@ void assertion(bool Condition, const char *Message) {
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()
 
-
 //--------------
 // PI object implementation
 

@@ -19,7 +19,8 @@ cl::sycl::specialization_id<int> GlobalSpecID;
 // CHECK-NEXT: return "_Z12GlobalSpecID";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } __SYCL_CLOSE_NS()
+// CHECK-NEXT: } // __SYCL_OPEN_NS()
+// CHECK-NEXT: __SYCL_CLOSE_NS()
 
 struct Wrapper {
   static specialization_id<int> WrapperSpecID;
@@ -30,7 +31,8 @@ struct Wrapper {
   // CHECK-NEXT: return "_ZN7Wrapper13WrapperSpecIDE";
   // CHECK-NEXT: }
   // CHECK-NEXT: } // namespace detail
-  // CHECK-NEXT: } __SYCL_CLOSE_NS()
+  // CHECK-NEXT: } // __SYCL_OPEN_NS()
+  // CHECK-NEXT: __SYCL_CLOSE_NS()
 };
 
 template <typename T>
@@ -45,7 +47,8 @@ template class WrapperTemplate<int>;
 // CHECK-NEXT: return "_ZN15WrapperTemplateIiE13WrapperSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } __SYCL_CLOSE_NS()
+// CHECK-NEXT: } // __SYCL_OPEN_NS()
+// CHECK-NEXT: __SYCL_CLOSE_NS()
 template class WrapperTemplate<double>;
 // CHECK: __SYCL_OPEN_NS() {
 // CHECK-NEXT: namespace detail {
@@ -54,7 +57,8 @@ template class WrapperTemplate<double>;
 // CHECK-NEXT: return "_ZN15WrapperTemplateIdE13WrapperSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } __SYCL_CLOSE_NS()
+// CHECK-NEXT: } // __SYCL_OPEN_NS()
+// CHECK-NEXT: __SYCL_CLOSE_NS()
 
 namespace Foo {
 specialization_id<int> NSSpecID;
@@ -65,7 +69,8 @@ specialization_id<int> NSSpecID;
 // CHECK-NEXT: return "_ZN3Foo8NSSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } __SYCL_CLOSE_NS()
+// CHECK-NEXT: } // __SYCL_OPEN_NS()
+// CHECK-NEXT: __SYCL_CLOSE_NS()
 inline namespace Bar {
 specialization_id<int> InlineNSSpecID;
 // CHECK: __SYCL_OPEN_NS() {
@@ -75,7 +80,8 @@ specialization_id<int> InlineNSSpecID;
 // CHECK-NEXT: return "_ZN3Foo3Bar14InlineNSSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } __SYCL_CLOSE_NS()
+// CHECK-NEXT: } // __SYCL_OPEN_NS()
+// CHECK-NEXT: __SYCL_CLOSE_NS()
 specialization_id<int> NSSpecID;
 // CHECK: __SYCL_OPEN_NS() {
 // CHECK-NEXT: namespace detail {
@@ -84,7 +90,8 @@ specialization_id<int> NSSpecID;
 // CHECK-NEXT: return "_ZN3Foo3Bar8NSSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } __SYCL_CLOSE_NS()
+// CHECK-NEXT: } // __SYCL_OPEN_NS()
+// CHECK-NEXT: __SYCL_CLOSE_NS()
 
 struct Wrapper {
   static specialization_id<int> WrapperSpecID;
@@ -95,7 +102,8 @@ struct Wrapper {
   // CHECK-NEXT: return "_ZN3Foo3Bar7Wrapper13WrapperSpecIDE";
   // CHECK-NEXT: }
   // CHECK-NEXT: } // namespace detail
-  // CHECK-NEXT: } __SYCL_CLOSE_NS()
+  // CHECK-NEXT: } // __SYCL_OPEN_NS()
+  // CHECK-NEXT: __SYCL_CLOSE_NS()
 };
 
 template <typename T>
@@ -110,7 +118,8 @@ template class WrapperTemplate<int>;
 // CHECK-NEXT: return "_ZN3Foo3Bar15WrapperTemplateIiE13WrapperSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } __SYCL_CLOSE_NS()
+// CHECK-NEXT: } // __SYCL_OPEN_NS()
+// CHECK-NEXT: __SYCL_CLOSE_NS()
 template class WrapperTemplate<double>;
 // CHECK: __SYCL_OPEN_NS() {
 // CHECK-NEXT: namespace detail {
@@ -119,7 +128,8 @@ template class WrapperTemplate<double>;
 // CHECK-NEXT: return "_ZN3Foo3Bar15WrapperTemplateIdE13WrapperSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } __SYCL_CLOSE_NS()
+// CHECK-NEXT: } // __SYCL_OPEN_NS()
+// CHECK-NEXT: __SYCL_CLOSE_NS()
 } // namespace Bar
 namespace {
 specialization_id<int> AnonNSSpecID;
@@ -141,7 +151,8 @@ specialization_id<int> AnonNSSpecID;
 // CHECK-NEXT: return "____ZN3Foo12_GLOBAL__N_112AnonNSSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } __SYCL_CLOSE_NS()
+// CHECK-NEXT: } // __SYCL_OPEN_NS()
+// CHECK-NEXT: __SYCL_CLOSE_NS()
 } // namespace
 
 } // namespace Foo
@@ -186,7 +197,8 @@ auto x = HasVarTemplate::VarTempl<int, 2>.getDefaultValue();
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_114HasVarTemplate8VarTemplIiLi2EEE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
-// CHECK-NEXT: } __SYCL_CLOSE_NS()
+// CHECK-NEXT: } // __SYCL_OPEN_NS()
+// CHECK-NEXT: __SYCL_CLOSE_NS()
 
 template <typename T> struct GlobalWrapper {
   template<int Value> static constexpr specialization_id<T> sc{Value};

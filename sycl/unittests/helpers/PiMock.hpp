@@ -34,8 +34,7 @@
 
 #include <functional>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS() {
 namespace unittest {
 
 namespace detail = cl::sycl::detail;
@@ -188,5 +187,5 @@ private:
 };
 
 } // namespace unittest
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

@@ -17,8 +17,7 @@
 #include "xpti_trace_framework.h"
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS() {
 namespace detail {
 // We define a sycl stream name and this will be used by the instrumentation
 // framework
@@ -57,5 +56,5 @@ private:
   std::unordered_set<std::string> MActiveStreams;
 };
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

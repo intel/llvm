@@ -14,8 +14,7 @@
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS() {
 namespace unittest {
 /// Convinience wrapper around _pi_device_binary_property_struct.
 class PiProperty {
@@ -394,5 +393,5 @@ makeEmptyKernels(std::initializer_list<std::string> KernelNames) {
 }
 
 } // namespace unittest
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
