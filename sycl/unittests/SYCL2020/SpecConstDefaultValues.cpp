@@ -8,7 +8,7 @@
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <detail/device_image_impl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>

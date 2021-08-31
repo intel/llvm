@@ -12,7 +12,7 @@
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 #include "detail/program_impl.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
@@ -26,12 +26,12 @@ using namespace sycl;
 
 class TestKernel {
 public:
-  void operator()(cl::sycl::item<1>){};
+  void operator()(sycl::item<1>){};
 };
 
 class TestKernel2 {
 public:
-  void operator()(cl::sycl::item<1>){};
+  void operator()(sycl::item<1>){};
 };
 
 __SYCL_OPEN_NS() {

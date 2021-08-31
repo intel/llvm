@@ -8,6 +8,16 @@
 
 #pragma once
 
+#ifdef __SYCL2020_HEADER_INCLUDED
+#error "Including both <CL/sycl.hpp> and <sycl/sycl.hpp> is not allowed"
+#endif
+
+#define __SYCL_ENABLE_SYCL121_NAMESPACE
+
+#include <sycl/sycl.hpp>
+
+#if 0
+
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/aspects.hpp>
 #include <CL/sycl/atomic.hpp>
@@ -59,3 +69,5 @@
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 #include <sycl/ext/oneapi/reduction.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
+
+#endif

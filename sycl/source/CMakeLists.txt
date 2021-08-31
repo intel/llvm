@@ -27,7 +27,7 @@ function(add_sycl_rt_library LIB_NAME)
   add_library(${LIB_NAME} SHARED 
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
-    
+
   if (ARG_COMPILE_OPTIONS)
     target_compile_options(${LIB_OBJ_NAME} PRIVATE ${ARG_COMPILE_OPTIONS})
   endif()
@@ -43,7 +43,6 @@ function(add_sycl_rt_library LIB_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
-  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_DISABLE_SYCL121_NAMESPACE )
   target_compile_options(${LIB_OBJ_NAME} PUBLIC -Wno-attribute-alias)
   if (MSVC)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )

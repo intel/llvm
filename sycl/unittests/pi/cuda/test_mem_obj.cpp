@@ -11,13 +11,13 @@
 #include <cuda.h>
 
 #include "TestGetPlugin.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct CudaTestMemObj : public ::testing::Test {
 

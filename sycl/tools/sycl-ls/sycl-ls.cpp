@@ -22,7 +22,7 @@
 #include <iostream>
 #include <stdlib.h>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // Controls verbose output vs. concise.
 bool verbose;
@@ -85,7 +85,7 @@ static void printSelectorChoice(const device_selector &Selector,
     const auto &Dev = device(Selector);
     printDeviceInfo(Dev, Prepend);
 
-  } catch (const cl::sycl::runtime_error &Exception) {
+  } catch (const sycl::runtime_error &Exception) {
     // Truncate long string so it can fit in one-line
     std::string What = Exception.what();
     if (What.length() > 50)

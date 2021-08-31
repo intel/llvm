@@ -23,7 +23,7 @@
 namespace s = __sycl_ns;
 namespace d = s::detail;
 
-__SYCL_INLINE_NAMESPACE(cl) {
+__SYCL_OPEN_NS_BUILTINS() {
 namespace __host_std {
 
 namespace {
@@ -998,3 +998,4 @@ MAKE_1V(half_tan, s::cl_float, s::cl_float)
 
 } // namespace __host_std
 } // __SYCL_INLINE_NAMESPACE(cl)
+__SYCL_CLOSE_NS_BUILTINS()

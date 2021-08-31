@@ -103,7 +103,7 @@
   }
 
 #ifndef __SYCL_DEVICE_ONLY__
-__SYCL_INLINE_NAMESPACE(cl) {
+__SYCL_OPEN_NS_BUILTINS() {
 namespace __host_std {
 #endif // __SYCL_DEVICE_ONLY__
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
@@ -279,7 +279,8 @@ __SYCL_MAKE_CALL_ARG3(bitselect, __FUNC_PREFIX_OCL)
 __SYCL_MAKE_CALL_ARG3(select, __FUNC_PREFIX_OCL) // select
 #ifndef __SYCL_DEVICE_ONLY__
 } // namespace __host_std
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_OPEN_NS_BUILTINS()
+__SYCL_CLOSE_NS_BUILTINS()
 #endif
 
 #undef __NOEXC

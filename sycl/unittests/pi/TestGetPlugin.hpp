@@ -10,10 +10,10 @@
 #include <functional>
 
 namespace pi {
-inline cl::sycl::detail::plugin *initializeAndGet(cl::sycl::backend backend) {
-  auto plugins = cl::sycl::detail::pi::initialize();
+inline sycl::detail::plugin *initializeAndGet(sycl::backend backend) {
+  auto plugins = sycl::detail::pi::initialize();
   auto it = std::find_if(plugins.begin(), plugins.end(),
-                         [=](cl::sycl::detail::plugin p) -> bool {
+                         [=](sycl::detail::plugin p) -> bool {
                            return p.getBackend() == backend;
                          });
   if (it == plugins.end()) {
@@ -25,14 +25,14 @@ inline cl::sycl::detail::plugin *initializeAndGet(cl::sycl::backend backend) {
   return &*it;
 }
 
-inline std::vector<cl::sycl::detail::plugin> initializeAndRemoveInvalid() {
-  auto plugins = cl::sycl::detail::pi::initialize();
+inline std::vector<sycl::detail::plugin> initializeAndRemoveInvalid() {
+  auto plugins = sycl::detail::pi::initialize();
 
   auto end = std::remove_if(
       plugins.begin(), plugins.end(),
-      [](const cl::sycl::detail::plugin &plugin) -> bool {
+      [](const sycl::detail::plugin &plugin) -> bool {
         pi_uint32 num = 0;
-        plugin.call_nocheck<cl::sycl::detail::PiApiKind::piPlatformsGet>(
+        plugin.call_nocheck<sycl::detail::PiApiKind::piPlatformsGet>(
             0, nullptr, &num);
 
         bool removePlugin = num <= 0;

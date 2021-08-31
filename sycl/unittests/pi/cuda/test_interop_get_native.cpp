@@ -9,12 +9,12 @@
 #include "gtest/gtest.h"
 
 #include "TestGetPlatforms.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <CL/sycl/backend/cuda.hpp>
 #include <cuda.h>
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct CudaInteropGetNativeTests : public ::testing::TestWithParam<platform> {
 

@@ -11,12 +11,12 @@
 #include <cuda.h>
 
 #include "TestGetPlugin.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct CudaCommandsTest : public ::testing::Test {
 

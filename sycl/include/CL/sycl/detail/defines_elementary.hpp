@@ -15,9 +15,9 @@
 #endif // __SYCL_DISABLE_NAMESPACE_INLINE__
 
 // TODO: Disable macro should be removed once transition to sycl:: is done.
-#ifndef __SYCL_DISABLE_SYCL121_NAMESPACE
-#define __SYCL_ENABLE_SYCL121_NAMESPACE
-#endif
+//#ifndef __SYCL_DISABLE_SYCL121_NAMESPACE
+//#define __SYCL_ENABLE_SYCL121_NAMESPACE
+//#endif
 
 #ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 // Old SYCL1.2.1 namespace scheme
@@ -41,6 +41,13 @@
   __SYCL_NS_OPEN_1 {                                                           \
     __SYCL_NS_OPEN_2
 
+#define __SYCL_OPEN_NS_BUILTINS() __SYCL_NS_OPEN_1
+
+#define __SYCL_CLOSE_NS_BUILTINS()                                             \
+  __SYCL_NS_OPEN_1 {                                                           \
+    __SYCL_NS_OPEN_2 { using namespace cl; }                                   \
+  }
+
 #else
 
 // The macro:
@@ -58,6 +65,18 @@
   namespace __sycl_ns = __SYCL_NS;                                             \
   __SYCL_NS_OPEN_1 {                                                           \
     __SYCL_NS_OPEN_2
+
+#define __SYCL_OPEN_NS_BUILTINS()                                              \
+  __SYCL_NS_OPEN_1 {                                                           \
+    __SYCL_NS_OPEN_2 {}                                                        \
+  }                                                                            \
+  namespace sycl {                                                             \
+  using namespace __SYCL_NS;                                                   \
+  }                                                                            \
+  __SYCL_NS_OPEN_1 {                                                           \
+    __SYCL_NS_OPEN_2
+
+#define __SYCL_CLOSE_NS_BUILTINS() }
 
 #endif
 

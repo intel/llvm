@@ -12,7 +12,7 @@
 
 #include "TestGetPlatforms.hpp"
 #include "TestGetPlugin.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <CL/sycl/backend/cuda.hpp>
 #include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>

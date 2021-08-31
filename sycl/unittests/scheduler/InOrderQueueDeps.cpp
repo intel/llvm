@@ -14,7 +14,7 @@
 #include <iostream>
 #include <memory>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 static pi_result
 redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
@@ -99,7 +99,7 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
 
   context Ctx{Plt.get_devices()[0]};
   queue InOrderQueue{Ctx, Selector, property::queue::in_order()};
-  cl::sycl::detail::QueueImplPtr InOrderQueueImpl =
+  sycl::detail::QueueImplPtr InOrderQueueImpl =
       detail::getSyclObjImpl(InOrderQueue);
 
   device HostDevice;

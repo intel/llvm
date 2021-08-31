@@ -14,7 +14,7 @@
 #include <memory>
 #include <vector>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // Checks that scheduler's (or graph-builder's) addNodeToLeaves method works
 // correctly with dependency tracking when leaf-limit for generic commands is
@@ -45,7 +45,7 @@ TEST_F(SchedulerTest, LeafLimit) {
     (void)Leaf->addDep(
         detail::DepDesc{MockDepCmd.get(), Leaf->getRequirement(), nullptr});
   }
-  std::vector<cl::sycl::detail::Command *> ToEnqueue;
+  std::vector<sycl::detail::Command *> ToEnqueue;
   // Add edges as leaves and exceed the leaf limit
   for (auto &LeafPtr : LeavesToAdd) {
     MS.addNodeToLeaves(Rec, LeafPtr.get(), access::mode::write, ToEnqueue);

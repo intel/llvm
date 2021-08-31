@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <CL/sycl/backend.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/plugin.hpp>
