@@ -134,10 +134,10 @@ int main() {
   sycl::byte B;
   (void)B;
 
-  // expected-warning@+1{{'max_constant_buffer_size' is deprecated: max_constant_buffer_size is deprecated}}
+  // expected-error@+1{{no member named 'max_constant_buffer_size' in 'sycl::info::device'}}
   auto MCBS = sycl::info::device::max_constant_buffer_size;
   (void)MCBS;
-  // expected-warning@+1{{'max_constant_args' is deprecated: max_constant_args is deprecated}}
+  // expected-error@+1{{no member named 'max_constant_args' in 'sycl::info::device'}}
   auto MCA = sycl::info::device::max_constant_args;
   (void)MCA;
 
