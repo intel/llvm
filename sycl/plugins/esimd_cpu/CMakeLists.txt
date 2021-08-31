@@ -51,7 +51,7 @@ else ()
       message(FATAL_ERROR "ESIMD_CPU is not supported under Windows environment yet")
     else()
       # FIXME/TODO : Use 'generic' package instead of 'u18.04'
-      set (CM_PACKAGE_URL "https://github.com/intel/cm-cpu-emulation/releases/download/v2021-07-21/intel-cmemu-1.0.1.u18.04-release.x86_64.tar.xz")
+      set (CM_PACKAGE_URL "https://github.com/intel/cm-cpu-emulation/releases/download/v2021-07-21/intel-cmemu-1.0.7.u18.04-release.x86_64.tar.xz")
     endif()
   endif()
   file (MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install)
