@@ -50,6 +50,7 @@ add_entrypoint_object(
     libc.src.errno.__errno_location
     libc.src.sys.mman.mmap
   COMPILE_OPTIONS
+    -O3
     -fno-omit-frame-pointer # This allows us to sniff out the thread args from
                             # the new thread's stack reliably.
 )
@@ -75,6 +76,17 @@ add_entrypoint_object(
     mtx_init.cpp
   HDRS
     ../mtx_init.h
+  DEPENDS
+    .threads_utils
+    libc.include.threads
+)
+
+add_entrypoint_object(
+  mtx_destroy
+  SRCS
+    mtx_destroy.cpp
+  HDRS
+    ../mtx_destroy.h
   DEPENDS
     .threads_utils
     libc.include.threads

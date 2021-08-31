@@ -64,6 +64,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MD5.h"
 #include "llvm/Support/TimeProfiler.h"
+#include "llvm/Support/X86TargetParser.h"
 
 using namespace clang;
 using namespace CodeGen;
@@ -739,8 +740,9 @@ void CodeGenModule::Release() {
     if (getTriple().isSPIR()) {
       // SPIR v2.0 s2.12 - The SPIR version used by the module is stored in the
       // opencl.spir.version named metadata.
-      // C++ is backwards compatible with OpenCL v2.0.
-      auto Version = LangOpts.OpenCLCPlusPlus ? 200 : LangOpts.OpenCLVersion;
+      // C++ for OpenCL has a distinct mapping for version compatibility with
+      // OpenCL.
+      auto Version = LangOpts.getOpenCLCompatibleVersion();
       llvm::Metadata *SPIRVerElts[] = {
           llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
               Int32Ty, Version / 100)),
@@ -860,9 +862,8 @@ void CodeGenModule::Release() {
 void CodeGenModule::EmitOpenCLMetadata() {
   // SPIR v2.0 s2.13 - The OpenCL version used by the module is stored in the
   // opencl.ocl.version named metadata node.
-  // C++ is backwards compatible with OpenCL v2.0.
-  // FIXME: We might need to add CXX version at some point too?
-  auto Version = LangOpts.OpenCLCPlusPlus ? 200 : LangOpts.OpenCLVersion;
+  // C++ for OpenCL has a distinct mapping for versions compatibile with OpenCL.
+  auto Version = LangOpts.getOpenCLCompatibleVersion();
   llvm::Metadata *OCLVerElts[] = {
       llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
           Int32Ty, Version / 100)),
@@ -3525,8 +3526,8 @@ void CodeGenModule::emitCPUDispatchDefinition(GlobalDecl GD) {
   llvm::stable_sort(
       Options, [](const CodeGenFunction::MultiVersionResolverOption &LHS,
                   const CodeGenFunction::MultiVersionResolverOption &RHS) {
-        return CodeGenFunction::GetX86CpuSupportsMask(LHS.Conditions.Features) >
-               CodeGenFunction::GetX86CpuSupportsMask(RHS.Conditions.Features);
+        return llvm::X86::getCpuSupportsMask(LHS.Conditions.Features) >
+               llvm::X86::getCpuSupportsMask(RHS.Conditions.Features);
       });
 
   // If the list contains multiple 'default' versions, such as when it contains
@@ -3534,7 +3535,7 @@ void CodeGenModule::emitCPUDispatchDefinition(GlobalDecl GD) {
   // always run on at least a 'pentium'). We do this by deleting the 'least
   // advanced' (read, lowest mangling letter).
   while (Options.size() > 1 &&
-         CodeGenFunction::GetX86CpuSupportsMask(
+         llvm::X86::getCpuSupportsMask(
              (Options.end() - 2)->Conditions.Features) == 0) {
     StringRef LHSName = (Options.end() - 2)->Function->getName();
     StringRef RHSName = (Options.end() - 1)->Function->getName();

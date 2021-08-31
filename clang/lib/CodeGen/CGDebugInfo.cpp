@@ -52,7 +52,7 @@ using namespace clang::CodeGen;
 
 static uint32_t getTypeAlignIfRequired(const Type *Ty, const ASTContext &Ctx) {
   auto TI = Ctx.getTypeInfo(Ty);
-  return TI.AlignIsRequired ? TI.Align : 0;
+  return TI.isAlignRequired() ? TI.Align : 0;
 }
 
 static uint32_t getTypeAlignIfRequired(QualType Ty, const ASTContext &Ctx) {
@@ -1895,23 +1895,25 @@ void CGDebugInfo::CollectCXXBasesAux(
 }
 
 llvm::DINodeArray
-CGDebugInfo::CollectTemplateParams(const TemplateParameterList *TPList,
-                                   ArrayRef<TemplateArgument> TAList,
+CGDebugInfo::CollectTemplateParams(Optional<TemplateArgs> OArgs,
                                    llvm::DIFile *Unit) {
+  if (!OArgs)
+    return llvm::DINodeArray();
+  TemplateArgs &Args = *OArgs;
   SmallVector<llvm::Metadata *, 16> TemplateParams;
-  for (unsigned i = 0, e = TAList.size(); i != e; ++i) {
-    const TemplateArgument &TA = TAList[i];
+  for (unsigned i = 0, e = Args.Args.size(); i != e; ++i) {
+    const TemplateArgument &TA = Args.Args[i];
     StringRef Name;
     bool defaultParameter = false;
-    if (TPList)
-      Name = TPList->getParam(i)->getName();
+    if (Args.TList)
+      Name = Args.TList->getParam(i)->getName();
     switch (TA.getKind()) {
     case TemplateArgument::Type: {
       llvm::DIType *TTy = getOrCreateType(TA.getAsType(), Unit);
 
-      if (TPList)
+      if (Args.TList)
         if (auto *templateType =
-                dyn_cast_or_null<TemplateTypeParmDecl>(TPList->getParam(i)))
+                dyn_cast_or_null<TemplateTypeParmDecl>(Args.TList->getParam(i)))
           if (templateType->hasDefaultArgument())
             defaultParameter =
                 templateType->getDefaultArgument() == TA.getAsType();
@@ -1922,9 +1924,9 @@ CGDebugInfo::CollectTemplateParams(const TemplateParameterList *TPList,
     } break;
     case TemplateArgument::Integral: {
       llvm::DIType *TTy = getOrCreateType(TA.getIntegralType(), Unit);
-      if (TPList && CGM.getCodeGenOpts().DwarfVersion >= 5)
-        if (auto *templateType =
-                dyn_cast_or_null<NonTypeTemplateParmDecl>(TPList->getParam(i)))
+      if (Args.TList && CGM.getCodeGenOpts().DwarfVersion >= 5)
+        if (auto *templateType = dyn_cast_or_null<NonTypeTemplateParmDecl>(
+                Args.TList->getParam(i)))
           if (templateType->hasDefaultArgument() &&
               !templateType->getDefaultArgument()->isValueDependent())
             defaultParameter = llvm::APSInt::isSameValue(
@@ -2009,7 +2011,7 @@ CGDebugInfo::CollectTemplateParams(const TemplateParameterList *TPList,
     case TemplateArgument::Pack:
       TemplateParams.push_back(DBuilder.createTemplateParameterPack(
           TheCU, Name, nullptr,
-          CollectTemplateParams(nullptr, TA.getPackAsArray(), Unit)));
+          CollectTemplateParams({{nullptr, TA.getPackAsArray()}}, Unit)));
       break;
     case TemplateArgument::Expression: {
       const Expr *E = TA.getAsExpr();
@@ -2032,43 +2034,58 @@ CGDebugInfo::CollectTemplateParams(const TemplateParameterList *TPList,
   return DBuilder.getOrCreateArray(TemplateParams);
 }
 
-llvm::DINodeArray
-CGDebugInfo::CollectFunctionTemplateParams(const FunctionDecl *FD,
-                                           llvm::DIFile *Unit) {
+Optional<CGDebugInfo::TemplateArgs>
+CGDebugInfo::GetTemplateArgs(const FunctionDecl *FD) const {
   if (FD->getTemplatedKind() ==
       FunctionDecl::TK_FunctionTemplateSpecialization) {
     const TemplateParameterList *TList = FD->getTemplateSpecializationInfo()
                                              ->getTemplate()
                                              ->getTemplateParameters();
-    return CollectTemplateParams(
-        TList, FD->getTemplateSpecializationArgs()->asArray(), Unit);
+    return {{TList, FD->getTemplateSpecializationArgs()->asArray()}};
   }
-  return llvm::DINodeArray();
+  return None;
+}
+Optional<CGDebugInfo::TemplateArgs>
+CGDebugInfo::GetTemplateArgs(const VarDecl *VD) const {
+  // Always get the full list of parameters, not just the ones from the
+  // specialization. A partial specialization may have fewer parameters than
+  // there are arguments.
+  auto *TS = dyn_cast<VarTemplateSpecializationDecl>(VD);
+  if (!TS)
+    return None;
+  VarTemplateDecl *T = TS->getSpecializedTemplate();
+  const TemplateParameterList *TList = T->getTemplateParameters();
+  auto TA = TS->getTemplateArgs().asArray();
+  return {{TList, TA}};
+}
+Optional<CGDebugInfo::TemplateArgs>
+CGDebugInfo::GetTemplateArgs(const RecordDecl *RD) const {
+  if (auto *TSpecial = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
+    // Always get the full list of parameters, not just the ones from the
+    // specialization. A partial specialization may have fewer parameters than
+    // there are arguments.
+    TemplateParameterList *TPList =
+        TSpecial->getSpecializedTemplate()->getTemplateParameters();
+    const TemplateArgumentList &TAList = TSpecial->getTemplateArgs();
+    return {{TPList, TAList.asArray()}};
+  }
+  return None;
+}
+
+llvm::DINodeArray
+CGDebugInfo::CollectFunctionTemplateParams(const FunctionDecl *FD,
+                                           llvm::DIFile *Unit) {
+  return CollectTemplateParams(GetTemplateArgs(FD), Unit);
 }
 
 llvm::DINodeArray CGDebugInfo::CollectVarTemplateParams(const VarDecl *VL,
                                                         llvm::DIFile *Unit) {
-  // Always get the full list of parameters, not just the ones from the
-  // specialization. A partial specialization may have fewer parameters than
-  // there are arguments.
-  auto *TS = dyn_cast<VarTemplateSpecializationDecl>(VL);
-  if (!TS)
-    return llvm::DINodeArray();
-  VarTemplateDecl *T = TS->getSpecializedTemplate();
-  const TemplateParameterList *TList = T->getTemplateParameters();
-  auto TA = TS->getTemplateArgs().asArray();
-  return CollectTemplateParams(TList, TA, Unit);
+  return CollectTemplateParams(GetTemplateArgs(VL), Unit);
 }
 
-llvm::DINodeArray CGDebugInfo::CollectCXXTemplateParams(
-    const ClassTemplateSpecializationDecl *TSpecial, llvm::DIFile *Unit) {
-  // Always get the full list of parameters, not just the ones from the
-  // specialization. A partial specialization may have fewer parameters than
-  // there are arguments.
-  TemplateParameterList *TPList =
-      TSpecial->getSpecializedTemplate()->getTemplateParameters();
-  const TemplateArgumentList &TAList = TSpecial->getTemplateArgs();
-  return CollectTemplateParams(TPList, TAList.asArray(), Unit);
+llvm::DINodeArray CGDebugInfo::CollectCXXTemplateParams(const RecordDecl *RD,
+                                                        llvm::DIFile *Unit) {
+  return CollectTemplateParams(GetTemplateArgs(RD), Unit);
 }
 
 llvm::DINodeArray CGDebugInfo::CollectBTFTagAnnotations(const Decl *D) {
@@ -4683,7 +4700,7 @@ void CGDebugInfo::EmitDeclareOfBlockLiteralArgVariable(const CGBlockInfo &block,
     llvm::DIType *fieldType;
     if (capture->isByRef()) {
       TypeInfo PtrInfo = C.getTypeInfo(C.VoidPtrTy);
-      auto Align = PtrInfo.AlignIsRequired ? PtrInfo.Align : 0;
+      auto Align = PtrInfo.isAlignRequired() ? PtrInfo.Align : 0;
       // FIXME: This recomputes the layout of the BlockByRefWrapper.
       uint64_t xoffset;
       fieldType =
