@@ -1049,7 +1049,6 @@ __SYCL_EXPORT pi_result piQueueGetInfo(pi_queue command_queue,
                                        void *param_value,
                                        size_t *param_value_size_ret);
 
-
 __SYCL_EXPORT pi_result piQueueRetain(pi_queue command_queue);
 
 __SYCL_EXPORT pi_result piQueueRelease(pi_queue command_queue);

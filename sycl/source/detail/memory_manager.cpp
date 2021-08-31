@@ -446,10 +446,10 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
-        Plugin.call<PiApiKind::piEnqueueMemBufferCopy>(
-            Queue, SrcMem, DstMem, SrcXOffBytes, DstXOffBytes,
-            SrcAccessRangeWidthBytes, DepEvents.size(), DepEvents.data(),
-            &OutEvent);
+      Plugin.call<PiApiKind::piEnqueueMemBufferCopy>(
+          Queue, SrcMem, DstMem, SrcXOffBytes, DstXOffBytes,
+          SrcAccessRangeWidthBytes, DepEvents.size(), DepEvents.data(),
+          &OutEvent);
     } else {
       // passing 0 for pitches not allowed. Because clEnqueueCopyBufferRect will
       // calculate both src and dest pitch using region[0], which is not correct
@@ -471,10 +471,10 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
                                         SrcAccessRange[SrcPos.YTerm],
                                         SrcAccessRange[SrcPos.ZTerm]};
 
-        Plugin.call<PiApiKind::piEnqueueMemBufferCopyRect>(
-            Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region, SrcRowPitch,
-            SrcSlicePitch, DstRowPitch, DstSlicePitch, DepEvents.size(),
-            DepEvents.data(), &OutEvent);
+      Plugin.call<PiApiKind::piEnqueueMemBufferCopyRect>(
+          Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region, SrcRowPitch,
+          SrcSlicePitch, DstRowPitch, DstSlicePitch, DepEvents.size(),
+          DepEvents.data(), &OutEvent);
     }
   } else {
     pi_image_offset_struct SrcOrigin{SrcOffset[SrcPos.XTerm],
@@ -487,9 +487,9 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
                                   SrcAccessRange[SrcPos.YTerm],
                                   SrcAccessRange[SrcPos.ZTerm]};
 
-      Plugin.call<PiApiKind::piEnqueueMemImageCopy>(
-          Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region,
-          DepEvents.size(), DepEvents.data(), &OutEvent);
+    Plugin.call<PiApiKind::piEnqueueMemImageCopy>(
+        Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region,
+        DepEvents.size(), DepEvents.data(), &OutEvent);
   }
 }
 
