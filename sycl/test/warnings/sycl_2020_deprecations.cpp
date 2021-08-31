@@ -24,7 +24,7 @@ int main() {
   sycl::device Device{DevId};
   // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
   (void)Device.get();
-  // expected-warning@+1 {{'has_extension' is deprecated: use device::has() function with aspects APIs instead}}
+  // expected-error@+1 {{no member named 'has_extension' in 'sycl::device'}}
   (void)Device.has_extension("abc");
 
   cl_event ClEvent;
@@ -42,7 +42,7 @@ int main() {
   sycl::platform Platform{ClPlatform};
   // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
   (void)Platform.get();
-  // expected-warning@+1 {{'has_extension' is deprecated: use platform::has() function with aspects APIs instead}}
+  // expected-error@+1 {{no member named 'has_extension' in 'sycl::platform'}}
   (void)Platform.has_extension("abc");
 
   cl_command_queue ClQueue;

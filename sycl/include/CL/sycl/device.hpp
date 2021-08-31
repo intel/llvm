@@ -157,12 +157,13 @@ public:
   typename info::param_traits<info::device, param>::return_type
   get_info() const;
 
-  /// Check SYCL extension support by device
+  /// Check SYCL extension support by device. Deprecated in SYCL 2020
   ///
   /// \param extension_name is a name of queried extension.
   /// \return true if SYCL device supports the extension.
-  __SYCL2020_DEPRECATED("use device::has() function with aspects APIs instead")
+#ifdef __SYCL_INTERNAL_API
   bool has_extension(const std::string &extension_name) const;
+#endif // __SYCL_INTERNAL_API
 
   /// Query available SYCL devices
   ///
