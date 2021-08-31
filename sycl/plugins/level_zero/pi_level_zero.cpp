@@ -5270,17 +5270,6 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcBuffer,
       NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
 }
 
-pi_result piextEnqueueMemBufferCopyPeer(pi_queue src_queue, pi_mem src_buffer,
-                                        pi_queue dst_queue, pi_mem dst_buffer,
-                                        size_t src_offset, size_t dst_offset,
-                                        size_t size,
-                                        pi_uint32 num_events_in_wait_list,
-                                        const pi_event *event_wait_list,
-                                        pi_event *event) {
-  die("piextEnqueueMemBufferCopyPeer: not implemented");
-  return {};
-}
-
 pi_result piEnqueueMemBufferCopyRect(
     pi_queue Queue, pi_mem SrcBuffer, pi_mem DstBuffer,
     pi_buff_rect_offset SrcOrigin, pi_buff_rect_offset DstOrigin,
@@ -5298,16 +5287,6 @@ pi_result piEnqueueMemBufferCopyRect(
       DstRowPitch, SrcSlicePitch, DstSlicePitch,
       false, // blocking
       NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
-}
-
-pi_result piextEnqueueMemBufferCopyRectPeer(
-    pi_queue Queue, pi_mem SrcBuffer, pi_queue DstQueue, pi_mem DstBuffer,
-    pi_buff_rect_offset SrcOrigin, pi_buff_rect_offset DstOrigin,
-    pi_buff_rect_region Region, size_t SrcRowPitch, size_t SrcSlicePitch,
-    size_t DstRowPitch, size_t DstSlicePitch, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *Event) {
-  die("piextEnqueueMemBufferCopyRectPeer: not implemented");
-  return {};
 }
 
 } // extern "C"
@@ -5905,15 +5884,6 @@ piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
       0, // row pitch
       0, // slice pitch
       NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
-}
-
-pi_result piextEnqueueMemImageCopyPeer(
-    pi_queue Queue, pi_mem SrcImage, pi_queue dst_queue, pi_mem DstImage,
-    pi_image_offset SrcOrigin, pi_image_offset DstOrigin,
-    pi_image_region Region, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *Event) {
-  die("piextEnqueueMemImageCopyPeer: not implemented");
-  return {};
 }
 
 pi_result piEnqueueMemImageFill(pi_queue Queue, pi_mem Image,

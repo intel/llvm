@@ -1010,28 +1010,11 @@ pi_result piEnqueueMemBufferCopy(pi_queue, pi_mem, pi_mem, size_t, size_t,
   return PI_SUCCESS;
 }
 
-pi_result piextEnqueueMemBufferCopyPeer(pi_queue, pi_mem, pi_queue, pi_mem,
-                                        size_t, size_t, size_t, pi_uint32,
-                                        const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-  return PI_SUCCESS;
-}
-
 pi_result piEnqueueMemBufferCopyRect(pi_queue, pi_mem, pi_mem,
                                      pi_buff_rect_offset, pi_buff_rect_offset,
                                      pi_buff_rect_region, size_t, size_t,
                                      size_t, size_t, pi_uint32,
                                      const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-  return PI_SUCCESS;
-}
-
-pi_result piextEnqueueMemBufferCopyRectPeer(pi_queue, pi_mem, pi_queue, pi_mem,
-                                            pi_buff_rect_offset,
-                                            pi_buff_rect_offset,
-                                            pi_buff_rect_region, size_t, size_t,
-                                            size_t, size_t, pi_uint32,
-                                            const pi_event *, pi_event *) {
   DIE_NO_IMPLEMENTATION;
   return PI_SUCCESS;
 }
@@ -1093,14 +1076,6 @@ pi_result piEnqueueMemImageWrite(pi_queue, pi_mem, pi_bool, pi_image_offset,
 pi_result piEnqueueMemImageCopy(pi_queue, pi_mem, pi_mem, pi_image_offset,
                                 pi_image_offset, pi_image_region, pi_uint32,
                                 const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-  return PI_SUCCESS;
-}
-
-pi_result piextEnqueueMemImageCopyPeer(pi_queue, pi_mem, pi_queue, pi_mem,
-                                       pi_image_offset, pi_image_offset,
-                                       pi_image_region, pi_uint32,
-                                       const pi_event *, pi_event *) {
   DIE_NO_IMPLEMENTATION;
   return PI_SUCCESS;
 }

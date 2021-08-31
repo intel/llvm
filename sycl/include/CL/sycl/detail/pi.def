@@ -137,8 +137,4 @@ _PI_API(piextPluginGetOpaqueData)
 
 _PI_API(piTearDown)
 
-_PI_API(piextEnqueueMemBufferCopyPeer)
-_PI_API(piextEnqueueMemBufferCopyRectPeer)
-_PI_API(piextEnqueueMemImageCopyPeer)
-
 #undef _PI_API

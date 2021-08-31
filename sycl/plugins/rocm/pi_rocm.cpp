@@ -3669,15 +3669,6 @@ pi_result rocm_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
   }
 }
 
-pi_result rocm_piextEnqueueMemBufferCopyPeer(
-    pi_queue src_queue, pi_mem src_buffer, pi_queue dst_queue,
-    pi_mem dst_buffer, size_t src_offset, size_t dst_offset, size_t size,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event) {
-  die("rocm_piextEnqueueMemBufferCopyPeer: not implemented");
-  return {};
-}
-
 pi_result rocm_piEnqueueMemBufferCopyRect(
     pi_queue command_queue, pi_mem src_buffer, pi_mem dst_buffer,
     pi_buff_rect_offset src_origin, pi_buff_rect_offset dst_origin,
@@ -3722,17 +3713,6 @@ pi_result rocm_piEnqueueMemBufferCopyRect(
     retErr = err;
   }
   return retErr;
-}
-
-pi_result rocm_piextEnqueueMemBufferCopyRectPeer(
-    pi_queue src_queue, pi_mem src_buffer, pi_queue dst_queue,
-    pi_mem dst_buffer, pi_buff_rect_offset src_origin,
-    pi_buff_rect_offset dst_origin, pi_buff_rect_region region,
-    size_t src_row_pitch, size_t src_slice_pitch, size_t dst_row_pitch,
-    size_t dst_slice_pitch, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
-  die("rocm_piextEnqueueMemBufferCopyRectPeer not implemented");
-  return {};
 }
 
 pi_result rocm_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
@@ -4141,15 +4121,6 @@ pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
 
   return PI_SUCCESS;
   return retErr;
-}
-
-pi_result rocm_piextEnqueueMemImageCopyPeer(
-    pi_queue Queue, pi_mem SrcImage, pi_queue dst_queue, pi_mem DstImage,
-    pi_image_offset SrcOrigin, pi_image_offset DstOrigin,
-    pi_image_region Region, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *Event) {
-  die("rocm_piextEnqueueMemImageCopyPeer: not implemented");
-  return {};
 }
 
 /// \TODO Not implemented in HIP, requires untie from OpenCL
@@ -4717,15 +4688,11 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piEnqueueMemBufferWrite, rocm_piEnqueueMemBufferWrite)
   _PI_CL(piEnqueueMemBufferWriteRect, rocm_piEnqueueMemBufferWriteRect)
   _PI_CL(piEnqueueMemBufferCopy, rocm_piEnqueueMemBufferCopy)
-  _PI_CL(piextEnqueueMemBufferCopyPeer, rocm_piextEnqueueMemBufferCopyPeer)
   _PI_CL(piEnqueueMemBufferCopyRect, rocm_piEnqueueMemBufferCopyRect)
-  _PI_CL(piextEnqueueMemBufferCopyRectPeer,
-         rocm_piextEnqueueMemBufferCopyRectPeer)
   _PI_CL(piEnqueueMemBufferFill, rocm_piEnqueueMemBufferFill)
   _PI_CL(piEnqueueMemImageRead, rocm_piEnqueueMemImageRead)
   _PI_CL(piEnqueueMemImageWrite, rocm_piEnqueueMemImageWrite)
   _PI_CL(piEnqueueMemImageCopy, rocm_piEnqueueMemImageCopy)
-  _PI_CL(piextEnqueueMemImageCopyPeer, rocm_piextEnqueueMemImageCopyPeer)
   _PI_CL(piEnqueueMemImageFill, rocm_piEnqueueMemImageFill)
   _PI_CL(piEnqueueMemBufferMap, rocm_piEnqueueMemBufferMap)
   _PI_CL(piEnqueueMemUnmap, rocm_piEnqueueMemUnmap)
