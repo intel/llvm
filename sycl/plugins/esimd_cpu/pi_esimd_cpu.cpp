@@ -1202,7 +1202,7 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   std::unique_ptr<_pi_event> RetEv{nullptr};
   if (Event) {
     RetEv = std::unique_ptr<_pi_event>(new _pi_event());
-    RetEv->IsDummyEvent=true;
+    RetEv->IsDummyEvent = true;
   }
 
   int Status =
@@ -1295,7 +1295,7 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
 
   if (Event) {
     RetEv = std::unique_ptr<_pi_event>(new _pi_event());
-    RetEv->IsDummyEvent=true;
+    RetEv->IsDummyEvent = true;
   }
 
   int Status =
@@ -1365,7 +1365,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   if (Event) {
     RetEv = std::unique_ptr<_pi_event>(new _pi_event());
-    RetEv->IsDummyEvent=true;
+    RetEv->IsDummyEvent = true;
   }
 
   switch (WorkDim) {
