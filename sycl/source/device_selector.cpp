@@ -286,3 +286,40 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 } // namespace ONEAPI
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()
+
+
+
+
+__SYCL_EXPORT extern char _ZTIN2cl4sycl12cpu_selectorE __attribute__((alias("_ZTIN15__sycl_internal4__v112cpu_selectorE")));
+
+__SYCL_EXPORT extern char _ZTIN2cl4sycl12gpu_selectorE __attribute__((alias("_ZTIN15__sycl_internal4__v112gpu_selectorE")));
+__SYCL_EXPORT extern char _ZTIN2cl4sycl13host_selectorE __attribute__((alias("_ZTIN15__sycl_internal4__v113host_selectorE")));
+__SYCL_EXPORT extern char _ZTIN2cl4sycl15device_selectorE __attribute__((alias("_ZTIN15__sycl_internal4__v115device_selectorE")));
+__SYCL_EXPORT extern char _ZTIN2cl4sycl16default_selectorE __attribute__((alias("_ZTIN15__sycl_internal4__v116default_selectorE")));
+__SYCL_EXPORT extern char _ZTIN2cl4sycl20accelerator_selectorE __attribute__((alias("_ZTIN15__sycl_internal4__v120accelerator_selectorE")));
+__SYCL_EXPORT extern char _ZTIN2cl4sycl3ext6oneapi15filter_selectorE __attribute__((alias("_ZTIN15__sycl_internal4__v13ext6oneapi15filter_selectorE")));
+
+
+__SYCL_EXPORT extern char _ZTIN2cl4sycl6ONEAPI15filter_selectorE __attribute__((alias("_ZTIN15__sycl_internal4__v16ONEAPI15filter_selectorE")));
+__SYCL_EXPORT extern char _ZTSN2cl4sycl12cpu_selectorE __attribute__((alias("_ZTSN15__sycl_internal4__v112cpu_selectorE")));
+__SYCL_EXPORT extern char _ZTSN2cl4sycl12gpu_selectorE __attribute__((alias("_ZTSN15__sycl_internal4__v112gpu_selectorE")));
+__SYCL_EXPORT extern char _ZTSN2cl4sycl13host_selectorE __attribute__((alias("_ZTSN15__sycl_internal4__v113host_selectorE")));
+__SYCL_EXPORT extern char _ZTSN2cl4sycl15device_selectorE __attribute__((alias("_ZTSN15__sycl_internal4__v115device_selectorE")));
+__SYCL_EXPORT extern char _ZTSN2cl4sycl16default_selectorE __attribute__((alias("_ZTSN15__sycl_internal4__v116default_selectorE")));
+__SYCL_EXPORT extern char _ZTSN2cl4sycl20accelerator_selectorE __attribute__((alias("_ZTSN15__sycl_internal4__v120accelerator_selectorE")));
+__SYCL_EXPORT extern char _ZTSN2cl4sycl3ext6oneapi15filter_selectorE __attribute__((alias("_ZTSN15__sycl_internal4__v13ext6oneapi15filter_selectorE")));
+
+
+
+__SYCL_EXPORT extern char _ZTSN2cl4sycl6ONEAPI15filter_selectorE __attribute__((alias("_ZTSN15__sycl_internal4__v16ONEAPI15filter_selectorE")));
+__SYCL_EXPORT extern char _ZTVN2cl4sycl12cpu_selectorE __attribute__((alias("_ZTVN15__sycl_internal4__v112cpu_selectorE")));
+__SYCL_EXPORT extern char _ZTVN2cl4sycl12gpu_selectorE __attribute__((alias("_ZTVN15__sycl_internal4__v112gpu_selectorE")));
+__SYCL_EXPORT extern char _ZTVN2cl4sycl13host_selectorE __attribute__((alias("_ZTVN15__sycl_internal4__v113host_selectorE")));
+__SYCL_EXPORT extern char _ZTVN2cl4sycl15device_selectorE __attribute__((alias("_ZTVN15__sycl_internal4__v115device_selectorE")));
+__SYCL_EXPORT extern char _ZTVN2cl4sycl16default_selectorE __attribute__((alias("_ZTVN15__sycl_internal4__v116default_selectorE")));
+__SYCL_EXPORT extern char _ZTVN2cl4sycl20accelerator_selectorE __attribute__((alias("_ZTVN15__sycl_internal4__v120accelerator_selectorE")));
+__SYCL_EXPORT extern char _ZTVN2cl4sycl3ext6oneapi15filter_selectorE __attribute__((alias("_ZTVN15__sycl_internal4__v13ext6oneapi15filter_selectorE")));
+
+
+__SYCL_EXPORT extern char _ZTVN2cl4sycl6ONEAPI15filter_selectorE __attribute__((alias("_ZTVN15__sycl_internal4__v16ONEAPI15filter_selectorE")));
+

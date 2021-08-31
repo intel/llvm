@@ -132,3 +132,8 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
 } // namespace detail
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()
+
+
+__SYCL_EXPORT extern char _ZTIN2cl4sycl6detail11SYCLMemObjTE __attribute__((alias("_ZTIN15__sycl_internal4__v16detail11SYCLMemObjTE")));
+__SYCL_EXPORT extern char _ZTSN2cl4sycl6detail11SYCLMemObjTE __attribute__((alias("_ZTSN15__sycl_internal4__v16detail11SYCLMemObjTE")));
+__SYCL_EXPORT extern char _ZTVN2cl4sycl6detail11SYCLMemObjTE __attribute__((alias("_ZTVN15__sycl_internal4__v16detail11SYCLMemObjTE")));

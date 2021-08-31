@@ -456,3 +456,14 @@ template class image_impl<3>;
 } // namespace detail
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()
+
+
+__SYCL_EXPORT extern char _ZTIN2cl4sycl6detail10image_implILi1EEE __attribute__((alias("_ZTIN15__sycl_internal4__v16detail10image_implILi1EEE")));
+__SYCL_EXPORT extern char _ZTIN2cl4sycl6detail10image_implILi2EEE __attribute__((alias("_ZTIN15__sycl_internal4__v16detail10image_implILi2EEE")));
+__SYCL_EXPORT extern char _ZTIN2cl4sycl6detail10image_implILi3EEE __attribute__((alias("_ZTIN15__sycl_internal4__v16detail10image_implILi3EEE")));
+__SYCL_EXPORT extern char _ZTSN2cl4sycl6detail10image_implILi1EEE __attribute__((alias("_ZTSN15__sycl_internal4__v16detail10image_implILi1EEE")));
+__SYCL_EXPORT extern char _ZTSN2cl4sycl6detail10image_implILi2EEE __attribute__((alias("_ZTSN15__sycl_internal4__v16detail10image_implILi2EEE")));
+__SYCL_EXPORT extern char _ZTSN2cl4sycl6detail10image_implILi3EEE __attribute__((alias("_ZTSN15__sycl_internal4__v16detail10image_implILi3EEE")));
+__SYCL_EXPORT extern char _ZTVN2cl4sycl6detail10image_implILi1EEE __attribute__((alias("_ZTVN15__sycl_internal4__v16detail10image_implILi1EEE")));
+__SYCL_EXPORT extern char _ZTVN2cl4sycl6detail10image_implILi2EEE __attribute__((alias("_ZTVN15__sycl_internal4__v16detail10image_implILi2EEE")));
+__SYCL_EXPORT extern char _ZTVN2cl4sycl6detail10image_implILi3EEE __attribute__((alias("_ZTVN15__sycl_internal4__v16detail10image_implILi3EEE")));
