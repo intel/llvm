@@ -70,6 +70,9 @@ void test() {
   C IamAlsoGood;
   DCopyable IamAlsoBadButCopyable{0};
   marray<int, 5> MarrayForCopyableIsCopyable(0);
+  range<2> Range{1,2};
+  id<3> Id{1,2,3};
+  vec<int, 3> VecForCopyableIsCopyable{3};
   queue Q;
   Q.single_task<class TestA>([=] {
     int A = IamGood.i;
@@ -77,6 +80,9 @@ void test() {
     int C = IamAlsoBadButCopyable.i;
     int D = IamAlsoGood.i;
     int E = MarrayForCopyableIsCopyable[0];
+    int F = Range[1];
+    int G = Id[2];
+    int H = VecForCopyableIsCopyable[0];
   });
 
   Q.single_task<class TestB>(FunctorA{});
