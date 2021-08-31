@@ -75,6 +75,10 @@ std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {
   return getOrCreate(MHandlerExtendedMembersMutex);
 }
 
+std::mutex &GlobalHandler::getPluginsMutex() {
+  return getOrCreate(MPluginsMutex);
+}
+
 void shutdown() {
   // First, release resources, that may access plugins.
   GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
@@ -91,7 +95,6 @@ void shutdown() {
       // Currently, it is not used.
       void *PluginParameter = nullptr;
       Plugin.call<PiApiKind::piTearDown>(PluginParameter);
-      Plugin.resetPiPlatforms();
       Plugin.unload();
     }
     GlobalHandler::instance().MPlugins.Inst.reset(nullptr);

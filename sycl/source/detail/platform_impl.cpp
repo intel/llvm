@@ -145,6 +145,8 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
   if (!FilterList)
     return;
+  const std::lock_guard<std::mutex> Guard(
+      GlobalHandler::instance().getPluginsMutex());
   std::vector<plugin> &Plugins = GlobalHandler::instance().getPlugins();
   if (Plugins.size() == 0)
     RT::initialize();

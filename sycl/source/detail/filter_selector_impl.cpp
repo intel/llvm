@@ -25,12 +25,35 @@ namespace ext {
 namespace oneapi {
 namespace detail {
 
+std::vector<std::string> tokenize(const std::string &Filter,
+                                  const std::string &Delim) {
+  std::vector<std::string> Tokens;
+  size_t Pos = 0;
+  std::string Input = Filter;
+  std::string Tok;
+
+  while ((Pos = Input.find(Delim)) != std::string::npos) {
+    Tok = Input.substr(0, Pos);
+    Input.erase(0, Pos + Delim.length());
+
+    if (!Tok.empty()) {
+      Tokens.push_back(std::move(Tok));
+    }
+  }
+
+  // Add remainder
+  if (!Input.empty())
+    Tokens.push_back(std::move(Input));
+
+  return Tokens;
+}
+
 filter create_filter(const std::string &Input) {
   filter Result;
   constexpr auto Error = "Invalid filter string! Valid strings conform to "
                          "BE:DeviceType:DeviceNum, where any are optional";
 
-  std::vector<std::string> Tokens = sycl::detail::tokenize(Input, ":");
+  std::vector<std::string> Tokens = tokenize(Input, ":");
   std::regex IntegerExpr("[[:digit:]]+");
 
   // There should only be up to 3 tokens.
@@ -84,7 +107,7 @@ filter create_filter(const std::string &Input) {
 
 filter_selector_impl::filter_selector_impl(const std::string &Input)
     : mFilters(), mRanker(), mNumDevicesSeen(0), mMatchFound(false) {
-  std::vector<std::string> Filters = sycl::detail::tokenize(Input, ",");
+  std::vector<std::string> Filters = detail::tokenize(Input, ",");
   mNumTotalDevices = device::get_devices().size();
 
   for (const std::string &Filter : Filters) {

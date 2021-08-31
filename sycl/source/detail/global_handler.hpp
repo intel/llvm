@@ -57,6 +57,7 @@ public:
   std::vector<plugin> &getPlugins();
   device_filter_list &getDeviceFilterList(const std::string &InitValue);
   std::mutex &getHandlerExtendedMembersMutex();
+  std::mutex &getPluginsMutex();
 
 private:
   friend void shutdown();
@@ -81,6 +82,7 @@ private:
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
   InstWithLock<std::vector<plugin>> MPlugins;
+  InstWithLock<std::mutex> MPluginsMutex;
   InstWithLock<device_filter_list> MDeviceFilterList;
   // The mutex for synchronizing accesses to handlers extended members
   InstWithLock<std::mutex> MHandlerExtendedMembersMutex;

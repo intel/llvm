@@ -370,6 +370,8 @@ bool trace(TraceLevel Level) {
 // Initializes all available Plugins.
 const std::vector<plugin> &initialize() {
   static std::once_flag PluginsInitDone;
+  const std::lock_guard<std::mutex> Guard(
+      GlobalHandler::instance().getPluginsMutex());
 
   std::call_once(PluginsInitDone, []() {
     initializePlugins(&GlobalHandler::instance().getPlugins());

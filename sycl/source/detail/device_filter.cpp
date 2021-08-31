@@ -12,36 +12,38 @@
 #include <detail/device_impl.hpp>
 
 #include <cstring>
+#include <string_view>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-std::vector<std::string> tokenize(const std::string &Filter,
-                                  const std::string &Delim) {
-  std::vector<std::string> Tokens;
+std::vector<std::string_view> tokenize(const std::string &Filter,
+                                       const std::string &Delim) {
+  std::vector<std::string_view> Tokens;
   size_t Pos = 0;
-  std::string Input = Filter;
-  std::string Tok;
+  size_t LastPos = 0;
 
-  while ((Pos = Input.find(Delim)) != std::string::npos) {
-    Tok = Input.substr(0, Pos);
-    Input.erase(0, Pos + Delim.length());
+  while ((Pos = Filter.find(Delim, LastPos)) != std::string::npos) {
+    std::string_view Tok(Filter.data() + LastPos, (Pos - LastPos));
 
     if (!Tok.empty()) {
-      Tokens.push_back(std::move(Tok));
+      Tokens.push_back(Tok);
     }
+    // move the search starting index
+    LastPos = Pos + 1;
   }
 
-  // Add remainder
-  if (!Input.empty())
-    Tokens.push_back(std::move(Input));
-
+  // Add remainder if any
+  if (LastPos < Filter.size()) {
+    std::string_view Tok(Filter.data() + LastPos, Filter.size() - LastPos);
+    Tokens.push_back(Tok);
+  }
   return Tokens;
 }
 
 device_filter::device_filter(const std::string &FilterString) {
-  std::vector<std::string> Tokens = tokenize(FilterString, ":");
+  std::vector<std::string_view> Tokens = tokenize(FilterString, ":");
   size_t TripleValueID = 0;
 
   auto FindElement = [&](auto Element) {
@@ -83,7 +85,7 @@ device_filter::device_filter(const std::string &FilterString) {
   // If succeessful, the converted integer is the desired device num.
   if (TripleValueID < Tokens.size()) {
     try {
-      DeviceNum = stoi(Tokens[TripleValueID]);
+      DeviceNum = std::stoi(Tokens[TripleValueID].data());
       HasDeviceNum = true;
     } catch (...) {
       std::string Message =

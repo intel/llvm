@@ -82,9 +82,6 @@ inline std::ostream &operator<<(std::ostream &Out,
   return Out;
 }
 
-std::vector<std::string> tokenize(const std::string &Filter,
-                                  const std::string &Delim);
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
