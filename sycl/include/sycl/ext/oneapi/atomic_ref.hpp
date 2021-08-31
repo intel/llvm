@@ -31,7 +31,7 @@ namespace oneapi {
 namespace detail {
 
 // Import from detail:: into ext::oneapi::detail:: to improve readability later
-using namespace ::__sycl_ns::detail;
+using namespace __sycl_ns::detail;
 
 using memory_order = __sycl_ns::ext::oneapi::memory_order;
 using memory_scope = __sycl_ns::ext::oneapi::memory_scope;

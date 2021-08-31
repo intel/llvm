@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s -c -o %t.out
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
-// The test checks that compilation with SYCL2020 style namespaces( sycl
+// The test checks that compilation with SYCL 2020 style namespaces (sycl
 // instead of cl::sycl) works fine
 //
 // This test is temporary one which should make sure that such a compilation

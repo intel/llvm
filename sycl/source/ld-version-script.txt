@@ -13,11 +13,6 @@
     _ZTIN2cl4sycl*; /* typeinfo */
     _ZTSN2cl4sycl*; /* typeinfo name */
     _ZTVN2cl4sycl*; /* vtable */
-    _ZNK15__sycl_internal4__v1*;  /* function */
-    _ZN15__sycl_internal4__v1*;   /* function */
-    _ZTIN15__sycl_internal4__v1*; /* typeinfo */
-    _ZTSN15__sycl_internal4__v1*; /* typeinfo name */
-    _ZTVN15__sycl_internal4__v1*; /* vtable */
 
     /* Some functions are also in cl::__host_std, export them as well */
     _ZN2cl10__host_std*;

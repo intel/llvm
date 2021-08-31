@@ -38,7 +38,7 @@ template <int Dimensions> struct group_scope<group<Dimensions>> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Workgroup;
 };
 
-template <> struct group_scope<::__sycl_ns::ext::oneapi::sub_group> {
+template <> struct group_scope<__sycl_ns::ext::oneapi::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
 
@@ -128,7 +128,7 @@ using EnableIfGenericBroadcast = detail::enable_if_t<
 // Work-group supports any integral type
 // Sub-group currently supports only uint32_t
 template <typename Group> struct GroupId { using type = size_t; };
-template <> struct GroupId<::__sycl_ns::ext::oneapi::sub_group> {
+template <> struct GroupId<__sycl_ns::ext::oneapi::sub_group> {
   using type = uint32_t;
 };
 template <typename Group, typename T, typename IdT>
