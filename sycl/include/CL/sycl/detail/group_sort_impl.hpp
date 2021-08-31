@@ -10,6 +10,9 @@
 
 #pragma once
 
+#include <CL/sycl/detail/helpers.hpp>
+
+#ifdef __SYCL_DEVICE_ONLY__
 #include "group_sort_util.hpp"
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -23,9 +26,9 @@ template <typename Acc, typename Value, typename Compare>
 std::size_t
 my_lower_bound(Acc acc, const std::size_t first, const std::size_t last, const Value& value, Compare comp)
 {
-    const std::size_t n = last - first;
-    const std::size_t cur = n;
-    const std::size_t it;
+    std::size_t n = last - first;
+    std::size_t cur = n;
+    std::size_t it;
     while (n > 0)
     {
         it = first;
@@ -68,7 +71,6 @@ merge(const std::size_t offset, InAcc& in_acc1, OutAcc& out_acc1,
             const std::size_t start_1, const std::size_t end_1, const std::size_t end_2, const std::size_t start_out,
             Compare comp, const std::size_t chunk)
 {
-    using _Idx = std::size_t;
     const std::size_t start_2 = end_1;
     // Borders of the sequences to merge within this call
     const std::size_t local_start_1 = sycl::min(static_cast<std::size_t>(offset + start_1), end_1);
@@ -175,12 +177,13 @@ bubble_sort(Iter first, const std::size_t begin, const std::size_t end, Compare 
     }
 }
 
-template<typename Group, typename Iter, typename Compare, typename Id>
+template<typename Group, typename Iter, typename Compare>
 void
 merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
-        std::uint8_t* scratch, Id id)
+        std::uint8_t* scratch)
 {
     using T = typename std::iterator_traits<Iter>::value_type;
+    auto id = cl::sycl::detail::Builder::getNDItem<Group::dimensions>()
     const std::size_t idx = id.get_local_id();
     const std::size_t local = group.get_local_range(0);
     const std::size_t chunk = (n - 1) / local + 1;
@@ -230,3 +233,4 @@ merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+#endif

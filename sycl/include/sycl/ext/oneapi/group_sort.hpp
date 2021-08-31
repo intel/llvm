@@ -10,6 +10,7 @@
 
 #include <type_traits>
 #include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/detail/group_sort_impl.hpp>
 #include <CL/sycl/detail/group_sort_util.hpp>
 
@@ -48,7 +49,7 @@ struct is_sorter_impl
 
     template<typename G = Group>
     static
-    decltype(std::integral_constant<bool, is_expected_return_type<G>::value && true /*sycl::is_group<G>::value*/>{})
+    decltype(std::integral_constant<bool, is_expected_return_type<G>::value && sycl::is_group_v<G>>{})
     test(int);
 
     template<typename = Group>
@@ -69,7 +70,7 @@ struct is_sorter_impl<Sorter, Group, Ptr,
 {
     template<typename G = Group>
     static
-    decltype(std::declval<Sorter>()(std::declval<G>(), std::declval<Ptr>(), std::declval<Ptr>()), /*sycl::is_group<G>*/std::true_type{})
+    decltype(std::declval<Sorter>()(std::declval<G>(), std::declval<Ptr>(), std::declval<Ptr>()), sycl::detail::is_generic_group<G>{})
     test(int);
 
     template<typename = Group>
@@ -80,13 +81,20 @@ struct is_sorter_impl<Sorter, Group, Ptr,
 
 template<typename Sorter, typename Group, typename ValOrPtr>
 struct is_sorter : decltype(is_sorter_impl<Sorter, Group, ValOrPtr>::test(0)) {};
+} // namespace detail
 
 // ---- sort_over_group
 template<typename Group, typename T, typename Sorter>
 typename std::enable_if<detail::is_sorter<Sorter, Group, T>::value, T>::type
 sort_over_group(Group group, T value, Sorter sorter)
 {
+#ifdef __SYCL_DEVICE_ONLY__
     return sorter(group, value);
+#else
+    (void)group;
+    throw runtime_error("Group algorithms are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
 }
 
 template<typename Group, typename T, typename Compare, std::size_t Extent>
@@ -94,16 +102,15 @@ typename std::enable_if<!detail::is_sorter<Compare, Group, T>::value, T>::type
 sort_over_group(cl::sycl::ext::oneapi::experimental::group_with_scratchpad<Group, Extent> exec, T value, Compare comp)
 {
     return sort_over_group(exec.get_group(), value,
-            cl::sycl::ext::oneapi::experimental::default_sorter<Compare>(exec.get_memory(),
-            cl::sycl::detail::Builder::getNDItem<Group::dimensions>(), comp));
+            cl::sycl::ext::oneapi::experimental::default_sorter<Compare>(exec.get_memory(), comp));
 }
 
 template<typename Group, typename T, std::size_t Extent>
-T
+typename std::enable_if<sycl::is_group_v<std::decay_t<Group>>, T>::type
 sort_over_group(cl::sycl::ext::oneapi::experimental::group_with_scratchpad<Group, Extent> exec, T value)
 {
     return sort_over_group(exec.get_group(), value,
-            cl::sycl::ext::oneapi::experimental::default_sorter<>(exec.get_memory(), cl::sycl::detail::Builder::getNDItem<Group::dimensions>()));
+            cl::sycl::ext::oneapi::experimental::default_sorter<>(exec.get_memory()));
 }
 
 // ---- joint_sort
@@ -111,23 +118,27 @@ template<typename Group, typename Iter, typename Sorter>
 typename std::enable_if<detail::is_sorter<Sorter, Group, Iter>::value, void>::type
 joint_sort(Group group, Iter first, Iter last, Sorter sorter)
 {
+#ifdef __SYCL_DEVICE_ONLY__
     sorter(group, first, last);
+#else
+    (void)group;
+    throw runtime_error("Group algorithms are not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif
 }
 
 template<typename Group, typename Iter, typename Compare, std::size_t Extent>
 typename std::enable_if<!detail::is_sorter<Compare, Group, Iter>::value, void>::type
 joint_sort(cl::sycl::ext::oneapi::experimental::group_with_scratchpad<Group, Extent> exec, Iter first, Iter last, Compare comp)
 {
-    joint_sort(exec.get_group(), first, last, cl::sycl::ext::oneapi::experimental::default_sorter<Compare>(exec.get_memory(),
-        cl::sycl::detail::Builder::getNDItem<Group::dimensions>(), comp));
+    joint_sort(exec.get_group(), first, last, cl::sycl::ext::oneapi::experimental::default_sorter<Compare>(exec.get_memory(), comp));
 }
 
 template<typename Group, typename Iter, std::size_t Extent>
-void
+typename std::enable_if<sycl::is_group_v<std::decay_t<Group>>, void>::type
 joint_sort(cl::sycl::ext::oneapi::experimental::group_with_scratchpad<Group, Extent> exec, Iter first, Iter last)
 {
-    joint_sort(exec.get_group(), first, last, cl::sycl::ext::oneapi::experimental::default_sorter<>(exec.get_memory(),
-        cl::sycl::detail::Builder::getNDItem<Group::dimensions>()));
+    joint_sort(exec.get_group(), first, last, cl::sycl::ext::oneapi::experimental::default_sorter<>(exec.get_memory()));
 }
 
 } // namespace oneapi
