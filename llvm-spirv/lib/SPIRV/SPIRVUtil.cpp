@@ -1870,6 +1870,7 @@ bool postProcessBuiltinReturningStruct(Function *F) {
   LLVMContext *Context = &M->getContext();
   std::string Name = F->getName().str();
   F->setName(Name + ".old");
+  SmallVector<Instruction *, 32> InstToRemove;
   for (auto *U : F->users()) {
     if (auto *CI = dyn_cast<CallInst>(U)) {
       auto *ST = cast<StoreInst>(*(CI->user_begin()));
@@ -1887,11 +1888,13 @@ bool postProcessBuiltinReturningStruct(Function *F) {
       Args.insert(Args.begin(), ST->getPointerOperand());
       auto *NewCI = CallInst::Create(NewF, Args, CI->getName(), CI);
       NewCI->setCallingConv(CI->getCallingConv());
-      ST->dropAllReferences();
-      ST->eraseFromParent();
-      CI->dropAllReferences();
-      CI->eraseFromParent();
+      InstToRemove.push_back(ST);
+      InstToRemove.push_back(CI);
     }
+  }
+  for (auto *Inst : InstToRemove) {
+    Inst->dropAllReferences();
+    Inst->eraseFromParent();
   }
   F->dropAllReferences();
   F->eraseFromParent();

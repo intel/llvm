@@ -18442,7 +18442,6 @@ static ExprResult rebuildPotentialResultsAsNonOdrUsed(Sema &S, Expr *E,
         ME->getQualifierLoc(), ME->getTemplateKeywordLoc(), ME->getMemberDecl(),
         ME->getFoundDecl(), ME->getMemberNameInfo(), CopiedTemplateArgs(ME),
         ME->getType(), ME->getValueKind(), ME->getObjectKind(), NOUR);
-    return ExprEmpty();
   }
 
   case Expr::BinaryOperatorClass: {
