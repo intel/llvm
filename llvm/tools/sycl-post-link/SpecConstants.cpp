@@ -337,10 +337,10 @@ void collectCompositeElementsDefaultValuesRecursive(
         std::copy_n(reinterpret_cast<char *>(&v), NumBytes,
                     std::back_inserter(DefaultValues));
       } else {
-        assert(false && "Unexpected constant floating point type");
+        llvm_unreachable("Unexpected constant floating point type");
       }
     } else {
-      assert(false && "Unexpected constant scalar type");
+      llvm_unreachable("Unexpected constant scalar type");
     }
     Offset += NumBytes;
   }
