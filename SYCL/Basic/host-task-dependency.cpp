@@ -19,7 +19,7 @@
 
 namespace S = cl::sycl;
 
-template <typename T, bool B> class NameGen;
+template <typename T> class NameGen;
 
 struct Context {
   std::atomic_bool Flag;
@@ -31,7 +31,6 @@ struct Context {
   std::condition_variable CV;
 };
 
-template <bool UseSYCL2020HostTask>
 S::event HostTask_CopyBuf1ToBuf2(Context *Ctx) {
   S::event Event = Ctx->Queue.submit([&](S::handler &CGH) {
     S::accessor<int, 1, S::access::mode::read, S::access::target::host_buffer>
@@ -53,15 +52,12 @@ S::event HostTask_CopyBuf1ToBuf2(Context *Ctx) {
       }
     };
 
-    if constexpr (UseSYCL2020HostTask)
-      CGH.host_task(CopierHostTask);
-    else
-      CGH.codeplay_host_task(CopierHostTask);
+    CGH.host_task(CopierHostTask);
   });
   return Event;
 }
 
-template <bool UseSYCL2020HostTask> void Thread1Fn(Context *Ctx) {
+void Thread1Fn(Context *Ctx) {
   // 0. initialize resulting buffer with apriori wrong result
   {
     S::accessor<int, 1, S::access::mode::write, S::access::target::host_buffer>
@@ -98,11 +94,11 @@ template <bool UseSYCL2020HostTask> void Thread1Fn(Context *Ctx) {
         GeneratorAcc[Idx] = Idx;
     };
 
-    CGH.single_task<NameGen<class Gen, UseSYCL2020HostTask>>(GeneratorKernel);
+    CGH.single_task<NameGen<class Gen>>(GeneratorKernel);
   });
 
   // 2. submit host task writing from buf 1 to buf 2
-  S::event HostTaskEvent = HostTask_CopyBuf1ToBuf2<UseSYCL2020HostTask>(Ctx);
+  S::event HostTaskEvent = HostTask_CopyBuf1ToBuf2(Ctx);
 
   // 3. submit simple task to move data between two buffers
   Ctx->Queue.submit([&](S::handler &CGH) {
@@ -119,7 +115,7 @@ template <bool UseSYCL2020HostTask> void Thread1Fn(Context *Ctx) {
         DstAcc[Idx] = SrcAcc[Idx];
     };
 
-    CGH.single_task<NameGen<class Copier, UseSYCL2020HostTask>>(CopierKernel);
+    CGH.single_task<NameGen<class Copier>>(CopierKernel);
   });
 
   // 4. check data in buffer #3
@@ -148,7 +144,7 @@ void Thread2Fn(Context *Ctx) {
   assert(Ctx->Flag.load());
 }
 
-template <bool UseSYCL2020HostTask> void test() {
+void test() {
   auto EH = [](S::exception_list EL) {
     for (const std::exception_ptr &E : EL) {
       throw E;
@@ -160,8 +156,7 @@ template <bool UseSYCL2020HostTask> void test() {
   Context Ctx{{false}, Queue, {10}, {10}, {10}, {}, {}};
 
   // 0. setup: thread 1 T1: exec smth; thread 2 T2: waits; init flag F = false
-  auto A1 =
-      std::async(std::launch::async, Thread1Fn<UseSYCL2020HostTask>, &Ctx);
+  auto A1 = std::async(std::launch::async, Thread1Fn, &Ctx);
   auto A2 = std::async(std::launch::async, Thread2Fn, &Ctx);
 
   A1.get();
@@ -186,23 +181,12 @@ template <bool UseSYCL2020HostTask> void test() {
 }
 
 int main() {
-  test<true>();
-  test<false>();
+  test();
 
   return 0;
 }
 
 // launch of Gen kernel
-// CHECK:---> piKernelCreate(
-// CHECK: NameGen
-// CHECK:---> piEnqueueKernelLaunch(
-// prepare for host task
-// CHECK:---> piEnqueueMemBuffer{{Map|Read}}(
-// launch of Copier kernel
-// CHECK:---> piKernelCreate(
-// CHECK: Copier
-// CHECK:---> piEnqueueKernelLaunch(
-
 // CHECK:---> piKernelCreate(
 // CHECK: NameGen
 // CHECK:---> piEnqueueKernelLaunch(

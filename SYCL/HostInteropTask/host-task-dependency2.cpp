@@ -24,7 +24,7 @@ static auto EH = [](exception_list EL) {
 
 // Host-task depending on another host-task via handler::depends_on() only
 // should not hang
-template <bool UseSYCL2020HostTask> void test(queue &Q, size_t Count) {
+void test(queue &Q, size_t Count) {
   static constexpr size_t BufferSize = 10 * 1024;
 
   buffer<int, 1> B0{range<1>{BufferSize}};
@@ -48,10 +48,7 @@ template <bool UseSYCL2020HostTask> void test(queue &Q, size_t Count) {
         Acc1[0] = 2 * Idx;
         Acc2[0] = 3 * Idx;
       };
-      if constexpr (UseSYCL2020HostTask)
-        CGH.host_task(Func);
-      else
-        CGH.codeplay_host_task(Func);
+      CGH.host_task(Func);
     });
 
     // This host task is going to depend on blocked empty node of the first
@@ -66,10 +63,7 @@ template <bool UseSYCL2020HostTask> void test(queue &Q, size_t Count) {
         Acc2[1] = 1 * Idx;
         Acc3[1] = 2 * Idx;
       };
-      if constexpr (UseSYCL2020HostTask)
-        CGH.host_task(Func);
-      else
-        CGH.codeplay_host_task(Func);
+      CGH.host_task(Func);
     });
 
     // This host-task only depends on the second host-task via
@@ -87,10 +81,7 @@ template <bool UseSYCL2020HostTask> void test(queue &Q, size_t Count) {
         Acc4[2] = 1 * Idx;
         Acc5[2] = 2 * Idx;
       };
-      if constexpr (UseSYCL2020HostTask)
-        CGH.host_task(Func);
-      else
-        CGH.codeplay_host_task(Func);
+      CGH.host_task(Func);
     });
   }
 
@@ -103,7 +94,6 @@ int main(int Argc, const char *Argv[]) {
     Count = std::stoi(Argv[1]);
 
   queue Q(EH);
-  test<true>(Q, Count);
-  test<false>(Q, Count);
+  test(Q, Count);
   return 0;
 }

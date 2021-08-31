@@ -30,22 +30,19 @@ static auto EH = [](exception_list EL) {
 template <typename T, bool B> class NameGen;
 
 // Check that a single host-task with a buffer will work
-template <bool UseSYCL2020HostTask> void test1(queue &Q) {
+void test1(queue &Q) {
   buffer<int, 1> Buffer{BUFFER_SIZE};
 
   Q.submit([&](handler &CGH) {
     auto Acc = Buffer.get_access<mode::write>(CGH);
-    if constexpr (UseSYCL2020HostTask)
-      CGH.host_task([=] { /* A no-op */ });
-    else
-      CGH.codeplay_host_task([=] { /* A no-op */ });
+    CGH.host_task([=] { /* A no-op */ });
   });
 
   Q.wait_and_throw();
 }
 
 // Check that a host task after the kernel (deps via buffer) will work
-template <bool UseSYCL2020HostTask> void test2(queue &Q) {
+void test2(queue &Q) {
   buffer<int, 1> Buffer1{BUFFER_SIZE};
   buffer<int, 1> Buffer2{BUFFER_SIZE};
 
@@ -53,8 +50,7 @@ template <bool UseSYCL2020HostTask> void test2(queue &Q) {
     auto Acc = Buffer1.template get_access<mode::write>(CGH);
 
     auto Kernel = [=](item<1> Id) { Acc[Id] = 123; };
-    CGH.parallel_for<NameGen<class Test6Init, UseSYCL2020HostTask>>(
-        Acc.get_count(), Kernel);
+    CGH.parallel_for<NameGen<class Test6Init, true>>(Acc.get_count(), Kernel);
   });
 
   Q.submit([&](handler &CGH) {
@@ -65,10 +61,7 @@ template <bool UseSYCL2020HostTask> void test2(queue &Q) {
       for (size_t Idx = 0; Idx < AccDst.get_count(); ++Idx)
         AccDst[Idx] = AccSrc[Idx];
     };
-    if constexpr (UseSYCL2020HostTask)
-      CGH.host_task(Func);
-    else
-      CGH.codeplay_host_task(Func);
+    CGH.host_task(Func);
   });
 
   {
@@ -85,7 +78,7 @@ template <bool UseSYCL2020HostTask> void test2(queue &Q) {
 
 // Host-task depending on another host-task via both buffers and
 // handler::depends_on() should not hang
-template <bool UseSYCL2020HostTask> void test3(queue &Q) {
+void test3(queue &Q) {
   static constexpr size_t BufferSize = 10 * 1024;
 
   buffer<int, 1> B0{range<1>{BufferSize}};
@@ -134,10 +127,7 @@ template <bool UseSYCL2020HostTask> void test3(queue &Q) {
         X ^= reinterpret_cast<uint64_t>(&Acc8[Idx + 8]);
         X ^= reinterpret_cast<uint64_t>(&Acc9[Idx + 9]);
       };
-      if constexpr (UseSYCL2020HostTask)
-        CGH.host_task(Func);
-      else
-        CGH.codeplay_host_task(Func);
+      CGH.host_task(Func);
     });
 
     Deps = {E};
@@ -161,16 +151,13 @@ int main(int Argc, const char *Argv[]) {
   queue Q(EH);
   switch (TestIdx) {
   case 1:
-    test1<true>(Q);
-    test1<false>(Q);
+    test1(Q);
     break;
   case 2:
-    test2<true>(Q);
-    test2<false>(Q);
+    test2(Q);
     break;
   case 3:
-    test3<true>(Q);
-    test3<false>(Q);
+    test3(Q);
     break;
   default:
     return 1;
