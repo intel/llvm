@@ -52,6 +52,21 @@ int main() {
     assert(Event == WillEventCopy);
   }
 
+  {
+    struct exception : public cl::sycl::exception {};
+
+    std::cout << "wait_and_throw() check" << std::endl;
+    bool failed = true;
+    auto handler = [&](cl::sycl::exception_list l) { failed = false; };
+
+    cl::sycl::queue queue(handler);
+    cl::sycl::event e = queue.submit([&](cl::sycl::handler &cgh) {
+      cgh.host_task([=]() { throw exception{}; });
+    });
+    e.wait_and_throw();
+    assert(failed == false);
+  }
+
   // Check wait and wait_and_throw methods do not crash
   for (int i = 0; i < 4; ++i) {
     cl::sycl::queue Queue;
