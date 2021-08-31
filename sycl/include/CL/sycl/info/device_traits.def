@@ -44,10 +44,10 @@ __SYCL_PARAM_TRAITS_SPEC(device, global_mem_cache_type, info::global_mem_cache_t
 __SYCL_PARAM_TRAITS_SPEC(device, global_mem_cache_line_size, pi_uint32)
 __SYCL_PARAM_TRAITS_SPEC(device, global_mem_cache_size, pi_uint64)
 __SYCL_PARAM_TRAITS_SPEC(device, global_mem_size, pi_uint64)
-#ifdef __SYCL_BUILD_SYCL_DLL
+#ifdef __SYCL_INTERNAL_API
 __SYCL_PARAM_TRAITS_SPEC(device, max_constant_buffer_size, pi_uint64)
 __SYCL_PARAM_TRAITS_SPEC(device, max_constant_args, pi_uint32)
-#endif //__SYCL_BUILD_SYCL_DLL
+#endif //__SYCL_INTERNAL_API
 __SYCL_PARAM_TRAITS_SPEC(device, local_mem_type, info::local_mem_type)
 __SYCL_PARAM_TRAITS_SPEC(device, local_mem_size, pi_uint64)
 __SYCL_PARAM_TRAITS_SPEC(device, error_correction_support, bool)

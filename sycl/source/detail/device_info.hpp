@@ -765,7 +765,7 @@ inline cl_ulong get_device_info_host<info::device::global_mem_cache_size>() {
 }
 
 // max_constant_buffer_size and max_constant_args are deprecated in SYCL 2020
-#ifdef __SYCL_BUILD_SYCL_DLL
+#ifdef __SYCL_INTERNAL_API
 template <>
 inline cl_ulong get_device_info_host<info::device::max_constant_buffer_size>() {
   // current value is the required minimum
@@ -777,7 +777,7 @@ inline cl_uint get_device_info_host<info::device::max_constant_args>() {
   // current value is the required minimum
   return 8;
 }
-#endif //__SYCL_BUILD_SYCL_DLL
+#endif //__SYCL_INTERNAL_API
 
 template <>
 inline info::local_mem_type
