@@ -152,5 +152,28 @@ int main() {
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
 
+  // expected-warning@+1{{'intel' is deprecated: use 'ext::intel::experimental' instead}}
+  auto SLExtIntel = sycl::ext::intel::source_language::opencl_c;
+  (void)SLExtIntel;
+
+  // expected-warning@+1{{'level_zero' is deprecated: use 'ext_oneapi_level_zero' instead}}
+  auto LevelZeroBackend = sycl::backend::level_zero;
+  (void)LevelZeroBackend;
+
+  sycl::half Val = 1.0f;
+  // expected-warning@+1{{'bit_cast<unsigned short, sycl::detail::half_impl::half>' is deprecated: use 'sycl::bit_cast' instead}}
+  auto BitCastRes = sycl::detail::bit_cast<unsigned short>(Val);
+  (void)BitCastRes;
+
+  // expected-warning@+1{{'submit_barrier' is deprecated: use 'ext_intel_submit_barrier' instead}}
+  Queue.submit_barrier();
+
+  // expected-warning@+1{{'barrier' is deprecated: use 'ext_intel_barrier' instead}}
+  Queue.submit([&](sycl::handler &CGH) { CGH.barrier(); });
+
+  // expected-warning@+1{{'mem_channel' is deprecated: use 'ext_intel_mem_channel' instead}}
+  sycl::property_list MemChannelProp{sycl::property::buffer::mem_channel(2)};
+  (void)MemChannelProp;
+
   return 0;
 }
