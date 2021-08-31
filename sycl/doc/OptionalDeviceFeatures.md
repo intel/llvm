@@ -712,9 +712,9 @@ In more details, the tool performs the following actions:
 
 ##### Configuration file location and driver option
 
-A default device configuration file is supplied as a part of oneAPI SDK. It is
-located in the TBD directory. Users may override the default using the
-`-fsycl-device-config-file=<path>` option.
+A default device configuration file is present in DPC++ build. Users may override it using the
+`-fsycl-device-config-file=<path>` compiler command line option.
+Exact location of the file and final name of the compiler option is TBD.
 
 ##### AOT target identification
 
