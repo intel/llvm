@@ -221,6 +221,12 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
     BuildResult->Error.Msg = Ex.what();
     BuildResult->Error.Code = Ex.get_cl_code();
 
+    if (DbgProgMgr > 0)
+      std::cerr << ">>> getOrBuild exception of type `" << typeid(Ex).name()
+                << "', message: `" << Ex.what() << "', code: "
+                << Ex.get_cl_code() << std::endl;
+
+
     {
       std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
       BuildResult->State.store(BS_Failed);
@@ -230,6 +236,9 @@ getOrBuild(KernelProgramCache &KPCache, KeyT &&CacheKey, AcquireFT &&Acquire,
 
     std::rethrow_exception(std::current_exception());
   } catch (...) {
+    if (DbgProgMgr > 0)
+      std::cerr << ">>> getOrBuild unknown exception" << std::endl;
+
     {
       std::lock_guard<std::mutex> Lock(BuildResult->MBuildResultMutex);
       BuildResult->State.store(BS_Failed);
