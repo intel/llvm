@@ -63,8 +63,10 @@ void initializeSPIRVRegularizeLLVMLegacyPass(PassRegistry &);
 void initializeSPIRVToOCL12LegacyPass(PassRegistry &);
 void initializeSPIRVToOCL20LegacyPass(PassRegistry &);
 void initializePreprocessMetadataLegacyPass(PassRegistry &);
+void initializeSPIRVLowerBitCastToNonStandardTypeLegacyPass(PassRegistry &);
 
 class ModulePass;
+class FunctionPass;
 } // namespace llvm
 
 #include "llvm/IR/Module.h"
@@ -214,6 +216,11 @@ ModulePass *createSPIRVWriterPass(std::ostream &Str);
 /// ostream.
 ModulePass *createSPIRVWriterPass(std::ostream &Str,
                                   const SPIRV::TranslatorOpts &Opts);
+
+/// Create a pass for removing bitcast instructions to non-standard SPIR-V
+/// types
+FunctionPass *createSPIRVLowerBitCastToNonStandardTypeLegacy(
+    const SPIRV::TranslatorOpts &Opts);
 
 } // namespace llvm
 
