@@ -71,13 +71,16 @@ static cl::opt<std::string> OutIncrement{
         "pass."),
     cl::init(""), cl::value_desc("R")};
 
-static cl::opt<unsigned int> ExecuteInParallel{
-    "parallel-exec",
+static cl::opt<unsigned int> JobsInParallel{
+    "jobs",
     cl::Optional,
-    cl::init(4),
+    cl::init(1),
     cl::desc("Specify the number of threads for launching input commands in "
              "parallel mode"),
 };
+
+static cl::alias JobsInParallelShort{"j", cl::desc("Alias for --jobs"),
+                                     cl::aliasopt(JobsInParallel)};
 
 static void error(const Twine &Msg) {
   errs() << "llvm-foreach: " << Msg << '\n';
@@ -89,29 +92,29 @@ static void error(std::error_code EC, const Twine &Prefix) {
     error(Prefix + ": " + EC.message());
 }
 
-// With WaitUntilTerminates=false this function just goes through the all
+// With BlockingWait=false this function just goes through the all
 // submitted jobs to check if one of them has finished.
-// TODO: give a proper naming as this function doesn't wait for jobs with
-// WaitUntilTerminates=false
-void waitJobsToBeFinished(std::list<sys::ProcessInfo> &JobsSubmitted, int &Res,
-                          bool WaitUntilTerminates = true) {
+int checkIfJobsAreFinished(std::list<sys::ProcessInfo> &JobsSubmitted,
+                           bool BlockingWait = true) {
   std::string ErrMsg;
   auto It = JobsSubmitted.begin();
   while (It != JobsSubmitted.end()) {
     sys::ProcessInfo WaitResult =
-        sys::Wait(*It, 0, /*WaitUntilTerminates*/ WaitUntilTerminates, &ErrMsg);
+        sys::Wait(*It, 0, /*WaitUntilTerminates*/ BlockingWait, &ErrMsg);
 
     // Check if the job has finished (PID will be 0 if it's not).
-    if (!WaitUntilTerminates && !WaitResult.Pid) {
+    if (!BlockingWait && !WaitResult.Pid) {
       It++;
       continue;
     }
+    It = JobsSubmitted.erase(It);
+
     if (WaitResult.ReturnCode != 0) {
       errs() << "llvm-foreach: " << ErrMsg << '\n';
-      Res = WaitResult.ReturnCode;
+      return WaitResult.ReturnCode;
     }
-    It = JobsSubmitted.erase(It);
   }
+  return 0;
 }
 
 int main(int argc, char **argv) {
@@ -195,12 +198,12 @@ int main(int argc, char **argv) {
     PrevNumOfLines = FileLists[i].size();
   }
 
-  if (!ExecuteInParallel)
+  if (!JobsInParallel)
     error("Number of parallel threads should be a positive integer");
 
   size_t MaxSafeNumThreads = optimal_concurrency().compute_thread_count();
-  if (ExecuteInParallel > MaxSafeNumThreads) {
-    ExecuteInParallel = MaxSafeNumThreads;
+  if (JobsInParallel > MaxSafeNumThreads) {
+    JobsInParallel = MaxSafeNumThreads;
     outs() << "llvm-foreach: adjusted number of threads to "
            << MaxSafeNumThreads << " (max safe available).\n";
   }
@@ -269,15 +272,15 @@ int main(int argc, char **argv) {
 
     // Do not start execution of a new job until previous one(s) are finished,
     // if the maximum number of parallel workers is reached.
-    while (JobsSubmitted.size() == ExecuteInParallel)
-      waitJobsToBeFinished(JobsSubmitted, Res, /*WaitUntilTerminates*/ false);
+    while (JobsSubmitted.size() == JobsInParallel)
+      Res = checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ false);
 
     JobsSubmitted.emplace_back(sys::ExecuteNoWait(
         Prog, Args, /*Env=*/None, /*Redirects=*/None, /*MemoryLimit=*/0));
   }
 
   // Wait for all commands to be executed.
-  waitJobsToBeFinished(JobsSubmitted, Res, /*WaitUntilTerminates*/ true);
+  Res = checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ true);
 
   if (!OutputFileList.empty()) {
     OS.close();
