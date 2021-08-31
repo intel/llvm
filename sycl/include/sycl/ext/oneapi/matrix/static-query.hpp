@@ -45,10 +45,10 @@ template <tpu u, typename Ta = void, typename Tb = void, typename Tc = void,
           int M = 0, int N = 0, int K = 0, typename Enabled = void>
 struct tpu_params;
 
+#if __cplusplus >= 201703L
 template <typename Ta, typename Tb, typename Tc>
 constexpr bool is_combination_valid_amx(int M, int N, int K) {
   // Note that unsigned variants are not implemented yet
-#if __cplusplus >= 201703L
   // is_same_v is a C++17 feature
   if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
        std::is_same_v<Tc, int> && M <= 16 && N <= 16 && K <= 64) ||
@@ -56,7 +56,6 @@ constexpr bool is_combination_valid_amx(int M, int N, int K) {
       (std::is_same_v<Ta, unsigned short> &&
        std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float> &&
        M <= 16 && N <= 16 && K <= 32))
-#endif
     return true;
   else
     return false;
@@ -65,16 +64,15 @@ constexpr bool is_combination_valid_amx(int M, int N, int K) {
 template <typename Ta, typename Tb, typename Tc>
 constexpr bool are_types_valid_amx() {
   // Note that unsigned variants are not implemented yet
-#if __cplusplus >= 201703L
   if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
        std::is_same_v<Tc, int>) ||
       (std::is_same_v<Ta, unsigned short> &&
        std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float>))
-#endif
     return true;
   else
     return false;
 }
+#endif
 
 // types are not given, no default sizes and no implicit matrix construction
 template <int M, int N, int K>
@@ -117,14 +115,13 @@ struct tpu_params<tpu::amx, void, void, void, M, N, K> {
   }
 };
 
+#if __cplusplus >= 201703L
 // Specialization for when only types are given, need to query only sizes
 template <typename Ta, typename Tb, typename Tc>
 struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
-#if __cplusplus >= 201703L
                   typename std::enable_if<(!std::is_same_v<Ta, void> &&
                                            !std::is_same_v<Tb, void> &&
                                            !std::is_same_v<Tc, void>)>::type> {
-#endif
   static_assert((are_types_valid_amx<Ta, Tb, Tc>()),
                 "Invalid types for AMX, supported types are int8_t,"
                 "and bf16 (Note that unsigned short should be used in the"
@@ -174,10 +171,8 @@ template <typename Ta, typename Tb, typename Tc, int M, int N, int K>
 struct tpu_params<
     tpu::amx, Ta, Tb, Tc, M, N, K,
     typename std::enable_if<(
-#if __cplusplus >= 201703L
         !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
         !std::is_same_v<Tc, void> && M != 0 && N != 0 && K != 0)>::type> {
-#endif
   // Validate that parameters are supported
   static_assert(
       (M == 0 && N == 0 && K == 0) ||
@@ -244,7 +239,6 @@ struct tpu_params<
 
 template <typename Ta, typename Tb, typename Tc>
 constexpr bool is_combination_valid_dpas(int M, int N, int K) {
-#if __cplusplus >= 201703L
   if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
        std::is_same_v<Tc, int> && (M == 1 || M == 2 || M == 4 || M == 8) &&
        N == 8 && K == 32) ||
@@ -254,7 +248,6 @@ constexpr bool is_combination_valid_dpas(int M, int N, int K) {
       (std::is_same_v<Ta, unsigned short> &&
        std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float> &&
        (M == 1 || M == 2 || M == 4 || M == 8) && N == 8 && K == 16))
-#endif
     return true;
   else
     return false;
@@ -262,18 +255,17 @@ constexpr bool is_combination_valid_dpas(int M, int N, int K) {
 
 template <typename Ta, typename Tb, typename Tc>
 constexpr bool are_types_valid_dpas() {
-#if __cplusplus >= 201703L
   if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
        std::is_same_v<Tc, int>) ||
       (std::is_same_v<Ta, half> && std::is_same_v<Tb, half> &&
        std::is_same_v<Tc, float>) ||
       (std::is_same_v<Ta, unsigned short> &&
        std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float>))
-#endif
     return true;
   else
     return false;
 }
+#endif
 
 // specialization for when types are not given --> no default values
 template <int M, int N, int K>
@@ -341,13 +333,12 @@ struct tpu_params<tpu::dpas, void, void, void, M, N, K> {
 
 // Specialization for when only types are given, need to query only sizes
 
+#if __cplusplus >= 201703L
 template <typename Ta, typename Tb, typename Tc>
 struct tpu_params<tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
-#if __cplusplus >= 201703L
                   typename std::enable_if<(!std::is_same_v<Ta, void> &&
                                            !std::is_same_v<Tb, void> &&
                                            !std::is_same_v<Tc, void>)>::type> {
-#endif
   static_assert((are_types_valid_dpas<Ta, Tb, Tc>()),
                 "Invalid types for DPAS, supported types are int8_t, "
                 "half, and bf16");
@@ -401,9 +392,7 @@ struct tpu_params<tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
 template <typename Ta, typename Tb, typename Tc, int M, int N, int K>
 struct tpu_params<
     tpu::dpas, Ta, Tb, Tc, M, N, K,
-#if __cplusplus >= 201703L
     typename std::enable_if<((!std::is_same_v<Ta, void> && M != 0))>::type> {
-#endif
   // Validate that parameters are supported
   static_assert((M == 0 && N == 0 && K == 0) ||
                     (is_combination_valid_dpas<Ta, Tb, Tc>(M, N, K)),
@@ -482,6 +471,7 @@ struct tpu_params<
     }
   }
 };
+#endif
 } // namespace experimental::matrix
 } // namespace oneapi
 } // namespace ext
