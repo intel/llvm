@@ -1,0 +1,136 @@
+//==--------- group_sort.hpp --- SYCL extension group sorting algorithm-----==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#pragma once
+
+#include <type_traits>
+#include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/group_sort_impl.hpp>
+#include <CL/sycl/detail/group_sort_util.hpp>
+
+#include "experimental/group_helpers_sorters.hpp"
+
+// define feature macro for group sorting algorithms
+#define SYCL_EXT_ONEAPI_GROUP_SORT 1
+
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace detail {
+
+// ---- traits
+template< typename T, typename = void >
+struct has_difference_type{ };
+
+template< typename T >
+struct has_difference_type<T,
+#if __cplusplus < 201703
+                        cl::sycl::detail::void_type<
+#else
+                        std::void_t<
+#endif
+                                    typename T::difference_type>> : std::true_type {};
+
+template< typename T >
+struct has_difference_type<T*> : std::true_type {};
+
+template<typename Sorter, typename Group, typename Val, typename = void>
+struct is_sorter_impl
+{
+    template <typename G>
+    using is_expected_return_type = typename std::is_same<Val, decltype(std::declval<Sorter>()(std::declval<G>(), std::declval<Val>()))>;
+
+    template<typename G = Group>
+    static
+    decltype(std::integral_constant<bool, is_expected_return_type<G>::value && true /*sycl::is_group<G>::value*/>{})
+    test(int);
+
+    template<typename = Group>
+    static
+    std::false_type
+    test(...);
+
+};
+
+template<typename Sorter, typename Group, typename Ptr> // multi_ptr has difference_type and don't have other iterator's fields
+struct is_sorter_impl<Sorter, Group, Ptr,
+#if __cplusplus < 201703
+                        cl::sycl::detail::void_type<
+#else
+                        std::void_t<
+#endif
+                                    typename has_difference_type<Ptr>::type>>
+{
+    template<typename G = Group>
+    static
+    decltype(std::declval<Sorter>()(std::declval<G>(), std::declval<Ptr>(), std::declval<Ptr>()), /*sycl::is_group<G>*/std::true_type{})
+    test(int);
+
+    template<typename = Group>
+    static
+    std::false_type
+    test(...);
+};
+
+template<typename Sorter, typename Group, typename ValOrPtr>
+struct is_sorter : decltype(is_sorter_impl<Sorter, Group, ValOrPtr>::test(0)) {};
+
+// ---- sort_over_group
+template<typename Group, typename T, typename Sorter>
+typename std::enable_if<detail::is_sorter<Sorter, Group, T>::value, T>::type
+sort_over_group(Group group, T value, Sorter sorter)
+{
+    return sorter(group, value);
+}
+
+template<typename Group, typename T, typename Compare, std::size_t Extent>
+typename std::enable_if<!detail::is_sorter<Compare, Group, T>::value, T>::type
+sort_over_group(cl::sycl::ext::oneapi::experimental::group_with_scratchpad<Group, Extent> exec, T value, Compare comp)
+{
+    return sort_over_group(exec.get_group(), value,
+            cl::sycl::ext::oneapi::experimental::default_sorter<Compare>(exec.get_memory(),
+            cl::sycl::detail::Builder::getNDItem<Group::dimensions>(), comp));
+}
+
+template<typename Group, typename T, std::size_t Extent>
+T
+sort_over_group(cl::sycl::ext::oneapi::experimental::group_with_scratchpad<Group, Extent> exec, T value)
+{
+    return sort_over_group(exec.get_group(), value,
+            cl::sycl::ext::oneapi::experimental::default_sorter<>(exec.get_memory(), cl::sycl::detail::Builder::getNDItem<Group::dimensions>()));
+}
+
+// ---- joint_sort
+template<typename Group, typename Iter, typename Sorter>
+typename std::enable_if<detail::is_sorter<Sorter, Group, Iter>::value, void>::type
+joint_sort(Group group, Iter first, Iter last, Sorter sorter)
+{
+    sorter(group, first, last);
+}
+
+template<typename Group, typename Iter, typename Compare, std::size_t Extent>
+typename std::enable_if<!detail::is_sorter<Compare, Group, Iter>::value, void>::type
+joint_sort(cl::sycl::ext::oneapi::experimental::group_with_scratchpad<Group, Extent> exec, Iter first, Iter last, Compare comp)
+{
+    joint_sort(exec.get_group(), first, last, cl::sycl::ext::oneapi::experimental::default_sorter<Compare>(exec.get_memory(),
+        cl::sycl::detail::Builder::getNDItem<Group::dimensions>(), comp));
+}
+
+template<typename Group, typename Iter, std::size_t Extent>
+void
+joint_sort(cl::sycl::ext::oneapi::experimental::group_with_scratchpad<Group, Extent> exec, Iter first, Iter last)
+{
+    joint_sort(exec.get_group(), first, last, cl::sycl::ext::oneapi::experimental::default_sorter<>(exec.get_memory(),
+        cl::sycl::detail::Builder::getNDItem<Group::dimensions>()));
+}
+
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
