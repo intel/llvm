@@ -89,7 +89,7 @@ enum class device : cl_device_info {
   global_mem_cache_line_size = CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE,
   global_mem_cache_size = CL_DEVICE_GLOBAL_MEM_CACHE_SIZE,
   global_mem_size = CL_DEVICE_GLOBAL_MEM_SIZE,
- // These values are deprecated in SYCL 2020
+// These values are deprecated in SYCL 2020
 #ifdef __SYCL_BUILD_SYCL_DLL
   max_constant_buffer_size __SYCL2020_DEPRECATED(
       "max_constant_buffer_size is deprecated") =
