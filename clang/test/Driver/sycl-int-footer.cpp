@@ -67,3 +67,35 @@
 // FOOTER_PATH: append-file{{.*}} "--append=dummy_dir{{(/|\\\\)}}{{.*}}-footer-{{.*}}.h"
 // FOOTER_PATH-SAME: "--output=dummy_dir{{(/|\\\\)}}[[APPENDEDSRC:.+\.cpp]]"
 // FOOTER_PATH: clang{{.*}} "-x" "c++" "dummy_dir{{(/|\\\\)}}[[APPENDEDSRC]]"
+
+/// Check behaviors for dependency generation
+// RUN:  %clangxx -fsycl -MD -c %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix DEP_GEN %s
+// DEP_GEN:  clang{{.*}} "-Eonly"
+// DEP_GEN-SAME: "-dependency-file"
+// DEP_GEN-SAME: "-MT"
+// DEP_GEN-SAME: "-x" "c++" "[[INPUTFILE:.+\.cpp]]"
+// DEP_GEN: append-file{{.*}} "[[INPUTFILE]]"
+// DEP_GEN-NOT: clang{{.*}} "-dependency-file"
+
+/// Dependency generation phases
+// RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -MD -c %s -ccc-print-phases 2>&1 \
+// RUN:   | FileCheck -check-prefix DEP_GEN_PHASES %s
+// DEP_GEN_PHASES: 0: input, "[[INPUTFILE:.+\.cpp]]", c++, (host-sycl)
+// DEP_GEN_PHASES: 1: preprocessor, {0}, dependencies
+// DEP_GEN_PHASES: 2: input, "[[INPUTFILE]]", c++, (device-sycl)
+// DEP_GEN_PHASES: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
+// DEP_GEN_PHASES: 4: compiler, {3}, ir, (device-sycl)
+// DEP_GEN_PHASES: 5: offload, "device-sycl (spir64-unknown-unknown-sycldevice)" {4}, ir
+// DEP_GEN_PHASES: 6: append-footer, {0}, c++, (host-sycl)
+// DEP_GEN_PHASES: 7: preprocessor, {6}, c++-cpp-output, (host-sycl)
+// DEP_GEN_PHASES: 8: offload, "host-sycl (x86_64-unknown-linux-gnu)" {7}, "device-sycl (spir64-unknown-unknown-sycldevice)" {4}, c++-cpp-output
+// DEP_GEN_PHASES: 9: compiler, {8}, ir, (host-sycl)
+// DEP_GEN_PHASES: 10: backend, {9}, assembler, (host-sycl)
+// DEP_GEN_PHASES: 11: assembler, {10}, object, (host-sycl)
+// DEP_GEN_PHASES: 12: clang-offload-bundler, {5, 11}, object, (host-sycl)
+
+/// Allow for -o and preprocessing
+// RUN:  %clangxx -fsycl -MD -c %s -o dummy -### 2>&1 \
+// RUN:   | FileCheck -check-prefix DEP_GEN_OUT_ERROR %s
+// DEP_GEN_OUT_ERROR-NOT: cannot specify -o when generating multiple output files

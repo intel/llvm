@@ -715,6 +715,9 @@ def warn_unreachable_return : Warning<
 def warn_unreachable_loop_increment : Warning<
   "loop will run at most once (loop increment never executed)">,
   InGroup<UnreachableCodeLoopIncrement>, DefaultIgnore;
+def warn_unreachable_fallthrough_attr : Warning<
+  "fallthrough annotation in unreachable code">,
+  InGroup<UnreachableCodeFallthrough>, DefaultIgnore;
 def note_unreachable_silence : Note<
   "silence by adding parentheses to mark code as explicitly dead">;
 
@@ -7472,7 +7475,7 @@ def note_member_first_declared_here : Note<
 def warn_bitwise_negation_bool : Warning<
   "bitwise negation of a boolean expression%select{;| always evaluates to 'true';}0 "
   "did you mean logical negation?">,
-  InGroup<DiagGroup<"bool-operation">>;
+  InGroup<BoolOperation>, DefaultIgnore;
 def err_decrement_bool : Error<"cannot decrement expression of type bool">;
 def warn_increment_bool : Warning<
   "incrementing expression of type bool is deprecated and "
@@ -9628,9 +9631,6 @@ def err_fallthrough_attr_outside_switch : Error<
   "fallthrough annotation is outside switch statement">;
 def err_fallthrough_attr_invalid_placement : Error<
   "fallthrough annotation does not directly precede switch label">;
-def warn_fallthrough_attr_unreachable : Warning<
-  "fallthrough annotation in unreachable code">,
-  InGroup<ImplicitFallthrough>, DefaultIgnore;
 
 def warn_unreachable_default : Warning<
   "default label in switch which covers all enumeration values">,
