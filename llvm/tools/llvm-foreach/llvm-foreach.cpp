@@ -93,7 +93,7 @@ static void error(std::error_code EC, const Twine &Prefix) {
 }
 
 // With BlockingWait=false this function just goes through the all
-// submitted jobs to check if one of them has finished.
+// submitted jobs to check if some of them have finished.
 int checkIfJobsAreFinished(std::list<sys::ProcessInfo> &JobsSubmitted,
                            bool BlockingWait = true) {
   std::string ErrMsg;
