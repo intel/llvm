@@ -17,9 +17,6 @@ set(SCUDO_UNITTEST_CFLAGS
   # TODO(kostyak): find a way to make -fsized-deallocation work
   -Wno-mismatched-new-delete)
 
-# Too many existing bugs, needs cleanup.
-append_list_if(COMPILER_RT_HAS_WNO_FORMAT -Wno-format SCUDO_UNITTEST_CFLAGS)
-
 if(COMPILER_RT_DEBUG)
   list(APPEND SCUDO_UNITTEST_CFLAGS -DSCUDO_DEBUG=1)
 endif()
@@ -42,7 +39,10 @@ foreach(lib ${SANITIZER_TEST_CXX_LIBRARIES})
 endforeach()
 list(APPEND LINK_FLAGS -pthread)
 # Linking against libatomic is required with some compilers
-list(APPEND LINK_FLAGS -latomic)
+check_library_exists(atomic __atomic_load_8 "" COMPILER_RT_HAS_LIBATOMIC)
+if (COMPILER_RT_HAS_LIBATOMIC)
+  list(APPEND LINK_FLAGS -latomic)
+endif()
 
 set(SCUDO_TEST_HEADERS
   scudo_unit_test.h
