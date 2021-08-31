@@ -111,7 +111,7 @@ Defaults to AMD if no value is given. Supported values are:
  - **AMD**    - for ROCm to target AMD GPUs
  - **NVIDIA** - for ROCm to target NVIDIA GPUs
  
- ***MCPU*** Flag must be set for when using ROCm triple. 
+ ***AMD_ARCH*** Flag must be set for when using ROCm triple.
  For example it may be set to "gfx906".
 
 
