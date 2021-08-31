@@ -18,53 +18,39 @@ namespace sycl {
 namespace detail {
 
 template <typename T, class BinaryOperation>
-using IsPlus = bool_constant<
-    std::is_same<BinaryOperation, sycl::plus<T>>::value ||
-    std::is_same<BinaryOperation, sycl::plus<void>>::value ||
-    std::is_same<BinaryOperation, ext::oneapi::plus<T>>::value ||
-    std::is_same<BinaryOperation, ext::oneapi::plus<void>>::value>;
+using IsPlus =
+    bool_constant<std::is_same<BinaryOperation, sycl::plus<T>>::value ||
+                  std::is_same<BinaryOperation, sycl::plus<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsMultiplies = bool_constant<
-    std::is_same<BinaryOperation, sycl::multiplies<T>>::value ||
-    std::is_same<BinaryOperation, sycl::multiplies<void>>::value ||
-    std::is_same<BinaryOperation, ext::oneapi::multiplies<T>>::value ||
-    std::is_same<BinaryOperation, ext::oneapi::multiplies<void>>::value>;
+using IsMultiplies =
+    bool_constant<std::is_same<BinaryOperation, sycl::multiplies<T>>::value ||
+                  std::is_same<BinaryOperation, sycl::multiplies<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsMinimum = bool_constant<
-    std::is_same<BinaryOperation, sycl::minimum<T>>::value ||
-    std::is_same<BinaryOperation, sycl::minimum<void>>::value ||
-    std::is_same<BinaryOperation, ext::oneapi::minimum<T>>::value ||
-    std::is_same<BinaryOperation, ext::oneapi::minimum<void>>::value>;
+using IsMinimum =
+    bool_constant<std::is_same<BinaryOperation, sycl::minimum<T>>::value ||
+                  std::is_same<BinaryOperation, sycl::minimum<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsMaximum = bool_constant<
-    std::is_same<BinaryOperation, sycl::maximum<T>>::value ||
-    std::is_same<BinaryOperation, sycl::maximum<void>>::value ||
-    std::is_same<BinaryOperation, ext::oneapi::maximum<T>>::value ||
-    std::is_same<BinaryOperation, ext::oneapi::maximum<void>>::value>;
+using IsMaximum =
+    bool_constant<std::is_same<BinaryOperation, sycl::maximum<T>>::value ||
+                  std::is_same<BinaryOperation, sycl::maximum<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsBitOR = bool_constant<
-    std::is_same<BinaryOperation, sycl::bit_or<T>>::value ||
-    std::is_same<BinaryOperation, sycl::bit_or<void>>::value ||
-    std::is_same<BinaryOperation, ext::oneapi::bit_or<T>>::value ||
-    std::is_same<BinaryOperation, ext::oneapi::bit_or<void>>::value>;
+using IsBitOR =
+    bool_constant<std::is_same<BinaryOperation, sycl::bit_or<T>>::value ||
+                  std::is_same<BinaryOperation, sycl::bit_or<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsBitXOR = bool_constant<
-    std::is_same<BinaryOperation, sycl::bit_xor<T>>::value ||
-    std::is_same<BinaryOperation, sycl::bit_xor<void>>::value ||
-    std::is_same<BinaryOperation, ext::oneapi::bit_xor<T>>::value ||
-    std::is_same<BinaryOperation, ext::oneapi::bit_xor<void>>::value>;
+using IsBitXOR =
+    bool_constant<std::is_same<BinaryOperation, sycl::bit_xor<T>>::value ||
+                  std::is_same<BinaryOperation, sycl::bit_xor<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsBitAND = bool_constant<
-    std::is_same<BinaryOperation, sycl::bit_and<T>>::value ||
-    std::is_same<BinaryOperation, sycl::bit_and<void>>::value ||
-    std::is_same<BinaryOperation, ext::oneapi::bit_and<T>>::value ||
-    std::is_same<BinaryOperation, ext::oneapi::bit_and<void>>::value>;
+using IsBitAND =
+    bool_constant<std::is_same<BinaryOperation, sycl::bit_and<T>>::value ||
+                  std::is_same<BinaryOperation, sycl::bit_and<void>>::value>;
 
 // Identity = 0
 template <typename T, class BinaryOperation>

@@ -3654,12 +3654,18 @@ static pi_result commonEnqueueMemBufferCopyRect(
   assert(src_type == CU_MEMORYTYPE_DEVICE || src_type == CU_MEMORYTYPE_HOST);
   assert(dst_type == CU_MEMORYTYPE_DEVICE || dst_type == CU_MEMORYTYPE_HOST);
 
-  src_row_pitch = (!src_row_pitch) ? region->width_bytes : src_row_pitch;
-  src_slice_pitch = (!src_slice_pitch) ? (region->height_scalar * src_row_pitch)
-                                       : src_slice_pitch;
-  dst_row_pitch = (!dst_row_pitch) ? region->width_bytes : dst_row_pitch;
-  dst_slice_pitch = (!dst_slice_pitch) ? (region->height_scalar * dst_row_pitch)
-                                       : dst_slice_pitch;
+  src_row_pitch = (!src_row_pitch) ? region->width_bytes + src_offset->x_bytes
+                                   : src_row_pitch;
+  src_slice_pitch =
+      (!src_slice_pitch)
+          ? ((region->height_scalar + src_offset->y_scalar) * src_row_pitch)
+          : src_slice_pitch;
+  dst_row_pitch = (!dst_row_pitch) ? region->width_bytes + dst_offset->x_bytes
+                                   : dst_row_pitch;
+  dst_slice_pitch =
+      (!dst_slice_pitch)
+          ? ((region->height_scalar + dst_offset->y_scalar) * dst_row_pitch)
+          : dst_slice_pitch;
 
   CUDA_MEMCPY3D params = {};
 
