@@ -187,19 +187,24 @@ public:
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
   int getPlatformId(RT::PiPlatform Platform) {
-    auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
-    if (It != PiPlatforms.end())
-      return It - PiPlatforms.begin();
+    if (PiPlatforms) {
+      auto It = std::find(PiPlatforms->begin(), PiPlatforms->end(), Platform);
+      if (It != PiPlatforms->end())
+        return It - PiPlatforms->begin();
 
-    PiPlatforms.push_back(Platform);
-    LastDeviceIds.push_back(0);
-    return PiPlatforms.size() - 1;
+      PiPlatforms->push_back(Platform);
+      LastDeviceIds.push_back(0);
+      return PiPlatforms->size() - 1;
+    }
+    return -1;
   }
   // Device ids are consecutive across platforms within a plugin.
   // We need to return the same starting index for the given platform.
   // So, instead of returing the last device id of the given platform,
   // return the last device id of the predecessor platform.
   int getStartingDeviceId(RT::PiPlatform Platform) {
+    if (!PiPlatforms)
+      PiPlatforms = new std::vector<RT::PiPlatform>;
     int PlatformId = getPlatformId(Platform);
     if (PlatformId == 0)
       return 0;
@@ -216,10 +221,17 @@ public:
     std::fill(LastDeviceIds.begin(), LastDeviceIds.end(), 0);
   }
 
+  void resetPiPlatforms() {
+    delete PiPlatforms;
+    PiPlatforms = nullptr;
+  }
+
   bool containsPiPlatform(RT::PiPlatform Platform) {
-    auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
-    if (It != PiPlatforms.end())
-      return true;
+    if (PiPlatforms) {
+      auto It = std::find(PiPlatforms->begin(), PiPlatforms->end(), Platform);
+      if (It != PiPlatforms->end())
+        return true;
+    }
     return false;
   }
 
@@ -229,7 +241,7 @@ private:
   void *MLibraryHandle; // the handle returned from dlopen
   std::shared_ptr<std::mutex> TracingMutex;
   // vector of PiPlatforms that belong to this plugin
-  std::vector<RT::PiPlatform> PiPlatforms;
+  std::vector<RT::PiPlatform> *PiPlatforms = nullptr;
   // represents the unique ids of the last device of each platform
   // index of this vector corresponds to the index in PiPlatforms vector.
   std::vector<int> LastDeviceIds;
