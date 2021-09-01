@@ -58,14 +58,13 @@ struct is_sorter_impl {
 template <typename Sorter, typename Group,
           typename Ptr> // multi_ptr has difference_type and don't have other
                         // iterator's fields
-                        struct is_sorter_impl<
-                            Sorter, Group, Ptr,
+struct is_sorter_impl<Sorter, Group, Ptr,
 #if __cplusplus < 201703
-                            cl::sycl::detail::void_type<
+                      cl::sycl::detail::void_type<
 #else
-                            std::void_t<
+                      std::void_t<
 #endif
-                                typename has_difference_type<Ptr>::type>> {
+                          typename has_difference_type<Ptr>::type>> {
   template <typename G = Group>
   static decltype(std::declval<Sorter>()(std::declval<G>(), std::declval<Ptr>(),
                                          std::declval<Ptr>()),
