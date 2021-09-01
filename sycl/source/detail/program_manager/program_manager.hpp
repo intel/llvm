@@ -143,15 +143,11 @@ public:
   /// \param Device the device associated with the context.
   /// \param NativePrg the PI program associated with the kernel.
   /// \param KernelName the name of the kernel.
-  /// \param KnownProgram indicates whether the PI program is guaranteed to
-  ///        be known to program manager (built with its API) or not (not
-  ///        cacheable or constructed with interoperability).
   KernelArgMask getEliminatedKernelArgMask(OSModuleHandle M,
                                            const ContextImplPtr &ContextImpl,
                                            const DeviceImplPtr &DeviceImpl,
                                            pi::PiProgram NativePrg,
-                                           const std::string &KernelName,
-                                           bool KnownProgram);
+                                           const std::string &KernelName);
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name.

@@ -547,8 +547,8 @@ define i8 @not_smin_of_nots(i8 %x, i8 %y) {
 ; CHECK-NEXT:    call void @use(i8 [[NOTY]])
 ; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTX]], i8 [[NOTY]])
 ; CHECK-NEXT:    call void @use(i8 [[M]])
-; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smax.i8(i8 [[X]], i8 [[Y]])
-; CHECK-NEXT:    ret i8 [[TMP1]]
+; CHECK-NEXT:    [[NOTM:%.*]] = xor i8 [[M]], -1
+; CHECK-NEXT:    ret i8 [[NOTM]]
 ;
   %notx = xor i8 %x, -1
   call void @use(i8 %notx)
@@ -1029,4 +1029,435 @@ define i8 @umin_demand_and_7_8(i8 %x) {
   %m = call i8 @llvm.umin.i8(i8 %x, i8 -7)
   %r = and i8 %m, -8
   ret i8 %r
+}
+
+define i8 @neg_neg_nsw_smax(i8 %x, i8 %y) {
+; CHECK-LABEL: @neg_neg_nsw_smax(
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smin.i8(i8 [[X:%.*]], i8 [[Y:%.*]])
+; CHECK-NEXT:    [[M:%.*]] = sub nsw i8 0, [[TMP1]]
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %nx = sub nsw i8 0, %x
+  %ny = sub nsw i8 0, %y
+  %m = call i8 @llvm.smax.i8(i8 %nx, i8 %ny)
+  ret i8 %m
+}
+
+define <3 x i8> @neg_neg_nsw_smin(<3 x i8> %x, <3 x i8> %y) {
+; CHECK-LABEL: @neg_neg_nsw_smin(
+; CHECK-NEXT:    [[TMP1:%.*]] = call <3 x i8> @llvm.smax.v3i8(<3 x i8> [[X:%.*]], <3 x i8> [[Y:%.*]])
+; CHECK-NEXT:    [[M:%.*]] = sub nsw <3 x i8> zeroinitializer, [[TMP1]]
+; CHECK-NEXT:    ret <3 x i8> [[M]]
+;
+  %nx = sub nsw <3 x i8> zeroinitializer, %x
+  %ny = sub nsw <3 x i8> zeroinitializer, %y
+  %m = call <3 x i8> @llvm.smin.v3i8(<3 x i8> %nx, <3 x i8> %ny)
+  ret <3 x i8> %m
+}
+
+define i8 @neg_neg_nsw_smax_use0(i8 %x, i8 %y) {
+; CHECK-LABEL: @neg_neg_nsw_smax_use0(
+; CHECK-NEXT:    [[NX:%.*]] = sub nsw i8 0, [[X:%.*]]
+; CHECK-NEXT:    call void @use(i8 [[NX]])
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smin.i8(i8 [[X]], i8 [[Y:%.*]])
+; CHECK-NEXT:    [[M:%.*]] = sub nsw i8 0, [[TMP1]]
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %nx = sub nsw i8 0, %x
+  call void @use(i8 %nx)
+  %ny = sub nsw i8 0, %y
+  %m = call i8 @llvm.smax.i8(i8 %nx, i8 %ny)
+  ret i8 %m
+}
+
+define i8 @neg_neg_nsw_smin_use1(i8 %x, i8 %y) {
+; CHECK-LABEL: @neg_neg_nsw_smin_use1(
+; CHECK-NEXT:    [[NY:%.*]] = sub nsw i8 0, [[Y:%.*]]
+; CHECK-NEXT:    call void @use(i8 [[NY]])
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smax.i8(i8 [[X:%.*]], i8 [[Y]])
+; CHECK-NEXT:    [[M:%.*]] = sub nsw i8 0, [[TMP1]]
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %nx = sub nsw i8 0, %x
+  %ny = sub nsw i8 0, %y
+  call void @use(i8 %ny)
+  %m = call i8 @llvm.smin.i8(i8 %nx, i8 %ny)
+  ret i8 %m
+}
+
+; negative test - too many uses
+
+define i8 @neg_neg_nsw_smin_use2(i8 %x, i8 %y) {
+; CHECK-LABEL: @neg_neg_nsw_smin_use2(
+; CHECK-NEXT:    [[NX:%.*]] = sub nsw i8 0, [[X:%.*]]
+; CHECK-NEXT:    call void @use(i8 [[NX]])
+; CHECK-NEXT:    [[NY:%.*]] = sub nsw i8 0, [[Y:%.*]]
+; CHECK-NEXT:    call void @use(i8 [[NY]])
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NX]], i8 [[NY]])
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %nx = sub nsw i8 0, %x
+  call void @use(i8 %nx)
+  %ny = sub nsw i8 0, %y
+  call void @use(i8 %ny)
+  %m = call i8 @llvm.smin.i8(i8 %nx, i8 %ny)
+  ret i8 %m
+}
+
+; negative test - need nsw on both ops
+
+define i8 @neg_neg_smax(i8 %x, i8 %y) {
+; CHECK-LABEL: @neg_neg_smax(
+; CHECK-NEXT:    [[NX:%.*]] = sub i8 0, [[X:%.*]]
+; CHECK-NEXT:    [[NY:%.*]] = sub nsw i8 0, [[Y:%.*]]
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smax.i8(i8 [[NX]], i8 [[NY]])
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %nx = sub i8 0, %x
+  %ny = sub nsw i8 0, %y
+  %m = call i8 @llvm.smax.i8(i8 %nx, i8 %ny)
+  ret i8 %m
+}
+
+; negative test - need nsw on both ops
+
+define i8 @neg_neg_smin(i8 %x, i8 %y) {
+; CHECK-LABEL: @neg_neg_smin(
+; CHECK-NEXT:    [[NX:%.*]] = sub i8 0, [[X:%.*]]
+; CHECK-NEXT:    [[NY:%.*]] = sub nsw i8 0, [[Y:%.*]]
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NX]], i8 [[NY]])
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %nx = sub i8 0, %x
+  %ny = sub nsw i8 0, %y
+  %m = call i8 @llvm.smin.i8(i8 %nx, i8 %ny)
+  ret i8 %m
+}
+
+; negative test - need signed min/max
+
+define i8 @neg_neg_nsw_umin(i8 %x, i8 %y) {
+; CHECK-LABEL: @neg_neg_nsw_umin(
+; CHECK-NEXT:    [[NX:%.*]] = sub nsw i8 0, [[X:%.*]]
+; CHECK-NEXT:    [[NY:%.*]] = sub nsw i8 0, [[Y:%.*]]
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.umin.i8(i8 [[NX]], i8 [[NY]])
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %nx = sub nsw i8 0, %x
+  %ny = sub nsw i8 0, %y
+  %m = call i8 @llvm.umin.i8(i8 %nx, i8 %ny)
+  ret i8 %m
+}
+
+define i8 @freeToInvertSub(i8 %x, i8 %y, i8 %z) {
+; CHECK-LABEL: @freeToInvertSub(
+; CHECK-NEXT:    [[NX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    [[NY:%.*]] = xor i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[NZ:%.*]] = xor i8 [[Z:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NX]])
+; CHECK-NEXT:    call void @use(i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[NZ]])
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.umin.i8(i8 [[X]], i8 [[Y]])
+; CHECK-NEXT:    [[SUB:%.*]] = sub i8 [[TMP1]], [[Z]]
+; CHECK-NEXT:    ret i8 [[SUB]]
+;
+  %nx = xor i8 %x, -1
+  %ny = xor i8 %y, -1
+  %nz = xor i8 %z, -1
+  call void @use(i8 %nx)
+  call void @use(i8 %ny)
+  call void @use(i8 %nz)
+  %m = call i8 @llvm.umax.i8(i8 %nx, i8 %ny)
+  %sub = sub i8 %nz, %m
+  ret i8 %sub
+}
+
+define i8 @freeToInvertSub_uses(i8 %x, i8 %y, i8 %z) {
+; CHECK-LABEL: @freeToInvertSub_uses(
+; CHECK-NEXT:    [[NX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    [[NY:%.*]] = xor i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[NZ:%.*]] = xor i8 [[Z:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NX]])
+; CHECK-NEXT:    call void @use(i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[NZ]])
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.umax.i8(i8 [[NX]], i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[M]])
+; CHECK-NEXT:    [[SUB:%.*]] = sub i8 [[NZ]], [[M]]
+; CHECK-NEXT:    ret i8 [[SUB]]
+;
+  %nx = xor i8 %x, -1
+  %ny = xor i8 %y, -1
+  %nz = xor i8 %z, -1
+  call void @use(i8 %nx)
+  call void @use(i8 %ny)
+  call void @use(i8 %nz)
+  %m = call i8 @llvm.umax.i8(i8 %nx, i8 %ny)
+  call void @use(i8 %m)
+  %sub = sub i8 %nz, %m
+  ret i8 %sub
+}
+
+define i8 @freeToInvert(i8 %x, i8 %y, i8 %z) {
+; CHECK-LABEL: @freeToInvert(
+; CHECK-NEXT:    [[NX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    [[NY:%.*]] = xor i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[NZ:%.*]] = xor i8 [[Z:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NX]])
+; CHECK-NEXT:    call void @use(i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[NZ]])
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.umin.i8(i8 [[X]], i8 [[Y]])
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.smax.i8(i8 [[TMP1]], i8 [[Z]])
+; CHECK-NEXT:    ret i8 [[TMP2]]
+;
+  %nx = xor i8 %x, -1
+  %ny = xor i8 %y, -1
+  %nz = xor i8 %z, -1
+  call void @use(i8 %nx)
+  call void @use(i8 %ny)
+  call void @use(i8 %nz)
+  %m1 = call i8 @llvm.umax.i8(i8 %nx, i8 %ny)
+  %m2 = call i8 @llvm.smin.i8(i8 %m1, i8 %nz)
+  %not = xor i8 %m2, -1
+  ret i8 %not
+}
+
+define i8 @freeToInvert_use1(i8 %x, i8 %y, i8 %z) {
+; CHECK-LABEL: @freeToInvert_use1(
+; CHECK-NEXT:    [[NX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    [[NY:%.*]] = xor i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[NZ:%.*]] = xor i8 [[Z:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NX]])
+; CHECK-NEXT:    call void @use(i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[NZ]])
+; CHECK-NEXT:    [[M1:%.*]] = call i8 @llvm.umax.i8(i8 [[NX]], i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[M1]])
+; CHECK-NEXT:    [[TMP1:%.*]] = xor i8 [[M1]], -1
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.smax.i8(i8 [[Z]], i8 [[TMP1]])
+; CHECK-NEXT:    ret i8 [[TMP2]]
+;
+  %nx = xor i8 %x, -1
+  %ny = xor i8 %y, -1
+  %nz = xor i8 %z, -1
+  call void @use(i8 %nx)
+  call void @use(i8 %ny)
+  call void @use(i8 %nz)
+  %m1 = call i8 @llvm.umax.i8(i8 %nx, i8 %ny)
+  call void @use(i8 %m1)
+  %m2 = call i8 @llvm.smin.i8(i8 %m1, i8 %nz)
+  %not = xor i8 %m2, -1
+  ret i8 %not
+}
+
+define i8 @freeToInvert_use2(i8 %x, i8 %y, i8 %z) {
+; CHECK-LABEL: @freeToInvert_use2(
+; CHECK-NEXT:    [[NX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    [[NY:%.*]] = xor i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[NZ:%.*]] = xor i8 [[Z:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NX]])
+; CHECK-NEXT:    call void @use(i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[NZ]])
+; CHECK-NEXT:    [[M1:%.*]] = call i8 @llvm.umax.i8(i8 [[NX]], i8 [[NY]])
+; CHECK-NEXT:    [[M2:%.*]] = call i8 @llvm.smin.i8(i8 [[M1]], i8 [[NZ]])
+; CHECK-NEXT:    call void @use(i8 [[M2]])
+; CHECK-NEXT:    [[NOT:%.*]] = xor i8 [[M2]], -1
+; CHECK-NEXT:    ret i8 [[NOT]]
+;
+  %nx = xor i8 %x, -1
+  %ny = xor i8 %y, -1
+  %nz = xor i8 %z, -1
+  call void @use(i8 %nx)
+  call void @use(i8 %ny)
+  call void @use(i8 %nz)
+  %m1 = call i8 @llvm.umax.i8(i8 %nx, i8 %ny)
+  %m2 = call i8 @llvm.smin.i8(i8 %m1, i8 %nz)
+  call void @use(i8 %m2)
+  %not = xor i8 %m2, -1
+  ret i8 %not
+}
+
+define i8 @freeToInvert_use3(i8 %x, i8 %y, i8 %z) {
+; CHECK-LABEL: @freeToInvert_use3(
+; CHECK-NEXT:    [[NX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    [[NY:%.*]] = xor i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[NZ:%.*]] = xor i8 [[Z:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NX]])
+; CHECK-NEXT:    call void @use(i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[NZ]])
+; CHECK-NEXT:    [[M1:%.*]] = call i8 @llvm.umax.i8(i8 [[NX]], i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[M1]])
+; CHECK-NEXT:    [[M2:%.*]] = call i8 @llvm.smin.i8(i8 [[M1]], i8 [[NZ]])
+; CHECK-NEXT:    call void @use(i8 [[M2]])
+; CHECK-NEXT:    [[NOT:%.*]] = xor i8 [[M2]], -1
+; CHECK-NEXT:    ret i8 [[NOT]]
+;
+  %nx = xor i8 %x, -1
+  %ny = xor i8 %y, -1
+  %nz = xor i8 %z, -1
+  call void @use(i8 %nx)
+  call void @use(i8 %ny)
+  call void @use(i8 %nz)
+  %m1 = call i8 @llvm.umax.i8(i8 %nx, i8 %ny)
+  call void @use(i8 %m1)
+  %m2 = call i8 @llvm.smin.i8(i8 %m1, i8 %nz)
+  call void @use(i8 %m2)
+  %not = xor i8 %m2, -1
+  ret i8 %not
+}
+
+define i8 @freeToInvert_two_minmax_ops(i8 %x, i8 %y, i8 %z, i8 %w) {
+; CHECK-LABEL: @freeToInvert_two_minmax_ops(
+; CHECK-NEXT:    [[NX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    [[NY:%.*]] = xor i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[NZ:%.*]] = xor i8 [[Z:%.*]], -1
+; CHECK-NEXT:    [[NW:%.*]] = xor i8 [[W:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NX]])
+; CHECK-NEXT:    call void @use(i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[NZ]])
+; CHECK-NEXT:    call void @use(i8 [[NW]])
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.umin.i8(i8 [[X]], i8 [[Y]])
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.smin.i8(i8 [[W]], i8 [[Z]])
+; CHECK-NEXT:    [[TMP3:%.*]] = call i8 @llvm.smax.i8(i8 [[TMP1]], i8 [[TMP2]])
+; CHECK-NEXT:    ret i8 [[TMP3]]
+;
+  %nx = xor i8 %x, -1
+  %ny = xor i8 %y, -1
+  %nz = xor i8 %z, -1
+  %nw = xor i8 %w, -1
+  call void @use(i8 %nx)
+  call void @use(i8 %ny)
+  call void @use(i8 %nz)
+  call void @use(i8 %nw)
+  %m1 = call i8 @llvm.umax.i8(i8 %nx, i8 %ny)
+  %m2 = call i8 @llvm.smax.i8(i8 %nw, i8 %nz)
+  %m3 = call i8 @llvm.smin.i8(i8 %m1, i8 %m2)
+  %not = xor i8 %m3, -1
+  ret i8 %not
+}
+
+define i8 @freeToInvert_two_minmax_ops_use1(i8 %x, i8 %y, i8 %z, i8 %w) {
+; CHECK-LABEL: @freeToInvert_two_minmax_ops_use1(
+; CHECK-NEXT:    [[NX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    [[NY:%.*]] = xor i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[NZ:%.*]] = xor i8 [[Z:%.*]], -1
+; CHECK-NEXT:    [[NW:%.*]] = xor i8 [[W:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NX]])
+; CHECK-NEXT:    call void @use(i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[NZ]])
+; CHECK-NEXT:    call void @use(i8 [[NW]])
+; CHECK-NEXT:    [[M1:%.*]] = call i8 @llvm.umax.i8(i8 [[NX]], i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[M1]])
+; CHECK-NEXT:    [[M2:%.*]] = call i8 @llvm.smax.i8(i8 [[NW]], i8 [[NZ]])
+; CHECK-NEXT:    [[M3:%.*]] = call i8 @llvm.smin.i8(i8 [[M1]], i8 [[M2]])
+; CHECK-NEXT:    [[NOT:%.*]] = xor i8 [[M3]], -1
+; CHECK-NEXT:    ret i8 [[NOT]]
+;
+  %nx = xor i8 %x, -1
+  %ny = xor i8 %y, -1
+  %nz = xor i8 %z, -1
+  %nw = xor i8 %w, -1
+  call void @use(i8 %nx)
+  call void @use(i8 %ny)
+  call void @use(i8 %nz)
+  call void @use(i8 %nw)
+  %m1 = call i8 @llvm.umax.i8(i8 %nx, i8 %ny)
+  call void @use(i8 %m1)
+  %m2 = call i8 @llvm.smax.i8(i8 %nw, i8 %nz)
+  %m3 = call i8 @llvm.smin.i8(i8 %m1, i8 %m2)
+  %not = xor i8 %m3, -1
+  ret i8 %not
+}
+
+define i8 @freeToInvert_two_minmax_ops_use2(i8 %x, i8 %y, i8 %z, i8 %w) {
+; CHECK-LABEL: @freeToInvert_two_minmax_ops_use2(
+; CHECK-NEXT:    [[NX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    [[NY:%.*]] = xor i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[NZ:%.*]] = xor i8 [[Z:%.*]], -1
+; CHECK-NEXT:    [[NW:%.*]] = xor i8 [[W:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NX]])
+; CHECK-NEXT:    call void @use(i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[NZ]])
+; CHECK-NEXT:    call void @use(i8 [[NW]])
+; CHECK-NEXT:    [[M1:%.*]] = call i8 @llvm.umax.i8(i8 [[NX]], i8 [[NY]])
+; CHECK-NEXT:    [[M2:%.*]] = call i8 @llvm.smax.i8(i8 [[NW]], i8 [[NZ]])
+; CHECK-NEXT:    call void @use(i8 [[M2]])
+; CHECK-NEXT:    [[M3:%.*]] = call i8 @llvm.smin.i8(i8 [[M1]], i8 [[M2]])
+; CHECK-NEXT:    [[NOT:%.*]] = xor i8 [[M3]], -1
+; CHECK-NEXT:    ret i8 [[NOT]]
+;
+  %nx = xor i8 %x, -1
+  %ny = xor i8 %y, -1
+  %nz = xor i8 %z, -1
+  %nw = xor i8 %w, -1
+  call void @use(i8 %nx)
+  call void @use(i8 %ny)
+  call void @use(i8 %nz)
+  call void @use(i8 %nw)
+  %m1 = call i8 @llvm.umax.i8(i8 %nx, i8 %ny)
+  %m2 = call i8 @llvm.smax.i8(i8 %nw, i8 %nz)
+  call void @use(i8 %m2)
+  %m3 = call i8 @llvm.smin.i8(i8 %m1, i8 %m2)
+  %not = xor i8 %m3, -1
+  ret i8 %not
+}
+
+define i8 @freeToInvert_two_minmax_ops_use3(i8 %x, i8 %y, i8 %z, i8 %w) {
+; CHECK-LABEL: @freeToInvert_two_minmax_ops_use3(
+; CHECK-NEXT:    [[NX:%.*]] = xor i8 [[X:%.*]], -1
+; CHECK-NEXT:    [[NY:%.*]] = xor i8 [[Y:%.*]], -1
+; CHECK-NEXT:    [[NZ:%.*]] = xor i8 [[Z:%.*]], -1
+; CHECK-NEXT:    [[NW:%.*]] = xor i8 [[W:%.*]], -1
+; CHECK-NEXT:    call void @use(i8 [[NX]])
+; CHECK-NEXT:    call void @use(i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[NZ]])
+; CHECK-NEXT:    call void @use(i8 [[NW]])
+; CHECK-NEXT:    [[M1:%.*]] = call i8 @llvm.umax.i8(i8 [[NX]], i8 [[NY]])
+; CHECK-NEXT:    call void @use(i8 [[M1]])
+; CHECK-NEXT:    [[M2:%.*]] = call i8 @llvm.smax.i8(i8 [[NW]], i8 [[NZ]])
+; CHECK-NEXT:    call void @use(i8 [[M2]])
+; CHECK-NEXT:    [[M3:%.*]] = call i8 @llvm.smin.i8(i8 [[M1]], i8 [[M2]])
+; CHECK-NEXT:    [[NOT:%.*]] = xor i8 [[M3]], -1
+; CHECK-NEXT:    ret i8 [[NOT]]
+;
+  %nx = xor i8 %x, -1
+  %ny = xor i8 %y, -1
+  %nz = xor i8 %z, -1
+  %nw = xor i8 %w, -1
+  call void @use(i8 %nx)
+  call void @use(i8 %ny)
+  call void @use(i8 %nz)
+  call void @use(i8 %nw)
+  %m1 = call i8 @llvm.umax.i8(i8 %nx, i8 %ny)
+  call void @use(i8 %m1)
+  %m2 = call i8 @llvm.smax.i8(i8 %nw, i8 %nz)
+  call void @use(i8 %m2)
+  %m3 = call i8 @llvm.smin.i8(i8 %m1, i8 %m2)
+  %not = xor i8 %m3, -1
+  ret i8 %not
+}
+
+declare void @use4(i8, i8, i8, i8)
+
+define void @cmyk(i8 %r, i8 %g, i8 %b) {
+; CHECK-LABEL: @cmyk(
+; CHECK-NEXT:    [[NOTR:%.*]] = xor i8 [[R:%.*]], -1
+; CHECK-NEXT:    [[NOTG:%.*]] = xor i8 [[G:%.*]], -1
+; CHECK-NEXT:    [[NOTB:%.*]] = xor i8 [[B:%.*]], -1
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTR]], i8 [[NOTG]])
+; CHECK-NEXT:    [[K:%.*]] = call i8 @llvm.smin.i8(i8 [[M]], i8 [[NOTB]])
+; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[NOTR]], [[K]]
+; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[NOTG]], [[K]]
+; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[NOTB]], [[K]]
+; CHECK-NEXT:    call void @use4(i8 [[CK]], i8 [[MK]], i8 [[YK]], i8 [[K]])
+; CHECK-NEXT:    ret void
+;
+  %notr = xor i8 %r, -1
+  %notg = xor i8 %g, -1
+  %notb = xor i8 %b, -1
+  %m = call i8 @llvm.smin.i8(i8 %notr, i8 %notg)
+  %k = call i8 @llvm.smin.i8(i8 %m, i8 %notb)
+  %ck = sub i8 %notr, %k
+  %mk = sub i8 %notg, %k
+  %yk = sub i8 %notb, %k
+  call void @use4(i8 %ck, i8 %mk, i8 %yk, i8 %k)
+  ret void
 }
