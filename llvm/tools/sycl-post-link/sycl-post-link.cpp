@@ -709,11 +709,26 @@ static void LowerEsimdConstructs(Module &M) {
 using TableFiles = std::map<StringRef, string_vector>;
 
 static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
-                                   bool SyclAndEsimdCode,
-                                   bool IsLLVMUsedRemoved) {
+                                   bool SyclAndEsimdCode) {
   TableFiles TblFiles;
   if (!M)
     return TblFiles;
+
+  Module *MPtr = M.get();
+
+  // After linking device bitcode "llvm.used" holds references to the kernels
+  // that are defined in the device image. But after splitting device image into
+  // separate kernels we may end up with having references to kernel declaration
+  // originating from "llvm.used" in the IR that is passed to llvm-spirv tool,
+  // and these declarations cause an assertion in llvm-spirv. To workaround this
+  // issue remove "llvm.used" from the input module before performing any other
+  // actions.
+  bool IsLLVMUsedRemoved = false;
+  if (GlobalVariable *GV = MPtr->getGlobalVariable("llvm.used")) {
+    assert(GV->user_empty() && "unexpected llvm.used users");
+    GV->eraseFromParent();
+    IsLLVMUsedRemoved = true;
+  }
 
   if (IsEsimd && LowerEsimd)
     LowerEsimdConstructs(*M);
@@ -853,10 +868,9 @@ static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
                         std::move(ResultModules[1]));
 }
 
-static TableFiles processInputModule(std::unique_ptr<Module> M,
-                                     bool RemovedLLVMUsed) {
+static TableFiles processInputModule(std::unique_ptr<Module> M) {
   if (!SplitEsimd)
-    return processOneModule(std::move(M), false, false, RemovedLLVMUsed);
+    return processOneModule(std::move(M), false, false);
 
   std::unique_ptr<Module> SyclModule;
   std::unique_ptr<Module> EsimdModule;
@@ -865,10 +879,10 @@ static TableFiles processInputModule(std::unique_ptr<Module> M,
   // Do we have both Sycl and Esimd code?
   bool SyclAndEsimdCode = SyclModule && EsimdModule;
 
-  TableFiles SyclTblFiles = processOneModule(std::move(SyclModule), false,
-                                             SyclAndEsimdCode, RemovedLLVMUsed);
-  TableFiles EsimdTblFiles = processOneModule(
-      std::move(EsimdModule), true, SyclAndEsimdCode, RemovedLLVMUsed);
+  TableFiles SyclTblFiles =
+      processOneModule(std::move(SyclModule), false, SyclAndEsimdCode);
+  TableFiles EsimdTblFiles =
+      processOneModule(std::move(EsimdModule), true, SyclAndEsimdCode);
 
   // Merge the two resulting file maps
   TableFiles MergedTblFiles;
@@ -984,24 +998,10 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // After linking device bitcode "llvm.used" holds references to the kernels
-  // that are defined in the device image. But after splitting device image into
-  // separate kernels we may end up with having references to kernel declaration
-  // originating from "llvm.used" in the IR that is passed to llvm-spirv tool,
-  // and these declarations cause an assertion in llvm-spirv. To workaround this
-  // issue remove "llvm.used" from the input module before performing any other
-  // actions.
-  bool RemovedLLVMUsed = false;
-  if (GlobalVariable *GV = MPtr->getGlobalVariable("llvm.used")) {
-    assert(GV->user_empty() && "unexpected llvm.used users");
-    GV->eraseFromParent();
-    RemovedLLVMUsed = true;
-  }
-
   if (OutputFilename.getNumOccurrences() == 0)
     OutputFilename = (Twine(sys::path::stem(InputFilename)) + ".files").str();
 
-  TableFiles TblFiles = processInputModule(std::move(M), RemovedLLVMUsed);
+  TableFiles TblFiles = processInputModule(std::move(M));
 
   // Input module was processed and a single output file was requested.
   if (IROutputOnly)
