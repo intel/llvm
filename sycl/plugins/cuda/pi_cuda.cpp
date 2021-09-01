@@ -4408,33 +4408,38 @@ pi_result cuda_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
     size_t bytesToCopy = elementByteSize * srcArrayDesc.NumChannels * region[0];
 
     pi_mem_type imgType = src_image->mem_.surface_mem_.get_image_type();
-    if (imgType == PI_MEM_TYPE_IMAGE1D) {
-      retErr = PI_CHECK_ERROR(cuMemcpyAtoA(dstArray, dstByteOffsetX, srcArray,
-                                           srcByteOffsetX, bytesToCopy));
+    if (src_image->context_ == dst_image->context_) {
+      if (imgType == PI_MEM_TYPE_IMAGE1D) {
+        retErr = PI_CHECK_ERROR(cuMemcpyAtoA(dstArray, dstByteOffsetX, srcArray,
+                                             srcByteOffsetX, bytesToCopy));
+      } else {
+        size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
+        size_t srcOffset[3] = {srcByteOffsetX, src_origin[1], src_origin[2]};
+        size_t dstOffset[3] = {dstByteOffsetX, dst_origin[1], dst_origin[2]};
+
+        retErr = commonEnqueueMemImageNDCopy(
+            cuStream, imgType, adjustedRegion, &srcArray, CU_MEMORYTYPE_ARRAY,
+            srcOffset, &dstArray, CU_MEMORYTYPE_ARRAY, dstOffset);
+
+        if (retErr != PI_SUCCESS) {
+          return retErr;
+        }
+      }
     } else {
+
       size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
       size_t srcOffset[3] = {srcByteOffsetX, src_origin[1], src_origin[2]};
       size_t dstOffset[3] = {dstByteOffsetX, dst_origin[1], dst_origin[2]};
 
-      if (src_image->context_ == dst_image->context_) {
-        retErr = commonEnqueueMemImageNDCopy(
-            cuStream, imgType, adjustedRegion, &srcArray, CU_MEMORYTYPE_ARRAY,
-            srcOffset, &dstArray, CU_MEMORYTYPE_ARRAY, dstOffset);
-      } else {
-        auto dstContext = dst_image->context_->get();
-        auto srcContext = src_image->context_->get();
+      auto dstContext = dst_image->context_->get();
+      auto srcContext = src_image->context_->get();
 
-        cuCtxEnablePeerAccess(srcContext, 0);
+      cuCtxEnablePeerAccess(srcContext, 0);
 
-        retErr = commonEnqueueMemImageNDCopyPeer(
-            cuStream, imgType, adjustedRegion, &srcArray, CU_MEMORYTYPE_ARRAY,
-            srcOffset, &dstArray, CU_MEMORYTYPE_ARRAY, dstOffset, dstContext,
-            srcContext);
-      }
-
-      if (retErr != PI_SUCCESS) {
-        return retErr;
-      }
+      retErr = commonEnqueueMemImageNDCopyPeer(
+          cuStream, imgType, adjustedRegion, &srcArray, CU_MEMORYTYPE_ARRAY,
+          srcOffset, &dstArray, CU_MEMORYTYPE_ARRAY, dstOffset, dstContext,
+          srcContext);
     }
 
     if (event) {
