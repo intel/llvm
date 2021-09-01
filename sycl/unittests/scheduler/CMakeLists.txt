@@ -12,6 +12,7 @@ add_sycl_unittest(SchedulerTests OBJECT
     NoHostUnifiedMemory.cpp
     StreamInitDependencyOnHost.cpp
     InOrderQueueDeps.cpp
+    InOrderQueueHostTaskDeps.cpp
     AllocaLinking.cpp
     RequiredWGSize.cpp
     utils.cpp

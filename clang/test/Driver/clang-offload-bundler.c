@@ -33,6 +33,7 @@
 // CK-HELP: {{.*}}one. The resulting file can also be unbundled into different files by
 // CK-HELP: {{.*}}this tool if -unbundle is provided.
 // CK-HELP: {{.*}}USAGE: clang-offload-bundler [options]
+// CK-HELP: {{.*}}-add-target-symbols-to-bundled-object {{.*}}- Add .tgtsym section with target symbol names to the output file when bundling object files.
 // CK-HELP: {{.*}}-allow-missing-bundles {{.*}}- Create empty files if bundles are missing when unbundling
 // CK-HELP: {{.*}}-inputs=<string>  - [<input file>,...]
 // CK-HELP: {{.*}}-list {{.*}}- List bundle IDs in the bundled file.

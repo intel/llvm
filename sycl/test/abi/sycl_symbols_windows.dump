@@ -2022,6 +2022,7 @@
 ?get@platform@sycl@cl@@QEBAPEAU_cl_platform_id@@XZ
 ?get@program@sycl@cl@@QEBAPEAU_cl_program@@XZ
 ?get@queue@sycl@cl@@QEBAPEAU_cl_command_queue@@XZ
+?getAssertHappenedBuffer@queue@sycl@cl@@AEAAAEAV?$buffer@UAssertHappened@detail@sycl@cl@@$00V?$aligned_allocator@D@234@X@23@XZ
 ?getBorderColor@detail@sycl@cl@@YA?AV?$vec@M$03@23@W4image_channel_order@23@@Z
 ?getBufSizeForContext@SYCLMemObjT@detail@sycl@cl@@SA_KAEBV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@PEAU_cl_mem@@@Z
 ?getChannelOrder@?$image_impl@$00@detail@sycl@cl@@QEBA?AW4image_channel_order@34@XZ
@@ -2133,7 +2134,9 @@
 ?get_kernel_bundle_impl@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@5@AEBV?$vector@Vkernel_id@sycl@cl@@V?$allocator@Vkernel_id@sycl@cl@@@std@@@5@W4bundle_state@23@@Z
 ?get_kernel_bundle_impl@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@5@W4bundle_state@23@@Z
 ?get_kernel_bundle_impl@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@AEBVcontext@23@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@5@W4bundle_state@23@AEBV?$function@$$A6A_NAEBV?$shared_ptr@Vdevice_image_impl@detail@sycl@cl@@@std@@@Z@5@@Z
+?get_kernel_id_impl@detail@sycl@cl@@YA?AVkernel_id@23@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?get_kernel_ids@kernel_bundle_plain@detail@sycl@cl@@QEBA?AV?$vector@Vkernel_id@sycl@cl@@V?$allocator@Vkernel_id@sycl@cl@@@std@@@std@@XZ
+?get_kernel_ids@sycl@cl@@YA?AV?$vector@Vkernel_id@sycl@cl@@V?$allocator@Vkernel_id@sycl@cl@@@std@@@std@@XZ
 ?get_link_options@program@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ?get_max_statement_size@stream@sycl@cl@@QEBA_KXZ
 ?get_max_statement_size@stream_impl@detail@sycl@cl@@QEBA_KXZ
@@ -3979,6 +3982,8 @@
 ?submit_barrier@queue@sycl@cl@@QEAA?AVevent@23@AEBV?$vector@Vevent@sycl@cl@@V?$allocator@Vevent@sycl@cl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?submit_impl@queue@sycl@cl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@sycl@cl@@@Z@std@@AEBUcode_location@detail@23@@Z
 ?submit_impl@queue@sycl@cl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@sycl@cl@@@Z@std@@V123@AEBUcode_location@detail@23@@Z
+?submit_impl_and_postprocess@queue@sycl@cl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@sycl@cl@@@Z@std@@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@sycl@cl@@@Z@6@@Z
+?submit_impl_and_postprocess@queue@sycl@cl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@sycl@cl@@@Z@std@@V123@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@sycl@cl@@@Z@6@@Z
 ?sycl_category@sycl@cl@@YAAEBVerror_category@std@@XZ
 ?tan@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z
 ?tan@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z

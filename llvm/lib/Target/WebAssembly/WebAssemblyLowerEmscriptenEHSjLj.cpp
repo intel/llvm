@@ -352,12 +352,12 @@ static Function *getEmscriptenFunction(FunctionType *Ty, const Twine &Name,
   if (!F->hasFnAttribute("wasm-import-module")) {
     llvm::AttrBuilder B;
     B.addAttribute("wasm-import-module", "env");
-    F->addAttributes(llvm::AttributeList::FunctionIndex, B);
+    F->addFnAttrs(B);
   }
   if (!F->hasFnAttribute("wasm-import-name")) {
     llvm::AttrBuilder B;
     B.addAttribute("wasm-import-name", F->getName());
-    F->addAttributes(llvm::AttributeList::FunctionIndex, B);
+    F->addFnAttrs(B);
   }
   return F;
 }
@@ -420,7 +420,7 @@ Value *WebAssemblyLowerEmscriptenEHSjLj::wrapInvoke(CallBase *CI) {
   if (CI->doesNotReturn()) {
     if (auto *F = CI->getCalledFunction())
       F->removeFnAttr(Attribute::NoReturn);
-    CI->removeAttribute(AttributeList::FunctionIndex, Attribute::NoReturn);
+    CI->removeFnAttr(Attribute::NoReturn);
   }
 
   IRBuilder<> IRB(C);
@@ -450,9 +450,9 @@ Value *WebAssemblyLowerEmscriptenEHSjLj::wrapInvoke(CallBase *CI) {
   ArgAttributes.push_back(AttributeSet());
   // Copy the argument attributes from the original
   for (unsigned I = 0, E = CI->getNumArgOperands(); I < E; ++I)
-    ArgAttributes.push_back(InvokeAL.getParamAttributes(I));
+    ArgAttributes.push_back(InvokeAL.getParamAttrs(I));
 
-  AttrBuilder FnAttrs(InvokeAL.getFnAttributes());
+  AttrBuilder FnAttrs(InvokeAL.getFnAttrs());
   if (FnAttrs.contains(Attribute::AllocSize)) {
     // The allocsize attribute (if any) referes to parameters by index and needs
     // to be adjusted.
@@ -466,9 +466,8 @@ Value *WebAssemblyLowerEmscriptenEHSjLj::wrapInvoke(CallBase *CI) {
   }
 
   // Reconstruct the AttributesList based on the vector we constructed.
-  AttributeList NewCallAL =
-      AttributeList::get(C, AttributeSet::get(C, FnAttrs),
-                         InvokeAL.getRetAttributes(), ArgAttributes);
+  AttributeList NewCallAL = AttributeList::get(
+      C, AttributeSet::get(C, FnAttrs), InvokeAL.getRetAttrs(), ArgAttributes);
   NewCall->setAttributes(NewCallAL);
 
   CI->replaceAllUsesWith(NewCall);

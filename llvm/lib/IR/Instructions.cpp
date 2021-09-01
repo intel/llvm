@@ -318,9 +318,8 @@ bool CallBase::isReturnNonNull() const {
   if (hasRetAttr(Attribute::NonNull))
     return true;
 
-  if (getDereferenceableBytes(AttributeList::ReturnIndex) > 0 &&
-           !NullPointerIsDefined(getCaller(),
-                                 getType()->getPointerAddressSpace()))
+  if (getRetDereferenceableBytes() > 0 &&
+      !NullPointerIsDefined(getCaller(), getType()->getPointerAddressSpace()))
     return true;
 
   return false;
@@ -352,13 +351,13 @@ bool CallBase::paramHasAttr(unsigned ArgNo, Attribute::AttrKind Kind) const {
 
 bool CallBase::hasFnAttrOnCalledFunction(Attribute::AttrKind Kind) const {
   if (const Function *F = getCalledFunction())
-    return F->getAttributes().hasFnAttribute(Kind);
+    return F->getAttributes().hasFnAttr(Kind);
   return false;
 }
 
 bool CallBase::hasFnAttrOnCalledFunction(StringRef Kind) const {
   if (const Function *F = getCalledFunction())
-    return F->getAttributes().hasFnAttribute(Kind);
+    return F->getAttributes().hasFnAttr(Kind);
   return false;
 }
 
