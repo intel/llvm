@@ -194,13 +194,23 @@ void event_impl::wait(
   TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
 #endif
 
-  if (MEvent)
-    // presence of MEvent means the command has been enqueued, so no need to
-    // go via the slow path event waiting in the scheduler
-    waitInternal();
-  else if (MCommand)
-    detail::Scheduler::getInstance().waitForEvent(Self);
-  cleanupCommand(std::move(Self));
+  if (MQueue) {
+    if (!MQueue->is_host()) {
+      detail::code_location CodeLoc;
+      MQueue->wait(CodeLoc);
+    } else {
+      while (MState != HES_Complete)
+        ;
+    }
+  } else {
+    if (MEvent)
+      // presence of MEvent means the command has been enqueued, so no need to
+      // go via the slow path event waiting in the scheduler
+      waitInternal();
+    else if (MCommand)
+      detail::Scheduler::getInstance().waitForEvent(Self);
+    cleanupCommand(std::move(Self));
+  }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
