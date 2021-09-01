@@ -686,7 +686,7 @@ pi_result piContextRelease(pi_context Context) {
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
   if (Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
-    // TODO : Support Out-of-order Queue with piQueueFinish
+    // TODO : Support Out-of-order Queue
     *Queue = nullptr;
     return PI_INVALID_QUEUE_PROPERTIES;
   }
@@ -736,8 +736,9 @@ pi_result piQueueRelease(pi_queue Queue) {
 }
 
 pi_result piQueueFinish(pi_queue) {
-  // TODO/FIXME : Only in-order queue is called for this API. Support
-  // Out-of-order Queue with piQueueCreate
+  // No-op as enqueued commands with ESIMD_CPU plugin are blocking
+  // ones that do not return until their completion - kernel execution
+  // and memory read.
   CONTINUE_NO_IMPLEMENTATION;
 }
 
