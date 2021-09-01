@@ -132,7 +132,6 @@ public:
     return reinterpret_cast<typename interop<BackendName, event>::type>(
         getNative());
   }
-
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
 
