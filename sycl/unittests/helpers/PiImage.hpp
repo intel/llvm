@@ -402,6 +402,28 @@ makeEmptyKernels(std::initializer_list<std::string> KernelNames) {
   return Entries;
 }
 
+/// Utility function to create a kernel params optimization info property.
+///
+/// \param Name is a property name.
+/// \param NumArgs is a total number of arguments of a kernel.
+/// \param ElimArgMask is a bit mask of eliminated kernel arguments IDs.
+inline PiProperty
+makeKernelParamOptInfo(const std::string &Name, const size_t NumArgs,
+                       const std::vector<unsigned char> &ElimArgMask) {
+  const size_t BYTES_FOR_SIZE = 8;
+  auto *EAMSizePtr = reinterpret_cast<const unsigned char *>(&NumArgs);
+  std::vector<char> DescData;
+  DescData.resize(BYTES_FOR_SIZE + ElimArgMask.size());
+  std::uninitialized_copy(EAMSizePtr, EAMSizePtr + BYTES_FOR_SIZE,
+                          DescData.data());
+  std::uninitialized_copy(ElimArgMask.begin(), ElimArgMask.end(),
+                          DescData.data() + BYTES_FOR_SIZE);
+
+  PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+
+  return Prop;
+}
+
 } // namespace unittest
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
