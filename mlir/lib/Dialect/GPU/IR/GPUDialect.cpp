@@ -139,7 +139,7 @@ Type GPUDialect::parseType(DialectAsmParser &parser) const {
       return nullptr;
 
     // Parse operand.
-    StringRef operand;
+    std::string operand;
     if (failed(parser.parseOptionalString(&operand)))
       return nullptr;
 
@@ -196,14 +196,15 @@ LogicalResult GPUDialect::verifyOperationAttribute(Operation *op,
       return success();
 
     // Check that `launch_func` refers to a well-formed GPU kernel module.
-    StringRef kernelModuleName = launchOp.getKernelModuleName();
+    StringAttr kernelModuleName = launchOp.getKernelModuleName();
     auto kernelModule = module.lookupSymbol<GPUModuleOp>(kernelModuleName);
     if (!kernelModule)
       return launchOp.emitOpError()
-             << "kernel module '" << kernelModuleName << "' is undefined";
+             << "kernel module '" << kernelModuleName.getValue()
+             << "' is undefined";
 
     // Check that `launch_func` refers to a well-formed kernel function.
-    Operation *kernelFunc = module.lookupSymbol(launchOp.kernel());
+    Operation *kernelFunc = module.lookupSymbol(launchOp.kernelAttr());
     auto kernelGPUFunction = dyn_cast_or_null<gpu::GPUFuncOp>(kernelFunc);
     auto kernelLLVMFunction = dyn_cast_or_null<LLVM::LLVMFuncOp>(kernelFunc);
     if (!kernelGPUFunction && !kernelLLVMFunction)
@@ -541,8 +542,9 @@ void LaunchFuncOp::build(OpBuilder &builder, OperationState &result,
                       blockSize.y, blockSize.z});
   result.addOperands(kernelOperands);
   auto kernelModule = kernelFunc->getParentOfType<GPUModuleOp>();
-  auto kernelSymbol = builder.getSymbolRefAttr(
-      kernelModule.getName(), {builder.getSymbolRefAttr(kernelFunc.getName())});
+  auto kernelSymbol =
+      SymbolRefAttr::get(kernelModule.getNameAttr(),
+                         {SymbolRefAttr::get(kernelFunc.getNameAttr())});
   result.addAttribute(getKernelAttrName(), kernelSymbol);
   SmallVector<int32_t, 8> segmentSizes(8, 1);
   segmentSizes.front() = 0; // Initially no async dependencies.
@@ -555,11 +557,11 @@ unsigned LaunchFuncOp::getNumKernelOperands() {
   return getNumOperands() - asyncDependencies().size() - kNumConfigOperands;
 }
 
-StringRef LaunchFuncOp::getKernelModuleName() {
+StringAttr LaunchFuncOp::getKernelModuleName() {
   return kernel().getRootReference();
 }
 
-StringRef LaunchFuncOp::getKernelName() { return kernel().getLeafReference(); }
+StringAttr LaunchFuncOp::getKernelName() { return kernel().getLeafReference(); }
 
 Value LaunchFuncOp::getKernelOperand(unsigned i) {
   return getOperand(asyncDependencies().size() + kNumConfigOperands + i);

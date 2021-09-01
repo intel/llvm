@@ -1060,13 +1060,13 @@ static LogicalResult verify(spirv::AccessChainOp accessChainOp) {
 
 void spirv::AddressOfOp::build(OpBuilder &builder, OperationState &state,
                                spirv::GlobalVariableOp var) {
-  build(builder, state, var.type(), builder.getSymbolRefAttr(var));
+  build(builder, state, var.type(), SymbolRefAttr::get(var));
 }
 
 static LogicalResult verify(spirv::AddressOfOp addressOfOp) {
   auto varOp = dyn_cast_or_null<spirv::GlobalVariableOp>(
       SymbolTable::lookupNearestSymbolFrom(addressOfOp->getParentOp(),
-                                           addressOfOp.variable()));
+                                           addressOfOp.variableAttr()));
   if (!varOp) {
     return addressOfOp.emitOpError("expected spv.GlobalVariable symbol");
   }
@@ -1712,8 +1712,7 @@ void spirv::EntryPointOp::build(OpBuilder &builder, OperationState &state,
                                 ArrayRef<Attribute> interfaceVars) {
   build(builder, state,
         spirv::ExecutionModelAttr::get(builder.getContext(), executionModel),
-        builder.getSymbolRefAttr(function),
-        builder.getArrayAttr(interfaceVars));
+        SymbolRefAttr::get(function), builder.getArrayAttr(interfaceVars));
 }
 
 static ParseResult parseEntryPointOp(OpAsmParser &parser,
@@ -1772,7 +1771,7 @@ void spirv::ExecutionModeOp::build(OpBuilder &builder, OperationState &state,
                                    spirv::FuncOp function,
                                    spirv::ExecutionMode executionMode,
                                    ArrayRef<int32_t> params) {
-  build(builder, state, builder.getSymbolRefAttr(function),
+  build(builder, state, SymbolRefAttr::get(function),
         spirv::ExecutionModeAttr::get(builder.getContext(), executionMode),
         builder.getI32ArrayAttr(params));
 }
@@ -1953,14 +1952,14 @@ ArrayRef<Type> spirv::FuncOp::getCallableResults() {
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(spirv::FunctionCallOp functionCallOp) {
-  auto fnName = functionCallOp.callee();
+  auto fnName = functionCallOp.calleeAttr();
 
   auto funcOp =
       dyn_cast_or_null<spirv::FuncOp>(SymbolTable::lookupNearestSymbolFrom(
           functionCallOp->getParentOp(), fnName));
   if (!funcOp) {
     return functionCallOp.emitOpError("callee function '")
-           << fnName << "' not found in nearest symbol table";
+           << fnName.getValue() << "' not found in nearest symbol table";
   }
 
   auto functionType = funcOp.getType();
@@ -2115,7 +2114,7 @@ static LogicalResult verify(spirv::GlobalVariableOp varOp) {
   if (auto init =
           varOp->getAttrOfType<FlatSymbolRefAttr>(kInitializerAttrName)) {
     Operation *initOp = SymbolTable::lookupNearestSymbolFrom(
-        varOp->getParentOp(), init.getValue());
+        varOp->getParentOp(), init.getAttr());
     // TODO: Currently only variable initialization with specialization
     // constants and other variables is supported. They could be normal
     // constants in the module scope as well.
@@ -2691,7 +2690,7 @@ static LogicalResult verify(spirv::ModuleOp moduleOp) {
 
 static LogicalResult verify(spirv::ReferenceOfOp referenceOfOp) {
   auto *specConstSym = SymbolTable::lookupNearestSymbolFrom(
-      referenceOfOp->getParentOp(), referenceOfOp.spec_const());
+      referenceOfOp->getParentOp(), referenceOfOp.spec_constAttr());
   Type constType;
 
   auto specConstOp = dyn_cast_or_null<spirv::SpecConstantOp>(specConstSym);
@@ -3516,17 +3515,17 @@ static LogicalResult verify(spirv::SpecConstantCompositeOp constOp) {
 
   if (cType.isa<spirv::CooperativeMatrixNVType>())
     return constOp.emitError("unsupported composite type  ") << cType;
-  else if (constituents.size() != cType.getNumElements())
+  if (constituents.size() != cType.getNumElements())
     return constOp.emitError("has incorrect number of operands: expected ")
            << cType.getNumElements() << ", but provided "
            << constituents.size();
 
   for (auto index : llvm::seq<uint32_t>(0, constituents.size())) {
-    auto constituent = constituents[index].dyn_cast<FlatSymbolRefAttr>();
+    auto constituent = constituents[index].cast<FlatSymbolRefAttr>();
 
     auto constituentSpecConstOp =
         dyn_cast<spirv::SpecConstantOp>(SymbolTable::lookupNearestSymbolFrom(
-            constOp->getParentOp(), constituent.getValue()));
+            constOp->getParentOp(), constituent.getAttr()));
 
     if (constituentSpecConstOp.default_value().getType() !=
         cType.getElementType(index))

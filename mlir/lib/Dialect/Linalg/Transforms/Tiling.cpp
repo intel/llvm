@@ -16,6 +16,7 @@
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/Transforms.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
@@ -372,11 +373,12 @@ static LogicalResult tilePadTensorOp(OpBuilder &builder, PadTensorOp op,
       options.tileSizeComputationFunction(builder, op);
   assert(static_cast<int64_t>(tileSizes.size()) == rank);
   // Compute lower and upper bounds of the loop nest.
+  SmallVector<Range> ranges = op.getLoopBounds(builder);
   SmallVector<Value> lbs, dims, steps;
   for (int64_t i = 0; i < rank; ++i) {
     if (!isZero(tileSizes[i])) {
-      lbs.push_back(builder.create<ConstantIndexOp>(loc, 0));
-      dims.push_back(builder.create<tensor::DimOp>(loc, op.output(), i));
+      lbs.push_back(ranges[i].offset);
+      dims.push_back(ranges[i].size);
       steps.push_back(tileSizes[i]);
     }
   }
@@ -536,7 +538,7 @@ applyTilingToLoopPatterns(LinalgTilingLoopType loopType, FuncOp funcOp,
   MLIRContext *ctx = funcOp.getContext();
   RewritePatternSet patterns(ctx);
   insertTilingPatterns(patterns, options);
-  patterns.add<AffineMinSCFCanonicalizationPattern>(patterns.getContext());
+  scf::populateSCFForLoopCanonicalizationPatterns(patterns);
   (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
   (void)applyPatternsAndFoldGreedily(
       funcOp, getLinalgTilingCanonicalizationPatterns(ctx));
