@@ -659,6 +659,8 @@ StringRef undecorateSPIRVFunction(StringRef S);
 /// and get the original name.
 bool isDecoratedSPIRVFunc(const Function *F, StringRef &UndecName);
 
+std::string prefixSPIRVName(const std::string &S);
+
 StringRef dePrefixSPIRVName(StringRef R, SmallVectorImpl<StringRef> &Postfix);
 
 /// Get a canonical function name for a SPIR-V op code.
