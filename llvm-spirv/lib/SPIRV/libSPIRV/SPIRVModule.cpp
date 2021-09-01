@@ -1949,6 +1949,9 @@ static std::string to_string(uint32_t Version) {
   case static_cast<uint32_t>(VersionNumber::SPIRV_1_3):
     Res = "1.3";
     break;
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_4):
+    Res = "1.4";
+    break;
   default:
     Res = "unknown";
   }
