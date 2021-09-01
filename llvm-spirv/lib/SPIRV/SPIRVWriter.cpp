@@ -209,6 +209,16 @@ bool LLVMToSPIRVBase::isBuiltinTransToExtInst(
   OCLExtOpKind EOC;
   if (!OCLExtOpMap::rfind(Splited.first.str(), &EOC))
     return false;
+  if (EOC == OpenCLLIB::Vloada_halfn) {
+    auto *VecTy = dyn_cast<VectorType>(F->getReturnType());
+    if (!VecTy)
+      BM->getErrorLog().checkError(
+          false, SPIRVEC_InvalidModule,
+          "vloada_half should be of a half vector type");
+    auto *Ty = VecTy->getElementType();
+    BM->getErrorLog().checkError(Ty->isHalfTy(), SPIRVEC_InvalidModule,
+                                 "vloada_half should be of a half vector type");
+  }
 
   if (ExtSet)
     *ExtSet = Set;
@@ -659,13 +669,13 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
     BF->addDecorate(DecorationFuncParamAttr, FunctionParameterAttributeZext);
   if (Attrs.hasAttribute(AttributeList::ReturnIndex, Attribute::SExt))
     BF->addDecorate(DecorationFuncParamAttr, FunctionParameterAttributeSext);
-  if (Attrs.hasFnAttribute("referenced-indirectly")) {
+  if (Attrs.hasFnAttr("referenced-indirectly")) {
     assert(!isKernel(F) &&
            "kernel function was marked as referenced-indirectly");
     BF->addDecorate(DecorationReferencedIndirectlyINTEL);
   }
 
-  if (Attrs.hasFnAttribute(kVCMetadata::VCCallable) &&
+  if (Attrs.hasFnAttr(kVCMetadata::VCCallable) &&
       BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite)) {
     BF->addDecorate(internal::DecorationCallableFunctionINTEL);
   }
@@ -688,14 +698,14 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
   assert(BF && "The SPIRVFunction pointer shouldn't be nullptr");
   auto Attrs = F->getAttributes();
 
-  if (Attrs.hasFnAttribute(kVCMetadata::VCStackCall))
+  if (Attrs.hasFnAttr(kVCMetadata::VCStackCall))
     BF->addDecorate(DecorationStackCallINTEL);
-  if (Attrs.hasFnAttribute(kVCMetadata::VCFunction))
+  if (Attrs.hasFnAttr(kVCMetadata::VCFunction))
     BF->addDecorate(DecorationVectorComputeFunctionINTEL);
   else
     return;
 
-  if (Attrs.hasFnAttribute(kVCMetadata::VCSIMTCall)) {
+  if (Attrs.hasFnAttr(kVCMetadata::VCSIMTCall)) {
     SPIRVWord SIMTMode = 0;
     Attrs.getAttribute(AttributeList::FunctionIndex, kVCMetadata::VCSIMTCall)
         .getValueAsString()
@@ -748,7 +758,7 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
   }
   if (!isKernel(F) &&
       BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float_controls2) &&
-      Attrs.hasFnAttribute(kVCMetadata::VCFloatControl)) {
+      Attrs.hasFnAttr(kVCMetadata::VCFloatControl)) {
 
     SPIRVWord Mode = 0;
     Attrs
@@ -2474,6 +2484,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::dbg_label:
   case Intrinsic::trap:
   case Intrinsic::arithmetic_fence:
+  case Intrinsic::isnan:
     return true;
   default:
     // Unknown intrinsics' declarations should always be translated
@@ -3107,6 +3118,11 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       return BM->addUnaryInst(internal::OpArithmeticFenceINTEL, Ty, Op, BB);
     }
     return Op;
+  }
+  case Intrinsic::isnan: {
+    SPIRVType *Ty = transType(II->getType());
+    SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
+    return BM->addUnaryInst(OpIsNan, Ty, Op, BB);
   }
   default:
     if (BM->isUnknownIntrinsicAllowed(II))
@@ -3745,8 +3761,8 @@ bool LLVMToSPIRVBase::transExecutionMode() {
           break;
         unsigned SLMSize;
         N.get(SLMSize);
-        BF->addExecutionMode(new SPIRVExecutionMode(
-            BF, static_cast<ExecutionMode>(EMode), SLMSize));
+        BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+            BF, static_cast<ExecutionMode>(EMode), SLMSize)));
       } break;
 
       case spv::ExecutionModeDenormPreserve:
@@ -4285,6 +4301,7 @@ void addPassesForSPIRV(legacy::PassManager &PassMgr,
   PassMgr.add(createSPIRVLowerBoolLegacy());
   PassMgr.add(createSPIRVLowerMemmoveLegacy());
   PassMgr.add(createSPIRVLowerSaddWithOverflowLegacy());
+  PassMgr.add(createSPIRVLowerBitCastToNonStandardTypeLegacy(Opts));
 }
 
 bool isValidLLVMModule(Module *M, SPIRVErrorLog &ErrorLog) {

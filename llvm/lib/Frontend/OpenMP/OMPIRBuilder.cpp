@@ -44,11 +44,11 @@ void OpenMPIRBuilder::addAttributes(omp::RuntimeFunction FnID, Function &Fn) {
 
   // Get the function's current attributes.
   auto Attrs = Fn.getAttributes();
-  auto FnAttrs = Attrs.getFnAttributes();
-  auto RetAttrs = Attrs.getRetAttributes();
+  auto FnAttrs = Attrs.getFnAttrs();
+  auto RetAttrs = Attrs.getRetAttrs();
   SmallVector<AttributeSet, 4> ArgAttrs;
   for (size_t ArgNo = 0; ArgNo < Fn.arg_size(); ++ArgNo)
-    ArgAttrs.emplace_back(Attrs.getParamAttributes(ArgNo));
+    ArgAttrs.emplace_back(Attrs.getParamAttrs(ArgNo));
 
 #define OMP_ATTRS_SET(VarName, AttrSet) AttributeSet VarName = AttrSet;
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
@@ -259,14 +259,6 @@ Value *OpenMPIRBuilder::getOrCreateIdent(Constant *SrcLocStr,
     Ident = GV;
   }
   return Builder.CreatePointerCast(Ident, IdentPtr);
-}
-
-Type *OpenMPIRBuilder::getLanemaskType() {
-  LLVMContext &Ctx = M.getContext();
-  Triple triple(M.getTargetTriple());
-
-  // This test is adequate until deviceRTL has finer grained lane widths
-  return triple.isAMDGCN() ? Type::getInt64Ty(Ctx) : Type::getInt32Ty(Ctx);
 }
 
 Constant *OpenMPIRBuilder::getOrCreateSrcLocStr(StringRef LocStr) {
