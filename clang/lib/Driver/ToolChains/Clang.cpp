@@ -8666,8 +8666,8 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
-      // If OffloadArch is present it can only appear as the 6th hypen
-      // sepearated field of Bundle Entry ID. So, pad required number of
+      // If OffloadArch is present it can only appear as the 6th hyphen
+      // separated field of Bundle Entry ID. So, pad required number of
       // hyphens in Triple.
       for (int i = 4 - StringRef(NormalizedTriple).count("-"); i > 0; i--)
         Targets += '-';
