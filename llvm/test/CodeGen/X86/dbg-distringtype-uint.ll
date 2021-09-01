@@ -41,11 +41,6 @@
 ;
 ; The optimizations encode the constant string as an i64 constant in
 ; the debug info for esym, the return variable of the function esym.
-;
-; ModuleID = 'se6.bc'
-source_filename = "se6.f90"
-target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
-target triple = "x86_64-unknown-linux-gnu"
 
 @"semiempirical_corrections_mp_esym_$ELEMNT" = internal unnamed_addr constant [1 x [8 x i8]] [[8 x i8] c"abcdefgh"], align 8, !dbg !0
 

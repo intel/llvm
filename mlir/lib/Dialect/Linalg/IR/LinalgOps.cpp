@@ -560,7 +560,7 @@ void GenericOp::build(
 }
 
 static void print(OpAsmPrinter &p, GenericOp op) {
-  p << op.getOperationName() << " ";
+  p << " ";
 
   // Print extra attributes.
   auto genericAttrNames = op.linalgTraitAttrNames();
@@ -1040,9 +1040,6 @@ static LogicalResult verify(PadTensorOp op) {
            << resultType << " does not match the inferred type "
            << expectedType;
   }
-  if (op.output() && op.output().getType() != op.getResultType()) {
-    op.emitError("expected that output operand type equals result type");
-  }
 
   auto &region = op.region();
   unsigned rank = resultType.getRank();
@@ -1089,7 +1086,7 @@ void PadTensorOp::build(OpBuilder &b, OperationState &result, Value source,
   auto sourceType = source.getType().cast<RankedTensorType>();
   auto resultType = inferResultType(sourceType, staticLow, staticHigh);
   build(b, result, resultType, source, low, high, b.getI64ArrayAttr(staticLow),
-        b.getI64ArrayAttr(staticHigh), /*output=*/Value());
+        b.getI64ArrayAttr(staticHigh));
   result.addAttributes(attrs);
 }
 
@@ -1126,15 +1123,7 @@ void PadTensorOp::build(OpBuilder &b, OperationState &result, Type resultType,
         PadTensorOp::inferResultType(sourceType, staticLow, staticHigh);
   }
   build(b, result, resultType, source, dynamicLow, dynamicHigh,
-        b.getI64ArrayAttr(staticLow), b.getI64ArrayAttr(staticHigh),
-        /*output=*/Value());
-}
-
-void PadTensorOp::build(OpBuilder &b, OperationState &result, Type resultType,
-                        Value source, ArrayRef<Value> low, ArrayRef<Value> high,
-                        ArrayAttr staticLow, ArrayAttr staticHigh) {
-  build(b, result, resultType, source, low, high, staticLow, staticHigh,
-        /*output=*/{});
+        b.getI64ArrayAttr(staticLow), b.getI64ArrayAttr(staticHigh));
 }
 
 PadTensorOp PadTensorOp::createPadScalarOp(Type type, Value source, Value pad,
@@ -1221,7 +1210,8 @@ static Value getAsValue(OpBuilder &builder, Location loc, OpFoldResult ofr) {
 SmallVector<Value> PadTensorOp::getDestinationOperands(OpBuilder &b) {
   ReifiedRankedShapedTypeDims reifiedShapes;
   (void)reifyResultShapes(b, reifiedShapes);
-  Value initTensor = b.create<InitTensorOp>(getLoc(), reifiedShapes[0],
+  SmallVector<OpFoldResult> mixedSizes = getAsOpFoldResult(reifiedShapes[0]);
+  Value initTensor = b.create<InitTensorOp>(getLoc(), mixedSizes,
                                             getResultType().getElementType());
   return {initTensor};
 }
@@ -1465,21 +1455,6 @@ struct FoldStaticZeroPadding : public OpRewritePattern<PadTensorOp> {
   }
 };
 
-// Fold tensor.dim(pad_tensor(%input, %output)) to tensor.dim(%output).
-struct FoldToDimOfOutputOperand : public OpRewritePattern<tensor::DimOp> {
-  using OpRewritePattern<tensor::DimOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(tensor::DimOp dimOp,
-                                PatternRewriter &rewriter) const override {
-    auto padTensorOp = dimOp.source().getDefiningOp<PadTensorOp>();
-    if (!padTensorOp || !padTensorOp.output())
-      return failure();
-    rewriter.replaceOpWithNewOp<tensor::DimOp>(dimOp, padTensorOp.output(),
-                                               dimOp.index());
-    return success();
-  }
-};
-
 // Fold CastOp into PadTensorOp when adding static information.
 struct FoldSourceTensorCast : public OpRewritePattern<PadTensorOp> {
   using OpRewritePattern<PadTensorOp>::OpRewritePattern;
@@ -1503,7 +1478,7 @@ struct FoldSourceTensorCast : public OpRewritePattern<PadTensorOp> {
       auto newOp = rewriter.create<PadTensorOp>(
           padTensorOp->getLoc(), newResultType, padTensorOp.source(),
           padTensorOp.low(), padTensorOp.high(), padTensorOp.static_low(),
-          padTensorOp.static_high(), /*output=*/nullptr);
+          padTensorOp.static_high());
       BlockAndValueMapping mapper;
       padTensorOp.getRegion().cloneInto(&newOp.getRegion(), mapper);
 
@@ -1517,8 +1492,7 @@ struct FoldSourceTensorCast : public OpRewritePattern<PadTensorOp> {
 
 void PadTensorOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
-  results.add<FoldStaticZeroPadding, FoldToDimOfOutputOperand,
-              FoldSourceTensorCast>(context);
+  results.add<FoldStaticZeroPadding, FoldSourceTensorCast>(context);
 }
 
 /// Return the padding value of the PadTensorOp if it constant. In this context,
@@ -1889,7 +1863,6 @@ LogicalResult TensorCollapseShapeOp::reifyResultShapes(
 //===----------------------------------------------------------------------===//
 
 static void print(OpAsmPrinter &p, linalg::YieldOp op) {
-  p << op.getOperationName();
   if (op.getNumOperands() > 0)
     p << ' ' << op.getOperands();
   p.printOptionalAttrDict(op->getAttrs());
@@ -2044,9 +2017,8 @@ void TiledLoopOp::build(OpBuilder &builder, OperationState &result,
 }
 
 static void print(OpAsmPrinter &p, TiledLoopOp op) {
-  p << op.getOperationName() << " (" << op.getInductionVars() << ") = ("
-    << op.lowerBound() << ") to (" << op.upperBound() << ") step (" << op.step()
-    << ")";
+  p << " (" << op.getInductionVars() << ") = (" << op.lowerBound() << ") to ("
+    << op.upperBound() << ") step (" << op.step() << ")";
 
   if (!op.inputs().empty()) {
     p << " ins (";
@@ -2339,8 +2311,8 @@ struct DimOfTiledLoopInsOutsFolder : public OpRewritePattern<OpTy> {
     auto src = dimOp.source().template dyn_cast<BlockArgument>();
     if (!src)
       return failure();
-    auto loopOp = dyn_cast<TiledLoopOp>(
-        src.getOwner()->getParent()->getParentOp());
+    auto loopOp =
+        dyn_cast<TiledLoopOp>(src.getOwner()->getParent()->getParentOp());
     if (!loopOp)
       return failure();
 
@@ -2897,7 +2869,6 @@ static void printNamedStructuredOpResults(OpAsmPrinter &p,
 
 template <typename NamedStructuredOpType>
 static void printNamedStructuredOp(OpAsmPrinter &p, NamedStructuredOpType op) {
-  p << op.getOperationName();
   p.printOptionalAttrDict(
       op->getAttrs(),
       /*elidedAttrs=*/{"operand_segment_sizes",
