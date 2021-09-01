@@ -15,11 +15,7 @@ namespace sycl {
 namespace detail {
 
 #if __cplusplus < 201703
-template <typename... _Ts>
-struct make_void_type
-{
-    using type = void;
-};
+template <typename... _Ts> struct make_void_type { using type = void; };
 
 template <typename... _Ts>
 using void_type = typename make_void_type<_Ts...>::type;
