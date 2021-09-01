@@ -10,6 +10,7 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/defines_sycl_ns.hpp>
 #include <CL/sycl/feature_test.hpp>
 
 __SYCL_OPEN_NS() {

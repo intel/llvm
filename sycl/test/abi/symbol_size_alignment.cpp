@@ -4,25 +4,7 @@
 // Changing symbol size or alignment is a breaking change. If it happens, refer
 // to the ABI Policy Guide for further instructions on breaking ABI.
 
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/buffer.hpp>
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/buffer_impl.hpp>
-#include <CL/sycl/detail/image_impl.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_event.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/image.hpp>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/multi_ptr.hpp>
-#include <CL/sycl/platform.hpp>
-#include <CL/sycl/program.hpp>
-#include <CL/sycl/queue.hpp>
-#include <CL/sycl/sampler.hpp>
-#include <CL/sycl/stream.hpp>
-#include <CL/sycl/types.hpp>
+#include <CL/sycl.hpp>
 
 using namespace cl::sycl;
 

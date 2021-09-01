@@ -7,10 +7,11 @@
 // This test is temporary one which should make sure that such a compilation
 // mode is not broken until complete transition happens.
 
-//#define __SYCL_DISABLE_SYCL121_NAMESPACE
+//#include <sycl/sycl.hpp>
+#include <CL/sycl.hpp>
 
-#include <sycl/sycl.hpp>
+using namespace cl::sycl;
 
 int main() {
-  sycl::queue q;
+  cl::sycl::queue q;
 }

@@ -4771,7 +4771,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
     O << "// Specialization constants IDs:\n";
     for (const auto &P : llvm::make_range(SpecConsts.begin(), End)) {
-      O << "template <> struct sycl::detail::SpecConstantInfo<";
+      O << "template <> struct "
+           "__SYCL_INT_HEADER_NS()::detail::SpecConstantInfo<";
       SYCLKernelNameTypePrinter Printer(O, Policy);
       Printer.Visit(P.first);
       O << "> {\n";
@@ -4788,7 +4789,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       FwdDeclEmitter.Visit(K.NameType);
   O << "\n";
 
-  O << "__SYCL_OPEN_NS() {\n";
+  O << "__SYCL_INT_HEADER_OPEN_NS() {\n";
   O << "namespace detail {\n";
 
   O << "\n";
@@ -4867,8 +4868,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   O << "\n";
   O << "} // namespace detail\n";
-  O << "} // __SYCL_OPEN_NS()\n";
-  O << "__SYCL_CLOSE_NS()\n";
+  O << "} // __SYCL_INT_HEADER_OPEN_NS()\n";
+  O << "__SYCL_INT_HEADER_CLOSE_NS()\n";
   O << "\n";
 }
 
@@ -5150,7 +5151,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     VisitedSpecConstants.insert(VD);
     std::string TopShim = EmitSpecIdShims(OS, ShimCounter, Policy, VD);
-    OS << "__SYCL_OPEN_NS() {\n";
+    OS << "__SYCL_INT_HEADER_OPEN_NS() {\n";
     OS << "namespace detail {\n";
     OS << "template<>\n";
     OS << "inline const char *get_spec_constant_symbolic_ID_impl<";
@@ -5168,8 +5169,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "\";\n";
     OS << "}\n";
     OS << "} // namespace detail\n";
-    OS << "} // __SYCL_OPEN_NS()\n";
-    OS << "__SYCL_CLOSE_NS()\n";
+    OS << "} // __SYCL_INT_HEADER_OPEN_NS()\n";
+    OS << "__SYCL_INT_HEADER_CLOSE_NS()\n";
   }
 
   if (EmittedFirstSpecConstant)

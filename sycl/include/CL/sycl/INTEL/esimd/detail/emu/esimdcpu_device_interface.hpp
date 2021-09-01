@@ -19,6 +19,7 @@
 #pragma once
 
 #include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/defines_sycl_ns.hpp>
 
 __SYCL_WARNING(
     "CL/sycl/INTEL/esimd/detail/emu/esimdcpu_device_interface.hpp usage is "

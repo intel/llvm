@@ -8,79 +8,9 @@
 
 #pragma once
 
-#ifndef __SYCL_DISABLE_NAMESPACE_INLINE__
-#define __SYCL_INLINE_NAMESPACE(X) inline namespace X
-#else
-#define __SYCL_INLINE_NAMESPACE(X) namespace X
-#endif // __SYCL_DISABLE_NAMESPACE_INLINE__
-
-// TODO: Disable macro should be removed once transition to sycl:: is done.
-//#ifndef __SYCL_DISABLE_SYCL121_NAMESPACE
-//#define __SYCL_ENABLE_SYCL121_NAMESPACE
-//#endif
-
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-// Old SYCL1.2.1 namespace scheme
-#define __SYCL_NS_OPEN_1 __SYCL_INLINE_NAMESPACE(cl)
-#define __SYCL_NS_OPEN_2 namespace sycl
-#define __SYCL_NS cl::sycl
-#else
-// New SYCL2020 friendly namespace scheme, defaulted to __v1
-#define __SYCL_NS_OPEN_1 namespace __sycl_internal
-#define __SYCL_NS_OPEN_2 namespace __v1
-#define __SYCL_NS __sycl_internal::__v1
-#endif
-
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
-
-#define __SYCL_OPEN_NS()                                                       \
-  __SYCL_NS_OPEN_1 {                                                           \
-    __SYCL_NS_OPEN_2 {}                                                        \
-  }                                                                            \
-  namespace __sycl_ns = __SYCL_NS;                                             \
-  __SYCL_NS_OPEN_1 {                                                           \
-    __SYCL_NS_OPEN_2
-
-#define __SYCL_OPEN_NS_BUILTINS() __SYCL_NS_OPEN_1
-
-#define __SYCL_CLOSE_NS_BUILTINS()                                             \
-  __SYCL_NS_OPEN_1 {                                                           \
-    __SYCL_NS_OPEN_2 { using namespace cl; }                                   \
-  }
-
-#else
-
-// The macro:
-// 1. Forward declares an empty "target" namespace for the alias
-// 2. An alias which will be used to refer to "target" namepsace outside of
-//    namespace itself
-// 3. Opens "target" namespace
-#define __SYCL_OPEN_NS()                                                       \
-  __SYCL_NS_OPEN_1 {                                                           \
-    __SYCL_NS_OPEN_2 {}                                                        \
-  }                                                                            \
-  namespace sycl {                                                             \
-  using namespace __SYCL_NS;                                                   \
-  }                                                                            \
-  namespace __sycl_ns = __SYCL_NS;                                             \
-  __SYCL_NS_OPEN_1 {                                                           \
-    __SYCL_NS_OPEN_2
-
-#define __SYCL_OPEN_NS_BUILTINS()                                              \
-  __SYCL_NS_OPEN_1 {                                                           \
-    __SYCL_NS_OPEN_2 {}                                                        \
-  }                                                                            \
-  namespace sycl {                                                             \
-  using namespace __SYCL_NS;                                                   \
-  }                                                                            \
-  __SYCL_NS_OPEN_1 {                                                           \
-    __SYCL_NS_OPEN_2
-
-#define __SYCL_CLOSE_NS_BUILTINS() }
-
-#endif
-
-#define __SYCL_CLOSE_NS() }
+#define __SYCL_INT_HEADER_NS() __sycl_integraion_header_ns
+#define __SYCL_INT_HEADER_OPEN_NS() namespace __SYCL_INT_HEADER_NS()
+#define __SYCL_INT_HEADER_CLOSE_NS()
 
 #ifndef __has_attribute
 #define __has_attribute(x) 0

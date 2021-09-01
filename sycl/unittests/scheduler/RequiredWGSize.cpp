@@ -24,7 +24,7 @@ bool KernelGetGroupInfoCalled = false;
 std::array<size_t, 3> IncomingLocalSize = {0, 0, 0};
 std::array<size_t, 3> RequiredLocalSize = {0, 0, 0};
 
-__SYCL_OPEN_NS() {
+__SYCL_INT_HEADER_OPEN_NS() {
 namespace detail {
 template <> struct KernelInfo<TestKernel> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -39,8 +39,8 @@ template <> struct KernelInfo<TestKernel> {
 };
 
 } // namespace detail
-} // __SYCL_OPEN_NS()
-__SYCL_CLOSE_NS()
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()
 
 static pi_result redefinedProgramCreate(pi_context, const void *, size_t,
                                         pi_program *) {

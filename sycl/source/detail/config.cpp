@@ -8,6 +8,7 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/defines_sycl_ns.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <detail/config.hpp>
 

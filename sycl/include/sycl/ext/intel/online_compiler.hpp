@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp> // for __SYCL_OPEN_NS
+#include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/defines_sycl_ns.hpp> // for __SYCL_OPEN_NS
 #include <CL/sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <CL/sycl/device.hpp>
 

@@ -33,6 +33,7 @@
 #pragma once
 
 #include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/defines_sycl_ns.hpp>
 #include <immintrin.h>
 
 __SYCL_OPEN_NS() {

@@ -18,7 +18,7 @@ class TestKernel1;
 class TestKernel2;
 class TestKernel3;
 
-__SYCL_OPEN_NS() {
+__SYCL_INT_HEADER_OPEN_NS() {
 namespace detail {
 template <> struct KernelInfo<TestKernel1> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -57,8 +57,8 @@ template <> struct KernelInfo<TestKernel3> {
 };
 
 } // namespace detail
-} // __SYCL_OPEN_NS()
-__SYCL_CLOSE_NS()
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()
 
 static sycl::unittest::PiImage
 generateDefaultImage(std::initializer_list<std::string> Kernels) {

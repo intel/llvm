@@ -1,7 +1,6 @@
 // RUN: %clangxx -c -fsycl -fno-color-diagnostics -Xclang -ast-dump %s | FileCheck %s
 // UNSUPPORTED: windows
-#include <CL/sycl/group.hpp>
-#include <CL/sycl/id.hpp>
+#include <CL/sycl.hpp>
 
 typedef cl::sycl::private_memory<cl::sycl::id<1>, 1> dummy;
 

@@ -2,7 +2,7 @@
 
 // This test checks compilation of ESIMD slm load4/store4 APIs. Those which are
 // deprecated must produce deprecation messages.
-
+#include <CL/sycl.hpp>
 #include <sycl/ext/intel/experimental/esimd.hpp>
 
 using namespace sycl::ext::intel::experimental::esimd;

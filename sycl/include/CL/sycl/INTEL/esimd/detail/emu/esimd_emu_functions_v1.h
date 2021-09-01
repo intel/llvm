@@ -13,6 +13,7 @@
 #pragma once
 
 #include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/defines_sycl_ns.hpp>
 
 __SYCL_WARNING(
     "CL/sycl/INTEL/esimd/detail/emu/esimd_emu_functions_v1.h usage is "

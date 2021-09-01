@@ -20,7 +20,7 @@
 class TestKernel;
 const static sycl::specialization_id<int> SpecConst1{42};
 
-__SYCL_OPEN_NS() {
+__SYCL_INT_HEADER_OPEN_NS() {
 namespace detail {
 template <> struct KernelInfo<TestKernel> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -40,8 +40,8 @@ template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
   return "SC1";
 }
 } // namespace detail
-} // __SYCL_OPEN_NS()
-__SYCL_CLOSE_NS()
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()
 
 static sycl::unittest::PiImage generateImageWithSpecConsts() {
   using namespace sycl::unittest;

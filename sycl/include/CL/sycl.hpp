@@ -13,6 +13,7 @@
 #endif
 
 #define __SYCL_ENABLE_SYCL121_NAMESPACE
+#define __SYCL_DISABLE_SYCL2020_NAMESPACE
 
 #include <sycl/sycl.hpp>
 

@@ -11,7 +11,9 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/defines_sycl_ns.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 
 #include <cstdint>
@@ -305,5 +307,13 @@ template <typename T> struct InlineVariableHelper {
 
 template <typename T> constexpr T InlineVariableHelper<T>::value;
 } // namespace detail
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
+
+
+__SYCL_OPEN_NS() {
+namespace detail {
+using namespace __SYCL_INT_HEADER_NS()::detail;
+}
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()

@@ -2,8 +2,7 @@
 // REQUIRES: linux
 // UNSUPPORTED: libcxx
 
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/queue.hpp>
+#include <CL/sycl.hpp>
 
 void foo() {
   sycl::queue Q;

@@ -34,7 +34,7 @@ public:
   void operator()(sycl::item<1>){};
 };
 
-__SYCL_OPEN_NS() {
+__SYCL_INT_HEADER_OPEN_NS() {
 namespace detail {
 struct MockKernelInfo {
   static constexpr unsigned getNumParams() { return 0; }
@@ -56,8 +56,8 @@ template <> struct KernelInfo<TestKernel2> : public MockKernelInfo {
 };
 
 } // namespace detail
-} // __SYCL_OPEN_NS()
-__SYCL_CLOSE_NS()
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()
 
 static sycl::unittest::PiImage generateDefaultImage() {
   using namespace sycl::unittest;

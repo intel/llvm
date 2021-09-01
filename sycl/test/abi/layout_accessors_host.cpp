@@ -4,7 +4,7 @@
 
 // clang-format off
 
-#include <CL/sycl/accessor.hpp>
+#include <CL/sycl.hpp>
 
 using namespace cl::sycl;
 

@@ -1,7 +1,6 @@
 // RUN: %clangxx -fsycl-device-only -c -fno-color-diagnostics -Xclang -ast-dump %s -I %sycl_include -Wno-sycl-strict | FileCheck %s
 // UNSUPPORTED: windows
-#include <CL/sycl/group.hpp>
-#include <CL/sycl/id.hpp>
+#include <CL/sycl.hpp>
 
 typedef cl::sycl::private_memory<cl::sycl::id<1>, 1> dummy;
 

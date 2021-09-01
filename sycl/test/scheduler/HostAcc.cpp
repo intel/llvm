@@ -30,7 +30,7 @@ int main() {
     try {
       auto Acc1 = Buf.get_access<sycl::access::mode::read>();
       auto Acc3 = Buf.get_access<sycl::access::mode::write>();
-    } catch (sycl::runtime_error &E) {
+    } catch (sycl::exception &E) {
       ExcCaught = true;
     }
     Fail |= !ExcCaught;

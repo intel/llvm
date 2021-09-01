@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/defines_sycl_ns.hpp>
 
 __SYCL_WARNING("CL/sycl/INTEL/fpga_reg.hpp usage is deprecated, include "
                "sycl/ext/intel/fpga_reg.hpp instead")

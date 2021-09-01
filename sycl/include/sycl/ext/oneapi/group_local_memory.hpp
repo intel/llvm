@@ -9,6 +9,7 @@
 
 #include <CL/__spirv/spirv_vars.hpp>
 #include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/defines_sycl_ns.hpp>
 #include <CL/sycl/detail/sycl_fe_intrins.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/exception.hpp>
