@@ -519,24 +519,41 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   return BuildResult->Ptr.load();
 }
 
-std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
-    OSModuleHandle M, const ContextImplPtr &Context,
-    const DeviceImplPtr &Device, const std::string &KernelName,
-    const program_impl *Prg) {
+std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>
+ProgramManager::getOrCreateKernel(OSModuleHandle M,
+                                  const ContextImplPtr &ContextImpl,
+                                  const DeviceImplPtr &DeviceImpl,
+                                  const std::string &KernelName,
+                                  const program_impl *Prg) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
-              << Context.get() << ", " << Device.get() << ", " << KernelName
-              << ")\n";
+              << ContextImpl.get() << ", " << DeviceImpl.get() << ", "
+              << KernelName << ")\n";
   }
-
-  RT::PiProgram Program =
-      getBuiltPIProgram(M, Context, Device, KernelName, Prg);
 
   using PiKernelT = KernelProgramCache::PiKernelT;
   using KernelCacheT = KernelProgramCache::KernelCacheT;
   using KernelByNameT = KernelProgramCache::KernelByNameT;
 
-  KernelProgramCache &Cache = Context->getKernelProgramCache();
+  KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
+
+  std::string CompileOpts, LinkOpts;
+  SerializedObj SpecConsts;
+  if (Prg) {
+    CompileOpts = Prg->get_build_options();
+    Prg->stableSerializeSpecConstRegistry(SpecConsts);
+  }
+  applyOptionsFromEnvironment(CompileOpts, LinkOpts);
+  const RT::PiDevice PiDevice = DeviceImpl->getHandleRef();
+
+  auto key = std::make_tuple(std::move(SpecConsts), M, PiDevice,
+                             CompileOpts + LinkOpts, KernelName);
+  auto ret_tuple = Cache.tryToGetKernelFast(key);
+  if (std::get<0>(ret_tuple))
+    return ret_tuple;
+
+  RT::PiProgram Program =
+      getBuiltPIProgram(M, ContextImpl, DeviceImpl, KernelName, Prg);
 
   auto AcquireF = [](KernelProgramCache &Cache) {
     return Cache.acquireKernelsPerProgramCache();
@@ -545,12 +562,12 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
       [&Program](const Locked<KernelCacheT> &LockedCache) -> KernelByNameT & {
     return LockedCache.get()[Program];
   };
-  auto BuildF = [&Program, &KernelName, &Context] {
+  auto BuildF = [&Program, &KernelName, &ContextImpl] {
     PiKernelT *Result = nullptr;
 
     // TODO need some user-friendly error/exception
     // instead of currently obscure one
-    const detail::plugin &Plugin = Context->getPlugin();
+    const detail::plugin &Plugin = ContextImpl->getPlugin();
     Plugin.call<PiApiKind::piKernelCreate>(Program, KernelName.c_str(),
                                            &Result);
 
@@ -564,8 +581,10 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
 
   auto BuildResult = getOrBuild<PiKernelT, invalid_object_error>(
       Cache, KernelName, AcquireF, GetF, BuildF);
-  return std::make_pair(BuildResult->Ptr.load(),
-                        &(BuildResult->MBuildResultMutex));
+  auto ret_val = std::make_tuple(BuildResult->Ptr.load(),
+                                 &(BuildResult->MBuildResultMutex), Program);
+  Cache.saveKernel(key, ret_val);
+  return ret_val;
 }
 
 RT::PiProgram
@@ -1018,11 +1037,21 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       }
       // ... or create the set first if it hasn't been
       KernelSetId KSId = getNextKernelSetId();
-      for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
-           ++EntriesIt) {
-        auto Result = KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
-        (void)Result;
-        assert(Result.second && "Kernel sets are not disjoint");
+      {
+        std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+        for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+             ++EntriesIt) {
+          auto Result = KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
+          (void)Result;
+          assert(Result.second && "Kernel sets are not disjoint");
+          // ... and create a unique kernel ID for the entry
+          std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
+              std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
+          sycl::kernel_id KernelID =
+              detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
+          m_KernelIDs.insert(
+              std::make_pair(EntriesIt->name, std::move(KernelID)));
+        }
       }
       m_DeviceImages[KSId].reset(new std::vector<RTDeviceBinaryImageUPtr>());
       m_DeviceImages[KSId]->push_back(std::move(Img));
@@ -1247,6 +1276,25 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
+kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
+  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
+  auto KernelID = m_KernelIDs.find(KernelName);
+  assert(KernelID != m_KernelIDs.end() && "Kernel ID missing");
+  return KernelID->second;
+}
+
+std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
+  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
+  std::vector<sycl::kernel_id> AllKernelIDs;
+  AllKernelIDs.reserve(m_KernelIDs.size());
+  for (std::pair<std::string, kernel_id> KernelID : m_KernelIDs) {
+    AllKernelIDs.push_back(KernelID.second);
+  }
+  return AllKernelIDs;
+}
+
 std::vector<device_image_plain>
 ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     const context &Ctx, const std::vector<device> &Devs,
@@ -1298,14 +1346,15 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
       // Collect kernel names for the image
       pi_device_binary DevBin =
           const_cast<pi_device_binary>(&BinImage->getRawData());
-      for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
-           EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
-
-        std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
-            std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
-
-        KernelIDs.push_back(
-            detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl));
+      {
+        std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+        for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
+             EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
+          auto KernelID = m_KernelIDs.find(EntriesIt->name);
+          assert(KernelID != m_KernelIDs.end() &&
+                 "Kernel ID in device binary missing from cache");
+          KernelIDs.push_back(KernelID->second);
+        }
       }
       // device_image_impl expects kernel ids to be sorted for fast search
       std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
@@ -1535,7 +1584,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
 
   DeviceImageImplPtr ExecutableImpl =
       std::make_shared<detail::device_image_impl>(
-          /*BinImage=*/nullptr, Context, Devs, bundle_state::object,
+          /*BinImage=*/nullptr, Context, Devs, bundle_state::executable,
           std::move(KernelIDs), LinkedProg);
 
   // TODO: Make multiple sets of device images organized by devices they are

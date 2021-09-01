@@ -606,11 +606,13 @@ namespace dr654 { // dr654: sup 1423
 
 namespace dr655 { // dr655: yes
   struct A { A(int); }; // expected-note 2-3{{not viable}}
+                        // expected-note@-1 {{'dr655::A' declared here}}
   struct B : A {
-    A a;
+    A a; // expected-note {{member is declared here}}
     B();
     B(int) : B() {} // expected-error 0-1 {{C++11}}
     B(int*) : A() {} // expected-error {{no matching constructor}}
+                     // expected-error@-1 {{must explicitly initialize the member 'a'}}
   };
 }
 
@@ -718,11 +720,8 @@ namespace dr662 { // dr662: yes
   void g(int n) { f<int&>(n); } // expected-note {{instantiation of}}
 }
 
-namespace dr663 { // dr663: yes c++11
+namespace dr663 { // dr663: sup P1949
   int ЍЎ = 123;
-#if __cplusplus < 201103L
-  // expected-error@-2 {{non-ASCII}}
-#endif
 }
 
 #if __cplusplus >= 201103L

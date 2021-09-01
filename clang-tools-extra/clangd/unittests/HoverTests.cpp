@@ -12,6 +12,7 @@
 #include "TestIndex.h"
 #include "TestTU.h"
 #include "index/MemIndex.h"
+#include "clang/AST/Attr.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/None.h"
@@ -2377,6 +2378,15 @@ TEST(Hover, All) {
          HI.NamespaceScope = "";
          HI.Value = "0";
        }},
+      {R"cpp(
+         void foo(int * __attribute__(([[non^null]], noescape)) );
+         )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "nonnull";
+         HI.Kind = index::SymbolKind::Unknown; // FIXME: no suitable value
+         HI.Definition = "__attribute__((nonnull))";
+         HI.Documentation = Attr::getDocumentation(attr::NonNull).str();
+       }},
   };
 
   // Create a tiny index, so tests above can verify documentation is fetched.
@@ -2750,6 +2760,15 @@ Passed by const reference as arg_a (converted to int)
 
 // In test::Bar
 int foo = 3)",
+      },
+      {
+          [](HoverInfo &HI) {
+            HI.Name = "stdio.h";
+            HI.Definition = "/usr/include/stdio.h";
+          },
+          R"(stdio.h
+
+/usr/include/stdio.h)",
       }};
 
   for (const auto &C : Cases) {

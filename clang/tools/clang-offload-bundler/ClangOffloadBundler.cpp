@@ -653,6 +653,7 @@ class ObjectFileHandler final : public FileHandler {
             // Do not add globals with constant address space to the tgtsym.
             if (!GV.isDeclaration() && !GV.hasLocalLinkage() &&
                 GV.getAddressSpace() == 2) {
+              GV.replaceAllUsesWith(UndefValue::get(GV.getType()));
               GV.dropAllReferences();
               GV.eraseFromParent();
               UpdateBuf = true;
@@ -1606,8 +1607,8 @@ bool isCodeObjectCompatible(OffloadTargetInfo &CodeObjectInfo,
 
 /// @brief Computes a list of targets among all given targets which are
 /// compatible with this code object
-/// @param [in] Code Object \p CodeObject
-/// @param [out] List of all compatible targets \p CompatibleTargets among all
+/// @param [in] CodeObjectInfo Code Object
+/// @param [out] CompatibleTargets List of all compatible targets among all
 /// given targets
 /// @return false, if no compatible target is found.
 static bool

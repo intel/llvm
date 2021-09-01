@@ -22,6 +22,7 @@
 #include <atomic>
 #include <cassert>
 #include <cstring>
+#include <functional>
 #include <iostream>
 #include <list>
 #include <map>
@@ -129,6 +130,10 @@ template <>
 ze_structure_type_t getZeStructureType<ze_device_cache_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_CACHE_PROPERTIES;
 }
+template <>
+ze_structure_type_t getZeStructureType<ze_device_memory_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_PROPERTIES;
+}
 template <> ze_structure_type_t getZeStructureType<ze_module_properties_t>() {
   return ZE_STRUCTURE_TYPE_MODULE_PROPERTIES;
 }
@@ -156,6 +161,32 @@ template <class T> struct ZesStruct : public T {
   ZesStruct() : T{} { // zero initializes base struct
     this->stype = getZesStructureType<T>();
     this->pNext = nullptr;
+  }
+};
+
+// The wrapper for immutable Level-Zero data.
+// The data is initialized only once at first access (via ->) with the
+// initialization function provided in Init. All subsequent access to
+// the data just returns the already stored data.
+//
+template <class T> struct ZeCache : private T {
+  // The initialization function takes a reference to the data
+  // it is going to initialize, since it is private here in
+  // order to disallow access other than through "->".
+  //
+  typedef std::function<void(T &)> InitFunctionType;
+  InitFunctionType Compute;
+  bool Computed{false};
+
+  ZeCache() : T{} {}
+
+  // Access to the fields of the original T data structure.
+  T *operator->() {
+    if (!Computed) {
+      Compute(*this);
+      Computed = true;
+    }
+    return this;
   }
 };
 
@@ -336,8 +367,13 @@ struct _pi_device : _pi_object {
   bool isSubDevice() { return RootDevice != nullptr; }
 
   // Cache of the immutable device properties.
-  ZeStruct<ze_device_properties_t> ZeDeviceProperties;
-  ZeStruct<ze_device_compute_properties_t> ZeDeviceComputeProperties;
+  ZeCache<ZeStruct<ze_device_properties_t>> ZeDeviceProperties;
+  ZeCache<ZeStruct<ze_device_compute_properties_t>> ZeDeviceComputeProperties;
+  ZeCache<ZeStruct<ze_device_image_properties_t>> ZeDeviceImageProperties;
+  ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
+  ZeCache<std::vector<ZeStruct<ze_device_memory_properties_t>>>
+      ZeDeviceMemoryProperties;
+  ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
 };
 
 // Structure describing the specific use of a command-list in a queue.
@@ -383,6 +419,9 @@ struct _pi_context : _pi_object {
         OwnZeContext{OwnZeContext}, Devices{Devs, Devs + NumDevices},
         ZeCommandListInit{nullptr}, ZeEventPool{nullptr},
         NumEventsAvailableInEventPool{}, NumEventsUnreleasedInEventPool{} {
+    // NOTE: one must additionally call initialize() to complete
+    // PI context creation.
+
     // Create USM allocator context for each pair (device, context).
     for (uint32_t I = 0; I < NumDevices; I++) {
       pi_device Device = Devs[I];
@@ -394,8 +433,6 @@ struct _pi_context : _pi_object {
           std::piecewise_construct, std::make_tuple(Device),
           std::make_tuple(std::unique_ptr<SystemMemory>(
               new USMDeviceMemoryAlloc(this, Device))));
-      // NOTE: one must additionally call initialize() to complete
-      // PI context creation.
     }
     // Create USM allocator context for host. Device and Shared USM allocations
     // are device-specific. Host allocations are not device-dependent therefore
@@ -405,27 +442,40 @@ struct _pi_context : _pi_object {
 
     if (NumDevices == 1) {
       SingleRootDevice = Devices[0];
-      return;
-    }
+    } else {
 
-    // Check if we have context with subdevices of the same device (context may
-    // include root device itself as well)
-    SingleRootDevice =
-        Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
+      // Check if we have context with subdevices of the same device (context
+      // may include root device itself as well)
+      SingleRootDevice =
+          Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
 
-    // For context with sub subdevices, the SingleRootDevice might still
-    // not be the root device.
-    // Check whether the SingleRootDevice is the subdevice or root device.
-    if (SingleRootDevice->isSubDevice()) {
-      SingleRootDevice = SingleRootDevice->RootDevice;
-    }
-
-    for (auto &Device : Devices) {
-      if ((!Device->RootDevice && Device != SingleRootDevice) ||
-          (Device->RootDevice && Device->RootDevice != SingleRootDevice)) {
-        SingleRootDevice = nullptr;
-        break;
+      // For context with sub subdevices, the SingleRootDevice might still
+      // not be the root device.
+      // Check whether the SingleRootDevice is the subdevice or root device.
+      if (SingleRootDevice->isSubDevice()) {
+        SingleRootDevice = SingleRootDevice->RootDevice;
       }
+
+      for (auto &Device : Devices) {
+        if ((!Device->RootDevice && Device != SingleRootDevice) ||
+            (Device->RootDevice && Device->RootDevice != SingleRootDevice)) {
+          SingleRootDevice = nullptr;
+          break;
+        }
+      }
+    }
+
+    // We may allocate memory to this root device so create allocators.
+    if (SingleRootDevice && DeviceMemAllocContexts.find(SingleRootDevice) ==
+                                DeviceMemAllocContexts.end()) {
+      SharedMemAllocContexts.emplace(
+          std::piecewise_construct, std::make_tuple(SingleRootDevice),
+          std::make_tuple(std::unique_ptr<SystemMemory>(
+              new USMSharedMemoryAlloc(this, SingleRootDevice))));
+      DeviceMemAllocContexts.emplace(
+          std::piecewise_construct, std::make_tuple(SingleRootDevice),
+          std::make_tuple(std::unique_ptr<SystemMemory>(
+              new USMDeviceMemoryAlloc(this, SingleRootDevice))));
     }
   }
 
@@ -559,8 +609,8 @@ struct _pi_queue : _pi_object {
   // Vector of Level Zero copy command command queue handles.
   // Some (or all) of these handles may not be available depending on user
   // preference and/or target device.
-  // In this vector, link copy engines, if available, come first followed by
-  // main copy engine, if available.
+  // In this vector, main copy engine, if available, come first followed by
+  // link copy engines, if available.
   std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
 
   // One of the many available copy command queues will be used for
@@ -681,6 +731,13 @@ struct _pi_queue : _pi_object {
   // close it, execute it, and reset ZeOpenCommandList, ZeCommandListFence,
   // and ZeOpenCommandListSize.
   pi_result executeOpenCommandList();
+
+  // Besides each PI object keeping a total reference count in
+  // _pi_object::RefCount we keep special track of the queue *external*
+  // references. This way we are able to tell when the queue is being finished
+  // externally, and can wait for internal references to complete, and do proper
+  // cleanup of the queue.
+  std::atomic<pi_uint32> RefCountExternal{1};
 };
 
 struct _pi_mem : _pi_object {
@@ -868,7 +925,9 @@ struct _pi_event : _pi_object {
   // This list must be destroyed once the event has signalled.
   _pi_ze_event_list_t WaitList;
 
-  // Tracks if the needed cleanupAfterEvent was already performed for
+  // Performs the cleanup of a completed event.
+  pi_result cleanup(pi_queue LockedQueue = nullptr);
+  // Tracks if the needed cleanup was already performed for
   // a completed event. This allows to control that some cleanup
   // actions are performed only once.
   //
@@ -1107,6 +1166,9 @@ struct _pi_kernel : _pi_object {
   // of times. And that's why there is no value of RefCount which can mean zero
   // submissions.
   std::atomic<pi_uint32> SubmissionsCount;
+
+  // Cache of the kernel properties.
+  ZeCache<ZeStruct<ze_kernel_properties_t>> ZeKernelProperties;
 };
 
 struct _pi_sampler : _pi_object {

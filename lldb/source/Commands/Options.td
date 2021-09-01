@@ -73,7 +73,7 @@ let Command = "breakpoint modify" in {
     "index matches this argument.">;
   def breakpoint_modify_thread_id : Option<"thread-id", "t">, Group<1>,
     Arg<"ThreadID">, Desc<"The breakpoint stops only for the thread whose TID "
-    "matches this argument.">;
+    "matches this argument.  The token 'current' resolves to the current thread's ID.">;
   def breakpoint_modify_thread_name : Option<"thread-name", "T">, Group<1>,
     Arg<"ThreadName">, Desc<"The breakpoint stops only for the thread whose "
     "thread name matches this argument.">;
@@ -151,10 +151,10 @@ let Command = "breakpoint set" in {
   def breakpoint_set_selector : Option<"selector", "S">, Group<5>,
     Arg<"Selector">, Required,
     Desc<"Set the breakpoint by ObjC selector name. Can be repeated multiple "
-    "times tomake one breakpoint for multiple Selectors.">;
+    "times to make one breakpoint for multiple Selectors.">;
   def breakpoint_set_method : Option<"method", "M">, Group<6>, Arg<"Method">,
     Required, Desc<"Set the breakpoint by C++ method names.  Can be repeated "
-    "multiple times tomake one breakpoint for multiple methods.">;
+    "multiple times to make one breakpoint for multiple methods.">;
   def breakpoint_set_func_regex : Option<"func-regex", "r">, Group<7>,
     Arg<"RegularExpression">, Required, Desc<"Set the breakpoint by function "
     "name, evaluating a regular-expression to find the function name(s).">;

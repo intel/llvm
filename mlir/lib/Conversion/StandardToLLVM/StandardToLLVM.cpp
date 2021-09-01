@@ -376,6 +376,8 @@ using AbsFOpLowering = VectorConvertToLLVMPattern<AbsFOp, LLVM::FAbsOp>;
 using AddFOpLowering = VectorConvertToLLVMPattern<AddFOp, LLVM::FAddOp>;
 using AddIOpLowering = VectorConvertToLLVMPattern<AddIOp, LLVM::AddOp>;
 using AndOpLowering = VectorConvertToLLVMPattern<AndOp, LLVM::AndOp>;
+using BitcastOpLowering =
+    VectorConvertToLLVMPattern<BitcastOp, LLVM::BitcastOp>;
 using CeilFOpLowering = VectorConvertToLLVMPattern<CeilFOp, LLVM::FCeilOp>;
 using CopySignOpLowering =
     VectorConvertToLLVMPattern<CopySignOp, LLVM::CopySignOp>;
@@ -397,13 +399,13 @@ using SelectOpLowering = VectorConvertToLLVMPattern<SelectOp, LLVM::SelectOp>;
 using SignExtendIOpLowering =
     VectorConvertToLLVMPattern<SignExtendIOp, LLVM::SExtOp>;
 using ShiftLeftOpLowering =
-    OneToOneConvertToLLVMPattern<ShiftLeftOp, LLVM::ShlOp>;
+    VectorConvertToLLVMPattern<ShiftLeftOp, LLVM::ShlOp>;
 using SignedDivIOpLowering =
     VectorConvertToLLVMPattern<SignedDivIOp, LLVM::SDivOp>;
 using SignedRemIOpLowering =
     VectorConvertToLLVMPattern<SignedRemIOp, LLVM::SRemOp>;
 using SignedShiftRightOpLowering =
-    OneToOneConvertToLLVMPattern<SignedShiftRightOp, LLVM::AShrOp>;
+    VectorConvertToLLVMPattern<SignedShiftRightOp, LLVM::AShrOp>;
 using SubFOpLowering = VectorConvertToLLVMPattern<SubFOp, LLVM::FSubOp>;
 using SubIOpLowering = VectorConvertToLLVMPattern<SubIOp, LLVM::SubOp>;
 using TruncateIOpLowering =
@@ -414,7 +416,7 @@ using UnsignedDivIOpLowering =
 using UnsignedRemIOpLowering =
     VectorConvertToLLVMPattern<UnsignedRemIOp, LLVM::URemOp>;
 using UnsignedShiftRightOpLowering =
-    OneToOneConvertToLLVMPattern<UnsignedShiftRightOp, LLVM::LShrOp>;
+    VectorConvertToLLVMPattern<UnsignedShiftRightOp, LLVM::LShrOp>;
 using XOrOpLowering = VectorConvertToLLVMPattern<XOrOp, LLVM::XOrOp>;
 using ZeroExtendIOpLowering =
     VectorConvertToLLVMPattern<ZeroExtendIOp, LLVM::ZExtOp>;
@@ -1128,6 +1130,7 @@ void mlir::populateStdToLLVMConversionPatterns(LLVMTypeConverter &converter,
       AndOpLowering,
       AssertOpLowering,
       AtomicRMWOpLowering,
+      BitcastOpLowering,
       BranchOpLowering,
       CallIndirectOpLowering,
       CallOpLowering,

@@ -52,6 +52,7 @@
 #include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/Utils/SizeOpts.h"
 #include <algorithm>
 #include <cassert>
@@ -236,6 +237,8 @@ RTLIB::Libcall RTLIB::getFPEXT(EVT OpVT, EVT RetVT) {
       return FPEXT_F16_F32;
     if (RetVT == MVT::f64)
       return FPEXT_F16_F64;
+    if (RetVT == MVT::f80)
+      return FPEXT_F16_F80;
     if (RetVT == MVT::f128)
       return FPEXT_F16_F128;
   } else if (OpVT == MVT::f32) {
@@ -760,6 +763,7 @@ void TargetLoweringBase::initActions() {
 
     // These operations default to expand.
     setOperationAction(ISD::FGETSIGN, VT, Expand);
+    setOperationAction(ISD::ISNAN, VT, Expand);
     setOperationAction(ISD::CONCAT_VECTORS, VT, Expand);
     setOperationAction(ISD::FMINNUM, VT, Expand);
     setOperationAction(ISD::FMAXNUM, VT, Expand);
@@ -1655,9 +1659,9 @@ void llvm::GetReturnInfo(CallingConv::ID CC, Type *ReturnType,
     EVT VT = ValueVTs[j];
     ISD::NodeType ExtendKind = ISD::ANY_EXTEND;
 
-    if (attr.hasAttribute(AttributeList::ReturnIndex, Attribute::SExt))
+    if (attr.hasRetAttr(Attribute::SExt))
       ExtendKind = ISD::SIGN_EXTEND;
-    else if (attr.hasAttribute(AttributeList::ReturnIndex, Attribute::ZExt))
+    else if (attr.hasRetAttr(Attribute::ZExt))
       ExtendKind = ISD::ZERO_EXTEND;
 
     // FIXME: C calling convention requires the return type to be promoted to
@@ -1677,13 +1681,13 @@ void llvm::GetReturnInfo(CallingConv::ID CC, Type *ReturnType,
 
     // 'inreg' on function refers to return value
     ISD::ArgFlagsTy Flags = ISD::ArgFlagsTy();
-    if (attr.hasAttribute(AttributeList::ReturnIndex, Attribute::InReg))
+    if (attr.hasRetAttr(Attribute::InReg))
       Flags.setInReg();
 
     // Propagate extension type if any
-    if (attr.hasAttribute(AttributeList::ReturnIndex, Attribute::SExt))
+    if (attr.hasRetAttr(Attribute::SExt))
       Flags.setSExt();
-    else if (attr.hasAttribute(AttributeList::ReturnIndex, Attribute::ZExt))
+    else if (attr.hasRetAttr(Attribute::ZExt))
       Flags.setZExt();
 
     for (unsigned i = 0; i < NumParts; ++i)
@@ -1747,8 +1751,9 @@ bool TargetLoweringBase::allowsMemoryAccess(LLVMContext &Context,
                                             const DataLayout &DL, LLT Ty,
                                             const MachineMemOperand &MMO,
                                             bool *Fast) const {
-  return allowsMemoryAccess(Context, DL, getMVTForLLT(Ty), MMO.getAddrSpace(),
-                            MMO.getAlign(), MMO.getFlags(), Fast);
+  EVT VT = getApproximateEVTForLLT(Ty, DL, Context);
+  return allowsMemoryAccess(Context, DL, VT, MMO.getAddrSpace(), MMO.getAlign(),
+                            MMO.getFlags(), Fast);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2016,6 +2021,12 @@ void TargetLoweringBase::setMaximumJumpTableSize(unsigned Val) {
 
 bool TargetLoweringBase::isJumpTableRelative() const {
   return getTargetMachine().isPositionIndependent();
+}
+
+Align TargetLoweringBase::getPrefLoopAlignment(MachineLoop *ML) const {
+  if (TM.Options.LoopAlignment)
+    return Align(TM.Options.LoopAlignment);
+  return PrefLoopAlignment;
 }
 
 //===----------------------------------------------------------------------===//

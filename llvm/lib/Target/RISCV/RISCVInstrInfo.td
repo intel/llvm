@@ -23,6 +23,7 @@ def SDT_CallSeqEnd   : SDCallSeqEnd<[SDTCisVT<0, i32>,
 // Target-dependent type requirements.
 def SDT_RISCVCall     : SDTypeProfile<0, -1, [SDTCisVT<0, XLenVT>]>;
 def SDT_RISCVSelectCC : SDTypeProfile<1, 5, [SDTCisSameAs<1, 2>,
+                                             SDTCisVT<3, OtherVT>,
                                              SDTCisSameAs<0, 4>,
                                              SDTCisSameAs<4, 5>]>;
 def SDT_RISCVBrCC : SDTypeProfile<0, 4, [SDTCisSameAs<0, 1>,
@@ -974,13 +975,27 @@ def : Pat<(setgt GPR:$rs1, GPR:$rs2), (SLT GPR:$rs2, GPR:$rs1)>;
 def : Pat<(setge GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs1, GPR:$rs2), 1)>;
 def : Pat<(setle GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs2, GPR:$rs1), 1)>;
 
+def IntCCtoRISCVCC : SDNodeXForm<riscv_selectcc, [{
+  ISD::CondCode CC = cast<CondCodeSDNode>(N->getOperand(2))->get();
+  RISCVCC::CondCode BrCC = getRISCVCCForIntCC(CC);
+  return CurDAG->getTargetConstant(BrCC, SDLoc(N), Subtarget->getXLenVT());
+}]>;
+
+def riscv_selectcc_frag : PatFrag<(ops node:$lhs, node:$rhs, node:$cc,
+                                       node:$truev, node:$falsev),
+                                  (riscv_selectcc node:$lhs, node:$rhs,
+                                                  node:$cc, node:$truev,
+                                                  node:$falsev), [{}],
+                                  IntCCtoRISCVCC>;
+
 let usesCustomInserter = 1 in
 class SelectCC_rrirr<RegisterClass valty, RegisterClass cmpty>
     : Pseudo<(outs valty:$dst),
              (ins cmpty:$lhs, cmpty:$rhs, ixlenimm:$imm,
               valty:$truev, valty:$falsev),
-             [(set valty:$dst, (riscv_selectcc cmpty:$lhs, cmpty:$rhs,
-              (XLenVT timm:$imm), valty:$truev, valty:$falsev))]>;
+             [(set valty:$dst,
+               (riscv_selectcc_frag:$imm cmpty:$lhs, cmpty:$rhs, cond,
+                                         valty:$truev, valty:$falsev))]>;
 
 def Select_GPR_Using_CC_GPR : SelectCC_rrirr<GPR, GPR>;
 
@@ -1239,6 +1254,14 @@ def : Pat<(i64 (shl (and GPR:$rs1, 0xffffffff), uimm5:$shamt)),
           (SRLI (SLLI GPR:$rs1, 32), (ImmSubFrom32 uimm5:$shamt))>;
 }
 
+// PatFrag to allow ADDW/SUBW/MULW/SLLW to be selected from i64 add/sub/mul/shl
+// if only the lower 32 bits of their result is used.
+class overflowingbinopw<SDPatternOperator operator>
+    : PatFrag<(ops node:$lhs, node:$rhs),
+              (operator node:$lhs, node:$rhs), [{
+  return hasAllWUsers(Node);
+}]>;
+
 let Predicates = [IsRV64] in {
 
 /// sext and zext
@@ -1247,14 +1270,6 @@ def : Pat<(sext_inreg GPR:$rs1, i32), (ADDIW GPR:$rs1, 0)>;
 
 /// ALU operations
 
-def : Pat<(sext_inreg (add GPR:$rs1, GPR:$rs2), i32),
-          (ADDW GPR:$rs1, GPR:$rs2)>;
-def : Pat<(sext_inreg (add GPR:$rs1, simm12:$imm12), i32),
-          (ADDIW GPR:$rs1, simm12:$imm12)>;
-def : Pat<(sext_inreg (sub GPR:$rs1, GPR:$rs2), i32),
-          (SUBW GPR:$rs1, GPR:$rs2)>;
-def : Pat<(sext_inreg (shl GPR:$rs1, uimm5:$shamt), i32),
-          (SLLIW GPR:$rs1, uimm5:$shamt)>;
 def : Pat<(i64 (srl (and GPR:$rs1, 0xffffffff), uimm5:$shamt)),
           (SRLIW GPR:$rs1, uimm5:$shamt)>;
 def : Pat<(i64 (srl (shl GPR:$rs1, (i64 32)), uimm6gt32:$shamt)),
@@ -1267,6 +1282,13 @@ def : Pat<(i64 (sra (shl GPR:$rs1, (i64 32)), uimm6gt32:$shamt)),
 def : PatGprGpr<shiftopw<riscv_sllw>, SLLW>;
 def : PatGprGpr<shiftopw<riscv_srlw>, SRLW>;
 def : PatGprGpr<shiftopw<riscv_sraw>, SRAW>;
+
+// Select W instructions without sext_inreg if only the lower 32 bits of the
+// result are used.
+def : PatGprGpr<overflowingbinopw<add>, ADDW>;
+def : PatGprSimm12<overflowingbinopw<add>, ADDIW>;
+def : PatGprGpr<overflowingbinopw<sub>, SUBW>;
+def : PatGprImm<overflowingbinopw<shl>, SLLIW, uimm5>;
 
 /// Loads
 
@@ -1308,7 +1330,8 @@ def : Pat<(add GPR:$rs1, (AddiPair:$rs2)),
                 (AddiPairImmA GPR:$rs2))>;
 
 let Predicates = [IsRV64] in {
-def : Pat<(sext_inreg (add_oneuse GPR:$rs1, (AddiPair:$rs2)), i32),
+// Select W instructions if only the lower 32-bits of the result are used.
+def : Pat<(overflowingbinopw<add> GPR:$rs1, (AddiPair:$rs2)),
           (ADDIW (ADDIW GPR:$rs1, (AddiPairImmB AddiPair:$rs2)),
                  (AddiPairImmA AddiPair:$rs2))>;
 }

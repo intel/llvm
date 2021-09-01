@@ -172,29 +172,28 @@ static SourceLocation getDeclLocForCommentSearch(const Decl *D,
       // Allow association with Y across {} in `typedef struct X {} Y`.
       isa<TypedefDecl>(D))
     return D->getBeginLoc();
-  else {
-    const SourceLocation DeclLoc = D->getLocation();
-    if (DeclLoc.isMacroID()) {
-      if (isa<TypedefDecl>(D)) {
-        // If location of the typedef name is in a macro, it is because being
-        // declared via a macro. Try using declaration's starting location as
-        // the "declaration location".
-        return D->getBeginLoc();
-      } else if (const auto *TD = dyn_cast<TagDecl>(D)) {
-        // If location of the tag decl is inside a macro, but the spelling of
-        // the tag name comes from a macro argument, it looks like a special
-        // macro like NS_ENUM is being used to define the tag decl.  In that
-        // case, adjust the source location to the expansion loc so that we can
-        // attach the comment to the tag decl.
-        if (SourceMgr.isMacroArgExpansion(DeclLoc) &&
-            TD->isCompleteDefinition())
-          return SourceMgr.getExpansionLoc(DeclLoc);
-      }
+
+  const SourceLocation DeclLoc = D->getLocation();
+  if (DeclLoc.isMacroID()) {
+    if (isa<TypedefDecl>(D)) {
+      // If location of the typedef name is in a macro, it is because being
+      // declared via a macro. Try using declaration's starting location as
+      // the "declaration location".
+      return D->getBeginLoc();
     }
-    return DeclLoc;
+
+    if (const auto *TD = dyn_cast<TagDecl>(D)) {
+      // If location of the tag decl is inside a macro, but the spelling of
+      // the tag name comes from a macro argument, it looks like a special
+      // macro like NS_ENUM is being used to define the tag decl.  In that
+      // case, adjust the source location to the expansion loc so that we can
+      // attach the comment to the tag decl.
+      if (SourceMgr.isMacroArgExpansion(DeclLoc) && TD->isCompleteDefinition())
+        return SourceMgr.getExpansionLoc(DeclLoc);
+    }
   }
 
-  return {};
+  return DeclLoc;
 }
 
 RawComment *ASTContext::getRawCommentForDeclNoCacheImpl(
@@ -2490,11 +2489,16 @@ unsigned ASTContext::getPreferredTypeAlign(const Type *T) const {
     return ABIAlign;
 
   if (const auto *RT = T->getAs<RecordType>()) {
-    if (TI.AlignIsRequired || RT->getDecl()->isInvalidDecl())
+    const RecordDecl *RD = RT->getDecl();
+
+    // When used as part of a typedef, or together with a 'packed' attribute,
+    // the 'aligned' attribute can be used to decrease alignment.
+    if ((TI.AlignIsRequired && T->getAs<TypedefType>() != nullptr) ||
+        RD->isInvalidDecl())
       return ABIAlign;
 
     unsigned PreferredAlign = static_cast<unsigned>(
-        toBits(getASTRecordLayout(RT->getDecl()).PreferredAlignment));
+        toBits(getASTRecordLayout(RD).PreferredAlignment));
     assert(PreferredAlign >= ABIAlign &&
            "PreferredAlign should be at least as large as ABIAlign.");
     return PreferredAlign;

@@ -49,9 +49,9 @@ private:
       conjunction<TypeChecker<ArgTN, DataT>...>::value>::type;
 
 public:
-  marray() : MData{} {}
+  constexpr marray() : MData{} {}
 
-  explicit marray(const Type &Arg) {
+  explicit constexpr marray(const Type &Arg) {
     for (std::size_t I = 0; I < NumElements; ++I) {
       MData[I] = Arg;
     }
@@ -60,15 +60,15 @@ public:
   template <
       typename... ArgTN, typename = EnableIfSuitableTypes<ArgTN...>,
       typename = typename std::enable_if<sizeof...(ArgTN) == NumElements>::type>
-  marray(const ArgTN &... Args) : MData{Args...} {}
+  constexpr marray(const ArgTN &... Args) : MData{Args...} {}
 
-  marray(const marray<Type, NumElements> &Rhs) {
+  constexpr marray(const marray<Type, NumElements> &Rhs) {
     for (std::size_t I = 0; I < NumElements; ++I) {
       MData[I] = Rhs.MData[I];
     }
   }
 
-  marray(marray<Type, NumElements> &&Rhs) {
+  constexpr marray(marray<Type, NumElements> &&Rhs) {
     for (std::size_t I = 0; I < NumElements; ++I) {
       MData[I] = Rhs.MData[I];
     }

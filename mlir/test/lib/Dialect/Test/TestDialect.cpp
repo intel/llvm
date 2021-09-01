@@ -22,12 +22,14 @@
 #include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/StringSwitch.h"
 
-using namespace mlir;
-using namespace mlir::test;
-
+// Include this before the using namespace lines below to
+// test that we don't have namespace dependencies.
 #include "TestOpsDialect.cpp.inc"
 
-void mlir::test::registerTestDialect(DialectRegistry &registry) {
+using namespace mlir;
+using namespace test;
+
+void test::registerTestDialect(DialectRegistry &registry) {
   registry.insert<TestDialect>();
 }
 
@@ -51,10 +53,10 @@ static_assert(OpTrait::hasSingleBlockImplicitTerminator<
 struct TestOpAsmInterface : public OpAsmDialectInterface {
   using OpAsmDialectInterface::OpAsmDialectInterface;
 
-  LogicalResult getAlias(Attribute attr, raw_ostream &os) const final {
+  AliasResult getAlias(Attribute attr, raw_ostream &os) const final {
     StringAttr strAttr = attr.dyn_cast<StringAttr>();
     if (!strAttr)
-      return failure();
+      return AliasResult::NoAlias;
 
     // Check the contents of the string attribute to see what the test alias
     // should be named.
@@ -70,10 +72,23 @@ struct TestOpAsmInterface : public OpAsmDialectInterface {
             .Case("alias_test:tensor_encoding", StringRef("test_encoding"))
             .Default(llvm::None);
     if (!aliasName)
-      return failure();
+      return AliasResult::NoAlias;
 
     os << *aliasName;
-    return success();
+    return AliasResult::FinalAlias;
+  }
+
+  AliasResult getAlias(Type type, raw_ostream &os) const final {
+    if (auto tupleType = type.dyn_cast<TupleType>()) {
+      if (tupleType.size() > 0 &&
+          llvm::all_of(tupleType.getTypes(), [](Type elemType) {
+            return elemType.isa<SimpleAType>();
+          })) {
+        os << "test_tuple";
+        return AliasResult::FinalAlias;
+      }
+    }
+    return AliasResult::NoAlias;
   }
 
   void getAsmResultNames(Operation *op,

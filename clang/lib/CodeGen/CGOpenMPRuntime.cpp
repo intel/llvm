@@ -2120,11 +2120,12 @@ void CGOpenMPRuntime::emitParallelCall(CodeGenFunction &CGF, SourceLocation Loc,
     OutlinedFnArgs.append(CapturedVars.begin(), CapturedVars.end());
 
     // Ensure we do not inline the function. This is trivially true for the ones
-    // passed to __kmpc_fork_call but the ones calles in serialized regions
+    // passed to __kmpc_fork_call but the ones called in serialized regions
     // could be inlined. This is not a perfect but it is closer to the invariant
     // we want, namely, every data environment starts with a new function.
     // TODO: We should pass the if condition to the runtime function and do the
     //       handling there. Much cleaner code.
+    OutlinedFn->removeFnAttr(llvm::Attribute::AlwaysInline);
     OutlinedFn->addFnAttr(llvm::Attribute::NoInline);
     RT.emitOutlinedFunctionCall(CGF, Loc, OutlinedFn, OutlinedFnArgs);
 
@@ -4400,14 +4401,14 @@ CGOpenMPRuntime::emitTaskInit(CodeGenFunction &CGF, SourceLocation Loc,
     if (NumOfElements) {
       NumOfElements = CGF.Builder.CreateNUWAdd(
           llvm::ConstantInt::get(CGF.SizeTy, NumAffinities), NumOfElements);
-      OpaqueValueExpr OVE(
+      auto *OVE = new (C) OpaqueValueExpr(
           Loc,
           C.getIntTypeForBitwidth(C.getTypeSize(C.getSizeType()), /*Signed=*/0),
           VK_PRValue);
-      CodeGenFunction::OpaqueValueMapping OpaqueMap(CGF, &OVE,
+      CodeGenFunction::OpaqueValueMapping OpaqueMap(CGF, OVE,
                                                     RValue::get(NumOfElements));
       KmpTaskAffinityInfoArrayTy =
-          C.getVariableArrayType(KmpTaskAffinityInfoTy, &OVE, ArrayType::Normal,
+          C.getVariableArrayType(KmpTaskAffinityInfoTy, OVE, ArrayType::Normal,
                                  /*IndexTypeQuals=*/0, SourceRange(Loc, Loc));
       // Properly emit variable-sized array.
       auto *PD = ImplicitParamDecl::Create(C, KmpTaskAffinityInfoArrayTy,
@@ -4898,13 +4899,13 @@ std::pair<llvm::Value *, Address> CGOpenMPRuntime::emitDependClause(
       NumOfElements =
           CGF.Builder.CreateNUWAdd(NumOfRegularWithIterators, NumOfElements);
     }
-    OpaqueValueExpr OVE(Loc,
-                        C.getIntTypeForBitwidth(/*DestWidth=*/64, /*Signed=*/0),
-                        VK_PRValue);
-    CodeGenFunction::OpaqueValueMapping OpaqueMap(CGF, &OVE,
+    auto *OVE = new (C) OpaqueValueExpr(
+        Loc, C.getIntTypeForBitwidth(/*DestWidth=*/64, /*Signed=*/0),
+        VK_PRValue);
+    CodeGenFunction::OpaqueValueMapping OpaqueMap(CGF, OVE,
                                                   RValue::get(NumOfElements));
     KmpDependInfoArrayTy =
-        C.getVariableArrayType(KmpDependInfoTy, &OVE, ArrayType::Normal,
+        C.getVariableArrayType(KmpDependInfoTy, OVE, ArrayType::Normal,
                                /*IndexTypeQuals=*/0, SourceRange(Loc, Loc));
     // CGF.EmitVariablyModifiedType(KmpDependInfoArrayTy);
     // Properly emit variable-sized array.
@@ -9434,34 +9435,50 @@ static void emitNonContiguousDescriptor(
   }
 }
 
+// Try to extract the base declaration from a `this->x` expression if possible.
+static ValueDecl *getDeclFromThisExpr(const Expr *E) {
+  if (!E)
+    return nullptr;
+
+  if (const auto *OASE = dyn_cast<OMPArraySectionExpr>(E->IgnoreParenCasts()))
+    if (const MemberExpr *ME =
+            dyn_cast<MemberExpr>(OASE->getBase()->IgnoreParenImpCasts()))
+      return ME->getMemberDecl();
+  return nullptr;
+}
+
 /// Emit a string constant containing the names of the values mapped to the
 /// offloading runtime library.
 llvm::Constant *
 emitMappingInformation(CodeGenFunction &CGF, llvm::OpenMPIRBuilder &OMPBuilder,
                        MappableExprsHandler::MappingExprInfo &MapExprs) {
-  llvm::Constant *SrcLocStr;
-  if (!MapExprs.getMapDecl()) {
-    SrcLocStr = OMPBuilder.getOrCreateDefaultSrcLocStr();
-  } else {
-    std::string ExprName = "";
-    if (MapExprs.getMapExpr()) {
-      PrintingPolicy P(CGF.getContext().getLangOpts());
-      llvm::raw_string_ostream OS(ExprName);
-      MapExprs.getMapExpr()->printPretty(OS, nullptr, P);
-      OS.flush();
-    } else {
-      ExprName = MapExprs.getMapDecl()->getNameAsString();
-    }
 
-    SourceLocation Loc = MapExprs.getMapDecl()->getLocation();
-    PresumedLoc PLoc = CGF.getContext().getSourceManager().getPresumedLoc(Loc);
-    const char *FileName = PLoc.getFilename();
-    unsigned Line = PLoc.getLine();
-    unsigned Column = PLoc.getColumn();
-    SrcLocStr = OMPBuilder.getOrCreateSrcLocStr(FileName, ExprName.c_str(),
-                                                Line, Column);
+  if (!MapExprs.getMapDecl() && !MapExprs.getMapExpr())
+    return OMPBuilder.getOrCreateDefaultSrcLocStr();
+
+  SourceLocation Loc;
+  if (!MapExprs.getMapDecl() && MapExprs.getMapExpr()) {
+    if (const ValueDecl *VD = getDeclFromThisExpr(MapExprs.getMapExpr()))
+      Loc = VD->getLocation();
+    else
+      Loc = MapExprs.getMapExpr()->getExprLoc();
+  } else {
+    Loc = MapExprs.getMapDecl()->getLocation();
   }
-  return SrcLocStr;
+
+  std::string ExprName = "";
+  if (MapExprs.getMapExpr()) {
+    PrintingPolicy P(CGF.getContext().getLangOpts());
+    llvm::raw_string_ostream OS(ExprName);
+    MapExprs.getMapExpr()->printPretty(OS, nullptr, P);
+    OS.flush();
+  } else {
+    ExprName = MapExprs.getMapDecl()->getNameAsString();
+  }
+
+  PresumedLoc PLoc = CGF.getContext().getSourceManager().getPresumedLoc(Loc);
+  return OMPBuilder.getOrCreateSrcLocStr(PLoc.getFilename(), ExprName.c_str(),
+                                         PLoc.getLine(), PLoc.getColumn());
 }
 
 /// Emit the arrays used to pass the captures and map information to the

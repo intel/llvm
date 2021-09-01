@@ -434,3 +434,146 @@ TEST_F(KernelAndProgramCacheTest, KernelNegativeSource) {
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
 }
+
+typedef KernelAndProgramCacheTest KernelAndProgramFastCacheTest;
+
+class MockKernelProgramCache : public detail::KernelProgramCache {
+public:
+  static detail::KernelProgramCache::KernelFastCacheT &
+  getFastCache(detail::KernelProgramCache &cache) {
+    return (reinterpret_cast<MockKernelProgramCache &>(cache)).get();
+  }
+
+  detail::KernelProgramCache::KernelFastCacheT &get() {
+    return this->MKernelFastCache;
+  }
+};
+
+// Check that kernels built without options are cached.
+TEST_F(KernelAndProgramFastCacheTest, KernelPositive) {
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    return;
+  }
+
+  context Ctx{Plt};
+  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+
+  globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
+
+  program Prg{Ctx};
+
+  Prg.build_with_kernel_type<TestKernel>();
+  kernel Ker = Prg.get_kernel<TestKernel>();
+  detail::KernelProgramCache::KernelFastCacheT &Cache =
+      MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
+  EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache for kernels";
+}
+
+// Check that kernels built with options are cached.
+TEST_F(KernelAndProgramFastCacheTest, KernelPositiveBuildOpts) {
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    return;
+  }
+
+  context Ctx{Plt};
+  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+
+  globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
+
+  program Prg{Ctx};
+
+  Prg.build_with_kernel_type<TestKernel>("-g");
+
+  kernel Ker = Prg.get_kernel<TestKernel>();
+  detail::KernelProgramCache::KernelFastCacheT &Cache =
+      MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
+  EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache for kernels";
+}
+
+// Check that kernels built with compile options are not cached.
+TEST_F(KernelAndProgramFastCacheTest, KernelNegativeCompileOpts) {
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    return;
+  }
+
+  context Ctx{Plt};
+  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+
+  globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
+
+  program Prg{Ctx};
+
+  Prg.compile_with_kernel_type<TestKernel>("-g");
+  Prg.link();
+  kernel Ker = Prg.get_kernel<TestKernel>();
+  detail::KernelProgramCache::KernelFastCacheT &Cache =
+      MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
+  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
+}
+
+// Check that kernels built with link options are not cached.
+TEST_F(KernelAndProgramFastCacheTest, KernelNegativeLinkOpts) {
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    return;
+  }
+
+  context Ctx{Plt};
+  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+
+  globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
+
+  program Prg{Ctx};
+
+  Prg.compile_with_kernel_type<TestKernel>();
+  Prg.link("-g");
+  kernel Ker = Prg.get_kernel<TestKernel>();
+  detail::KernelProgramCache::KernelFastCacheT &Cache =
+      MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
+  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
+}
+
+// Check that kernels are not cached if program is created from multiple
+// programs.
+TEST_F(KernelAndProgramFastCacheTest, KernelNegativeLinkedProgs) {
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    return;
+  }
+
+  context Ctx{Plt};
+  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+
+  globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
+
+  program Prg1{Ctx};
+  program Prg2{Ctx};
+
+  Prg1.compile_with_kernel_type<TestKernel>();
+  Prg2.compile_with_kernel_type<TestKernel2>();
+  program Prg({Prg1, Prg2});
+  kernel Ker = Prg.get_kernel<TestKernel>();
+
+  detail::KernelProgramCache::KernelFastCacheT &Cache =
+      MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
+  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
+}
+
+// Check that kernels created from source are not cached.
+TEST_F(KernelAndProgramFastCacheTest, KernelNegativeSource) {
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
+    return;
+  }
+
+  context Ctx{Plt};
+  auto CtxImpl = detail::getSyclObjImpl(Ctx);
+
+  globalCtx.reset(new TestCtx{CtxImpl->getHandleRef()});
+
+  program Prg{Ctx};
+
+  Prg.build_with_source("");
+  kernel Ker = Prg.get_kernel("test");
+
+  detail::KernelProgramCache::KernelFastCacheT &Cache =
+      MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
+  EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
+}

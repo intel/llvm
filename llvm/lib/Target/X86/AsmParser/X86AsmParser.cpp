@@ -2753,6 +2753,7 @@ bool X86AsmParser::HandleAVX512Operand(OperandVector &Operands) {
               .Case("1to4", "{1to4}")
               .Case("1to8", "{1to8}")
               .Case("1to16", "{1to16}")
+              .Case("1to32", "{1to32}")
               .Default(nullptr);
       if (!BroadcastPrimitive)
         return TokError("Invalid memory broadcast primitive.");
@@ -3126,9 +3127,10 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
 
   unsigned ComparisonPredicate = ~0U;
 
-  // FIXME: Hack to recognize cmp<comparison code>{ss,sd,ps,pd}.
+  // FIXME: Hack to recognize cmp<comparison code>{sh,ss,sd,ph,ps,pd}.
   if ((PatchedName.startswith("cmp") || PatchedName.startswith("vcmp")) &&
       (PatchedName.endswith("ss") || PatchedName.endswith("sd") ||
+       PatchedName.endswith("sh") || PatchedName.endswith("ph") ||
        PatchedName.endswith("ps") || PatchedName.endswith("pd"))) {
     bool IsVCMP = PatchedName[0] == 'v';
     unsigned CCIdx = IsVCMP ? 4 : 3;
@@ -3182,7 +3184,8 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
       .Case("gt_oq",    0x1E)
       .Case("true_us",  0x1F)
       .Default(~0U);
-    if (CC != ~0U && (IsVCMP || CC < 8)) {
+    if (CC != ~0U && (IsVCMP || CC < 8) &&
+        (IsVCMP || PatchedName.back() != 'h')) {
       if (PatchedName.endswith("ss"))
         PatchedName = IsVCMP ? "vcmpss" : "cmpss";
       else if (PatchedName.endswith("sd"))
@@ -3191,6 +3194,10 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
         PatchedName = IsVCMP ? "vcmpps" : "cmpps";
       else if (PatchedName.endswith("pd"))
         PatchedName = IsVCMP ? "vcmppd" : "cmppd";
+      else if (PatchedName.endswith("sh"))
+        PatchedName = "vcmpsh";
+      else if (PatchedName.endswith("ph"))
+        PatchedName = "vcmpph";
       else
         llvm_unreachable("Unexpected suffix!");
 

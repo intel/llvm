@@ -3,6 +3,7 @@ macro(configure_in_llvm_tree)
   set(LLVM_AS ${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-as)
   set(LLVM_LINK ${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-link)
   set(LLVM_OPT ${LLVM_RUNTIME_OUTPUT_INTDIR}/opt)
+  set(LIBCLC_REMANGLER ${LLVM_RUNTIME_OUTPUT_INTDIR}/libclc-remangler)
 
   if (NOT EXISTS ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang)
     file(WRITE ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang "" )
@@ -16,6 +17,9 @@ macro(configure_in_llvm_tree)
   if (NOT EXISTS ${LLVM_RUNTIME_OUTPUT_INTDIR}/opt)
     file(WRITE ${LLVM_RUNTIME_OUTPUT_INTDIR}/opt "" )
   endif (NOT EXISTS ${LLVM_RUNTIME_OUTPUT_INTDIR}/opt)
+  if (NOT EXISTS ${LLVM_RUNTIME_OUTPUT_INTDIR}/libclc-remangler)
+    file(WRITE ${LLVM_RUNTIME_OUTPUT_INTDIR}/libclc-remangler "" )
+  endif (NOT EXISTS ${LLVM_RUNTIME_OUTPUT_INTDIR}/libclc-remangler)
 
   # Assume all works well
   # We can't test the compilers as they haven't been built yet

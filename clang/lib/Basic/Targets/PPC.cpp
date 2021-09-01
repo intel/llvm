@@ -236,6 +236,8 @@ static void defineXLCompatMacros(MacroBuilder &Builder) {
   Builder.defineMacro("__frsqrtes", "__builtin_ppc_frsqrtes");
   Builder.defineMacro("__fsqrt", "__builtin_ppc_fsqrt");
   Builder.defineMacro("__fsqrts", "__builtin_ppc_fsqrts");
+  Builder.defineMacro("__addex", "__builtin_ppc_addex");
+  Builder.defineMacro("__cmplxl", "__builtin_complex");
 }
 
 /// PPCTargetInfo::getTargetDefines - Return a set of the PowerPC-specific
@@ -256,6 +258,12 @@ void PPCTargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__powerpc64__");
     Builder.defineMacro("__ppc64__");
     Builder.defineMacro("__PPC64__");
+  } else if (getTriple().isOSAIX()) {
+    // The XL compilers on AIX define _ARCH_PPC64 for both 32 and 64-bit modes.
+    Builder.defineMacro("_ARCH_PPC64");
+  }
+  if (getTriple().isOSAIX()) {
+    Builder.defineMacro("__THW_PPC__");
   }
 
   // Target properties.
@@ -367,8 +375,6 @@ void PPCTargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__MMA__");
   if (HasROPProtect)
     Builder.defineMacro("__ROP_PROTECT__");
-  if (HasPrivileged)
-    Builder.defineMacro("__PRIVILEGED__");
   if (HasP10Vector)
     Builder.defineMacro("__POWER10_VECTOR__");
   if (HasPCRelativeMemops)

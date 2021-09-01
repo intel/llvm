@@ -2221,6 +2221,7 @@ size_t ObjectFileMachO::ParseSymtab() {
 
   llvm::MachO::symtab_command symtab_load_command = {0, 0, 0, 0, 0, 0};
   llvm::MachO::linkedit_data_command function_starts_load_command = {0, 0, 0, 0};
+  llvm::MachO::linkedit_data_command exports_trie_load_command = {0, 0, 0, 0};
   llvm::MachO::dyld_info_command dyld_info = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   // The data element of type bool indicates that this entry is thumb
   // code.
@@ -2298,11 +2299,19 @@ size_t ObjectFileMachO::ParseSymtab() {
       }
     } break;
 
+    case LC_DYLD_EXPORTS_TRIE:
+      exports_trie_load_command.cmd = lc.cmd;
+      exports_trie_load_command.cmdsize = lc.cmdsize;
+      if (m_data.GetU32(&offset, &exports_trie_load_command.dataoff, 2) ==
+          nullptr) // fill in offset and size fields
+        memset(&exports_trie_load_command, 0,
+               sizeof(exports_trie_load_command));
+      break;
     case LC_FUNCTION_STARTS:
       function_starts_load_command.cmd = lc.cmd;
       function_starts_load_command.cmdsize = lc.cmdsize;
       if (m_data.GetU32(&offset, &function_starts_load_command.dataoff, 2) ==
-          nullptr) // fill in symoff, nsyms, stroff, strsize fields
+          nullptr) // fill in data offset and size fields
         memset(&function_starts_load_command, 0,
                sizeof(function_starts_load_command));
       break;
@@ -2446,6 +2455,7 @@ size_t ObjectFileMachO::ParseSymtab() {
       dyld_info.export_off += linkedit_slide;
       m_dysymtab.indirectsymoff += linkedit_slide;
       function_starts_load_command.dataoff += linkedit_slide;
+      exports_trie_load_command.dataoff += linkedit_slide;
     }
 
     nlist_data.SetData(m_data, symtab_load_command.symoff,
@@ -2453,9 +2463,16 @@ size_t ObjectFileMachO::ParseSymtab() {
     strtab_data.SetData(m_data, symtab_load_command.stroff,
                         strtab_data_byte_size);
 
+    // We shouldn't have exports data from both the LC_DYLD_INFO command
+    // AND the LC_DYLD_EXPORTS_TRIE command in the same binary:
+    lldbassert(!((dyld_info.export_size > 0) 
+                 && (exports_trie_load_command.datasize > 0)));
     if (dyld_info.export_size > 0) {
       dyld_trie_data.SetData(m_data, dyld_info.export_off,
                              dyld_info.export_size);
+    } else if (exports_trie_load_command.datasize > 0) {
+      dyld_trie_data.SetData(m_data, exports_trie_load_command.dataoff,
+                             exports_trie_load_command.datasize);
     }
 
     if (m_dysymtab.nindirectsyms != 0) {
@@ -6325,13 +6342,17 @@ struct segment_vmaddr {
 // are some multiple passes over the image list while calculating
 // everything.
 
-static offset_t
-CreateAllImageInfosPayload(const lldb::ProcessSP &process_sp,
-                           offset_t initial_file_offset,
-                           StreamString &all_image_infos_payload) {
+static offset_t CreateAllImageInfosPayload(
+    const lldb::ProcessSP &process_sp, offset_t initial_file_offset,
+    StreamString &all_image_infos_payload, SaveCoreStyle core_style) {
   Target &target = process_sp->GetTarget();
-  const ModuleList &modules = target.GetImages();
-  size_t modules_count = modules.GetSize();
+  ModuleList modules = target.GetImages();
+
+  // stack-only corefiles have no reason to include binaries that
+  // are not executing; we're trying to make the smallest corefile
+  // we can, so leave the rest out.
+  if (core_style == SaveCoreStyle::eSaveCoreStackOnly)
+    modules.Clear();
 
   std::set<std::string> executing_uuids;
   ThreadList &thread_list(process_sp->GetThreadList());
@@ -6346,10 +6367,12 @@ CreateAllImageInfosPayload(const lldb::ProcessSP &process_sp,
         UUID uuid = module_sp->GetUUID();
         if (uuid.IsValid()) {
           executing_uuids.insert(uuid.GetAsString());
+          modules.AppendIfNeeded(module_sp);
         }
       }
     }
   }
+  size_t modules_count = modules.GetSize();
 
   struct all_image_infos_header infos;
   infos.version = 1;
@@ -6491,12 +6514,9 @@ bool ObjectFileMachO::SaveCore(const lldb::ProcessSP &process_sp,
   if (!process_sp)
     return false;
 
-  // For Mach-O, we can only create full corefiles or dirty-page-only
-  // corefiles.  The default is dirty-page-only.
-  if (core_style != SaveCoreStyle::eSaveCoreFull) {
+  // Default on macOS is to create a dirty-memory-only corefile.
+  if (core_style == SaveCoreStyle::eSaveCoreUnspecified) {
     core_style = SaveCoreStyle::eSaveCoreDirtyOnly;
-  } else {
-    core_style = SaveCoreStyle::eSaveCoreFull;
   }
 
   Target &target = process_sp->GetTarget();
@@ -6551,13 +6571,23 @@ bool ObjectFileMachO::SaveCore(const lldb::ProcessSP &process_sp,
           if (size == 0)
             break;
 
-          if (prot != 0) {
+          bool include_this_region = true;
+          bool dirty_pages_only = false;
+          if (core_style == SaveCoreStyle::eSaveCoreStackOnly) {
+            dirty_pages_only = true;
+            if (range_info.IsStackMemory() != MemoryRegionInfo::eYes) {
+              include_this_region = false;
+            }
+          }
+          if (core_style == SaveCoreStyle::eSaveCoreDirtyOnly) {
+            dirty_pages_only = true;
+          }
+
+          if (prot != 0 && include_this_region) {
             addr_t pagesize = range_info.GetPageSize();
             const llvm::Optional<std::vector<addr_t>> &dirty_page_list =
                 range_info.GetDirtyPageList();
-            if (core_style == SaveCoreStyle::eSaveCoreDirtyOnly &&
-                dirty_page_list.hasValue()) {
-              core_style = SaveCoreStyle::eSaveCoreDirtyOnly;
+            if (dirty_pages_only && dirty_page_list.hasValue()) {
               for (addr_t dirtypage : dirty_page_list.getValue()) {
                 page_object obj;
                 obj.addr = dirtypage;
@@ -6586,6 +6616,7 @@ bool ObjectFileMachO::SaveCore(const lldb::ProcessSP &process_sp,
         std::vector<page_object> combined_page_objects;
         page_object last_obj;
         last_obj.addr = LLDB_INVALID_ADDRESS;
+        last_obj.size = 0;
         for (page_object obj : pages_to_copy) {
           if (last_obj.addr == LLDB_INVALID_ADDRESS) {
             last_obj = obj;
@@ -6599,6 +6630,10 @@ bool ObjectFileMachO::SaveCore(const lldb::ProcessSP &process_sp,
           combined_page_objects.push_back(last_obj);
           last_obj = obj;
         }
+        // Add the last entry we were looking to combine
+        // on to the array.
+        if (last_obj.addr != LLDB_INVALID_ADDRESS && last_obj.size != 0)
+          combined_page_objects.push_back(last_obj);
 
         for (page_object obj : combined_page_objects) {
           uint32_t cmd_type = LC_SEGMENT_64;
@@ -6750,7 +6785,8 @@ bool ObjectFileMachO::SaveCore(const lldb::ProcessSP &process_sp,
         all_image_infos_lcnote_up->name = "all image infos";
         all_image_infos_lcnote_up->payload_file_offset = file_offset;
         file_offset = CreateAllImageInfosPayload(
-            process_sp, file_offset, all_image_infos_lcnote_up->payload);
+            process_sp, file_offset, all_image_infos_lcnote_up->payload,
+            core_style);
         lc_notes.push_back(std::move(all_image_infos_lcnote_up));
 
         // Add LC_NOTE load commands
@@ -6808,7 +6844,7 @@ bool ObjectFileMachO::SaveCore(const lldb::ProcessSP &process_sp,
 
         std::string core_file_path(outfile.GetPath());
         auto core_file = FileSystem::Instance().Open(
-            outfile, File::eOpenOptionWrite | File::eOpenOptionTruncate |
+            outfile, File::eOpenOptionWriteOnly | File::eOpenOptionTruncate |
                          File::eOpenOptionCanCreate);
         if (!core_file) {
           error = core_file.takeError();

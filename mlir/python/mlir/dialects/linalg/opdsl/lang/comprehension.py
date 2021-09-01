@@ -11,8 +11,7 @@ represent actual op definitions (i.e. YAML).
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from enum import Enum
 
-from mlir import ir as _ir
-
+from ..... import ir as _ir
 from .affine import *
 from .scalar_expr import *
 from .types import *
@@ -406,7 +405,7 @@ class const(TensorExpression):
     return ScalarConst(self.value).expr()
 
   def __repr__(self):
-    return f"const({self.type_var}, {self.value})"
+    return f"const({self.value})"
 
 
 class index(TensorExpression):

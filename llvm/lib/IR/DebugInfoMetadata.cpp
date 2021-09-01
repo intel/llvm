@@ -582,13 +582,13 @@ DIDerivedType *DIDerivedType::getImpl(
     unsigned Line, Metadata *Scope, Metadata *BaseType, uint64_t SizeInBits,
     uint32_t AlignInBits, uint64_t OffsetInBits,
     Optional<unsigned> DWARFAddressSpace, DIFlags Flags, Metadata *ExtraData,
-    StorageType Storage, bool ShouldCreate) {
+    Metadata *Annotations, StorageType Storage, bool ShouldCreate) {
   assert(isCanonical(Name) && "Expected canonical MDString");
   DEFINE_GETIMPL_LOOKUP(DIDerivedType,
                         (Tag, Name, File, Line, Scope, BaseType, SizeInBits,
                          AlignInBits, OffsetInBits, DWARFAddressSpace, Flags,
-                         ExtraData));
-  Metadata *Ops[] = {File, Scope, Name, BaseType, ExtraData};
+                         ExtraData, Annotations));
+  Metadata *Ops[] = {File, Scope, Name, BaseType, ExtraData, Annotations};
   DEFINE_GETIMPL_STORE(
       DIDerivedType, (Tag, Line, SizeInBits, AlignInBits, OffsetInBits,
                       DWARFAddressSpace, Flags), Ops);
@@ -601,19 +601,21 @@ DICompositeType *DICompositeType::getImpl(
     Metadata *Elements, unsigned RuntimeLang, Metadata *VTableHolder,
     Metadata *TemplateParams, MDString *Identifier, Metadata *Discriminator,
     Metadata *DataLocation, Metadata *Associated, Metadata *Allocated,
-    Metadata *Rank, StorageType Storage, bool ShouldCreate) {
+    Metadata *Rank, Metadata *Annotations, StorageType Storage,
+    bool ShouldCreate) {
   assert(isCanonical(Name) && "Expected canonical MDString");
 
   // Keep this in sync with buildODRType.
-  DEFINE_GETIMPL_LOOKUP(
-      DICompositeType,
-      (Tag, Name, File, Line, Scope, BaseType, SizeInBits, AlignInBits,
-       OffsetInBits, Flags, Elements, RuntimeLang, VTableHolder, TemplateParams,
-       Identifier, Discriminator, DataLocation, Associated, Allocated, Rank));
+  DEFINE_GETIMPL_LOOKUP(DICompositeType,
+                        (Tag, Name, File, Line, Scope, BaseType, SizeInBits,
+                         AlignInBits, OffsetInBits, Flags, Elements,
+                         RuntimeLang, VTableHolder, TemplateParams, Identifier,
+                         Discriminator, DataLocation, Associated, Allocated,
+                         Rank, Annotations));
   Metadata *Ops[] = {File,          Scope,        Name,           BaseType,
                      Elements,      VTableHolder, TemplateParams, Identifier,
                      Discriminator, DataLocation, Associated,     Allocated,
-                     Rank};
+                     Rank,          Annotations};
   DEFINE_GETIMPL_STORE(DICompositeType, (Tag, Line, RuntimeLang, SizeInBits,
                                          AlignInBits, OffsetInBits, Flags),
                        Ops);
@@ -626,7 +628,7 @@ DICompositeType *DICompositeType::buildODRType(
     DIFlags Flags, Metadata *Elements, unsigned RuntimeLang,
     Metadata *VTableHolder, Metadata *TemplateParams, Metadata *Discriminator,
     Metadata *DataLocation, Metadata *Associated, Metadata *Allocated,
-    Metadata *Rank) {
+    Metadata *Rank, Metadata *Annotations) {
   assert(!Identifier.getString().empty() && "Expected valid identifier");
   if (!Context.isODRUniquingDebugTypes())
     return nullptr;
@@ -636,7 +638,7 @@ DICompositeType *DICompositeType::buildODRType(
                Context, Tag, Name, File, Line, Scope, BaseType, SizeInBits,
                AlignInBits, OffsetInBits, Flags, Elements, RuntimeLang,
                VTableHolder, TemplateParams, &Identifier, Discriminator,
-               DataLocation, Associated, Allocated, Rank);
+               DataLocation, Associated, Allocated, Rank, Annotations);
 
   // Only mutate CT if it's a forward declaration and the new operands aren't.
   assert(CT->getRawIdentifier() == &Identifier && "Wrong ODR identifier?");
@@ -649,7 +651,7 @@ DICompositeType *DICompositeType::buildODRType(
   Metadata *Ops[] = {File,          Scope,        Name,           BaseType,
                      Elements,      VTableHolder, TemplateParams, &Identifier,
                      Discriminator, DataLocation, Associated,     Allocated,
-                     Rank};
+                     Rank,          Annotations};
   assert((std::end(Ops) - std::begin(Ops)) == (int)CT->getNumOperands() &&
          "Mismatched number of operands");
   for (unsigned I = 0, E = CT->getNumOperands(); I != E; ++I)
@@ -665,7 +667,7 @@ DICompositeType *DICompositeType::getODRType(
     DIFlags Flags, Metadata *Elements, unsigned RuntimeLang,
     Metadata *VTableHolder, Metadata *TemplateParams, Metadata *Discriminator,
     Metadata *DataLocation, Metadata *Associated, Metadata *Allocated,
-    Metadata *Rank) {
+    Metadata *Rank, Metadata *Annotations) {
   assert(!Identifier.getString().empty() && "Expected valid identifier");
   if (!Context.isODRUniquingDebugTypes())
     return nullptr;
@@ -675,7 +677,7 @@ DICompositeType *DICompositeType::getODRType(
         Context, Tag, Name, File, Line, Scope, BaseType, SizeInBits,
         AlignInBits, OffsetInBits, Flags, Elements, RuntimeLang, VTableHolder,
         TemplateParams, &Identifier, Discriminator, DataLocation, Associated,
-        Allocated, Rank);
+        Allocated, Rank, Annotations);
   return CT;
 }
 
@@ -1474,6 +1476,45 @@ Optional<DIExpression *> DIExpression::createFragmentExpression(
   Ops.push_back(OffsetInBits);
   Ops.push_back(SizeInBits);
   return DIExpression::get(Expr->getContext(), Ops);
+}
+
+std::pair<DIExpression *, const ConstantInt *>
+DIExpression::constantFold(const ConstantInt *CI) {
+  // Copy the APInt so we can modify it.
+  APInt NewInt = CI->getValue();
+  SmallVector<uint64_t, 8> Ops;
+
+  // Fold operators only at the beginning of the expression.
+  bool First = true;
+  bool Changed = false;
+  for (auto Op : expr_ops()) {
+    switch (Op.getOp()) {
+    default:
+      // We fold only the leading part of the expression; if we get to a part
+      // that we're going to copy unchanged, and haven't done any folding,
+      // then the entire expression is unchanged and we can return early.
+      if (!Changed)
+        return {this, CI};
+      First = false;
+      break;
+    case dwarf::DW_OP_LLVM_convert:
+      if (!First)
+        break;
+      Changed = true;
+      if (Op.getArg(1) == dwarf::DW_ATE_signed)
+        NewInt = NewInt.sextOrTrunc(Op.getArg(0));
+      else {
+        assert(Op.getArg(1) == dwarf::DW_ATE_unsigned && "Unexpected operand");
+        NewInt = NewInt.zextOrTrunc(Op.getArg(0));
+      }
+      continue;
+    }
+    Op.appendToVector(Ops);
+  }
+  if (!Changed)
+    return {this, CI};
+  return {DIExpression::get(getContext(), Ops),
+          ConstantInt::get(getContext(), NewInt)};
 }
 
 uint64_t DIExpression::getNumLocationOperands() const {

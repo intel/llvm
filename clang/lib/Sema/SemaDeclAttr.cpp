@@ -4988,15 +4988,26 @@ void Sema::AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
     return;
   }
 
-  if (Context.getTargetInfo().isTLSSupported()) {
+  const auto *VD = dyn_cast<VarDecl>(D);
+  if (VD && Context.getTargetInfo().isTLSSupported()) {
     unsigned MaxTLSAlign =
         Context.toCharUnitsFromBits(Context.getTargetInfo().getMaxTLSAlign())
             .getQuantity();
-    const auto *VD = dyn_cast<VarDecl>(D);
-    if (MaxTLSAlign && AlignVal > MaxTLSAlign && VD &&
+    if (MaxTLSAlign && AlignVal > MaxTLSAlign &&
         VD->getTLSKind() != VarDecl::TLS_None) {
       Diag(VD->getLocation(), diag::err_tls_var_aligned_over_maximum)
           << (unsigned)AlignVal << VD << MaxTLSAlign;
+      return;
+    }
+  }
+
+  // On AIX, an aligned attribute can not decrease the alignment when applied
+  // to a variable declaration with vector type.
+  if (VD && Context.getTargetInfo().getTriple().isOSAIX()) {
+    const Type *Ty = VD->getType().getTypePtr();
+    if (Ty->isVectorType() && AlignVal < 16) {
+      Diag(VD->getLocation(), diag::warn_aligned_attr_underaligned)
+          << VD->getType() << 16;
       return;
     }
   }
@@ -8466,6 +8477,30 @@ static void handleBPFPreserveAccessIndexAttr(Sema &S, Decl *D,
   Rec->addAttr(::new (S.Context) BPFPreserveAccessIndexAttr(S.Context, AL));
 }
 
+static bool hasBTFTagAttr(Decl *D, StringRef Tag) {
+  for (const auto *I : D->specific_attrs<BTFTagAttr>()) {
+    if (I->getBTFTag() == Tag)
+      return true;
+  }
+  return false;
+}
+
+static void handleBTFTagAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  StringRef Str;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, Str))
+    return;
+  if (hasBTFTagAttr(D, Str))
+    return;
+
+  D->addAttr(::new (S.Context) BTFTagAttr(S.Context, AL, Str));
+}
+
+BTFTagAttr *Sema::mergeBTFTagAttr(Decl *D, const BTFTagAttr &AL) {
+  if (hasBTFTagAttr(D, AL.getBTFTag()))
+    return nullptr;
+  return ::new (Context) BTFTagAttr(Context, AL, AL.getBTFTag());
+}
+
 static void handleWebAssemblyExportNameAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!isFunctionOrMethod(D)) {
     S.Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type)
@@ -9088,12 +9123,12 @@ static void handleInternalLinkageAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 static void handleOpenCLNoSVMAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (S.LangOpts.OpenCLVersion != 200)
+  if (S.LangOpts.OpenCLVersion < 200 && !S.LangOpts.OpenCLCPlusPlusVersion)
     S.Diag(AL.getLoc(), diag::err_attribute_requires_opencl_version)
-        << AL << "2.0" << 0;
+        << AL << "2.0" << 1;
   else
-    S.Diag(AL.getLoc(), diag::warn_opencl_attr_deprecated_ignored) << AL
-                                                                   << "2.0";
+    S.Diag(AL.getLoc(), diag::warn_opencl_attr_deprecated_ignored)
+        << AL << S.LangOpts.getOpenCLVersionString();
 }
 
 static void handleOpenCLAccessAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -9514,6 +9549,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_BPFPreserveAccessIndex:
     handleBPFPreserveAccessIndexAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_BTFTag:
+    handleBTFTagAttr(S, D, AL);
     break;
   case ParsedAttr::AT_WebAssemblyExportName:
     handleWebAssemblyExportNameAttr(S, D, AL);

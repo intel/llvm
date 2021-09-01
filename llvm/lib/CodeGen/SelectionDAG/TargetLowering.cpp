@@ -4336,7 +4336,7 @@ SDValue TargetLowering::SimplifySetCC(EVT VT, SDValue N0, SDValue N1,
 
     // When division is cheap or optimizing for minimum size,
     // fall through to DIVREM creation by skipping this fold.
-    if (!isIntDivCheap(VT, Attr) && !Attr.hasFnAttribute(Attribute::MinSize)) {
+    if (!isIntDivCheap(VT, Attr) && !Attr.hasFnAttr(Attribute::MinSize)) {
       if (N0.getOpcode() == ISD::UREM) {
         if (SDValue Folded = buildUREMEqFold(VT, N0, N1, Cond, DCI, dl))
           return Folded;
@@ -6970,6 +6970,36 @@ SDValue TargetLowering::expandFMINNUM_FMAXNUM(SDNode *Node,
   return SDValue();
 }
 
+SDValue TargetLowering::expandISNAN(EVT ResultVT, SDValue Op, SDNodeFlags Flags,
+                                    const SDLoc &DL, SelectionDAG &DAG) const {
+  EVT OperandVT = Op.getValueType();
+  assert(OperandVT.isFloatingPoint());
+
+  // If floating point exceptions are ignored, expand to unordered comparison.
+  if ((Flags.hasNoFPExcept() &&
+       isOperationLegalOrCustom(ISD::SETCC, OperandVT.getScalarType())) ||
+      OperandVT == MVT::ppcf128)
+    return DAG.getSetCC(DL, ResultVT, Op, DAG.getConstantFP(0.0, DL, OperandVT),
+                        ISD::SETUO);
+
+  // In general case use integer operations to avoid traps if argument is SNaN.
+
+  // NaN has all exp bits set and a non zero significand. Therefore:
+  // isnan(V) == exp mask < abs(V)
+  unsigned BitSize = OperandVT.getScalarSizeInBits();
+  EVT IntVT = OperandVT.changeTypeToInteger();
+  SDValue ArgV = DAG.getBitcast(IntVT, Op);
+  APInt AndMask = APInt::getSignedMaxValue(BitSize);
+  SDValue AndMaskV = DAG.getConstant(AndMask, DL, IntVT);
+  SDValue AbsV = DAG.getNode(ISD::AND, DL, IntVT, ArgV, AndMaskV);
+  EVT ScalarFloatVT = OperandVT.getScalarType();
+  const Type *FloatTy = ScalarFloatVT.getTypeForEVT(*DAG.getContext());
+  const llvm::fltSemantics &Semantics = FloatTy->getFltSemantics();
+  APInt ExpMask = APFloat::getInf(Semantics).bitcastToAPInt();
+  SDValue ExpMaskV = DAG.getConstant(ExpMask, DL, IntVT);
+  return DAG.getSetCC(DL, ResultVT, ExpMaskV, AbsV, ISD::SETLT);
+}
+
 bool TargetLowering::expandCTPOP(SDNode *Node, SDValue &Result,
                                  SelectionDAG &DAG) const {
   SDLoc dl(Node);
@@ -8073,14 +8103,12 @@ SDValue TargetLowering::expandAddSubSat(SDNode *Node, SelectionDAG &DAG) const {
     return DAG.getSelect(dl, VT, Overflow, Zero, SumDiff);
   }
 
-  // SatMax -> Overflow && SumDiff < 0
-  // SatMin -> Overflow && SumDiff >= 0
+  // Overflow ? (SumDiff >> BW) ^ MinVal : SumDiff
   APInt MinVal = APInt::getSignedMinValue(BitWidth);
-  APInt MaxVal = APInt::getSignedMaxValue(BitWidth);
   SDValue SatMin = DAG.getConstant(MinVal, dl, VT);
-  SDValue SatMax = DAG.getConstant(MaxVal, dl, VT);
-  SDValue SumNeg = DAG.getSetCC(dl, BoolVT, SumDiff, Zero, ISD::SETLT);
-  Result = DAG.getSelect(dl, VT, SumNeg, SatMax, SatMin);
+  SDValue Shift = DAG.getNode(ISD::SRA, dl, VT, SumDiff,
+                              DAG.getConstant(BitWidth - 1, dl, VT));
+  Result = DAG.getNode(ISD::XOR, dl, VT, Shift, SatMin);
   return DAG.getSelect(dl, VT, Overflow, Result, SumDiff);
 }
 
@@ -8391,7 +8419,7 @@ void TargetLowering::expandSADDSUBO(
 
   // If SADDSAT/SSUBSAT is legal, compare results to detect overflow.
   unsigned OpcSat = IsAdd ? ISD::SADDSAT : ISD::SSUBSAT;
-  if (isOperationLegalOrCustom(OpcSat, LHS.getValueType())) {
+  if (isOperationLegal(OpcSat, LHS.getValueType())) {
     SDValue Sat = DAG.getNode(OpcSat, dl, LHS.getValueType(), LHS, RHS);
     SDValue SetCC = DAG.getSetCC(dl, OType, Result, Sat, ISD::SETNE);
     Overflow = DAG.getBoolExtOrTrunc(SetCC, dl, ResultType, ResultType);
