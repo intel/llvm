@@ -1850,7 +1850,9 @@ cl_int enqueueImpKernel(NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
   pi_result Error = PI_SUCCESS;
   const ProgramManager::KernelArgMask &EliminatedArgMask =
       detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-          OSModuleHandle, ContextImpl, DeviceImpl, Program, KernelName, true);
+          // OSModuleHandle, ContextImpl, DeviceImpl, Program, KernelName,
+          // true); //TODO remove after merge:
+          OSModuleHandle, ContextImpl, DeviceImpl, Program, KernelName);
 
   if (KernelMutex != nullptr) {
     // For cacheable kernels, we use per-kernel mutex
