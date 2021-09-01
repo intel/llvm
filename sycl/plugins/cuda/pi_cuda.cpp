@@ -4426,7 +4426,6 @@ pi_result cuda_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
         }
       }
     } else {
-
       size_t adjustedRegion[3] = {bytesToCopy, region[1], region[2]};
       size_t srcOffset[3] = {srcByteOffsetX, src_origin[1], src_origin[2]};
       size_t dstOffset[3] = {dstByteOffsetX, dst_origin[1], dst_origin[2]};
@@ -4440,6 +4439,10 @@ pi_result cuda_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
           cuStream, imgType, adjustedRegion, &srcArray, CU_MEMORYTYPE_ARRAY,
           srcOffset, &dstArray, CU_MEMORYTYPE_ARRAY, dstOffset, dstContext,
           srcContext);
+
+      if (retErr != PI_SUCCESS) {
+        return retErr;
+      }
     }
 
     if (event) {
