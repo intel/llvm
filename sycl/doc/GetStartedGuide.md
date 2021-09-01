@@ -425,7 +425,7 @@ If CUDA support has been built, it is tested only if there are CUDA devices
 available.
 
 If testing with ROCm for AMD make sure to specify the GPU being used
-by adding `-Xsycl-target-backend=amdgcn-amd-amdhsa-sycldevice
+by adding `-Xsycl-target-backend=amdgcn-amd-amdhsa
 --offload-arch=<target>` to the CMake variable
 `SYCL_CLANG_EXTRA_FLAGS`.
 

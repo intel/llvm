@@ -83,7 +83,7 @@ if(SYCL_BUILD_PI_ROCM)
     add_lit_testsuite(check-sycl-rocm-ptx "Running device-agnostic SYCL regression tests for ROCm NVidia PTX"
       ${CMAKE_CURRENT_BINARY_DIR}
       ARGS ${RT_TEST_ARGS}
-      PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda-sycldevice;SYCL_PLUGIN=rocm"
+      PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda;SYCL_PLUGIN=rocm"
       DEPENDS ${SYCL_TEST_DEPS}
       EXCLUDE_FROM_CHECK_ALL
     )
@@ -93,7 +93,7 @@ if(SYCL_BUILD_PI_ROCM)
     add_lit_testsuite(check-sycl-rocm-gcn "Running device-agnostic SYCL regression tests for ROCm AMDGCN"
       ${CMAKE_CURRENT_BINARY_DIR}
       ARGS ${RT_TEST_ARGS}
-      PARAMS "SYCL_TRIPLE=amdgcn-amd-amdhsa-sycldevice;SYCL_PLUGIN=rocm"
+      PARAMS "SYCL_TRIPLE=amdgcn-amd-amdhsa;SYCL_PLUGIN=rocm"
       DEPENDS ${SYCL_TEST_DEPS}
       EXCLUDE_FROM_CHECK_ALL
     )

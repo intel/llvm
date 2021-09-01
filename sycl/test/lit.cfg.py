@@ -103,13 +103,13 @@ config.substitutions.append( ('%sycl_triple',  triple ) )
 if triple == 'nvptx64-nvidia-cuda':
     config.available_features.add('cuda')
 
-if triple == 'amdgcn-amd-amdhsa-sycldevice':
+if triple == 'amdgcn-amd-amdhsa':
     config.available_features.add('rocm_amd')
     # For AMD the specific GPU has to be specified with --offload-arch
     if not re.match('.*--offload-arch.*', config.sycl_clang_extra_flags):
         raise Exception("Error: missing --offload-arch flag when trying to "  \
                         "run lit tests for AMD GPU, please add "              \
-                        "`-Xsycl-target-backend=amdgcn-amd-amdhsa-sycldevice --offload-arch=<target>` to " \
+                        "`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` to " \
                         "the CMake variable SYCL_CLANG_EXTRA_FLAGS")
 
 # Set timeout for test = 10 mins
