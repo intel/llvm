@@ -28,7 +28,7 @@ This document presents a series of changes proposed for a future version of the 
 
 == Name Strings
 
-+SYCL_INTEL_enqueue_barrier+
++SYCL_EXT_INTEL_ENQUEUE_BARRIER+
 
 == Notice
 

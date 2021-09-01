@@ -12,7 +12,7 @@ NOTE: This document is better viewed when rendered as html with asciidoctor.  Gi
 This document describes an extension to the SYCL USM extension that adds new explicit address spaces for the possible locations that USM pointers can be allocated.  Users can create pointers that point into these address spaces explicitly in order to pass additional information to their compiler so as to enable optimizations.  
 
 == Name Strings
-+SYCL_INTEL_usm_address_spaces+
++SYCL_EXT_INTEL_USM_ADDRESS_SPACES+
 
 == Notice
 Copyright (c) 2020 Intel Corporation.  All rights reserved.
