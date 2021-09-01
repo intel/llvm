@@ -8919,7 +8919,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     else
       // split must be off
       assert(StringRef(A->getValue()) == "off");
-  } else {
+  } else if (getToolChain().getTriple().getArchName() != "spir64_fpga") {
     // auto is the default split mode
     addArgs(CmdArgs, TCArgs, {"-split=auto"});
   }
