@@ -206,7 +206,7 @@ public:
     if (!PiPlatforms)
       PiPlatforms = new std::vector<RT::PiPlatform>;
     int PlatformId = getPlatformId(Platform);
-    if (PlatformId == 0)
+    if (PlatformId <= 0)
       return 0;
 
     return LastDeviceIds[PlatformId - 1];
