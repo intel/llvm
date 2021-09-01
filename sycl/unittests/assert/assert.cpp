@@ -18,7 +18,7 @@
  * pipe.
  */
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -33,8 +33,7 @@
 
 class TestKernel;
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_INT_HEADER_OPEN_NS() {
 namespace detail {
 template <> struct KernelInfo<TestKernel> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -65,8 +64,8 @@ template <> struct KernelInfo<::sycl::detail::AssertInfoCopier> {
   static constexpr bool callsAnyThisFreeFunction() { return 0; }
 };
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()
 
 static sycl::unittest::PiImage generateDefaultImage() {
   using namespace sycl::unittest;

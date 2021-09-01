@@ -292,5 +292,5 @@ __SYCL_EXPORT s::cl_float fast_distance(s::cl_float4 p0, s::cl_float4 p1) {
 }
 
 } // namespace __host_std
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS_BUILTINS()

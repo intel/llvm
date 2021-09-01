@@ -16,8 +16,7 @@ SYCL_EXTERNAL __attribute__((weak)) extern "C" void
 __devicelib_assert_read(void *);
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS() {
 namespace detail {
 // NOTE Layout of this structure should be aligned with the one in
 // libdevice/include/assert-happened.hpp
@@ -38,5 +37,5 @@ struct AssertHappened {
   uint64_t LID2 = 0;
 };
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

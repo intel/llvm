@@ -997,5 +997,5 @@ __SYCL_EXPORT s::cl_float half_tan(s::cl_float x) __NOEXC {
 MAKE_1V(half_tan, s::cl_float, s::cl_float)
 
 } // namespace __host_std
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS_BUILTINS()
