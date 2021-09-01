@@ -65,7 +65,7 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   TLSSupported = false;
   VLASupported = false;
   AddrSpaceMap = &NVPTXAddrSpaceMap;
-  GridValues = llvm::omp::NVPTXGpuGridValues;
+  GridValues = &llvm::omp::NVPTXGridValues;
   UseAddrSpaceMapMangling = true;
   HasLegalHalfType = true;
   HasFloat16 = true;
