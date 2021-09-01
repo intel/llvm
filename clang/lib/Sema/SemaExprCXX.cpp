@@ -4785,10 +4785,6 @@ static bool CheckUnaryTypeTraitTypeCompleteness(Sema &S, TypeTrait UTT,
 
     return !S.RequireCompleteType(
         Loc, ArgTy, diag::err_incomplete_type_used_in_type_trait_expr);
-
-  // Only the type name matters, not the completeness, so always return true.
-  case UTT_SYCLMarkKernelName:
-    return true;
   }
 }
 
@@ -5225,9 +5221,6 @@ static bool EvaluateUnaryTypeTrait(Sema &Self, TypeTrait UTT,
     return !T->isIncompleteType();
   case UTT_HasUniqueObjectRepresentations:
     return C.hasUniqueObjectRepresentations(T);
-  case UTT_SYCLMarkKernelName:
-    Self.MarkSYCLKernel(KeyLoc, T, /*IsInstantiation*/ false);
-    return true;
   }
 }
 

@@ -15,10 +15,6 @@ template <typename KernelName, typename KernelType>
 template <typename Func>
 void kernel1func(const Func &F1) {
   constexpr const char *F1_output = __builtin_sycl_unique_stable_name(Func); // #USN_F1
-  // expected-error@#kernelSingleTask{{kernel instantiation changes the result of an evaluated '__builtin_sycl_unique_stable_name'}}
-  // expected-note@#kernel1func_call{{in instantiation of function template specialization}}
-  // expected-note@#USN_F1{{'__builtin_sycl_unique_stable_name' evaluated here}}
-  // expected-note@+1{{in instantiation of function template specialization}}
   kernel_single_task<Func>(F1); // #kernel1_call
 }
 
@@ -39,10 +35,6 @@ template <typename Func>
 void kernel2func(const Func &F2) {
   constexpr const char *F2_output = __builtin_sycl_unique_stable_name(Func); // #USN_F2
   auto Lambda = [](){};
-  // expected-error@#kernelSingleTask{{kernel instantiation changes the result of an evaluated '__builtin_sycl_unique_stable_name'}}
-  // expected-note@#kernel2func_call{{in instantiation of function template specialization}}
-  // expected-note@#USN_F2{{'__builtin_sycl_unique_stable_name' evaluated here}}
-  // expected-note@+1{{in instantiation of function template specialization}}
   kernel_single_task<decltype(Lambda)>(Lambda);
 }
 
@@ -102,9 +94,6 @@ int main() {
   auto l6 = []() { return 1; };
   constexpr const char *l6_output =
       __builtin_sycl_unique_stable_name(decltype(l6)); // #USN_l6
-  // expected-error@#kernelSingleTask{{kernel instantiation changes the result of an evaluated '__builtin_sycl_unique_stable_name'}}
-  // expected-note@#USN_l6{{'__builtin_sycl_unique_stable_name' evaluated here}}
-  // expected-note@+1{{in instantiation of function template specialization}}
   kernel_single_task<decltype(l6)>(l6); // Used in the kernel name after builtin
 
   // kernel7 - expect error
@@ -117,9 +106,6 @@ int main() {
   auto l8 = [](decltype(l7) *derp = nullptr) { return 2; };
   constexpr const char *l7_output =
       __builtin_sycl_unique_stable_name(decltype(l7)); // #USN_l7
-  // expected-error@#kernelSingleTask{{kernel instantiation changes the result of an evaluated '__builtin_sycl_unique_stable_name'}}
-  // expected-note@#USN_l7{{'__builtin_sycl_unique_stable_name' evaluated here}}
-  // expected-note@+1{{in instantiation of function template specialization}}
   kernel_single_task<decltype(l8)>(l8);
 
   // kernel8 and kernel9 - expect error
@@ -136,9 +122,6 @@ int main() {
   if constexpr (1) {
     kernel_single_task<decltype(l9)>(l9);
   } else {
-    // expected-error@#kernelSingleTask{{kernel instantiation changes the result of an evaluated '__builtin_sycl_unique_stable_name'}}
-    // expected-note@#USN_l10{{'__builtin_sycl_unique_stable_name' evaluated here}}
-    // expected-note@+1{{in instantiation of function template specialization}}
     kernel_single_task<decltype(l10)>(l10);
   }
 
@@ -161,9 +144,6 @@ int main() {
   auto l13 = []() { return 1; };
   constexpr const char *l13_output =
       __builtin_sycl_unique_stable_name(decltype(l13)); // #USN_l13
-  // expected-error@#kernelSingleTask{{kernel instantiation changes the result of an evaluated '__builtin_sycl_unique_stable_name'}}
-  // expected-note@#USN_l13{{'__builtin_sycl_unique_stable_name' evaluated here}}
-  // expected-note@+1{{in instantiation of function template specialization}}
   kernel_single_task<S<Tangerine, decltype(l13)>>(
       S<Tangerine, decltype(l13)>{});
 
@@ -171,9 +151,6 @@ int main() {
   // Test that passing a lambda to the unique stable name builtin within a macro
   // and then calling the macro within the kernel causes an error on the kernel
   // and diagnoses in all the expected places despite the use of a macro.
-  // expected-error@#kernelSingleTask{{kernel instantiation changes the result of an evaluated '__builtin_sycl_unique_stable_name'}}
-  // expected-note@#USN_MACRO{{'__builtin_sycl_unique_stable_name' evaluated here}}
-  // expected-note@+4{{in instantiation of function template specialization}}
   auto MacroWrapLambda = []() {
     MACRO(); // #USN_MACRO
   };
@@ -221,4 +198,16 @@ struct St {};
 void use() {
   // expected-note@+1{{in instantiation of}}
   f2<St>();
+}
+
+// A previous implementation resulted in this being an example of the
+// kernel-ordering and lexical lambda ordering issue.
+void out_of_order_use() {
+  auto x = [](){};
+  auto y = [](){};
+
+  kernel_single_task<decltype(y)>(y);
+  constexpr auto USN =__builtin_sycl_unique_stable_name(decltype(y));
+  (void)USN;
+  kernel_single_task<decltype(x)>(x);
 }
