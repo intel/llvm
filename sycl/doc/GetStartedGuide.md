@@ -110,7 +110,7 @@ flags can be found by launching the script with `--help`):
 * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
 * `--rocm` -> use the rocm backend (see [AMD ROCm](#build-dpc-toolchain-with-support-for-amd-rocm))
 * `--rocm-platform` -> select the platform used by the rocm backend, `AMD` or `NVIDIA` (see [AMD ROCm](#build-dpc-toolchain-with-support-for-amd-rocm) or see [NVIDIA ROCm](#build-dpc-toolchain-with-support-for-nvidia-rocm))
-* '--enable-esimd-cpu-emulation' -> enable ESIMD CPU emulation (See [Build DPC++ toolchain with support for ESIMD CPU Emulation])
+* '--enable-esimd-cpu-emulation' -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
 * `--shared-libs` -> Build shared libraries
 * `-t` -> Build type (debug or release)
 * `-o` -> Path to build directory
