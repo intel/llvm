@@ -714,8 +714,6 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   if (!M)
     return TblFiles;
 
-  Module *MPtr = M.get();
-
   // After linking device bitcode "llvm.used" holds references to the kernels
   // that are defined in the device image. But after splitting device image into
   // separate kernels we may end up with having references to kernel declaration
@@ -724,7 +722,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   // issue remove "llvm.used" from the input module before performing any other
   // actions.
   bool IsLLVMUsedRemoved = false;
-  if (GlobalVariable *GV = MPtr->getGlobalVariable("llvm.used")) {
+  if (GlobalVariable *GV = M->getGlobalVariable("llvm.used")) {
     assert(GV->user_empty() && "unexpected llvm.used users");
     GV->eraseFromParent();
     IsLLVMUsedRemoved = true;
