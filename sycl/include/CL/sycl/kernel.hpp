@@ -49,7 +49,7 @@ template <typename Name, typename Type> struct get_kernel_name_t {
 /// lack of specialization allows us to trigger static_assert from the primary
 /// definition.
 template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
-  using name = TYpe;
+  using name = Type;
 };
 #endif // __SYCL_UNNAMED_LAMBDA__
 
