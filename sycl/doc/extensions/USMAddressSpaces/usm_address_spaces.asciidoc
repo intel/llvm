@@ -87,15 +87,15 @@ enum class address_space : int {
     local_space,
     constant_space,
     private_space,
-    device_space,
-    host_space
+    ext_intel_global_device_space,
+    ext_intel_global_host_space
 };
 ```
 
 Add the following new conversion operator:
 ```c++
 // Explicit conversion to global_space
-// Only available if Space == address_space::device_space || Space == address_space::host_space
+// Only available if Space == address_space::ext_intel_global_device_space || Space == address_space::ext_intel_global_host_space
 explicit operator multi_ptr<ElementType, access::address_space::global_space>() const; 
 ```
 
@@ -109,12 +109,12 @@ a|
 ```c++
 template<typename ElementType, access::
 address_space Space = access::address_space::
-device_space>
+ext_intel_global_device_space>
     template <int dimensions, access::mode Mode>
     multi_ptr(
     accessor<ElementType, dimensions, Mode, access::
     target::global_buffer>)
-``` | Constructs a multi_ptr<ElementType, access::address_space::device_space> from an accessor of access::target::global_buffer.
+``` | Constructs a multi_ptr<ElementType, access::address_space::ext_intel_global_device_space> from an accessor of access::target::global_buffer.
 |===
 --
 
@@ -123,10 +123,10 @@ device_space>
 Add device_ptr and host_ptr aliases to the list of multi_ptr aliases as follows:
 ```c++
 template<typename ElementType>
-using device_ptr = multi_ptr<ElementType, access::address_space::device_space>
+using device_ptr = multi_ptr<ElementType, access::address_space::ext_intel_global_device_space>
 
 template<typename ElementType>
-using host_ptr = multi_ptr<ElementType, access::address_space::host_space>
+using host_ptr = multi_ptr<ElementType, access::address_space::ext_intel_global_host_space>
 ```
 
 == Revision History
