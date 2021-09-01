@@ -1453,6 +1453,8 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_EXTENSIONS: {
 
     std::string SupportedExtensions = "cl_khr_fp64 ";
+    SupportedExtensions += PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT;
+    SupportedExtensions += " ";
 
     int major = 0;
     int minor = 0;
@@ -3654,12 +3656,18 @@ static pi_result commonEnqueueMemBufferCopyRect(
   assert(src_type == CU_MEMORYTYPE_DEVICE || src_type == CU_MEMORYTYPE_HOST);
   assert(dst_type == CU_MEMORYTYPE_DEVICE || dst_type == CU_MEMORYTYPE_HOST);
 
-  src_row_pitch = (!src_row_pitch) ? region->width_bytes : src_row_pitch;
-  src_slice_pitch = (!src_slice_pitch) ? (region->height_scalar * src_row_pitch)
-                                       : src_slice_pitch;
-  dst_row_pitch = (!dst_row_pitch) ? region->width_bytes : dst_row_pitch;
-  dst_slice_pitch = (!dst_slice_pitch) ? (region->height_scalar * dst_row_pitch)
-                                       : dst_slice_pitch;
+  src_row_pitch = (!src_row_pitch) ? region->width_bytes + src_offset->x_bytes
+                                   : src_row_pitch;
+  src_slice_pitch =
+      (!src_slice_pitch)
+          ? ((region->height_scalar + src_offset->y_scalar) * src_row_pitch)
+          : src_slice_pitch;
+  dst_row_pitch = (!dst_row_pitch) ? region->width_bytes + dst_offset->x_bytes
+                                   : dst_row_pitch;
+  dst_slice_pitch =
+      (!dst_slice_pitch)
+          ? ((region->height_scalar + dst_offset->y_scalar) * dst_row_pitch)
+          : dst_slice_pitch;
 
   CUDA_MEMCPY3D params = {};
 

@@ -24,6 +24,7 @@ class ProgramManager;
 class Sync;
 class plugin;
 class device_filter_list;
+class XPTIRegistry;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 using ContextImplPtr = std::shared_ptr<context_impl>;
@@ -64,6 +65,7 @@ public:
   std::mutex &getFilterMutex();
   std::vector<plugin> &getPlugins();
   device_filter_list &getDeviceFilterList(const std::string &InitValue);
+  XPTIRegistry &getXPTIRegistry();
   std::mutex &getHandlerExtendedMembersMutex();
 
 private:
@@ -93,6 +95,7 @@ private:
   InstWithLock<std::mutex> MFilterMutex;
   InstWithLock<std::vector<plugin>> MPlugins;
   InstWithLock<device_filter_list> MDeviceFilterList;
+  InstWithLock<XPTIRegistry> MXPTIRegistry;
   // The mutex for synchronizing accesses to handlers extended members
   InstWithLock<std::mutex> MHandlerExtendedMembersMutex;
 };
