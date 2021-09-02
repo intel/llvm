@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <set>
+#include <vector>
 
 static int func_callback_update = 0;
 
@@ -55,6 +56,22 @@ TEST(xptiApiTest, xptiLookupStringGoodInput) {
   EXPECT_EQ(LookUpString, TStr);
   EXPECT_STREQ(LookUpString, TStr);
   EXPECT_STREQ("foo", LookUpString);
+}
+
+TEST(xptiApiTest, xptiRegisterPayloadGoodInput) {
+  xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)0xdeadbeef);
+
+  auto ID = xptiRegisterPayload(&p);
+  EXPECT_NE(ID, xpti::invalid_id);
+  EXPECT_EQ(p.internal, ID);
+  EXPECT_EQ(p.uid.hash(), ID);
+}
+
+TEST(xptiApiTest, xptiRegisterPayloadBadInput) {
+  xpti::payload_t p;
+
+  auto ID = xptiRegisterPayload(&p);
+  EXPECT_EQ(ID, xpti::invalid_uid);
 }
 
 TEST(xptiApiTest, xptiGetUniqueId) {
@@ -160,6 +177,19 @@ TEST(xptiApiTest, xptiQueryPayloadGoodInput) {
   EXPECT_NE(Payload.name_sid(), NewResult->name_sid());
   EXPECT_NE(Payload.source_file_sid(), NewResult->source_file_sid());
   EXPECT_EQ(Payload.line_no, NewResult->line_no);
+}
+
+TEST(xptiApiTest, xptiQueryPayloadByUIDGoodInput) {
+  xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)0xdeadbeef);
+
+  auto ID = xptiRegisterPayload(&p);
+  EXPECT_NE(ID, xpti::invalid_id);
+  EXPECT_EQ(p.internal, ID);
+  EXPECT_EQ(p.uid.hash(), ID);
+
+  auto pp = xptiQueryPayloadByUID(ID);
+  EXPECT_EQ(p.internal, pp->internal);
+  EXPECT_EQ(p.uid.hash(), pp->uid.hash());
 }
 
 TEST(xptiApiTest, xptiTraceEnabled) {

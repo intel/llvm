@@ -92,6 +92,8 @@ enum class payload_flag_t {
   ColumnInfoAvailable = 1 << 4,
   /// Caller/Callee stack trace available when source/kernel info not available
   StackTraceAvailable = 1 << 5,
+  /// Payload has been registered with the framework
+  PayloadRegistered = 1 << 15,
   // A 64-bit hash is already available for this payload
   HashAvailable = 2 << 16
 };
@@ -172,7 +174,9 @@ struct payload_t {
     source_file = nullptr;  ///< Invalid source file string pointer
     line_no = invalid_id;   ///< Invalid line number
     column_no = invalid_id; ///< Invalid column number
-    flags = (uint64_t)payload_flag_t::CodePointerAvailable;
+    if (codeptr) {
+      flags = (uint64_t)payload_flag_t::CodePointerAvailable;
+    }
   }
 
   //  If neither an address or the fully identifyable source file name and
@@ -184,15 +188,21 @@ struct payload_t {
     code_ptr_va = nullptr;
     name = func_name;      ///< Invalid name string pointer
     source_file = nullptr; ///< Invalid source file string pointer
-    flags = (uint64_t)(payload_flag_t::NameAvailable);
+    if (func_name) {
+      flags = (uint64_t)(payload_flag_t::NameAvailable);
+    }
   }
 
   payload_t(const char *func_name, void *codeptr) {
     code_ptr_va = codeptr;
     name = func_name;      ///< Invalid name string pointer
     source_file = nullptr; ///< Invalid source file string pointer
-    flags = (uint64_t)payload_flag_t::NameAvailable |
-            (uint64_t)payload_flag_t::CodePointerAvailable;
+    if (func_name) {
+      flags = (uint64_t)(payload_flag_t::NameAvailable);
+    }
+    if (codeptr) {
+      flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
+    }
   }
 
   //  When the end user opts out of preserving the code location information and
@@ -228,11 +238,17 @@ struct payload_t {
     source_file = sf;
     line_no = line;
     column_no = col;
-    flags = (uint64_t)payload_flag_t::NameAvailable |
-            (uint64_t)payload_flag_t::SourceFileAvailable |
-            (uint64_t)payload_flag_t::LineInfoAvailable |
-            (uint64_t)payload_flag_t::ColumnInfoAvailable |
-            (uint64_t)payload_flag_t::CodePointerAvailable;
+    if (kname) {
+      flags = (uint64_t)payload_flag_t::NameAvailable;
+    }
+    if (sf) {
+      flags |= (uint64_t)payload_flag_t::SourceFileAvailable |
+               (uint64_t)payload_flag_t::LineInfoAvailable |
+               (uint64_t)payload_flag_t::ColumnInfoAvailable;
+    }
+    if (codeptr) {
+      flags |= (uint64_t)payload_flag_t::CodePointerAvailable;
+    }
   }
 
   int32_t name_sid() const { return (int32_t)(uid.p2 & 0x00000000ffffffff); }

@@ -319,6 +319,17 @@ public:
     }
   }
 
+  const xpti::payload_t *payloadDataByUID(uint64_t uid) {
+    if (uid == xpti::invalid_uid)
+      return nullptr;
+    // Scoped lock until the information is retrieved from the map
+    {
+      std::lock_guard<std::mutex> Lock(MEventMutex);
+      // Cache it in case it is not already cached
+      return &MPayloads[uid];
+    }
+  }
+
   const xpti::trace_event_data_t *eventData(uint64_t UId) {
     if (UId == xpti::invalid_uid)
       return nullptr;
@@ -373,7 +384,21 @@ public:
 #endif
   }
 
-private:
+  uint64_t registerPayload(xpti::payload_t *Payload) {
+    auto HashValue = makeHash(Payload);
+    if (HashValue == xpti::invalid_uid)
+      return xpti::invalid_uid;
+
+    std::lock_guard<std::mutex> Lock(MEventMutex);
+    // We also want to query the payload by universal ID that has been
+    // generated
+    auto &CurrentPayload = MPayloads[HashValue];
+    Payload->flags |= (uint64_t)payload_flag_t::PayloadRegistered;
+    CurrentPayload = *Payload; // when it uses tbb, should be thread-safe
+
+    return HashValue;
+  }
+
   ///  Goals: To create a hash value from payload
   ///  1. Check the payload structure to see if it is valid. If valid, then
   ///  check to see if any strings are provided and add them to the string
@@ -430,6 +455,7 @@ private:
     return HashValue;
   }
 
+private:
   // Register the payload and generate a universal ID for it.
   // Once registered, the payload is accessible through the
   // Universal ID that corresponds to the payload.
@@ -476,6 +502,8 @@ private:
       // generated
       auto &CurrentPayload = MPayloads[HashValue];
       CurrentPayload = TempPayload; // when it uses tbb, should be thread-safe
+      CurrentPayload.flags |= (uint64_t)payload_flag_t::PayloadRegistered;
+
       xpti::trace_event_data_t *Event = &MEvents[HashValue];
       // We are seeing this unique ID for the first time, so we will
       // initialize the event structure with defaults and set the unique_id to
@@ -872,6 +900,13 @@ public:
     return MStringTableRef.query(ID);
   }
 
+  uint64_t registerPayload(xpti::payload_t *payload) {
+    if (!payload)
+      return xpti::invalid_id;
+
+    return MTracepoints.registerPayload(payload);
+  }
+
   xpti::result_t registerCallback(uint8_t StreamID, uint16_t TraceType,
                                   xpti::tracepoint_callback_api_t cbFunc) {
     return MNotifier.registerCallback(StreamID, TraceType, cbFunc);
@@ -921,6 +956,10 @@ public:
 
   const xpti::payload_t *queryPayload(xpti::trace_event_data_t *Event) {
     return MTracepoints.payloadData(Event);
+  }
+
+  const xpti::payload_t *queryPayloadByUID(uint64_t uid) {
+    return MTracepoints.payloadDataByUID(uid);
   }
 
   void printStatistics() {
@@ -992,6 +1031,10 @@ XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t ID) {
   return xpti::GXPTIFramework.lookupString(ID);
 }
 
+XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload) {
+  return xpti::GXPTIFramework.registerPayload(payload);
+}
+
 XPTI_EXPORT_API uint8_t xptiRegisterStream(const char *StreamName) {
   return xpti::GXPTIFramework.registerStream(StreamName);
 }
@@ -1014,6 +1057,10 @@ XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(uint64_t UId) {
 XPTI_EXPORT_API const xpti::payload_t *
 xptiQueryPayload(xpti::trace_event_data_t *LookupObject) {
   return xpti::GXPTIFramework.queryPayload(LookupObject);
+}
+
+XPTI_EXPORT_API const xpti::payload_t *xptiQueryPayloadByUID(uint64_t uid) {
+  return xpti::GXPTIFramework.queryPayloadByUID(uid);
 }
 
 XPTI_EXPORT_API xpti::result_t
