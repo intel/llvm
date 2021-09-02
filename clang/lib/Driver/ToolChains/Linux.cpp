@@ -177,8 +177,8 @@ static StringRef getOSLibDir(const llvm::Triple &Triple, const ArgList &Args) {
 
 Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     : Generic_ELF(D, Triple, Args) {
-  // for SYCL device targets, we rely on the host GCC for proper compilation
-  if (Triple.getEnvironment() == llvm::Triple::SYCLDevice) {
+  // For SPIR device target, we rely on the host GCC for proper compilation.
+  if (Triple.isSPIR()) {
     GCCInstallation.init(llvm::Triple(llvm::sys::getProcessTriple()), Args);
   } else {
     GCCInstallation.init(Triple, Args);
