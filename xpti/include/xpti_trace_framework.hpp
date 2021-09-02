@@ -321,8 +321,13 @@ private:
   uint64_t m_instance;
 };
 
-// --------------- Requires checks from OSPDT ----------------
+// --------------- Commented section of the code -------------
+//
 // github.com/bombela/backward-cpp/blob/master/backward.hpp
+//
+// Need to figure out the process for considering 3rd party
+// code that helps with addressing the gaps when the developer
+// doesn't opt-in.
 //------------------------------------------------------------
 // #include "backward.hpp"
 // class backtrace_t {
