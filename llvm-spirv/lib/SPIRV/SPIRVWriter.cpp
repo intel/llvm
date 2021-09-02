@@ -2217,7 +2217,7 @@ SPIRVValue *LLVMToSPIRVBase::oclTransSpvcCastSampler(CallInst *CI,
 
 using DecorationsInfoVec = std::vector<std::pair<Decoration, std::string>>;
 
-struct IntelFPGADecorations {
+struct AnnotationDecorations {
   DecorationsInfoVec MemoryAttributesVec;
   DecorationsInfoVec MemoryAccessesVec;
 };
@@ -2259,9 +2259,62 @@ struct IntelLSUControlsInfo {
   llvm::Optional<unsigned> PrefetchInfo;
 };
 
-IntelFPGADecorations
-tryParseIntelFPGAAnnotationString(StringRef AnnotatedCode) {
-  IntelFPGADecorations Decorates;
+// Handle optional var/ptr/global annotation parameter. It can be for example
+// { %struct.S, i8*, void ()* } { %struct.S undef, i8* null,
+//                                void ()* @_Z4blahv }
+// Now we will just handle integer constants (wrapped in a constant
+// struct, that is being bitcasted to i8*), converting them to string.
+// TODO: remove this workaround when/if an extension spec that allows or adds
+// variadic-arguments UserSemantic decoration
+void processOptionalAnnotationInfo(Constant *Const,
+                                   std::string &AnnotationString) {
+  if (!Const->getNumOperands())
+    return;
+  if (auto *CStruct = dyn_cast<ConstantStruct>(Const->getOperand(0))) {
+    uint32_t NumOperands = CStruct->getNumOperands();
+    if (!NumOperands)
+      return;
+    if (auto *CInt = dyn_cast<ConstantInt>(CStruct->getOperand(0))) {
+      AnnotationString += ": ";
+      AnnotationString += std::to_string(CInt->getSExtValue());
+    }
+    for (uint32_t I = 1; I != NumOperands; ++I) {
+      if (auto *CInt = dyn_cast<ConstantInt>(CStruct->getOperand(I))) {
+        AnnotationString += ", ";
+        AnnotationString += std::to_string(CInt->getSExtValue());
+      }
+    }
+  }
+}
+
+// Process main var/ptr/global annotation string with the attached optional
+// integer parameters
+void processAnnotationString(IntrinsicInst *II, std::string &AnnotationString) {
+  if (auto *GEP = dyn_cast<GetElementPtrInst>(II->getArgOperand(1))) {
+    if (auto *C = dyn_cast<Constant>(GEP->getOperand(0))) {
+      StringRef StrRef;
+      getConstantStringInfo(C, StrRef);
+      AnnotationString += StrRef.str();
+    }
+  }
+  if (auto *Cast = dyn_cast<BitCastInst>(II->getArgOperand(4)))
+    if (auto *C = dyn_cast_or_null<Constant>(Cast->getOperand(0)))
+      processOptionalAnnotationInfo(C, AnnotationString);
+}
+
+AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
+                                               StringRef AnnotatedCode) {
+  AnnotationDecorations Decorates;
+  const bool AllowFPGAMemAccesses =
+      BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_memory_accesses);
+  const bool AllowFPGAMemAttr = BM->isAllowedToUseExtension(
+      ExtensionID::SPV_INTEL_fpga_memory_attributes);
+  if (!AllowFPGAMemAccesses && !AllowFPGAMemAttr) {
+    Decorates.MemoryAttributesVec.emplace_back(DecorationUserSemantic,
+                                               AnnotatedCode.str());
+    return Decorates;
+  }
+
   IntelLSUControlsInfo LSUControls;
 
   // Intel FPGA decorations are separated into
@@ -2275,25 +2328,27 @@ tryParseIntelFPGAAnnotationString(StringRef AnnotatedCode) {
     // Drop the braces surrounding the actual decoration
     const StringRef AnnotatedDecoration = AnnotatedCode.substr(
         DecorationsIt->position() + 1, DecorationsIt->length() - 2);
+
     std::pair<StringRef, StringRef> Split = AnnotatedDecoration.split(':');
     StringRef Name = Split.first, ValueStr = Split.second;
-
-    if (Name == "params") {
-      unsigned ParamsBitMask = 0;
-      bool Failure = ValueStr.getAsInteger(10, ParamsBitMask);
-      assert(!Failure && "Non-integer LSU controls value");
-      (void)Failure;
-      LSUControls.setWithBitMask(ParamsBitMask);
-    } else if (Name == "cache-size") {
-      if (!LSUControls.CacheSizeInfo.hasValue())
-        continue;
-      unsigned CacheSizeValue = 0;
-      bool Failure = ValueStr.getAsInteger(10, CacheSizeValue);
-      assert(!Failure && "Non-integer cache size value");
-      (void)Failure;
-      LSUControls.CacheSizeInfo = CacheSizeValue;
-    } // TODO: Support LSU prefetch size, which currently defaults to 0
-    else /* Memory attributes */ {
+    if (AllowFPGAMemAccesses) {
+      if (Name == "params") {
+        unsigned ParamsBitMask = 0;
+        bool Failure = ValueStr.getAsInteger(10, ParamsBitMask);
+        assert(!Failure && "Non-integer LSU controls value");
+        (void)Failure;
+        LSUControls.setWithBitMask(ParamsBitMask);
+      } else if (Name == "cache-size") {
+        if (!LSUControls.CacheSizeInfo.hasValue())
+          continue;
+        unsigned CacheSizeValue = 0;
+        bool Failure = ValueStr.getAsInteger(10, CacheSizeValue);
+        assert(!Failure && "Non-integer cache size value");
+        (void)Failure;
+        LSUControls.CacheSizeInfo = CacheSizeValue;
+      } // TODO: Support LSU prefetch size, which currently defaults to 0
+    }
+    if (AllowFPGAMemAttr) {
       StringRef Annotation;
       Decoration Dec;
       if (Name == "pump") {
@@ -2339,13 +2394,8 @@ std::vector<SPIRVWord> getBankBitsFromString(StringRef S) {
   return Bits;
 }
 
-void addIntelFPGADecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
+void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
   SPIRVModule *M = E->getModule();
-  if (!M->isAllowedToUseExtension(
-          ExtensionID::SPV_INTEL_fpga_memory_attributes) &&
-      !M->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_memory_accesses))
-    return;
-
   for (const auto &I : Decorations) {
     // Such decoration already exists on a type, skip it
     if (E->hasDecorate(I.first, /*Index=*/0, /*Result=*/nullptr)) {
@@ -2356,48 +2406,76 @@ void addIntelFPGADecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
     case DecorationUserSemantic:
       E->addDecorate(new SPIRVDecorateUserSemanticAttr(E, I.second));
       break;
-    case DecorationMemoryINTEL:
-      E->addDecorate(new SPIRVDecorateMemoryINTELAttr(E, I.second));
-      break;
-    case DecorationMergeINTEL: {
-      StringRef Name = StringRef(I.second).split(':').first;
-      StringRef Direction = StringRef(I.second).split(':').second;
-      E->addDecorate(
-          new SPIRVDecorateMergeINTELAttr(E, Name.str(), Direction.str()));
+    case DecorationMemoryINTEL: {
+      if (M->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_fpga_memory_attributes))
+        E->addDecorate(new SPIRVDecorateMemoryINTELAttr(E, I.second));
     } break;
-    case DecorationBankBitsINTEL:
-      E->addDecorate(new SPIRVDecorateBankBitsINTELAttr(
-          E, getBankBitsFromString(I.second)));
-      break;
+    case DecorationMergeINTEL: {
+      if (M->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_fpga_memory_attributes)) {
+        StringRef Name = StringRef(I.second).split(':').first;
+        StringRef Direction = StringRef(I.second).split(':').second;
+        E->addDecorate(
+            new SPIRVDecorateMergeINTELAttr(E, Name.str(), Direction.str()));
+      }
+    } break;
+    case DecorationBankBitsINTEL: {
+      if (M->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_fpga_memory_attributes))
+        E->addDecorate(new SPIRVDecorateBankBitsINTELAttr(
+            E, getBankBitsFromString(I.second)));
+    } break;
     case DecorationRegisterINTEL:
     case DecorationSinglepumpINTEL:
     case DecorationDoublepumpINTEL:
-    case DecorationSimpleDualPortINTEL:
+    case DecorationSimpleDualPortINTEL: {
+      if (M->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_fpga_memory_attributes)) {
+        assert(I.second.empty());
+        E->addDecorate(I.first);
+      }
+    } break;
     case DecorationBurstCoalesceINTEL:
-    case DecorationDontStaticallyCoalesceINTEL:
-      assert(I.second.empty());
-      E->addDecorate(I.first);
-      break;
-    // The rest of IntelFPGA decorations:
-    // DecorationNumbanksINTEL
-    // DecorationBankwidthINTEL
-    // DecorationMaxPrivateCopiesINTEL
-    // DecorationMaxReplicatesINTEL
-    // DecorationForcePow2DepthINTEL
-    // DecorationCacheSizeINTEL
-    // DecorationPrefetchINTEL
+    case DecorationDontStaticallyCoalesceINTEL: {
+      if (M->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_fpga_memory_accesses)) {
+        assert(I.second.empty());
+        E->addDecorate(I.first);
+      }
+    } break;
+    case DecorationNumbanksINTEL:
+    case DecorationBankwidthINTEL:
+    case DecorationMaxPrivateCopiesINTEL:
+    case DecorationMaxReplicatesINTEL:
+    case DecorationForcePow2DepthINTEL: {
+      if (M->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_fpga_memory_attributes)) {
+        SPIRVWord Result = 0;
+        StringRef(I.second).getAsInteger(10, Result);
+        E->addDecorate(I.first, Result);
+      }
+    } break;
+    case DecorationCacheSizeINTEL:
+    case DecorationPrefetchINTEL: {
+      if (M->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_fpga_memory_accesses)) {
+        SPIRVWord Result = 0;
+        StringRef(I.second).getAsInteger(10, Result);
+        E->addDecorate(I.first, Result);
+      }
+    } break;
     default:
-      SPIRVWord Result = 0;
-      StringRef(I.second).getAsInteger(10, Result);
-      E->addDecorate(I.first, Result);
+      // Other decorations are either not supported by the translator or
+      // handled in other places.
       break;
     }
   }
 }
 
-void addIntelFPGADecorationsForStructMember(SPIRVEntry *E,
-                                            SPIRVWord MemberNumber,
-                                            DecorationsInfoVec &Decorations) {
+void addAnnotationDecorationsForStructMember(SPIRVEntry *E,
+                                             SPIRVWord MemberNumber,
+                                             DecorationsInfoVec &Decorations) {
   for (const auto &I : Decorations) {
     // Such decoration already exists on a type, skip it
     if (E->hasMemberDecorate(I.first, /*Index=*/0, MemberNumber,
@@ -2989,35 +3067,30 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       SV = transValue(II->getOperand(0), BB);
     }
 
-    GetElementPtrInst *GEP = cast<GetElementPtrInst>(II->getArgOperand(1));
-    Constant *C = cast<Constant>(GEP->getOperand(0));
-    StringRef AnnotationString;
-    getConstantStringInfo(C, AnnotationString);
-
-    DecorationsInfoVec Decorations;
-    if (BB->getModule()->isAllowedToUseExtension(
-            ExtensionID::SPV_INTEL_fpga_memory_attributes))
-      // If it is allowed, let's try to parse annotation string to find
-      // IntelFPGA-specific decorations
-      Decorations = tryParseIntelFPGAAnnotationString(AnnotationString)
-                        .MemoryAttributesVec;
+    std::string AnnotationString;
+    processAnnotationString(II, AnnotationString);
+    DecorationsInfoVec Decorations =
+        tryParseAnnotationString(BM, AnnotationString).MemoryAttributesVec;
 
     // If we didn't find any IntelFPGA-specific decorations, let's add the whole
     // annotation string as UserSemantic Decoration
     if (Decorations.empty()) {
       SV->addDecorate(
-          new SPIRVDecorateUserSemanticAttr(SV, AnnotationString.str()));
+          new SPIRVDecorateUserSemanticAttr(SV, AnnotationString.c_str()));
     } else {
-      addIntelFPGADecorations(SV, Decorations);
+      addAnnotationDecorations(SV, Decorations);
     }
     return SV;
   }
+  // The layout of llvm.ptr.annotation is:
+  // declare iN*   @llvm.ptr.annotation.p<address space>iN(
+  // iN* <val>, i8* <str>, i8* <str>, i32  <int>, i8* <ptr>)
+  // where N is a power of two number,
+  // first i8* <str> stands for the annotation itself,
+  // second i8* <str> is for the location (file name),
+  // i8* <ptr> is a pointer on a GV, which can carry optinal variadic
+  // clang::annotation attribute expression arguments.
   case Intrinsic::ptr_annotation: {
-    GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(II->getArgOperand(1));
-    Constant *C = dyn_cast<Constant>(GEP->getOperand(0));
-    StringRef AnnotationString;
-    getConstantStringInfo(C, AnnotationString);
-
     // Strip all bitcast and addrspace casts from the pointer argument:
     //   llvm annotation intrinsic only takes i8*, so the original pointer
     //   probably had to loose its addrspace and its original type.
@@ -3026,19 +3099,10 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       AnnotSubj = cast<CastInst>(AnnotSubj)->getOperand(0);
     }
 
-    IntelFPGADecorations Decorations;
-    if (BB->getModule()->isAllowedToUseExtension(
-            ExtensionID::SPV_INTEL_fpga_memory_attributes) ||
-        BB->getModule()->isAllowedToUseExtension(
-            ExtensionID::SPV_INTEL_fpga_memory_accesses))
-      // If it is allowed, let's try to parse annotation string to find
-      // IntelFPGA-specific decorations
-      // TODO: The check is not entirely correct, since it allows usage
-      // of extension A even if extension B is the only one enabled.
-      // With the existing stack, these are always enabled/disabled
-      // simultaneously, however we should find a way to separate the
-      // actions for each individual extension.
-      Decorations = tryParseIntelFPGAAnnotationString(AnnotationString);
+    std::string AnnotationString;
+    processAnnotationString(II, AnnotationString);
+    AnnotationDecorations Decorations =
+        tryParseAnnotationString(BM, AnnotationString);
 
     // If the pointer is a GEP on a struct, then we have to emit a member
     // decoration for the GEP-accessed struct, or a memory access decoration
@@ -3058,18 +3122,18 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         // to struct member memory atributes or struct member memory access
         // controls? This would allow emitting just the necessary decoration.
         Ty->addMemberDecorate(new SPIRVMemberDecorateUserSemanticAttr(
-            Ty, MemberNumber, AnnotationString.str()));
-        ResPtr->addDecorate(
-            new SPIRVDecorateUserSemanticAttr(ResPtr, AnnotationString.str()));
+            Ty, MemberNumber, AnnotationString.c_str()));
+        ResPtr->addDecorate(new SPIRVDecorateUserSemanticAttr(
+            ResPtr, AnnotationString.c_str()));
       } else {
-        addIntelFPGADecorationsForStructMember(Ty, MemberNumber,
-                                               Decorations.MemoryAttributesVec);
+        addAnnotationDecorationsForStructMember(
+            Ty, MemberNumber, Decorations.MemoryAttributesVec);
         // Apply the LSU parameter decoration to the pointer result of a GEP
         // to the given struct member (InBoundsPtrAccessChain in SPIR-V).
         // Decorating the member itself with a MemberDecoration is not feasible,
         // because multiple accesses to the struct-held memory can require
         // different LSU parameters.
-        addIntelFPGADecorations(ResPtr, Decorations.MemoryAccessesVec);
+        addAnnotationDecorations(ResPtr, Decorations.MemoryAccessesVec);
       }
       II->replaceAllUsesWith(II->getOperand(0));
     } else {
@@ -3084,13 +3148,13 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         auto *DecSubj = transValue(II->getArgOperand(0), BB);
         if (Decorations.MemoryAccessesVec.empty())
           DecSubj->addDecorate(new SPIRVDecorateUserSemanticAttr(
-              DecSubj, AnnotationString.str()));
+              DecSubj, AnnotationString.c_str()));
         else
           // Apply the LSU parameter decoration to the pointer result of an
           // instruction. Note it's the address to the accessed memory that's
           // loaded from the original pointer variable, and not the value
           // accessed by the latter.
-          addIntelFPGADecorations(DecSubj, Decorations.MemoryAccessesVec);
+          addAnnotationDecorations(DecSubj, Decorations.MemoryAccessesVec);
         II->replaceAllUsesWith(II->getOperand(0));
       }
     }
@@ -3338,6 +3402,10 @@ void LLVMToSPIRVBase::transGlobalAnnotation(GlobalVariable *V) {
 
   // @llvm.global.annotations is an array that contains structs with 4 fields.
   // Get the array of structs with metadata
+  // TODO: actually, now it contains 5 fields, the fifth by default is nullptr
+  // or undef, but it can be defined to include variadic arguments of
+  // clang::annotation attribute. Need to refactor this function to turn on this
+  // translation
   ConstantArray *CA = cast<ConstantArray>(V->getOperand(0));
   for (Value *Op : CA->operands()) {
     ConstantStruct *CS = cast<ConstantStruct>(Op);
@@ -3351,20 +3419,16 @@ void LLVMToSPIRVBase::transGlobalAnnotation(GlobalVariable *V) {
 
     StringRef AnnotationString;
     getConstantStringInfo(GV, AnnotationString);
+    DecorationsInfoVec Decorations =
+        tryParseAnnotationString(BM, AnnotationString).MemoryAttributesVec;
 
-    DecorationsInfoVec Decorations;
-    if (BM->isAllowedToUseExtension(
-            ExtensionID::SPV_INTEL_fpga_memory_attributes))
-      Decorations = tryParseIntelFPGAAnnotationString(AnnotationString)
-                        .MemoryAttributesVec;
-
-    // If we didn't find any IntelFPGA-specific decorations, let's
-    // add the whole annotation string as UserSemantic Decoration
+    // If we didn't find any annotation decorations, let's add the whole
+    // annotation string as UserSemantic Decoration
     if (Decorations.empty()) {
       SV->addDecorate(
           new SPIRVDecorateUserSemanticAttr(SV, AnnotationString.str()));
     } else {
-      addIntelFPGADecorations(SV, Decorations);
+      addAnnotationDecorations(SV, Decorations);
     }
   }
 }
@@ -3383,6 +3447,34 @@ bool LLVMToSPIRVBase::transGlobalVariables() {
   for (auto I = M->global_begin(), E = M->global_end(); I != E; ++I) {
     if ((*I).getName() == "llvm.global.annotations")
       transGlobalAnnotation(&(*I));
+    else if ([I]() -> bool {
+               // Check if the GV is used only in var/ptr instructions. If yes -
+               // skip processing of this since it's only an annotation GV.
+               if (I->user_empty())
+                 return false;
+               for (auto *U : I->users()) {
+                 Value *V = U;
+                 while (isa<BitCastInst>(V) || isa<AddrSpaceCastInst>(V))
+                   V = cast<CastInst>(V)->getOperand(0);
+                 auto *GEP = dyn_cast_or_null<GetElementPtrInst>(V);
+                 if (!GEP)
+                   return false;
+                 for (auto *GEPU : GEP->users()) {
+                   auto *II = dyn_cast<IntrinsicInst>(GEPU);
+                   if (!II)
+                     return false;
+                   switch (II->getIntrinsicID()) {
+                   case Intrinsic::var_annotation:
+                   case Intrinsic::ptr_annotation:
+                     continue;
+                   default:
+                     return false;
+                   }
+                 }
+               }
+               return true;
+             }())
+      continue;
     else if ((I->getName() == "llvm.global_ctors" ||
               I->getName() == "llvm.global_dtors") &&
              !BM->isAllowedToUseExtension(
