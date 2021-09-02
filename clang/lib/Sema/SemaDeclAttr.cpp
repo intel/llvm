@@ -3155,7 +3155,6 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
             ? IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
                                      S.Context.IntTy, AL.getLoc())
             : nullptr;
-
     return E;
   };
 
