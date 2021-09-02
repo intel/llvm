@@ -11,15 +11,24 @@ using namespace sycl;
 int main() {
   queue q;
 
-  constexpr int N = 32;
-  max_test<int>(q, N);
-  max_test<unsigned int>(q, N);
-  max_test<float>(q, N);
+  if (!q.get_device().has(aspect::atomic64)) {
+    std::cout << "Skipping test\n";
+    return 0;
+  }
 
-  // Include long tests if they are 32 bits wide
-  if constexpr (sizeof(long) == 4) {
+  constexpr int N = 32;
+  max_test<double>(q, N);
+
+  // Include long tests if they are 64 bits wide
+  if constexpr (sizeof(long) == 8) {
     max_test<long>(q, N);
     max_test<unsigned long>(q, N);
+  }
+
+  // Include long long tests if they are 64 bits wide
+  if constexpr (sizeof(long long) == 8) {
+    max_test<long long>(q, N);
+    max_test<unsigned long long>(q, N);
   }
 
   std::cout << "Test passed." << std::endl;

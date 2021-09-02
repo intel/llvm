@@ -7,10 +7,10 @@
 // info::device::atomic_memory_order_capabilities
 // UNSUPPORTED: level_zero || opencl || rocm
 
-// NOTE: General tests for atomic memory order capabilities.
+// NOTE: Tests load and store for sequentially consistent memory ordering.
 
-#include "atomic_memory_order.h"
-#include <cassert>
+#include "atomic_memory_order_seq_cst.h"
+#include <iostream>
 using namespace sycl;
 
 int main() {
@@ -19,9 +19,22 @@ int main() {
   std::vector<memory_order> supported_memory_orders =
       q.get_device().get_info<info::device::atomic_memory_order_capabilities>();
 
-  // Relaxed memory order must be supported. This ordering is used in other
-  // tests.
-  assert(is_supported(supported_memory_orders, memory_order::relaxed));
+  if (!is_supported(supported_memory_orders, memory_order::seq_cst)) {
+    std::cout << "Skipping test\n";
+    return 0;
+  }
+
+  constexpr int N = 32;
+
+  seq_cst_test<int>(q, N);
+  seq_cst_test<unsigned int>(q, N);
+  seq_cst_test<float>(q, N);
+
+  // Include long tests if they are 32 bits wide
+  if constexpr (sizeof(long) == 4) {
+    seq_cst_test<long>(q, N);
+    seq_cst_test<unsigned long>(q, N);
+  }
 
   std::cout << "Test passed." << std::endl;
 }

@@ -10,27 +10,36 @@
 using namespace sycl;
 
 // Floating-point types do not support pre- or post-increment
-template <> void add_test<float>(queue q, size_t N) {
-  add_fetch_test<float>(q, N);
-  add_plus_equal_test<float>(q, N);
+template <> void add_test<double>(queue q, size_t N) {
+  add_fetch_test<double>(q, N);
+  add_plus_equal_test<double>(q, N);
 }
 
 int main() {
   queue q;
 
-  constexpr int N = 32;
-  add_test<int>(q, N);
-  add_test<unsigned int>(q, N);
-  add_test<float>(q, N);
+  if (!q.get_device().has(aspect::atomic64)) {
+    std::cout << "Skipping test\n";
+    return 0;
+  }
 
-  // Include long tests if they are 32 bits wide
-  if constexpr (sizeof(long) == 4) {
+  constexpr int N = 32;
+  add_test<double>(q, N);
+
+  // Include long tests if they are 64 bits wide
+  if constexpr (sizeof(long) == 8) {
     add_test<long>(q, N);
     add_test<unsigned long>(q, N);
   }
 
-  // Include pointer tests if they are 32 bits wide
-  if constexpr (sizeof(char *) == 4) {
+  // Include long long tests if they are 64 bits wide
+  if constexpr (sizeof(long long) == 8) {
+    add_test<long long>(q, N);
+    add_test<unsigned long long>(q, N);
+  }
+
+  // Include pointer tests if they are 64 bits wide
+  if constexpr (sizeof(char *) == 8) {
     add_test<char *, ptrdiff_t>(q, N);
   }
 
