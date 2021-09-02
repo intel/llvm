@@ -77,6 +77,27 @@ int main() {
   static_assert(std::is_error_code_enum<sycl::errc>::value, "errc enum should identify as error code");
   static_assert(!std::is_error_condition_enum<sycl::errc>::value, "errc enum should not identify as error condition");
 
+  // Test errc_for and backends. Should compile without complaint.
+  constexpr int EC = 1;
+  sycl::backend_traits<sycl::backend::opencl>::errc someOpenCLErrCode{EC};
+  sycl::errc_for<sycl::backend::opencl> anotherOpenCLErrCode{EC};
+  assert(someOpenCLErrCode == anotherOpenCLErrCode);
+  sycl::backend_traits<sycl::backend::level_zero>::errc someL0ErrCode{EC};
+  sycl::errc_for<sycl::backend::level_zero> anotherL0ErrCode{EC};
+  assert(someL0ErrCode == anotherL0ErrCode);
+  sycl::backend_traits<sycl::backend::host>::errc someHOSTErrCode{EC};
+  sycl::errc_for<sycl::backend::host> anotherHOSTErrCode{EC};
+  assert(someHOSTErrCode == anotherHOSTErrCode);
+  sycl::backend_traits<sycl::backend::cuda>::errc someCUDAErrCode{EC};
+  sycl::errc_for<sycl::backend::cuda> anotherCUDAErrCode{EC};
+  assert(someCUDAErrCode == anotherCUDAErrCode);
+  sycl::backend_traits<sycl::backend::esimd_cpu>::errc someESIMDErrCode{EC};
+  sycl::errc_for<sycl::backend::esimd_cpu> anotherESIMDErrCode{EC};
+  assert(someESIMDErrCode == anotherESIMDErrCode);
+  sycl::backend_traits<sycl::backend::rocm>::errc someROCMErrCode{EC};
+  sycl::errc_for<sycl::backend::rocm> anotherROCMErrCode{EC};
+  assert(someROCMErrCode == anotherROCMErrCode);
+
   std::cout << "OK" << std::endl;
   return 0;
 }

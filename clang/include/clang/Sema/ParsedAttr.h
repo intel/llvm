@@ -70,6 +70,8 @@ struct ParsedAttrInfo {
     const char *NormalizedFullName;
   };
   ArrayRef<Spelling> Spellings;
+  // The names of the known arguments of this attribute.
+  ArrayRef<const char *> ArgNames;
 
   ParsedAttrInfo(AttributeCommonInfo::Kind AttrKind =
                      AttributeCommonInfo::NoSemaHandlerAttribute)
@@ -95,11 +97,9 @@ struct ParsedAttrInfo {
                                    const Decl *D) const {
     return true;
   }
-  /// Check if this attribute is allowed by the language we are compiling, and
-  /// issue a diagnostic if not.
-  virtual bool diagLangOpts(Sema &S, const ParsedAttr &Attr) const {
-    return true;
-  }
+  /// Check if this attribute is allowed by the language we are compiling.
+  virtual bool acceptsLangOpts(const LangOptions &LO) const { return true; }
+
   /// Check if this attribute is allowed when compiling for the given target.
   virtual bool existsInTarget(const TargetInfo &Target) const {
     return true;
@@ -128,6 +128,7 @@ struct ParsedAttrInfo {
   }
 
   static const ParsedAttrInfo &get(const AttributeCommonInfo &A);
+  static ArrayRef<const ParsedAttrInfo *> getAllBuiltin();
 };
 
 typedef llvm::Registry<ParsedAttrInfo> ParsedAttrInfoRegistry;

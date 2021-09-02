@@ -582,7 +582,7 @@ sizes.
 In AOT mode, for each AOT target specified by the `-fsycl-targets` command
 line option, DPC++ normally invokes the AOT compiler for each device IR module
 resulting from the sycl-post-link tool.  For example, this is the `ocloc`
-command for Intel Gen AOT target and the `opencl-aot` command for the x86 AOT
+command for Intel Graphics AOT target and the `opencl-aot` command for the x86 AOT
 target with SPIR-V as the input, or other specific tools for the PTX target
 with LLVM IR bitcode input.  This causes a problem, though, for IR modules that
 use optional features because these commands could fail if they attempt to
@@ -601,18 +601,14 @@ property set.
 #### Device configuration file
 
 The configuration file uses a simple YAML format where each top-level key is
-a name of a device architecture.  We expect to define a set of device
-architecture names that are used consistently in many places (in this
-configuration file, in the names of device-specific aspects, as parameters for
-the `-fsycl-targets` command line option, etc.)  However, we have not yet
-agreed on these architecture names.  There are sub-keys under each device for
-the supported aspects, sub-group sizes and AOT compiler ID.  For example:
+a name of a device architecture. There are sub-keys under each device for
+the supported aspects and sub-group sizes.  For example:
 
 ```
-gen11_1:
+intel_gpu_11_1:
   aspects: [1, 2, 3]
   sub-group-sizes: [8, 16]
-gen_icl:
+intel_gpu_icl:
   aspects: [2, 3]
   sub-group-sizes: [8, 16]
 x86_64_avx512:
@@ -629,11 +625,126 @@ example, if a new device is released before there is a new DPC++ release.  In
 fact, the DPC++ driver supports a command line option which allows the user
 to select an alternate configuration file.
 
-**TODO**: More information will be inserted here when we merge
-[this separate PR][7] into this design document.
+**TODO**: 
+* Define location of the default device configuration file.
 
-[7]: <https://github.com/gmlueck/llvm/pull/1>
+#### New features in clang compilation driver and tools
 
+NOTE: the term *device binary image* used to refer to a device
+code form consumable by the DPC++ runtime library. Earlier device code forms are
+referred to as *device code module* or *device IR module*. In case of AOT,
+device binary image is a natively compiled binary, and IR module - either a
+SPIR-V or LLVM IR bitcode module.
+
+##### Overview
+
+After the `sycl-post-link` performs necessary aspect usage analysis and splits
+the incoming monolithic device code module into pieces - smaller device code
+modules - it outputs a file table as a result. Each row in the table corresponds
+to an individual output module, and each element of a row is a name of a file
+containing necessary information about the module, such as the code itself, and
+its properties.
+
+At the action graph building stage for each requested AOT compilation target -
+SPIR-V-based (such as Intel Graphics targets) and/or non-SPIR-V-based (such as
+PTX) - the driver adds an `aspect-filter` action which filters out input file
+table rows with device code modules using features unsupported on current
+target. Then the output table goes as input into the AOT stage, and the prior
+filtering guarantees that the AOT compiler will not encounter device code it
+can't compile. In the extreme case when all device code
+modules use unsupported aspects, the input file table will be empty. The picture
+below illustrates the action graph built by the clang driver along with file
+lists and tables generated and consumed by various nodes of the graph. The
+example set of targets used for the illustration is 4 targets
+
+- spir64 (runtime JITted SPIR-V)
+- AOT targets
+    - non-SPIR-V based
+        - ptx64 (PTX)
+    - SPIR-V based
+        - intel_gpu_12 (Intel Graphics)
+        - x86_64_avx512 (AVX512)
+
+![Device SPIRV translation and AOT compilation](images/DeviceLinkAOTAndWrap.svg)
+
+##### Aspect filter tool
+
+This tool transforms an input file table by removing rows with device code files
+that use features unsupported for the target architecture given as tool's
+argument.
+
+*Name*:
+
+- `sycl-aspect-filter`, located next to other tools like `file-table-tform`
+
+*Input*:
+
+- file table, normally coming out of `sycl-post-link` or `file-table-tform`
+  tools
+
+*Command line arguments*:
+
+- `-target=<target>` target device architecture to filter for
+- `-device-config-file=<path>` path to the device configuration file
+
+*Output*:
+
+- the input file table filtered as needed
+
+In more details, the tool performs the following actions:
+
+1) Checks if the input file table contains "Properties" column. If not, copies
+   the input file table to output and exits without error.
+1) Reads in the device configuration file and finds some entry `E` corresponding
+   to the architecture given on the command line. If there is no such entry -
+   reports an error and exits.
+1) For each row in the input file table:
+
+   - loads the properties file from the "Properties" column
+   - checks if there is the `SYCL/device-requirements` property
+   - if no, copies current row to the output file table and goes to the next
+   - if yes, checks if all the requirements listed in the property are supported
+     by the target architecture as specified by entry `E` in the device
+     configuration file
+       - if yes, copies current row to the output file table and goes to the
+         next
+       - otherwise skips this row
+
+##### Configuration file location and driver option
+
+A default device configuration file is present in DPC++ build. Users may override it using the
+`-fsycl-device-config-file=<path>` compiler command line option.
+Exact location of the file and final name of the compiler option is TBD.
+
+##### AOT target identification
+
+There are several user-visible places in the SDK where SYCL device target
+architectures need to be identified:
+
+- `-fsycl-targets` option
+- a device configuration file entry
+- `-target` option of the `sycl-aspec-filter` tool
+- a SYCL aspect enum identifier (we expect to add a new SYCL aspect for each
+  device target architecture)
+
+In all such places architecture naming should be the same. In some cases aliases
+are allowed. Below is a list of target architectures supported by DPC++:
+
+| target/alias(es) | description |
+|-|-|
+| intel_gpu    | Generic Intel graphics architecture |
+| intel_gpu_tgl, intel_gpu_12_0 | Intel Tiger Lake (11th generation Core) integrated graphics architecture |
+| ptx64  | Generic 64-bit PTX target architecture |
+| spir64 | Generic 64-bit SPIR-V target |
+| x86_64 | Generic 64-bit x86 architecture |
+
+TODO: Provide full list of AOT targets supported by the identification
+mechanism.
+
+Example of clang compilation invocation with 2 AOT targets and generic SPIR-V:
+```
+clang++ -fsycl -fsycl-targets=spir64,intel_gpu_12_0,ptx64 ...
+```
 
 ### Changes to the DPC++ runtime
 

@@ -2724,8 +2724,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
   BF->foreachReturnValueAttr([&](SPIRVFuncParamAttrKind Kind) {
     if (Kind == FunctionParameterAttributeNoWrite)
       return;
-    F->addAttribute(AttributeList::ReturnIndex,
-                    SPIRSPIRVFuncParamAttrMap::rmap(Kind));
+    F->addRetAttr(SPIRSPIRVFuncParamAttrMap::rmap(Kind));
   });
 
   // Creating all basic blocks before creating instructions.
@@ -4157,6 +4156,9 @@ bool SPIRVToLLVM::transSourceExtension() {
 
 llvm::GlobalValue::LinkageTypes
 SPIRVToLLVM::transLinkageType(const SPIRVValue *V) {
+  std::string ValueName = V->getName();
+  if (ValueName == "llvm.used" || ValueName == "llvm.compiler.used")
+    return GlobalValue::AppendingLinkage;
   int LT = V->getLinkageType();
   switch (LT) {
   case internal::LinkageTypeInternal:

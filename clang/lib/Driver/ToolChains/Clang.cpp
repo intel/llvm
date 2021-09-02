@@ -1203,6 +1203,12 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     C.getDriver().addFPGATempDepFile(DepFile, BaseName);
   };
 
+  // Do not add dependency generation information when compiling the source +
+  // footer combination.  The dependency generation is done in a separate
+  // compile step so we can retain original source information.
+  if (ContainsAppendFooterAction(&JA))
+    ArgM = nullptr;
+
   if (ArgM) {
     // Determine the output location.
     const char *DepFile;
@@ -1216,6 +1222,12 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
             DepFile, Clang::getBaseInputName(Args, Inputs[0]));
     } else if (Output.getType() == types::TY_Dependencies) {
       DepFile = Output.getFilename();
+      if (!ContainsAppendFooterAction(&JA) && Args.hasArg(options::OPT_fsycl) &&
+          !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
+          !JA.isDeviceOffloading(Action::OFK_SYCL))
+        // Name the dependency file for the specific dependency generation
+        // step created for the integration footer enabled compilation.
+        DepFile = getDependencyFileName(Args, Inputs);
     } else if (!ArgMD) {
       DepFile = "-";
     } else if (IsIntelFPGA && JA.isDeviceOffloading(Action::OFK_SYCL)) {
@@ -3967,12 +3979,6 @@ static void renderDebugOptions(const ToolChain &TC, const Driver &D,
                                ArgStringList &CmdArgs,
                                codegenoptions::DebugInfoKind &DebugInfoKind,
                                DwarfFissionKind &DwarfFission) {
-  // These two forms of profiling info can't be used together.
-  if (const Arg *A1 = Args.getLastArg(options::OPT_fpseudo_probe_for_profiling))
-    if (const Arg *A2 = Args.getLastArg(options::OPT_fdebug_info_for_profiling))
-      D.Diag(diag::err_drv_argument_not_allowed_with)
-          << A1->getAsString(Args) << A2->getAsString(Args);
-
   if (Args.hasFlag(options::OPT_fdebug_info_for_profiling,
                    options::OPT_fno_debug_info_for_profiling, false) &&
       checkDebugInfoOption(
@@ -8254,8 +8260,11 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
         assert(CurTC == nullptr && "Expected one dependence!");
         CurTC = TC;
       });
+      UB += C.addTempFile(
+          C.getArgs().MakeArgString(CurTC->getInputFilename(Inputs[I])));
+    } else {
+      UB += CurTC->getInputFilename(Inputs[I]);
     }
-    UB += CurTC->getInputFilename(Inputs[I]);
   }
   // For -fintelfpga, when bundling objects we also want to bundle up the
   // named dependency file.
@@ -8306,10 +8315,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // types (aocx/aocr) are always list files.  We should represent this
     // better in the output extension and type for improved understanding
     // of file contents and debuggability.
-    if (getToolChain().getTriple().getSubArch() ==
-        llvm::Triple::SPIRSubArch_fpga)
-      TypeArg = (InputType == types::TY_FPGA_AOCX) ? "aocx" : "aocr";
-    else
+    TypeArg = (InputType == types::TY_FPGA_AOCX) ? "aocx" : "aocr";
+    if (!getToolChain().getTriple().isSPIR())
       TypeArg = "aoo";
   }
   if (InputType == types::TY_FPGA_AOCO || IsFPGADepLibUnbundle)
@@ -8330,28 +8337,25 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // aocx or aocr type bundles.  Also, we only do a specific target
     // unbundling, skipping the host side or device side.
     if (types::isFPGA(InputType)) {
-      if (getToolChain().getTriple().getSubArch() ==
-              llvm::Triple::SPIRSubArch_fpga &&
-          Dep.DependentOffloadKind == Action::OFK_SYCL) {
-        if (J++)
-          Triples += ',';
-        llvm::Triple TT;
-        TT.setArchName(types::getTypeName(InputType));
-        TT.setVendorName("intel");
-        TT.setOS(getToolChain().getTriple().getOS());
-        TT.setEnvironment(llvm::Triple::SYCLDevice);
-        Triples += "sycl-";
-        Triples += TT.normalize();
-      } else if (getToolChain().getTriple().getSubArch() !=
-                     llvm::Triple::SPIRSubArch_fpga &&
-                 Dep.DependentOffloadKind == Action::OFK_Host) {
-        if (J++)
-          Triples += ',';
-        Triples += Action::GetOffloadKindName(Dep.DependentOffloadKind);
-        Triples += '-';
-        Triples += Dep.DependentToolChain->getTriple().normalize();
-      }
-      continue;
+      if (getToolChain().getTriple().isSPIR()) {
+        if (Dep.DependentToolChain->getTriple().getSubArch() ==
+            llvm::Triple::SPIRSubArch_fpga) {
+          if (J++)
+            Triples += ',';
+          llvm::Triple TT;
+          TT.setArchName(types::getTypeName(InputType));
+          TT.setVendorName("intel");
+          TT.setOS(getToolChain().getTriple().getOS());
+          TT.setEnvironment(llvm::Triple::SYCLDevice);
+          Triples += "sycl-";
+          Triples += TT.normalize();
+          continue;
+        } else if (Dep.DependentOffloadKind == Action::OFK_Host) {
+          // No host unbundle for FPGA binaries.
+          continue;
+        }
+      } else if (Dep.DependentOffloadKind == Action::OFK_SYCL)
+        continue;
     } else if (InputType == types::TY_Archive ||
                (getToolChain().getTriple().getSubArch() ==
                     llvm::Triple::SPIRSubArch_fpga &&
@@ -8770,7 +8774,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
       ExtArg += ",+SPV_INTEL_usm_storage_classes";
     else
       // Don't enable several freshly added extensions on FPGA H/W
-      ExtArg += ",+SPV_INTEL_token_type";
+      ExtArg += ",+SPV_INTEL_token_type,+SPV_INTEL_bfloat16_conversion";
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
@@ -8941,13 +8945,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     // Symbol file and specialization constant info generation is mandatory -
     // add options unconditionally
     addArgs(CmdArgs, TCArgs, {"-symbols"});
-    // By default we split SYCL and ESIMD kernels into separate modules
-    if (TCArgs.hasFlag(options::OPT_fsycl_device_code_split_esimd,
-                       options::OPT_fno_sycl_device_code_split_esimd, true))
-      addArgs(CmdArgs, TCArgs, {"-split-esimd"});
-    if (TCArgs.hasFlag(options::OPT_fsycl_device_code_lower_esimd,
-                       options::OPT_fno_sycl_device_code_lower_esimd, true))
-      addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
+    addArgs(CmdArgs, TCArgs, {"-split-esimd"});
+    addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
   }
   addArgs(CmdArgs, TCArgs,
           {StringRef(getSYCLPostLinkOptimizationLevel(TCArgs))});

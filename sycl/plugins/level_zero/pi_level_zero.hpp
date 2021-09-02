@@ -609,8 +609,8 @@ struct _pi_queue : _pi_object {
   // Vector of Level Zero copy command command queue handles.
   // Some (or all) of these handles may not be available depending on user
   // preference and/or target device.
-  // In this vector, link copy engines, if available, come first followed by
-  // main copy engine, if available.
+  // In this vector, main copy engine, if available, come first followed by
+  // link copy engines, if available.
   std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
 
   // One of the many available copy command queues will be used for
@@ -731,6 +731,13 @@ struct _pi_queue : _pi_object {
   // close it, execute it, and reset ZeOpenCommandList, ZeCommandListFence,
   // and ZeOpenCommandListSize.
   pi_result executeOpenCommandList();
+
+  // Besides each PI object keeping a total reference count in
+  // _pi_object::RefCount we keep special track of the queue *external*
+  // references. This way we are able to tell when the queue is being finished
+  // externally, and can wait for internal references to complete, and do proper
+  // cleanup of the queue.
+  std::atomic<pi_uint32> RefCountExternal{1};
 };
 
 struct _pi_mem : _pi_object {

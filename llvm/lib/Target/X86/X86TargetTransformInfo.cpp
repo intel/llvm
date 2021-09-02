@@ -1199,6 +1199,29 @@ InstructionCost X86TTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
     LT.first = NumOfDests * NumOfShufflesPerDest;
   }
 
+  static const CostTblEntry AVX512FP16ShuffleTbl[] = {
+      {TTI::SK_Broadcast, MVT::v32f16, 1}, // vpbroadcastw
+      {TTI::SK_Broadcast, MVT::v16f16, 1}, // vpbroadcastw
+      {TTI::SK_Broadcast, MVT::v8f16, 1},  // vpbroadcastw
+
+      {TTI::SK_Reverse, MVT::v32f16, 2}, // vpermw
+      {TTI::SK_Reverse, MVT::v16f16, 2}, // vpermw
+      {TTI::SK_Reverse, MVT::v8f16, 1},  // vpshufb
+
+      {TTI::SK_PermuteSingleSrc, MVT::v32f16, 2}, // vpermw
+      {TTI::SK_PermuteSingleSrc, MVT::v16f16, 2}, // vpermw
+      {TTI::SK_PermuteSingleSrc, MVT::v8f16, 1},  // vpshufb
+
+      {TTI::SK_PermuteTwoSrc, MVT::v32f16, 2}, // vpermt2w
+      {TTI::SK_PermuteTwoSrc, MVT::v16f16, 2}, // vpermt2w
+      {TTI::SK_PermuteTwoSrc, MVT::v8f16, 2}   // vpermt2w
+  };
+
+  if (!ST->useSoftFloat() && ST->hasFP16())
+    if (const auto *Entry =
+            CostTableLookup(AVX512FP16ShuffleTbl, Kind, LT.second))
+      return LT.first * Entry->Cost;
+
   static const CostTblEntry AVX512VBMIShuffleTbl[] = {
       {TTI::SK_Reverse, MVT::v64i8, 1}, // vpermb
       {TTI::SK_Reverse, MVT::v32i8, 1}, // vpermb
@@ -2559,6 +2582,22 @@ X86TTIImpl::getTypeBasedIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
 
   // TODO: Overflow intrinsics (*ADDO, *SUBO, *MULO) with vector types are not
   //       specialized in these tables yet.
+  static const CostTblEntry AVX512BITALGCostTbl[] = {
+    { ISD::CTPOP,      MVT::v32i16,  1 },
+    { ISD::CTPOP,      MVT::v64i8,   1 },
+    { ISD::CTPOP,      MVT::v16i16,  1 },
+    { ISD::CTPOP,      MVT::v32i8,   1 },
+    { ISD::CTPOP,      MVT::v8i16,   1 },
+    { ISD::CTPOP,      MVT::v16i8,   1 },
+  };
+  static const CostTblEntry AVX512VPOPCNTDQCostTbl[] = {
+    { ISD::CTPOP,      MVT::v8i64,   1 },
+    { ISD::CTPOP,      MVT::v16i32,  1 },
+    { ISD::CTPOP,      MVT::v4i64,   1 },
+    { ISD::CTPOP,      MVT::v8i32,   1 },
+    { ISD::CTPOP,      MVT::v2i64,   1 },
+    { ISD::CTPOP,      MVT::v4i32,   1 },
+  };
   static const CostTblEntry AVX512CDCostTbl[] = {
     { ISD::CTLZ,       MVT::v8i64,   1 },
     { ISD::CTLZ,       MVT::v16i32,  1 },
@@ -2686,6 +2725,8 @@ X86TTIImpl::getTypeBasedIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
     { ISD::FMAXNUM,    MVT::v2f64,   2 },
     { ISD::FMAXNUM,    MVT::v4f64,   2 },
     { ISD::FMAXNUM,    MVT::v8f64,   2 },
+    { ISD::ISNAN,      MVT::v8f64,   1 },
+    { ISD::ISNAN,      MVT::v16f32,  1 },
   };
   static const CostTblEntry XOPCostTbl[] = {
     { ISD::BITREVERSE, MVT::v4i64,   4 },
@@ -2814,6 +2855,8 @@ X86TTIImpl::getTypeBasedIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
     { ISD::FSQRT,      MVT::f64,    21 }, // SNB from http://www.agner.org/
     { ISD::FSQRT,      MVT::v2f64,  21 }, // SNB from http://www.agner.org/
     { ISD::FSQRT,      MVT::v4f64,  43 }, // SNB from http://www.agner.org/
+    { ISD::ISNAN,      MVT::v4f64,   1 },
+    { ISD::ISNAN,      MVT::v8f32,   1 },
   };
   static const CostTblEntry GLMCostTbl[] = {
     { ISD::FSQRT, MVT::f32,   19 }, // sqrtss
@@ -2910,12 +2953,16 @@ X86TTIImpl::getTypeBasedIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
     { ISD::FMAXNUM,    MVT::v2f64,   4 },
     { ISD::FSQRT,      MVT::f64,    32 }, // Nehalem from http://www.agner.org/
     { ISD::FSQRT,      MVT::v2f64,  32 }, // Nehalem from http://www.agner.org/
+    { ISD::ISNAN,      MVT::f64,    1 },
+    { ISD::ISNAN,      MVT::v2f64,  1 },
   };
   static const CostTblEntry SSE1CostTbl[] = {
     { ISD::FMAXNUM,    MVT::f32,     4 },
     { ISD::FMAXNUM,    MVT::v4f32,   4 },
     { ISD::FSQRT,      MVT::f32,    28 }, // Pentium III from http://www.agner.org/
     { ISD::FSQRT,      MVT::v4f32,  56 }, // Pentium III from http://www.agner.org/
+    { ISD::ISNAN,      MVT::f32,     1 },
+    { ISD::ISNAN,      MVT::v4f32,   1 },
   };
   static const CostTblEntry BMI64CostTbl[] = { // 64-bit targets
     { ISD::CTTZ,       MVT::i64,     1 },
@@ -3004,6 +3051,10 @@ X86TTIImpl::getTypeBasedIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
     break;
   case Intrinsic::cttz:
     ISD = ISD::CTTZ;
+    break;
+  case Intrinsic::isnan:
+    ISD = ISD::ISNAN;
+    OpTy = ICA.getArgTypes()[0];
     break;
   case Intrinsic::maxnum:
   case Intrinsic::minnum:
@@ -3098,6 +3149,14 @@ X86TTIImpl::getTypeBasedIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
 
     if (ST->isSLM())
       if (const auto *Entry = CostTableLookup(SLMCostTbl, ISD, MTy))
+        return adjustTableCost(*Entry, LT.first, ICA.getFlags());
+
+    if (ST->hasBITALG())
+      if (const auto *Entry = CostTableLookup(AVX512BITALGCostTbl, ISD, MTy))
+        return adjustTableCost(*Entry, LT.first, ICA.getFlags());
+
+    if (ST->hasVPOPCNTDQ())
+      if (const auto *Entry = CostTableLookup(AVX512VPOPCNTDQCostTbl, ISD, MTy))
         return adjustTableCost(*Entry, LT.first, ICA.getFlags());
 
     if (ST->hasCDI())
@@ -4693,6 +4752,9 @@ bool X86TTIImpl::isLegalMaskedLoad(Type *DataTy, Align Alignment) {
   if (ScalarTy->isFloatTy() || ScalarTy->isDoubleTy())
     return true;
 
+  if (ScalarTy->isHalfTy() && ST->hasBWI() && ST->hasFP16())
+    return true;
+
   if (!ScalarTy->isIntegerTy())
     return false;
 
@@ -5150,12 +5212,13 @@ InstructionCost X86TTIImpl::getInterleavedMemoryOpCost(
     unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
     Align Alignment, unsigned AddressSpace, TTI::TargetCostKind CostKind,
     bool UseMaskForCond, bool UseMaskForGaps) {
-  auto isSupportedOnAVX512 = [](Type *VecTy, bool HasBW) {
+  auto isSupportedOnAVX512 = [&](Type *VecTy, bool HasBW) {
     Type *EltTy = cast<VectorType>(VecTy)->getElementType();
     if (EltTy->isFloatTy() || EltTy->isDoubleTy() || EltTy->isIntegerTy(64) ||
         EltTy->isIntegerTy(32) || EltTy->isPointerTy())
       return true;
-    if (EltTy->isIntegerTy(16) || EltTy->isIntegerTy(8))
+    if (EltTy->isIntegerTy(16) || EltTy->isIntegerTy(8) ||
+        (!ST->useSoftFloat() && ST->hasFP16() && EltTy->isHalfTy()))
       return HasBW;
     return false;
   };

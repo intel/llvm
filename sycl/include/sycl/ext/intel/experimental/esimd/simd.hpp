@@ -352,12 +352,14 @@ public:
     auto V = UNARY_OP(data());                                                 \
     return simd(V);                                                            \
   }
-  DEF_UNARY_OP(!)
   DEF_UNARY_OP(~)
   DEF_UNARY_OP(+)
   DEF_UNARY_OP(-)
 
 #undef DEF_UNARY_OP
+
+  // negation operator
+  auto operator!() { return *this == 0; }
 
   /// \name Replicate
   /// Replicate simd instance given a region.
