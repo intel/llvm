@@ -8920,7 +8920,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
       // split must be off
       assert(StringRef(A->getValue()) == "off");
   } else if (getToolChain().getTriple().getArchName() != "spir64_fpga") {
-    // auto is the default split mode
+    // for FPGA targets, off is the default split mode,
+    // otherwise auto is the default split mode
     addArgs(CmdArgs, TCArgs, {"-split=auto"});
   }
   // OPT_fsycl_device_code_split is not checked as it is an alias to
