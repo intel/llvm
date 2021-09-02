@@ -197,6 +197,8 @@ struct _pi_object {
   // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
   std::atomic<pi_uint32> RefCount;
+
+  void retain() { ++RefCount; }
 };
 
 // Record for a memory allocation. This structure is used to keep information
@@ -253,6 +255,13 @@ struct _pi_platform {
   // in the driver.
   std::list<pi_context> Contexts;
   std::mutex ContextsMutex;
+
+  // Mutex to be locked on entry to a _pi_platform API call, and unlocked
+  // prior to exit.  Access to all state of a platform is done only after
+  // this lock has been acquired, and this must be released upon exit
+  // from a pi_platform API call.  No other mutexes/locking should be
+  // needed/used for the platform data structures.
+  std::mutex PiPlatformMutex;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.
@@ -366,6 +375,13 @@ struct _pi_device : _pi_object {
   pi_device RootDevice;
   bool isSubDevice() { return RootDevice != nullptr; }
 
+  void retain() {
+    // The root-device ref-count remains unchanged (always 1).
+    if (isSubDevice()) {
+      ++RefCount;
+    }
+  }
+
   // Cache of the immutable device properties.
   ZeCache<ZeStruct<ze_device_properties_t>> ZeDeviceProperties;
   ZeCache<ZeStruct<ze_device_compute_properties_t>> ZeDeviceComputeProperties;
@@ -374,6 +390,13 @@ struct _pi_device : _pi_object {
   ZeCache<std::vector<ZeStruct<ze_device_memory_properties_t>>>
       ZeDeviceMemoryProperties;
   ZeCache<ZeStruct<ze_device_cache_properties_t>> ZeDeviceCacheProperties;
+
+  // Mutex to be locked on entry to a _pi_device API call, and unlocked
+  // prior to exit.  Access to all state of a device is done only after
+  // this lock has been acquired, and this must be released upon exit
+  // from a pi_device API call.  No other mutexes/locking should be
+  // needed/used for the device data structures.
+  std::mutex PiDeviceMutex;
 };
 
 // Structure describing the specific use of a command-list in a queue.
@@ -558,6 +581,13 @@ struct _pi_context : _pi_object {
   // when kernel has finished execution.
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
+  // Mutex to be locked on entry to a _pi_context API call, and unlocked
+  // prior to exit.  Access to all state of a context is done only after
+  // this lock has been acquired, and this must be released upon exit
+  // from a pi_context API call.  No other mutexes/locking should be
+  // needed/used for the context data structures.
+  std::mutex PiContextMutex;
+
 private:
   // Following member variables are used to manage assignment of events
   // to event pools.
@@ -713,7 +743,8 @@ struct _pi_queue : _pi_object {
   // needs to be set to true. The caller must verify that this command list and
   // fence have been signalled.
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
-                             bool MakeAvailable);
+                             bool MakeAvailable,
+                             pi_event LockedEvent = nullptr);
 
   // Attach a command list to this queue, close, and execute it.
   // Note that this command list cannot be appended to after this.
@@ -778,6 +809,13 @@ struct _pi_mem : _pi_object {
   pi_result addMapping(void *MappedTo, size_t Size, size_t Offset);
   pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
 
+  // Mutex to be locked on entry to a _pi_mem API call, and unlocked
+  // prior to exit.  Access to all state of a mem is done only after
+  // this lock has been acquired, and this must be released upon exit
+  // from a pi_mem API call.  No other mutexes/locking should be
+  // needed/used for the mem data structures.
+  std::mutex PiMemMutex;
+
 protected:
   _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false)
       : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost}, Mappings{} {}
@@ -786,11 +824,6 @@ private:
   // The key is the host pointer representing an active mapping.
   // The value is the information needed to maintain/undo the mapping.
   std::unordered_map<void *, Mapping> Mappings;
-
-  // TODO: we'd like to create a thread safe map class instead of mutex + map,
-  // that must be carefully used together.
-  // The mutex that is used for thread-safe work with Mappings.
-  std::mutex MappingsMutex;
 };
 
 struct _pi_buffer final : _pi_mem {
@@ -887,10 +920,11 @@ struct _pi_ze_event_list_t {
 
 struct _pi_event : _pi_object {
   _pi_event(ze_event_handle_t ZeEvent, ze_event_pool_handle_t ZeEventPool,
-            pi_context Context, pi_command_type CommandType, bool OwnZeEvent)
+            pi_context Context, pi_command_type CommandType, bool OwnZeEvent,
+            const pi_queue Queue)
       : ZeEvent{ZeEvent}, OwnZeEvent{OwnZeEvent}, ZeEventPool{ZeEventPool},
-        ZeCommandList{nullptr}, CommandType{CommandType}, Context{Context},
-        CommandData{nullptr} {}
+        ZeCommandList{nullptr}, Queue{Queue},
+        CommandType{CommandType}, Context{Context}, CommandData{nullptr} {}
 
   // Level Zero event handle.
   ze_event_handle_t ZeEvent;
@@ -909,7 +943,7 @@ struct _pi_event : _pi_object {
 
   // Keeps the command-queue and command associated with the event.
   // These are NULL for the user events.
-  pi_queue Queue = {nullptr};
+  const pi_queue Queue = {nullptr};
   pi_command_type CommandType;
   // Provide direct access to Context, instead of going via queue.
   // Not every PI event has a queue, and we need a handle to Context
@@ -932,6 +966,13 @@ struct _pi_event : _pi_object {
   // actions are performed only once.
   //
   bool CleanedUp = {false};
+
+  // Mutex to be locked on entry to a _pi_event API call, and unlocked
+  // prior to exit.  Access to all state of a event is done only after
+  // this lock has been acquired, and this must be released upon exit
+  // from a pi_event API call.  No other mutexes/locking should be
+  // needed/used for the event data structures.
+  std::mutex PiEventMutex;
 };
 
 struct _pi_program : _pi_object {
@@ -1113,6 +1154,13 @@ struct _pi_program : _pi_object {
   // Level Zero build or link log, used for programs in Obj, Exe, or LinkedExe
   // state.
   ze_module_build_log_handle_t ZeBuildLog;
+
+  // Mutex to be locked on entry to a _pi_program API call, and unlocked
+  // prior to exit.  Access to all state of a program is done only after
+  // this lock has been acquired, and this must be released upon exit
+  // from a pi_program API call.  No other mutexes/locking should be
+  // needed/used for the program data structures.
+  std::mutex PiProgramMutex;
 };
 
 struct _pi_kernel : _pi_object {
@@ -1124,6 +1172,13 @@ struct _pi_kernel : _pi_object {
     // Currently indirect access flag is set for all kernels and there is no API
     // to check if kernel actually indirectly access smth.
     return true;
+  }
+
+  void retain() {
+    ++RefCount;
+    // When retaining a kernel, you are also retaining the program it is part
+    // of.
+    Program->retain();
   }
 
   // Level Zero function handle.
@@ -1169,6 +1224,13 @@ struct _pi_kernel : _pi_object {
 
   // Cache of the kernel properties.
   ZeCache<ZeStruct<ze_kernel_properties_t>> ZeKernelProperties;
+
+  // Mutex to be locked on entry to a _pi_kernel API call, and unlocked
+  // prior to exit.  Access to all state of a kernel is done only after
+  // this lock has been acquired, and this must be released upon exit
+  // from a pi_kernel API call.  No other mutexes/locking should be
+  // needed/used for the kernel data structures.
+  std::mutex PiKernelMutex;
 };
 
 struct _pi_sampler : _pi_object {
@@ -1176,6 +1238,13 @@ struct _pi_sampler : _pi_object {
 
   // Level Zero sampler handle.
   ze_sampler_handle_t ZeSampler;
+
+  // Mutex to be locked on entry to a _pi_sampler API call, and unlocked
+  // prior to exit.  Access to all state of a sampler is done only after
+  // this lock has been acquired, and this must be released upon exit
+  // from a pi_sampler API call.  No other mutexes/locking should be
+  // needed/used for the sampler data structures.
+  std::mutex PiSamplerMutex;
 };
 
 #endif // PI_LEVEL_ZERO_HPP
