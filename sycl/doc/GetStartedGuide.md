@@ -425,7 +425,7 @@ If CUDA support has been built, it is tested only if there are CUDA devices
 available.
 
 If testing with ROCm for AMD make sure to specify the GPU being used
-by adding `-Xsycl-target-backend=amdgcn-amd-amdhsa-sycldevice
+by adding `-Xsycl-target-backend=amdgcn-amd-amdhsa
 --offload-arch=<target>` to the CMake variable
 `SYCL_CLANG_EXTRA_FLAGS`.
 
@@ -548,7 +548,7 @@ clang++ -fsycl simple-sycl-app.cpp -o simple-sycl-app.exe
 When building for CUDA or NVIDIA ROCm, use the CUDA target triple as follows:
 
 ```bash
-clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda-sycldevice \
+clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
@@ -557,7 +557,7 @@ target architecture with `-Xsycl-target-backend --offload-arch=<arch>`
 as follows:
 
 ```bash
-clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa-sycldevice \
+clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa \
   -Xsycl-target-backend --offload-arch=gfx906              \
   simple-sycl-app.cpp -o simple-sycl-app-amd.exe
 ```
@@ -607,7 +607,7 @@ If there are no OpenCL or CUDA devices available, the SYCL host device is used.
 The SYCL host device executes the SYCL application directly in the host,
 without using any low-level API.
 
-**NOTE**: `nvptx64-nvidia-cuda-sycldevice` is usable with `-fsycl-targets`
+**NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
 if clang was built with the cmake option `SYCL_BUILD_PI_CUDA=ON`.
 
 **Linux & Windows (64-bit)**:
