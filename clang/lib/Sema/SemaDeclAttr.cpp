@@ -3148,13 +3148,15 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   // to the default value 1, but only if the sycl:: or intel::
   // reqd_work_group_size spelling was used.
   auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL, SourceLocation loc) {
-    assert((AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && AL.hasScope() &&
-            (AL.getScopeName()->isStr("sycl") ||
-             AL.getScopeName()->isStr("intel"))) &&
-           "Attribute does not exist in sycl:: or intel:: scope");
+    Expr *E =
+        (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && AL.hasScope() &&
+         (AL.getScopeName()->isStr("sycl") ||
+          AL.getScopeName()->isStr("intel")))
+            ? IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
+                                     S.Context.IntTy, AL.getLoc())
+            : nullptr;
 
-    return IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
-                                  S.Context.IntTy, AL.getLoc());
+    return E;
   };
 
   Expr *YDimExpr = AL.isArgExpr(1) ? AL.getArgAsExpr(1)
@@ -3176,6 +3178,8 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   ASTContext &Ctx = S.getASTContext();
 
+  assert(YDimExpr && "YDimExpr cannot be NULL");
+  assert(ZDimExpr && "ZDimExpr cannot be NULL");
   if (!XDimExpr->isValueDependent() && !YDimExpr->isValueDependent() &&
       !ZDimExpr->isValueDependent()) {
     llvm::APSInt XDimVal, YDimVal, ZDimVal;
