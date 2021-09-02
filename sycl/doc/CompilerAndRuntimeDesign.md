@@ -312,7 +312,7 @@ option mechanism, similar to OpenMP.
 For example, to support offload to Gen9/vISA3.3, the following options would be
 used:
 
-`-fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-backend "-device skl"`
+`-fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device skl"`
 
 The driver passes the `-device skl` parameter directly to the Gen device backend
 compiler `ocloc` without parsing it.
@@ -321,10 +321,7 @@ compiler `ocloc` without parsing it.
 versions/Gen architectures. For example, to make the device binary
 compatible with all Intel Gen9 GPU platforms, one could use:
 
-```
--fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice
--Xsycl-target-backend "-device gen9"
-```
+`-fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device gen9"`
 
 For more details on supported platforms and argument syntax, refer to
 the GPU offline compiler manual by detecting your local `ocloc`
@@ -535,8 +532,8 @@ See [corresponding documentation](SpecializationConstants.md)
 
 #### CUDA support
 
-The driver supports compilation to NVPTX when the
-`nvptx64-nvidia-cuda-sycldevice` is passed to `-fsycl-targets`.
+The driver supports compilation to NVPTX when the `nvptx64-nvidia-cuda` is
+passed to `-fsycl-targets`.
 
 Unlike other AOT targets, the bitcode module linked from intermediate compiled
 objects never goes through SPIR-V. Instead it is passed directly in bitcode form
@@ -697,7 +694,7 @@ entry:
 }
 ```
 
-Is transformed into this in the `sycldevice` environment:
+Is transformed into this:
 
 ```LLVM
 define weak_odr dso_local i64 @other_function(i32* %0) {
