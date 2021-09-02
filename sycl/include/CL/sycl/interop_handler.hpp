@@ -15,6 +15,9 @@ namespace sycl {
 
 // Interoperability handler
 //
+__SYCL_DEPRECATED(
+    "interop_handler class is deprecated, use interop_handle instead with"
+    " host-task")
 class interop_handler {
   // Make accessor class friend to access the detail mem objects
   template <typename DataT, int Dims, access::mode AccMode,
