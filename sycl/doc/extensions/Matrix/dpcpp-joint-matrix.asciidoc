@@ -240,7 +240,7 @@ For oneAPI release 3, an AOT implementation is available on the CPU device to ta
 Currently, this is the compilation command line needed to invoke AMX unit of Sapphire Rapids CPU:
 
 ```c++
-clang++ -fsycl -march=sapphirerapids fsycl-targets="spir64_x86_64-uknown-linux-sycldevice"  -O2 matmul-int8.cpp -o matmul-int8
+clang++ -fsycl -march=sapphirerapids fsycl-targets="spir64_x86_64-unknown-linux"  -O2 matmul-int8.cpp -o matmul-int8
 ```
 
 Please refer to the section "Future Implementation Work" that talks about the future unified SPIR-V path that will enable JIT compilation.
