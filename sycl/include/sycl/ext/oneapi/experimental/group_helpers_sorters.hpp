@@ -44,9 +44,7 @@ public:
   void operator()(Group g, Ptr begin, Ptr end) {
 #ifdef __SYCL_DEVICE_ONLY__
     using T = typename std::iterator_traits<Ptr>::value_type;
-    if (scratch_size >=
-        memory_required<T>(
-            sycl::memory_scope::work_group /*Group::fence_scope*/, end - begin))
+    if (scratch_size >= memory_required<T>(Group::fence_scope, end - begin))
       cl::sycl::detail::merge_sort(g, begin, end - begin, comp, scratch);
       // TODO: it's better to add else branch
 #endif
@@ -54,11 +52,8 @@ public:
 
   template <typename Group, typename T> T operator()(Group g, T val) {
 #ifdef __SYCL_DEVICE_ONLY__
-    auto range_size = g.get_local_range(0);
-    if (scratch_size >=
-        memory_required<T>(
-            sycl::memory_scope::work_group /*Group::fence_scope*/,
-            range_size)) {
+    auto range_size = g.get_local_range().size();
+    if (scratch_size >= memory_required<T>(Group::fence_scope, range_size)) {
       auto id = cl::sycl::detail::Builder::getNDItem<Group::dimensions>();
       uint32_t local_id = id.get_local_id();
       T *temp = reinterpret_cast<T *>(scratch);
