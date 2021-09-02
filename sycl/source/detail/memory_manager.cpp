@@ -427,8 +427,8 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  const detail::plugin &Plugin = SrcQueue->getPlugin();
   const RT::PiQueue Queue = SrcQueue->getHandleRef();
+  const detail::plugin &Plugin = SrcQueue->getPlugin();
 
   detail::SYCLMemObjI::MemObjType MemType = SYCLMemObj->getType();
   TermPositions SrcPos, DstPos;
