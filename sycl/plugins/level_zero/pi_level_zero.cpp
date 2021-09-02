@@ -32,6 +32,8 @@ extern "C" {
 // Forward declarartions.
 static pi_result EventRelease(pi_event Event, pi_queue LockedQueue);
 static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue);
+static pi_result EventsWait(pi_uint32 NumEvents, const pi_event *EventList,
+                            pi_queue LockedQueue);
 }
 
 namespace {
@@ -4322,6 +4324,16 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   PI_ASSERT(Event, PI_INVALID_EVENT);
   PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_INVALID_WORK_DIMENSION);
 
+  // Get a new command list to be used on this call
+  pi_command_list_ptr_t CommandList{};
+  {
+    std::lock_guard<std::mutex> QueueLock(Queue->PiQueueMutex);
+    if (auto Res = Queue->Context->getAvailableCommandList(
+            Queue, CommandList, false /* PreferCopyEngine */,
+            true /* AllowBatching */))
+      return Res;
+  }
+
   // Per specification zeKernelSetGlobalOffsetExp and zeKernelSetGroupSize
   // cannot be called from simultaneous threads with the same kernel handle.
   // Lock automatically releases when this goes out of scope.
@@ -4409,13 +4421,6 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
                                                           EventWaitList, Queue))
-    return Res;
-
-  // Get a new command list to be used on this call
-  pi_command_list_ptr_t CommandList{};
-  if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, CommandList, false /* PreferCopyEngine */,
-          true /* AllowBatching */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -4732,8 +4737,8 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
   return PI_SUCCESS;
 }
 
-pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
-
+static pi_result EventsWait(pi_uint32 NumEvents, const pi_event *EventList,
+                            pi_queue LockedQueue) {
   if (NumEvents && !EventList) {
     return PI_INVALID_EVENT;
   }
@@ -4743,7 +4748,9 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     auto Queue = EventList[I]->Queue;
     if (Queue) {
       // Lock automatically releases when this goes out of scope.
-      std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
+      auto lock = Queue != LockedQueue
+                      ? std::unique_lock<std::mutex>(Queue->PiQueueMutex)
+                      : std::unique_lock<std::mutex>();
 
       if (Queue->RefCount > 0) {
         if (auto Res = Queue->executeOpenCommandList())
@@ -4754,16 +4761,17 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
 
   for (uint32_t I = 0; I < NumEvents; I++) {
     auto Event = EventList[I];
+    bool QueueNeedsLock = Event->Queue && (Event->Queue != LockedQueue);
     // Lock event and queue before calling event cleanup.
     auto EventLock =
-        Event->Queue
+        QueueNeedsLock
             ? std::unique_lock<std::mutex>(Event->PiEventMutex, std::defer_lock)
             : std::unique_lock<std::mutex>(Event->PiEventMutex);
-    auto QueueLock =
-        Event->Queue ? std::unique_lock<std::mutex>(Event->Queue->PiQueueMutex,
-                                                    std::defer_lock)
-                     : std::unique_lock<std::mutex>();
-    if (Event->Queue)
+    auto QueueLock = QueueNeedsLock
+                         ? std::unique_lock<std::mutex>(
+                               Event->Queue->PiQueueMutex, std::defer_lock)
+                         : std::unique_lock<std::mutex>();
+    if (QueueNeedsLock)
       std::lock(EventLock, QueueLock);
     ze_event_handle_t ZeEvent = Event->ZeEvent;
     zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
@@ -4775,6 +4783,10 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   }
 
   return PI_SUCCESS;
+}
+
+pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
+  return EventsWait(NumEvents, EventList, nullptr);
 }
 
 pi_result piEventSetCallback(pi_event Event, pi_int32 CommandExecCallbackType,
@@ -5600,7 +5612,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   // For integrated devices the buffer has been allocated in host memory.
   if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
-    PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
+    PI_CALL(EventsWait(NumEventsInWaitList, EventWaitList, Queue));
 
     if (Queue->isInOrderQueue()) {
       pi_event TmpLastCommandEvent = nullptr;
@@ -5608,7 +5620,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
       TmpLastCommandEvent = Queue->LastCommandEvent;
 
       if (TmpLastCommandEvent != nullptr) {
-        PI_CALL(piEventsWait(1, &TmpLastCommandEvent));
+        PI_CALL(EventsWait(1, &TmpLastCommandEvent, Queue));
       }
     }
 
@@ -5720,7 +5732,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   // For integrated devices the buffer is allocated in host memory.
   if (MemObj->OnHost) {
     // Wait on incoming events before doing the copy
-    PI_CALL(piEventsWait(NumEventsInWaitList, EventWaitList));
+    PI_CALL(EventsWait(NumEventsInWaitList, EventWaitList, Queue));
 
     if (Queue->isInOrderQueue()) {
       pi_event TmpLastCommandEvent = nullptr;
@@ -5728,7 +5740,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
       TmpLastCommandEvent = Queue->LastCommandEvent;
 
       if (TmpLastCommandEvent != nullptr) {
-        PI_CALL(piEventsWait(1, &TmpLastCommandEvent));
+        PI_CALL(EventsWait(1, &TmpLastCommandEvent, Queue));
       }
     }
 
