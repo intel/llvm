@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-sycldevice -IInputs -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64 -IInputs -emit-llvm %s -o - | FileCheck %s
 // This test ensures that we don't generate a kernel before we have instantiated
 // all the kernel declarations, which can change the name of a kernel in the
 // unnamed kernel case. Previously we would have duplicate manglings of the

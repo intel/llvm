@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes %s -emit-llvm -o -  | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes %s -emit-llvm -o -  | FileCheck %s
 // Test that static initializers do not force the emission of globals on sycl device
 
 // CHECK-NOT: $_ZN8BaseInitI12TestBaseTypeE15s_regbase_ncsdmE = comdat any
