@@ -11,6 +11,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
     - [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     - [Build DPC++ toolchain with support for AMD ROCm](#build-dpc-toolchain-with-support-for-amd-rocm)
     - [Build DPC++ toolchain with support for NVIDIA ROCm](#build-dpc-toolchain-with-support-for-nvidia-rocm)
+    - [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-cpu)
     - [Build Doxygen documentation](#build-doxygen-documentation)
     - [Deployment](#deployment)
   - [Use DPC++ toolchain](#use-dpc-toolchain)
@@ -109,6 +110,7 @@ flags can be found by launching the script with `--help`):
 * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
 * `--rocm` -> use the rocm backend (see [AMD ROCm](#build-dpc-toolchain-with-support-for-amd-rocm))
 * `--rocm-platform` -> select the platform used by the rocm backend, `AMD` or `NVIDIA` (see [AMD ROCm](#build-dpc-toolchain-with-support-for-amd-rocm) or see [NVIDIA ROCm](#build-dpc-toolchain-with-support-for-nvidia-rocm))
+* '--enable-esimd-cpu-emulation' -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
 * `--shared-libs` -> Build shared libraries
 * `-t` -> Build type (debug or release)
 * `-o` -> Path to build directory
@@ -205,6 +207,48 @@ as well as CUDA to be installed, see
 
 Currently this was only tested on Linux with ROCm 4.2, CUDA 11 and a GeForce GTX
 1060 card.
+
+### Build DPC++ toolchain with support for ESIMD CPU Emulation
+
+There is experimental support for DPC++ for using ESIMD CPU Emulation
+
+This feature supports ESIMD CPU Emulation using CM_EMU library [CM
+Emulation
+project](https://github.com/intel/cm-cpu-emulation). Pre-built library
+package will be downloaded and installed in your deploy directory
+during toolchain build.
+
+To enable support for ESIMD CPU emulation, follow the instructions for
+the Linux DPC++ toolchain, but add the `--enable-esimd-cpu-emulation'.
+
+Enabling this flag requires following packages installed.
+
+* Ubuntu 20.04
+    * libva-dev / 2.7.0-2
+    * libva-drm2 / 2.7.0-2
+    * libva-glx2 / 2.7.0-2
+    * libva-wayland2 / 2.7.0-2
+    * libva-x11-2 / 2.7.0-2
+    * libva2 / focal 2.7.0-2
+    * libffi-dev / 3.3-4
+    * libffi7 / 3.3-4
+    * libdrm-amdgpu1
+    * libdrm-common
+    * libdrm-dev
+    * libdrm-intel1
+    * libdrm-nouveau2
+    * libdrm-radeon1
+    * libdrm2
+* RHEL 8.*
+    * libffi
+    * libffi-devel
+    * libdrm
+    * libdrm-devel
+    * libva
+    * libva-devel
+
+Currently, this feature was tested and verified on Ubuntu 20.04
+environment.
 
 ### Build Doxygen documentation
 
