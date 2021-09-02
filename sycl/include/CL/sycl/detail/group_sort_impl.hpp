@@ -24,9 +24,8 @@ namespace detail {
 // following to functions could be useless if std::[lower|upper]_bound worked
 // well
 template <typename Acc, typename Value, typename Compare>
-std::size_t my_lower_bound(Acc acc, const std::size_t first,
-                           const std::size_t last, const Value &value,
-                           Compare comp) {
+std::size_t my_lower_bound(Acc acc, std::size_t first, std::size_t last,
+                           const Value &value, Compare comp) {
   std::size_t n = last - first;
   std::size_t cur = n;
   std::size_t it;
@@ -178,9 +177,9 @@ template <typename Group, typename Iter, typename Compare>
 void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
                 std::uint8_t *scratch) {
   using T = typename std::iterator_traits<Iter>::value_type;
-  auto id = cl::sycl::detail::Builder::getNDItem<Group::dimensions>()
-      const std::size_t idx = id.get_local_id();
-  const std::size_t local = group.get_local_range(0);
+  auto id = cl::sycl::detail::Builder::getNDItem<Group::dimensions>();
+  const std::size_t idx = id.get_local_id();
+  const std::size_t local = group.get_local_range().size();
   const std::size_t chunk = (n - 1) / local + 1;
 
   // we need to sort within work item firstly

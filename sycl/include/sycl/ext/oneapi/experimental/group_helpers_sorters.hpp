@@ -59,6 +59,7 @@ public:
         memory_required<T>(
             sycl::memory_scope::work_group /*Group::fence_scope*/,
             range_size)) {
+      auto id = cl::sycl::detail::Builder::getNDItem<Group::dimensions>();
       uint32_t local_id = id.get_local_id();
       T *temp = reinterpret_cast<T *>(scratch);
       temp[local_id] = val;
