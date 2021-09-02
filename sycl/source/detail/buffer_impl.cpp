@@ -31,7 +31,10 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
 __SYCL_CLOSE_NS()
 
 
+#ifndef _WIN32
+
 __SYCL_EXPORT extern char _ZTIN2cl4sycl6detail11buffer_implE __attribute__((alias("_ZTIN15__sycl_internal4__v16detail11buffer_implE")));
 __SYCL_EXPORT extern char _ZTSN2cl4sycl6detail11buffer_implE __attribute__((alias("_ZTSN15__sycl_internal4__v16detail11buffer_implE")));
 __SYCL_EXPORT extern char _ZTVN2cl4sycl6detail11buffer_implE __attribute__((alias("_ZTVN15__sycl_internal4__v16detail11buffer_implE")));
 
+#endif //_WIN32

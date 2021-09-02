@@ -289,6 +289,7 @@ __SYCL_CLOSE_NS()
 
 
 
+#ifndef _WIN32
 
 __SYCL_EXPORT extern char _ZTIN2cl4sycl12cpu_selectorE __attribute__((alias("_ZTIN15__sycl_internal4__v112cpu_selectorE")));
 
@@ -323,3 +324,4 @@ __SYCL_EXPORT extern char _ZTVN2cl4sycl3ext6oneapi15filter_selectorE __attribute
 
 __SYCL_EXPORT extern char _ZTVN2cl4sycl6ONEAPI15filter_selectorE __attribute__((alias("_ZTVN15__sycl_internal4__v16ONEAPI15filter_selectorE")));
 
+#endif //_WIN32
