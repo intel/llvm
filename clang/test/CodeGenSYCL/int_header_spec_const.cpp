@@ -60,7 +60,7 @@ int main() {
 
   cl::sycl::kernel_single_task<SpecializedKernel>([=]() {
     *ptr = i1.get() +
-           // CHECK-DAG: template <> struct sycl::detail::SpecConstantInfo<::MyBoolConst> {
+           // CHECK-DAG: template <> struct __SYCL_INT_HEADER_NS()::detail::SpecConstantInfo<::MyBoolConst> {
            // CHECK-DAG-NEXT:   static constexpr const char* getName() {
            // CHECK-DAG-NEXT:     return "_ZTS11MyBoolConst";
            // CHECK-DAG-NEXT:   }
