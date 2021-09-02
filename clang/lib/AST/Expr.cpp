@@ -541,15 +541,17 @@ std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context) const {
                                                getTypeSourceInfo()->getType());
 }
 
+static llvm::Optional<unsigned>
+UniqueStableNameDiscriminator(ASTContext &, const NamedDecl *ND) {
+  if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
+    return RD->getDeviceLambdaManglingNumber();
+  return llvm::None;
+}
+
 std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context,
                                                   QualType Ty) {
   std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
-      Context, Context.getDiagnostics(),
-      [](ASTContext &, const NamedDecl *ND) -> llvm::Optional<unsigned> {
-        if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
-          return RD->getDeviceLambdaManglingNumber();
-        return llvm::None;
-      })};
+      Context, Context.getDiagnostics(), UniqueStableNameDiscriminator)};
 
   std::string Buffer;
   Buffer.reserve(128);
@@ -600,12 +602,7 @@ std::string SYCLUniqueStableIdExpr::ComputeName(ASTContext &Context) const {
 std::string SYCLUniqueStableIdExpr::ComputeName(ASTContext &Context,
                                                 const VarDecl *VD) {
   std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
-      Context, Context.getDiagnostics(),
-      [](ASTContext &, const NamedDecl *ND) -> llvm::Optional<unsigned> {
-        if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
-          return RD->getDeviceLambdaManglingNumber();
-        return llvm::None;
-      })};
+      Context, Context.getDiagnostics(), UniqueStableNameDiscriminator)};
 
   std::string Buffer;
   Buffer.reserve(128);
