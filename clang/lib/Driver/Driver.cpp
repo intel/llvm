@@ -5510,8 +5510,11 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       if (Phase == phases::Preprocess && Args.hasArg(options::OPT_fsycl) &&
           Args.hasArg(options::OPT_M_Group) &&
           !Args.hasArg(options::OPT_fno_sycl_use_footer)) {
-        Actions.push_back(
-            C.MakeAction<PreprocessJobAction>(Current, types::TY_Dependencies));
+        Action *PreprocessAction =
+            C.MakeAction<PreprocessJobAction>(Current, types::TY_Dependencies);
+        PreprocessAction->propagateHostOffloadInfo(Action::OFK_SYCL,
+                                                   /*BoundArch=*/nullptr);
+        Actions.push_back(PreprocessAction);
       }
 
       // FIXME: Should we include any prior module file outputs as inputs of

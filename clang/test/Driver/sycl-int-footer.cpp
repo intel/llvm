@@ -71,9 +71,11 @@
 /// Check behaviors for dependency generation
 // RUN:  %clangxx -fsycl -MD -c %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix DEP_GEN %s
-// DEP_GEN:  clang{{.*}} "-Eonly"
+// DEP_GEN:  clang{{.*}} "-fsycl-is-host"
+// DEP_GEN-SAME: "-Eonly"
 // DEP_GEN-SAME: "-dependency-file"
 // DEP_GEN-SAME: "-MT"
+// DEP_GEN-SAME: "-internal-isystem" "{{.*}}{{[/\\]+}}include{{[/\\]+}}sycl"
 // DEP_GEN-SAME: "-x" "c++" "[[INPUTFILE:.+\.cpp]]"
 // DEP_GEN: append-file{{.*}} "[[INPUTFILE]]"
 // DEP_GEN-NOT: clang{{.*}} "-dependency-file"
