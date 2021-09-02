@@ -184,8 +184,7 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
               !ExecKernel->MSyclKernel->isCreatedFromSource());
 
   return sycl::detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-      ExecKernel->MOSModuleHandle, ContextImpl, DeviceImpl, Program,
-      ExecKernel->MKernelName);
+      ExecKernel->MOSModuleHandle, Program, ExecKernel->MKernelName);
 }
 
 // After both kernels are compiled ProgramManager.NativePrograms contains info
