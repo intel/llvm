@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-unknown-unknown -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s --check-prefix=NONATIVESUPPORT
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s --check-prefix=NATIVESUPPORT
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s --check-prefix=NATIVESUPPORT
 
 // This test checks IR generated when kernel_handler argument
 // (used to handle SYCL 2020 specialization constants) is passed
