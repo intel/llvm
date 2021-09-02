@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 //
 // Test which verifies that readonly attribute is generated for unexpected access mode value.
 

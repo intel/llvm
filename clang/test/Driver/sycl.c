@@ -28,30 +28,33 @@
 // DISABLED-NOT: "-sycl-std={{.*}}"
 // DISABLED-NOT: "-fsycl-std-layout-kernel-params"
 
+// RUN: %clangxx -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -c %s 2>&1 | FileCheck %s --check-prefix=CHECK_WARNING
+// CHECK_WARNING: argument 'spir64-unknown-unknown-sycldevice' is deprecated, use 'spir64' instead
+
 // RUN: %clang -### -fsycl-device-only -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 // RUN: %clang -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 // RUN: %clang -### -fsycl-device-only -S %s 2>&1 | FileCheck %s --check-prefix=TEXTUAL
 // RUN: %clang -### -fsycl-device-only -fsycl  %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 // RUN: %clang -### -fsycl-device-only -fno-sycl-use-bitcode -c %s 2>&1 | FileCheck %s --check-prefix=NO-BITCODE
-// RUN: %clang -### -target spir64-unknown-linux-sycldevice -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=TARGET
+// RUN: %clang -### -target spir64-unknown-linux -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=TARGET
 // RUN: %clang -### -fsycl-device-only -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=COMBINED
 // RUN: %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 // RUN: %clang_cl -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 // RUN: %clangxx -### -fsycl-device-only -fno-sycl-unnamed-lambda %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-LAMBDA
 // RUN: %clang_cl -### -fsycl-device-only -fno-sycl-unnamed-lambda %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-LAMBDA
 
-// DEFAULT: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-sycl-std=2020"{{.*}} "-emit-llvm-bc"
+// DEFAULT: "-triple" "spir64-unknown-{{.*}}"{{.*}} "-fsycl-is-device"{{.*}} "-sycl-std=2020"{{.*}} "-emit-llvm-bc"
 // DEFAULT: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
 // DEFAULT: "-internal-isystem" "{{.*lib.*clang.*include}}"
 // DEFAULT: "-std=c++17"
 // DEFAULT-NOT: "{{.*}}llvm-spirv"{{.*}}
 // DEFAULT-NOT: "-std=c++11"
 // DEFAULT-NOT: "-std=c++14"
-// NO-BITCODE: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
+// NO-BITCODE: "-triple" "spir64-unknown-{{.*}}"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
 // NO-BITCODE: "{{.*}}llvm-spirv"{{.*}}
-// TARGET: "-triple" "spir64-unknown-linux-sycldevice"{{.*}} "-emit-llvm-bc"
-// COMBINED: "-triple" "spir64-unknown-{{.*}}-sycldevice"{{.*}} "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
-// TEXTUAL: "-triple" "spir64-unknown-{{.*}}-sycldevice{{.*}}" "-fsycl-is-device"{{.*}} "-emit-llvm"
+// TARGET: "-triple" "spir64-unknown-linux"{{.*}} "-emit-llvm-bc"
+// COMBINED: "-triple" "spir64-unknown-{{.*}}" "-fsycl-is-device"{{.*}} "-emit-llvm-bc"
+// TEXTUAL: "-triple" "spir64-unknown-{{.*}}" "-fsycl-is-device"{{.*}} "-emit-llvm"
 // CHECK-NOT-LAMBDA: "-fno-sycl-unnamed-lambda"
 
 /// -fsycl-device-only triple checks
@@ -59,13 +62,13 @@
 // RUN:  | FileCheck --check-prefix=DEVICE-64 %s
 // RUN: %clang_cl -fsycl-device-only --target=x86_64-unknown-linux-gnu -### %s 2>&1 \
 // RUN:  | FileCheck --check-prefix=DEVICE-64 %s
-// DEVICE-64: clang{{.*}} "-triple" "spir64-unknown-unknown-sycldevice" "-aux-triple" "x86_64-unknown-linux-gnu"
+// DEVICE-64: clang{{.*}} "-triple" "spir64-unknown-unknown" "-aux-triple" "x86_64-unknown-linux-gnu"
 
 // RUN: %clang -fsycl-device-only -target i386-unknown-linux-gnu -### %s 2>&1 \
 // RUN:  | FileCheck --check-prefix=DEVICE-32 %s
 // RUN: %clang_cl -fsycl-device-only --target=i386-unknown-linux-gnu -### %s 2>&1 \
 // RUN:  | FileCheck --check-prefix=DEVICE-32 %s
-// DEVICE-32: clang{{.*}} "-triple" "spir-unknown-unknown-sycldevice" "-aux-triple" "i386-unknown-linux-gnu"
+// DEVICE-32: clang{{.*}} "-triple" "spir-unknown-unknown" "-aux-triple" "i386-unknown-linux-gnu"
 
 /// Verify that the sycl header directory is before /usr/include
 // RUN: %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=HEADER_ORDER
@@ -77,7 +80,7 @@
 // DEFAULT-PHASES: 0: input, "{{.*}}", c++, (device-sycl)
 // DEFAULT-PHASES: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
 // DEFAULT-PHASES: 2: compiler, {1}, ir, (device-sycl)
-// DEFAULT-PHASES: 3: offload, "device-sycl (spir64-unknown-unknown-sycldevice)" {2}, ir
+// DEFAULT-PHASES: 3: offload, "device-sycl (spir64-unknown-unknown)" {2}, ir
 // DEFAULT-PHASES-NOT: linker
 
 // -fsycl-help tests
@@ -92,12 +95,12 @@
 // RUN: %clang -### -fsycl-help %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-GEN,SYCL-HELP-FPGA,SYCL-HELP-CPU
 // SYCL-HELP-BADARG: unsupported argument 'foo' to option 'fsycl-help='
 // SYCL-HELP-GEN: Emitting help information for ocloc
-// SYCL-HELP-GEN: Use triple of 'spir64_gen-unknown-unknown-sycldevice' to enable ahead of time compilation
+// SYCL-HELP-GEN: Use triple of 'spir64_gen-unknown-unknown' to enable ahead of time compilation
 // SYCL-HELP-FPGA-OUT: "[[DIR]]{{[/\\]+}}aoc" "-help" "-sycl"
 // SYCL-HELP-FPGA: Emitting help information for aoc
-// SYCL-HELP-FPGA: Use triple of 'spir64_fpga-unknown-unknown-sycldevice' to enable ahead of time compilation
+// SYCL-HELP-FPGA: Use triple of 'spir64_fpga-unknown-unknown' to enable ahead of time compilation
 // SYCL-HELP-CPU: Emitting help information for opencl-aot
-// SYCL-HELP-CPU: Use triple of 'spir64_x86_64-unknown-unknown-sycldevice' to enable ahead of time compilation
+// SYCL-HELP-CPU: Use triple of 'spir64_x86_64-unknown-unknown' to enable ahead of time compilation
 
 // -fsycl-id-queries-fit-in-int
 // RUN: %clang -### -fsycl -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES
