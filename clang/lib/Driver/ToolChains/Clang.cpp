@@ -8669,6 +8669,8 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
       // If OffloadArch is present it can only appear as the 6th hyphen
       // separated field of Bundle Entry ID. So, pad required number of
       // hyphens in Triple.
+      // e.g. if NormalizedTriple is nvptx64-nvidia-cuda, 2 more - to
+      // generate nvptx64-nvidia-cuda--
       for (int i = 4 - StringRef(NormalizedTriple).count("-"); i > 0; i--)
         Targets += '-';
       Targets += Dep.DependentBoundArch;
