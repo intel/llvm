@@ -33,15 +33,3 @@ void bar(cl::sycl::queue queue) {
     cgh.parallel_for<class K2>(cl::sycl::range<2>{1024,768}, f);
   });
 }
-
-// This validates the case where using a lambda in a kernel in a different order
-// than the lexical order of the lambdas. In a previous implementation of
-// __builtin_sycl_unique_stable_name this would result in the value of the
-// builtin being invalidated, causing a compile error. The redesigned
-// implementation should no longer have a problem with this pattern.
-void out_of_order_decls() {
-  auto w = [](auto i) {};
-  sycl::queue q;
-  q.parallel_for(10, [](auto i) {});
-  q.parallel_for(10, w);
-}
