@@ -75,8 +75,8 @@ sycl/include/CL/sycl/swizzles.def @turinevgeny
 sycl/include/CL/sycl/types.hpp @turinevgeny
 
 # XPTI instrumentation utilities
-xpti/ @tovinkere @andykaylor
-xptifw/ @tovinkere  @andykaylor
+xpti/ @tovinkere @andykaylor @alexbatashev
+xptifw/ @tovinkere @andykaylor @alexbatashev
 
 # DPC++ tools
 llvm/**/append-file/ @mdtoguchi @AGindinson
