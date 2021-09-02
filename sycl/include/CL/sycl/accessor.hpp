@@ -1561,8 +1561,7 @@ public:
 
   template <int Dims = Dimensions>
   operator typename detail::enable_if_t<
-      Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT, AS>>()
-      const {
+      Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT>>() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return atomic<DataT, AS>(
         multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
