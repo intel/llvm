@@ -118,6 +118,11 @@ TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
     return;
   }
 
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
+    return;
+  }
+
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 
@@ -156,6 +161,11 @@ TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
     return;
   }
 
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
+    return;
+  }
+
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 
@@ -187,6 +197,11 @@ TEST(KernelID, KernelIDHasKernel) {
 
   if (Plt.get_backend() == sycl::backend::cuda) {
     std::cout << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 
