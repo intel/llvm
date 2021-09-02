@@ -4676,13 +4676,28 @@ class OffloadingActionBuilder final {
           else
             continue;
         } else if (A->getOption().matches(options::OPT_Xsycl_backend)) {
-          if (SYCLTripleList.size() > 1) {
+          // While the user may have provided a single AOT triple, the generic
+          // spir64 triple could have been added automatically by us upon
+          // discovering a spir64 section in one of the object/library inputs.
+          // To allow for automatic detection of the toolchain that needs to
+          // receive -Xsycl-target-* arguments, drop the autodetected spir64
+          // triple from the local copy of the targets list.
+          // FIXME: Is there a way to add the autodetected generic triple at
+          // a later stage instead?
+          auto UserSYCLTripleList = SYCLTripleList;
+          if (C.getDriver().isSYCLDefaultTripleImplied())
+            UserSYCLTripleList.erase(
+                llvm::remove_if(UserSYCLTripleList, [](llvm::Triple TT) {
+                  return TT.isSPIR() &&
+                         TT.getSubArch() == llvm::Triple::NoSubArch;
+                }));
+          if (UserSYCLTripleList.size() > 1) {
             C.getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
                 << A->getSpelling();
             continue;
           }
           // Passing device args: -Xsycl-target-backend -opt=val.
-          TargetBE = &SYCLTripleList.front();
+          TargetBE = &UserSYCLTripleList.front();
           Index = Args.getBaseArgs().MakeIndex(A->getValue(0));
         } else
           continue;
