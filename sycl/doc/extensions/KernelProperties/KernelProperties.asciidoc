@@ -406,20 +406,26 @@ run-time should result in an implementation throwing an `exception` with the
 The SYCL 2020 `sycl::requires` attribute can be applied to the declaration
 of a non-kernel device function, to assert that the device function uses a
 specific set of optional features. This extension provides a mechanism exposing
-similar behavior, allowing for a set of kernel properties to be associated with
-a function via a comma-delimited list passed to the
-`SYCL_EXT_ONEAPI_PROPERTIES` macro.
+similar behavior, allowing for kernel properties to be associated with
+a function via the `SYCL_EXT_ONEAPI_PROPERTY` macro.  Each instance of the
+`SYCL_EXT_ONEAPI_PROPERTY` macro accepts one argument, corresponding to a
+single property value.
+
+NOTE: Due to limitations of the C preprocessor, property value expressions
+containing commas (e.g. due to template arguments) must be enclosed in
+parentheses to avoid being interpreted as multiple arguments.
 
 The example below shows a function that can only be called from kernels using
 a work-group size of (8, 8) and a sub-group size of 8:
 
 ```c++
-SYCL_EXT_ONEAPI_PROPERTIES(sycl::work_group_size_v<8, 8>, sycl::sub_group_size_v<8>)
+SYCL_EXT_ONEAPI_PROPERTY((sycl::work_group_size_v<8, 8>))
+SYCL_EXT_ONEAPI_PROPERTY(sycl::sub_group_size_v<8>)
 void foo();
 ```
 
 The table below describes the effects of associating each kernel property
-with a non-kernel device function via the `SYCL_EXT_ONEAPI_PROPERTIES` macro.
+with a non-kernel device function via the `SYCL_EXT_ONEAPI_PROPERTY` macro.
 
 |===
 |Property|Description
@@ -461,13 +467,13 @@ with a non-kernel device function via the `SYCL_EXT_ONEAPI_PROPERTIES` macro.
 
 |===
 
-The `SYCL_EXT_ONEAPI_PROPERTIES` macro can be used alongside the
+The `SYCL_EXT_ONEAPI_PROPERTY` macro can be used alongside the
 `SYCL_EXTERNAL` macro. Whenever `SYCL_EXTERNAL` is used, there are two relevant
 translation units: the translation unit that _defines_ the function and the
 translation unit that _calls_ the function.  If a given `SYCL_EXTERNAL`
 function _F_ is defined in one translation unit with a set of properties _P_,
 then all other translation units that declare that same function _F_ must list
-the same set of properties _P_ in the `SYCL_EXT_ONEAPI_PROPERTIES` list.
+the same set of properties _P_ via the `SYCL_EXT_ONEAPI_PROPERTY` macro.
 Programs which fail to do this are ill-formed, but no diagnostic is required.
 
 == Issues
