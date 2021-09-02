@@ -925,8 +925,17 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
           // Warn about deprecated `sycldevice` environment component.
           if (TT.getEnvironmentName() == "sycldevice") {
+            // Build a string with suggested target triple.
+            std::string SuggestedTriple = TT.getArchName().str();
+            if (TT.getOS() != llvm::Triple::UnknownOS) {
+              SuggestedTriple += '-';
+              if (TT.getVendor() != llvm::Triple::UnknownVendor)
+                SuggestedTriple += TT.getVendorName();
+              SuggestedTriple += Twine("-" + TT.getOSName()).str();
+            } else if (TT.getVendor() != llvm::Triple::UnknownVendor)
+              SuggestedTriple += Twine("-" + TT.getVendorName()).str();
             Diag(clang::diag::warn_drv_deprecated_arg)
-                << TT.str() << TT.getArchName();
+                << TT.str() << SuggestedTriple;
             // Drop environment component.
             std::string EffectiveTriple =
                 Twine(TT.getArchName() + "-" + TT.getVendorName() + "-" +

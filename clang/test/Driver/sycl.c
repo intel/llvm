@@ -28,8 +28,9 @@
 // DISABLED-NOT: "-sycl-std={{.*}}"
 // DISABLED-NOT: "-fsycl-std-layout-kernel-params"
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -c %s 2>&1 | FileCheck %s --check-prefix=CHECK_WARNING
+// RUN: %clangxx -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice,nvptx64-nvidia-cuda-sycldevice -fno-sycl-libspirv -nocudalib -c %s 2>&1 | FileCheck %s --check-prefix=CHECK_WARNING
 // CHECK_WARNING: argument 'spir64-unknown-unknown-sycldevice' is deprecated, use 'spir64' instead
+// CHECK_WARNING: argument 'nvptx64-nvidia-cuda-sycldevice' is deprecated, use 'nvptx64-nvidia-cuda' instead
 
 // RUN: %clang -### -fsycl-device-only -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 // RUN: %clang -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
