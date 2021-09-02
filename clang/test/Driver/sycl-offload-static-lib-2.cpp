@@ -54,7 +54,7 @@
 // STATIC_LIB_SRC: 4: input, "[[INPUTC]]", c++, (device-sycl)
 // STATIC_LIB_SRC: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
 // STATIC_LIB_SRC: 6: compiler, {5}, ir, (device-sycl)
-// STATIC_LIB_SRC: 7: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (spir64-unknown-unknown-sycldevice)" {6}, c++-cpp-output
+// STATIC_LIB_SRC: 7: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (spir64-unknown-unknown)" {6}, c++-cpp-output
 // STATIC_LIB_SRC: 8: compiler, {7}, ir, (host-sycl)
 // STATIC_LIB_SRC: 9: backend, {8}, assembler, (host-sycl)
 // STATIC_LIB_SRC: 10: assembler, {9}, object, (host-sycl)
@@ -69,7 +69,7 @@
 // STATIC_LIB_SRC: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
 // STATIC_LIB_SRC: 20: file-table-tform, {17, 19}, tempfiletable, (device-sycl)
 // STATIC_LIB_SRC: 21: clang-offload-wrapper, {20}, object, (device-sycl)
-// STATIC_LIB_SRC: 22: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (spir64-unknown-unknown-sycldevice)" {21}, image
+// STATIC_LIB_SRC: 22: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (spir64-unknown-unknown)" {21}, image
 
 /// ###########################################################################
 
@@ -129,7 +129,7 @@
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -L/dummy/dir %t_lib.lo -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_NOSRC
-// STATIC_LIB_NOSRC: clang-offload-bundler{{.*}} "-type=a" "-targets=sycl-spir64-unknown-unknown-sycldevice" "-inputs={{.*}}_lib.{{(a|lo)}}" "-outputs=[[DEVICELIB:.+\.a]]" "-unbundle"
+// STATIC_LIB_NOSRC: clang-offload-bundler{{.*}} "-type=a" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}_lib.{{(a|lo)}}" "-outputs=[[DEVICELIB:.+\.a]]" "-unbundle"
 // STATIC_LIB_NOSRC: llvm-link{{.*}} "[[DEVICELIB]]" "-o" "[[BCFILE:.+\.bc]]"
 // STATIC_LIB_NOSRC: sycl-post-link{{.*}} "-o" "[[TABLE:.+\.table]]" "[[BCFILE]]"
 // STATIC_LIB_NOSRC: file-table-tform{{.*}} "-o" "[[LIST:.+\.txt]]" "[[TABLE]]"

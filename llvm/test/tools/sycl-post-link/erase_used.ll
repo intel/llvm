@@ -12,7 +12,7 @@
 ; RUN: sycl-post-link -S -split=auto -ir-output-only %s -o %t.out_ir_only.ll
 ; RUN: FileCheck %s --input-file %t.out_ir_only.ll
 
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 ; CHECK-NOT: llvm.used
 @llvm.used = appending global [2 x i8*] [i8* bitcast (void ()* @foo to i8*), i8* bitcast (void ()* @bar to i8*)], section "llvm.metadata"
