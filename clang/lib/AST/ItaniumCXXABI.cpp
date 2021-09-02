@@ -183,10 +183,12 @@ public:
 
 // A version of this for SYCL that makes sure that 'device' mangling context
 // matches the lambda mangling number, so that __builtin_sycl_unique_stable_name
-// can be consistently generated between a MS and Itanium host by just referring to the
+// can be consistently generated between a MS and Itanium host by just referring
+// to the device mangling number.
 class ItaniumSYCLNumberingContext : public ItaniumNumberingContext {
   llvm::DenseMap<const CXXMethodDecl *, unsigned> ManglingNumbers;
   using ManglingItr = decltype(ManglingNumbers)::iterator;
+
 public:
   ItaniumSYCLNumberingContext(ItaniumMangleContext *Mangler)
       : ItaniumNumberingContext(Mangler) {}
