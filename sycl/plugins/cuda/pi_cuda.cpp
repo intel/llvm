@@ -3913,7 +3913,7 @@ pi_result cuda_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
       auto dst_context = dst_buffer->context_->get();
       auto src_context = src_buffer->context_->get();
 
-      cuCtxEnablePeerAccess(src_context, 0);
+      cuCtxEnablePeerAccess(dst_context, 0);
 
       result = PI_CHECK_ERROR(
           cuMemcpyPeerAsync(dst, dst_context, src, src_context, size, stream));
@@ -3970,7 +3970,7 @@ pi_result cuda_piEnqueueMemBufferCopyRect(
       auto dstContext = dst_buffer->context_->get();
       auto srcContext = src_buffer->context_->get();
 
-      cuCtxEnablePeerAccess(srcContext, 0);
+      cuCtxEnablePeerAccess(dstContext, 0);
 
       retErr = commonEnqueueMemBufferCopyRectPeer(
           cuStream, region, &srcPtr, CU_MEMORYTYPE_DEVICE, src_origin,
@@ -4433,7 +4433,7 @@ pi_result cuda_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
       auto dstContext = dst_image->context_->get();
       auto srcContext = src_image->context_->get();
 
-      cuCtxEnablePeerAccess(srcContext, 0);
+      cuCtxEnablePeerAccess(dstContext, 0);
 
       retErr = commonEnqueueMemImageNDCopyPeer(
           cuStream, imgType, adjustedRegion, &srcArray, CU_MEMORYTYPE_ARRAY,
