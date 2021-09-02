@@ -2073,7 +2073,7 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
   namespace detail {
   using cl::sycl::detail::queue_impl;
-  __SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
+  __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                         size_t LocalMemBytesPerWorkItem);
   __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
                                          size_t &NWorkGroups);

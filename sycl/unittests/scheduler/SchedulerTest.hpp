@@ -15,7 +15,7 @@ class SchedulerTest : public ::testing::Test {
 protected:
   cl::sycl::async_handler MAsyncHandler =
       [](cl::sycl::exception_list ExceptionList) {
-        for (cl::sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
+        for (std::exception_ptr ExceptionPtr : ExceptionList) {
           try {
             std::rethrow_exception(ExceptionPtr);
           } catch (cl::sycl::exception &E) {
