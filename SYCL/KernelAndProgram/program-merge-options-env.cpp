@@ -8,7 +8,7 @@
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
-// CHECK-NEXT: <const char *>: -DENV_COMPILE_OPTS -vc-codegen
+// CHECK-NEXT: <const char *>:{{.*}}-DENV_COMPILE_OPTS{{.*}}-vc-codegen
 
 // TODO: Uncomment when build options are properly passed to compile and link
 //       commands for program
