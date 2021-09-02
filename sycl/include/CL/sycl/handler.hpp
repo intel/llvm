@@ -190,9 +190,16 @@ checkValueRange(const T &V) {
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
   checkValueRange<Dims>(V.get_global_range());
   checkValueRange<Dims>(V.get_local_range());
+#ifdef __SYCL_INTERNAL_API
   checkValueRange<Dims>(V.get_offset());
+#endif
 
+#ifdef __SYCL_INTERNAL_API
   checkValueRange<Dims>(V.get_global_range(), V.get_offset());
+#else
+  checkValueRange<Dims>(V.get_global_range(), {});
+#endif
+
 #else
   (void)V;
 #endif
@@ -1309,9 +1316,9 @@ public:
   /// \param NumWorkItems is a range defining indexing space.
   /// \param WorkItemOffset is an offset to be applied to each work item index.
   /// \param KernelFunc is a SYCL kernel function.
+#ifdef __SYCL_INTERNAL_API
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
                     _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
@@ -1328,6 +1335,7 @@ public:
     setType(detail::CG::Kernel);
 #endif
   }
+#endif
 
   /// Defines and invokes a SYCL kernel function for the specified nd_range.
   ///
@@ -1765,8 +1773,8 @@ public:
   /// \param NumWorkItems is a range defining indexing space.
   /// \param WorkItemOffset is an offset to be applied to each work item index.
   /// \param Kernel is a SYCL kernel function.
+#ifdef __SYCL_INTERNAL_API
   template <int Dims>
-  __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
                     kernel Kernel) {
     throwIfActionIsCreated();
@@ -1778,6 +1786,7 @@ public:
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
+#endif
 
   /// Defines and invokes a SYCL kernel function for the specified range and
   /// offsets.
@@ -1877,9 +1886,9 @@ public:
   /// \param WorkItemOffset is an offset to be applied to each work item index.
   /// \param KernelFunc is a lambda that is used if device, queue is bound to,
   /// is a host device.
+#ifdef __SYCL_INTERNAL_API
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
                     id<Dims> WorkItemOffset, _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
@@ -1891,7 +1900,6 @@ public:
     (void)WorkItemOffset;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-    detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
@@ -1903,6 +1911,7 @@ public:
           std::move(KernelFunc));
 #endif
   }
+#endif
 
   /// Defines and invokes a SYCL kernel function for the specified range and
   /// offsets.

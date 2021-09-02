@@ -83,7 +83,11 @@ public:
     for (int I = 0; I < Dims_; ++I) {
       GlobalSize[I] = ExecutionRange.get_global_range()[I];
       LocalSize[I] = ExecutionRange.get_local_range()[I];
+#ifdef __SYCL_INTERNAL_API
       GlobalOffset[I] = ExecutionRange.get_offset()[I];
+#else
+      GlobalOffset[I] = 0;
+#endif
       NumWorkGroups[I] = 0;
     }
     setNDRangeLeftover(Dims_);
@@ -94,7 +98,11 @@ public:
     for (int I = 0; I < Dims_; ++I) {
       GlobalSize[I] = ExecutionRange.get_global_range()[I];
       LocalSize[I] = ExecutionRange.get_local_range()[I];
+#ifdef __SYCL_INTERNAL_API
       GlobalOffset[I] = ExecutionRange.get_offset()[I];
+#else
+      GlobalOffset[I] = 0;
+#endif
       NumWorkGroups[I] = 0;
     }
     setNDRangeLeftover(Dims_);

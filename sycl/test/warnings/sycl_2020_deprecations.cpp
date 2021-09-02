@@ -119,8 +119,7 @@ int main() {
   (void)ex;
 
   Queue.submit([](sycl::handler &CGH) {
-    // expected-warning@+3{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}
-    // expected-warning@+2{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}
+    // expected-error@+2{{no matching constructor for initialization of 'sycl::nd_range<1>'}}
     CGH.parallel_for<class Test>(
         sycl::nd_range<1>{sycl::range{10}, sycl::range{10}, sycl::range{1}},
         [](sycl::nd_item<1> it) {

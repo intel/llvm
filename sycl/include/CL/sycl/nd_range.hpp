@@ -28,10 +28,11 @@ template <int dimensions = 1> class nd_range {
                 "nd_range can only be 1, 2, or 3 dimensional.");
 
 public:
-  __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
+#ifdef __SYCL_INTERNAL_API
   nd_range(range<dimensions> globalSize, range<dimensions> localSize,
            id<dimensions> offset)
       : globalSize(globalSize), localSize(localSize), offset(offset) {}
+#endif
 
   nd_range(range<dimensions> globalSize, range<dimensions> localSize)
       : globalSize(globalSize), localSize(localSize), offset(id<dimensions>()) {
@@ -43,8 +44,9 @@ public:
 
   range<dimensions> get_group_range() const { return globalSize / localSize; }
 
-  __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
+#ifdef __SYCL_INTERNAL_API
   id<dimensions> get_offset() const { return offset; }
+#endif
 
   // Common special member functions for by-value semantics
   nd_range(const nd_range<dimensions> &rhs) = default;

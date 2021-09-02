@@ -35,8 +35,7 @@ int main() {
   assert((one_dim.get_global_range(0) == 4));
   assert((one_dim.get_local_range() == cl::sycl::range<1>{2}));
   assert((one_dim.get_local_range(0) == 2));
-  assert((one_dim.get_offset() == cl::sycl::id<1>{0}));
-  assert((one_dim.get_nd_range() == cl::sycl::nd_range<1>({4}, {2}, {0})));
+  assert((one_dim.get_nd_range() == cl::sycl::nd_range<1>({4}, {2})));
 
   // two dimension nd_item
   cl::sycl::nd_item<2> two_dim = Builder::createNDItem<2>(
@@ -65,9 +64,7 @@ int main() {
   assert((two_dim.get_local_range() == cl::sycl::range<2>{2, 2}));
   assert((two_dim.get_local_range(0) == 2 &&
           two_dim.get_local_range(1) == 2));
-  assert((two_dim.get_offset() == cl::sycl::id<2>{0, 0}));
-  assert((two_dim.get_nd_range() ==
-          cl::sycl::nd_range<2>({4, 4}, {2, 2}, {0, 0})));
+  assert((two_dim.get_nd_range() == cl::sycl::nd_range<2>({4, 4}, {2, 2})));
 
   // three dimension nd_item
   cl::sycl::nd_item<3> three_dim = Builder::createNDItem<3>(
@@ -102,7 +99,6 @@ int main() {
   assert((three_dim.get_local_range(0) == 2 &&
           three_dim.get_local_range(1) == 2 &&
           three_dim.get_local_range(2) == 2));
-  assert((three_dim.get_offset() == cl::sycl::id<3>{0, 0, 0}));
   assert((three_dim.get_nd_range() ==
-          cl::sycl::nd_range<3>({4, 4, 4}, {2, 2, 2}, {0, 0, 0})));
+          cl::sycl::nd_range<3>({4, 4, 4}, {2, 2, 2})));
 }

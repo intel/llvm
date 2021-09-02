@@ -104,12 +104,12 @@ public:
     return localItem.get_range(dimension);
   }
 
-  __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
+#ifdef __SYCL_INTERNAL_API
   id<dimensions> get_offset() const { return globalItem.get_offset(); }
+#endif
 
   nd_range<dimensions> get_nd_range() const {
-    return nd_range<dimensions>(get_global_range(), get_local_range(),
-                                get_offset());
+    return nd_range<dimensions>(get_global_range(), get_local_range());
   }
 
   void barrier(access::fence_space accessSpace =

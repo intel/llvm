@@ -40,6 +40,4 @@ SYCL_EXTERNAL void testNDItem(nd_item<1> TestNDItem) {
   int GlobalIdConverted = TestNDItem.get_global_id();
   // CHECK: call void @llvm.assume(i1 {{.*}})
   int LocalIdConverted = TestNDItem.get_local_id();
-  // CHECK: call void @llvm.assume(i1 {{.*}})
-  int OffsetConferted = TestNDItem.get_offset();
 }
