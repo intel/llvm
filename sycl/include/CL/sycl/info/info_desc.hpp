@@ -15,7 +15,9 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+#ifdef __SYCL_INTERNAL_API
 class program;
+#endif
 class device;
 class platform;
 
@@ -220,7 +222,9 @@ enum class kernel : cl_kernel_info {
   function_name = CL_KERNEL_FUNCTION_NAME,
   num_args = CL_KERNEL_NUM_ARGS,
   context = CL_KERNEL_CONTEXT,
+#ifdef __SYCL_INTERNAL_API
   program = CL_KERNEL_PROGRAM,
+#endif
   reference_count = CL_KERNEL_REFERENCE_COUNT,
   attributes = CL_KERNEL_ATTRIBUTES
 };
@@ -257,11 +261,13 @@ enum class kernel_device_specific : cl_kernel_work_group_info {
 };
 
 // A.6 Program information desctiptors
+#ifdef __SYCL_INTERNAL_API
 enum class program : cl_program_info {
   context = CL_PROGRAM_CONTEXT,
   devices = CL_PROGRAM_DEVICES,
   reference_count = CL_PROGRAM_REFERENCE_COUNT
 };
+#endif
 
 // A.7 Event information desctiptors
 enum class event : cl_event_info {
@@ -315,7 +321,9 @@ template <typename T, T param> struct compatibility_param_traits {};
 
 #include <CL/sycl/info/platform_traits.def>
 
+#ifdef __SYCL_INTERNAL_API
 #include <CL/sycl/info/program_traits.def>
+#endif
 
 #include <CL/sycl/info/queue_traits.def>
 

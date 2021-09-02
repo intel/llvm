@@ -7,6 +7,9 @@
 //===---------------------------------------------------------------------===//
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
+#ifndef __SYCL_INTERNAL_API
+#define __SYCL_INTERNAL_API
+#endif
 
 #include <CL/sycl.hpp>
 #include <helpers/PiImage.hpp>

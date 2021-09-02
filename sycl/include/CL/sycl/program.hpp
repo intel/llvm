@@ -8,6 +8,8 @@
 
 #pragma once
 
+#ifdef __SYCL_INTERNAL_API
+
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
@@ -428,3 +430,5 @@ template <> struct hash<cl::sycl::program> {
   }
 };
 } // namespace std
+
+#endif
