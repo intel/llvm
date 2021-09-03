@@ -541,27 +541,17 @@ std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context) const {
                                                getTypeSourceInfo()->getType());
 }
 
-static llvm::Optional<unsigned> SYCLMangleCallback(ASTContext &Ctx,
-                                                   const NamedDecl *ND) {
-  // This replaces the 'lambda number' in the mangling with a unique number
-  // based on its order in the declaration.  To provide some level of visual
-  // notability (actual uniqueness from normal lambdas isn't necessary, as
-  // these are used differently), we add 10,000 to the number.
-  // For example:
-  // _ZTSZ3foovEUlvE10005_
-  // Demangles to: typeinfo name for foo()::'lambda10005'()
-  // Note that the mangler subtracts 2, since with normal lambdas the lambda
-  // mangling number '0' is an anonymous struct mangle, and '1' is omitted.
-  // So 10,002 results in the first number being 10,000.
-  if (Ctx.IsSYCLKernelNamingDecl(ND))
-    return 10'002 + Ctx.GetSYCLKernelNamingIndex(ND);
+static llvm::Optional<unsigned>
+UniqueStableNameDiscriminator(ASTContext &, const NamedDecl *ND) {
+  if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
+    return RD->getDeviceLambdaManglingNumber();
   return llvm::None;
 }
 
 std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context,
                                                   QualType Ty) {
   std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
-      Context, Context.getDiagnostics(), SYCLMangleCallback)};
+      Context, Context.getDiagnostics(), UniqueStableNameDiscriminator)};
 
   std::string Buffer;
   Buffer.reserve(128);
@@ -612,7 +602,7 @@ std::string SYCLUniqueStableIdExpr::ComputeName(ASTContext &Context) const {
 std::string SYCLUniqueStableIdExpr::ComputeName(ASTContext &Context,
                                                 const VarDecl *VD) {
   std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
-      Context, Context.getDiagnostics(), SYCLMangleCallback)};
+      Context, Context.getDiagnostics(), UniqueStableNameDiscriminator)};
 
   std::string Buffer;
   Buffer.reserve(128);

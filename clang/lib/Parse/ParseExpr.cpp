@@ -893,7 +893,6 @@ class CastExpressionIdValidator final : public CorrectionCandidateCallback {
 /// [Clang] unary-type-trait:
 ///                   '__is_aggregate'
 ///                   '__trivially_copyable'
-///                   '__builtin_sycl_mark_kernel_name'
 ///
 ///       binary-type-trait:
 /// [GNU]             '__is_base_of'

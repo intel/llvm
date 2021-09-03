@@ -8674,8 +8674,6 @@ public:
   bool VisitSYCLUniqueStableNameExpr(const SYCLUniqueStableNameExpr *E) {
     std::string ResultStr = E->ComputeName(Info.Ctx);
 
-    Info.Ctx.SYCLUniqueStableNameEvaluatedValues[E] = ResultStr;
-
     QualType CharTy = Info.Ctx.CharTy.withConst();
     APInt Size(Info.Ctx.getTypeSize(Info.Ctx.getSizeType()),
                ResultStr.size() + 1);
@@ -8693,8 +8691,6 @@ public:
 
   bool VisitSYCLUniqueStableIdExpr(const SYCLUniqueStableIdExpr *E) {
     std::string ResultStr = E->ComputeName(Info.Ctx);
-
-    Info.Ctx.SYCLUniqueStableNameEvaluatedValues[E] = ResultStr;
 
     QualType CharTy = Info.Ctx.CharTy.withConst();
     APInt Size(Info.Ctx.getTypeSize(Info.Ctx.getSizeType()),

@@ -1094,15 +1094,6 @@ public:
     OpaqueParser = P;
   }
 
-  // Marks a type as a SYCL Kernel without necessarily adding it.  Additionally,
-  // it diagnoses if this causes any of the evaluated
-  // __builtin_sycl_unique_stable_name values to change.
-  void MarkSYCLKernel(SourceLocation NewLoc, QualType Ty, bool IsInstantiation);
-  // Does the work necessary to deal with a SYCL kernel lambda. At the moment,
-  // this just marks the list of lambdas required to name the kernel. It does
-  // this by dispatching to MarkSYCLKernel, so it also does the diagnostics.
-  void AddSYCLKernelLambda(const FunctionDecl *FD);
-
   class DelayedDiagnostics;
 
   class DelayedDiagnosticsState {
