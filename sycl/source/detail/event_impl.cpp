@@ -50,6 +50,17 @@ event_impl::~event_impl() {
 }
 
 void event_impl::waitInternal() const {
+  if (MQueue) {
+    if (!MQueue->is_host()) {
+      const detail::plugin &Plugin = MQueue->getPlugin();
+      Plugin.call<detail::PiApiKind::piQueueFinish>(MQueue->getHandleRef());
+    } else {
+      while (MState != HES_Complete)
+        ;
+    }
+    return;
+  }
+
   if (!MHostEvent && MEvent) {
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
     return;
@@ -184,6 +195,13 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 #endif
 }
 
+void event_impl::set_queue_as_event_is_empty(QueueImplPtr Queue) {
+  MQueue = Queue;
+  MHostEvent = Queue->is_host();
+  MOpenCLInterop = !MHostEvent;
+  MContext = Queue->getContextImplPtr();
+}
+
 void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -194,23 +212,13 @@ void event_impl::wait(
   TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
 #endif
 
-  if (MQueue) {
-    if (!MQueue->is_host()) {
-      detail::code_location CodeLoc;
-      MQueue->wait(CodeLoc);
-    } else {
-      while (MState != HES_Complete)
-        ;
-    }
-  } else {
-    if (MEvent)
-      // presence of MEvent means the command has been enqueued, so no need to
-      // go via the slow path event waiting in the scheduler
-      waitInternal();
-    else if (MCommand)
-      detail::Scheduler::getInstance().waitForEvent(Self);
-    cleanupCommand(std::move(Self));
-  }
+  if (MEvent || MQueue)
+    // presence of MEvent means the command has been enqueued, so no need to
+    // go via the slow path event waiting in the scheduler
+    waitInternal();
+  else if (MCommand)
+    detail::Scheduler::getInstance().waitForEvent(Self);
+  cleanupCommand(std::move(Self));
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);

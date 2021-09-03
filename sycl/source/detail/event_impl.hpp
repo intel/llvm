@@ -44,7 +44,7 @@ public:
   event_impl(RT::PiEvent Event, const context &SyclContext);
   event_impl(QueueImplPtr Queue);
 
-  void set_queue_as_event_is_empty(QueueImplPtr Queue) { MQueue = Queue; };
+  void set_queue_as_event_is_empty(QueueImplPtr Queue);
 
   /// Checks if this event is a SYCL host event.
   ///

@@ -160,8 +160,14 @@ static std::string commandToName(Command::CommandType Type) {
 static std::vector<RT::PiEvent>
 getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
   std::vector<RT::PiEvent> RetPiEvents;
+  RetPiEvents.reserve(EventImpls.size());
   for (auto &EventImpl : EventImpls)
-    RetPiEvents.push_back(EventImpl->getHandleRef());
+    if (auto PiEvent = EventImpl->getHandleRef())
+      RetPiEvents.emplace_back(PiEvent);
+    else {
+      EventImpl->waitInternal(); // it is - queue_wait/clFinish
+      return {}; // because we have already waited for all the commands.
+    }
   return RetPiEvents;
 }
 
@@ -185,8 +191,9 @@ class DispatchHostTask {
     // other available job and resume once all required events are ready.
     for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
       std::vector<RT::PiEvent> RawEvents = getPiEvents(PluginWithEvents.second);
-      PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
-                                                            RawEvents.data());
+      if (!RawEvents.empty())
+        PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
+                                                              RawEvents.data());
     }
 
     // wait for dependency host events
@@ -287,8 +294,9 @@ void Command::waitForEvents(QueueImplPtr Queue,
 
       for (auto &CtxWithEvents : RequiredEventsPerContext) {
         std::vector<RT::PiEvent> RawEvents = getPiEvents(CtxWithEvents.second);
-        CtxWithEvents.first->getPlugin().call<PiApiKind::piEventsWait>(
-            RawEvents.size(), RawEvents.data());
+        if (!RawEvents.empty())
+          CtxWithEvents.first->getPlugin().call<PiApiKind::piEventsWait>(
+              RawEvents.size(), RawEvents.data());
       }
     } else {
 #ifndef NDEBUG
@@ -299,8 +307,9 @@ void Command::waitForEvents(QueueImplPtr Queue,
 
       std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
       const detail::plugin &Plugin = Queue->getPlugin();
-      Plugin.call<PiApiKind::piEnqueueEventsWait>(
-          Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
+      if (!RawEvents.empty())
+        Plugin.call<PiApiKind::piEnqueueEventsWait>(
+            Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
     }
   }
 }
