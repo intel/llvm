@@ -192,7 +192,13 @@ public:
     // TODO: Unify with c'tor for sycl::comile and sycl::build by calling
     // sycl::join on vector of kernel_bundles
 
-    // The loop below just links each device image separately, not linking any two device images together. This is correct so long as each device image has no unresolved symbols. That's the case when device images are created from generic SYCL APIs. There's no way in generic SYCL to create a kernel which references an undefined symbol. If we decide in the future to allow a backend interop API to create a "sycl::kernel_bundle" that references undefined symbols, then the logic in this loop will need to be changed.
+    // The loop below just links each device image separately, not linking any
+    // two device images together. This is correct so long as each device image
+    // has no unresolved symbols. That's the case when device images are created
+    // from generic SYCL APIs. There's no way in generic SYCL to create a kernel
+    // which references an undefined symbol. If we decide in the future to allow
+    // a backend interop API to create a "sycl::kernel_bundle" that references
+    // undefined symbols, then the logic in this loop will need to be changed.
     for (const kernel_bundle<bundle_state::object> &ObjectBundle :
          ObjectBundles) {
       for (const device_image_plain &DeviceImage : ObjectBundle) {
