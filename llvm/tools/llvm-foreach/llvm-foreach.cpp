@@ -107,6 +107,7 @@ int checkIfJobsAreFinished(std::list<sys::ProcessInfo> &JobsSubmitted,
       It++;
       continue;
     }
+    assert(BlockingWait || WaitResult.Pid);
     It = JobsSubmitted.erase(It);
 
     if (WaitResult.ReturnCode != 0) {
@@ -273,14 +274,18 @@ int main(int argc, char **argv) {
     // Do not start execution of a new job until previous one(s) are finished,
     // if the maximum number of parallel workers is reached.
     while (JobsSubmitted.size() == JobsInParallel)
-      Res = checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ false);
+      if (int Result =
+              checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ false))
+        Res = Result;
 
     JobsSubmitted.emplace_back(sys::ExecuteNoWait(
         Prog, Args, /*Env=*/None, /*Redirects=*/None, /*MemoryLimit=*/0));
   }
 
   // Wait for all commands to be executed.
-  Res = checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ true);
+  if (int Result = checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ true))
+    Res = Result;
+  assert(JobsSubmitted.empty());
 
   if (!OutputFileList.empty()) {
     OS.close();
