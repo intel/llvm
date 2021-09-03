@@ -43,7 +43,7 @@ public:
   template <typename Group, typename Ptr>
   void operator()(Group g, Ptr first, Ptr last) {
 #ifdef __SYCL_DEVICE_ONLY__
-    using T = typename std::iterator_traits<Ptr>::value_type;
+    using T = typename sycl::detail::GetValueType<Ptr>::type;
     if (scratch_size >= memory_required<T>(Group::fence_scope, last - first))
       sycl::detail::merge_sort(g, first, last - first, comp, scratch);
       // TODO: it's better to add else branch

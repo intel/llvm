@@ -57,6 +57,15 @@ void swap_tuples(TupleLike<T1, T2> &&a, TupleLike<T1, T2> &&b) {
   std::swap(std::get<1>(a), std::get<1>(b));
 }
 
+template <typename Iter> struct GetValueType {
+  using type = typename std::iterator_traits<Iter>::value_type;
+};
+
+template <typename ElementType, access::address_space Space>
+struct GetValueType<sycl::multi_ptr<ElementType, Space>> {
+  using type = ElementType;
+};
+
 template <typename InAcc, typename OutAcc, typename Compare>
 void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
            const std::size_t start_1, const std::size_t end_1,
@@ -175,7 +184,7 @@ void bubble_sort(Iter first, const std::size_t begin, const std::size_t end,
 template <typename Group, typename Iter, typename Compare>
 void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
                 std::uint8_t *scratch) {
-  using T = typename std::iterator_traits<Iter>::value_type;
+  using T = typename GetValueType<Iter>::type;
   auto id = sycl::detail::Builder::getNDItem<Group::dimensions>();
   const std::size_t idx = id.get_local_id();
   const std::size_t local = group.get_local_range().size();
