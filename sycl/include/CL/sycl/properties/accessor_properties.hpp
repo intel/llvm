@@ -67,9 +67,6 @@ inline constexpr property::buffer_location::instance<A> buffer_location{};
 } // namespace intel
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
-  using namespace ext::intel;
-}
 namespace ext {
 namespace oneapi {
 namespace property {

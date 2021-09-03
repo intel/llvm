@@ -4,7 +4,7 @@
 // sin, cos, exp, log.
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <CL/sycl/builtins_esimd.hpp>
 
 using namespace cl::sycl;

@@ -4,7 +4,7 @@
 // __ESIMD_SIMT_END construct.
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
 using namespace cl::sycl;
 using namespace sycl::ext::intel::experimental::esimd;

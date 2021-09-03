@@ -4,7 +4,7 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=1.2.1 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/online_compiler.hpp>
+#include <sycl/ext/intel/online_compiler.hpp>
 
 int main() {
   cl_context ClCtx;
@@ -146,7 +146,7 @@ int main() {
   sycl::ext::oneapi::atomic_fence(sycl::ONEAPI::memory_order::relaxed,
                              sycl::ONEAPI::memory_scope::work_group);
 
-  // expected-warning@+1{{'INTEL' is deprecated: use 'ext::intel' instead}}
+  // expected-error@+1{{no member named 'INTEL' in namespace 'sycl'}}
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
 

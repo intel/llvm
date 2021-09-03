@@ -218,6 +218,7 @@ online_compiler<source_language::cm>::compile(const std::string &src) {
 } // namespace intel
 } // namespace ext
 
+#ifdef __SYCL_INTERNAL_API
 namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
   using namespace ext::intel;
 
@@ -361,5 +362,6 @@ namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
   }
 
 } // namespace INTEL
+#endif // __SYCL_INTERNAL_API
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

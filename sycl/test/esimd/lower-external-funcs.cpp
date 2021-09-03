@@ -7,7 +7,7 @@
 // ESIMD lowering happens for such functions as well.
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
 constexpr unsigned VL = 8;
 using namespace cl::sycl;
