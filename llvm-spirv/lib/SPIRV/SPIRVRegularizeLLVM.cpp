@@ -41,6 +41,8 @@
 #include "SPIRVInternal.h"
 #include "libSPIRV/SPIRVDebug.h"
 
+#include "llvm/ADT/StringExtras.h" // llvm::isDigit
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
@@ -104,7 +106,7 @@ public:
   void buildUMulWithOverflowFunc(Function *UMulFunc);
 
   static std::string lowerLLVMIntrinsicName(IntrinsicInst *II);
-
+  void adaptStructTypes(StructType *ST);
   static char ID;
 
 private:
@@ -291,6 +293,58 @@ void SPIRVRegularizeLLVMBase::lowerUMulWithOverflow(
   UMulIntrinsic->setCalledFunction(UMulFunc);
 }
 
+void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
+  if (!ST->hasName())
+    return;
+  StringRef STName = ST->getName();
+  STName.consume_front("struct.");
+  StringRef MangledName = STName.substr(0, STName.find('.'));
+
+  // Demangle the name of a template struct and parse the template
+  // parameters which look like:
+  // <signed char, 2ul, 2ul, (spv::MatrixLayout)0, (spv::Scope)3>
+  // The result should look like SPIR-V friendly LLVM IR:
+  // %spirv.JointMatrixINTEL._char_2_2_0_3
+  if (MangledName.startswith("_ZTSN5__spv24__spirv_JointMatrixINTEL")) {
+    std::string DemangledName = llvm::demangle(MangledName.str());
+    StringRef Name(DemangledName);
+    Name = Name.slice(Name.find('<') + 1, Name.rfind('>'));
+    std::stringstream SPVName;
+    // Name = signed char, 2ul, 2ul, (spv::MatrixLayout)0, (spv::Scope)3
+    auto P = Name.split(", ");
+    // P.first = "signed char
+    // P.second = "2ul, 2ul, (spv::MatrixLayout)0, (spv::Scope)3"
+    StringRef ElemType = P.first;
+    // remove possile qualifiers, like "const" or "signed"
+    ElemType.consume_back(" const");
+    size_t Space = ElemType.rfind(' ');
+    if (Space != StringRef::npos)
+      ElemType = ElemType.substr(Space + 1);
+    P = P.second.split(", ");
+    // P.first = "2ul"
+    // P.second = "2ul, (spv::MatrixLayout)0, (spv::Scope)3"
+    StringRef Rows = P.first.take_while(llvm::isDigit);
+    P = P.second.split(", ");
+    // P.first = "2ul"
+    // P.second = "(spv::MatrixLayout)0, (spv::Scope)3"
+    StringRef Cols = P.first.take_while(llvm::isDigit);
+    P = P.second.split(", ");
+    // P.first = "(spv::MatrixLayout)0"
+    // P.second = "(spv::Scope)3"
+    StringRef Layout = P.first.substr(P.first.rfind(')') + 1);
+    StringRef Scope = P.second.substr(P.second.rfind(')') + 1);
+
+    SPVName << kSPIRVTypeName::PrefixAndDelim
+            << kSPIRVTypeName::JointMatrixINTEL << kSPIRVTypeName::Delimiter
+            << kSPIRVTypeName::PostfixDelim << ElemType.str()
+            << kSPIRVTypeName::PostfixDelim << Rows.str()
+            << kSPIRVTypeName::PostfixDelim << Cols.str()
+            << kSPIRVTypeName::PostfixDelim << Layout.str()
+            << kSPIRVTypeName::PostfixDelim << Scope.str();
+    ST->setName(SPVName.str());
+  }
+}
+
 bool SPIRVRegularizeLLVMBase::runRegularizeLLVM(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
@@ -437,6 +491,9 @@ bool SPIRVRegularizeLLVMBase::regularize() {
       V->eraseFromParent();
     }
   }
+
+  for (StructType *ST : M->getIdentifiedStructTypes())
+    adaptStructTypes(ST);
 
   if (SPIRVDbgSaveRegularizedModule)
     saveLLVMModule(M, RegularizedModuleTmpFile);

@@ -875,7 +875,7 @@ Inline functions which are (explicitly or implicitly) marked inline
 
 .. option:: -flegacy-pass-manager, -fno-experimental-new-pass-manager, -fno-legacy-pass-manager
 
-Use the legacy pass manager in LLVM
+Use the legacy pass manager in LLVM (deprecated, to be removed in a future release)
 
 .. option:: -fno-crash-diagnostics
 
@@ -2038,6 +2038,11 @@ Parse OpenMP pragmas and generate parallel code.
 Emit OpenMP code only for SIMD-based constructs.
 
 .. option:: -fopenmp-version=<arg>
+
+.. option:: -fopenmp-extensions, -fno-openmp-extensions
+
+Enable or disable all Clang extensions for OpenMP directives and clauses.  By
+default, they are enabled.
 
 .. program:: clang1
 .. option:: -fopenmp=<arg>
