@@ -5,7 +5,7 @@
 using namespace sycl;
 
 int main() {
-  // expected-warning@+2 {{Specialization constats is deprecated, use SYCL 2020 specialization constants instead}}
+  // expected-warning@+1 {{Specialization constats extension is deprecated, use SYCL 2020 specialization constants instead}}
   ext::oneapi::experimental::spec_constant<int> SC;
   (void)SC;
   return 0;
