@@ -596,6 +596,7 @@ targets pending ABI standardization:
 * 64-bit ARM (AArch64)
 * AMDGPU
 * SPIR
+* X86 (Only available under feature AVX512-FP16)
 
 ``_Float16`` will be supported on more targets as they define ABIs for it.
 
@@ -1977,7 +1978,7 @@ address space qualifiers, therefore, other type qualifiers such as
   void foo(T *par){
     T var1; // error - local function variable with global address space
     __private T var2; // error - conflicting address space qualifiers
-    __private __remove_address_space<T> var3; // var3 is __private int
+    __private __remove_address_space<T>::type var3; // var3 is __private int
   }
 
   void bar(){
@@ -2520,12 +2521,9 @@ it in an instantiation which changes its value.
 In order to produce the unique name, the current implementation of the bultin
 uses Itanium mangling even if the host compilation uses a different name
 mangling scheme at runtime. The mangler marks all the lambdas required to name
-the SYCL kernel and emits a stable local ordering of the respective lambdas,
-starting from ``10000``. The initial value of ``10000`` serves as an obvious
-differentiator from ordinary lambda mangling numbers but does not serve any
-other purpose and may change in the future. The resulting pattern is
-demanglable. When non-lambda types are passed to the builtin, the mangler emits
-their usual pattern without any special treatment.
+the SYCL kernel and emits a stable local ordering of the respective lambdas.
+The resulting pattern is demanglable. When non-lambda types are passed to the
+builtin, the mangler emits their usual pattern without any special treatment.
 
 **Syntax**:
 
@@ -2554,30 +2552,6 @@ internal linkage.
 
   // Computes a unique stable name for a given variable.
   constexpr bool  __builtin_sycl_unique_stable_id( expr );
-
-``__builtin_sycl_mark_kernel_name``
------------------------------------
-
-``__builtin_sycl_mark_kernel_name`` is a builtin that can be used with
-``__builtin_sycl_unique_stable_name`` to make sure a kernel is properly 'marked'
-as a kernel without having to instantiate a sycl_kernel function. Typically,
-``__builtin_sycl_unique_stable_name`` can only be called in a constant expression
-context after any kernels that would change the output have been instantiated.
-This is necessary, as changing the answer to the constant expression after
-evaluation isn't permitted.  However, in some cases it can be useful to query the
-result of ``__builtin_unique_stable_name`` after we know that the name is a kernel
-name, but before we are able to instantiate the kernel itself (such as when trying
-to decide between two signatures at compile time). In these cases,
-``__builtin_sycl_mark_kernel_name`` can be used to mark the type as a kernel name,
-ensuring that ``__builtin_unique_stable_name`` gives the correct result despite the
-kernel not yet being instantiated.
-
-**Syntax**:
-
-.. code-block:: c++
-
-  // Marks a type as the name of a sycl kernel.
-  constexpr bool  __builtin_sycl_mark_kernel_name( type-id );
 
 Multiprecision Arithmetic Builtins
 ----------------------------------
@@ -3974,6 +3948,40 @@ provide deprecation warnings for macro uses. For example:
 ``#pragma clang deprecated`` should be preferred for this purpose over
 ``#pragma GCC warning`` because the warning can be controlled with
 ``-Wdeprecated``.
+
+Restricted Expansion Macros
+===========================
+
+Clang supports the pragma ``#pragma clang restrict_expansion``, which can be
+used restrict macro expansion in headers. This can be valuable when providing
+headers with ABI stability requirements. Any expansion of the annotated macro
+processed by the preprocessor after the ``#pragma`` annotation will log a
+warning. Redefining the macro or undefining the macro will not be diagnosed, nor
+will expansion of the macro within the main source file. For example:
+
+.. code-block:: c
+
+   #define TARGET_ARM 1
+   #pragma clang restrict_expansion(TARGET_ARM, "<reason>")
+
+   /// Foo.h
+   struct Foo {
+   #if TARGET_ARM // warning: TARGET_ARM is marked unsafe in headers: <reason>
+     uint32_t X;
+   #else
+     uint64_t X;
+   #endif
+   };
+
+   /// main.c
+   #include "foo.h"
+   #if TARGET_ARM // No warning in main source file
+   X_TYPE uint32_t
+   #else
+   X_TYPE uint64_t
+   #endif
+
+This warning is controlled by ``-Wpedantic-macros``.
 
 Extended Integer Types
 ======================

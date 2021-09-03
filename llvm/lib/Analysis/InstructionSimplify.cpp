@@ -2276,6 +2276,23 @@ static Value *SimplifyOrInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
       match(Op0, m_Not(m_c_Or(m_Specific(A), m_Specific(B)))))
     return NotA;
 
+  // Rotated -1 is still -1:
+  // (-1 << X) | (-1 >> (C - X)) --> -1
+  // (-1 >> X) | (-1 << (C - X)) --> -1
+  // ...with C <= bitwidth (and commuted variants).
+  Value *X, *Y;
+  if ((match(Op0, m_Shl(m_AllOnes(), m_Value(X))) &&
+       match(Op1, m_LShr(m_AllOnes(), m_Value(Y)))) ||
+      (match(Op1, m_Shl(m_AllOnes(), m_Value(X))) &&
+       match(Op0, m_LShr(m_AllOnes(), m_Value(Y))))) {
+    const APInt *C;
+    if ((match(X, m_Sub(m_APInt(C), m_Specific(Y))) ||
+         match(Y, m_Sub(m_APInt(C), m_Specific(X)))) &&
+        C->ule(X->getType()->getScalarSizeInBits())) {
+      return ConstantInt::getAllOnesValue(X->getType());
+    }
+  }
+
   if (Value *V = simplifyAndOrOfCmps(Q, Op0, Op1, false))
     return V;
 
@@ -4080,6 +4097,22 @@ static Value *simplifySelectWithICmpCond(Value *CondVal, Value *TrueVal,
     std::swap(TrueVal, FalseVal);
   }
 
+  // Check for integer min/max with a limit constant:
+  // X > MIN_INT ? X : MIN_INT --> X
+  // X < MAX_INT ? X : MAX_INT --> X
+  if (TrueVal->getType()->isIntOrIntVectorTy()) {
+    Value *X, *Y;
+    SelectPatternFlavor SPF =
+        matchDecomposedSelectPattern(cast<ICmpInst>(CondVal), TrueVal, FalseVal,
+                                     X, Y).Flavor;
+    if (SelectPatternResult::isMinOrMax(SPF) && Pred == getMinMaxPred(SPF)) {
+      APInt LimitC = getMinMaxLimit(getInverseMinMaxFlavor(SPF),
+                                    X->getType()->getScalarSizeInBits());
+      if (match(Y, m_SpecificInt(LimitC)))
+        return X;
+    }
+  }
+
   if (Pred == ICmpInst::ICMP_EQ && match(CmpRHS, m_Zero())) {
     Value *X;
     const APInt *Y;
@@ -5457,6 +5490,9 @@ static Value *simplifyUnaryIntrinsic(Function *F, Value *Op0,
     if (match(Op0,
               m_Intrinsic<Intrinsic::experimental_vector_reverse>(m_Value(X))))
       return X;
+    // experimental.vector.reverse(splat(X)) -> splat(X)
+    if (isSplatValue(Op0))
+      return Op0;
     break;
   default:
     break;
@@ -5836,6 +5872,15 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
       if (ShAmtC->urem(BitWidth).isNullValue())
         return Call->getArgOperand(IID == Intrinsic::fshl ? 0 : 1);
     }
+
+    // Rotating zero by anything is zero.
+    if (match(Op0, m_Zero()) && match(Op1, m_Zero()))
+      return ConstantInt::getNullValue(F->getReturnType());
+
+    // Rotating -1 by anything is -1.
+    if (match(Op0, m_AllOnes()) && match(Op1, m_AllOnes()))
+      return ConstantInt::getAllOnesValue(F->getReturnType());
+
     return nullptr;
   }
   case Intrinsic::experimental_constrained_fma: {

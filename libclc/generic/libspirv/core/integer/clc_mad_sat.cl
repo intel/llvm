@@ -53,6 +53,11 @@ _CLC_OVERLOAD _CLC_DEF char __clc_mad_sat(char x, char y, char z) {
                      (short)CHAR_MIN, (short)CHAR_MAX);
 }
 
+_CLC_OVERLOAD _CLC_DEF schar __clc_mad_sat(schar x, schar y, schar z) {
+  return __clc_clamp((short)__clc_mad24((short)x, (short)y, (short)z),
+                     (short)CHAR_MIN, (short)CHAR_MAX);
+}
+
 _CLC_OVERLOAD _CLC_DEF ulong __clc_mad_sat(ulong x, ulong y, ulong z) {
   if (__clc_mul_hi(x, y) != 0)
     return ULONG_MAX;
@@ -83,6 +88,8 @@ _CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, short, __clc_mad_sat, short,
                        short, short)
 _CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, char, __clc_mad_sat, char, char,
                        char)
+_CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, schar, __clc_mad_sat, schar,
+                       schar, schar)
 _CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uchar, __clc_mad_sat, uchar,
                        uchar, uchar)
 _CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_mad_sat, ushort,

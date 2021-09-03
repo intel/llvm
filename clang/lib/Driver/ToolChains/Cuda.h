@@ -31,8 +31,6 @@ private:
   const Driver &D;
   bool IsValid = false;
   CudaVersion Version = CudaVersion::UNKNOWN;
-  std::string DetectedVersion;
-  bool DetectedVersionIsNotSupported = false;
   std::string InstallPath;
   std::string BinPath;
   std::string LibPath;
@@ -63,7 +61,10 @@ public:
   void print(raw_ostream &OS) const;
 
   /// Get the detected Cuda install's version.
-  CudaVersion version() const { return Version; }
+  CudaVersion version() const {
+    return Version == CudaVersion::NEW ? CudaVersion::PARTIALLY_SUPPORTED
+                                       : Version;
+  }
   /// Get the detected Cuda installation path.
   StringRef getInstallPath() const { return InstallPath; }
   /// Get the detected path to Cuda's bin directory.

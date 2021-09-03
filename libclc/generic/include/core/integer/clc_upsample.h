@@ -19,6 +19,7 @@
 
 #define __CLC_UPSAMPLE_TYPES()                                                 \
   __CLC_UPSAMPLE_VEC(short, char, uchar)                                       \
+  __CLC_UPSAMPLE_VEC(short, schar, uchar)                                      \
   __CLC_UPSAMPLE_VEC(ushort, uchar, uchar)                                     \
   __CLC_UPSAMPLE_VEC(int, short, ushort)                                       \
   __CLC_UPSAMPLE_VEC(uint, ushort, ushort)                                     \

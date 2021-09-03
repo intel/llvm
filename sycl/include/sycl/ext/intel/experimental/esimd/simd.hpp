@@ -139,7 +139,7 @@ public:
   }
 
   /// View this simd object in a different element type.
-  template <typename EltTy> auto bit_cast_view() & {
+  template <typename EltTy> auto bit_cast_view() &[[clang::lifetimebound]] {
     using TopRegionTy = detail::compute_format_type_t<simd, EltTy>;
     using RetTy = simd_view<simd, TopRegionTy>;
     TopRegionTy R(0);
@@ -153,7 +153,8 @@ public:
   }
 
   /// View as a 2-dimensional simd_view.
-  template <typename EltTy, int Height, int Width> auto bit_cast_view() & {
+  template <typename EltTy, int Height, int Width>
+  auto bit_cast_view() &[[clang::lifetimebound]] {
     using TopRegionTy =
         detail::compute_format_type_2d_t<simd, EltTy, Height, Width>;
     using RetTy = simd_view<simd, TopRegionTy>;
@@ -174,7 +175,8 @@ public:
   /// \param Offset is the starting element offset.
   /// \return the representing region object.
   template <int Size, int Stride>
-  simd_view<simd, region1d_t<Ty, Size, Stride>> select(uint16_t Offset = 0) & {
+  simd_view<simd, region1d_t<Ty, Size, Stride>> select(uint16_t Offset = 0) &[
+      [clang::lifetimebound]] {
     region1d_t<Ty, Size, Stride> Reg(Offset);
     return {*this, Reg};
   }
@@ -195,8 +197,19 @@ public:
   /// Read single element, return value only (not reference).
   Ty operator[](int i) const { return data()[i]; }
 
+  /// Read single element, return value only (not reference).
+  __SYCL_DEPRECATED("use operator[] form.")
+  Ty operator()(int i) const { return data()[i]; }
+
   /// Return writable view of a single element.
-  simd_view<simd, region1d_t<Ty, 1, 0>> operator[](int i) {
+  simd_view<simd, region1d_t<Ty, 1, 0>> operator[](int i)
+      [[clang::lifetimebound]] {
+    return select<1, 0>(i);
+  }
+
+  /// Return writable view of a single element.
+  __SYCL_DEPRECATED("use operator[] form.")
+  simd_view<simd, region1d_t<Ty, 1, 0>> operator()(int i) {
     return select<1, 0>(i);
   }
 
@@ -339,12 +352,14 @@ public:
     auto V = UNARY_OP(data());                                                 \
     return simd(V);                                                            \
   }
-  DEF_UNARY_OP(!)
   DEF_UNARY_OP(~)
   DEF_UNARY_OP(+)
   DEF_UNARY_OP(-)
 
 #undef DEF_UNARY_OP
+
+  // negation operator
+  auto operator!() { return *this == 0; }
 
   /// \name Replicate
   /// Replicate simd instance given a region.

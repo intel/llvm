@@ -1,10 +1,11 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 struct st {
   int a;
   float b;
+  char c;
 };
-// CHECK: [[T_ST:%struct[a-zA-Z0-9_.]*.st]] = type { i32, float }
+// CHECK: [[T_ST:%struct[a-zA-Z0-9_.]*.st]] = type { i32, float, i8 }
 
 union un {
   int a;
@@ -67,41 +68,31 @@ void structs() {
   // CHECK-NEXT: [[S1_ASCAST:%.*]] = addrspacecast [[T_ST]]* [[S1]] to [[T_ST]] addrspace(4)*
   // CHECK-NEXT: [[S2:%.*]] = alloca [[T_ST]], align 4
   // CHECK-NEXT: [[S2_ASCAST:%.*]] = addrspacecast [[T_ST]]* [[S2]] to [[T_ST]] addrspace(4)*
-  // CHECK-NEXT: [[AGG_TEMP:%.*]] = alloca [[T_ST]], align 4
-  // CHECK-NEXT: [[AGG_TEMP_ASCAST:%.*]] = addrspacecast [[T_ST]]* [[AGG_TEMP]] to [[T_ST]] addrspace(4)*
   // CHECK-NEXT: [[S3:%.*]] = alloca [[T_ST]], align 4
   // CHECK-NEXT: [[S3_ASCAST:%.*]] = addrspacecast [[T_ST]]* [[S3]] to [[T_ST]] addrspace(4)*
   // CHECK-NEXT: [[REF_TMP:%.*]] = alloca [[T_ST]], align 4
   // CHECK-NEXT: [[REF_TMP_ASCAST:%.*]] = addrspacecast [[T_ST]]* [[REF_TMP]] to [[T_ST]] addrspace(4)*
-  // CHECK-NEXT: [[AGG_TEMP2:%.*]] = alloca [[T_ST]], align 4
-  // CHECK-NEXT: [[AGG_TEMP2_ASCAST:%.*]] = addrspacecast [[T_ST]]* [[AGG_TEMP2]] to [[T_ST]] addrspace(4)*
   struct st s1;
 
   struct st s2 = __builtin_intel_fpga_reg(s1);
-  // CHECK: [[TMP_S1:%.*]] = bitcast [[T_ST]] addrspace(4)* [[AGG_TEMP_ASCAST]] to i8 addrspace(4)*
+  // CHECK: [[TMP_S1:%.*]] = bitcast [[T_ST]] addrspace(4)* [[S2_ASCAST]] to i8 addrspace(4)*
   // CHECK-NEXT: [[TMP_S2:%.*]] = bitcast [[T_ST]] addrspace(4)* [[S1_ASCAST]] to i8 addrspace(4)*
-  // CHECK-NEXT: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP_S1]], i8 addrspace(4)* align 4 [[TMP_S2]], i64 8, i1 false)
-  // CHECK-NEXT: [[TMP_S3:%.*]] = bitcast [[T_ST]] addrspace(4)* [[AGG_TEMP_ASCAST]] to i8 addrspace(4)*
+  // CHECK-NEXT: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP_S1]], i8 addrspace(4)* align 4 [[TMP_S2]], i64 12, i1 false)
+  // CHECK-NEXT: [[TMP_S3:%.*]] = bitcast [[T_ST]] addrspace(4)* [[S2_ASCAST]] to i8 addrspace(4)*
   // CHECK-NEXT: [[TMP_S4:%.*]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* [[TMP_S3]], [[BIFR_STR]]
   // CHECK-NEXT: [[TMP_S5:%.*]] = bitcast i8 addrspace(4)* [[TMP_S4]] to [[T_ST]] addrspace(4)*
-  // CHECK-NEXT: [[TMP_S6:%.*]] = bitcast [[T_ST]] addrspace(4)* [[S2_ASCAST]] to i8 addrspace(4)*
-  // CHECK-NEXT: [[TMP_S7:%.*]] = bitcast [[T_ST]] addrspace(4)* [[TMP_S5]] to i8 addrspace(4)*
-  // CHECK-NEXT: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP_S6]], i8 addrspace(4)* align 4 [[TMP_S7]], i64 8, i1 false)
 
   struct st s3;
   s3 = __builtin_intel_fpga_reg(s2);
-  // CHECK: [[TMP_S8:%.*]] = bitcast [[T_ST]] addrspace(4)* [[AGG_TEMP2_ASCAST]] to i8 addrspace(4)*
-  // CHECK-NEXT: [[TMP_S9:%.*]] = bitcast [[T_ST]] addrspace(4)* [[S2_ASCAST]] to i8 addrspace(4)*
-  // CHECK-NEXT: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP_S8]], i8 addrspace(4)* align 4 [[TMP_S9]], i64 8, i1 false)
-  // CHECK-NEXT: [[TMP_S10:%.*]] = bitcast [[T_ST]] addrspace(4)* [[AGG_TEMP2_ASCAST]] to i8 addrspace(4)*
-  // CHECK-NEXT: [[TMP_S11:%.*]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* [[TMP_S10]], [[BIFR_STR]]
-  // CHECK-NEXT: [[TMP_S12:%.*]] = bitcast i8 addrspace(4)* [[TMP_S11]] to [[T_ST]] addrspace(4)*
-  // CHECK-NEXT: [[TMP_S13:%.*]] = bitcast [[T_ST]] addrspace(4)* [[REF_TMP_ASCAST]] to i8 addrspace(4)*
-  // CHECK-NEXT: [[TMP_S14:%.*]] = bitcast [[T_ST]] addrspace(4)* [[TMP_S12]] to i8 addrspace(4)*
-  // CHECK-NEXT: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP_S13]], i8 addrspace(4)* align 4 [[TMP_S14]], i64 8, i1 false)
-  // CHECK-NEXT: [[TMP_S15:%.*]] = bitcast [[T_ST]] addrspace(4)* [[S3_ASCAST]] to i8 addrspace(4)*
-  // CHECK-NEXT: [[TMP_S16:%.*]] = bitcast [[T_ST]] addrspace(4)* [[REF_TMP_ASCAST]] to i8 addrspace(4)*
-  // CHECK-NEXT: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP_S15]], i8 addrspace(4)* align 4 [[TMP_S16]], i64 8, i1 false)
+  // CHECK: [[TMP_S6:%.*]] = bitcast [[T_ST]] addrspace(4)* [[REF_TMP_ASCAST]] to i8 addrspace(4)*
+  // CHECK-NEXT: [[TMP_S7:%.*]] = bitcast [[T_ST]] addrspace(4)* [[S2_ASCAST]] to i8 addrspace(4)*
+  // CHECK-NEXT: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP_S6]], i8 addrspace(4)* align 4 [[TMP_S7]], i64 12, i1 false)
+  // CHECK-NEXT: [[TMP_S8:%.*]] = bitcast [[T_ST]] addrspace(4)* [[REF_TMP_ASCAST]] to i8 addrspace(4)*
+  // CHECK-NEXT: [[TMP_S9:%.*]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* [[TMP_S8]], [[BIFR_STR]]
+  // CHECK-NEXT: [[TMP_S10:%.*]] = bitcast i8 addrspace(4)* [[TMP_S9]] to [[T_ST]] addrspace(4)*
+  // CHECK-NEXT: [[TMP_S11:%.*]] = bitcast [[T_ST]] addrspace(4)* [[S3_ASCAST]] to i8 addrspace(4)*
+  // CHECK-NEXT: [[TMP_S12:%.*]] = bitcast [[T_ST]] addrspace(4)* [[REF_TMP_ASCAST]] to i8 addrspace(4)*
+  // CHECK-NEXT: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP_S11]], i8 addrspace(4)* align 4 [[TMP_S12]], i64 12, i1 false)
 }
 
 void unions() {
@@ -111,24 +102,19 @@ void unions() {
   // CHECK-NEXT: [[U2_ASCAST:%.*]] = addrspacecast [[T_UN]]* [[U2]] to [[T_UN]] addrspace(4)*
   // CHECK-NEXT: [[REF_TMP2:%.*]] = alloca [[T_UN]], align 4
   // CHECK-NEXT: [[REF_TMP2_ASCAST:%.*]] = addrspacecast [[T_UN]]* [[REF_TMP2]] to [[T_UN]] addrspace(4)*
-  // CHECK-NEXT: [[AGG_TEMP3:%.*]] = alloca [[T_UN]], align 4
-  // CHECK-NEXT: [[AGG_TEMP3_ASCAST:%.*]] = addrspacecast [[T_UN]]* [[AGG_TEMP3]] to [[T_UN]] addrspace(4)*
   union un u1;
   union un u2;
 
   u2 = __builtin_intel_fpga_reg(u1);
-  // CHECK: [[TMP_U1:%.*]] = bitcast [[T_UN]] addrspace(4)* [[AGG_TEMP3_ASCAST]] to i8 addrspace(4)*
+  // CHECK: [[TMP_U1:%.*]] = bitcast [[T_UN]] addrspace(4)* [[REF_TMP2_ASCAST]] to i8 addrspace(4)*
   // CHECK-NEXT: [[TMP_U2:%.*]] = bitcast [[T_UN]] addrspace(4)* [[U1_ASCAST]] to i8 addrspace(4)*
   // CHECK-NEXT: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP_U1]], i8 addrspace(4)* align 4 [[TMP_U2]], i64 4, i1 false)
-  // CHECK-NEXT: [[TMP_U3:%.*]] = bitcast [[T_UN]] addrspace(4)* [[AGG_TEMP3_ASCAST]] to i8 addrspace(4)*
+  // CHECK-NEXT: [[TMP_U3:%.*]] = bitcast [[T_UN]] addrspace(4)* [[REF_TMP2_ASCAST]] to i8 addrspace(4)*
   // CHECK-NEXT: [[TMP_U4:%.*]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* [[TMP_U3]], [[BIFR_STR]]
   // CHECK-NEXT: [[TMP_U5:%.*]] = bitcast i8 addrspace(4)* [[TMP_U4]] to [[T_UN]] addrspace(4)*
-  // CHECK-NEXT: [[TMP_U6:%.*]] = bitcast [[T_UN]] addrspace(4)* [[REF_TMP2_ASCAST]] to i8 addrspace(4)*
-  // CHECK-NEXT: [[TMP_U7:%.*]] = bitcast [[T_UN]] addrspace(4)* [[TMP_U5]] to i8 addrspace(4)*
-  // CHECK-NEXT: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP_U6]], i8 addrspace(4)* align 4 [[TMP_U7]], i64 8, i1 false)
-  // CHECK-NEXT: [[TMP_U8:%.*]] = bitcast [[T_UN]] addrspace(4)* [[U2_ASCAST]] to i8 addrspace(4)*
-  // CHECK-NEXT: [[TMP_U9:%.*]] = bitcast [[T_UN]] addrspace(4)* [[REF_TMP2_ASCAST]] to i8 addrspace(4)*
-  // CHECK-NEXT: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP_U8]], i8 addrspace(4)* align 4 [[TMP_U9]], i64 4, i1 false)
+  // CHECK-NEXT: [[TMP_U6:%.*]] = bitcast [[T_UN]] addrspace(4)* [[U2_ASCAST]] to i8 addrspace(4)*
+  // CHECK-NEXT: [[TMP_U7:%.*]] = bitcast [[T_UN]] addrspace(4)* [[REF_TMP2_ASCAST]] to i8 addrspace(4)*
+  // CHECK-NEXT: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP_U6]], i8 addrspace(4)* align 4 [[TMP_U7]], i64 4, i1 false)
 }
 
 void classes() {
@@ -136,20 +122,15 @@ void classes() {
   // CHECK-NEXT: [[CA_ASCAST:%.*]] = addrspacecast [[T_CL]]* [[CA]] to [[T_CL]] addrspace(4)*
   // CHECK-NEXT: [[CB:%.*]] = alloca [[T_CL]], align 4
   // CHECK-NEXT: [[CB_ASCAST:%.*]] = addrspacecast [[T_CL]]* [[CB]] to [[T_CL]] addrspace(4)*
-  // CHECK-NEXT: [[AGG_TEMP5:%.*]] = alloca [[T_CL]], align 4
-  // CHECK-NEXT: [[AGG_TEMP5_ASCAST:%.*]] = addrspacecast [[T_CL]]*
   A ca(213);
 
   A cb = __builtin_intel_fpga_reg(ca);
-  // CHECK: [[TMP_C1:%.*]] = bitcast [[T_CL]] addrspace(4)* [[AGG_TEMP5_ASCAST]] to i8 addrspace(4)*
+  // CHECK: [[TMP_C1:%.*]] = bitcast [[T_CL]] addrspace(4)* [[CB_ASCAST]] to i8 addrspace(4)*
   // CHECK-NEXT: [[TMP_C2:%.*]] = bitcast [[T_CL]] addrspace(4)* [[CA_ASCAST]] to i8 addrspace(4)*
   // CHECK-NEXT: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP_C1]], i8 addrspace(4)* align 4 [[TMP_C2]], i64 4, i1 false)
-  // CHECK-NEXT: [[TMP_C3:%.*]] = bitcast [[T_CL]] addrspace(4)* [[AGG_TEMP5_ASCAST]] to i8 addrspace(4)*
+  // CHECK-NEXT: [[TMP_C3:%.*]] = bitcast [[T_CL]] addrspace(4)* [[CB_ASCAST]] to i8 addrspace(4)*
   // CHECK-NEXT: [[TMP_C4:%.*]] = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* [[TMP_C3]], [[BIFR_STR]]
   // CHECK-NEXT: [[TMP_C5:%.*]] = bitcast i8 addrspace(4)* [[TMP_C4]] to [[T_CL]] addrspace(4)*
-  // CHECK-NEXT: [[TMP_C6:%.*]] = bitcast [[T_CL]] addrspace(4)* [[CB_ASCAST]] to i8 addrspace(4)*
-  // CHECK-NEXT: [[TMP_C7:%.*]] = bitcast [[T_CL]] addrspace(4)* [[TMP_C5]] to i8 addrspace(4)*
-  // CHECK-NEXT: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 [[TMP_C6]], i8 addrspace(4)* align 4 [[TMP_C7]], i64 8, i1 false)
 }
 
 void pointers() {

@@ -79,7 +79,7 @@
 ; CHECK-SPIRV: TypePointer [[TYPE_SFLN_INT_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_INT_PTR]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 %struct._ZTS15__wrapper_class.__wrapper_class = type { [10 x i32] }
 %struct._ZTS15__wrapper_class.__wrapper_class.0 = type { [10 x i32] }

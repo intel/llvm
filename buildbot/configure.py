@@ -29,7 +29,7 @@ def do_configure(args):
     libclc_targets_to_build = ''
     libclc_gen_remangled_variants = 'OFF'
     sycl_build_pi_cuda = 'OFF'
-    sycl_build_pi_esimd_cpu = 'ON'
+    sycl_build_pi_esimd_cpu = 'OFF'
     sycl_build_pi_rocm = 'OFF'
     sycl_build_pi_rocm_platform = 'AMD'
     sycl_werror = 'ON'
@@ -45,8 +45,8 @@ def do_configure(args):
     if args.arm:
         llvm_targets_to_build = 'ARM;AArch64'
 
-    if args.disable_esimd_cpu:
-        sycl_build_pi_esimd_cpu = 'OFF'
+    if args.enable_esimd_cpu_emulation:
+        sycl_build_pi_esimd_cpu = 'ON'
 
     if args.cuda or args.rocm:
         llvm_enable_projects += ';libclc'
@@ -61,6 +61,9 @@ def do_configure(args):
         if args.rocm_platform == 'AMD':
             llvm_targets_to_build += ';AMDGPU'
             libclc_targets_to_build += ';amdgcn--;amdgcn--amdhsa'
+
+            # The ROCm plugin for AMD uses lld for linking
+            llvm_enable_projects += ';lld'
         elif args.rocm_platform == 'NVIDIA' and not args.cuda:
             llvm_targets_to_build += ';NVPTX'
             libclc_targets_to_build += ';nvptx64--;nvptx64--nvidiacl'
@@ -178,7 +181,7 @@ def main():
     parser.add_argument("--rocm", action='store_true', help="switch from OpenCL to ROCm")
     parser.add_argument("--rocm-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose ROCm backend")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
-    parser.add_argument("--disable-esimd-cpu", action='store_true', help="build without ESIMD_CPU support")
+    parser.add_argument("--enable-esimd-cpu-emulation", action='store_true', help="build with ESIMD_CPU emulation support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
     parser.add_argument("--no-werror", action='store_true', help="Don't treat warnings as errors")
