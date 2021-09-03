@@ -4686,28 +4686,13 @@ class OffloadingActionBuilder final {
           else
             continue;
         } else if (A->getOption().matches(options::OPT_Xsycl_backend)) {
-          // While the user may have provided a single AOT triple, the generic
-          // spir64 triple could have been added automatically by us upon
-          // discovering a spir64 section in one of the object/library inputs.
-          // To allow for automatic detection of the toolchain that needs to
-          // receive -Xsycl-target-* arguments, drop the autodetected spir64
-          // triple from the local copy of the targets list.
-          // FIXME: Is there a way to add the autodetected generic triple at
-          // a later stage instead?
-          auto UserSYCLTripleList = SYCLTripleList;
-          if (C.getDriver().isSYCLDefaultTripleImplied())
-            UserSYCLTripleList.erase(
-                llvm::remove_if(UserSYCLTripleList, [](llvm::Triple TT) {
-                  return TT.isSPIR() &&
-                         TT.getSubArch() == llvm::Triple::NoSubArch;
-                }));
-          if (UserSYCLTripleList.size() > 1) {
+          if (SYCLTripleList.size() > 1) {
             C.getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
                 << A->getSpelling();
             continue;
           }
           // Passing device args: -Xsycl-target-backend -opt=val.
-          TargetBE = &UserSYCLTripleList.front();
+          TargetBE = &SYCLTripleList.front();
           Index = Args.getBaseArgs().MakeIndex(A->getValue(0));
         } else
           continue;
@@ -4791,6 +4776,7 @@ class OffloadingActionBuilder final {
       bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(
           options::OPT_fsycl, options::OPT_fno_sycl, false);
       bool SYCLfpgaTriple = false;
+      bool ShouldAddDefaultTriple = true;
       if (SYCLTargets || SYCLAddTargets) {
         if (SYCLTargets) {
           llvm::StringMap<StringRef> FoundNormalizedTriples;
@@ -4811,7 +4797,6 @@ class OffloadingActionBuilder final {
             if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
               SYCLfpgaTriple = true;
           }
-          addSYCLDefaultTriple(C, SYCLTripleList);
         }
         if (SYCLAddTargets) {
           for (StringRef Val : SYCLAddTargets->getValues()) {
@@ -4825,6 +4810,7 @@ class OffloadingActionBuilder final {
 
             // populate the AOT binary inputs vector.
             SYCLAOTInputs.push_back(std::make_pair(TT, TF));
+            ShouldAddDefaultTriple = false;
           }
         }
       } else if (HasValidSYCLRuntime) {
@@ -4834,7 +4820,6 @@ class OffloadingActionBuilder final {
         const char *SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
         SYCLTripleList.push_back(
             C.getDriver().MakeSYCLDeviceTriple(SYCLTargetArch));
-        addSYCLDefaultTriple(C, SYCLTripleList);
         if (SYCLfpga)
           SYCLfpgaTriple = true;
       }
@@ -4871,7 +4856,10 @@ class OffloadingActionBuilder final {
       }
 
       DeviceLinkerInputs.resize(ToolChains.size());
-      return initializeGpuArchMap();
+      bool GpuInitHasErrors = initializeGpuArchMap();
+      if (ShouldAddDefaultTriple)
+        addSYCLDefaultTriple(C, SYCLTripleList);
+      return GpuInitHasErrors;
     }
 
     bool canUseBundlerUnbundler() const override {
