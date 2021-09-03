@@ -11,6 +11,10 @@
 #include <CL/sycl/exception.hpp>
 
 #include <cstring>
+#include <execinfo.h>
+#include <sstream>
+#include <dlfcn.h>
+#include <cxxabi.h>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -20,6 +24,45 @@ constexpr char ReservedForErrorcode[] =
     "01234567812345678"; // 17 (string terminator plus error code)
 std::error_code SYCL121ProxyErrorcode = make_error_code(sycl::errc::invalid);
 } // namespace
+
+std::string GetBacktrace(int Skip) {
+  static constexpr int BT_SIZE = 32;
+  void *BT[BT_SIZE];
+  char **Strings;
+  char buf[1024];
+
+  int BTSize = backtrace(BT, BT_SIZE);
+  Strings = backtrace_symbols(BT, BTSize);
+  if (Strings) {
+    std::stringstream S;
+
+    for (int Idx = Skip; Idx < BTSize; ++Idx) {
+      Dl_info info;
+      if (dladdr(BT[Idx], &info)) {
+        char *demangled = NULL;
+        int status;
+        demangled = abi::__cxa_demangle(info.dli_sname, NULL, 0, &status);
+        snprintf(buf, sizeof(buf), "%-3d %*p %s + %zd\n",
+                 Idx, (int)(2 + sizeof(void*) * 2), BT[Idx],
+                 status == 0 ? demangled : info.dli_sname,
+                 (char *)BT[BTSize] - (char *)info.dli_saddr);
+        free(demangled);
+      } else {
+        snprintf(buf, sizeof(buf), "%-3d %*p\n",
+                 Idx, (int)(2 + sizeof(void*) * 2), BT[Idx]);
+      }
+      S << buf;
+
+      snprintf(buf, sizeof(buf), "%s\n", Strings[Idx]);
+      S << buf;
+    }
+    free(Strings);
+
+    return S.str();
+  }
+
+  return "no bt_symbols got";
+}
 
 exception::exception(std::error_code EC, const char *Msg)
     : exception(EC, nullptr, Msg) {}
@@ -65,7 +108,7 @@ exception::exception(context Ctx, int EV, const std::error_category &ECat)
 // protected base constructor for all SYCL 2020 constructors
 exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
                      const std::string &WhatArg)
-    : MMsg(WhatArg + ReservedForErrorcode), MCLErr(PI_INVALID_VALUE),
+    : MMsg(WhatArg + "\n" + GetBacktrace() + ReservedForErrorcode), MCLErr(PI_INVALID_VALUE),
       MContext(SharedPtrCtx) {
   // For compatibility with previous implementation, we are "hiding" the
   // std::error_code in the MMsg string, behind the null string terminator

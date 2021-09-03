@@ -20,6 +20,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_EXPORT std::string GetBacktrace(int Skip = 1);
 
 // Forward declaration
 class context;
@@ -74,10 +75,10 @@ protected:
 
   exception(const std::string &Msg, const cl_int CLErr,
             std::shared_ptr<context> Context = nullptr)
-      : MMsg(Msg + " " + detail::codeToString(CLErr)), MCLErr(CLErr),
+      : MMsg(Msg + " " + detail::codeToString(CLErr) + "\n" + GetBacktrace()), MCLErr(CLErr),
         MContext(Context) {}
 
-  exception(const string_class &Msg) : MMsg(Msg), MContext(nullptr) {}
+  exception(const string_class &Msg) : MMsg(Msg + "\n" + GetBacktrace()), MContext(nullptr) {}
 
   // base constructor for all SYCL 2020 constructors
   // exception(context *ctxPtr, std::error_code ec, const std::string
