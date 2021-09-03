@@ -283,9 +283,10 @@ int main(int argc, char **argv) {
   }
 
   // Wait for all commands to be executed.
-  if (int Result = checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ true))
-    Res = Result;
-  assert(JobsSubmitted.empty());
+  while (!JobsSubmitted.empty())
+    if (int Result =
+            checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ true))
+      Res = Result;
 
   if (!OutputFileList.empty()) {
     OS.close();

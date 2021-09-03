@@ -18,10 +18,12 @@
 ; RUN: FileCheck < %t.out.list %s --check-prefix=CHECK-LIST
 ; RUN: llvm-foreach --jobs=2 --in-replace="{}" --out-replace=%t --out-ext=out --in-file-list=%t.list --out-file-list=%t.out.list -- xcopy /y "{}" %t
 ; RUN: FileCheck < %t.out.list %s --check-prefix=CHECK-LIST
-; CHECK-LIST-DAG: [[FIRST:.+\.out]]
-; CHECK-LIST-DAG: [[SECOND:.+\.out]]
-; RUN: llvm-foreach --in-replace="{}" --in-file-list=%t.out.list -- FileCheck --input-file="{}" %s --check-prefix=CHECK-CONTENT
-; CHECK-CONTENT: Content of
+; CHECK-LIST: [[FIRST:.+\.out]]
+; CHECK-LIST: [[SECOND:.+\.out]]
+; RUN: llvm-foreach --in-replace="{}" --in-file-list=%t.out.list -- type "{}" > %t.order
+; RUN: FileCheck < %t.order %s --check-prefix=CHECK-CONTENT
+; CHECK-CONTENT: Content of first file
+; CHECK-CONTENT-NEXT: Content of second file
 
 ; RUN: echo 'something' > %t3.tgt
 ; RUN: echo 'something again' > %t4.tgt
