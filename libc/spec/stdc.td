@@ -476,9 +476,29 @@ def StdC : StandardSpec<"stdc"> {
       [
           FunctionSpec<"abort", RetValSpec<NoReturn>, [ArgSpec<VoidType>]>,
           FunctionSpec<"abs", RetValSpec<IntType>, [ArgSpec<IntType>]>,
+          FunctionSpec<"atoi", RetValSpec<IntType>, [ArgSpec<ConstCharPtr>]>,
+          FunctionSpec<"atol", RetValSpec<LongType>, [ArgSpec<ConstCharPtr>]>,
+          FunctionSpec<"atoll", RetValSpec<LongLongType>, [ArgSpec<ConstCharPtr>]>,
           FunctionSpec<"labs", RetValSpec<LongType>, [ArgSpec<LongType>]>,
           FunctionSpec<"llabs", RetValSpec<LongLongType>, [ArgSpec<LongLongType>]>,
+          FunctionSpec<"strtol", RetValSpec<LongType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,
+          FunctionSpec<"strtoll", RetValSpec<LongLongType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,
+          FunctionSpec<"strtoul", RetValSpec<UnsignedLongType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,
+          FunctionSpec<"strtoull", RetValSpec<UnsignedLongLongType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,
           FunctionSpec<"_Exit", RetValSpec<NoReturn>, [ArgSpec<IntType>]>,
+      ]
+  >;
+
+  HeaderSpec IntTypes = HeaderSpec<
+      "inttypes.h",
+      [], // Macros
+      [], // Types
+      [], // Enumerations
+      [
+          FunctionSpec<"imaxabs", RetValSpec<IntMaxTType>, [ArgSpec<IntMaxTType>]>,
+          FunctionSpec<"imaxdiv", RetValSpec<IntMaxTType>, [ArgSpec<IntMaxTType>, ArgSpec<IntMaxTType>]>,
+          FunctionSpec<"strtoimax", RetValSpec<IntMaxTType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,
+          FunctionSpec<"strtoumax", RetValSpec<UIntMaxTType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,
       ]
   >;
 
@@ -558,6 +578,13 @@ def StdC : StandardSpec<"stdc"> {
               [
                   ArgSpec<MtxTTypePtr>,
                   ArgSpec<IntType>,
+              ]
+          >,
+          FunctionSpec<
+              "mtx_destroy",
+              RetValSpec<IntType>,
+              [
+                  ArgSpec<VoidType>,
               ]
           >,
           FunctionSpec<
@@ -646,6 +673,7 @@ def StdC : StandardSpec<"stdc"> {
     String,
     StdIO,
     StdLib,
+    IntTypes,
     Signal,
     Threads,
     Time,

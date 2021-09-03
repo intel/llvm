@@ -536,13 +536,13 @@ public:
 
   uint32_t GetAddressByteSize() const;
 
+  /// Returns the pid of the process or LLDB_INVALID_PROCESS_ID if there is
+  /// no known pid.
+  lldb::pid_t GetID() const { return m_pid; }
+
   /// Sets the stored pid.
   ///
   /// This does not change the pid of underlying process.
-  lldb::pid_t GetID() const { return m_pid; }
-
-  /// Returns the pid of the process or LLDB_INVALID_PROCESS_ID if there is
-  /// no known pid.
   void SetID(lldb::pid_t new_pid) { m_pid = new_pid; }
 
   uint32_t GetUniqueID() const { return m_process_unique_id; }
@@ -980,6 +980,15 @@ public:
   /// Subclasses of Process should implement this function if they need to do
   /// anything after a process exec's itself.
   virtual void DoDidExec() {}
+
+  /// Called after a reported fork.
+  virtual void DidFork(lldb::pid_t child_pid, lldb::tid_t child_tid) {}
+
+  /// Called after a reported vfork.
+  virtual void DidVFork(lldb::pid_t child_pid, lldb::tid_t child_tid) {}
+
+  /// Called after reported vfork completion.
+  virtual void DidVForkDone() {}
 
   /// Called before launching to a process.
   ///

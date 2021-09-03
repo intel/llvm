@@ -2,7 +2,7 @@
 ; ModuleID = 'multiple-calls-from-one-function.bc'
 source_filename = "multiple-calls-from-one-function.ll"
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
-target triple = "nvptx64-nvidia-cuda-sycldevice"
+target triple = "nvptx64-nvidia-cuda"
 
 ; This test checks that when there are multiple calls to a function that uses
 ; the intrinsic that the caller and the callee only have a single clone each

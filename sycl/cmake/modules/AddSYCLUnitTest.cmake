@@ -21,7 +21,8 @@ macro(add_sycl_unittest test_dirname link_variant)
   else()
     add_unittest(SYCLUnitTests ${test_dirname}
                 $<TARGET_OBJECTS:${sycl_obj_target}> ${ARGN})
-    target_compile_definitions(${test_dirname} PRIVATE __SYCL_BUILD_SYCL_DLL)
+    target_compile_definitions(${test_dirname}
+                               PRIVATE __SYCL_BUILD_SYCL_DLL)
 
     get_target_property(SYCL_LINK_LIBS ${sycl_so_target} LINK_LIBRARIES)
   endif()

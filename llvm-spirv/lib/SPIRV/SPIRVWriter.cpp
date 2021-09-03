@@ -209,6 +209,16 @@ bool LLVMToSPIRVBase::isBuiltinTransToExtInst(
   OCLExtOpKind EOC;
   if (!OCLExtOpMap::rfind(Splited.first.str(), &EOC))
     return false;
+  if (EOC == OpenCLLIB::Vloada_halfn) {
+    auto *VecTy = dyn_cast<VectorType>(F->getReturnType());
+    if (!VecTy)
+      BM->getErrorLog().checkError(
+          false, SPIRVEC_InvalidModule,
+          "vloada_half should be of a half vector type");
+    auto *Ty = VecTy->getElementType();
+    BM->getErrorLog().checkError(Ty->isHalfTy(), SPIRVEC_InvalidModule,
+                                 "vloada_half should be of a half vector type");
+  }
 
   if (ExtSet)
     *ExtSet = Set;
@@ -555,7 +565,38 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVOpaqueType(Type *T) {
     return mapType(T, BM->addQueueType());
   else if (TN == kSPIRVTypeName::PipeStorage)
     return mapType(T, BM->addPipeStorageType());
-  else
+  else if (TN == kSPIRVTypeName::JointMatrixINTEL) {
+    Type *ElemTy = nullptr;
+    StringRef Ty{Postfixes[0]};
+    auto NumBits = llvm::StringSwitch<unsigned>(Ty)
+                       .Case("char", 8)
+                       .Case("short", 16)
+                       .Case("int", 32)
+                       .Case("long", 64)
+                       .Default(0);
+    if (NumBits)
+      ElemTy = IntegerType::get(M->getContext(), NumBits);
+    else if (Ty == "half")
+      ElemTy = Type::getHalfTy(M->getContext());
+    else if (Ty == "float")
+      ElemTy = Type::getFloatTy(M->getContext());
+    else if (Ty == "double")
+      ElemTy = Type::getDoubleTy(M->getContext());
+    else
+      llvm_unreachable("Unexpected type for matrix!");
+
+    auto ParseInteger = [this](StringRef Postfix) -> ConstantInt * {
+      unsigned long long N = 0;
+      consumeUnsignedInteger(Postfix, 10, N);
+      return getUInt32(M, N);
+    };
+    SPIRVValue *Rows = transConstant(ParseInteger(Postfixes[1]));
+    SPIRVValue *Columns = transConstant(ParseInteger(Postfixes[2]));
+    SPIRVValue *Layout = transConstant(ParseInteger(Postfixes[3]));
+    SPIRVValue *Scope = transConstant(ParseInteger(Postfixes[4]));
+    return mapType(T, BM->addJointMatrixINTELType(transType(ElemTy), Rows,
+                                                  Columns, Layout, Scope));
+  } else
     return mapType(T,
                    BM->addOpaqueGenericType(SPIRVOpaqueTypeOpCodeMap::map(TN)));
 }
@@ -659,13 +700,13 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
     BF->addDecorate(DecorationFuncParamAttr, FunctionParameterAttributeZext);
   if (Attrs.hasAttribute(AttributeList::ReturnIndex, Attribute::SExt))
     BF->addDecorate(DecorationFuncParamAttr, FunctionParameterAttributeSext);
-  if (Attrs.hasFnAttribute("referenced-indirectly")) {
+  if (Attrs.hasFnAttr("referenced-indirectly")) {
     assert(!isKernel(F) &&
            "kernel function was marked as referenced-indirectly");
     BF->addDecorate(DecorationReferencedIndirectlyINTEL);
   }
 
-  if (Attrs.hasFnAttribute(kVCMetadata::VCCallable) &&
+  if (Attrs.hasFnAttr(kVCMetadata::VCCallable) &&
       BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite)) {
     BF->addDecorate(internal::DecorationCallableFunctionINTEL);
   }
@@ -688,14 +729,14 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
   assert(BF && "The SPIRVFunction pointer shouldn't be nullptr");
   auto Attrs = F->getAttributes();
 
-  if (Attrs.hasFnAttribute(kVCMetadata::VCStackCall))
+  if (Attrs.hasFnAttr(kVCMetadata::VCStackCall))
     BF->addDecorate(DecorationStackCallINTEL);
-  if (Attrs.hasFnAttribute(kVCMetadata::VCFunction))
+  if (Attrs.hasFnAttr(kVCMetadata::VCFunction))
     BF->addDecorate(DecorationVectorComputeFunctionINTEL);
   else
     return;
 
-  if (Attrs.hasFnAttribute(kVCMetadata::VCSIMTCall)) {
+  if (Attrs.hasFnAttr(kVCMetadata::VCSIMTCall)) {
     SPIRVWord SIMTMode = 0;
     Attrs.getAttribute(AttributeList::FunctionIndex, kVCMetadata::VCSIMTCall)
         .getValueAsString()
@@ -748,7 +789,7 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
   }
   if (!isKernel(F) &&
       BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_float_controls2) &&
-      Attrs.hasFnAttribute(kVCMetadata::VCFloatControl)) {
+      Attrs.hasFnAttr(kVCMetadata::VCFloatControl)) {
 
     SPIRVWord Mode = 0;
     Attrs
@@ -2474,6 +2515,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::dbg_label:
   case Intrinsic::trap:
   case Intrinsic::arithmetic_fence:
+  case Intrinsic::isnan:
     return true;
   default:
     // Unknown intrinsics' declarations should always be translated
@@ -3107,6 +3149,11 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       return BM->addUnaryInst(internal::OpArithmeticFenceINTEL, Ty, Op, BB);
     }
     return Op;
+  }
+  case Intrinsic::isnan: {
+    SPIRVType *Ty = transType(II->getType());
+    SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
+    return BM->addUnaryInst(OpIsNan, Ty, Op, BB);
   }
   default:
     if (BM->isUnknownIntrinsicAllowed(II))
@@ -3745,8 +3792,8 @@ bool LLVMToSPIRVBase::transExecutionMode() {
           break;
         unsigned SLMSize;
         N.get(SLMSize);
-        BF->addExecutionMode(new SPIRVExecutionMode(
-            BF, static_cast<ExecutionMode>(EMode), SLMSize));
+        BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+            BF, static_cast<ExecutionMode>(EMode), SLMSize)));
       } break;
 
       case spv::ExecutionModeDenormPreserve:
@@ -4285,6 +4332,7 @@ void addPassesForSPIRV(legacy::PassManager &PassMgr,
   PassMgr.add(createSPIRVLowerBoolLegacy());
   PassMgr.add(createSPIRVLowerMemmoveLegacy());
   PassMgr.add(createSPIRVLowerSaddWithOverflowLegacy());
+  PassMgr.add(createSPIRVLowerBitCastToNonStandardTypeLegacy(Opts));
 }
 
 bool isValidLLVMModule(Module *M, SPIRVErrorLog &ErrorLog) {

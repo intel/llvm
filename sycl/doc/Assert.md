@@ -149,10 +149,9 @@ The following sequence of events describes how user code gets notified:
    2. A host-task is enqueued to check value of assert failure flag.
    3. The host task calls abort whenever assert failure flag is set.
 
-DPCPP Runtime will automatically check if assertions are enabled in the kernel
+DPCPP Runtime will automatically check if assertions are used in the kernel
 being run, and won't enqueue the auxiliary kernels if assertions are not
-enabled. So there is no host-side runtime overhead when assertion are not
-enabled.
+used. So there is no host-side runtime overhead when assertion are not used.
 
 Illustrating this with an example, lets assume the user enqueues three kernels:
  - `Kernel #1`, uses assert
@@ -172,18 +171,25 @@ same binary image where fallback `__devicelib_assert_fail` resides.
 declaration:</a>
 
 ```c++
-namespace cl {
-namespace sycl {
-namespace detail {
-struct AssertHappened {
+struct __SYCL_AssertHappened {
   int Flag = 0;
+  char Expr[256 + 1] = "";
+  char File[256 + 1] = "";
+  char Func[128 + 1] = "";
+
+  int32_t Line = 0;
+
+  uint64_t GID0 = 0;
+  uint64_t GID1 = 0;
+  uint64_t GID2 = 0;
+
+  uint64_t LID0 = 0;
+  uint64_t LID1 = 0;
+  uint64_t LID2 = 0;
 };
-}
-}
-}
 
 #ifdef __SYCL_DEVICE_ONLY__
-extern SYCL_GLOBAL_VAR AssertHappened AssertHappenedMem;
+extern SYCL_GLOBAL_VAR __SYCL_AssertHappened __SYCL_AssertHappenedMem;
 #endif
 ```
 
@@ -192,6 +198,28 @@ mutable program-scope variable.
 
 The reference to extern variable is resolved within online-linking against
 fallback devicelib.
+
+#### Description of fields
+
+The value stored here denotes if assert happened at all. There are two valid
+values at host:
+
+| Value | Meaning |
+| ----- | ------- |
+| 0     | No assert failure detected |
+| 2     | Assert failure detected and reported within this instance of struct |
+
+At device-side, there's another valid value: 1, which means that assert failure
+is detected and the structure is filling up at the moment. This value is for
+device-side only and should never be reported to host. Otherwise, it means, that
+atomic operation malfunctioned.
+
+`Expr`, `File`, `Func`, `Line` are to describe the assert message itself and
+contain the expression, file name, function name, line in the file where assert
+failure had happened respectively.
+
+`GID*` and `LID*` fields describe the global and local ID respectively of a
+work-item in which assert had failed.
 
 ### Online-linking fallback `__devicelib_assert_fail`
 

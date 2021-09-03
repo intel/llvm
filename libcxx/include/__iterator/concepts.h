@@ -24,9 +24,6 @@
 #pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if !defined(_LIBCPP_HAS_NO_RANGES)
@@ -72,6 +69,8 @@ concept __signed_integer_like = signed_integral<_Tp>;
 
 template<class _Ip>
 concept weakly_incrementable =
+  // TODO: remove this once the clang bug is fixed (bugs.llvm.org/PR48173).
+  !same_as<_Ip, bool> && // Currently, clang does not handle bool correctly.
   movable<_Ip> &&
   requires(_Ip __i) {
     typename iter_difference_t<_Ip>;
@@ -266,7 +265,5 @@ concept indirectly_movable_storable =
 #endif // !defined(_LIBCPP_HAS_NO_RANGES)
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___ITERATOR_CONCEPTS_H

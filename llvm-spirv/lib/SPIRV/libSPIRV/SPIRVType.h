@@ -1057,5 +1057,35 @@ protected:
   _SPIRV_DEF_ENCDEC1(Id)
 };
 
+class SPIRVTypeJointMatrixINTEL : public SPIRVType {
+  SPIRVType *CompType;
+  SPIRVValue *Rows;
+  SPIRVValue *Columns;
+  SPIRVValue *Layout;
+  SPIRVValue *Scope;
+
+public:
+  const static Op OC = internal::OpTypeJointMatrixINTEL;
+  const static SPIRVWord FixedWC = 7;
+  // Complete constructor
+  SPIRVTypeJointMatrixINTEL(SPIRVModule *M, SPIRVId TheId, SPIRVType *CompType,
+                            SPIRVValue *Rows, SPIRVValue *Columns,
+                            SPIRVValue *Layout, SPIRVValue *Scope);
+  // Incomplete constructor
+  SPIRVTypeJointMatrixINTEL();
+  _SPIRV_DCL_ENCDEC
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_joint_matrix;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return {internal::CapabilityJointMatrixINTEL};
+  }
+  SPIRVType *getCompType() { return CompType; }
+  SPIRVValue *getLayout() { return Layout; }
+  SPIRVValue *getRows() { return Rows; }
+  SPIRVValue *getColumns() { return Columns; }
+  SPIRVValue *getScope() { return Scope; }
+};
+
 } // namespace SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVTYPE_H

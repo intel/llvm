@@ -21,6 +21,7 @@
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
+#include <detail/xpti_registry.hpp>
 
 #include <bitset>
 #include <cstdarg>
@@ -461,12 +462,8 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
   uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
   //  Let all tool plugins know that a stream by the name of 'sycl' has been
   //  initialized and will be generating the trace stream.
-  //
-  //                                           +--- Minor version #
-  //            Major version # ------+        |   Version string
-  //                                  |        |       |
-  //                                  v        v       v
-  xptiInitialize(SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  GlobalHandler::instance().getXPTIRegistry().initializeStream(
+      SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   // Create a tracepoint to indicate the graph creation
   xpti::payload_t GraphPayload("application_graph");
   uint64_t GraphInstanceNo;
@@ -481,14 +478,16 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
   }
 
   // Let subscribers know a new stream is being initialized
-  xptiInitialize(SYCL_PICALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  GlobalHandler::instance().getXPTIRegistry().initializeStream(
+      SYCL_PICALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   xpti::payload_t PIPayload("Plugin Interface Layer");
   uint64_t PiInstanceNo;
   GPICallEvent =
       xptiMakeEvent("PI Layer", &PIPayload, xpti::trace_algorithm_event,
                     xpti_at::active, &PiInstanceNo);
 
-  xptiInitialize(SYCL_PIDEBUGCALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  GlobalHandler::instance().getXPTIRegistry().initializeStream(
+      SYCL_PIDEBUGCALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   xpti::payload_t PIArgPayload(
       "Plugin Interface Layer (with function arguments)");
   uint64_t PiArgInstanceNo;

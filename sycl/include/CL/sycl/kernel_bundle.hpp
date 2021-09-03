@@ -57,8 +57,6 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
-  template <typename KernelName> friend kernel_id get_kernel_id();
 };
 
 namespace detail {
@@ -343,14 +341,20 @@ private:
 // get_kernel_id API
 /////////////////////////
 
+namespace detail {
+// Internal non-template versions of get_kernel_id API which is used by public
+// onces
+__SYCL_EXPORT kernel_id get_kernel_id_impl(std::string KernelName);
+} // namespace detail
+
 /// \returns the kernel_id associated with the KernelName
 template <typename KernelName> kernel_id get_kernel_id() {
   using KI = sycl::detail::KernelInfo<KernelName>;
-  return sycl::kernel_id(KI::getName());
+  return detail::get_kernel_id_impl(KI::getName());
 }
 
 /// \returns a vector with all kernel_id's defined in the application
-std::vector<kernel_id> get_kernel_ids();
+__SYCL_EXPORT std::vector<kernel_id> get_kernel_ids();
 
 /////////////////////////
 // get_kernel_bundle API

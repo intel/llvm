@@ -135,6 +135,12 @@ static cl::opt<unsigned>
                     cl::desc("Alignment of bundle for binary files"),
                     cl::init(1), cl::cat(ClangOffloadBundlerCategory));
 
+static cl::opt<bool>
+    AddTargetSymbols("add-target-symbols-to-bundled-object",
+                     cl::desc("Add .tgtsym section with target symbol names to "
+                              "the output file when bundling object files.\n"),
+                     cl::init(true), cl::cat(ClangOffloadBundlerCategory));
+
 /// Magic string that marks the existence of offloading data.
 #define OFFLOAD_BUNDLER_MAGIC_STR "__CLANG_OFFLOAD_BUNDLE__"
 
@@ -653,6 +659,7 @@ class ObjectFileHandler final : public FileHandler {
             // Do not add globals with constant address space to the tgtsym.
             if (!GV.isDeclaration() && !GV.hasLocalLinkage() &&
                 GV.getAddressSpace() == 2) {
+              GV.replaceAllUsesWith(UndefValue::get(GV.getType()));
               GV.dropAllReferences();
               GV.eraseFromParent();
               UpdateBuf = true;
@@ -824,22 +831,24 @@ public:
                                     OFFLOAD_BUNDLER_MAGIC_STR + TargetNames[I] +
                                     "=readonly,exclude"));
     }
-    // Add a section with symbol names that are defined in target objects to the
-    // output fat object.
-    Expected<SmallVector<char, 0>> SymbolsOrErr = makeTargetSymbolTable();
-    if (!SymbolsOrErr)
-      return SymbolsOrErr.takeError();
+    if (AddTargetSymbols) {
+      // Add a section with symbol names that are defined in target objects to
+      // the output fat object.
+      Expected<SmallVector<char, 0>> SymbolsOrErr = makeTargetSymbolTable();
+      if (!SymbolsOrErr)
+        return SymbolsOrErr.takeError();
 
-    if (!SymbolsOrErr->empty()) {
-      // Add section with symbols names to fat object.
-      Expected<StringRef> SymbolsFileOrErr =
-          TempFiles.Create(makeArrayRef(*SymbolsOrErr));
-      if (!SymbolsFileOrErr)
-        return SymbolsFileOrErr.takeError();
+      if (!SymbolsOrErr->empty()) {
+        // Add section with symbols names to fat object.
+        Expected<StringRef> SymbolsFileOrErr =
+            TempFiles.Create(makeArrayRef(*SymbolsOrErr));
+        if (!SymbolsFileOrErr)
+          return SymbolsFileOrErr.takeError();
 
-      ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
-                                    SYMBOLS_SECTION_NAME + "=" +
-                                    *SymbolsFileOrErr));
+        ObjcopyArgs.push_back(SS.save(Twine("--add-section=") +
+                                      SYMBOLS_SECTION_NAME + "=" +
+                                      *SymbolsFileOrErr));
+      }
     }
     ObjcopyArgs.push_back("--");
     ObjcopyArgs.push_back(InputFileNames[HostInputIndex]);
@@ -1404,8 +1413,22 @@ static Error UnbundleFiles() {
     auto Output = Worklist.find(CurTriple);
     // The file may have more bundles for other targets, that we don't care
     // about. Therefore, move on to the next triple
-    if (Output == Worklist.end())
-      continue;
+    if (Output == Worklist.end()) {
+      // FIXME: temporary solution for supporting binaries produced by old
+      // versions of SYCL toolchain. Old versions used triples with 'sycldevice'
+      // environment component of the triple, whereas new toolchain use
+      // 'unknown' value for that triple component. Here we assume that if we
+      // are looking for a bundle for sycl offload kind, for the same target
+      // triple there might be either one with 'sycldevice' environment or with
+      // 'unknown' environment, but not both. So we will look for any of these
+      // two variants.
+      if (!CurTriple.startswith("sycl-") || !CurTriple.endswith("-sycldevice"))
+        continue;
+      Output =
+          Worklist.find(CurTriple.drop_back(11 /*length of "-sycldevice"*/));
+      if (Output == Worklist.end())
+        continue;
+    }
 
     // Check if the output file can be opened and copy the bundle to it.
     std::error_code EC;
@@ -1507,7 +1530,21 @@ static Expected<bool> CheckBundledSection() {
     return std::move(Err);
 
   StringRef triple = TargetNames.front();
-  // Read all the bundles that are in the work list. If we find no bundles we
+
+  // FIXME: temporary solution for supporting binaries produced by old versions
+  // of SYCL toolchain. Old versions used triples with 'sycldevice' environment
+  // component of the triple, whereas new toolchain use 'unknown' value for that
+  // triple component. Here we assume that if we are looking for a bundle for
+  // sycl offload kind, for the same target triple there might be either one
+  // with 'sycldevice' environment or with 'unknown' environment, but not both.
+  // So we will look for any of these two variants.
+  OffloadTargetInfo TI(triple);
+  bool checkCompatibleTriple =
+      (TI.OffloadKind == "sycl") &&
+      (TI.Triple.getEnvironment() == Triple::UnknownEnvironment);
+  TI.Triple.setEnvironmentName("sycldevice");
+  std::string compatibleTriple = Twine("sycl-" + TI.Triple.str()).str();
+
   // assume the file is meant for the host target.
   bool found = false;
   while (!found) {
@@ -1519,7 +1556,9 @@ static Expected<bool> CheckBundledSection() {
     if (!*CurTripleOrErr)
       break;
 
-    if (*CurTripleOrErr == triple) {
+    if (*CurTripleOrErr == triple ||
+        (checkCompatibleTriple &&
+         *CurTripleOrErr == StringRef(compatibleTriple))) {
       found = true;
       break;
     }
@@ -1576,8 +1615,8 @@ bool isCodeObjectCompatible(OffloadTargetInfo &CodeObjectInfo,
 
 /// @brief Computes a list of targets among all given targets which are
 /// compatible with this code object
-/// @param [in] Code Object \p CodeObject
-/// @param [out] List of all compatible targets \p CompatibleTargets among all
+/// @param [in] CodeObjectInfo Code Object
+/// @param [out] CompatibleTargets List of all compatible targets among all
 /// given targets
 /// @return false, if no compatible target is found.
 static bool

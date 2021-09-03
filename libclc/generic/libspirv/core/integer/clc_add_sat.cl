@@ -14,6 +14,11 @@ _CLC_OVERLOAD _CLC_DEF char __clc_add_sat(char x, char y) {
   return __clc_convert_char_sat(r);
 }
 
+_CLC_OVERLOAD _CLC_DEF schar __clc_add_sat(schar x, schar y) {
+  short r = x + y;
+  return __clc_convert_schar_sat(r);
+}
+
 _CLC_OVERLOAD _CLC_DEF uchar __clc_add_sat(uchar x, uchar y) {
   ushort r = x + y;
   return __clc_convert_uchar_sat(r);
@@ -62,6 +67,8 @@ _CLC_OVERLOAD _CLC_DEF ulong __clc_add_sat(ulong x, ulong y) {
 }
 
 _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, char, __clc_add_sat, char, char)
+_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, schar, __clc_add_sat, schar,
+                      schar)
 _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uchar, __clc_add_sat, uchar,
                       uchar)
 _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, short, __clc_add_sat, short,

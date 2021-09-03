@@ -139,19 +139,19 @@ public:
   /// within the native program.
   /// \param M identifies the OS module the kernel comes from (multiple OS
   ///        modules may have kernels with the same name).
-  /// \param Context the context associated with the kernel.
-  /// \param Device the device associated with the context.
   /// \param NativePrg the PI program associated with the kernel.
   /// \param KernelName the name of the kernel.
-  /// \param KnownProgram indicates whether the PI program is guaranteed to
-  ///        be known to program manager (built with its API) or not (not
-  ///        cacheable or constructed with interoperability).
   KernelArgMask getEliminatedKernelArgMask(OSModuleHandle M,
-                                           const ContextImplPtr &ContextImpl,
-                                           const DeviceImplPtr &DeviceImpl,
                                            pi::PiProgram NativePrg,
-                                           const std::string &KernelName,
-                                           bool KnownProgram);
+                                           const std::string &KernelName);
+
+  // The function returns the unique SYCL kernel identifier associated with a
+  // kernel name.
+  kernel_id getSYCLKernelID(const std::string &KernelName);
+
+  // The function returns a vector containing all unique SYCL kernel identifiers
+  // in SYCL device images.
+  std::vector<kernel_id> getAllSYCLKernelIDs();
 
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
@@ -271,6 +271,18 @@ private:
   /// Such images are assumed to contain all kernel associated with the module.
   /// Access must be guarded by the \ref Sync::getGlobalLock()
   std::unordered_map<OSModuleHandle, KernelSetId> m_OSModuleKernelSets;
+
+  /// Maps names of kernels to their unique kernel IDs.
+  /// TODO: Use std::unordered_set with transparent hash and equality functions
+  ///       when C++20 is enabled for the runtime library.
+  /// Access must be guarded by the m_KernelIDsMutex mutex
+  std::unordered_map<std::string, kernel_id> m_KernelIDs;
+
+  /// Protects kernel ID cache.
+  /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to
+  /// avoid deadlocks care must be taken not to acquire
+  /// \ref Sync::getGlobalLock() while holding this mutex.
+  std::mutex m_KernelIDsMutex;
 
   // Keeps track of pi_program to image correspondence. Needed for:
   // - knowing which specialization constants are used in the program and
