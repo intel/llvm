@@ -269,9 +269,9 @@ TEST(ParseAllowListTests, CheckExceptionIsThrownForValueWOColonDelim) {
 }
 
 TEST(ParseAllowListTests, CheckDeviceNameDeprecationWarning) {
-  testing::internal::CaptureStderr();
+  testing::internal::CaptureStdout();
   sycl::detail::parseAllowList("DeviceName:{{regex}}");
-  std::string ActualOutput = testing::internal::GetCapturedStderr();
+  std::string ActualOutput = testing::internal::GetCapturedStdout();
   EXPECT_EQ("\nWARNING: DeviceName in SYCL_DEVICE_ALLOWLIST is deprecated. "
             "Please use BackendName, DeviceType and DeviceVendorId instead. "
             "For details, please refer to "
@@ -281,9 +281,9 @@ TEST(ParseAllowListTests, CheckDeviceNameDeprecationWarning) {
 }
 
 TEST(ParseAllowListTests, CheckPlatformNameDeprecationWarning) {
-  testing::internal::CaptureStderr();
+  testing::internal::CaptureStdout();
   sycl::detail::parseAllowList("PlatformName:{{regex}}");
-  std::string ActualOutput = testing::internal::GetCapturedStderr();
+  std::string ActualOutput = testing::internal::GetCapturedStdout();
   EXPECT_EQ("\nWARNING: PlatformName in SYCL_DEVICE_ALLOWLIST is deprecated. "
             "Please use BackendName, DeviceType and DeviceVendorId instead. "
             "For details, please refer to "
@@ -293,9 +293,9 @@ TEST(ParseAllowListTests, CheckPlatformNameDeprecationWarning) {
 }
 
 TEST(ParseAllowListTests, CheckDeviceNameAndPlatformNameDeprecationWarning) {
-  testing::internal::CaptureStderr();
+  testing::internal::CaptureStdout();
   sycl::detail::parseAllowList("DeviceName:{{regex}},PlatformName:{{regex}}");
-  std::string ActualOutput = testing::internal::GetCapturedStderr();
+  std::string ActualOutput = testing::internal::GetCapturedStdout();
   EXPECT_EQ("\nWARNING: DeviceName and PlatformName in SYCL_DEVICE_ALLOWLIST "
             "are deprecated. Please use BackendName, DeviceType and "
             "DeviceVendorId instead. For details, please refer to "
@@ -305,10 +305,10 @@ TEST(ParseAllowListTests, CheckDeviceNameAndPlatformNameDeprecationWarning) {
 }
 
 TEST(ParseAllowListTests, CheckNoDeprecationWarningForNotDeprecatedKeys) {
-  testing::internal::CaptureStderr();
+  testing::internal::CaptureStdout();
   sycl::detail::parseAllowList(
       "BackendName:level_zero,DeviceType:gpu,DeviceVendorId:0x0000,"
       "DriverVersion:{{regex1}},PlatformVersion:{{regex2}}");
-  std::string ActualOutput = testing::internal::GetCapturedStderr();
+  std::string ActualOutput = testing::internal::GetCapturedStdout();
   EXPECT_EQ("", ActualOutput);
 }

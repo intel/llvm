@@ -256,19 +256,19 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
 
   if (IsDeprecatedKeyNameDeviceNameWasUsed &&
       IsDeprecatedKeyNamePlatformNameWasUsed) {
-    std::cerr << "\nWARNING: " << DeprecatedKeyNameDeviceName << " and "
+    std::cout << "\nWARNING: " << DeprecatedKeyNameDeviceName << " and "
               << DeprecatedKeyNamePlatformName
               << " in SYCL_DEVICE_ALLOWLIST are deprecated. ";
   } else if (IsDeprecatedKeyNameDeviceNameWasUsed) {
-    std::cerr << "\nWARNING: " << DeprecatedKeyNameDeviceName
+    std::cout << "\nWARNING: " << DeprecatedKeyNameDeviceName
               << " in SYCL_DEVICE_ALLOWLIST is deprecated. ";
   } else if (IsDeprecatedKeyNamePlatformNameWasUsed) {
-    std::cerr << "\nWARNING: " << DeprecatedKeyNamePlatformName
+    std::cout << "\nWARNING: " << DeprecatedKeyNamePlatformName
               << " in SYCL_DEVICE_ALLOWLIST is deprecated. ";
   }
   if (IsDeprecatedKeyNameDeviceNameWasUsed ||
       IsDeprecatedKeyNamePlatformNameWasUsed) {
-    std::cerr << "Please use " << BackendNameKeyName << ", "
+    std::cout << "Please use " << BackendNameKeyName << ", "
               << DeviceTypeKeyName << " and " << DeviceVendorIdKeyName
               << " instead. For details, please refer to "
                  "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
