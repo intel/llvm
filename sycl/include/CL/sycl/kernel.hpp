@@ -175,7 +175,7 @@ public:
   __SYCL2020_DEPRECATED(
       "get_work_group_info() is deprecated, use SYCL 2020 requests instead")
   typename info::param_traits<info::kernel_work_group, param>::return_type
-  get_work_group_info(const device &Device) const;
+      get_work_group_info(const device &Device) const;
 
   /// Query sub-group information from a kernel using the
   /// info::kernel_sub_group descriptor for a specific device.

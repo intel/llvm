@@ -1834,8 +1834,7 @@ public:
   ///
   /// \param Func is a lambda that is executed on the host
   template <typename FuncT>
-  __SYCL_DEPRECATED(
-      "interop_task() is deprecated, use host_task() instead")
+  __SYCL_DEPRECATED("interop_task() is deprecated, use host_task() instead")
   void interop_task(FuncT Func) {
 
     MInteropTask.reset(new detail::InteropTask(std::move(Func)));
