@@ -26,9 +26,6 @@ struct sub_group;
 } // namespace oneapi
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-}
 namespace detail {
 
 template <typename T> struct is_group : std::false_type {};

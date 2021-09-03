@@ -114,9 +114,6 @@ struct is_compile_time_property<sycl::ext::intel::property::buffer_location>
 } // namespace oneapi
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-}
 namespace detail {
 template <int I>
 struct IsCompileTimePropertyInstance<

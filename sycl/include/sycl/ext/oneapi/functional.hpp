@@ -27,10 +27,6 @@ template <typename T = void> using minimum = sycl::minimum<T>;
 } // namespace oneapi
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-}
-
 #ifdef __SYCL_DEVICE_ONLY__
 namespace detail {
 
