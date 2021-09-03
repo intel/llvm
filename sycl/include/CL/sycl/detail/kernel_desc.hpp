@@ -46,8 +46,6 @@ struct kernel_param_desc_t {
   int offset;
 };
 
-
-
 // Translates specialization constant type to its name.
 template <class Name> struct SpecConstantInfo {
   static constexpr const char *getName() { return ""; }
