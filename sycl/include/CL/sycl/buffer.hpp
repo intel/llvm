@@ -223,8 +223,8 @@ public:
           "Requested sub-buffer region is not contiguous", PI_INVALID_VALUE);
   }
 
+#ifdef __SYCL_INTERNAL_API
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   buffer(cl_mem MemObject, const context &SyclContext,
          event AvailableEvent = {})
       : Range{0} {
@@ -238,6 +238,7 @@ public:
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
         AvailableEvent);
   }
+#endif
 
   buffer(const buffer &rhs) = default;
 
