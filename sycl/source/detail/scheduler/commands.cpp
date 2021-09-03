@@ -160,8 +160,10 @@ static std::string commandToName(Command::CommandType Type) {
 static std::vector<RT::PiEvent>
 getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
   std::vector<RT::PiEvent> RetPiEvents;
+  RetPiEvents.reserve(EventImpls.size());
   for (auto &EventImpl : EventImpls)
-    RetPiEvents.push_back(EventImpl->getHandleRef());
+    if (auto PiEvent = EventImpl->getHandleRef())
+      RetPiEvents.emplace_back(PiEvent);
   return RetPiEvents;
 }
 
@@ -2415,7 +2417,8 @@ cl_int ExecCGCommand::enqueueImp() {
     std::vector<RT::PiEvent> PiEvents = getPiEvents(Events);
     const detail::plugin &Plugin = MQueue->getPlugin();
     Plugin.call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], &Event);
+        MQueue->getHandleRef(), PiEvents.size(),
+        (PiEvents.empty() ? nullptr : &PiEvents[0]), &Event);
 
     return PI_SUCCESS;
   }

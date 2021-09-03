@@ -149,8 +149,13 @@ event handler::finalize() {
       if (CL_SUCCESS != ret_val)
         throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
 
-      detail::EventImplPtr Event =
-          std::make_shared<cl::sycl::detail::event_impl>();
+      detail::EventImplPtr Event = nullptr;
+      if (MIsHost) {
+        Event = std::make_shared<cl::sycl::detail::event_impl>(MQueue);
+        Event->setComplete();
+      } else {
+        Event = std::make_shared<cl::sycl::detail::event_impl>();
+      }
       Event->set_queue_as_event_is_empty(MQueue);
       MLastEvent = detail::createSyclObjFromImpl<event>(Event);
       return MLastEvent;
