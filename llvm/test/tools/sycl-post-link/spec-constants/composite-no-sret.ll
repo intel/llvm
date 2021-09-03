@@ -14,7 +14,7 @@
 ; ModuleID = 'cuda.mod.bc'
 source_filename = "common.cpp"
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
-target triple = "nvptx64-unknown-unknown-sycldevice"
+target triple = "nvptx64-unknown-unknown"
 
 %"class._ZTSN2cl4sycl17specialization_idIiEE.cl::sycl::specialization_id" = type { i32 }
 %"class._ZTSN2cl4sycl17specialization_idI10TestStructEE.cl::sycl::specialization_id" = type { %struct._ZTS10TestStruct.TestStruct }

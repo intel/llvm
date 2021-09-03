@@ -66,11 +66,6 @@ There are 3 types of tests which are used for DPC++ toolchain validation:
 should not have hardware (e.g. GPU, FPGA, etc.) or external software
 dependencies (e.g. OpenCL, Level Zero, CUDA runtimes). All tests not following
 this approach should be moved to DPC++ end-to-end or SYCL-CTS tests.
-However, the tests for a feature under active development requiring atomic
-change for tests and product can be put to
-[sycl/test/on-device](../../sycl/test/on-device) temporarily. It is developer
-responsibility to move the tests to DPC++ E2E test suite or SYCL-CTS once
-the feature is stabilized.
 
     **Guidelines for adding DPC++ in-tree LIT tests (DPC++ Clang FE tests)**:
     - Use `sycl::` namespace instead of `cl::sycl::`

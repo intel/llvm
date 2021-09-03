@@ -23,6 +23,11 @@
 // CHECK-NOT: sycl-spir64.llvm.compiler.used
 // CHECK-NOT: sycl-spir64.const_as
 
+// RUN: clang-offload-bundler --add-target-symbols-to-bundled-object=false -type=o -targets=host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu,sycl-spir64 -inputs=%t.o,%t.tgt1,%t.tgt2 -outputs=%t.fat.no.tgtsym.o
+// RUN: llvm-readobj --string-dump=.tgtsym %t.fat.no.tgtsym.o | FileCheck %s --check-prefix CHECK-NO-TGTSYM
+
+// CHECK-NO-TGTSYM-NOT: String dump of section '.tgtsym':
+
 const __attribute__((opencl_constant)) char const_as[] = "abc";
 
 extern void my_printf(__attribute__((opencl_constant)) const char *fmt);

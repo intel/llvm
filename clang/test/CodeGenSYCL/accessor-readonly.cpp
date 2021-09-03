@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
 
 // Test to check that readonly attribute is applied to accessors with access mode read.
 

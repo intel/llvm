@@ -45,25 +45,34 @@ if (DEFINED CM_LOCAL_SOURCE_DIR)
     )
   endif()
 else ()
-  # Downloading pre-built CM Package
-  if (NOT DEFINED CM_PACKAGE_URL)
+  if (DEFINED CM_PACKAGE_URL)
+    # Downloading pre-built CM Package
+    file (MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install)
+    ExternalProject_Add(cm-emu
+      URL               ${CM_PACKAGE_URL}
+      CONFIGURE_COMMAND ""
+      BUILD_COMMAND     ""
+      UPDATE_COMMAND    ""
+      INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
+      INSTALL_COMMAND   ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_BINARY_DIR}/cm-emu-prefix/src/cm-emu/ <INSTALL_DIR>
+      BUILD_BYPRODUCTS  ${LIBCM} ${LIBIGFXCMRT_EMU}
+    )
+  else()
+    # Build from CM source tree fetched from github
     if (MSVC)
-      message(FATAL_ERROR "ESIMD_CPU is not supported under Windows environment yet")
+      message(FATAL_ERROR "Online-building of CM_EMU library is not supported under Windows environment")
     else()
-      # FIXME/TODO : Use 'generic' package instead of 'u18.04'
-      set (CM_PACKAGE_URL "https://github.com/intel/cm-cpu-emulation/releases/download/v2021-07-21/intel-cmemu-1.0.1.u18.04-release.x86_64.tar.xz")
+      ExternalProject_Add(cm-emu
+        GIT_REPOSITORY    https://github.com/intel/cm-cpu-emulation.git
+        BINARY_DIR        ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build
+        INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
+        CMAKE_ARGS        -DLIBVA_INSTALL_PATH=/usr
+                          -D__SYCL_EXPLICIT_SIMD_PLUGIN__=true
+                          -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+        BUILD_BYPRODUCTS  ${LIBCM} ${LIBIGFXCMRT_EMU}
+      )
     endif()
   endif()
-  file (MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install)
-  ExternalProject_Add(cm-emu
-    URL               ${CM_PACKAGE_URL}
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND     ""
-    UPDATE_COMMAND    ""
-    INSTALL_DIR       ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install
-    INSTALL_COMMAND   ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_BINARY_DIR}/cm-emu-prefix/src/cm-emu/ <INSTALL_DIR>
-    BUILD_BYPRODUCTS  ${LIBCM} ${LIBIGFXCMRT_EMU}
-  )
 endif ()
 ExternalProject_Add_Step(cm-emu llvminstall
   COMMAND ${CMAKE_COMMAND} -E make_directory ${LLVM_BINARY_DIR}/pi_esimd_cpu_deps && ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/ ${LLVM_BINARY_DIR}/pi_esimd_cpu_deps
