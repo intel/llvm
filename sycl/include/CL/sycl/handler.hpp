@@ -2307,7 +2307,9 @@ public:
   /// \param WaitList is a vector of valid SYCL events that need to complete
   /// before barrier command can be executed.
   __SYCL2020_DEPRECATED("use 'ext_intel_barrier' instead")
-  void barrier(const std::vector<event> &WaitList);
+  void barrier(const std::vector<event> &WaitList) {
+    ext_intel_barrier(WaitList);
+  }
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.

@@ -251,7 +251,7 @@ public:
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  event ext_intel_submit_barrier(_CODELOCONLYPARAM(&CodeLoc)) {
+  event ext_oneapi_submit_barrier(_CODELOCONLYPARAM(&CodeLoc)) {
     return submit(
         [=](handler &CGH) { CGH.ext_intel_barrier(); } _CODELOCFW(CodeLoc));
   }
@@ -263,22 +263,22 @@ public:
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  __SYCL2020_DEPRECATED("use 'ext_intel_submit_barrier' instead")
+  __SYCL2020_DEPRECATED("use 'ext_oneapi_submit_barrier' instead")
   event submit_barrier(_CODELOCONLYPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
-    return ext_intel_submit_barrier(CodeLoc);
+    return ext_oneapi_submit_barrier(CodeLoc);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
   /// until all events in WaitList have entered the complete state. If WaitList
-  /// is empty, then ext_intel_submit_barrier has no effect.
+  /// is empty, then ext_oneapi_submit_barrier has no effect.
   ///
   /// \param WaitList is a vector of valid SYCL events that need to complete
   /// before barrier command can be executed.
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  event ext_intel_submit_barrier(
+  event ext_oneapi_submit_barrier(
       const std::vector<event> &WaitList _CODELOCPARAM(&CodeLoc)) {
     return submit([=](handler &CGH) {
       CGH.ext_intel_barrier(WaitList);
@@ -294,11 +294,11 @@ public:
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
-  __SYCL2020_DEPRECATED("use 'ext_intel_submit_barrier' instead")
+  __SYCL2020_DEPRECATED("use 'ext_oneapi_submit_barrier' instead")
   event
   submit_barrier(const std::vector<event> &WaitList _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
-    return ext_intel_submit_barrier(WaitList, CodeLoc);
+    return ext_oneapi_submit_barrier(WaitList, CodeLoc);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the

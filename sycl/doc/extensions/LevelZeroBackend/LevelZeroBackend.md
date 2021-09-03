@@ -9,7 +9,6 @@ The currently supported targets are all Intel GPUs starting with Gen9.
 
 NOTE: This specification is a draft. While describing the currently implemented behaviors it is known to be not complete nor exhaustive.
       We shall continue to add more information, e.g. explain general mapping of SYCL programming model to Level-Zero API.
-      It will also be gradually changing to a SYCL-2020 conforming implementation.
 
 ## 2. Prerequisites
 
