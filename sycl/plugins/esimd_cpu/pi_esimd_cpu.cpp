@@ -351,7 +351,8 @@ extern "C" {
     std::cerr << "Warning : Not Implemented : " << __FUNCTION__                \
               << " - File : " << __FILE__;                                     \
     std::cerr << " / Line : " << __LINE__ << std::endl;                        \
-  }
+  }                                                                            \
+  return PI_SUCCESS;
 
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
@@ -684,6 +685,12 @@ pi_result piContextRelease(pi_context Context) {
 
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
+  if (Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+    // TODO : Support Out-of-order Queue
+    *Queue = nullptr;
+    return PI_INVALID_QUEUE_PROPERTIES;
+  }
+
   cm_support::CmQueue *CmQueue;
 
   int Result = Context->Device->CmDevicePtr->CreateQueue(CmQueue);
@@ -729,7 +736,10 @@ pi_result piQueueRelease(pi_queue Queue) {
 }
 
 pi_result piQueueFinish(pi_queue) {
-  DIE_NO_IMPLEMENTATION;
+  // No-op as enqueued commands with ESIMD_CPU plugin are blocking
+  // ones that do not return until their completion - kernel execution
+  // and memory read.
+  CONTINUE_NO_IMPLEMENTATION;
 }
 
 pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
@@ -1190,6 +1200,12 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
 
   _pi_buffer *buf = static_cast<_pi_buffer *>(Src);
 
+  std::unique_ptr<_pi_event> RetEv{nullptr};
+  if (Event) {
+    RetEv = std::unique_ptr<_pi_event>(new _pi_event());
+    RetEv->IsDummyEvent = true;
+  }
+
   int Status =
       buf->CmBufferPtr->ReadSurface(reinterpret_cast<unsigned char *>(Dst),
                                     nullptr, // event
@@ -1200,18 +1216,7 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   }
 
   if (Event) {
-    try {
-      *Event = new _pi_event();
-    } catch (const std::bad_alloc &) {
-      return PI_OUT_OF_HOST_MEMORY;
-    } catch (...) {
-      return PI_ERROR_UNKNOWN;
-    }
-
-    // At this point, CM already completed buffer-read (ReadSurface)
-    // operation. Therefore, 'event' corresponding to this operation
-    // is marked as dummy one and ignored during events-waiting.
-    (*Event)->IsDummyEvent = true;
+    *Event = RetEv.release();
   }
 
   return PI_SUCCESS;
@@ -1286,6 +1291,14 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
     assert(false && "ESIMD_CPU does not support Blocking Read");
   }
   _pi_image *PiImg = static_cast<_pi_image *>(Image);
+
+  std::unique_ptr<_pi_event> RetEv{nullptr};
+
+  if (Event) {
+    RetEv = std::unique_ptr<_pi_event>(new _pi_event());
+    RetEv->IsDummyEvent = true;
+  }
+
   int Status =
       PiImg->CmSurfacePtr->ReadSurface(reinterpret_cast<unsigned char *>(Ptr),
                                        nullptr, // event
@@ -1295,18 +1308,7 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
   }
 
   if (Event) {
-    try {
-      *Event = new _pi_event();
-    } catch (const std::bad_alloc &) {
-      return PI_OUT_OF_HOST_MEMORY;
-    } catch (...) {
-      return PI_ERROR_UNKNOWN;
-    }
-
-    // At this point, CM already completed image-read (ReadSurface)
-    // operation. Therefore, 'event' corresponding to this operation
-    // is marked as dummy one and ignored during events-waiting.
-    (*Event)->IsDummyEvent = true;
+    *Event = RetEv.release();
   }
   return PI_SUCCESS;
 }
@@ -1360,25 +1362,39 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     }
   }
 
+  std::unique_ptr<_pi_event> RetEv{nullptr};
+
+  if (Event) {
+    RetEv = std::unique_ptr<_pi_event>(new _pi_event());
+    RetEv->IsDummyEvent = true;
+  }
+
   switch (WorkDim) {
   case 1:
     InvokeImpl<1>::invoke(Kernel, GlobalWorkOffset, GlobalWorkSize,
                           LocalWorkSize);
-    return PI_SUCCESS;
+    break;
 
   case 2:
     InvokeImpl<2>::invoke(Kernel, GlobalWorkOffset, GlobalWorkSize,
                           LocalWorkSize);
-    return PI_SUCCESS;
+    break;
 
   case 3:
     InvokeImpl<3>::invoke(Kernel, GlobalWorkOffset, GlobalWorkSize,
                           LocalWorkSize);
-    return PI_SUCCESS;
+    break;
 
   default:
     DIE_NO_IMPLEMENTATION;
+    break;
   }
+
+  if (Event) {
+    *Event = RetEv.release();
+  }
+
+  return PI_SUCCESS;
 }
 
 pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context, bool,
