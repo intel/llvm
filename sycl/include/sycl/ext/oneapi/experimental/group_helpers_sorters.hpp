@@ -41,12 +41,19 @@ public:
       : comp(comp_), scratch(scratch_.data()), scratch_size(scratch_.size()) {}
 
   template <typename Group, typename Ptr>
-  void operator()(Group g, Ptr begin, Ptr end) {
+  void operator()(Group g, Ptr first, Ptr last) {
 #ifdef __SYCL_DEVICE_ONLY__
     using T = typename std::iterator_traits<Ptr>::value_type;
-    if (scratch_size >= memory_required<T>(Group::fence_scope, end - begin))
-      cl::sycl::detail::merge_sort(g, begin, end - begin, comp, scratch);
+    if (scratch_size >= memory_required<T>(Group::fence_scope, last - first))
+      sycl::detail::merge_sort(g, first, last - first, comp, scratch);
       // TODO: it's better to add else branch
+#else
+    (void)g;
+    (void)first;
+    (void)last;
+    throw runtime_error(
+        "default_sorter constructor is not supported on host device.",
+        PI_INVALID_DEVICE);
 #endif
   }
 
@@ -54,15 +61,21 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     auto range_size = g.get_local_range().size();
     if (scratch_size >= memory_required<T>(Group::fence_scope, range_size)) {
-      auto id = cl::sycl::detail::Builder::getNDItem<Group::dimensions>();
+      auto id = sycl::detail::Builder::getNDItem<Group::dimensions>();
       uint32_t local_id = id.get_local_id();
       T *temp = reinterpret_cast<T *>(scratch);
       temp[local_id] = val;
-      cl::sycl::detail::merge_sort(g, temp, range_size, comp,
-                                   scratch + range_size * sizeof(T));
+      sycl::detail::merge_sort(g, temp, range_size, comp,
+                               scratch + range_size * sizeof(T));
       val = temp[local_id];
     }
     // TODO: it's better to add else branch
+#else
+    (void)g;
+    (void)val;
+    throw runtime_error(
+        "default_sorter operator() is not supported on host device.",
+        PI_INVALID_DEVICE);
 #endif
     return val;
   }

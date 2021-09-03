@@ -13,7 +13,6 @@
 #include <CL/sycl/detail/helpers.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
-#include "group_sort_util.hpp"
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -21,11 +20,11 @@ namespace detail {
 
 // ---- merge sort implementation
 
-// following to functions could be useless if std::[lower|upper]_bound worked
+// following two functions could be useless if std::[lower|upper]_bound worked
 // well
 template <typename Acc, typename Value, typename Compare>
-std::size_t my_lower_bound(Acc acc, std::size_t first, std::size_t last,
-                           const Value &value, Compare comp) {
+std::size_t lower_bound(Acc acc, std::size_t first, std::size_t last,
+                        const Value &value, Compare comp) {
   std::size_t n = last - first;
   std::size_t cur = n;
   std::size_t it;
@@ -42,18 +41,18 @@ std::size_t my_lower_bound(Acc acc, std::size_t first, std::size_t last,
 }
 
 template <typename Acc, typename Value, typename Compare>
-std::size_t my_upper_bound(Acc acc, const std::size_t first,
-                           const std::size_t last, const Value &value,
-                           Compare comp) {
-  return my_lower_bound(acc, first, last, value,
-                        [comp](auto x, auto y) { return !comp(y, x); });
+std::size_t upper_bound(Acc acc, const std::size_t first,
+                        const std::size_t last, const Value &value,
+                        Compare comp) {
+  return detail::lower_bound(acc, first, last, value,
+                             [comp](auto x, auto y) { return !comp(y, x); });
 }
 
 // swap for all data types including tuple-like types
-template <typename T> void my_swap(T &a, T &b) { std::swap(a, b); }
+template <typename T> void swap_tuples(T &a, T &b) { std::swap(a, b); }
 
 template <template <typename...> class TupleLike, typename T1, typename T2>
-void my_swap(TupleLike<T1, T2> &&a, TupleLike<T1, T2> &&b) {
+void swap_tuples(TupleLike<T1, T2> &&a, TupleLike<T1, T2> &&b) {
   std::swap(std::get<0>(a), std::get<0>(b));
   std::swap(std::get<1>(a), std::get<1>(b));
 }
@@ -86,7 +85,7 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
     // items find left border in 2nd sequence
     const auto local_l_item_1 = in_acc1[local_start_1];
     std::size_t l_search_bound_2 =
-        my_lower_bound(in_acc1, start_2, end_2, local_l_item_1, comp);
+        detail::lower_bound(in_acc1, start_2, end_2, local_l_item_1, comp);
     const std::size_t l_shift_1 = local_start_1 - start_1;
     const std::size_t l_shift_2 = l_search_bound_2 - start_2;
 
@@ -96,8 +95,8 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
     // find right border in 2nd sequence
     if (local_size_1 > 1) {
       const auto local_r_item_1 = in_acc1[local_end_1 - 1];
-      r_search_bound_2 = my_lower_bound(in_acc1, l_search_bound_2, end_2,
-                                        local_r_item_1, comp);
+      r_search_bound_2 = detail::lower_bound(in_acc1, l_search_bound_2, end_2,
+                                             local_r_item_1, comp);
       const auto r_shift_1 = local_end_1 - 1 - start_1;
       const auto r_shift_2 = r_search_bound_2 - start_2;
 
@@ -110,8 +109,8 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       // we shouldn't seek in whole 2nd sequence. Just for the part where the
       // 1st sequence should be
       l_search_bound_2 =
-          my_lower_bound(in_acc1, l_search_bound_2, r_search_bound_2,
-                         intermediate_item_1, comp);
+          detail::lower_bound(in_acc1, l_search_bound_2, r_search_bound_2,
+                              intermediate_item_1, comp);
       const std::size_t shift_1 = idx - start_1;
       const std::size_t shift_2 = l_search_bound_2 - start_2;
 
@@ -124,7 +123,7 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
     // items find left border in 1st sequence
     const auto local_l_item_2 = in_acc1[local_start_2];
     std::size_t l_search_bound_1 =
-        my_upper_bound(in_acc1, start_1, end_1, local_l_item_2, comp);
+        detail::upper_bound(in_acc1, start_1, end_1, local_l_item_2, comp);
     const std::size_t l_shift_1 = l_search_bound_1 - start_1;
     const std::size_t l_shift_2 = local_start_2 - start_2;
 
@@ -134,8 +133,8 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
     // find right border in 1st sequence
     if (local_size_2 > 1) {
       const auto local_r_item_2 = in_acc1[local_end_2 - 1];
-      r_search_bound_1 = my_upper_bound(in_acc1, l_search_bound_1, end_1,
-                                        local_r_item_2, comp);
+      r_search_bound_1 = detail::upper_bound(in_acc1, l_search_bound_1, end_1,
+                                             local_r_item_2, comp);
       const std::size_t r_shift_1 = r_search_bound_1 - start_1;
       const std::size_t r_shift_2 = local_end_2 - 1 - start_2;
 
@@ -148,8 +147,8 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       // we shouldn't seek in whole 1st sequence. Just for the part where the
       // 2nd sequence should be
       l_search_bound_1 =
-          my_upper_bound(in_acc1, l_search_bound_1, r_search_bound_1,
-                         intermediate_item_2, comp);
+          detail::upper_bound(in_acc1, l_search_bound_1, r_search_bound_1,
+                              intermediate_item_2, comp);
       const std::size_t shift_1 = l_search_bound_1 - start_1;
       const std::size_t shift_2 = idx - start_2;
 
@@ -166,7 +165,7 @@ void bubble_sort(Iter first, const std::size_t begin, const std::size_t end,
       // Handle intermediate items
       for (std::size_t idx = i + 1; idx < end; ++idx) {
         if (comp(first[idx], first[i])) {
-          my_swap(first[i], first[idx]);
+          detail::swap_tuples(first[i], first[idx]);
         }
       }
     }
@@ -177,12 +176,12 @@ template <typename Group, typename Iter, typename Compare>
 void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
                 std::uint8_t *scratch) {
   using T = typename std::iterator_traits<Iter>::value_type;
-  auto id = cl::sycl::detail::Builder::getNDItem<Group::dimensions>();
+  auto id = sycl::detail::Builder::getNDItem<Group::dimensions>();
   const std::size_t idx = id.get_local_id();
   const std::size_t local = group.get_local_range().size();
   const std::size_t chunk = (n - 1) / local + 1;
 
-  // we need to sort within work item firstly
+  // we need to sort within work item first
   bubble_sort(first, idx * chunk, sycl::min((idx + 1) * chunk, n), comp);
   id.barrier();
 
