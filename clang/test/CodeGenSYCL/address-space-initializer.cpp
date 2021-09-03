@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice \
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown \
 // RUN: -emit-llvm -disable-llvm-passes -o - %s | FileCheck %s
 
 // This test checks that data for big constant initializer lists is placed

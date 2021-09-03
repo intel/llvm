@@ -2551,6 +2551,7 @@ private:
                                            access::target);
 
   friend class ::MockHandler;
+  friend class detail::queue_impl;
 
   bool DisableRangeRounding();
 
