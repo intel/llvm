@@ -259,7 +259,7 @@ struct group_mask {
   };
 
   static constexpr size_t max_bits = /* implementation-defined */;
-  static constexpr size_t marray_size = max_bits/sizeof(uint32_t)/8;
+  static constexpr size_t marray_size = max_bits/sizeof(uint32_t)/CHAR_BIT;
 
   bool operator[](id<1> id) const;
   reference operator[](id<1> id);
@@ -290,15 +290,15 @@ struct group_mask {
   bool operator==(const group_mask& rhs) const;
   bool operator!=(const group_mask& rhs) const;
 
-  group_mask operator &=(const group_mask& rhs);
-  group_mask operator |=(const group_mask& rhs);
-  group_mask operator ^=(const group_mask& rhs);
-  group_mask operator <<=(size_t);
-  group_mask operator >>=(size_t rhs);
+  group_mask &operator &=(const group_mask& rhs);
+  group_mask &operator |=(const group_mask& rhs);
+  group_mask &operator ^=(const group_mask& rhs);
+  group_mask &operator <<=(size_t n);
+  group_mask &operator >>=(size_t n);
 
   group_mask operator ~() const;
-  group_mask operator <<(size_t) const;
-  group_mask operator >>(size_t) const;
+  group_mask operator <<(size_t n) const;
+  group_mask operator >>(size_t n) const;
 
 };
 

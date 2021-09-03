@@ -25,7 +25,10 @@ struct group_mask {
   /* Bitmask is packed in marray of uint32_t elements. This value represents
    * legth of marray. */
   static constexpr size_t marray_size = max_bits / word_size;
-
+  /* The bits are stored in the memory in the following way:
+  marray id |     0     |     1     |     2     |     3     |
+  bit id    |31  ..    0|63  ..   32|95  ..   64|127 ..   96|
+  */
   // enable reference to individual bit
   struct reference {
     reference &operator=(bool x) {
@@ -54,42 +57,68 @@ struct group_mask {
         WordPos = pos;
       RefBit = 1 << WordPos;
     }
+
   private:
+    // Reference to the word containing the bit
     WordType &Ref;
+    // Bit mask where only referenced bit is set
     WordType RefBit;
   };
 
-  bool operator[](id<1> id) const;
-  reference operator[](id<1> id) {
-    return {*this, id.get(0)};
+  bool operator[](id<1> id) const { return operator[](id); }
+  reference operator[](id<1> id) { return {*this, id.get(0)}; }
+  bool test(id<1> id) const { return operator[](id); }
+  bool all() const { return !(~(Bits[0] & Bits[1] & Bits[2] & Bits[3])); }
+  bool any() const { return Bits[0] | Bits[1] | Bits[2] | Bits[3]; }
+  bool none() const { return !any(); }
+  uint32_t count() const {
+    unsigned int count = 0;
+    for (auto word : Bits) {
+      while (word) {
+        word &= (word - 1);
+        count++;
+      }
+    }
+    return count;
   }
-  bool test(id<1> id) const;
-  bool all() const;
-  bool any() const;
-  bool none() const;
-  uint32_t count() const;
-  uint32_t size() const;
-  id<1> find_low() const;
-  id<1> find_high() const;
+  uint32_t size() const { return max_bits; }
+  id<1> find_low() const {
+    size_t i = 0;
+    while (i < size() && !operator[](i))
+      i++;
+    return {i};
+  }
+  id<1> find_high() const {
+    size_t i = size() - 1;
+    while (i > 0 && !operator[](i))
+      i--;
+    return {operator[](i) ? i : size()};
+  }
 
   template <typename T = marray<WordType, marray_size>>
-  void insert_bits(const T &bits, id<1> pos = 0);
+  void insert_bits(const T &bits, id<1> pos = 0) {
+    operator>>=(pos.get(0));
+    operator<<=(pos.get(0));
+    group_mask tmp(bits);
+    tmp>>=pos.get(0);
+    Bits |= tmp.Bits;
+  }
 
   template <typename T = marray<WordType, marray_size>>
   T extract_bits(id<1> pos = 0) {
-    T Res = Bits;
-    Res <<= pos;
-    return Res;
+    group_mask Tmp = *this;
+    Tmp <<= pos.get(0);
+    return Tmp.Bits;
   }
 
-  void set();
-  void set(id<1> id, bool value = true);
-  void reset();
-  void reset(id<1> id);
-  void reset_low();
-  void reset_high();
-  void flip();
-  void flip(id<1> id);
+  void set() { Bits = !(WordType{0}); }
+  void set(id<1> id, bool value = true) { operator[](id) = value; }
+  void reset() { Bits = WordType{0}; }
+  void reset(id<1> id) { operator[](id) = 0; }
+  void reset_low() { reset(find_low()); }
+  void reset_high() { reset(find_high()); }
+  void flip() { Bits = ~Bits; }
+  void flip(id<1> id) { operator[](id).flip(); }
 
   bool operator==(const group_mask &rhs) const { return Bits == rhs.Bits; }
   bool operator!=(const group_mask &rhs) const { return Bits != rhs.Bits; }
@@ -108,16 +137,51 @@ struct group_mask {
     return *this;
   }
 
-  group_mask &operator<<=(size_t);
-  group_mask &operator>>=(size_t rhs);
+  group_mask &operator<<=(size_t pos) {
+    marray<WordType, marray_size> Res{0};
+    size_t word_shift = pos / word_size;
+    size_t bit_shift = pos % word_size;
+    WordType extra_bits = 0;
+    for (size_t i = 0; i < marray_size; i++) {
+      extra_bits = Bits[i] >> (word_size - bit_shift);
+      Bits[i] <<= bit_shift;
+      Res[i + word_shift] = Bits[i] + extra_bits;
+    }
+    Bits = Res;
+    return *this;
+  }
+
+  group_mask &operator>>=(size_t pos) {
+    marray<WordType, marray_size> Res{0};
+    size_t word_shift = pos / word_size;
+    size_t bit_shift = pos % word_size;
+    WordType extra_bits = 0;
+    for (int i = marray_size - 1; i >= 0; i--) {
+      extra_bits = Bits[i] << (word_size - bit_shift);
+      Bits[i] >>= bit_shift;
+      Res[i - word_shift] = Bits[i] + extra_bits;
+    }
+    Bits = Res;
+
+    return *this;
+  }
 
   group_mask operator~() const {
     auto Tmp = *this;
     Tmp.flip();
     return Tmp;
   }
-  group_mask &operator<<(size_t) const;
-  group_mask &operator>>(size_t) const;
+  group_mask operator<<(size_t pos) const {
+    auto Tmp = *this;
+    Tmp <<= pos;
+    return Tmp;
+  }
+  group_mask operator>>(size_t pos) const {
+    auto Tmp = *this;
+    Tmp >>= pos;
+    return Tmp;
+  }
+
   group_mask(const group_mask &rhs) : Bits(rhs.Bits) {}
   template <typename Group>
   friend group_mask group_ballot(Group g, bool predicate);
