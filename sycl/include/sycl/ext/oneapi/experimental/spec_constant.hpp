@@ -31,7 +31,8 @@ class spec_const_error : public compile_program_error {
   using compile_program_error::compile_program_error;
 };
 
-template <typename T, typename ID = T> class __SYCL2020_DEPRECATED(
+template <typename T, typename ID = T>
+class __SYCL2020_DEPRECATED(
     "Specialization constats is deprecated, use SYCL 2020 specialization"
     " constants instead") spec_constant {
 public:
