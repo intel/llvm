@@ -10,8 +10,8 @@
 
 #include <cuda.h>
 
-#include "TestGetPlugin.hpp"
 #include "CudaUtils.hpp"
+#include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>
