@@ -4249,10 +4249,11 @@ class OffloadingActionBuilder final {
         return;
 
       OffloadAction::DeviceDependences Dep;
-      Dep.add(*SYCLLinkBinary, *ToolChains.front(), /*BoundArch=*/nullptr,
-              Action::OFK_SYCL);
-      AL.push_back(C.MakeAction<OffloadAction>(Dep,
-                                               SYCLLinkBinary->getType()));
+      withBoundArchForToolChain(ToolChains.front(), [&](const char *BoundArch) {
+        Dep.add(*SYCLLinkBinary, *ToolChains.front(), BoundArch,
+                Action::OFK_SYCL);
+      });
+      AL.push_back(C.MakeAction<OffloadAction>(Dep, SYCLLinkBinary->getType()));
       SYCLLinkBinary = nullptr;
     }
 
@@ -4650,8 +4651,10 @@ class OffloadingActionBuilder final {
     void addDeviceLinkDependencies(OffloadDepsJobAction *DA) override {
       for (unsigned I = 0; I < ToolChains.size(); ++I) {
         // Register dependent toolchain.
-        DA->registerDependentActionInfo(
-            ToolChains[I], /*BoundArch=*/StringRef(), Action::OFK_SYCL);
+        withBoundArchForToolChain(ToolChains[I], [&](const char *BoundArch) {
+          DA->registerDependentActionInfo(ToolChains[I], BoundArch,
+                                          Action::OFK_SYCL);
+        });
 
         // Add deps output to linker inputs.
         DeviceLinkerInputs[I].push_back(DA);
@@ -6749,7 +6752,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
       // Get the unique string identifier for this dependence and cache the
       // result.
       StringRef Arch;
-      if (TargetDeviceOffloadKind == Action::OFK_HIP) {
+      if (TargetDeviceOffloadKind == Action::OFK_HIP ||
+          TargetDeviceOffloadKind == Action::OFK_SYCL) {
         if (UI.DependentOffloadKind == Action::OFK_Host)
           Arch = StringRef();
         else
