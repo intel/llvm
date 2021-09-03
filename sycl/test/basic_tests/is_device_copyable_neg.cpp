@@ -31,6 +31,14 @@ struct D {
   ~D();
 };
 
+// Not copyable type, but it is declared as device copyable.
+struct E {
+  int i;
+  E(int _i) : i(_i) {}
+  E(const E &x) : i(x.i) {}
+};
+template <> struct is_device_copyable<E> : std::true_type {};
+
 struct FunctorA {
   FunctorA() {}
   void operator()() const {
@@ -66,16 +74,29 @@ void test() {
 
   FunctorB FB;
   Q.single_task<class TestC>(FB);
+
+  // FIXME: the type is marked as device copyable, but range rounding
+  // optimization wraps a kernel lambda, which causes compilation errors.
+  E IamGood(0);
+  Q.submit([=](sycl::handler& cgh){
+    const sycl::range<2> range(1026, 1026);
+    cgh.parallel_for(range,[=](sycl::item<2> item) {
+      int A = IamGood.i;
+    });
+  });
 }
 
 // CHECK: static_assert failed due to requirement 'is_device_copyable<A, void>
-// CHECK: is_device_copyable_neg.cpp:59:5: note: in instantiation of function
+// CHECK: is_device_copyable_neg.cpp:67:5: note: in instantiation of function
 
 // CHECK: static_assert failed due to requirement 'is_device_copyable<B, void>
-// CHECK: is_device_copyable_neg.cpp:59:5: note: in instantiation of function
+// CHECK: is_device_copyable_neg.cpp:67:5: note: in instantiation of function
 
 // CHECK: static_assert failed due to requirement 'is_device_copyable<C, void>
-// CHECK: is_device_copyable_neg.cpp:65:5: note: in instantiation of function
+// CHECK: is_device_copyable_neg.cpp:73:5: note: in instantiation of function
 
 // CHECK: static_assert failed due to requirement 'is_device_copyable<D, void>
-// CHECK: is_device_copyable_neg.cpp:68:5: note: in instantiation of function
+// CHECK: is_device_copyable_neg.cpp:76:5: note: in instantiation of function
+
+// CHECK: static_assert failed due to requirement 'is_device_copyable<(lambda at {{.*}}is_device_copyable_neg.cpp:83:28
+// CHECK: is_device_copyable_neg.cpp:83:9: note: in instantiation of function
