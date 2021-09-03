@@ -33,7 +33,7 @@ namespace sycl {
 namespace detail {
 template <backend Backend, typename T> struct BackendInput {
   // TODO replace usage of interop with specializations.
-  typename interop<Backend, T>::type NativeHandle;
+  using type = typename interop<Backend, T>::type;
 };
 
 template <backend Backend, typename T> struct BackendReturn {
@@ -49,7 +49,7 @@ enum class backend_errc : unsigned int {};
 template <backend Backend> class backend_traits {
 public:
   template <class T>
-  using input_type = typename detail::BackendInput<Backend, T>;
+  using input_type = typename detail::BackendInput<Backend, T>::type;
 
   template <class T>
   using return_type = typename detail::BackendReturn<Backend, T>::type;
@@ -121,7 +121,7 @@ make_platform(
     const typename backend_traits<Backend>::template input_type<platform>
         &BackendObject) {
   return detail::make_platform(
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle), Backend);
+      detail::pi::cast<pi_native_handle>(BackendObject), Backend);
 }
 
 template <backend Backend>
@@ -129,8 +129,8 @@ typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeDevice == true, device>::type
 make_device(const typename backend_traits<Backend>::template input_type<device>
                 &BackendObject) {
-  return detail::make_device(
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle), Backend);
+  return detail::make_device(detail::pi::cast<pi_native_handle>(BackendObject),
+                             Backend);
 }
 
 template <backend Backend>
@@ -141,9 +141,8 @@ make_context(
     const typename backend_traits<Backend>::template input_type<context>
         &BackendObject,
     const async_handler &Handler = {}) {
-  return detail::make_context(
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle), Handler,
-      Backend);
+  return detail::make_context(detail::pi::cast<pi_native_handle>(BackendObject),
+                              Handler, Backend);
 }
 
 template <backend Backend>
@@ -153,9 +152,8 @@ make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, bool KeepOwnership,
            const async_handler Handler = {}) {
-  return detail::make_queue(
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      TargetContext, KeepOwnership, Handler, Backend);
+  return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
+                            TargetContext, KeepOwnership, Handler, Backend);
 }
 
 // TODO: remove this version (without ownership) when allowed to break ABI.
@@ -165,9 +163,8 @@ typename std::enable_if<
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
-  return detail::make_queue(
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      TargetContext, false, Handler, Backend);
+  return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
+                            TargetContext, false, Handler, Backend);
 }
 
 template <backend Backend>
@@ -176,9 +173,8 @@ typename std::enable_if<
 make_event(const typename backend_traits<Backend>::template input_type<event>
                &BackendObject,
            const context &TargetContext) {
-  return detail::make_event(
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      TargetContext, Backend);
+  return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
+                            TargetContext, Backend);
 }
 
 template <backend Backend>
@@ -187,9 +183,8 @@ typename std::enable_if<
 make_event(const typename backend_traits<Backend>::template input_type<event>
                &BackendObject,
            const context &TargetContext, bool KeepOwnership) {
-  return detail::make_event(
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      TargetContext, KeepOwnership, Backend);
+  return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
+                            TargetContext, KeepOwnership, Backend);
 }
 
 template <backend Backend, typename T, int Dimensions = 1,
@@ -201,8 +196,7 @@ make_buffer(const typename backend_traits<Backend>::template input_type<
                 buffer<T, Dimensions, AllocatorT>> &BackendObject,
             const context &TargetContext, event AvailableEvent = {}) {
   return buffer<T, Dimensions, AllocatorT>(
-      reinterpret_cast<cl_mem>(BackendObject.NativeHandle), TargetContext,
-      AvailableEvent);
+      reinterpret_cast<cl_mem>(BackendObject), TargetContext, AvailableEvent);
 }
 
 template <backend Backend>
@@ -210,9 +204,8 @@ kernel
 make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
                 &BackendObject,
             const context &TargetContext) {
-  return detail::make_kernel(
-      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      TargetContext, Backend);
+  return detail::make_kernel(detail::pi::cast<pi_native_handle>(BackendObject),
+                             TargetContext, Backend);
 }
 
 template <backend Backend, bundle_state State>
@@ -224,8 +217,8 @@ make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
                    const context &TargetContext) {
   std::shared_ptr<detail::kernel_bundle_impl> KBImpl =
       detail::make_kernel_bundle(
-          detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-          TargetContext, State, Backend);
+          detail::pi::cast<pi_native_handle>(BackendObject), TargetContext,
+          State, Backend);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(KBImpl);
 }
 } // namespace sycl

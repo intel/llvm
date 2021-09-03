@@ -70,18 +70,12 @@ enum class ownership { transfer, keep };
 
 namespace detail {
 
-template <> struct BackendInput<backend::level_zero, platform> {
-  interop<backend::level_zero, platform>::type NativeHandle;
-};
-
-template <> struct BackendInput<backend::level_zero, device> {
-  interop<backend::level_zero, device>::type NativeHandle;
-};
-
 template <> struct BackendInput<backend::level_zero, context> {
-  interop<backend::level_zero, context>::type NativeHandle;
-  std::vector<device> DeviceList;
-  level_zero::ownership Ownership;
+  using type = struct {
+    interop<backend::level_zero, context>::type NativeHandle;
+    std::vector<device> DeviceList;
+    level_zero::ownership Ownership;
+  };
 };
 
 template <> struct BackendReturn<backend::level_zero, kernel> {

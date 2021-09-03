@@ -1,15 +1,14 @@
-// REQUIRES: level_zero_dev_kit
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
 // Test for SYCL-2020 Level Zero interop API
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 // clang-format off
 #include <level_zero/ze_api.h>
 #include <CL/sycl/backend/level_zero.hpp>
 // clang-format on
 
-using namespace cl::sycl;
+using namespace sycl;
 
 //
 // 4.5.1 SYCL application interoperability may be provided for
