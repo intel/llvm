@@ -160,10 +160,8 @@ static std::string commandToName(Command::CommandType Type) {
 static std::vector<RT::PiEvent>
 getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
   std::vector<RT::PiEvent> RetPiEvents;
-  RetPiEvents.reserve(EventImpls.size());
   for (auto &EventImpl : EventImpls)
-    if (auto PiEvent = EventImpl->getHandleRef())
-      RetPiEvents.emplace_back(PiEvent);
+    RetPiEvents.push_back(EventImpl->getHandleRef());
   return RetPiEvents;
 }
 
@@ -1854,7 +1852,7 @@ cl_int enqueueImpKernel(NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
       detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
           // OSModuleHandle, ContextImpl, DeviceImpl, Program, KernelName,
           // true); //TODO remove after merge:
-          OSModuleHandle, ContextImpl, DeviceImpl, Program, KernelName);
+          OSModuleHandle, Program, KernelName);
 
   if (KernelMutex != nullptr) {
     // For cacheable kernels, we use per-kernel mutex
