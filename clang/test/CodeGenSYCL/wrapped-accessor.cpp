@@ -19,6 +19,7 @@
 // CHECK-NEXT: //--- _ZTSZ4mainE14wrapped_access
 // CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 0 },
 // CHECK-EMPTY:
+// CHECK-NEXT:   { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
 
 // CHECK: template <> struct KernelInfo<wrapped_access> {

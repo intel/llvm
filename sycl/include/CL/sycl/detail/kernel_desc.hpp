@@ -29,6 +29,7 @@ enum class kernel_param_kind_t {
   kind_pointer = 3,
   kind_specialization_constants_buffer = 4,
   kind_stream = 5,
+  kind_invalid = 0xf, // not a valid kernel kind
 };
 
 // describes a kernel parameter
@@ -44,6 +45,8 @@ struct kernel_param_desc_t {
   // object
   int offset;
 };
+
+
 
 // Translates specialization constant type to its name.
 template <class Name> struct SpecConstantInfo {

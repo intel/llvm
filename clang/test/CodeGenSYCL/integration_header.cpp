@@ -48,6 +48,7 @@
 // CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 40 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 52 },
 // CHECK-EMPTY:
+// CHECK-NEXT:  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
 //
 // CHECK: template <> struct KernelInfo<first_kernel> {
