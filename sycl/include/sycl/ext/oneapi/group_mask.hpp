@@ -100,7 +100,7 @@ struct group_mask {
     operator>>=(pos.get(0));
     operator<<=(pos.get(0));
     group_mask tmp(bits);
-    tmp>>=pos.get(0);
+    tmp >>= pos.get(0);
     Bits |= tmp.Bits;
   }
 
@@ -189,12 +189,24 @@ struct group_mask {
 protected:
   group_mask(const marray<WordType, marray_size> &rhs) : Bits(rhs) {}
   marray<WordType, marray_size> Bits;
+
+public:
+  group_mask operator&(const group_mask &rhs) {
+    auto Res = *this;
+    Res &= rhs;
+    return Res;
+  }
+  group_mask operator|(const group_mask &rhs) {
+    auto Res = *this;
+    Res |= rhs;
+    return Res;
+  }
+  group_mask operator^(const group_mask &rhs) {
+    auto Res = *this;
+    Res ^= rhs;
+    return Res;
+  }
 };
-
-group_mask operator&(const group_mask &lhs, const group_mask &rhs);
-group_mask operator|(const group_mask &lhs, const group_mask &rhs);
-group_mask operator^(const group_mask &lhs, const group_mask &rhs);
-
 template <typename Group> group_mask group_ballot(Group g, bool predicate) {
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
