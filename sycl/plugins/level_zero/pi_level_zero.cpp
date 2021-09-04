@@ -843,20 +843,88 @@ static const int ZeMaxCommandListCacheSize = [] {
   return CommandListCacheSizeValue;
 }();
 
-static const pi_uint32 ZeCommandListBatchSize = [] {
+// Configuration of the command-list batching.
+typedef struct {
   // Default value of 0. This specifies to use dynamic batch size adjustment.
-  pi_uint32 BatchSizeVal = 0;
+  // Other values will try to collect specified amount of commands.
+  pi_uint32 Size{0};
+
+  // If doing dynamic batching, specifies start batch size.
+  pi_uint32 DynamicSizeStart{4};
+
+  // The maximum size for dynamic batch.
+  pi_uint32 DynamicSizeMax{16};
+
+  // The step size for dynamic batch increases.
+  pi_uint32 DynamicSizeStep{1};
+
+  // Thresholds for when increase batch size (number of closed early is small
+  // and number of closed full is high).
+  pi_uint32 NumTimesClosedEarlyThreshold{2};
+  pi_uint32 NumTimesClosedFullThreshold{10};
+
+  // Tells the starting size of a batch.
+  pi_uint32 startSize() const { return Size > 0 ? Size : DynamicSizeStart; }
+  // Tells is we are doing dynamic batch size adjustment.
+  bool dynamic() const { return Size == 0; }
+} zeCommandListBatchConfig;
+
+static const zeCommandListBatchConfig ZeCommandListBatch = [] {
+  zeCommandListBatchConfig Config{}; // default initialize
+
+  // Default value of 0. This specifies to use dynamic batch size adjustment.
   const auto BatchSizeStr = std::getenv("SYCL_PI_LEVEL_ZERO_BATCH_SIZE");
   if (BatchSizeStr) {
     pi_int32 BatchSizeStrVal = std::atoi(BatchSizeStr);
     // Level Zero may only support a limted number of commands per command
     // list.  The actual upper limit is not specified by the Level Zero
     // Specification.  For now we allow an arbitrary upper limit.
-    // Negative numbers will be silently ignored.
-    if (BatchSizeStrVal >= 0)
-      BatchSizeVal = BatchSizeStrVal;
+    if (BatchSizeStrVal > 0) {
+      Config.Size = BatchSizeStrVal;
+    } else if (BatchSizeStrVal == 0) {
+      Config.Size = 0;
+      // We are requested to do dynamic batching. Collect specifics, if any.
+      // The extended format supported is ":" separated values.
+      std::string BatchConfig(BatchSizeStr);
+      size_t Ord = 0;
+      size_t Pos = 0;
+      while (true) {
+        if (++Ord > 5)
+          break;
+
+        Pos = BatchConfig.find(":", Pos);
+        if (Pos == std::string::npos)
+          break;
+        ++Pos; // past the ":"
+
+        pi_uint32 Val = std::stoi(BatchConfig.substr(Pos));
+        switch (Ord) {
+        case 1:
+          Config.DynamicSizeStart = Val;
+          break;
+        case 2:
+          Config.DynamicSizeMax = Val;
+          break;
+        case 3:
+          Config.DynamicSizeStep = Val;
+          break;
+        case 4:
+          Config.NumTimesClosedEarlyThreshold = Val;
+          break;
+        case 5:
+          Config.NumTimesClosedFullThreshold = Val;
+          break;
+        default:
+          die("Unexpected batch config");
+        }
+        printf("dynamic batch param #%d: %d\n", (int)Ord, (int)Val);
+      };
+
+    } else {
+      // Negative batch sizes are silently ignored.
+    }
   }
-  return BatchSizeVal;
+  return Config;
 }();
 
 // Retrieve an available command list to be used in a PI call
@@ -1000,7 +1068,7 @@ pi_result _pi_context::getAvailableCommandList(
 
 void _pi_queue::adjustBatchSizeForFullBatch() {
   // QueueBatchSize of 0 means never allow batching.
-  if (QueueBatchSize == 0 || !UseDynamicBatching)
+  if (QueueBatchSize == 0 || !ZeCommandListBatch.dynamic())
     return;
 
   NumTimesClosedFull += 1;
@@ -1009,9 +1077,10 @@ void _pi_queue::adjustBatchSizeForFullBatch() {
   // the number of times it has been closed full is high, then raise
   // the batching size slowly. Don't raise it if it is already pretty
   // high.
-  if (NumTimesClosedEarly <= 2 && NumTimesClosedFull > 10) {
-    if (QueueBatchSize < 16) {
-      QueueBatchSize = QueueBatchSize + 1;
+  if (NumTimesClosedEarly <= ZeCommandListBatch.NumTimesClosedEarlyThreshold &&
+      NumTimesClosedFull > ZeCommandListBatch.NumTimesClosedFullThreshold) {
+    if (QueueBatchSize < ZeCommandListBatch.DynamicSizeMax) {
+      QueueBatchSize += ZeCommandListBatch.DynamicSizeStep;
       zePrint("Raising QueueBatchSize to %d\n", QueueBatchSize);
     }
     NumTimesClosedEarly = 0;
@@ -1019,9 +1088,9 @@ void _pi_queue::adjustBatchSizeForFullBatch() {
   }
 }
 
-void _pi_queue::adjustBatchSizeForPartialBatch(pi_uint32 PartialBatchSize) {
+void _pi_queue::adjustBatchSizeForPartialBatch() {
   // QueueBatchSize of 0 means never allow batching.
-  if (QueueBatchSize == 0 || !UseDynamicBatching)
+  if (QueueBatchSize == 0 || !ZeCommandListBatch.dynamic())
     return;
 
   NumTimesClosedEarly += 1;
@@ -1032,7 +1101,7 @@ void _pi_queue::adjustBatchSizeForPartialBatch(pi_uint32 PartialBatchSize) {
   // batch size that will be able to be closed full at least once
   // in a while.
   if (NumTimesClosedEarly > (NumTimesClosedFull + 1) * 3) {
-    QueueBatchSize = PartialBatchSize - 1;
+    QueueBatchSize = OpenCommandList->second.size() - 1;
     if (QueueBatchSize < 1)
       QueueBatchSize = 1;
     zePrint("Lowering QueueBatchSize to %d\n", QueueBatchSize);
@@ -1057,10 +1126,11 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // kernels started as soon as possible when there are no kernels from this
   // queue awaiting execution, while allowing batching to occur when there
   // are kernels already executing. Also, if we are using fixed size batching,
-  // as indicated by !UseDynamicBatching, then just ignore CurrentlyEmpty
-  // as we want to strictly follow the batching the user specified.
+  // as indicated by !ZeCommandListBatch.dynamic(), then just ignore
+  // CurrentlyEmpty as we want to strictly follow the batching the user
+  // specified.
   if (OKToBatchCommand && this->isBatchingAllowed() &&
-      (!UseDynamicBatching || !CurrentlyEmpty)) {
+      (!ZeCommandListBatch.dynamic() || !CurrentlyEmpty)) {
 
     if (hasOpenCommandList() && OpenCommandList != CommandList)
       die("executeCommandList: OpenCommandList should be equal to"
@@ -1207,7 +1277,7 @@ pi_result _pi_queue::executeOpenCommandList() {
   // If there are any commands still in the open command list for this
   // queue, then close and execute that command list now.
   if (hasOpenCommandList()) {
-    adjustBatchSizeForPartialBatch(OpenCommandList->second.size());
+    adjustBatchSizeForPartialBatch();
     auto Res = executeCommandList(OpenCommandList, false, false);
     OpenCommandList = CommandListMap.end();
     return Res;
@@ -2694,8 +2764,9 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   try {
-    *Queue = new _pi_queue(ZeComputeCommandQueue, ZeCopyCommandQueues, Context,
-                           Device, ZeCommandListBatchSize, true, Properties);
+    *Queue =
+        new _pi_queue(ZeComputeCommandQueue, ZeCopyCommandQueues, Context,
+                      Device, ZeCommandListBatch.startSize(), true, Properties);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -2879,7 +2950,7 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   // compute vs. copy Level-Zero queue.
   std::vector<ze_command_queue_handle_t> ZeroCopyQueues;
   *Queue = new _pi_queue(ZeQueue, ZeroCopyQueues, Context, Device,
-                         ZeCommandListBatchSize, OwnNativeHandle);
+                         ZeCommandListBatch.startSize(), OwnNativeHandle);
   return PI_SUCCESS;
 }
 
