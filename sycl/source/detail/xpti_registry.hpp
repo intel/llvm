@@ -31,6 +31,18 @@ inline constexpr const char *SYCL_PIDEBUGCALL_STREAM_NAME = "sycl.pi.debug";
 
 class XPTIRegistry {
 public:
+  void initializeFrameworkOnce() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    if (!MInitialized) {
+      xpti::result_t result = xptiFrameworkInitialize();
+      if (result != xpti::result_t::XPTI_RESULT_SUCCESS) {
+        throw std::runtime_error("Failed to initialize XPTI");
+      }
+      MInitialized = true;
+    }
+#endif
+  }
+
   /// Notifies XPTI subscribers about new stream.
   ///
   /// \param StreamName is a name of newly initialized stream.
@@ -50,11 +62,13 @@ public:
     for (const auto &StreamName : MActiveStreams) {
       xptiFinalize(StreamName.c_str());
     }
+    xptiFrameworkFinalize();
 #endif // XPTI_ENABLE_INSTRUMENTATION
   }
 
 private:
   std::unordered_set<std::string> MActiveStreams;
+  bool MInitialized = false;
 };
 } // namespace detail
 } // namespace sycl

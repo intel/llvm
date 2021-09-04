@@ -447,6 +447,8 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+  GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
+
   if (!(xptiTraceEnabled() && !XPTIInitDone))
     return;
   // Not sure this is the best place to initialize the framework; SYCL runtime

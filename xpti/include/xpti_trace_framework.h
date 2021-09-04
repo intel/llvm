@@ -34,6 +34,9 @@
 
 extern "C" {
 
+XPTI_EXPORT_API xpti::result_t xptiFrameworkInitialize();
+XPTI_EXPORT_API xpti::result_t xptiFrameworkFinalize();
+
 /// @brief Initialization function that is called when a new stream is generated
 /// @details When a runtime or application that uses XPTI instrumentation API
 /// starts to generate a new stream, a call to xptiInitialize() must be made to
@@ -413,6 +416,8 @@ XPTI_EXPORT_API void xptiReset();
 /// The proxy/stub library does not implement this function.
 XPTI_EXPORT_API void xptiForceSetTraceEnabled(bool yesOrNo);
 
+typedef xpti::result_t (*xpti_framework_initialize_t)();
+typedef xpti::result_t (*xpti_framework_finalize_t)();
 typedef xpti::result_t (*xpti_initialize_t)(const char *, uint32_t, uint32_t,
                                             const char *);
 typedef void (*xpti_finalize_t)(const char *);
