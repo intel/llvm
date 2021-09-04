@@ -140,32 +140,26 @@ private:
 };
 } // namespace xpti
 
-XPTI_EXPORT_API xpti::result_t xptiFrameworkInitialize() {
+XPTI_EXPORT_API void xptiFrameworkInitialize() {
   if (xpti::ProxyLoader::instance().noErrors()) {
     void *f = xpti::ProxyLoader::instance().functionByIndex(
         XPTI_FRAMEWORK_INITIALIZE);
     if (f) {
-      return (*reinterpret_cast<xpti_framework_initialize_t>(f))();
+      (*reinterpret_cast<xpti_framework_initialize_t>(f))();
     }
   }
-
-  return xpti::result_t::XPTI_RESULT_FAIL;
 }
 
-XPTI_EXPORT_API xpti::result_t xptiFrameworkFinalize() {
-  xpti::result_t result = xpti::result_t::XPTI_RESULT_FAIL;
-
+XPTI_EXPORT_API void xptiFrameworkFinalize() {
   if (xpti::ProxyLoader::instance().noErrors()) {
     void *f = xpti::ProxyLoader::instance().functionByIndex(
         XPTI_FRAMEWORK_INITIALIZE);
     if (f) {
-      result = (*reinterpret_cast<xpti_framework_initialize_t>(f))();
+      (*reinterpret_cast<xpti_framework_initialize_t>(f))();
     }
   }
 
   delete &xpti::ProxyLoader::instance();
-
-  return result;
 }
 
 XPTI_EXPORT_API uint16_t xptiRegisterUserDefinedTracePoint(

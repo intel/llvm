@@ -1004,21 +1004,18 @@ static int GFrameworkReferenceCounter = 0;
 
 extern "C" {
 
-XPTI_EXPORT_API xpti::result_t xptiFrameworkInitialize() {
+XPTI_EXPORT_API void xptiFrameworkInitialize() {
   std::lock_guard<xpti::utils::SpinLock> guard{xpti::g_framework_mutex};
   xpti::GFrameworkReferenceCounter++;
-  return xpti::result_t::XPTI_RESULT_SUCCESS;
 }
 
-XPTI_EXPORT_API xpti::result_t xptiFrameworkFinalize() {
+XPTI_EXPORT_API void xptiFrameworkFinalize() {
   std::lock_guard<xpti::utils::SpinLock> guard{xpti::g_framework_mutex};
 
   xpti::GFrameworkReferenceCounter--;
   if (xpti::GFrameworkReferenceCounter == 0) {
     delete &xpti::Framework::instance();
   }
-
-  return xpti::result_t::XPTI_RESULT_SUCCESS;
 }
 
 XPTI_EXPORT_API uint16_t

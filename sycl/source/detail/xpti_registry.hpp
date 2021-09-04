@@ -34,10 +34,7 @@ public:
   void initializeFrameworkOnce() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     if (!MInitialized) {
-      xpti::result_t result = xptiFrameworkInitialize();
-      if (result != xpti::result_t::XPTI_RESULT_SUCCESS) {
-        throw std::runtime_error("Failed to initialize XPTI");
-      }
+      xptiFrameworkInitialize();
       MInitialized = true;
     }
 #endif

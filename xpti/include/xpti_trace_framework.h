@@ -34,8 +34,19 @@
 
 extern "C" {
 
-XPTI_EXPORT_API xpti::result_t xptiFrameworkInitialize();
-XPTI_EXPORT_API xpti::result_t xptiFrameworkFinalize();
+/// @brief Initializes XPTI framework.
+/// @details Initialize XPTI framework resources. Each user of XPTI must call
+/// this function prior to any other XPTI API call. It is framework's
+/// responsibility to ensure that resources are initialized once. Each call to
+/// this function must have corresponding call to xptiFrameworkFinalize() to
+/// ensure resources are freed.
+XPTI_EXPORT_API void xptiFrameworkInitialize();
+
+/// @brief Deinitializes XPTI framework.
+/// @details Call to this function decrements framework's internal reference
+/// counter. Once its value is equal to zero, XPTI framework can release
+/// resources and unload subscribers.
+XPTI_EXPORT_API void xptiFrameworkFinalize();
 
 /// @brief Initialization function that is called when a new stream is generated
 /// @details When a runtime or application that uses XPTI instrumentation API
