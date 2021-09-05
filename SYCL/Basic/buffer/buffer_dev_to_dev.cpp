@@ -25,9 +25,13 @@ int main() {
                           {property::buffer::use_host_ptr()});
 
     default_selector Selector;
+    device Device(Selector);
 
-    queue FirstQueue(Selector);
-    queue SecondQueue(Selector);
+    context FirstContext(Device);
+    context SecondContext(Device);
+
+    queue FirstQueue(FirstContext, Device);
+    queue SecondQueue(SecondContext, Device);
 
     assert(FirstQueue.get_context() != SecondQueue.get_context());
     FirstQueue.submit([&](handler &Cgh) {

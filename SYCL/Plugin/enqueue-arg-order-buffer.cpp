@@ -237,8 +237,13 @@ void testcopyH2DBuffer() {
   {
     buffer<float, 1> buffer_from_1D(data_from_1D.data(), range<1>(width));
     buffer<float, 1> buffer_to_1D(data_to_1D.data(), range<1>(width));
-    queue myQueue;
-    queue otherQueue;
+
+    device Dev{default_selector{}};
+    context myCtx{Dev};
+    context otherCtx{Dev};
+
+    queue myQueue{myCtx, Dev};
+    queue otherQueue{otherCtx, Dev};
     myQueue.submit([&](handler &cgh) {
       auto read = buffer_from_1D.get_access<access::mode::read>(cgh);
       auto write = buffer_to_1D.get_access<access::mode::write>(cgh);
@@ -261,8 +266,13 @@ void testcopyH2DBuffer() {
     buffer<float, 2> buffer_from_2D(data_from_2D.data(),
                                     range<2>(height, width));
     buffer<float, 2> buffer_to_2D(data_to_2D.data(), range<2>(height, width));
-    queue myQueue;
-    queue otherQueue;
+
+    device Dev{default_selector{}};
+    context myCtx{Dev};
+    context otherCtx{Dev};
+
+    queue myQueue{myCtx, Dev};
+    queue otherQueue{otherCtx, Dev};
     myQueue.submit([&](handler &cgh) {
       auto read = buffer_from_2D.get_access<access::mode::read>(cgh);
       auto write = buffer_to_2D.get_access<access::mode::write>(cgh);
@@ -285,8 +295,13 @@ void testcopyH2DBuffer() {
                                     range<3>(depth, height, width));
     buffer<float, 3> buffer_to_3D(data_to_3D.data(),
                                   range<3>(depth, height, width));
-    queue myQueue;
-    queue otherQueue;
+
+    device Dev{default_selector{}};
+    context myCtx{Dev};
+    context otherCtx{Dev};
+
+    queue myQueue{myCtx, Dev};
+    queue otherQueue{otherCtx, Dev};
     myQueue.submit([&](handler &cgh) {
       auto read = buffer_from_3D.get_access<access::mode::read>(cgh);
       auto write = buffer_to_3D.get_access<access::mode::write>(cgh);
