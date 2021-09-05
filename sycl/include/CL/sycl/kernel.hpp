@@ -173,7 +173,7 @@ public:
   /// \return depends on information being queried.
   template <info::kernel_work_group param>
   __SYCL2020_DEPRECATED(
-      "get_work_group_info() is deprecated, use SYCL 2020 requests instead")
+      "get_work_group_info() is deprecated, use SYCL 2020 kernel_device_specific queries instead")
   typename info::param_traits<info::kernel_work_group, param>::return_type
       get_work_group_info(const device &Device) const;
 

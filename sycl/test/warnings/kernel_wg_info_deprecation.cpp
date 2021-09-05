@@ -14,8 +14,8 @@ int main() {
   device D;
   kernel K = make_kernel<backend::opencl>(K1, C);
   // once for function, the other one is for function specialization
-  // expected-warning@+5 {{get_work_group_info() is deprecated, use SYCL 2020 requests instead}}
-  // expected-warning@+4 {{get_work_group_info() is deprecated, use SYCL 2020 requests instead}}
+  // expected-warning@+5 {{get_work_group_info() is deprecated, use SYCL 2020 kernel_device_specific queries instead}}
+  // expected-warning@+4 {{get_work_group_info() is deprecated, use SYCL 2020 kernel_device_specific queries instead}}
   // once for enum, the other one is for enum element
   // expected-warning@+2 {{kernel_work_group enumeration is deprecated, use SYCL 2020 requests instead}}
    // expected-warning@+1 {{kernel_work_group enumeration is deprecated, use SYCL 2020 requests instead}}
