@@ -18,6 +18,6 @@
 // RUN: chmod 777 %t2.sh
 // RUN: %t2.sh
 // RUN: FileCheck < %t.res %s
-// CHECK-DAG: Content of first file
-// CHECK-DAG: Content of second file
+// CHECK: Content of first file
+// CHECK: Content of second file
 // CHECK: 21
