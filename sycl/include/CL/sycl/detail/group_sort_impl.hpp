@@ -66,11 +66,22 @@ struct GetValueType<sycl::multi_ptr<ElementType, Space>> {
   using type = ElementType;
 };
 
+// since we couldn't assign data to raw memory, it's better to use placement for
+// first assignment
+template <typename Acc, typename T>
+void set_value(Acc ptr, const std::size_t idx, const T &val, bool is_first) {
+  if (is_first) {
+    ::new (ptr + idx) T(val);
+  } else {
+    ptr[idx] = val;
+  }
+}
+
 template <typename InAcc, typename OutAcc, typename Compare>
 void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
            const std::size_t start_1, const std::size_t end_1,
            const std::size_t end_2, const std::size_t start_out, Compare comp,
-           const std::size_t chunk) {
+           const std::size_t chunk, bool is_first) {
   const std::size_t start_2 = end_1;
   // Borders of the sequences to merge within this call
   const std::size_t local_start_1 =
@@ -98,7 +109,9 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
     const std::size_t l_shift_1 = local_start_1 - start_1;
     const std::size_t l_shift_2 = l_search_bound_2 - start_2;
 
-    out_acc1[start_out + l_shift_1 + l_shift_2] = local_l_item_1;
+    // out_acc1[start_out + l_shift_1 + l_shift_2] = local_l_item_1;
+    set_value(out_acc1, start_out + l_shift_1 + l_shift_2, local_l_item_1,
+              is_first);
 
     std::size_t r_search_bound_2{};
     // find right border in 2nd sequence
@@ -109,7 +122,9 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       const auto r_shift_1 = local_end_1 - 1 - start_1;
       const auto r_shift_2 = r_search_bound_2 - start_2;
 
-      out_acc1[start_out + r_shift_1 + r_shift_2] = local_r_item_1;
+      // out_acc1[start_out + r_shift_1 + r_shift_2] = local_r_item_1;
+      set_value(out_acc1, start_out + r_shift_1 + r_shift_2, local_r_item_1,
+                is_first);
     }
 
     // Handle intermediate items
@@ -123,7 +138,8 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       const std::size_t shift_1 = idx - start_1;
       const std::size_t shift_2 = l_search_bound_2 - start_2;
 
-      out_acc1[start_out + shift_1 + shift_2] = intermediate_item_1;
+      set_value(out_acc1, start_out + shift_1 + shift_2, intermediate_item_1,
+                is_first);
     }
   }
   // Process 2nd sequence
@@ -136,7 +152,8 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
     const std::size_t l_shift_1 = l_search_bound_1 - start_1;
     const std::size_t l_shift_2 = local_start_2 - start_2;
 
-    out_acc1[start_out + l_shift_1 + l_shift_2] = local_l_item_2;
+    set_value(out_acc1, start_out + l_shift_1 + l_shift_2, local_l_item_2,
+              is_first);
 
     std::size_t r_search_bound_1{};
     // find right border in 1st sequence
@@ -147,7 +164,8 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       const std::size_t r_shift_1 = r_search_bound_1 - start_1;
       const std::size_t r_shift_2 = local_end_2 - 1 - start_2;
 
-      out_acc1[start_out + r_shift_1 + r_shift_2] = local_r_item_2;
+      set_value(out_acc1, start_out + r_shift_1 + r_shift_2, local_r_item_2,
+                is_first);
     }
 
     // Handle intermediate items
@@ -161,7 +179,8 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       const std::size_t shift_1 = l_search_bound_1 - start_1;
       const std::size_t shift_2 = idx - start_2;
 
-      out_acc1[start_out + shift_1 + shift_2] = intermediate_item_2;
+      set_value(out_acc1, start_out + shift_1 + shift_2, intermediate_item_2,
+                is_first);
     }
   }
 }
@@ -196,6 +215,7 @@ void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
 
   T *temp = reinterpret_cast<T *>(scratch);
   bool data_in_temp = false;
+  bool is_first = true;
   std::size_t sorted_size = 1;
   while (sorted_size * chunk < n) {
     const std::size_t start_1 =
@@ -205,14 +225,18 @@ void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
     const std::size_t offset = chunk * (idx % sorted_size);
 
     if (!data_in_temp) {
-      merge(offset, first, temp, start_1, end_1, end_2, start_1, comp, chunk);
+      merge(offset, first, temp, start_1, end_1, end_2, start_1, comp, chunk,
+            is_first);
     } else {
-      merge(offset, temp, first, start_1, end_1, end_2, start_1, comp, chunk);
+      merge(offset, temp, first, start_1, end_1, end_2, start_1, comp, chunk,
+            /*is_first*/ false);
     }
     id.barrier();
 
     data_in_temp = !data_in_temp;
     sorted_size *= 2;
+    if (is_first)
+      is_first = false;
   }
 
   // copy back if data is in a temporary storage

@@ -51,9 +51,9 @@ public:
     (void)g;
     (void)first;
     (void)last;
-    throw sycl::exception(std::error_code(PI_INVALID_DEVICE, sycl::sycl_category()),
+    throw sycl::exception(
+        std::error_code(PI_INVALID_DEVICE, sycl::sycl_category()),
         "default_sorter constructor is not supported on host device.");
-
 #endif
   }
 
@@ -64,7 +64,7 @@ public:
       auto id = sycl::detail::Builder::getNDItem<Group::dimensions>();
       uint32_t local_id = id.get_local_id();
       T *temp = reinterpret_cast<T *>(scratch);
-      temp[local_id] = val;
+      ::new (temp + local_id) T(val);
       sycl::detail::merge_sort(g, temp, range_size, comp,
                                scratch + range_size * sizeof(T));
       val = temp[local_id];
@@ -72,22 +72,23 @@ public:
     // TODO: it's better to add else branch
 #else
     (void)g;
-    throw sycl::exception(std::error_code(PI_INVALID_DEVICE, sycl::sycl_category()),
+    throw sycl::exception(
+        std::error_code(PI_INVALID_DEVICE, sycl::sycl_category()),
         "default_sorter operator() is not supported on host device.");
 #endif
     return val;
   }
 
   template <typename T>
-  static constexpr std::size_t memory_required(sycl::memory_scope scope,
+  static constexpr std::size_t memory_required(sycl::memory_scope,
                                                std::size_t range_size) {
-    return range_size * sizeof(T);
+    return range_size * sizeof(T) + alignof(T);
   }
 
   template <typename T, int dim = 1>
   static constexpr std::size_t memory_required(sycl::memory_scope scope,
                                                sycl::range<dim> r) {
-    return 2 * r.size() * sizeof(T);
+    return 2 * memory_required<T>(scope, r.size());
   }
 };
 
