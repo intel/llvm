@@ -1,4 +1,4 @@
-= SYCL_EXT_INTEL_MEM_CHANNEL_PROPERTY
+= SYCL_INTEL_mem_channel_property
 
 == Introduction
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
@@ -23,29 +23,13 @@ Because the interfaces defined by this specification are not final and are subje
 == Version
 
 Built On: {docdate} +
-Revision: 2
+Revision: 1
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 3.
+This extension is written against the SYCL 2020 provisional specification, Revision 1.
 
 The use of this extension requires a target that supports cl_intel_mem_channel_property or equivalent if OpenCL is used as the underlying device runtime.  
-
-== Feature Test Macro
-
-This extension provides a feature-test macro as described in the core SYCL
-specification section 6.3.3 "Feature test macros".  Therefore, an
-implementation supporting this extension must predefine the macro
-`SYCL_EXT_INTEL_MEM_CHANNEL_PROPERTY` to one of the values defined in the table below.
-Applications can test for the existence of this macro to determine if the
-implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's APIs the implementation supports.
-
-[%header,cols="1,5"]
-|===
-|Value |Description
-|1     |Initial extension version.  Base features are supported.
-|===
 
 == Overview
 
@@ -61,27 +45,27 @@ Add a new property to Table 4.33: Properties supported by the SYCL buffer class 
 [options="header"]
 |===
 | Property | Description
-| property::buffer::ext_intel_mem_channel | The `ext_intel_mem_channel` property is a hint to the SYCL runtime that the buffer should be stored in a particular memory channel provided to the property.  
+| property::buffer::mem_channel | The `mem_channel` property is a hint to the SYCL runtime that the buffer should be stored in a particular memory channel provided to the property.  
 |===
 --
 
-Add a new constructor to Table 41: Constructors of the buffer property classes as follows:
+Add a new constructor to Table 4.34: Constructors of the buffer property classes as follows:
 
 --
 [options="header"]
 |===
 | Constructor | Description
-| property::buffer::ext_intel_mem_channel::ext_intel_mem_channel(cl_uint channel) | Constructs a SYCL `ext_intel_mem_channel` property instance with the specified channel ID.  The range of valid values depends on the target and is implementation defined.  Invalid values do not need to result in an error as the property is only a hint.  
+| property::buffer::mem_channel::mem_channel(cl_uint channel) | Constructs a SYCL `mem_channel` property instance with the specified channel ID.  The range of valid values depends on the target and is implementation defined.  Invalid values do not need to result in an error as the property is only a hint.  
 |===
 --
 
-Add a new member function to Table 42: Member functions of the buffer property classes as follows:
+Add a new member function to Table 4.35: Member functions of the buffer property classes as follows:
 
 --
 [options="header"]
 |===
 | Member function | Description
-| cl_uint property::buffer::ext_intel_mem_channel::get_channel() const | Returns the cl_uint which was specified when constructing this SYCL `ext_intel_mem_channel` property.  
+| cl_uint property::buffer::mem_channel::get_channel() const | Returns the cl_uint which was specified when constructing this SYCL `mem_channel` property.  
 |===
 --
 
@@ -103,7 +87,7 @@ enum class aspect {
 } // namespace sycl
 ```
 
-Add an entry for the new aspect to Table 26: Device aspects defined by the core SYCL specification:
+Add an entry for the new aspect to Table 4.20: Device aspects defined by the core SYCL specification:
 
 --
 [options="header"]
@@ -123,6 +107,4 @@ Add an entry for the new aspect to Table 26: Device aspects defined by the core 
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-10-26|Joe Garvey|*Initial public draft*
-|2|2021-08-30|Dmitry Vodopyanov|*Updated according to SYCL 2020 reqs for extensions*
-
 |========================================

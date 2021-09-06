@@ -253,7 +253,7 @@ public:
   /// group is being enqueued on.
   event ext_oneapi_submit_barrier(_CODELOCONLYPARAM(&CodeLoc)) {
     return submit(
-        [=](handler &CGH) { CGH.ext_intel_barrier(); } _CODELOCFW(CodeLoc));
+        [=](handler &CGH) { CGH.ext_oneapi_barrier(); } _CODELOCFW(CodeLoc));
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -281,7 +281,7 @@ public:
   event ext_oneapi_submit_barrier(
       const std::vector<event> &WaitList _CODELOCPARAM(&CodeLoc)) {
     return submit([=](handler &CGH) {
-      CGH.ext_intel_barrier(WaitList);
+      CGH.ext_oneapi_barrier(WaitList);
     } _CODELOCFW(CodeLoc));
   }
 

@@ -165,15 +165,11 @@ int main() {
   auto BitCastRes = sycl::detail::bit_cast<unsigned short>(Val);
   (void)BitCastRes;
 
-  // expected-warning@+1{{'submit_barrier' is deprecated: use 'ext_intel_submit_barrier' instead}}
+  // expected-warning@+1{{'submit_barrier' is deprecated: use 'ext_oneapi_submit_barrier' instead}}
   Queue.submit_barrier();
 
-  // expected-warning@+1{{'barrier' is deprecated: use 'ext_intel_barrier' instead}}
+  // expected-warning@+1{{'barrier' is deprecated: use 'ext_oneapi_barrier' instead}}
   Queue.submit([&](sycl::handler &CGH) { CGH.barrier(); });
-
-  // expected-warning@+1{{'mem_channel' is deprecated: use 'ext_intel_mem_channel' instead}}
-  sycl::property_list MemChannelProp{sycl::property::buffer::mem_channel(2)};
-  (void)MemChannelProp;
 
   return 0;
 }

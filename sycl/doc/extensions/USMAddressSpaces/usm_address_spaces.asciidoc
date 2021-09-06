@@ -25,7 +25,7 @@ Because the interfaces defined by this specification are not final and are subje
 == Version
 
 Built On: {docdate} +
-Revision: B
+Revision: 2
 
 == Dependencies
 
@@ -134,6 +134,6 @@ using host_ptr = multi_ptr<ElementType, access::address_space::ext_intel_global_
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|A|2020-06-18|Joe Garvey|Initial public draft
-|B|2021-08-30|Dmitry Vodopyanov|Updated according to SYCL 2020 reqs for extensions
+|1|2020-06-18|Joe Garvey|Initial public draft
+|2|2021-08-30|Dmitry Vodopyanov|Updated according to SYCL 2020 reqs for extensions
 |======================================== 
