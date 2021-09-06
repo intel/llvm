@@ -2262,6 +2262,19 @@ void CompilerInvocation::GenerateDiagnosticArgs(
   }
 }
 
+std::unique_ptr<DiagnosticOptions>
+clang::CreateAndPopulateDiagOpts(ArrayRef<const char *> Argv) {
+  auto DiagOpts = std::make_unique<DiagnosticOptions>();
+  unsigned MissingArgIndex, MissingArgCount;
+  InputArgList Args = getDriverOptTable().ParseArgs(
+      Argv.slice(1), MissingArgIndex, MissingArgCount);
+  // We ignore MissingArgCount and the return value of ParseDiagnosticArgs.
+  // Any errors that would be diagnosed here will also be diagnosed later,
+  // when the DiagnosticsEngine actually exists.
+  (void)ParseDiagnosticArgs(*DiagOpts, Args);
+  return DiagOpts;
+}
+
 bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
                                 DiagnosticsEngine *Diags,
                                 bool DefaultDiagColor) {
@@ -4314,13 +4327,8 @@ static bool ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
   // Always avoid lexing editor placeholders when we're just running the
   // preprocessor as we never want to emit the
   // "editor placeholder in source file" error in PP only mode.
-  // Certain predefined macros which depend upon semantic processing,
-  // for example __FLT_EVAL_METHOD__, are not expanded in PP mode, they
-  // appear in the preprocessed output as an unexpanded macro name.
-  if (isStrictlyPreprocessorAction(Action)) {
+  if (isStrictlyPreprocessorAction(Action))
     Opts.LexEditorPlaceholders = false;
-    Opts.LexExpandSpecialBuiltins = false;
-  }
 
   return Diags.getNumErrors() == NumErrorsBefore;
 }
