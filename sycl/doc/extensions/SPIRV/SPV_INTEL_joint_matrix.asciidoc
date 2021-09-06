@@ -5,6 +5,9 @@
 :OpJointMatrixLoadINTEL_token: 6120
 :OpJointMatrixStoreINTEL_token: 6121
 :OpJointMatrixMadINTEL_token: 6122
+:OpJointMatrixSUMadINTEL_token: 6128
+:OpJointMatrixUSMadINTEL_token: 6129
+:OpJointMatrixUUMadINTEL_token: 6130
 
 {extension_name}
 ================
@@ -25,6 +28,7 @@ https://github.com/intel/llvm
 - Alexey Sotkin, Intel +
 - Dounia Khaldi, Intel +
 - Mateusz, Belicki Intel +
+- Dmitry Sidorov, Intel +
 
 == Notice
 
@@ -97,6 +101,9 @@ OpTypeJointMatrixINTEL
 OpJointMatrixLoadINTEL
 OpJointMatrixStoreINTEL
 OpJointMatrixMADINTEL
+OpJointMatrixSUMADINTEL
+OpJointMatrixUSMADINTEL
+OpJointMatrixUUMADINTEL
 
 ----
 
@@ -107,10 +114,13 @@ OpJointMatrixMADINTEL
 [grid="rows"]
 |====
 |*{capability_name}*  | {capability_token}
-|*OpTypeJointMatrixINTEL*  | {OpTypeJointMatrixINTEL_token}
-|*OpJointMatrixLoadINTEL*  | {OpJointMatrixLoadINTEL_token}
-|*OpJointMatrixStoreINTEL* | {OpJointMatrixStoreINTEL_token}
-|*OpJointMatrixMadINTEL*   | {OpJointMatrixMadINTEL_token}
+|*OpTypeJointMatrixINTEL*    | {OpTypeJointMatrixINTEL_token}
+|*OpJointMatrixLoadINTEL*    | {OpJointMatrixLoadINTEL_token}
+|*OpJointMatrixStoreINTEL*   | {OpJointMatrixStoreINTEL_token}
+|*OpJointMatrixMadINTEL*     | {OpJointMatrixMadINTEL_token}
+|*OpJointMatrixSUMadINTEL*   | {OpJointMatrixSUMadINTEL_token}
+|*OpJointMatrixUSMadINTEL*   | {OpJointMatrixUSMadINTEL_token}
+|*OpJointMatrixUUMadINTEL*   | {OpJointMatrixUUMadINTEL_token}
 |====
 
 == Modifications to the SPIR-V Specification, Version 1.5
@@ -290,13 +300,21 @@ multiplication: `A*B+C`. Here 'A' is a `M x K` matrix, 'B' is a `K x N`
 matrix and 'C' is a `M x N` matrix. +
  +
 Behavior is undefined if sizes of operands do not meet the conditions above.
-All operands and the 'Ruslt Type' must be 
+All operands and the 'Result Type' must be
 <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>. +
  +
 'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
+'Component Type' be a signed 'numerical type' or 16-bit unsigned integer type
+(which stands for 'bfloat16' type) in case if 'B' is of 16-bit unsigned integer
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> type as well and 'C' is of
+'float' <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> type.
 'Rown Count' equals to 'M' and 'Column Count' equals to 'K' +
  +
 'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
+'Component Type' be a signed 'numerical type' or 16-bit unsigned integer type
+(which stands for 'bfloat16' type) in case if 'A' is of 16-bit unsigned integer
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> type as well and 'C' is of
+'float' <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> type.
 'Rown Count' equals to 'K' and 'Column Count' equals to 'N' +
  +
 'C' and 'Result Type' must be a
@@ -309,6 +327,135 @@ result of a constant instruction with scalar 'integer type'. +
 1+|Capability: +
 *{capability_name}*
 1+| 7 | {OpJointMatrixMadINTEL_token}
+| '<id>' +
+'Result Type'
+|'Result <id>'
+| '<id>' +
+'A'
+| '<id>' +
+'B'
+| '<id>' +
+'C'
+| '<id>' +
+'Scope'
+|=====
+
+[cols="1,1,6*3",width="100%"]
+|=====
+7+|[[OpJointMatrixSUMadINTEL]]*OpJointMatrixSUMadINTEL* +
+ +
+Multiply matrix 'A' by matrix 'B' and add matrix 'C' to the result of the
+multiplication: `A*B+C`. Here 'A' is a `M x K` matrix, 'B' is a `K x N`
+matrix and 'C' is a `M x N` matrix. +
+ +
+Behavior is undefined if sizes of operands do not meet the conditions above.
+All operands and the 'Result Type' must be
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>. +
+ +
+'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
+'Component Type' be a signed 'numerical type', 'Rown Count' equals to 'M' and
+'Column Count' equals to 'K' +
+ +
+'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
+'Component Type' be an unsigned 'numerical type', 'Rown Count' equals to 'K' and
+'Column Count' equals to 'N' +
+ +
+'C' and 'Result Type' must be a
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Rown Count' equals to
+'M' and 'Column Count' equals to 'N' +
+ +
+'Scope' is syncronization scope for operation on the matrix. It must be the
+result of a constant instruction with scalar 'integer type'. +
+
+1+|Capability: +
+*{capability_name}*
+1+| 7 | {OpJointMatrixSUMadINTEL_token}
+| '<id>' +
+'Result Type'
+|'Result <id>'
+| '<id>' +
+'A'
+| '<id>' +
+'B'
+| '<id>' +
+'C'
+| '<id>' +
+'Scope'
+|=====
+
+[cols="1,1,6*3",width="100%"]
+|=====
+7+|[[OpJointMatrixUSMadINTEL]]*OpJointMatrixUSMadINTEL* +
+ +
+Multiply matrix 'A' by matrix 'B' and add matrix 'C' to the result of the
+multiplication: `A*B+C`. Here 'A' is a `M x K` matrix, 'B' is a `K x N`
+matrix and 'C' is a `M x N` matrix. +
+ +
+Behavior is undefined if sizes of operands do not meet the conditions above.
+All operands and the 'Result Type' must be
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>. +
+ +
+'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
+'Component Type' be an unsigned 'numerical type', 'Rown Count' equals to 'M' and
+'Column Count' equals to 'K' +
+ +
+'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
+'Component Type' be a signed 'numerical type', 'Rown Count' equals to 'K' and
+'Column Count' equals to 'N' +
+ +
+'C' and 'Result Type' must be a
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Rown Count' equals to
+'M' and 'Column Count' equals to 'N' +
+ +
+'Scope' is syncronization scope for operation on the matrix. It must be the
+result of a constant instruction with scalar 'integer type'. +
+
+1+|Capability: +
+*{capability_name}*
+1+| 7 | {OpJointMatrixUSMadINTEL_token}
+| '<id>' +
+'Result Type'
+|'Result <id>'
+| '<id>' +
+'A'
+| '<id>' +
+'B'
+| '<id>' +
+'C'
+| '<id>' +
+'Scope'
+|=====
+
+[cols="1,1,6*3",width="100%"]
+|=====
+7+|[[OpJointMatrixUUMadINTEL]]*OpJointMatrixUUMadINTEL* +
+ +
+Multiply matrix 'A' by matrix 'B' and add matrix 'C' to the result of the
+multiplication: `A*B+C`. Here 'A' is a `M x K` matrix, 'B' is a `K x N`
+matrix and 'C' is a `M x N` matrix. +
+ +
+Behavior is undefined if sizes of operands do not meet the conditions above.
+All operands and the 'Result Type' must be
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>. +
+ +
+'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
+'Component Type' be an unsigned 'numerical type', 'Rown Count' equals to 'M' and
+'Column Count' equals to 'K' +
+ +
+'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
+'Component Type' be an unsigned 'numerical type', 'Rown Count' equals to 'K' and
+'Column Count' equals to 'N' +
+ +
+'C' and 'Result Type' must be a
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Rown Count' equals to
+'M' and 'Column Count' equals to 'N' +
+ +
+'Scope' is syncronization scope for operation on the matrix. It must be the
+result of a constant instruction with scalar 'integer type'. +
+
+1+|Capability: +
+*{capability_name}*
+1+| 7 | {OpJointMatrixUUMadINTEL_token}
 | '<id>' +
 'Result Type'
 |'Result <id>'
@@ -335,4 +482,5 @@ Revision History
 |========================================
 |Rev|Date|Author|Changes
 |1|2021-02-16|Alexey Sotkin|Initial revision
+|1|2021-09-06|Dmitry Sidorov|Split OpJointMatrixMadINTEL instruction into 4
 |========================================
