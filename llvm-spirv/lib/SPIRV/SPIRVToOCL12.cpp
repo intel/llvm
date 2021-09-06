@@ -89,8 +89,7 @@ void SPIRVToOCL12Base::visitCallSPIRVMemoryBarrier(CallInst *CI) {
 
 void SPIRVToOCL12Base::visitCallSPIRVControlBarrier(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  Attrs = Attrs.addAttribute(CI->getContext(), AttributeList::FunctionIndex,
-                             Attribute::Convergent);
+  Attrs = Attrs.addFnAttribute(CI->getContext(), Attribute::Convergent);
   mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
