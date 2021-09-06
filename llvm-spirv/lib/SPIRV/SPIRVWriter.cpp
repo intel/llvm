@@ -1415,7 +1415,6 @@ SPIRVEntry *addMemAliasingINTELInstructions(SPIRVModule *M,
   return M->getOrAddAliasScopeListDeclINTELInst(ListId, AliasingListMD);
 }
 
-
 // Translate alias.scope/noalias metadata attached to store and load
 // instructions.
 void transAliasingMemAccess(SPIRVModule *BM, MDNode *AliasingListMD,
