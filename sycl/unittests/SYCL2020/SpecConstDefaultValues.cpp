@@ -29,7 +29,9 @@ template <> struct KernelInfo<TestKernel> {
     static kernel_param_desc_t Dummy;
     return Dummy;
   }
-  static constexpr const char *getName() { return "TestKernel"; }
+  static constexpr const char *getName() {
+    return "SpecConstDefaultValues_TestKernel";
+  }
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
@@ -54,7 +56,8 @@ static sycl::unittest::PiImage generateImageWithSpecConsts() {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
+  PiArray<PiOffloadEntry> Entries =
+      makeEmptyKernels({"SpecConstDefaultValues_TestKernel"});
 
   PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
@@ -99,8 +102,14 @@ TEST(SpecConstDefaultValues, DefaultValuesAreSet) {
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
 
-  auto DevImage = sycl::detail::getSyclObjImpl(*KernelBundle.begin());
-  const auto &Blob = DevImage->get_spec_const_blob_ref();
+  sycl::kernel_id TestKernelID = sycl::get_kernel_id<TestKernel>();
+  auto DevImage =
+      std::find_if(KernelBundle.begin(), KernelBundle.end(),
+                   [&](auto Image) { return Image.has_kernel(TestKernelID); });
+  EXPECT_NE(DevImage, KernelBundle.end());
+
+  auto DevImageImpl = sycl::detail::getSyclObjImpl(*DevImage);
+  const auto &Blob = DevImageImpl->get_spec_const_blob_ref();
 
   int SpecConstVal1 = *reinterpret_cast<const int *>(Blob.data());
   int SpecConstVal2 = *(reinterpret_cast<const int *>(Blob.data()) + 1);
@@ -138,8 +147,14 @@ TEST(SpecConstDefaultValues, DefaultValuesAreOverriden) {
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
 
-  auto DevImage = sycl::detail::getSyclObjImpl(*KernelBundle.begin());
-  auto &Blob = DevImage->get_spec_const_blob_ref();
+  sycl::kernel_id TestKernelID = sycl::get_kernel_id<TestKernel>();
+  auto DevImage =
+      std::find_if(KernelBundle.begin(), KernelBundle.end(),
+                   [&](auto Image) { return Image.has_kernel(TestKernelID); });
+  EXPECT_NE(DevImage, KernelBundle.end());
+
+  auto DevImageImpl = sycl::detail::getSyclObjImpl(*DevImage);
+  auto &Blob = DevImageImpl->get_spec_const_blob_ref();
   int SpecConstVal1 = *reinterpret_cast<int *>(Blob.data());
   int SpecConstVal2 = *(reinterpret_cast<int *>(Blob.data()) + 1);
 

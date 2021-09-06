@@ -1253,7 +1253,10 @@ public:
   ///
   /// \param Func is a SYCL kernel function defined by lambda function or a
   /// named function object type.
-  template <typename FuncT> void run_on_host_intel(FuncT Func) {
+  template <typename FuncT>
+  __SYCL_DEPRECATED(
+      "run_on_host_intel() is deprecated, use host_task() instead")
+  void run_on_host_intel(FuncT Func) {
     throwIfActionIsCreated();
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
@@ -1818,7 +1821,9 @@ public:
   /// Invokes a lambda on the host. Dependencies are satisfied on the host.
   ///
   /// \param Func is a lambda that is executed on the host
-  template <typename FuncT> void interop_task(FuncT Func) {
+  template <typename FuncT>
+  __SYCL_DEPRECATED("interop_task() is deprecated, use host_task() instead")
+  void interop_task(FuncT Func) {
 
     MInteropTask.reset(new detail::InteropTask(std::move(Func)));
     setType(detail::CG::CodeplayInteropTask);
@@ -2420,6 +2425,7 @@ private:
                                            access::target);
 
   friend class ::MockHandler;
+  friend class detail::queue_impl;
 
   bool DisableRangeRounding();
 

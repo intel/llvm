@@ -24,14 +24,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-// We define a sycl stream name and this will be used by the instrumentation
-// framework
-constexpr const char *SYCL_STREAM_NAME = "sycl";
-// Stream name being used for traces generated from the SYCL plugin layer
-constexpr const char *SYCL_PICALL_STREAM_NAME = "sycl.pi";
-// Stream name being used for traces generated from PI calls. This stream
-// contains information about function arguments.
-constexpr const char *SYCL_PIDEBUGCALL_STREAM_NAME = "sycl.pi.debug";
 // Data structure that captures the user code location information using the
 // builtin capabilities of the compiler
 struct code_location {
