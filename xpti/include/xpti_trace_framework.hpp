@@ -7,7 +7,9 @@
 //
 #pragma once
 #include <cstdint>
+#include <memory>
 #include <sstream>
+#include <thread>
 
 #include "xpti_data_types.h"
 #include "xpti_trace_framework.h"
@@ -269,6 +271,7 @@ public:
 } // namespace utils
 
 namespace framework {
+static thread_local uint64_t g_tls_uid = xpti::invalid_uid;
 constexpr uint16_t signal = (uint16_t)xpti::trace_point_type_t::signal;
 constexpr uint16_t graph_create =
     (uint16_t)xpti::trace_point_type_t::graph_create;
@@ -316,6 +319,118 @@ private:
   uint16_t m_trace_type;
   const void *m_user_data;
   uint64_t m_instance;
+};
+
+// --------------- Commented section of the code -------------
+//
+// github.com/bombela/backward-cpp/blob/master/backward.hpp
+//
+// Need to figure out the process for considering 3rd party
+// code that helps with addressing the gaps when the developer
+// doesn't opt-in.
+//------------------------------------------------------------
+// #include "backward.hpp"
+// class backtrace_t {
+// public:
+//   backtrace_t(int levels = 2) {
+//     m_st.load_here(levels);
+//     m_tr.load_stacktrace(m_st);
+//     m_parent = m_tr.resolve(m_st[1]);
+//     m_curr = m_tr.resolve(m_st[0]);
+//     if(m_parent.source.filename) {
+//       m_payload = xpti::payload_t(m_curr.source.function,
+//       m_parent.source.filename, m_parent.source.line, 0, m_curr.addr);
+//     }
+//     else {
+//       m_packed_string = m_parent.source.function + std::string("::") +
+//       m_curr.source.function; m_payload =
+//       xpti::payload_t(m_curr.source.function, m_packed_string.c_str(),
+//       m_curr.addr);
+//     }
+//   }
+//
+//   xpti::payload_t *payload() { return &m_payload;}
+// private:
+//   backward::StackTrace m_st;
+//   backward::TraceResolver m_tr;
+//   backward::ResolvedTrace m_curr, m_parent;
+//   std::string m_packed_string;
+//   xpti::payload_t m_payload;
+// };
+
+/// @brief Tracepoint data type allows the construction of Universal ID
+/// @details The tracepoint data type builds on the payload data type by
+/// combining the functionality of payload and xpti::makeEvent() to create the
+/// unique Universal ID and stash it in the TLS for use by downstream layers in
+/// the SW stack.
+///
+/// Usage:-
+/// #ifdef XPTI_TRACE_ENABLED
+///   xpti::payload_t p, *payload = &p;
+/// #ifdef SYCL_TOOL_PROFILE
+///   // sycl::detail::code_location cLoc =
+///   // sycl::detail::code_location::current();
+///   if(cLoc.valid())
+///     p = xpti::payload_t(cLoc.functionname(), cLoc.fileName(),
+///     cLoc.lineNumber(), cLoc.columnNumber(), codeptr);
+///   else
+///     p = xpti::payload_t(KernelInfo.funcName(), KernelInfo.sourceFileName(),
+///     KernelInfo.lineNo(), KernelInfor.columnNo(), codeptr);
+/// #else
+///   xpti::framework::backtrace_t b;
+///   payload = b.payload();
+/// #endif
+///   xpti::tracepoint_t t(payload);
+/// #endif
+///
+///  See also: xptiTracePointTest in xpti_correctness_tests.cpp
+class tracepoint_t {
+public:
+  // Constructor that makes calls to xpti API layer to register strings and
+  // create the Universal ID that is stored in the TLS entry for lookup
+  tracepoint_t(xpti::payload_t *p) : m_payload(nullptr), m_top(false) {
+    if (p) {
+      // We expect the payload input has been populated with the information
+      // available at that time
+      uint64_t uid = g_tls_uid;
+      if (uid != xpti::invalid_uid) {
+        // We already have a parent SW layer that has a tracepoint defined
+        m_payload = xptiQueryPayloadByUID(uid);
+      } else {
+        m_top = true;
+        uid = xptiRegisterPayload(p);
+        if (uid != xpti::invalid_uid) {
+          g_tls_uid = uid;
+          m_payload = xptiQueryPayloadByUID(uid);
+        }
+      }
+    }
+  }
+  ~tracepoint_t() {
+    if (m_top) {
+      g_tls_uid = xpti::invalid_uid;
+    }
+  }
+
+  // The payload object that is returned will have the UID object populated and
+  // can be looked up in the xpti lookup APIs or be used to make an event.
+  const payload_t *payload() { return m_payload; }
+
+  uint64_t universal_id() {
+    if (m_payload &&
+        (m_payload->flags &
+         static_cast<uint64_t>(xpti::payload_flag_t::HashAvailable))) {
+      return m_payload->internal;
+    } else {
+      return xpti::invalid_uid;
+    }
+  }
+
+private:
+  /// The payload data structure that is prepared from code_location(),
+  /// caller_callee string or kernel name/codepointer based on the opt-in flag.
+  const payload_t *m_payload;
+  bool m_top;
 };
 } // namespace framework
 } // namespace xpti

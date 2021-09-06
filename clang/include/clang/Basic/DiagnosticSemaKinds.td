@@ -6452,11 +6452,6 @@ def warn_gnu_null_ptr_arith : Warning<
 def warn_pointer_sub_null_ptr : Warning<
   "performing pointer subtraction with a null pointer %select{has|may have}0 undefined behavior">,
   InGroup<NullPointerSubtraction>, DefaultIgnore;
-def err_kernel_invalidates_sycl_unique_stable_name
-    : Error<"kernel %select{naming|instantiation}0 changes the result of an "
-            "evaluated '__builtin_sycl_unique_stable_%select{name|id}1'">;
-def note_sycl_unique_stable_name_evaluated_here
-    : Note<"'__builtin_sycl_unique_stable_%select{name|id}0' evaluated here">;
 def err_unique_stable_id_expected_var : Error<"expected variable name">;
 def err_unique_stable_id_global_storage
     : Error<"argument passed to '__builtin_sycl_unique_stable_id' must have "
@@ -10586,6 +10581,8 @@ def err_omp_map_shared_storage : Error<
   "variable already marked as mapped in current construct">;
 def err_omp_invalid_map_type_for_directive : Error<
   "%select{map type '%1' is not allowed|map type must be specified}0 for '#pragma omp %2'">;
+def err_omp_invalid_map_type_modifier_for_directive : Error<
+  "map type modifier '%0' is not allowed for '#pragma omp %1'">;
 def err_omp_no_clause_for_directive : Error<
   "expected at least one %0 clause for '#pragma omp %1'">;
 def err_omp_threadprivate_in_clause : Error<

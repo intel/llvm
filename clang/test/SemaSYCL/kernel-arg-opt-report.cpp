@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl-is-device \
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device \
 // RUN: -Wno-sycl-2017-compat -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml
 // RUN: FileCheck -check-prefix=SPIR --input-file %t-host.yaml %s
 

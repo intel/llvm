@@ -576,9 +576,7 @@ void DeadArgumentEliminationPass::SurveyFunction(const Function &F) {
   // but we can do so for SPIR kernel function in SYCL environment.
   // DAE is not currently supported for ESIMD kernels.
   bool FuncIsSpirNonEsimdKernel =
-      CheckSpirKernels &&
-      StringRef(F.getParent()->getTargetTriple()).contains("sycldevice") &&
-      F.getCallingConv() == CallingConv::SPIR_KERNEL &&
+      CheckSpirKernels && F.getCallingConv() == CallingConv::SPIR_KERNEL &&
       !F.getMetadata("sycl_explicit_simd");
   bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSpirNonEsimdKernel;
   if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
