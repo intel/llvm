@@ -10,6 +10,7 @@
 
 // 4.9.2 Exception Class Interface
 
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/pi.h>
@@ -185,6 +186,8 @@ enum class errc : unsigned int {
   kernel_not_supported = 13,
   backend_mismatch = 14,
 };
+
+template <backend B> using errc_for = typename backend_traits<B>::errc;
 
 /// Constructs an error code using e and sycl_category()
 __SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;

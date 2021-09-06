@@ -138,6 +138,8 @@ public:
 
   const QueueImplPtr &getQueue() const { return MQueue; }
 
+  const QueueImplPtr &getSubmittedQueue() const { return MSubmittedQueue; }
+
   const EventImplPtr &getEvent() const { return MEvent; }
 
   // Methods needed to support SYCL instrumentation
@@ -195,6 +197,7 @@ public:
 protected:
   EventImplPtr MEvent;
   QueueImplPtr MQueue;
+  QueueImplPtr MSubmittedQueue;
 
   /// Dependency events prepared for waiting by backend.
   /// See processDepEvent for details.

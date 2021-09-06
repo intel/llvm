@@ -77,8 +77,11 @@ def err_drv_cuda_version_unsupported : Error<
   "but installation at %3 is %4; use '--cuda-path' to specify a different CUDA "
   "install, pass a different GPU arch with '--cuda-gpu-arch', or pass "
   "'--no-cuda-version-check'">;
-def warn_drv_unknown_cuda_version: Warning<
-  "unknown CUDA version: %0; assuming the latest supported version %1">,
+def warn_drv_new_cuda_version: Warning<
+  "CUDA version%0 is newer than the latest%select{| partially}1 supported version %2">,
+  InGroup<CudaUnknownVersion>;
+def warn_drv_partially_supported_cuda_version: Warning<
+  "CUDA version %0 is only partially supported">,
   InGroup<CudaUnknownVersion>;
 def err_drv_cuda_host_arch : Error<
   "unsupported architecture '%0' for host compilation">;
@@ -303,6 +306,8 @@ def err_drv_expecting_fsycl_with_sycl_opt : Error<
   "'%0' must be used in conjunction with '-fsycl' to enable offloading">;
 def err_drv_fsycl_with_c_type : Error<
   "'%0' must not be used in conjunction with '-fsycl', which expects C++ source">;
+def err_drv_sycl_missing_amdgpu_arch : Error<
+  "missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend --offload-arch'">;
 def warn_drv_sycl_offload_target_duplicate : Warning<
   "SYCL offloading target '%0' is similar to target '%1' already specified; "
   "will be ignored">, InGroup<SyclTarget>;

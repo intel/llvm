@@ -5302,10 +5302,17 @@ bool Util::isSyclFunction(const FunctionDecl *FD, StringRef Name) {
   if (DC->isTranslationUnit())
     return false;
 
-  std::array<DeclContextDesc, 2> Scopes = {
+  std::array<DeclContextDesc, 2> ScopesSycl = {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl")};
-  return matchContext(DC, Scopes);
+  std::array<DeclContextDesc, 5> ScopesOneapiExp = {
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "experimental")};
+
+  return matchContext(DC, ScopesSycl) || matchContext(DC, ScopesOneapiExp);
 }
 
 bool Util::isAccessorPropertyListType(QualType Ty) {
@@ -5365,48 +5372,4 @@ bool Util::matchQualifiedTypeName(QualType Ty,
     return false; // only classes/structs supported
   const auto *Ctx = cast<DeclContext>(RecTy);
   return Util::matchContext(Ctx, Scopes);
-}
-
-void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty,
-                          bool IsInstantiation) {
-  auto MangleCallback = [](ASTContext &Ctx,
-                           const NamedDecl *ND) -> llvm::Optional<unsigned> {
-    if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
-      Ctx.AddSYCLKernelNamingDecl(RD);
-    // We always want to go into the lambda mangling (skipping the unnamed
-    // struct version), so make sure we return a value here.
-    return 1;
-  };
-
-  std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
-      Context, Context.getDiagnostics(), MangleCallback)};
-  llvm::raw_null_ostream Out;
-  Ctx->mangleTypeName(Ty, Out);
-
-  // Evaluate whether this would change any of the already evaluated
-  // __builtin_sycl_unique_stable_name/id values.
-  for (auto &Itr : Context.SYCLUniqueStableNameEvaluatedValues) {
-    const auto *NameExpr = dyn_cast<SYCLUniqueStableNameExpr>(Itr.first);
-    const auto *IdExpr = dyn_cast<SYCLUniqueStableIdExpr>(Itr.first);
-    assert((NameExpr || IdExpr) && "Unknown expr type?");
-
-    const std::string &CurName = NameExpr ? NameExpr->ComputeName(Context)
-                                          : IdExpr->ComputeName(Context);
-    if (Itr.second != CurName) {
-      Diag(NewLoc, diag::err_kernel_invalidates_sycl_unique_stable_name)
-          << IsInstantiation << (IdExpr != nullptr);
-      Diag(Itr.first->getExprLoc(),
-           diag::note_sycl_unique_stable_name_evaluated_here)
-          << (IdExpr != nullptr);
-      // Update this so future diagnostics work correctly.
-      Itr.second = CurName;
-    }
-  }
-}
-
-void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
-  if (IsSYCLUnnamedKernel(*this, FD)) {
-    QualType ObjTy = GetSYCLKernelObjectType(FD);
-    MarkSYCLKernel(FD->getLocation(), ObjTy, /*IsInstantiation*/ true);
-  }
 }

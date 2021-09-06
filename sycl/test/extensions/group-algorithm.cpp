@@ -1,6 +1,10 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -I . -o %t.out
 // Group operations are not supported on host device. The test checks that
 // compilation succeeded.
+//
+// Missing __spirv_GroupIAdd, __spirv_GroupAll, __spirv_GroupBroadcast,
+// __spirv_GroupAny, __spirv_GroupSMin on AMD:
+// XFAIL: rocm_amd
 
 // TODO: enable compile+runtime checks for operations defined in SPIR-V 1.3.
 // That requires either adding a switch to clang (-spirv-max-version=1.3) or

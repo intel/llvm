@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <detail/config.hpp>
 
@@ -27,9 +28,8 @@ namespace detail {
   const char *SYCLConfigBase<Name>::MValueFromFile = nullptr;                  \
   char SYCLConfigBase<Name>::MStorage[MaxSize + 1];                            \
   const char *const SYCLConfigBase<Name>::MCompileTimeDef =                    \
-      getStrOrNullptr(__SYCL_STRINGIFY_LINE(CompileTimeDef));                  \
-  const char *const SYCLConfigBase<Name>::MConfigName =                        \
-      __SYCL_STRINGIFY_LINE(Name);
+      getStrOrNullptr(__SYCL_STRINGIFY(CompileTimeDef));                       \
+  const char *const SYCLConfigBase<Name>::MConfigName = __SYCL_STRINGIFY(Name);
 #include "detail/config.def"
 #undef CONFIG
 

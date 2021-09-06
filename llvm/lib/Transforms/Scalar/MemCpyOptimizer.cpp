@@ -68,6 +68,7 @@ using namespace llvm;
 
 static cl::opt<bool> EnableMemCpyOptWithoutLibcalls(
     "enable-memcpyopt-without-libcalls", cl::init(false), cl::Hidden,
+    cl::ZeroOrMore,
     cl::desc("Enable memcpyopt even when libcalls are disabled"));
 
 STATISTIC(NumMemCpyInstr, "Number of memcpy instructions deleted");
@@ -799,11 +800,12 @@ bool MemCpyOptPass::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
 
       LLVM_DEBUG(dbgs() << "Promoting " << *SI << " to " << *M << "\n");
 
-      assert(isa<MemoryDef>(MSSAU->getMemorySSA()->getMemoryAccess(SI)));
-      auto *LastDef =
-          cast<MemoryDef>(MSSAU->getMemorySSA()->getMemoryAccess(SI));
-      auto *NewAccess = MSSAU->createMemoryAccessAfter(M, LastDef, LastDef);
-      MSSAU->insertDef(cast<MemoryDef>(NewAccess), /*RenameUses=*/true);
+      // The newly inserted memset is immediately overwritten by the original
+      // store, so we do not need to rename uses.
+      auto *StoreDef = cast<MemoryDef>(MSSA->getMemoryAccess(SI));
+      auto *NewAccess = MSSAU->createMemoryAccessBefore(
+          M, StoreDef->getDefiningAccess(), StoreDef);
+      MSSAU->insertDef(cast<MemoryDef>(NewAccess), /*RenameUses=*/false);
 
       eraseInstruction(SI);
       NumMemSetInfer++;
