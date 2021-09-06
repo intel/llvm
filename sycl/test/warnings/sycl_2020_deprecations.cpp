@@ -141,6 +141,12 @@ int main() {
   auto MCA = sycl::info::device::max_constant_args;
   (void)MCA;
 
+  // expected-warning@+1{{'extensions' is deprecated: platform::extensions is deprecated, use device::get_info() with info::device::aspects instead.}}
+  auto PE = sycl::info::platform::extensions;
+
+  // expected-warning@+1{{'extensions' is deprecated: device::extensions is deprecated, use info::device::aspects instead.}}
+  auto DE = sycl::info::device::extensions;
+
   // expected-warning@+4{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}
   // expected-warning@+3{{'atomic_fence' is deprecated: use sycl::atomic_fence instead}}
   // expected-warning@+2{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}

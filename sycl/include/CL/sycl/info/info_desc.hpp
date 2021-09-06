@@ -30,8 +30,8 @@ enum class platform {
   name        = PI_PLATFORM_INFO_NAME,
   vendor      = PI_PLATFORM_INFO_VENDOR,
   extensions __SYCL2020_DEPRECATED(
-      "platform::extensions is deprecated, use device::get_info() with
-      info::device::aspects instead.") =
+      "platform::extensions is deprecated, use device::get_info() with"
+      " info::device::aspects instead.") =
       PI_PLATFORM_INFO_EXTENSIONS,
 };
 
@@ -117,8 +117,8 @@ enum class device : cl_device_info {
   version = CL_DEVICE_VERSION,
   opencl_c_version = CL_DEVICE_OPENCL_C_VERSION,
   extensions __SYCL2020_DEPRECATED(
-      "device::extensions is deprecated, use info::device::aspects
-      instead.") = CL_DEVICE_EXTENSIONS,
+      "device::extensions is deprecated, use info::device::aspects"
+      " instead.") = CL_DEVICE_EXTENSIONS,
   printf_buffer_size = CL_DEVICE_PRINTF_BUFFER_SIZE,
   preferred_interop_user_sync = CL_DEVICE_PREFERRED_INTEROP_USER_SYNC,
   parent_device = CL_DEVICE_PARENT_DEVICE,
