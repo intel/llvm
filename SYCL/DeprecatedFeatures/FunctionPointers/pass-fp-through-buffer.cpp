@@ -1,7 +1,8 @@
+// REQUIRES: TEMPORARILY_DISABLED
 // UNSUPPORTED: cuda || rocm
 // CUDA does not support the function pointer as kernel argument extension.
 
-// RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl %s -o %t.out
+// RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl -D__SYCL_INTERNAL_API %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -9,6 +10,7 @@
 // corresponding extension is implemented
 
 #include <CL/sycl.hpp>
+#include <sycl/ext/oneapi/__function_pointers.hpp>
 
 #include <algorithm>
 #include <iostream>
