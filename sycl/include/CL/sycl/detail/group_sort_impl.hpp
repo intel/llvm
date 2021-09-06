@@ -109,7 +109,6 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
     const std::size_t l_shift_1 = local_start_1 - start_1;
     const std::size_t l_shift_2 = l_search_bound_2 - start_2;
 
-    // out_acc1[start_out + l_shift_1 + l_shift_2] = local_l_item_1;
     set_value(out_acc1, start_out + l_shift_1 + l_shift_2, local_l_item_1,
               is_first);
 
@@ -122,7 +121,6 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       const auto r_shift_1 = local_end_1 - 1 - start_1;
       const auto r_shift_2 = r_search_bound_2 - start_2;
 
-      // out_acc1[start_out + r_shift_1 + r_shift_2] = local_r_item_1;
       set_value(out_acc1, start_out + r_shift_1 + r_shift_2, local_r_item_1,
                 is_first);
     }
