@@ -594,6 +594,9 @@ extern SYCL_EXTERNAL void
 __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
                      size_t NumBytes) noexcept;
 
+extern SYCL_EXTERNAL uint16_t __spirv_ConvertFToBF16INTEL(float) noexcept;
+extern SYCL_EXTERNAL float __spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
+
 #else // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>

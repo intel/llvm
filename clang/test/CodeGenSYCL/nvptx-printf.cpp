@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple nvptx64-nvidia-cuda-sycldevice -std=c++11 -S -emit-llvm -x c++ %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple nvptx64-nvidia-cuda -std=c++11 -S -emit-llvm -x c++ %s -o - | FileCheck %s
 
 #include "Inputs/sycl.hpp"
 

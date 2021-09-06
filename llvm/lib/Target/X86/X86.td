@@ -170,6 +170,14 @@ def FeatureVP2INTERSECT  : SubtargetFeature<"avx512vp2intersect",
                                             "HasVP2INTERSECT", "true",
                                             "Enable AVX-512 vp2intersect",
                                             [FeatureAVX512]>;
+// FIXME: FP16 scalar intrinsics use the type v8f16, which is supposed to be
+// guarded under condition hasVLX. So we imply it in FeatureFP16 currently.
+// FIXME: FP16 conversion between f16 and i64 customize type v8i64, which is
+// supposed to be guarded under condition hasDQI. So we imply it in FeatureFP16
+// currently.
+def FeatureFP16    : SubtargetFeature<"avx512fp16", "HasFP16", "true",
+                           "Support 16-bit floating point",
+                           [FeatureBWI, FeatureVLX, FeatureDQI]>;
 def FeaturePCLMUL  : SubtargetFeature<"pclmul", "HasPCLMUL", "true",
                          "Enable packed carry-less multiplication instructions",
                                [FeatureSSE2]>;
@@ -604,6 +612,7 @@ include "X86ScheduleBdVer2.td"
 include "X86ScheduleBtVer2.td"
 include "X86SchedSkylakeClient.td"
 include "X86SchedSkylakeServer.td"
+include "X86SchedIceLake.td"
 
 //===----------------------------------------------------------------------===//
 // X86 Processor Feature Lists
@@ -821,6 +830,7 @@ def ProcessorFeatures {
                                                   FeatureCLDEMOTE,
                                                   FeatureWAITPKG,
                                                   FeaturePTWRITE,
+                                                  FeatureFP16,
                                                   FeatureAVXVNNI,
                                                   FeatureTSXLDTRK,
                                                   FeatureENQCMD,
@@ -1363,13 +1373,13 @@ def : ProcModel<"cooperlake", SkylakeServerModel,
                 ProcessorFeatures.CPXFeatures, ProcessorFeatures.CPXTuning>;
 def : ProcModel<"cannonlake", SkylakeServerModel,
                 ProcessorFeatures.CNLFeatures, ProcessorFeatures.CNLTuning>;
-def : ProcModel<"icelake-client", SkylakeServerModel,
+def : ProcModel<"icelake-client", IceLakeModel,
                 ProcessorFeatures.ICLFeatures, ProcessorFeatures.ICLTuning>;
-def : ProcModel<"rocketlake", SkylakeServerModel,
+def : ProcModel<"rocketlake", IceLakeModel,
                 ProcessorFeatures.ICLFeatures, ProcessorFeatures.ICLTuning>;
-def : ProcModel<"icelake-server", SkylakeServerModel,
+def : ProcModel<"icelake-server", IceLakeModel,
                 ProcessorFeatures.ICXFeatures, ProcessorFeatures.ICXTuning>;
-def : ProcModel<"tigerlake", SkylakeServerModel,
+def : ProcModel<"tigerlake", IceLakeModel,
                 ProcessorFeatures.TGLFeatures, ProcessorFeatures.TGLTuning>;
 def : ProcModel<"sapphirerapids", SkylakeServerModel,
                 ProcessorFeatures.SPRFeatures, ProcessorFeatures.SPRTuning>;

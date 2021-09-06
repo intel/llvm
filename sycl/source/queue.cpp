@@ -132,6 +132,19 @@ event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
   return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc);
 }
 
+event queue::submit_impl_and_postprocess(
+    function_class<void(handler &)> CGH, const detail::code_location &CodeLoc,
+    const SubmitPostProcessF &PostProcess) {
+  return impl->submit(CGH, impl, CodeLoc, &PostProcess);
+}
+
+event queue::submit_impl_and_postprocess(
+    function_class<void(handler &)> CGH, queue SecondQueue,
+    const detail::code_location &CodeLoc,
+    const SubmitPostProcessF &PostProcess) {
+  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, &PostProcess);
+}
+
 void queue::wait_proxy(const detail::code_location &CodeLoc) {
   impl->wait(CodeLoc);
 }
@@ -175,5 +188,8 @@ backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle queue::getNative() const { return impl->getNative(); }
 
+buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
+  return impl->getAssertHappenedBuffer();
+}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

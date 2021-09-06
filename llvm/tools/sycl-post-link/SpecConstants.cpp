@@ -320,24 +320,28 @@ void collectCompositeElementsDefaultValuesRecursive(
   } else { // Assume that we encountered some scalar element
     int NumBytes = Ty->getScalarSizeInBits() / CHAR_BIT +
                    (Ty->getScalarSizeInBits() % 8 != 0);
-    char *CharPtr = nullptr;
 
     if (auto IntConst = dyn_cast<ConstantInt>(C)) {
       auto Val = IntConst->getValue().getZExtValue();
-      CharPtr = reinterpret_cast<char *>(&Val);
+      std::copy_n(reinterpret_cast<char *>(&Val), NumBytes,
+                  std::back_inserter(DefaultValues));
     } else if (auto FPConst = dyn_cast<ConstantFP>(C)) {
       auto Val = FPConst->getValue();
 
       if (NumBytes == 4) {
         float v = Val.convertToFloat();
-        CharPtr = reinterpret_cast<char *>(&v);
+        std::copy_n(reinterpret_cast<char *>(&v), NumBytes,
+                    std::back_inserter(DefaultValues));
       } else if (NumBytes == 8) {
         double v = Val.convertToDouble();
-        CharPtr = reinterpret_cast<char *>(&v);
+        std::copy_n(reinterpret_cast<char *>(&v), NumBytes,
+                    std::back_inserter(DefaultValues));
+      } else {
+        llvm_unreachable("Unexpected constant floating point type");
       }
+    } else {
+      llvm_unreachable("Unexpected constant scalar type");
     }
-    assert(CharPtr && "Unexpected constant type");
-    std::copy_n(CharPtr, NumBytes, std::back_inserter(DefaultValues));
     Offset += NumBytes;
   }
 }

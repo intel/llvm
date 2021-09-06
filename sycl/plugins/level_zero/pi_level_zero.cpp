@@ -60,10 +60,14 @@ static const bool UseCopyEngineForD2DCopy = [] {
   return (CopyEngineForD2DCopy && (std::stoi(CopyEngineForD2DCopy) != 0));
 }();
 
-static const bool CopyEngineRequested = [] {
-  const char *CopyEngine = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
-  bool UseCopyEngine = (!CopyEngine || (std::stoi(CopyEngine) != 0));
-  return UseCopyEngine;
+// This is an experimental option that allows the use of copy engine, if
+// available in the device, in Level Zero plugin for copy operations submitted
+// to an in-order queue. The default is 1.
+static const bool UseCopyEngineForInOrderQueue = [] {
+  const char *CopyEngineForInOrderQueue =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_IN_ORDER_QUEUE");
+  return (!CopyEngineForInOrderQueue ||
+          (std::stoi(CopyEngineForInOrderQueue) != 0));
 }();
 
 // This class encapsulates actions taken along with a call to Level Zero API.
@@ -290,6 +294,48 @@ private:
 };
 
 } // anonymous namespace
+
+// SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE can be set to an integer value, or
+// a pair of integer values of the form "lower_index:upper_index".
+// Here, the indices point to copy engines in a list of all available copy
+// engines.
+// This functions returns this pair of indices.
+// If the user specifies only a single integer, a value of 0 indicates that
+// the copy engines will not be used at all. A value of 1 indicates that all
+// available copy engines can be used.
+static const std::pair<int, int> getRangeOfAllowedCopyEngines = [] {
+  const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  // If the environment variable is not set, all available copy engines can be
+  // used.
+  if (!EnvVar)
+    return std::pair<int, int>(0, INT_MAX);
+  std::string CopyEngineRange = EnvVar;
+  // Environment variable can be a single integer or a pair of integers
+  // separated by ":"
+  auto pos = CopyEngineRange.find(":");
+  if (pos == std::string::npos) {
+    bool UseCopyEngine = (std::stoi(CopyEngineRange) != 0);
+    if (UseCopyEngine)
+      return std::pair<int, int>(0, INT_MAX); // All copy engines can be used.
+    return std::pair<int, int>(-1, -1);       // No copy engines will be used.
+  }
+  int LowerCopyEngineIndex = std::stoi(CopyEngineRange.substr(0, pos));
+  int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
+  if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
+      (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
+    zePrint("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
+            "default set.\n");
+    LowerCopyEngineIndex = 0;
+    UpperCopyEngineIndex = INT_MAX;
+  }
+  return std::pair<int, int>(LowerCopyEngineIndex, UpperCopyEngineIndex);
+}();
+
+static const bool CopyEngineRequested = [] {
+  int LowerCopyQueueIndex = getRangeOfAllowedCopyEngines.first;
+  int UpperCopyQueueIndex = getRangeOfAllowedCopyEngines.second;
+  return ((LowerCopyQueueIndex != -1) || (UpperCopyQueueIndex != -1));
+}();
 
 // Global variables used in PI_Level_Zero
 // Note we only create a simple pointer variables such that C++ RT won't
@@ -764,6 +810,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
       ZE_CALL(zeHostSynchronize, (Event->ZeEvent));
       Event->cleanup(this);
     }
+    Event->ZeCommandList = nullptr;
     PI_CALL(EventRelease(Event, this));
   }
   EventList.clear();
@@ -833,7 +880,9 @@ pi_result _pi_context::getAvailableCommandList(
     if (auto Res = Queue->executeOpenCommandList())
       return Res;
   }
-  bool UseCopyEngine = PreferCopyEngine && Queue->Device->hasCopyEngine();
+  bool UseCopyEngine =
+      (!(Queue->isInOrderQueue()) || UseCopyEngineForInOrderQueue) &&
+      PreferCopyEngine && Queue->Device->hasCopyEngine();
 
   // Create/Reuse the command list, because in Level Zero commands are added to
   // the command lists, and later are then added to the command queue.
@@ -876,7 +925,11 @@ pi_result _pi_context::getAvailableCommandList(
 
         ze_fence_handle_t ZeFence;
         ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
-        Queue->CommandListMap[ZeCommandList] = {ZeFence, true, CopyQueueIndex};
+        CommandList =
+            Queue->CommandListMap
+                .emplace(ZeCommandList,
+                         pi_command_list_info_t{ZeFence, true, CopyQueueIndex})
+                .first;
       }
       ZeCommandListCache.pop_front();
       return PI_SUCCESS;
@@ -938,7 +991,7 @@ pi_result _pi_context::getAvailableCommandList(
     ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
     std::tie(CommandList, std::ignore) = Queue->CommandListMap.insert(
         std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
-            ZeCommandList, {ZeFence, false, CopyQueueIndex}));
+            ZeCommandList, {ZeFence, true, CopyQueueIndex}));
     pi_result = PI_SUCCESS;
   }
 
@@ -1099,13 +1152,21 @@ _pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
                                  int *CopyQueueGroupIndex) {
   assert(CopyQueueIndex);
   int n = ZeCopyCommandQueues.size();
-  // Return nullptr when no copy command queues are available
-  if (n == 0) {
+  int LowerCopyQueueIndex = getRangeOfAllowedCopyEngines.first;
+  int UpperCopyQueueIndex = getRangeOfAllowedCopyEngines.second;
+
+  // Return nullptr when no copy command queues are allowed to be used or if
+  // no copy command queues are available.
+  if ((LowerCopyQueueIndex == -1) || (UpperCopyQueueIndex == -1) || (n == 0)) {
     if (CopyQueueGroupIndex)
       *CopyQueueGroupIndex = -1;
     *CopyQueueIndex = -1;
     return nullptr;
   }
+
+  LowerCopyQueueIndex = std::max(0, LowerCopyQueueIndex);
+  UpperCopyQueueIndex = std::min(UpperCopyQueueIndex, n - 1);
+
   // If there is only one copy queue, it is the main copy queue, which is the
   // first, and only entry in ZeCopyCommandQueues.
   if (n == 1) {
@@ -1118,23 +1179,27 @@ _pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
 
   // Round robin logic is used here to access copy command queues.
   // Initial value of LastUsedCopyCommandQueueIndex is -1.
-  // So, the round robin logic will start its access at 0th queue.
+  // So, the round robin logic will start its access at 'LowerCopyQueueIndex'
+  // queue.
   // TODO: In this implementation, all the copy engines (main and link)
   // have equal priority. It is expected that main copy engine will be
   // advantageous for H2D and D2H copies, whereas the link copy engines will
   // be advantageous for D2D. We will perform experiments and then assign
   // priority to different copy engines for different types of copy operations.
-  if (LastUsedCopyCommandQueueIndex == (n - 1))
-    *CopyQueueIndex = 0;
+  if ((LastUsedCopyCommandQueueIndex == -1) ||
+      (LastUsedCopyCommandQueueIndex == UpperCopyQueueIndex))
+    *CopyQueueIndex = LowerCopyQueueIndex;
   else
     *CopyQueueIndex = LastUsedCopyCommandQueueIndex + 1;
   LastUsedCopyCommandQueueIndex = *CopyQueueIndex;
   zePrint("Note: CopyQueueIndex = %d\n", *CopyQueueIndex);
   if (CopyQueueGroupIndex)
-    // Last queue in the vector of copy queues is the main copy queue.
-    *CopyQueueGroupIndex = (*CopyQueueIndex == (n - 1))
-                               ? Device->ZeMainCopyQueueGroupIndex
-                               : Device->ZeLinkCopyQueueGroupIndex;
+    // First queue in the vector of copy queues is the main copy queue,
+    // if available. Otherwise it's a link copy queue.
+    *CopyQueueGroupIndex =
+        ((*CopyQueueIndex == 0) && Device->hasMainCopyEngine())
+            ? Device->ZeMainCopyQueueGroupIndex
+            : Device->ZeLinkCopyQueueGroupIndex;
   return ZeCopyCommandQueues[*CopyQueueIndex];
 }
 
@@ -1176,6 +1241,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
 
     if (EventListLength > 0) {
       for (pi_uint32 I = 0; I < EventListLength; I++) {
+        PI_ASSERT(EventList[I] != nullptr, PI_INVALID_VALUE);
         auto ZeEvent = EventList[I]->ZeEvent;
 
         if (FilterEventWaitList) {
@@ -2595,24 +2661,34 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
            &ZeCommandQueueDesc, // TODO: translate properties
            &ZeComputeCommandQueue));
 
-  // Create second queue to main copy engine
+  std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
+
+  // Create queue to main copy engine
   ze_command_queue_handle_t ZeMainCopyCommandQueue = nullptr;
-  if (Device->hasCopyEngine()) {
+  if (Device->hasMainCopyEngine()) {
+    zePrint("NOTE: Main Copy Engine ZeCommandQueueDesc.ordinal = %d, "
+            "ZeCommandQueueDesc.index = %d\n",
+            Device->ZeMainCopyQueueGroupIndex, 0);
     ZeCommandQueueDesc.ordinal = Device->ZeMainCopyQueueGroupIndex;
     ZeCommandQueueDesc.index = 0;
     ZE_CALL(zeCommandQueueCreate,
             (Context->ZeContext, ZeDevice,
              &ZeCommandQueueDesc, // TODO: translate properties
              &ZeMainCopyCommandQueue));
+    // Main Copy Command Queue is pushed at start of ZeCopyCommandQueues
+    // vector.
+    ZeCopyCommandQueues.push_back(ZeMainCopyCommandQueue);
   }
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   // Create additional queues to link copy engines and push them into
   // ZeCopyCommandQueues vector.
-  std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
-  if (Device->hasCopyEngine()) {
+  if (Device->hasLinkCopyEngine()) {
     auto ZeNumLinkCopyQueues = Device->ZeLinkCopyQueueGroupProperties.numQueues;
     for (uint32_t i = 0; i < ZeNumLinkCopyQueues; ++i) {
+      zePrint("NOTE: Link Copy Engine ZeCommandQueueDesc.ordinal = %d, "
+              "ZeCommandQueueDesc.index = %d\n",
+              Device->ZeLinkCopyQueueGroupIndex, i);
       ze_command_queue_handle_t ZeLinkCopyCommandQueue = nullptr;
       ZeCommandQueueDesc.ordinal = Device->ZeLinkCopyQueueGroupIndex;
       ZeCommandQueueDesc.index = i;
@@ -2622,9 +2698,6 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
                &ZeLinkCopyCommandQueue));
       ZeCopyCommandQueues.push_back(ZeLinkCopyCommandQueue);
     }
-    // Main Copy Command Queue is pushed at the end of ZeCopyCommandQueues
-    // vector.
-    ZeCopyCommandQueues.push_back(ZeMainCopyCommandQueue);
   }
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
@@ -2675,31 +2748,26 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
 pi_result piQueueRetain(pi_queue Queue) {
   // Lock automatically releases when this goes out of scope.
   std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
-
+  Queue->RefCountExternal++;
   piQueueRetainNoLock(Queue);
   return PI_SUCCESS;
 }
 
 pi_result piQueueRelease(pi_queue Queue) {
-  return QueueRelease(Queue, nullptr);
-}
-
-static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-  // We need to use a bool variable here to check the condition that
-  // RefCount becomes zero atomically with PiQueueMutex lock.
-  // Then, we can release the lock before we remove the Queue below.
-  bool RefCountZero = false;
   {
-    auto Lock = ((Queue == LockedQueue)
-                     ? std::unique_lock<std::mutex>()
-                     : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
+    // Have this scope such that the lock is released before the
+    // queue is potentially deleted in QueueRelease.
+    // Lock automatically releases when this goes out of scope.
+    std::lock_guard<std::mutex> lock(Queue->PiQueueMutex);
 
-    Queue->RefCount--;
-    if (Queue->RefCount == 0)
-      RefCountZero = true;
-
-    if (RefCountZero) {
+    Queue->RefCountExternal--;
+    if (Queue->RefCountExternal == 0) {
+      // When external reference count goes to zero it is still possible
+      // that internal references still exists, e.g. command-lists that
+      // are not yet completed. So do full queue synchronization here
+      // and perform proper cleanup.
+      //
       // It is possible to get to here and still have an open command list
       // if no wait or finish ever occurred for this queue.
       if (auto Res = Queue->executeOpenCommandList())
@@ -2722,6 +2790,29 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
         ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
       }
       Queue->CommandListMap.clear();
+    }
+  }
+  PI_CALL(QueueRelease(Queue, nullptr));
+  return PI_SUCCESS;
+}
+
+static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
+  PI_ASSERT(Queue, PI_INVALID_QUEUE);
+  PI_ASSERT(Queue->RefCount, PI_INVALID_QUEUE);
+
+  // We need to use a bool variable here to check the condition that
+  // RefCount becomes zero atomically with PiQueueMutex lock.
+  // Then, we can release the lock before we remove the Queue below.
+  bool RefCountZero = false;
+  {
+    // Lock automatically releases when this goes out of scope.
+    auto Lock = ((Queue == LockedQueue)
+                     ? std::unique_lock<std::mutex>()
+                     : std::unique_lock<std::mutex>(Queue->PiQueueMutex));
+
+    Queue->RefCount--;
+    if (Queue->RefCount == 0) {
+      RefCountZero = true;
 
       if (Queue->OwnZeCommandQueue) {
         ZE_CALL(zeCommandQueueDestroy, (Queue->ZeComputeCommandQueue));
@@ -2740,9 +2831,9 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
               Queue->NumTimesClosedFull, Queue->NumTimesClosedEarly);
     }
   }
-
   if (RefCountZero)
     delete Queue;
+
   return PI_SUCCESS;
 }
 
@@ -5228,10 +5319,7 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
                                                           EventWaitList, Queue))
     return Res;
 
-  // TODO: Fill operations on copy engine fails to fill a buffer at expected
-  // offset. Perform fill operations on compute engine for now.
-  // PreferCopyEngine will be initialized with 'true' once issue is resolved.
-  bool PreferCopyEngine = false;
+  bool PreferCopyEngine = true;
   size_t MaxPatternSize =
       Queue->Device->ZeComputeQueueGroupProperties.maxMemoryFillPatternSize;
 
@@ -5407,6 +5495,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   if (Event) {
     (*Event)->ZeCommandList = CommandList->first;
     CommandList->second.append(*Event);
+    PI_CALL(piEventRetain(*Event));
   }
 
   if (Buffer->MapHostPtr) {
@@ -5525,6 +5614,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
   // Set the commandlist in the event
   (*Event)->ZeCommandList = CommandList->first;
   CommandList->second.append(*Event);
+  PI_CALL(piEventRetain(*Event));
 
   const auto &ZeCommandList = CommandList->first;
   if ((*Event)->WaitList.Length) {
@@ -6316,7 +6406,13 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr) {
     return PI_SUCCESS;
   }
 
-  if (ZeDeviceHandle) {
+  if (!ZeDeviceHandle) {
+    // The only case where it is OK not have device identified is
+    // if the memory is not known to the driver. We should not ever get
+    // this either, probably.
+    PI_ASSERT(ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN,
+              PI_INVALID_DEVICE);
+  } else {
     pi_device Device;
     if (Context->Devices.size() == 1) {
       Device = Context->Devices[0];

@@ -395,4 +395,16 @@ install(DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
 				COMPONENT clc-builtins
 				FILES_MATCHING PATTERN "clc-*")
 
+if( LIBCLC_GENERATE_REMANGLED_VARIANTS )
+	install(DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+					DESTINATION lib${LLVM_LIBDIR_SUFFIX}
+					COMPONENT libspirv-builtins
+					FILES_MATCHING PATTERN "remangled-*libspirv-*")
+
+	install(DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+					DESTINATION lib${LLVM_LIBDIR_SUFFIX}
+					COMPONENT clc-builtins
+					FILES_MATCHING PATTERN "remangled-*clc-*")
+endif()
+
 add_subdirectory(test)

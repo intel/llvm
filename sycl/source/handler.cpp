@@ -15,6 +15,7 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stream.hpp>
+#include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -135,13 +136,15 @@ event handler::finalize() {
   switch (getType()) {
   case detail::CG::Kernel:
   case detail::CG::RunOnHostIntel: {
+    // Copy kernel name here instead of move so that it's available after
+    // running of this method by reductions implementation. This allows for
+    // assert feature to check if kernel uses assertions
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), std::move(MArgs), std::move(MKernelName),
-        std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType,
-        MCodeLoc));
+        std::move(MEvents), std::move(MArgs), MKernelName, MOSModuleHandle,
+        std::move(MStreamStorage), MCGType, MCodeLoc));
     break;
   }
   case detail::CG::CodeplayInteropTask:
@@ -494,6 +497,21 @@ void handler::barrier(const std::vector<event> &WaitList) {
   std::transform(
       WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
       [](const event &Event) { return detail::getSyclObjImpl(Event); });
+}
+
+using namespace sycl::detail;
+bool handler::DisableRangeRounding() {
+  return SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>::get();
+}
+
+bool handler::RangeRoundingTrace() {
+  return SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE>::get();
+}
+
+void handler::GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
+                                       size_t &MinRange) {
+  SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
+      MinFactor, GoodFactor, MinRange);
 }
 
 void handler::memcpy(void *Dest, const void *Src, size_t Count) {

@@ -106,12 +106,27 @@ inline pi_result redefinedEventsWaitCommon(pi_uint32 num_events,
 }
 
 inline pi_result redefinedEventReleaseCommon(pi_event event) {
+  if (event != nullptr)
+    delete reinterpret_cast<int *>(event);
   return PI_SUCCESS;
 }
 
 inline pi_result redefinedEnqueueKernelLaunchCommon(
     pi_queue, pi_kernel, pi_uint32, const size_t *, const size_t *,
-    const size_t *, pi_uint32, const pi_event *, pi_event *) {
+    const size_t *, pi_uint32, const pi_event *, pi_event *event) {
+  *event = reinterpret_cast<pi_event>(new int{});
+  return PI_SUCCESS;
+}
+
+inline pi_result redefinedKernelGetGroupInfoCommon(
+    pi_kernel kernel, pi_device device, pi_kernel_group_info param_name,
+    size_t param_value_size, void *param_value, size_t *param_value_size_ret) {
+  if (param_name == PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE && param_value) {
+    auto RealVal = reinterpret_cast<size_t *>(param_value);
+    RealVal[0] = 0;
+    RealVal[1] = 0;
+    RealVal[2] = 0;
+  }
   return PI_SUCCESS;
 }
 
@@ -128,6 +143,8 @@ inline void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
   Mock.redefine<PiApiKind::piKernelRetain>(redefinedKernelRetainCommon);
   Mock.redefine<PiApiKind::piKernelRelease>(redefinedKernelReleaseCommon);
   Mock.redefine<PiApiKind::piKernelGetInfo>(redefinedKernelGetInfoCommon);
+  Mock.redefine<PiApiKind::piKernelGetGroupInfo>(
+      redefinedKernelGetGroupInfoCommon);
   Mock.redefine<PiApiKind::piKernelSetExecInfo>(
       redefinedKernelSetExecInfoCommon);
   Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWaitCommon);

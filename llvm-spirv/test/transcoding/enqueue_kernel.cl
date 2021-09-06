@@ -2,6 +2,7 @@
 // RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt
 // RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.bc -o %t.spv
+// RUN: spirv-val %t.spv
 // RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 // RUN: llvm-dis %t.rev.bc
 // RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
@@ -60,7 +61,8 @@ kernel void device_side_enqueue(global int *a, global int *b, int i, char c0) {
   //                            [[BlockKer1]] [[BlockLit1]] [[ConstInt17]] [[ConstInt8]]
 
   // CHECK-LLVM: [[Block2:%[0-9]+]] = bitcast [[BlockTy2]]* %block to %struct.__opencl_block_literal_generic*
-  // CHECK-LLVM: [[Block2Ptr:%[0-9]+]] = addrspacecast %struct.__opencl_block_literal_generic* [[Block2]] to i8 addrspace(4)*
+  // CHECK-LLVM: [[InterCast2:%[0-9]+]] = bitcast %struct.__opencl_block_literal_generic* [[Block2]] to i8
+  // CHECK-LLVM: [[Block2Ptr:%[0-9]+]] = addrspacecast i8* [[InterCast2]] to i8 addrspace(4)*
   // CHECK-LLVM: [[BlockInv2:%[0-9]+]] = addrspacecast void (i8 addrspace(4)*)* @__device_side_enqueue_block_invoke_kernel to i8 addrspace(4)*
   // CHECK-LLVM: call i32 @__enqueue_kernel_basic(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i8 addrspace(4)* [[BlockInv2]], i8 addrspace(4)* [[Block2Ptr]])
   enqueue_kernel(default_queue, flags, ndrange,
@@ -79,7 +81,8 @@ kernel void device_side_enqueue(global int *a, global int *b, int i, char c0) {
   //                            [[BlockKer2]] [[BlockLit2]] [[ConstInt20]] [[ConstInt8]]
 
   // CHECK-LLVM: [[Block3:%[0-9]+]] = bitcast [[BlockTy3]]* %block4 to %struct.__opencl_block_literal_generic*
-  // CHECK-LLVM: [[Block3Ptr:%[0-9]+]] = addrspacecast %struct.__opencl_block_literal_generic* [[Block3]] to i8 addrspace(4)
+  // CHECK-LLVM: [[InterCast3:%[0-9]+]] = bitcast %struct.__opencl_block_literal_generic* [[Block3]] to i8
+  // CHECK-LLVM: [[Block3Ptr:%[0-9]+]] = addrspacecast i8* [[InterCast3]] to i8 addrspace(4)
   // CHECK-LLVM: [[BlockInv3:%[0-9]+]] = addrspacecast void (i8 addrspace(4)*)* @__device_side_enqueue_block_invoke_2_kernel to i8 addrspace(4)*
   // CHECK-LLVM: call i32 @__enqueue_kernel_basic_events(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 2, %opencl.clk_event_t* addrspace(4)* {{.*}}, %opencl.clk_event_t* addrspace(4)* {{.*}}, i8 addrspace(4)* [[BlockInv3]], i8 addrspace(4)* [[Block3Ptr]])
   enqueue_kernel(default_queue, flags, ndrange, 2, &event_wait_list, &clk_event,
@@ -140,7 +143,8 @@ kernel void device_side_enqueue(global int *a, global int *b, int i, char c0) {
   //                            [[BlockKer5]] [[BlockLit5]] [[ConstInt20]] [[ConstInt8]]
 
   // CHECK-LLVM: [[Block5:%[0-9]+]] = bitcast [[BlockTy3]]* %block15 to %struct.__opencl_block_literal_generic*
-  // CHECK-LLVM: [[Block5Ptr:%[0-9]+]] = addrspacecast %struct.__opencl_block_literal_generic* [[Block5]] to i8 addrspace(4)
+  // CHECK-LLVM: [[InterCast5:%[0-9]+]] = bitcast %struct.__opencl_block_literal_generic* [[Block5]] to i8
+  // CHECK-LLVM: [[Block5Ptr:%[0-9]+]] = addrspacecast i8* [[InterCast5]] to i8 addrspace(4)
   // CHECK-LLVM: [[BlockInv5:%[0-9]+]] = addrspacecast void (i8 addrspace(4)*)* @__device_side_enqueue_block_invoke_5_kernel to i8 addrspace(4)*
   // CHECK-LLVM: call i32 @__enqueue_kernel_basic_events(%opencl.queue_t* {{.*}}, i32 {{.*}}, %struct.ndrange_t* {{.*}}, i32 0, %opencl.clk_event_t* addrspace(4)* null, %opencl.clk_event_t* addrspace(4)* {{.*}}, i8 addrspace(4)* [[BlockInv5]], i8 addrspace(4)* [[Block5Ptr]])
   enqueue_kernel(default_queue, flags, ndrange, 0, NULL, &clk_event,

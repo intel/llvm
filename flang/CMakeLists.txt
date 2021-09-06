@@ -72,6 +72,7 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   include(AddLLVM)
   include(HandleLLVMOptions)
   include(VersionFromVCS)
+  include(GetErrcMessages)
 
   include(AddClang)
 
@@ -131,6 +132,8 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   option(FLANG_INCLUDE_TESTS
          "Generate build targets for the Flang unit tests."
          ON)
+
+  get_errc_messages(LLVM_LIT_ERRC_MESSAGES)
 
 #Handle unittests when out-of-tree
 #LLVM_BUILD_MAIN_SRC_DIR - Path to llvm source when out-of-tree.
@@ -390,6 +393,11 @@ if (FLANG_BUILD_TOOLS)
   add_subdirectory(tools)
 endif()
 add_subdirectory(runtime)
+
+option(FLANG_BUILD_EXAMPLES "Build Flang example programs by default." OFF)
+if (FLANG_BUILD_EXAMPLES AND FLANG_STANDALONE_BUILD)
+  message(FATAL_ERROR "Examples are not supported in out-of-tree builds.")
+endif()
 add_subdirectory(examples)
 
 if (FLANG_INCLUDE_TESTS)

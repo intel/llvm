@@ -39,7 +39,7 @@
 #pragma OPENCL EXTENSION __cl_clang_bitfields : enable
 
 // TODO: Temporarily disabling the following test as a work around for the
-// SYCL codepath until the cl_khr_fp16 is restricted to only the sycldevice triple.
+// SYCL codepath until the cl_khr_fp16 is restricted to only SYCL mode.
 // link to issue https://github.com/intel/llvm/issues/1814
 
 // #ifdef cl_khr_fp16
@@ -49,7 +49,7 @@
 
 // TODO: Temporarily disabling the following two tests as a work around for the
 // SYCL codepath until the cl_khr_int64_base_atomics and
-// cl_khr_int64_extended_atomics are restricted to only the sycldevice triple.
+// cl_khr_int64_extended_atomics are restricted to only SYCL mode.
 
 //#ifdef cl_khr_int64_base_atomics
 //#error "Incorrect cl_khr_int64_base_atomics define"
@@ -116,7 +116,7 @@
 
 // TODO: Temporarily disabling the following test as a work around for the
 // SYCL codepath until the cl_khr_3d_image_writes is restricted to
-// only the sycldevice triple.
+// only SYCL mode.
 
 // Core feature in CL 2.0, but not supported on nvptx
 // #ifdef cl_khr_3d_image_writes
