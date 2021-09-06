@@ -183,7 +183,7 @@ void bubble_sort(Iter first, const std::size_t begin, const std::size_t end,
 
 template <typename Group, typename Iter, typename Compare>
 void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
-                std::uint8_t *scratch) {
+                std::byte *scratch) {
   using T = typename GetValueType<Iter>::type;
   auto id = sycl::detail::Builder::getNDItem<Group::dimensions>();
   const std::size_t idx = id.get_local_id();

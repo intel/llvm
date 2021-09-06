@@ -19,24 +19,24 @@ namespace experimental {
 // ---- group helpers
 template <typename Group, std::size_t Extent> class group_with_scratchpad {
   Group g;
-  sycl::span<std::uint8_t, Extent> scratch;
+  sycl::span<std::byte, Extent> scratch;
 
 public:
-  group_with_scratchpad(Group g_, sycl::span<std::uint8_t, Extent> scratch_)
+  group_with_scratchpad(Group g_, sycl::span<std::byte, Extent> scratch_)
       : g(g_), scratch(scratch_) {}
   Group get_group() const { return g; }
-  sycl::span<std::uint8_t, Extent> get_memory() const { return scratch; }
+  sycl::span<std::byte, Extent> get_memory() const { return scratch; }
 };
 
 // ---- sorters
 template <typename Compare = std::less<>> class default_sorter {
   Compare comp;
-  std::uint8_t *scratch;
+  std::byte *scratch;
   std::size_t scratch_size;
 
 public:
   template <std::size_t Extent>
-  default_sorter(sycl::span<std::uint8_t, Extent> scratch_,
+  default_sorter(sycl::span<std::byte, Extent> scratch_,
                  Compare comp_ = Compare())
       : comp(comp_), scratch(scratch_.data()), scratch_size(scratch_.size()) {}
 
@@ -51,9 +51,9 @@ public:
     (void)g;
     (void)first;
     (void)last;
-    throw runtime_error(
-        "default_sorter constructor is not supported on host device.",
-        PI_INVALID_DEVICE);
+    throw sycl::exception(std::error_code(PI_INVALID_DEVICE, sycl::sycl_category()),
+        "default_sorter constructor is not supported on host device.");
+
 #endif
   }
 
@@ -72,10 +72,8 @@ public:
     // TODO: it's better to add else branch
 #else
     (void)g;
-    (void)val;
-    throw runtime_error(
-        "default_sorter operator() is not supported on host device.",
-        PI_INVALID_DEVICE);
+    throw sycl::exception(std::error_code(PI_INVALID_DEVICE, sycl::sycl_category()),
+        "default_sorter operator() is not supported on host device.");
 #endif
     return val;
   }
