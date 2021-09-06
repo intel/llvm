@@ -31,6 +31,8 @@ enum functions_t {
   XPTI_ADD_METADATA,
   XPTI_QUERY_METADATA,
   XPTI_TRACE_ENABLED,
+  XPTI_REGISTER_PAYLOAD,
+  XPTI_QUERY_PAYLOAD_BY_UID,
 
   // All additional functions need to appear before
   // the XPTI_FW_API_COUNT enum
@@ -45,6 +47,7 @@ class ProxyLoader {
       {XPTI_GET_UNIQUE_ID, "xptiGetUniqueId"},
       {XPTI_REGISTER_STRING, "xptiRegisterString"},
       {XPTI_LOOKUP_STRING, "xptiLookupString"},
+      {XPTI_REGISTER_PAYLOAD, "xptiRegisterPayload"},
       {XPTI_REGISTER_STREAM, "xptiRegisterStream"},
       {XPTI_UNREGISTER_STREAM, "xptiUnregisterStream"},
       {XPTI_REGISTER_USER_DEFINED_TP, "xptiRegisterUserDefinedTracePoint"},
@@ -52,6 +55,7 @@ class ProxyLoader {
       {XPTI_MAKE_EVENT, "xptiMakeEvent"},
       {XPTI_FIND_EVENT, "xptiFindEvent"},
       {XPTI_QUERY_PAYLOAD, "xptiQueryPayload"},
+      {XPTI_QUERY_PAYLOAD_BY_UID, "xptiQueryPayloadByUID"},
       {XPTI_REGISTER_CALLBACK, "xptiRegisterCallback"},
       {XPTI_UNREGISTER_CALLBACK, "xptiUnregisterCallback"},
       {XPTI_NOTIFY_SUBSCRIBERS, "xptiNotifySubscribers"},
@@ -203,6 +207,16 @@ XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t id) {
   return nullptr;
 }
 
+XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload) {
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_REGISTER_PAYLOAD);
+    if (f) {
+      return (*(xpti_register_payload_t)f)(payload);
+    }
+  }
+  return xpti::invalid_uid;
+}
+
 XPTI_EXPORT_API uint8_t xptiRegisterStream(const char *stream_name) {
   if (xpti::g_loader.noErrors()) {
     auto f = xpti::g_loader.functionByIndex(XPTI_REGISTER_STREAM);
@@ -251,6 +265,16 @@ xptiQueryPayload(xpti::trace_event_data_t *lookup_object) {
     auto f = xpti::g_loader.functionByIndex(XPTI_QUERY_PAYLOAD);
     if (f) {
       return (*(xpti_query_payload_t)f)(lookup_object);
+    }
+  }
+  return nullptr;
+}
+
+XPTI_EXPORT_API const xpti::payload_t *xptiQueryPayloadByUID(uint64_t uid) {
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_QUERY_PAYLOAD_BY_UID);
+    if (f) {
+      return (*(xpti_query_payload_by_uid_t)f)(uid);
     }
   }
   return nullptr;

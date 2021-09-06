@@ -9,25 +9,31 @@
 
 using namespace cl::sycl;
 
-template <typename T> void checkCommonBasicKnownIdentity() {
+template <typename T> void checkCommonKnownIdentity() {
   static_assert(has_known_identity<sycl::maximum<>, T>::value);
   static_assert(has_known_identity<sycl::maximum<T>, T>::value);
   static_assert(has_known_identity<sycl::minimum<>, T>::value);
   static_assert(has_known_identity<sycl::minimum<T>, T>::value);
-}
-
-template <typename T> void checkCommonKnownIdentity() {
-  checkCommonBasicKnownIdentity<T>();
 
   static_assert(has_known_identity<std::plus<>, T>::value);
   static_assert(has_known_identity<std::plus<T>, T>::value);
   static_assert(known_identity<std::plus<>, T>::value == 0);
   static_assert(known_identity<std::plus<T>, T>::value == 0);
 
+  static_assert(has_known_identity<sycl::plus<>, T>::value);
+  static_assert(has_known_identity<sycl::plus<T>, T>::value);
+  static_assert(known_identity<sycl::plus<>, T>::value == 0);
+  static_assert(known_identity<sycl::plus<T>, T>::value == 0);
+
   static_assert(has_known_identity<std::multiplies<>, T>::value);
   static_assert(has_known_identity<std::multiplies<T>, T>::value);
   static_assert(known_identity<std::multiplies<>, T>::value == 1);
   static_assert(known_identity<std::multiplies<T>, T>::value == 1);
+
+  static_assert(has_known_identity<sycl::multiplies<>, T>::value);
+  static_assert(has_known_identity<sycl::multiplies<T>, T>::value);
+  static_assert(known_identity<sycl::multiplies<>, T>::value == 1);
+  static_assert(known_identity<sycl::multiplies<T>, T>::value == 1);
 }
 
 template <typename T> void checkIntKnownIdentity() {
@@ -39,15 +45,52 @@ template <typename T> void checkIntKnownIdentity() {
   static_assert(known_identity<std::bit_and<>, T>::value == Ones);
   static_assert(known_identity<std::bit_and<T>, T>::value == Ones);
 
+  static_assert(has_known_identity<sycl::bit_and<>, T>::value);
+  static_assert(has_known_identity<sycl::bit_and<T>, T>::value);
+  static_assert(known_identity<sycl::bit_and<>, T>::value == Ones);
+  static_assert(known_identity<sycl::bit_and<T>, T>::value == Ones);
+
   static_assert(has_known_identity<std::bit_or<>, T>::value);
   static_assert(has_known_identity<std::bit_or<T>, T>::value);
   static_assert(known_identity<std::bit_or<>, T>::value == 0);
   static_assert(known_identity<std::bit_or<T>, T>::value == 0);
 
+  static_assert(has_known_identity<sycl::bit_or<>, T>::value);
+  static_assert(has_known_identity<sycl::bit_or<T>, T>::value);
+  static_assert(known_identity<sycl::bit_or<>, T>::value == 0);
+  static_assert(known_identity<sycl::bit_or<T>, T>::value == 0);
+
   static_assert(has_known_identity<std::bit_xor<>, T>::value);
   static_assert(has_known_identity<std::bit_xor<T>, T>::value);
   static_assert(known_identity<std::bit_xor<>, T>::value == 0);
   static_assert(known_identity<std::bit_xor<T>, T>::value == 0);
+
+  static_assert(has_known_identity<sycl::bit_xor<>, T>::value);
+  static_assert(has_known_identity<sycl::bit_xor<T>, T>::value);
+  static_assert(known_identity<sycl::bit_xor<>, T>::value == 0);
+  static_assert(known_identity<sycl::bit_xor<T>, T>::value == 0);
+}
+
+template <typename T> void checkBoolKnownIdentity() {
+  static_assert(has_known_identity<std::logical_and<>, T>::value);
+  static_assert(has_known_identity<std::logical_and<T>, T>::value);
+  static_assert(known_identity<std::logical_and<>, T>::value == true);
+  static_assert(known_identity<std::logical_and<T>, T>::value == true);
+
+  static_assert(has_known_identity<sycl::logical_and<>, T>::value);
+  static_assert(has_known_identity<sycl::logical_and<T>, T>::value);
+  static_assert(known_identity<sycl::logical_and<>, T>::value == true);
+  static_assert(known_identity<sycl::logical_and<T>, T>::value == true);
+
+  static_assert(has_known_identity<std::logical_or<>, T>::value);
+  static_assert(has_known_identity<std::logical_or<T>, T>::value);
+  static_assert(known_identity<std::logical_or<>, T>::value == false);
+  static_assert(known_identity<std::logical_or<T>, T>::value == false);
+
+  static_assert(has_known_identity<sycl::logical_or<>, T>::value);
+  static_assert(has_known_identity<sycl::logical_or<T>, T>::value);
+  static_assert(known_identity<sycl::logical_or<>, T>::value == false);
+  static_assert(known_identity<sycl::logical_or<T>, T>::value == false);
 }
 
 int main() {
@@ -94,9 +137,11 @@ int main() {
   checkCommonKnownIdentity<double>();
   checkCommonKnownIdentity<cl_double>();
 
-  checkCommonBasicKnownIdentity<half>();
-  checkCommonBasicKnownIdentity<sycl::cl_half>();
-  checkCommonBasicKnownIdentity<::cl_half>();
+  checkCommonKnownIdentity<half>();
+  checkCommonKnownIdentity<sycl::cl_half>();
+  checkCommonKnownIdentity<::cl_half>();
+
+  checkBoolKnownIdentity<bool>();
 
   // Few negative tests just to check that it does not always return true.
   static_assert(!has_known_identity<std::minus<>, int>::value);

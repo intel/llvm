@@ -2521,12 +2521,9 @@ it in an instantiation which changes its value.
 In order to produce the unique name, the current implementation of the bultin
 uses Itanium mangling even if the host compilation uses a different name
 mangling scheme at runtime. The mangler marks all the lambdas required to name
-the SYCL kernel and emits a stable local ordering of the respective lambdas,
-starting from ``10000``. The initial value of ``10000`` serves as an obvious
-differentiator from ordinary lambda mangling numbers but does not serve any
-other purpose and may change in the future. The resulting pattern is
-demanglable. When non-lambda types are passed to the builtin, the mangler emits
-their usual pattern without any special treatment.
+the SYCL kernel and emits a stable local ordering of the respective lambdas.
+The resulting pattern is demanglable. When non-lambda types are passed to the
+builtin, the mangler emits their usual pattern without any special treatment.
 
 **Syntax**:
 
@@ -2555,30 +2552,6 @@ internal linkage.
 
   // Computes a unique stable name for a given variable.
   constexpr bool  __builtin_sycl_unique_stable_id( expr );
-
-``__builtin_sycl_mark_kernel_name``
------------------------------------
-
-``__builtin_sycl_mark_kernel_name`` is a builtin that can be used with
-``__builtin_sycl_unique_stable_name`` to make sure a kernel is properly 'marked'
-as a kernel without having to instantiate a sycl_kernel function. Typically,
-``__builtin_sycl_unique_stable_name`` can only be called in a constant expression
-context after any kernels that would change the output have been instantiated.
-This is necessary, as changing the answer to the constant expression after
-evaluation isn't permitted.  However, in some cases it can be useful to query the
-result of ``__builtin_unique_stable_name`` after we know that the name is a kernel
-name, but before we are able to instantiate the kernel itself (such as when trying
-to decide between two signatures at compile time). In these cases,
-``__builtin_sycl_mark_kernel_name`` can be used to mark the type as a kernel name,
-ensuring that ``__builtin_unique_stable_name`` gives the correct result despite the
-kernel not yet being instantiated.
-
-**Syntax**:
-
-.. code-block:: c++
-
-  // Marks a type as the name of a sycl kernel.
-  constexpr bool  __builtin_sycl_mark_kernel_name( type-id );
 
 Multiprecision Arithmetic Builtins
 ----------------------------------
