@@ -335,6 +335,9 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
 pi_native_handle event_impl::getNative() const {
+  if (getHandleRef() == nullptr) {
+    return reinterpret_cast<pi_native_handle>(nullptr);
+  }
   auto Plugin = getPlugin();
   if (Plugin.getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piEventRetain>(getHandleRef());

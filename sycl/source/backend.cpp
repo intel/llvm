@@ -109,6 +109,9 @@ __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
   const auto &ContextImpl = getSyclObjImpl(Context);
 
   pi::PiEvent PiEvent = nullptr;
+  if (!NativeHandle) {
+    return detail::createSyclObjFromImpl<event>(std::make_shared<event_impl>());
+  }
   Plugin.call<PiApiKind::piextEventCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiEvent);
 
