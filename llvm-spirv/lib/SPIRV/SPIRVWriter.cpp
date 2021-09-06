@@ -122,25 +122,6 @@ static SPIRVMemoryModelKind getMemoryModel(Module &M) {
   return SPIRVMemoryModelKind::MemoryModelMax;
 }
 
-static bool shouldTryToAddMemAliasingDecoration(Instruction *Inst) {
-  // Limit translation of aliasing metadata with only this set of instructions
-  // gracefully considering others as compilation mistakes and ignoring them
-  if (!Inst->mayReadOrWriteMemory())
-    return false;
-  // Loads and Stores are handled during memory access mask addition
-  if (isa<StoreInst>(Inst) || isa<LoadInst>(Inst))
-    return false;
-  CallInst *CI = dyn_cast<CallInst>(Inst);
-  if (!CI)
-    return true;
-  // Calls to intrinsics are skipped. At some point lifetime start/end will be
-  // handled separately, but specification isn't ready.
-  if (Function *Fun = CI->getCalledFunction())
-    if (Fun->isIntrinsic())
-      return false;
-  return true;
-}
-
 LLVMToSPIRVBase::LLVMToSPIRVBase(SPIRVModule *SMod)
     : M(nullptr), Ctx(nullptr), BM(SMod), SrcLang(0), SrcLangVer(0) {
   DbgTran = std::make_unique<LLVMToSPIRVDbgTran>(nullptr, SMod, this);
@@ -1980,6 +1961,31 @@ SPIRVValue *LLVMToSPIRVBase::mapValue(Value *V, SPIRVValue *BV) {
   ValueMap[V] = BV;
   SPIRVDBG(dbgs() << "[mapValue] " << *V << " => "; spvdbgs() << BV << "\n");
   return BV;
+}
+
+bool LLVMToSPIRVBase::shouldTryToAddMemAliasingDecoration(Instruction *Inst) {
+  // Limit translation of aliasing metadata with only this set of instructions
+  // gracefully considering others as compilation mistakes and ignoring them
+  if (!Inst->mayReadOrWriteMemory())
+    return false;
+  // Loads and Stores are handled during memory access mask addition
+  if (isa<StoreInst>(Inst) || isa<LoadInst>(Inst))
+    return false;
+  CallInst *CI = dyn_cast<CallInst>(Inst);
+  if (!CI)
+    return true;
+  if (Function *Fun = CI->getCalledFunction()) {
+    // Calls to intrinsics are skipped. At some point lifetime start/end will be
+    // handled separately, but specification isn't ready.
+    if (Fun->isIntrinsic())
+      return false;
+    // Also skip SPIR-V instructions that don't have result id to attach the
+    // decorations
+    if (isBuiltinTransToInst(Fun))
+      if (Fun->getReturnType()->isVoidTy())
+        return false;
+  }
+  return true;
 }
 
 bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
