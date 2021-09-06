@@ -220,7 +220,9 @@ enum class kernel : cl_kernel_info {
   attributes = CL_KERNEL_ATTRIBUTES
 };
 
-enum class kernel_work_group : cl_kernel_work_group_info {
+enum class __SYCL2020_DEPRECATED(
+    "kernel_work_group enumeration is deprecated, use SYCL 2020 requests"
+    " instead") kernel_work_group : cl_kernel_work_group_info {
   global_work_size = CL_KERNEL_GLOBAL_WORK_SIZE,
   work_group_size = CL_KERNEL_WORK_GROUP_SIZE,
   compile_work_group_size = CL_KERNEL_COMPILE_WORK_GROUP_SIZE,

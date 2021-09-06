@@ -14,7 +14,9 @@ __SYCL_OPEN_NS() {
 
 // Interoperability handler
 //
-class interop_handler {
+class __SYCL_DEPRECATED("interop_handler class is deprecated, use"
+                        " interop_handle instead with host-task")
+    interop_handler {
   // Make accessor class friend to access the detail mem objects
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder,

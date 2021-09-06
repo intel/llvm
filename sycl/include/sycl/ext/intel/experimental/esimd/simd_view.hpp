@@ -67,6 +67,64 @@ public:
     return *this;
   }
 
+#define DEF_BINOP(BINOP, OPASSIGN)                                             \
+  ESIMD_INLINE friend auto operator BINOP(const simd_view &X,                  \
+                                          const value_type &Y) {               \
+    using ComputeTy = detail::compute_type_t<value_type>;                      \
+    auto V0 =                                                                  \
+        detail::convert<typename ComputeTy::vector_type>(X.read().data());     \
+    auto V1 = detail::convert<typename ComputeTy::vector_type>(Y.data());      \
+    auto V2 = V0 BINOP V1;                                                     \
+    return ComputeTy(V2);                                                      \
+  }                                                                            \
+  ESIMD_INLINE friend auto operator BINOP(const simd_view &X,                  \
+                                          const element_type &Y) {             \
+    return X BINOP(value_type) Y;                                              \
+  }                                                                            \
+  ESIMD_INLINE friend auto operator BINOP(const value_type &X,                 \
+                                          const simd_view &Y) {                \
+    using ComputeTy = detail::compute_type_t<value_type>;                      \
+    auto V0 = detail::convert<typename ComputeTy::vector_type>(X.data());      \
+    auto V1 =                                                                  \
+        detail::convert<typename ComputeTy::vector_type>(Y.read().data());     \
+    auto V2 = V0 BINOP V1;                                                     \
+    return ComputeTy(V2);                                                      \
+  }
+
+  DEF_BINOP(+, +=)
+  DEF_BINOP(-, -=)
+  DEF_BINOP(*, *=)
+  DEF_BINOP(/, /=)
+  DEF_BINOP(%, %=)
+
+#undef DEF_BINOP
+
+#define DEF_BITWISE_OP(BITWISE_OP, OPASSIGN)                                   \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const simd_view &X,             \
+                                               const value_type &Y) {          \
+    static_assert(std::is_integral<element_type>(), "not integral type");      \
+    auto V2 = X.read().data() BITWISE_OP Y.data();                             \
+    return simd<element_type, length>(V2);                                     \
+  }                                                                            \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const simd_view &X,             \
+                                               const element_type &Y) {        \
+    return X BITWISE_OP(value_type) Y;                                         \
+  }                                                                            \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const value_type &X,            \
+                                               const simd_view &Y) {           \
+    static_assert(std::is_integral<element_type>(), "not integral type");      \
+    auto V2 = X.data() BITWISE_OP Y.read().data();                             \
+    return simd<element_type, length>(V2);                                     \
+  }
+
+  DEF_BITWISE_OP(&, &=)
+  DEF_BITWISE_OP(|, |=)
+  DEF_BITWISE_OP(^, ^=)
+  DEF_BITWISE_OP(>>, >>=)
+  DEF_BITWISE_OP(<<, <<=)
+
+#undef DEF_BITWISE_OP
+
 #define DEF_RELOP(RELOP)                                                       \
   ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
       const simd_view &X, const value_type &Y) {                               \

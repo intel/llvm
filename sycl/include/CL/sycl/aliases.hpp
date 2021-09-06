@@ -23,11 +23,8 @@ class half;
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()
 
-// FIXME: line below exports 'half' into global namespace, which seems incorrect
-// However, SYCL 1.2.1 spec considers 'half' to be a fundamental C++ data type
-// which doesn't exist within the 'sycl' namespace.
-// Related spec issue: KhronosGroup/SYCL-Docs#40
-using half = __sycl_ns::detail::half_impl::half;
+using half __SYCL2020_DEPRECATED("use 'sycl::half' instead") =
+    __sycl_ns::detail::half_impl::half;
 
 #define __SYCL_MAKE_VECTOR_ALIAS(ALIAS, TYPE, N)                               \
   using ALIAS##N = __sycl_ns::vec<TYPE, N>;

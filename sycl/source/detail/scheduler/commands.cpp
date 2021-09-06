@@ -2109,8 +2109,7 @@ cl_int ExecCGCommand::enqueueImp() {
         !ExecKernel->MSyclKernel->isCreatedFromSource()) {
       EliminatedArgMask =
           detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-              ExecKernel->MOSModuleHandle, ContextImpl, DeviceImpl, Program,
-              ExecKernel->MKernelName);
+              ExecKernel->MOSModuleHandle, Program, ExecKernel->MKernelName);
     }
     if (KernelMutex != nullptr) {
       // For cacheable kernels, we use per-kernel mutex

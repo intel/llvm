@@ -138,13 +138,9 @@ public:
   /// within the native program.
   /// \param M identifies the OS module the kernel comes from (multiple OS
   ///        modules may have kernels with the same name).
-  /// \param Context the context associated with the kernel.
-  /// \param Device the device associated with the context.
   /// \param NativePrg the PI program associated with the kernel.
   /// \param KernelName the name of the kernel.
   KernelArgMask getEliminatedKernelArgMask(OSModuleHandle M,
-                                           const ContextImplPtr &ContextImpl,
-                                           const DeviceImplPtr &DeviceImpl,
                                            pi::PiProgram NativePrg,
                                            const std::string &KernelName);
 
