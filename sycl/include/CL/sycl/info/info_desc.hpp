@@ -25,14 +25,13 @@ namespace info {
 // Information descriptors
 // A.1 Platform information descriptors
 enum class platform {
-  profile     = PI_PLATFORM_INFO_PROFILE,
-  version     = PI_PLATFORM_INFO_VERSION,
-  name        = PI_PLATFORM_INFO_NAME,
-  vendor      = PI_PLATFORM_INFO_VENDOR,
+  profile = PI_PLATFORM_INFO_PROFILE,
+  version = PI_PLATFORM_INFO_VERSION,
+  name = PI_PLATFORM_INFO_NAME,
+  vendor = PI_PLATFORM_INFO_VENDOR,
   extensions __SYCL2020_DEPRECATED(
       "platform::extensions is deprecated, use device::get_info() with"
-      " info::device::aspects instead.") =
-      PI_PLATFORM_INFO_EXTENSIONS,
+      " info::device::aspects instead.") = PI_PLATFORM_INFO_EXTENSIONS,
 };
 
 // A.2 Context information desctiptors
