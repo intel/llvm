@@ -222,8 +222,8 @@ template <typename Group> group_mask group_ballot(Group g, bool predicate) {
 #ifdef __SYCL_DEVICE_ONLY__
   auto res = __spirv_GroupNonUniformBallot(
       detail::spirv::group_scope<Group>::value, predicate);
-  return marray<group_mask::WordType, group_mask::marray_size>{res[0], res[1],
-                                                               res[2], res[3]};
+  return marray<group_mask::WordType, group_mask::marray_size>{res[3], res[2],
+                                                               res[1], res[0]};
 #else
   (void)predicate;
   throw exception{errc::feature_not_supported,
