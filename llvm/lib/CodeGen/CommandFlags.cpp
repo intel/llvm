@@ -94,6 +94,7 @@ CGOPT(bool, ValueTrackingVariableLocations)
 CGOPT(bool, ForceDwarfFrameSection)
 CGOPT(bool, XRayOmitFunctionIndex)
 CGOPT(bool, DebugStrictDwarf)
+CGOPT(unsigned, AlignLoops)
 
 codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
 #define CGBINDOPT(NAME)                                                        \
@@ -452,6 +453,10 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       "strict-dwarf", cl::desc("use strict dwarf"), cl::init(false));
   CGBINDOPT(DebugStrictDwarf);
 
+  static cl::opt<unsigned> AlignLoops("align-loops",
+                                      cl::desc("Default alignment for loops"));
+  CGBINDOPT(AlignLoops);
+
 #undef CGBINDOPT
 
   mc::RegisterMCTargetOptionsFlags();
@@ -527,6 +532,7 @@ codegen::InitTargetOptionsFromCodeGenFlags(const Triple &TheTriple) {
   Options.ForceDwarfFrameSection = getForceDwarfFrameSection();
   Options.XRayOmitFunctionIndex = getXRayOmitFunctionIndex();
   Options.DebugStrictDwarf = getDebugStrictDwarf();
+  Options.LoopAlignment = getAlignLoops();
 
   Options.MCOptions = mc::InitMCTargetOptionsFromFlags();
 
@@ -666,13 +672,11 @@ void codegen::setFunctionAttributes(StringRef CPU, StringRef Features,
           if (const auto *F = Call->getCalledFunction())
             if (F->getIntrinsicID() == Intrinsic::debugtrap ||
                 F->getIntrinsicID() == Intrinsic::trap)
-              Call->addAttribute(
-                  AttributeList::FunctionIndex,
+              Call->addFnAttr(
                   Attribute::get(Ctx, "trap-func-name", getTrapFuncName()));
 
   // Let NewAttrs override Attrs.
-  F.setAttributes(
-      Attrs.addAttributes(Ctx, AttributeList::FunctionIndex, NewAttrs));
+  F.setAttributes(Attrs.addFnAttributes(Ctx, NewAttrs));
 }
 
 /// Set function attributes of functions in Module M based on CPU,

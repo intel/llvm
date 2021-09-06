@@ -124,7 +124,7 @@ EnablePartialStoreMerging("enable-dse-partial-store-merging",
 static cl::opt<unsigned>
     MemorySSAScanLimit("dse-memoryssa-scanlimit", cl::init(150), cl::Hidden,
                        cl::desc("The number of memory instructions to scan for "
-                                "dead store elimination (default = 100)"));
+                                "dead store elimination (default = 150)"));
 static cl::opt<unsigned> MemorySSAUpwardsStepLimit(
     "dse-memoryssa-walklimit", cl::init(90), cl::Hidden,
     cl::desc("The maximum number of steps while walking upwards to find "
@@ -1501,11 +1501,6 @@ struct DSEState {
     };
     PushMemUses(EarlierAccess);
 
-    // Optimistically collect all accesses for reads. If we do not find any
-    // read clobbers, add them to the cache.
-    SmallPtrSet<MemoryAccess *, 16> KnownNoReads;
-    if (!EarlierMemInst->mayReadFromMemory())
-      KnownNoReads.insert(EarlierAccess);
     // Check if EarlierDef may be read.
     for (unsigned I = 0; I < WorkList.size(); I++) {
       MemoryAccess *UseAccess = WorkList[I];
@@ -1518,7 +1513,6 @@ struct DSEState {
       }
       --ScanLimit;
       NumDomMemDefChecks++;
-      KnownNoReads.insert(UseAccess);
 
       if (isa<MemoryPhi>(UseAccess)) {
         if (any_of(KillingDefs, [this, UseAccess](Instruction *KI) {
@@ -1786,7 +1780,6 @@ struct DSEState {
         continue;
 
       Instruction *DefI = Def->getMemoryInst();
-      SmallVector<const Value *, 4> Pointers;
       auto DefLoc = getLocForWriteEx(DefI);
       if (!DefLoc)
         continue;
@@ -1814,8 +1807,7 @@ struct DSEState {
 
   /// \returns true if \p Def is a no-op store, either because it
   /// directly stores back a loaded value or stores zero to a calloced object.
-  bool storeIsNoop(MemoryDef *Def, const MemoryLocation &DefLoc,
-                   const Value *DefUO) {
+  bool storeIsNoop(MemoryDef *Def, const Value *DefUO) {
     StoreInst *Store = dyn_cast<StoreInst>(Def->getMemoryInst());
     MemSetInst *MemSet = dyn_cast<MemSetInst>(Def->getMemoryInst());
     Constant *StoredConstant = nullptr;
@@ -1854,14 +1846,13 @@ struct DSEState {
               Func != LibFunc_malloc)
             return false;
           if (Malloc->getOperand(0) == MemSet->getLength()) {
-            if (DT.dominates(Malloc, MemSet) &&
+            if (DT.dominates(Malloc, MemSet) && PDT.dominates(MemSet, Malloc) &&
                 memoryIsNotModifiedBetween(Malloc, MemSet, BatchAA, DL, &DT)) {
               IRBuilder<> IRB(Malloc);
               const auto &DL = Malloc->getModule()->getDataLayout();
-              AttributeList EmptyList;
-              if (auto *Calloc = emitCalloc(
-                      ConstantInt::get(IRB.getIntPtrTy(DL), 1),
-                      Malloc->getArgOperand(0), EmptyList, IRB, TLI)) {
+              if (auto *Calloc =
+                      emitCalloc(ConstantInt::get(IRB.getIntPtrTy(DL), 1),
+                                 Malloc->getArgOperand(0), IRB, TLI)) {
                 MemorySSAUpdater Updater(&MSSA);
                 auto *LastDef = cast<MemoryDef>(
                     Updater.getMemorySSA()->getMemoryAccess(Malloc));
@@ -2084,7 +2075,7 @@ static bool eliminateDeadStores(Function &F, AliasAnalysis &AA, MemorySSA &MSSA,
 
     // Check if the store is a no-op.
     if (!Shortend && isRemovable(SI) &&
-        State.storeIsNoop(KillingDef, SILoc, SILocUnd)) {
+        State.storeIsNoop(KillingDef, SILocUnd)) {
       LLVM_DEBUG(dbgs() << "DSE: Remove No-Op Store:\n  DEAD: " << *SI << '\n');
       State.deleteDeadInstruction(SI);
       NumRedundantStores++;

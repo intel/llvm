@@ -3823,14 +3823,10 @@ static void GenerateLangOptRequirements(const Record &R,
   if (LangOpts.empty())
     return;
 
-  OS << "bool diagLangOpts(Sema &S, const ParsedAttr &PA) ";
-  OS << "const override {\n";
-  OS << "  const auto &LangOpts = S.LangOpts;\n";
+  OS << "bool acceptsLangOpts(const LangOptions &LangOpts) const override {\n";
   OS << "  if (" << GenerateTestExpression(LangOpts, true) << ")\n";
   OS << "    return true;\n\n";
-  OS << "  if (" << GenerateTestExpression(LangOpts, false) << ")\n";
-  OS << "    S.Diag(PA.getLoc(), diag::warn_attribute_ignored) << PA;\n";
-  OS << "  return false;\n";
+  OS << "  return !" << GenerateTestExpression(LangOpts, false) << ";\n";
   OS << "}\n\n";
 }
 
@@ -3985,6 +3981,27 @@ void EmitClangAttrParsedAttrImpl(RecordKeeper &Records, raw_ostream &OS) {
       }
       OS << "};\n";
     }
+
+    std::vector<std::string> ArgNames;
+    for (const auto &Arg : Attr.getValueAsListOfDefs("Args")) {
+      bool UnusedUnset;
+      if (Arg->getValueAsBitOrUnset("Fake", UnusedUnset))
+        continue;
+      ArgNames.push_back(Arg->getValueAsString("Name").str());
+      for (const auto &Class : Arg->getSuperClasses()) {
+        if (Class.first->getName().startswith("Variadic")) {
+          ArgNames.back().append("...");
+          break;
+        }
+      }
+    }
+    if (!ArgNames.empty()) {
+      OS << "static constexpr const char *" << I->first << "ArgNames[] = {\n";
+      for (const auto &N : ArgNames)
+        OS << '"' << N << "\",";
+      OS << "};\n";
+    }
+
     OS << "struct ParsedAttrInfo" << I->first
        << " final : public ParsedAttrInfo {\n";
     OS << "  ParsedAttrInfo" << I->first << "() {\n";
@@ -4008,6 +4025,8 @@ void EmitClangAttrParsedAttrImpl(RecordKeeper &Records, raw_ostream &OS) {
     OS << Attr.getValueAsBit("SupportsNonconformingLambdaSyntax") << ";\n";
     if (!Spellings.empty())
       OS << "    Spellings = " << I->first << "Spellings;\n";
+    if (!ArgNames.empty())
+      OS << "    ArgNames = " << I->first << "ArgNames;\n";
     OS << "  }\n";
     GenerateAppertainsTo(Attr, OS);
     GenerateMutualExclusionsChecks(Attr, Records, OS, MergeDeclOS, MergeStmtOS);
@@ -4230,6 +4249,24 @@ void EmitClangAttrParserStringSwitches(RecordKeeper &Records,
 void EmitClangAttrSubjectMatchRulesParserStringSwitches(RecordKeeper &Records,
                                                         raw_ostream &OS) {
   getPragmaAttributeSupport(Records).generateParsingHelpers(OS);
+}
+
+void EmitClangAttrDocTable(RecordKeeper &Records, raw_ostream &OS) {
+  emitSourceFileHeader("Clang attribute documentation", OS);
+
+  std::vector<Record *> Attrs = Records.getAllDerivedDefinitions("Attr");
+  for (const auto *A : Attrs) {
+    if (!A->getValueAsBit("ASTNode"))
+      continue;
+    std::vector<Record *> Docs = A->getValueAsListOfDefs("Documentation");
+    assert(!Docs.empty());
+    // Only look at the first documentation if there are several.
+    // (Currently there's only one such attr, revisit if this becomes common).
+    StringRef Text =
+        Docs.front()->getValueAsOptionalString("Content").getValueOr("");
+    OS << "\nstatic const char AttrDoc_" << A->getName() << "[] = "
+       << "R\"reST(" << Text.trim() << ")reST\";\n";
+  }
 }
 
 enum class SpellingKind {

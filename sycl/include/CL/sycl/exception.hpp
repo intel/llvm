@@ -10,6 +10,7 @@
 
 // 4.9.2 Exception Class Interface
 
+#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/pi.h>
@@ -169,21 +170,24 @@ class __SYCL2020_DEPRECATED(
 };
 
 enum class errc : unsigned int {
-  runtime = 0,
-  kernel = 1,
-  accessor = 2,
-  nd_range = 3,
-  event = 4,
-  kernel_argument = 5,
-  build = 6,
-  invalid = 7,
-  memory_allocation = 8,
-  platform = 9,
-  profiling = 10,
-  feature_not_supported = 11,
-  kernel_not_supported = 12,
-  backend_mismatch = 13,
+  success = 0,
+  runtime = 1,
+  kernel = 2,
+  accessor = 3,
+  nd_range = 4,
+  event = 5,
+  kernel_argument = 6,
+  build = 7,
+  invalid = 8,
+  memory_allocation = 9,
+  platform = 10,
+  profiling = 11,
+  feature_not_supported = 12,
+  kernel_not_supported = 13,
+  backend_mismatch = 14,
 };
+
+template <backend B> using errc_for = typename backend_traits<B>::errc;
 
 /// Constructs an error code using e and sycl_category()
 __SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;
@@ -193,7 +197,7 @@ __SYCL_EXPORT const std::error_category &sycl_category() noexcept;
 namespace detail {
 class __SYCL_EXPORT SYCLCategory : public std::error_category {
 public:
-  const char *name() const noexcept override { return "SYCL"; }
+  const char *name() const noexcept override { return "sycl"; }
   std::string message(int) const override { return "SYCL Error"; }
 };
 } // namespace detail

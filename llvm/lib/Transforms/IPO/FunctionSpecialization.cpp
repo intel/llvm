@@ -21,6 +21,14 @@
 //   a direct way to steer function specialization, avoiding the cost-model,
 //   and thus control compile-times / code-size.
 //
+// Todos:
+// - Limit the times a recursive function get specialized when
+// `func-specialization-max-iters`
+//   increases linearly. See discussion in https://reviews.llvm.org/D106426 for
+//   details.
+// - Don't transform the function if there is no function specialization
+// happens.
+//
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/Statistic.h"
@@ -57,6 +65,12 @@ static cl::opt<unsigned> MaxConstantsThreshold(
     cl::desc("The maximum number of clones allowed for a single function "
              "specialization"),
     cl::init(3));
+
+static cl::opt<unsigned> SmallFunctionThreshold(
+    "func-specialization-size-threshold", cl::Hidden,
+    cl::desc("For functions whose IR instruction count below this threshold, "
+             " they wouldn't be specialized to avoid useless sepcializations."),
+    cl::init(100));
 
 static cl::opt<unsigned>
     AvgLoopIterationCount("func-specialization-avg-iters-cost", cl::Hidden,
@@ -332,8 +346,25 @@ private:
     if (!Solver.isBlockExecutable(&F->getEntryBlock()))
       return false;
 
+    // It wastes time to specialize a function which would get inlined finally.
+    if (F->hasFnAttribute(Attribute::AlwaysInline))
+      return false;
+
     LLVM_DEBUG(dbgs() << "FnSpecialization: Try function: " << F->getName()
                       << "\n");
+
+    // Determine if it would be profitable to create a specialization of the
+    // function where the argument takes on the given constant value. If so,
+    // add the constant to Constants.
+    auto FnSpecCost = getSpecializationCost(F);
+    if (!FnSpecCost.isValid()) {
+      LLVM_DEBUG(dbgs() << "FnSpecialization: Invalid specialisation cost.\n");
+      return false;
+    }
+
+    LLVM_DEBUG(dbgs() << "FnSpecialization: func specialisation cost: ";
+               FnSpecCost.print(dbgs()); dbgs() << "\n");
+
     // Determine if we should specialize the function based on the values the
     // argument can take on. If specialization is not profitable, we continue
     // on to the next argument.
@@ -351,7 +382,7 @@ private:
       // be set to false by isArgumentInteresting (that function only adds
       // values to the Constants list that are deemed profitable).
       SmallVector<Constant *, 4> Constants;
-      if (!isArgumentInteresting(&A, Constants, IsPartial)) {
+      if (!isArgumentInteresting(&A, Constants, FnSpecCost, IsPartial)) {
         LLVM_DEBUG(dbgs() << "FnSpecialization: Argument is not interesting\n");
         continue;
       }
@@ -409,7 +440,11 @@ private:
 
     // If the code metrics reveal that we shouldn't duplicate the function, we
     // shouldn't specialize it. Set the specialization cost to Invalid.
-    if (Metrics.notDuplicatable) {
+    // Or if the lines of codes implies that this function is easy to get
+    // inlined so that we shouldn't specialize it.
+    if (Metrics.notDuplicatable ||
+        (!ForceFunctionSpecialization &&
+         Metrics.NumInsts < SmallFunctionThreshold)) {
       InstructionCost C{};
       C.setInvalid();
       return C;
@@ -535,9 +570,8 @@ private:
   /// argument.
   bool isArgumentInteresting(Argument *A,
                              SmallVectorImpl<Constant *> &Constants,
+                             const InstructionCost &FnSpecCost,
                              bool &IsPartial) {
-    Function *F = A->getParent();
-
     // For now, don't attempt to specialize functions based on the values of
     // composite types.
     if (!A->getType()->isSingleValueType() || A->user_empty())
@@ -575,18 +609,6 @@ private:
                         << "the maximum number of constants threshold.\n");
       return false;
     }
-
-    // Determine if it would be profitable to create a specialization of the
-    // function where the argument takes on the given constant value. If so,
-    // add the constant to Constants.
-    auto FnSpecCost = getSpecializationCost(F);
-    if (!FnSpecCost.isValid()) {
-      LLVM_DEBUG(dbgs() << "FnSpecialization: Invalid specialisation cost.\n");
-      return false;
-    }
-
-    LLVM_DEBUG(dbgs() << "FnSpecialization: func specialisation cost: ";
-               FnSpecCost.print(dbgs()); dbgs() << "\n");
 
     for (auto *C : PossibleConstants) {
       LLVM_DEBUG(dbgs() << "FnSpecialization: Constant: " << *C << "\n");
@@ -754,7 +776,9 @@ bool llvm::runFunctionSpecialization(
         if (!Solver.isBlockExecutable(&BB))
           continue;
         for (auto &I : make_early_inc_range(BB))
-          FS.tryToReplaceWithConstant(&I);
+          // FIXME: The solver may make changes to the function here, so set Changed, even if later
+          // function specialization does not trigger.
+          Changed |= FS.tryToReplaceWithConstant(&I);
       }
     }
   };

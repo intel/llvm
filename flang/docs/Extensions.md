@@ -58,6 +58,11 @@ write(buffer,*,delim="QUOTE") quotes
 print "('>',a10,'<')", buffer
 end
 ```
+* The name of the control variable in an implied DO loop in an array
+  constructor or DATA statement has a scope over the value-list only,
+  not the bounds of the implied DO loop.  It is not advisable to use
+  an object of the same name as the index variable in a bounds
+  expression, but it will work, instead of being needlessly undefined.
 
 ## Extensions, deletions, and legacy features supported by default
 
@@ -133,6 +138,7 @@ end
   the arguments as if they were operands to an intrinsic `+` operator,
   and defining the result type accordingly.
 * DOUBLE COMPLEX intrinsics DREAL, DCMPLX, DCONJG, and DIMAG.
+* The DFLOAT intrinsic function.
 * INT_PTR_KIND intrinsic returns the kind of c_intptr_t.
 * Restricted specific conversion intrinsics FLOAT, SNGL, IDINT, IFIX, DREAL,
   and DCMPLX accept arguments of any kind instead of only the default kind or

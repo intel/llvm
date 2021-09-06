@@ -61,6 +61,13 @@ pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
   return PI_SUCCESS;
 }
 
+static pi_result redefinedUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
+                                           pi_uint32, const pi_event *,
+                                           pi_event *event) {
+  *event = reinterpret_cast<pi_event>(new int{});
+  return PI_SUCCESS;
+}
+
 TEST(GetNative, GetNativeHandle) {
   platform Plt{default_selector()};
   if (Plt.get_backend() != backend::opencl) {
@@ -83,6 +90,8 @@ TEST(GetNative, GetNativeHandle) {
   Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
   Mock.redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
   Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
+  Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
+      redefinedUSMEnqueueMemset);
 
   default_selector Selector;
   context Context(Plt);

@@ -319,8 +319,16 @@ Instruction *InstCombinerImpl::foldSelectOpOp(SelectInst &SI, Instruction *TI,
   Value *X, *Y;
   if (match(TI, m_FNeg(m_Value(X))) && match(FI, m_FNeg(m_Value(Y))) &&
       (TI->hasOneUse() || FI->hasOneUse())) {
+    // Intersect FMF from the fneg instructions and union those with the select.
+    FastMathFlags FMF = TI->getFastMathFlags();
+    FMF &= FI->getFastMathFlags();
+    FMF |= SI.getFastMathFlags();
     Value *NewSel = Builder.CreateSelect(Cond, X, Y, SI.getName() + ".v", &SI);
-    return UnaryOperator::CreateFNegFMF(NewSel, TI);
+    if (auto *NewSelI = dyn_cast<Instruction>(NewSel))
+      NewSelI->setFastMathFlags(FMF);
+    Instruction *NewFNeg = UnaryOperator::CreateFNeg(NewSel);
+    NewFNeg->setFastMathFlags(FMF);
+    return NewFNeg;
   }
 
   // Min/max intrinsic with a common operand can have the common operand pulled
@@ -2182,7 +2190,7 @@ static Instruction *moveAddAfterMinMax(SelectPatternFlavor SPF, Value *X,
 }
 
 /// Match a sadd_sat or ssub_sat which is using min/max to clamp the value.
-Instruction *InstCombinerImpl::matchSAddSubSat(SelectInst &MinMax1) {
+Instruction *InstCombinerImpl::matchSAddSubSat(Instruction &MinMax1) {
   Type *Ty = MinMax1.getType();
 
   // We are looking for a tree of:
@@ -2212,9 +2220,10 @@ Instruction *InstCombinerImpl::matchSAddSubSat(SelectInst &MinMax1) {
   if (!shouldChangeType(Ty->getScalarType()->getIntegerBitWidth(), NewBitWidth))
     return nullptr;
 
-  // Also make sure that the number of uses is as expected. The "3"s are for the
-  // the two items of min/max (the compare and the select).
-  if (MinMax2->hasNUsesOrMore(3) || AddSub->hasNUsesOrMore(3))
+  // Also make sure that the number of uses is as expected. The 3 is for the
+  // the two items of the compare and the select, or 2 from a min/max.
+  unsigned ExpUses = isa<IntrinsicInst>(MinMax1) ? 2 : 3;
+  if (MinMax2->hasNUsesOrMore(ExpUses) || AddSub->hasNUsesOrMore(ExpUses))
     return nullptr;
 
   // Create the new type (which can be a vector type)
@@ -2754,11 +2763,16 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
                                                         /* IsAnd */ IsAnd))
           return I;
 
-      if (auto *ICmp0 = dyn_cast<ICmpInst>(CondVal))
-        if (auto *ICmp1 = dyn_cast<ICmpInst>(Op1))
+      if (auto *ICmp0 = dyn_cast<ICmpInst>(CondVal)) {
+        if (auto *ICmp1 = dyn_cast<ICmpInst>(Op1)) {
           if (auto *V = foldAndOrOfICmpsOfAndWithPow2(ICmp0, ICmp1, &SI, IsAnd,
                                                       /* IsLogical */ true))
             return replaceInstUsesWith(SI, V);
+
+          if (auto *V = foldEqOfParts(ICmp0, ICmp1, IsAnd))
+            return replaceInstUsesWith(SI, V);
+        }
+      }
     }
 
     // select (select a, true, b), c, false -> select a, c, false
@@ -2863,14 +2877,12 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
   }
 
   // Canonicalize select with fcmp to fabs(). -0.0 makes this tricky. We need
-  // fast-math-flags (nsz) or fsub with +0.0 (not fneg) for this to work. We
-  // also require nnan because we do not want to unintentionally change the
-  // sign of a NaN value.
+  // fast-math-flags (nsz) or fsub with +0.0 (not fneg) for this to work.
   // (X <= +/-0.0) ? (0.0 - X) : X --> fabs(X)
   Instruction *FSub;
   if (match(CondVal, m_FCmp(Pred, m_Specific(FalseVal), m_AnyZeroFP())) &&
       match(TrueVal, m_FSub(m_PosZeroFP(), m_Specific(FalseVal))) &&
-      match(TrueVal, m_Instruction(FSub)) && FSub->hasNoNaNs() &&
+      match(TrueVal, m_Instruction(FSub)) &&
       (Pred == FCmpInst::FCMP_OLE || Pred == FCmpInst::FCMP_ULE)) {
     Value *Fabs = Builder.CreateUnaryIntrinsic(Intrinsic::fabs, FalseVal, &SI);
     return replaceInstUsesWith(SI, Fabs);
@@ -2878,7 +2890,7 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
   // (X >  +/-0.0) ? X : (0.0 - X) --> fabs(X)
   if (match(CondVal, m_FCmp(Pred, m_Specific(TrueVal), m_AnyZeroFP())) &&
       match(FalseVal, m_FSub(m_PosZeroFP(), m_Specific(TrueVal))) &&
-      match(FalseVal, m_Instruction(FSub)) && FSub->hasNoNaNs() &&
+      match(FalseVal, m_Instruction(FSub)) &&
       (Pred == FCmpInst::FCMP_OGT || Pred == FCmpInst::FCMP_UGT)) {
     Value *Fabs = Builder.CreateUnaryIntrinsic(Intrinsic::fabs, TrueVal, &SI);
     return replaceInstUsesWith(SI, Fabs);
@@ -2889,8 +2901,7 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
   Instruction *FNeg;
   if (match(CondVal, m_FCmp(Pred, m_Specific(FalseVal), m_AnyZeroFP())) &&
       match(TrueVal, m_FNeg(m_Specific(FalseVal))) &&
-      match(TrueVal, m_Instruction(FNeg)) && FNeg->hasNoNaNs() &&
-      FNeg->hasNoSignedZeros() && SI.hasNoSignedZeros() &&
+      match(TrueVal, m_Instruction(FNeg)) && SI.hasNoSignedZeros() &&
       (Pred == FCmpInst::FCMP_OLT || Pred == FCmpInst::FCMP_OLE ||
        Pred == FCmpInst::FCMP_ULT || Pred == FCmpInst::FCMP_ULE)) {
     Value *Fabs = Builder.CreateUnaryIntrinsic(Intrinsic::fabs, FalseVal, &SI);
@@ -2901,8 +2912,7 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
   // (X >= +/-0.0) ? X : -X --> fabs(X)
   if (match(CondVal, m_FCmp(Pred, m_Specific(TrueVal), m_AnyZeroFP())) &&
       match(FalseVal, m_FNeg(m_Specific(TrueVal))) &&
-      match(FalseVal, m_Instruction(FNeg)) && FNeg->hasNoNaNs() &&
-      FNeg->hasNoSignedZeros() && SI.hasNoSignedZeros() &&
+      match(FalseVal, m_Instruction(FNeg)) && SI.hasNoSignedZeros() &&
       (Pred == FCmpInst::FCMP_OGT || Pred == FCmpInst::FCMP_OGE ||
        Pred == FCmpInst::FCMP_UGT || Pred == FCmpInst::FCMP_UGE)) {
     Value *Fabs = Builder.CreateUnaryIntrinsic(Intrinsic::fabs, TrueVal, &SI);

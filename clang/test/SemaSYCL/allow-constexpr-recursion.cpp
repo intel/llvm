@@ -38,7 +38,7 @@ struct ConditionallyExplicitCtor {
   explicit(constexpr_recurse(5) == 103) ConditionallyExplicitCtor(int i) {}
 };
 
-void conditionally_noexcept() noexcept(constexpr_recurse(5)) {}
+void conditionally_noexcept() noexcept(static_cast<bool>(constexpr_recurse(5))) {}
 
 template <int I>
 void ConstexprIf1() {

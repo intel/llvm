@@ -1,4 +1,4 @@
-//==--- defines_elementary.hpp ---- Preprocessor directives (simplified) ---==//
+/defines_elementary/==--- defines_elementary.hpp ---- Preprocessor directives (simplified) ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -89,10 +89,14 @@
 #endif
 #endif // __SYCL_FALLTHROUGH
 
+// Stringify an argument to pass it in _Pragma directive below.
+#ifndef __SYCL_STRINGIFY
+#define __SYCL_STRINGIFY(x) #x
+#endif // __SYCL_STRINGIFY
+
 // define __SYCL_WARNING convenience macro to report compiler warnings
 #if defined(__GNUC__)
-#define __SYCL_GCC_PRAGMA(x) _Pragma(#x)
-#define __SYCL_WARNING(msg) __SYCL_GCC_PRAGMA(message msg)
+#define __SYCL_WARNING(msg) _Pragma(__SYCL_STRINGIFY(GCC warning msg))
 #elif defined(_MSC_VER) && !defined(__clang__)
 #define __SYCL_QUOTE1(x) #x
 #define __SYCL_QUOTE(x) __SYCL_QUOTE1(x)
@@ -103,9 +107,24 @@
 #define __SYCL_WARNING(msg) __pragma(message(msg))
 #endif // __GNUC__
 
+// Define __SYCL_UNROLL to add pragma/attribute unroll to a loop.
+#ifndef __SYCL_UNROLL
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
+#define __SYCL_UNROLL(x) _Pragma(__SYCL_STRINGIFY(unroll x))
+#elif defined(__clang__)
+#define __SYCL_UNROLL(x) _Pragma(__SYCL_STRINGIFY(unroll x))
+#elif (defined(__GNUC__) && __GNUC__ >= 8) ||                                  \
+    (defined(__GNUG__) && __GNUG__ >= 8)
+#define __SYCL_UNROLL(x) _Pragma(__SYCL_STRINGIFY(GCC unroll x))
+#else
+#define __SYCL_UNROLL(x)
+#endif // compiler switch
+#endif // __SYCL_UNROLL
+
 // Emitting a message instead of a warning here in order to avoid hard error
 // if an app is compiled with "-werror" option.
 #if !defined(SYCL_DISABLE_CPP_VERSION_CHECK_MESSAGE) && __cplusplus < 201703L
 __SYCL_WARNING("DPCPP does not support C++ version earlier than C++17. Some "
                "features might not be available.")
 #endif
+

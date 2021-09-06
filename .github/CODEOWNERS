@@ -43,6 +43,9 @@ sycl/source/detail/plugin.hpp @smaslov-intel
 sycl/source/detail/posix_pi.cpp @smaslov-intel
 sycl/source/detail/windows_pi.cpp @smaslov-intel
 
+# ESIMD CPU emulator plug-in
+sycl/plugins/esimd_cpu/ @kbobrovs @smaslov-intel
+
 # CUDA plugin
 sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
 
@@ -75,8 +78,8 @@ sycl/include/CL/sycl/swizzles.def @turinevgeny
 sycl/include/CL/sycl/types.hpp @turinevgeny
 
 # XPTI instrumentation utilities
-xpti/ @tovinkere @andykaylor
-xptifw/ @tovinkere  @andykaylor
+xpti/ @tovinkere @andykaylor @alexbatashev
+xptifw/ @tovinkere @andykaylor @alexbatashev
 
 # DPC++ tools
 llvm/**/append-file/ @mdtoguchi @AGindinson
@@ -99,10 +102,10 @@ clang/tools/clang-offload-deps/ @sndmitriev @mlychkov @AlexeySachkov
 clang/tools/clang-offload-extract/ @sndmitriev @mlychkov @AlexeySachkov
 
 # Explicit SIMD
-SYCLLowerIR/ @kbobrovs @DenisBakhvalov
-esimd/ @kbobrovs @DenisBakhvalov
-sycl/include/sycl/ext/intel/experimental/esimd.hpp @kbobrovs @DenisBakhvalov
-sycl/doc/extensions/ExplicitSIMD/ @kbobrovs
+SYCLLowerIR/ @kbobrovs @DenisBakhvalov @kychendev
+esimd/ @kbobrovs @DenisBakhvalov @kychendev
+sycl/include/sycl/ext/intel/experimental/esimd.hpp @kbobrovs @DenisBakhvalov @kychendev
+sycl/doc/extensions/ExplicitSIMD/ @kbobrovs @DenisBakhvalov @kychendev
 
 # ITT annotations
 llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @MrSidims @vzakhari

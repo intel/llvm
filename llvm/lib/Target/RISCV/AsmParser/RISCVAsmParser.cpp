@@ -1002,7 +1002,7 @@ bool RISCVAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   }
   case Match_InvalidOperand: {
     SMLoc ErrorLoc = IDLoc;
-    if (ErrorInfo != ~0U) {
+    if (ErrorInfo != ~0ULL) {
       if (ErrorInfo >= Operands.size())
         return Error(ErrorLoc, "too few operands for instruction");
 
@@ -1019,7 +1019,7 @@ bool RISCVAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   // corresponding operand is missing.
   if (Result > FIRST_TARGET_MATCH_RESULT_TY) {
     SMLoc ErrorLoc = IDLoc;
-    if (ErrorInfo != ~0U && ErrorInfo >= Operands.size())
+    if (ErrorInfo != ~0ULL && ErrorInfo >= Operands.size())
       return Error(ErrorLoc, "too few operands for instruction");
   }
 
@@ -2339,10 +2339,10 @@ void RISCVAsmParser::emitLoadStoreSymbol(MCInst &Inst, unsigned Opcode,
   //
   //   TmpLabel: AUIPC tmp, %pcrel_hi(symbol)
   //             [S|L]X    rd, %pcrel_lo(TmpLabel)(tmp)
-  MCOperand DestReg = Inst.getOperand(0);
+  unsigned DestRegOpIdx = HasTmpReg ? 1 : 0;
+  MCOperand DestReg = Inst.getOperand(DestRegOpIdx);
   unsigned SymbolOpIdx = HasTmpReg ? 2 : 1;
-  unsigned TmpRegOpIdx = HasTmpReg ? 1 : 0;
-  MCOperand TmpReg = Inst.getOperand(TmpRegOpIdx);
+  MCOperand TmpReg = Inst.getOperand(0);
   const MCExpr *Symbol = Inst.getOperand(SymbolOpIdx).getExpr();
   emitAuipcInstPair(DestReg, TmpReg, Symbol, RISCVMCExpr::VK_RISCV_PCREL_HI,
                     Opcode, IDLoc, Out);

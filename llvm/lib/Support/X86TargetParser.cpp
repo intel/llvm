@@ -11,7 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/X86TargetParser.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
+#include <numeric>
 
 using namespace llvm;
 using namespace llvm::X86;
@@ -201,11 +203,11 @@ constexpr FeatureBitset FeaturesTigerlake =
     FeaturesICLClient | FeatureAVX512VP2INTERSECT | FeatureMOVDIR64B |
     FeatureCLWB | FeatureMOVDIRI | FeatureSHSTK | FeatureKL | FeatureWIDEKL;
 constexpr FeatureBitset FeaturesSapphireRapids =
-    FeaturesICLServer | FeatureAMX_TILE | FeatureAMX_INT8 | FeatureAMX_BF16 |
-    FeatureAVX512BF16 | FeatureAVX512VP2INTERSECT | FeatureCLDEMOTE |
-    FeatureENQCMD | FeatureMOVDIR64B | FeatureMOVDIRI | FeaturePTWRITE |
-    FeatureSERIALIZE | FeatureSHSTK | FeatureTSXLDTRK | FeatureUINTR |
-    FeatureWAITPKG | FeatureAVXVNNI;
+    FeaturesICLServer | FeatureAMX_BF16 | FeatureAMX_INT8 | FeatureAMX_TILE |
+    FeatureAVX512BF16 | FeatureAVX512FP16 | FeatureAVX512VP2INTERSECT |
+    FeatureAVXVNNI | FeatureCLDEMOTE | FeatureENQCMD | FeatureMOVDIR64B |
+    FeatureMOVDIRI | FeaturePTWRITE | FeatureSERIALIZE | FeatureSHSTK |
+    FeatureTSXLDTRK | FeatureUINTR | FeatureWAITPKG;
 
 // Intel Atom processors.
 // Bonnell has feature parity with Core2 and adds MOVBE.
@@ -576,6 +578,8 @@ constexpr FeatureBitset ImpliedFeaturesAMX_BF16 = FeatureAMX_TILE;
 constexpr FeatureBitset ImpliedFeaturesAMX_INT8 = FeatureAMX_TILE;
 constexpr FeatureBitset ImpliedFeaturesHRESET = {};
 
+static constexpr FeatureBitset ImpliedFeaturesAVX512FP16 =
+    FeatureAVX512BW | FeatureAVX512DQ | FeatureAVX512VL;
 // Key Locker Features
 constexpr FeatureBitset ImpliedFeaturesKL = FeatureSSE2;
 constexpr FeatureBitset ImpliedFeaturesWIDEKL = FeatureKL;
@@ -659,4 +663,46 @@ void llvm::X86::updateImpliedFeatures(
   for (unsigned i = 0; i != CPU_FEATURE_MAX; ++i)
     if (ImpliedBits[i] && !FeatureInfos[i].Name.empty())
       Features[FeatureInfos[i].Name] = Enabled;
+}
+
+uint64_t llvm::X86::getCpuSupportsMask(ArrayRef<StringRef> FeatureStrs) {
+  // Processor features and mapping to processor feature value.
+  uint64_t FeaturesMask = 0;
+  for (const StringRef &FeatureStr : FeatureStrs) {
+    unsigned Feature = StringSwitch<unsigned>(FeatureStr)
+#define X86_FEATURE_COMPAT(ENUM, STR, PRIORITY)                                \
+  .Case(STR, llvm::X86::FEATURE_##ENUM)
+#include "llvm/Support/X86TargetParser.def"
+        ;
+    FeaturesMask |= (1ULL << Feature);
+  }
+  return FeaturesMask;
+}
+
+unsigned llvm::X86::getFeaturePriority(ProcessorFeatures Feat) {
+#ifndef NDEBUG
+  // Check that priorities are set properly in the .def file. We expect that
+  // "compat" features are assigned non-duplicate consecutive priorities
+  // starting from zero (0, 1, ..., num_features - 1).
+#define X86_FEATURE_COMPAT(ENUM, STR, PRIORITY) PRIORITY,
+  unsigned Priorities[] = {
+#include "llvm/Support/X86TargetParser.def"
+      std::numeric_limits<unsigned>::max() // Need to consume last comma.
+  };
+  std::array<unsigned, array_lengthof(Priorities) - 1> HelperList;
+  std::iota(HelperList.begin(), HelperList.end(), 0);
+  assert(std::is_permutation(HelperList.begin(), HelperList.end(),
+                             std::begin(Priorities),
+                             std::prev(std::end(Priorities))) &&
+         "Priorities don't form consecutive range!");
+#endif
+
+  switch (Feat) {
+#define X86_FEATURE_COMPAT(ENUM, STR, PRIORITY)                                \
+  case X86::FEATURE_##ENUM:                                                    \
+    return PRIORITY;
+#include "llvm/Support/X86TargetParser.def"
+  default:
+    llvm_unreachable("No Feature Priority for non-CPUSupports Features");
+  }
 }

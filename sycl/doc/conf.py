@@ -32,8 +32,7 @@ master_doc = 'index'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'recommonmark',
-    'sphinx_markdown_tables'
+    'myst_parser'
 ]
 
 # The name of the Pygments (syntax highlighting) style to use.
@@ -49,13 +48,11 @@ source_suffix = ['.rst', '.md']
 # Extensions are mostly in asciidoc which has poor support in Sphinx
 exclude_patterns = ['extensions/*']
 
-source_parsers = {'.md': 'recommonmark.parser.CommonMarkParser'}
-
 suppress_warnings = [ 'misc.highlighting_failure' ]
 
 def on_missing_reference(app, env, node, contnode):
     if node['reftype'] == 'any':
-        contnode['refuri'] = "https://github.com/intel/llvm/tree/sycl/sycl/doc/" + contnode['refuri']
+        contnode['refuri'] = "https://github.com/intel/llvm/tree/sycl/sycl/doc/" + node['reftarget']
         return contnode
     else:
         return None

@@ -52,6 +52,7 @@ include(HandleCompilerRT)
 
 # Define options.
 option(LIBUNWIND_BUILD_32_BITS "Build 32 bit libunwind" ${LLVM_BUILD_32_BITS})
+option(LIBUNWIND_ENABLE_CET "Build libunwind with CET enabled." OFF)
 option(LIBUNWIND_ENABLE_ASSERTIONS "Enable assertions independent of build mode." ON)
 option(LIBUNWIND_ENABLE_PEDANTIC "Compile with pedantic enabled." ON)
 option(LIBUNWIND_ENABLE_WERROR "Fail and stop if a warning is triggered." OFF)
@@ -91,6 +92,10 @@ set(LIBUNWIND_TEST_PARAMS "" CACHE STRING
 
 if (NOT LIBUNWIND_ENABLE_SHARED AND NOT LIBUNWIND_ENABLE_STATIC)
   message(FATAL_ERROR "libunwind must be built as either a shared or static library.")
+endif()
+
+if (LIBUNWIND_ENABLE_CET AND MSVC)
+  message(FATAL_ERROR "libunwind CET support is not available for MSVC!")
 endif()
 
 # Check that we can build with 32 bits if requested.
@@ -176,6 +181,17 @@ endif()
 
 add_compile_flags_if_supported(-Werror=return-type)
 
+if (LIBUNWIND_ENABLE_CET)
+  add_compile_flags_if_supported(-fcf-protection=full)
+  add_compile_flags_if_supported(-mshstk)
+  if (NOT LIBUNWIND_SUPPORTS_FCF_PROTECTION_EQ_FULL_FLAG)
+    message(SEND_ERROR "Compiler doesn't support CET -fcf-protection option!")
+  endif()
+  if (NOT LIBUNWIND_SUPPORTS_MSHSTK_FLAG)
+    message(SEND_ERROR "Compiler doesn't support CET -mshstk option!")
+  endif()
+endif()
+
 # Get warning flags
 add_compile_flags_if_supported(-W)
 add_compile_flags_if_supported(-Wall)
@@ -191,6 +207,7 @@ add_compile_flags_if_supported(-Wsign-compare)
 add_compile_flags_if_supported(-Wsign-conversion)
 add_compile_flags_if_supported(-Wstrict-aliasing=2)
 add_compile_flags_if_supported(-Wstrict-overflow=4)
+add_compile_flags_if_supported(-Wunused-but-set-variable)
 add_compile_flags_if_supported(-Wunused-parameter)
 add_compile_flags_if_supported(-Wunused-variable)
 add_compile_flags_if_supported(-Wwrite-strings)

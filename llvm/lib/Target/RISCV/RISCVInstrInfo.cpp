@@ -469,6 +469,25 @@ void RISCVInstrInfo::movImm(MachineBasicBlock &MBB,
   }
 }
 
+static RISCVCC::CondCode getCondFromBranchOpc(unsigned Opc) {
+  switch (Opc) {
+  default:
+    return RISCVCC::COND_INVALID;
+  case RISCV::BEQ:
+    return RISCVCC::COND_EQ;
+  case RISCV::BNE:
+    return RISCVCC::COND_NE;
+  case RISCV::BLT:
+    return RISCVCC::COND_LT;
+  case RISCV::BGE:
+    return RISCVCC::COND_GE;
+  case RISCV::BLTU:
+    return RISCVCC::COND_LTU;
+  case RISCV::BGEU:
+    return RISCVCC::COND_GEU;
+  }
+}
+
 // The contents of values added to Cond are not examined outside of
 // RISCVInstrInfo, giving us flexibility in what to push to it. For RISCV, we
 // push BranchOpcode, Reg1, Reg2.
@@ -478,27 +497,47 @@ static void parseCondBranch(MachineInstr &LastInst, MachineBasicBlock *&Target,
   assert(LastInst.getDesc().isConditionalBranch() &&
          "Unknown conditional branch");
   Target = LastInst.getOperand(2).getMBB();
-  Cond.push_back(MachineOperand::CreateImm(LastInst.getOpcode()));
+  unsigned CC = getCondFromBranchOpc(LastInst.getOpcode());
+  Cond.push_back(MachineOperand::CreateImm(CC));
   Cond.push_back(LastInst.getOperand(0));
   Cond.push_back(LastInst.getOperand(1));
 }
 
-static unsigned getOppositeBranchOpcode(int Opc) {
-  switch (Opc) {
+const MCInstrDesc &RISCVInstrInfo::getBrCond(RISCVCC::CondCode CC) const {
+  switch (CC) {
+  default:
+    llvm_unreachable("Unknown condition code!");
+  case RISCVCC::COND_EQ:
+    return get(RISCV::BEQ);
+  case RISCVCC::COND_NE:
+    return get(RISCV::BNE);
+  case RISCVCC::COND_LT:
+    return get(RISCV::BLT);
+  case RISCVCC::COND_GE:
+    return get(RISCV::BGE);
+  case RISCVCC::COND_LTU:
+    return get(RISCV::BLTU);
+  case RISCVCC::COND_GEU:
+    return get(RISCV::BGEU);
+  }
+}
+
+RISCVCC::CondCode RISCVCC::getOppositeBranchCondition(RISCVCC::CondCode CC) {
+  switch (CC) {
   default:
     llvm_unreachable("Unrecognized conditional branch");
-  case RISCV::BEQ:
-    return RISCV::BNE;
-  case RISCV::BNE:
-    return RISCV::BEQ;
-  case RISCV::BLT:
-    return RISCV::BGE;
-  case RISCV::BGE:
-    return RISCV::BLT;
-  case RISCV::BLTU:
-    return RISCV::BGEU;
-  case RISCV::BGEU:
-    return RISCV::BLTU;
+  case RISCVCC::COND_EQ:
+    return RISCVCC::COND_NE;
+  case RISCVCC::COND_NE:
+    return RISCVCC::COND_EQ;
+  case RISCVCC::COND_LT:
+    return RISCVCC::COND_GE;
+  case RISCVCC::COND_GE:
+    return RISCVCC::COND_LT;
+  case RISCVCC::COND_LTU:
+    return RISCVCC::COND_GEU;
+  case RISCVCC::COND_GEU:
+    return RISCVCC::COND_LTU;
   }
 }
 
@@ -624,9 +663,9 @@ unsigned RISCVInstrInfo::insertBranch(
   }
 
   // Either a one or two-way conditional branch.
-  unsigned Opc = Cond[0].getImm();
+  auto CC = static_cast<RISCVCC::CondCode>(Cond[0].getImm());
   MachineInstr &CondMI =
-      *BuildMI(&MBB, DL, get(Opc)).add(Cond[1]).add(Cond[2]).addMBB(TBB);
+      *BuildMI(&MBB, DL, getBrCond(CC)).add(Cond[1]).add(Cond[2]).addMBB(TBB);
   if (BytesAdded)
     *BytesAdded += getInstSizeInBytes(CondMI);
 
@@ -680,7 +719,8 @@ unsigned RISCVInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
 bool RISCVInstrInfo::reverseBranchCondition(
     SmallVectorImpl<MachineOperand> &Cond) const {
   assert((Cond.size() == 3) && "Invalid branch condition!");
-  Cond[0].setImm(getOppositeBranchOpcode(Cond[0].getImm()));
+  auto CC = static_cast<RISCVCC::CondCode>(Cond[0].getImm());
+  Cond[0].setImm(getOppositeBranchCondition(CC));
   return false;
 }
 
@@ -1139,7 +1179,7 @@ MachineBasicBlock::iterator RISCVInstrInfo::insertOutlinedCall(
 
 // clang-format off
 #define CASE_VFMA_OPCODE_COMMON(OP, TYPE, LMUL)                                \
-  RISCV::PseudoV##OP##_##TYPE##_##LMUL##_COMMUTABLE
+  RISCV::PseudoV##OP##_##TYPE##_##LMUL
 
 #define CASE_VFMA_OPCODE_LMULS(OP, TYPE)                                       \
   CASE_VFMA_OPCODE_COMMON(OP, TYPE, MF8):                                      \
@@ -1182,6 +1222,11 @@ bool RISCVInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
   case CASE_VFMA_OPCODE_LMULS(NMSAC, VX):
   case CASE_VFMA_OPCODE_LMULS(MACC, VV):
   case CASE_VFMA_OPCODE_LMULS(NMSAC, VV): {
+    // If the tail policy is undisturbed we can't commute.
+    assert(RISCVII::hasVecPolicyOp(MI.getDesc().TSFlags));
+    if ((MI.getOperand(MI.getNumExplicitOperands() - 1).getImm() & 1) == 0)
+      return false;
+
     // For these instructions we can only swap operand 1 and operand 3 by
     // changing the opcode.
     unsigned CommutableOpIdx1 = 1;
@@ -1197,6 +1242,11 @@ bool RISCVInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
   case CASE_VFMA_OPCODE_LMULS(FNMSUB, VV):
   case CASE_VFMA_OPCODE_LMULS(MADD, VV):
   case CASE_VFMA_OPCODE_LMULS(NMSUB, VV): {
+    // If the tail policy is undisturbed we can't commute.
+    assert(RISCVII::hasVecPolicyOp(MI.getDesc().TSFlags));
+    if ((MI.getOperand(MI.getNumExplicitOperands() - 1).getImm() & 1) == 0)
+      return false;
+
     // For these instructions we have more freedom. We can commute with the
     // other multiplicand or with the addend/subtrahend/minuend.
 
@@ -1223,7 +1273,7 @@ bool RISCVInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
         // Both of operands are not fixed. Set one of commutable
         // operands to the tied source.
         CommutableOpIdx1 = 1;
-      } else if (SrcOpIdx1 == CommutableOpIdx1) {
+      } else if (SrcOpIdx1 == CommuteAnyOperandIndex) {
         // Only one of the operands is not fixed.
         CommutableOpIdx1 = SrcOpIdx2;
       }
@@ -1261,8 +1311,8 @@ bool RISCVInstrInfo::findCommutedOpIndices(const MachineInstr &MI,
 }
 
 #define CASE_VFMA_CHANGE_OPCODE_COMMON(OLDOP, NEWOP, TYPE, LMUL)               \
-  case RISCV::PseudoV##OLDOP##_##TYPE##_##LMUL##_COMMUTABLE:                   \
-    Opc = RISCV::PseudoV##NEWOP##_##TYPE##_##LMUL##_COMMUTABLE;                \
+  case RISCV::PseudoV##OLDOP##_##TYPE##_##LMUL:                                \
+    Opc = RISCV::PseudoV##NEWOP##_##TYPE##_##LMUL;                             \
     break;
 
 #define CASE_VFMA_CHANGE_OPCODE_LMULS(OLDOP, NEWOP, TYPE)                      \

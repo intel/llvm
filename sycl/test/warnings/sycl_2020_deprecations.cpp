@@ -69,6 +69,14 @@ int main() {
   // expected-warning@+1{{'get_count' is deprecated: get_count() is deprecated, please use size() instead}}
   size_t BufferGetCount = Buffer.get_count();
   size_t BufferSize = Buffer.size();
+  // expected-warning@+1 {{'get_size' is deprecated: get_size() is deprecated, please use byte_size() instead}}
+  size_t BufferGetSize = Buffer.get_size();
+
+  sycl::vec<int, 2> Vec(1, 2);
+  // expected-warning@+1{{'get_count' is deprecated: get_count() is deprecated, please use size() instead}}
+  size_t VecGetCount = Vec.get_count();
+  // expected-warning@+1 {{'get_size' is deprecated: get_size() is deprecated, please use byte_size() instead}}
+  size_t VecGetSize = Vec.get_size();
 
   // expected-warning@+1 {{'runtime_error' is deprecated: use sycl::exception with sycl::errc::runtime instead.}}
   sycl::runtime_error re;
@@ -116,8 +124,8 @@ int main() {
     CGH.parallel_for<class Test>(
         sycl::nd_range<1>{sycl::range{10}, sycl::range{10}, sycl::range{1}},
         [](sycl::nd_item<1> it) {
-          // expected-warning@+2{{'mem_fence' is deprecated: use sycl::group_barrier() free function instead}}
-          // expected-warning@+1{{'mem_fence<sycl::access::mode::read_write>' is deprecated: use sycl::group_barrier() free function instead}}
+          // expected-warning@+2{{'mem_fence' is deprecated: use sycl::atomic_fence() free function instead}}
+          // expected-warning@+1{{'mem_fence<sycl::access::mode::read_write>' is deprecated: use sycl::atomic_fence() free function instead}}
           it.mem_fence();
         });
   });
@@ -143,6 +151,10 @@ int main() {
   // expected-warning@+1{{'INTEL' is deprecated: use 'ext::intel' instead}}
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
+
+  // expected-warning@+1{{'half' is deprecated: use 'sycl::half' instead}}
+  half H;
+  (void)H;
 
   return 0;
 }

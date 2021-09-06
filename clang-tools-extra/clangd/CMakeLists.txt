@@ -71,7 +71,7 @@ add_clang_library(clangDaemon
   DumpAST.cpp
   ExpectedTypes.cpp
   FeatureModule.cpp
-  Features.cpp
+  Feature.cpp
   FindSymbols.cpp
   FindTarget.cpp
   FileDistance.cpp
@@ -83,6 +83,7 @@ add_clang_library(clangDaemon
   HeaderSourceSwitch.cpp
   HeuristicResolver.cpp
   Hover.cpp
+  IncludeCleaner.cpp
   IncludeFixer.cpp
   InlayHints.cpp
   JSONTransport.cpp

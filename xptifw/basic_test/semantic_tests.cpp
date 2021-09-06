@@ -206,7 +206,7 @@ void TestCorrectness::runTracepointTestThreads(int RunNo, int NumThreads,
 
   if (!NumThreads) {
     std::vector<xpti::payload_t *> Payloads;
-    std::vector<int64_t> UIds;
+    std::vector<uint64_t> UIds;
     std::vector<xpti::trace_event_data_t *> Events;
     Payloads.resize(TracepointCount);
     UIds.resize(TracepointCount);

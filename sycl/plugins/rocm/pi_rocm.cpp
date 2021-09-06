@@ -696,7 +696,12 @@ pi_result rocm_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
             return;
           }
           int numDevices = 0;
-          err = PI_CHECK_ERROR(hipGetDeviceCount(&numDevices));
+          hipError_t hipErrorCode = hipGetDeviceCount(&numDevices);
+          if (hipErrorCode == hipErrorNoDevice) {
+            numPlatforms = 0;
+            return;
+          }
+          err = PI_CHECK_ERROR(hipErrorCode);
           if (numDevices == 0) {
             numPlatforms = 0;
             return;

@@ -20,7 +20,7 @@
 ; CHECK: ![[#ID]] = !{!"_ZTS11sc_kernel_t", i32 0, i32 0, i32 4, i32 1, i32 4, i32 4}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 %"struct._ZTSN4test5pod_tE.test::pod_t" = type { float, float }
 

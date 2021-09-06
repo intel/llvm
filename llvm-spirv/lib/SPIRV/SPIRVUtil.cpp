@@ -52,6 +52,7 @@
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -148,7 +149,17 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed) {
     Ss << mapLLVMTypeToOCLType(EleTy, Signed) << Size;
     return Ss.str();
   }
-  return "invalid_type";
+  // It is expected that `Ty` can be mapped to `ReturnType` from "Optional
+  // Postfixes for SPIR-V Builtin Function Names" section of
+  // SPIRVRepresentationInLLVM.rst document (aka SPIRV-friendly IR).
+  // If `Ty` is not a scalar or vector type mentioned in the document (return
+  // value of some SPIR-V instructions may be represented as pointer to a struct
+  // in LLVM IR) we can mangle the type.
+  BuiltinFuncMangleInfo MangleInfo;
+  std::string MangledName =
+      mangleBuiltin("", const_cast<Type *>(Ty), &MangleInfo);
+  // Remove "_Z0"(3 characters) from the front of the name
+  return MangledName.erase(0, 3);
 }
 
 std::string mapSPIRVTypeToOCLType(SPIRVType *Ty, bool Signed) {
@@ -478,7 +489,8 @@ bool getSPIRVBuiltin(const std::string &OrigName, spv::BuiltIn &B) {
   SmallVector<StringRef, 2> Postfix;
   StringRef R(OrigName);
   R = dePrefixSPIRVName(R, Postfix);
-  assert(Postfix.empty() && "Invalid SPIR-V builtin Name");
+  if (!Postfix.empty())
+    return false;
   return getByName(R.str(), B);
 }
 
@@ -1864,6 +1876,101 @@ bool lowerBuiltinVariablesToCalls(Module *M) {
   return true;
 }
 
+bool postProcessBuiltinReturningStruct(Function *F) {
+  Module *M = F->getParent();
+  LLVMContext *Context = &M->getContext();
+  std::string Name = F->getName().str();
+  F->setName(Name + ".old");
+  SmallVector<Instruction *, 32> InstToRemove;
+  for (auto *U : F->users()) {
+    if (auto *CI = dyn_cast<CallInst>(U)) {
+      auto *ST = cast<StoreInst>(*(CI->user_begin()));
+      std::vector<Type *> ArgTys;
+      getFunctionTypeParameterTypes(F->getFunctionType(), ArgTys);
+      ArgTys.insert(ArgTys.begin(),
+                    PointerType::get(F->getReturnType(), SPIRAS_Private));
+      auto *NewF =
+          getOrCreateFunction(M, Type::getVoidTy(*Context), ArgTys, Name);
+      NewF->addParamAttr(0, Attribute::get(*Context,
+                                           Attribute::AttrKind::StructRet,
+                                           F->getReturnType()));
+      NewF->setCallingConv(F->getCallingConv());
+      auto Args = getArguments(CI);
+      Args.insert(Args.begin(), ST->getPointerOperand());
+      auto *NewCI = CallInst::Create(NewF, Args, CI->getName(), CI);
+      NewCI->setCallingConv(CI->getCallingConv());
+      InstToRemove.push_back(ST);
+      InstToRemove.push_back(CI);
+    }
+  }
+  for (auto *Inst : InstToRemove) {
+    Inst->dropAllReferences();
+    Inst->eraseFromParent();
+  }
+  F->dropAllReferences();
+  F->eraseFromParent();
+  return true;
+}
+
+bool postProcessBuiltinWithArrayArguments(Function *F,
+                                          StringRef DemangledName) {
+  LLVM_DEBUG(dbgs() << "[postProcessOCLBuiltinWithArrayArguments] " << *F
+                    << '\n');
+  auto Attrs = F->getAttributes();
+  auto Name = F->getName();
+  mutateFunction(
+      F,
+      [=](CallInst *CI, std::vector<Value *> &Args) {
+        auto FBegin = CI->getFunction()->begin()->getFirstInsertionPt();
+        for (auto &I : Args) {
+          auto *T = I->getType();
+          if (!T->isArrayTy())
+            continue;
+          auto *Alloca = new AllocaInst(T, 0, "", &(*FBegin));
+          new StoreInst(I, Alloca, false, CI);
+          auto *Zero =
+              ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
+          Value *Index[] = {Zero, Zero};
+          I = GetElementPtrInst::CreateInBounds(T, Alloca, Index, "", CI);
+        }
+        return Name.str();
+      },
+      nullptr, &Attrs);
+  return true;
+}
+
+bool postProcessBuiltinsReturningStruct(Module *M, bool IsCpp) {
+  StringRef DemangledName;
+  // postProcessBuiltinReturningStruct may remove some functions from the
+  // module, so use make_early_inc_range
+  for (auto &F : make_early_inc_range(M->functions())) {
+    if (F.hasName() && F.isDeclaration()) {
+      LLVM_DEBUG(dbgs() << "[postProcess sret] " << F << '\n');
+      if (F.getReturnType()->isStructTy() &&
+          oclIsBuiltin(F.getName(), DemangledName, IsCpp)) {
+        if (!postProcessBuiltinReturningStruct(&F))
+          return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool postProcessBuiltinsWithArrayArguments(Module *M, bool IsCpp) {
+  StringRef DemangledName;
+  // postProcessBuiltinWithArrayArguments may remove some functions from the
+  // module, so use make_early_inc_range
+  for (auto &F : make_early_inc_range(M->functions())) {
+    if (F.hasName() && F.isDeclaration()) {
+      LLVM_DEBUG(dbgs() << "[postProcess array arg] " << F << '\n');
+      if (hasArrayArg(&F) && oclIsBuiltin(F.getName(), DemangledName, IsCpp))
+        if (!postProcessBuiltinWithArrayArguments(&F, DemangledName))
+          return false;
+    }
+  }
+  return true;
+}
+
 } // namespace SPIRV
 
 namespace {
@@ -2027,5 +2134,17 @@ std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
   SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys);
   return mangleBuiltin(UniqName, ArgTys, &MangleInfo);
 }
+
+template <typename T>
+MetadataAsValue *map2MDString(LLVMContext &C, SPIRVValue *V) {
+  if (V->getOpCode() != OpConstant)
+    return nullptr;
+  uint64_t Const = static_cast<SPIRVConstant *>(V)->getZExtIntValue();
+  std::string Str = SPIRVMap<T, std::string>::map(static_cast<T>(Const));
+  return MetadataAsValue::get(C, MDString::get(C, Str));
+}
+template MetadataAsValue *
+map2MDString<internal::InternalJointMatrixLayout>(LLVMContext &, SPIRVValue *);
+template MetadataAsValue *map2MDString<spv::Scope>(LLVMContext &, SPIRVValue *);
 
 } // namespace SPIRV

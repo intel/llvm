@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/detail/common.hpp>
+#include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <detail/config.hpp>
 
@@ -27,9 +28,8 @@ namespace detail {
   const char *SYCLConfigBase<Name>::MValueFromFile = nullptr;                  \
   char SYCLConfigBase<Name>::MStorage[MaxSize + 1];                            \
   const char *const SYCLConfigBase<Name>::MCompileTimeDef =                    \
-      getStrOrNullptr(__SYCL_STRINGIFY_LINE(CompileTimeDef));                  \
-  const char *const SYCLConfigBase<Name>::MConfigName =                        \
-      __SYCL_STRINGIFY_LINE(Name);
+      getStrOrNullptr(__SYCL_STRINGIFY(CompileTimeDef));                       \
+  const char *const SYCLConfigBase<Name>::MConfigName = __SYCL_STRINGIFY(Name);
 #include "detail/config.def"
 #undef CONFIG
 
@@ -111,6 +111,30 @@ void dumpConfig() {
 #undef CONFIG
 }
 
-} // __SYCL_INLINE_NAMESPACE(cl)
-} // namespace sycl
+// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
+const std::array<std::pair<std::string, info::device_type>, 5> &
+getSyclDeviceTypeMap() {
+  static const std::array<std::pair<std::string, info::device_type>, 5>
+      SyclDeviceTypeMap = {{{"host", info::device_type::host},
+                            {"cpu", info::device_type::cpu},
+                            {"gpu", info::device_type::gpu},
+                            {"acc", info::device_type::accelerator},
+                            {"*", info::device_type::all}}};
+  return SyclDeviceTypeMap;
+}
+
+// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
+const std::array<std::pair<std::string, backend>, 6> &getSyclBeMap() {
+  static const std::array<std::pair<std::string, backend>, 6> SyclBeMap = {
+      {{"host", backend::host},
+       {"opencl", backend::opencl},
+       {"level_zero", backend::level_zero},
+       {"cuda", backend::cuda},
+       {"rocm", backend::rocm},
+       {"*", backend::all}}};
+  return SyclBeMap;
+}
+
 } // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
