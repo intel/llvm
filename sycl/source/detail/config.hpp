@@ -43,6 +43,9 @@ constexpr bool ConfigFromCompileDefEnabled = false;
 constexpr bool ConfigFromCompileDefEnabled = true;
 #endif // DISABLE_CONFIG_FROM_COMPILE_TIME
 
+constexpr int MAX_CONFIG_NAME = 256;
+constexpr int MAX_CONFIG_VALUE = 256;
+
 // Enum of config IDs for accessing other arrays
 enum ConfigID {
   START = 0,

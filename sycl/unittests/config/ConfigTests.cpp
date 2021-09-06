@@ -93,7 +93,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
   // Check variable name bigger than MAX_CONFIG_NAME
   File.open("conf.txt");
   if (File.is_open()) {
-    for (int i = 0; i <= 256; i++) {
+    for (int i = 0; i <= sycl::detail::MAX_CONFIG_NAME; i++) {
       File << "a";
     }
     File << "=b" << std::endl;
@@ -132,7 +132,7 @@ TEST(ConfigTests, CheckConfigProcessing) {
   File.open("conf.txt");
   if (File.is_open()) {
     File << "a=";
-    for (int i = 0; i <= 1024; i++) {
+    for (int i = 0; i <= sycl::detail::MAX_CONFIG_VALUE; i++) {
       File << "b";
     }
     File << std::endl;

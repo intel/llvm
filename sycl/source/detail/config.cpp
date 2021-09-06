@@ -33,9 +33,6 @@ namespace detail {
 #include "detail/config.def"
 #undef CONFIG
 
-constexpr int MAX_CONFIG_NAME = 256;
-constexpr int MAX_CONFIG_VALUE = 256;
-
 static void initValue(const char *Key, const char *Value) {
 #define CONFIG(Name, MaxSize, CompileTimeDef)                                  \
   if (0 == strncmp(Key, SYCLConfigBase<Name>::MConfigName, MAX_CONFIG_NAME)) { \
