@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/assert_happened.hpp>
 #include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
@@ -79,7 +80,8 @@ public:
   queue_impl(const DeviceImplPtr &Device, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
-        MPropList(PropList), MHostQueue(MDevice->is_host()) {
+        MPropList(PropList), MHostQueue(MDevice->is_host()),
+        MAssertHappenedBuffer(range<1>{1}) {
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
@@ -102,7 +104,8 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   queue_impl(RT::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
-      : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false) {
+      : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
+        MAssertHappenedBuffer(range<1>{1}) {
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
@@ -159,6 +162,8 @@ public:
   template <info::queue Param>
   typename info::param_traits<info::queue, Param>::return_type get_info() const;
 
+  using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
+
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
@@ -169,20 +174,22 @@ public:
   /// \param Self is a shared_ptr to this queue.
   /// \param SecondQueue is a shared_ptr to the secondary queue.
   /// \param Loc is the code location of the submit call (default argument)
+  /// \param StoreAdditionalInfo makes additional info be stored in event_impl
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   event submit(const std::function<void(handler &)> &CGF,
                const std::shared_ptr<queue_impl> &Self,
                const std::shared_ptr<queue_impl> &SecondQueue,
-               const detail::code_location &Loc) {
+               const detail::code_location &Loc,
+               const SubmitPostProcessF *PostProcess = nullptr) {
     try {
-      return submit_impl(CGF, Self, Loc);
+      return submit_impl(CGF, Self, Loc, PostProcess);
     } catch (...) {
       {
         std::lock_guard<std::mutex> Lock(MMutex);
         MExceptions.PushBack(std::current_exception());
       }
-      return SecondQueue->submit(CGF, SecondQueue, Loc);
+      return SecondQueue->submit(CGF, SecondQueue, Loc, PostProcess);
     }
   }
 
@@ -192,11 +199,13 @@ public:
   /// \param CGF is a function object containing command group.
   /// \param Self is a shared_ptr to this queue.
   /// \param Loc is the code location of the submit call (default argument)
+  /// \param StoreAdditionalInfo makes additional info be stored in event_impl
   /// \return a SYCL event object for the submitted command group.
   event submit(const std::function<void(handler &)> &CGF,
                const std::shared_ptr<queue_impl> &Self,
-               const detail::code_location &Loc) {
-    return submit_impl(CGF, Self, Loc);
+               const detail::code_location &Loc,
+               const SubmitPostProcessF *PostProcess = nullptr) {
+    return submit_impl(CGF, Self, Loc, PostProcess);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -393,6 +402,13 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
+  bool kernelUsesAssert(const std::string &KernelName,
+                        OSModuleHandle Handle) const;
+
+  buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
+    return MAssertHappenedBuffer;
+  }
+
 private:
   /// Performs command group submission to the queue.
   ///
@@ -402,10 +418,12 @@ private:
   /// \return a SYCL event representing submitted command group.
   event submit_impl(const std::function<void(handler &)> &CGF,
                     const std::shared_ptr<queue_impl> &Self,
-                    const detail::code_location &Loc) {
+                    const detail::code_location &Loc,
+                    const SubmitPostProcessF *PostProcess) {
     handler Handler(Self, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
+
     // Scheduler will later omit events, that are not required to execute tasks.
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
@@ -413,9 +431,27 @@ private:
         (Handler.getType() == CG::CGTYPE::CodeplayHostTask ||
          Handler.getType() == CG::CGTYPE::CodeplayInteropTask))
       Handler.depends_on(MLastEvent);
-    event Event = Handler.finalize();
+
+    event Event;
+
+    if (PostProcess) {
+      bool IsKernel = Handler.getType() == CG::Kernel;
+      bool KernelUsesAssert = false;
+      if (IsKernel)
+        KernelUsesAssert = Handler.MKernel
+                               ? true
+                               : kernelUsesAssert(Handler.MKernelName,
+                                                  Handler.MOSModuleHandle);
+
+      Event = Handler.finalize();
+
+      (*PostProcess)(IsKernel, KernelUsesAssert, Event);
+    } else
+      Event = Handler.finalize();
+
     if (has_property<property::queue::in_order>())
       MLastEvent = Event;
+
     addEvent(Event);
     return Event;
   }
@@ -472,6 +508,9 @@ private:
   // Thread pool for host task and event callbacks execution.
   // The thread pool is instantiated upon the very first call to getThreadPool()
   std::unique_ptr<ThreadPool> MHostTaskThreadPool;
+
+  // Buffer to store assert failure descriptor
+  buffer<AssertHappened, 1> MAssertHappenedBuffer;
 
   event MLastEvent;
 };
