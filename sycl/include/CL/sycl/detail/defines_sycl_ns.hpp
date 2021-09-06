@@ -14,17 +14,17 @@
 #define __SYCL_INLINE_NAMESPACE(X) namespace X
 #endif // __SYCL_DISABLE_NAMESPACE_INLINE__
 
-#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
+//#ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 // Old SYCL1.2.1 namespace scheme
-#define __SYCL_NS_OPEN_1 __SYCL_INLINE_NAMESPACE(cl)
-#define __SYCL_NS_OPEN_2 namespace sycl
-#define __SYCL_NS cl::sycl
-#else
+//#define __SYCL_NS_OPEN_1 __SYCL_INLINE_NAMESPACE(cl)
+//#define __SYCL_NS_OPEN_2 namespace sycl
+//#define __SYCL_NS cl::sycl
+//#else
 // New SYCL2020 friendly namespace scheme, defaulted to __v1
 #define __SYCL_NS_OPEN_1 namespace __sycl_internal
 #define __SYCL_NS_OPEN_2 namespace __v1
 #define __SYCL_NS __sycl_internal::__v1
-#endif
+//#endif
 
 #ifdef __SYCL_ENABLE_SYCL121_NAMESPACE
 
@@ -33,15 +33,27 @@
     __SYCL_NS_OPEN_2 {}                                                        \
   }                                                                            \
   namespace __sycl_ns = __SYCL_NS;                                             \
+  __SYCL_INLINE_NAMESPACE(cl) {                                                \
+  namespace sycl {                                                             \
+  using namespace __SYCL_NS;                                                   \
+  }                                                                            \
+  }                                                                            \
   __SYCL_NS_OPEN_1 {                                                           \
     __SYCL_NS_OPEN_2
 
-#define __SYCL_OPEN_NS_BUILTINS() __SYCL_NS_OPEN_1
-
-#define __SYCL_CLOSE_NS_BUILTINS()                                             \
+#define __SYCL_OPEN_NS_BUILTINS()                                              \
   __SYCL_NS_OPEN_1 {                                                           \
-    __SYCL_NS_OPEN_2 { using namespace cl; }                                   \
-  }
+    __SYCL_NS_OPEN_2 {                                                         \
+      namespace __host_std {}                                                  \
+    }                                                                          \
+  }                                                                            \
+  __SYCL_INLINE_NAMESPACE(cl) {                                                \
+  namespace __host_std = __SYCL_NS::__host_std;                                \
+  }                                                                            \
+  __SYCL_NS_OPEN_1 {                                                           \
+    __SYCL_NS_OPEN_2
+
+#define __SYCL_CLOSE_NS_BUILTINS() }
 
 #else
 

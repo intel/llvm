@@ -1,12 +1,35 @@
+#pragma comment(linker, "/export:?accessGlobalBuf@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@sycl@cl@@@34@AEAVhandler@34@@Z=?accessGlobalBuf@stream_impl@detail@__v1@__sycl_internal@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@__v1@__sycl_internal@@@34@AEAVhandler@34@@Z")
+
 #pragma comment(                                                               \
     linker,                                                                    \
     "/export:?accessGlobalBuf@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@ONEAPI@sycl@cl@@@34@AEAVhandler@34@@Z=?accessGlobalBuf@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@sycl@cl@@@34@AEAVhandler@34@@Z")
+
+
+
+#pragma comment(linker, "/export:?accessGlobalFlushBuf@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@sycl@cl@@@34@AEAVhandler@34@@Z=?accessGlobalFlushBuf@stream_impl@detail@__v1@__sycl_internal@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@__v1@__sycl_internal@@@34@AEAVhandler@34@@Z")
+
+
 #pragma comment(                                                               \
     linker,                                                                    \
     "/export:?accessGlobalFlushBuf@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@ONEAPI@sycl@cl@@@34@AEAVhandler@34@@Z=?accessGlobalFlushBuf@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@sycl@cl@@@34@AEAVhandler@34@@Z")
+
+
+
+
+#pragma comment(linker, "/export:?accessGlobalOffset@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@I$00$0EAF@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@sycl@cl@@@34@AEAVhandler@34@@Z=?accessGlobalOffset@stream_impl@detail@__v1@__sycl_internal@@QEAA?AV?$accessor@I$00$0EAF@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@__v1@__sycl_internal@@@34@AEAVhandler@34@@Z")
+
+
 #pragma comment(                                                               \
     linker,                                                                    \
     "/export:?accessGlobalOffset@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@I$00$0EAF@$0HNO@$0A@V?$accessor_property_list@$$V@ONEAPI@sycl@cl@@@34@AEAVhandler@34@@Z=?accessGlobalOffset@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@I$00$0EAF@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@sycl@cl@@@34@AEAVhandler@34@@Z")
+
+
+
+#pragma comment(linker, "/export:?submit_impl_and_postprocess@queue@sycl@cl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@sycl@cl@@@Z@std@@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@sycl@cl@@@Z@6@@Z=?submit_impl_and_postprocess@queue@__v1@__sycl_internal@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@__v1@__sycl_internal@@@Z@std@@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@__v1@__sycl_internal@@@Z@6@@Z")
+
+#pragma comment(linker, "/export:?submit_impl_and_postprocess@queue@sycl@cl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@sycl@cl@@@Z@std@@V123@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@sycl@cl@@@Z@6@@Z=?submit_impl_and_postprocess@queue@__v1@__sycl_internal@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@__v1@__sycl_internal@@@Z@std@@V123@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@__v1@__sycl_internal@@@Z@6@@Z")
+
+
 #pragma comment(linker, "/export:??$compile@V?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@@?$online_compiler@$00@INTEL@sycl@cl@@QEAA?AV?$vector@EV?$allocator@E@std@@@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@5@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@5@@Z=??$compile@V?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@@?$online_compiler@$00@INTEL@__v1@__sycl_internal@@QEAA?AV?$vector@EV?$allocator@E@std@@@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@5@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@5@@Z")
 #pragma comment(linker, "/export:??$compile@V?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@@?$online_compiler@$0A@@INTEL@sycl@cl@@QEAA?AV?$vector@EV?$allocator@E@std@@@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@5@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@5@@Z=??$compile@V?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@@?$online_compiler@$0A@@INTEL@__v1@__sycl_internal@@QEAA?AV?$vector@EV?$allocator@E@std@@@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@5@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@5@@Z")
 #pragma comment(linker, "/export:??$create_sub_devices@$0BAIG@@device@sycl@cl@@QEBA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@_K@Z=??$create_sub_devices@$0BAIG@@device@__v1@__sycl_internal@@QEBA?AV?$vector@Vdevice@__v1@__sycl_internal@@V?$allocator@Vdevice@__v1@__sycl_internal@@@std@@@std@@_K@Z")
@@ -911,9 +934,6 @@
 #pragma comment(linker, "/export:?__vSignBitSet@__host_std@cl@@YAFVhalf@half_impl@detail@sycl@2@@Z=?__vSignBitSet@__host_std@__v1@__sycl_internal@@YAFVhalf@half_impl@detail@23@@Z")
 #pragma comment(linker, "/export:?__vSignBitSet@__host_std@cl@@YAHM@Z=?__vSignBitSet@__host_std@__v1@__sycl_internal@@YAHM@Z")
 #pragma comment(linker, "/export:?__vSignBitSet@__host_std@cl@@YA_JN@Z=?__vSignBitSet@__host_std@__v1@__sycl_internal@@YA_JN@Z")
-#pragma comment(linker, "/export:?accessGlobalBuf@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@ONEAPI@sycl@cl@@@34@AEAVhandler@34@@Z=?accessGlobalBuf@stream_impl@detail@__v1@__sycl_internal@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@ONEAPI@__v1@__sycl_internal@@@34@AEAVhandler@34@@Z")
-#pragma comment(linker, "/export:?accessGlobalFlushBuf@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@ONEAPI@sycl@cl@@@34@AEAVhandler@34@@Z=?accessGlobalFlushBuf@stream_impl@detail@__v1@__sycl_internal@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@ONEAPI@__v1@__sycl_internal@@@34@AEAVhandler@34@@Z")
-#pragma comment(linker, "/export:?accessGlobalOffset@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@I$00$0EAF@$0HNO@$0A@V?$accessor_property_list@$$V@ONEAPI@sycl@cl@@@34@AEAVhandler@34@@Z=?accessGlobalOffset@stream_impl@detail@__v1@__sycl_internal@@QEAA?AV?$accessor@I$00$0EAF@$0HNO@$0A@V?$accessor_property_list@$$V@ONEAPI@__v1@__sycl_internal@@@34@AEAVhandler@34@@Z")
 #pragma comment(linker, "/export:?acos@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z=?acos@__host_std@__v1@__sycl_internal@@YA?AV?$vec@M$00@23@V423@@Z")
 #pragma comment(linker, "/export:?acos@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z=?acos@__host_std@__v1@__sycl_internal@@YA?AV?$vec@M$01@23@V423@@Z")
 #pragma comment(linker, "/export:?acos@__host_std@cl@@YA?AV?$vec@M$02@sycl@2@V342@@Z=?acos@__host_std@__v1@__sycl_internal@@YA?AV?$vec@M$02@23@V423@@Z")

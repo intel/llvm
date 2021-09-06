@@ -1,17 +1,34 @@
-// RUN: %clangxx -D__SYCL_DISABLE_SYCL121_NAMESPACE -fsycl %s
-// RUN: %clangxx -U__SYCL_DISABLE_SYCL121_NAMESPACE -fsycl %s
+// RUN: %clangxx -DPOSITIVE_TESTING -DSYCL121_HEADER -fsycl %s
+// RUN: %clangxx -DPOSITIVE_TESTING -fsycl %s
+// RUN: %clangxx -fsycl %s -Xclang -verify -fsyntax-only
 
-// The test checks that compilation with SYCL 2020 style namespaces (sycl
-// instead of cl::sycl) works fine
-//
-// This test is temporary one which should make sure that such a compilation
-// mode is not broken until complete transition happens.
+#ifdef POSITIVE_TESTING
 
-//#include <sycl/sycl.hpp>
+#ifdef SYCL121_HEADER
 #include <CL/sycl.hpp>
-
-using namespace cl::sycl;
 
 int main() {
   cl::sycl::queue q;
+  sycl::buffer<int, 1> A{sycl::range<1>{4}};
 }
+
+#else // SYCL121_HEADER
+
+#include <sycl/sycl.hpp>
+
+int main() {
+  sycl::queue q;
+  sycl::buffer<int, 1> A{sycl::range<1>{4}};
+}
+
+#endif // SYCL121_HEADER
+
+#else // POSITIVE_TESTING
+
+#include <sycl/sycl.hpp>
+
+int main() {
+  cl::sycl::queue q; // expected-error {{use of undeclared identifier 'cl'}}
+}
+
+#endif // POSITIVE_TESTING

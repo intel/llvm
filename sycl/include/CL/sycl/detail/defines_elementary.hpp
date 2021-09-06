@@ -8,9 +8,16 @@
 
 #pragma once
 
-#define __SYCL_INT_HEADER_NS() __sycl_integraion_header_ns
-#define __SYCL_INT_HEADER_OPEN_NS() namespace __SYCL_INT_HEADER_NS()
-#define __SYCL_INT_HEADER_CLOSE_NS()
+//#define __SYCL_INT_HEADER_NS() __sycl_integraion_header_ns
+//#define __SYCL_INT_HEADER_OPEN_NS() namespace __SYCL_INT_HEADER_NS()
+//#define __SYCL_INT_HEADER_CLOSE_NS()
+//
+#define __SYCL_INT_HEADER_NS() __sycl_internal::__v1
+#define __SYCL_INT_HEADER_OPEN_NS()                                            \
+  namespace __sycl_internal {                                                  \
+  namespace __v1
+
+#define __SYCL_INT_HEADER_CLOSE_NS() }
 
 #ifndef __has_attribute
 #define __has_attribute(x) 0
