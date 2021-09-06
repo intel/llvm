@@ -139,15 +139,13 @@ work-item with the id `max_local_range()-1`.
 
 |`template <typename T = marray<uint32_t, marray_size>> void insert_bits(const T& bits, id<1> pos = 0)`
 |Insert `CHAR_BIT * sizeof(T)` bits into the mask, starting from _pos_.  `T`
- must be an integral type or a SYCL `marray` of integral types.  _pos_ must be a
- multiple of `CHAR_BIT * sizeof(T)` in the range [0, `size()`).  If _pos_ pass:[+]
+ must be an integral type or a SYCL `marray` of integral types. If _pos_ pass:[+]
  `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ pass:[+]
  `CHAR_BIT * sizeof(T)`) bits are ignored.
 
 |`template <typename T = marray<uint32_t, marray_size>> T extract_bits(id<1> pos = 0) const`
 |Return `CHAR_BIT * sizeof(T)` bits from the mask, starting from _pos_.  `T`
- must be an integral type or a SYCL `marray` of integral types.  _pos_ must be a
- multiple of `CHAR_BIT * sizeof(T)` in the range [0, `size()`).  If _pos_ pass:[+]
+ must be an integral type or a SYCL `marray` of integral types. If _pos_ pass:[+]
  `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ pass:[+]
  `CHAR_BIT * sizeof(T)`) bits of the return value are zero.
 
@@ -300,11 +298,10 @@ struct group_mask {
   group_mask operator <<(size_t n) const;
   group_mask operator >>(size_t n) const;
 
+  group_mask operator &(const group_mask& rhs) const;
+  group_mask operator |(const group_mask& rhs) const;
+  group_mask operator ^(const group_mask& rhs) const;
 };
-
-group_mask operator &(const group_mask& lhs, const group_mask& rhs);
-group_mask operator |(const group_mask& lhs, const group_mask& rhs);
-group_mask operator ^(const group_mask& lhs, const group_mask& rhs);
 
 } // namespace oneapi
 } // namespace ext
