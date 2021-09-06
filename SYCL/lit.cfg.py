@@ -197,7 +197,7 @@ with open(check_sycl_hpp_file, 'w') as fp:
 
 extra_sycl_include = ""
 sycl_hpp_available = subprocess.getstatusoutput(config.dpcpp_compiler+' -fsycl  ' + check_sycl_hpp_file)
-if sycl_hpp_available != 0:
+if sycl_hpp_available[0] != 0:
     extra_sycl_include = " " + ("/I" if cl_options else "-I") + config.extra_include
 
 config.substitutions.append( ('%clangxx', ' '+ config.dpcpp_compiler + ' ' + config.cxx_flags + ' ' + arch_flag + extra_sycl_include) )
