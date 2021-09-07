@@ -3887,22 +3887,22 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
     if (BA->hasDecorate(DecorationFuncParamIOKindINTEL, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentIOKind,
                                       std::to_string(Kind));
-      F->addParamAttr(ArgNo + 1, Attr);
+      F->addParamAttr(ArgNo, Attr);
     }
     if (BA->hasDecorate(internal::DecorationFuncParamKindINTEL, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentKind,
                                       std::to_string(Kind));
-      F->addParamAttr(ArgNo + 1, Attr);
+      F->addParamAttr(ArgNo, Attr);
     }
     if (BA->hasDecorate(DecorationSingleElementVectorINTEL))
-      F->addParamAttr(ArgNo + 1, SEVAttr);
+      F->addParamAttr(ArgNo, SEVAttr);
     if (BA->hasDecorate(internal::DecorationFuncParamDescINTEL)) {
       auto Desc =
           BA->getDecorationStringLiteral(internal::DecorationFuncParamDescINTEL)
               .front();
       Attribute Attr =
           Attribute::get(*Context, kVCMetadata::VCArgumentDesc, Desc);
-      F->addParamAttr(ArgNo + 1, Attr);
+      F->addParamAttr(ArgNo, Attr);
     }
   }
 

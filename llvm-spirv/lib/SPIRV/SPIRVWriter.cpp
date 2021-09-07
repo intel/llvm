@@ -656,22 +656,22 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
       BA->addAttr(FunctionParameterAttributeSret);
     if (I->onlyReadsMemory())
       BA->addAttr(FunctionParameterAttributeNoWrite);
-    if (Attrs.hasParamAttr(ArgNo + 1, Attribute::ZExt))
+    if (Attrs.hasParamAttr(ArgNo, Attribute::ZExt))
       BA->addAttr(FunctionParameterAttributeZext);
-    if (Attrs.hasParamAttr(ArgNo + 1, Attribute::SExt))
+    if (Attrs.hasParamAttr(ArgNo, Attribute::SExt))
       BA->addAttr(FunctionParameterAttributeSext);
-    if (Attrs.hasParamAttr(ArgNo + 1, Attribute::Alignment)) {
+    if (Attrs.hasParamAttr(ArgNo, Attribute::Alignment)) {
       SPIRVWord AlignmentBytes =
-          Attrs.getParamAttr(ArgNo + 1, Attribute::Alignment)
+          Attrs.getParamAttr(ArgNo, Attribute::Alignment)
               .getAlignment()
               .valueOrOne()
               .value();
       BA->setAlignment(AlignmentBytes);
     }
     if (BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_1) &&
-        Attrs.hasParamAttr(ArgNo + 1, Attribute::Dereferenceable))
+        Attrs.hasParamAttr(ArgNo, Attribute::Dereferenceable))
       BA->addDecorate(DecorationMaxByteOffset,
-                      Attrs.getParamAttr(ArgNo + 1, Attribute::Dereferenceable)
+                      Attrs.getParamAttr(ArgNo, Attribute::Dereferenceable)
                           .getDereferenceableBytes());
     if (BufferLocation && I->getType()->isPointerTy()) {
       // Order of integer numbers in MD node follows the order of function
@@ -757,14 +757,14 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
        ++I) {
     auto ArgNo = I->getArgNo();
     SPIRVFunctionParameter *BA = BF->getArgument(ArgNo);
-    if (Attrs.hasParamAttr(ArgNo + 1, kVCMetadata::VCArgumentIOKind)) {
+    if (Attrs.hasParamAttr(ArgNo, kVCMetadata::VCArgumentIOKind)) {
       SPIRVWord Kind = {};
-      Attrs.getParamAttr(ArgNo + 1, kVCMetadata::VCArgumentIOKind)
+      Attrs.getParamAttr(ArgNo, kVCMetadata::VCArgumentIOKind)
           .getValueAsString()
           .getAsInteger(0, Kind);
       BA->addDecorate(DecorationFuncParamIOKindINTEL, Kind);
     }
-    if (Attrs.hasParamAttr(ArgNo + 1, kVCMetadata::VCSingleElementVector)) {
+    if (Attrs.hasParamAttr(ArgNo, kVCMetadata::VCSingleElementVector)) {
       auto *AT = BA->getType();
       (void)AT;
       assert((AT->isTypeBool() || AT->isTypeFloat() || AT->isTypeInt() ||
@@ -772,16 +772,16 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
              "This decoration is valid only for Scalar or Pointer types");
       BA->addDecorate(DecorationSingleElementVectorINTEL);
     }
-    if (Attrs.hasParamAttr(ArgNo + 1, kVCMetadata::VCArgumentKind)) {
+    if (Attrs.hasParamAttr(ArgNo, kVCMetadata::VCArgumentKind)) {
       SPIRVWord Kind;
-      Attrs.getParamAttr(ArgNo + 1, kVCMetadata::VCArgumentKind)
+      Attrs.getParamAttr(ArgNo, kVCMetadata::VCArgumentKind)
           .getValueAsString()
           .getAsInteger(0, Kind);
       BA->addDecorate(internal::DecorationFuncParamKindINTEL, Kind);
     }
-    if (Attrs.hasParamAttr(ArgNo + 1, kVCMetadata::VCArgumentDesc)) {
+    if (Attrs.hasParamAttr(ArgNo, kVCMetadata::VCArgumentDesc)) {
       StringRef Desc =
-          Attrs.getParamAttr(ArgNo + 1, kVCMetadata::VCArgumentDesc)
+          Attrs.getParamAttr(ArgNo, kVCMetadata::VCArgumentDesc)
               .getValueAsString();
       BA->addDecorate(new SPIRVDecorateFuncParamDescAttr(BA, Desc.str()));
     }
