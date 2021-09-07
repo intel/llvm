@@ -18,8 +18,6 @@ template <typename T> class Modifier;
 
 template <typename T> class Init;
 
-template <bool B, typename T> class NameGen;
-
 template <typename BufferT, typename ValueT>
 void checkBufferValues(BufferT Buffer, ValueT Value) {
   auto Acc = Buffer.template get_access<mode::read>();
@@ -32,7 +30,7 @@ void checkBufferValues(BufferT Buffer, ValueT Value) {
   }
 }
 
-template <bool UseSYCL2020HostTask, typename DataT>
+template <typename DataT>
 void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
   Q.submit([&](handler &CGH) {
     auto SrcA = Src.template get_access<mode::read>(CGH);
@@ -61,10 +59,7 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
             "interop_handle::get_backend() returned a wrong value",
             CL_INVALID_VALUE);
     };
-    if constexpr (UseSYCL2020HostTask)
-      CGH.host_task(Func);
-    else
-      CGH.codeplay_host_task(Func);
+    CGH.host_task(Func);
   });
 }
 
@@ -96,7 +91,7 @@ void init(buffer<DataT, 1> &B1, buffer<DataT, 1> &B2, queue &Q) {
 // kernel that modifies the data in place for B, e.g. increment one, then copy
 // back to buffer A. Run it on a loop, to ensure the dependencies and the
 // reference counting of the objects is not leaked.
-template <bool UseSYCL2020HostTask> void test1(queue &Q) {
+void test1(queue &Q) {
   static constexpr int COUNT = 4;
   buffer<int, 1> Buffer1{BUFFER_SIZE};
   buffer<int, 1> Buffer2{BUFFER_SIZE};
@@ -106,9 +101,9 @@ template <bool UseSYCL2020HostTask> void test1(queue &Q) {
 
   // Repeat a couple of times
   for (size_t Idx = 0; Idx < COUNT; ++Idx) {
-    copy<UseSYCL2020HostTask>(Buffer1, Buffer2, Q);
+    copy(Buffer1, Buffer2, Q);
     modify(Buffer2, Q);
-    copy<UseSYCL2020HostTask>(Buffer2, Buffer1, Q);
+    copy(Buffer2, Buffer1, Q);
   }
 
   checkBufferValues(Buffer1, COUNT - 1);
@@ -118,7 +113,7 @@ template <bool UseSYCL2020HostTask> void test1(queue &Q) {
 // Same as above, but performing each command group on a separate SYCL queue
 // (on the same or different devices). This ensures the dependency tracking
 // works well but also there is no accidental side effects on other queues.
-template <bool UseSYCL2020HostTask> void test2(queue &Q) {
+void test2(queue &Q) {
   static constexpr int COUNT = 4;
   buffer<int, 1> Buffer1{BUFFER_SIZE};
   buffer<int, 1> Buffer2{BUFFER_SIZE};
@@ -128,16 +123,16 @@ template <bool UseSYCL2020HostTask> void test2(queue &Q) {
 
   // Repeat a couple of times
   for (size_t Idx = 0; Idx < COUNT; ++Idx) {
-    copy<UseSYCL2020HostTask>(Buffer1, Buffer2, Q);
+    copy(Buffer1, Buffer2, Q);
     modify(Buffer2, Q);
-    copy<UseSYCL2020HostTask>(Buffer2, Buffer1, Q);
+    copy(Buffer2, Buffer1, Q);
   }
   checkBufferValues(Buffer1, COUNT - 1);
   checkBufferValues(Buffer2, COUNT - 1);
 }
 
 // Same as above but with queue constructed out of context
-template <bool UseSYCL2020HostTask> void test2_1(queue &Q) {
+void test2_1(queue &Q) {
   static constexpr int COUNT = 4;
   buffer<int, 1> Buffer1{BUFFER_SIZE};
   buffer<int, 1> Buffer2{BUFFER_SIZE};
@@ -149,9 +144,9 @@ template <bool UseSYCL2020HostTask> void test2_1(queue &Q) {
 
   // Repeat a couple of times
   for (size_t Idx = 0; Idx < COUNT; ++Idx) {
-    copy<UseSYCL2020HostTask>(Buffer1, Buffer2, Q);
+    copy(Buffer1, Buffer2, Q);
     modify(Buffer2, Q);
-    copy<UseSYCL2020HostTask>(Buffer2, Buffer1, Q);
+    copy(Buffer2, Buffer1, Q);
   }
   checkBufferValues(Buffer1, COUNT - 1);
   checkBufferValues(Buffer2, COUNT - 1);
@@ -161,15 +156,15 @@ template <bool UseSYCL2020HostTask> void test2_1(queue &Q) {
 // captured outside the command group. The OpenCL event can be set after the
 // command group finishes. Must not deadlock according to implementation and
 // proposal
-template <bool UseSYCL2020HostTask> void test3(queue &Q) {
+void test3(queue &Q) {
   // Want some large buffer for operation to take long
   buffer<int, 1> Buffer{BUFFER_SIZE * 128};
 
   event Event = Q.submit([&](handler &CGH) {
     auto Acc1 = Buffer.get_access<mode::write>(CGH);
 
-    CGH.parallel_for<NameGen<UseSYCL2020HostTask, class Init3>>(
-        BUFFER_SIZE, [=](item<1> Id) { Acc1[Id] = 123; });
+    CGH.parallel_for<class Init3>(BUFFER_SIZE,
+                                  [=](item<1> Id) { Acc1[Id] = 123; });
   });
 
   Q.submit([&](handler &CGH) {
@@ -181,28 +176,22 @@ template <bool UseSYCL2020HostTask> void test3(queue &Q) {
       if (RC != CL_SUCCESS)
         throw runtime_error("Can't wait for events", RC);
     };
-    if constexpr (UseSYCL2020HostTask)
-      CGH.host_task(Func);
-    else
-      CGH.codeplay_host_task(Func);
+    CGH.host_task(Func);
   });
 }
 
 // Check that a single host-interop-task with a buffer will work
-template <bool UseSYCL2020HostTask> void test4(queue &Q) {
+void test4(queue &Q) {
   buffer<int, 1> Buffer{BUFFER_SIZE};
 
   Q.submit([&](handler &CGH) {
     auto Acc = Buffer.get_access<mode::write>(CGH);
     auto Func = [=](interop_handle IH) { /*A no-op */ };
-    if constexpr (UseSYCL2020HostTask)
-      CGH.host_task(Func);
-    else
-      CGH.codeplay_host_task(Func);
+    CGH.host_task(Func);
   });
 }
 
-template <bool UseSYCL2020HostTask> void test5(queue &Q) {
+void test5(queue &Q) {
   buffer<int, 1> Buffer1{BUFFER_SIZE};
   buffer<int, 1> Buffer2{BUFFER_SIZE};
 
@@ -210,11 +199,10 @@ template <bool UseSYCL2020HostTask> void test5(queue &Q) {
     auto Acc = Buffer1.template get_access<mode::write>(CGH);
 
     auto Kernel = [=](item<1> Id) { Acc[Id] = 123; };
-    CGH.parallel_for<NameGen<UseSYCL2020HostTask, class Test5Init>>(
-        Acc.get_count(), Kernel);
+    CGH.parallel_for<class Test5Init>(Acc.get_count(), Kernel);
   });
 
-  copy<UseSYCL2020HostTask>(Buffer1, Buffer2, Q);
+  copy(Buffer1, Buffer2, Q);
 
   checkBufferValues(Buffer2, static_cast<int>(123));
 }
@@ -223,7 +211,7 @@ template <bool UseSYCL2020HostTask> void test5(queue &Q) {
 // when properly registered in the command group.
 // It also checks that an exception is thrown if the placeholder accessor
 // is not registered.
-template <bool UseSYCL2020HostTask> void test6(queue &Q) {
+void test6(queue &Q) {
   // Placeholder accessor that is properly registered in CGH.
   try {
     size_t size = 1;
@@ -233,8 +221,7 @@ template <bool UseSYCL2020HostTask> void test6(queue &Q) {
         PHAcc(Buf);
     Q.submit([&](sycl::handler &CGH) {
       CGH.require(PHAcc);
-      CGH.codeplay_host_task(
-          [=](interop_handle IH) { (void)IH.get_native_mem(PHAcc); });
+      CGH.host_task([=](interop_handle IH) { (void)IH.get_native_mem(PHAcc); });
     });
     Q.wait_and_throw();
   } catch (sycl::exception &E) {
@@ -251,10 +238,7 @@ template <bool UseSYCL2020HostTask> void test6(queue &Q) {
         PHAcc(Buf);
     Q.submit([&](sycl::handler &CGH) {
       auto Func = [=](interop_handle IH) { (void)IH.get_native_mem(PHAcc); };
-      if constexpr (UseSYCL2020HostTask)
-        CGH.host_task(Func);
-      else
-        CGH.codeplay_host_task(Func);
+      CGH.host_task(Func);
     });
     Q.wait_and_throw();
     assert(!"Expected exception was not caught");
@@ -265,14 +249,14 @@ template <bool UseSYCL2020HostTask> void test6(queue &Q) {
   }
 }
 
-template <bool UseSYCL2020HostTask> void tests(queue &Q) {
-  test1<UseSYCL2020HostTask>(Q);
-  test2<UseSYCL2020HostTask>(Q);
-  test2_1<UseSYCL2020HostTask>(Q);
-  test3<UseSYCL2020HostTask>(Q);
-  test4<UseSYCL2020HostTask>(Q);
-  test5<UseSYCL2020HostTask>(Q);
-  test6<UseSYCL2020HostTask>(Q);
+void tests(queue &Q) {
+  test1(Q);
+  test2(Q);
+  test2_1(Q);
+  test3(Q);
+  test4(Q);
+  test5(Q);
+  test6(Q);
 }
 
 int main() {
@@ -283,8 +267,8 @@ int main() {
     }
     std::rethrow_exception(*ExceptionList.begin());
   });
-  tests<true>(Q);
-  tests<false>(Q);
+  tests(Q);
+  tests(Q);
   std::cout << "Test PASSED" << std::endl;
   return 0;
 }

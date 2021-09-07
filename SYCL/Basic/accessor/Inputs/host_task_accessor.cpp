@@ -54,9 +54,6 @@ int main() {
 
 #if defined(accessor_new_api_test) || defined(buffer_new_api_test)
       cgh.host_task([=]() {
-#else
-      cgh.codeplay_host_task([=]() {
-#endif
         acc_7[6] = acc_1[0];
         acc_8[7] = acc_2[1];
         acc_9[7] = acc_3[1];
@@ -65,6 +62,7 @@ int main() {
         acc_3[1] = acc_6[4];
       });
     });
+#endif
     Queue.wait();
 
 #if defined(accessor_new_api_test)
@@ -115,9 +113,6 @@ int main() {
 
 #if defined(accessor_new_api_test) || defined(buffer_new_api_test)
       cgh.host_task([=]() {
-#else
-      cgh.codeplay_host_task([=]() {
-#endif
         acc_7[6] = acc_1[0];
         acc_8[7] = acc_2[1];
         acc_9[7] = acc_3[1];
@@ -125,6 +120,7 @@ int main() {
         acc_2[1] = 5;
         acc_3[1] = 6;
       });
+#endif
     });
     Queue.wait();
 
