@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-
+# test change
 project(sycl-solution)
 # Requirements
 set(CMAKE_CXX_STANDARD 17)
