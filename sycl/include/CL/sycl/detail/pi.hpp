@@ -361,6 +361,13 @@ public:
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
+  const PropertyRange getAssertUsed() const {
+    // We can't have this variable as a class member, since it would break
+    // the ABI backwards compatibility.
+    PropertyRange AssertUsed;
+    AssertUsed.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED);
+    return AssertUsed;
+  }
   const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
   virtual ~DeviceBinaryImage() {}
 

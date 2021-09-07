@@ -173,7 +173,7 @@ class DispatchHostTask {
   ExecCGCommand *MThisCmd;
   std::vector<interop_handle::ReqToMem> MReqToMem;
 
-  void waitForEvents() const {
+  pi_result waitForEvents() const {
     std::map<const detail::plugin *, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
@@ -189,14 +189,27 @@ class DispatchHostTask {
     // other available job and resume once all required events are ready.
     for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
       std::vector<RT::PiEvent> RawEvents = getPiEvents(PluginWithEvents.second);
-      PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
-                                                            RawEvents.data());
+      try {
+        PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
+                                                              RawEvents.data());
+      } catch (const sycl::exception &E) {
+        CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
+        HostTask.MQueue->reportAsyncException(std::current_exception());
+        return (pi_result)E.get_cl_code();
+      } catch (...) {
+        CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
+        HostTask.MQueue->reportAsyncException(std::current_exception());
+        return PI_ERROR_UNKNOWN;
+      }
     }
 
-    // wait for dependency host events
+    // Wait for dependency host events.
+    // Host events can't throw exceptions so don't try to catch it.
     for (const EventImplPtr &Event : MThisCmd->MPreparedHostDepsEvents) {
       Event->waitInternal();
     }
+
+    return PI_SUCCESS;
   }
 
 public:
@@ -205,11 +218,21 @@ public:
       : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
 
   void operator()() const {
-    waitForEvents();
-
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
+
+    pi_result WaitResult = waitForEvents();
+    if (WaitResult != PI_SUCCESS) {
+      std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
+          std::string("Couldn't wait for host-task's dependencies"),
+          WaitResult));
+      HostTask.MQueue->reportAsyncException(EPtr);
+
+      // reset host-task's lambda and quit
+      HostTask.MHostTask.reset();
+      return;
+    }
 
     try {
       // we're ready to call the user-defined lambda now
@@ -2033,7 +2056,6 @@ cl_int ExecCGCommand::enqueueImp() {
     RT::PiKernel Kernel = nullptr;
     std::mutex *KernelMutex = nullptr;
     RT::PiProgram Program = nullptr;
-    bool KnownProgram = true;
 
     std::shared_ptr<kernel_impl> SyclKernelImpl;
     std::shared_ptr<device_image_impl> DeviceImageImpl;
@@ -2074,8 +2096,7 @@ cl_int ExecCGCommand::enqueueImp() {
                 ExecKernel->MOSModuleHandle, ContextImpl, DeviceImpl,
                 ExecKernel->MKernelName, SyclProg.get());
         assert(FoundKernel == Kernel);
-      } else
-        KnownProgram = false;
+      }
     } else {
       std::tie(Kernel, KernelMutex, Program) =
           detail::ProgramManager::getInstance().getOrCreateKernel(
@@ -2089,8 +2110,7 @@ cl_int ExecCGCommand::enqueueImp() {
         !ExecKernel->MSyclKernel->isCreatedFromSource()) {
       EliminatedArgMask =
           detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-              ExecKernel->MOSModuleHandle, ContextImpl, DeviceImpl, Program,
-              ExecKernel->MKernelName, KnownProgram);
+              ExecKernel->MOSModuleHandle, Program, ExecKernel->MKernelName);
     }
     if (KernelMutex != nullptr) {
       // For cacheable kernels, we use per-kernel mutex

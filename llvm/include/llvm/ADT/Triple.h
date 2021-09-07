@@ -230,7 +230,6 @@ public:
     Itanium,
     Cygnus,
     CoreCLR,
-    SYCLDevice,
     Simulator,  // Simulator variants of other systems, e.g., Apple's iOS
     MacABI, // Mac Catalyst variant of Apple's iOS deployment target.
     LastEnvironmentType = MacABI
@@ -494,10 +493,6 @@ public:
 
   bool isSimulatorEnvironment() const {
     return getEnvironment() == Triple::Simulator;
-  }
-
-  bool isSYCLDeviceEnvironment() const {
-    return getEnvironment() == Triple::SYCLDevice;
   }
 
   bool isMacCatalystEnvironment() const {

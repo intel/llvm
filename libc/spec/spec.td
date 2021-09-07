@@ -40,7 +40,9 @@ def VarArgType : Type {}
 def VoidType : NamedType<"void">;
 def IntType : NamedType<"int">;
 def LongType : NamedType<"long">;
+def UnsignedLongType : NamedType<"unsigned long">;
 def LongLongType : NamedType<"long long">;
+def UnsignedLongLongType : NamedType<"unsigned long long">;
 def FloatType : NamedType<"float">;
 def DoubleType : NamedType<"double">;
 def LongDoubleType : NamedType<"long double">;
@@ -51,6 +53,9 @@ def VoidPtr : PtrType<VoidType>;
 def ConstVoidPtr : ConstType<VoidPtr>;
 def SizeTType : NamedType<"size_t">;
 def LongDoublePtr : PtrType<LongDoubleType>;
+
+def IntMaxTType : NamedType<"intmax_t">;
+def UIntMaxTType : NamedType<"uintmax_t">;
 
 // _Noreturn is really not a type, but it is convenient to treat it as a type.
 def NoReturn : NamedType<"_Noreturn void">;
