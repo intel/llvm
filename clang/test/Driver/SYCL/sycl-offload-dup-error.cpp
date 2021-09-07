@@ -9,4 +9,3 @@ void foo() {
 
 // CHECK: error: unknown type name 'foobar'
 // CHECK-NOT: error: unknown type name 'foobar'
-
