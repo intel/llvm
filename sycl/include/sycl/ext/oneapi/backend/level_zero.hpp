@@ -60,15 +60,36 @@ struct interop<backend::level_zero,
   using type = ze_image_handle_t;
 };
 
+namespace ext {
+namespace oneapi {
+namespace level_zero {
+// Since Level-Zero is not doing any reference counting itself, we have to
+// be explicit about the ownership of the native handles used in the
+// interop functions below.
+//
+enum class ownership { transfer, keep };
+} // namespace level_zero
+} // namespace oneapi
+} // namespace ext
+
 namespace detail {
+
+template <> struct BackendInput<backend::level_zero, context> {
+  using type = struct {
+    interop<backend::level_zero, context>::type NativeHandle;
+    std::vector<device> DeviceList;
+    level_zero::ownership Ownership;
+  };
+};
+
 template <> struct BackendReturn<backend::level_zero, kernel> {
   using type = ze_kernel_handle_t;
 };
 
 template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakePlatform = true;
-  static constexpr bool MakeDevice = false;
-  static constexpr bool MakeContext = false;
+  static constexpr bool MakeDevice = true;
+  static constexpr bool MakeContext = true;
   static constexpr bool MakeQueue = false;
   static constexpr bool MakeEvent = true;
   static constexpr bool MakeBuffer = false;
@@ -80,15 +101,9 @@ template <> struct InteropFeatureSupportMap<backend::level_zero> {
 namespace ext {
 namespace oneapi {
 namespace level_zero {
-
-// Since Level-Zero is not doing any reference counting itself, we have to
-// be explicit about the ownership of the native handles used in the
-// interop functions below.
-//
-enum class ownership { transfer, keep };
-
 // Implementation of various "make" functions resides in libsycl.so and thus
 // their interface needs to be backend agnostic.
+// TODO: remove/merge with similar functions in sycl::detail
 __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle);
 __SYCL_EXPORT device make_device(const platform &Platform,
                                  pi_native_handle NativeHandle);
@@ -107,6 +122,7 @@ __SYCL_EXPORT event make_event(const context &Context,
 // Construction of SYCL platform.
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, platform>::value> * = nullptr>
+__SYCL_DEPRECATED("Use SYCL-2020 sycl::make_platform free function")
 T make(typename interop<backend::level_zero, T>::type Interop) {
   return make_platform(reinterpret_cast<pi_native_handle>(Interop));
 }
@@ -114,6 +130,7 @@ T make(typename interop<backend::level_zero, T>::type Interop) {
 // Construction of SYCL device.
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, device>::value> * = nullptr>
+__SYCL_DEPRECATED("Use SYCL-2020 sycl::make_device free function")
 T make(const platform &Platform,
        typename interop<backend::level_zero, T>::type Interop) {
   return make_device(Platform, reinterpret_cast<pi_native_handle>(Interop));
@@ -130,6 +147,7 @@ T make(const platform &Platform,
 ///
 template <typename T, typename std::enable_if<
                           std::is_same<T, context>::value>::type * = nullptr>
+__SYCL_DEPRECATED("Use SYCL-2020 sycl::make_context free function")
 T make(const std::vector<device> &DeviceList,
        typename interop<backend::level_zero, T>::type Interop,
        ownership Ownership = ownership::transfer) {
@@ -164,10 +182,20 @@ T make(const context &Context,
   return make_event(Context, reinterpret_cast<pi_native_handle>(Interop),
                     Ownership == ownership::keep);
 }
-
 } // namespace level_zero
 } // namespace oneapi
 } // namespace ext
+
+// Specialization of sycl::make_context for Level-Zero backend.
+template <>
+context make_context<backend::level_zero>(
+    const backend_input_t<backend::level_zero, context> &BackendObject,
+    const async_handler &Handler) {
+  return level_zero::make_context(
+      BackendObject.DeviceList,
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      BackendObject.Ownership == level_zero::ownership::keep);
+}
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
     level_zero {
