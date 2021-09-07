@@ -92,10 +92,6 @@ public:
   static bool isSyclSpecialType(QualType Ty);
 
   /// Checks whether given clang type is a full specialization of the SYCL
-  /// accessor class.
-  static bool isSyclAccessorType(QualType Ty);
-
-  /// Checks whether given clang type is a full specialization of the SYCL
   /// half class.
   static bool isSyclHalfType(QualType Ty);
 
@@ -1961,13 +1957,13 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   // the kernel body.
   bool handleSpecialType(FieldDecl *FD, QualType FieldTy) {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
-    assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
+    assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName = KernelDecl->hasAttr<SYCLSimdAttr>()
                                          ? InitESIMDMethodName
                                          : InitMethodName;
     CXXMethodDecl *InitMethod =
         isCXXRecordWithInitMember(RecordDecl, MethodName);
-    assert(InitMethod && "The accessor/sampler must have the __init method");
+    assert(InitMethod && "The type must have the __init method");
 
     // Don't do -1 here because we count on this to be the first parameter added
     // (if any).
@@ -2086,13 +2082,13 @@ public:
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                              QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
-    assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
+    assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName = KernelDecl->hasAttr<SYCLSimdAttr>()
                                          ? InitESIMDMethodName
                                          : InitMethodName;
     CXXMethodDecl *InitMethod =
         isCXXRecordWithInitMember(RecordDecl, MethodName);
-    assert(InitMethod && "The accessor/sampler must have the __init method");
+    assert(InitMethod && "The type must have the __init method");
 
     // Get access mode of accessor.
     const auto *AccessorSpecializationDecl =
@@ -2241,12 +2237,12 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
 
   bool handleSpecialType(QualType FieldTy) {
     const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
-    assert(RecordDecl && "The accessor/sampler must be a RecordDecl");
+    assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
         IsSIMD ? InitESIMDMethodName : InitMethodName;
     CXXMethodDecl *InitMethod =
         isCXXRecordWithInitMember(RecordDecl, MethodName);
-    assert(InitMethod && "The accessor/sampler must have the __init method");
+    assert(InitMethod && "The type must have the __init method");
     for (const ParmVarDecl *Param : InitMethod->parameters())
       addParam(Param->getType());
     return true;
@@ -2324,7 +2320,7 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
                 std::string KernelArgDescription) {
     StringRef NameToEmitInDescription = KernelArg->getName();
     const RecordDecl *KernelArgParent = KernelArg->getParent();
-    if (KernelArgParent && KernelArgDescription == "DecomposedMember") {
+    if (KernelArgParent && KernelArgDescription == "decomposed struct/class") {
       NameToEmitInDescription = KernelArgParent->getName();
     }
 
@@ -2345,7 +2341,7 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
         isWrappedField ? "Compiler generated" : KernelArgType.getAsString(),
         KernelInvocationLoc, KernelArgSize,
         getKernelArgDesc(KernelArgDescription),
-        (KernelArgDescription == "DecomposedMember")
+        (KernelArgDescription == "decomposed struct/class")
             ? ("Field:" + KernelArg->getName().str() + ", ")
             : "");
   }
@@ -2354,7 +2350,7 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
     std::string KernelArgDescription = FieldTy.getAsString();
     const RecordDecl *RD = FD->getParent();
     if (RD && RD->hasAttr<SYCLRequiresDecompositionAttr>())
-      KernelArgDescription = "DecomposedMember";
+      KernelArgDescription = "decomposed struct/class";
 
     addParam(FD, FieldTy, KernelArgDescription);
   }
@@ -2439,7 +2435,7 @@ public:
 
   bool handleNonDecompStruct(const CXXRecordDecl *Base,
                              const CXXBaseSpecifier &BS, QualType Ty) final {
-    addParam(BS, Ty, "BaseClass");
+    addParam(BS, Ty, "base class");
     return true;
   }
 

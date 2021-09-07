@@ -69,7 +69,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '0'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for BaseClass,
+// SPIR-NEXT: String:          Compiler generated argument for base class,
 // SPIR-NEXT: String:          struct NotDecomposedBase
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
@@ -90,7 +90,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '1'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for DecomposedMember,
+// SPIR-NEXT: String:          'Compiler generated argument for decomposed struct/class,'
 // SPIR-NEXT: String:          DecomposedBase
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          'Field:DecompVar, '
@@ -491,7 +491,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '4'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for DecomposedMember,
+// SPIR-NEXT: String:          'Compiler generated argument for decomposed struct/class,'
 // SPIR-NEXT: String:          AccessorDerived
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          'Field:B, '
