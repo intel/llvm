@@ -35,12 +35,13 @@ int main() {
   P.build_with_kernel_type<class K>();
   cl::sycl::kernel KE = P.get_kernel<class K>();
 
-  cl::sycl::buffer<cl::sycl::ONEAPI::device_func_ptr_holder_t> DispatchTable(2);
+  cl::sycl::buffer<cl::sycl::ext::oneapi::device_func_ptr_holder_t>
+      DispatchTable(2);
   {
     auto DTAcc =
         DispatchTable.get_access<cl::sycl::access::mode::discard_write>();
-    DTAcc[0] = cl::sycl::ONEAPI::get_device_func_ptr(&add, "add", P, D);
-    DTAcc[1] = cl::sycl::ONEAPI::get_device_func_ptr(&sub, "sub", P, D);
+    DTAcc[0] = cl::sycl::ext::oneapi::get_device_func_ptr(&add, "add", P, D);
+    DTAcc[1] = cl::sycl::ext::oneapi::get_device_func_ptr(&sub, "sub", P, D);
     if (!D.is_host()) {
       // FIXME: update this check with query to supported extension
       // For now, we don't have runtimes that report required OpenCL extension
@@ -70,7 +71,7 @@ int main() {
           DispatchTable.template get_access<cl::sycl::access::mode::read>(CGH);
       CGH.parallel_for<class K>(
           KE, cl::sycl::range<1>(Size), [=](cl::sycl::id<1> Index) {
-            auto FP = cl::sycl::ONEAPI::to_device_func_ptr<int(int, int)>(
+            auto FP = cl::sycl::ext::oneapi::to_device_func_ptr<int(int, int)>(
                 AccDT[Mode]);
 
             AccA[Index] = FP(AccA[Index], AccB[Index]);

@@ -7,7 +7,7 @@
 #include <CL/sycl.hpp>
 #include <cassert>
 using namespace sycl;
-using namespace sycl::ONEAPI;
+using namespace sycl::ext::oneapi;
 
 class leader_kernel;
 

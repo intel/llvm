@@ -64,8 +64,8 @@ int main(int argc, char **argv) {
     program prog(q.get_context());
 
     // Create specialization constants.
-    ONEAPI::experimental::spec_constant<uint32_t, MyUInt32ConstNegative> ui32 =
-        prog.set_spec_constant<MyUInt32ConstNegative>(uint32_ref);
+    ext::oneapi::experimental::spec_constant<uint32_t, MyUInt32ConstNegative>
+        ui32 = prog.set_spec_constant<MyUInt32ConstNegative>(uint32_ref);
 
     prog.build_with_kernel_type<SpecializedKernelNegative>();
 
@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
     bool exception_was_thrown = false;
     try {
       ui32 = prog.set_spec_constant<MyUInt32ConstNegative>(uint32_ref + 1);
-    } catch (const ONEAPI::experimental::spec_const_error &e) {
+    } catch (const ext::oneapi::experimental::spec_const_error &e) {
       exception_was_thrown = true;
     }
     if (!exception_was_thrown) {

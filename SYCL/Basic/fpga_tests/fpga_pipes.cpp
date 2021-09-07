@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/fpga_extensions.hpp>
 #include <iostream>
+#include <sycl/ext/intel/fpga_extensions.hpp>
 
 // Size of an array passing through a pipe
 constexpr size_t N = 10;
@@ -31,7 +31,7 @@ template <int N> class templ_nb_pipe;
 
 // For non-blocking multiple pipes
 template <int N>
-using PipeMulNb = cl::sycl::INTEL::pipe<class templ_nb_pipe<N>, int>;
+using PipeMulNb = cl::sycl::ext::intel::pipe<class templ_nb_pipe<N>, int>;
 
 // For simple blocking pipes with explicit type
 class some_bl_pipe;
@@ -46,7 +46,7 @@ template <int N> class templ_bl_pipe;
 
 // For blocking multiple pipes
 template <int N>
-using PipeMulBl = cl::sycl::INTEL::pipe<class templ_bl_pipe<N>, int>;
+using PipeMulBl = cl::sycl::ext::intel::pipe<class templ_bl_pipe<N>, int>;
 
 // Kernel names
 template <int TestNumber, int KernelNumber = 0> class writer;
@@ -57,7 +57,7 @@ template <typename PipeName, int TestNumber>
 int test_simple_nb_pipe(cl::sycl::queue Queue) {
   int data[] = {0};
 
-  using Pipe = cl::sycl::INTEL::pipe<PipeName, int>;
+  using Pipe = cl::sycl::ext::intel::pipe<PipeName, int>;
 
   cl::sycl::buffer<int, 1> readBuf(data, 1);
   Queue.submit([&](cl::sycl::handler &cgh) {
@@ -146,7 +146,7 @@ template <int TestNumber> int test_multiple_nb_pipe(cl::sycl::queue Queue) {
 // Test for array passing through a non-blocking pipe
 template <int TestNumber> int test_array_th_nb_pipe(cl::sycl::queue Queue) {
   int data[N] = {0};
-  using AnotherNbPipe = cl::sycl::INTEL::pipe<class another_nb_pipe, int>;
+  using AnotherNbPipe = cl::sycl::ext::intel::pipe<class another_nb_pipe, int>;
 
   Queue.submit([&](cl::sycl::handler &cgh) {
     cgh.single_task<class writer<TestNumber>>([=]() {
@@ -188,7 +188,7 @@ template <typename PipeName, int TestNumber>
 int test_simple_bl_pipe(cl::sycl::queue Queue) {
   int data[] = {0};
 
-  using Pipe = cl::sycl::INTEL::pipe<PipeName, int>;
+  using Pipe = cl::sycl::ext::intel::pipe<PipeName, int>;
 
   cl::sycl::buffer<int, 1> readBuf(data, 1);
   Queue.submit([&](cl::sycl::handler &cgh) {
@@ -256,7 +256,7 @@ template <int TestNumber> int test_multiple_bl_pipe(cl::sycl::queue Queue) {
 // Test for array passing through a blocking pipe
 template <int TestNumber> int test_array_th_bl_pipe(cl::sycl::queue Queue) {
   int data[N] = {0};
-  using AnotherBlPipe = cl::sycl::INTEL::pipe<class another_bl_pipe, int>;
+  using AnotherBlPipe = cl::sycl::ext::intel::pipe<class another_bl_pipe, int>;
 
   Queue.submit([&](cl::sycl::handler &cgh) {
     cgh.single_task<class writer<TestNumber>>([=]() {
@@ -290,7 +290,7 @@ int main() {
 
   if (!Queue.get_device()
            .get_info<cl::sycl::info::device::kernel_kernel_pipe_support>()) {
-    std::cout << "SYCL_INTEL_data_flow_pipes not supported, skipping"
+    std::cout << "SYCL_ext_intel_data_flow_pipes not supported, skipping"
               << std::endl;
     return 0;
   }

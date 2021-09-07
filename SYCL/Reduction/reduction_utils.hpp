@@ -188,7 +188,7 @@ std::ostream &operator<<(std::ostream &OS, const nd_range<Dims> &Range) {
 template <typename T, typename BinaryOperation, typename RangeT>
 void printTestLabel(bool IsSYCL2020, const RangeT &Range, bool ToCERR = false) {
   std::ostream &OS = ToCERR ? std::cerr : std::cout;
-  std::string Mode = IsSYCL2020 ? "SYCL2020" : "ONEAPI  ";
+  std::string Mode = IsSYCL2020 ? "SYCL2020" : "ext::oneapi  ";
   OS << (ToCERR ? "Error" : "Start") << ": Mode=" << Mode
      << ", T=" << typeid(T).name() << ", BOp=" << typeid(BinaryOperation).name()
      << ", Range=" << Range;

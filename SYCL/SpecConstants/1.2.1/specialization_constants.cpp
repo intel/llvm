@@ -84,32 +84,32 @@ int main(int argc, char **argv) {
     program prog(q.get_context());
 
     // Create specialization constants.
-    ONEAPI::experimental::spec_constant<bool, MyBoolConst> i1 =
+    ext::oneapi::experimental::spec_constant<bool, MyBoolConst> i1 =
         prog.set_spec_constant<MyBoolConst>(bool_ref);
-    ONEAPI::experimental::spec_constant<int8_t, MyInt8Const> i8 =
+    ext::oneapi::experimental::spec_constant<int8_t, MyInt8Const> i8 =
         prog.set_spec_constant<MyInt8Const>(int8_ref);
-    ONEAPI::experimental::spec_constant<uint8_t, MyUInt8Const> ui8 =
+    ext::oneapi::experimental::spec_constant<uint8_t, MyUInt8Const> ui8 =
         prog.set_spec_constant<MyUInt8Const>(uint8_ref);
-    ONEAPI::experimental::spec_constant<int16_t, MyInt16Const> i16 =
+    ext::oneapi::experimental::spec_constant<int16_t, MyInt16Const> i16 =
         prog.set_spec_constant<MyInt16Const>(int16_ref);
-    ONEAPI::experimental::spec_constant<uint16_t, MyUInt16Const> ui16 =
+    ext::oneapi::experimental::spec_constant<uint16_t, MyUInt16Const> ui16 =
         prog.set_spec_constant<MyUInt16Const>(uint16_ref);
-    ONEAPI::experimental::spec_constant<int32_t, MyInt32Const> i32 =
+    ext::oneapi::experimental::spec_constant<int32_t, MyInt32Const> i32 =
         prog.set_spec_constant<MyInt32Const>(int32_ref);
-    ONEAPI::experimental::spec_constant<uint32_t, MyUInt32Const> ui32 =
+    ext::oneapi::experimental::spec_constant<uint32_t, MyUInt32Const> ui32 =
         prog.set_spec_constant<MyUInt32Const>(uint32_ref);
-    ONEAPI::experimental::spec_constant<int64_t, MyInt64Const> i64 =
+    ext::oneapi::experimental::spec_constant<int64_t, MyInt64Const> i64 =
         prog.set_spec_constant<MyInt64Const>(int64_ref);
-    ONEAPI::experimental::spec_constant<uint64_t, MyUInt64Const> ui64 =
+    ext::oneapi::experimental::spec_constant<uint64_t, MyUInt64Const> ui64 =
         prog.set_spec_constant<MyUInt64Const>(uint64_ref);
 #if HALF
-    ONEAPI::experimental::spec_constant<cl::sycl::half, MyHalfConst> f16 =
+    ext::oneapi::experimental::spec_constant<cl::sycl::half, MyHalfConst> f16 =
         prog.set_spec_constant<MyHalfConst>(half_ref);
 #endif
-    ONEAPI::experimental::spec_constant<float, MyFloatConst> f32 =
+    ext::oneapi::experimental::spec_constant<float, MyFloatConst> f32 =
         prog.set_spec_constant<MyFloatConst>(float_ref);
 
-    ONEAPI::experimental::spec_constant<double, MyDoubleConst> f64 =
+    ext::oneapi::experimental::spec_constant<double, MyDoubleConst> f64 =
         prog.set_spec_constant<MyDoubleConst>(double_ref);
 
     prog.build_with_kernel_type<SpecializedKernel>();

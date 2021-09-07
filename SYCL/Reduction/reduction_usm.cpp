@@ -89,7 +89,7 @@ void testUSM(queue &Q, T Identity, T Init, size_t WGSize, size_t NWItems) {
   NumErrors += test<KName<Name, class Device2020>, true, T, BinaryOperation>(
       Q, Identity, Init, WGSize, NWItems, usm::alloc::device);
 
-  // Test ext::oneapi reductions
+  // Test ext::oneapi:: reductions
   NumErrors += test<KName<Name, class Shared>, false, T, BinaryOperation>(
       Q, Identity, Init, WGSize, NWItems, usm::alloc::shared);
   NumErrors += test<KName<Name, class Host>, false, T, BinaryOperation>(

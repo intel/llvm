@@ -20,11 +20,11 @@ template <typename T> void check(queue &Queue) {
       auto syclacc = syclbuf.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<sycl_subgr<T>>(NdRange, [=](nd_item<1> NdItem) {
-        ONEAPI::sub_group SG = NdItem.get_sub_group();
+        ext::oneapi::sub_group SG = NdItem.get_sub_group();
         /*Broadcast GID of element with SGLID == SGID % SGMLR*/
-        syclacc[NdItem.get_global_id()] =
-            ONEAPI::broadcast(SG, T(NdItem.get_global_id(0)),
-                              SG.get_group_id() % SG.get_max_local_range()[0]);
+        syclacc[NdItem.get_global_id()] = ext::oneapi::broadcast(
+            SG, T(NdItem.get_global_id(0)),
+            SG.get_group_id() % SG.get_max_local_range()[0]);
         if (NdItem.get_global_id(0) == 0)
           sgsizeacc[0] = SG.get_max_local_range()[0];
       });

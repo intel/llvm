@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
           nd_range<2>(range<2>(outer, inner), range<2>(outer, inner)),
           [=](nd_item<2> it) {
             id<2> idx = it.get_global_id();
-            ONEAPI::sub_group sg = it.get_sub_group();
+            ext::oneapi::sub_group sg = it.get_sub_group();
             output[idx] = sg.get_group_id()[0] * sg.get_local_range()[0] +
                           sg.get_local_id()[0];
           });

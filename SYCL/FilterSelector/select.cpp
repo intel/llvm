@@ -17,7 +17,7 @@
 using namespace cl::sycl;
 // TODO: change to 'using namespace cl::sycl::oneapi' after PR intel/llvm:4014
 // is merged
-using namespace cl::sycl::ONEAPI;
+using namespace cl::sycl::ext::oneapi;
 
 int main() {
   std::vector<device> CPUs;
@@ -75,52 +75,52 @@ int main() {
     std::cout << "Test 'cpu'";
     // TODO: change all occurrences of filter_selector to 'filter_selector' or
     // 'oneapi::filter_selector' after PR intel/llvm:4014 is merged
-    device d1(ONEAPI::filter_selector("cpu"));
+    device d1(ext::oneapi::filter_selector("cpu"));
     assert(d1.is_cpu());
     std::cout << "...PASS" << std::endl;
   }
 
   if (!GPUs.empty()) {
     std::cout << "Test 'gpu'";
-    device d2(ONEAPI::filter_selector("gpu"));
+    device d2(ext::oneapi::filter_selector("gpu"));
     assert(d2.is_gpu());
     std::cout << "...PASS" << std::endl;
   }
 
   if (!CPUs.empty() || !GPUs.empty()) {
     std::cout << "Test 'cpu,gpu'";
-    device d3(ONEAPI::filter_selector("cpu,gpu"));
+    device d3(ext::oneapi::filter_selector("cpu,gpu"));
     assert((d3.is_gpu() || d3.is_cpu()));
     std::cout << "...PASS" << std::endl;
   }
 
   if (HasOpenCLDevices) {
     std::cout << "Test 'opencl'";
-    device d4(ONEAPI::filter_selector("opencl"));
+    device d4(ext::oneapi::filter_selector("opencl"));
     assert(d4.get_platform().get_backend() == backend::opencl);
     std::cout << "...PASS" << std::endl;
 
     if (!CPUs.empty()) {
       std::cout << "Test 'opencl:cpu'";
-      device d5(ONEAPI::filter_selector("opencl:cpu"));
+      device d5(ext::oneapi::filter_selector("opencl:cpu"));
       assert(d5.is_cpu() && d5.get_platform().get_backend() == backend::opencl);
       std::cout << "...PASS" << std::endl;
 
       std::cout << "Test 'opencl:cpu:0'";
-      device d6(ONEAPI::filter_selector("opencl:cpu:0"));
+      device d6(ext::oneapi::filter_selector("opencl:cpu:0"));
       assert(d6.is_cpu() && d6.get_platform().get_backend() == backend::opencl);
       std::cout << "...PASS" << std::endl;
     }
 
     if (HasOpenCLGPU) {
       std::cout << "Test 'opencl:gpu'" << std::endl;
-      device d7(ONEAPI::filter_selector("opencl:gpu"));
+      device d7(ext::oneapi::filter_selector("opencl:gpu"));
       assert(d7.is_gpu() && d7.get_platform().get_backend() == backend::opencl);
     }
   }
 
   std::cout << "Test '0'";
-  device d8(ONEAPI::filter_selector("0"));
+  device d8(ext::oneapi::filter_selector("0"));
   std::cout << "...PASS" << std::endl;
 
   std::string ErrorMesg(
@@ -128,7 +128,7 @@ int main() {
 
   try {
     // pick something crazy
-    device d9(ONEAPI::filter_selector("gpu:999"));
+    device d9(ext::oneapi::filter_selector("gpu:999"));
     std::cout << "d9 = " << d9.get_info<info::device::name>() << std::endl;
   } catch (const sycl::runtime_error &e) {
     assert(ErrorMesg.find_first_of(e.what()) == 0);
@@ -137,7 +137,7 @@ int main() {
 
   try {
     // pick something crazy
-    device d10(ONEAPI::filter_selector("bob:gpu"));
+    device d10(ext::oneapi::filter_selector("bob:gpu"));
     std::cout << "d10 = " << d10.get_info<info::device::name>() << std::endl;
   } catch (const sycl::runtime_error &e) {
     assert(ErrorMesg.find_first_of(e.what()) == 0);
@@ -146,7 +146,7 @@ int main() {
 
   try {
     // pick something crazy
-    device d11(ONEAPI::filter_selector("opencl:bob"));
+    device d11(ext::oneapi::filter_selector("opencl:bob"));
     std::cout << "d11 = " << d11.get_info<info::device::name>() << std::endl;
   } catch (const sycl::runtime_error &e) {
     assert(ErrorMesg.find_first_of(e.what()) == 0);
@@ -155,19 +155,19 @@ int main() {
 
   if (HasLevelZeroDevices && HasLevelZeroGPU) {
     std::cout << "Test 'level_zero'";
-    device d12(ONEAPI::filter_selector("level_zero"));
+    device d12(ext::oneapi::filter_selector("level_zero"));
     assert(d12.get_platform().get_backend() == backend::level_zero);
     std::cout << "...PASS" << std::endl;
 
     std::cout << "Test 'level_zero:gpu'";
-    device d13(ONEAPI::filter_selector("level_zero:gpu"));
+    device d13(ext::oneapi::filter_selector("level_zero:gpu"));
     assert(d13.is_gpu() &&
            d13.get_platform().get_backend() == backend::level_zero);
     std::cout << "...PASS" << std::endl;
 
     if (HasOpenCLDevices && !CPUs.empty()) {
       std::cout << "Test 'level_zero:gpu,cpu'";
-      device d14(ONEAPI::filter_selector("level_zero:gpu,cpu"));
+      device d14(ext::oneapi::filter_selector("level_zero:gpu,cpu"));
       assert((d14.is_gpu() || d14.is_cpu()));
       std::cout << "...PASS 1/2" << std::endl;
       if (d14.is_gpu()) {
@@ -179,37 +179,37 @@ int main() {
 
   if (Devs.size() > 1) {
     std::cout << "Test '1'";
-    device d15(ONEAPI::filter_selector("1"));
+    device d15(ext::oneapi::filter_selector("1"));
     std::cout << "...PASS" << std::endl;
   }
 
   if (HasCUDADevices) {
     std::cout << "Test 'cuda'";
-    device d16(ONEAPI::filter_selector("cuda"));
+    device d16(ext::oneapi::filter_selector("cuda"));
     assert(d16.get_platform().get_backend() == backend::cuda);
     std::cout << "...PASS" << std::endl;
 
     std::cout << "Test 'cuda:gpu'";
-    device d17(ONEAPI::filter_selector("cuda:gpu"));
+    device d17(ext::oneapi::filter_selector("cuda:gpu"));
     assert(d17.is_gpu() && d17.get_platform().get_backend() == backend::cuda);
     std::cout << "...PASS" << std::endl;
   }
 
   if (!Accels.empty()) {
     std::cout << "Test 'accelerator'";
-    device d18(ONEAPI::filter_selector("accelerator"));
+    device d18(ext::oneapi::filter_selector("accelerator"));
     assert(d18.is_accelerator());
     std::cout << "...PASS" << std::endl;
   }
 
   if (HasROCmDevices) {
     std::cout << "Test 'rocm'";
-    device d19(ONEAPI::filter_selector("rocm"));
+    device d19(ext::oneapi::filter_selector("rocm"));
     assert(d19.get_platform().get_backend() == backend::rocm);
     std::cout << "...PASS" << std::endl;
 
     std::cout << "test 'rocm:gpu'";
-    device d20(ONEAPI::filter_selector("rocm:gpu"));
+    device d20(ext::oneapi::filter_selector("rocm:gpu"));
     assert(d20.is_gpu() && d19.get_platform().get_backend() == backend::rocm);
     std::cout << "...PASS" << std::endl;
   }

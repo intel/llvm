@@ -14,8 +14,8 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
 static constexpr int NUM_BINS = 256;
 static constexpr int SLM_SIZE = (NUM_BINS * 4);
@@ -160,7 +160,7 @@ int main(int argc, char **argv) {
   }
 
   cl::sycl::program prg(q.get_context());
-  sycl::ONEAPI::experimental::spec_constant<unsigned int, NumBlocksConst>
+  sycl::ext::oneapi::experimental::spec_constant<unsigned int, NumBlocksConst>
       num_blocks_const = prg.set_spec_constant<NumBlocksConst>(num_blocks);
   prg.build_with_kernel_type<histogram_slm>();
 

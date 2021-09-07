@@ -33,7 +33,7 @@ void check(queue &Queue, unsigned int G, unsigned int L) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       auto syclacc = syclbuf.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class sycl_subgr>(NdRange, [=](nd_item<1> NdItem) {
-        ONEAPI::sub_group SG = NdItem.get_sub_group();
+        ext::oneapi::sub_group SG = NdItem.get_sub_group();
         syclacc[NdItem.get_global_id()].local_id = SG.get_local_id().get(0);
         syclacc[NdItem.get_global_id()].local_range =
             SG.get_local_range().get(0);

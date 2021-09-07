@@ -27,16 +27,16 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
       auto inacc = inbuf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<SpecializationKernelName>(
           NdRange, [=](nd_item<1> NdItem) {
-            ONEAPI::sub_group sg = NdItem.get_sub_group();
+            ext::oneapi::sub_group sg = NdItem.get_sub_group();
             if (skip_init) {
-              exacc[NdItem.get_global_id(0)] =
-                  ONEAPI::exclusive_scan(sg, T(NdItem.get_global_id(0)), op);
-              inacc[NdItem.get_global_id(0)] =
-                  ONEAPI::inclusive_scan(sg, T(NdItem.get_global_id(0)), op);
+              exacc[NdItem.get_global_id(0)] = ext::oneapi::exclusive_scan(
+                  sg, T(NdItem.get_global_id(0)), op);
+              inacc[NdItem.get_global_id(0)] = ext::oneapi::inclusive_scan(
+                  sg, T(NdItem.get_global_id(0)), op);
             } else {
-              exacc[NdItem.get_global_id(0)] = ONEAPI::exclusive_scan(
+              exacc[NdItem.get_global_id(0)] = ext::oneapi::exclusive_scan(
                   sg, T(NdItem.get_global_id(0)), init, op);
-              inacc[NdItem.get_global_id(0)] = ONEAPI::inclusive_scan(
+              inacc[NdItem.get_global_id(0)] = ext::oneapi::inclusive_scan(
                   sg, T(NdItem.get_global_id(0)), op, init);
             }
             if (NdItem.get_global_id(0) == 0)
@@ -81,120 +81,121 @@ void check(queue &Queue, size_t G = 256, size_t L = 64) {
   }
 
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_UdKabTMplbvM>,
-           T>(Queue, T(L), ONEAPI::plus<T>(), false, G, L);
+           T>(Queue, T(L), ext::oneapi::plus<T>(), false, G, L);
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_hYvJ>, T>(
-      Queue, T(0), ONEAPI::plus<T>(), true, G, L);
+      Queue, T(0), ext::oneapi::plus<T>(), true, G, L);
 
   check_op<
       sycl_subgr<SpecializationKernelName, class KernelName_eozPcciiaOmKkKUEp>,
-      T>(Queue, T(0), ONEAPI::minimum<T>(), false, G, L);
+      T>(Queue, T(0), ext::oneapi::minimum<T>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
     check_op<
         sycl_subgr<SpecializationKernelName, class KernelName_LylCkHSTmrFhMH>,
-        T>(Queue, std::numeric_limits<T>::infinity(), ONEAPI::minimum<T>(),
+        T>(Queue, std::numeric_limits<T>::infinity(), ext::oneapi::minimum<T>(),
            true, G, L);
   } else {
     check_op<sycl_subgr<SpecializationKernelName,
                         class KernelName_gYWXQQXGnzJEpaftEQly>,
-             T>(Queue, std::numeric_limits<T>::max(), ONEAPI::minimum<T>(),
+             T>(Queue, std::numeric_limits<T>::max(), ext::oneapi::minimum<T>(),
                 true, G, L);
   }
 
   check_op<
       sycl_subgr<SpecializationKernelName, class KernelName_NEgmAHtvPAWDyXPoo>,
-      T>(Queue, T(G), ONEAPI::maximum<T>(), false, G, L);
+      T>(Queue, T(G), ext::oneapi::maximum<T>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
     check_op<
         sycl_subgr<SpecializationKernelName, class KernelName_EBNigvpxbxYEyRcl>,
-        T>(Queue, -std::numeric_limits<T>::infinity(), ONEAPI::maximum<T>(),
-           true, G, L);
+        T>(Queue, -std::numeric_limits<T>::infinity(),
+           ext::oneapi::maximum<T>(), true, G, L);
   } else {
     check_op<sycl_subgr<SpecializationKernelName, class KernelName_KayihC>, T>(
-        Queue, std::numeric_limits<T>::min(), ONEAPI::maximum<T>(), true, G, L);
+        Queue, std::numeric_limits<T>::min(), ext::oneapi::maximum<T>(), true,
+        G, L);
   }
 
   // Transparent operator functors.
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_TPWS>, T>(
-      Queue, T(L), ONEAPI::plus<>(), false, G, L);
+      Queue, T(L), ext::oneapi::plus<>(), false, G, L);
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_hWZv>, T>(
-      Queue, T(0), ONEAPI::plus<>(), true, G, L);
+      Queue, T(0), ext::oneapi::plus<>(), true, G, L);
 
   check_op<
       sycl_subgr<SpecializationKernelName, class KernelName_MdoesLriZMCljse>,
-      T>(Queue, T(0), ONEAPI::minimum<>(), false, G, L);
+      T>(Queue, T(0), ext::oneapi::minimum<>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
     check_op<
         sycl_subgr<SpecializationKernelName, class KernelName_fgMMknFqTMGts>,
-        T>(Queue, std::numeric_limits<T>::infinity(), ONEAPI::minimum<>(), true,
-           G, L);
+        T>(Queue, std::numeric_limits<T>::infinity(), ext::oneapi::minimum<>(),
+           true, G, L);
   } else {
     check_op<sycl_subgr<SpecializationKernelName,
                         class KernelName_FVbXDSctbMnggHMCz>,
-             T>(Queue, std::numeric_limits<T>::max(), ONEAPI::minimum<>(), true,
-                G, L);
+             T>(Queue, std::numeric_limits<T>::max(), ext::oneapi::minimum<>(),
+                true, G, L);
   }
 
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_zzvRru>, T>(
-      Queue, T(G), ONEAPI::maximum<>(), false, G, L);
+      Queue, T(G), ext::oneapi::maximum<>(), false, G, L);
   if (std::is_floating_point<T>::value ||
       std::is_same<T, cl::sycl::half>::value) {
     check_op<sycl_subgr<SpecializationKernelName, class KernelName_NJh>, T>(
-        Queue, -std::numeric_limits<T>::infinity(), ONEAPI::maximum<>(), true,
-        G, L);
+        Queue, -std::numeric_limits<T>::infinity(), ext::oneapi::maximum<>(),
+        true, G, L);
   } else {
     check_op<
         sycl_subgr<SpecializationKernelName, class KernelName_XjMHvRfLSQerFi>,
-        T>(Queue, std::numeric_limits<T>::min(), ONEAPI::maximum<>(), true, G,
-           L);
+        T>(Queue, std::numeric_limits<T>::min(), ext::oneapi::maximum<>(), true,
+           G, L);
   }
 }
 
 template <typename SpecializationKernelName, typename T>
 void check_mul(queue &Queue, size_t G = 256, size_t L = 4) {
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_MulF>, T>(
-      Queue, T(L), ONEAPI::multiplies<T>(), false, G, L);
+      Queue, T(L), ext::oneapi::multiplies<T>(), false, G, L);
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_MulT>, T>(
-      Queue, T(1), ONEAPI::multiplies<>(), true, G, L);
+      Queue, T(1), ext::oneapi::multiplies<>(), true, G, L);
 
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_MulFV>, T>(
-      Queue, T(L), ONEAPI::multiplies<T>(), false, G, L);
+      Queue, T(L), ext::oneapi::multiplies<T>(), false, G, L);
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_MulTV>, T>(
-      Queue, T(1), ONEAPI::multiplies<>(), true, G, L);
+      Queue, T(1), ext::oneapi::multiplies<>(), true, G, L);
 }
 
 template <typename SpecializationKernelName, typename T>
 void check_bit_ops(queue &Queue, size_t G = 256, size_t L = 4) {
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_ORF>, T>(
-      Queue, T(L), ONEAPI::bit_or<T>(), false, G, L);
+      Queue, T(L), ext::oneapi::bit_or<T>(), false, G, L);
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_ORT>, T>(
-      Queue, T(0), ONEAPI::bit_or<T>(), true, G, L);
+      Queue, T(0), ext::oneapi::bit_or<T>(), true, G, L);
 
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_XORF>, T>(
-      Queue, T(L), ONEAPI::bit_xor<T>(), false, G, L);
+      Queue, T(L), ext::oneapi::bit_xor<T>(), false, G, L);
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_XORT>, T>(
-      Queue, T(0), ONEAPI::bit_xor<T>(), true, G, L);
+      Queue, T(0), ext::oneapi::bit_xor<T>(), true, G, L);
 
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_ANDF>, T>(
-      Queue, T(L), ONEAPI::bit_and<T>(), false, G, L);
+      Queue, T(L), ext::oneapi::bit_and<T>(), false, G, L);
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_ANDT>, T>(
-      Queue, ~T(0), ONEAPI::bit_and<T>(), true, G, L);
+      Queue, ~T(0), ext::oneapi::bit_and<T>(), true, G, L);
 
   // Transparent operator functors.
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_ORFV>, T>(
-      Queue, T(L), ONEAPI::bit_or<>(), false, G, L);
+      Queue, T(L), ext::oneapi::bit_or<>(), false, G, L);
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_ORTV>, T>(
-      Queue, T(0), ONEAPI::bit_or<>(), true, G, L);
+      Queue, T(0), ext::oneapi::bit_or<>(), true, G, L);
 
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_XORFV>, T>(
-      Queue, T(L), ONEAPI::bit_xor<>(), false, G, L);
+      Queue, T(L), ext::oneapi::bit_xor<>(), false, G, L);
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_XORTV>, T>(
-      Queue, T(0), ONEAPI::bit_xor<>(), true, G, L);
+      Queue, T(0), ext::oneapi::bit_xor<>(), true, G, L);
 
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_ANDFV>, T>(
-      Queue, T(L), ONEAPI::bit_and<>(), false, G, L);
+      Queue, T(L), ext::oneapi::bit_and<>(), false, G, L);
   check_op<sycl_subgr<SpecializationKernelName, class KernelName_ANDTV>, T>(
-      Queue, ~T(0), ONEAPI::bit_and<>(), true, G, L);
+      Queue, ~T(0), ext::oneapi::bit_and<>(), true, G, L);
 }

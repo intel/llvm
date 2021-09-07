@@ -46,7 +46,7 @@ template <typename T, int N> void check(queue &Queue) {
       accessor<T, 1, access::mode::read_write, access::target::local> LocalMem(
           {L + max_sg_size * N}, cgh);
       cgh.parallel_for<sycl_subgr<T, N>>(NdRange, [=](nd_item<1> NdItem) {
-        ONEAPI::sub_group SG = NdItem.get_sub_group();
+        ext::oneapi::sub_group SG = NdItem.get_sub_group();
         auto SGid = SG.get_group_id().get(0);
         auto SGsize = SG.get_max_local_range().get(0);
         /* Avoid overlapping data ranges inside and between local groups */
@@ -134,7 +134,7 @@ template <typename T> void check(queue &Queue) {
       accessor<T, 1, access::mode::read_write, access::target::local> LocalMem(
           {L}, cgh);
       cgh.parallel_for<sycl_subgr<T, 0>>(NdRange, [=](nd_item<1> NdItem) {
-        ONEAPI::sub_group SG = NdItem.get_sub_group();
+        ext::oneapi::sub_group SG = NdItem.get_sub_group();
         if (NdItem.get_global_id(0) == 0)
           sgsizeacc[0] = SG.get_max_local_range()[0];
         size_t SGOffset =

@@ -31,7 +31,8 @@ struct pod_t {
 
 template <typename T> class kernel_t {
 public:
-  using sc_t = sycl::ONEAPI::experimental::spec_constant<pod_t, sc_kernel_t>;
+  using sc_t =
+      sycl::ext::oneapi::experimental::spec_constant<pod_t, sc_kernel_t>;
 
   kernel_t(const sc_t &sc, cl::sycl::stream &strm) : sc_(sc), strm_(strm) {}
 

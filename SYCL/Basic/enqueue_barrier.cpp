@@ -8,7 +8,7 @@
 // UNSUPPORTED: cuda || windows
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/fpga_device_selector.hpp>
+#include <sycl/ext/intel/fpga_device_selector.hpp>
 
 int main() {
   sycl::context Context;

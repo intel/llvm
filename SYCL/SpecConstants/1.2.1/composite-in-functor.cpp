@@ -30,7 +30,7 @@ struct pod_t {
 class my_kernel_t {
 public:
   using sc_t =
-      sycl::ONEAPI::experimental::spec_constant<pod_t, class my_kernel_t>;
+      sycl::ext::oneapi::experimental::spec_constant<pod_t, class my_kernel_t>;
 
   my_kernel_t(const sc_t &sc, const cl::sycl::stream &strm)
       : sc_(sc), strm_(strm) {}

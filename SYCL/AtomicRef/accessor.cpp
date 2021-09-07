@@ -10,7 +10,7 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::ONEAPI;
+using namespace sycl::ext::oneapi;
 
 // Equivalent to add_test from add.cpp
 // Uses atomic_accessor instead of atomic_ref

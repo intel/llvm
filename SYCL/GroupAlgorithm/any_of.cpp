@@ -10,7 +10,7 @@
 #include <cassert>
 #include <numeric>
 using namespace sycl;
-using namespace sycl::ONEAPI;
+using namespace sycl::ext::oneapi;
 
 template <class Predicate> class any_of_kernel;
 

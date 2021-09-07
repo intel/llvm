@@ -14,7 +14,7 @@
 // copy_from invocation.
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
 #include <iostream>
 

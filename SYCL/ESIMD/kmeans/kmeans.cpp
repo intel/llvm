@@ -15,10 +15,10 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
 #include <fstream>
 #include <iostream>
 #include <string.h>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <vector>
 
 using namespace cl::sycl;

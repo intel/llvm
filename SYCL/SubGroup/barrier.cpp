@@ -33,7 +33,7 @@ void check(queue &Queue, size_t G = 240, size_t L = 60) {
 
       cgh.parallel_for<sycl_subgr<T, UseNewSyntax>>(
           NdRange, [=](nd_item<1> NdItem) {
-            ONEAPI::sub_group SG = NdItem.get_sub_group();
+            ext::oneapi::sub_group SG = NdItem.get_sub_group();
             size_t lid = SG.get_local_id().get(0);
             size_t gid = NdItem.get_global_id(0);
             size_t SGoff = gid - lid;

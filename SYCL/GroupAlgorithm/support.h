@@ -1,6 +1,6 @@
 #include <CL/sycl.hpp>
 using namespace sycl;
-using namespace sycl::ONEAPI;
+using namespace sycl::ext::oneapi;
 
 bool isSupportedDevice(device D) {
   std::string PlatformName = D.get_platform().get_info<info::platform::name>();

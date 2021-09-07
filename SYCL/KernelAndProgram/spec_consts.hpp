@@ -17,9 +17,8 @@ int global_val = 10;
 // Fetch a value at runtime.
 int get_value() { return global_val; }
 
-float foo(
-    const cl::sycl::ONEAPI::experimental::spec_constant<float, MyFloatConst>
-        &f32) {
+float foo(const cl::sycl::ext::oneapi::experimental::spec_constant<
+          float, MyFloatConst> &f32) {
   return f32;
 }
 
@@ -28,13 +27,13 @@ struct SCWrapper {
       : SC1(p.set_spec_constant<class sc_name1, int>(4)),
         SC2(p.set_spec_constant<class sc_name2, int>(2)) {}
 
-  cl::sycl::ONEAPI::experimental::spec_constant<int, class sc_name1> SC1;
-  cl::sycl::ONEAPI::experimental::spec_constant<int, class sc_name2> SC2;
+  cl::sycl::ext::oneapi::experimental::spec_constant<int, class sc_name1> SC1;
+  cl::sycl::ext::oneapi::experimental::spec_constant<int, class sc_name2> SC2;
 };
 
 // MyKernel is used to test default constructor
 using AccT = sycl::accessor<int, 1, sycl::access::mode::write>;
-using ScT = sycl::ONEAPI::experimental::spec_constant<int, MyConst>;
+using ScT = sycl::ext::oneapi::experimental::spec_constant<int, MyConst>;
 
 struct MyKernel {
   MyKernel(AccT &Acc) : Acc(Acc) {}
@@ -75,13 +74,13 @@ int main(int argc, char **argv) {
   // TODO make this floating point once supported by the compiler
   const float goldf = get_value();
 
-  cl::sycl::ONEAPI::experimental::spec_constant<int32_t, MyInt32Const> i32 =
-      program1.set_spec_constant<MyInt32Const>(goldi);
+  cl::sycl::ext::oneapi::experimental::spec_constant<int32_t, MyInt32Const>
+      i32 = program1.set_spec_constant<MyInt32Const>(goldi);
 
-  cl::sycl::ONEAPI::experimental::spec_constant<float, MyFloatConst> f32 =
+  cl::sycl::ext::oneapi::experimental::spec_constant<float, MyFloatConst> f32 =
       program2.set_spec_constant<MyFloatConst>(goldf);
 
-  cl::sycl::ONEAPI::experimental::spec_constant<int, MyConst> sc =
+  cl::sycl::ext::oneapi::experimental::spec_constant<int, MyConst> sc =
       program4.set_spec_constant<MyConst>(goldi);
 
   program1.build_with_kernel_type<KernelAAAi>();

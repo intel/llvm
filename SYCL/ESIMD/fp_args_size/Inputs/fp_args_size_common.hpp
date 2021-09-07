@@ -19,8 +19,8 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
 static_assert(SIZE >= VL, "Size must greater than or equal to VL");
 static_assert(SIZE % VL == 0, "Size must be multiple of VL");

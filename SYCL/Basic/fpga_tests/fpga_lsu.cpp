@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/fpga_extensions.hpp>
+#include <sycl/ext/intel/fpga_extensions.hpp>
 
 // TODO: run is disabled, since no support added in FPGA backend yet. Check
 // implementation correctness from CXX and SYCL languages perspective.
@@ -38,20 +38,20 @@ int test_lsu(cl::sycl::queue Queue) {
         auto input_ptr = input_accessor.get_pointer();
         auto output_ptr = output_accessor.get_pointer();
 
-        using PrefetchingLSU =
-            cl::sycl::INTEL::lsu<cl::sycl::INTEL::prefetch<true>,
-                                 cl::sycl::INTEL::statically_coalesce<false>>;
+        using PrefetchingLSU = cl::sycl::ext::intel::lsu<
+            cl::sycl::ext::intel::prefetch<true>,
+            cl::sycl::ext::intel::statically_coalesce<false>>;
 
-        using BurstCoalescedLSU =
-            cl::sycl::INTEL::lsu<cl::sycl::INTEL::burst_coalesce<true>,
-                                 cl::sycl::INTEL::statically_coalesce<false>>;
+        using BurstCoalescedLSU = cl::sycl::ext::intel::lsu<
+            cl::sycl::ext::intel::burst_coalesce<true>,
+            cl::sycl::ext::intel::statically_coalesce<false>>;
 
-        using CachingLSU =
-            cl::sycl::INTEL::lsu<cl::sycl::INTEL::burst_coalesce<true>,
-                                 cl::sycl::INTEL::cache<1024>,
-                                 cl::sycl::INTEL::statically_coalesce<false>>;
+        using CachingLSU = cl::sycl::ext::intel::lsu<
+            cl::sycl::ext::intel::burst_coalesce<true>,
+            cl::sycl::ext::intel::cache<1024>,
+            cl::sycl::ext::intel::statically_coalesce<false>>;
 
-        using PipelinedLSU = cl::sycl::INTEL::lsu<>;
+        using PipelinedLSU = cl::sycl::ext::intel::lsu<>;
 
         int X = PrefetchingLSU::load(input_ptr); // int X = input_ptr[0]
         int Y = CachingLSU::load(input_ptr + 1); // int Y = input_ptr[1]
@@ -74,7 +74,7 @@ int test_lsu(cl::sycl::queue Queue) {
 }
 
 int main() {
-  cl::sycl::queue Queue{cl::sycl::INTEL::fpga_emulator_selector{}};
+  cl::sycl::queue Queue{cl::sycl::ext::intel::fpga_emulator_selector{}};
 
   return test_lsu(Queue);
 }

@@ -21,7 +21,7 @@
 #include <numeric>
 #include <vector>
 using namespace sycl;
-using namespace sycl::ONEAPI;
+using namespace sycl::ext::oneapi;
 
 template <class SpecializationKernelName, int TestNumber>
 class exclusive_scan_kernel;
@@ -140,26 +140,27 @@ int main() {
   std::iota(input.begin(), input.end(), 0);
   std::fill(output.begin(), output.end(), 0);
 
-  test<class KernelNamePlusV>(q, input, output, ONEAPI::plus<>(), 0);
-  test<class KernelNameMinimumV>(q, input, output, ONEAPI::minimum<>(),
+  test<class KernelNamePlusV>(q, input, output, ext::oneapi::plus<>(), 0);
+  test<class KernelNameMinimumV>(q, input, output, ext::oneapi::minimum<>(),
                                  std::numeric_limits<int>::max());
-  test<class KernelNameMaximumV>(q, input, output, ONEAPI::maximum<>(),
+  test<class KernelNameMaximumV>(q, input, output, ext::oneapi::maximum<>(),
                                  std::numeric_limits<int>::lowest());
 
-  test<class KernelNamePlusI>(q, input, output, ONEAPI::plus<int>(), 0);
-  test<class KernelNameMinimumI>(q, input, output, ONEAPI::minimum<int>(),
+  test<class KernelNamePlusI>(q, input, output, ext::oneapi::plus<int>(), 0);
+  test<class KernelNameMinimumI>(q, input, output, ext::oneapi::minimum<int>(),
                                  std::numeric_limits<int>::max());
-  test<class KernelNameMaximumI>(q, input, output, ONEAPI::maximum<int>(),
+  test<class KernelNameMaximumI>(q, input, output, ext::oneapi::maximum<int>(),
                                  std::numeric_limits<int>::lowest());
 
 #ifdef SPIRV_1_3
   test<class KernelName_VzAPutpBRRJrQPB>(q, input, output,
-                                         ONEAPI::multiplies<int>(), 1);
-  test<class KernelName_UXdGbr>(q, input, output, ONEAPI::bit_or<int>(), 0);
+                                         ext::oneapi::multiplies<int>(), 1);
+  test<class KernelName_UXdGbr>(q, input, output, ext::oneapi::bit_or<int>(),
+                                0);
   test<class KernelName_saYaodNyJknrPW>(q, input, output,
-                                        ONEAPI::bit_xor<int>(), 0);
+                                        ext::oneapi::bit_xor<int>(), 0);
   test<class KernelName_GPcuAlvAOjrDyP>(q, input, output,
-                                        ONEAPI::bit_and<int>(), ~0);
+                                        ext::oneapi::bit_and<int>(), ~0);
 #endif // SPIRV_1_3
 
   std::cout << "Test passed." << std::endl;

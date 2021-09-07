@@ -23,7 +23,7 @@ template <typename RangeT>
 void printNVarsTestLabel(bool IsSYCL2020, const RangeT &Range,
                          bool ToCERR = false) {
   std::ostream &OS = ToCERR ? std::cerr : std::cout;
-  std::string Mode = IsSYCL2020 ? "SYCL2020" : "ONEAPI  ";
+  std::string Mode = IsSYCL2020 ? "SYCL2020" : "ext::oneapi  ";
   OS << (ToCERR ? "Error" : "Start") << ": Mode=" << Mode
      << ", Range=" << Range;
   if (!ToCERR)

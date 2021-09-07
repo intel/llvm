@@ -17,11 +17,11 @@
 // corresponding to LU input sizes; all internal functions are inlined.
 //
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
 #define ABS(x) ((x) >= 0 ? (x) : -(x))
 #define MIN(x, y) ((x) <= (y) ? (x) : (y))

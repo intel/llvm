@@ -11,7 +11,7 @@
 #include <complex>
 #include <numeric>
 using namespace sycl;
-using namespace sycl::ONEAPI;
+using namespace sycl::ext::oneapi;
 
 template <typename kernel_name, typename InputContainer,
           typename OutputContainer>

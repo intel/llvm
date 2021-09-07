@@ -8,9 +8,9 @@
 //
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/fpga_extensions.hpp>
 #include <fstream>
 #include <iostream>
+#include <sycl/ext/intel/fpga_extensions.hpp>
 
 #include "io_pipe_def.h"
 
@@ -113,11 +113,11 @@ int test_io_bl_pipe(cl::sycl::queue Queue) {
 }
 
 int main() {
-  cl::sycl::queue Queue{cl::sycl::INTEL::fpga_emulator_selector{}};
+  cl::sycl::queue Queue{cl::sycl::ext::intel::fpga_emulator_selector{}};
 
   if (!Queue.get_device()
            .get_info<cl::sycl::info::device::kernel_kernel_pipe_support>()) {
-    std::cout << "SYCL_INTEL_data_flow_pipes not supported, skipping"
+    std::cout << "SYCL_ext_intel_data_flow_pipes not supported, skipping"
               << std::endl;
     return 0;
   }

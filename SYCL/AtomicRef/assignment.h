@@ -21,8 +21,8 @@ template <typename T> void assignment_test(queue q, size_t N) {
           assignment_buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<assignment_kernel<T>>(range<1>(N), [=](item<1> it) {
         size_t gid = it.get_id(0);
-        auto atm = atomic_ref<T, ONEAPI::memory_order::relaxed,
-                              ONEAPI::memory_scope::device,
+        auto atm = atomic_ref<T, ext::oneapi::memory_order::relaxed,
+                              ext::oneapi::memory_scope::device,
                               access::address_space::global_space>(st[0]);
         atm = T(gid);
       });

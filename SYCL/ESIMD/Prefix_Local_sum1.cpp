@@ -14,8 +14,8 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
 #define MAX_TS_WIDTH 1024
 // kernel can handle TUPLE_SZ 1, 2, or 4

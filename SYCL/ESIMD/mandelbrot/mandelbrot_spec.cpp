@@ -13,10 +13,10 @@
 
 #include "esimd_test_utils.hpp"
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
 #include <array>
 #include <iostream>
 #include <memory>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
 using namespace cl::sycl;
 using namespace sycl::ext::intel::experimental::esimd;
@@ -126,16 +126,16 @@ int main(int argc, char *argv[]) {
                 << ", thrs = " << thrs << "\n";
     }
     cl::sycl::program prg(q.get_context());
-    sycl::ONEAPI::experimental::spec_constant<int, CrunchConst> crunch_const =
-        prg.set_spec_constant<CrunchConst>(crunch);
-    sycl::ONEAPI::experimental::spec_constant<float, XoffConst> xoff_const =
-        prg.set_spec_constant<XoffConst>(xoff);
-    sycl::ONEAPI::experimental::spec_constant<float, YoffConst> yoff_const =
-        prg.set_spec_constant<YoffConst>(yoff);
-    sycl::ONEAPI::experimental::spec_constant<float, ScaleConst> scale_const =
-        prg.set_spec_constant<ScaleConst>(scale);
-    sycl::ONEAPI::experimental::spec_constant<float, ThrsConst> thrs_const =
-        prg.set_spec_constant<ThrsConst>(thrs);
+    sycl::ext::oneapi::experimental::spec_constant<int, CrunchConst>
+        crunch_const = prg.set_spec_constant<CrunchConst>(crunch);
+    sycl::ext::oneapi::experimental::spec_constant<float, XoffConst>
+        xoff_const = prg.set_spec_constant<XoffConst>(xoff);
+    sycl::ext::oneapi::experimental::spec_constant<float, YoffConst>
+        yoff_const = prg.set_spec_constant<YoffConst>(yoff);
+    sycl::ext::oneapi::experimental::spec_constant<float, ScaleConst>
+        scale_const = prg.set_spec_constant<ScaleConst>(scale);
+    sycl::ext::oneapi::experimental::spec_constant<float, ThrsConst>
+        thrs_const = prg.set_spec_constant<ThrsConst>(thrs);
     prg.build_with_kernel_type<Test>();
 
     auto e = q.submit([&](cl::sycl::handler &cgh) {

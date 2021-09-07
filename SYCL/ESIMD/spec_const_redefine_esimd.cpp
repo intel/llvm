@@ -23,7 +23,7 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
 #include <iostream>
 #include <vector>
@@ -63,9 +63,9 @@ int main(int argc, char **argv) {
   for (int i = 0; i < n_sc_sets; i++) {
     sycl::program program(q.get_context());
     const int *sc_set = &sc_vals[i][0];
-    sycl::ONEAPI::experimental::spec_constant<int32_t, SC0> sc0 =
+    sycl::ext::oneapi::experimental::spec_constant<int32_t, SC0> sc0 =
         program.set_spec_constant<SC0>(sc_set[0]);
-    sycl::ONEAPI::experimental::spec_constant<int32_t, SC1> sc1 =
+    sycl::ext::oneapi::experimental::spec_constant<int32_t, SC1> sc1 =
         program.set_spec_constant<SC1>(sc_set[1]);
 
     program.build_with_kernel_type<KernelAAA>();

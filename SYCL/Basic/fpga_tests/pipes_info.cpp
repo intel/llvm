@@ -23,7 +23,7 @@ int main() {
       Device.get_info<cl::sycl::info::device::kernel_kernel_pipe_support>();
 
   // Query for platform string. We expect only Intel FPGA platforms to support
-  // SYCL_INTEL_data_flow_pipes extension.
+  // SYCL_ext_intel_data_flow_pipes extension.
   std::string platform_name =
       Platform.get_info<cl::sycl::info::platform::name>();
   bool SupposedToBeSupported =

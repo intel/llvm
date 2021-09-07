@@ -8,7 +8,8 @@ int main() {
   sycl::buffer<int, 1> Buf{sycl::range{1}};
 
   Queue.submit([&](sycl::handler &CGH) {
-    sycl::ONEAPI::accessor_property_list PL{sycl::INTEL::buffer_location<1>};
+    sycl::ext::oneapi::accessor_property_list PL{
+        sycl::ext::intel::buffer_location<1>};
     sycl::accessor Acc(Buf, CGH, sycl::write_only, PL);
     CGH.single_task<class Test>([=]() { Acc[0] = 42; });
   });

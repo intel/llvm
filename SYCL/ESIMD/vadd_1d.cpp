@@ -13,8 +13,8 @@
 #include "esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/esimd.hpp>
 #include <iostream>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
 using namespace cl::sycl;
 

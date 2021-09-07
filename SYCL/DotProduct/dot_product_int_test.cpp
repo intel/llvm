@@ -8,10 +8,10 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/ONEAPI/dot_product.hpp>
 #include <iostream>
 #include <memory>
 #include <stdio.h>
+#include <sycl/ext/oneapi/dot_product.hpp>
 
 // Change if tests are added/removed
 static int testCount = 4;
@@ -19,7 +19,7 @@ static int passCount;
 
 using namespace cl::sycl;
 using namespace cl::sycl::detail::gtl;
-using namespace cl::sycl::ONEAPI;
+using namespace cl::sycl::ext::oneapi;
 
 constexpr int RangeLength = 100;
 

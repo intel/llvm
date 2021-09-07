@@ -1,5 +1,5 @@
 #include <CL/sycl.hpp>
-#include <CL/sycl/INTEL/online_compiler.hpp>
+#include <sycl/ext/intel/online_compiler.hpp>
 
 #include <iostream>
 #include <vector>
@@ -25,7 +25,7 @@ void cm_kernel() {
 }
 )===";
 
-using namespace sycl::INTEL;
+using namespace sycl::ext::intel;
 
 #ifdef RUN_KERNELS
 void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel) {
@@ -56,7 +56,8 @@ int main(int argc, char **argv) {
 
   { // Compile and run a trivial OpenCL kernel.
     std::cout << "Test case1\n";
-    sycl::INTEL::online_compiler<sycl::INTEL::source_language::opencl_c>
+    sycl::ext::intel::online_compiler<
+        sycl::ext::intel::source_language::opencl_c>
         Compiler;
     std::vector<byte> IL;
     try {
@@ -79,7 +80,8 @@ int main(int argc, char **argv) {
   { // Compile and run a trivial OpenCL kernel using online_compiler()
     // constructor accepting SYCL device.
     std::cout << "Test case2\n";
-    sycl::INTEL::online_compiler<sycl::INTEL::source_language::opencl_c>
+    sycl::ext::intel::online_compiler<
+        sycl::ext::intel::source_language::opencl_c>
         Compiler(Device);
     std::vector<byte> IL;
     try {
@@ -99,7 +101,8 @@ int main(int argc, char **argv) {
   // PATHs to clangFEWrapper library properly.
   { // Compile a trivial CM kernel.
     std::cout << "Test case3\n";
-    sycl::INTEL::online_compiler<sycl::INTEL::source_language::cm> Compiler;
+    sycl::ext::intel::online_compiler<sycl::ext::intel::source_language::cm>
+        Compiler;
     try {
       std::vector<byte> IL = Compiler.compile(CMSource);
 
@@ -113,7 +116,8 @@ int main(int argc, char **argv) {
 
   { // Compile a source with syntax errors.
     std::cout << "Test case4\n";
-    sycl::INTEL::online_compiler<sycl::INTEL::source_language::opencl_c>
+    sycl::ext::intel::online_compiler<
+        sycl::ext::intel::source_language::opencl_c>
         Compiler;
     std::vector<byte> IL;
     bool TestPassed = false;
@@ -133,7 +137,8 @@ int main(int argc, char **argv) {
 
   { // Compile a good CL source using unrecognized compilation options.
     std::cout << "Test case5\n";
-    sycl::INTEL::online_compiler<sycl::INTEL::source_language::opencl_c>
+    sycl::ext::intel::online_compiler<
+        sycl::ext::intel::source_language::opencl_c>
         Compiler;
     std::vector<byte> IL;
     bool TestPassed = false;
@@ -156,7 +161,8 @@ int main(int argc, char **argv) {
 
   { // Try compiling CM source with OpenCL compiler.
     std::cout << "Test case6\n";
-    sycl::INTEL::online_compiler<sycl::INTEL::source_language::opencl_c>
+    sycl::ext::intel::online_compiler<
+        sycl::ext::intel::source_language::opencl_c>
         Compiler;
     std::vector<byte> IL;
     bool TestPassed = false;
