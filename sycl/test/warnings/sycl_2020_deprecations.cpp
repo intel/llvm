@@ -134,13 +134,6 @@ int main() {
   sycl::byte B;
   (void)B;
 
-  // expected-error@+1{{no member named 'max_constant_buffer_size' in 'sycl::info::device'}}
-  auto MCBS = sycl::info::device::max_constant_buffer_size;
-  (void)MCBS;
-  // expected-error@+1{{no member named 'max_constant_args' in 'sycl::info::device'}}
-  auto MCA = sycl::info::device::max_constant_args;
-  (void)MCA;
-
   // expected-warning@+4{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}
   // expected-warning@+3{{'atomic_fence' is deprecated: use sycl::atomic_fence instead}}
   // expected-warning@+2{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}
