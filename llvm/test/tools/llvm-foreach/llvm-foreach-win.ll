@@ -20,7 +20,7 @@
 ; RUN: FileCheck < %t.out.list %s --check-prefix=CHECK-LIST
 ; CHECK-LIST: [[FIRST:.+\.out]]
 ; CHECK-LIST: [[SECOND:.+\.out]]
-; RUN: llvm-foreach --in-replace="{}" --in-file-list=%t.out.list -- type "{}" > %t.order
+; RUN: llvm-foreach --in-replace="{}" --in-file-list=%t.out.list -- cat "{}" > %t.order
 ; RUN: FileCheck < %t.order %s --check-prefix=CHECK-CONTENT
 ; CHECK-CONTENT: Content of first file
 ; CHECK-CONTENT-NEXT: Content of second file
