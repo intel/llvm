@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -c -o %t.out
 #include <CL/sycl.hpp>
 
 #if !defined(SYCL_IMPLEMENTATION_ONEAPI)
@@ -12,5 +12,3 @@
 #if !defined(SYCL_IMPLEMENTATION_INTEL)
 #error SYCL_IMPLEMENTATION_INTEL is not defined
 #endif
-
-int main(void) { return 0; }
