@@ -65,7 +65,9 @@ a wrapper.
 
 Conditional compilation
 -----------------------
-
+Data Parallel C++ compiler automatically instruments user code through
+SPIRITTAnnotations LLVM pass, which is enabled for targets, that natively
+support specialization constants (i.e., SPIR-V targets).
 To minimize the effect of ITT annotations on the performance of the device code,
 the implementation is guarded with a specialization constant check. This allows
 users and tools to have one version of the annotated code that may be built
@@ -77,3 +79,7 @@ For this purpose we reserve a 1-byte specialization constant numbered
 ``4285822057`` (``0xFF747469``). The users/tools/runtimes should set this
 specialization constant to non-zero value to enable the ITT annotations
 in SYCL device code.
+
+The specialization constant value is controlled by
+INTEL_ENABLE_OFFLOAD_ANNOTATIONS environment variable. Tools, that support ITT
+annotations must set this environment variable to any value.
