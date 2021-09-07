@@ -130,10 +130,6 @@ int main() {
         });
   });
 
-  // expected-warning@+1{{'byte' is deprecated: use std::byte instead}}
-  sycl::byte B;
-  (void)B;
-
   // expected-warning@+4{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}
   // expected-warning@+3{{'atomic_fence' is deprecated: use sycl::atomic_fence instead}}
   // expected-warning@+2{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}
