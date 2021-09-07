@@ -9,6 +9,7 @@
 // 4.9.2 Exception Class Interface
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/exception.hpp>
+#include <detail/exception_compat.hpp>
 
 #include <cstring>
 
@@ -105,7 +106,7 @@ bool exception::has_context() const { return (MContext != nullptr); }
 
 context exception::get_context() const {
   if (!has_context())
-    throw invalid_object_error();
+    throw invalid_object_error_compat();
 
   return *MContext;
 }

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/context_impl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_impl.hpp>
@@ -43,7 +44,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
   getPlugin().call<PiApiKind::piKernelGetInfo>(
       MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
   if (ContextImpl->getHandleRef() != Context)
-    throw __sycl_ns::invalid_parameter_error(
+    throw __sycl_ns::invalid_parameter_error_compat(
         "Input context must be the same as the context of cl_kernel",
         PI_INVALID_CONTEXT);
 }

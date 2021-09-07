@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/spec_constant_impl.hpp>
-
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/exception.hpp>
+#include <detail/exception_compat.hpp>
+#include <detail/spec_constant_impl.hpp>
 
 #include <cstring>
 #include <iostream>
@@ -21,7 +21,8 @@ namespace detail {
 
 void spec_constant_impl::set(size_t Size, const void *Val) {
   if (0 == Size)
-    throw sycl::runtime_error("invalid spec constant size", PI_INVALID_VALUE);
+    throw sycl::runtime_error_compat("invalid spec constant size",
+                                     PI_INVALID_VALUE);
   auto *BytePtr = reinterpret_cast<const char *>(Val);
   this->Bytes.assign(BytePtr, BytePtr + Size);
 }

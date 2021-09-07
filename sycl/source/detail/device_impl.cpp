@@ -8,6 +8,7 @@
 
 #include <CL/sycl/device.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/platform_impl.hpp>
 
 #include <algorithm>
@@ -89,7 +90,7 @@ bool device_impl::is_affinity_supported(
 
 cl_device_id device_impl::get() const {
   if (MIsHostDevice) {
-    throw invalid_object_error(
+    throw invalid_object_error_compat(
         "This instance of device doesn't support OpenCL interoperability.",
         PI_INVALID_DEVICE);
   }
@@ -150,12 +151,12 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
 
   if (MIsHostDevice)
     // TODO: implement host device partitioning
-    throw runtime_error(
+    throw runtime_error_compat(
         "Partitioning to subdevices of the host device is not implemented yet",
         PI_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_equally)) {
-    throw __sycl_ns::feature_not_supported();
+    throw __sycl_ns::feature_not_supported_compat();
   }
   size_t SubDevicesCount =
       get_info<info::device::max_compute_units>() / ComputeUnits;
@@ -170,12 +171,12 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
 
   if (MIsHostDevice)
     // TODO: implement host device partitioning
-    throw runtime_error(
+    throw runtime_error_compat(
         "Partitioning to subdevices of the host device is not implemented yet",
         PI_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
-    throw __sycl_ns::feature_not_supported();
+    throw __sycl_ns::feature_not_supported_compat();
   }
   static const cl_device_partition_property P[] = {
       CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
@@ -189,14 +190,14 @@ std::vector<device> device_impl::create_sub_devices(
 
   if (MIsHostDevice)
     // TODO: implement host device partitioning
-    throw runtime_error(
+    throw runtime_error_compat(
         "Partitioning to subdevices of the host device is not implemented yet",
         PI_INVALID_DEVICE);
 
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain) ||
       !is_affinity_supported(AffinityDomain)) {
-    throw __sycl_ns::feature_not_supported();
+    throw __sycl_ns::feature_not_supported_compat();
   }
   const pi_device_partition_property Properties[3] = {
       PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
@@ -320,8 +321,8 @@ bool device_impl::has(aspect Aspect) const {
     return isAssertFailSupported();
 
   default:
-    throw runtime_error("This device aspect has not been implemented yet.",
-                        PI_INVALID_DEVICE);
+    throw runtime_error_compat(
+        "This device aspect has not been implemented yet.", PI_INVALID_DEVICE);
   }
 }
 

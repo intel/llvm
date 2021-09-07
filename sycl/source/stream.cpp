@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/stream.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/stream_impl.hpp>
 
@@ -25,7 +26,7 @@ stream::stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH)
       GlobalFlushBuf(impl->accessGlobalFlushBuf(CGH)),
       FlushBufferSize(MaxStatementSize + detail::FLUSH_BUF_OFFSET_SIZE) {
   if (MaxStatementSize > MAX_STATEMENT_SIZE) {
-    throw sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error_compat(
         "Maximum statement size exceeds limit of " +
             std::to_string(MAX_STATEMENT_SIZE) + " bytes.",
         PI_INVALID_VALUE);

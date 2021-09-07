@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/queue_impl.hpp>
 
 #include <cstring>
@@ -327,13 +328,13 @@ void queue_impl::initHostTaskAndEventCallbackThreadPool() {
     try {
       Size = std::stoi(Val);
     } catch (...) {
-      throw invalid_parameter_error(
+      throw invalid_parameter_error_compat(
           "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment variable",
           PI_INVALID_VALUE);
     }
 
   if (Size < 1)
-    throw invalid_parameter_error(
+    throw invalid_parameter_error_compat(
         "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment variable",
         PI_INVALID_VALUE);
 

@@ -21,6 +21,7 @@
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/exception_list.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
+#include <detail/exception_compat.hpp>
 
 #include <algorithm>
 #include <memory>
@@ -35,7 +36,8 @@ static const plugin &getPlugin(backend Backend) {
   case backend::level_zero:
     return pi::getPlugin<backend::level_zero>();
   default:
-    throw sycl::runtime_error{"Unsupported backend", PI_INVALID_OPERATION};
+    throw sycl::runtime_error_compat{"Unsupported backend",
+                                     PI_INVALID_OPERATION};
   }
 }
 
@@ -154,8 +156,8 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
     case (PI_PROGRAM_BINARY_TYPE_LIBRARY):
       if (State == bundle_state::input)
         // TODO SYCL2020 exception
-        throw sycl::runtime_error("Program and kernel_bundle state mismatch",
-                                  PI_INVALID_VALUE);
+        throw sycl::runtime_error_compat(
+            "Program and kernel_bundle state mismatch", PI_INVALID_VALUE);
       if (State == bundle_state::executable)
         Plugin.call<PiApiKind::piProgramLink>(ContextImpl->getHandleRef(), 1,
                                               &Dev, nullptr, 1, &PiProgram,
@@ -164,8 +166,8 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
     case (PI_PROGRAM_BINARY_TYPE_EXECUTABLE):
       if (State == bundle_state::input || State == bundle_state::object)
         // TODO SYCL2020 exception
-        throw sycl::runtime_error("Program and kernel_bundle state mismatch",
-                                  PI_INVALID_VALUE);
+        throw sycl::runtime_error_compat(
+            "Program and kernel_bundle state mismatch", PI_INVALID_VALUE);
       break;
     }
   }

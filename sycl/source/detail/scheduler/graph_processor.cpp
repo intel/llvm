@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/event_impl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
@@ -48,7 +49,7 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
   bool Enqueued = enqueueCommand(Cmd, Res, BLOCKING);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     // TODO: Reschedule commands.
-    throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    throw runtime_error_compat("Enqueue process failed.", PI_INVALID_OPERATION);
 
   assert(Cmd->getEvent() == Event);
 

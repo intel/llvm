@@ -23,6 +23,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/thread_pool.hpp>
@@ -82,7 +83,7 @@ public:
         MPropList(PropList), MHostQueue(MDevice->is_host()),
         MAssertHappenedBuffer(range<1>{1}) {
     if (!Context->hasDevice(Device))
-      throw __sycl_ns::invalid_parameter_error(
+      throw __sycl_ns::invalid_parameter_error_compat(
           "Queue cannot be constructed with the given context and device "
           "as the context does not contain the given device.",
           PI_INVALID_DEVICE);
@@ -130,7 +131,7 @@ public:
   /// \return an OpenCL interoperability queue handle.
   cl_command_queue get() {
     if (MHostQueue) {
-      throw invalid_object_error(
+      throw invalid_object_error_compat(
           "This instance of queue doesn't support OpenCL interoperability",
           PI_INVALID_QUEUE);
     }

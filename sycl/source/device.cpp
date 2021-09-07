@@ -14,6 +14,7 @@
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/force_device.hpp>
 
 __SYCL_OPEN_NS() {
@@ -22,8 +23,8 @@ void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
     t = ft;
   } else if (ft != info::device_type::all && t != ft) {
-    throw __sycl_ns::invalid_parameter_error("No device of forced type.",
-                                             PI_INVALID_OPERATION);
+    throw __sycl_ns::invalid_parameter_error_compat("No device of forced type.",
+                                                    PI_INVALID_OPERATION);
   }
 }
 } // namespace detail

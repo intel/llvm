@@ -16,6 +16,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stream.hpp>
 #include <detail/config.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -221,7 +222,7 @@ event handler::finalize() {
   }
 
   if (!CommandGroup)
-    throw sycl::runtime_error(
+    throw sycl::runtime_error_compat(
         "Internal Error. Command group cannot be constructed.",
         PI_INVALID_OPERATION);
 
@@ -385,7 +386,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     case access::target::host_image:
     case access::target::host_buffer: {
-      throw __sycl_ns::invalid_parameter_error(
+      throw __sycl_ns::invalid_parameter_error_compat(
           "Unsupported accessor target case.", PI_INVALID_OPERATION);
       break;
     }

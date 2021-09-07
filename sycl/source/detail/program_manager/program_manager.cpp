@@ -19,11 +19,11 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <detail/exception_compat.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 
@@ -1475,7 +1475,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   if (InputImpl->get_bin_image_ref()->getFormat() !=
           PI_DEVICE_BINARY_TYPE_SPIRV &&
       Devs.size() > 1)
-    sycl::runtime_error(
+    sycl::runtime_error_compat(
         "Creating a program from AOT binary for multiple device is not "
         "supported",
         PI_INVALID_OPERATION);
@@ -1621,7 +1621,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     if (InputImpl->get_bin_image_ref()->getFormat() !=
             PI_DEVICE_BINARY_TYPE_SPIRV &&
         Devs.size() > 1)
-      sycl::runtime_error(
+      sycl::runtime_error_compat(
           "Creating a program from AOT binary for multiple device is not "
           "supported",
           PI_INVALID_OPERATION);

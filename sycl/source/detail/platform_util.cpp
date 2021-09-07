@@ -8,6 +8,7 @@
 
 #include <CL/sycl/detail/os_util.hpp>
 #include <CL/sycl/exception.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/platform_util.hpp>
 
 #if defined(__SYCL_RT_OS_LINUX)
@@ -35,7 +36,7 @@ static void cpuid(uint32_t *CPUInfo, uint32_t Type, uint32_t SubType = 0) {
 #endif
 
 uint32_t PlatformUtil::getMaxClockFrequency() {
-  throw runtime_error(
+  throw runtime_error_compat(
       "max_clock_frequency parameter is not supported for host device",
       PI_INVALID_DEVICE);
 #if defined(__x86_64__) || defined(__i386__)

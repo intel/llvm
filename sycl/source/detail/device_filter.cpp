@@ -10,6 +10,7 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/exception_compat.hpp>
 
 #include <cstring>
 
@@ -78,7 +79,8 @@ device_filter::device_filter(const std::string &FilterString) {
           "{host,opencl,level_zero,cuda,rocm,*}.\n"
           "Possible device types are {host,cpu,gpu,acc,*}.\n"
           "Device number should be an non-negative integer.\n";
-      throw __sycl_ns::invalid_parameter_error(Message, PI_INVALID_VALUE);
+      throw __sycl_ns::invalid_parameter_error_compat(Message,
+                                                      PI_INVALID_VALUE);
     }
   }
 }

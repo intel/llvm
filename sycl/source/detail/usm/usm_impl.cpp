@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/usm.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/queue_impl.hpp>
 
 #include <cstdlib>
@@ -379,7 +380,8 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 device get_pointer_device(const void *Ptr, const context &Ctxt) {
   // Check if ptr is a valid USM pointer
   if (get_pointer_type(Ptr, Ctxt) == alloc::unknown)
-    throw runtime_error("Ptr not a valid USM allocation!", PI_INVALID_VALUE);
+    throw runtime_error_compat("Ptr not a valid USM allocation!",
+                               PI_INVALID_VALUE);
 
   // Just return the host device in the host context
   if (Ctxt.is_host())
@@ -391,7 +393,8 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   if (get_pointer_type(Ptr, Ctxt) == alloc::host) {
     auto Devs = CtxImpl->getDevices();
     if (Devs.size() == 0)
-      throw runtime_error("No devices in passed context!", PI_INVALID_VALUE);
+      throw runtime_error_compat("No devices in passed context!",
+                                 PI_INVALID_VALUE);
 
     // Just return the first device in the context
     return Devs[0];
@@ -411,8 +414,9 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
       return Dev;
   }
 
-  throw runtime_error("Cannot find device associated with USM allocation!",
-                      PI_INVALID_OPERATION);
+  throw runtime_error_compat(
+      "Cannot find device associated with USM allocation!",
+      PI_INVALID_OPERATION);
 }
 
 } // __SYCL_OPEN_NS()

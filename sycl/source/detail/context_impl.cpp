@@ -102,7 +102,7 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
 
 cl_context context_impl::get() const {
   if (MHostContext) {
-    throw invalid_object_error(
+    throw invalid_object_error_compat(
         "This instance of context doesn't support OpenCL interoperability.",
         PI_INVALID_CONTEXT);
   }

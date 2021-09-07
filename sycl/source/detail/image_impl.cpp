@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/image.hpp>
 #include <detail/context_impl.hpp>
+#include <detail/exception_compat.hpp>
 
 #include <algorithm>
 #include <vector>
@@ -326,7 +327,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
                PI_MEM_TYPE_IMAGE2D_ARRAY, PI_MEM_TYPE_IMAGE2D) &&
       !checkImageValueRange<info::device::image2d_max_width>(
           getDevices(Context), Desc.image_width))
-    throw invalid_parameter_error(
+    throw invalid_parameter_error_compat(
         "For a 1D/2D image/image array, the width must be a Value >= 1 and "
         "<= CL_DEVICE_IMAGE2D_MAX_WIDTH.",
         PI_INVALID_VALUE);
@@ -334,7 +335,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_width>(
           getDevices(Context), Desc.image_width))
-    throw invalid_parameter_error(
+    throw invalid_parameter_error_compat(
         "For a 3D image, the width must be a Value >= 1 and <= "
         "CL_DEVICE_IMAGE3D_MAX_WIDTH",
         PI_INVALID_VALUE);
@@ -343,15 +344,16 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
                PI_MEM_TYPE_IMAGE2D_ARRAY) &&
       !checkImageValueRange<info::device::image2d_max_height>(
           getDevices(Context), Desc.image_height))
-    throw invalid_parameter_error("For a 2D image or image array, the height "
-                                  "must be a Value >= 1 and <= "
-                                  "CL_DEVICE_IMAGE2D_MAX_HEIGHT",
-                                  PI_INVALID_VALUE);
+    throw invalid_parameter_error_compat(
+        "For a 2D image or image array, the height "
+        "must be a Value >= 1 and <= "
+        "CL_DEVICE_IMAGE2D_MAX_HEIGHT",
+        PI_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_height>(
           getDevices(Context), Desc.image_height))
-    throw invalid_parameter_error(
+    throw invalid_parameter_error_compat(
         "For a 3D image, the heightmust be a Value >= 1 and <= "
         "CL_DEVICE_IMAGE3D_MAX_HEIGHT",
         PI_INVALID_VALUE);
@@ -359,7 +361,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_depth>(
           getDevices(Context), Desc.image_depth))
-    throw invalid_parameter_error(
+    throw invalid_parameter_error_compat(
         "For a 3D image, the depth must be a Value >= 1 and <= "
         "CL_DEVICE_IMAGE3D_MAX_DEPTH",
         PI_INVALID_VALUE);
@@ -368,29 +370,29 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
                PI_MEM_TYPE_IMAGE2D_ARRAY) &&
       !checkImageValueRange<info::device::image_max_array_size>(
           getDevices(Context), Desc.image_array_size))
-    throw invalid_parameter_error(
+    throw invalid_parameter_error_compat(
         "For a 1D and 2D image array, the array_size must be a "
         "Value >= 1 and <= CL_DEVICE_IMAGE_MAX_ARRAY_SIZE.",
         PI_INVALID_VALUE);
 
   if ((nullptr == UserPtr) && (0 != Desc.image_row_pitch))
-    throw invalid_parameter_error(
+    throw invalid_parameter_error_compat(
         "The row_pitch must be 0 if host_ptr is nullptr.", PI_INVALID_VALUE);
 
   if ((nullptr == UserPtr) && (0 != Desc.image_slice_pitch))
-    throw invalid_parameter_error(
+    throw invalid_parameter_error_compat(
         "The slice_pitch must be 0 if host_ptr is nullptr.", PI_INVALID_VALUE);
 
   if (0 != Desc.num_mip_levels)
-    throw invalid_parameter_error("The mip_levels must be 0.",
-                                  PI_INVALID_VALUE);
+    throw invalid_parameter_error_compat("The mip_levels must be 0.",
+                                         PI_INVALID_VALUE);
 
   if (0 != Desc.num_samples)
-    throw invalid_parameter_error("The num_samples must be 0.",
-                                  PI_INVALID_VALUE);
+    throw invalid_parameter_error_compat("The num_samples must be 0.",
+                                         PI_INVALID_VALUE);
 
   if (nullptr != Desc.buffer)
-    throw invalid_parameter_error(
+    throw invalid_parameter_error_compat(
         "The buffer must be nullptr, because SYCL does not support "
         "image creation from memory objects.",
         PI_INVALID_VALUE);
@@ -409,7 +411,7 @@ bool image_impl<Dimensions>::checkImageFormat(
           PI_IMAGE_CHANNEL_TYPE_UNORM_INT16, PI_IMAGE_CHANNEL_TYPE_SNORM_INT8,
           PI_IMAGE_CHANNEL_TYPE_SNORM_INT16, PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT,
           PI_IMAGE_CHANNEL_TYPE_FLOAT))
-    throw invalid_parameter_error(
+    throw invalid_parameter_error_compat(
         "CL_INTENSITY or CL_LUMINANCE format can only be used if channel "
         "data type = CL_UNORM_INT8, CL_UNORM_INT16, CL_SNORM_INT8, "
         "CL_SNORM_INT16, CL_HALF_FLOAT, or CL_FLOAT.",
@@ -421,7 +423,7 @@ bool image_impl<Dimensions>::checkImageFormat(
                PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010) &&
       !checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_RGB,
                 PI_IMAGE_CHANNEL_ORDER_RGBx))
-    throw invalid_parameter_error(
+    throw invalid_parameter_error_compat(
         "type = CL_UNORM_SHORT_565, CL_UNORM_SHORT_555 or "
         "CL_UNORM_INT_101010."
         "These channel types can only be used with CL_RGB or CL_RGBx channel "
@@ -434,7 +436,7 @@ bool image_impl<Dimensions>::checkImageFormat(
           Format.image_channel_data_type, PI_IMAGE_CHANNEL_TYPE_UNORM_INT8,
           PI_IMAGE_CHANNEL_TYPE_SNORM_INT8, PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8,
           PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8))
-    throw invalid_parameter_error(
+    throw invalid_parameter_error_compat(
         "CL_ARGB, CL_BGRA, CL_ABGR	These formats can only be used if "
         "channel data type = CL_UNORM_INT8, CL_SNORM_INT8, CL_SIGNED_INT8 "
         "or CL_UNSIGNED_INT8.",

@@ -17,6 +17,7 @@
 #include <CL/sycl/stl.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/context_impl.hpp>
+#include <detail/exception_compat.hpp>
 
 #include <algorithm>
 #include <memory>
@@ -53,7 +54,8 @@ context::context(const std::vector<device> &DeviceList,
 context::context(const std::vector<device> &DeviceList,
                  async_handler AsyncHandler, const property_list &PropList) {
   if (DeviceList.empty()) {
-    throw invalid_parameter_error("DeviceList is empty.", PI_INVALID_VALUE);
+    throw invalid_parameter_error_compat("DeviceList is empty.",
+                                         PI_INVALID_VALUE);
   }
   auto NonHostDeviceIter = std::find_if_not(
       DeviceList.begin(), DeviceList.end(),
@@ -72,7 +74,7 @@ context::context(const std::vector<device> &DeviceList,
                           (detail::getSyclObjImpl(CurrentDevice.get_platform())
                                ->getHandleRef() != NonHostPlatform));
                     }))
-      throw invalid_parameter_error(
+      throw invalid_parameter_error_compat(
           "Can't add devices across platforms to a single context.",
           PI_INVALID_DEVICE);
     else

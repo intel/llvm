@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/sycl_mem_obj_t.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
@@ -26,7 +27,7 @@ SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
       MSharedPtrStorage(nullptr) {
   if (MInteropContext->is_host())
-    throw __sycl_ns::invalid_parameter_error(
+    throw __sycl_ns::invalid_parameter_error_compat(
         "Creation of interoperability memory object using host context is "
         "not allowed",
         PI_INVALID_CONTEXT);
@@ -38,7 +39,7 @@ SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
                                        &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
-    throw __sycl_ns::invalid_parameter_error(
+    throw __sycl_ns::invalid_parameter_error_compat(
         "Input context must be the same as the context of cl_mem",
         PI_INVALID_CONTEXT);
   Plugin.call<PiApiKind::piMemRetain>(Mem);

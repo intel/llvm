@@ -8,6 +8,7 @@
 
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/force_device.hpp>
 
 #include <algorithm>
@@ -37,9 +38,10 @@ info::device_type get_forced_type() {
     if (type == "host") {
       return info::device_type::host;
     }
-    throw __sycl_ns::runtime_error("SYCL_DEVICE_TYPE is not recognized.  Must "
-                                   "be GPU, CPU, ACC or HOST.",
-                                   PI_INVALID_VALUE);
+    throw __sycl_ns::runtime_error_compat(
+        "SYCL_DEVICE_TYPE is not recognized.  Must "
+        "be GPU, CPU, ACC or HOST.",
+        PI_INVALID_VALUE);
   }
   return info::device_type::all;
 }

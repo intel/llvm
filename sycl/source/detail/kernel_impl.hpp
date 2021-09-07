@@ -16,6 +16,7 @@
 #include <CL/sycl/program.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/kernel_info.hpp>
 
 #include <cassert>
@@ -93,7 +94,7 @@ public:
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
     if (is_host()) {
-      throw invalid_object_error(
+      throw invalid_object_error_compat(
           "This instance of kernel doesn't support OpenCL interoperability.",
           PI_INVALID_KERNEL);
     }
@@ -252,8 +253,9 @@ kernel_impl::get_info(
     typename info::param_traits<info::kernel_device_specific, param>::input_type
         Value) const {
   if (is_host()) {
-    throw runtime_error("Sub-group feature is not supported on HOST device.",
-                        PI_INVALID_DEVICE);
+    throw runtime_error_compat(
+        "Sub-group feature is not supported on HOST device.",
+        PI_INVALID_DEVICE);
   }
   return get_kernel_device_specific_info_with_input<param>::get(
       this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), Value,

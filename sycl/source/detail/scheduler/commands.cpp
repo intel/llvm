@@ -24,7 +24,6 @@
 #include <detail/kernel_info.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <detail/exception_compat.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/sampler_impl.hpp>
 #include <detail/scheduler/commands.hpp>
@@ -225,9 +224,10 @@ public:
 
     pi_result WaitResult = waitForEvents();
     if (WaitResult != PI_SUCCESS) {
-      std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
-          std::string("Couldn't wait for host-task's dependencies"),
-          WaitResult));
+      std::exception_ptr EPtr =
+          std::make_exception_ptr(sycl::runtime_error_compat(
+              std::string("Couldn't wait for host-task's dependencies"),
+              WaitResult));
       HostTask.MQueue->reportAsyncException(EPtr);
 
       // reset host-task's lambda and quit
@@ -623,7 +623,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
     }
     static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
     if (ThrowOnBlock)
-      throw kernel_error_compat{
+      throw sycl::runtime_error{
           std::string("Waiting for blocked command. Block reason: ") +
               std::string(getBlockReason()),
           PI_INVALID_OPERATION};

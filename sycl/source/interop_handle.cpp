@@ -12,6 +12,7 @@
 #include <detail/backend_impl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/queue_impl.hpp>
 
 #include <algorithm>
@@ -27,8 +28,8 @@ pi_native_handle interop_handle::getNativeMem(detail::Requirement *Req) const {
                            [=](ReqToMem Elem) { return (Elem.first == Req); });
 
   if (Iter == std::end(MMemObjs)) {
-    throw invalid_object_error("Invalid memory object used inside interop",
-                               PI_INVALID_MEM_OBJECT);
+    throw invalid_object_error_compat(
+        "Invalid memory object used inside interop", PI_INVALID_MEM_OBJECT);
   }
 
   auto Plugin = MQueue->getPlugin();

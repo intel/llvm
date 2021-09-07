@@ -8,6 +8,7 @@
 
 #include <cstdio>
 #include <detail/device_impl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
@@ -365,7 +366,7 @@ static bool parsePersistentCacheConfig() {
           std::string{"Invalid value for bool configuration variable "} +
           SYCLConfig<SYCL_CACHE_PERSISTENT>::getName() + std::string{": "} +
           RawVal;
-      throw runtime_error(Msg, PI_INVALID_OPERATION);
+      throw runtime_error_compat(Msg, PI_INVALID_OPERATION);
     }
   }
   PersistentDeviceCodeCache::trace(Ret ? "enabled" : "disabled");

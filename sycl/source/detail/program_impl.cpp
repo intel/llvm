@@ -111,7 +111,7 @@ program_impl::program_impl(
         MContext->getHandleRef(), Devices.size(), Devices.data(),
         LinkOptions.c_str(), Programs.size(), Programs.data(), nullptr, nullptr,
         &MProgram);
-    Plugin.checkPiResult<compile_program_error>(Err);
+    Plugin.checkPiResult<compile_program_error_compat>(Err);
   }
 }
 
@@ -291,7 +291,7 @@ void program_impl::link(std::string LinkOptions) {
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piProgramLink>(
         MContext->getHandleRef(), Devices.size(), Devices.data(), LinkOpts,
         /*num_input_programs*/ 1, &MProgram, nullptr, nullptr, &MProgram);
-    Plugin.checkPiResult<compile_program_error>(Err);
+    Plugin.checkPiResult<compile_program_error_compat>(Err);
     MLinkOptions = LinkOptions;
     MBuildOptions = LinkOptions;
   }

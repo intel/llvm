@@ -19,6 +19,7 @@
 #include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/version.hpp>
 #include <detail/config.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
 #include <detail/xpti_registry.hpp>
@@ -509,8 +510,8 @@ template <backend BE> const plugin &getPlugin() {
       return *Plugin;
     }
 
-  throw runtime_error("pi::getPlugin couldn't find plugin",
-                      PI_INVALID_OPERATION);
+  throw runtime_error_compat("pi::getPlugin couldn't find plugin",
+                             PI_INVALID_OPERATION);
 }
 
 template __SYCL_EXPORT const plugin &getPlugin<backend::opencl>();
