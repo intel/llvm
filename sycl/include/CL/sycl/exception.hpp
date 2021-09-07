@@ -101,6 +101,15 @@ private:
   std::shared_ptr<context> MContext;
 
 protected:
+  // these two constructors are no longer used. Kept for ABI compatability.
+  exception(const char *Msg, const cl_int CLErr,
+            std::shared_ptr<context> Context = nullptr)
+      : exception(std::string(Msg), CLErr, Context) {}
+  exception(const std::string &Msg, const cl_int CLErr,
+            std::shared_ptr<context> Context = nullptr)
+      : MMsg(Msg + " " + detail::codeToString(CLErr)), MCLErr(CLErr),
+        MContext(Context) {}
+
   // base constructors used by SYCL 1.2.1 exception subclasses
   exception(std::error_code ec, const char *Msg, const cl_int CLErr,
             std::shared_ptr<context> Context = nullptr)
@@ -108,8 +117,6 @@ protected:
 
   exception(std::error_code ec, const std::string &Msg, const cl_int CLErr,
             std::shared_ptr<context> Context = nullptr)
-      //: MMsg(Msg + " " + detail::codeToString(CLErr)), MCLErr(CLErr),
-      //  MContext(Context) {}
       : exception(ec, Context, Msg + " " + detail::codeToString(CLErr)) {
     MCLErr = CLErr;
   }
