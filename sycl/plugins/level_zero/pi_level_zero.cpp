@@ -885,6 +885,10 @@ static const zeCommandListBatchConfig ZeCommandListBatch = [] {
       Config.Size = 0;
       // We are requested to do dynamic batching. Collect specifics, if any.
       // The extended format supported is ":" separated values.
+      //
+      // NOTE: these extra settings are experimental and are intended to
+      // be used only for finding a better default heuristic.
+      //
       std::string BatchConfig(BatchSizeStr);
       size_t Ord = 0;
       size_t Pos = 0;
