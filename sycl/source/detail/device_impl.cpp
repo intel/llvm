@@ -339,7 +339,7 @@ std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
 }
 
 bool device_impl::isAssertFailSupported() const {
-  return MIsHostDevice;
+  return MIsAssertFailSupported;
 }
 
 } // namespace detail
