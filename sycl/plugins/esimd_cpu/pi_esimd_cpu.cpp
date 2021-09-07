@@ -508,6 +508,11 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(size_t{8192});
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY:
     return ReturnValue(pi_bool{1});
+  case PI_DEVICE_INFO_EXTENSIONS:
+    // TODO : Populate return string accordingly - e.g. cl_khr_fp16,
+    // cl_khr_fp64, cl_khr_int64_base_atomics,
+    // cl_khr_int64_extended_atomics
+    return ReturnValue("");
 
 #define UNSUPPORTED_INFO(info)                                                 \
   case info:                                                                   \
@@ -518,7 +523,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     break;
 
     UNSUPPORTED_INFO(PI_DEVICE_INFO_VENDOR_ID)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_EXTENSIONS)
     UNSUPPORTED_INFO(PI_DEVICE_INFO_COMPILER_AVAILABLE)
     UNSUPPORTED_INFO(PI_DEVICE_INFO_LINKER_AVAILABLE)
     UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_COMPUTE_UNITS)
@@ -1513,9 +1517,15 @@ pi_result piextProgramSetSpecializationConstant(pi_program, pi_uint32, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *, pi_uint32,
-                                  pi_uint32 *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
+                                  pi_uint32 RawImgSize, pi_uint32 *ImgInd) {
+  /// TODO : Support multiple images and enable selection algorithm
+  /// for the images
+  if (RawImgSize != 1) {
+    return PI_INVALID_VALUE;
+  }
+  *ImgInd = 0;
+  return PI_SUCCESS;
 }
 
 pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,
