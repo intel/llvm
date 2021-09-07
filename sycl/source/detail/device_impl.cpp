@@ -17,7 +17,9 @@ namespace sycl {
 namespace detail {
 
 device_impl::device_impl()
-    : MIsHostDevice(true), MPlatform(platform_impl::getHostPlatformImpl()) {}
+    : MIsHostDevice(true), MPlatform(platform_impl::getHostPlatformImpl()),
+      // assert is natively supported by host
+      MIsAssertFailSupported(true) {}
 
 device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          const plugin &Plugin)
@@ -70,6 +72,9 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
     Platform = platform_impl::getPlatformFromPiDevice(MDevice, Plugin);
   }
   MPlatform = Platform;
+
+  MIsAssertFailSupported =
+      has_extension(PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT);
 }
 
 device_impl::~device_impl() {
@@ -334,11 +339,7 @@ std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
 }
 
 bool device_impl::isAssertFailSupported() const {
-  // assert is sort of natively supported by host
-  if (MIsHostDevice)
-    return true;
-
-  return has_extension(PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT);
+  return MIsHostDevice;
 }
 
 } // namespace detail
