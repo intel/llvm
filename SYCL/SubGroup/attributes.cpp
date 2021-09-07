@@ -56,9 +56,13 @@ int main() {
 
   // According to specification, this kernel query requires `cl_khr_subgroups`
   // or `cl_intel_subgroups`, and also `cl_intel_required_subgroup_size`
-  if ((!Device.has_extension("cl_intel_subgroups") &&
-       !Device.has_extension("cl_khr_subgroups")) ||
-      !Device.has_extension("cl_intel_required_subgroup_size")) {
+  auto Vec = Device.get_info<info::device::extensions>();
+  if (std::find(Vec.begin(), Vec.end(), "cl_intel_subgroups") ==
+              std::end(Vec) &&
+          std::find(Vec.begin(), Vec.end(), "cl_khr_subgroups") ==
+              std::end(Vec) ||
+      std::find(Vec.begin(), Vec.end(), "cl_intel_required_subgroup_size") ==
+          std::end(Vec)) {
     std::cout << "Skipping test\n";
     return 0;
   }

@@ -166,7 +166,8 @@ void exit_if_not_equal_vec(vec<T, N> val, vec<T, N> ref, const char *name) {
 }
 
 bool core_sg_supported(const device &Device) {
-  if (Device.has_extension("cl_khr_subgroups"))
+  auto Vec = Device.get_info<info::device::extensions>();
+  if (std::find(Vec.begin(), Vec.end(), "cl_khr_subgroups") != std::end(Vec))
     return true;
   return Device.get_info<info::device::version>() >= "2.1";
 }

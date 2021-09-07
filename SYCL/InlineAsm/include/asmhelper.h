@@ -102,8 +102,10 @@ bool launchInlineASMTestImpl(F &f, bool requires_particular_sg_size = true) {
     return false;
   }
 
+  auto Vec = device.get_info<sycl::info::device::extensions>();
   if (requires_particular_sg_size &&
-      !device.has_extension("cl_intel_required_subgroup_size")) {
+      std::find(Vec.begin(), Vec.end(), "cl_intel_required_subgroup_size") ==
+          std::end(Vec)) {
     std::cout << "Skipping test\n";
     return false;
   }

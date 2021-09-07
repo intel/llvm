@@ -55,7 +55,9 @@ int main() {
 
     /* sub_group_sizes can be queried only if cl_intel_required_subgroup_size
      * extension is supported by device*/
-    if (Device.has_extension("cl_intel_required_subgroup_size")) {
+    auto Vec = Device.get_info<info::device::extensions>();
+    if (std::find(Vec.begin(), Vec.end(), "cl_intel_required_subgroup_size") !=
+        std::end(Vec)) {
       auto sg_sizes = Device.get_info<info::device::sub_group_sizes>();
       for (auto r : {range<3>(3, 4, 5), range<3>(1, 1, 1), range<3>(4, 2, 1),
                      range<3>(32, 3, 4), range<3>(7, 9, 11)}) {
@@ -91,9 +93,12 @@ int main() {
 
     // According to specification, this kernel query requires `cl_khr_subgroups`
     // or `cl_intel_subgroups`
-    if ((Device.has_extension("cl_khr_subgroups") ||
-         Device.has_extension("cl_intel_subgroups")) &&
-        Device.has_extension("cl_intel_required_subgroup_size")) {
+    if ((std::find(Vec.begin(), Vec.end(), "cl_khr_subgroups") !=
+         std::end(Vec)) ||
+        std::find(Vec.begin(), Vec.end(), "cl_intel_subgroups") !=
+                std::end(Vec) &&
+            std::find(Vec.begin(), Vec.end(),
+                      "cl_intel_required_subgroup_size") != std::end(Vec)) {
       Res = Kernel.get_sub_group_info<
           info::kernel_sub_group::compile_sub_group_size>(Device);
 

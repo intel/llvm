@@ -63,7 +63,9 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
 
 int main() {
   queue Queue;
-  if (!Queue.get_device().has_extension("cl_intel_subgroups")) {
+  auto Vec = Queue.get_device().get_info<info::device::extensions>();
+  if (std::find(Vec.begin(), Vec.end(), "cl_intel_subgroups") ==
+      std::end(Vec)) {
     std::cout << "Skipping test\n";
     return 0;
   }

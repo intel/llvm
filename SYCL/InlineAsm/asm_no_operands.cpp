@@ -12,8 +12,10 @@ int main() {
   cl::sycl::queue Queue;
   cl::sycl::device Device = Queue.get_device();
 
+  auto Vec = Device.get_info<sycl::info::device::extensions>();
   if (!isInlineASMSupported(Device) ||
-      !Device.has_extension("cl_intel_required_subgroup_size")) {
+      std::find(Vec.begin(), Vec.end(), "cl_intel_required_subgroup_size") ==
+          std::end(Vec)) {
     std::cout << "Skipping test\n";
     return 0;
   }

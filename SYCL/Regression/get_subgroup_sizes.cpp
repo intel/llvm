@@ -20,7 +20,9 @@ using namespace cl::sycl;
 int main() {
   queue Q;
   auto Dev = Q.get_device();
-  if (Dev.has_extension("cl_intel_required_subgroup_size")) {
+  auto Vec = Dev.get_info<info::device::extensions>();
+  if (std::find(Vec.begin(), Vec.end(), "cl_intel_required_subgroup_size") !=
+      std::end(Vec)) {
     std::vector<size_t> SubGroupSizes =
         Dev.get_info<cl::sycl::info::device::sub_group_sizes>();
     std::vector<size_t>::const_iterator MaxIter =
