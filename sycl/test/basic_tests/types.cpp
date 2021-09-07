@@ -33,7 +33,7 @@ template <typename T> inline void checkVectorsWithN() {
 }
 
 inline void checkVectors() {
-  checkVectorsWithN<half>();
+  checkVectorsWithN<s::half>();
   checkVectorsWithN<float>();
   checkVectorsWithN<double>();
   checkVectorsWithN<char>();
@@ -92,9 +92,6 @@ template <> inline void checkSizeForFloatingPoint<s::half, sizeof(int16_t)>() {
 int main() {
   // Check the size and alignment of the SYCL vectors.
   checkVectors();
-
-  // Table 4.93: Additional scalar data types supported by SYCL.
-  static_assert(sizeof(s::byte) == sizeof(int8_t), "");
 
   // Table 4.94: Scalar data type aliases supported by SYCL
   static_assert(is_same<s::cl_bool, decltype(0 != 1)>::value, "");

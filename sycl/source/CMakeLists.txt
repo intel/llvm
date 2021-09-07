@@ -43,6 +43,8 @@ function(add_sycl_rt_library LIB_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
+  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
+
   if (MSVC)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
     target_link_libraries(${LIB_NAME} PRIVATE shlwapi)

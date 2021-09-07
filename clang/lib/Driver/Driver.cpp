@@ -923,6 +923,18 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             continue;
           }
 
+          // Warn about deprecated `sycldevice` environment component.
+          if (TT.getEnvironmentName() == "sycldevice") {
+            Diag(clang::diag::warn_drv_deprecated_arg)
+                << TT.str() << TT.getArchName();
+            // Drop environment component.
+            std::string EffectiveTriple =
+                Twine(TT.getArchName() + "-" + TT.getVendorName() + "-" +
+                      TT.getOSName())
+                    .str();
+            TT.setTriple(EffectiveTriple);
+          }
+
           // Store the current triple so that we can check for duplicates in
           // the following iterations.
           FoundNormalizedTriples[NormalizedName] = Val;
@@ -985,7 +997,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       else
         SYCLTargetArch = "spir64";
     else if (HasValidSYCLRuntime)
-      // Triple for -fintelfpga is spir64_fpga-unknown-unknown-sycldevice.
+      // Triple for -fintelfpga is spir64_fpga.
       SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
     if (!SYCLTargetArch.empty()) {
       UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(SYCLTargetArch));
@@ -1877,7 +1889,6 @@ llvm::Triple Driver::MakeSYCLDeviceTriple(StringRef TargetArch) const {
     TT.setArchName(TargetArch);
     TT.setVendor(llvm::Triple::UnknownVendor);
     TT.setOS(llvm::Triple::UnknownOS);
-    TT.setEnvironment(llvm::Triple::SYCLDevice);
     return TT;
   }
   return llvm::Triple(TargetArch);
@@ -2759,7 +2770,6 @@ bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   TT.setArchName(types::getTypeName(Type));
   TT.setVendorName("intel");
   TT.setOS(llvm::Triple::UnknownOS);
-  TT.setEnvironment(llvm::Triple::SYCLDevice);
 
   // Checking uses -check-section option with the input file, no output
   // file and the target triple being looked for.
@@ -2930,6 +2940,18 @@ bool Driver::checkForSYCLDefaultDevice(Compilation &C,
     return false;
 
   if (Args.hasArg(options::OPT_fno_sycl_link_spirv))
+    return false;
+
+  // Do not do the check if the default device is passed in -fsycl-targets
+  // or if -fsycl-targets isn't passed (that implies default device)
+  if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+    for (const char *Val : A->getValues()) {
+      llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
+      if (TT.isSPIR() && TT.getSubArch() == llvm::Triple::NoSubArch)
+        // Default triple found
+        return false;
+    }
+  } else if (!Args.hasArg(options::OPT_fintelfpga))
     return false;
 
   SmallVector<const char *, 16> AllArgs(getLinkerArgs(C, Args, true));
@@ -3375,7 +3397,7 @@ class OffloadingActionBuilder final {
     CudaActionBuilder(Compilation &C, DerivedArgList &Args,
                       const Driver::InputList &Inputs)
         : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_Cuda) {
-      DefaultCudaArch = CudaArch::SM_20;
+      DefaultCudaArch = CudaArch::SM_35;
     }
 
     StringRef getCanonicalOffloadArch(StringRef ArchStr) override {
@@ -4227,10 +4249,11 @@ class OffloadingActionBuilder final {
         return;
 
       OffloadAction::DeviceDependences Dep;
-      Dep.add(*SYCLLinkBinary, *ToolChains.front(), /*BoundArch=*/nullptr,
-              Action::OFK_SYCL);
-      AL.push_back(C.MakeAction<OffloadAction>(Dep,
-                                               SYCLLinkBinary->getType()));
+      withBoundArchForToolChain(ToolChains.front(), [&](const char *BoundArch) {
+        Dep.add(*SYCLLinkBinary, *ToolChains.front(), BoundArch,
+                Action::OFK_SYCL);
+      });
+      AL.push_back(C.MakeAction<OffloadAction>(Dep, SYCLLinkBinary->getType()));
       SYCLLinkBinary = nullptr;
     }
 
@@ -4628,8 +4651,10 @@ class OffloadingActionBuilder final {
     void addDeviceLinkDependencies(OffloadDepsJobAction *DA) override {
       for (unsigned I = 0; I < ToolChains.size(); ++I) {
         // Register dependent toolchain.
-        DA->registerDependentActionInfo(
-            ToolChains[I], /*BoundArch=*/StringRef(), Action::OFK_SYCL);
+        withBoundArchForToolChain(ToolChains[I], [&](const char *BoundArch) {
+          DA->registerDependentActionInfo(ToolChains[I], BoundArch,
+                                          Action::OFK_SYCL);
+        });
 
         // Add deps output to linker inputs.
         DeviceLinkerInputs[I].push_back(DA);
@@ -4754,6 +4779,7 @@ class OffloadingActionBuilder final {
       bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(
           options::OPT_fsycl, options::OPT_fno_sycl, false);
       bool SYCLfpgaTriple = false;
+      bool ShouldAddDefaultTriple = true;
       if (SYCLTargets || SYCLAddTargets) {
         if (SYCLTargets) {
           llvm::StringMap<StringRef> FoundNormalizedTriples;
@@ -4774,7 +4800,6 @@ class OffloadingActionBuilder final {
             if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
               SYCLfpgaTriple = true;
           }
-          addSYCLDefaultTriple(C, SYCLTripleList);
         }
         if (SYCLAddTargets) {
           for (StringRef Val : SYCLAddTargets->getValues()) {
@@ -4788,6 +4813,7 @@ class OffloadingActionBuilder final {
 
             // populate the AOT binary inputs vector.
             SYCLAOTInputs.push_back(std::make_pair(TT, TF));
+            ShouldAddDefaultTriple = false;
           }
         }
       } else if (HasValidSYCLRuntime) {
@@ -4797,7 +4823,6 @@ class OffloadingActionBuilder final {
         const char *SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
         SYCLTripleList.push_back(
             C.getDriver().MakeSYCLDeviceTriple(SYCLTargetArch));
-        addSYCLDefaultTriple(C, SYCLTripleList);
         if (SYCLfpga)
           SYCLfpgaTriple = true;
       }
@@ -4834,7 +4859,10 @@ class OffloadingActionBuilder final {
       }
 
       DeviceLinkerInputs.resize(ToolChains.size());
-      return initializeGpuArchMap();
+      bool GpuInitHasErrors = initializeGpuArchMap();
+      if (ShouldAddDefaultTriple)
+        addSYCLDefaultTriple(C, SYCLTripleList);
+      return GpuInitHasErrors;
     }
 
     bool canUseBundlerUnbundler() const override {
@@ -5492,6 +5520,19 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         break;
       }
 
+      // When performing -fsycl based compilations and generating dependency
+      // information, perform a specific dependency generation compilation which
+      // is not based on the source + footer compilation.
+      if (Phase == phases::Preprocess && Args.hasArg(options::OPT_fsycl) &&
+          Args.hasArg(options::OPT_M_Group) &&
+          !Args.hasArg(options::OPT_fno_sycl_use_footer)) {
+        Action *PreprocessAction =
+            C.MakeAction<PreprocessJobAction>(Current, types::TY_Dependencies);
+        PreprocessAction->propagateHostOffloadInfo(Action::OFK_SYCL,
+                                                   /*BoundArch=*/nullptr);
+        Actions.push_back(PreprocessAction);
+      }
+
       // FIXME: Should we include any prior module file outputs as inputs of
       // later actions in the same command line?
 
@@ -5856,6 +5897,9 @@ void Driver::BuildJobs(Compilation &C) const {
   // we are also generating .o files. So we allow more than one output file in
   // this case as well.
   //
+  // Preprocessing job performed for -fsycl enabled compilation specifically
+  // for dependency generation (TY_Dependencies)
+  //
   if (FinalOutput) {
     unsigned NumOutputs = 0;
     unsigned NumIfsOutputs = 0;
@@ -5866,7 +5910,10 @@ void Driver::BuildJobs(Compilation &C) const {
              A->getKind() == clang::driver::Action::CompileJobClass &&
              0 == NumIfsOutputs++) ||
             (A->getKind() == Action::BindArchClass && A->getInputs().size() &&
-             A->getInputs().front()->getKind() == Action::IfsMergeJobClass)))
+             A->getInputs().front()->getKind() == Action::IfsMergeJobClass) ||
+            (A->getKind() == Action::PreprocessJobClass &&
+             A->getType() == types::TY_Dependencies &&
+             C.getArgs().hasArg(options::OPT_fsycl))))
         ++NumOutputs;
 
     if (NumOutputs > 1) {
@@ -5960,7 +6007,7 @@ void Driver::BuildJobs(Compilation &C) const {
             << '\n';
         Out.flush();
         std::error_code EC;
-        llvm::raw_fd_ostream OS(CCPrintStatReportFilename.c_str(), EC,
+        llvm::raw_fd_ostream OS(CCPrintStatReportFilename, EC,
                                 llvm::sys::fs::OF_Append |
                                     llvm::sys::fs::OF_Text);
         if (EC)
@@ -6708,7 +6755,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
       // Get the unique string identifier for this dependence and cache the
       // result.
       StringRef Arch;
-      if (TargetDeviceOffloadKind == Action::OFK_HIP) {
+      if (TargetDeviceOffloadKind == Action::OFK_HIP ||
+          TargetDeviceOffloadKind == Action::OFK_SYCL) {
         if (UI.DependentOffloadKind == Action::OFK_Host)
           Arch = StringRef();
         else
@@ -7439,7 +7487,6 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
         break;
       case llvm::Triple::MSVC:
       case llvm::Triple::UnknownEnvironment:
-      case llvm::Triple::SYCLDevice:
         if (Args.getLastArgValue(options::OPT_fuse_ld_EQ)
                 .startswith_insensitive("bfd"))
           TC = std::make_unique<toolchains::CrossWindowsToolChain>(

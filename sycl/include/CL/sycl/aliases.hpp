@@ -24,11 +24,8 @@ class half;
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-// FIXME: line below exports 'half' into global namespace, which seems incorrect
-// However, SYCL 1.2.1 spec considers 'half' to be a fundamental C++ data type
-// which doesn't exist within the 'cl::sycl' namespace.
-// Related spec issue: KhronosGroup/SYCL-Docs#40
-using half = cl::sycl::detail::half_impl::half;
+using half __SYCL2020_DEPRECATED("use 'sycl::half' instead") =
+    cl::sycl::detail::half_impl::half;
 
 #define __SYCL_MAKE_VECTOR_ALIAS(ALIAS, TYPE, N)                               \
   using ALIAS##N = cl::sycl::vec<TYPE, N>;
@@ -71,7 +68,6 @@ using half = cl::sycl::detail::half_impl::half;
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-using byte __SYCL2020_DEPRECATED("use std::byte instead") = std::uint8_t;
 using schar = signed char;
 using uchar = unsigned char;
 using ushort = unsigned short;

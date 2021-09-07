@@ -47,7 +47,19 @@ bool LangOptions::isNoBuiltinFunc(StringRef FuncName) const {
 
 VersionTuple LangOptions::getOpenCLVersionTuple() const {
   const int Ver = OpenCLCPlusPlus ? OpenCLCPlusPlusVersion : OpenCLVersion;
+  if (OpenCLCPlusPlus && Ver != 100)
+    return VersionTuple(Ver / 100);
   return VersionTuple(Ver / 100, (Ver % 100) / 10);
+}
+
+unsigned LangOptions::getOpenCLCompatibleVersion() const {
+  if (!OpenCLCPlusPlus)
+    return OpenCLVersion;
+  if (OpenCLCPlusPlusVersion == 100)
+    return 200;
+  if (OpenCLCPlusPlusVersion == 202100)
+    return 300;
+  llvm_unreachable("Unknown OpenCL version");
 }
 
 void LangOptions::remapPathPrefix(SmallString<256> &Path) const {

@@ -338,14 +338,6 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
       return;
     }
 
-    // Deprecate [[intel::reqd_work_group_size]] attribute spelling in favor
-    // of the SYCL 2020 attribute spelling [[sycl::reqd_work_group_size]].
-    if (A.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && A.hasScope() &&
-        A.getScopeName()->isStr("intel")) {
-      DiagnoseDeprecatedAttribute(A, "sycl", NewName);
-      return;
-    }
-
     // All GNU-style spellings are deprecated in favor of a C++-style spelling.
     if (A.getSyntax() == ParsedAttr::AS_GNU) {
       // Note: we cannot suggest an automatic fix-it because GNU-style
@@ -1038,6 +1030,14 @@ static void handleEnableIfAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   StringRef Msg;
   if (checkFunctionConditionAttr(S, D, AL, Cond, Msg))
     D->addAttr(::new (S.Context) EnableIfAttr(S.Context, AL, Cond, Msg));
+}
+
+static void handleErrorAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  StringRef NewUserDiagnostic;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, NewUserDiagnostic))
+    return;
+  if (ErrorAttr *EA = S.mergeErrorAttr(D, AL, NewUserDiagnostic))
+    D->addAttr(EA);
 }
 
 namespace {
@@ -4384,6 +4384,29 @@ static void handleInitPriorityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
   D->addAttr(::new (S.Context) InitPriorityAttr(S.Context, AL, prioritynum));
+}
+
+ErrorAttr *Sema::mergeErrorAttr(Decl *D, const AttributeCommonInfo &CI,
+                                StringRef NewUserDiagnostic) {
+  if (const auto *EA = D->getAttr<ErrorAttr>()) {
+    std::string NewAttr = CI.getNormalizedFullName();
+    assert((NewAttr == "error" || NewAttr == "warning") &&
+           "unexpected normalized full name");
+    bool Match = (EA->isError() && NewAttr == "error") ||
+                 (EA->isWarning() && NewAttr == "warning");
+    if (!Match) {
+      Diag(EA->getLocation(), diag::err_attributes_are_not_compatible)
+          << CI << EA;
+      Diag(CI.getLoc(), diag::note_conflicting_attribute);
+      return nullptr;
+    }
+    if (EA->getUserDiagnostic() != NewUserDiagnostic) {
+      Diag(CI.getLoc(), diag::warn_duplicate_attribute) << EA;
+      Diag(EA->getLoc(), diag::note_previous_attribute);
+    }
+    D->dropAttr<ErrorAttr>();
+  }
+  return ::new (Context) ErrorAttr(Context, CI, NewUserDiagnostic);
 }
 
 FormatAttr *Sema::mergeFormatAttr(Decl *D, const AttributeCommonInfo &CI,
@@ -9123,7 +9146,7 @@ static void handleInternalLinkageAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 static void handleOpenCLNoSVMAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (S.LangOpts.OpenCLVersion < 200 && !S.LangOpts.OpenCLCPlusPlusVersion)
+  if (S.LangOpts.getOpenCLCompatibleVersion() < 200)
     S.Diag(AL.getLoc(), diag::err_attribute_requires_opencl_version)
         << AL << "2.0" << 1;
   else
@@ -9625,6 +9648,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_EnableIf:
     handleEnableIfAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_Error:
+    handleErrorAttr(S, D, AL);
     break;
   case ParsedAttr::AT_DiagnoseIf:
     handleDiagnoseIfAttr(S, D, AL);

@@ -43,6 +43,9 @@ sycl/source/detail/plugin.hpp @smaslov-intel
 sycl/source/detail/posix_pi.cpp @smaslov-intel
 sycl/source/detail/windows_pi.cpp @smaslov-intel
 
+# ESIMD CPU emulator plug-in
+sycl/plugins/esimd_cpu/ @kbobrovs @smaslov-intel
+
 # CUDA plugin
 sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
 
@@ -75,8 +78,8 @@ sycl/include/CL/sycl/swizzles.def @turinevgeny
 sycl/include/CL/sycl/types.hpp @turinevgeny
 
 # XPTI instrumentation utilities
-xpti/ @tovinkere @andykaylor
-xptifw/ @tovinkere  @andykaylor
+xpti/ @tovinkere @andykaylor @alexbatashev
+xptifw/ @tovinkere @andykaylor @alexbatashev
 
 # DPC++ tools
 llvm/**/append-file/ @mdtoguchi @AGindinson

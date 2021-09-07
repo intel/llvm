@@ -23,6 +23,7 @@ namespace sycl {
 #ifndef SYCL_EXT_ONEAPI_MATRIX
 #define SYCL_EXT_ONEAPI_MATRIX 2
 #endif
+#define SYCL_EXT_INTEL_BF16_CONVERSION 1
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
