@@ -28,7 +28,7 @@ __SYCL_EXPORT s::cl_double Dot(s::vec<double, 1>, s::vec<double, 1>);
 __SYCL_EXPORT s::cl_double Dot(s::cl_double2, s::cl_double2);
 __SYCL_EXPORT s::cl_double Dot(s::cl_double3, s::cl_double3);
 __SYCL_EXPORT s::cl_double Dot(s::cl_double4, s::cl_double4);
-__SYCL_EXPORT s::cl_half Dot(s::vec<half, 1>, s::vec<half, 1>);
+__SYCL_EXPORT s::cl_half Dot(s::vec<s::half, 1>, s::vec<s::half, 1>);
 __SYCL_EXPORT s::cl_half Dot(s::cl_half2, s::cl_half2);
 __SYCL_EXPORT s::cl_half Dot(s::cl_half3, s::cl_half3);
 __SYCL_EXPORT s::cl_half Dot(s::cl_half4, s::cl_half4);
@@ -158,7 +158,7 @@ __SYCL_EXPORT s::cl_double length(s::vec<double, 1> p) { return __length(p); }
 __SYCL_EXPORT s::cl_double length(s::cl_double2 p) { return __length(p); }
 __SYCL_EXPORT s::cl_double length(s::cl_double3 p) { return __length(p); }
 __SYCL_EXPORT s::cl_double length(s::cl_double4 p) { return __length(p); }
-__SYCL_EXPORT s::cl_half length(s::vec<half, 1> p) { return __length(p); }
+__SYCL_EXPORT s::cl_half length(s::vec<s::half, 1> p) { return __length(p); }
 __SYCL_EXPORT s::cl_half length(s::cl_half2 p) { return __length(p); }
 __SYCL_EXPORT s::cl_half length(s::cl_half3 p) { return __length(p); }
 __SYCL_EXPORT s::cl_half length(s::cl_half4 p) { return __length(p); }
@@ -197,7 +197,8 @@ __SYCL_EXPORT s::cl_double distance(s::cl_double4 p0, s::cl_double4 p1) {
 __SYCL_EXPORT s::cl_half distance(s::cl_half p0, s::cl_half p1) {
   return length(p0 - p1);
 }
-__SYCL_EXPORT s::cl_float distance(s::vec<half, 1> p0, s::vec<half, 1> p1) {
+__SYCL_EXPORT s::cl_float distance(s::vec<s::half, 1> p0,
+                                   s::vec<s::half, 1> p1) {
   return length(p0 - p1);
 }
 __SYCL_EXPORT s::cl_half distance(s::cl_half2 p0, s::cl_half2 p1) {

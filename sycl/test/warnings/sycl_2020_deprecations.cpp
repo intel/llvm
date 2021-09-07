@@ -152,5 +152,9 @@ int main() {
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
 
+  // expected-warning@+1{{'half' is deprecated: use 'sycl::half' instead}}
+  half H;
+  (void)H;
+
   return 0;
 }

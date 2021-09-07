@@ -443,6 +443,23 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
                                             SPIRAddressSpace::SPIRAS_Global));
   }
 
+  case internal::OpTypeJointMatrixINTEL: {
+    auto *MT = static_cast<SPIRVTypeJointMatrixINTEL *>(T);
+    auto R = static_cast<SPIRVConstant *>(MT->getRows())->getZExtIntValue();
+    auto C = static_cast<SPIRVConstant *>(MT->getColumns())->getZExtIntValue();
+    std::stringstream SS;
+    SS << kSPIRVTypeName::PostfixDelim;
+    SS << transTypeToOCLTypeName(MT->getCompType());
+    auto L = static_cast<SPIRVConstant *>(MT->getLayout())->getZExtIntValue();
+    auto S = static_cast<SPIRVConstant *>(MT->getScope())->getZExtIntValue();
+    SS << kSPIRVTypeName::PostfixDelim << R << kSPIRVTypeName::PostfixDelim << C
+       << kSPIRVTypeName::PostfixDelim << L << kSPIRVTypeName::PostfixDelim
+       << S;
+    std::string Name =
+        getSPIRVTypeName(kSPIRVTypeName::JointMatrixINTEL, SS.str());
+    return mapType(T, getOrCreateOpaquePtrType(M, Name));
+  }
+
   default: {
     auto OC = T->getOpCode();
     if (isOpaqueGenericTypeOpCode(OC) || isSubgroupAvcINTELTypeOpCode(OC))
@@ -1460,6 +1477,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       Initializer = UndefValue::get(Ty);
     } else
       AddrSpace = SPIRSPIRVAddrSpaceMap::rmap(BS);
+    // Force SPIRV BuiltIn variable's name to be __spirv_BuiltInXXXX.
+    // No matter what BV's linkage name is.
+    SPIRVBuiltinVariableKind BVKind;
+    if (BVar->isBuiltin(&BVKind))
+      BV->setName(prefixSPIRVName(SPIRVBuiltInNameMap::map(BVKind)));
     auto LVar = new GlobalVariable(*M, Ty, IsConst, LinkageTy,
                                    /*Initializer=*/nullptr, BV->getName(), 0,
                                    GlobalVariable::NotThreadLocal, AddrSpace);
@@ -2724,8 +2746,7 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
   BF->foreachReturnValueAttr([&](SPIRVFuncParamAttrKind Kind) {
     if (Kind == FunctionParameterAttributeNoWrite)
       return;
-    F->addAttribute(AttributeList::ReturnIndex,
-                    SPIRSPIRVFuncParamAttrMap::rmap(Kind));
+    F->addRetAttr(SPIRSPIRVFuncParamAttrMap::rmap(Kind));
   });
 
   // Creating all basic blocks before creating instructions.
@@ -3099,7 +3120,7 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   bool AddRetTypePostfix = false;
   if (OC == OpImageQuerySizeLod || OC == OpImageQuerySize ||
       OC == OpImageRead || OC == OpSubgroupImageBlockReadINTEL ||
-      OC == OpSubgroupBlockReadINTEL)
+      OC == OpSubgroupBlockReadINTEL || OC == internal::OpJointMatrixLoadINTEL)
     AddRetTypePostfix = true;
 
   bool IsRetSigned = false;
