@@ -48,9 +48,14 @@ struct tpu_params;
 #if __cplusplus >= 201703L
 template <typename Ta, typename Tb, typename Tc>
 constexpr bool is_combination_valid_amx(int M, int N, int K) {
-  // Note that unsigned variants are not implemented yet
   // is_same_v is a C++17 feature
   if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
+       std::is_same_v<Tc, int> && M <= 16 && N <= 16 && K <= 64) ||
+      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, uint8_t> &&
+       std::is_same_v<Tc, int> && M <= 16 && N <= 16 && K <= 64) ||
+      (std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, uint8_t> &&
+       std::is_same_v<Tc, int> && M <= 16 && N <= 16 && K <= 64) ||
+      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, int8_t> &&
        std::is_same_v<Tc, int> && M <= 16 && N <= 16 && K <= 64) ||
       // bf16
       (std::is_same_v<Ta, unsigned short> &&
@@ -63,8 +68,13 @@ constexpr bool is_combination_valid_amx(int M, int N, int K) {
 
 template <typename Ta, typename Tb, typename Tc>
 constexpr bool are_types_valid_amx() {
-  // Note that unsigned variants are not implemented yet
   if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
+       std::is_same_v<Tc, int>) ||
+      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, uint8_t> &&
+       std::is_same_v<Tc, int>) ||
+      (std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, uint8_t> &&
+       std::is_same_v<Tc, int>) ||
+      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, int8_t> &&
        std::is_same_v<Tc, int>) ||
       (std::is_same_v<Ta, unsigned short> &&
        std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float>))
@@ -96,22 +106,29 @@ struct tpu_params<tpu::amx, void, void, void, M, N, K> {
     uint32_t nsize;
     uint32_t ksize;
   };
-  static constexpr int num_combinations = 2;
+  static constexpr int num_combinations = 5;
   combination combinations[num_combinations];
   constexpr tpu_params() : combinations() {
-    // Note that unsigned int8 variants are not implemented yet
     combinations[0].atype = matrix_type::sint8;
     combinations[0].btype = matrix_type::sint8;
-    combinations[0].ctype = matrix_type::sint32;
-    combinations[0].max_msize = 16;
-    combinations[0].max_nsize = 16;
-    combinations[0].max_ksize = 64;
-    combinations[1].atype = matrix_type::bf16;
-    combinations[1].btype = matrix_type::bf16;
-    combinations[1].ctype = matrix_type::fp32;
-    combinations[1].max_msize = 16;
-    combinations[1].max_nsize = 16;
-    combinations[1].max_ksize = 32;
+    combinations[1].atype = matrix_type::sint8;
+    combinations[1].btype = matrix_type::uint8;
+    combinations[2].atype = matrix_type::uint8;
+    combinations[2].btype = matrix_type::sint8;
+    combinations[3].atype = matrix_type::uint8;
+    combinations[3].btype = matrix_type::uint8;
+    for (int i = 0; i < 4; i++) {
+      combinations[i].ctype = matrix_type::sint32;
+      combinations[i].max_msize = 16;
+      combinations[i].max_nsize = 16;
+      combinations[i].max_ksize = 64;
+    }
+    combinations[4].atype = matrix_type::bf16;
+    combinations[4].btype = matrix_type::bf16;
+    combinations[4].ctype = matrix_type::fp32;
+    combinations[4].max_msize = 16;
+    combinations[4].max_nsize = 16;
+    combinations[4].max_ksize = 32;
   }
 };
 
@@ -123,7 +140,7 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
                                            !std::is_same_v<Tb, void> &&
                                            !std::is_same_v<Tc, void>)>::type> {
   static_assert((are_types_valid_amx<Ta, Tb, Tc>()),
-                "Invalid types for AMX, supported types are int8_t,"
+                "Invalid types for AMX, supported types are int8_t, uint8_t, "
                 "and bf16 (Note that unsigned short should be used in the"
                 "DPC++ code to implement bf16) ");
 
@@ -213,22 +230,29 @@ struct tpu_params<
     uint32_t nsize;
     uint32_t ksize;
   };
-  static constexpr int num_combinations = 2;
+  static constexpr int num_combinations = 5;
   combination combinations[num_combinations];
   constexpr tpu_params() : combinations() {
-    // Note that unsigned int8 variants are not implemented yet
     combinations[0].atype = matrix_type::sint8;
     combinations[0].btype = matrix_type::sint8;
-    combinations[0].ctype = matrix_type::sint32;
-    combinations[0].max_msize = 16;
-    combinations[0].max_nsize = 16;
-    combinations[0].max_ksize = 64;
-    combinations[1].atype = matrix_type::bf16;
-    combinations[1].btype = matrix_type::bf16;
-    combinations[1].ctype = matrix_type::fp32;
-    combinations[1].max_msize = 16;
-    combinations[1].max_nsize = 16;
-    combinations[1].max_ksize = 32;
+    combinations[1].atype = matrix_type::sint8;
+    combinations[1].btype = matrix_type::uint8;
+    combinations[2].atype = matrix_type::uint8;
+    combinations[2].btype = matrix_type::sint8;
+    combinations[3].atype = matrix_type::uint8;
+    combinations[3].btype = matrix_type::uint8;
+    for (int i = 0; i < 4; i++) {
+      combinations[i].ctype = matrix_type::sint32;
+      combinations[i].max_msize = 16;
+      combinations[i].max_nsize = 16;
+      combinations[i].max_ksize = 64;
+    }
+    combinations[4].atype = matrix_type::bf16;
+    combinations[4].btype = matrix_type::bf16;
+    combinations[4].ctype = matrix_type::fp32;
+    combinations[4].max_msize = 16;
+    combinations[4].max_nsize = 16;
+    combinations[4].max_ksize = 32;
   }
 };
 
@@ -240,6 +264,15 @@ struct tpu_params<
 template <typename Ta, typename Tb, typename Tc>
 constexpr bool is_combination_valid_dpas(int M, int N, int K) {
   if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
+       std::is_same_v<Tc, int> && (M == 1 || M == 2 || M == 4 || M == 8) &&
+       N == 8 && K == 32) ||
+      (std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, uint8_t> &&
+       std::is_same_v<Tc, int> && (M == 1 || M == 2 || M == 4 || M == 8) &&
+       N == 8 && K == 32) ||
+      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, int8_t> &&
+       std::is_same_v<Tc, int> && (M == 1 || M == 2 || M == 4 || M == 8) &&
+       N == 8 && K == 32) ||
+      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, uint8_t> &&
        std::is_same_v<Tc, int> && (M == 1 || M == 2 || M == 4 || M == 8) &&
        N == 8 && K == 32) ||
       (std::is_same_v<Ta, half> && std::is_same_v<Tb, half> &&
@@ -256,6 +289,12 @@ constexpr bool is_combination_valid_dpas(int M, int N, int K) {
 template <typename Ta, typename Tb, typename Tc>
 constexpr bool are_types_valid_dpas() {
   if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
+       std::is_same_v<Tc, int>) ||
+      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, int8_t> &&
+       std::is_same_v<Tc, int>) ||
+      (std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, uint8_t> &&
+       std::is_same_v<Tc, int>) ||
+      (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, uint8_t> &&
        std::is_same_v<Tc, int>) ||
       (std::is_same_v<Ta, half> && std::is_same_v<Tb, half> &&
        std::is_same_v<Tc, float>) ||
@@ -289,7 +328,7 @@ struct tpu_params<tpu::dpas, void, void, void, M, N, K> {
     uint32_t nsize;
     uint32_t ksize;
   };
-  static constexpr int num_combinations = 12;
+  static constexpr int num_combinations = 24;
   combination combinations[num_combinations];
   constexpr tpu_params() : combinations() {
     int i = 0;
@@ -305,6 +344,42 @@ struct tpu_params<tpu::dpas, void, void, void, M, N, K> {
       combinations[i + ii].nsize = 8;
     }
     i = 4;
+    combinations[i].atype = matrix_type::sint8;
+    combinations[i].btype = matrix_type::uint8;
+    combinations[i].ctype = matrix_type::sint32;
+    combinations[i].msize = 1;
+    combinations[i + 1].msize = 2;
+    combinations[i + 2].msize = 4;
+    combinations[i + 3].msize = 8;
+    for (int ii = 0; ii < 4; ii++) {
+      combinations[i + ii].ksize = 32;
+      combinations[i + ii].nsize = 8;
+    }
+    i = 8;
+    combinations[i].atype = matrix_type::uint8;
+    combinations[i].btype = matrix_type::sint8;
+    combinations[i].ctype = matrix_type::sint32;
+    combinations[i].msize = 1;
+    combinations[i + 1].msize = 2;
+    combinations[i + 2].msize = 4;
+    combinations[i + 3].msize = 8;
+    for (int ii = 0; ii < 4; ii++) {
+      combinations[i + ii].ksize = 32;
+      combinations[i + ii].nsize = 8;
+    }
+    i = 12;
+    combinations[i].atype = matrix_type::uint8;
+    combinations[i].btype = matrix_type::uint8;
+    combinations[i].ctype = matrix_type::sint32;
+    combinations[i].msize = 1;
+    combinations[i + 1].msize = 2;
+    combinations[i + 2].msize = 4;
+    combinations[i + 3].msize = 8;
+    for (int ii = 0; ii < 4; ii++) {
+      combinations[i + ii].ksize = 32;
+      combinations[i + ii].nsize = 8;
+    }
+    i = 16;
     combinations[i].atype = matrix_type::fp16;
     combinations[i].btype = matrix_type::fp16;
     combinations[i].ctype = matrix_type::fp64;
@@ -316,7 +391,7 @@ struct tpu_params<tpu::dpas, void, void, void, M, N, K> {
       combinations[i + ii].ksize = 16;
       combinations[i + ii].nsize = 8;
     }
-    i = 8;
+    i = 20;
     combinations[i].atype = matrix_type::bf16;
     combinations[i].btype = matrix_type::bf16;
     combinations[i].ctype = matrix_type::fp64;
@@ -340,8 +415,9 @@ struct tpu_params<tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
                                            !std::is_same_v<Tb, void> &&
                                            !std::is_same_v<Tc, void>)>::type> {
   static_assert((are_types_valid_dpas<Ta, Tb, Tc>()),
-                "Invalid types for DPAS, supported types are int8_t, "
-                "half, and bf16");
+                "Invalid types for DPAS, supported types are int8_t, uint8_t, "
+                "half, and bf16 (Note that unsigned short should be used in the"
+                "DPC++ code to implement bf16)");
 
   // construct the matrices using the default sizes
 
@@ -430,7 +506,7 @@ struct tpu_params<
     uint32_t nsize;
     uint32_t ksize;
   };
-  static constexpr int num_combinations = 12;
+  static constexpr int num_combinations = 24;
   combination combinations[num_combinations];
   constexpr tpu_params() : combinations() {
     int i = 0;
@@ -446,6 +522,42 @@ struct tpu_params<
       combinations[i + ii].nsize = 8;
     }
     i = 4;
+    combinations[i].atype = matrix_type::sint8;
+    combinations[i].btype = matrix_type::uint8;
+    combinations[i].ctype = matrix_type::sint32;
+    combinations[i].msize = 1;
+    combinations[i + 1].msize = 2;
+    combinations[i + 2].msize = 4;
+    combinations[i + 3].msize = 8;
+    for (int ii = 0; ii < 4; ii++) {
+      combinations[i + ii].ksize = 32;
+      combinations[i + ii].nsize = 8;
+    }
+    i = 8;
+    combinations[i].atype = matrix_type::uint8;
+    combinations[i].btype = matrix_type::sint8;
+    combinations[i].ctype = matrix_type::sint32;
+    combinations[i].msize = 1;
+    combinations[i + 1].msize = 2;
+    combinations[i + 2].msize = 4;
+    combinations[i + 3].msize = 8;
+    for (int ii = 0; ii < 4; ii++) {
+      combinations[i + ii].ksize = 32;
+      combinations[i + ii].nsize = 8;
+    }
+    i = 12;
+    combinations[i].atype = matrix_type::uint8;
+    combinations[i].btype = matrix_type::uint8;
+    combinations[i].ctype = matrix_type::sint32;
+    combinations[i].msize = 1;
+    combinations[i + 1].msize = 2;
+    combinations[i + 2].msize = 4;
+    combinations[i + 3].msize = 8;
+    for (int ii = 0; ii < 4; ii++) {
+      combinations[i + ii].ksize = 32;
+      combinations[i + ii].nsize = 8;
+    }
+    i = 16;
     combinations[i].atype = matrix_type::fp16;
     combinations[i].btype = matrix_type::fp16;
     combinations[i].ctype = matrix_type::fp64;
@@ -457,7 +569,7 @@ struct tpu_params<
       combinations[i + ii].ksize = 16;
       combinations[i + ii].nsize = 8;
     }
-    i = 8;
+    i = 20;
     combinations[i].atype = matrix_type::bf16;
     combinations[i].btype = matrix_type::bf16;
     combinations[i].ctype = matrix_type::fp64;
