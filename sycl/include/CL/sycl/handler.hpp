@@ -556,6 +556,7 @@ private:
                 ->MKernelFunc;
   }
 
+  // For 'void' kernel argument
   template <class KernelType, typename ArgT, int Dims>
   typename std::enable_if<std::is_same<ArgT, void>::value, KernelType *>::type
   ResetHostKernel(const KernelType &KernelFunc) {
@@ -570,6 +571,7 @@ private:
         KernelFunc);
   }
 
+  // For 'sycl::id<Dims>' kernel argument
   template <class KernelType, typename ArgT, int Dims>
   typename std::enable_if<std::is_same<ArgT, sycl::id<Dims>>::value,
                           KernelType *>::type
@@ -585,6 +587,8 @@ private:
     return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
         KernelFunc);
   }
+
+  // For 'sycl::nd_item<Dims>' kernel argument
   template <class KernelType, typename ArgT, int Dims>
   typename std::enable_if<std::is_same<ArgT, sycl::nd_item<Dims>>::value,
                           KernelType *>::type
@@ -599,6 +603,7 @@ private:
         KernelFunc);
   }
 
+  // For 'sycl::item<Dims, without_offset>' kernel argument
   template <class KernelType, typename ArgT, int Dims>
   typename std::enable_if<std::is_same<ArgT, sycl::item<Dims, false>>::value,
                           KernelType *>::type
@@ -617,6 +622,7 @@ private:
         KernelFunc);
   }
 
+  // For 'sycl::item<Dims, with_offset>' kernel argument
   template <class KernelType, typename ArgT, int Dims>
   typename std::enable_if<std::is_same<ArgT, sycl::item<Dims, true>>::value,
                           KernelType *>::type
@@ -629,6 +635,23 @@ private:
         sycl::item<Dims, true> Item = detail::Builder::createItem<Dims, true>(
             Arg.get_global_range(), Arg.get_global_id(), Arg.get_offset());
         MKernelFunc(Item);
+      }
+    };
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
+  }
+
+  // For 'sycl::group<Dims>' kernel argument
+  template <class KernelType, typename ArgT, int Dims>
+  typename std::enable_if<std::is_same<ArgT, sycl::group<Dims>>::value,
+                          KernelType *>::type
+  ResetHostKernel(const KernelType &KernelFunc) {
+    struct NormalizedKernelType {
+      KernelType MKernelFunc;
+      NormalizedKernelType(const KernelType &KernelFunc)
+          : MKernelFunc(KernelFunc) {}
+      void operator()(const nd_item<Dims> &Arg) {
+        MKernelFunc(Arg.get_group());
       }
     };
     return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
