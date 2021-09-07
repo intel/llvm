@@ -41,9 +41,11 @@ int main() {
   // return_type is used when retrieving the backend specific native object from
   // a SYCL object. See the relevant backend specification for details.
 
-  backend_traits<backend::level_zero>::return_type<platform> ZeDriver;
-  backend_traits<backend::level_zero>::return_type<device> ZeDevice;
-  backend_traits<backend::level_zero>::return_type<context> ZeContext;
+  backend_traits<backend::ext_oneapi_level_zero>::return_type<platform>
+      ZeDriver;
+  backend_traits<backend::ext_oneapi_level_zero>::return_type<device> ZeDevice;
+  backend_traits<backend::ext_oneapi_level_zero>::return_type<context>
+      ZeContext;
 
   // 4.5.1.2 For each SYCL runtime class T which supports SYCL application
   // interoperability, a specialization of get_native must be defined, which
@@ -52,20 +54,20 @@ int main() {
   // application interoperability. The lifetime of the object returned are
   // backend-defined and specified in the backend specification.
 
-  ZeDriver = get_native<backend::level_zero>(Platform);
-  ZeDevice = get_native<backend::level_zero>(Device);
-  ZeContext = get_native<backend::level_zero>(Context);
+  ZeDriver = get_native<backend::ext_oneapi_level_zero>(Platform);
+  ZeDevice = get_native<backend::ext_oneapi_level_zero>(Device);
+  ZeContext = get_native<backend::ext_oneapi_level_zero>(Context);
 
   // Check deprecated
   // expected-warning@+2 {{'get_native' is deprecated: Use SYCL-2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::level_zero>' is deprecated: Use SYCL-2020 sycl::get_native free function}}
-  ZeDriver = Platform.get_native<backend::level_zero>();
+  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL-2020 sycl::get_native free function}}
+  ZeDriver = Platform.get_native<backend::ext_oneapi_level_zero>();
   // expected-warning@+2 {{'get_native' is deprecated: Use SYCL-2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::level_zero>' is deprecated: Use SYCL-2020 sycl::get_native free function}}
-  ZeDevice = Device.get_native<backend::level_zero>();
+  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL-2020 sycl::get_native free function}}
+  ZeDevice = Device.get_native<backend::ext_oneapi_level_zero>();
   // expected-warning@+2 {{'get_native' is deprecated: Use SYCL-2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::level_zero>' is deprecated: Use SYCL-2020 sycl::get_native free function}}
-  ZeContext = Context.get_native<backend::level_zero>();
+  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL-2020 sycl::get_native free function}}
+  ZeContext = Context.get_native<backend::ext_oneapi_level_zero>();
 
   // 4.5.1.1 For each SYCL runtime class T which supports SYCL application
   // interoperability with the SYCL backend, a specialization of input_type must
@@ -83,27 +85,31 @@ int main() {
   // behavior of these template functions is defined by the SYCL backend
   // specification document.
 
-  backend_input_t<backend::level_zero, platform> InteropPlatformInput{ZeDriver};
+  backend_input_t<backend::ext_oneapi_level_zero, platform>
+      InteropPlatformInput{ZeDriver};
   platform InteropPlatform =
-      make_platform<backend::level_zero>(InteropPlatformInput);
+      make_platform<backend::ext_oneapi_level_zero>(InteropPlatformInput);
 
-  backend_input_t<backend::level_zero, device> InteropDeviceInput{ZeDevice};
-  device InteropDevice = make_device<backend::level_zero>(InteropDeviceInput);
+  backend_input_t<backend::ext_oneapi_level_zero, device> InteropDeviceInput{
+      ZeDevice};
+  device InteropDevice =
+      make_device<backend::ext_oneapi_level_zero>(InteropDeviceInput);
 
-  backend_input_t<backend::level_zero, context> InteropContextInput{
+  backend_input_t<backend::ext_oneapi_level_zero, context> InteropContextInput{
       ZeContext, std::vector<device>(1, InteropDevice),
-      level_zero::ownership::keep};
+      ext::oneapi::level_zero::ownership::keep};
   context InteropContext =
-      make_context<backend::level_zero>(InteropContextInput);
+      make_context<backend::ext_oneapi_level_zero>(InteropContextInput);
 
   // Check deprecated
   // expected-warning@+1 {{'make<sycl::platform, nullptr>' is deprecated: Use SYCL-2020 sycl::make_platform free function}}
-  auto P = level_zero::make<platform>(ZeDriver);
+  auto P = ext::oneapi::level_zero::make<platform>(ZeDriver);
   // expected-warning@+1 {{'make<sycl::device, nullptr>' is deprecated: Use SYCL-2020 sycl::make_device free function}}
-  auto D = level_zero::make<device>(P, ZeDevice);
+  auto D = ext::oneapi::level_zero::make<device>(P, ZeDevice);
   // expected-warning@+1 {{'make<sycl::context, nullptr>' is deprecated: Use SYCL-2020 sycl::make_context free function}}
-  auto C = level_zero::make<context>(std::vector<device>(1, D), ZeContext,
-                                     level_zero::ownership::keep);
+  auto C = ext::oneapi::level_zero::make<context>(
+      std::vector<device>(1, D), ZeContext,
+      ext::oneapi::level_zero::ownership::keep);
 
   return 0;
 }

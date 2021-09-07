@@ -78,7 +78,7 @@ template <> struct BackendInput<backend::level_zero, context> {
   using type = struct {
     interop<backend::level_zero, context>::type NativeHandle;
     std::vector<device> DeviceList;
-    level_zero::ownership Ownership;
+    ext::oneapi::level_zero::ownership Ownership;
   };
 };
 
@@ -191,10 +191,10 @@ template <>
 context make_context<backend::level_zero>(
     const backend_input_t<backend::level_zero, context> &BackendObject,
     const async_handler &Handler) {
-  return level_zero::make_context(
+  return ext::oneapi::level_zero::make_context(
       BackendObject.DeviceList,
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      BackendObject.Ownership == level_zero::ownership::keep);
+      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
