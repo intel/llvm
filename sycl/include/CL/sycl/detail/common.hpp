@@ -309,11 +309,3 @@ template <typename T> constexpr T InlineVariableHelper<T>::value;
 } // namespace detail
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()
-
-
-__SYCL_OPEN_NS() {
-namespace detail {
-using namespace __SYCL_INT_HEADER_NS()::detail;
-}
-} // __SYCL_OPEN_NS()
-__SYCL_CLOSE_NS()

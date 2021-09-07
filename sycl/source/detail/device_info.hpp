@@ -16,6 +16,7 @@
 #include <CL/sycl/memory_enums.hpp>
 #include <CL/sycl/platform.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_util.hpp>
 #include <detail/plugin.hpp>
@@ -480,7 +481,7 @@ template <> struct get_device_info<device, info::device::parent_device> {
         dev, pi::cast<RT::PiDeviceInfo>(info::device::parent_device),
         sizeof(result), &result, nullptr);
     if (result == nullptr)
-      throw invalid_object_error(
+      throw invalid_object_error_compat(
           "No parent for device because it is not a subdevice",
           PI_INVALID_DEVICE);
 
@@ -894,7 +895,7 @@ inline bool get_device_info_host<info::device::preferred_interop_user_sync>() {
 
 template <> inline device get_device_info_host<info::device::parent_device>() {
   // TODO: implement host device partitioning
-  throw runtime_error(
+  throw runtime_error_compat(
       "Partitioning to subdevices of the host device is not implemented yet",
       PI_INVALID_DEVICE);
 }
@@ -941,24 +942,24 @@ inline cl_uint get_device_info_host<info::device::reference_count>() {
 template <>
 inline cl_uint get_device_info_host<info::device::max_num_sub_groups>() {
   // TODO update once subgroups are enabled
-  throw runtime_error("Sub-group feature is not supported on HOST device.",
-                      PI_INVALID_DEVICE);
+  throw runtime_error_compat(
+      "Sub-group feature is not supported on HOST device.", PI_INVALID_DEVICE);
 }
 
 template <>
 inline std::vector<size_t>
 get_device_info_host<info::device::sub_group_sizes>() {
   // TODO update once subgroups are enabled
-  throw runtime_error("Sub-group feature is not supported on HOST device.",
-                      PI_INVALID_DEVICE);
+  throw runtime_error_compat(
+      "Sub-group feature is not supported on HOST device.", PI_INVALID_DEVICE);
 }
 
 template <>
 inline bool
 get_device_info_host<info::device::sub_group_independent_forward_progress>() {
   // TODO update once subgroups are enabled
-  throw runtime_error("Sub-group feature is not supported on HOST device.",
-                      PI_INVALID_DEVICE);
+  throw runtime_error_compat(
+      "Sub-group feature is not supported on HOST device.", PI_INVALID_DEVICE);
 }
 
 template <>
@@ -1079,46 +1080,48 @@ template <> struct get_device_info<bool, info::device::ext_intel_mem_channel> {
 // detail device descriptors (not support on host).
 template <>
 inline std::string get_device_info_host<info::device::ext_intel_pci_address>() {
-  throw runtime_error(
+  throw runtime_error_compat(
       "Obtaining the PCI address is not supported on HOST device",
       PI_INVALID_DEVICE);
 }
 template <>
 inline cl_uint get_device_info_host<info::device::ext_intel_gpu_eu_count>() {
-  throw runtime_error("Obtaining the EU count is not supported on HOST device",
-                      PI_INVALID_DEVICE);
+  throw runtime_error_compat(
+      "Obtaining the EU count is not supported on HOST device",
+      PI_INVALID_DEVICE);
 }
 template <>
 inline cl_uint
 get_device_info_host<info::device::ext_intel_gpu_eu_simd_width>() {
-  throw runtime_error(
+  throw runtime_error_compat(
       "Obtaining the EU SIMD width is not supported on HOST device",
       PI_INVALID_DEVICE);
 }
 template <>
 inline cl_uint get_device_info_host<info::device::ext_intel_gpu_slices>() {
-  throw runtime_error(
+  throw runtime_error_compat(
       "Obtaining the number of slices is not supported on HOST device",
       PI_INVALID_DEVICE);
 }
 template <>
 inline cl_uint
 get_device_info_host<info::device::ext_intel_gpu_subslices_per_slice>() {
-  throw runtime_error("Obtaining the number of subslices per slice is not "
-                      "supported on HOST device",
-                      PI_INVALID_DEVICE);
+  throw runtime_error_compat(
+      "Obtaining the number of subslices per slice is not "
+      "supported on HOST device",
+      PI_INVALID_DEVICE);
 }
 template <>
 inline cl_uint
 get_device_info_host<info::device::ext_intel_gpu_eu_count_per_subslice>() {
-  throw runtime_error(
+  throw runtime_error_compat(
       "Obtaining the EU count per subslice is not supported on HOST device",
       PI_INVALID_DEVICE);
 }
 template <>
 inline cl_ulong
 get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
-  throw runtime_error(
+  throw runtime_error_compat(
       "Obtaining the maximum memory bandwidth is not supported on HOST device",
       PI_INVALID_DEVICE);
 }
@@ -1129,7 +1132,7 @@ template <> inline bool get_device_info_host<info::device::ext_oneapi_srgb>() {
 template <>
 inline detail::uuid_type
 get_device_info_host<info::device::ext_intel_device_info_uuid>() {
-  throw runtime_error(
+  throw runtime_error_compat(
       "Obtaining the device uuid is not supported on HOST device",
       PI_INVALID_DEVICE);
 }

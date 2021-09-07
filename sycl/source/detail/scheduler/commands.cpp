@@ -18,11 +18,13 @@
 #include <CL/sycl/sampler.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/kernel_info.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/sampler_impl.hpp>
 #include <detail/scheduler/commands.hpp>
@@ -621,10 +623,10 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
     }
     static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
     if (ThrowOnBlock)
-      throw sycl::runtime_error(
+      throw kernel_error_compat{
           std::string("Waiting for blocked command. Block reason: ") +
               std::string(getBlockReason()),
-          PI_INVALID_OPERATION);
+          PI_INVALID_OPERATION};
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Scoped trace event notifier that emits a barrier begin and barrier end
@@ -1280,7 +1282,8 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
     if (Dep.MDepRequirement == Req)
       return Dep.MAllocaCmd;
   }
-  throw runtime_error("Alloca for command not found", PI_INVALID_OPERATION);
+  throw runtime_error_compat("Alloca for command not found",
+                             PI_INVALID_OPERATION);
 }
 
 std::vector<StreamImplPtr> ExecCGCommand::getStreams() const {
@@ -1780,7 +1783,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     }
     case kernel_param_kind_t::kind_specialization_constants_buffer: {
       if (MQueue->is_host()) {
-        throw __sycl_ns::feature_not_supported(
+        throw sycl::feature_not_supported_compat(
             "SYCL2020 specialization constants are not yet supported on host "
             "device",
             PI_INVALID_OPERATION);
@@ -1887,8 +1890,9 @@ cl_int ExecCGCommand::enqueueImp() {
   switch (MCommandGroup->getType()) {
 
   case CG::CGTYPE::UpdateHost: {
-    throw runtime_error("Update host should be handled by the Scheduler.",
-                        PI_INVALID_OPERATION);
+    throw runtime_error_compat(
+        "Update host should be handled by the Scheduler.",
+        PI_INVALID_OPERATION);
   }
   case CG::CGTYPE::CopyAccToPtr: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2014,12 +2018,12 @@ cl_int ExecCGCommand::enqueueImp() {
 
     switch (Error) {
     case PI_INVALID_OPERATION:
-      throw __sycl_ns::runtime_error(
+      throw __sycl_ns::runtime_error_compat(
           "Device doesn't support run_on_host_intel tasks.", Error);
     case PI_SUCCESS:
       return Error;
     default:
-      throw __sycl_ns::runtime_error(
+      throw __sycl_ns::runtime_error_compat(
           "Enqueueing run_on_host_intel task has failed.", Error);
     }
   }
@@ -2203,7 +2207,7 @@ cl_int ExecCGCommand::enqueueImp() {
         break;
       }
       default:
-        throw runtime_error("Unsupported arg type", PI_INVALID_VALUE);
+        throw runtime_error_compat("Unsupported arg type", PI_INVALID_VALUE);
       }
     }
 
@@ -2230,7 +2234,7 @@ cl_int ExecCGCommand::enqueueImp() {
         assert(false &&
                "Can't get memory object due to no allocation available");
 
-        throw runtime_error(
+        throw runtime_error_compat(
             "Can't get memory object due to no allocation available",
             PI_INVALID_MEM_OBJECT);
       };
@@ -2272,7 +2276,8 @@ cl_int ExecCGCommand::enqueueImp() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::None:
-    throw runtime_error("CG type not implemented.", PI_INVALID_OPERATION);
+    throw runtime_error_compat("CG type not implemented.",
+                               PI_INVALID_OPERATION);
   }
   return PI_INVALID_OPERATION;
 }

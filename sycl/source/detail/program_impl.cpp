@@ -12,6 +12,7 @@
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <detail/config.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
@@ -35,7 +36,7 @@ program_impl::program_impl(ContextImplPtr Context,
                            const property_list &PropList)
     : MContext(Context), MDevices(DeviceList), MPropList(PropList) {
   if (Context->getDevices().size() > 1) {
-    throw feature_not_supported(
+    throw feature_not_supported_compat(
         "multiple devices within a context are not supported with "
         "sycl::program and sycl::kernel",
         PI_INVALID_OPERATION);
@@ -49,8 +50,8 @@ program_impl::program_impl(
       MLinkOptions(LinkOptions), MBuildOptions(LinkOptions) {
   // Verify arguments
   if (ProgramList.empty()) {
-    throw runtime_error("Non-empty vector of programs expected",
-                        PI_INVALID_VALUE);
+    throw runtime_error_compat("Non-empty vector of programs expected",
+                               PI_INVALID_VALUE);
   }
 
   // Sort the programs to avoid deadlocks due to locking multiple mutexes &
@@ -58,13 +59,13 @@ program_impl::program_impl(
   std::sort(ProgramList.begin(), ProgramList.end());
   auto It = std::unique(ProgramList.begin(), ProgramList.end());
   if (It != ProgramList.end()) {
-    throw runtime_error("Attempting to link a program with itself",
-                        PI_INVALID_PROGRAM);
+    throw runtime_error_compat("Attempting to link a program with itself",
+                               PI_INVALID_PROGRAM);
   }
 
   MContext = ProgramList[0]->MContext;
   if (MContext->getDevices().size() > 1) {
-    throw feature_not_supported(
+    throw feature_not_supported_compat(
         "multiple devices within a context are not supported with "
         "sycl::program and sycl::kernel",
         PI_INVALID_OPERATION);
@@ -80,7 +81,7 @@ program_impl::program_impl(
     Locks.emplace_back(Prg->MMutex);
     Prg->throw_if_state_is_not(program_state::compiled);
     if (Prg->MContext != MContext) {
-      throw invalid_object_error(
+      throw invalid_object_error_compat(
           "Not all programs are associated with the same context",
           PI_INVALID_PROGRAM);
     }
@@ -88,7 +89,7 @@ program_impl::program_impl(
       std::vector<device> PrgDevicesSorted =
           sort_devices_by_cl_device_id(Prg->MDevices);
       if (PrgDevicesSorted != DevicesSorted) {
-        throw invalid_object_error(
+        throw invalid_object_error_compat(
             "Not all programs are associated with the same devices",
             PI_INVALID_PROGRAM);
       }
@@ -164,7 +165,7 @@ program_impl::program_impl(ContextImplPtr Context,
       MProgram, Device, CL_PROGRAM_BINARY_TYPE, sizeof(cl_program_binary_type),
       &BinaryType, nullptr);
   if (BinaryType == CL_PROGRAM_BINARY_TYPE_NONE) {
-    throw invalid_object_error(
+    throw invalid_object_error_compat(
         "The native program passed to the program constructor has to be either "
         "compiled or linked",
         PI_INVALID_PROGRAM);
@@ -210,7 +211,7 @@ program_impl::~program_impl() {
 cl_program program_impl::get() const {
   throw_if_state_is(program_state::none);
   if (is_host()) {
-    throw invalid_object_error(
+    throw invalid_object_error_compat(
         "This instance of program doesn't support OpenCL interoperability.",
         PI_INVALID_PROGRAM);
   }
@@ -312,8 +313,8 @@ kernel program_impl::get_kernel(std::string KernelName,
   throw_if_state_is(program_state::none);
   if (is_host()) {
     if (IsCreatedFromSource)
-      throw invalid_object_error("This instance of program is a host instance",
-                                 PI_INVALID_PROGRAM);
+      throw invalid_object_error_compat(
+          "This instance of program is a host instance", PI_INVALID_PROGRAM);
 
     return createSyclObjFromImpl<kernel>(
         std::make_shared<kernel_impl>(MContext, PtrToSelf));
@@ -356,7 +357,7 @@ void program_impl::create_cl_program_with_source(const std::string &Source) {
           MContext->getHandleRef(), 1, &Src, &Size, &MProgram);
 
   if (Err == PI_INVALID_OPERATION) {
-    throw feature_not_supported(
+    throw feature_not_supported_compat(
         "program::compile_with_source is not supported by the selected backend",
         PI_INVALID_OPERATION);
   }
@@ -379,7 +380,7 @@ void program_impl::compile(const std::string &Options) {
       nullptr, nullptr, nullptr);
 
   if (Err != PI_SUCCESS) {
-    throw compile_program_error(
+    throw compile_program_error_compat(
         "Program compilation error:\n" +
             ProgramManager::getProgramBuildLog(MProgram, MContext),
         Err);
@@ -398,7 +399,7 @@ void program_impl::build(const std::string &Options) {
       nullptr);
 
   if (Err != PI_SUCCESS) {
-    throw compile_program_error(
+    throw compile_program_error_compat(
         "Program build error:\n" +
             ProgramManager::getProgramBuildLog(MProgram, MContext),
         Err);
@@ -448,7 +449,7 @@ RT::PiKernel program_impl::get_pi_kernel(const std::string &KernelName) const {
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piKernelCreate>(
         MProgram, KernelName.c_str(), &Kernel);
     if (Err == PI_INVALID_KERNEL_NAME) {
-      throw invalid_object_error(
+      throw invalid_object_error_compat(
           "This instance of program does not contain the kernel requested",
           Err);
     }
@@ -475,13 +476,15 @@ program_impl::sort_devices_by_cl_device_id(std::vector<device> Devices) {
 
 void program_impl::throw_if_state_is(program_state State) const {
   if (MState == State) {
-    throw invalid_object_error("Invalid program state", PI_INVALID_PROGRAM);
+    throw invalid_object_error_compat("Invalid program state",
+                                      PI_INVALID_PROGRAM);
   }
 }
 
 void program_impl::throw_if_state_is_not(program_state State) const {
   if (MState != State) {
-    throw invalid_object_error("Invalid program state", PI_INVALID_PROGRAM);
+    throw invalid_object_error_compat("Invalid program state",
+                                      PI_INVALID_PROGRAM);
   }
 }
 
@@ -499,8 +502,8 @@ void program_impl::create_pi_program_with_kernel_name(
 template <>
 cl_uint program_impl::get_info<info::program::reference_count>() const {
   if (is_host()) {
-    throw invalid_object_error("This instance of program is a host instance",
-                               PI_INVALID_PROGRAM);
+    throw invalid_object_error_compat(
+        "This instance of program is a host instance", PI_INVALID_PROGRAM);
   }
   pi_uint32 Result;
   const detail::plugin &Plugin = getPlugin();

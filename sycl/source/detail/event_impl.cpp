@@ -9,6 +9,7 @@
 #include <CL/sycl/context.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/plugin.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -36,7 +37,7 @@ bool event_impl::is_host() const { return MHostEvent || !MOpenCLInterop; }
 
 cl_event event_impl::get() const {
   if (!MOpenCLInterop) {
-    throw invalid_object_error(
+    throw invalid_object_error_compat(
         "This instance of event doesn't support OpenCL interoperability.",
         PI_INVALID_EVENT);
   }
@@ -99,7 +100,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
       MOpenCLInterop(true), MHostEvent(false), MState(HES_Complete) {
 
   if (MContext->is_host()) {
-    throw __sycl_ns::invalid_parameter_error(
+    throw __sycl_ns::invalid_parameter_error_compat(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
         PI_INVALID_CONTEXT);
@@ -110,7 +111,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
                                               sizeof(RT::PiContext),
                                               &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
-    throw __sycl_ns::invalid_parameter_error(
+    throw __sycl_ns::invalid_parameter_error_compat(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
         PI_INVALID_CONTEXT);
@@ -126,7 +127,7 @@ event_impl::event_impl(QueueImplPtr Queue) {
     if (Queue->has_property<property::queue::enable_profiling>()) {
       MHostProfilingInfo.reset(new HostProfilingInfo());
       if (!MHostProfilingInfo)
-        throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+        throw runtime_error_compat("Out of host memory", PI_OUT_OF_HOST_MEMORY);
     }
 
     return;
@@ -245,8 +246,8 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
     return 0;
   }
   if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_PROFILING_INFO_NOT_AVAILABLE);
+    throw invalid_object_error_compat("Profiling info is not available.",
+                                      PI_PROFILING_INFO_NOT_AVAILABLE);
   return MHostProfilingInfo->getStartTime();
 }
 
@@ -263,8 +264,8 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() const {
     return 0;
   }
   if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_PROFILING_INFO_NOT_AVAILABLE);
+    throw invalid_object_error_compat("Profiling info is not available.",
+                                      PI_PROFILING_INFO_NOT_AVAILABLE);
   return MHostProfilingInfo->getStartTime();
 }
 
@@ -280,8 +281,8 @@ event_impl::get_profiling_info<info::event_profiling::command_end>() const {
     return 0;
   }
   if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_PROFILING_INFO_NOT_AVAILABLE);
+    throw invalid_object_error_compat("Profiling info is not available.",
+                                      PI_PROFILING_INFO_NOT_AVAILABLE);
   return MHostProfilingInfo->getEndTime();
 }
 

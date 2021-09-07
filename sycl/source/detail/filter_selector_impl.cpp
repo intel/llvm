@@ -12,6 +12,7 @@
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/exception_compat.hpp>
 #include <detail/filter_selector_impl.hpp>
 
 #include <cctype>
@@ -58,7 +59,7 @@ filter create_filter(const std::string &Input) {
   // There should only be up to 3 tokens.
   // BE:Device Type:Device Num
   if (Tokens.size() > 3)
-    throw sycl::runtime_error(Error, PI_INVALID_VALUE);
+    throw sycl::runtime_error_compat(Error, PI_INVALID_VALUE);
 
   for (const std::string &Token : Tokens) {
     if (Token == "cpu" && !Result.HasDeviceType) {
@@ -85,7 +86,7 @@ filter create_filter(const std::string &Input) {
         Result.HasBackend = true;
       } else if (!Result.HasDeviceType && Result.Backend != backend::host) {
         // We already set everything earlier or it's an error.
-        throw sycl::runtime_error(
+        throw sycl::runtime_error_compat(
             "Cannot specify host device with non-host backend.",
             PI_INVALID_VALUE);
       }
@@ -93,11 +94,11 @@ filter create_filter(const std::string &Input) {
       try {
         Result.DeviceNum = std::stoi(Token);
       } catch (std::logic_error &) {
-        throw sycl::runtime_error(Error, PI_INVALID_VALUE);
+        throw sycl::runtime_error_compat(Error, PI_INVALID_VALUE);
       }
       Result.HasDeviceNum = true;
     } else {
-      throw sycl::runtime_error(Error, PI_INVALID_VALUE);
+      throw sycl::runtime_error_compat(Error, PI_INVALID_VALUE);
     }
   }
 
@@ -163,7 +164,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
 
   mNumDevicesSeen++;
   if ((mNumDevicesSeen == mNumTotalDevices) && !mMatchFound) {
-    throw sycl::runtime_error(
+    throw sycl::runtime_error_compat(
         "Could not find a device that matches the specified filter(s)!",
         PI_DEVICE_NOT_FOUND);
   }
