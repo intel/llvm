@@ -291,17 +291,17 @@ if(SYCL_BUILD_PI_ROCM)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_rocm)
 endif()
 
-# TODO : Remove 'if (NOT MSVC)' when CM_EMU supports Windows
-# environment
-if (NOT MSVC)
-  if (SYCL_BUILD_PI_ESIMD_CPU)
-    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_cpu libcmrt-headers)
-    if (MSVC)
-      list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
-    else()
-      list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
-    endif()
+if (SYCL_BUILD_PI_ESIMD_CPU)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_cpu libcmrt-headers)
+  if (MSVC)
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
+  else()
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
   endif()
+else()
+  # TODO/FIXME : Removing empty header file (cm_rt.h) generation when
+  # the ESIMD_CPU support is enabled by default
+  file (TOUCH ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL/cm_rt.h)
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.
