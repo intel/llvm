@@ -108,6 +108,7 @@
 ??$get_info@$0BAIA@@context@sycl@cl@@QEBAIXZ
 ??$get_info@$0BAIB@@context@sycl@cl@@QEBA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@XZ
 ??$get_info@$0BAIE@@context@sycl@cl@@QEBA?AVplatform@12@XZ
+?device_has@queue@sycl@cl@@QEBA_NW4aspect@23@@Z
 ??$get_info@$0BAJA@@queue@sycl@cl@@QEBA?AVcontext@12@XZ
 ??$get_info@$0BAJB@@queue@sycl@cl@@QEBA?AVdevice@12@XZ
 ??$get_info@$0BAJC@@queue@sycl@cl@@QEBAIXZ
