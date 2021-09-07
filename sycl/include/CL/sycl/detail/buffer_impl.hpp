@@ -137,7 +137,7 @@ public:
     BaseT::handleHostData(First, Last, RequiredAlign);
   }
 
-  buffer_impl(cl_mem MemObject, const context &SyclContext,
+  buffer_impl(pi_native_handle MemObject, const context &SyclContext,
               const size_t SizeInBytes,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               event AvailableEvent)
