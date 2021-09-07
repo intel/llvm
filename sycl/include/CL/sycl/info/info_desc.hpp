@@ -25,11 +25,13 @@ namespace info {
 // Information descriptors
 // A.1 Platform information descriptors
 enum class platform {
-  profile     = PI_PLATFORM_INFO_PROFILE,
-  version     = PI_PLATFORM_INFO_VERSION,
-  name        = PI_PLATFORM_INFO_NAME,
-  vendor      = PI_PLATFORM_INFO_VENDOR,
-  extensions  = PI_PLATFORM_INFO_EXTENSIONS,
+  profile = PI_PLATFORM_INFO_PROFILE,
+  version = PI_PLATFORM_INFO_VERSION,
+  name = PI_PLATFORM_INFO_NAME,
+  vendor = PI_PLATFORM_INFO_VENDOR,
+  extensions __SYCL2020_DEPRECATED(
+      "platform::extensions is deprecated, use device::get_info() with"
+      " info::device::aspects instead.") = PI_PLATFORM_INFO_EXTENSIONS,
 };
 
 // A.2 Context information desctiptors
@@ -113,7 +115,9 @@ enum class device : cl_device_info {
   profile = CL_DEVICE_PROFILE,
   version = CL_DEVICE_VERSION,
   opencl_c_version = CL_DEVICE_OPENCL_C_VERSION,
-  extensions = CL_DEVICE_EXTENSIONS,
+  extensions __SYCL2020_DEPRECATED(
+      "device::extensions is deprecated, use info::device::aspects"
+      " instead.") = CL_DEVICE_EXTENSIONS,
   printf_buffer_size = CL_DEVICE_PRINTF_BUFFER_SIZE,
   preferred_interop_user_sync = CL_DEVICE_PREFERRED_INTEROP_USER_SYNC,
   parent_device = CL_DEVICE_PARENT_DEVICE,
@@ -221,7 +225,9 @@ enum class kernel : cl_kernel_info {
   attributes = CL_KERNEL_ATTRIBUTES
 };
 
-enum class kernel_work_group : cl_kernel_work_group_info {
+enum class __SYCL2020_DEPRECATED(
+    "kernel_work_group enumeration is deprecated, use SYCL 2020 requests"
+    " instead") kernel_work_group : cl_kernel_work_group_info {
   global_work_size = CL_KERNEL_GLOBAL_WORK_SIZE,
   work_group_size = CL_KERNEL_WORK_GROUP_SIZE,
   compile_work_group_size = CL_KERNEL_COMPILE_WORK_GROUP_SIZE,

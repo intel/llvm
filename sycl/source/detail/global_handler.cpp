@@ -14,6 +14,7 @@
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/xpti_registry.hpp>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -69,6 +70,10 @@ std::vector<plugin> &GlobalHandler::getPlugins() {
 device_filter_list &
 GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
   return getOrCreate(MDeviceFilterList, InitValue);
+}
+
+XPTIRegistry &GlobalHandler::getXPTIRegistry() {
+  return getOrCreate(MXPTIRegistry);
 }
 
 std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {

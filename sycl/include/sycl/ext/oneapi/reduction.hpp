@@ -183,7 +183,7 @@ private:
 /// using those operations, which are based on functionality provided by
 /// sycl::atomic class.
 ///
-/// For example, it is known that 0 is identity for ext::oneapi::plus operations
+/// For example, it is known that 0 is identity for sycl::plus operations
 /// accepting native scalar types to which scalar 0 is convertible.
 /// Also, for int32/64 types the atomic_combine() is lowered to
 /// sycl::atomic::fetch_add().
@@ -317,8 +317,7 @@ public:
         .fetch_and(MValue);
   }
 
-  /// Atomic MIN operation: *ReduVarPtr = ext::oneapi::minimum(*ReduVarPtr,
-  /// MValue);
+  /// Atomic MIN operation: *ReduVarPtr = sycl::minimum(*ReduVarPtr, MValue);
   template <access::address_space Space = access::address_space::global_space,
             typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
@@ -332,8 +331,7 @@ public:
         .fetch_min(MValue);
   }
 
-  /// Atomic MAX operation: *ReduVarPtr = ext::oneapi::maximum(*ReduVarPtr,
-  /// MValue);
+  /// Atomic MAX operation: *ReduVarPtr = sycl::maximum(*ReduVarPtr, MValue);
   template <access::address_space Space = access::address_space::global_space,
             typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&

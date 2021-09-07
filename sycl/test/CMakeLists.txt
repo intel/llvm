@@ -54,7 +54,7 @@ set_target_properties(check-sycl-deploy PROPERTIES FOLDER "SYCL tests")
 add_lit_testsuite(check-sycl-spirv "Running device-agnostic SYCL regression tests for SPIR-V"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}
-  PARAMS "SYCL_TRIPLE=spir64-unknown-unknown-sycldevice"
+  PARAMS "SYCL_TRIPLE=spir64-unknown-unknown"
   DEPENDS ${SYCL_TEST_DEPS}
   EXCLUDE_FROM_CHECK_ALL
   )
@@ -67,7 +67,7 @@ if(SYCL_BUILD_PI_CUDA)
   add_lit_testsuite(check-sycl-ptx "Running device-agnostic SYCL regression tests for NVidia PTX"
     ${CMAKE_CURRENT_BINARY_DIR}
     ARGS ${RT_TEST_ARGS}
-    PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda-sycldevice;SYCL_PLUGIN=cuda"
+    PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda;SYCL_PLUGIN=cuda"
     DEPENDS ${SYCL_TEST_DEPS}
     EXCLUDE_FROM_CHECK_ALL
   )
@@ -75,6 +75,33 @@ if(SYCL_BUILD_PI_CUDA)
   add_custom_target(check-sycl-cuda)
   add_dependencies(check-sycl-cuda check-sycl-ptx)
   add_dependencies(check-sycl check-sycl-cuda)
-
 endif()
-add_subdirectory(on-device)
+
+if(SYCL_BUILD_PI_ROCM)
+  add_custom_target(check-sycl-rocm)
+  if("${SYCL_BUILD_PI_ROCM_PLATFORM}" STREQUAL "NVIDIA")
+    add_lit_testsuite(check-sycl-rocm-ptx "Running device-agnostic SYCL regression tests for ROCm NVidia PTX"
+      ${CMAKE_CURRENT_BINARY_DIR}
+      ARGS ${RT_TEST_ARGS}
+      PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda;SYCL_PLUGIN=rocm"
+      DEPENDS ${SYCL_TEST_DEPS}
+      EXCLUDE_FROM_CHECK_ALL
+    )
+
+    add_dependencies(check-sycl-rocm check-sycl-rocm-ptx)
+  elseif("${SYCL_BUILD_PI_ROCM_PLATFORM}" STREQUAL "AMD")
+    add_lit_testsuite(check-sycl-rocm-gcn "Running device-agnostic SYCL regression tests for ROCm AMDGCN"
+      ${CMAKE_CURRENT_BINARY_DIR}
+      ARGS ${RT_TEST_ARGS}
+      PARAMS "SYCL_TRIPLE=amdgcn-amd-amdhsa;SYCL_PLUGIN=rocm"
+      DEPENDS ${SYCL_TEST_DEPS}
+      EXCLUDE_FROM_CHECK_ALL
+    )
+
+    add_dependencies(check-sycl-rocm check-sycl-rocm-gcn)
+  else()
+    message(FATAL_ERROR "SYCL_BUILD_PI_ROCM_PLATFORM must be set to either 'AMD' or 'NVIDIA' (set to: '${SYCL_BUILD_PI_ROCM_PLATFORM}')")
+  endif()
+
+  add_dependencies(check-sycl check-sycl-rocm)
+endif()

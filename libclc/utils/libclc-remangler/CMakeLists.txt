@@ -2,6 +2,8 @@
 set(LLVM_LINK_COMPONENTS
   BitWriter
   BitReader
+  Core
+  Demangle
   Support
   )
 
