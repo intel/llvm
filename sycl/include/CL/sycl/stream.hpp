@@ -541,8 +541,6 @@ inline void writeItem(GlobalBufAccessorT &GlobalFlushBuf,
   Len += ArrayToStr(Buf + Len, Item.get_range());
   Len += append(Buf + Len, ", id: ");
   Len += ArrayToStr(Buf + Len, Item.get_id());
-  Len += append(Buf + Len, ", offset: ");
-  Len += ArrayToStr(Buf + Len, Item.get_offset());
   Buf[Len++] = ')';
   write(GlobalFlushBuf, FlushBufferSize, WIOffset, Buf, Len);
 }
@@ -560,8 +558,6 @@ inline void writeNDRange(GlobalBufAccessorT &GlobalFlushBuf,
   Len += ArrayToStr(Buf + Len, ND_Range.get_global_range());
   Len += append(Buf + Len, ", local_range: ");
   Len += ArrayToStr(Buf + Len, ND_Range.get_local_range());
-  Len += append(Buf + Len, ", offset: ");
-  Len += ArrayToStr(Buf + Len, ND_Range.get_offset());
   Buf[Len++] = ')';
   write(GlobalFlushBuf, FlushBufferSize, WIOffset, Buf, Len);
 }
