@@ -187,28 +187,22 @@ public:
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
   int getPlatformId(RT::PiPlatform Platform) {
-    if (PiPlatforms) {
-      auto It = std::find(PiPlatforms->begin(), PiPlatforms->end(), Platform);
-      if (It != PiPlatforms->end())
-        return It - PiPlatforms->begin();
+    if (!PiPlatforms)
+      PiPlatforms = new std::vector<RT::PiPlatform>;
+    auto It = std::find(PiPlatforms->begin(), PiPlatforms->end(), Platform);
+    if (It != PiPlatforms->end())
+      return It - PiPlatforms->begin();
 
-      PiPlatforms->push_back(Platform);
-      LastDeviceIds.push_back(0);
-      return PiPlatforms->size() - 1;
-    }
-    return -1;
+    PiPlatforms->push_back(Platform);
+    LastDeviceIds.push_back(0);
+    return PiPlatforms->size() - 1;
   }
   // Device ids are consecutive across platforms within a plugin.
   // We need to return the same starting index for the given platform.
   // So, instead of returing the last device id of the given platform,
   // return the last device id of the predecessor platform.
   int getStartingDeviceId(RT::PiPlatform Platform) {
-    if (!PiPlatforms)
-      PiPlatforms = new std::vector<RT::PiPlatform>;
     int PlatformId = getPlatformId(Platform);
-    if (PlatformId <= 0)
-      return 0;
-
     return LastDeviceIds[PlatformId - 1];
   }
   // set the id of the last device for the given platform

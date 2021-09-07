@@ -94,7 +94,6 @@ static bool IsBannedPlatform(platform Platform) {
 
 std::vector<platform> platform_impl::get_platforms() {
   std::vector<platform> Platforms;
-  RT::initialize();
   std::vector<plugin> &Plugins = GlobalHandler::instance().getPlugins();
   info::device_type ForcedType = detail::get_forced_type();
   for (unsigned int i = 0; i < Plugins.size(); i++) {
@@ -145,11 +144,7 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
   if (!FilterList)
     return;
-  const std::lock_guard<std::mutex> Guard(
-      GlobalHandler::instance().getPluginsMutex());
   std::vector<plugin> &Plugins = GlobalHandler::instance().getPlugins();
-  if (Plugins.size() == 0)
-    RT::initialize();
 
   auto It =
       std::find_if(Plugins.begin(), Plugins.end(), [Platform](plugin &Plugin) {
