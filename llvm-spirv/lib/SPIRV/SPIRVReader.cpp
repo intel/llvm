@@ -3879,7 +3879,7 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
 
   auto SEVAttr = Attribute::get(*Context, kVCMetadata::VCSingleElementVector);
   if (BF->hasDecorate(DecorationSingleElementVectorINTEL))
-    F->addAttribute(AttributeList::ReturnIndex, SEVAttr);
+    F->addAttributeAtIndex(AttributeList::ReturnIndex, SEVAttr);
 
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
@@ -3889,22 +3889,22 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
     if (BA->hasDecorate(DecorationFuncParamIOKindINTEL, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentIOKind,
                                       std::to_string(Kind));
-      F->addAttribute(ArgNo + 1, Attr);
+      F->addParamAttr(ArgNo, Attr);
     }
     if (BA->hasDecorate(internal::DecorationFuncParamKindINTEL, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentKind,
                                       std::to_string(Kind));
-      F->addAttribute(ArgNo + 1, Attr);
+      F->addParamAttr(ArgNo, Attr);
     }
     if (BA->hasDecorate(DecorationSingleElementVectorINTEL))
-      F->addAttribute(ArgNo + 1, SEVAttr);
+      F->addParamAttr(ArgNo, SEVAttr);
     if (BA->hasDecorate(internal::DecorationFuncParamDescINTEL)) {
       auto Desc =
           BA->getDecorationStringLiteral(internal::DecorationFuncParamDescINTEL)
               .front();
       Attribute Attr =
           Attribute::get(*Context, kVCMetadata::VCArgumentDesc, Desc);
-      F->addAttribute(ArgNo + 1, Attr);
+      F->addParamAttr(ArgNo, Attr);
     }
   }
 
@@ -4005,14 +4005,14 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
   if (IsVCFloatControl) {
     Attribute Attr = Attribute::get(*Context, kVCMetadata::VCFloatControl,
                                     std::to_string(FloatControl));
-    F->addAttribute(AttributeList::FunctionIndex, Attr);
+    F->addFnAttr(Attr);
   }
 
   if (auto EM = BF->getExecutionMode(ExecutionModeSharedLocalMemorySizeINTEL)) {
     unsigned int SLMSize = EM->getLiterals()[0];
     Attribute Attr = Attribute::get(*Context, kVCMetadata::VCSLMSize,
                                     std::to_string(SLMSize));
-    F->addAttribute(AttributeList::FunctionIndex, Attr);
+    F->addFnAttr(Attr);
   }
 
   return true;
