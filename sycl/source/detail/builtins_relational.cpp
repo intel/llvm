@@ -20,17 +20,14 @@ namespace d = s::detail;
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-template <typename T>
-struct builtins_helper {
+template <typename T> struct builtins_helper {
   using RetType = T;
-  static constexpr RetType get(T value) {return value;}
+  static constexpr RetType get(T value) { return value; }
 };
 
-template<> struct builtins_helper<s::cl_half> {
+template <> struct builtins_helper<s::cl_half> {
   using RetType = d::half_impl::StorageT;
-  static constexpr RetType get(s::cl_half value) {
-    return value.Data;
-  }
+  static constexpr RetType get(s::cl_half value) { return value.Data; }
 };
 } // namespace detail
 } // namespace sycl
