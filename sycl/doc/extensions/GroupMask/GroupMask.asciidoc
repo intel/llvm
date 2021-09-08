@@ -137,7 +137,7 @@ work-item with the id `max_local_range()-1`.
 |Return the highest `id` with a corresponding bit set in the mask. If no bits
  are set, the return value is equal to `size()`.
 
-|`template <typename T = marray<uint32_t, marray_size>> void insert_bits(const T& bits, id<1> pos = 0)`
+|`template <typename T = marray<uint32_t, marray_size>> void insert_bits(const T &bits, id<1> pos = 0)`
 |Insert `CHAR_BIT * sizeof(T)` bits into the mask, starting from _pos_.  `T`
  must be an integral type or a SYCL `marray` of integral types. If _pos_ pass:[+]
  `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ pass:[+]
@@ -176,32 +176,32 @@ work-item with the id `max_local_range()-1`.
 |`void flip(id<1> id)`
 |Toggle the value of the bit corresponding to the specified _id_.
 
-|`bool operator==(group_mask rhs) const`
+|`bool operator==(const group_mask &rhs) const`
 |Return true if each bit in this mask is equal to the corresponding bit in
  `rhs`.
 
-|`bool operator!=(group_mask rhs) const`
+|`bool operator!=(const group_mask &rhs) const`
 |Return true if any bit in this mask is not equal to the corresponding bit in
  `rhs`.
 
-|`group_mask operator &=(group_mask rhs)`
+|`group_mask &operator &=(const group_mask &rhs)`
 |Set the bits of this mask to the result of performing a bitwise AND with this
  mask and `rhs`.
 
-|`group_mask operator \|=(group_mask rhs)`
+|`group_mask &operator \|=(const group_mask &rhs)`
 |Set the bits of this mask to the result of performing a bitwise OR with this
  mask and `rhs`.
 
-|`group_mask operator ^=(group_mask rhs)`
+|`group_mask &operator ^=(const group_mask &rhs)`
 |Set the bits of this mask to the result of performing a bitwise XOR with this
  mask and `rhs`.
 
-|`group_mask operator pass:[<<=](size_t shift)`
+|`group_mask &operator pass:[<<=](size_t shift)`
 |Set the bits of this mask to the result of shifting its bits _shift_ positions
  to the left using a logical shift.  Bits that are shifted out to the left are
  discarded, and zeroes are shifted in from the right.
 
-|`group_mask operator >>=(size_t shift)`
+|`group_mask &operator >>=(size_t shift)`
 |Set the bits of this mask to the result of shifting its bits _shift_ positions
  to the right using a logical shift.  Bits that are shifted out to the right are
  discarded, and zeroes are shifted in from the left.
@@ -209,31 +209,24 @@ work-item with the id `max_local_range()-1`.
 |`group_mask operator ~() const`
 |Return a mask representing the result of flipping all the bits in this mask.
 
-|`group_mask operator <<(size_t shift)`
+|`group_mask operator <<(size_t shift) const`
 |Return a mask representing the result of shifting its bits _shift_ positions
  to the left using a logical shift.  Bits that are shifted out to the left are
  discarded, and zeroes are shifted in from the right.
 
-|`group_mask operator >>(size_t shift)`
+|`group_mask operator >>(size_t shift) const`
 |Return a mask representing the result of shifting its bits _shift_ positions
  to the right using a logical shift.  Bits that are shifted out to the right are
  discarded, and zeroes are shifted in from the left.
-|===
 
-|===
-|Function|Description
+|`group_mask operator &(const group_mask &rhs) const`
+|Return a mask representing the result of performing a bitwise AND of two masks.
 
-|`group_mask operator &(const group_mask& lhs, const group_mask& rhs)`
-|Return a mask representing the result of performing a bitwise AND of `lhs` and
- `rhs`.
+|`group_mask operator \|(const group_mask &rhs) const`
+|Return a mask representing the result of performing a bitwise OR of two masks.
 
-|`group_mask operator \|(const group_mask& lhs, const group_mask& rhs)`
-|Return a mask representing the result of performing a bitwise OR of `lhs` and
- `rhs`.
-
-|`group_mask operator ^(const group_mask& lhs, const group_mask& rhs)`
-|Return a mask representing the result of performing a bitwise XOR of `lhs` and
- `rhs`.
+|`group_mask operator ^(const group_mask &rhs) const`
+|Return a mask representing the result of performing a bitwise XOR of two masks.
 
 |===
 
@@ -257,7 +250,7 @@ struct group_mask {
   };
 
   static constexpr size_t max_bits = /* implementation-defined */;
-  static constexpr size_t marray_size = max_bits/sizeof(uint32_t)/CHAR_BIT;
+  static constexpr size_t marray_size = /* implementation defined */;
 
   bool operator[](id<1> id) const;
   reference operator[](id<1> id);
@@ -271,7 +264,7 @@ struct group_mask {
   id<1> find_high() const;
 
   template <typename T = marray<uint32_t, marray_size>>
-  void insert_bits(const T& bits, id<1> pos = 0);
+  void insert_bits(const T &bits, id<1> pos = 0);
 
   template <typename T = marray<uint32_t, marray_size>>
   T extract_bits(id<1> pos = 0);
@@ -285,12 +278,12 @@ struct group_mask {
   void flip();
   void flip(id<1> id);
 
-  bool operator==(const group_mask& rhs) const;
-  bool operator!=(const group_mask& rhs) const;
+  bool operator==(const group_mask &rhs) const;
+  bool operator!=(const group_mask &rhs) const;
 
-  group_mask &operator &=(const group_mask& rhs);
-  group_mask &operator |=(const group_mask& rhs);
-  group_mask &operator ^=(const group_mask& rhs);
+  group_mask &operator &=(const group_mask &rhs);
+  group_mask &operator |=(const group_mask &rhs);
+  group_mask &operator ^=(const group_mask &rhs);
   group_mask &operator <<=(size_t n);
   group_mask &operator >>=(size_t n);
 
@@ -298,9 +291,9 @@ struct group_mask {
   group_mask operator <<(size_t n) const;
   group_mask operator >>(size_t n) const;
 
-  group_mask operator &(const group_mask& rhs) const;
-  group_mask operator |(const group_mask& rhs) const;
-  group_mask operator ^(const group_mask& rhs) const;
+  group_mask operator &(const group_mask &rhs) const;
+  group_mask operator |(const group_mask &rhs) const;
+  group_mask operator ^(const group_mask &rhs) const;
 };
 
 } // namespace oneapi
