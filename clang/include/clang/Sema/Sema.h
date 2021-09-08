@@ -10477,7 +10477,7 @@ public:
   MergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
                                      const SYCLIntelMaxGlobalWorkDimAttr &A);
   void AddIntelFPGABankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
-		                 Expr *E);
+                                 Expr *E);
   IntelFPGABankWidthAttr *
   MergeIntelFPGABankWidthAttr(Decl *D, const IntelFPGABankWidthAttr &A);
   void AddIntelFPGANumBanksAttr(Decl *D, const AttributeCommonInfo &CI,

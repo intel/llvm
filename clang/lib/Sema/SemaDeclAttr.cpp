@@ -6414,7 +6414,7 @@ void Sema::AddIntelFPGABankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
     // This attribute requires a single constant power of two greater than zero.
     if (!ArgVal.isPowerOf2()) {
       Diag(E->getExprLoc(), diag::err_attribute_argument_not_power_of_two)
-	  << CI;
+          << CI;
       return;
     }
 
@@ -6445,8 +6445,7 @@ void Sema::AddIntelFPGABankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
 }
 
 IntelFPGABankWidthAttr *
-Sema::MergeIntelFPGABankWidthAttr(Decl *D,
-                                  const IntelFPGABankWidthAttr &A) {
+Sema::MergeIntelFPGABankWidthAttr(Decl *D, const IntelFPGABankWidthAttr &A) {
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<IntelFPGABankWidthAttr>()) {
@@ -6538,8 +6537,7 @@ void Sema::AddIntelFPGANumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
 }
 
 IntelFPGANumBanksAttr *
-Sema::MergeIntelFPGANumBanksAttr(Decl *D,
-                                 const IntelFPGANumBanksAttr &A) {
+Sema::MergeIntelFPGANumBanksAttr(Decl *D, const IntelFPGANumBanksAttr &A) {
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<IntelFPGANumBanksAttr>()) {
@@ -6556,8 +6554,7 @@ Sema::MergeIntelFPGANumBanksAttr(Decl *D,
   return ::new (Context) IntelFPGANumBanksAttr(Context, A, A.getValue());
 }
 
-static void handleIntelFPGANumBanksAttr(Sema &S, Decl *D,
-                                        const ParsedAttr &A) {
+static void handleIntelFPGANumBanksAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
   S.AddIntelFPGANumBanksAttr(D, A, A.getArgAsExpr(0));
