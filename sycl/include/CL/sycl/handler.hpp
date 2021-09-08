@@ -565,7 +565,7 @@ private:
       KernelType MKernelFunc;
       NormalizedKernelType(const KernelType &KernelFunc)
           : MKernelFunc(KernelFunc) {}
-      void operator()(void) { MKernelFunc(); }
+      void operator()(void) { detail::runKernelWithoutArg(MKernelFunc); }
     };
     return ResetHostKernelHelper<KernelType, struct NormalizedKernelType>(
         KernelFunc);
@@ -581,7 +581,7 @@ private:
       NormalizedKernelType(const KernelType &KernelFunc)
           : MKernelFunc(KernelFunc) {}
       void operator()(const nd_item<Dims> &Arg) {
-        MKernelFunc(Arg.get_global_id());
+        detail::runKernelWithArg(MKernelFunc, Arg.get_global_id());
       }
     };
     return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
@@ -597,7 +597,9 @@ private:
       KernelType MKernelFunc;
       NormalizedKernelType(const KernelType &KernelFunc)
           : MKernelFunc(KernelFunc) {}
-      void operator()(const nd_item<Dims> &Arg) { MKernelFunc(Arg); }
+      void operator()(const nd_item<Dims> &Arg) {
+        detail::runKernelWithArg(MKernelFunc, Arg);
+      }
     };
     return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
         KernelFunc);
@@ -615,7 +617,7 @@ private:
       void operator()(const nd_item<Dims> &Arg) {
         sycl::item<Dims, false> Item = detail::Builder::createItem<Dims, false>(
             Arg.get_global_range(), Arg.get_global_id());
-        MKernelFunc(Item);
+        detail::runKernelWithArg(MKernelFunc, Item);
       }
     };
     return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
@@ -634,7 +636,7 @@ private:
       void operator()(const nd_item<Dims> &Arg) {
         sycl::item<Dims, true> Item = detail::Builder::createItem<Dims, true>(
             Arg.get_global_range(), Arg.get_global_id(), Arg.get_offset());
-        MKernelFunc(Item);
+        detail::runKernelWithArg(MKernelFunc, Item);
       }
     };
     return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
@@ -651,7 +653,7 @@ private:
       NormalizedKernelType(const KernelType &KernelFunc)
           : MKernelFunc(KernelFunc) {}
       void operator()(const nd_item<Dims> &Arg) {
-        MKernelFunc(Arg.get_group());
+        detail::runKernelWithArg(MKernelFunc, Arg.get_group());
       }
     };
     return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
