@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/assert_happened.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/service_kernel_names.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/event.hpp>
@@ -79,11 +80,10 @@ class queue;
 namespace detail {
 class queue_impl;
 #if __SYCL_USE_FALLBACK_ASSERT
-class AssertInfoCopier;
 static event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
 #endif
-}
+} // namespace detail
 
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
 ///
@@ -1167,7 +1167,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 
     auto Acc = Buffer.get_access<access::mode::write>(CGH);
 
-    CGH.single_task<AssertInfoCopier>([Acc] {
+    CGH.single_task<__sycl_service_kernel__::AssertInfoCopier>([Acc] {
 #ifdef __SYCL_DEVICE_ONLY__
       __devicelib_assert_read(&Acc[0]);
 #else
