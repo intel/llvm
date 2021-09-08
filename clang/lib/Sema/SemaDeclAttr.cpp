@@ -6384,10 +6384,6 @@ static bool checkIntelFPGARegisterAttrCompatibility(Sema &S, Decl *D,
     if (!MA->isImplicit() &&
         checkAttrMutualExclusion<IntelFPGAMemoryAttr>(S, D, Attr))
       InCompat = true;
-  if (auto *NBA = D->getAttr<IntelFPGANumBanksAttr>())
-    if (!NBA->isImplicit() &&
-        checkAttrMutualExclusion<IntelFPGANumBanksAttr>(S, D, Attr))
-      InCompat = true;
 
   return InCompat;
 }
@@ -6404,21 +6400,178 @@ static void handleIntelFPGARegisterAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   handleSimpleAttribute<IntelFPGARegisterAttr>(S, D, A);
 }
 
-/// Handle the [[intelfpga::bankwidth]] and [[intelfpga::numbanks]] attributes.
+/// Handle the [[intel::bankwidth]] and [[intel::numbanks]] attributes.
 /// These require a single constant power of two greater than zero.
 /// These are incompatible with the register attribute.
 /// The numbanks and bank_bits attributes are related.  If bank_bits exists
 /// when handling numbanks they are checked for consistency.
-template <typename AttrType>
-static void handleOneConstantPowerTwoValueAttr(Sema &S, Decl *D,
-                                               const ParsedAttr &A) {
-  checkForDuplicateAttribute<AttrType>(S, D, A);
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, A))
-    return;
 
+void Sema::AddIntelFPGABankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
+
+    // This attribute requires a strictly positive value.
+    if (ArgVal <= 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*positive*/ 0;
+      return;
+    }
+
+    // This attribute requires a single constant power of two greater than zero.
+    if (!ArgVal.isPowerOf2()) {
+      Diag(E->getExprLoc(), diag::err_attribute_argument_not_power_of_two)
+          << CI;
+      return;
+    }
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<IntelFPGABankWidthAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
+      }
+    }
+  }
+
+  // If the declaration does not have an [[intel::fpga_memory]]
+  // attribute, this creates one as an implicit attribute.
+  if (!D->hasAttr<IntelFPGAMemoryAttr>())
+    D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+        Context, IntelFPGAMemoryAttr::Default));
+
+  D->addAttr(::new (Context) IntelFPGABankWidthAttr(Context, CI, E));
+}
+
+IntelFPGABankWidthAttr *
+Sema::MergeIntelFPGABankWidthAttr(Decl *D, const IntelFPGABankWidthAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<IntelFPGABankWidthAttr>()) {
+    const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
+    if (DeclExpr && MergeExpr &&
+        DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
+      return nullptr;
+    }
+  }
+
+  return ::new (Context) IntelFPGABankWidthAttr(Context, A, A.getValue());
+}
+
+static void handleIntelFPGABankWidthAttr(Sema &S, Decl *D,
+                                         const ParsedAttr &A) {
   S.CheckDeprecatedSYCLAttributeSpelling(A);
 
-  S.AddOneConstantPowerTwoValueAttr<AttrType>(D, A, A.getArgAsExpr(0));
+  S.AddIntelFPGABankWidthAttr(D, A, A.getArgAsExpr(0));
+}
+
+void Sema::AddIntelFPGANumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
+
+    // This attribute requires a strictly positive value.
+    if (ArgVal <= 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*positive*/ 0;
+      return;
+    }
+
+    // This attribute requires a single constant power of two greater than zero.
+    if (!ArgVal.isPowerOf2()) {
+      Diag(E->getExprLoc(), diag::err_attribute_argument_not_power_of_two)
+          << CI;
+      return;
+    }
+
+    // Check or add the related BankBits attribute.
+    if (auto *BBA = D->getAttr<IntelFPGABankBitsAttr>()) {
+      unsigned NumBankBits = BBA->args_size();
+      if (NumBankBits != ArgVal.ceilLogBase2()) {
+        Diag(E->getExprLoc(), diag::err_bankbits_numbanks_conflicting) << CI;
+        return;
+      }
+    }
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<IntelFPGANumBanksAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
+      }
+    }
+  }
+
+  // If the declaration does not have an [[intel::fpga_memory]]
+  // attribute, this creates one as an implicit attribute.
+  if (!D->hasAttr<IntelFPGAMemoryAttr>())
+    D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+        Context, IntelFPGAMemoryAttr::Default));
+
+  // We are adding a user NumBanks attribute, drop any implicit default.
+  if (auto *NBA = D->getAttr<IntelFPGANumBanksAttr>()) {
+    if (NBA->isImplicit())
+      D->dropAttr<IntelFPGANumBanksAttr>();
+  }
+
+  D->addAttr(::new (Context) IntelFPGANumBanksAttr(Context, CI, E));
+}
+
+IntelFPGANumBanksAttr *
+Sema::MergeIntelFPGANumBanksAttr(Decl *D, const IntelFPGANumBanksAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<IntelFPGANumBanksAttr>()) {
+    const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
+    if (DeclExpr && MergeExpr &&
+        DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
+      return nullptr;
+    }
+  }
+
+  return ::new (Context) IntelFPGANumBanksAttr(Context, A, A.getValue());
+}
+
+static void handleIntelFPGANumBanksAttr(Sema &S, Decl *D, const ParsedAttr &A) {
+  S.CheckDeprecatedSYCLAttributeSpelling(A);
+
+  S.AddIntelFPGANumBanksAttr(D, A, A.getArgAsExpr(0));
 }
 
 static void handleIntelFPGASimpleDualPortAttr(Sema &S, Decl *D,
@@ -10119,10 +10272,10 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleIntelFPGARegisterAttr(S, D, AL);
     break;
   case ParsedAttr::AT_IntelFPGABankWidth:
-    handleOneConstantPowerTwoValueAttr<IntelFPGABankWidthAttr>(S, D, AL);
+    handleIntelFPGABankWidthAttr(S, D, AL);
     break;
   case ParsedAttr::AT_IntelFPGANumBanks:
-    handleOneConstantPowerTwoValueAttr<IntelFPGANumBanksAttr>(S, D, AL);
+    handleIntelFPGANumBanksAttr(S, D, AL);
     break;
   case ParsedAttr::AT_IntelFPGAPrivateCopies:
     handleIntelFPGAPrivateCopiesAttr(S, D, AL);

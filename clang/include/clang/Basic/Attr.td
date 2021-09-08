@@ -2170,7 +2170,7 @@ def : MutualExclusions<[IntelFPGADoublePump, IntelFPGASinglePump,
                         IntelFPGARegister]>;
 
 // One integral argument.
-def IntelFPGABankWidth : Attr {
+def IntelFPGABankWidth : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","bankwidth">,
                    CXX11<"intel","bankwidth">];
   let Args = [ExprArgument<"Value">];
@@ -2181,7 +2181,7 @@ def IntelFPGABankWidth : Attr {
 }
 def : MutualExclusions<[IntelFPGARegister, IntelFPGABankWidth]>;
 
-def IntelFPGANumBanks : Attr {
+def IntelFPGANumBanks : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","numbanks">,
                    CXX11<"intel","numbanks">];
   let Args = [ExprArgument<"Value">];
@@ -2260,6 +2260,7 @@ def IntelFPGABankBits : Attr {
   let Documentation = [IntelFPGABankBitsDocs];
 }
 def : MutualExclusions<[IntelFPGARegister, IntelFPGABankBits]>;
+def : MutualExclusions<[IntelFPGARegister, IntelFPGANumBanks]>;
 
 def IntelFPGAForcePow2Depth : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","force_pow2_depth">,
