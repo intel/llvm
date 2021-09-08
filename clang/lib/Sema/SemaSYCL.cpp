@@ -3242,7 +3242,7 @@ public:
       else {
         CXXMethodDecl *InitMethod =
             isCXXRecordWithInitOrFinalizeMember(ClassTy, InitMethodName);
-        assert(InitMethod && "sampler must have __init method");
+        assert(InitMethod && "type must have __init method");
         const ParmVarDecl *SamplerArg = InitMethod->getParamDecl(0);
         addParam(SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler,
                  offsetOf(FD, FieldTy));
