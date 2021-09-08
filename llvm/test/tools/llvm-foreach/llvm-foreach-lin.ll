@@ -24,4 +24,3 @@
 ; RUN: FileCheck < %t1.res %s --check-prefix=CHECK-DOUBLE-LISTS
 ; CHECK-DOUBLE-LISTS: -first-part-of-arg=[[FIRST:.+1.tgt.out]] -first-part-of-arg=[[THIRD:.+3.tgt.out]] -another-arg={{.+}}_out.prj
 ; CHECK-DOUBLE-LISTS: -first-part-of-arg=[[SECOND:.+2.tgt.out]] -first-part-of-arg=[[FOURTH:.+4.tgt.out]] -another-arg={{.+}}_out.prj_1
-
