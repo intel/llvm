@@ -6389,10 +6389,6 @@ static bool checkIntelFPGARegisterAttrCompatibility(Sema &S, Decl *D,
     if (!MA->isImplicit() &&
         checkAttrMutualExclusion<IntelFPGAMemoryAttr>(S, D, Attr))
       InCompat = true;
-  if (auto *NBA = D->getAttr<IntelFPGANumBanksAttr>())
-    if (!NBA->isImplicit() &&
-        checkAttrMutualExclusion<IntelFPGANumBanksAttr>(S, D, Attr))
-      InCompat = true;
 
   return InCompat;
 }

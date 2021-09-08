@@ -587,6 +587,17 @@ void diagnostics()
   //expected-note@+1 {{did you mean to use 'intel::bank_bits' instead?}}
   [[intelfpga::bank_bits(2, 3, 4, 5)]] unsigned int bankbits[64];
 
+  //CHECK: VarDecl{{.*}} bb_reg 'unsigned int [4]'
+  //CHECK: IntelFPGANumBanksAttr{{.*}}Implicit
+  //CHECK-NEXT: IntegerLiteral{{.*}}'int' 4
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit memory Default
+  //CHECK: IntelFPGABankBitsAttr
+  //CHECK-NEXT: ConstantExpr{{.*}}'int'
+  //CHECK-NEXT: value: Int 2
+  //CHECK-NEXT: IntegerLiteral{{.*}}'int' 2
+  //CHECK-NEXT: ConstantExpr{{.*}}'int'
+  //CHECK-NEXT: value: Int 3
+  //CHECK-NEXT: IntegerLiteral{{.*}}'int' 3
   //expected-error@+2 1{{'fpga_register' and 'bank_bits' attributes are not compatible}}
   [[intel::bank_bits(2, 3)]]
   [[intel::fpga_register]]
