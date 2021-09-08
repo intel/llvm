@@ -3157,7 +3157,6 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
   // If no attribute argument is specified, set the second and third argument
   // to the default value 1, but only if the sycl::reqd_work_group_size
   // spelling was used.
-  //
   auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL) {
     assert(AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && AL.hasScope() &&
            AL.getScopeName()->isStr("sycl"));
