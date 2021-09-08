@@ -87,6 +87,13 @@
 
 /// ###########################################################################
 
+/// Validate SYCL option values
+// RUN:   %clang -### -fsycl-device-code-split=bad_value -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-BAD-OPT-VALUE %s
+// RUN:   %clang -### -fsycl-link=bad_value -fsycl  %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-SYCL-BAD-OPT-VALUE %s
+// CHK-SYCL-BAD-OPT-VALUE: error: invalid value 'bad_value' in '{{.*}}'
+
 /// Check error for -fsycl-targets with bad triple
 // RUN:   %clang -### -fsycl-targets=spir64_bad-unknown-unknown -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-BAD-TRIPLE %s
