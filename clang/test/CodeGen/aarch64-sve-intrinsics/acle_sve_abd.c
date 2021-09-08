@@ -1011,7 +1011,6 @@ svfloat16_t test_svabd_f16_x(svbool_t pg, svfloat16_t op1, svfloat16_t op2)
   return SVE_ACLE_FUNC(svabd,_f16,_x,)(pg, op1, op2);
 }
 
-//
 // CHECK-LABEL: @test_svabd_f32_x(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = call <vscale x 4 x i1> @llvm.aarch64.sve.convert.from.svbool.nxv4i1(<vscale x 16 x i1> [[PG:%.*]])
