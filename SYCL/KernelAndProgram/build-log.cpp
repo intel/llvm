@@ -1,12 +1,10 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="--unknown-option" %t.out
-// RUN: %GPU_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="--unknown-option" %t.out
-// RUN: %ACC_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="--unknown-option" %t.out
+// XFAIL: cuda
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DGPU %s -o %t_gpu.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
-// Unknown options are silently ignored by IGC and CUDA JIT compilers. The issue
-// is under investigation.
-// XFAIL: (opencl || level_zero || cuda) && gpu
-
 //==--- build-log.cpp - Test log message from faild build ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -16,13 +14,23 @@
 //===--------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
+SYCL_EXTERNAL
+void symbol_that_does_not_exist();
 
 void test() {
   cl::sycl::queue Queue;
 
   // Submitting this kernel should result in a compile_program_error exception
-  // with a message indicating "Unrecognized build options".
-  auto Kernel = []() {};
+  // with a message indicating "CL_BUILD_PROGRAM_FAILURE".
+  auto Kernel = []() {
+#ifdef __SYCL_DEVICE_ONLY__
+#ifdef GPU
+    asm volatile("undefined\n");
+#else  // GPU
+    symbol_that_does_not_exist();
+#endif // GPU
+#endif // __SYCL_DEVICE_ONLY__
+  };
 
   std::string Msg;
   int Result;
@@ -35,7 +43,7 @@ void test() {
   } catch (const cl::sycl::compile_program_error &e) {
     std::string Msg(e.what());
     std::cerr << Msg << std::endl;
-    assert(Msg.find("unknown-option") != std::string::npos);
+    assert(Msg.find("CL_BUILD_PROGRAM_FAILURE") != std::string::npos);
   } catch (...) {
     assert(false && "There must be cl::sycl::compile_program_error");
   }
