@@ -261,6 +261,9 @@ private:
 
 } // namespace host_half_impl
 
+template <typename T>
+struct builtins_helper;
+
 namespace half_impl {
 class half;
 
@@ -311,7 +314,7 @@ template <int NumElements> struct half_vec {
 
 class half {
 public:
-  half() = default;
+  __SYCL_CONSTEXPR_HALF half() : Data(0.0f) {};
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
 
@@ -383,6 +386,7 @@ public:
   }
 
   template <typename Key> friend struct std::hash;
+  template <typename T> friend struct cl::sycl::detail::builtins_helper;
 private:
   StorageT Data;
 };

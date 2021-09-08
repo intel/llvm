@@ -18,6 +18,22 @@ namespace s = cl::sycl;
 namespace d = s::detail;
 
 __SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace detail {
+template <typename T>
+struct builtins_helper {
+  using RetType = T;
+  static constexpr RetType get(T value) {return value;}
+};
+
+template<> struct builtins_helper<s::cl_half> {
+  using RetType = d::half_impl::StorageT;
+  static constexpr RetType get(s::cl_half value) {
+    return value.Data;
+  }
+};
+} // namespace detail
+} // namespace sycl
 namespace __host_std {
 namespace {
 
@@ -103,19 +119,20 @@ template <> union databitset<s::cl_double> {
 template <> union databitset<s::cl_half> {
   static_assert(sizeof(s::cl_short) == sizeof(s::cl_half),
                 "size of cl_half is not equal to 16 bits(cl_short).");
-  s::cl_half f;
+  d::half_impl::StorageT f;
   s::cl_short i;
 };
 
 template <typename T>
 typename sycl::detail::enable_if_t<d::is_sgenfloat<T>::value,
                                    T> inline __bitselect(T a, T b, T c) {
+  d::builtins_helper<T> helper;
   databitset<T> ba;
-  ba.f = a;
+  ba.f = helper.get(a);
   databitset<T> bb;
-  bb.f = b;
+  bb.f = helper.get(b);
   databitset<T> bc;
-  bc.f = c;
+  bc.f = helper.get(c);
   databitset<T> br;
   br.f = 0;
   br.i = ((ba.i & ~bc.i) | (bb.i & bc.i));
