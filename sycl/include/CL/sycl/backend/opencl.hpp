@@ -75,6 +75,7 @@ struct BackendInput<backend::opencl, kernel_bundle<State>> {
 
 template <bundle_state State>
 struct BackendReturn<backend::opencl, kernel_bundle<State>> {
+  // TODO: Per SYCL-2020 this should be std::vector<cl_program>
   using type = cl_program;
 };
 

@@ -60,8 +60,6 @@ struct interop<backend::level_zero,
   using type = ze_image_handle_t;
 };
 
-namespace ext {
-namespace oneapi {
 namespace level_zero {
 // Since Level-Zero is not doing any reference counting itself, we have to
 // be explicit about the ownership of the native handles used in the
@@ -69,8 +67,6 @@ namespace level_zero {
 //
 enum class ownership { transfer, keep };
 } // namespace level_zero
-} // namespace oneapi
-} // namespace ext
 
 namespace detail {
 
@@ -78,8 +74,32 @@ template <> struct BackendInput<backend::level_zero, context> {
   using type = struct {
     interop<backend::level_zero, context>::type NativeHandle;
     std::vector<device> DeviceList;
-    ext::oneapi::level_zero::ownership Ownership;
+    level_zero::ownership Ownership;
   };
+};
+
+template <> struct BackendInput<backend::level_zero, queue> {
+  using type = struct {
+    interop<backend::level_zero, queue>::type NativeHandle;
+    level_zero::ownership Ownership;
+  };
+};
+
+template <> struct BackendInput<backend::level_zero, event> {
+  using type = struct {
+    interop<backend::level_zero, event>::type NativeHandle;
+    level_zero::ownership Ownership;
+  };
+};
+
+template <bundle_state State>
+struct BackendInput<backend::level_zero, kernel_bundle<State>> {
+  using type = ze_module_handle_t;
+};
+
+template <bundle_state State>
+struct BackendReturn<backend::level_zero, kernel_bundle<State>> {
+  using type = std::vector<ze_module_handle_t>;
 };
 
 template <> struct BackendReturn<backend::level_zero, kernel> {
@@ -90,16 +110,14 @@ template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakePlatform = true;
   static constexpr bool MakeDevice = true;
   static constexpr bool MakeContext = true;
-  static constexpr bool MakeQueue = false;
+  static constexpr bool MakeQueue = true;
   static constexpr bool MakeEvent = true;
+  static constexpr bool MakeKernelBundle = true;
   static constexpr bool MakeBuffer = false;
   static constexpr bool MakeKernel = false;
-  static constexpr bool MakeKernelBundle = false;
 };
 } // namespace detail
 
-namespace ext {
-namespace oneapi {
 namespace level_zero {
 // Implementation of various "make" functions resides in libsycl.so and thus
 // their interface needs to be backend agnostic.
@@ -158,6 +176,7 @@ T make(const std::vector<device> &DeviceList,
 // Construction of SYCL program.
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, program>::value> * = nullptr>
+__SYCL_DEPRECATED("Use SYCL-2020 sycl::make_kernel_bundle free function")
 T make(const context &Context,
        typename interop<backend::level_zero, T>::type Interop) {
   return make_program(Context, reinterpret_cast<pi_native_handle>(Interop));
@@ -166,6 +185,7 @@ T make(const context &Context,
 // Construction of SYCL queue.
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, queue>::value> * = nullptr>
+__SYCL_DEPRECATED("Use SYCL-2020 sycl::make_queue free function")
 T make(const context &Context,
        typename interop<backend::level_zero, T>::type Interop,
        ownership Ownership = ownership::transfer) {
@@ -176,6 +196,7 @@ T make(const context &Context,
 // Construction of SYCL event.
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, event>::value> * = nullptr>
+__SYCL_DEPRECATED("Use SYCL-2020 sycl::make_event free function")
 T make(const context &Context,
        typename interop<backend::level_zero, T>::type Interop,
        ownership Ownership = ownership::transfer) {
@@ -183,23 +204,53 @@ T make(const context &Context,
                     Ownership == ownership::keep);
 }
 } // namespace level_zero
-} // namespace oneapi
-} // namespace ext
 
 // Specialization of sycl::make_context for Level-Zero backend.
 template <>
 context make_context<backend::level_zero>(
     const backend_input_t<backend::level_zero, context> &BackendObject,
     const async_handler &Handler) {
-  return ext::oneapi::level_zero::make_context(
+  return level_zero::make_context(
       BackendObject.DeviceList,
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
-      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
+      BackendObject.Ownership == level_zero::ownership::keep);
 }
 
-namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
-    level_zero {
-  using namespace ext::oneapi::level_zero;
+// Specialization of sycl::make_queue for Level-Zero backend.
+template <>
+queue make_queue<backend::level_zero>(
+    const backend_input_t<backend::level_zero, queue> &BackendObject,
+    const context &TargetContext, const async_handler Handler) {
+  return level_zero::make_queue(
+      TargetContext,
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      BackendObject.Ownership == level_zero::ownership::keep);
 }
+
+// Specialization of sycl::make_event for Level-Zero backend.
+template <>
+event make_event<backend::level_zero>(
+    const backend_input_t<backend::level_zero, event> &BackendObject,
+    const context &TargetContext) {
+  return level_zero::make_event(
+      TargetContext,
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      BackendObject.Ownership == level_zero::ownership::keep);
+}
+
+// TODO: remove this specialization when generic is changed to call
+// .GetNative() instead of .get_native() member of kernel_bundle.
+template <>
+auto get_native<backend::level_zero>(
+    const kernel_bundle<bundle_state::executable> &Obj)
+    -> backend_return_t<backend::level_zero,
+                        kernel_bundle<bundle_state::executable>> {
+  // TODO use SYCL 2020 exception when implemented
+  if (Obj.get_backend() != backend::level_zero)
+    throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
+
+  return Obj.template getNative<backend::level_zero>();
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
