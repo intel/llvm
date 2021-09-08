@@ -94,10 +94,10 @@ static bool IsBannedPlatform(platform Platform) {
 
 std::vector<platform> platform_impl::get_platforms() {
   std::vector<platform> Platforms;
-  RT::initialize();
-  std::vector<plugin> &Plugins = GlobalHandler::instance().getPlugins();
+  std::vector<plugin> &Plugins = RT::initialize();
   info::device_type ForcedType = detail::get_forced_type();
   for (unsigned int i = 0; i < Plugins.size(); i++) {
+    Plugins[i].resetLastDeviceIds();
     pi_uint32 NumPlatforms = 0;
     // Move to the next plugin if the plugin fails to initialize.
     // This way platforms from other plugins get a chance to be discovered.

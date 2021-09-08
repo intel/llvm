@@ -377,9 +377,9 @@ std::vector<plugin> &initialize() {
   std::call_once(PluginsInitDone, [&]() { initializePlugins(Plugins); });
 
   // reset LastDeviceIds to zeros
-  for (plugin &Plugin : Plugins) {
-    Plugin.resetLastDeviceIds();
-  }
+  // for (plugin &Plugin : Plugins) {
+  //  Plugin.resetLastDeviceIds();
+  //}
   return Plugins;
 }
 
