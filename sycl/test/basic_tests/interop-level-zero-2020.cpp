@@ -94,8 +94,8 @@ int main() {
   // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
   // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
   ZeProgram = Program.get_native<backend::ext_oneapi_level_zero>();
-  // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
+  // expected-warning@+3 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
+  // expected-warning@+2 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
   /*ZeKernelBundle*/ (
       void)KernelBundle.get_native<backend::ext_oneapi_level_zero>();
 
@@ -127,14 +127,14 @@ int main() {
 
   backend_input_t<backend::ext_oneapi_level_zero, context> InteropContextInput{
       ZeContext, std::vector<device>(1, InteropDevice),
-      level_zero::ownership::keep};
+      ext::oneapi::level_zero::ownership::keep};
   context InteropContext =
       make_context<backend::ext_oneapi_level_zero>(InteropContextInput);
 
   queue InteropQueue = make_queue<backend::ext_oneapi_level_zero>(
-      {ZeQueue, level_zero::ownership::keep}, Context);
+      {ZeQueue, ext::oneapi::level_zero::ownership::keep}, Context);
   event InteropEvent = make_event<backend::ext_oneapi_level_zero>(
-      {ZeEvent, level_zero::ownership::keep}, Context);
+      {ZeEvent, ext::oneapi::level_zero::ownership::keep}, Context);
   kernel_bundle<bundle_state::executable> InteropKernelBundle =
       make_kernel_bundle<backend::ext_oneapi_level_zero,
                          bundle_state::executable>(ZeKernelBundle.front(),
@@ -142,21 +142,22 @@ int main() {
 
   // Check deprecated
   // expected-warning@+1 {{'make<sycl::platform, nullptr>' is deprecated: Use SYCL 2020 sycl::make_platform free function}}
-  auto P = level_zero::make<platform>(ZeDriver);
+  auto P = ext::oneapi::level_zero::make<platform>(ZeDriver);
   // expected-warning@+1 {{'make<sycl::device, nullptr>' is deprecated: Use SYCL 2020 sycl::make_device free function}}
-  auto D = level_zero::make<device>(P, ZeDevice);
+  auto D = ext::oneapi::level_zero::make<device>(P, ZeDevice);
   // expected-warning@+1 {{'make<sycl::context, nullptr>' is deprecated: Use SYCL 2020 sycl::make_context free function}}
-  auto C = level_zero::make<context>(std::vector<device>(1, D), ZeContext,
-                                     level_zero::ownership::keep);
-  // expected-warning@+2 {{'make<sycl::queue, nullptr>' is deprecated: Use SYCL 2020 sycl::make_queue free function}}
-  auto Q =
-      level_zero::make<queue>(Context, ZeQueue, level_zero::ownership::keep);
-  // expected-warning@+2 {{'make<sycl::event, nullptr>' is deprecated: Use SYCL 2020 sycl::make_event free function}}
-  auto E =
-      level_zero::make<event>(Context, ZeEvent, level_zero::ownership::keep);
+  auto C = ext::oneapi::level_zero::make<context>(
+      std::vector<device>(1, D), ZeContext,
+      ext::oneapi::level_zero::ownership::keep);
+  // expected-warning@+1 {{'make<sycl::queue, nullptr>' is deprecated: Use SYCL 2020 sycl::make_queue free function}}
+  auto Q = ext::oneapi::level_zero::make<queue>(
+      Context, ZeQueue, ext::oneapi::level_zero::ownership::keep);
+  // expected-warning@+1 {{'make<sycl::event, nullptr>' is deprecated: Use SYCL 2020 sycl::make_event free function}}
+  auto E = ext::oneapi::level_zero::make<event>(
+      Context, ZeEvent, ext::oneapi::level_zero::ownership::keep);
   // expected-warning@+2 {{'program' is deprecated: program class is deprecated, use kernel_bundle instead}}
   // expected-warning@+1 {{'make<sycl::program, nullptr>' is deprecated: Use SYCL 2020 sycl::make_kernel_bundle free function}}
-  auto PR = level_zero::make<program>(Context, ZeProgram);
+  auto PR = ext::oneapi::level_zero::make<program>(Context, ZeProgram);
 
   return 0;
 }
