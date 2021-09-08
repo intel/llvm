@@ -16,12 +16,12 @@ __SYCL_OPEN_NS() {
 namespace ext {
 namespace oneapi {
 namespace level_zero {
-using namespace detail;
+using namespace __sycl_ns::detail;
 
 //----------------------------------------------------------------------------
 // Implementation of level_zero::make<platform>
 __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
-  return detail::make_platform(NativeHandle, backend::level_zero);
+  return __sycl_internal::__v1::detail::make_platform(NativeHandle, backend::level_zero);
 }
 
 //----------------------------------------------------------------------------
@@ -35,7 +35,7 @@ __SYCL_EXPORT device make_device(const platform &Platform,
   Plugin.call<PiApiKind::piextDeviceCreateWithNativeHandle>(
       NativeHandle, PlatformImpl->getHandleRef(), &PiDevice);
 
-  return detail::createSyclObjFromImpl<device>(
+  return createSyclObjFromImpl<device>(
       PlatformImpl->getOrMakeDeviceImpl(PiDevice, PlatformImpl));
 }
 
@@ -49,13 +49,13 @@ __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
   pi_context PiContext;
   std::vector<pi_device> DeviceHandles;
   for (auto Dev : DeviceList) {
-    DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
+    DeviceHandles.push_back(getSyclObjImpl(Dev)->getHandleRef());
   }
   Plugin.call<PiApiKind::piextContextCreateWithNativeHandle>(
       NativeHandle, DeviceHandles.size(), DeviceHandles.data(), !KeepOwnership,
       &PiContext);
   // Construct the SYCL context from PI context.
-  return detail::createSyclObjFromImpl<context>(
+  return createSyclObjFromImpl<context>(
       std::make_shared<context_impl>(PiContext, async_handler{}, Plugin));
 }
 
@@ -72,7 +72,7 @@ __SYCL_EXPORT program make_program(const context &Context,
   // Construct the SYCL program from native program.
   // TODO: move here the code that creates PI program, and remove the
   // native interop constructor.
-  return detail::createSyclObjFromImpl<program>(
+  return createSyclObjFromImpl<program>(
       std::make_shared<program_impl>(getSyclObjImpl(Context), NativeHandle));
 }
 
@@ -82,9 +82,9 @@ __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle NativeHandle,
                                bool KeepOwnership) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context, KeepOwnership,
-                            ContextImpl->get_async_handler(),
-                            backend::level_zero);
+  return __sycl_internal::__v1::detail::make_queue(
+      NativeHandle, Context, KeepOwnership, ContextImpl->get_async_handler(),
+      backend::level_zero);
 }
 
 // TODO: remove this version (without ownership) when allowed to break ABI.
@@ -98,8 +98,8 @@ __SYCL_EXPORT queue make_queue(const context &Context,
 __SYCL_EXPORT event make_event(const context &Context,
                                pi_native_handle NativeHandle,
                                bool KeepOwnership) {
-  return detail::make_event(NativeHandle, Context, KeepOwnership,
-                            backend::level_zero);
+  return __sycl_internal::__v1::detail::make_event(
+      NativeHandle, Context, KeepOwnership, backend::level_zero);
 }
 
 } // namespace level_zero

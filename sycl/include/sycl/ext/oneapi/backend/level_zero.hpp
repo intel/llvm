@@ -8,12 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 // This header should be included by users.
 //#include <level_zero/ze_api.h>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS() {
 
 template <> struct interop<backend::level_zero, platform> {
   using type = ze_driver_handle_t;
@@ -201,5 +200,5 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
     level_zero {
   using namespace ext::oneapi::level_zero;
 }
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
