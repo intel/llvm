@@ -905,17 +905,17 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // values must happen at the level of TableGen and Arg class design, with
   // Compilation/Driver class constructors handling the driver-specific
   // diagnostic output.
-  auto checkSingleArgValidity =
-      [&](Arg *A, SmallVector<StringRef, 4> AllowedValues) {
-        if (!A)
-          return;
-        const char *ArgValue = A->getValue();
-        for (const StringRef AllowedValue : AllowedValues)
-          if (AllowedValue.equals(ArgValue))
-            return;
-        Diag(clang::diag::err_drv_invalid_value)
-            << A->getOption().getName() << ArgValue;
-      };
+  auto checkSingleArgValidity = [&](Arg *A,
+                                    SmallVector<StringRef, 4> AllowedValues) {
+    if (!A)
+      return;
+    const char *ArgValue = A->getValue();
+    for (const StringRef AllowedValue : AllowedValues)
+      if (AllowedValue.equals(ArgValue))
+        return;
+    Diag(clang::diag::err_drv_invalid_value)
+        << A->getOption().getName() << ArgValue;
+  };
   checkSingleArgValidity(SYCLLink, {"early", "image"});
   checkSingleArgValidity(
       C.getInputArgs().getLastArg(options::OPT_fsycl_device_code_split_EQ),
