@@ -493,13 +493,18 @@ std::string handler::getKernelName() {
   return MKernel->get_info<info::kernel::function_name>();
 }
 
-void handler::barrier(const std::vector<event> &WaitList) {
+void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   MCGType = detail::CG::BarrierWaitlist;
   MEventsWaitWithBarrier.resize(WaitList.size());
   std::transform(
       WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
       [](const event &Event) { return detail::getSyclObjImpl(Event); });
+}
+
+__SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
+void handler::barrier(const std::vector<event> &WaitList) {
+  handler::ext_oneapi_barrier(WaitList);
 }
 
 using namespace sycl::detail;
