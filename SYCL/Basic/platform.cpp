@@ -16,7 +16,7 @@ using namespace cl::sycl;
 
 int main() {
   int i = 1;
-  vector_class<platform> openclPlatforms;
+  std::vector<platform> openclPlatforms;
   for (const auto &plt : platform::get_platforms()) {
     std::cout << "Platform " << i++
               << " is available: " << ((plt.is_host()) ? "host: " : "OpenCL: ")
@@ -34,9 +34,9 @@ int main() {
   {
     std::cout << "move constructor" << std::endl;
     platform Platform(platformA);
-    size_t hash = hash_class<platform>()(Platform);
+    size_t hash = std::hash<platform>()(Platform);
     platform MovedPlatform(std::move(Platform));
-    assert(hash == hash_class<platform>()(MovedPlatform));
+    assert(hash == std::hash<platform>()(MovedPlatform));
     assert(platformA.is_host() == MovedPlatform.is_host());
     if (!platformA.is_host() &&
         platformA.get_backend() == cl::sycl::backend::opencl) {
@@ -46,10 +46,10 @@ int main() {
   {
     std::cout << "move assignment operator" << std::endl;
     platform Platform(platformA);
-    size_t hash = hash_class<platform>()(Platform);
+    size_t hash = std::hash<platform>()(Platform);
     platform WillMovedPlatform(platformB);
     WillMovedPlatform = std::move(Platform);
-    assert(hash == hash_class<platform>()(WillMovedPlatform));
+    assert(hash == std::hash<platform>()(WillMovedPlatform));
     assert(platformA.is_host() == WillMovedPlatform.is_host());
     if (!platformA.is_host() &&
         platformA.get_backend() == cl::sycl::backend::opencl) {
@@ -59,21 +59,21 @@ int main() {
   {
     std::cout << "copy constructor" << std::endl;
     platform Platform(platformA);
-    size_t hash = hash_class<platform>()(Platform);
+    size_t hash = std::hash<platform>()(Platform);
     platform PlatformCopy(Platform);
-    assert(hash == hash_class<platform>()(Platform));
-    assert(hash == hash_class<platform>()(PlatformCopy));
+    assert(hash == std::hash<platform>()(Platform));
+    assert(hash == std::hash<platform>()(PlatformCopy));
     assert(Platform == PlatformCopy);
     assert(Platform.is_host() == PlatformCopy.is_host());
   }
   {
     std::cout << "copy assignment operator" << std::endl;
     platform Platform(platformA);
-    size_t hash = hash_class<platform>()(Platform);
+    size_t hash = std::hash<platform>()(Platform);
     platform WillPlatformCopy(platformB);
     WillPlatformCopy = Platform;
-    assert(hash == hash_class<platform>()(Platform));
-    assert(hash == hash_class<platform>()(WillPlatformCopy));
+    assert(hash == std::hash<platform>()(Platform));
+    assert(hash == std::hash<platform>()(WillPlatformCopy));
     assert(Platform == WillPlatformCopy);
     assert(Platform.is_host() == WillPlatformCopy.is_host());
   }

@@ -48,7 +48,7 @@
 int main(void) {
   sycl::default_selector ds{};
   sycl::queue q{ds};
-  sycl::vector_class<sycl::event> events(10);
+  std::vector<sycl::event> events(10);
 
   sycl::event ev1 = q.submit([&](sycl::handler &cgh) {
     cgh.depends_on(events);
