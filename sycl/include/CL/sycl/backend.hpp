@@ -146,7 +146,7 @@ make_context(
 }
 
 template <backend Backend>
-__SYCL_DEPRECATED("Use SYCL-2020 sycl::make_queue free function")
+__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
     make_queue(
@@ -179,7 +179,7 @@ make_event(const typename backend_traits<Backend>::template input_type<event>
 }
 
 template <backend Backend>
-__SYCL_DEPRECATED("Use SYCL-2020 sycl::make_event free function")
+__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_event free function")
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeEvent == true, event>::type
     make_event(

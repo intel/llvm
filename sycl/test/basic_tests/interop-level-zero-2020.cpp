@@ -167,10 +167,10 @@ int main() {
 =======
   auto C = level_zero::make<context>(std::vector<device>(1, D), ZeContext,
                                      level_zero::ownership::keep);
-  // expected-warning@+1 {{'make<sycl::queue, nullptr>' is deprecated: Use SYCL-2020 sycl::make_queue free function}}
+  // expected-warning@+2 {{'make<sycl::queue, nullptr>' is deprecated: Use SYCL-2020 sycl::make_queue free function}}
   auto Q =
       level_zero::make<queue>(Context, ZeQueue, level_zero::ownership::keep);
-  // expected-warning@+1 {{'make<sycl::event, nullptr>' is deprecated: Use SYCL-2020 sycl::make_event free function}}
+  // expected-warning@+2 {{'make<sycl::event, nullptr>' is deprecated: Use SYCL-2020 sycl::make_event free function}}
   auto E =
       level_zero::make<event>(Context, ZeEvent, level_zero::ownership::keep);
   // expected-warning@+2 {{'program' is deprecated: program class is deprecated, use kernel_bundle instead}}
