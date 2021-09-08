@@ -999,6 +999,23 @@ createKernelArgMask(const pi::ByteArray &Bytes) {
   return Result;
 }
 
+void ProgramManager::cacheKernelUsesAssertInfo(OSModuleHandle M,
+                                               RTDeviceBinaryImage &Img) {
+  const pi::DeviceBinaryImage::PropertyRange &AssertUsedRange =
+      Img.getAssertUsed();
+  if (AssertUsedRange.isAvailable())
+    for (const auto &Prop : AssertUsedRange) {
+      KernelNameWithOSModule Key{Prop->Name, M};
+      m_KernelUsesAssert.insert(Key);
+    }
+}
+
+bool ProgramManager::kernelUsesAssert(OSModuleHandle M,
+                                      const std::string &KernelName) const {
+  KernelNameWithOSModule Key{KernelName, M};
+  return m_KernelUsesAssert.find(Key) != m_KernelUsesAssert.end();
+}
+
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
 
@@ -1032,6 +1049,9 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
                  "Kernel sets are not disjoint");
         auto &Imgs = m_DeviceImages[KSIdIt->second];
         assert(Imgs && "Device image vector should have been already created");
+
+        cacheKernelUsesAssertInfo(M, *Img);
+
         Imgs->push_back(std::move(Img));
         continue;
       }
@@ -1054,6 +1074,9 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
         }
       }
       m_DeviceImages[KSId].reset(new std::vector<RTDeviceBinaryImageUPtr>());
+
+      cacheKernelUsesAssertInfo(M, *Img);
+
       m_DeviceImages[KSId]->push_back(std::move(Img));
       continue;
     }
@@ -1066,6 +1089,9 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     auto &Imgs = m_DeviceImages[KSId];
     if (!Imgs)
       Imgs.reset(new std::vector<RTDeviceBinaryImageUPtr>());
+
+    cacheKernelUsesAssertInfo(M, *Img);
+
     Imgs->push_back(std::move(Img));
   }
 }
