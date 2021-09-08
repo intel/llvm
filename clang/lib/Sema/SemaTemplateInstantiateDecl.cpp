@@ -767,12 +767,6 @@ static void instantiateWorkGroupSizeHintAttr(
 static void instantiateDependentSYCLKernelAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLKernelAttr &Attr, Decl *New) {
-  // Functions cannot be partially specialized, so if we are being instantiated,
-  // we are obviously a complete specialization. Since this attribute is only
-  // valid on function template declarations, we know that this is a full
-  // instantiation of a kernel.
-  S.AddSYCLKernelLambda(cast<FunctionDecl>(New));
-
   New->addAttr(Attr.clone(S.getASTContext()));
 }
 

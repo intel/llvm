@@ -137,47 +137,48 @@ pi_result check_error(CUresult result, const char *function, int line,
 /// \cond NODOXY
 #define PI_CHECK_ERROR(result) check_error(result, __func__, __LINE__, __FILE__)
 
-/// RAII type to guarantee recovering original CUDA context
-/// Scoped context is used across all PI CUDA plugin implementation
-/// to activate the PI Context on the current thread, matching the
-/// CUDA driver semantics where the context used for the CUDA Driver
-/// API is the one active on the thread.
-/// The implementation tries to avoid replacing the CUcontext if it cans
+/// ScopedContext is used across all PI CUDA plugin implementation to ensure
+/// that the proper CUDA context is active for the given PI context.
+//
+/// This class will only replace the context if necessary, and will leave the
+/// new context active on the current thread. If there was an active context
+/// already it will simply be replaced.
+//
+/// Previously active contexts are not restored for two reasons:
+/// * Performance: context switches are expensive so leaving the context active
+///   means subsequent SYCL calls with the same context will be cheaper.
+/// * Multi-threading cleanup: contexts are set active per thread and deleting a
+///   context will only deactivate it for the current thread. This means other
+///   threads may end up with deleted active contexts. In particular this can
+///   happen with host_tasks as they run in a thread pool. When the context
+///   associated with these tasks is deleted it will remain active in the
+///   threads of the thread pool. So it would be invalid for any other task
+///   running on these threads to try to restore the deleted context. With the
+///   current implementation this is not an issue because the active deleted
+///   context will just be replaced.
+//
+/// This approach does mean that CUDA interop tasks should NOT expect their
+/// contexts to be restored by SYCL.
 class ScopedContext {
-  pi_context placedContext_;
-  CUcontext original_;
-  bool needToRecover_;
-
 public:
-  ScopedContext(pi_context ctxt) : placedContext_{ctxt}, needToRecover_{false} {
-
-    if (!placedContext_) {
+  ScopedContext(pi_context ctxt) {
+    if (!ctxt) {
       throw PI_INVALID_CONTEXT;
     }
 
-    CUcontext desired = placedContext_->get();
-    PI_CHECK_ERROR(cuCtxGetCurrent(&original_));
-    if (original_ != desired) {
-      // Sets the desired context as the active one for the thread
+    CUcontext desired = ctxt->get();
+    CUcontext original = nullptr;
+
+    PI_CHECK_ERROR(cuCtxGetCurrent(&original));
+
+    // Make sure the desired context is active on the current thread, setting
+    // it if necessary
+    if (original != desired) {
       PI_CHECK_ERROR(cuCtxSetCurrent(desired));
-      if (original_ == nullptr) {
-        // No context is installed on the current thread
-        // This is the most common case. We can activate the context in the
-        // thread and leave it there until all the PI context referring to the
-        // same underlying CUDA context are destroyed. This emulates
-        // the behaviour of the CUDA runtime api, and avoids costly context
-        // switches. No action is required on this side of the if.
-      } else {
-        needToRecover_ = true;
-      }
     }
   }
 
-  ~ScopedContext() {
-    if (needToRecover_) {
-      PI_CHECK_ERROR(cuCtxSetCurrent(original_));
-    }
-  }
+  ~ScopedContext() {}
 };
 
 /// \cond NODOXY
@@ -1453,6 +1454,8 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_EXTENSIONS: {
 
     std::string SupportedExtensions = "cl_khr_fp64 ";
+    SupportedExtensions += PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT;
+    SupportedExtensions += " ";
 
     int major = 0;
     int minor = 0;

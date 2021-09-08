@@ -2022,6 +2022,7 @@
 ?get@platform@sycl@cl@@QEBAPEAU_cl_platform_id@@XZ
 ?get@program@sycl@cl@@QEBAPEAU_cl_program@@XZ
 ?get@queue@sycl@cl@@QEBAPEAU_cl_command_queue@@XZ
+?getAssertHappenedBuffer@queue@sycl@cl@@AEAAAEAV?$buffer@UAssertHappened@detail@sycl@cl@@$00V?$aligned_allocator@D@234@X@23@XZ
 ?getBorderColor@detail@sycl@cl@@YA?AV?$vec@M$03@23@W4image_channel_order@23@@Z
 ?getBufSizeForContext@SYCLMemObjT@detail@sycl@cl@@SA_KAEBV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@PEAU_cl_mem@@@Z
 ?getChannelOrder@?$image_impl@$00@detail@sycl@cl@@QEBA?AW4image_channel_order@34@XZ
@@ -3981,6 +3982,8 @@
 ?submit_barrier@queue@sycl@cl@@QEAA?AVevent@23@AEBV?$vector@Vevent@sycl@cl@@V?$allocator@Vevent@sycl@cl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?submit_impl@queue@sycl@cl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@sycl@cl@@@Z@std@@AEBUcode_location@detail@23@@Z
 ?submit_impl@queue@sycl@cl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@sycl@cl@@@Z@std@@V123@AEBUcode_location@detail@23@@Z
+?submit_impl_and_postprocess@queue@sycl@cl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@sycl@cl@@@Z@std@@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@sycl@cl@@@Z@6@@Z
+?submit_impl_and_postprocess@queue@sycl@cl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@sycl@cl@@@Z@std@@V123@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@sycl@cl@@@Z@6@@Z
 ?sycl_category@sycl@cl@@YAAEBVerror_category@std@@XZ
 ?tan@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z
 ?tan@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z

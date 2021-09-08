@@ -9,7 +9,7 @@
 ; CHECK: call i8 @_Z20__spirv_SpecConstantia(i32 [[#]], i8
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 %struct.spec_id_type = type { i8 }
 %struct.spec_id_type2 = type { %struct.user_type }

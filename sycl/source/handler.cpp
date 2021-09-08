@@ -136,13 +136,15 @@ event handler::finalize() {
   switch (getType()) {
   case detail::CG::Kernel:
   case detail::CG::RunOnHostIntel: {
+    // Copy kernel name here instead of move so that it's available after
+    // running of this method by reductions implementation. This allows for
+    // assert feature to check if kernel uses assertions
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), std::move(MArgs), std::move(MKernelName),
-        std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType,
-        MCodeLoc));
+        std::move(MEvents), std::move(MArgs), MKernelName, MOSModuleHandle,
+        std::move(MStreamStorage), MCGType, MCodeLoc));
     break;
   }
   case detail::CG::CodeplayInteropTask:
@@ -402,6 +404,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
         Index + IndexShift);
     break;
   }
+  case kernel_param_kind_t::kind_invalid:
+    throw runtime_error("Invalid kernel param kind", PI_INVALID_VALUE);
+    break;
   }
 }
 
