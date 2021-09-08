@@ -85,37 +85,37 @@ struct _ImplT {
   id<dim> Offset;
 };
 
-template <typename dataT, access::target accessTarget>
+using propertyListT = ext::oneapi::accessor_property_list<>;
+template <typename dataT, access::target accessTarget, typename propertyListT>
 struct DeviceValueType;
 
-template <typename dataT>
-struct DeviceValueType<dataT, access::target::global_buffer> {
+template <typename dataT, typename propertyListT>
+struct DeviceValueType<dataT, access::target::global_buffer, propertyListT> {
   using type = __attribute__((opencl_global)) dataT;
 };
 
-template <typename dataT>
-struct DeviceValueType<dataT, access::target::constant_buffer> {
+template <typename dataT, typename propertyListT>
+struct DeviceValueType<dataT, access::target::constant_buffer, propertyListT> {
   using type = __attribute__((opencl_constant)) dataT;
 };
 
-template <typename dataT>
-struct DeviceValueType<dataT, access::target::local> {
+template <typename dataT, typename propertyListT>
+struct DeviceValueType<dataT, access::target::local, propertyListT> {
   using type = __attribute__((opencl_local)) dataT;
 };
 
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t,
-          typename propertyListT = ext::oneapi::accessor_property_list<>>
-class accessor {
-
+	typename propertyListT = ext::oneapi::accessor_property_list<>>
+class __attribute__((sycl_special_class)) accessor {
 public:
   void use(void) const {}
   void use(void *) const {}
   _ImplT<dimensions> impl;
 
 private:
-  using PtrType = typename DeviceValueType<dataT, accessTarget>::type *;
+  using PtrType = typename DeviceValueType<dataT, accessTarget, propertyListT>::type *;
   void __init(PtrType Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
   friend class stream;
@@ -167,7 +167,7 @@ struct _ImageImplT {
 };
 
 template <typename dataT, int dimensions, access::mode accessmode>
-class accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t> {
+class __attribute__((sycl_special_class)) accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t> {
 public:
   void use(void) const {}
   template <typename... T>
@@ -186,7 +186,7 @@ struct sampler_impl {
 #endif
 };
 
-class sampler {
+class __attribute__((sycl_special_class)) sampler {
   struct sampler_impl impl;
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(__ocl_sampler_t Sampler) { impl.m_Sampler = Sampler; }
@@ -290,7 +290,7 @@ public:
   }
 };
 
-class stream {
+class __attribute__((sycl_special_class)) stream {
   accessor<int, 1, access::mode::read> acc;
 
 public:
