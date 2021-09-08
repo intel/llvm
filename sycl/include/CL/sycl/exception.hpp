@@ -87,7 +87,7 @@ protected:
 
 class __SYCL2020_DEPRECATED(
     "use sycl::exception with sycl::errc::runtime instead.") runtime_error
-    : public exception {
+    : public __sycl_ns::exception {
 public:
   runtime_error() = default;
 

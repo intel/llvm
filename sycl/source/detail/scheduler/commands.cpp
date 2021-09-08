@@ -623,7 +623,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
     }
     static bool ThrowOnBlock = getenv("SYCL_THROW_ON_BLOCK") != nullptr;
     if (ThrowOnBlock)
-      throw sycl::runtime_error{
+      throw sycl::runtime_error_compat{
           std::string("Waiting for blocked command. Block reason: ") +
               std::string(getBlockReason()),
           PI_INVALID_OPERATION};
