@@ -78,7 +78,7 @@ getPluginOpaqueData<cl::sycl::backend::esimd_cpu>(void *);
 
 namespace pi {
 
-static void initializePlugins(std::vector<plugin> *Plugins);
+static void initializePlugins(std::vector<plugin> &Plugins);
 
 bool XPTIInitDone = false;
 
@@ -371,20 +371,19 @@ bool trace(TraceLevel Level) {
 // Initializes all available Plugins.
 const std::vector<plugin> &initialize() {
   static std::once_flag PluginsInitDone;
-  std::call_once(PluginsInitDone, []() {
-    initializePlugins(&GlobalHandler::instance().getPlugins());
-  });
+  const std::lock_guard<std::mutex> Guard(
+      GlobalHandler::instance().getPluginsMutex());
+  std::vector<plugin> &Plugins = GlobalHandler::instance().getPlugins();
+  std::call_once(PluginsInitDone, [&]() { initializePlugins(Plugins); });
 
   // reset LastDeviceIds to zeros
-  vector_class<plugin> &Plugins = GlobalHandler::instance().getPlugins();
   for (plugin &Plugin : Plugins) {
     Plugin.resetLastDeviceIds();
   }
-
-  return GlobalHandler::instance().getPlugins();
+  return Plugins;
 }
 
-static void initializePlugins(std::vector<plugin> *Plugins) {
+static void initializePlugins(std::vector<plugin> &Plugins) {
   std::vector<std::pair<std::string, backend>> PluginNames = findPlugins();
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
@@ -443,7 +442,7 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
       GlobalPlugin = std::make_shared<plugin>(PluginInformation,
                                               backend::level_zero, Library);
     }
-    Plugins->emplace_back(
+    Plugins.emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))
       std::cerr << "SYCL_PI_TRACE[basic]: "

@@ -65,12 +65,7 @@ std::mutex &GlobalHandler::getFilterMutex() {
   return getOrCreate(MFilterMutex);
 }
 std::vector<plugin> &GlobalHandler::getPlugins() {
-  const std::lock_guard<std::mutex> Guard(
-      GlobalHandler::instance().getPluginsMutex());
-  std::vector<plugin> &Plugins = getOrCreate(MPlugins);
-  if (Plugins.empty())
-    RT::initialize();
-  return Plugins;
+  return getOrCreate(MPlugins);
 }
 device_filter_list &
 GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
