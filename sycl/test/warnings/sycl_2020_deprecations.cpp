@@ -150,10 +150,29 @@ int main() {
   sycl::ONEAPI::atomic_fence(sycl::ONEAPI::memory_order::relaxed,
                              sycl::ONEAPI::memory_scope::work_group);
 
-  // expected-warning@+1{{'INTEL' is deprecated: use 'ext::intel' instead}}
+  // expected-warning@+1{{'INTEL' is deprecated: use 'ext::intel::experimental' instead}}
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
 
+  // expected-warning@+1{{'intel' is deprecated: use 'ext::intel::experimental' instead}}
+  auto SLExtIntel = sycl::ext::intel::source_language::opencl_c;
+  (void)SLExtIntel;
+
+  // expected-warning@+1{{'level_zero' is deprecated: use 'ext_oneapi_level_zero' instead}}
+  auto LevelZeroBackend = sycl::backend::level_zero;
+  (void)LevelZeroBackend;
+
+  sycl::half Val = 1.0f;
+  // expected-warning@+1{{'bit_cast<unsigned short, sycl::detail::half_impl::half>' is deprecated: use 'sycl::bit_cast' instead}}
+  auto BitCastRes = sycl::detail::bit_cast<unsigned short>(Val);
+  (void)BitCastRes;
+
+  // expected-warning@+1{{'submit_barrier' is deprecated: use 'ext_oneapi_submit_barrier' instead}}
+  Queue.submit_barrier();
+
+  // expected-warning@+1{{'barrier' is deprecated: use 'ext_oneapi_barrier' instead}}
+  Queue.submit([&](sycl::handler &CGH) { CGH.barrier(); });
+  
   // expected-warning@+1{{'half' is deprecated: use 'sycl::half' instead}}
   half H;
   (void)H;
