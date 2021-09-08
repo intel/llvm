@@ -3141,29 +3141,6 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
-
-  Expr *XDimExpr = AL.getArgAsExpr(0);
-
-  // If no attribute argument is specified, set the second and third argument
-  // to the default value 1, but only if the sycl:: or intel::
-  // reqd_work_group_size spelling was used.
-  auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL, SourceLocation loc) {
-    Expr *E =
-        (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && AL.hasScope() &&
-         (AL.getScopeName()->isStr("sycl") ||
-          AL.getScopeName()->isStr("intel")))
-            ? IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
-                                     S.Context.IntTy, AL.getLoc())
-            : nullptr;
-    return E;
-  };
-
-  Expr *YDimExpr = AL.isArgExpr(1) ? AL.getArgAsExpr(1)
-                                   : SetDefaultValue(S, AL, AL.getLoc());
-
-  Expr *ZDimExpr = AL.isArgExpr(2) ? AL.getArgAsExpr(2)
-                                   : SetDefaultValue(S, AL, AL.getLoc());
-
   // __attribute__((reqd_work_group_size)), [[cl::reqd_work_group_size]], and
   // [[intel::max_work_group_size]] all require exactly three arguments.
   if ((AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize &&
@@ -3174,6 +3151,24 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     if (!AL.checkExactlyNumArgs(S, 3))
       return;
   }
+
+  Expr *XDimExpr = AL.getArgAsExpr(0);
+
+  // If no attribute argument is specified, set the second and third argument
+  // to the default value 1, but only if the sycl::reqd_work_group_size
+  // spelling was used.
+  auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL) {
+    assert(AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && AL.hasScope() &&
+           AL.getScopeName()->isStr("sycl"));
+    return IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
+                                  S.Context.IntTy, AL.getLoc());
+  };
+
+  Expr *YDimExpr =
+      AL.isArgExpr(1) ? AL.getArgAsExpr(1) : SetDefaultValue(S, AL);
+
+  Expr *ZDimExpr =
+      AL.isArgExpr(2) ? AL.getArgAsExpr(2) : SetDefaultValue(S, AL);
 
   ASTContext &Ctx = S.getASTContext();
 
