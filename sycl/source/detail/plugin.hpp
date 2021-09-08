@@ -203,6 +203,8 @@ public:
   // return the last device id of the predecessor platform.
   int getStartingDeviceId(RT::PiPlatform Platform) {
     int PlatformId = getPlatformId(Platform);
+    if (PlatformId == 0)
+      return 0;
     return LastDeviceIds[PlatformId - 1];
   }
   // set the id of the last device for the given platform
