@@ -69,6 +69,12 @@ SYCL_ESIMD_FUNCTION void test_simd_view_copy_ctor() {
   auto v0_view_copy(v0_view);
 }
 
+// test construction from vector.
+SYCL_ESIMD_FUNCTION void test_simd_view_from_vector() {
+  simd<int, 16> s = 0;
+  simd_view v = s;
+}
+
 // move constructor transfers the same view of the underlying data.
 SYCL_ESIMD_FUNCTION void test_simd_view_move_ctor() {
   simd<int, 16> v0 = 1;

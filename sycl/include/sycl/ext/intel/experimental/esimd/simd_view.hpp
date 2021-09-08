@@ -24,15 +24,18 @@ namespace esimd {
 /// via an instance of this class.
 ///
 /// \ingroup sycl_esimd
-template <typename BaseTy, typename RegionTy>
-class simd_view : public detail::simd_view_impl<BaseTy, RegionTy,
-                                                simd_view<BaseTy, RegionTy>> {
+template <typename BaseTy,
+          typename RegionTy =
+              region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
+class simd_view
+    : public detail::simd_view_impl<BaseTy, simd_view<BaseTy, RegionTy>,
+                                    RegionTy> {
   template <typename, int> friend class simd;
   template <typename, typename, typename> friend class detail::simd_view_impl;
 
 public:
   using BaseClass =
-      detail::simd_view_impl<BaseTy, RegionTy, simd_view<BaseTy, RegionTy>>;
+      detail::simd_view_impl<BaseTy, simd_view<BaseTy, RegionTy>, RegionTy>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
 
@@ -40,6 +43,9 @@ public:
 
   /// The simd type if reading this simd_view object.
   using value_type = simd<element_type, length>;
+
+  // Construct a complete view of a vector
+  simd_view(BaseTy &Base) : BaseClass(Base) {}
 
 private:
   simd_view(BaseTy &Base, RegionTy Region) : BaseClass(Base, Region) {}
@@ -173,15 +179,15 @@ public:
 template <typename BaseTy, typename T, int StrideY, int StrideX>
 class simd_view<BaseTy, region1d_scalar_t<T, StrideY, StrideX>>
     : public detail::simd_view_impl<
-          BaseTy, region1d_scalar_t<T, StrideY, StrideX>,
-          simd_view<BaseTy, region1d_scalar_t<T, StrideY, StrideX>>> {
+          BaseTy, simd_view<BaseTy, region1d_scalar_t<T, StrideY, StrideX>>,
+          region1d_scalar_t<T, StrideY, StrideX>> {
   template <typename, int> friend class simd;
   template <typename, typename, typename> friend class detail::simd_view_impl;
 
 public:
   using RegionTy = region1d_scalar_t<T, StrideY, StrideX>;
   using BaseClass =
-      detail::simd_view_impl<BaseTy, RegionTy, simd_view<BaseTy, RegionTy>>;
+      detail::simd_view_impl<BaseTy, simd_view<BaseTy, RegionTy>, RegionTy>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
   static_assert(1 == length, "length of this view is not equal to 1");
@@ -237,9 +243,9 @@ class simd_view<BaseTy,
                 std::pair<region1d_scalar_t<T, StrideY, StrideX>, NestedRegion>>
     : public detail::simd_view_impl<
           BaseTy,
-          std::pair<region1d_scalar_t<T, StrideY, StrideX>, NestedRegion>,
           simd_view<BaseTy, std::pair<region1d_scalar_t<T, StrideY, StrideX>,
-                                      NestedRegion>>> {
+                                      NestedRegion>>,
+          std::pair<region1d_scalar_t<T, StrideY, StrideX>, NestedRegion>> {
   template <typename, int> friend class simd;
   template <typename, typename, typename> friend class detail::simd_view_impl;
 
@@ -247,7 +253,7 @@ public:
   using RegionTy =
       std::pair<region1d_scalar_t<T, StrideY, StrideX>, NestedRegion>;
   using BaseClass =
-      detail::simd_view_impl<BaseTy, RegionTy, simd_view<BaseTy, RegionTy>>;
+      detail::simd_view_impl<BaseTy, simd_view<BaseTy, RegionTy>, RegionTy>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
   static_assert(1 == length, "length of this view is not equal to 1");

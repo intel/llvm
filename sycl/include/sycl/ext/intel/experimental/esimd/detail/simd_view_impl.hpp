@@ -25,7 +25,9 @@ namespace detail {
 /// It is an internal class implementing basic functionality of simd_view.
 ///
 /// \ingroup sycl_esimd
-template <typename BaseTy, typename RegionTy, typename Derived>
+template <typename BaseTy, typename Derived,
+          typename RegionTy =
+              region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
 class simd_view_impl {
   template <typename, int> friend class simd;
   template <typename, typename, typename> friend class simd_view_impl;
@@ -61,6 +63,7 @@ protected:
       : M_base(Base), M_region(Region) {}
   simd_view_impl(BaseTy &&Base, RegionTy Region)
       : M_base(Base), M_region(Region) {}
+  simd_view_impl(BaseTy &Base) : M_base(Base), M_region(RegionTy(0)) {}
 
 public:
   // Default copy and move constructors.
