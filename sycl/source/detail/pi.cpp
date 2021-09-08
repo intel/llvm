@@ -369,7 +369,7 @@ bool trace(TraceLevel Level) {
 }
 
 // Initializes all available Plugins.
-const std::vector<plugin> &initialize() {
+std::vector<plugin> &initialize() {
   static std::once_flag PluginsInitDone;
   const std::lock_guard<std::mutex> Guard(
       GlobalHandler::instance().getPluginsMutex());
@@ -507,7 +507,7 @@ template <backend BE> const plugin &getPlugin() {
   if (Plugin)
     return *Plugin;
 
-  const std::vector<plugin> &Plugins = pi::initialize();
+  std::vector<plugin> &Plugins = pi::initialize();
   for (const auto &P : Plugins)
     if (P.getBackend() == BE) {
       Plugin = &P;
