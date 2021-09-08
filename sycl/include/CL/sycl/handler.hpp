@@ -199,7 +199,7 @@ checkValueRange(const T &V) {
 }
 
 template <typename TransformedArgType, int Dims, typename KernelType>
-struct RoundedRangeKernel {
+class RoundedRangeKernel {
 public:
   RoundedRangeKernel(range<Dims> NumWorkItems, KernelType KernelFunc)
       : NumWorkItems(NumWorkItems), KernelFunc(KernelFunc) {}
@@ -217,7 +217,7 @@ private:
 };
 
 template <typename TransformedArgType, int Dims, typename KernelType>
-struct RoundedRangeKernelWithKH {
+class RoundedRangeKernelWithKH {
 public:
   RoundedRangeKernelWithKH(range<Dims> NumWorkItems, KernelType KernelFunc)
       : NumWorkItems(NumWorkItems), KernelFunc(KernelFunc) {}
