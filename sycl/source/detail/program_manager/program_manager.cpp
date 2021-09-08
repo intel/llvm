@@ -70,7 +70,7 @@ ProgramManager &ProgramManager::getInstance() {
 // sycl::detail::__sycl_service_kernel__ namespace which is exclusively used for
 // this purpose. As such service kernels can be identified by
 // __sycl_service_kernel__ appearing in the mangled kernel name.
-static bool isServiceKernel(const std::string KernelName) {
+static bool isServiceKernel(const std::string &KernelName) {
   return KernelName.find("__sycl_service_kernel__") != std::string::npos;
 }
 
