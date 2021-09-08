@@ -760,7 +760,8 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             const pi_mem_properties *properties) {
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     if (PrintPiTrace) {
-      std::cerr << "Invalid memory attribute for piMemBufferCreate";
+      std::cerr << "Invalid memory attribute for piMemBufferCreate"
+                << std::endl;
     }
     return PI_INVALID_OPERATION;
   }
@@ -885,7 +886,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                            pi_mem *RetImage) {
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     if (PrintPiTrace) {
-      std::cerr << "Invalid memory attribute for piMemImageCreate";
+      std::cerr << "Invalid memory attribute for piMemImageCreate" << std::endl;
     }
     return PI_INVALID_OPERATION;
   }
@@ -1522,6 +1523,10 @@ pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
   /// TODO : Support multiple images and enable selection algorithm
   /// for the images
   if (RawImgSize != 1) {
+    if (PrintPiTrace) {
+      std::cerr << "Only single device binary image is supported in ESIMD_CPU"
+                << std::endl;
+    }
     return PI_INVALID_VALUE;
   }
   *ImgInd = 0;
