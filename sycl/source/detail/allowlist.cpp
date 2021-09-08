@@ -77,6 +77,12 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                               "doc/EnvironmentVariables.md",
                               PI_INVALID_VALUE);
 
+  const std::string &DeprecatedKeyNameDeviceName = DeviceNameKeyName;
+  const std::string &DeprecatedKeyNamePlatformName = PlatformNameKeyName;
+
+  bool IsDeprecatedKeyNameDeviceNameWasUsed = false;
+  bool IsDeprecatedKeyNamePlatformNameWasUsed = false;
+
   while ((KeyEnd = AllowListRaw.find(DelimiterBtwKeyAndValue, KeyStart)) !=
          std::string::npos) {
     if ((ValueStart = AllowListRaw.find_first_not_of(
@@ -94,6 +100,13 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
           "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
           "EnvironmentVariables.md",
           PI_INVALID_VALUE);
+    }
+
+    if (Key == DeprecatedKeyNameDeviceName) {
+      IsDeprecatedKeyNameDeviceNameWasUsed = true;
+    }
+    if (Key == DeprecatedKeyNamePlatformName) {
+      IsDeprecatedKeyNamePlatformNameWasUsed = true;
     }
 
     bool ShouldAllocateNewDeviceDescMap = false;
@@ -239,6 +252,27 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
       ++DeviceDescIndex;
       AllowListParsed.emplace_back();
     }
+  }
+
+  if (IsDeprecatedKeyNameDeviceNameWasUsed &&
+      IsDeprecatedKeyNamePlatformNameWasUsed) {
+    std::cout << "\nWARNING: " << DeprecatedKeyNameDeviceName << " and "
+              << DeprecatedKeyNamePlatformName
+              << " in SYCL_DEVICE_ALLOWLIST are deprecated. ";
+  } else if (IsDeprecatedKeyNameDeviceNameWasUsed) {
+    std::cout << "\nWARNING: " << DeprecatedKeyNameDeviceName
+              << " in SYCL_DEVICE_ALLOWLIST is deprecated. ";
+  } else if (IsDeprecatedKeyNamePlatformNameWasUsed) {
+    std::cout << "\nWARNING: " << DeprecatedKeyNamePlatformName
+              << " in SYCL_DEVICE_ALLOWLIST is deprecated. ";
+  }
+  if (IsDeprecatedKeyNameDeviceNameWasUsed ||
+      IsDeprecatedKeyNamePlatformNameWasUsed) {
+    std::cout << "Please use " << BackendNameKeyName << ", "
+              << DeviceTypeKeyName << " and " << DeviceVendorIdKeyName
+              << " instead. For details, please refer to "
+                 "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+                 "EnvironmentVariables.md\n\n";
   }
 
   return AllowListParsed;

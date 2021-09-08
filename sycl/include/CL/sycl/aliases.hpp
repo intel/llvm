@@ -68,7 +68,6 @@ using half __SYCL2020_DEPRECATED("use 'sycl::half' instead") =
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-using byte __SYCL2020_DEPRECATED("use std::byte instead") = std::uint8_t;
 using schar = signed char;
 using uchar = unsigned char;
 using ushort = unsigned short;

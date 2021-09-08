@@ -93,9 +93,6 @@ int main() {
   // Check the size and alignment of the SYCL vectors.
   checkVectors();
 
-  // Table 4.93: Additional scalar data types supported by SYCL.
-  static_assert(sizeof(s::byte) == sizeof(int8_t), "");
-
   // Table 4.94: Scalar data type aliases supported by SYCL
   static_assert(is_same<s::cl_bool, decltype(0 != 1)>::value, "");
   checkSizeForSignedIntegral<s::cl_char, sizeof(int8_t)>();
