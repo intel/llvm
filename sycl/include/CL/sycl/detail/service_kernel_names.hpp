@@ -15,7 +15,7 @@ namespace __sycl_service_kernel__ {
 
 class AssertInfoCopier;
 
-} // __sycl_service_kernel__
+} // namespace __sycl_service_kernel__
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
