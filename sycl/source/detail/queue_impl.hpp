@@ -52,7 +52,7 @@ enum QueueOrder { Ordered, OOO };
 class queue_impl {
 public:
   // \return a default context for the platform if it includes the device
-  // passed and defaualt contexts are enabled, a new context otherwise.
+  // passed and default contexts are enabled, a new context otherwise.
   static ContextImplPtr getDefaultOrNew(const DeviceImplPtr &Device) {
     if (!SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
       return detail::getSyclObjImpl(
