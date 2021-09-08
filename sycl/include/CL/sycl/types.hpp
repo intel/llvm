@@ -46,12 +46,13 @@
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif // __HAS_EXT_VECTOR_TYPE__
 
-#include <CL/sycl/aliases.hpp>
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/aliases.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/half_type.hpp>
+#include <CL/sycl/marray.hpp>
 #include <CL/sycl/multi_ptr.hpp>
 
 #include <array>
@@ -2329,6 +2330,12 @@ template <typename T, typename... Ts>
 struct is_device_copyable<std::tuple<T, Ts...>>
     : detail::bool_constant<is_device_copyable<T>::value &&
                             is_device_copyable<std::tuple<Ts...>>::value> {};
+
+// marray is device copyable if element type is device copyable
+template <typename T, std::size_t N>
+struct is_device_copyable<sycl::marray<T, N>,
+                          std::enable_if_t<is_device_copyable<T>::value>>
+    : std::true_type {};
 
 namespace detail {
 template <typename T, typename = void>

@@ -2285,10 +2285,16 @@ public:
   /// Prevents any commands submitted afterward to this queue from executing
   /// until all commands previously submitted to this queue have entered the
   /// complete state.
-  void barrier() {
+  void ext_oneapi_barrier() {
     throwIfActionIsCreated();
     setType(detail::CG::Barrier);
   }
+
+  /// Prevents any commands submitted afterward to this queue from executing
+  /// until all commands previously submitted to this queue have entered the
+  /// complete state.
+  __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
+  void barrier() { ext_oneapi_barrier(); }
 
   /// Prevents any commands submitted afterward to this queue from executing
   /// until all events in WaitList have entered the complete state. If WaitList
@@ -2296,6 +2302,15 @@ public:
   ///
   /// \param WaitList is a vector of valid SYCL events that need to complete
   /// before barrier command can be executed.
+  void ext_oneapi_barrier(const std::vector<event> &WaitList);
+
+  /// Prevents any commands submitted afterward to this queue from executing
+  /// until all events in WaitList have entered the complete state. If WaitList
+  /// is empty, then the barrier has no effect.
+  ///
+  /// \param WaitList is a vector of valid SYCL events that need to complete
+  /// before barrier command can be executed.
+  __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
   void barrier(const std::vector<event> &WaitList);
 
   /// Copies data from one memory region to another, both pointed by

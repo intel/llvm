@@ -137,9 +137,6 @@ template<class Container>
 
 __SYCL_OPEN_NS() {
 
-// byte is unsigned char at sycl/image.hpp:58
-using byte = unsigned char;
-
 // asserts suppressed for device compatibility.
 // TODO: enable
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -383,16 +380,17 @@ public:
     return rev_iterator(begin());
   }
 
-  _SYCL_SPAN_INLINE_VISIBILITY span<const byte, _Extent * sizeof(element_type)>
+  _SYCL_SPAN_INLINE_VISIBILITY
+  span<const std::byte, _Extent * sizeof(element_type)>
   __as_bytes() const noexcept {
-    return span<const byte, _Extent * sizeof(element_type)>{
-        reinterpret_cast<const byte *>(data()), size_bytes()};
+    return span<const std::byte, _Extent * sizeof(element_type)>{
+        reinterpret_cast<const std::byte *>(data()), size_bytes()};
   }
 
-  _SYCL_SPAN_INLINE_VISIBILITY span<byte, _Extent * sizeof(element_type)>
+  _SYCL_SPAN_INLINE_VISIBILITY span<std::byte, _Extent * sizeof(element_type)>
   __as_writable_bytes() const noexcept {
-    return span<byte, _Extent * sizeof(element_type)>{
-        reinterpret_cast<byte *>(data()), size_bytes()};
+    return span<std::byte, _Extent * sizeof(element_type)>{
+        reinterpret_cast<std::byte *>(data()), size_bytes()};
   }
 
 private:
@@ -576,14 +574,14 @@ public:
     return rev_iterator(begin());
   }
 
-  _SYCL_SPAN_INLINE_VISIBILITY span<const byte, dynamic_extent>
+  _SYCL_SPAN_INLINE_VISIBILITY span<const std::byte, dynamic_extent>
   __as_bytes() const noexcept {
-    return {reinterpret_cast<const byte *>(data()), size_bytes()};
+    return {reinterpret_cast<const std::byte *>(data()), size_bytes()};
   }
 
-  _SYCL_SPAN_INLINE_VISIBILITY span<byte, dynamic_extent>
+  _SYCL_SPAN_INLINE_VISIBILITY span<std::byte, dynamic_extent>
   __as_writable_bytes() const noexcept {
-    return {reinterpret_cast<byte *>(data()), size_bytes()};
+    return {reinterpret_cast<std::byte *>(data()), size_bytes()};
   }
 
 private:

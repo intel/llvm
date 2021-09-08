@@ -4823,6 +4823,15 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
     O << "\n";
   }
+
+  // Sentinel in place for 2 reasons:
+  // 1- to make sure we don't get a warning because this collection is empty.
+  // 2- to provide an obvious value that we can use when debugging to see that
+  //    we have left valid kernel information.
+  // integer-field values are negative, so they are obviously invalid, notable
+  // enough to 'stick out' and 'negative enough' to not be easily reachable by a
+  // mathematical error.
+  O << "  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 }, \n";
   O << "};\n\n";
 
   O << "// Specializations of KernelInfo for kernel function types:\n";

@@ -915,8 +915,8 @@ space attributes in SYCL mode:
 | Address space attribute | SYCL address_space enumeration |
 |-------------------------|--------------------------------|
 | `__attribute__((opencl_global))` | global_space, constant_space |
-| `__attribute__((opencl_global_host))` | global_host_space |
-| `__attribute__((opencl_global_device))` | global_device_space |
+| `__attribute__((opencl_global_host))` | ext_intel_global_host_space |
+| `__attribute__((opencl_global_device))` | ext_intel_global_device_space |
 | `__attribute__((opencl_local))` | local_space |
 | `__attribute__((opencl_private))` | private_space |
 | `__attribute__((opencl_constant))` | N/A

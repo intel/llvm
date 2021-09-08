@@ -215,6 +215,7 @@ public:
   ///
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
+  __SYCL_DEPRECATED("Use SYCL-2020 sycl::get_native free function")
   auto get_native() const -> typename interop<BackendName, context>::type {
     return reinterpret_cast<typename interop<BackendName, context>::type>(
         getNative());

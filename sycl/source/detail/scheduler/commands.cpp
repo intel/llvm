@@ -1794,6 +1794,9 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
                                                       &SpecConstsBuffer);
       break;
     }
+    case kernel_param_kind_t::kind_invalid:
+      throw runtime_error("Invalid kernel param kind", PI_INVALID_VALUE);
+      break;
     }
   };
 

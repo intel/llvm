@@ -35,7 +35,7 @@ class handler;
 namespace detail {
 
 // utility functions and typedefs for image_impl
-using image_allocator = aligned_allocator<byte>;
+using image_allocator = aligned_allocator<unsigned char>;
 
 // utility function: Returns the Number of Channels for a given Order.
 __SYCL_EXPORT uint8_t getImageNumberChannels(image_channel_order Order);

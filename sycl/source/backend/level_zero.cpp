@@ -13,6 +13,8 @@
 #include <detail/queue_impl.hpp>
 
 __SYCL_OPEN_NS() {
+namespace ext {
+namespace oneapi {
 namespace level_zero {
 using namespace detail;
 
@@ -101,5 +103,7 @@ __SYCL_EXPORT event make_event(const context &Context,
 }
 
 } // namespace level_zero
+} // namespace oneapi
+} // namespace ext
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()
