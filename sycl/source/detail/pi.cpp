@@ -375,11 +375,6 @@ std::vector<plugin> &initialize() {
       GlobalHandler::instance().getPluginsMutex());
   std::vector<plugin> &Plugins = GlobalHandler::instance().getPlugins();
   std::call_once(PluginsInitDone, [&]() { initializePlugins(Plugins); });
-
-  // reset LastDeviceIds to zeros
-  // for (plugin &Plugin : Plugins) {
-  //  Plugin.resetLastDeviceIds();
-  //}
   return Plugins;
 }
 
