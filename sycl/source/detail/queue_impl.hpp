@@ -105,8 +105,8 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   queue_impl(RT::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
-      : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
-        MAssertHappenedBuffer(range<1>{1}), MPropList(),
+      : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(),
+        MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()) {
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
