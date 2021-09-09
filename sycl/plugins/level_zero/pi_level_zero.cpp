@@ -170,7 +170,10 @@ enum DebugLevel {
 };
 
 // Controls Level Zero calls tracing.
-static int ZeDebug = ZE_DEBUG_NONE;
+static const int ZeDebug = [] {
+  const char *DebugMode = std::getenv("ZE_DEBUG");
+  return DebugMode ? std::atoi(DebugMode) : ZE_DEBUG_NONE;
+}();
 
 static void zePrint(const char *Format, ...) {
   if (ZeDebug & ZE_DEBUG_BASIC) {
@@ -901,7 +904,13 @@ static const zeCommandListBatchConfig ZeCommandListBatch = [] {
           break;
         ++Pos; // past the ":"
 
-        pi_uint32 Val = std::stoi(BatchConfig.substr(Pos));
+        pi_uint32 Val;
+        try {
+          Val = std::stoi(BatchConfig.substr(Pos));
+        } catch (...) {
+          zePrint("SYCL_PI_LEVEL_ZERO_BATCH_SIZE: failed to parse value\n");
+          break;
+        }
         switch (Ord) {
         case 1:
           Config.DynamicSizeStart = Val;
@@ -921,11 +930,13 @@ static const zeCommandListBatchConfig ZeCommandListBatch = [] {
         default:
           die("Unexpected batch config");
         }
-        printf("dynamic batch param #%d: %d\n", (int)Ord, (int)Val);
+        zePrint("SYCL_PI_LEVEL_ZERO_BATCH_SIZE: dynamic batch param #%d: %d\n",
+                (int)Ord, (int)Val);
       };
 
     } else {
       // Negative batch sizes are silently ignored.
+      zePrint("SYCL_PI_LEVEL_ZERO_BATCH_SIZE: ignored negative value\n");
     }
   }
   return Config;
@@ -1517,10 +1528,6 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   if (PiTraceValue == -1) { // Means print all PI traces
     PrintPiTrace = true;
   }
-
-  static const char *DebugMode = std::getenv("ZE_DEBUG");
-  static const int DebugModeValue = DebugMode ? std::stoi(DebugMode) : 0;
-  ZeDebug = DebugModeValue;
 
   if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
     ZeCallCount = new std::map<const char *, int>;
