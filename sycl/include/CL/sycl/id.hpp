@@ -19,9 +19,9 @@ namespace sycl {
 // Forward declarations
 namespace detail {
 template <typename TransformedArgType, int Dims, typename KernelType>
-struct RoundedRangeKernel;
+class RoundedRangeKernel;
 template <typename TransformedArgType, int Dims, typename KernelType>
-struct RoundedRangeKernelWithKH;
+class RoundedRangeKernelWithKH;
 } // namespace detail
 template <int dimensions> class range;
 template <int dimensions, bool with_offset> class item;
@@ -248,9 +248,9 @@ public:
 #undef __SYCL_GEN_OPT
 
 private:
-  template <typename, int, typename> friend struct detail::RoundedRangeKernel;
+  template <typename, int, typename> friend class detail::RoundedRangeKernel;
   template <typename, int, typename>
-  friend struct detail::RoundedRangeKernelWithKH;
+  friend class detail::RoundedRangeKernelWithKH;
   void set_allowed_range(range<dimensions> rnwi) { (void)rnwi[0]; }
 };
 

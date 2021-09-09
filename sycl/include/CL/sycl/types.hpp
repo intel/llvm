@@ -504,9 +504,9 @@ convertImpl(T Value) {
 
 // Forward declarations
 template <typename TransformedArgType, int Dims, typename KernelType>
-struct RoundedRangeKernel;
+class RoundedRangeKernel;
 template <typename TransformedArgType, int Dims, typename KernelType>
-struct RoundedRangeKernelWithKH;
+class RoundedRangeKernelWithKH;
 
 } // namespace detail
 
