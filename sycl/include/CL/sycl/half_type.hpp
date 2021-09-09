@@ -258,6 +258,7 @@ public:
   constexpr explicit half_v2(uint16_t x) : Buf(x) {}
 
   template <typename T> friend struct cl::sycl::detail::builtins_helper;
+
 private:
   uint16_t Buf;
 };
@@ -305,7 +306,7 @@ template <int NumElements> struct half_vec {
       StorageT s[NumElements];
 
   __SYCL_CONSTEXPR_HALF half_vec() {
-    for (int i = 0; i < NumElements; i++) 
+    for (int i = 0; i < NumElements; i++)
       s[i] = StorageT(0.0f);
   }
 };
