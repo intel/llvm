@@ -311,14 +311,14 @@ struct tpu_params<tpu::dpas, void, void, void, M, N, K> {
       {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 2, 8, 32},
       {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 4, 8, 32},
       {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 8, 8, 32},
-      {0, 0, 0, mt::fp16, mt::fp16, mt::fp64, 1, 8, 16},
-      {0, 0, 0, mt::fp16, mt::fp16, mt::fp64, 2, 8, 16},
-      {0, 0, 0, mt::fp16, mt::fp16, mt::fp64, 4, 8, 16},
-      {0, 0, 0, mt::fp16, mt::fp16, mt::fp64, 8, 8, 16},
-      {0, 0, 0, mt::bf16, mt::bf16, mt::fp64, 1, 8, 16},
-      {0, 0, 0, mt::bf16, mt::bf16, mt::fp64, 2, 8, 16},
-      {0, 0, 0, mt::bf16, mt::bf16, mt::fp64, 4, 8, 16},
-      {0, 0, 0, mt::bf16, mt::bf16, mt::fp64, 8, 8, 16},
+      {0, 0, 0, mt::fp16, mt::fp16, mt::fp32, 1, 8, 16},
+      {0, 0, 0, mt::fp16, mt::fp16, mt::fp32, 2, 8, 16},
+      {0, 0, 0, mt::fp16, mt::fp16, mt::fp32, 4, 8, 16},
+      {0, 0, 0, mt::fp16, mt::fp16, mt::fp32, 8, 8, 16},
+      {0, 0, 0, mt::bf16, mt::bf16, mt::fp32, 1, 8, 16},
+      {0, 0, 0, mt::bf16, mt::bf16, mt::fp32, 2, 8, 16},
+      {0, 0, 0, mt::bf16, mt::bf16, mt::fp32, 4, 8, 16},
+      {0, 0, 0, mt::bf16, mt::bf16, mt::fp32, 8, 8, 16},
   };
   static constexpr int num_combinations =
       sizeof(combinations) / sizeof(combination);
@@ -368,15 +368,15 @@ struct tpu_params<tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
     uint32_t nsize;
     uint32_t ksize;
   };
+  using mt = matrix_type;
   static constexpr combination combinations[] = {
-      {0, 0, 0, matrix_type(NULL), matrix_type(NULL), matrix_type(NULL), 1, 8,
-       (sizeof(Ta) == 1) ? 32 : 16},
-      {0, 0, 0, matrix_type(NULL), matrix_type(NULL), matrix_type(NULL), 2, 8,
-       (sizeof(Ta) == 1) ? 32 : 16},
-      {0, 0, 0, matrix_type(NULL), matrix_type(NULL), matrix_type(NULL), 4, 8,
-       (sizeof(Ta) == 1) ? 32 : 16},
-      {0, 0, 0, matrix_type(NULL), matrix_type(NULL), matrix_type(NULL), 8, 8,
-       (sizeof(Ta) == 1) ? 32 : 16},
+      // The types used in the initialization below are fake and not used. In
+      // this case, users already chose the types, they are only looking for the
+      // sizes
+      {0, 0, 0, mt::bf8, mt::bf8, mt::bf8, 1, 8, (sizeof(Ta) == 1) ? 32 : 16},
+      {0, 0, 0, mt::bf8, mt::bf8, mt::bf8, 2, 8, (sizeof(Ta) == 1) ? 32 : 16},
+      {0, 0, 0, mt::bf8, mt::bf8, mt::bf8, 4, 8, (sizeof(Ta) == 1) ? 32 : 16},
+      {0, 0, 0, mt::bf8, mt::bf8, mt::bf8, 8, 8, (sizeof(Ta) == 1) ? 32 : 16},
   };
   static constexpr int num_combinations =
       sizeof(combinations) / sizeof(combination);
