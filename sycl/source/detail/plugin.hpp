@@ -187,15 +187,13 @@ public:
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
   int getPlatformId(RT::PiPlatform Platform) {
-    if (!PiPlatforms)
-      PiPlatforms = new std::vector<RT::PiPlatform>;
-    auto It = std::find(PiPlatforms->begin(), PiPlatforms->end(), Platform);
-    if (It != PiPlatforms->end())
-      return It - PiPlatforms->begin();
+    auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
+    if (It != PiPlatforms.end())
+      return It - PiPlatforms.begin();
 
-    PiPlatforms->push_back(Platform);
+    PiPlatforms.push_back(Platform);
     LastDeviceIds.push_back(0);
-    return PiPlatforms->size() - 1;
+    return PiPlatforms.size() - 1;
   }
   // Device ids are consecutive across platforms within a plugin.
   // We need to return the same starting index for the given platform.
@@ -217,17 +215,10 @@ public:
     std::fill(LastDeviceIds.begin(), LastDeviceIds.end(), 0);
   }
 
-  void resetPiPlatforms() {
-    delete PiPlatforms;
-    PiPlatforms = nullptr;
-  }
-
   bool containsPiPlatform(RT::PiPlatform Platform) {
-    if (PiPlatforms) {
-      auto It = std::find(PiPlatforms->begin(), PiPlatforms->end(), Platform);
-      if (It != PiPlatforms->end())
-        return true;
-    }
+    auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
+    if (It != PiPlatforms.end())
+      return true;
     return false;
   }
 
@@ -237,7 +228,7 @@ private:
   void *MLibraryHandle; // the handle returned from dlopen
   std::shared_ptr<std::mutex> TracingMutex;
   // vector of PiPlatforms that belong to this plugin
-  std::vector<RT::PiPlatform> *PiPlatforms = nullptr;
+  std::vector<RT::PiPlatform> PiPlatforms;
   // represents the unique ids of the last device of each platform
   // index of this vector corresponds to the index in PiPlatforms vector.
   std::vector<int> LastDeviceIds;
