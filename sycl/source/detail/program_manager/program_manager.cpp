@@ -1359,6 +1359,11 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
           KernelIDs.push_back(KernelID->second);
         }
       }
+
+      // If the image does not contain any non-service kernels we can skip it.
+      if (KernelIDs.empty())
+        continue;
+
       // device_image_impl expects kernel ids to be sorted for fast search
       std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
 

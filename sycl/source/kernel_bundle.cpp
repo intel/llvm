@@ -167,14 +167,7 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
   // TODO: Add a check that all kernel ids are compatible with at least one
   // device in Devs
 
-  // Some device images may have service kernels that do not have kernel IDs.
-  // A kernel bundle must have at least one kernel, excluding service kernels.
-  return std::any_of(
-      DeviceImages.begin(), DeviceImages.end(),
-      [](device_image_plain DeviceImage) {
-        return detail::getSyclObjImpl(DeviceImage)->get_kernel_ids().size() !=
-               0;
-      });
+  return (bool)DeviceImages.size();
 }
 
 bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
