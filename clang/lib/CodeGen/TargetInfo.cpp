@@ -10286,6 +10286,11 @@ public:
 
   ABIArgInfo classifyKernelArgumentType(QualType Ty) const;
 
+  // Add new functions rather then overload existing so that these public APIs
+  // can't be blindly misused with wrong calling convention.
+  ABIArgInfo classifyRegcallReturnType(QualType RetTy) const;
+  ABIArgInfo classifyRegcallArgumentType(QualType RetTy) const;
+
   void computeInfo(CGFunctionInfo &FI) const override;
 
 private:
@@ -10305,17 +10310,114 @@ ABIArgInfo CommonSPIRABIInfo::classifyKernelArgumentType(QualType Ty) const {
 
 void CommonSPIRABIInfo::computeInfo(CGFunctionInfo &FI) const {
   llvm::CallingConv::ID CC = FI.getCallingConvention();
+  bool IsRegCall = CC == llvm::CallingConv::X86_RegCall;
 
-  if (!getCXXABI().classifyReturnType(FI))
-    FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
+  if (!getCXXABI().classifyReturnType(FI)) {
+    CanQualType RetT = FI.getReturnType();
+    FI.getReturnInfo() =
+        IsRegCall ? classifyRegcallReturnType(RetT) : classifyReturnType(RetT);
+  }
 
   for (auto &Arg : FI.arguments()) {
     if (CC == llvm::CallingConv::SPIR_KERNEL) {
       Arg.info = classifyKernelArgumentType(Arg.type);
     } else {
-      Arg.info = classifyArgumentType(Arg.type);
+      Arg.info = IsRegCall ? classifyRegcallArgumentType(Arg.type)
+                           : classifyArgumentType(Arg.type);
     }
   }
+}
+
+// The two functions below are based on AMDGPUABIInfo, but without any
+// restriction on the maximum number of arguments passed via registers.
+// SPIRV BEs are expected to further adjust the calling convention as
+// needed (use stack or byval-like passing) for some of the arguments.
+
+ABIArgInfo CommonSPIRABIInfo::classifyRegcallReturnType(QualType RetTy) const {
+  if (isAggregateTypeForABI(RetTy)) {
+    // Records with non-trivial destructors/copy-constructors should not be
+    // returned by value.
+    if (!getRecordArgABI(RetTy, getCXXABI())) {
+      // Ignore empty structs/unions.
+      if (isEmptyRecord(getContext(), RetTy, true))
+        return ABIArgInfo::getIgnore();
+
+      // Lower single-element structs to just return a regular value.
+      if (const Type *SeltTy = isSingleElementStruct(RetTy, getContext()))
+        return ABIArgInfo::getDirect(CGT.ConvertType(QualType(SeltTy, 0)));
+
+      if (const RecordType *RT = RetTy->getAs<RecordType>()) {
+        const RecordDecl *RD = RT->getDecl();
+        if (RD->hasFlexibleArrayMember())
+          return classifyReturnType(RetTy);
+      }
+
+      // Pack aggregates <= 8 bytes into a single vector register or pair.
+      // TODO make this parameterizeable/adjustable depending on spir target
+      // triple abi component.
+      uint64_t Size = getContext().getTypeSize(RetTy);
+      if (Size <= 16)
+        return ABIArgInfo::getDirect(llvm::Type::getInt16Ty(getVMContext()));
+
+      if (Size <= 32)
+        return ABIArgInfo::getDirect(llvm::Type::getInt32Ty(getVMContext()));
+
+      if (Size <= 64) {
+        llvm::Type *I32Ty = llvm::Type::getInt32Ty(getVMContext());
+        return ABIArgInfo::getDirect(llvm::ArrayType::get(I32Ty, 2));
+      }
+      return ABIArgInfo::getDirect();
+    }
+  }
+  // Otherwise just do the default thing.
+  return classifyReturnType(RetTy);
+}
+
+ABIArgInfo CommonSPIRABIInfo::classifyRegcallArgumentType(QualType Ty) const {
+  Ty = useFirstFieldIfTransparentUnion(Ty);
+
+  if (isAggregateTypeForABI(Ty)) {
+    // Records with non-trivial destructors/copy-constructors should not be
+    // passed by value.
+    if (auto RAA = getRecordArgABI(Ty, getCXXABI()))
+      return getNaturalAlignIndirect(Ty, RAA == CGCXXABI::RAA_DirectInMemory);
+
+    // Ignore empty structs/unions.
+    if (isEmptyRecord(getContext(), Ty, true))
+      return ABIArgInfo::getIgnore();
+
+    // Lower single-element structs to just pass a regular value. TODO: We
+    // could do reasonable-size multiple-element structs too, using getExpand(),
+    // though watch out for things like bitfields.
+    if (const Type *SeltTy = isSingleElementStruct(Ty, getContext()))
+      return ABIArgInfo::getDirect(CGT.ConvertType(QualType(SeltTy, 0)));
+
+    if (const RecordType *RT = Ty->getAs<RecordType>()) {
+      const RecordDecl *RD = RT->getDecl();
+      if (RD->hasFlexibleArrayMember())
+        return classifyArgumentType(Ty);
+    }
+
+    // Pack aggregates <= 8 bytes into single vector register or pair.
+    // TODO make this parameterizeable/adjustable depending on spir target
+    // triple abi component.
+    uint64_t Size = getContext().getTypeSize(Ty);
+    if (Size <= 64) {
+      if (Size <= 16)
+        return ABIArgInfo::getDirect(llvm::Type::getInt16Ty(getVMContext()));
+
+      if (Size <= 32)
+        return ABIArgInfo::getDirect(llvm::Type::getInt32Ty(getVMContext()));
+
+      // XXX: Should this be i64 instead, and should the limit increase?
+      llvm::Type *I32Ty = llvm::Type::getInt32Ty(getVMContext());
+      return ABIArgInfo::getDirect(llvm::ArrayType::get(I32Ty, 2));
+    }
+    return ABIArgInfo::getDirect();
+  }
+
+  // Otherwise just do the default thing.
+  return classifyArgumentType(Ty);
 }
 
 class SPIRVABIInfo : public CommonSPIRABIInfo {

@@ -128,8 +128,14 @@ public:
   }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
-                                                            : CCCR_Warning;
+    return (CC == CC_SpirFunction || CC == CC_OpenCLKernel ||
+            // Permit CC_X86RegCall which is used to mark external functions
+            // with
+            //   explicit simd or structure type arguments to pass them via
+            //   registers.
+            CC == CC_X86RegCall)
+               ? CCCR_OK
+               : CCCR_Warning;
   }
 
   CallingConv getDefaultCallingConv() const override {
@@ -286,8 +292,10 @@ public:
   }
 
   CallingConvCheckResult checkCallingConvention(CallingConv CC) const override {
-    if (CC == CC_X86VectorCall)
+    if (CC == CC_X86VectorCall || CC == CC_X86RegCall)
       // Permit CC_X86VectorCall which is used in Microsoft headers
+      // Permit CC_X86RegCall which is used to mark external functions with
+      //   explicit simd or structure type arguments to pass them via registers.
       return CCCR_OK;
     return (CC == CC_SpirFunction || CC == CC_OpenCLKernel) ? CCCR_OK
                                     : CCCR_Warning;

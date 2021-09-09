@@ -106,7 +106,7 @@ device-side API
 - `sycl::accessor::get_pointer()`. All memory accesses through an accessor are
 done via explicit APIs; e.g. `sycl::ext::intel::experimental::esimd::block_store(acc, offset)`
 - Accessors with offsets and/or access range specified
-- `sycl::sampler` and `sycl::stream` classes  
+- `sycl::sampler` and `sycl::stream` classes
 
 
 ## Core Explicit SIMD programming APIs
@@ -509,6 +509,114 @@ offset within the register file.
 ```cpp
 ESIMD_PRIVATE ESIMD_REGISTER(32) simd<int, 16> vc;
 ```
+<br>
+
+### `__regcall` Calling convention.
+
+ESIMD supports `__regcall` calling convention (CC) in addition to the default
+SPIR CC. This makes compiler try generate more efficient calls where arguments
+of aggregate types (classes, structs, unions) are passed and values returned via
+registers rather than memory. This matters most for external functions linked on
+binary level, such as functions called via `invoke_simd`. Arguments and return
+values ("ARV") are still passed or returned ("communicated") via a pointer if
+their type is either of the following:
+- a class or struct with deleted copy constructor
+- an empty class or struct
+- a class or struct ending with a flexible array member. For example:
+`class A { int x[]; }`
+
+ARVs of all other aggregate types are communicated by value or "per-field". Some
+fields can be replaced with 1 or 2 integer elements with total size being equal
+or exceeding the total size of fields. The rules for communicating ARVs of these
+types are part of the SPIR-V level function call ABI, and are described below.
+This part of the ABI is defined in terms of LLVM IR types - it basically
+tells how a specific source aggregate type is represented in resulting LLVM IR
+when it (the type) is part of a signature of a function with linkage defined.
+
+Compiler uses aggregate type "unwrapping process" for communicating ARVs.
+Unwarapping a structure with a single field results in the unwrapped type of
+that field, so unwrapping is a recursive process. Unwrapped primitive type is
+the primitive type itself. Structures with pointer fields are not unwrapped.
+For example, unwrapping `Y` defined as
+```cpp
+struct X { int x; };
+struct Y { X x; };
+```
+results in `i32`. Unwrapping `C4` defind as
+```cpp
+struct A4 { char x; };
+struct B4 { A4 a; };
+struct C4 {
+  B4 b;
+  int *ptr;
+};
+```
+results in { `%struct.B4`, `i32 addrspace(4)*` } pair of types. Thus,
+unwraping can result in a set of a structure, primitive or pointer types -
+the "unwrapped type set".
+
+- If the unwrapped type set has only primitive types, then compiler will "merge"
+  the resulting types if their total size is less or equal to 8 bytes. The total
+  size is calculated as `sizeof(<top aggregate type>)`, and structure field
+  alignment rules can make it greater then the simple sum of `sizeof` of all
+  the types resulted from unwrapping. [Total size] to [merged type]
+  correspondence is as follows:
+    * 1-2 bytes - short
+    * 3-4 bytes - int
+    * 5-8 bytes - array of 2 ints
+  Floating point types are not merged. Structure field alignment rules can
+  increase the calculated size compared to simple sum of `sizeof` of all the
+  types. If the total size exceeds 8, then:
+    * a source parameter of this type is broken down into multiple parameters
+      with types resulted from unwrapping
+    * a source return value of this type keeps it (the type)
+- If the unwrapped type set has non-primitive types, then merging does not
+  happen, in this case unwrapping for the return value does not happen as well.
+
+More examples of the unwrap/merge process:
+
+- For `C5` in
+    ```cpp
+    struct A5a { char x; char y; };
+    struct A5b { char x; char y; };
+    struct B5 { A5a a; A5b b; };
+    struct C5 {
+      B5 b1;
+      B5 b2;
+    };
+    ```
+    The result is `[2 x i32]`. It is not `i32` because of padding rules, as
+    sizeof(C5) is 8 for the SPIRV target.
+- For `C6`
+    ```cpp
+    struct B6 { int *a; int b; };
+    struct C6 {
+      B6 b;
+      char x;
+      char y;
+    
+      C6 foo() { return *this; }
+    };
+    ```
+    the result depends whether this is a type of an argument or a return value.
+    * Argument: { `%struct.B6`, `i8`, `i8` } type set
+    * Return value:  `%struct.C6` type. Where the struct LLVM types are defined
+      as:
+      ```
+      %struct.C6 = type { %struct.B6, i8, i8 }
+      %struct.B6 = type { i32 addrspace(4)*, i32 }
+      ``` 
+
+Note that `__regcall` does not guarantee passing through registers in the final
+generated code. For example, compiler will use a threshold for argument or
+return value size, which is implementation-defined. Values larger than the
+threshold will still be passed by pointer (memory).
+
+Example declaration of a `__regcall` function:
+```cpp
+simd<float, 8> __regcall SCALE(simd<float, 8> v);
+```
+The parameter and the return type in the ABI form will be `<8 x float>`.
 <br>
 
 ## Examples
