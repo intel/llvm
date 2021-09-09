@@ -88,6 +88,7 @@ and not recommended to use in production environment.
     option only affects the behaviour of the DPC++ compiler, not target-
     specific compilers (e.g. OpenCL/Level Zero/Nvidia/AMD target compilers)
     which may or may not perform additional inlining.
+    Default value is 225.
 
 ## Target toolchain options
 
