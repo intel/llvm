@@ -98,6 +98,7 @@ constexpr bool are_types_valid_amx() {
 }
 #endif
 
+// General query:
 // types are not given, no default sizes and no implicit matrix construction
 template <int M, int N, int K>
 struct tpu_params<tpu::amx, void, void, void, M, N, K> {
@@ -120,33 +121,19 @@ struct tpu_params<tpu::amx, void, void, void, M, N, K> {
     uint32_t nsize;
     uint32_t ksize;
   };
-  static constexpr int num_combinations = 5;
-  combination combinations[num_combinations];
-  constexpr tpu_params() : combinations() {
-    combinations[0].atype = matrix_type::sint8;
-    combinations[0].btype = matrix_type::sint8;
-    combinations[1].atype = matrix_type::sint8;
-    combinations[1].btype = matrix_type::uint8;
-    combinations[2].atype = matrix_type::uint8;
-    combinations[2].btype = matrix_type::sint8;
-    combinations[3].atype = matrix_type::uint8;
-    combinations[3].btype = matrix_type::uint8;
-    for (int i = 0; i < 4; i++) {
-      combinations[i].ctype = matrix_type::sint32;
-      combinations[i].max_msize = 16;
-      combinations[i].max_nsize = 16;
-      combinations[i].max_ksize = 64;
-    }
-    combinations[4].atype = matrix_type::bf16;
-    combinations[4].btype = matrix_type::bf16;
-    combinations[4].ctype = matrix_type::fp32;
-    combinations[4].max_msize = 16;
-    combinations[4].max_nsize = 16;
-    combinations[4].max_ksize = 32;
-  }
+  using mt = matrix_type;
+  static constexpr combination combinations[] = {
+      {16, 16, 64, mt::sint8, mt::sint8, mt::sint32},
+      {16, 16, 64, mt::sint8, mt::uint8, mt::sint32},
+      {16, 16, 64, mt::uint8, mt::sint8, mt::sint32},
+      {16, 16, 64, mt::uint8, mt::uint8, mt::sint32},
+      {16, 16, 32, mt::bf16, mt::bf16, mt::fp32}};
+  static constexpr int num_combinations =
+      sizeof(combinations) / sizeof(combination);
 };
 
 #if __cplusplus >= 201703L
+// Sizes-only query
 // Specialization for when only types are given, need to query only sizes
 template <typename Ta, typename Tb, typename Tc>
 struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
@@ -188,15 +175,13 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
     uint32_t nsize;
     uint32_t ksize;
   };
-  static constexpr int num_combinations = 1;
-  combination combinations[num_combinations];
-  constexpr tpu_params() : combinations() {
-    combinations[0].max_msize = 16;
-    combinations[0].max_nsize = 16;
-    combinations[0].max_ksize = (sizeof(Ta) == 1) ? 64 : 32;
-  }
+  static constexpr combination combinations[] = {
+      {16, 16, (sizeof(Ta) == 1) ? 64 : 32}};
+  static constexpr int num_combinations =
+      sizeof(combinations) / sizeof(combination);
 };
 
+// Valid or not:
 // Specialization when both types and sizes are given
 template <typename Ta, typename Tb, typename Tc, int M, int N, int K>
 struct tpu_params<
@@ -229,45 +214,10 @@ struct tpu_params<
   using joint_matrix_c =
       joint_matrix<Tc, defaultM, defaultN, matrix_layout::row_major, Group>;
 
-  bool dynamic_p = false; // should be true in future implementations because
-                          // AMX hardware supports dynamic sizes
+  bool dynamic_p = false; // should be true in future implementations
+                          // because AMX hardware supports dynamic sizes
   uint32_t numtiles = 8;
   scope_t scope = scope_t::sub_group;
-  struct combination {
-    uint32_t max_msize;
-    uint32_t max_nsize;
-    uint32_t max_ksize;
-    matrix_type atype;
-    matrix_type btype;
-    matrix_type ctype;
-    uint32_t msize;
-    uint32_t nsize;
-    uint32_t ksize;
-  };
-  static constexpr int num_combinations = 5;
-  combination combinations[num_combinations];
-  constexpr tpu_params() : combinations() {
-    combinations[0].atype = matrix_type::sint8;
-    combinations[0].btype = matrix_type::sint8;
-    combinations[1].atype = matrix_type::sint8;
-    combinations[1].btype = matrix_type::uint8;
-    combinations[2].atype = matrix_type::uint8;
-    combinations[2].btype = matrix_type::sint8;
-    combinations[3].atype = matrix_type::uint8;
-    combinations[3].btype = matrix_type::uint8;
-    for (int i = 0; i < 4; i++) {
-      combinations[i].ctype = matrix_type::sint32;
-      combinations[i].max_msize = 16;
-      combinations[i].max_nsize = 16;
-      combinations[i].max_ksize = 64;
-    }
-    combinations[4].atype = matrix_type::bf16;
-    combinations[4].btype = matrix_type::bf16;
-    combinations[4].ctype = matrix_type::fp32;
-    combinations[4].max_msize = 16;
-    combinations[4].max_nsize = 16;
-    combinations[4].max_ksize = 32;
-  }
 };
 
 // DPAS case
@@ -320,6 +270,7 @@ constexpr bool are_types_valid_dpas() {
 }
 #endif
 
+// General Query
 // specialization for when types are not given --> no default values
 template <int M, int N, int K>
 struct tpu_params<tpu::dpas, void, void, void, M, N, K> {
@@ -342,84 +293,38 @@ struct tpu_params<tpu::dpas, void, void, void, M, N, K> {
     uint32_t nsize;
     uint32_t ksize;
   };
-  static constexpr int num_combinations = 24;
-  combination combinations[num_combinations];
-  constexpr tpu_params() : combinations() {
-    int i = 0;
-    combinations[i].atype = matrix_type::sint8;
-    combinations[i].btype = matrix_type::sint8;
-    combinations[i].ctype = matrix_type::sint32;
-    combinations[i].msize = 1;
-    combinations[i + 1].msize = 2;
-    combinations[i + 2].msize = 4;
-    combinations[i + 3].msize = 8;
-    for (int ii = 0; ii < 4; ii++) {
-      combinations[i + ii].ksize = 32;
-      combinations[i + ii].nsize = 8;
-    }
-    i = 4;
-    combinations[i].atype = matrix_type::sint8;
-    combinations[i].btype = matrix_type::uint8;
-    combinations[i].ctype = matrix_type::sint32;
-    combinations[i].msize = 1;
-    combinations[i + 1].msize = 2;
-    combinations[i + 2].msize = 4;
-    combinations[i + 3].msize = 8;
-    for (int ii = 0; ii < 4; ii++) {
-      combinations[i + ii].ksize = 32;
-      combinations[i + ii].nsize = 8;
-    }
-    i = 8;
-    combinations[i].atype = matrix_type::uint8;
-    combinations[i].btype = matrix_type::sint8;
-    combinations[i].ctype = matrix_type::sint32;
-    combinations[i].msize = 1;
-    combinations[i + 1].msize = 2;
-    combinations[i + 2].msize = 4;
-    combinations[i + 3].msize = 8;
-    for (int ii = 0; ii < 4; ii++) {
-      combinations[i + ii].ksize = 32;
-      combinations[i + ii].nsize = 8;
-    }
-    i = 12;
-    combinations[i].atype = matrix_type::uint8;
-    combinations[i].btype = matrix_type::uint8;
-    combinations[i].ctype = matrix_type::sint32;
-    combinations[i].msize = 1;
-    combinations[i + 1].msize = 2;
-    combinations[i + 2].msize = 4;
-    combinations[i + 3].msize = 8;
-    for (int ii = 0; ii < 4; ii++) {
-      combinations[i + ii].ksize = 32;
-      combinations[i + ii].nsize = 8;
-    }
-    i = 16;
-    combinations[i].atype = matrix_type::fp16;
-    combinations[i].btype = matrix_type::fp16;
-    combinations[i].ctype = matrix_type::fp64;
-    combinations[i].msize = 1;
-    combinations[i + 1].msize = 2;
-    combinations[i + 2].msize = 4;
-    combinations[i + 3].msize = 8;
-    for (int ii = 0; ii < 4; ii++) {
-      combinations[i + ii].ksize = 16;
-      combinations[i + ii].nsize = 8;
-    }
-    i = 20;
-    combinations[i].atype = matrix_type::bf16;
-    combinations[i].btype = matrix_type::bf16;
-    combinations[i].ctype = matrix_type::fp64;
-    combinations[i].msize = 1;
-    combinations[i + 1].msize = 2;
-    combinations[i + 2].msize = 4;
-    combinations[i + 3].msize = 8;
-    for (int ii = 0; ii < 4; ii++) {
-      combinations[i + ii].ksize = 16;
-      combinations[i + ii].nsize = 8;
-    }
-  }
+  using mt = matrix_type;
+  static constexpr combination combinations[] = {
+      {0, 0, 0, mt::sint8, mt::sint8, mt::sint32, 1, 8, 32},
+      {0, 0, 0, mt::sint8, mt::sint8, mt::sint32, 2, 8, 32},
+      {0, 0, 0, mt::sint8, mt::sint8, mt::sint32, 4, 8, 32},
+      {0, 0, 0, mt::sint8, mt::sint8, mt::sint32, 8, 8, 32},
+      {0, 0, 0, mt::sint8, mt::uint8, mt::sint32, 1, 8, 32},
+      {0, 0, 0, mt::sint8, mt::uint8, mt::sint32, 2, 8, 32},
+      {0, 0, 0, mt::sint8, mt::uint8, mt::sint32, 4, 8, 32},
+      {0, 0, 0, mt::sint8, mt::uint8, mt::sint32, 8, 8, 32},
+      {0, 0, 0, mt::uint8, mt::sint8, mt::sint32, 1, 8, 32},
+      {0, 0, 0, mt::uint8, mt::sint8, mt::sint32, 2, 8, 32},
+      {0, 0, 0, mt::uint8, mt::sint8, mt::sint32, 4, 8, 32},
+      {0, 0, 0, mt::uint8, mt::sint8, mt::sint32, 8, 8, 32},
+      {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 1, 8, 32},
+      {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 2, 8, 32},
+      {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 4, 8, 32},
+      {0, 0, 0, mt::uint8, mt::uint8, mt::sint32, 8, 8, 32},
+      {0, 0, 0, mt::fp16, mt::fp16, mt::fp64, 1, 8, 16},
+      {0, 0, 0, mt::fp16, mt::fp16, mt::fp64, 2, 8, 16},
+      {0, 0, 0, mt::fp16, mt::fp16, mt::fp64, 4, 8, 16},
+      {0, 0, 0, mt::fp16, mt::fp16, mt::fp64, 8, 8, 16},
+      {0, 0, 0, mt::bf16, mt::bf16, mt::fp64, 1, 8, 16},
+      {0, 0, 0, mt::bf16, mt::bf16, mt::fp64, 2, 8, 16},
+      {0, 0, 0, mt::bf16, mt::bf16, mt::fp64, 4, 8, 16},
+      {0, 0, 0, mt::bf16, mt::bf16, mt::fp64, 8, 8, 16},
+  };
+  static constexpr int num_combinations =
+      sizeof(combinations) / sizeof(combination);
 };
 
+// Sizes-only query:
 // Specialization for when only types are given, need to query only sizes
 
 #if __cplusplus >= 201703L
@@ -463,21 +368,21 @@ struct tpu_params<tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
     uint32_t nsize;
     uint32_t ksize;
   };
-  static constexpr int num_combinations = 4;
-  combination combinations[num_combinations];
-  constexpr tpu_params() : combinations() {
-    int i = 0;
-    combinations[i].msize = 1;
-    combinations[i + 1].msize = 2;
-    combinations[i + 2].msize = 4;
-    combinations[i + 3].msize = 8;
-    for (int ii = 0; ii < 4; ii++) {
-      combinations[i + ii].ksize = ((sizeof(Ta) == 1) ? 32 : 16);
-      combinations[i + ii].nsize = 8;
-    }
-  }
+  static constexpr combination combinations[] = {
+      {0, 0, 0, matrix_type(NULL), matrix_type(NULL), matrix_type(NULL), 1, 8,
+       (sizeof(Ta) == 1) ? 32 : 16},
+      {0, 0, 0, matrix_type(NULL), matrix_type(NULL), matrix_type(NULL), 2, 8,
+       (sizeof(Ta) == 1) ? 32 : 16},
+      {0, 0, 0, matrix_type(NULL), matrix_type(NULL), matrix_type(NULL), 4, 8,
+       (sizeof(Ta) == 1) ? 32 : 16},
+      {0, 0, 0, matrix_type(NULL), matrix_type(NULL), matrix_type(NULL), 8, 8,
+       (sizeof(Ta) == 1) ? 32 : 16},
+  };
+  static constexpr int num_combinations =
+      sizeof(combinations) / sizeof(combination);
 };
 
+// Valid or not:
 // Specialization when both types and sizes are given
 template <typename Ta, typename Tb, typename Tc, int M, int N, int K>
 struct tpu_params<
@@ -509,93 +414,6 @@ struct tpu_params<
   bool dynamic_p = false; // no dynamic allocation on the GPU
   uint32_t numtiles = -1; // does not apply for DPAS
   scope_t scope = scope_t::sub_group;
-  struct combination {
-    uint32_t max_msize;
-    uint32_t max_nsize;
-    uint32_t max_ksize;
-    matrix_type atype;
-    matrix_type btype;
-    matrix_type ctype;
-    uint32_t msize;
-    uint32_t nsize;
-    uint32_t ksize;
-  };
-  static constexpr int num_combinations = 24;
-  combination combinations[num_combinations];
-  constexpr tpu_params() : combinations() {
-    int i = 0;
-    combinations[i].atype = matrix_type::sint8;
-    combinations[i].btype = matrix_type::sint8;
-    combinations[i].ctype = matrix_type::sint32;
-    combinations[i].msize = 1;
-    combinations[i + 1].msize = 2;
-    combinations[i + 2].msize = 4;
-    combinations[i + 3].msize = 8;
-    for (int ii = 0; ii < 4; ii++) {
-      combinations[i + ii].ksize = 32;
-      combinations[i + ii].nsize = 8;
-    }
-    i = 4;
-    combinations[i].atype = matrix_type::sint8;
-    combinations[i].btype = matrix_type::uint8;
-    combinations[i].ctype = matrix_type::sint32;
-    combinations[i].msize = 1;
-    combinations[i + 1].msize = 2;
-    combinations[i + 2].msize = 4;
-    combinations[i + 3].msize = 8;
-    for (int ii = 0; ii < 4; ii++) {
-      combinations[i + ii].ksize = 32;
-      combinations[i + ii].nsize = 8;
-    }
-    i = 8;
-    combinations[i].atype = matrix_type::uint8;
-    combinations[i].btype = matrix_type::sint8;
-    combinations[i].ctype = matrix_type::sint32;
-    combinations[i].msize = 1;
-    combinations[i + 1].msize = 2;
-    combinations[i + 2].msize = 4;
-    combinations[i + 3].msize = 8;
-    for (int ii = 0; ii < 4; ii++) {
-      combinations[i + ii].ksize = 32;
-      combinations[i + ii].nsize = 8;
-    }
-    i = 12;
-    combinations[i].atype = matrix_type::uint8;
-    combinations[i].btype = matrix_type::uint8;
-    combinations[i].ctype = matrix_type::sint32;
-    combinations[i].msize = 1;
-    combinations[i + 1].msize = 2;
-    combinations[i + 2].msize = 4;
-    combinations[i + 3].msize = 8;
-    for (int ii = 0; ii < 4; ii++) {
-      combinations[i + ii].ksize = 32;
-      combinations[i + ii].nsize = 8;
-    }
-    i = 16;
-    combinations[i].atype = matrix_type::fp16;
-    combinations[i].btype = matrix_type::fp16;
-    combinations[i].ctype = matrix_type::fp64;
-    combinations[i].msize = 1;
-    combinations[i + 1].msize = 2;
-    combinations[i + 2].msize = 4;
-    combinations[i + 3].msize = 8;
-    for (int ii = 0; ii < 4; ii++) {
-      combinations[i + ii].ksize = 16;
-      combinations[i + ii].nsize = 8;
-    }
-    i = 20;
-    combinations[i].atype = matrix_type::bf16;
-    combinations[i].btype = matrix_type::bf16;
-    combinations[i].ctype = matrix_type::fp64;
-    combinations[i].msize = 1;
-    combinations[i + 1].msize = 2;
-    combinations[i + 2].msize = 4;
-    combinations[i + 3].msize = 8;
-    for (int ii = 0; ii < 4; ii++) {
-      combinations[i + ii].ksize = 16;
-      combinations[i + ii].nsize = 8;
-    }
-  }
 };
 #endif
 } // namespace experimental::matrix
