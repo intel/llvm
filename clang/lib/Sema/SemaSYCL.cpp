@@ -2269,7 +2269,7 @@ public:
     return handleSpecialType(FieldTy);
   }
 
-  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &,
+  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                              QualType FieldTy) final {
     return handleSpecialType(FieldTy);
   }
