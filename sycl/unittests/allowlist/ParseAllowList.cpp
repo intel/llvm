@@ -167,7 +167,8 @@ TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
   sycl::detail::AllowListParsedT ExpectedValue{
       {{"BackendName", "host"}},       {{"BackendName", "opencl"}},
       {{"BackendName", "level_zero"}}, {{"BackendName", "cuda"}},
-      {{"BackendName", "rocm"}},       {{"BackendName", "*"}}};
+      {{"BackendName", "rocm"}},       {{"BackendName", "esimd_cpu"}},
+      {{"BackendName", "*"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
 
