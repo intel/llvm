@@ -2170,7 +2170,7 @@ def : MutualExclusions<[IntelFPGADoublePump, IntelFPGASinglePump,
                         IntelFPGARegister]>;
 
 // One integral argument.
-def IntelFPGABankWidth : Attr {
+def IntelFPGABankWidth : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","bankwidth">,
                    CXX11<"intel","bankwidth">];
   let Args = [ExprArgument<"Value">];
@@ -2181,7 +2181,7 @@ def IntelFPGABankWidth : Attr {
 }
 def : MutualExclusions<[IntelFPGARegister, IntelFPGABankWidth]>;
 
-def IntelFPGANumBanks : Attr {
+def IntelFPGANumBanks : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","numbanks">,
                    CXX11<"intel","numbanks">];
   let Args = [ExprArgument<"Value">];
@@ -2260,6 +2260,7 @@ def IntelFPGABankBits : Attr {
   let Documentation = [IntelFPGABankBitsDocs];
 }
 def : MutualExclusions<[IntelFPGARegister, IntelFPGABankBits]>;
+def : MutualExclusions<[IntelFPGARegister, IntelFPGANumBanks]>;
 
 def IntelFPGAForcePow2Depth : InheritableAttr {
   let Spellings = [CXX11<"intelfpga","force_pow2_depth">,
@@ -2985,11 +2986,10 @@ def NoDeref : TypeAttr {
   let Documentation = [NoDerefDocs];
 }
 
-// Default arguments can only be used with the intel::reqd_work_group_size or
-// sycl::reqd_work_group_size spellings.
+// Default arguments can only be used with the sycl::reqd_work_group_size
+// spelling.
 def ReqdWorkGroupSize : InheritableAttr {
   let Spellings = [GNU<"reqd_work_group_size">,
-                   CXX11<"intel", "reqd_work_group_size">,
                    CXX11<"cl", "reqd_work_group_size">,
                    CXX11<"sycl", "reqd_work_group_size">];
   let Args = [ExprArgument<"XDim">,
@@ -3605,6 +3605,13 @@ def NoSanitizeSpecific : InheritableAttr {
   let Documentation = [NoSanitizeAddressDocs, NoSanitizeThreadDocs,
                        NoSanitizeMemoryDocs];
   let ASTNode = 0;
+}
+
+def DisableSanitizerInstrumentation : InheritableAttr {
+  let Spellings = [Clang<"disable_sanitizer_instrumentation">];
+  let Subjects = SubjectList<[Function, ObjCMethod, GlobalVar]>;
+  let Documentation = [DisableSanitizerInstrumentationDocs];
+  let SimpleHandler = 1;
 }
 
 def CFICanonicalJumpTable : InheritableAttr {
@@ -4489,4 +4496,13 @@ def EnforceTCBLeaf : InheritableAttr {
   let Args = [StringArgument<"TCBName">];
   let Documentation = [EnforceTCBLeafDocs];
   bit InheritEvenIfAlreadyPresent = 1;
+}
+
+def Error : InheritableAttr {
+  let Spellings = [GCC<"error">, GCC<"warning">];
+  let Accessors = [Accessor<"isError", [GCC<"error">]>,
+                   Accessor<"isWarning", [GCC<"warning">]>];
+  let Args = [StringArgument<"UserDiagnostic">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [ErrorAttrDocs];
 }

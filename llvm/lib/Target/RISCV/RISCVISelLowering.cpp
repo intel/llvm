@@ -199,6 +199,9 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::USUBO, MVT::i32, Custom);
     setOperationAction(ISD::UADDSAT, MVT::i32, Custom);
     setOperationAction(ISD::USUBSAT, MVT::i32, Custom);
+  } else {
+    setLibcallName(RTLIB::MUL_I128, nullptr);
+    setLibcallName(RTLIB::MULO_I64, nullptr);
   }
 
   if (!Subtarget.hasStdExtM()) {
@@ -791,6 +794,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
         setOperationAction(ISD::EXTRACT_SUBVECTOR, VT, Custom);
 
         setOperationAction(ISD::BUILD_VECTOR, VT, Custom);
+        setOperationAction(ISD::CONCAT_VECTORS, VT, Custom);
         setOperationAction(ISD::VECTOR_SHUFFLE, VT, Custom);
         setOperationAction(ISD::INSERT_VECTOR_ELT, VT, Custom);
         setOperationAction(ISD::EXTRACT_VECTOR_ELT, VT, Custom);
@@ -1204,8 +1208,10 @@ static bool useRVVForFixedLengthVectorVT(MVT VT,
 
   unsigned MinVLen = Subtarget.getMinRVVVectorSizeInBits();
 
+  MVT EltVT = VT.getVectorElementType();
+
   // Don't use RVV for vectors we cannot scalarize if required.
-  switch (VT.getVectorElementType().SimpleTy) {
+  switch (EltVT.SimpleTy) {
   // i1 is supported but has different rules.
   default:
     return false;
@@ -1234,6 +1240,10 @@ static bool useRVVForFixedLengthVectorVT(MVT VT,
     break;
   }
 
+  // Reject elements larger than ELEN.
+  if (EltVT.getSizeInBits() > Subtarget.getMaxELENForFixedLengthVectors())
+    return false;
+
   unsigned LMul = divideCeil(VT.getSizeInBits(), MinVLen);
   // Don't use RVV for types that don't fit.
   if (LMul > Subtarget.getMaxLMULForFixedLengthVectors())
@@ -1260,6 +1270,7 @@ static MVT getContainerForFixedLengthVector(const TargetLowering &TLI, MVT VT,
          "Expected legal fixed length vector!");
 
   unsigned MinVLen = Subtarget.getMinRVVVectorSizeInBits();
+  unsigned MaxELen = Subtarget.getMaxELENForFixedLengthVectors();
 
   MVT EltVT = VT.getVectorElementType();
   switch (EltVT.SimpleTy) {
@@ -1274,10 +1285,12 @@ static MVT getContainerForFixedLengthVector(const TargetLowering &TLI, MVT VT,
   case MVT::f32:
   case MVT::f64: {
     // We prefer to use LMUL=1 for VLEN sized types. Use fractional lmuls for
-    // narrower types, but we can't have a fractional LMUL with demoninator less
-    // than 64/SEW.
+    // narrower types. The smallest fractional LMUL we support is 8/ELEN. Within
+    // each fractional LMUL we support SEW between 8 and LMUL*ELEN.
     unsigned NumElts =
-        divideCeil(VT.getVectorNumElements(), MinVLen / RISCV::RVVBitsPerBlock);
+        (VT.getVectorNumElements() * RISCV::RVVBitsPerBlock) / MinVLen;
+    NumElts = std::max(NumElts, RISCV::RVVBitsPerBlock / MaxELen);
+    assert(isPowerOf2_32(NumElts) && "Expected power of 2 NumElts");
     return MVT::getScalableVectorVT(EltVT, NumElts);
   }
   }
@@ -5053,8 +5066,6 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
   case ISD::SUB:
     assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
            "Unexpected custom legalisation");
-    if (N->getOperand(1).getOpcode() == ISD::Constant)
-      return;
     Results.push_back(customLegalizeToWOpWithSExt(N, DAG));
     break;
   case ISD::SHL:
@@ -5062,9 +5073,26 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
   case ISD::SRL:
     assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
            "Unexpected custom legalisation");
-    if (N->getOperand(1).getOpcode() == ISD::Constant)
-      return;
-    Results.push_back(customLegalizeToWOp(N, DAG));
+    if (N->getOperand(1).getOpcode() != ISD::Constant) {
+      Results.push_back(customLegalizeToWOp(N, DAG));
+      break;
+    }
+
+    // Custom legalize ISD::SHL by placing a SIGN_EXTEND_INREG after. This is
+    // similar to customLegalizeToWOpWithSExt, but we must zero_extend the
+    // shift amount.
+    if (N->getOpcode() == ISD::SHL) {
+      SDLoc DL(N);
+      SDValue NewOp0 =
+          DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, N->getOperand(0));
+      SDValue NewOp1 =
+          DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i64, N->getOperand(1));
+      SDValue NewWOp = DAG.getNode(ISD::SHL, DL, MVT::i64, NewOp0, NewOp1);
+      SDValue NewRes = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i64, NewWOp,
+                                   DAG.getValueType(MVT::i32));
+      Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, NewRes));
+    }
+
     break;
   case ISD::ROTL:
   case ISD::ROTR:
@@ -5970,6 +5998,20 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
                                                DAGCombinerInfo &DCI) const {
   SelectionDAG &DAG = DCI.DAG;
 
+  // Helper to call SimplifyDemandedBits on an operand of N where only some low
+  // bits are demanded. N will be added to the Worklist if it was not deleted.
+  // Caller should return SDValue(N, 0) if this returns true.
+  auto SimplifyDemandedLowBitsHelper = [&](unsigned OpNo, unsigned LowBits) {
+    SDValue Op = N->getOperand(OpNo);
+    APInt Mask = APInt::getLowBitsSet(Op.getValueSizeInBits(), LowBits);
+    if (!SimplifyDemandedBits(Op, Mask, DCI))
+      return false;
+
+    if (N->getOpcode() != ISD::DELETED_NODE)
+      DCI.AddToWorklist(N);
+    return true;
+  };
+
   switch (N->getOpcode()) {
   default:
     break;
@@ -6021,136 +6063,85 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
   case RISCVISD::ROLW:
   case RISCVISD::RORW: {
     // Only the lower 32 bits of LHS and lower 5 bits of RHS are read.
-    SDValue LHS = N->getOperand(0);
-    SDValue RHS = N->getOperand(1);
-    APInt LHSMask = APInt::getLowBitsSet(LHS.getValueSizeInBits(), 32);
-    APInt RHSMask = APInt::getLowBitsSet(RHS.getValueSizeInBits(), 5);
-    if (SimplifyDemandedBits(N->getOperand(0), LHSMask, DCI) ||
-        SimplifyDemandedBits(N->getOperand(1), RHSMask, DCI)) {
-      if (N->getOpcode() != ISD::DELETED_NODE)
-        DCI.AddToWorklist(N);
+    if (SimplifyDemandedLowBitsHelper(0, 32) ||
+        SimplifyDemandedLowBitsHelper(1, 5))
       return SDValue(N, 0);
-    }
     break;
   }
   case RISCVISD::CLZW:
   case RISCVISD::CTZW: {
     // Only the lower 32 bits of the first operand are read
-    SDValue Op0 = N->getOperand(0);
-    APInt Mask = APInt::getLowBitsSet(Op0.getValueSizeInBits(), 32);
-    if (SimplifyDemandedBits(Op0, Mask, DCI)) {
-      if (N->getOpcode() != ISD::DELETED_NODE)
-        DCI.AddToWorklist(N);
+    if (SimplifyDemandedLowBitsHelper(0, 32))
       return SDValue(N, 0);
-    }
     break;
   }
   case RISCVISD::FSL:
   case RISCVISD::FSR: {
     // Only the lower log2(Bitwidth)+1 bits of the the shift amount are read.
-    SDValue ShAmt = N->getOperand(2);
-    unsigned BitWidth = ShAmt.getValueSizeInBits();
+    unsigned BitWidth = N->getOperand(2).getValueSizeInBits();
     assert(isPowerOf2_32(BitWidth) && "Unexpected bit width");
-    APInt ShAmtMask(BitWidth, (BitWidth * 2) - 1);
-    if (SimplifyDemandedBits(ShAmt, ShAmtMask, DCI)) {
-      if (N->getOpcode() != ISD::DELETED_NODE)
-        DCI.AddToWorklist(N);
+    if (SimplifyDemandedLowBitsHelper(2, Log2_32(BitWidth) + 1))
       return SDValue(N, 0);
-    }
     break;
   }
   case RISCVISD::FSLW:
   case RISCVISD::FSRW: {
     // Only the lower 32 bits of Values and lower 6 bits of shift amount are
     // read.
-    SDValue Op0 = N->getOperand(0);
-    SDValue Op1 = N->getOperand(1);
-    SDValue ShAmt = N->getOperand(2);
-    APInt OpMask = APInt::getLowBitsSet(Op0.getValueSizeInBits(), 32);
-    APInt ShAmtMask = APInt::getLowBitsSet(ShAmt.getValueSizeInBits(), 6);
-    if (SimplifyDemandedBits(Op0, OpMask, DCI) ||
-        SimplifyDemandedBits(Op1, OpMask, DCI) ||
-        SimplifyDemandedBits(ShAmt, ShAmtMask, DCI)) {
-      if (N->getOpcode() != ISD::DELETED_NODE)
-        DCI.AddToWorklist(N);
+    if (SimplifyDemandedLowBitsHelper(0, 32) ||
+        SimplifyDemandedLowBitsHelper(1, 32) ||
+        SimplifyDemandedLowBitsHelper(2, 6))
       return SDValue(N, 0);
-    }
     break;
   }
   case RISCVISD::GREV:
   case RISCVISD::GORC: {
     // Only the lower log2(Bitwidth) bits of the the shift amount are read.
-    SDValue ShAmt = N->getOperand(1);
-    unsigned BitWidth = ShAmt.getValueSizeInBits();
+    unsigned BitWidth = N->getOperand(1).getValueSizeInBits();
     assert(isPowerOf2_32(BitWidth) && "Unexpected bit width");
-    APInt ShAmtMask(BitWidth, BitWidth - 1);
-    if (SimplifyDemandedBits(ShAmt, ShAmtMask, DCI)) {
-      if (N->getOpcode() != ISD::DELETED_NODE)
-        DCI.AddToWorklist(N);
+    if (SimplifyDemandedLowBitsHelper(1, Log2_32(BitWidth)))
       return SDValue(N, 0);
-    }
 
     return combineGREVI_GORCI(N, DCI.DAG);
   }
   case RISCVISD::GREVW:
   case RISCVISD::GORCW: {
     // Only the lower 32 bits of LHS and lower 5 bits of RHS are read.
-    SDValue LHS = N->getOperand(0);
-    SDValue RHS = N->getOperand(1);
-    APInt LHSMask = APInt::getLowBitsSet(LHS.getValueSizeInBits(), 32);
-    APInt RHSMask = APInt::getLowBitsSet(RHS.getValueSizeInBits(), 5);
-    if (SimplifyDemandedBits(LHS, LHSMask, DCI) ||
-        SimplifyDemandedBits(RHS, RHSMask, DCI)) {
-      if (N->getOpcode() != ISD::DELETED_NODE)
-        DCI.AddToWorklist(N);
+    if (SimplifyDemandedLowBitsHelper(0, 32) ||
+        SimplifyDemandedLowBitsHelper(1, 5))
       return SDValue(N, 0);
-    }
 
     return combineGREVI_GORCI(N, DCI.DAG);
   }
   case RISCVISD::SHFL:
   case RISCVISD::UNSHFL: {
-    // Only the lower log2(Bitwidth) bits of the the shift amount are read.
-    SDValue ShAmt = N->getOperand(1);
-    unsigned BitWidth = ShAmt.getValueSizeInBits();
+    // Only the lower log2(Bitwidth)-1 bits of the the shift amount are read.
+    unsigned BitWidth = N->getOperand(1).getValueSizeInBits();
     assert(isPowerOf2_32(BitWidth) && "Unexpected bit width");
-    APInt ShAmtMask(BitWidth, (BitWidth / 2) - 1);
-    if (SimplifyDemandedBits(ShAmt, ShAmtMask, DCI)) {
-      if (N->getOpcode() != ISD::DELETED_NODE)
-        DCI.AddToWorklist(N);
+    if (SimplifyDemandedLowBitsHelper(1, Log2_32(BitWidth) - 1))
       return SDValue(N, 0);
-    }
 
     break;
   }
   case RISCVISD::SHFLW:
   case RISCVISD::UNSHFLW: {
-    // Only the lower 32 bits of LHS and lower 5 bits of RHS are read.
+    // Only the lower 32 bits of LHS and lower 4 bits of RHS are read.
     SDValue LHS = N->getOperand(0);
     SDValue RHS = N->getOperand(1);
     APInt LHSMask = APInt::getLowBitsSet(LHS.getValueSizeInBits(), 32);
     APInt RHSMask = APInt::getLowBitsSet(RHS.getValueSizeInBits(), 4);
-    if (SimplifyDemandedBits(LHS, LHSMask, DCI) ||
-        SimplifyDemandedBits(RHS, RHSMask, DCI)) {
-      if (N->getOpcode() != ISD::DELETED_NODE)
-        DCI.AddToWorklist(N);
+    if (SimplifyDemandedLowBitsHelper(0, 32) ||
+        SimplifyDemandedLowBitsHelper(1, 4))
       return SDValue(N, 0);
-    }
 
     break;
   }
   case RISCVISD::BCOMPRESSW:
   case RISCVISD::BDECOMPRESSW: {
     // Only the lower 32 bits of LHS and RHS are read.
-    SDValue LHS = N->getOperand(0);
-    SDValue RHS = N->getOperand(1);
-    APInt Mask = APInt::getLowBitsSet(LHS.getValueSizeInBits(), 32);
-    if (SimplifyDemandedBits(LHS, Mask, DCI) ||
-        SimplifyDemandedBits(RHS, Mask, DCI)) {
-      if (N->getOpcode() != ISD::DELETED_NODE)
-        DCI.AddToWorklist(N);
+    if (SimplifyDemandedLowBitsHelper(0, 32) ||
+        SimplifyDemandedLowBitsHelper(1, 32))
       return SDValue(N, 0);
-    }
 
     break;
   }
@@ -6723,6 +6714,12 @@ unsigned RISCVTargetLowering::ComputeNumSignBitsForTargetNode(
   switch (Op.getOpcode()) {
   default:
     break;
+  case RISCVISD::SELECT_CC: {
+    unsigned Tmp = DAG.ComputeNumSignBits(Op.getOperand(3), DemandedElts, Depth + 1);
+    if (Tmp == 1) return 1;  // Early out.
+    unsigned Tmp2 = DAG.ComputeNumSignBits(Op.getOperand(4), DemandedElts, Depth + 1);
+    return std::min(Tmp, Tmp2);
+  }
   case RISCVISD::SLLW:
   case RISCVISD::SRAW:
   case RISCVISD::SRLW:
@@ -9075,6 +9072,29 @@ bool RISCVTargetLowering::decomposeMulByConstant(LLVMContext &Context, EVT VT,
   }
 
   return false;
+}
+
+bool RISCVTargetLowering::isMulAddWithConstProfitable(
+    const SDValue &AddNode, const SDValue &ConstNode) const {
+  // Let the DAGCombiner decide for vectors.
+  EVT VT = AddNode.getValueType();
+  if (VT.isVector())
+    return true;
+
+  // Let the DAGCombiner decide for larger types.
+  if (VT.getScalarSizeInBits() > Subtarget.getXLen())
+    return true;
+
+  // It is worse if c1 is simm12 while c1*c2 is not.
+  ConstantSDNode *C1Node = cast<ConstantSDNode>(AddNode.getOperand(1));
+  ConstantSDNode *C2Node = cast<ConstantSDNode>(ConstNode);
+  const APInt &C1 = C1Node->getAPIntValue();
+  const APInt &C2 = C2Node->getAPIntValue();
+  if (C1.isSignedIntN(12) && !(C1 * C2).isSignedIntN(12))
+    return false;
+
+  // Default to true and let the DAGCombiner decide.
+  return true;
 }
 
 bool RISCVTargetLowering::allowsMisalignedMemoryAccesses(

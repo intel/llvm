@@ -69,6 +69,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/InlineAsm.h"
@@ -1953,16 +1954,13 @@ void SelectionDAGBuilder::visitRet(const ReturnInst &I) {
           /*IsVarArg*/ false, DL);
 
       ISD::NodeType ExtendKind = ISD::ANY_EXTEND;
-      if (F->getAttributes().hasAttribute(AttributeList::ReturnIndex,
-                                          Attribute::SExt))
+      if (F->getAttributes().hasRetAttr(Attribute::SExt))
         ExtendKind = ISD::SIGN_EXTEND;
-      else if (F->getAttributes().hasAttribute(AttributeList::ReturnIndex,
-                                               Attribute::ZExt))
+      else if (F->getAttributes().hasRetAttr(Attribute::ZExt))
         ExtendKind = ISD::ZERO_EXTEND;
 
       LLVMContext &Context = F->getContext();
-      bool RetInReg = F->getAttributes().hasAttribute(
-          AttributeList::ReturnIndex, Attribute::InReg);
+      bool RetInReg = F->getAttributes().hasRetAttr(Attribute::InReg);
 
       for (unsigned j = 0; j != NumValues; ++j) {
         EVT VT = ValueVTs[j];
@@ -2003,7 +2001,8 @@ void SelectionDAGBuilder::visitRet(const ReturnInst &I) {
           Flags.setZExt();
 
         for (unsigned i = 0; i < NumParts; ++i) {
-          Outs.push_back(ISD::OutputArg(Flags, Parts[i].getValueType(),
+          Outs.push_back(ISD::OutputArg(Flags,
+                                        Parts[i].getValueType().getSimpleVT(),
                                         VT, /*isfixed=*/true, 0, 0));
           OutVals.push_back(Parts[i]);
         }
@@ -2020,10 +2019,9 @@ void SelectionDAGBuilder::visitRet(const ReturnInst &I) {
     assert(SwiftError.getFunctionArg() && "Need a swift error argument");
     ISD::ArgFlagsTy Flags = ISD::ArgFlagsTy();
     Flags.setSwiftError();
-    Outs.push_back(ISD::OutputArg(Flags, EVT(TLI.getPointerTy(DL)) /*vt*/,
-                                  EVT(TLI.getPointerTy(DL)) /*argvt*/,
-                                  true /*isfixed*/, 1 /*origidx*/,
-                                  0 /*partOffs*/));
+    Outs.push_back(ISD::OutputArg(
+        Flags, /*vt=*/TLI.getPointerTy(DL), /*argvt=*/EVT(TLI.getPointerTy(DL)),
+        /*isfixed=*/true, /*origidx=*/1, /*partOffs=*/0));
     // Create SDNode for the swifterror virtual register.
     OutVals.push_back(
         DAG.getRegister(SwiftError.getOrCreateVRegUseAt(
@@ -2671,7 +2669,7 @@ void SelectionDAGBuilder::visitSPDescriptorParent(StackProtectorDescriptor &SPD,
     TargetLowering::ArgListEntry Entry;
     Entry.Node = GuardVal;
     Entry.Ty = FnTy->getParamType(0);
-    if (GuardCheckFn->hasAttribute(1, Attribute::AttrKind::InReg))
+    if (GuardCheckFn->hasParamAttribute(0, Attribute::AttrKind::InReg))
       Entry.IsInReg = true;
     Args.push_back(Entry);
 
@@ -5518,7 +5516,7 @@ bool SelectionDAGBuilder::EmitFuncArgumentDbgValue(
   // we've been asked to pursue.
   auto MakeVRegDbgValue = [&](Register Reg, DIExpression *FragExpr,
                               bool Indirect) {
-    if (Reg.isVirtual() && TM.Options.ValueTrackingVariableLocations) {
+    if (Reg.isVirtual() && MF.useDebugInstrRef()) {
       // For VRegs, in instruction referencing mode, create a DBG_INSTR_REF
       // pointing at the VReg, which will be patched up later.
       auto &Inst = TII->get(TargetOpcode::DBG_INSTR_REF);
@@ -6419,7 +6417,7 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     SDValue Op = getValue(I.getArgOperand(0));
     SDNodeFlags Flags;
     Flags.setNoFPExcept(
-        !F.getAttributes().hasFnAttribute(llvm::Attribute::StrictFP));
+        !F.getAttributes().hasFnAttr(llvm::Attribute::StrictFP));
 
     // If ISD::ISNAN should be expanded, do it right now, because the expansion
     // can use illegal types. Making expansion early allows to legalize these
@@ -6738,9 +6736,7 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
   case Intrinsic::debugtrap:
   case Intrinsic::trap: {
     StringRef TrapFuncName =
-        I.getAttributes()
-            .getAttribute(AttributeList::FunctionIndex, "trap-func-name")
-            .getValueAsString();
+        I.getAttributes().getFnAttr("trap-func-name").getValueAsString();
     if (TrapFuncName.empty()) {
       switch (Intrinsic) {
       case Intrinsic::trap:
@@ -7359,7 +7355,128 @@ static unsigned getISDForVPIntrinsic(const VPIntrinsic &VPIntrin) {
     llvm_unreachable(
         "Inconsistency: no SDNode available for this VPIntrinsic!");
 
+  if (*ResOPC == ISD::VP_REDUCE_SEQ_FADD ||
+      *ResOPC == ISD::VP_REDUCE_SEQ_FMUL) {
+    if (VPIntrin.getFastMathFlags().allowReassoc())
+      return *ResOPC == ISD::VP_REDUCE_SEQ_FADD ? ISD::VP_REDUCE_FADD
+                                                : ISD::VP_REDUCE_FMUL;
+  }
+
   return ResOPC.getValue();
+}
+
+void SelectionDAGBuilder::visitVPLoadGather(const VPIntrinsic &VPIntrin, EVT VT,
+                                            SmallVector<SDValue, 7> &OpValues,
+                                            bool isGather) {
+  SDLoc DL = getCurSDLoc();
+  const TargetLowering &TLI = DAG.getTargetLoweringInfo();
+  Value *PtrOperand = VPIntrin.getArgOperand(0);
+  MaybeAlign Alignment = DAG.getEVTAlign(VT);
+  AAMDNodes AAInfo;
+  VPIntrin.getAAMetadata(AAInfo);
+  const MDNode *Ranges = VPIntrin.getMetadata(LLVMContext::MD_range);
+  SDValue LD;
+  bool AddToChain = true;
+  if (!isGather) {
+    // Do not serialize variable-length loads of constant memory with
+    // anything.
+    MemoryLocation ML;
+    if (VT.isScalableVector())
+      ML = MemoryLocation::getAfter(PtrOperand);
+    else
+      ML = MemoryLocation(
+          PtrOperand,
+          LocationSize::precise(
+              DAG.getDataLayout().getTypeStoreSize(VPIntrin.getType())),
+          AAInfo);
+    AddToChain = !AA || !AA->pointsToConstantMemory(ML);
+    SDValue InChain = AddToChain ? DAG.getRoot() : DAG.getEntryNode();
+    MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
+        MachinePointerInfo(PtrOperand), MachineMemOperand::MOLoad,
+        VT.getStoreSize().getKnownMinSize(), *Alignment, AAInfo, Ranges);
+    LD = DAG.getLoadVP(VT, DL, InChain, OpValues[0], OpValues[1], OpValues[2],
+                       MMO, false /*IsExpanding */);
+  } else {
+    unsigned AS =
+        PtrOperand->getType()->getScalarType()->getPointerAddressSpace();
+    MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
+        MachinePointerInfo(AS), MachineMemOperand::MOLoad,
+        MemoryLocation::UnknownSize, *Alignment, AAInfo, Ranges);
+    SDValue Base, Index, Scale;
+    ISD::MemIndexType IndexType;
+    bool UniformBase = getUniformBase(PtrOperand, Base, Index, IndexType, Scale,
+                                      this, VPIntrin.getParent());
+    if (!UniformBase) {
+      Base = DAG.getConstant(0, DL, TLI.getPointerTy(DAG.getDataLayout()));
+      Index = getValue(PtrOperand);
+      IndexType = ISD::SIGNED_UNSCALED;
+      Scale =
+          DAG.getTargetConstant(1, DL, TLI.getPointerTy(DAG.getDataLayout()));
+    }
+    EVT IdxVT = Index.getValueType();
+    EVT EltTy = IdxVT.getVectorElementType();
+    if (TLI.shouldExtendGSIndex(IdxVT, EltTy)) {
+      EVT NewIdxVT = IdxVT.changeVectorElementType(EltTy);
+      Index = DAG.getNode(ISD::SIGN_EXTEND, DL, NewIdxVT, Index);
+    }
+    LD = DAG.getGatherVP(
+        DAG.getVTList(VT, MVT::Other), VT, DL,
+        {DAG.getRoot(), Base, Index, Scale, OpValues[1], OpValues[2]}, MMO,
+        IndexType);
+  }
+  if (AddToChain)
+    PendingLoads.push_back(LD.getValue(1));
+  setValue(&VPIntrin, LD);
+}
+
+void SelectionDAGBuilder::visitVPStoreScatter(const VPIntrinsic &VPIntrin,
+                                              SmallVector<SDValue, 7> &OpValues,
+                                              bool isScatter) {
+  SDLoc DL = getCurSDLoc();
+  const TargetLowering &TLI = DAG.getTargetLoweringInfo();
+  Value *PtrOperand = VPIntrin.getArgOperand(1);
+  EVT VT = OpValues[0].getValueType();
+  MaybeAlign Alignment = DAG.getEVTAlign(VT);
+  AAMDNodes AAInfo;
+  VPIntrin.getAAMetadata(AAInfo);
+  SDValue ST;
+  if (!isScatter) {
+    MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
+        MachinePointerInfo(PtrOperand), MachineMemOperand::MOStore,
+        VT.getStoreSize().getKnownMinSize(), *Alignment, AAInfo);
+    ST =
+        DAG.getStoreVP(getMemoryRoot(), DL, OpValues[0], OpValues[1],
+                       OpValues[2], OpValues[3], MMO, false /* IsTruncating */);
+  } else {
+    unsigned AS =
+        PtrOperand->getType()->getScalarType()->getPointerAddressSpace();
+    MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
+        MachinePointerInfo(AS), MachineMemOperand::MOStore,
+        MemoryLocation::UnknownSize, *Alignment, AAInfo);
+    SDValue Base, Index, Scale;
+    ISD::MemIndexType IndexType;
+    bool UniformBase = getUniformBase(PtrOperand, Base, Index, IndexType, Scale,
+                                      this, VPIntrin.getParent());
+    if (!UniformBase) {
+      Base = DAG.getConstant(0, DL, TLI.getPointerTy(DAG.getDataLayout()));
+      Index = getValue(PtrOperand);
+      IndexType = ISD::SIGNED_UNSCALED;
+      Scale =
+          DAG.getTargetConstant(1, DL, TLI.getPointerTy(DAG.getDataLayout()));
+    }
+    EVT IdxVT = Index.getValueType();
+    EVT EltTy = IdxVT.getVectorElementType();
+    if (TLI.shouldExtendGSIndex(IdxVT, EltTy)) {
+      EVT NewIdxVT = IdxVT.changeVectorElementType(EltTy);
+      Index = DAG.getNode(ISD::SIGN_EXTEND, DL, NewIdxVT, Index);
+    }
+    ST = DAG.getScatterVP(DAG.getVTList(MVT::Other), VT, DL,
+                          {getMemoryRoot(), OpValues[0], Base, Index, Scale,
+                           OpValues[2], OpValues[3]},
+                          MMO, IndexType);
+  }
+  DAG.setRoot(ST);
+  setValue(&VPIntrin, ST);
 }
 
 void SelectionDAGBuilder::visitVectorPredicationIntrinsic(
@@ -7388,8 +7505,22 @@ void SelectionDAGBuilder::visitVectorPredicationIntrinsic(
     OpValues.push_back(Op);
   }
 
-  SDValue Result = DAG.getNode(Opcode, DL, VTs, OpValues);
-  setValue(&VPIntrin, Result);
+  switch (Opcode) {
+  default: {
+    SDValue Result = DAG.getNode(Opcode, DL, VTs, OpValues);
+    setValue(&VPIntrin, Result);
+    break;
+  }
+  case ISD::VP_LOAD:
+  case ISD::VP_GATHER:
+    visitVPLoadGather(VPIntrin, ValueVTs[0], OpValues,
+                      Opcode == ISD::VP_GATHER);
+    break;
+  case ISD::VP_STORE:
+  case ISD::VP_SCATTER:
+    visitVPStoreScatter(VPIntrin, OpValues, Opcode == ISD::VP_SCATTER);
+    break;
+  }
 }
 
 SDValue SelectionDAGBuilder::lowerStartEH(SDValue Chain,
@@ -7950,6 +8081,15 @@ void SelectionDAGBuilder::visitCall(const CallInst &I) {
   }
 
   if (Function *F = I.getCalledFunction()) {
+    if (F->hasFnAttribute("dontcall")) {
+      unsigned LocCookie = 0;
+      if (MDNode *MD = I.getMetadata("srcloc"))
+        LocCookie =
+            mdconst::extract<ConstantInt>(MD->getOperand(0))->getZExtValue();
+      DiagnosticInfoDontCall D(F->getName(), LocCookie);
+      DAG.getContext()->diagnose(D);
+    }
+
     if (F->isDeclaration()) {
       // Is this an LLVM intrinsic or a target-specific intrinsic?
       unsigned IID = F->getIntrinsicID();
@@ -8706,7 +8846,7 @@ void SelectionDAGBuilder::visitInlineAsm(const CallBase &Call,
           MachineFunction &MF = DAG.getMachineFunction();
           MachineRegisterInfo &MRI = MF.getRegInfo();
           const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
-          RegisterSDNode *R = dyn_cast<RegisterSDNode>(AsmNodeOperands[CurOp+1]);
+          auto *R = cast<RegisterSDNode>(AsmNodeOperands[CurOp+1]);
           Register TiedReg = R->getReg();
           MVT RegVT = R->getSimpleValueType(0);
           const TargetRegisterClass *RC = TiedReg.isVirtual() ?
@@ -9703,9 +9843,10 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
         // if it isn't first piece, alignment must be 1
         // For scalable vectors the scalable part is currently handled
         // by individual targets, so we just use the known minimum size here.
-        ISD::OutputArg MyFlags(Flags, Parts[j].getValueType(), VT,
-                    i < CLI.NumFixedArgs, i,
-                    j*Parts[j].getValueType().getStoreSize().getKnownMinSize());
+        ISD::OutputArg MyFlags(
+            Flags, Parts[j].getValueType().getSimpleVT(), VT,
+            i < CLI.NumFixedArgs, i,
+            j * Parts[j].getValueType().getStoreSize().getKnownMinSize());
         if (NumParts > 1 && j == 0)
           MyFlags.Flags.setSplit();
         else if (j != 0) {

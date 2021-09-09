@@ -142,10 +142,55 @@ void test_simd_view_impl_api_ret_types() SYCL_ESIMD_FUNCTION {
 
 void test_simd_view_subscript() SYCL_ESIMD_FUNCTION {
   simd<int, 4> v = 1;
-  auto vv = v.select<2, 1>(0);
+  const auto vv = v.select<2, 1>(0);
 
   int x = vv[1];
   // expected-warning@+2 2 {{deprecated}}
   // expected-note@sycl/ext/intel/experimental/esimd/detail/simd_view_impl.hpp:* 2 {{has been explicitly marked deprecated here}}
   int y = vv(1);
+}
+
+void test_simd_view_writeable_subscript() SYCL_ESIMD_FUNCTION {
+  simd<int, 4> v = 1;
+  auto vv1 = v.select<2, 1>(0);
+  auto vv2 = v.select<2, 1>(0);
+  auto x = vv1 == vv2; // test relational operations
+  vv1[1] = 0;          // returns writeable simd_view
+  int y = vv1[1];      // nested simd_view -> int
+
+  // expected-warning@+2 2 {{deprecated}}
+  // expected-note@sycl/ext/intel/experimental/esimd/detail/simd_view_impl.hpp:* 2 {{has been explicitly marked deprecated here}}
+  vv1(1) = 1;
+}
+
+// In this test `g.row(1)` return simd_view and `(g.row(1))[0]` returns
+// simd_view of size 1. To avoid two implicit conversions (which is not
+// allowed), simd_view_impl needs explicit definition of BINOP with a scalar.
+void test_simd_view_binop_with_conv_to_scalar() SYCL_ESIMD_FUNCTION {
+  simd<ushort, 64> s = 0;
+  auto g = s.bit_cast_view<ushort, 4, 16>();
+  auto x = g.row(1) - (g.row(1))[0]; // binary op
+  auto y = g.row(1) & (g.row(1))[0]; // bitwise op
+  auto z = g.row(1) < (g.row(1))[0]; // relational op
+}
+
+// This code is OK. The result of bit_cast_view should be mapped
+// to specialization of simd_view with length 1, so conversion
+// to scalar is allowed.
+void test_simd_view_len1_bitcast() SYCL_ESIMD_FUNCTION {
+  simd<int, 1> s = 0;
+  float f = s.bit_cast_view<float>();
+}
+
+// This test checks the same thing as previous one but for the
+// nested simd_view specialization with length 1.
+void test_nested_simd_view_len1_bitcast() SYCL_ESIMD_FUNCTION {
+  simd<int, 2> s = 0;
+  auto v = s.bit_cast_view<float>(); // generic simd_view
+  float f = v[0]; // result of v[0] is a specialized nested simd_view
+                  // with length 1, which then converts to a scalar.
+
+  // checking nested views with several bitcasts.
+  simd<double, 4> s2;
+  ((s2[0].bit_cast_view<float>())[1].bit_cast_view<int>())[0] = 1;
 }

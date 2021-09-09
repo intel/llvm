@@ -893,7 +893,6 @@ class CastExpressionIdValidator final : public CorrectionCandidateCallback {
 /// [Clang] unary-type-trait:
 ///                   '__is_aggregate'
 ///                   '__trivially_copyable'
-///                   '__builtin_sycl_mark_kernel_name'
 ///
 ///       binary-type-trait:
 /// [GNU]             '__is_base_of'
@@ -2401,7 +2400,7 @@ Parser::ParseExprAfterUnaryExprOrTypeTrait(const Token &OpTok,
 /// a parameter.
 ExprResult Parser::ParseSYCLUniqueStableNameExpression() {
   assert(Tok.is(tok::kw___builtin_sycl_unique_stable_name) &&
-         "Not __bulitin_sycl_unique_stable_name");
+         "Not __builtin_sycl_unique_stable_name");
 
   SourceLocation OpLoc = ConsumeToken();
   BalancedDelimiterTracker T(*this, tok::l_paren);
