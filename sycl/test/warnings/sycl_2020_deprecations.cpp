@@ -130,6 +130,10 @@ int main() {
         });
   });
 
+  // expected-warning@+1{{'byte' is deprecated: use std::byte instead}}
+  sycl::byte B;
+  (void)B;
+
   // expected-warning@+1{{'max_constant_buffer_size' is deprecated: max_constant_buffer_size is deprecated}}
   auto MCBS = sycl::info::device::max_constant_buffer_size;
   (void)MCBS;
