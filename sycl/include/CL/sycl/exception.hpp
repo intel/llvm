@@ -111,12 +111,14 @@ protected:
         MContext(Context) {}
 
   // base constructors used by SYCL 1.2.1 exception subclasses
-  exception(std::error_code ec, const char *Msg, const cl_int CLErr,
-            std::shared_ptr<context> Context = nullptr)
+  __SYCL_DLL_LOCAL exception(std::error_code ec, const char *Msg,
+                             const cl_int CLErr,
+                             std::shared_ptr<context> Context = nullptr)
       : exception(ec, std::string(Msg), CLErr, Context) {}
 
-  exception(std::error_code ec, const std::string &Msg, const cl_int CLErr,
-            std::shared_ptr<context> Context = nullptr)
+  __SYCL_DLL_LOCAL exception(std::error_code ec, const std::string &Msg,
+                             const cl_int CLErr,
+                             std::shared_ptr<context> Context = nullptr)
       : exception(ec, Context, Msg + " " + detail::codeToString(CLErr)) {
     MCLErr = CLErr;
   }
