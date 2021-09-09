@@ -1268,18 +1268,6 @@ public:
     setType(detail::CG::RunOnHostIntel);
   }
 
-  template <typename FuncT>
-  __SYCL2020_DEPRECATED(
-      "codeplay_host_task() is deprecated, use host_task() instead")
-  detail::enable_if_t<
-      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
-                                 void()>::value ||
-      detail::check_fn_signature<
-          detail::remove_reference_t<FuncT>,
-          void(interop_handle)>::value> codeplay_host_task(FuncT Func) {
-    host_task_impl(Func);
-  }
-
   /// Enqueues a command to the SYCL runtime to invoke \p Func once.
   template <typename FuncT>
   detail::enable_if_t<

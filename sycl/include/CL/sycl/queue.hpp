@@ -1182,7 +1182,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 
     auto Acc = Buffer.get_access<mode::read, target::host_buffer>(CGH);
 
-    CGH.codeplay_host_task([=] {
+    CGH.host_task([=] {
       const detail::AssertHappened *AH = &Acc[0];
 
       // Don't use assert here as msvc will insert reference to __imp__wassert
