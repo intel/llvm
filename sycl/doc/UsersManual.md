@@ -81,6 +81,14 @@ and not recommended to use in production environment.
     * nd_item class get_global_id()/get_global_linear_id() member functions
     Enabled by default.
 
+
+**`-fgpu-inline-threshold=<n>`**
+
+    Sets the inline threshold for device compilation to <n>. Note that this
+    option only affects the behaviour of the DPC++ compiler, not target-
+    specific compilers (e.g. OpenCL/Level Zero/Nvidia/AMD target compilers)
+    which may or may not perform additional inlining.
+
 ## Target toolchain options
 
 **`-Xsycl-target-backend=<T> "options"`**
