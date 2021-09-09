@@ -8,6 +8,7 @@
 
 #pragma once
 
+#if __cplusplus >= 201703L
 #include <CL/sycl/detail/group_sort_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -97,3 +98,4 @@ public:
 } // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+#endif // __cplusplus >=201703L

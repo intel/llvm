@@ -10,6 +10,7 @@
 
 #pragma once
 
+#if __cplusplus >= 201703L
 #include <CL/sycl/detail/helpers.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -252,3 +253,4 @@ void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 #endif
+#endif // __cplusplus >=201703L

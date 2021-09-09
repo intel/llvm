@@ -8,6 +8,7 @@
 
 #pragma once
 
+#if __cplusplus >= 201703L
 #include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/detail/group_sort_impl.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
@@ -141,3 +142,4 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
 } // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+#endif // __cplusplus >=201703L
