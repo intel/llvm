@@ -81,7 +81,8 @@ public:
              const async_handler &AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
-        MAssertHappenedBuffer(range<1>{1}) {
+        MAssertHappenedBuffer(range<1>{1}),
+        MIsInorder(has_property<property::queue::in_order>()) {
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
@@ -105,7 +106,8 @@ public:
   queue_impl(RT::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
-        MAssertHappenedBuffer(range<1>{1}) {
+        MAssertHappenedBuffer(range<1>{1}), MPropList(),
+        MIsInorder(has_property<property::queue::in_order>()) {
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
@@ -427,15 +429,15 @@ private:
     // Scheduler will later omit events, that are not required to execute tasks.
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
-    if (has_property<property::queue::in_order>() &&
-        (Handler.getType() == CG::CGTYPE::CodeplayHostTask ||
-         Handler.getType() == CG::CGTYPE::CodeplayInteropTask))
+    const auto Type = Handler.getType();
+    if (MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
+                       Type == CG::CGTYPE::CodeplayInteropTask))
       Handler.depends_on(MLastEvent);
 
     event Event;
 
     if (PostProcess) {
-      bool IsKernel = Handler.getType() == CG::Kernel;
+      bool IsKernel = Type == CG::Kernel;
       bool KernelUsesAssert = false;
       if (IsKernel)
         KernelUsesAssert = Handler.MKernel
@@ -449,7 +451,7 @@ private:
     } else
       Event = Handler.finalize();
 
-    if (has_property<property::queue::in_order>())
+    if (MIsInorder)
       MLastEvent = Event;
 
     addEvent(Event);
@@ -513,6 +515,7 @@ private:
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
 
   event MLastEvent;
+  const bool MIsInorder;
 };
 
 } // namespace detail
