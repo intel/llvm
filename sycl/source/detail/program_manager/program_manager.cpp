@@ -1349,12 +1349,13 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
              EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
           auto KernelID = m_KernelIDs.find(EntriesIt->name);
 
-          // Service kernels do not have kernel IDs
-          if (KernelID == m_KernelIDs.end() && isServiceKernel(EntriesIt->name))
+          if (KernelID == m_KernelIDs.end()) {
+            // Service kernels do not have kernel IDs
+            assert(isServiceKernel(EntriesIt->name) &&
+                   "Kernel ID in device binary missing from cache");
             continue;
+          }
 
-          assert(KernelID != m_KernelIDs.end() &&
-                 "Kernel ID in device binary missing from cache");
           KernelIDs.push_back(KernelID->second);
         }
       }
