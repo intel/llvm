@@ -1262,10 +1262,10 @@ kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
   auto KernelID = m_KernelIDs.find(KernelName);
-  if (KernelID == m_KernelIDs.end()) {
+  if (KernelID == m_KernelIDs.end())
     throw runtime_error("No kernel found with the specified name",
                         PI_INVALID_KERNEL_NAME);
-  }
+
   return KernelID->second;
 }
 
