@@ -26,8 +26,8 @@ template <typename T> struct builtins_helper {
 };
 
 template <> struct builtins_helper<s::cl_half> {
-  using RetType = d::half_impl::StorageT;
-  static constexpr RetType get(s::cl_half value) { return value.Data; }
+  using RetType = uint16_t;
+  static constexpr RetType get(s::cl_half value) { return value.Data.Buf; }
 };
 } // namespace detail
 } // namespace sycl
@@ -116,7 +116,7 @@ template <> union databitset<s::cl_double> {
 template <> union databitset<s::cl_half> {
   static_assert(sizeof(s::cl_short) == sizeof(s::cl_half),
                 "size of cl_half is not equal to 16 bits(cl_short).");
-  d::half_impl::StorageT f;
+  uint16_t f;
   s::cl_short i;
 };
 

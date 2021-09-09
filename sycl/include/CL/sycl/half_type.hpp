@@ -37,6 +37,8 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+template <typename T> struct builtins_helper;
+
 inline __SYCL_CONSTEXPR_HALF uint16_t float2Half(const float &Val) {
   const uint32_t Bits = sycl::bit_cast<uint32_t>(Val);
 
@@ -189,7 +191,7 @@ private:
 // The main host half class
 class __SYCL_EXPORT half_v2 {
 public:
-  half_v2() = default;
+  __SYCL_CONSTEXPR_HALF half_v2() : Buf(float2Half(0.0f)) {}
   constexpr half_v2(const half_v2 &) = default;
   constexpr half_v2(half_v2 &&) = default;
 
@@ -255,13 +257,12 @@ public:
   // Initialize underlying data
   constexpr explicit half_v2(uint16_t x) : Buf(x) {}
 
+  template <typename T> friend struct cl::sycl::detail::builtins_helper;
 private:
   uint16_t Buf;
 };
 
 } // namespace host_half_impl
-
-template <typename T> struct builtins_helper;
 
 namespace half_impl {
 class half;
@@ -301,7 +302,12 @@ using BIsRepresentationT = half;
 // as a kernel argument which is expected to be floating point number.
 template <int NumElements> struct half_vec {
   alignas(detail::vector_alignment<StorageT, NumElements>::value)
-      std::array<StorageT, NumElements> s;
+      StorageT s[NumElements]; //std::array<StorageT, NumElements> s;
+
+  __SYCL_CONSTEXPR_HALF half_vec() {
+    for (int i = 0; i < NumElements; i++) 
+      s[i] = StorageT(0.0f);
+  }
 };
 
   using Vec2StorageT = half_vec<2>;
