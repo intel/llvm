@@ -1,8 +1,9 @@
 # Internal Environment Variables
 
 **Warning:** the environment variables described in this document are used for
-development and debugging of DPC++ compiler and runtime. Their semantics are
-subject to change. Do not rely on these variables in production code.
+development and debugging of DPC++ compiler and runtime, or for interaction with
+other tools. Their semantics are subject to change. Do not rely on these
+variables in production code.
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
