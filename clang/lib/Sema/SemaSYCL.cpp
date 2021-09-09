@@ -2232,8 +2232,7 @@ public:
     for (int Index = 0; Index < Dim; ++Index)
       PointeeTy = Context.getPointerType(PointeeTy);
 
-    PointeeTy = Context.getQualifiedType(
-        PointeeTy.getUnqualifiedType(), Quals);
+    PointeeTy = Context.getQualifiedType(PointeeTy.getUnqualifiedType(), Quals);
     QualType ModTy = Context.getPointerType(PointeeTy);
     // When the kernel is generated, struct type kernel arguments are
     // decomposed; i.e. the parameters of the kernel are the fields of the
@@ -3456,7 +3455,7 @@ public:
       PointeeTy = PointeeTy->getPointeeType();
       ++Dim;
     }
-    unsigned Size =  Context.getTypeSizeInChars(PointeeTy).getQuantity();
+    unsigned Size = Context.getTypeSizeInChars(PointeeTy).getQuantity();
     if (Dim)
       Header.addParamDesc(SYCLIntegrationHeader::kind_vla,
                           static_cast<unsigned>(Size | (Dim << 24)),
@@ -4840,8 +4839,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       std::string TyStr = paramKind2Str(P.Kind);
       O << "  { kernel_param_kind_t::" << TyStr << ", ";
       P.Kind == SYCLIntegrationHeader::kind_vla
-                ? O << llvm::format("%#10x", P.Info) << ", "
-                : O << P.Info << ", ";
+          ? O << llvm::format("%#10x", P.Info) << ", "
+          : O << P.Info << ", ";
       O << P.Offset << " },\n";
     }
     O << "\n";
