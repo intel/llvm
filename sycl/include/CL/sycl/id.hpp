@@ -248,6 +248,7 @@ public:
 #undef __SYCL_GEN_OPT
 
 private:
+  // Friend to get access to private method set_allowed_range().
   template <typename, int, typename> friend class detail::RoundedRangeKernel;
   template <typename, int, typename>
   friend class detail::RoundedRangeKernelWithKH;

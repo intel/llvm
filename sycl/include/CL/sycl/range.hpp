@@ -15,13 +15,6 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-// Forward declarations
-namespace detail {
-template <typename TransformedArgType, int Dims, typename KernelType>
-class RoundedRangeKernel;
-template <typename TransformedArgType, int Dims, typename KernelType>
-class RoundedRangeKernelWithKH;
-} // namespace detail
 template <int dimensions> class id;
 
 /// Defines the iteration domain of either a single work-group in a parallel
@@ -151,9 +144,6 @@ public:
 #undef __SYCL_GEN_OPT
 
 private:
-  template <typename, int, typename> friend class detail::RoundedRangeKernel;
-  template <typename, int, typename>
-  friend class detail::RoundedRangeKernelWithKH;
   friend class handler;
   friend class detail::Builder;
 
