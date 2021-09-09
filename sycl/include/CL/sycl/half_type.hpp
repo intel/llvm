@@ -302,7 +302,7 @@ using BIsRepresentationT = half;
 // as a kernel argument which is expected to be floating point number.
 template <int NumElements> struct half_vec {
   alignas(detail::vector_alignment<StorageT, NumElements>::value)
-      StorageT s[NumElements]; //std::array<StorageT, NumElements> s;
+      StorageT s[NumElements];
 
   __SYCL_CONSTEXPR_HALF half_vec() {
     for (int i = 0; i < NumElements; i++) 
