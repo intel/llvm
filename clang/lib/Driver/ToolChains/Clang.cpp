@@ -7126,7 +7126,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (IsHIP)
     CmdArgs.push_back("-fcuda-allow-variadic-functions");
 
-  if (IsCudaDevice || IsHIPDevice) {
+  if (IsCudaDevice || IsHIPDevice || IsSYCLOffloadDevice) {
     StringRef InlineThresh =
         Args.getLastArgValue(options::OPT_fgpu_inline_threshold_EQ);
     if (!InlineThresh.empty()) {
