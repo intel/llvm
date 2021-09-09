@@ -1863,7 +1863,7 @@ static getConstantArrayInfoInChars(const ASTContext &Context,
     Width = llvm::alignTo(Width, Align);
   return TypeInfoChars(CharUnits::fromQuantity(Width),
                        CharUnits::fromQuantity(Align),
-                       EltInfo.AlignIsRequired);
+                       EltInfo.AlignRequirement);
 }
 
 TypeInfoChars ASTContext::getTypeInfoInChars(const Type *T) const {
@@ -1871,8 +1871,7 @@ TypeInfoChars ASTContext::getTypeInfoInChars(const Type *T) const {
     return getConstantArrayInfoInChars(*this, CAT);
   TypeInfo Info = getTypeInfo(T);
   return TypeInfoChars(toCharUnitsFromBits(Info.Width),
-                       toCharUnitsFromBits(Info.Align),
-                       Info.AlignIsRequired);
+                       toCharUnitsFromBits(Info.Align), Info.AlignRequirement);
 }
 
 TypeInfoChars ASTContext::getTypeInfoInChars(QualType T) const {
@@ -1880,7 +1879,7 @@ TypeInfoChars ASTContext::getTypeInfoInChars(QualType T) const {
 }
 
 bool ASTContext::isAlignmentRequired(const Type *T) const {
-  return getTypeInfo(T).AlignIsRequired;
+  return getTypeInfo(T).AlignRequirement != AlignRequirementKind::None;
 }
 
 bool ASTContext::isAlignmentRequired(QualType T) const {
@@ -1932,7 +1931,7 @@ TypeInfo ASTContext::getTypeInfo(const Type *T) const {
 TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
   uint64_t Width = 0;
   unsigned Align = 8;
-  bool AlignIsRequired = false;
+  AlignRequirementKind AlignRequirement = AlignRequirementKind::None;
   unsigned AS = 0;
   switch (T->getTypeClass()) {
 #define TYPE(Class, Base)
@@ -1966,7 +1965,7 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
            "Overflow in array type bit size evaluation");
     Width = EltInfo.Width * Size;
     Align = EltInfo.Align;
-    AlignIsRequired = EltInfo.AlignIsRequired;
+    AlignRequirement = EltInfo.AlignRequirement;
     if (!getTargetInfo().getCXXABI().isMicrosoft() ||
         getTargetInfo().getPointerWidth(0) == 64)
       Width = llvm::alignTo(Width, Align);
@@ -2310,7 +2309,7 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
           getTypeInfo(ED->getIntegerType()->getUnqualifiedDesugaredType());
       if (unsigned AttrAlign = ED->getMaxAlignment()) {
         Info.Align = AttrAlign;
-        Info.AlignIsRequired = true;
+        Info.AlignRequirement = AlignRequirementKind::RequiredByEnum;
       }
       return Info;
     }
@@ -2320,7 +2319,9 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     const ASTRecordLayout &Layout = getASTRecordLayout(RD);
     Width = toBits(Layout.getSize());
     Align = toBits(Layout.getAlignment());
-    AlignIsRequired = RD->hasAttr<AlignedAttr>();
+    AlignRequirement = RD->hasAttr<AlignedAttr>()
+                           ? AlignRequirementKind::RequiredByRecord
+                           : AlignRequirementKind::None;
     break;
   }
 
@@ -2354,10 +2355,10 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     // attribute(aligned) can only round up) but matches its implementation.
     if (unsigned AttrAlign = Typedef->getMaxAlignment()) {
       Align = AttrAlign;
-      AlignIsRequired = true;
+      AlignRequirement = AlignRequirementKind::RequiredByTypedef;
     } else {
       Align = Info.Align;
-      AlignIsRequired = Info.AlignIsRequired;
+      AlignRequirement = Info.AlignRequirement;
     }
     Width = Info.Width;
     break;
@@ -2403,7 +2404,7 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
   }
 
   assert(llvm::isPowerOf2_32(Align) && "Alignment must be power of 2");
-  return TypeInfo(Width, Align, AlignIsRequired);
+  return TypeInfo(Width, Align, AlignRequirement);
 }
 
 unsigned ASTContext::getTypeUnadjustedAlign(const Type *T) const {
@@ -2493,7 +2494,7 @@ unsigned ASTContext::getPreferredTypeAlign(const Type *T) const {
 
     // When used as part of a typedef, or together with a 'packed' attribute,
     // the 'aligned' attribute can be used to decrease alignment.
-    if ((TI.AlignIsRequired && T->getAs<TypedefType>() != nullptr) ||
+    if ((TI.isAlignRequired() && T->getAs<TypedefType>() != nullptr) ||
         RD->isInvalidDecl())
       return ABIAlign;
 
@@ -2518,7 +2519,7 @@ unsigned ASTContext::getPreferredTypeAlign(const Type *T) const {
        Target->defaultsToAIXPowerAlignment()))
     // Don't increase the alignment if an alignment attribute was specified on a
     // typedef declaration.
-    if (!TI.AlignIsRequired)
+    if (!TI.isAlignRequired())
       return std::max(ABIAlign, (unsigned)getTypeSize(T));
 
   return ABIAlign;
@@ -2645,16 +2646,66 @@ static bool unionHasUniqueObjectRepresentations(const ASTContext &Context,
   return !RD->field_empty();
 }
 
-static bool isStructEmpty(QualType Ty) {
-  const RecordDecl *RD = Ty->castAs<RecordType>()->getDecl();
+static int64_t getSubobjectOffset(const FieldDecl *Field,
+                                  const ASTContext &Context,
+                                  const clang::ASTRecordLayout & /*Layout*/) {
+  return Context.getFieldOffset(Field);
+}
 
-  if (!RD->field_empty())
-    return false;
+static int64_t getSubobjectOffset(const CXXRecordDecl *RD,
+                                  const ASTContext &Context,
+                                  const clang::ASTRecordLayout &Layout) {
+  return Context.toBits(Layout.getBaseClassOffset(RD));
+}
 
-  if (const auto *ClassDecl = dyn_cast<CXXRecordDecl>(RD))
-    return ClassDecl->isEmpty();
+static llvm::Optional<int64_t>
+structHasUniqueObjectRepresentations(const ASTContext &Context,
+                                     const RecordDecl *RD);
 
-  return true;
+static llvm::Optional<int64_t>
+getSubobjectSizeInBits(const FieldDecl *Field, const ASTContext &Context) {
+  if (Field->getType()->isRecordType()) {
+    const RecordDecl *RD = Field->getType()->getAsRecordDecl();
+    if (!RD->isUnion())
+      return structHasUniqueObjectRepresentations(Context, RD);
+  }
+  if (!Field->getType()->isReferenceType() &&
+      !Context.hasUniqueObjectRepresentations(Field->getType()))
+    return llvm::None;
+
+  int64_t FieldSizeInBits =
+      Context.toBits(Context.getTypeSizeInChars(Field->getType()));
+  if (Field->isBitField()) {
+    int64_t BitfieldSize = Field->getBitWidthValue(Context);
+    if (BitfieldSize > FieldSizeInBits)
+      return llvm::None;
+    FieldSizeInBits = BitfieldSize;
+  }
+  return FieldSizeInBits;
+}
+
+static llvm::Optional<int64_t>
+getSubobjectSizeInBits(const CXXRecordDecl *RD, const ASTContext &Context) {
+  return structHasUniqueObjectRepresentations(Context, RD);
+}
+
+template <typename RangeT>
+static llvm::Optional<int64_t> structSubobjectsHaveUniqueObjectRepresentations(
+    const RangeT &Subobjects, int64_t CurOffsetInBits,
+    const ASTContext &Context, const clang::ASTRecordLayout &Layout) {
+  for (const auto *Subobject : Subobjects) {
+    llvm::Optional<int64_t> SizeInBits =
+        getSubobjectSizeInBits(Subobject, Context);
+    if (!SizeInBits)
+      return llvm::None;
+    if (*SizeInBits != 0) {
+      int64_t Offset = getSubobjectOffset(Subobject, Context, Layout);
+      if (Offset != CurOffsetInBits)
+        return llvm::None;
+      CurOffsetInBits += *SizeInBits;
+    }
+  }
+  return CurOffsetInBits;
 }
 
 static llvm::Optional<int64_t>
@@ -2668,57 +2719,31 @@ structHasUniqueObjectRepresentations(const ASTContext &Context,
     if (ClassDecl->isDynamicClass())
       return llvm::None;
 
-    SmallVector<std::pair<QualType, int64_t>, 4> Bases;
+    SmallVector<CXXRecordDecl *, 4> Bases;
     for (const auto &Base : ClassDecl->bases()) {
       // Empty types can be inherited from, and non-empty types can potentially
       // have tail padding, so just make sure there isn't an error.
-      if (!isStructEmpty(Base.getType())) {
-        llvm::Optional<int64_t> Size = structHasUniqueObjectRepresentations(
-            Context, Base.getType()->castAs<RecordType>()->getDecl());
-        if (!Size)
-          return llvm::None;
-        Bases.emplace_back(Base.getType(), Size.getValue());
-      }
+      Bases.emplace_back(Base.getType()->getAsCXXRecordDecl());
     }
 
-    llvm::sort(Bases, [&](const std::pair<QualType, int64_t> &L,
-                          const std::pair<QualType, int64_t> &R) {
-      return Layout.getBaseClassOffset(L.first->getAsCXXRecordDecl()) <
-             Layout.getBaseClassOffset(R.first->getAsCXXRecordDecl());
+    llvm::sort(Bases, [&](const CXXRecordDecl *L, const CXXRecordDecl *R) {
+      return Layout.getBaseClassOffset(L) < Layout.getBaseClassOffset(R);
     });
 
-    for (const auto &Base : Bases) {
-      int64_t BaseOffset = Context.toBits(
-          Layout.getBaseClassOffset(Base.first->getAsCXXRecordDecl()));
-      int64_t BaseSize = Base.second;
-      if (BaseOffset != CurOffsetInBits)
-        return llvm::None;
-      CurOffsetInBits = BaseOffset + BaseSize;
-    }
+    llvm::Optional<int64_t> OffsetAfterBases =
+        structSubobjectsHaveUniqueObjectRepresentations(Bases, CurOffsetInBits,
+                                                        Context, Layout);
+    if (!OffsetAfterBases)
+      return llvm::None;
+    CurOffsetInBits = *OffsetAfterBases;
   }
 
-  for (const auto *Field : RD->fields()) {
-    if (!Field->getType()->isReferenceType() &&
-        !Context.hasUniqueObjectRepresentations(Field->getType()))
-      return llvm::None;
-
-    int64_t FieldSizeInBits =
-        Context.toBits(Context.getTypeSizeInChars(Field->getType()));
-    if (Field->isBitField()) {
-      int64_t BitfieldSize = Field->getBitWidthValue(Context);
-
-      if (BitfieldSize > FieldSizeInBits)
-        return llvm::None;
-      FieldSizeInBits = BitfieldSize;
-    }
-
-    int64_t FieldOffsetInBits = Context.getFieldOffset(Field);
-
-    if (FieldOffsetInBits != CurOffsetInBits)
-      return llvm::None;
-
-    CurOffsetInBits = FieldSizeInBits + FieldOffsetInBits;
-  }
+  llvm::Optional<int64_t> OffsetAfterFields =
+      structSubobjectsHaveUniqueObjectRepresentations(
+          RD->fields(), CurOffsetInBits, Context, Layout);
+  if (!OffsetAfterFields)
+    return llvm::None;
+  CurOffsetInBits = *OffsetAfterFields;
 
   return CurOffsetInBits;
 }
@@ -9703,11 +9728,19 @@ static QualType mergeEnumWithInteger(ASTContext &Context, const EnumType *ET,
 QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
                                 bool OfBlockPointer,
                                 bool Unqualified, bool BlockReturnType) {
+  // For C++ we will not reach this code with reference types (see below),
+  // for OpenMP variant call overloading we might.
+  //
   // C++ [expr]: If an expression initially has the type "reference to T", the
   // type is adjusted to "T" prior to any further analysis, the expression
   // designates the object or function denoted by the reference, and the
   // expression is an lvalue unless the reference is an rvalue reference and
   // the expression is a function call (possibly inside parentheses).
+  if (LangOpts.OpenMP && LHS->getAs<ReferenceType>() &&
+      RHS->getAs<ReferenceType>() && LHS->getTypeClass() == RHS->getTypeClass())
+    return mergeTypes(LHS->getAs<ReferenceType>()->getPointeeType(),
+                      RHS->getAs<ReferenceType>()->getPointeeType(),
+                      OfBlockPointer, Unqualified, BlockReturnType);
   if (LHS->getAs<ReferenceType>() || RHS->getAs<ReferenceType>())
     return {};
 
@@ -11783,87 +11816,4 @@ StringRef ASTContext::getCUIDHash() const {
     return StringRef();
   CUIDHash = llvm::utohexstr(llvm::MD5Hash(LangOpts.CUID), /*LowerCase=*/true);
   return CUIDHash;
-}
-
-// Get the closest named parent, so we can order the sycl naming decls somewhere
-// that mangling is meaningful.
-static const DeclContext *GetNamedParent(const CXXRecordDecl *RD) {
-  const DeclContext *DC = RD->getDeclContext();
-
-  while (!isa<NamedDecl, TranslationUnitDecl>(DC))
-    DC = DC->getParent();
-  return DC;
-}
-
-void ASTContext::AddSYCLKernelNamingDecl(const CXXRecordDecl *RD) {
-  assert(getLangOpts().isSYCL() && "Only valid for SYCL programs");
-  RD = RD->getCanonicalDecl();
-  const DeclContext *DC = GetNamedParent(RD);
-
-  assert(RD->getLocation().isValid() &&
-         "Invalid location on kernel naming decl");
-
-  (void)SYCLKernelNamingTypes[DC].insert(RD);
-}
-
-bool ASTContext::IsSYCLKernelNamingDecl(const NamedDecl *ND) const {
-  assert(getLangOpts().isSYCL() && "Only valid for SYCL programs");
-  const auto *RD = dyn_cast<CXXRecordDecl>(ND);
-  if (!RD)
-    return false;
-  RD = RD->getCanonicalDecl();
-  const DeclContext *DC = GetNamedParent(RD);
-
-  auto Itr = SYCLKernelNamingTypes.find(DC);
-
-  if (Itr == SYCLKernelNamingTypes.end())
-    return false;
-
-  return Itr->getSecond().count(RD);
-}
-
-// Filters the Decls list to those that share the lambda mangling with the
-// passed RD.
-void ASTContext::FilterSYCLKernelNamingDecls(
-    const CXXRecordDecl *RD,
-    llvm::SmallVectorImpl<const CXXRecordDecl *> &Decls) {
-
-  if (!SYCLKernelFilterContext)
-    SYCLKernelFilterContext.reset(
-        ItaniumMangleContext::create(*this, getDiagnostics()));
-
-  llvm::SmallString<128> LambdaSig;
-  llvm::raw_svector_ostream Out(LambdaSig);
-  SYCLKernelFilterContext->mangleLambdaSig(RD, Out);
-
-  llvm::erase_if(Decls, [this, &LambdaSig](const CXXRecordDecl *LocalRD) {
-    llvm::SmallString<128> LocalLambdaSig;
-    llvm::raw_svector_ostream LocalOut(LocalLambdaSig);
-    SYCLKernelFilterContext->mangleLambdaSig(LocalRD, LocalOut);
-    return LambdaSig != LocalLambdaSig;
-  });
-}
-
-unsigned ASTContext::GetSYCLKernelNamingIndex(const NamedDecl *ND) {
-  assert(getLangOpts().isSYCL() && "Only valid for SYCL programs");
-  assert(IsSYCLKernelNamingDecl(ND) &&
-         "Lambda not involved in mangling asked for a naming index?");
-
-  const CXXRecordDecl *RD = cast<CXXRecordDecl>(ND)->getCanonicalDecl();
-  const DeclContext *DC = GetNamedParent(RD);
-
-  auto Itr = SYCLKernelNamingTypes.find(DC);
-  assert(Itr != SYCLKernelNamingTypes.end() && "Not a valid DeclContext?");
-
-  const llvm::SmallPtrSet<const CXXRecordDecl *, 4> &Set = Itr->getSecond();
-
-  llvm::SmallVector<const CXXRecordDecl *> Decls{Set.begin(), Set.end()};
-
-  FilterSYCLKernelNamingDecls(RD, Decls);
-
-  llvm::sort(Decls, [](const CXXRecordDecl *LHS, const CXXRecordDecl *RHS) {
-    return LHS->getLambdaManglingNumber() < RHS->getLambdaManglingNumber();
-  });
-
-  return llvm::find(Decls, RD) - Decls.begin();
 }

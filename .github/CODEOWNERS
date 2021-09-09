@@ -43,6 +43,9 @@ sycl/source/detail/plugin.hpp @smaslov-intel
 sycl/source/detail/posix_pi.cpp @smaslov-intel
 sycl/source/detail/windows_pi.cpp @smaslov-intel
 
+# ESIMD CPU emulator plug-in
+sycl/plugins/esimd_cpu/ @kbobrovs @smaslov-intel
+
 # CUDA plugin
 sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
 

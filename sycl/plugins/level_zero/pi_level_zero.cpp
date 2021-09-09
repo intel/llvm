@@ -810,6 +810,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
       ZE_CALL(zeHostSynchronize, (Event->ZeEvent));
       Event->cleanup(this);
     }
+    Event->ZeCommandList = nullptr;
     PI_CALL(EventRelease(Event, this));
   }
   EventList.clear();

@@ -1432,14 +1432,11 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     A->render(Args, CmdArgs);
   }
 
-  Args.AddAllArgs(CmdArgs,
-                  {options::OPT_D, options::OPT_U, options::OPT_I_Group,
-                   options::OPT_F, options::OPT_index_header_map});
-
   // The file being compiled that contains the integration footer is not being
   // compiled in the directory of the original source.  Add that directory
-  // as an -internal-isystem option so we can properly find potential headers
-  // there.
+  // as an -I option so we can properly find potential headers there.  The
+  // original source search directory should also be placed before any user
+  // search directories.
   if (ContainsAppendFooterAction(&JA)) {
     SmallString<128> SourcePath(Inputs[0].getBaseInput());
     llvm::sys::path::remove_filename(SourcePath);
@@ -1452,6 +1449,10 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(Args.MakeArgString(*CWD));
     }
   }
+
+  Args.AddAllArgs(CmdArgs,
+                  {options::OPT_D, options::OPT_U, options::OPT_I_Group,
+                   options::OPT_F, options::OPT_index_header_map});
 
   // Add -Wp, and -Xpreprocessor if using the preprocessor.
 
@@ -3285,7 +3286,7 @@ static void RenderSCPOptions(const ToolChain &TC, const ArgList &Args,
                              ArgStringList &CmdArgs) {
   const llvm::Triple &EffectiveTriple = TC.getEffectiveTriple();
 
-  if (!EffectiveTriple.isOSLinux())
+  if (!EffectiveTriple.isOSFreeBSD() && !EffectiveTriple.isOSLinux())
     return;
 
   if (!EffectiveTriple.isX86() && !EffectiveTriple.isSystemZ() &&
@@ -6215,6 +6216,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_openmp_simd);
       Args.AddAllArgs(CmdArgs, options::OPT_fopenmp_enable_irbuilder);
       Args.AddAllArgs(CmdArgs, options::OPT_fopenmp_version_EQ);
+      if (!Args.hasFlag(options::OPT_fopenmp_extensions,
+                        options::OPT_fno_openmp_extensions, /*Default=*/true))
+        CmdArgs.push_back("-fno-openmp-extensions");
       Args.AddAllArgs(CmdArgs, options::OPT_fopenmp_cuda_number_of_sm_EQ);
       Args.AddAllArgs(CmdArgs, options::OPT_fopenmp_cuda_blocks_per_sm_EQ);
       Args.AddAllArgs(CmdArgs,
@@ -6251,6 +6255,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       Args.AddLastArg(CmdArgs, options::OPT_fopenmp_simd,
                       options::OPT_fno_openmp_simd);
     Args.AddAllArgs(CmdArgs, options::OPT_fopenmp_version_EQ);
+    if (!Args.hasFlag(options::OPT_fopenmp_extensions,
+                      options::OPT_fno_openmp_extensions, /*Default=*/true))
+      CmdArgs.push_back("-fno-openmp-extensions");
   }
 
   const SanitizerArgs &Sanitize = TC.getSanitizerArgs();
@@ -7627,9 +7634,9 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
                            bool *EmitCodeView) const {
   unsigned RTOptionID = options::OPT__SLASH_MT;
   bool isNVPTX = getToolChain().getTriple().isNVPTX();
-  bool isSYCLDevice =
-      getToolChain().getTriple().getEnvironment() == llvm::Triple::SYCLDevice;
-  bool isSYCL = Args.hasArg(options::OPT_fsycl) || isSYCLDevice;
+  bool isSPIR = getToolChain().getTriple().isSPIR();
+  // FIXME: isSYCL should not be enabled by "isSPIR"
+  bool isSYCL = Args.hasArg(options::OPT_fsycl) || isSPIR;
   // For SYCL Windows, /MD is the default.
   if (isSYCL)
     RTOptionID = options::OPT__SLASH_MD;
@@ -7641,7 +7648,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
 
   if (Arg *A = Args.getLastArg(options::OPT__SLASH_M_Group)) {
     RTOptionID = A->getOption().getID();
-    if (isSYCL && !isSYCLDevice &&
+    if (isSYCL && !isSPIR &&
         (RTOptionID == options::OPT__SLASH_MT ||
          RTOptionID == options::OPT__SLASH_MTd))
       // Use of /MT or /MTd is not supported for SYCL.
@@ -7653,9 +7660,9 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
   auto addPreDefines = [&](unsigned Defines) {
     if (Defines & addDEBUG)
       CmdArgs.push_back("-D_DEBUG");
-    if (Defines & addMT && !isSYCLDevice)
+    if (Defines & addMT && !isSPIR)
       CmdArgs.push_back("-D_MT");
-    if (Defines & addDLL && !isSYCLDevice)
+    if (Defines & addDLL && !isSPIR)
       CmdArgs.push_back("-D_DLL");
   };
   StringRef FlagForCRT;
@@ -8346,7 +8353,6 @@ void OffloadBundler::ConstructJobMultipleOutputs(
           TT.setArchName(types::getTypeName(InputType));
           TT.setVendorName("intel");
           TT.setOS(getToolChain().getTriple().getOS());
-          TT.setEnvironment(llvm::Triple::SYCLDevice);
           Triples += "sycl-";
           Triples += TT.normalize();
           continue;
@@ -8462,7 +8468,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     llvm::Triple TT = getToolChain().getTriple();
     SmallString<128> TargetTripleOpt = TT.getArchName();
     // When wrapping an FPGA device binary, we need to be sure to apply the
-    // appropriate triple that corresponds (fpga_aoc[xr]-intel-<os>-sycldevice)
+    // appropriate triple that corresponds (fpga_aoc[xr]-intel-<os>)
     // to the target triple setting.
     if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
         TCArgs.hasArg(options::OPT_fsycl_link_EQ)) {
@@ -8474,7 +8480,6 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         FPGAArch += "_emu";
       TT.setArchName(FPGAArch);
       TT.setVendorName("intel");
-      TT.setEnvironment(llvm::Triple::SYCLDevice);
       TargetTripleOpt = TT.str();
       // When wrapping an FPGA aocx binary to archive, do not emit registration
       // functions
@@ -8662,10 +8667,19 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
       Targets += ',';
     Targets += Action::GetOffloadKindName(Dep.DependentOffloadKind);
     Targets += '-';
-    Targets += Dep.DependentToolChain->getTriple().normalize();
-    if (Dep.DependentOffloadKind == Action::OFK_HIP &&
+    std::string NormalizedTriple =
+        Dep.DependentToolChain->getTriple().normalize();
+    Targets += NormalizedTriple;
+    if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
+         Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
-      Targets += '-';
+      // If OffloadArch is present it can only appear as the 6th hyphen
+      // separated field of Bundle Entry ID. So, pad required number of
+      // hyphens in Triple.
+      // e.g. if NormalizedTriple is nvptx64-nvidia-cuda, 2 more - to
+      // generate nvptx64-nvidia-cuda--
+      for (int i = 4 - StringRef(NormalizedTriple).count("-"); i > 0; i--)
+        Targets += '-';
       Targets += Dep.DependentBoundArch;
     }
   }
@@ -8724,7 +8738,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
 
   TranslatorArgs.push_back("-o");
   TranslatorArgs.push_back(Output.getFilename());
-  if (getToolChain().getTriple().isSYCLDeviceEnvironment()) {
+  if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     TranslatorArgs.push_back("-spirv-max-version=1.3");
     // TODO: align debug info for FPGA H/W when its SPIR-V consumer is ready
     if (C.getDriver().isFPGAEmulationMode())
@@ -8774,7 +8788,9 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
       ExtArg += ",+SPV_INTEL_usm_storage_classes";
     else
       // Don't enable several freshly added extensions on FPGA H/W
-      ExtArg += ",+SPV_INTEL_token_type,+SPV_INTEL_bfloat16_conversion";
+      ExtArg += ",+SPV_INTEL_token_type"
+                ",+SPV_INTEL_bfloat16_conversion"
+                ",+SPV_INTEL_joint_matrix";
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {

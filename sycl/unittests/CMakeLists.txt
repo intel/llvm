@@ -12,6 +12,7 @@ string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
 include(AddSYCLUnitTest)
 
 add_subdirectory(allowlist)
+add_subdirectory(config)
 add_subdirectory(misc)
 add_subdirectory(pi)
 add_subdirectory(kernel-and-program)

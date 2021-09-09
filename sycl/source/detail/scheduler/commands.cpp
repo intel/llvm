@@ -1792,6 +1792,9 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
                                                       &SpecConstsBuffer);
       break;
     }
+    case kernel_param_kind_t::kind_invalid:
+      throw runtime_error("Invalid kernel param kind", PI_INVALID_VALUE);
+      break;
     }
   };
 
@@ -2110,8 +2113,7 @@ cl_int ExecCGCommand::enqueueImp() {
         !ExecKernel->MSyclKernel->isCreatedFromSource()) {
       EliminatedArgMask =
           detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-              ExecKernel->MOSModuleHandle, ContextImpl, DeviceImpl, Program,
-              ExecKernel->MKernelName);
+              ExecKernel->MOSModuleHandle, Program, ExecKernel->MKernelName);
     }
     if (KernelMutex != nullptr) {
       // For cacheable kernels, we use per-kernel mutex

@@ -5,7 +5,7 @@
 ; This test checks eliminating dead arguments
 ; from SPIR kernel functions in SYCL environment.
 
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64"
 
 define weak_odr spir_kernel void @SpirKernel1(float %arg1, float %arg2) {
 ; CHECK-LABEL: define {{[^@]+}}@SpirKernel1

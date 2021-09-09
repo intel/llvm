@@ -1190,9 +1190,7 @@ uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
 // TODO consider another approach with storing the masks in the integration
 // header instead.
 ProgramManager::KernelArgMask ProgramManager::getEliminatedKernelArgMask(
-    OSModuleHandle M, const ContextImplPtr &ContextImpl,
-    const DeviceImplPtr &DeviceImpl, pi::PiProgram NativePrg,
-    const std::string &KernelName) {
+    OSModuleHandle M, pi::PiProgram NativePrg, const std::string &KernelName) {
   // If instructed to use a spv file, assume no eliminated arguments.
   if (m_UseSpvFile && M == OSUtil::ExeModuleHandle)
     return {};

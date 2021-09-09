@@ -166,9 +166,7 @@ struct TRIFuncObjBad5 {
 };
 
 struct TRIFuncObjBad6 {
-  [[intel::reqd_work_group_size(4)]]   // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}} \
-                                       // expected-warning {{attribute 'intel::reqd_work_group_size' is deprecated}} \
-                                       // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+  [[sycl::reqd_work_group_size(4)]]   // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
