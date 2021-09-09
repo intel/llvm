@@ -192,8 +192,8 @@ std::string manglePrimitiveType(const Type *T) {
       llvm_unreachable("unsupported spec const integer type");
     }
   }
-  // Mangling, which is generated below is not conformant with C++ ABI rules
-  // (https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.unqualified-name)
+  // Mangling, which is generated below is not fully conformant with C++ ABI
+  // rules (https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.unqualified-name)
   // But it should be more or less okay, because these declarations only
   // exists in the module between invocations of sycl-post-link and llvm-spirv,
   // llvm-spirv doesn't care about the mangling and the only intent here is to
@@ -202,7 +202,9 @@ std::string manglePrimitiveType(const Type *T) {
   if (T->isStructTy())
     return T->getStructName().str();
   if (T->isArrayTy())
-    return "A" + manglePrimitiveType(T->getArrayElementType());
+    return "A" + std::to_string(T->getArrayNumElements()) +
+           "_" + manglePrimitiveType(T->getArrayElementType());
+
   if (auto *VecTy = dyn_cast<FixedVectorType>(T))
     return "Dv" + std::to_string(VecTy->getNumElements()) + "_" +
            manglePrimitiveType(VecTy->getElementType());
@@ -217,6 +219,15 @@ std::string mangleFuncItanium(StringRef BaseName, const FunctionType *FT) {
       (Twine("_Z") + Twine(BaseName.size()) + Twine(BaseName)).str();
   for (unsigned I = 0; I < FT->getNumParams(); ++I)
     Res += manglePrimitiveType(FT->getParamType(I));
+  if (FT->getReturnType()->isArrayTy() ||
+      FT->getReturnType()->isStructTy() ||
+      FT->getReturnType()->isVectorTy()) {
+    // It is possible that we need to generate several calls to
+    // __spirv_SpecConstantComposite, accepting the same argument types, but
+    // returning different types. Therefore, we incorporate the return type into
+    // the mangling name as well to distinguish between those functions
+    Res += "_R" + manglePrimitiveType(FT->getReturnType());
+  }
   return Res;
 }
 
