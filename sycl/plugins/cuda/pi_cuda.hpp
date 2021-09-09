@@ -581,6 +581,19 @@ struct _pi_kernel {
   pi_program program_;
   std::atomic_uint32_t refCount_;
 
+  static constexpr pi_uint32 reqdThreadsPerBlock_dimensions = 3u;
+  size_t reqdThreadsPerBlock[reqdThreadsPerBlock_dimensions];
+
+  void save_reqdThreadsPerBlock(size_t size,
+                                size_t *save_reqdThreadsPerBlock) noexcept {
+    memcpy(reqdThreadsPerBlock, save_reqdThreadsPerBlock, size);
+  };
+
+  void get_reqdThreadsPerBlock(size_t ret_size,
+                               size_t *ret_reqdThreadsPerBlock) const noexcept {
+    memcpy(ret_reqdThreadsPerBlock, reqdThreadsPerBlock, ret_size);
+  };
+
   /// Structure that holds the arguments to the kernel.
   /// Note earch argument size is known, since it comes
   /// from the kernel signature.

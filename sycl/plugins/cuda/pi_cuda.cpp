@@ -673,6 +673,11 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                                size_t param_value_size, void *param_value,
                                size_t *param_value_size_ret);
 
+pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
+                                    pi_kernel_group_info param_name,
+                                    size_t param_value_size, void *param_value,
+                                    size_t *param_value_size_ret);
+
 /// Obtains the CUDA platform.
 /// There is only one CUDA platform, and contains all devices on the system.
 /// Triggers the CUDA Driver initialization (cuInit) the first time, so this
@@ -2404,6 +2409,19 @@ pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
   }
 
   *kernel = retKernel.release();
+
+  {
+    pi_device device = program->get_context()->get_device();
+    size_t reqdThreadsPerBlock[3] = {};
+    pi_result retError = cuda_piKernelGetGroupInfo(
+        *kernel, device, PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+        sizeof(reqdThreadsPerBlock), reqdThreadsPerBlock, nullptr);
+    assert(retError == PI_SUCCESS);
+
+    (*kernel)->save_reqdThreadsPerBlock(sizeof(reqdThreadsPerBlock),
+                                        reqdThreadsPerBlock);
+  }
+
   return retErr;
 }
 
@@ -2565,11 +2583,8 @@ pi_result cuda_piEnqueueKernelLaunch(
   pi_uint32 local_size = kernel->get_local_size();
 
   {
-    pi_result retError = cuda_piKernelGetGroupInfo(
-        kernel, command_queue->device_,
-        PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(reqdThreadsPerBlock), reqdThreadsPerBlock, nullptr);
-    assert(retError == PI_SUCCESS);
+    kernel->get_reqdThreadsPerBlock(sizeof(reqdThreadsPerBlock),
+                                    reqdThreadsPerBlock);
 
     maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
     command_queue->device_->get_max_work_item_sizes(sizeof(maxThreadsPerBlock),
