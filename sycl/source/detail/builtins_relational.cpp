@@ -20,6 +20,8 @@ namespace d = s::detail;
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
+// The declaration of this struct is in the CL/sycl/half_type.hpp
 template <typename T> struct builtins_helper {
   using RetType = T;
   static constexpr RetType get(T value) { return value; }

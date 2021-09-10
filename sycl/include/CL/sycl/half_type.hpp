@@ -37,6 +37,8 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+// bitselect builtin uses union with half specialization, but half has no trivial constructor.
+// This struct allow to use host half class instead of main half class in the bitselect builtin.
 template <typename T> struct builtins_helper;
 
 inline __SYCL_CONSTEXPR_HALF uint16_t float2Half(const float &Val) {
