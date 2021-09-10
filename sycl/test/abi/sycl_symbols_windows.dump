@@ -1747,6 +1747,7 @@
 ?extractArgsAndReqs@handler@sycl@cl@@AEAAXXZ
 ?extractArgsAndReqsFromLambda@handler@sycl@cl@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@@Z
 ?extractArgsAndReqsFromLambda@handler@sycl@cl@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@_N@Z
+?ext_oneapi_get_default_context@platform@sycl@cl@@QEBA?AVcontext@23@XZ
 ?fabs@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z
 ?fabs@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z
 ?fabs@__host_std@cl@@YA?AV?$vec@M$02@sycl@2@V342@@Z
