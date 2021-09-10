@@ -275,6 +275,7 @@ private:
   /// Maps names of kernels to their unique kernel IDs.
   /// TODO: Use std::unordered_set with transparent hash and equality functions
   ///       when C++20 is enabled for the runtime library.
+  /// Write access is only allowed during start-up (addImages).
   std::unordered_map<std::string, kernel_id> m_KernelIDs;
 
   // Keeps track of pi_program to image correspondence. Needed for:
