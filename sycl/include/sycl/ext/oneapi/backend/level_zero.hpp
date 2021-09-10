@@ -260,5 +260,10 @@ auto get_native<backend::level_zero>(
   return Obj.template getNative<backend::level_zero>();
 }
 
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
+    level_zero {
+  using namespace ext::oneapi::level_zero;
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
