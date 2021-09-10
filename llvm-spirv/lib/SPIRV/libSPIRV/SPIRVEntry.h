@@ -841,12 +841,6 @@ public:
 
   llvm::Optional<ExtensionID> getRequiredExtension() const override {
     switch (static_cast<unsigned>(Kind)) {
-    case CapabilityDenormPreserve:
-    case CapabilityDenormFlushToZero:
-    case CapabilitySignedZeroInfNanPreserve:
-    case CapabilityRoundingModeRTE:
-    case CapabilityRoundingModeRTZ:
-      return ExtensionID::SPV_KHR_float_controls;
     case CapabilityRoundToInfinityINTEL:
     case CapabilityFloatingPointModeINTEL:
     case CapabilityFunctionFloatControlINTEL:

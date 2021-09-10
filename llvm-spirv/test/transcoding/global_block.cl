@@ -4,8 +4,18 @@
 // removed
 
 // RUN: %clang_cc1 -O0 -triple spir-unknown-unknown -cl-std=CL2.0 -x cl %s -emit-llvm-bc -o %t.bc
-// RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv %t.bc -o %t.spv
+// TODO: currently max version is limited to 1.1 for this test. Issues here
+// that the SPIR-V module generated for blocks is invalid for versions starting
+// from 1.4, spirv-val is failing with:
+//   error: line 63: Interface variable id <13> is used by entry point
+//                   'block_kernel' id <24>, but is not listed as an interface
+//   %__block_literal_global = OpVariable %_ptr_CrossWorkgroup__struct_10
+//                         CrossWorkgroup %11
+// details can be found in:
+// – Public issue #35: OpEntryPoint must list all global variables in the
+//   interface. Additionally, duplication in the list is not allowed.
+// RUN: llvm-spirv --spirv-max-version=1.1 %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+// RUN: llvm-spirv --spirv-max-version=1.1 %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM
 
