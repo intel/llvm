@@ -33,7 +33,7 @@ void foo(int *i, int x, int y) {
   using intflavlaarray = int(*)[x][4]; // VLA then a fixed-length array
   intflavlaarray ifva = reinterpret_cast<intflavlaarray>(i);
 
-  using intvlaflaarray = int(*)[4][y]; // A fix-length array dimension followed by a VLA
+  using intvlaflaarray = int(*)[4][y]; // A fixed-length array dimension followed by a VLA
   intvlaflaarray ivfa = reinterpret_cast<intvlaflaarray>(i);
 
   ++x;

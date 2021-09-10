@@ -3455,8 +3455,8 @@ public:
     }
     unsigned Size = Context.getTypeSizeInChars(PointeeTy).getQuantity();
     if (Dim)
-      Header.addParamDesc(SYCLIntegrationHeader::kind_vla,
-                          Size | (Dim << 24u), offsetOf(FD, FieldTy));
+      Header.addParamDesc(SYCLIntegrationHeader::kind_vla, Size | (Dim << 24u),
+                          offsetOf(FD, FieldTy));
     else
       addParam(FD, FieldTy,
                ((StructDepth) ? SYCLIntegrationHeader::kind_std_layout
