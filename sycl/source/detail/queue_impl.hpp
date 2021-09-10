@@ -20,6 +20,7 @@
 #include <CL/sycl/properties/queue_properties.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
@@ -50,6 +51,22 @@ enum QueueOrder { Ordered, OOO };
 
 class queue_impl {
 public:
+  // \return a default context for the platform if it includes the device
+  // passed and default contexts are enabled, a new context otherwise.
+  static ContextImplPtr getDefaultOrNew(const DeviceImplPtr &Device) {
+    if (!SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
+      return detail::getSyclObjImpl(
+          context{createSyclObjFromImpl<device>(Device), {}, {}});
+
+    ContextImplPtr DefaultContext = detail::getSyclObjImpl(
+        Device->get_platform().ext_oneapi_get_default_context());
+
+    if (DefaultContext->hasDevice(Device))
+      return DefaultContext;
+
+    return detail::getSyclObjImpl(
+        context{createSyclObjFromImpl<device>(Device), {}, {}});
+  }
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
   ///
@@ -59,14 +76,7 @@ public:
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(const DeviceImplPtr &Device, const async_handler &AsyncHandler,
              const property_list &PropList)
-      : queue_impl(Device,
-                   detail::getSyclObjImpl(
-                       context(createSyclObjFromImpl<device>(Device), {},
-                               (DefaultContextType == CUDAContextT::primary)
-                                   ? property_list{property::context::cuda::
-                                                       use_primary_context()}
-                                   : property_list{})),
-                   AsyncHandler, PropList){};
+      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.

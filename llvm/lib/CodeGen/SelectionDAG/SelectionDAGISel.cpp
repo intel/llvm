@@ -575,7 +575,7 @@ bool SelectionDAGISel::runOnMachineFunction(MachineFunction &mf) {
         LiveInMap.insert(LI);
 
   // Insert DBG_VALUE instructions for function arguments to the entry block.
-  bool InstrRef = TM.Options.ValueTrackingVariableLocations;
+  bool InstrRef = MF->useDebugInstrRef();
   for (unsigned i = 0, e = FuncInfo->ArgDbgValues.size(); i != e; ++i) {
     MachineInstr *MI = FuncInfo->ArgDbgValues[e - i - 1];
     assert(MI->getOpcode() != TargetOpcode::DBG_VALUE_LIST &&
@@ -1226,7 +1226,10 @@ static void mapWasmLandingPadIndex(MachineBasicBlock *MBB,
   bool IsSingleCatchAllClause =
       CPI->getNumArgOperands() == 1 &&
       cast<Constant>(CPI->getArgOperand(0))->isNullValue();
-  if (!IsSingleCatchAllClause) {
+  // cathchpads for longjmp use an empty type list, e.g. catchpad within %0 []
+  // and they don't need LSDA info
+  bool IsCatchLongjmp = CPI->getNumArgOperands() == 0;
+  if (!IsSingleCatchAllClause && !IsCatchLongjmp) {
     // Create a mapping from landing pad label to landing pad index.
     bool IntrFound = false;
     for (const User *U : CPI->users()) {

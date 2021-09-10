@@ -54,6 +54,7 @@ set( LIBCLC_TARGETS_ALL
 set( LIBCLC_TEST_TARGETS_ALL
   nvptx--nvidiacl
   nvptx64--nvidiacl
+  amdgcn--amdhsa
 )
 
 set( LIBCLC_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR} )

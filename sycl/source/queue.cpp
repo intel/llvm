@@ -191,5 +191,10 @@ pi_native_handle queue::getNative() const { return impl->getNative(); }
 buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
   return impl->getAssertHappenedBuffer();
 }
+
+bool queue::device_has(aspect Aspect) const {
+  // avoid creating sycl object from impl
+  return impl->getDeviceImplPtr()->has(Aspect);
+}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

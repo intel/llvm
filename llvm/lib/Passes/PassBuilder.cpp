@@ -294,6 +294,11 @@ PipelineTuningOptions::PipelineTuningOptions() {
 }
 
 namespace llvm {
+cl::opt<bool> PrintPipelinePasses(
+    "print-pipeline-passes",
+    cl::desc("Print a '-passes' compatible string describing the pipeline "
+             "(best-effort only)."));
+
 extern cl::opt<unsigned> MaxDevirtIterations;
 extern cl::opt<bool> EnableConstraintElimination;
 extern cl::opt<bool> EnableFunctionSpecialization;
@@ -442,7 +447,8 @@ AnalysisKey NoOpLoopAnalysis::Key;
 /// it. This should be updated if new pass instrumentation wants to use the map.
 /// We currently only use this for --print-before/after.
 bool shouldPopulateClassToPassNames() {
-  return !printBeforePasses().empty() || !printAfterPasses().empty();
+  return PrintPipelinePasses || !printBeforePasses().empty() ||
+         !printAfterPasses().empty();
 }
 
 } // namespace
@@ -1786,8 +1792,11 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   MPM.addPass(GlobalOptPass());
 
   // Garbage collect dead functions.
-  // FIXME: Add ArgumentPromotion pass after once it's ported.
   MPM.addPass(GlobalDCEPass());
+
+  // If we didn't decide to inline a function, check to see if we can
+  // transform it to pass arguments by value instead of by reference.
+  MPM.addPass(createModuleToPostOrderCGSCCPassAdaptor(ArgumentPromotionPass()));
 
   FunctionPassManager FPM;
   // The IPO Passes may leave cruft around. Clean up after them.

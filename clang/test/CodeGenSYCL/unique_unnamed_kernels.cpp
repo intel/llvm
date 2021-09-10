@@ -16,6 +16,6 @@ int main() {
 
 // Make sure the kernels are instantiated in the correct order, and named
 // correctly.
-// CHECK: define{{.*}}spir_kernel void @_ZTSZ4mainEUlvE10001_()
-// CHECK: define{{.*}}spir_kernel void @_ZTSZ4mainEUlvE10000_()
+// CHECK: define{{.*}}spir_kernel void @_ZTSZ4mainEUlvE0_()
+// CHECK: define{{.*}}spir_kernel void @_ZTSZ4mainEUlvE_()
 
