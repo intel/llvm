@@ -725,11 +725,6 @@ struct _pi_kernel {
                               size_t *save_reqd_threads_per_block) noexcept {
     std::memcpy(reqdThreadsPerBlock_, save_reqd_threads_per_block, size);
   };
-
-  void get_reqd_threads_per_block(
-      size_t ret_size, size_t *ret_reqd_threads_per_block) const noexcept {
-    std::memcpy(ret_reqd_threads_per_block, reqdThreadsPerBlock_, ret_size);
-  };
 };
 
 /// Implementation of samplers for CUDA

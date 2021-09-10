@@ -2576,13 +2576,11 @@ pi_result cuda_piEnqueueKernelLaunch(
   int threadsPerBlock[3] = {32, 1, 1};
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
-  size_t reqdThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
   pi_uint32 local_size = kernel->get_local_size();
 
   {
-    kernel->get_reqd_threads_per_block(sizeof(reqdThreadsPerBlock),
-                                       reqdThreadsPerBlock);
+    size_t *reqdThreadsPerBlock = kernel->reqdThreadsPerBlock_;
     maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
     command_queue->device_->get_max_work_item_sizes(sizeof(maxThreadsPerBlock),
                                                     maxThreadsPerBlock);
