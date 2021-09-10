@@ -2420,7 +2420,6 @@ pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
                                         reqdThreadsPerBlock);
 
   *kernel = retKernel.release();
-
   return retErr;
 }
 
