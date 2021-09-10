@@ -429,7 +429,7 @@ private:
     // Scheduler will later omit events, that are not required to execute tasks.
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
-    const auto Type = Handler.getType();
+    const CG::CGTYPE Type = Handler.getType();
     if (MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
                        Type == CG::CGTYPE::CodeplayInteropTask))
       Handler.depends_on(MLastEvent);

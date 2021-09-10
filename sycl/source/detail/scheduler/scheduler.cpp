@@ -71,7 +71,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
                               QueueImplPtr Queue) {
   EventImplPtr NewEvent = nullptr;
-  const auto Type = CommandGroup->getType();
+  const CG::CGTYPE Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
   std::vector<StreamImplPtr> Streams;
 
