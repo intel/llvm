@@ -503,6 +503,12 @@ convertImpl(T Value) {
 
 #endif // __SYCL_DEVICE_ONLY__
 
+// Forward declarations
+template <typename TransformedArgType, int Dims, typename KernelType>
+class RoundedRangeKernel;
+template <typename TransformedArgType, int Dims, typename KernelType>
+class RoundedRangeKernelWithKH;
+
 } // namespace detail
 
 #if defined(_WIN32) && (_MSC_VER)
@@ -2395,6 +2401,19 @@ template <typename FuncT>
 struct CheckDeviceCopyable
     : CheckFieldsAreDeviceCopyable<FuncT, __builtin_num_fields(FuncT)>,
       CheckBasesAreDeviceCopyable<FuncT, __builtin_num_bases(FuncT)> {};
+
+// Below are two specializations for CheckDeviceCopyable when a kernel lambda
+// is wrapped after range rounding optimization.
+template <typename TransformedArgType, int Dims, typename KernelType>
+struct CheckDeviceCopyable<
+    RoundedRangeKernel<TransformedArgType, Dims, KernelType>>
+    : CheckDeviceCopyable<KernelType> {};
+
+template <typename TransformedArgType, int Dims, typename KernelType>
+struct CheckDeviceCopyable<
+    RoundedRangeKernelWithKH<TransformedArgType, Dims, KernelType>>
+    : CheckDeviceCopyable<KernelType> {};
+
 #endif // __SYCL_DEVICE_ONLY__
 } // namespace detail
 
