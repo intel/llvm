@@ -200,14 +200,20 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
 
   return std::make_shared<kernel_bundle_impl>(TargetContext, Devices, DevImg);
 }
+
 kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
                    backend Backend) {
+  return make_kernel(NativeHandle, TargetContext, false, Backend);
+}
+
+kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
+                   bool KeepOwnership, backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
   // Create PI kernel first.
   pi::PiKernel PiKernel = nullptr;
   Plugin.call<PiApiKind::piextKernelCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), false, &PiKernel);
+      NativeHandle, ContextImpl->getHandleRef(), &PiKernel, !KeepOwnership);
 
   if (Backend == backend::opencl)
     Plugin.call<PiApiKind::piKernelRetain>(PiKernel);

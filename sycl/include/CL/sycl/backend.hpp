@@ -108,6 +108,9 @@ __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                backend Backend);
 __SYCL_EXPORT kernel make_kernel(pi_native_handle NativeHandle,
                                  const context &TargetContext, backend Backend);
+__SYCL_EXPORT kernel make_kernel(pi_native_handle NativeHandle,
+                                 const context &TargetContext,
+                                 bool KeepOwnership, backend Backend);
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
                    bool KeepOwnership, bundle_state State, backend Backend);
@@ -205,14 +208,22 @@ make_buffer(const typename backend_traits<Backend>::template input_type<
 template <backend Backend>
 kernel
 make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
+                &BackendObject, const context &TargetContext,
+                bool KeepOwnership) {
+  return detail::make_kernel(detail::pi::cast<pi_native_handle>(BackendObject),
+                             TargetContext, KeepOwnership, Backend);
+}
+
+template <backend Backend>
+kernel
+make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
                 &BackendObject,
             const context &TargetContext) {
   return detail::make_kernel(detail::pi::cast<pi_native_handle>(BackendObject),
-                             TargetContext, Backend);
+                             TargetContext, false, Backend);
 }
 
 template <backend Backend, bundle_state State>
-__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_kernel_bundle free function")
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeKernelBundle == true,
     kernel_bundle<State>>::type

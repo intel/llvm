@@ -42,10 +42,12 @@
 //   piextEventCreateWithNativeHandle
 // 6.8 Added new ownership argument to piextProgramCreateWithNativeHandle which
 //   changes the API version from 5.7 to 6.8
+// 7.9 Added new ownership argument to piextKernelCreateWithNativeHandle which
+//   changes the API version from 6.8 to 7.9
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 6
-#define _PI_H_VERSION_MINOR 8
+#define _PI_H_VERSION_MAJOR 7
+#define _PI_H_VERSION_MINOR 9
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1320,12 +1322,13 @@ __SYCL_EXPORT pi_result piKernelSetExecInfo(pi_kernel kernel,
 ///
 /// \param nativeHandle is the native handle to create PI kernel from.
 /// \param context is the PI context of the kernel.
+/// \param kernel is the PI kernel created from the native handle.
 /// \param ownNativeHandle tells if SYCL RT should assume the ownership of
 ///        the native handle, if it can.
-/// \param kernel is the PI kernel created from the native handle.
+///
 __SYCL_EXPORT pi_result piextKernelCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
-    pi_kernel *kernel);
+    pi_native_handle nativeHandle, pi_context context, pi_kernel *kernel,
+    bool ownNativeHandle);
 
 /// Gets the native handle of a PI kernel object.
 ///

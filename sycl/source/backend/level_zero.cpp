@@ -96,6 +96,22 @@ __SYCL_EXPORT queue make_queue(const context &Context,
 }
 
 //----------------------------------------------------------------------------
+// Implementation of level_zero::make<kernel>
+__SYCL_EXPORT kernel make_kernel(const context &Context,
+                                 pi_native_handle NativeHandle,
+                                 bool KeepOwnership) {
+  const auto &ContextImpl = getSyclObjImpl(Context);
+  return detail::make_kernel(NativeHandle, Context, KeepOwnership,
+                             backend::level_zero);
+}
+
+// TODO: remove this version (without ownership) when allowed to break ABI.
+__SYCL_EXPORT kernel make_kernel(const context &Context,
+                                pi_native_handle NativeHandle) {
+  return make_kernel(Context, NativeHandle, false);
+}
+
+//----------------------------------------------------------------------------
 // Implementation of level_zero::make<event>
 __SYCL_EXPORT event make_event(const context &Context,
                                pi_native_handle NativeHandle,
