@@ -22,7 +22,7 @@ libdevice/ @vzakhari @jinge90
 sycl/ @intel/llvm-reviewers-runtime
 
 # Documentation
-sycl/ReleaseNotes.md @pvchupin
+sycl/ReleaseNotes.md @pvchupin @tfzhu
 sycl/doc/ @pvchupin @bader
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 

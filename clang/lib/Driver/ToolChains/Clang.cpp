@@ -1434,18 +1434,18 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
   // The file being compiled that contains the integration footer is not being
   // compiled in the directory of the original source.  Add that directory
-  // as an -I option so we can properly find potential headers there.  The
-  // original source search directory should also be placed before any user
+  // as an -iquote option so we can properly find potential user headers there.
+  // The original source search directory should also be placed before any user
   // search directories.
   if (ContainsAppendFooterAction(&JA)) {
     SmallString<128> SourcePath(Inputs[0].getBaseInput());
     llvm::sys::path::remove_filename(SourcePath);
     if (!SourcePath.empty()) {
-      CmdArgs.push_back("-I");
+      CmdArgs.push_back("-iquote");
       CmdArgs.push_back(Args.MakeArgString(SourcePath));
     } else if (llvm::ErrorOr<std::string> CWD =
                    D.getVFS().getCurrentWorkingDirectory()) {
-      CmdArgs.push_back("-I");
+      CmdArgs.push_back("-iquote");
       CmdArgs.push_back(Args.MakeArgString(*CWD));
     }
   }
@@ -4407,11 +4407,11 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   SmallString<128> SourcePath(InputFile.getBaseInput());
   llvm::sys::path::remove_filename(SourcePath);
   if (!SourcePath.empty()) {
-    HostCompileArgs.push_back("-I");
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "-I" : "-iquote");
     HostCompileArgs.push_back(TCArgs.MakeArgString(SourcePath));
   } else if (llvm::ErrorOr<std::string> CWD =
                  TC.getDriver().getVFS().getCurrentWorkingDirectory()) {
-    HostCompileArgs.push_back("-I");
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "-I" : "-iquote");
     HostCompileArgs.push_back(TCArgs.MakeArgString(*CWD));
   }
 
@@ -7109,7 +7109,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (IsHIP)
     CmdArgs.push_back("-fcuda-allow-variadic-functions");
 
-  if (IsCudaDevice || IsHIPDevice) {
+  if (IsCudaDevice || IsHIPDevice || IsSYCLOffloadDevice) {
     StringRef InlineThresh =
         Args.getLastArgValue(options::OPT_fgpu_inline_threshold_EQ);
     if (!InlineThresh.empty()) {

@@ -593,8 +593,7 @@ static void instantiateIntelFPGABankWidthAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddOneConstantPowerTwoValueAttr<IntelFPGABankWidthAttr>(
-        New, *Attr, Result.getAs<Expr>());
+    S.AddIntelFPGABankWidthAttr(New, *Attr, Result.getAs<Expr>());
 }
 
 static void instantiateIntelFPGANumBanksAttr(
@@ -604,8 +603,7 @@ static void instantiateIntelFPGANumBanksAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddOneConstantPowerTwoValueAttr<IntelFPGANumBanksAttr>(
-        New, *Attr, Result.getAs<Expr>());
+    S.AddIntelFPGANumBanksAttr(New, *Attr, Result.getAs<Expr>());
 }
 
 static void instantiateIntelFPGABankBitsAttr(

@@ -1515,21 +1515,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return Res;
   }
 
-  case OpVariableLengthArrayINTEL: {
-    auto *VLA = static_cast<SPIRVVariableLengthArrayINTEL *>(BV);
-    llvm::Type *Ty = transType(BV->getType()->getPointerElementType());
-    llvm::Value *ArrSize = transValue(VLA->getOperand(0), F, BB, false);
-    return mapValue(
-        BV, new AllocaInst(Ty, SPIRAS_Private, ArrSize, BV->getName(), BB));
-  }
-  case OpRestoreMemoryINTEL: {
-    auto *Restore = static_cast<SPIRVRestoreMemoryINTEL *>(BV);
-    llvm::Value *Ptr = transValue(Restore->getOperand(0), F, BB, false);
-    Function *StackRestore =
-        Intrinsic::getDeclaration(M, Intrinsic::stackrestore);
-    return mapValue(BV, CallInst::Create(StackRestore, {Ptr}, "", BB));
-  }
-
   case OpFunctionParameter: {
     auto BA = static_cast<SPIRVFunctionParameter *>(BV);
     assert(F && "Invalid function");
@@ -1579,10 +1564,27 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   // Translation of instructions
   int OpCode = BV->getOpCode();
   switch (OpCode) {
+  case OpVariableLengthArrayINTEL: {
+    auto *VLA = static_cast<SPIRVVariableLengthArrayINTEL *>(BV);
+    llvm::Type *Ty = transType(BV->getType()->getPointerElementType());
+    llvm::Value *ArrSize = transValue(VLA->getOperand(0), F, BB);
+    return mapValue(
+        BV, new AllocaInst(Ty, SPIRAS_Private, ArrSize, BV->getName(), BB));
+  }
+
+  case OpRestoreMemoryINTEL: {
+    auto *Restore = static_cast<SPIRVRestoreMemoryINTEL *>(BV);
+    llvm::Value *Ptr = transValue(Restore->getOperand(0), F, BB);
+    Function *StackRestore =
+        Intrinsic::getDeclaration(M, Intrinsic::stackrestore);
+    return mapValue(BV, CallInst::Create(StackRestore, {Ptr}, "", BB));
+  }
+
   case OpSaveMemoryINTEL: {
     Function *StackSave = Intrinsic::getDeclaration(M, Intrinsic::stacksave);
     return mapValue(BV, CallInst::Create(StackSave, "", BB));
   }
+
   case OpBranch: {
     auto *BR = static_cast<SPIRVBranch *>(BV);
     auto *BI = BranchInst::Create(
@@ -3033,7 +3035,8 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
     if (isFuncNoUnwind())
       Func->addFnAttr(Attribute::NoUnwind);
     auto OC = BI->getOpCode();
-    if (isGroupOpCode(OC) || isIntelSubgroupOpCode(OC))
+    if (isGroupOpCode(OC) || isIntelSubgroupOpCode(OC) ||
+        OC == OpControlBarrier)
       Func->addFnAttr(Attribute::Convergent);
   }
   auto Call =
