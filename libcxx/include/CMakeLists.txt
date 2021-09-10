@@ -97,6 +97,9 @@ set(files
   __bits
   __bsd_locale_defaults.h
   __bsd_locale_fallbacks.h
+  __charconv/chars_format.h
+  __charconv/from_chars_result.h
+  __charconv/to_chars_result.h
   __compare/common_comparison_category.h
   __compare/compare_three_way_result.h
   __compare/ordering.h
@@ -125,7 +128,11 @@ set(files
   __config
   __debug
   __errc
+  __format/format_arg.h
+  __format/format_args.h
+  __format/format_context.h
   __format/format_error.h
+  __format/format_fwd.h
   __format/format_parse_context.h
   __function_like.h
   __functional_base
@@ -227,9 +234,9 @@ set(files
   __ranges/iota_view.h
   __ranges/join_view.h
   __ranges/non_propagating_cache.h
+  __ranges/range_adaptor.h
   __ranges/ref_view.h
   __ranges/reverse_view.h
-  __ranges/take_view.h
   __ranges/single_view.h
   __ranges/size.h
   __ranges/subrange.h
@@ -250,7 +257,6 @@ set(files
   __support/ibm/xlocale.h
   __support/musl/xlocale.h
   __support/newlib/xlocale.h
-  __support/nuttx/xlocale.h
   __support/openbsd/xlocale.h
   __support/solaris/floatingpoint.h
   __support/solaris/wchar.h
@@ -264,9 +270,9 @@ set(files
   __tree
   __tuple
   __undef_macros
-  __utility/__decay_copy.h
   __utility/as_const.h
   __utility/cmp.h
+  __utility/decay_copy.h
   __utility/declval.h
   __utility/exchange.h
   __utility/forward.h
@@ -382,7 +388,6 @@ set(files
   ostream
   queue
   random
-  ranges
   ranges
   ratio
   regex

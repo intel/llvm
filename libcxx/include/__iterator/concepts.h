@@ -24,9 +24,6 @@
 #pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if !defined(_LIBCPP_HAS_NO_RANGES)
@@ -174,7 +171,6 @@ concept contiguous_iterator =
   derived_from<_ITER_CONCEPT<_Ip>, contiguous_iterator_tag> &&
   is_lvalue_reference_v<iter_reference_t<_Ip>> &&
   same_as<iter_value_t<_Ip>, remove_cvref_t<iter_reference_t<_Ip>>> &&
-  (is_pointer_v<_Ip> || requires { sizeof(__pointer_traits_element_type<_Ip>); }) &&
   requires(const _Ip& __i) {
     { _VSTD::to_address(__i) } -> same_as<add_pointer_t<iter_reference_t<_Ip>>>;
   };
@@ -268,7 +264,5 @@ concept indirectly_movable_storable =
 #endif // !defined(_LIBCPP_HAS_NO_RANGES)
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___ITERATOR_CONCEPTS_H

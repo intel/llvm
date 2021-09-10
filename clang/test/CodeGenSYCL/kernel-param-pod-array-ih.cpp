@@ -29,6 +29,7 @@
 // CHECK-NEXT: //--- _ZTSZ4mainE8kernel_D
 // CHECK-NEXT:   { kernel_param_kind_t::kind_std_layout, 48, 0 },
 // CHECK-EMPTY:
+// CHECK-NEXT:   { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
 
 // CHECK: template <> struct KernelInfo<kernel_B> {

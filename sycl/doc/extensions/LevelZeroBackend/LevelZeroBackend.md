@@ -9,7 +9,6 @@ The currently supported targets are all Intel GPUs starting with Gen9.
 
 NOTE: This specification is a draft. While describing the currently implemented behaviors it is known to be not complete nor exhaustive.
       We shall continue to add more information, e.g. explain general mapping of SYCL programming model to Level-Zero API.
-      It will also be gradually changing to a SYCL-2020 conforming implementation.
 
 ## 2. Prerequisites
 
@@ -23,7 +22,7 @@ The Level-Zero backend is added to the cl::sycl::backend enumeration:
 ``` C++
 enum class backend {
   // ...
-  level_zero,
+  ext_oneapi_level_zero,
   // ...
 };
 ```
@@ -55,7 +54,7 @@ and they must be included in the order shown:
 
 ``` C++
   #include "level_zero/ze_api.h"
-  #include "sycl/backend/level_zero.hpp"
+  #include "sycl/ext/oneapi/backend/level_zero.hpp"
 ```
 ### 4.1 Mapping of SYCL objects to Level-Zero handles
 
@@ -71,7 +70,7 @@ These SYCL objects encapsulate the corresponding Level-Zero handles:
 
 ### 4.2 Obtaining of native Level-Zero handles from SYCL objects
                 
-The ```get_native<cl::sycl::backend::level_zero>()``` member function is how a raw native Level-Zero handle can be obtained
+The ```get_native<cl::sycl::backend::ext_oneapi_level_zero>()``` member function is how a raw native Level-Zero handle can be obtained
 for a specific SYCL object. It is currently supported for SYCL ```platform```, ```device```, ```context```, ```queue```, ```event```
 and ```program``` classes. There is also a free-function defined in ```cl::sycl``` namespace that can be used instead of the member function:
 ``` C++
@@ -81,7 +80,7 @@ auto get_native(const SyclObjectT &Obj) ->
 ```
 ### 4.3 Construct a SYCL object from a Level-Zero handle
         
-The following free functions defined in the ```cl::sycl::level_zero``` namespace allow an application to create
+The following free functions defined in the ```cl::sycl::ext::oneapi::level_zero``` namespace allow an application to create
 a SYCL object that encapsulates a corresponding Level-Zero object:
 
 | Level-Zero interoperability function |Description|
@@ -103,11 +102,15 @@ some interoperability API supports overriding this behavior and keep the ownersh
 Use this enumeration for explicit specification of the ownership:
 ``` C++
 namespace sycl {
+namespace ext {
+namespace oneapi {
 namespace level_zero {
 
 enum class ownership { transfer, keep };
 
 } // namespace level_zero
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 ```
                 
@@ -193,3 +196,4 @@ struct free_memory {
 |3|2021-04-13|James Brodman|Free Memory Query
 |4|2021-07-06|Rehana Begam|Introduced explicit ownership for queue
 |5|2021-07-25|Sergey Maslov|Introduced SYCL interop for events
+|6|2021-08-30|Dmitry Vodopyanov|Updated according to SYCL 2020 reqs for extensions
