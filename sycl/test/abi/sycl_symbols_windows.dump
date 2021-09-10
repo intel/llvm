@@ -301,6 +301,8 @@
 ??0exception@sycl@cl@@IEAA@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ??0exception@sycl@cl@@IEAA@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@HV?$shared_ptr@Vcontext@sycl@cl@@@4@@Z
 ??0exception@sycl@cl@@IEAA@PEBDHV?$shared_ptr@Vcontext@sycl@cl@@@std@@@Z
+??0exception@sycl@cl@@IEAA@Verror_code@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@4@HV?$shared_ptr@Vcontext@sycl@cl@@@4@@Z
+??0exception@sycl@cl@@IEAA@Verror_code@std@@PEBDHV?$shared_ptr@Vcontext@sycl@cl@@@4@@Z
 ??0exception@sycl@cl@@IEAA@Verror_code@std@@V?$shared_ptr@Vcontext@sycl@cl@@@4@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@4@@Z
 ??0exception@sycl@cl@@QEAA@$$QEAV012@@Z
 ??0exception@sycl@cl@@QEAA@AEBV012@@Z
