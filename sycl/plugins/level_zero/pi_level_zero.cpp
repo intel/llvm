@@ -183,8 +183,9 @@ static void zePrint(const char *Format, ...) {
 
 // Controls whether device-scope events are used.
 static const bool ZeAllHostVisibleEvents = [] {
-  const auto DeviceEventsStr = std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_EVENTS");
-  bool result = (DeviceEventsStr ? (std::atoi(DeviceEventsStr) == 0) : false);
+  const auto DeviceEventsStr =
+      std::getenv("SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS");
+  bool result = (DeviceEventsStr ? (std::atoi(DeviceEventsStr) == 0) : true);
   return result;
 }();
 
@@ -4419,6 +4420,12 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent) {
       return Res;
 
     // Create a "proxy" host-visible event.
+    //
+    // TODO: consider creating just single host-visible proxy event to
+    // represent multiple device-scope events. E.g. have a host-visible
+    // event at the end of each command-list to represent device-scope
+    // events from every command in that command-list.
+    //
     ZeStruct<ze_event_desc_t> ZeEventDesc;
     ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
     ZeEventDesc.wait = 0;
@@ -4528,11 +4535,6 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
           return Res;
       }
     }
-#if 0    
-    if (!ZeAllHostVisibleEvents)
-      return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet,
-                     pi_int32{CL_RUNNING});
-#endif
 
     // Make sure that we query the host-visible event.
     ze_event_handle_t ZeHostVisibleEvent;
@@ -4545,7 +4547,7 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
       return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet,
                      pi_int32{CL_COMPLETE}); // Untie from OpenCL
     }
-    // TODO: We don't know if the status is queueed, submitted or running.
+    // TODO: We don't know if the status is queued, submitted or running.
     //       For now return "running", as others are unlikely to be of
     //       interest.
     return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet,
@@ -4751,9 +4753,6 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   // Make sure to add all host-visible "proxy" event signals if needed.
   // This ensures that all signalling commands are submitted below and
   // thus proxy events can be waited without a deadlock.
-  //
-  // TODO: consider creating just single host-visible proxy event to
-  // wait for completion of multiple device-scope events requested.
   //
   for (uint32_t I = 0; I < NumEvents; I++) {
     ze_event_handle_t ZeHostVisibleEvent;
