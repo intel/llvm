@@ -837,7 +837,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
                      : std::unique_lock<std::mutex>(Event->PiEventMutex));
     if (!Event->CleanedUp) {
       ZE_CALL(zeHostSynchronize, (Event->ZeEvent));
-      Event->cleanup(this);
+      Event->cleanup(this, LockedEvent, Event);
     }
     Event->ZeCommandList = nullptr;
     PI_CALL(EventRelease(Event, this));
@@ -4607,7 +4607,10 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 // Perform any necessary cleanup after an event has been signalled.
 // This currently recycles the associate command list, and also makes
 // sure to release any kernel that may have been used by the event.
-pi_result _pi_event::cleanup(pi_queue LockedQueue) {
+// If cleanup is called from resetCommandList, then no need to reset command
+// list which was already reset.
+pi_result _pi_event::cleanup(pi_queue LockedQueue, pi_event LockedEvent,
+                             pi_event ResetListLockedEvent) {
   // The implementation of this is slightly tricky.  The same event
   // can be referred to by multiple threads, so it is possible to
   // have a race condition between the read of fields of the event,
@@ -4618,7 +4621,7 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
   // any of the Event's data members that need to be read/reset as
   // part of the cleanup operations.
   if (Queue) {
-    if (ZeCommandList) {
+    if (ZeCommandList && !ResetListLockedEvent) {
       // Event has been signalled: If the fence for the associated command list
       // is signalled, then reset the fence and command list and add them to the
       // available list for reuse in PI calls.
@@ -4697,15 +4700,22 @@ pi_result _pi_event::cleanup(pi_queue LockedQueue) {
     // Dependent event can be on the same queue. But dependent event can't be
     // same as locked event.
     auto DepEventLock =
+        LockedEvent != DepEvent && ResetListLockedEvent != DepEvent
+            ? (DepEvent->Queue != LockedQueue
+                   ? std::unique_lock<std::mutex>(DepEvent->PiEventMutex,
+                                                  std::defer_lock)
+                   : std::unique_lock<std::mutex>(DepEvent->PiEventMutex))
+            : std::unique_lock<std::mutex>();
+    auto QueueLock =
         DepEvent->Queue != LockedQueue
-            ? std::unique_lock<std::mutex>(DepEvent->PiEventMutex,
-                                           std::defer_lock)
-            : std::unique_lock<std::mutex>(DepEvent->PiEventMutex);
-    auto QueueLock = DepEvent->Queue != LockedQueue
-                         ? std::unique_lock<std::mutex>(
-                               DepEvent->Queue->PiQueueMutex, std::defer_lock)
-                         : std::unique_lock<std::mutex>();
-    if (DepEvent->Queue != LockedQueue)
+            ? (LockedEvent != DepEvent && ResetListLockedEvent != DepEvent
+                   ? std::unique_lock<std::mutex>(DepEvent->Queue->PiQueueMutex,
+                                                  std::defer_lock)
+                   : std::unique_lock<std::mutex>(
+                         DepEvent->Queue->PiQueueMutex))
+            : std::unique_lock<std::mutex>();
+    if (DepEvent->Queue != LockedQueue && LockedEvent != DepEvent &&
+        ResetListLockedEvent != DepEvent)
       std::lock(DepEventLock, QueueLock);
 
     EventsToBeReleased.pop_front();
@@ -4779,7 +4789,7 @@ static pi_result EventsWait(pi_uint32 NumEvents, const pi_event *EventList,
 
     // NOTE: we are cleaning up after the event here to free resources
     // sooner in case run-time is not calling piEventRelease soon enough.
-    Event->cleanup(Event->Queue);
+    Event->cleanup(Event->Queue, Event);
   }
 
   return PI_SUCCESS;
@@ -4825,7 +4835,7 @@ static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
 
   if (--(Event->RefCount) == 0) {
     if (!Event->CleanedUp)
-      Event->cleanup(LockedQueue);
+      Event->cleanup(LockedQueue, Event);
 
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {

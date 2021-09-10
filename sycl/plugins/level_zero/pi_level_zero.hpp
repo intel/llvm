@@ -960,7 +960,9 @@ struct _pi_event : _pi_object {
   _pi_ze_event_list_t WaitList;
 
   // Performs the cleanup of a completed event.
-  pi_result cleanup(pi_queue LockedQueue = nullptr);
+  pi_result cleanup(pi_queue LockedQueue = nullptr,
+                    pi_event LockedEvent = nullptr,
+                    pi_event ResetListLockedEvent = nullptr);
   // Tracks if the needed cleanup was already performed for
   // a completed event. This allows to control that some cleanup
   // actions are performed only once.
