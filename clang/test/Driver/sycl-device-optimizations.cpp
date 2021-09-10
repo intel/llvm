@@ -36,3 +36,12 @@
 // RUN:   | FileCheck -check-prefix=CHECK-DAE %s
 // CHECK-DAE: clang{{.*}} "-fenable-sycl-dae"
 // CHECK-DAE: sycl-post-link{{.*}} "-emit-param-info"
+
+// Check "-fgpu-inline-threshold" is passed to the front-end:
+// RUN:   %clang -### -fsycl -fgpu-inline-threshold=100000 %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-THRESH %s
+// CHECK-THRESH: "-mllvm" "-inline-threshold=100000"
+
+// RUN:   %clang -### -fsycl %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-NO-THRESH %s
+// CHECK-NO-THRESH-NOT: "-mllvm" "-inline-threshold
