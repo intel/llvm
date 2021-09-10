@@ -673,11 +673,6 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                                size_t param_value_size, void *param_value,
                                size_t *param_value_size_ret);
 
-pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
-                                    pi_kernel_group_info param_name,
-                                    size_t param_value_size, void *param_value,
-                                    size_t *param_value_size_ret);
-
 /// Obtains the CUDA platform.
 /// There is only one CUDA platform, and contains all devices on the system.
 /// Triggers the CUDA Driver initialization (cuInit) the first time, so this
@@ -2407,17 +2402,6 @@ pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
   } catch (...) {
     retErr = PI_OUT_OF_HOST_MEMORY;
   }
-
-  pi_device device = program->get_context()->get_device();
-  pi_kernel piKernel = retKernel.get();
-  size_t reqdThreadsPerBlock[3] = {};
-  pi_result retError = cuda_piKernelGetGroupInfo(
-      piKernel, device, PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-      sizeof(reqdThreadsPerBlock), reqdThreadsPerBlock, nullptr);
-  assert(retError == PI_SUCCESS);
-
-  piKernel->save_reqd_threads_per_block(sizeof(reqdThreadsPerBlock),
-                                        reqdThreadsPerBlock);
 
   *kernel = retKernel.release();
   return retErr;
