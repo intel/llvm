@@ -208,7 +208,7 @@ void AllocaOp::getCanonicalizationPatterns(RewritePatternSet &results,
 static void print(OpAsmPrinter &p, AllocaScopeOp &op) {
   bool printBlockTerminators = false;
 
-  p << AllocaScopeOp::getOperationName() << " ";
+  p << " ";
   if (!op.results().empty()) {
     p << " -> (" << op.getResultTypes() << ")";
     printBlockTerminators = true;
@@ -319,12 +319,54 @@ struct TensorLoadToMemRef : public OpRewritePattern<BufferCastOp> {
     // types. `BufferCastOp::fold` handles the same type case.
     if (!tensorLoad || tensorLoad.memref().getType() == bufferCast.getType())
       return failure();
-    // If types are not cast-compatible, bail.
+    // If types are definitely not cast-compatible, bail.
     if (!CastOp::areCastCompatible(tensorLoad.memref().getType(),
                                    bufferCast.getType()))
       return failure();
-    rewriter.replaceOpWithNewOp<CastOp>(bufferCast, bufferCast.getType(),
-                                        tensorLoad.memref());
+
+    // We already know that the types are potentially cast-compatible. However
+    // in case the affine maps are different, we may need to use a copy if we go
+    // from dynamic to static offset or stride (the canonicalization cannot know
+    // at this point that it is really cast compatible).
+    auto isGuaranteedCastCompatible = [](MemRefType source, MemRefType target) {
+      int64_t sourceOffset, targetOffset;
+      SmallVector<int64_t, 4> sourceStrides, targetStrides;
+      if (failed(getStridesAndOffset(source, sourceStrides, sourceOffset)) ||
+          failed(getStridesAndOffset(target, targetStrides, targetOffset)))
+        return false;
+      auto dynamicToStatic = [](int64_t a, int64_t b) {
+        return a == MemRefType::getDynamicStrideOrOffset() &&
+               b != MemRefType::getDynamicStrideOrOffset();
+      };
+      if (dynamicToStatic(sourceOffset, targetOffset))
+        return false;
+      for (auto it : zip(sourceStrides, targetStrides))
+        if (dynamicToStatic(std::get<0>(it), std::get<1>(it)))
+          return false;
+      return true;
+    };
+
+    auto tensorLoadType = tensorLoad.memref().getType().dyn_cast<MemRefType>();
+    auto bufferCastType = bufferCast.getType().dyn_cast<MemRefType>();
+    if (tensorLoadType && bufferCastType &&
+        !isGuaranteedCastCompatible(tensorLoadType, bufferCastType)) {
+      MemRefType resultType = bufferCastType;
+      auto loc = bufferCast.getLoc();
+      SmallVector<Value, 4> dynamicOperands;
+      for (int i = 0; i < resultType.getRank(); ++i) {
+        if (resultType.getShape()[i] != ShapedType::kDynamicSize)
+          continue;
+        auto index = rewriter.createOrFold<ConstantIndexOp>(loc, i);
+        Value size = rewriter.create<tensor::DimOp>(loc, tensorLoad, index);
+        dynamicOperands.push_back(size);
+      }
+      auto copy =
+          rewriter.create<memref::AllocOp>(loc, resultType, dynamicOperands);
+      rewriter.create<CopyOp>(loc, tensorLoad.memref(), copy);
+      rewriter.replaceOp(bufferCast, {copy});
+    } else
+      rewriter.replaceOpWithNewOp<CastOp>(bufferCast, bufferCast.getType(),
+                                          tensorLoad.memref());
     return success();
   }
 };
@@ -763,10 +805,9 @@ void DmaStartOp::build(OpBuilder &builder, OperationState &result,
 }
 
 void DmaStartOp::print(OpAsmPrinter &p) {
-  p << getOperationName() << " " << getSrcMemRef() << '[' << getSrcIndices()
-    << "], " << getDstMemRef() << '[' << getDstIndices() << "], "
-    << getNumElements() << ", " << getTagMemRef() << '[' << getTagIndices()
-    << ']';
+  p << " " << getSrcMemRef() << '[' << getSrcIndices() << "], "
+    << getDstMemRef() << '[' << getDstIndices() << "], " << getNumElements()
+    << ", " << getTagMemRef() << '[' << getTagIndices() << ']';
   if (isStrided())
     p << ", " << getStride() << ", " << getNumElementsPerStride();
 
@@ -928,8 +969,8 @@ void DmaWaitOp::build(OpBuilder &builder, OperationState &result,
 }
 
 void DmaWaitOp::print(OpAsmPrinter &p) {
-  p << getOperationName() << " " << getTagMemRef() << '[' << getTagIndices()
-    << "], " << getNumElements();
+  p << " " << getTagMemRef() << '[' << getTagIndices() << "], "
+    << getNumElements();
   p.printOptionalAttrDict((*this)->getAttrs());
   p << " : " << getTagMemRef().getType();
 }
@@ -1135,7 +1176,7 @@ void LoadOp::getCanonicalizationPatterns(RewritePatternSet &results,
 //===----------------------------------------------------------------------===//
 
 static void print(OpAsmPrinter &p, PrefetchOp op) {
-  p << PrefetchOp::getOperationName() << " " << op.memref() << '[';
+  p << " " << op.memref() << '[';
   p.printOperands(op.indices());
   p << ']' << ", " << (op.isWrite() ? "write" : "read");
   p << ", locality<" << op.localityHint();
@@ -2200,7 +2241,7 @@ void TransposeOp::build(OpBuilder &b, OperationState &result, Value in,
 
 // transpose $in $permutation attr-dict : type($in) `to` type(results)
 static void print(OpAsmPrinter &p, TransposeOp op) {
-  p << "memref.transpose " << op.in() << " " << op.permutation();
+  p << " " << op.in() << " " << op.permutation();
   p.printOptionalAttrDict(op->getAttrs(),
                           {TransposeOp::getPermutationAttrName()});
   p << " : " << op.in().getType() << " to " << op.getType();
@@ -2277,7 +2318,7 @@ static ParseResult parseViewOp(OpAsmParser &parser, OperationState &result) {
 }
 
 static void print(OpAsmPrinter &p, ViewOp op) {
-  p << op.getOperationName() << ' ' << op.getOperand(0) << '[';
+  p << ' ' << op.getOperand(0) << '[';
   p.printOperand(op.byte_shift());
   p << "][" << op.sizes() << ']';
   p.printOptionalAttrDict(op->getAttrs());

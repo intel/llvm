@@ -25,26 +25,30 @@ namespace esimd {
 ///
 /// \ingroup sycl_esimd
 template <typename BaseTy, typename RegionTy>
-class simd_view : public detail::simd_view_impl<BaseTy, RegionTy> {
+class simd_view : public detail::simd_view_impl<BaseTy, RegionTy,
+                                                simd_view<BaseTy, RegionTy>> {
   template <typename, int> friend class simd;
-  // template <typename, typename> friend class simd_view;
+  template <typename, typename, typename> friend class detail::simd_view_impl;
 
 public:
-  using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
+  using BaseClass =
+      detail::simd_view_impl<BaseTy, RegionTy, simd_view<BaseTy, RegionTy>>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
 
+  using element_type = typename ShapeTy::element_type;
+
   /// The simd type if reading this simd_view object.
-  using value_type = simd<typename ShapeTy::element_type, length>;
+  using value_type = simd<element_type, length>;
 
 private:
   simd_view(BaseTy &Base, RegionTy Region) : BaseClass(Base, Region) {}
   simd_view(BaseTy &&Base, RegionTy Region) : BaseClass(Base, Region) {}
 
 public:
-  // Disallow copy and move constructors for simd_view.
-  simd_view(const simd_view &Other) = delete;
-  simd_view(simd_view &&Other) = delete;
+  // Default copy and move constructors for simd_view.
+  simd_view(const simd_view &Other) = default;
+  simd_view(simd_view &&Other) = default;
 
   /// @{
   /// Assignment operators.
@@ -58,6 +62,70 @@ public:
   }
   /// @}
 
+  /// Move assignment operator.
+  simd_view &operator=(simd_view &&Other) {
+    *this = Other.read();
+    return *this;
+  }
+
+#define DEF_BINOP(BINOP, OPASSIGN)                                             \
+  ESIMD_INLINE friend auto operator BINOP(const simd_view &X,                  \
+                                          const value_type &Y) {               \
+    using ComputeTy = detail::compute_type_t<value_type>;                      \
+    auto V0 =                                                                  \
+        detail::convert<typename ComputeTy::vector_type>(X.read().data());     \
+    auto V1 = detail::convert<typename ComputeTy::vector_type>(Y.data());      \
+    auto V2 = V0 BINOP V1;                                                     \
+    return ComputeTy(V2);                                                      \
+  }                                                                            \
+  ESIMD_INLINE friend auto operator BINOP(const simd_view &X,                  \
+                                          const element_type &Y) {             \
+    return X BINOP(value_type) Y;                                              \
+  }                                                                            \
+  ESIMD_INLINE friend auto operator BINOP(const value_type &X,                 \
+                                          const simd_view &Y) {                \
+    using ComputeTy = detail::compute_type_t<value_type>;                      \
+    auto V0 = detail::convert<typename ComputeTy::vector_type>(X.data());      \
+    auto V1 =                                                                  \
+        detail::convert<typename ComputeTy::vector_type>(Y.read().data());     \
+    auto V2 = V0 BINOP V1;                                                     \
+    return ComputeTy(V2);                                                      \
+  }
+
+  DEF_BINOP(+, +=)
+  DEF_BINOP(-, -=)
+  DEF_BINOP(*, *=)
+  DEF_BINOP(/, /=)
+  DEF_BINOP(%, %=)
+
+#undef DEF_BINOP
+
+#define DEF_BITWISE_OP(BITWISE_OP, OPASSIGN)                                   \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const simd_view &X,             \
+                                               const value_type &Y) {          \
+    static_assert(std::is_integral<element_type>(), "not integral type");      \
+    auto V2 = X.read().data() BITWISE_OP Y.data();                             \
+    return simd<element_type, length>(V2);                                     \
+  }                                                                            \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const simd_view &X,             \
+                                               const element_type &Y) {        \
+    return X BITWISE_OP(value_type) Y;                                         \
+  }                                                                            \
+  ESIMD_INLINE friend auto operator BITWISE_OP(const value_type &X,            \
+                                               const simd_view &Y) {           \
+    static_assert(std::is_integral<element_type>(), "not integral type");      \
+    auto V2 = X.data() BITWISE_OP Y.read().data();                             \
+    return simd<element_type, length>(V2);                                     \
+  }
+
+  DEF_BITWISE_OP(&, &=)
+  DEF_BITWISE_OP(|, |=)
+  DEF_BITWISE_OP(^, ^=)
+  DEF_BITWISE_OP(>>, >>=)
+  DEF_BITWISE_OP(<<, <<=)
+
+#undef DEF_BITWISE_OP
+
 #define DEF_RELOP(RELOP)                                                       \
   ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
       const simd_view &X, const value_type &Y) {                               \
@@ -70,6 +138,10 @@ public:
     auto R = X.data() RELOP Y.read().data();                                   \
     mask_type_t<length> M(1);                                                  \
     return M & detail::convert<mask_type_t<length>>(R);                        \
+  }                                                                            \
+  ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
+      const simd_view &X, const element_type &Y) {                             \
+    return X RELOP(value_type) Y;                                              \
   }                                                                            \
   ESIMD_INLINE friend simd<uint16_t, length> operator RELOP(                   \
       const simd_view &X, const simd_view &Y) {                                \
@@ -87,6 +159,9 @@ public:
 };
 
 /// This is a specialization of simd_view class with a single element.
+/// Objects of such a class are created in the following situation:
+///   simd<int, 4> v = 1;
+///   auto v1 = v[0];
 /// We allow implicit conversion to underlying type, e.g.:
 ///   simd<int, 4> v = 1;
 ///   int i = v[0];
@@ -95,30 +170,34 @@ public:
 ///   bool b = v[0] > v[1] && v[2] < 42;
 ///
 /// \ingroup sycl_esimd
-template <typename BaseTy, bool Is2D, typename T, int StrideY, int StrideX>
-class simd_view<BaseTy, region_base_1<Is2D, T, StrideY, StrideX>>
-    : public detail::simd_view_impl<BaseTy,
-                                    region_base_1<Is2D, T, StrideY, StrideX>> {
+template <typename BaseTy, typename T, int StrideY, int StrideX>
+class simd_view<BaseTy, region1d_scalar_t<T, StrideY, StrideX>>
+    : public detail::simd_view_impl<
+          BaseTy, region1d_scalar_t<T, StrideY, StrideX>,
+          simd_view<BaseTy, region1d_scalar_t<T, StrideY, StrideX>>> {
   template <typename, int> friend class simd;
+  template <typename, typename, typename> friend class detail::simd_view_impl;
 
 public:
-  using RegionTy = region_base_1<Is2D, T, StrideY, StrideX>;
-  using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
+  using RegionTy = region1d_scalar_t<T, StrideY, StrideX>;
+  using BaseClass =
+      detail::simd_view_impl<BaseTy, RegionTy, simd_view<BaseTy, RegionTy>>;
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
   static_assert(1 == length, "length of this view is not equal to 1");
   /// The element type of this class, which could be different from the element
   /// type of the base object type.
-  using element_type = typename ShapeTy::element_type;
+  using element_type = T;
 
 private:
-  simd_view(BaseTy &Base, RegionTy Region)
-      : detail::simd_view_impl<BaseTy, RegionTy>(Base, Region) {}
-  simd_view(BaseTy &&Base, RegionTy Region)
-      : detail::simd_view_impl<BaseTy, RegionTy>(Base, Region) {}
+  simd_view(BaseTy &Base, RegionTy Region) : BaseClass(Base, Region) {}
+  simd_view(BaseTy &&Base, RegionTy Region) : BaseClass(Base, Region) {}
 
 public:
-  operator element_type() const { return (*this)[0]; }
+  operator element_type() const {
+    const auto v = BaseClass::read();
+    return v[0];
+  }
 
   using BaseClass::operator=;
 
@@ -126,6 +205,78 @@ public:
   ESIMD_INLINE friend bool operator RELOP(const simd_view &X,                  \
                                           const simd_view &Y) {                \
     return (element_type)X RELOP(element_type) Y;                              \
+  }                                                                            \
+  template <typename T1, typename = sycl::detail::enable_if_t<                 \
+                             detail::is_esimd_scalar<T1>::value &&             \
+                             detail::is_vectorizable_v<T1>::value>>            \
+  ESIMD_INLINE friend bool operator RELOP(const simd_view &X, T1 Y) {          \
+    return (element_type)X RELOP Y;                                            \
+  }
+
+  DEF_RELOP(>)
+  DEF_RELOP(>=)
+  DEF_RELOP(<)
+  DEF_RELOP(<=)
+  DEF_RELOP(==)
+  DEF_RELOP(!=)
+
+#undef DEF_RELOP
+};
+
+// TODO: remove code duplication in two class specializations for a simd_view
+// with a single element
+
+/// This is a specialization of nested simd_view class with a single element.
+/// Objects of such a class are created in the following situation:
+///   simd<int, 4> v = 1;
+///   auto v1 = v.select<2, 1>(0);
+///   auto v2 = v1[0]; // simd_view of a nested region for a single element
+template <typename BaseTy, typename T, int StrideY, int StrideX,
+          typename NestedRegion>
+class simd_view<BaseTy,
+                std::pair<region1d_scalar_t<T, StrideY, StrideX>, NestedRegion>>
+    : public detail::simd_view_impl<
+          BaseTy,
+          std::pair<region1d_scalar_t<T, StrideY, StrideX>, NestedRegion>,
+          simd_view<BaseTy, std::pair<region1d_scalar_t<T, StrideY, StrideX>,
+                                      NestedRegion>>> {
+  template <typename, int> friend class simd;
+  template <typename, typename, typename> friend class detail::simd_view_impl;
+
+public:
+  using RegionTy =
+      std::pair<region1d_scalar_t<T, StrideY, StrideX>, NestedRegion>;
+  using BaseClass =
+      detail::simd_view_impl<BaseTy, RegionTy, simd_view<BaseTy, RegionTy>>;
+  using ShapeTy = typename shape_type<RegionTy>::type;
+  static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
+  static_assert(1 == length, "length of this view is not equal to 1");
+  /// The element type of this class, which could be different from the element
+  /// type of the base object type.
+  using element_type = T;
+
+private:
+  simd_view(BaseTy &Base, RegionTy Region) : BaseClass(Base, Region) {}
+  simd_view(BaseTy &&Base, RegionTy Region) : BaseClass(Base, Region) {}
+
+public:
+  operator element_type() const {
+    const auto v = BaseClass::read();
+    return v[0];
+  }
+
+  using BaseClass::operator=;
+
+#define DEF_RELOP(RELOP)                                                       \
+  ESIMD_INLINE friend bool operator RELOP(const simd_view &X,                  \
+                                          const simd_view &Y) {                \
+    return (element_type)X RELOP(element_type) Y;                              \
+  }                                                                            \
+  template <typename T1, typename = sycl::detail::enable_if_t<                 \
+                             detail::is_esimd_scalar<T1>::value &&             \
+                             detail::is_vectorizable_v<T1>::value>>            \
+  ESIMD_INLINE friend bool operator RELOP(const simd_view &X, T1 Y) {          \
+    return (element_type)X RELOP Y;                                            \
   }
 
   DEF_RELOP(>)

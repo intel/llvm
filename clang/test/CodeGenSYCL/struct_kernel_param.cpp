@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -o %t.out
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-int-header=%t.h %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s
 
 // CHECK:     const kernel_param_desc_t kernel_signatures[] = {
@@ -14,6 +14,7 @@
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 8, 32 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 12, 40 },
 // CHECK-EMPTY:
+// CHECK-NEXT:  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT:};
 
 // This test checks if compiler accepts structures as kernel parameters.

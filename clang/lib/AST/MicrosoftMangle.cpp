@@ -2184,6 +2184,21 @@ void MicrosoftCXXNameMangler::mangleAddressSpaceType(QualType T,
     case LangAS::cuda_device:
       Extra.mangleSourceName("_ASCUdevice");
       break;
+    case LangAS::sycl_global:
+      Extra.mangleSourceName("_ASSYglobal");
+      break;
+    case LangAS::sycl_global_device:
+      Extra.mangleSourceName("_ASSYdevice");
+      break;
+    case LangAS::sycl_global_host:
+      Extra.mangleSourceName("_ASSYhost");
+      break;
+    case LangAS::sycl_local:
+      Extra.mangleSourceName("_ASSYlocal");
+      break;
+    case LangAS::sycl_private:
+      Extra.mangleSourceName("_ASSYprivate");
+      break;
     case LangAS::cuda_constant:
       Extra.mangleSourceName("_ASCUconstant");
       break;

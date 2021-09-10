@@ -18,15 +18,13 @@
 #include <__ranges/enable_borrowed_range.h>
 #include <__ranges/size.h>
 #include <__ranges/view_interface.h>
+#include <__utility/move.h>
 #include <concepts>
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
 #endif
-
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -107,7 +105,5 @@ inline constexpr bool enable_borrowed_range<common_view<_View>> = enable_borrowe
 #endif // !defined(_LIBCPP_HAS_NO_RANGES)
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___RANGES_COMMON_VIEW_H

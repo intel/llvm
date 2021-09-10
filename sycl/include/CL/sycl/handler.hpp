@@ -551,6 +551,13 @@ private:
       // arguments.
       MArgs = std::move(MAssociatedAccesors);
     }
+
+    // If the kernel lambda is callable with a kernel_handler argument, manifest
+    // the associated kernel handler.
+    if (detail::isKernelLambdaCallableWithKernelHandler<KernelType,
+                                                        LambdaArgType>()) {
+      getOrInsertHandlerKernelBundle(/*Insert=*/true);
+    }
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
@@ -773,33 +780,17 @@ private:
     // Range should be at least this to make rounding worthwhile.
     size_t MinRangeX = 1024;
 
-    // Parse optional parameters of this form:
-    // MinRound:PreferredRound:MinRange
-    char *RoundParams = getenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS");
-    if (RoundParams != nullptr) {
-      std::string Params(RoundParams);
-      size_t Pos = Params.find(':');
-      if (Pos != std::string::npos) {
-        MinFactorX = std::stoi(Params.substr(0, Pos));
-        Params.erase(0, Pos + 1);
-        Pos = Params.find(':');
-        if (Pos != std::string::npos) {
-          GoodFactorX = std::stoi(Params.substr(0, Pos));
-          Params.erase(0, Pos + 1);
-          MinRangeX = std::stoi(Params);
-        }
-      }
-    }
+    // Check if rounding parameters have been set through environment:
+    // SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=MinRound:PreferredRound:MinRange
+    this->GetRangeRoundingSettings(MinFactorX, GoodFactorX, MinRangeX);
 
     // Disable the rounding-up optimizations under these conditions:
     // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
-    // 2. The string SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is in
-    //    the kernel name.
-    // 3. The kernel is provided via an interoperability method.
-    // 4. The API "this_item" is used inside the kernel.
-    // 5. The range is already a multiple of the rounding factor.
+    // 2. The kernel is provided via an interoperability method.
+    // 3. The API "this_item" is used inside the kernel.
+    // 4. The range is already a multiple of the rounding factor.
     //
-    // Cases 3 and 4 could be supported with extra effort.
+    // Cases 2 and 3 could be supported with extra effort.
     // As an optimization for the common case it is an
     // implementation choice to not support those scenarios.
     // Note that "this_item" is a free function, i.e. not tied to any
@@ -809,13 +800,11 @@ private:
     // call-graph to make this_item calls kernel-specific but this is
     // not considered worthwhile.
 
-    // Get the kernal name to check condition 3.
+    // Get the kernel name to check condition 2.
     std::string KName = typeid(NameT *).name();
     using KI = detail::KernelInfo<KernelName>;
     bool DisableRounding =
-        (getenv("SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING") != nullptr) ||
-        (KName.find("SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING") !=
-         std::string::npos) ||
+        this->DisableRangeRounding() ||
         (KI::getName() == nullptr || KI::getName()[0] == '\0') ||
         (KI::callsThisItem());
 
@@ -830,7 +819,7 @@ private:
       // will yield a rounded-up value for the total range.
       size_t NewValX =
           ((NumWorkItems[0] + GoodFactorX - 1) / GoodFactorX) * GoodFactorX;
-      if (getenv("SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE") != nullptr)
+      if (this->RangeRoundingTrace())
         std::cout << "parallel_for range adjusted from " << NumWorkItems[0]
                   << " to " << NewValX << std::endl;
 
@@ -1264,7 +1253,10 @@ public:
   ///
   /// \param Func is a SYCL kernel function defined by lambda function or a
   /// named function object type.
-  template <typename FuncT> void run_on_host_intel(FuncT Func) {
+  template <typename FuncT>
+  __SYCL_DEPRECATED(
+      "run_on_host_intel() is deprecated, use host_task() instead")
+  void run_on_host_intel(FuncT Func) {
     throwIfActionIsCreated();
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
@@ -1274,18 +1266,6 @@ public:
     MHostKernel.reset(
         new detail::HostKernel<FuncT, void, 1, void>(std::move(Func)));
     setType(detail::CG::RunOnHostIntel);
-  }
-
-  template <typename FuncT>
-  __SYCL2020_DEPRECATED(
-      "codeplay_host_task() is deprecated, use host_task() instead")
-  detail::enable_if_t<
-      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
-                                 void()>::value ||
-      detail::check_fn_signature<
-          detail::remove_reference_t<FuncT>,
-          void(interop_handle)>::value> codeplay_host_task(FuncT Func) {
-    host_task_impl(Func);
   }
 
   /// Enqueues a command to the SYCL runtime to invoke \p Func once.
@@ -1841,7 +1821,9 @@ public:
   /// Invokes a lambda on the host. Dependencies are satisfied on the host.
   ///
   /// \param Func is a lambda that is executed on the host
-  template <typename FuncT> void interop_task(FuncT Func) {
+  template <typename FuncT>
+  __SYCL_DEPRECATED("interop_task() is deprecated, use host_task() instead")
+  void interop_task(FuncT Func) {
 
     MInteropTask.reset(new detail::InteropTask(std::move(Func)));
     setType(detail::CG::CodeplayInteropTask);
@@ -2292,10 +2274,16 @@ public:
   /// Prevents any commands submitted afterward to this queue from executing
   /// until all commands previously submitted to this queue have entered the
   /// complete state.
-  void barrier() {
+  void ext_oneapi_barrier() {
     throwIfActionIsCreated();
     setType(detail::CG::Barrier);
   }
+
+  /// Prevents any commands submitted afterward to this queue from executing
+  /// until all commands previously submitted to this queue have entered the
+  /// complete state.
+  __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
+  void barrier() { ext_oneapi_barrier(); }
 
   /// Prevents any commands submitted afterward to this queue from executing
   /// until all events in WaitList have entered the complete state. If WaitList
@@ -2303,6 +2291,15 @@ public:
   ///
   /// \param WaitList is a vector of valid SYCL events that need to complete
   /// before barrier command can be executed.
+  void ext_oneapi_barrier(const std::vector<event> &WaitList);
+
+  /// Prevents any commands submitted afterward to this queue from executing
+  /// until all events in WaitList have entered the complete state. If WaitList
+  /// is empty, then the barrier has no effect.
+  ///
+  /// \param WaitList is a vector of valid SYCL events that need to complete
+  /// before barrier command can be executed.
+  __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
   void barrier(const std::vector<event> &WaitList);
 
   /// Copies data from one memory region to another, both pointed by
@@ -2443,6 +2440,14 @@ private:
                                            access::target);
 
   friend class ::MockHandler;
+  friend class detail::queue_impl;
+
+  bool DisableRangeRounding();
+
+  bool RangeRoundingTrace();
+
+  void GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
+                                size_t &MinRange);
 
   template <typename WrapperT, typename TransformedArgType, int Dims,
             typename KernelType>

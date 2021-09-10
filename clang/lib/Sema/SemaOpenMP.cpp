@@ -5814,6 +5814,31 @@ StmtResult Sema::ActOnOpenMPExecutableDirective(
         ErrorFound = true;
       }
     }
+    // OpenMP 5.0 [2.19.7]
+    // If a list item appears in a reduction, lastprivate or linear
+    // clause on a combined target construct then it is treated as
+    // if it also appears in a map clause with a map-type of tofrom
+    if (getLangOpts().OpenMP >= 50 && Kind != OMPD_target &&
+        isOpenMPTargetExecutionDirective(Kind)) {
+      SmallVector<Expr *, 4> ImplicitExprs;
+      for (OMPClause *C : Clauses) {
+        if (auto *RC = dyn_cast<OMPReductionClause>(C))
+          for (Expr *E : RC->varlists())
+            if (!isa<DeclRefExpr>(E->IgnoreParenImpCasts()))
+              ImplicitExprs.emplace_back(E);
+      }
+      if (!ImplicitExprs.empty()) {
+        ArrayRef<Expr *> Exprs = ImplicitExprs;
+        CXXScopeSpec MapperIdScopeSpec;
+        DeclarationNameInfo MapperId;
+        if (OMPClause *Implicit = ActOnOpenMPMapClause(
+                OMPC_MAP_MODIFIER_unknown, SourceLocation(), MapperIdScopeSpec,
+                MapperId, OMPC_MAP_tofrom,
+                /*IsMapTypeImplicit=*/true, SourceLocation(), SourceLocation(),
+                Exprs, OMPVarListLocTy(), /*NoDiagnose=*/true))
+          ClausesWithImplicit.emplace_back(Implicit);
+      }
+    }
     for (unsigned I = 0, E = DefaultmapKindNum; I < E; ++I) {
       int ClauseKindCnt = -1;
       for (ArrayRef<Expr *> ImplicitMap : ImplicitMaps[I]) {
@@ -7344,7 +7369,7 @@ bool OpenMPIterationSpaceChecker::setLCDeclAndLB(ValueDecl *NewLCDecl,
   // State consistency checking to ensure correct usage.
   assert(LCDecl == nullptr && LB == nullptr && LCRef == nullptr &&
          UB == nullptr && Step == nullptr && !TestIsLessOp && !TestIsStrictOp);
-  if (!NewLCDecl || !NewLB)
+  if (!NewLCDecl || !NewLB || NewLB->containsErrors())
     return true;
   LCDecl = getCanonicalDecl(NewLCDecl);
   LCRef = NewLCRefExpr;
@@ -7367,7 +7392,7 @@ bool OpenMPIterationSpaceChecker::setUB(Expr *NewUB,
   // State consistency checking to ensure correct usage.
   assert(LCDecl != nullptr && LB != nullptr && UB == nullptr &&
          Step == nullptr && !TestIsLessOp && !TestIsStrictOp);
-  if (!NewUB)
+  if (!NewUB || NewUB->containsErrors())
     return true;
   UB = NewUB;
   if (LessOp)
@@ -7382,7 +7407,7 @@ bool OpenMPIterationSpaceChecker::setUB(Expr *NewUB,
 bool OpenMPIterationSpaceChecker::setStep(Expr *NewStep, bool Subtract) {
   // State consistency checking to ensure correct usage.
   assert(LCDecl != nullptr && LB != nullptr && Step == nullptr);
-  if (!NewStep)
+  if (!NewStep || NewStep->containsErrors())
     return true;
   if (!NewStep->isValueDependent()) {
     // Check that the step is integer expression.
@@ -18734,7 +18759,10 @@ public:
   }
 
   bool VisitOMPArraySectionExpr(OMPArraySectionExpr *OASE) {
-    assert(!NoDiagnose && "Array sections cannot be implicitly mapped.");
+    // After OMP 5.0  Array section in reduction clause will be implicitly
+    // mapped
+    assert(!(SemaRef.getLangOpts().OpenMP < 50 && NoDiagnose) &&
+           "Array sections cannot be implicitly mapped.");
     Expr *E = OASE->getBase()->IgnoreParenImpCasts();
     QualType CurType =
       OMPArraySectionExpr::getBaseOriginalType(E).getCanonicalType();
@@ -18777,6 +18805,8 @@ public:
     } else if (AllowUnitySizeArraySection && NotUnity) {
       // A unity or whole array section is not allowed and that is not
       // compatible with the properties of the current array section.
+      if (NoDiagnose)
+        return false;
       SemaRef.Diag(
         ELoc, diag::err_array_section_does_not_specify_contiguous_storage)
         << OASE->getSourceRange();
@@ -19320,7 +19350,8 @@ static void checkMappableExpressionList(
     CXXScopeSpec &MapperIdScopeSpec, DeclarationNameInfo MapperId,
     ArrayRef<Expr *> UnresolvedMappers,
     OpenMPMapClauseKind MapType = OMPC_MAP_unknown,
-    bool IsMapTypeImplicit = false) {
+    ArrayRef<OpenMPMapModifierKind> Modifiers = None,
+    bool IsMapTypeImplicit = false, bool NoDiagnose = false) {
   // We only expect mappable expressions in 'to', 'from', and 'map' clauses.
   assert((CKind == OMPC_map || CKind == OMPC_to || CKind == OMPC_from) &&
          "Unexpected clause kind with mappable expressions!");
@@ -19340,6 +19371,10 @@ static void checkMappableExpressionList(
   auto UMIt = UnresolvedMappers.begin(), UMEnd = UnresolvedMappers.end();
   bool UpdateUMIt = false;
   Expr *UnresolvedMapper = nullptr;
+
+  bool HasHoldModifier =
+      Modifiers.end() != std::find(Modifiers.begin(), Modifiers.end(),
+                                   OMPC_MAP_MODIFIER_ompx_hold);
 
   // Keep track of the mappable components and base declarations in this clause.
   // Each entry in the list is going to have a list of components associated. We
@@ -19399,9 +19434,9 @@ static void checkMappableExpressionList(
 
     // Obtain the array or member expression bases if required. Also, fill the
     // components array with all the components identified in the process.
-    const Expr *BE = checkMapClauseExpressionBase(
-        SemaRef, SimpleExpr, CurComponents, CKind, DSAS->getCurrentDirective(),
-        /*NoDiagnose=*/false);
+    const Expr *BE =
+        checkMapClauseExpressionBase(SemaRef, SimpleExpr, CurComponents, CKind,
+                                     DSAS->getCurrentDirective(), NoDiagnose);
     if (!BE)
       continue;
 
@@ -19447,6 +19482,8 @@ static void checkMappableExpressionList(
     // OpenMP 4.5 [2.10.5, target update Construct]
     // threadprivate variables cannot appear in a from clause.
     if (VD && DSAS->isThreadPrivate(VD)) {
+      if (NoDiagnose)
+        continue;
       DSAStackTy::DSAVarData DVar = DSAS->getTopDSA(VD, /*FromParent=*/false);
       SemaRef.Diag(ELoc, diag::err_omp_threadprivate_in_clause)
           << getOpenMPClauseName(CKind);
@@ -19507,7 +19544,7 @@ static void checkMappableExpressionList(
     // OpenMP 4.5 [2.15.5.1, map Clause, Restrictions, p.9]
     //  A list item must have a mappable type.
     if (!checkTypeMappable(VE->getExprLoc(), VE->getSourceRange(), SemaRef,
-                           DSAS, Type))
+                           DSAS, Type, /*FullCheck=*/true))
       continue;
 
     if (CKind == OMPC_map) {
@@ -19535,6 +19572,21 @@ static void checkMappableExpressionList(
         SemaRef.Diag(StartLoc, diag::err_omp_invalid_map_type_for_directive)
             << (IsMapTypeImplicit ? 1 : 0)
             << getOpenMPSimpleClauseTypeName(OMPC_map, MapType)
+            << getOpenMPDirectiveName(DKind);
+        continue;
+      }
+
+      // The 'ompx_hold' modifier is specifically intended to be used on a
+      // 'target' or 'target data' directive to prevent data from being unmapped
+      // during the associated statement.  It is not permitted on a 'target
+      // enter data' or 'target exit data' directive, which have no associated
+      // statement.
+      if ((DKind == OMPD_target_enter_data || DKind == OMPD_target_exit_data) &&
+          HasHoldModifier) {
+        SemaRef.Diag(StartLoc,
+                     diag::err_omp_invalid_map_type_modifier_for_directive)
+            << getOpenMPSimpleClauseTypeName(OMPC_map,
+                                             OMPC_MAP_MODIFIER_ompx_hold)
             << getOpenMPDirectiveName(DKind);
         continue;
       }
@@ -19610,10 +19662,12 @@ OMPClause *Sema::ActOnOpenMPMapClause(
     CXXScopeSpec &MapperIdScopeSpec, DeclarationNameInfo &MapperId,
     OpenMPMapClauseKind MapType, bool IsMapTypeImplicit, SourceLocation MapLoc,
     SourceLocation ColonLoc, ArrayRef<Expr *> VarList,
-    const OMPVarListLocTy &Locs, ArrayRef<Expr *> UnresolvedMappers) {
+    const OMPVarListLocTy &Locs, bool NoDiagnose,
+    ArrayRef<Expr *> UnresolvedMappers) {
   OpenMPMapModifierKind Modifiers[] = {
       OMPC_MAP_MODIFIER_unknown, OMPC_MAP_MODIFIER_unknown,
-      OMPC_MAP_MODIFIER_unknown, OMPC_MAP_MODIFIER_unknown};
+      OMPC_MAP_MODIFIER_unknown, OMPC_MAP_MODIFIER_unknown,
+      OMPC_MAP_MODIFIER_unknown};
   SourceLocation ModifiersLoc[NumberOfOMPMapClauseModifiers];
 
   // Process map-type-modifiers, flag errors for duplicate modifiers.
@@ -19634,7 +19688,8 @@ OMPClause *Sema::ActOnOpenMPMapClause(
   MappableVarListInfo MVLI(VarList);
   checkMappableExpressionList(*this, DSAStack, OMPC_map, MVLI, Locs.StartLoc,
                               MapperIdScopeSpec, MapperId, UnresolvedMappers,
-                              MapType, IsMapTypeImplicit);
+                              MapType, Modifiers, IsMapTypeImplicit,
+                              NoDiagnose);
 
   // We need to produce a map clause even if we don't have variables so that
   // other diagnostics related with non-existing map clauses are accurate.

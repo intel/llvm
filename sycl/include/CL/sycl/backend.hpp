@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/backend.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/context.hpp>
@@ -39,6 +40,10 @@ template <backend Backend, typename T> struct BackendReturn {
   // TODO replace usage of interop with specializations.
   using type = typename interop<Backend, T>::type;
 };
+
+// TODO each backend can have its own custom errc enumeration
+// but the details for this are not fully specified yet
+enum class backend_errc : unsigned int {};
 } // namespace detail
 
 template <backend Backend> class backend_traits {
@@ -49,7 +54,7 @@ public:
   template <class T>
   using return_type = typename detail::BackendReturn<Backend, T>::type;
 
-  // TODO define errc once SYCL2020-style exceptions are supported.
+  using errc = detail::backend_errc;
 };
 
 template <backend Backend, typename SyclType>

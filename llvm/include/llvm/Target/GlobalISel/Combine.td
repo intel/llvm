@@ -197,6 +197,12 @@ def reduce_shl_of_extend : GICombineRule<
          [{ return Helper.matchCombineShlOfExtend(*${mi}, ${matchinfo}); }]),
   (apply [{ Helper.applyCombineShlOfExtend(*${mi}, ${matchinfo}); }])>;
 
+def narrow_binop_feeding_and : GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_AND):$root,
+         [{ return Helper.matchNarrowBinopFeedingAnd(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.applyBuildFnNoErase(*${root}, ${matchinfo}); }])>;
+
 // [us]itofp(undef) = 0, because the result value is bounded.
 def undef_to_fp_zero : GICombineRule<
   (defs root:$root),
@@ -652,8 +658,15 @@ def bitfield_extract_from_sext_inreg : GICombineRule<
     [{ return Helper.matchBitfieldExtractFromSExtInReg(*${root}, ${info}); }]),
   (apply [{ Helper.applyBuildFn(*${root}, ${info}); }])>;
 
+def bitfield_extract_from_shr : GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$info),
+  (match (wip_match_opcode G_ASHR, G_LSHR):$root,
+    [{ return Helper.matchBitfieldExtractFromShr(*${root}, ${info}); }]),
+  (apply [{ Helper.applyBuildFn(*${root}, ${info}); }])>;
+
 def form_bitfield_extract : GICombineGroup<[bitfield_extract_from_sext_inreg,
-                                            bitfield_extract_from_and]>;
+                                            bitfield_extract_from_and,
+                                            bitfield_extract_from_shr]>;
 def reassoc_ptradd : GICombineRule<
   (defs root:$root, build_fn_matchinfo:$matchinfo),
   (match (wip_match_opcode G_PTR_ADD):$root,
@@ -691,7 +704,8 @@ def known_bits_simplifications : GICombineGroup<[
   redundant_and, redundant_sext_inreg, redundant_or, urem_pow2_to_mask,
   zext_trunc_fold, icmp_to_true_false_known_bits]>;
 
-def width_reduction_combines : GICombineGroup<[reduce_shl_of_extend]>;
+def width_reduction_combines : GICombineGroup<[reduce_shl_of_extend,
+                                               narrow_binop_feeding_and]>;
 
 def phi_combines : GICombineGroup<[extend_through_phis]>;
 

@@ -126,7 +126,7 @@ mlir::linalg::LinalgTilingOptions::setTileSizes(ArrayRef<int64_t> ts) {
 /// Return failure if the operand cannot be padded to a static shape.
 static LogicalResult padOperandToSmallestStaticBoundingBox(
     PatternRewriter &rewriter, linalg::LinalgOp opToPad, OpOperand *opOperand,
-    const LinalgTilingOptions &options, Value &result) {
+    const PaddingValueComputationFunction &paddingFunc, Value &result) {
   // Already static shape, no need to pad.
   if (llvm::none_of(opToPad.getShape(opOperand), ShapedType::isDynamic))
     return success();
@@ -148,7 +148,7 @@ static LogicalResult padOperandToSmallestStaticBoundingBox(
           opToPad, "No constant bounding box can be found for padding");
     staticSizes.push_back(indexAttr.getInt());
   }
-  Value pad = options.paddingValueComputationFunction(rewriter, *opOperand);
+  Value pad = paddingFunc(rewriter, *opOperand);
   auto staticTensorType = RankedTensorType::get(
       staticSizes, getElementTypeOrSelf(opOperand->get()));
   result = linalg::PadTensorOp::createPadHighOp(
@@ -156,13 +156,10 @@ static LogicalResult padOperandToSmallestStaticBoundingBox(
   return success();
 }
 
-// Try to create a static bounding box around each operand of `res.op`.
-// If successful, `res.op` is rewritten in static form with padded operands.
-// `res.op` is updated to the cloned static form of the op on success.
-static LogicalResult rewriteAsPaddedOp(PatternRewriter &rewriter,
-                                       TiledLinalgOp &res,
-                                       const LinalgTilingOptions &options) {
-  LinalgOp opToPad = res.op;
+LogicalResult
+linalg::rewriteAsPaddedOp(PatternRewriter &rewriter, LinalgOp opToPad,
+                          const PaddingValueComputationFunction &paddingFunc,
+                          LinalgOp &paddedOp) {
   Location loc = opToPad->getLoc();
 
   // If the op is fully static, it does not need padding.
@@ -183,7 +180,7 @@ static LogicalResult rewriteAsPaddedOp(PatternRewriter &rewriter,
     // If padding was requested but the shape cannot be bounded statically then
     // the pattern fails to apply.
     if (failed(padOperandToSmallestStaticBoundingBox(
-            rewriter, opToPad, opOperand, options, paddedOperand)))
+            rewriter, opToPad, opOperand, paddingFunc, paddedOperand)))
       return failure();
     newOperands.push_back(paddedOperand ? paddedOperand : opOperand->get());
   }
@@ -191,8 +188,7 @@ static LogicalResult rewriteAsPaddedOp(PatternRewriter &rewriter,
   // Clone `opToPad` to operate on the statically padded shapes.
   auto resultTensorTypes =
       ValueRange(newOperands).take_back(opToPad.getNumOutputs()).getTypes();
-  linalg::LinalgOp paddedOp =
-      opToPad.clone(rewriter, loc, resultTensorTypes, newOperands);
+  paddedOp = opToPad.clone(rewriter, loc, resultTensorTypes, newOperands);
 
   // Recover the slice out of the new static results. This keeps the original
   // linalg op around because it uses the dims of the original results.
@@ -218,8 +214,6 @@ static LogicalResult rewriteAsPaddedOp(PatternRewriter &rewriter,
   rewriter.replaceOpWithIf(opToPad, paddedSubviewResults, [&](OpOperand &opOp) {
     return !newUsersOfOpToPad.contains(opOp.getOwner());
   });
-
-  res = TiledLinalgOp{paddedOp, res.loops, res.tensorResults};
   return success();
 }
 
@@ -265,15 +259,19 @@ LogicalResult mlir::linalg::LinalgBaseTilingPattern::matchAndRewriteBase(
       !linalgOp.hasTensorSemantics())
     return success();
 
-  // Try to pad on the fly by rewriting res->op as a padded op.
-  if (failed(rewriteAsPaddedOp(rewriter, *res, options))) {
-    // Set so RAII guard does not propagate TiledLinalgOp to `result`.
-    return failure();
+  // Try to pad on the fly by rewriting res->op as a padded op. If successful,
+  // `res.op` is rewritten in static form with padded operands.
+  LinalgOp paddedOp;
+  if (succeeded(rewriteAsPaddedOp(rewriter, res->op,
+                                  options.paddingValueComputationFunction,
+                                  paddedOp))) {
+    res->op = paddedOp;
+    // Do not perform replacement of `linalgOp`, let the derived patterns
+    // do this as they see fit, from the resulting TiledLinalgOp.
+    return success();
   }
-
-  // Do not perform replacement of `linalgOp`, let the derived patterns
-  // do this as they see fit, from the resulting TiledLinalgOp.
-  return success();
+  // Set so RAII guard does not propagate TiledLinalgOp to `result`.
+  return failure();
 }
 
 static ValueRange getTiledOpResult(TiledLinalgOp tiledOp) {
@@ -496,145 +494,6 @@ LogicalResult mlir::linalg::applyStagedPatterns(
   return success();
 }
 
-/// Traverse the `dims` and substitute known min or max expressions returned by
-/// the lambda |getMinMaxExpr|.
-static AffineMap substitute(AffineMap map, SmallVectorImpl<Value> &dims,
-                            SmallVectorImpl<Value> &symbols,
-                            GetMinMaxExprFn getMinMaxExpr) {
-  auto exprs = llvm::to_vector<4>(map.getResults());
-  for (AffineExpr &expr : exprs) {
-    bool substituted = true;
-    while (substituted) {
-      substituted = false;
-      for (unsigned dimIdx = 0; dimIdx < dims.size(); ++dimIdx) {
-        Value dim = dims[dimIdx];
-        auto minMax = getMinMaxExpr(dim, dims, symbols);
-        if (!minMax)
-          continue;
-        AffineExpr dimExpr = getAffineDimExpr(dimIdx, expr.getContext());
-        LLVM_DEBUG(DBGS() << "Subst: " << dim << " @ " << dimExpr << "\n");
-        LLVM_DEBUG(DBGS() << "Before: " << expr << "\n");
-        // Substitute occurrences of `dimExpr` by either the min expression or
-        // the max expression depending on whether the value is used with a
-        // positive or negative  coefficient.
-        AffineExpr substitutedExpr =
-            substWithMin(expr, dimExpr, minMax->first, minMax->second);
-        LLVM_DEBUG(DBGS() << "After: " << substitutedExpr << "\n");
-        substituted = (substitutedExpr != expr);
-        expr = substitutedExpr;
-      }
-    }
-
-    // Cleanup and simplify the results.
-    // This needs to happen outside of the loop iterating on dims.size() since
-    // it modifies dims.
-    SmallVector<Value, 4> operands(dims.begin(), dims.end());
-    operands.append(symbols.begin(), symbols.end());
-    auto map = AffineMap::get(dims.size(), symbols.size(), exprs,
-                              exprs.front().getContext());
-
-    LLVM_DEBUG({
-      DBGS() << "Map to simplify: " << map << "\n";
-      DBGS() << "Operands:\n";
-      for (Value v : operands)
-        DBGS() << v << "\n";
-    });
-
-    // Pull in affine.apply operations and compose them fully into the
-    // result.
-    fullyComposeAffineMapAndOperands(&map, &operands);
-    canonicalizeMapAndOperands(&map, &operands);
-    map = simplifyAffineMap(map);
-    // Assign the results.
-    exprs.assign(map.getResults().begin(), map.getResults().end());
-    dims.assign(operands.begin(), operands.begin() + map.getNumDims());
-    symbols.assign(operands.begin() + map.getNumDims(), operands.end());
-
-    LLVM_DEBUG(DBGS() << "Map simplified: " << map << "\n");
-  }
-
-  assert(!exprs.empty() && "Unexpected empty exprs");
-  return AffineMap::get(dims.size(), symbols.size(), exprs, map.getContext());
-}
-
-/// Traverse the dims of the AffineMap of `affineMinOp` and substitute
-/// dimensions with known range by new expressions involving the min or max
-/// expression:
-///   - If the AffineDimExpr mapped to a known value has a positive sign, it
-///     is replaced by the min expression.
-///   - If the AffineDimExpr mapped to a known value has a negative sign, it is
-///     replaced by the max expression.
-/// All known values are iteratively replaced.
-/// This is used as an intermediate step in computing bounding boxes and
-/// canonicalize AffineMinOps. All dim and symbol operands are assumed to have
-/// positive values (positive orthant assumptions).
-/// Return a new AffineMap, dims and symbols that have been canonicalized and
-/// simplified.
-AffineMapAndOperands
-mlir::linalg::substituteMin(AffineMinOp affineMinOp,
-                            GetMinMaxExprFn getMinMaxExpr) {
-  AffineMapAndOperands res{affineMinOp.getAffineMap(),
-                           SmallVector<Value>(affineMinOp.getDimOperands()),
-                           SmallVector<Value>(affineMinOp.getSymbolOperands())};
-  res.map = substitute(affineMinOp.getAffineMap(), res.dims, res.symbols,
-                       getMinMaxExpr);
-  return res;
-}
-
-LogicalResult AffineMinRangeCanonicalizationPattern::matchAndRewrite(
-    AffineMinOp minOp, PatternRewriter &rewriter) const {
-  LLVM_DEBUG(DBGS() << "Canonicalize AffineMinSCF: " << *minOp.getOperation()
-                    << "\n");
-
-  auto affineMapAndOperands = substituteMin(minOp, getMinMaxFn);
-  AffineMap map = affineMapAndOperands.map;
-
-  LLVM_DEBUG(DBGS() << "Resulting map: " << map << "\n");
-
-  // Check whether any of the expressions, when subtracted from all other
-  // expressions, produces only >= 0 constants. If so, it is the min.
-  for (auto e : minOp.getAffineMap().getResults()) {
-    LLVM_DEBUG(DBGS() << "Candidate min: " << e << "\n");
-    if (!e.isSymbolicOrConstant())
-      continue;
-
-    auto isNonPositive = [](AffineExpr e) {
-      if (auto cst = e.dyn_cast<AffineConstantExpr>())
-        return cst.getValue() < 0;
-      return true;
-    };
-
-    // Build the subMap and check everything is statically known to be
-    // positive.
-    SmallVector<AffineExpr, 4> subExprs;
-    subExprs.reserve(map.getNumResults());
-    for (auto ee : map.getResults())
-      subExprs.push_back(ee - e);
-    MLIRContext *ctx = minOp.getContext();
-    AffineMap subMap = simplifyAffineMap(
-        AffineMap::get(map.getNumDims(), map.getNumSymbols(), subExprs, ctx));
-    LLVM_DEBUG(DBGS() << "simplified subMap: " << subMap << "\n");
-    if (llvm::any_of(subMap.getResults(), isNonPositive))
-      continue;
-
-    // Static min found.
-    if (auto cst = e.dyn_cast<AffineConstantExpr>()) {
-      rewriter.replaceOpWithNewOp<ConstantIndexOp>(minOp, cst.getValue());
-    } else {
-      auto resultMap = AffineMap::get(0, map.getNumSymbols(), {e}, ctx);
-      SmallVector<Value> resultOperands = affineMapAndOperands.dims;
-      llvm::append_range(resultOperands, affineMapAndOperands.symbols);
-      canonicalizeMapAndOperands(&resultMap, &resultOperands);
-      resultMap = simplifyAffineMap(resultMap);
-      rewriter.replaceOpWithNewOp<AffineApplyOp>(minOp, resultMap,
-                                                 resultOperands);
-    }
-    return success();
-  }
-
-  return failure();
-}
-
 static SmallVector<StringRef> getNParallelLoopsAttrs(unsigned nParallelLoops) {
   return SmallVector<StringRef>(nParallelLoops, getParallelIteratorTypeName());
 }
@@ -789,16 +648,6 @@ GeneralizePadTensorOpPattern::matchAndRewrite(PadTensorOp padOp,
   return success();
 }
 
-/// Given an OpFoldResult, return a Value. If the OpFoldResult is an Attribute,
-/// it must be of type Integer.
-static Value asValue(OpBuilder &builder, Location loc, OpFoldResult ofr) {
-  if (auto val = ofr.dyn_cast<Value>())
-    return val;
-  auto intVal = getConstantIntValue(ofr);
-  assert(intVal && "expected Value or IntegerAttr");
-  return builder.create<ConstantIndexOp>(loc, *intVal);
-}
-
 LogicalResult ExtractSliceOfPadTensorSwapPattern::matchAndRewrite(
     tensor::ExtractSliceOp sliceOp, PatternRewriter &rewriter) const {
   auto padOp = sliceOp.source().getDefiningOp<PadTensorOp>();
@@ -807,227 +656,12 @@ LogicalResult ExtractSliceOfPadTensorSwapPattern::matchAndRewrite(
   // Only unit stride supported.
   if (!sliceOp.hasUnitStride())
     return failure();
-  // Only constant padding value supported.
-  Value padValue = padOp.getConstantPaddingValue();
-  if (!padValue)
-    return failure();
 
-  // Helper variables and functions for various arithmetic operations. These are
-  // used extensively for computing new offset/length and padding values.
-  Location loc = sliceOp.getLoc();
-  AffineExpr dim0, dim1;
-  bindDims(rewriter.getContext(), dim0, dim1);
-  // Add two integers.
-  auto addMap = AffineMap::get(2, 0, {dim0 + dim1});
-  auto add = [&](Value v1, Value v2) {
-    return rewriter.createOrFold<AffineApplyOp>(loc, addMap,
-                                                ValueRange{v1, v2});
-  };
-  // Subtract two integers.
-  auto subMap = AffineMap::get(2, 0, {dim0 - dim1});
-  auto sub = [&](Value v1, Value v2) {
-    return rewriter.createOrFold<AffineApplyOp>(loc, subMap,
-                                                ValueRange{v1, v2});
-  };
-  // Take the minimum of two integers.
-  auto idMap = AffineMap::getMultiDimIdentityMap(2, rewriter.getContext());
-  auto min = [&](Value v1, Value v2) {
-    return rewriter.createOrFold<AffineMinOp>(loc, idMap, ValueRange{v1, v2});
-  };
-  // Take the maximum of two integers.
-  auto max = [&](Value v1, Value v2) {
-    return rewriter.createOrFold<AffineMaxOp>(loc, idMap, ValueRange{v1, v2});
-  };
-  // Zero index-typed integer.
-  auto zero = rewriter.create<ConstantIndexOp>(loc, 0);
-
-  // Helper function for filling static/dynamic low/high padding indices vectors
-  // of PadTensorOp.
-  auto appendIndex = [&](Value val, SmallVector<Value> &dynIndices,
-                         SmallVector<int64_t> &staticIndices) {
-    if (auto constInt = getConstantIntValue(val)) {
-      staticIndices.push_back(*constInt);
-    } else {
-      staticIndices.push_back(ShapedType::kDynamicSize);
-      dynIndices.push_back(val);
-    }
-  };
-
-  // Compute new offsets, lengths, low padding, high padding.
-  SmallVector<OpFoldResult> newOffsets, newLengths, newStrides;
-  SmallVector<Value> newLows, newHighs;
-  SmallVector<int64_t> staticNewLows, staticNewHighs;
-  // Set to true if the original data source is not read at all.
-  bool hasZeroLen = false;
-  // Same as hasZeroLen, but for dynamic dimension sizes. This condition
-  // is true if the original data source turns out to be unused at runtime.
-  Value dynHasZeroLenCond;
-
-  int64_t rank = padOp.getSourceType().getRank();
-  for (unsigned dim = 0; dim < rank; ++dim) {
-    auto low = asValue(rewriter, loc, padOp.getMixedLowPad()[dim]);
-    bool hasLowPad = getConstantIntValue(low) != static_cast<int64_t>(0);
-    auto high = asValue(rewriter, loc, padOp.getMixedHighPad()[dim]);
-    bool hasHighPad = getConstantIntValue(high) != static_cast<int64_t>(0);
-    auto offset = asValue(rewriter, loc, sliceOp.getMixedOffsets()[dim]);
-    auto length = asValue(rewriter, loc, sliceOp.getMixedSizes()[dim]);
-    auto srcSize =
-        rewriter.createOrFold<tensor::DimOp>(loc, padOp.source(), dim);
-
-    // The new amount of low padding is `low - offset`. Except for the case
-    // where none of the low padding is read. In that case, the new amount of
-    // low padding is zero.
-    //
-    // Optimization: If low = 0, then newLow = 0.
-    Value newLow = hasLowPad ? max(zero, sub(low, offset)) : zero;
-    appendIndex(newLow, newLows, staticNewLows);
-
-    // Start reading the data from position `offset - low`. Since the original
-    // read may have started in the low padding zone, this value could be
-    // negative. Therefore, start reading from:
-    //
-    // max(offset - low, 0)
-    //
-    // The original read could also have started in the high padding zone.
-    // In that case, set the offset to the end of source tensor. The new
-    // ExtractSliceOp length will be zero in that case. (Effectively reading no
-    // data from the source.)
-    //
-    // Optimization: If low = 0, then the formula can be simplified.
-    Value newOffset = hasLowPad ? min(max(sub(offset, low), zero), srcSize)
-                                : min(offset, srcSize);
-    newOffsets.push_back(getAsOpFoldResult(newOffset));
-
-    // The original ExtractSliceOp was reading until position `offset + length`.
-    // Therefore, the corresponding position within the source tensor is:
-    //
-    // offset + length - low
-    //
-    // In case the original ExtractSliceOp stopped reading within the low
-    // padding zone, this value can be negative. In that case, the end position
-    // of the read should be zero. (Similar to newOffset.)
-    //
-    // The original read could also have stopped in the high padding zone.
-    // In that case, set the end positition of the read should be the end of the
-    // source tensor. (Similar to newOffset.)
-    //
-    // endLoc = min(max(offset - low + length, 0), srcSize)
-    //
-    // The new ExtractSliceOp length is `endLoc - newOffset`.
-    //
-    // Optimization: If low = 0, then the formula can be simplified.
-    Value endLoc = hasLowPad
-                       ? min(max(add(sub(offset, low), length), zero), srcSize)
-                       : min(add(offset, length), srcSize);
-    Value newLength = sub(endLoc, newOffset);
-    newLengths.push_back(getAsOpFoldResult(newLength));
-
-    // Check if newLength is zero. In that case, no SubTensorOp should be
-    // executed.
-    if (auto newLengthInt = getConstantIntValue(newLength)) {
-      hasZeroLen |= *newLengthInt == 0;
-    } else {
-      Value check = rewriter.create<CmpIOp>(
-          loc, CmpIPredicate::eq, newLength, zero);
-      dynHasZeroLenCond =
-          dynHasZeroLenCond
-              ? rewriter.create<OrOp>(loc, check, dynHasZeroLenCond)
-              : check;
-    }
-
-    // The amount of high padding is simply the number of elements remaining,
-    // so that the result has the same length as the original ExtractSliceOp.
-    // As an optimization, if the original high padding is zero, then the new
-    // high padding must also be zero.
-    Value newHigh = hasHighPad ? sub(sub(length, newLength), newLow) : zero;
-    appendIndex(newHigh, newHighs, staticNewHighs);
-
-    // Only unit stride supported.
-    newStrides.push_back(rewriter.getIndexAttr(1));
-  }
-
-  // Insert cast to ensure that types match. (May be folded away.)
-  auto castResult = [&](Value val) -> Value {
-    auto castOp = rewriter.create<tensor::CastOp>(loc, sliceOp.getType(), val);
-    return castOp;
-  };
-
-  // In cases where the original data source is unused: Emit a GenerateOp and
-  // do not generate a SliceOp. (The result shape of the SliceOp would
-  // have a dimension of size 0, the semantics of which is unclear.)
-  auto createGenerateOp = [&]() {
-    // The shape of the GenerateOp is the same as the existing SliceOp.
-    RankedTensorType type = sliceOp.getType();
-    SmallVector<Value> dynDims;
-    for (unsigned i = 0; i < type.getRank(); ++i) {
-      if (type.isDynamicDim(i))
-        dynDims.push_back(asValue(rewriter, loc, sliceOp.getMixedSizes()[i]));
-    }
-
-    // Create GenerateOp.
-    auto generateOp  = rewriter.create<tensor::GenerateOp>(loc, type, dynDims);
-
-    // Copy region to new op.
-    BlockAndValueMapping bvm;
-    padOp.region().cloneInto(&generateOp.getRegion(), bvm);
-    // Rewrite linalg::YieldOp to tensor::YieldOp.
-    {
-      OpBuilder::InsertionGuard guard(rewriter);
-      auto yieldOp = dyn_cast<linalg::YieldOp>(
-          generateOp.getRegion().front().getTerminator());
-      assert(yieldOp && "malformed PadTensorOp: expected YieldOp terminator");
-      assert(yieldOp.values().size() == 1);
-      rewriter.setInsertionPoint(yieldOp);
-      rewriter.replaceOpWithNewOp<tensor::YieldOp>(
-          yieldOp, yieldOp.values()[0]);
-    }
-
-    return castResult(generateOp);
-  };
-
-  // Emit a SliceOp and a PadTensorOp. Should not be used in cases where
-  // the result shape of the new SliceOp has a zero dimension.
-  auto createPadTensorOfSubTensor = [&]() {
-    // Create pad_tensor(subtensor(x)).
-    auto newSliceOp = rewriter.create<tensor::ExtractSliceOp>(
-        loc, padOp.source(), newOffsets, newLengths, newStrides);
-    auto newPadTensorOp = rewriter.create<PadTensorOp>(
-        loc, newSliceOp, staticNewLows, staticNewHighs, newLows, newHighs);
-
-    // Copy region to new PadTensorOp.
-    BlockAndValueMapping bvm;
-    padOp.region().cloneInto(&newPadTensorOp.getRegion(), bvm);
-
-    // Cast result and return.
-    return castResult(newPadTensorOp);
-  };
-
-  // Rewrite subtensor(pad_tensor(x)) into a GenerateOp it is statically known
-  // that the original data source x is not used.
-  if (hasZeroLen) {
-    rewriter.replaceOp(sliceOp, createGenerateOp());
-    return success();
-  }
-
-  // If there are dynamic dimensions: Generate an scf.if check to avoid creating
-  // SliceOps with result dimensions of size 0 at runtime.
-  if (dynHasZeroLenCond) {
-    auto result = rewriter.create<scf::IfOp>(
-        loc, sliceOp.getType(), dynHasZeroLenCond,
-        /*thenBuilder=*/
-        [&](OpBuilder &b, Location loc) {
-          b.create<scf::YieldOp>(loc, createGenerateOp());
-        },
-        /*elseBuilder=*/
-        [&](OpBuilder &b, Location loc) {
-          b.create<scf::YieldOp>(loc, createPadTensorOfSubTensor());
-        });
-    rewriter.replaceOp(sliceOp, result.getResult(0));
-    return success();
-  }
-
+  Operation *tiledPadOp = padOp.getTiledImplementation(
+      rewriter, /*dest=*/ValueRange{}, sliceOp.getMixedOffsets(),
+      sliceOp.getMixedSizes());
   // All shapes are static and the data source is actually used. Rewrite into
   // pad_tensor(subtensor(x)).
-  rewriter.replaceOp(sliceOp, createPadTensorOfSubTensor());
+  rewriter.replaceOp(sliceOp, tiledPadOp->getResults());
   return success();
 }

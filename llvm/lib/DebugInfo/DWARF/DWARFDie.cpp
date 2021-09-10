@@ -483,21 +483,6 @@ Expected<DWARFAddressRangesVector> DWARFDie::getAddressRanges() const {
   return DWARFAddressRangesVector();
 }
 
-void DWARFDie::collectChildrenAddressRanges(
-    DWARFAddressRangesVector &Ranges) const {
-  if (isNULL())
-    return;
-  if (isSubprogramDIE()) {
-    if (auto DIERangesOrError = getAddressRanges())
-      llvm::append_range(Ranges, DIERangesOrError.get());
-    else
-      llvm::consumeError(DIERangesOrError.takeError());
-  }
-
-  for (auto Child : children())
-    Child.collectChildrenAddressRanges(Ranges);
-}
-
 bool DWARFDie::addressRangeContainsAddress(const uint64_t Address) const {
   auto RangesOrError = getAddressRanges();
   if (!RangesOrError) {
@@ -581,18 +566,10 @@ uint64_t DWARFDie::getDeclLine() const {
 
 std::string
 DWARFDie::getDeclFile(DILineInfoSpecifier::FileLineInfoKind Kind) const {
-  auto D = getAttributeValueAsReferencedDie(DW_AT_abstract_origin);
-  if (!D)
-    D = *this;
-  std::string FileName;
-  if (auto DeclFile = toUnsigned(D.find(DW_AT_decl_file))) {
-    if (const auto *LineTable =
-            getDwarfUnit()->getContext().getLineTableForUnit(
-                D.getDwarfUnit()->getLinkedUnit()))
-      LineTable->getFileNameByIndex(
-          *DeclFile, D.getDwarfUnit()->getCompilationDir(), Kind, FileName);
-  }
-  return FileName;
+  if (auto FormValue = findRecursively(DW_AT_decl_file))
+    if (auto OptString = FormValue->getAsFile(Kind))
+      return *OptString;
+  return {};
 }
 
 void DWARFDie::getCallerFrame(uint32_t &CallFile, uint32_t &CallLine,

@@ -119,7 +119,7 @@ void TestPerformance::runDataStructureTestsThreads(
     }
     ModelRow[(int)DSColumns::STInsertLookup] = ElapsedTime;
 
-    std::vector<int64_t> UIds;
+    std::vector<uint64_t> UIds;
     std::vector<xpti::trace_event_data_t *> Events;
     UIds.resize(MTracepoints);
     Events.resize(MTracepoints);

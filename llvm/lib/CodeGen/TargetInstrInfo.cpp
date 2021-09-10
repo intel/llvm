@@ -921,7 +921,8 @@ bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
   const MachineRegisterInfo &MRI = MF.getRegInfo();
 
   // Remat clients assume operand 0 is the defined register.
-  if (!MI.getNumOperands() || !MI.getOperand(0).isReg())
+  if (!MI.getNumOperands() || !MI.getOperand(0).isReg() ||
+      MI.getOperand(0).isTied())
     return false;
   Register DefReg = MI.getOperand(0).getReg();
 
@@ -982,12 +983,6 @@ bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
     // Only allow one virtual-register def.  There may be multiple defs of the
     // same virtual register, though.
     if (MO.isDef() && Reg != DefReg)
-      return false;
-
-    // Don't allow any virtual-register uses. Rematting an instruction with
-    // virtual register uses would length the live ranges of the uses, which
-    // is not necessarily a good idea, certainly not "trivial".
-    if (MO.isUse())
       return false;
   }
 
@@ -1262,22 +1257,6 @@ int TargetInstrInfo::getOperandLatency(const InstrItineraryData *ItinData,
   unsigned DefClass = DefMI.getDesc().getSchedClass();
   unsigned UseClass = UseMI.getDesc().getSchedClass();
   return ItinData->getOperandLatency(DefClass, DefIdx, UseClass, UseIdx);
-}
-
-/// If we can determine the operand latency from the def only, without itinerary
-/// lookup, do so. Otherwise return -1.
-int TargetInstrInfo::computeDefOperandLatency(
-    const InstrItineraryData *ItinData, const MachineInstr &DefMI) const {
-
-  // Let the target hook getInstrLatency handle missing itineraries.
-  if (!ItinData)
-    return getInstrLatency(ItinData, DefMI);
-
-  if(ItinData->isEmpty())
-    return defaultDefLatency(ItinData->SchedModel, DefMI);
-
-  // ...operand lookup required
-  return -1;
 }
 
 bool TargetInstrInfo::getRegSequenceInputs(

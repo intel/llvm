@@ -7,9 +7,12 @@ foreach(flag_var
 string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
 endforeach()
 
+string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
+
 include(AddSYCLUnitTest)
 
 add_subdirectory(allowlist)
+add_subdirectory(config)
 add_subdirectory(misc)
 add_subdirectory(pi)
 add_subdirectory(kernel-and-program)
@@ -18,3 +21,4 @@ add_subdirectory(scheduler)
 add_subdirectory(SYCL2020)
 add_subdirectory(thread_safety)
 add_subdirectory(program_manager)
+add_subdirectory(assert)

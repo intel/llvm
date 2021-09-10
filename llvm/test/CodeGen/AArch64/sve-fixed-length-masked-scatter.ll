@@ -839,9 +839,8 @@ define void @masked_scatter_v32f64(<32 x double>* %a, <32 x double*>* %b) #0 {
 
 ; The above tests test the types, the below tests check that the addressing
 ; modes still function
-
-define void @masked_scatter_32b_scaled_sext(<32 x half>* %a, <32 x i32>* %b, half* %base) #0 {
-; CHECK-LABEL: masked_scatter_32b_scaled_sext:
+define void @masked_scatter_32b_scaled_sext_f16(<32 x half>* %a, <32 x i32>* %b, half* %base) #0 {
+; CHECK-LABEL: masked_scatter_32b_scaled_sext_f16:
 ; VBITS_GE_2048: ptrue [[PG0:p[0-9]+]].h, vl32
 ; VBITS_GE_2048-NEXT: ld1h { [[VALS:z[0-9]+]].h }, [[PG0]]/z, [x0]
 ; VBITS_GE_2048-NEXT: ptrue [[PG1:p[0-9]+]].s, vl32
@@ -859,6 +858,41 @@ define void @masked_scatter_32b_scaled_sext(<32 x half>* %a, <32 x i32>* %b, hal
   %ptrs = getelementptr half, half* %base, <32 x i64> %ext
   %mask = fcmp oeq <32 x half> %vals, zeroinitializer
   call void @llvm.masked.scatter.v32f16(<32 x half> %vals, <32 x half*> %ptrs, i32 8, <32 x i1> %mask)
+  ret void
+}
+
+define void @masked_scatter_32b_scaled_sext_f32(<32 x float>* %a, <32 x i32>* %b, float* %base) #0 {
+; CHECK-LABEL: masked_scatter_32b_scaled_sext_f32:
+; VBITS_GE_2048: ptrue [[PG:p[0-9]+]].s, vl32
+; VBITS_GE_2048-NEXT: ld1w { [[VALS:z[0-9]+]].s }, [[PG]]/z, [x0]
+; VBITS_GE_2048-NEXT: ld1w { [[PTRS:z[0-9]+]].s }, [[PG]]/z, [x1]
+; VBITS_GE_2048-NEXT: fcmeq [[MASK:p[0-9]+]].s, [[PG]]/z, [[VALS]].s, #0.0
+; VBITS_GE_2048-NEXT: st1w { [[VALS]].s }, [[MASK]], [x2, [[PTRS]].s, sxtw #2]
+; VBITS_GE_2048-NEXT: ret
+  %vals = load <32 x float>, <32 x float>* %a
+  %idxs = load <32 x i32>, <32 x i32>* %b
+  %ext = sext <32 x i32> %idxs to <32 x i64>
+  %ptrs = getelementptr float, float* %base, <32 x i64> %ext
+  %mask = fcmp oeq <32 x float> %vals, zeroinitializer
+  call void @llvm.masked.scatter.v32f32(<32 x float> %vals, <32 x float*> %ptrs, i32 8, <32 x i1> %mask)
+  ret void
+}
+
+define void @masked_scatter_32b_scaled_sext_f64(<32 x double>* %a, <32 x i32>* %b, double* %base) #0 {
+; CHECK-LABEL: masked_scatter_32b_scaled_sext_f64:
+; VBITS_GE_2048: ptrue [[PG0:p[0-9]+]].d, vl32
+; VBITS_GE_2048-NEXT: ld1d { [[VALS:z[0-9]+]].d }, [[PG0]]/z, [x0]
+; VBITS_GE_2048-NEXT: ptrue [[PG1:p[0-9]+]].s, vl32
+; VBITS_GE_2048-NEXT: ld1w { [[PTRS:z[0-9]+]].s }, [[PG1]]/z, [x1]
+; VBITS_GE_2048-NEXT: fcmeq [[MASK:p[0-9]+]].d, [[PG0]]/z, [[VALS]].d, #0.0
+; VBITS_GE_2048-NEXT: st1d { [[VALS]].d }, [[MASK]], [x2, [[PTRS]].d, sxtw #3]
+; VBITS_GE_2048-NEXT: ret
+  %vals = load <32 x double>, <32 x double>* %a
+  %idxs = load <32 x i32>, <32 x i32>* %b
+  %ext = sext <32 x i32> %idxs to <32 x i64>
+  %ptrs = getelementptr double, double* %base, <32 x i64> %ext
+  %mask = fcmp oeq <32 x double> %vals, zeroinitializer
+  call void @llvm.masked.scatter.v32f64(<32 x double> %vals, <32 x double*> %ptrs, i32 8, <32 x i1> %mask)
   ret void
 }
 
@@ -1020,6 +1054,37 @@ define void @masked_scatter_vec_plus_imm(<32 x float>* %a, <32 x i8*>* %b) #0 {
   %ptrs = bitcast <32 x i8*> %byte_ptrs to <32 x float*>
   %mask = fcmp oeq <32 x float> %vals, zeroinitializer
   call void @llvm.masked.scatter.v32f32(<32 x float> %vals, <32 x float*> %ptrs, i32 8, <32 x i1> %mask)
+  ret void
+}
+
+; extract_subvec(...(insert_subvec(a,b,c))) -> extract_subvec(bitcast(b),d) like
+; combines can effectively unlegalise bitcast operations. This test ensures such
+; combines do not happen after operation legalisation. When not prevented the
+; test triggers infinite combine->legalise->combine->...
+;
+; NOTE: For this test to function correctly it's critical for %vals to be in a
+; different block to the scatter store.  If not, the problematic bitcast will be
+; removed before operation legalisation and thus not exercise the combine.
+define void @masked_scatter_bitcast_infinite_loop(<8 x double>* %a, <8 x double*>* %b, i1 %cond) #0 {
+; CHECK-LABEL: masked_scatter_bitcast_infinite_loop
+; VBITS_GE_512: ptrue [[PG0:p[0-9]+]].d, vl8
+; VBITS_GE_512-NEXT: ld1d { [[VALS:z[0-9]+]].d }, [[PG0]]/z, [x0]
+; VBITS_GE_512-NEXT: tbz w2, #0, [[LABEL:.*]]
+; VBITS_GE_512-NEXT: ld1d { [[PTRS:z[0-9]+]].d }, [[PG0]]/z, [x1]
+; VBITS_GE_512-NEXT: fcmeq [[MASK:p[0-9]+]].d, [[PG0]]/z, [[VALS]].d, #0.0
+; VBITS_GE_512-NEXT: st1d { [[VALS]].d }, [[MASK]], {{\[}}[[PTRS]].d]
+; VBITS_GE_512-NEXT: [[LABEL]]:
+; VBITS_GE_512-NEXT: ret
+  %vals = load volatile <8 x double>, <8 x double>* %a
+  br i1 %cond, label %bb.1, label %bb.2
+
+bb.1:
+  %ptrs = load <8 x double*>, <8 x double*>* %b
+  %mask = fcmp oeq <8 x double> %vals, zeroinitializer
+  call void @llvm.masked.scatter.v8f64(<8 x double> %vals, <8 x double*> %ptrs, i32 8, <8 x i1> %mask)
+  br label %bb.2
+
+bb.2:
   ret void
 }
 

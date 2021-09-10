@@ -174,7 +174,7 @@ namespace llvm {
 
     /// EnableAIXExtendedAltivecABI - This flag returns true when -vec-extabi is
     /// specified. The code generator is then able to use both volatile and
-    /// nonvolitle vector regisers. When false, the code generator only uses
+    /// nonvolitle vector registers. When false, the code generator only uses
     /// volatile vector registers which is the default setting on AIX.
     unsigned EnableAIXExtendedAltivecABI : 1;
 
@@ -327,6 +327,9 @@ namespace llvm {
     /// -fstack-usage. If empty, it can be implied that -fstack-usage is not
     /// passed on the command line.
     std::string StackUsageOutput;
+
+    /// If greater than 0, override TargetLoweringBase::PrefLoopAlignment.
+    unsigned LoopAlignment = 0;
 
     /// FloatABIType - This setting is set by -float-abi=xxx option is specfied
     /// on the command line. This setting may either be Default, Soft, or Hard.

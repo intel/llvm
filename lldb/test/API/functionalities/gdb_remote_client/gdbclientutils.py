@@ -109,6 +109,8 @@ class MockGDBServerResponder:
             return self.vCont(packet)
         if packet[0] == "A":
             return self.A(packet)
+        if packet[0] == "D":
+            return self.D(packet)
         if packet[0] == "g":
             return self.readRegisters()
         if packet[0] == "G":
@@ -145,7 +147,12 @@ class MockGDBServerResponder:
         if packet == "s":
             return self.haltReason()
         if packet[0] == "H":
-            return self.selectThread(packet[1], int(packet[2:], 16))
+            tid = packet[2:]
+            if "." in tid:
+                assert tid.startswith("p")
+                # TODO: do we want to do anything with PID?
+                tid = tid.split(".", 1)[1]
+            return self.selectThread(packet[1], int(tid, 16))
         if packet[0:6] == "qXfer:":
             obj, read, annex, location = packet[6:].split(":")
             offset, length = [int(x, 16) for x in location.split(',')]
@@ -181,6 +188,8 @@ class MockGDBServerResponder:
             return self.qfProcessInfo(packet)
         if packet.startswith("qPathComplete:"):
             return self.qPathComplete()
+        if packet.startswith("vFile:"):
+            return self.vFile(packet)
 
         return self.other(packet)
 
@@ -213,6 +222,9 @@ class MockGDBServerResponder:
 
     def A(self, packet):
         return ""
+
+    def D(self, packet):
+        return "OK"
 
     def readRegisters(self):
         return "00000000" * self.registerCount
@@ -286,6 +298,9 @@ class MockGDBServerResponder:
         return ""
 
     def qPathComplete(self):
+        return ""
+
+    def vFile(self, packet):
         return ""
 
     """

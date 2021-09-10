@@ -420,6 +420,8 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
 bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
+    if (FD->getBuiltinID() == Builtin::BIprintf)
+      return true;
     const DeclContext *DC = FD->getDeclContext();
     if (II && II->isStr("__spirv_ocl_printf") &&
         !FD->isDefined() &&
@@ -1075,7 +1077,7 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
 // Gets a name for the OpenCL kernel function, calculated from the first
 // template argument of the kernel caller function.
 static std::pair<std::string, std::string>
-constructKernelName(Sema &S, FunctionDecl *KernelCallerFunc,
+constructKernelName(Sema &S, const FunctionDecl *KernelCallerFunc,
                     MangleContext &MC) {
   QualType KernelNameType =
       calculateKernelNameType(S.getASTContext(), KernelCallerFunc);
@@ -2035,28 +2037,26 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   }
 
   static void setKernelImplicitAttrs(ASTContext &Context, FunctionDecl *FD,
-                                     StringRef Name, bool IsSIMDKernel) {
+                                     bool IsSIMDKernel) {
     // Set implicit attributes.
     FD->addAttr(OpenCLKernelAttr::CreateImplicit(Context));
-    FD->addAttr(AsmLabelAttr::CreateImplicit(Context, Name));
     FD->addAttr(ArtificialAttr::CreateImplicit(Context));
     if (IsSIMDKernel)
       FD->addAttr(SYCLSimdAttr::CreateImplicit(Context));
   }
 
-  static FunctionDecl *createKernelDecl(ASTContext &Ctx, StringRef Name,
-                                        SourceLocation Loc, bool IsInline,
-                                        bool IsSIMDKernel) {
+  static FunctionDecl *createKernelDecl(ASTContext &Ctx, SourceLocation Loc,
+                                        bool IsInline, bool IsSIMDKernel) {
     // Create this with no prototype, and we can fix this up after we've seen
     // all the params.
     FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
     QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
 
     FunctionDecl *FD = FunctionDecl::Create(
-        Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, &Ctx.Idents.get(Name),
+        Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, DeclarationName(),
         FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
     FD->setImplicitlyInline(IsInline);
-    setKernelImplicitAttrs(Ctx, FD, Name, IsSIMDKernel);
+    setKernelImplicitAttrs(Ctx, FD, IsSIMDKernel);
 
     // Add kernel to translation unit to see it in AST-dump.
     Ctx.getTranslationUnitDecl()->addDecl(FD);
@@ -2065,12 +2065,14 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
-  SyclKernelDeclCreator(Sema &S, StringRef Name, SourceLocation Loc,
-                        bool IsInline, bool IsSIMDKernel)
+  SyclKernelDeclCreator(Sema &S, SourceLocation Loc, bool IsInline,
+                        bool IsSIMDKernel, FunctionDecl *SYCLKernel)
       : SyclKernelFieldHandler(S),
-        KernelDecl(createKernelDecl(S.getASTContext(), Name, Loc, IsInline,
-                                    IsSIMDKernel)),
-        FuncContext(SemaRef, KernelDecl) {}
+        KernelDecl(
+            createKernelDecl(S.getASTContext(), Loc, IsInline, IsSIMDKernel)),
+        FuncContext(SemaRef, KernelDecl) {
+    S.addSyclOpenCLKernel(SYCLKernel, KernelDecl);
+  }
 
   ~SyclKernelDeclCreator() {
     ASTContext &Ctx = SemaRef.getASTContext();
@@ -3367,11 +3369,10 @@ public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelIntHeaderCreator(Sema &S, SYCLIntegrationHeader &H,
                              const CXXRecordDecl *KernelObj, QualType NameType,
-                             StringRef Name, StringRef StableName,
                              FunctionDecl *KernelFunc)
       : SyclKernelFieldHandler(S), Header(H) {
     bool IsSIMDKernel = isESIMDKernelType(KernelObj);
-    Header.startKernel(Name, NameType, StableName, KernelObj->getLocation(),
+    Header.startKernel(KernelFunc, NameType, KernelObj->getLocation(),
                        IsSIMDKernel, IsSYCLUnnamedKernel(S, KernelFunc));
     setThisItemIsCalled(KernelFunc);
   }
@@ -3866,6 +3867,29 @@ void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
   }
 }
 
+void Sema::SetSYCLKernelNames() {
+  std::unique_ptr<MangleContext> MangleCtx(
+      getASTContext().createMangleContext());
+  // We assume the list of KernelDescs is the complete list of kernels needing
+  // to be rewritten.
+  for (const std::pair<const FunctionDecl *, FunctionDecl *> &Pair :
+       SyclKernelsToOpenCLKernels) {
+    std::string CalculatedName, StableName;
+    std::tie(CalculatedName, StableName) =
+        constructKernelName(*this, Pair.first, *MangleCtx);
+    StringRef KernelName(
+        IsSYCLUnnamedKernel(*this, Pair.first) ? StableName : CalculatedName);
+
+    getSyclIntegrationHeader().updateKernelNames(Pair.first, KernelName,
+                                                 StableName);
+
+    // Set name of generated kernel.
+    Pair.second->setDeclName(&Context.Idents.get(KernelName));
+    // Update the AsmLabel for this generated kernel.
+    Pair.second->addAttr(AsmLabelAttr::CreateImplicit(Context, KernelName));
+  }
+}
+
 // Generates the OpenCL kernel using KernelCallerFunc (kernel caller
 // function) defined is SYCL headers.
 // Generated OpenCL kernel contains the body of the kernel caller function,
@@ -3899,30 +3923,30 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   if (KernelObj->isInvalidDecl())
     return;
 
-  // Calculate both names, since Integration headers need both.
-  std::string CalculatedName, StableName;
-  std::tie(CalculatedName, StableName) =
-      constructKernelName(*this, KernelCallerFunc, MC);
-  StringRef KernelName(IsSYCLUnnamedKernel(*this, KernelCallerFunc)
-                           ? StableName
-                           : CalculatedName);
+  {
+    // Do enough to calculate the StableName for the purposes of the hackery
+    // below for __pf_kernel_wrapper. Placed in a scope so that we don't
+    // accidentially use these values below, before the names are stabililzed.
+    std::string CalculatedName, StableName;
+    std::tie(CalculatedName, StableName) =
+        constructKernelName(*this, KernelCallerFunc, MC);
 
-  // Attributes of a user-written SYCL kernel must be copied to the internally
-  // generated alternative kernel, identified by a known string in its name.
-  if (StableName.find("__pf_kernel_wrapper") != std::string::npos)
-    copySYCLKernelAttrs(KernelObj);
+    // Attributes of a user-written SYCL kernel must be copied to the internally
+    // generated alternative kernel, identified by a known string in its name.
+    if (StableName.find("__pf_kernel_wrapper") != std::string::npos)
+      copySYCLKernelAttrs(KernelObj);
+  }
 
   bool IsSIMDKernel = isESIMDKernelType(KernelObj);
 
-  SyclKernelDeclCreator kernel_decl(*this, KernelName, KernelObj->getLocation(),
-                                    KernelCallerFunc->isInlined(),
-                                    IsSIMDKernel);
+  SyclKernelDeclCreator kernel_decl(*this, KernelObj->getLocation(),
+                                    KernelCallerFunc->isInlined(), IsSIMDKernel,
+                                    KernelCallerFunc);
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
                                     KernelCallerFunc);
   SyclKernelIntHeaderCreator int_header(
       *this, getSyclIntegrationHeader(), KernelObj,
-      calculateKernelNameType(Context, KernelCallerFunc), KernelName,
-      StableName, KernelCallerFunc);
+      calculateKernelNameType(Context, KernelCallerFunc), KernelCallerFunc);
 
   SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
   SyclOptReportCreator opt_report(*this, kernel_decl, KernelObj->getLocation());
@@ -4451,12 +4475,19 @@ public:
     Policy.SuppressTypedefs = true;
     Policy.SuppressUnwrittenScope = true;
     Policy.PrintCanonicalTypes = true;
+    Policy.SkipCanonicalizationOfTemplateTypeParms = true;
   }
 
   void Visit(QualType T) {
     if (T.isNull())
       return;
     InnerTypeVisitor::Visit(T.getTypePtr());
+  }
+
+  void VisitReferenceType(const ReferenceType *RT) {
+    // Our forward declarations don't care about references, so we should just
+    // ignore the reference and continue on.
+    Visit(RT->getPointeeType());
   }
 
   void Visit(const TemplateArgument &TA) {
@@ -4684,6 +4715,25 @@ public:
   }
 };
 
+static void OutputStableNameChar(raw_ostream &O, char C) {
+  // If it is reliably printable, print in the integration header as a
+  // character. Else just print it as the integral representation.
+  if (llvm::isPrint(C))
+    O << '\'' << C << '\'';
+  else
+    O << static_cast<short>(C);
+}
+
+static void OutputStableNameInChars(raw_ostream &O, StringRef Name) {
+  assert(!Name.empty() && "Expected a nonempty string!");
+  OutputStableNameChar(O, Name[0]);
+
+  for (char C : Name.substr(1)) {
+    O << ", ";
+    OutputStableNameChar(O, C);
+  }
+}
+
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
@@ -4773,6 +4823,15 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
     O << "\n";
   }
+
+  // Sentinel in place for 2 reasons:
+  // 1- to make sure we don't get a warning because this collection is empty.
+  // 2- to provide an obvious value that we can use when debugging to see that
+  //    we have left valid kernel information.
+  // integer-field values are negative, so they are obviously invalid, notable
+  // enough to 'stick out' and 'negative enough' to not be easily reachable by a
+  // mathematical error.
+  O << "  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 }, \n";
   O << "};\n\n";
 
   O << "// Specializations of KernelInfo for kernel function types:\n";
@@ -4782,10 +4841,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     const size_t N = K.Params.size();
     if (K.IsUnnamedKernel) {
       O << "template <> struct KernelInfoData<";
-      O << "'" << K.StableName.front();
-      for (char c : StringRef(K.StableName).substr(1))
-        O << "', '" << c;
-      O << "'> {\n";
+      OutputStableNameInChars(O, K.StableName);
+      O << "> {\n";
     } else {
       O << "template <> struct KernelInfo<";
       SYCLKernelNameTypePrinter Printer(O, Policy);
@@ -4841,11 +4898,13 @@ bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
   return true;
 }
 
-void SYCLIntegrationHeader::startKernel(
-    StringRef KernelName, QualType KernelNameType, StringRef KernelStableName,
-    SourceLocation KernelLocation, bool IsESIMDKernel, bool IsUnnamedKernel) {
-  KernelDescs.emplace_back(KernelName, KernelNameType, KernelStableName,
-                           KernelLocation, IsESIMDKernel, IsUnnamedKernel);
+void SYCLIntegrationHeader::startKernel(const FunctionDecl *SyclKernel,
+                                        QualType KernelNameType,
+                                        SourceLocation KernelLocation,
+                                        bool IsESIMDKernel,
+                                        bool IsUnnamedKernel) {
+  KernelDescs.emplace_back(SyclKernel, KernelNameType, KernelLocation,
+                           IsESIMDKernel, IsUnnamedKernel);
 }
 
 void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,
@@ -5252,10 +5311,17 @@ bool Util::isSyclFunction(const FunctionDecl *FD, StringRef Name) {
   if (DC->isTranslationUnit())
     return false;
 
-  std::array<DeclContextDesc, 2> Scopes = {
+  std::array<DeclContextDesc, 2> ScopesSycl = {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl")};
-  return matchContext(DC, Scopes);
+  std::array<DeclContextDesc, 5> ScopesOneapiExp = {
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ext"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
+      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "experimental")};
+
+  return matchContext(DC, ScopesSycl) || matchContext(DC, ScopesOneapiExp);
 }
 
 bool Util::isAccessorPropertyListType(QualType Ty) {
@@ -5315,48 +5381,4 @@ bool Util::matchQualifiedTypeName(QualType Ty,
     return false; // only classes/structs supported
   const auto *Ctx = cast<DeclContext>(RecTy);
   return Util::matchContext(Ctx, Scopes);
-}
-
-void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty,
-                          bool IsInstantiation) {
-  auto MangleCallback = [](ASTContext &Ctx,
-                           const NamedDecl *ND) -> llvm::Optional<unsigned> {
-    if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
-      Ctx.AddSYCLKernelNamingDecl(RD);
-    // We always want to go into the lambda mangling (skipping the unnamed
-    // struct version), so make sure we return a value here.
-    return 1;
-  };
-
-  std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
-      Context, Context.getDiagnostics(), MangleCallback)};
-  llvm::raw_null_ostream Out;
-  Ctx->mangleTypeName(Ty, Out);
-
-  // Evaluate whether this would change any of the already evaluated
-  // __builtin_sycl_unique_stable_name/id values.
-  for (auto &Itr : Context.SYCLUniqueStableNameEvaluatedValues) {
-    const auto *NameExpr = dyn_cast<SYCLUniqueStableNameExpr>(Itr.first);
-    const auto *IdExpr = dyn_cast<SYCLUniqueStableIdExpr>(Itr.first);
-    assert((NameExpr || IdExpr) && "Unknown expr type?");
-
-    const std::string &CurName = NameExpr ? NameExpr->ComputeName(Context)
-                                          : IdExpr->ComputeName(Context);
-    if (Itr.second != CurName) {
-      Diag(NewLoc, diag::err_kernel_invalidates_sycl_unique_stable_name)
-          << IsInstantiation << (IdExpr != nullptr);
-      Diag(Itr.first->getExprLoc(),
-           diag::note_sycl_unique_stable_name_evaluated_here)
-          << (IdExpr != nullptr);
-      // Update this so future diagnostics work correctly.
-      Itr.second = CurName;
-    }
-  }
-}
-
-void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
-  if (IsSYCLUnnamedKernel(*this, FD)) {
-    QualType ObjTy = GetSYCLKernelObjectType(FD);
-    MarkSYCLKernel(FD->getLocation(), ObjTy, /*IsInstantiation*/ true);
-  }
 }

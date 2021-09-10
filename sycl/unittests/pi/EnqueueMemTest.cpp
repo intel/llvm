@@ -74,6 +74,12 @@ protected:
 
     detail::plugin plugin = GetParam();
 
+    if (plugin.getBackend() == sycl::backend::rocm && sizeof(T) > 4) {
+      std::cerr << "ROCm plugin doesn't support patterns larger than 4 bytes, "
+                   "skipping\n";
+      GTEST_SKIP();
+    }
+
     T inValues[_numElementsX] = {};
 
     for (size_t i = 0; i < _numElementsX; ++i) {
@@ -105,10 +111,9 @@ protected:
   }
 };
 
-static std::vector<detail::plugin> Plugins = pi::initializeAndRemoveInvalid();
-
 INSTANTIATE_TEST_CASE_P(
-    EnqueueMemTestImpl, EnqueueMemTest, testing::ValuesIn(Plugins),
+    EnqueueMemTestImpl, EnqueueMemTest,
+    testing::ValuesIn(pi::initializeAndRemoveInvalid()),
     [](const testing::TestParamInfo<EnqueueMemTest::ParamType> &info) {
       return pi::GetBackendString(info.param.getBackend());
     });

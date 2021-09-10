@@ -520,6 +520,14 @@ void InstrProfiling::promoteCounterLoadStores(Function *F) {
   }
 }
 
+static bool needsRuntimeHookUnconditionally(const Triple &TT) {
+  // On Fuchsia, we only need runtime hook if any counters are present.
+  if (TT.isOSFuchsia())
+    return false;
+
+  return true;
+}
+
 /// Check if the module contains uses of any profiling intrinsics.
 static bool containsProfilingIntrinsics(Module &M) {
   if (auto *F = M.getFunction(
@@ -548,8 +556,11 @@ bool InstrProfiling::run(
   UsedVars.clear();
   TT = Triple(M.getTargetTriple());
 
+  bool MadeChange = false;
+
   // Emit the runtime hook even if no counters are present.
-  bool MadeChange = emitRuntimeHook();
+  if (needsRuntimeHookUnconditionally(TT))
+    MadeChange = emitRuntimeHook();
 
   // Improve compile time by avoiding linear scans when there is no work.
   GlobalVariable *CoverageNamesVar =
@@ -588,6 +599,7 @@ bool InstrProfiling::run(
 
   emitVNodes();
   emitNameData();
+  emitRuntimeHook();
   emitRegistration();
   emitUses();
   emitInitialization();
@@ -692,7 +704,6 @@ void InstrProfiling::lowerIncrement(InstrProfIncrementInst *Inc) {
     LoadInst *LI = dyn_cast<LoadInst>(&I);
     if (!LI) {
       IRBuilder<> Builder(&I);
-      Type *Int64Ty = Type::getInt64Ty(M->getContext());
       GlobalVariable *Bias = M->getGlobalVariable(getInstrProfCounterBiasVarName());
       if (!Bias) {
         // Compiler must define this variable when runtime counter relocation
@@ -747,14 +758,18 @@ void InstrProfiling::lowerCoverageData(GlobalVariable *CoverageNamesVar) {
 }
 
 /// Get the name of a profiling variable for a particular function.
-static std::string getVarName(InstrProfIncrementInst *Inc, StringRef Prefix) {
+static std::string getVarName(InstrProfIncrementInst *Inc, StringRef Prefix,
+                              bool &Renamed) {
   StringRef NamePrefix = getInstrProfNameVarPrefix();
   StringRef Name = Inc->getName()->getName().substr(NamePrefix.size());
   Function *F = Inc->getParent()->getParent();
   Module *M = F->getParent();
   if (!DoHashBasedCounterSplit || !isIRPGOFlagSet(M) ||
-      !canRenameComdatFunc(*F))
+      !canRenameComdatFunc(*F)) {
+    Renamed = false;
     return (Prefix + Name).str();
+  }
+  Renamed = true;
   uint64_t FuncHash = Inc->getHash()->getZExtValue();
   SmallVector<char, 24> HashPostfix;
   if (Name.endswith((Twine(".") + Twine(FuncHash)).toStringRef(HashPostfix)))
@@ -867,8 +882,11 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfIncrementInst *Inc) {
   // discarded.
   bool DataReferencedByCode = profDataReferencedByCode(*M);
   bool NeedComdat = needsComdatForCounter(*Fn, *M);
-  std::string CntsVarName = getVarName(Inc, getInstrProfCountersVarPrefix());
-  std::string DataVarName = getVarName(Inc, getInstrProfDataVarPrefix());
+  bool Renamed;
+  std::string CntsVarName =
+      getVarName(Inc, getInstrProfCountersVarPrefix(), Renamed);
+  std::string DataVarName =
+      getVarName(Inc, getInstrProfDataVarPrefix(), Renamed);
   auto MaybeSetComdat = [&](GlobalVariable *GV) {
     bool UseComdat = (NeedComdat || TT.isOSBinFormatELF());
     if (UseComdat) {
@@ -909,7 +927,7 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfIncrementInst *Inc) {
     ArrayType *ValuesTy = ArrayType::get(Type::getInt64Ty(Ctx), NS);
     auto *ValuesVar = new GlobalVariable(
         *M, ValuesTy, false, Linkage, Constant::getNullValue(ValuesTy),
-        getVarName(Inc, getInstrProfValuesVarPrefix()));
+        getVarName(Inc, getInstrProfValuesVarPrefix(), Renamed));
     ValuesVar->setVisibility(Visibility);
     ValuesVar->setSection(
         getInstrProfSectionName(IPSK_vals, TT.getObjectFormat()));
@@ -944,8 +962,13 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfIncrementInst *Inc) {
   //
   // On COFF, a comdat leader cannot be local so we require DataReferencedByCode
   // to be false.
-  if (NS == 0 && (TT.isOSBinFormatELF() ||
-                  (!DataReferencedByCode && TT.isOSBinFormatCOFF()))) {
+  //
+  // If profd is in a deduplicate comdat, NS==0 with a hash suffix guarantees
+  // that other copies must have the same CFG and cannot have value profiling.
+  // If no hash suffix, other profd copies may be referenced by code.
+  if (NS == 0 && !(DataReferencedByCode && NeedComdat && !Renamed) &&
+      (TT.isOSBinFormatELF() ||
+       (!DataReferencedByCode && TT.isOSBinFormatCOFF()))) {
     Linkage = GlobalValue::PrivateLinkage;
     Visibility = GlobalValue::DefaultVisibility;
   }
@@ -1110,9 +1133,9 @@ void InstrProfiling::emitRegistration() {
 }
 
 bool InstrProfiling::emitRuntimeHook() {
-  // We expect the linker to be invoked with -u<hook_var> flag for Linux or
-  // Fuchsia, in which case there is no need to emit the user function.
-  if (TT.isOSLinux() || TT.isOSFuchsia())
+  // We expect the linker to be invoked with -u<hook_var> flag for Linux
+  // in which case there is no need to emit the external variable.
+  if (TT.isOSLinux())
     return false;
 
   // If the module's provided its own runtime, we don't need to do anything.
@@ -1125,23 +1148,28 @@ bool InstrProfiling::emitRuntimeHook() {
       new GlobalVariable(*M, Int32Ty, false, GlobalValue::ExternalLinkage,
                          nullptr, getInstrProfRuntimeHookVarName());
 
-  // Make a function that uses it.
-  auto *User = Function::Create(FunctionType::get(Int32Ty, false),
-                                GlobalValue::LinkOnceODRLinkage,
-                                getInstrProfRuntimeHookVarUseFuncName(), M);
-  User->addFnAttr(Attribute::NoInline);
-  if (Options.NoRedZone)
-    User->addFnAttr(Attribute::NoRedZone);
-  User->setVisibility(GlobalValue::HiddenVisibility);
-  if (TT.supportsCOMDAT())
-    User->setComdat(M->getOrInsertComdat(User->getName()));
+  if (TT.isOSBinFormatELF()) {
+    // Mark the user variable as used so that it isn't stripped out.
+    CompilerUsedVars.push_back(Var);
+  } else {
+    // Make a function that uses it.
+    auto *User = Function::Create(FunctionType::get(Int32Ty, false),
+                                  GlobalValue::LinkOnceODRLinkage,
+                                  getInstrProfRuntimeHookVarUseFuncName(), M);
+    User->addFnAttr(Attribute::NoInline);
+    if (Options.NoRedZone)
+      User->addFnAttr(Attribute::NoRedZone);
+    User->setVisibility(GlobalValue::HiddenVisibility);
+    if (TT.supportsCOMDAT())
+      User->setComdat(M->getOrInsertComdat(User->getName()));
 
-  IRBuilder<> IRB(BasicBlock::Create(M->getContext(), "", User));
-  auto *Load = IRB.CreateLoad(Int32Ty, Var);
-  IRB.CreateRet(Load);
+    IRBuilder<> IRB(BasicBlock::Create(M->getContext(), "", User));
+    auto *Load = IRB.CreateLoad(Int32Ty, Var);
+    IRB.CreateRet(Load);
 
-  // Mark the user variable as used so that it isn't stripped out.
-  CompilerUsedVars.push_back(User);
+    // Mark the function as used so that it isn't stripped out.
+    CompilerUsedVars.push_back(User);
+  }
   return true;
 }
 

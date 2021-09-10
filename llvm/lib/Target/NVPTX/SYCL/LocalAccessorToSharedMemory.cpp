@@ -148,14 +148,14 @@ public:
       } else {
         // Replace other arguments with the same type as before.
         Arguments.push_back(FA->getType());
-        ArgumentAttributes.push_back(FAttrs.getParamAttributes(i));
+        ArgumentAttributes.push_back(FAttrs.getParamAttrs(i));
       }
     }
 
     // Create new function type.
     AttributeList NAttrs =
-        AttributeList::get(F->getContext(), FAttrs.getFnAttributes(),
-                           FAttrs.getRetAttributes(), ArgumentAttributes);
+        AttributeList::get(F->getContext(), FAttrs.getFnAttrs(),
+                           FAttrs.getRetAttrs(), ArgumentAttributes);
     FunctionType *NFTy =
         FunctionType::get(FTy->getReturnType(), Arguments, FTy->isVarArg());
 

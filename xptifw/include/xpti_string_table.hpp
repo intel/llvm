@@ -205,7 +205,7 @@ public:
 
   //  Clear all the contents of this string table and get it ready for re-use
   void clear() {
-    MIds = {1};
+    MIds = 1;
     MIDToString.clear();
     MStringToID.clear();
 

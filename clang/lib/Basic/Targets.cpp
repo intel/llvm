@@ -595,45 +595,39 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
     }
 
   case llvm::Triple::spir: {
-    if (Triple.getEnvironment() == llvm::Triple::SYCLDevice) {
-      llvm::Triple HT(Opts.HostTriple);
-      switch (HT.getOS()) {
-      case llvm::Triple::Win32:
-        switch (HT.getEnvironment()) {
-        default: // Assume MSVC for unknown environments
-        case llvm::Triple::MSVC:
-          assert(HT.getArch() == llvm::Triple::x86 &&
-                 "Unsupported host architecture");
-          return new MicrosoftX86_32SPIRTargetInfo(Triple, Opts);
-        }
-      case llvm::Triple::Linux:
-        return new LinuxTargetInfo<SPIR32SYCLDeviceTargetInfo>(Triple, Opts);
-      default:
-        return new SPIR32SYCLDeviceTargetInfo(Triple, Opts);
+    llvm::Triple HT(Opts.HostTriple);
+    switch (HT.getOS()) {
+    case llvm::Triple::Win32:
+      switch (HT.getEnvironment()) {
+      default: // Assume MSVC for unknown environments
+      case llvm::Triple::MSVC:
+        assert(HT.getArch() == llvm::Triple::x86 &&
+               "Unsupported host architecture");
+        return new MicrosoftX86_32SPIRTargetInfo(Triple, Opts);
       }
+    case llvm::Triple::Linux:
+      return new LinuxTargetInfo<SPIR32TargetInfo>(Triple, Opts);
+    default:
+      return new SPIR32TargetInfo(Triple, Opts);
     }
-    return new SPIR32TargetInfo(Triple, Opts);
   }
 
   case llvm::Triple::spir64: {
-    if (Triple.getEnvironment() == llvm::Triple::SYCLDevice) {
-      llvm::Triple HT(Opts.HostTriple);
-      switch (HT.getOS()) {
-      case llvm::Triple::Win32:
-        switch (HT.getEnvironment()) {
-        default: // Assume MSVC for unknown environments
-        case llvm::Triple::MSVC:
-          assert(HT.getArch() == llvm::Triple::x86_64 &&
-                 "Unsupported host architecture");
-          return new MicrosoftX86_64_SPIR64TargetInfo(Triple, Opts);
-        }
-      case llvm::Triple::Linux:
-        return new LinuxTargetInfo<SPIR64SYCLDeviceTargetInfo>(Triple, Opts);
-      default:
-        return new SPIR64SYCLDeviceTargetInfo(Triple, Opts);
+    llvm::Triple HT(Opts.HostTriple);
+    switch (HT.getOS()) {
+    case llvm::Triple::Win32:
+      switch (HT.getEnvironment()) {
+      default: // Assume MSVC for unknown environments
+      case llvm::Triple::MSVC:
+        assert(HT.getArch() == llvm::Triple::x86_64 &&
+               "Unsupported host architecture");
+        return new MicrosoftX86_64_SPIR64TargetInfo(Triple, Opts);
       }
+    case llvm::Triple::Linux:
+      return new LinuxTargetInfo<SPIR64TargetInfo>(Triple, Opts);
+    default:
+      return new SPIR64TargetInfo(Triple, Opts);
     }
-    return new SPIR64TargetInfo(Triple, Opts);
   }
 
   case llvm::Triple::wasm32:
@@ -775,7 +769,7 @@ bool TargetInfo::validateOpenCLTarget(const LangOptions &Opts,
 
   // Validate that feature macros are set properly for OpenCL C 3.0.
   // In other cases assume that target is always valid.
-  if (Opts.OpenCLCPlusPlus || Opts.OpenCLVersion < 300)
+  if (Opts.getOpenCLCompatibleVersion() < 300)
     return true;
 
   return OpenCLOptions::diagnoseUnsupportedFeatureDependencies(*this, Diags) &&

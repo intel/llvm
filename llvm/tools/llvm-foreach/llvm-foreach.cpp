@@ -18,7 +18,9 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/SystemUtils.h"
+#include "llvm/Support/Threading.h"
 
+#include <list>
 #include <vector>
 
 using namespace llvm;
@@ -69,6 +71,17 @@ static cl::opt<std::string> OutIncrement{
         "pass."),
     cl::init(""), cl::value_desc("R")};
 
+static cl::opt<unsigned int> JobsInParallel{
+    "jobs",
+    cl::Optional,
+    cl::init(1),
+    cl::desc("Specify the number of threads for launching input commands in "
+             "parallel mode"),
+};
+
+static cl::alias JobsInParallelShort{"j", cl::desc("Alias for --jobs"),
+                                     cl::aliasopt(JobsInParallel)};
+
 static void error(const Twine &Msg) {
   errs() << "llvm-foreach: " << Msg << '\n';
   exit(1);
@@ -77,6 +90,32 @@ static void error(const Twine &Msg) {
 static void error(std::error_code EC, const Twine &Prefix) {
   if (EC)
     error(Prefix + ": " + EC.message());
+}
+
+// With BlockingWait=false this function just goes through the all
+// submitted jobs to check if some of them have finished.
+int checkIfJobsAreFinished(std::list<sys::ProcessInfo> &JobsSubmitted,
+                           bool BlockingWait = true) {
+  std::string ErrMsg;
+  auto It = JobsSubmitted.begin();
+  while (It != JobsSubmitted.end()) {
+    sys::ProcessInfo WaitResult =
+        sys::Wait(*It, 0, /*WaitUntilTerminates*/ BlockingWait, &ErrMsg);
+
+    // Check if the job has finished (PID will be 0 if it's not).
+    if (!BlockingWait && !WaitResult.Pid) {
+      It++;
+      continue;
+    }
+    assert(BlockingWait || WaitResult.Pid);
+    It = JobsSubmitted.erase(It);
+
+    if (WaitResult.ReturnCode != 0) {
+      errs() << "llvm-foreach: " << ErrMsg << '\n';
+      return WaitResult.ReturnCode;
+    }
+  }
+  return 0;
 }
 
 int main(int argc, char **argv) {
@@ -160,6 +199,16 @@ int main(int argc, char **argv) {
     PrevNumOfLines = FileLists[i].size();
   }
 
+  if (!JobsInParallel)
+    error("Number of parallel threads should be a positive integer");
+
+  size_t MaxSafeNumThreads = optimal_concurrency().compute_thread_count();
+  if (JobsInParallel > MaxSafeNumThreads) {
+    JobsInParallel = MaxSafeNumThreads;
+    outs() << "llvm-foreach: adjusted number of threads to "
+           << MaxSafeNumThreads << " (max safe available).\n";
+  }
+
   std::error_code EC;
   raw_fd_ostream OS{OutputFileList, EC, sys::fs::OpenFlags::OF_None};
   if (!OutputFileList.empty())
@@ -170,6 +219,7 @@ int main(int argc, char **argv) {
   std::string IncOutArg;
   std::vector<std::string> ResInArgs(InReplaceArgs.size());
   std::string ResFileList = "";
+  std::list<sys::ProcessInfo> JobsSubmitted;
   for (size_t j = 0; j != FileLists[0].size(); ++j) {
     for (size_t i = 0; i < InReplaceArgs.size(); ++i) {
       ArgumentReplace CurReplace = InReplaceArgs[i];
@@ -221,16 +271,22 @@ int main(int argc, char **argv) {
       Args[OutIncrementArg.ArgNum] = IncOutArg;
     }
 
-    std::string ErrMsg;
-    // TODO: Add possibility to execute commands in parallel.
-    int Result =
-        sys::ExecuteAndWait(Prog, Args, /*Env=*/None, /*Redirects=*/None,
-                            /*SecondsToWait=*/0, /*MemoryLimit=*/0, &ErrMsg);
-    if (Result != 0) {
-      errs() << "llvm-foreach: " << ErrMsg << '\n';
-      Res = Result;
-    }
+    // Do not start execution of a new job until previous one(s) are finished,
+    // if the maximum number of parallel workers is reached.
+    while (JobsSubmitted.size() == JobsInParallel)
+      if (int Result =
+              checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ false))
+        Res = Result;
+
+    JobsSubmitted.emplace_back(sys::ExecuteNoWait(
+        Prog, Args, /*Env=*/None, /*Redirects=*/None, /*MemoryLimit=*/0));
   }
+
+  // Wait for all commands to be executed.
+  while (!JobsSubmitted.empty())
+    if (int Result =
+            checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ true))
+      Res = Result;
 
   if (!OutputFileList.empty()) {
     OS.close();

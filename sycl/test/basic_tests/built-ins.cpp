@@ -3,6 +3,10 @@
 
 // CUDA does not support printf.
 // UNSUPPORTED: cuda
+//
+// Hits an assertion with AMD:
+// XFAIL: rocm_amd
+
 #include <CL/sycl.hpp>
 
 #include <cassert>

@@ -48,7 +48,7 @@ namespace ext {
 namespace intel {
 namespace property {
 struct buffer_location {
-  template <int A> struct instance {
+  template <int A = 0> struct instance {
     template <int B>
     constexpr bool operator==(const buffer_location::instance<B> &) const {
       return A == B;

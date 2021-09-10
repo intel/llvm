@@ -385,15 +385,17 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"eoshift",
         {{"array", SameIntrinsic, Rank::array},
             {"shift", AnyInt, Rank::dimRemovedOrScalar},
-            {"boundary", SameIntrinsic, Rank::dimReduced,
+            {"boundary", SameIntrinsic, Rank::dimRemovedOrScalar,
                 Optionality::optional},
             OptionalDIM},
         SameIntrinsic, Rank::conformable,
         IntrinsicClass::transformationalFunction},
     {"eoshift",
         {{"array", SameDerivedType, Rank::array},
-            {"shift", AnyInt, Rank::dimReduced},
-            {"boundary", SameDerivedType, Rank::dimReduced}, OptionalDIM},
+            {"shift", AnyInt, Rank::dimRemovedOrScalar},
+            // BOUNDARY= is not optional for derived types
+            {"boundary", SameDerivedType, Rank::dimRemovedOrScalar},
+            OptionalDIM},
         SameDerivedType, Rank::conformable,
         IntrinsicClass::transformationalFunction},
     {"epsilon", {{"x", SameReal, Rank::anyOrAssumedRank}}, SameReal,
@@ -817,7 +819,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
 // TODO: Non-standard intrinsic functions
 //  AND, OR, XOR, LSHIFT, RSHIFT, SHIFT, ZEXT, IZEXT,
 //  COMPL, EQV, NEQV, INT8, JINT, JNINT, KNINT,
-//  QCMPLX, DFLOAT, QEXT, QFLOAT, QREAL, DNUM,
+//  QCMPLX, QEXT, QFLOAT, QREAL, DNUM,
 //  INUM, JNUM, KNUM, QNUM, RNUM, RAN, RANF, ILEN,
 //  MCLOCK, SECNDS, COTAN, IBCHNG, ISHA, ISHC, ISHL, IXOR
 //  IARG, IARGC, NARGS, NUMARG, BADDRESS, IADDR, CACHESIZE,
@@ -924,6 +926,7 @@ static const SpecificIntrinsicInterface specificIntrinsicFunction[]{
              {"y", AnyIntOrReal, Rank::elementalOrBOZ, Optionality::optional}},
          DoublePrecisionComplex},
         "cmplx", true},
+    {{"dfloat", {{"i", AnyInt}}, DoublePrecision}, "real", true},
     {{"dreal", {{"a", AnyComplex}}, DoublePrecision}, "real", true},
     {{"dconjg", {{"a", DoublePrecisionComplex}}, DoublePrecisionComplex},
         "conjg"},
@@ -2352,7 +2355,11 @@ DynamicType IntrinsicProcTable::Implementation::GetSpecificType(
   const CategorySet &set{pattern.categorySet};
   CHECK(set.count() == 1);
   TypeCategory category{set.LeastElement().value()};
-  return DynamicType{category, defaults_.GetDefaultKind(category)};
+  if (pattern.kindCode == KindCode::doublePrecision) {
+    return DynamicType{category, defaults_.doublePrecisionKind()};
+  } else {
+    return DynamicType{category, defaults_.GetDefaultKind(category)};
+  }
 }
 
 IntrinsicProcTable::~IntrinsicProcTable() = default;

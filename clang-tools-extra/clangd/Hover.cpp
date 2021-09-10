@@ -19,6 +19,7 @@
 #include "support/Markup.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTTypeTraits.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
@@ -720,6 +721,20 @@ llvm::Optional<HoverInfo> getHoverContents(const Expr *E, ParsedAST &AST,
   return llvm::None;
 }
 
+// Generates hover info for attributes.
+llvm::Optional<HoverInfo> getHoverContents(const Attr *A, ParsedAST &AST) {
+  HoverInfo HI;
+  HI.Name = A->getSpelling();
+  if (A->hasScope())
+    HI.LocalScope = A->getScopeName()->getName().str();
+  {
+    llvm::raw_string_ostream OS(HI.Definition);
+    A->printPretty(OS, AST.getASTContext().getPrintingPolicy());
+  }
+  HI.Documentation = Attr::getDocumentation(A->getKind()).str();
+  return HI;
+}
+
 bool isParagraphBreak(llvm::StringRef Rest) {
   return Rest.ltrim(" \t").startswith("\n");
 }
@@ -905,6 +920,22 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
   if (TokensTouchingCursor.empty())
     return llvm::None;
 
+  // Show full header file path if cursor is on include directive.
+  if (const auto MainFilePath =
+          getCanonicalPath(SM.getFileEntryForID(SM.getMainFileID()), SM)) {
+    for (const auto &Inc : AST.getIncludeStructure().MainFileIncludes) {
+      if (Inc.Resolved.empty() || Inc.HashLine != Pos.line)
+        continue;
+      HoverInfo HI;
+      HI.Name = std::string(llvm::sys::path::filename(Inc.Resolved));
+      // FIXME: We don't have a fitting value for Kind.
+      HI.Definition =
+          URIForFile::canonicalize(Inc.Resolved, *MainFilePath).file().str();
+      HI.DefinitionLanguage = "";
+      return HI;
+    }
+  }
+
   // To be used as a backup for highlighting the selected token, we use back as
   // it aligns better with biases elsewhere (editors tend to send the position
   // for the left of the hovered token).
@@ -960,6 +991,8 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
         maybeAddCalleeArgInfo(N, *HI, PP);
       } else if (const Expr *E = N->ASTNode.get<Expr>()) {
         HI = getHoverContents(E, AST, PP, Index);
+      } else if (const Attr *A = N->ASTNode.get<Attr>()) {
+        HI = getHoverContents(A, AST);
       }
       // FIXME: support hovers for other nodes?
       //  - built-in types
@@ -981,6 +1014,7 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
 
 markup::Document HoverInfo::present() const {
   markup::Document Output;
+
   // Header contains a text of the form:
   // variable `var`
   //
@@ -1081,7 +1115,8 @@ markup::Document HoverInfo::present() const {
                                            : Definition;
     // Note that we don't print anything for global namespace, to not annoy
     // non-c++ projects or projects that are not making use of namespaces.
-    Output.addCodeBlock(ScopeComment + DefinitionWithAccess);
+    Output.addCodeBlock(ScopeComment + DefinitionWithAccess,
+                        DefinitionLanguage);
   }
 
   return Output;

@@ -391,6 +391,7 @@
 // PPC-AIX-NOT:#define __64BIT__ 1
 // PPC-AIX:#define _AIX 1
 // PPC-AIX:#define _ARCH_PPC 1
+// PPC-AIX:#define _ARCH_PPC64 1
 // PPC-AIX:#define _BIG_ENDIAN 1
 // PPC-AIX:#define _IBMR2 1
 // PPC-AIX:#define _LONG_LONG 1
@@ -431,6 +432,7 @@
 // PPC-AIX:#define __FLT_MIN_EXP__ (-125)
 // PPC-AIX:#define __FLT_MIN__ 1.17549435e-38F
 // PPC-AIX:#define __FLT_RADIX__ 2
+// PPC-AIX:#define __HOS_AIX__ 1
 // PPC-AIX:#define __INT16_C_SUFFIX__
 // PPC-AIX:#define __INT16_FMTd__ "hd"
 // PPC-AIX:#define __INT16_FMTi__ "hi"
@@ -538,6 +540,8 @@
 // PPC-AIX:#define __SIZE_MAX__ 4294967295UL
 // PPC-AIX:#define __SIZE_TYPE__ long unsigned int
 // PPC-AIX:#define __SIZE_WIDTH__ 32
+// PPC-AIX:#define __THW_BIG_ENDIAN__ 1
+// PPC-AIX:#define __THW_PPC__ 1
 // PPC-AIX:#define __TOS_AIX__ 1
 // PPC-AIX:#define __UINT16_C_SUFFIX__
 // PPC-AIX:#define __UINT16_MAX__ 65535

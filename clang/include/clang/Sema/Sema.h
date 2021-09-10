@@ -335,9 +335,8 @@ public:
 
   ///  Signals that subsequent parameter descriptor additions will go to
   ///  the kernel with given name. Starts new kernel invocation descriptor.
-  void startKernel(StringRef KernelName, QualType KernelNameType,
-                   StringRef KernelStableName, SourceLocation Loc, bool IsESIMD,
-                   bool IsUnnamedKernel);
+  void startKernel(const FunctionDecl *SyclKernel, QualType KernelNameType,
+                   SourceLocation Loc, bool IsESIMD, bool IsUnnamedKernel);
 
   /// Adds a kernel parameter descriptor to current kernel invocation
   /// descriptor.
@@ -349,6 +348,17 @@ public:
 
   /// Registers a specialization constant to emit info for it into the header.
   void addSpecConstant(StringRef IDName, QualType IDType);
+
+  /// Update the names of a kernel description based on its SyclKernel.
+  void updateKernelNames(const FunctionDecl *SyclKernel, StringRef Name,
+                         StringRef StableName) {
+    auto Itr = llvm::find_if(KernelDescs, [SyclKernel](const KernelDesc &KD) {
+      return KD.SyclKernel == SyclKernel;
+    });
+
+    assert(Itr != KernelDescs.end() && "Unknown kernel description");
+    Itr->updateKernelNames(Name, StableName);
+  }
 
   /// Note which free functions (this_id, this_item, etc) are called within the
   /// kernel
@@ -385,6 +395,9 @@ private:
 
   // Kernel invocation descriptor
   struct KernelDesc {
+    /// sycl_kernel function associated with this kernel.
+    const FunctionDecl *SyclKernel;
+
     /// Kernel name.
     std::string Name;
 
@@ -410,11 +423,15 @@ private:
     // hasn't provided an explicit name for.
     bool IsUnnamedKernel;
 
-    KernelDesc(StringRef Name, QualType NameType, StringRef StableName,
+    KernelDesc(const FunctionDecl *SyclKernel, QualType NameType,
                SourceLocation KernelLoc, bool IsESIMD, bool IsUnnamedKernel)
-        : Name(Name), NameType(NameType), StableName(StableName),
-          KernelLocation(KernelLoc), IsESIMDKernel(IsESIMD),
-          IsUnnamedKernel(IsUnnamedKernel) {}
+        : SyclKernel(SyclKernel), NameType(NameType), KernelLocation(KernelLoc),
+          IsESIMDKernel(IsESIMD), IsUnnamedKernel(IsUnnamedKernel) {}
+
+    void updateKernelNames(StringRef Name, StringRef StableName) {
+      this->Name = Name.str();
+      this->StableName = StableName.str();
+    }
   };
 
   /// Returns the latest invocation descriptor started by
@@ -559,7 +576,7 @@ public:
   ///
   /// This is the greatest alignment value supported by load, store, and alloca
   /// instructions, and global values.
-  static const unsigned MaxAlignmentExponent = 29;
+  static const unsigned MaxAlignmentExponent = 30;
   static const unsigned MaximumAlignment = 1u << MaxAlignmentExponent;
 
   typedef OpaquePtr<DeclGroupRef> DeclGroupPtrTy;
@@ -1076,15 +1093,6 @@ public:
     LateTemplateParserCleanup = LTPCleanup;
     OpaqueParser = P;
   }
-
-  // Marks a type as a SYCL Kernel without necessarily adding it.  Additionally,
-  // it diagnoses if this causes any of the evaluated
-  // __builtin_sycl_unique_stable_name values to change.
-  void MarkSYCLKernel(SourceLocation NewLoc, QualType Ty, bool IsInstantiation);
-  // Does the work necessary to deal with a SYCL kernel lambda. At the moment,
-  // this just marks the list of lambdas required to name the kernel. It does
-  // this by dispatching to MarkSYCLKernel, so it also does the diagnostics.
-  void AddSYCLKernelLambda(const FunctionDecl *FD);
 
   class DelayedDiagnostics;
 
@@ -3585,6 +3593,8 @@ public:
                                             const AttributeCommonInfo &CI,
                                             bool BestCase,
                                             MSInheritanceModel Model);
+  ErrorAttr *mergeErrorAttr(Decl *D, const AttributeCommonInfo &CI,
+                            StringRef NewUserDiagnostic);
   FormatAttr *mergeFormatAttr(Decl *D, const AttributeCommonInfo &CI,
                               IdentifierInfo *Format, int FormatIdx,
                               int FirstArg);
@@ -3610,6 +3620,7 @@ public:
   EnforceTCBAttr *mergeEnforceTCBAttr(Decl *D, const EnforceTCBAttr &AL);
   EnforceTCBLeafAttr *mergeEnforceTCBLeafAttr(Decl *D,
                                               const EnforceTCBLeafAttr &AL);
+  BTFTagAttr *mergeBTFTagAttr(Decl *D, const BTFTagAttr &AL);
 
   void mergeDeclAttributes(NamedDecl *New, Decl *Old,
                            AvailabilityMergeKind AMK = AMK_Redeclaration);
@@ -3746,11 +3757,12 @@ public:
 
   /// Contexts in which a converted constant expression is required.
   enum CCEKind {
-    CCEK_CaseValue,   ///< Expression in a case label.
-    CCEK_Enumerator,  ///< Enumerator value with fixed underlying type.
-    CCEK_TemplateArg, ///< Value of a non-type template parameter.
-    CCEK_ArrayBound,  ///< Array bound in array declarator or new-expression.
-    CCEK_ExplicitBool ///< Condition in an explicit(bool) specifier.
+    CCEK_CaseValue,    ///< Expression in a case label.
+    CCEK_Enumerator,   ///< Enumerator value with fixed underlying type.
+    CCEK_TemplateArg,  ///< Value of a non-type template parameter.
+    CCEK_ArrayBound,   ///< Array bound in array declarator or new-expression.
+    CCEK_ExplicitBool, ///< Condition in an explicit(bool) specifier.
+    CCEK_Noexcept      ///< Condition in a noexcept(bool) specifier.
   };
   ExprResult CheckConvertedConstantExpression(Expr *From, QualType T,
                                               llvm::APSInt &Value, CCEKind CCE);
@@ -6160,7 +6172,7 @@ public:
 
   /// Check the given noexcept-specifier, convert its expression, and compute
   /// the appropriate ExceptionSpecificationType.
-  ExprResult ActOnNoexceptSpec(SourceLocation NoexceptLoc, Expr *NoexceptExpr,
+  ExprResult ActOnNoexceptSpec(Expr *NoexceptExpr,
                                ExceptionSpecificationType &EST);
 
   /// Check the given exception-specification and update the
@@ -10394,9 +10406,6 @@ public:
   /// attribute to be added (usually because of a pragma).
   void AddOptnoneAttributeIfNoConflicts(FunctionDecl *FD, SourceLocation Loc);
 
-  template <typename AttrType>
-  void AddOneConstantPowerTwoValueAttr(Decl *D, const AttributeCommonInfo &CI,
-                                       Expr *E);
   void AddIntelFPGABankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
   template <typename AttrType>
@@ -10460,6 +10469,14 @@ public:
   SYCLIntelMaxGlobalWorkDimAttr *
   MergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
                                      const SYCLIntelMaxGlobalWorkDimAttr &A);
+  void AddIntelFPGABankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
+                                 Expr *E);
+  IntelFPGABankWidthAttr *
+  MergeIntelFPGABankWidthAttr(Decl *D, const IntelFPGABankWidthAttr &A);
+  void AddIntelFPGANumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *E);
+  IntelFPGANumBanksAttr *
+  MergeIntelFPGANumBanksAttr(Decl *D, const IntelFPGANumBanksAttr &A);
   /// AddAlignedAttr - Adds an aligned attribute to a particular declaration.
   void AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
                       bool IsPackExpansion);
@@ -11578,15 +11595,14 @@ public:
                                      SourceLocation ModifierLoc,
                                      SourceLocation EndLoc);
   /// Called on well-formed 'map' clause.
-  OMPClause *
-  ActOnOpenMPMapClause(ArrayRef<OpenMPMapModifierKind> MapTypeModifiers,
-                       ArrayRef<SourceLocation> MapTypeModifiersLoc,
-                       CXXScopeSpec &MapperIdScopeSpec,
-                       DeclarationNameInfo &MapperId,
-                       OpenMPMapClauseKind MapType, bool IsMapTypeImplicit,
-                       SourceLocation MapLoc, SourceLocation ColonLoc,
-                       ArrayRef<Expr *> VarList, const OMPVarListLocTy &Locs,
-                       ArrayRef<Expr *> UnresolvedMappers = llvm::None);
+  OMPClause *ActOnOpenMPMapClause(
+      ArrayRef<OpenMPMapModifierKind> MapTypeModifiers,
+      ArrayRef<SourceLocation> MapTypeModifiersLoc,
+      CXXScopeSpec &MapperIdScopeSpec, DeclarationNameInfo &MapperId,
+      OpenMPMapClauseKind MapType, bool IsMapTypeImplicit,
+      SourceLocation MapLoc, SourceLocation ColonLoc, ArrayRef<Expr *> VarList,
+      const OMPVarListLocTy &Locs, bool NoDiagnose = false,
+      ArrayRef<Expr *> UnresolvedMappers = llvm::None);
   /// Called on well-formed 'num_teams' clause.
   OMPClause *ActOnOpenMPNumTeamsClause(Expr *NumTeams, SourceLocation StartLoc,
                                        SourceLocation LParenLoc,
@@ -12724,6 +12740,15 @@ public:
                                       const VirtSpecifiers *VS = nullptr);
   void CodeCompleteBracketDeclarator(Scope *S);
   void CodeCompleteCase(Scope *S);
+  enum class AttributeCompletion {
+    Attribute,
+    Scope,
+    None,
+  };
+  void CodeCompleteAttribute(
+      AttributeCommonInfo::Syntax Syntax,
+      AttributeCompletion Completion = AttributeCompletion::Attribute,
+      const IdentifierInfo *Scope = nullptr);
   /// Determines the preferred type of the current function argument, by
   /// examining the signatures of all possible overloads.
   /// Returns null if unknown or ambiguous, or if code completion is off.
@@ -13313,12 +13338,23 @@ private:
   std::unique_ptr<SYCLIntegrationHeader> SyclIntHeader;
   std::unique_ptr<SYCLIntegrationFooter> SyclIntFooter;
 
+  // We need to store the list of the sycl_kernel functions and their associated
+  // generated OpenCL Kernels so we can go back and re-name these after the
+  // fact.
+  llvm::SmallVector<std::pair<const FunctionDecl *, FunctionDecl *>>
+      SyclKernelsToOpenCLKernels;
+
   // Used to suppress diagnostics during kernel construction, since these were
   // already emitted earlier. Diagnosing during Kernel emissions also skips the
   // useful notes that shows where the kernel was called.
   bool DiagnosingSYCLKernel = false;
 
 public:
+  void addSyclOpenCLKernel(const FunctionDecl *SyclKernel,
+                           FunctionDecl *OpenCLKernel) {
+    SyclKernelsToOpenCLKernels.emplace_back(SyclKernel, OpenCLKernel);
+  }
+
   void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.insert(d); }
   llvm::SetVector<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
 
@@ -13360,6 +13396,7 @@ public:
   void checkSYCLDeviceVarDecl(VarDecl *Var);
   void copySYCLKernelAttrs(const CXXRecordDecl *KernelObj);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
+  void SetSYCLKernelNames();
   void MarkDevices();
 
   /// Get the number of fields or captures within the parsed type.
@@ -13502,53 +13539,6 @@ void Sema::addIntelTripleArgAttr(Decl *D, const AttributeCommonInfo &CI,
   }
   D->addAttr(::new (Context)
                  WorkGroupAttrType(Context, CI, XDimExpr, YDimExpr, ZDimExpr));
-}
-
-template <typename AttrType>
-void Sema::AddOneConstantPowerTwoValueAttr(Decl *D,
-                                           const AttributeCommonInfo &CI,
-                                           Expr *E) {
-  AttrType TmpAttr(Context, CI, E);
-
-  if (!E->isValueDependent()) {
-    llvm::APSInt Value;
-    ExprResult ICE = VerifyIntegerConstantExpression(E, &Value);
-    if (ICE.isInvalid())
-      return;
-    if (!Value.isStrictlyPositive()) {
-      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
-          << CI << /*positive*/ 0;
-      return;
-    }
-    if (!Value.isPowerOf2()) {
-      Diag(CI.getLoc(), diag::err_attribute_argument_not_power_of_two)
-          << &TmpAttr;
-      return;
-    }
-    if (IntelFPGANumBanksAttr::classof(&TmpAttr)) {
-      if (auto *BBA = D->getAttr<IntelFPGABankBitsAttr>()) {
-        unsigned NumBankBits = BBA->args_size();
-        if (NumBankBits != Value.ceilLogBase2()) {
-          Diag(TmpAttr.getLocation(), diag::err_bankbits_numbanks_conflicting);
-          return;
-        }
-      }
-    }
-    E = ICE.get();
-  }
-
-  if (!D->hasAttr<IntelFPGAMemoryAttr>())
-    D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
-        Context, IntelFPGAMemoryAttr::Default));
-
-  // We are adding a user NumBanks, drop any implicit default.
-  if (IntelFPGANumBanksAttr::classof(&TmpAttr)) {
-    if (auto *NBA = D->getAttr<IntelFPGANumBanksAttr>())
-      if (NBA->isImplicit())
-        D->dropAttr<IntelFPGANumBanksAttr>();
-  }
-
-  D->addAttr(::new (Context) AttrType(Context, CI, E));
 }
 
 /// RAII object that enters a new expression evaluation context.

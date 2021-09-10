@@ -1,3 +1,9 @@
+# The SOVERSION should be updated only if a change is made to the libclang
+# ABI, and when it is updated, it should be updated to the current
+# LLVM_VERSION_MAJOR.
+# Please also see clang/tools/libclang/libclang.map
+set(CLANG_SONAME 13)
+
 set(SOURCES
   ARCMigrate.cpp
   BuildSystem.cpp
@@ -162,16 +168,18 @@ if(ENABLE_SHARED)
   endif()
   if (USE_VERSION_SCRIPT)
     target_link_options(libclang PRIVATE "-Wl,--version-script,${CMAKE_CURRENT_SOURCE_DIR}/libclang.map")
+    # The Solaris 11.4 linker supports a subset of GNU ld version scripts,
+    # but requires a special option to enable it.
+    if (${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
+      target_link_options(libclang PRIVATE "-Wl,-z,gnu-version-script-compat")
+    endif()
     # Ensure that libclang.so gets rebuilt when the linker script changes.
     set_property(SOURCE ARCMigrate.cpp APPEND PROPERTY
                  OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/libclang.map)
 
-    # The SOVERSION should be updated only if a change is made to the libclang
-    # ABI, and when it is updated, it should be updated to the current
-    # LLVM_VERSION_MAJOR.
     set_target_properties(libclang PROPERTIES
                           VERSION ${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}${LLVM_VERSION_SUFFIX}
-                          SOVERSION 13)
+                          SOVERSION ${CLANG_SONAME})
   endif()
 endif()
 

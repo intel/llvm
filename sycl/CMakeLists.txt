@@ -13,7 +13,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 
 set(SYCL_MAJOR_VERSION 5)
-set(SYCL_MINOR_VERSION 3)
+set(SYCL_MINOR_VERSION 4)
 set(SYCL_PATCH_VERSION 0)
 set(SYCL_DEV_ABI_VERSION 0)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
@@ -259,7 +259,6 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl
      pi_opencl
      pi_level_zero
-     pi_esimd_cpu
      libsycldevice
      ${XPTIFW_LIBS}
 )
@@ -290,6 +289,19 @@ if(SYCL_BUILD_PI_ROCM)
 
   add_dependencies(sycl-toolchain libspirv-builtins pi_rocm)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_rocm)
+endif()
+
+# TODO : Remove 'if (NOT MSVC)' when CM_EMU supports Windows
+# environment
+if (NOT MSVC)
+  if (SYCL_BUILD_PI_ESIMD_CPU)
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_cpu libcmrt-headers)
+    if (MSVC)
+      list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
+    else()
+      list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
+    endif()
+  endif()
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.
