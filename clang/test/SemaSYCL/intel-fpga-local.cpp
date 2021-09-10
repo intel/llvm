@@ -177,6 +177,30 @@ void check_ast()
   //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
   [[intel::force_pow2_depth(1)]]
   [[intel::force_pow2_depth(1)]] int var_forcep2d; // OK
+
+  // Test for Intel FPGA bankwidth memory attribute duplication.
+  // No diagnostic is emitted because the arguments match.
+  // Duplicate attribute is silently ignored.
+  //CHECK: VarDecl{{.*}}var_bankwidth 'int'
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit memory Default
+  //CHECK: IntelFPGABankWidthAttr
+  //CHECK-NEXT: ConstantExpr{{.*}}'int'
+  //CHECK-NEXT: value: Int 16
+  //CHECK-NEXT: IntegerLiteral{{.*}}'int' 16
+  [[intel::bankwidth(16)]]
+  [[intel::bankwidth(16)]] int var_bankwidth; // OK
+
+  // Test for Intel FPGA numbanks memory attribute duplication.
+  // No diagnostic is emitted because the arguments match.
+  // Duplicate attribute is silently ignored.
+  //CHECK: VarDecl{{.*}}var_numbanks 'int'
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit memory Default
+  //CHECK: IntelFPGANumBanksAttr
+  //CHECK-NEXT: ConstantExpr{{.*}}'int'
+  //CHECK-NEXT: value: Int 8
+  //CHECK-NEXT: IntegerLiteral{{.*}}'int' 8
+  [[intel::numbanks(8)]]
+  [[intel::numbanks(8)]] int var_numbanks; // OK
 }
 
 //CHECK: FunctionDecl{{.*}}diagnostics
@@ -263,6 +287,7 @@ void diagnostics()
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int reg_bankbits[64];
 
+  // Checking of incompatible attributes.
   //expected-error@+2{{'bankwidth' and 'fpga_register' attributes are not compatible}}
   [[intel::fpga_register]]
   [[intel::bankwidth(16)]]
@@ -275,11 +300,23 @@ void diagnostics()
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int reg_private_copies[64];
 
+  // Checking of different argument values.
+  //expected-warning@+2{{attribute 'numbanks' is already applied with different arguments}}
+  [[intel::numbanks(8)]] //expected-note{{previous attribute is here}}
+  [[intel::numbanks(16)]] unsigned int max_numb[64];
+
+  // Checking of incompatible attributes.
   //expected-error@+2{{attributes are not compatible}}
   [[intel::fpga_register]]
   [[intel::numbanks(8)]]
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int reg_numbanks[64];
+
+  //expected-error@+2{{attributes are not compatible}}
+  [[intel::numbanks(16)]]
+  [[intel::fpga_register]]
+  //expected-note@-2 {{conflicting attribute is here}}
+  unsigned int numbanks_reg[64];
 
   //expected-error@+2{{attributes are not compatible}}
   [[intel::fpga_register]]
@@ -334,6 +371,7 @@ void diagnostics()
   //expected-note@+1 {{did you mean to use 'intel::bankwidth' instead?}}
   [[intelfpga::bankwidth(4)]] unsigned int bankwidth[32];
 
+  // Checking of incompatible attributes.
   //expected-error@+2{{attributes are not compatible}}
   [[intel::bankwidth(16)]]
   [[intel::fpga_register]]
@@ -384,17 +422,15 @@ void diagnostics()
   //expected-error@+1{{'simple_dual_port' and 'fpga_register' attributes are not compatible}}
   [[intel::simple_dual_port]] unsigned int sdp_reg[64];
 
-  //CHECK: VarDecl{{.*}}bw_bw
+  // Checking of different argument values.
+  //CHECK: VarDecl{{.*}}bw_bw 'unsigned int [64]'
+  //CHECK:IntelFPGAMemoryAttr{{.*}}Implicit memory Default
   //CHECK: IntelFPGABankWidthAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}8
-  //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
-  //CHECK: IntelFPGABankWidthAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}16
-  //CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
+  //CHECK-NEXT: ConstantExpr{{.*}}'int'
+  //CHECK-NEXT: value: Int 8
+  //CHECK-NEXT: IntegerLiteral{{.*}}'int' 8
   //expected-warning@+2{{attribute 'bankwidth' is already applied}}
-  [[intel::bankwidth(8)]]
+  [[intel::bankwidth(8)]] // expected-note {{previous attribute is here}}
   [[intel::bankwidth(16)]] unsigned int bw_bw[64];
 
   //expected-error@+1{{must be a constant power of two greater than zero}}
@@ -467,17 +503,14 @@ void diagnostics()
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int nb_reg[64];
 
-  //CHECK: VarDecl{{.*}}nb_nb
-  //CHECK: IntelFPGANumBanksAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}8
-  //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
-  //CHECK: IntelFPGANumBanksAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}16
-  //CHECK-NEXT: IntegerLiteral{{.*}}16{{$}}
+  //CHECK: VarDecl{{.*}}nb_nb 'unsigned int [64]'
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit memory Default
+  //CHECK:IntelFPGANumBanksAttr
+  //CHECK-NEXT: ConstantExpr{{.*}}'int'
+  //CHECK-NEXT: value: Int 8
+  //CHECK-NEXT: IntegerLiteral{{.*}}'int' 8
   //expected-warning@+2{{attribute 'numbanks' is already applied}}
-  [[intel::numbanks(8)]]
+  [[intel::numbanks(8)]] // expected-note {{previous attribute is here}}
   [[intel::numbanks(16)]] unsigned int nb_nb[64];
 
   //expected-error@+1{{must be a constant power of two greater than zero}}
@@ -554,6 +587,17 @@ void diagnostics()
   //expected-note@+1 {{did you mean to use 'intel::bank_bits' instead?}}
   [[intelfpga::bank_bits(2, 3, 4, 5)]] unsigned int bankbits[64];
 
+  //CHECK: VarDecl{{.*}} bb_reg 'unsigned int [4]'
+  //CHECK: IntelFPGANumBanksAttr{{.*}}Implicit
+  //CHECK-NEXT: IntegerLiteral{{.*}}'int' 4
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit memory Default
+  //CHECK: IntelFPGABankBitsAttr
+  //CHECK-NEXT: ConstantExpr{{.*}}'int'
+  //CHECK-NEXT: value: Int 2
+  //CHECK-NEXT: IntegerLiteral{{.*}}'int' 2
+  //CHECK-NEXT: ConstantExpr{{.*}}'int'
+  //CHECK-NEXT: value: Int 3
+  //CHECK-NEXT: IntegerLiteral{{.*}}'int' 3
   //expected-error@+2 1{{'fpga_register' and 'bank_bits' attributes are not compatible}}
   [[intel::bank_bits(2, 3)]]
   [[intel::fpga_register]]
@@ -852,6 +896,26 @@ void check_template_parameters() {
   [[intel::fpga_register]]
   //expected-note@-1 {{conflicting attribute is here}}
   [[intel::max_replicates(C)]] unsigned int maxrepl_reg;
+
+  // Test that checks template instantiations for different arg values.
+  [[intel::numbanks(4)]] // expected-note {{previous attribute is here}}
+  // expected-warning@+1 {{attribute 'numbanks' is already applied with different arguments}}
+  [[intel::numbanks(C)]] unsigned int num_banks[64];
+
+  //expected-error@+3{{'numbanks' and 'fpga_register' attributes are not compatible}}
+  [[intel::fpga_register]]
+  //expected-note@-1 {{conflicting attribute is here}}
+  [[intel::numbanks(C)]] unsigned int max_numbanks_reg;
+
+  // Test that checks template instantiations for different arg values.
+  [[intel::bankwidth(4)]] // expected-note {{previous attribute is here}}
+  // expected-warning@+1 {{attribute 'bankwidth' is already applied with different arguments}}
+  [[intel::bankwidth(C)]] unsigned int bank_width[64];
+
+  //expected-error@+3{{'bankwidth' and 'fpga_register' attributes are not compatible}}
+  [[intel::fpga_register]]
+  //expected-note@-1 {{conflicting attribute is here}}
+  [[intel::bankwidth(C)]] unsigned int max_bankwidth_reg;
 
   //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
   [[intel::force_pow2_depth(A)]] unsigned int force_p2d_below_min[64];

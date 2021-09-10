@@ -33,7 +33,7 @@ template <typename T> inline void checkVectorsWithN() {
 }
 
 inline void checkVectors() {
-  checkVectorsWithN<half>();
+  checkVectorsWithN<s::half>();
   checkVectorsWithN<float>();
   checkVectorsWithN<double>();
   checkVectorsWithN<char>();

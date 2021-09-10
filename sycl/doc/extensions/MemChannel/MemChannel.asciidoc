@@ -1,4 +1,4 @@
-= SYCL_INTEL_mem_channel_property
+= SYCL_EXT_INTEL_MEM_CHANNEL_PROPERTY
 
 == Introduction
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
@@ -23,13 +23,29 @@ Because the interfaces defined by this specification are not final and are subje
 == Version
 
 Built On: {docdate} +
-Revision: 1
+Revision: 2
 
 == Dependencies
 
-This extension is written against the SYCL 2020 provisional specification, Revision 1.
+This extension is written against the SYCL 2020 specification, Revision 3.
 
 The use of this extension requires a target that supports cl_intel_mem_channel_property or equivalent if OpenCL is used as the underlying device runtime.  
+
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_INTEL_MEM_CHANNEL_PROPERTY` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
 
 == Overview
 
@@ -59,7 +75,7 @@ Add a new constructor to Table 4.34: Constructors of the buffer property classes
 |===
 --
 
-Add a new member function to Table 4.35: Member functions of the buffer property classes as follows:
+Add a new member function to Table 42: Member functions of the buffer property classes as follows:
 
 --
 [options="header"]
@@ -87,7 +103,7 @@ enum class aspect {
 } // namespace sycl
 ```
 
-Add an entry for the new aspect to Table 4.20: Device aspects defined by the core SYCL specification:
+Add an entry for the new aspect to Table 26: Device aspects defined by the core SYCL specification:
 
 --
 [options="header"]
@@ -107,4 +123,5 @@ Add an entry for the new aspect to Table 4.20: Device aspects defined by the cor
 |========================================
 |Rev|Date|Author|Changes
 |1|2020-10-26|Joe Garvey|*Initial public draft*
+|2|2021-08-30|Dmitry Vodopyanov|*Updated according to some SYCL 2020 reqs for extensions*
 |========================================
