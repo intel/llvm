@@ -82,11 +82,11 @@ cl::opt<bool, true> EnableDbgOutput("spirv-debug",
 bool isSupportedTriple(Triple T) { return T.isSPIR(); }
 
 void addFnAttr(CallInst *Call, Attribute::AttrKind Attr) {
-  Call->addAttribute(AttributeList::FunctionIndex, Attr);
+  Call->addFnAttr(Attr);
 }
 
 void removeFnAttr(CallInst *Call, Attribute::AttrKind Attr) {
-  Call->removeAttribute(AttributeList::FunctionIndex, Attr);
+  Call->removeFnAttr(Attr);
 }
 
 Value *removeCast(Value *V) {

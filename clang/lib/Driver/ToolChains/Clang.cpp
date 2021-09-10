@@ -1434,18 +1434,18 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
   // The file being compiled that contains the integration footer is not being
   // compiled in the directory of the original source.  Add that directory
-  // as an -I option so we can properly find potential headers there.  The
-  // original source search directory should also be placed before any user
+  // as an -iquote option so we can properly find potential user headers there.
+  // The original source search directory should also be placed before any user
   // search directories.
   if (ContainsAppendFooterAction(&JA)) {
     SmallString<128> SourcePath(Inputs[0].getBaseInput());
     llvm::sys::path::remove_filename(SourcePath);
     if (!SourcePath.empty()) {
-      CmdArgs.push_back("-I");
+      CmdArgs.push_back("-iquote");
       CmdArgs.push_back(Args.MakeArgString(SourcePath));
     } else if (llvm::ErrorOr<std::string> CWD =
                    D.getVFS().getCurrentWorkingDirectory()) {
-      CmdArgs.push_back("-I");
+      CmdArgs.push_back("-iquote");
       CmdArgs.push_back(Args.MakeArgString(*CWD));
     }
   }
@@ -1676,8 +1676,8 @@ void AddAAPCSVolatileBitfieldArgs(const ArgList &Args, ArgStringList &CmdArgs) {
 }
 
 namespace {
-void RenderARMABI(const llvm::Triple &Triple, const ArgList &Args,
-                  ArgStringList &CmdArgs) {
+void RenderARMABI(const Driver &D, const llvm::Triple &Triple,
+                  const ArgList &Args, ArgStringList &CmdArgs) {
   // Select the ABI to use.
   // FIXME: Support -meabi.
   // FIXME: Parts of this are duplicated in the backend, unify this somehow.
@@ -1685,7 +1685,7 @@ void RenderARMABI(const llvm::Triple &Triple, const ArgList &Args,
   if (Arg *A = Args.getLastArg(options::OPT_mabi_EQ)) {
     ABIName = A->getValue();
   } else {
-    std::string CPU = getCPUName(Args, Triple, /*FromAs*/ false);
+    std::string CPU = getCPUName(D, Args, Triple, /*FromAs*/ false);
     ABIName = llvm::ARM::computeDefaultTargetABI(Triple, CPU).data();
   }
 
@@ -1696,7 +1696,7 @@ void RenderARMABI(const llvm::Triple &Triple, const ArgList &Args,
 
 void Clang::AddARMTargetArgs(const llvm::Triple &Triple, const ArgList &Args,
                              ArgStringList &CmdArgs, bool KernelOrKext) const {
-  RenderARMABI(Triple, Args, CmdArgs);
+  RenderARMABI(getToolChain().getDriver(), Triple, Args, CmdArgs);
 
   // Determine floating point ABI from the options & target defaults.
   arm::FloatABI ABI = arm::getARMFloatABI(getToolChain(), Args);
@@ -2720,8 +2720,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   StringRef FPModel = "";
   // -ffp-exception-behavior options: strict, maytrap, ignore
   StringRef FPExceptionBehavior = "";
-  // -ffp-eval-method options: double, extended, source
-  StringRef FPEvalMethod = "";
   const llvm::DenormalMode DefaultDenormalFPMath =
       TC.getDefaultDenormalModeForType(Args, JA);
   const llvm::DenormalMode DefaultDenormalFP32Math =
@@ -2913,18 +2911,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       break;
     }
 
-    // Validate and pass through -ffp-eval-method option.
-    case options::OPT_ffp_eval_method_EQ: {
-      StringRef Val = A->getValue();
-      if (Val.equals("double") || Val.equals("extended") ||
-          Val.equals("source"))
-        FPEvalMethod = Val;
-      else
-        D.Diag(diag::err_drv_unsupported_option_argument)
-            << A->getOption().getName() << Val;
-      break;
-    }
-
     case options::OPT_ffinite_math_only:
       HonorINFs = false;
       HonorNaNs = false;
@@ -3068,9 +3054,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   if (!FPExceptionBehavior.empty())
     CmdArgs.push_back(Args.MakeArgString("-ffp-exception-behavior=" +
                       FPExceptionBehavior));
-
-  if (!FPEvalMethod.empty())
-    CmdArgs.push_back(Args.MakeArgString("-ffp-eval-method=" + FPEvalMethod));
 
   ParseMRecip(D, Args, CmdArgs);
 
@@ -4424,11 +4407,11 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   SmallString<128> SourcePath(InputFile.getBaseInput());
   llvm::sys::path::remove_filename(SourcePath);
   if (!SourcePath.empty()) {
-    HostCompileArgs.push_back("-I");
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "-I" : "-iquote");
     HostCompileArgs.push_back(TCArgs.MakeArgString(SourcePath));
   } else if (llvm::ErrorOr<std::string> CWD =
                  TC.getDriver().getVFS().getCurrentWorkingDirectory()) {
-    HostCompileArgs.push_back("-I");
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "-I" : "-iquote");
     HostCompileArgs.push_back(TCArgs.MakeArgString(*CWD));
   }
 
@@ -5044,7 +5027,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     case llvm::Triple::arm:
     case llvm::Triple::armeb:
     case llvm::Triple::thumbeb:
-      RenderARMABI(Triple, Args, CmdArgs);
+      RenderARMABI(D, Triple, Args, CmdArgs);
       break;
     case llvm::Triple::aarch64:
     case llvm::Triple::aarch64_32:
@@ -5581,7 +5564,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     const ArgList &HostArgs =
         C.getArgsForToolChain(nullptr, StringRef(), Action::OFK_None);
     std::string HostCPU =
-        getCPUName(HostArgs, *TC.getAuxTriple(), /*FromAs*/ false);
+        getCPUName(D, HostArgs, *TC.getAuxTriple(), /*FromAs*/ false);
     if (!HostCPU.empty()) {
       CmdArgs.push_back("-aux-target-cpu");
       CmdArgs.push_back(Args.MakeArgString(HostCPU));
@@ -5623,7 +5606,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   // Add the target cpu
-  std::string CPU = getCPUName(Args, Triple, /*FromAs*/ false);
+  std::string CPU = getCPUName(D, Args, Triple, /*FromAs*/ false);
   if (!CPU.empty()) {
     CmdArgs.push_back("-target-cpu");
     CmdArgs.push_back(Args.MakeArgString(CPU));
@@ -7126,7 +7109,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (IsHIP)
     CmdArgs.push_back("-fcuda-allow-variadic-functions");
 
-  if (IsCudaDevice || IsHIPDevice) {
+  if (IsCudaDevice || IsHIPDevice || IsSYCLOffloadDevice) {
     StringRef InlineThresh =
         Args.getLastArgValue(options::OPT_fgpu_inline_threshold_EQ);
     if (!InlineThresh.empty()) {
@@ -7980,7 +7963,7 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back(Clang::getBaseInputName(Args, Input));
 
   // Add the target cpu
-  std::string CPU = getCPUName(Args, Triple, /*FromAs*/ true);
+  std::string CPU = getCPUName(D, Args, Triple, /*FromAs*/ true);
   if (!CPU.empty()) {
     CmdArgs.push_back("-target-cpu");
     CmdArgs.push_back(Args.MakeArgString(CPU));

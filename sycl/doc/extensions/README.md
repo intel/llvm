@@ -35,9 +35,10 @@ DPC++ extensions status:
 | [SYCL_INTEL_unnamed_kernel_lambda](UnnamedKernelLambda/SYCL_INTEL_unnamed_kernel_lambda.asciidoc)                           | Supported(OpenCL)                         | |
 | [Unified Shared Memory](USM/USM.adoc)                                                                                       | Supported(OpenCL)                         | |
 | [Use Pinned Memory Property](UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc)                                           | Supported                                 | |
-| [Level-Zero backend specification](LevelZeroBackend/LevelZeroBackend.md)                                           	        | Supported                                 | |
-| [ITT annotations support](ITTAnnotations/ITTAnnotations.rst)                                                                | Supported                                 | |
-| [SYCL_EXT_ONEAPI_DEVICE_IF](DeviceIf/device_if.asciidoc)                                                                    | Proposal                                  | |
+| [Level-Zero backend specification](LevelZeroBackend/LevelZeroBackend.md)                                           	      | Supported                                 | |
+| [ITT annotations support](ITTAnnotations/ITTAnnotations.rst) | Supported | |
+| [Platform Context](PlatformContext/PlatformContext.adoc) | Proposal | |
+| [SYCL_EXT_ONEAPI_DEVICE_IF](DeviceIf/device_if.asciidoc) | Proposal | |
 | [SYCL_INTEL_group_sort](GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)                                                     | Proposal                                  | |
 | [Invoke SIMD](InvokeSIMD/InvokeSIMD.asciidoc)                                                                               | Proposal                                  | |
 | [Uniform](Uniform/Uniform.asciidoc)                                                                                         | Proposal                                  | |

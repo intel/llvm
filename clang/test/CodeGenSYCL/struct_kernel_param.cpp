@@ -14,6 +14,7 @@
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 8, 32 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 12, 40 },
 // CHECK-EMPTY:
+// CHECK-NEXT:  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT:};
 
 // This test checks if compiler accepts structures as kernel parameters.
