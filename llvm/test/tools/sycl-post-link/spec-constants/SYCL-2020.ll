@@ -19,6 +19,10 @@
 %class.specialization_id.3 = type { %struct.VectorConst }
 %struct.MArrayConst = type { [2 x i32] }
 %class.specialization_id.4 = type { %struct.MArrayConst }
+%struct.MArrayConst2 = type { [3 x i32] }
+%class.specialization_id.5 = type { %struct.MArrayConst2 }
+%struct.MArrayConst3 = type { [3 x i64] }
+%class.specialization_id.6 = type { %struct.MArrayConst3 }
 
 @id_half = dso_local global %class.specialization_id { half 0xH4000 }, align 8
 @id_int = dso_local global %class.specialization_id.0 { i32 42 }, align 4
@@ -26,6 +30,8 @@
 @id_compos2 = dso_local global %class.specialization_id.2 { %struct.ComposConst2 { i8 1, %struct.myConst { i32 52, float 0x40479999A0000000 }, double 2.000000e+00 } }, align 8
 @id_vector = dso_local global %class.specialization_id.3 { %struct.VectorConst { <2 x i32> <i32 1, i32 2>  } }, align 8
 @id_marray = dso_local global %class.specialization_id.4 { %struct.MArrayConst { [2 x i32] [i32 1, i32 2]  } }, align 8
+@id_marray2 = dso_local global %class.specialization_id.5 { %struct.MArrayConst2 { [3 x i32] [i32 1, i32 2, i32 3]  } }, align 8
+@id_marray3 = dso_local global %class.specialization_id.6 { %struct.MArrayConst3 { [3 x i64] [i64 1, i64 2, i64 3]  } }, align 8
 
 ; check that the following globals are preserved: even though they are won't be
 ; used in the module anymore, they could still be referenced by debug info
@@ -42,6 +48,8 @@
 @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_compos2E17specialization_idI12ComposConst2ES1_ET1_v = private unnamed_addr constant [39 x i8] c"_ZTS14name_generatorIL_Z10id_compos2EE\00", align 1
 @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_vectorE17specialization_idI11VectorConstES1_ET1_v = private unnamed_addr constant [38 x i8] c"_ZTS14name_generatorIL_Z10id_vectorEE\00", align 1
 @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_marrayE17specialization_idI11MArrayConstES1_ET1_v = private unnamed_addr constant [38 x i8] c"_ZTS14name_generatorIL_Z10id_marrayEE\00", align 1
+@__builtin_unique_stable_name.id_marray2 = private unnamed_addr constant [39 x i8] c"_ZTS14name_generatorIL_Z10id_marray2EE\00", align 1
+@__builtin_unique_stable_name.id_marray3 = private unnamed_addr constant [39 x i8] c"_ZTS14name_generatorIL_Z10id_marray3EE\00", align 1
 
 ; CHECK-LABEL: define dso_local void @_Z4testv
 define dso_local void @_Z4testv() local_unnamed_addr #0 {
@@ -130,6 +138,8 @@ entry:
 define void @test3() {
   %tmp = alloca %struct.VectorConst, align 8
   %tmp1 = alloca %struct.MArrayConst, align 8
+  %tmp2 = alloca %struct.MArrayConst2, align 8
+  %tmp3 = alloca %struct.MArrayConst3, align 8
   %1 = bitcast %struct.VectorConst* %tmp to i8*
 ; CHECK-DEF: %[[GEP1:[0-9a-z]+]] = getelementptr i8, i8* null, i32 54
 ; CHECK-DEF: %[[BITCAST1:[0-9a-z]+]] = bitcast i8* %[[GEP1]] to %struct.VectorConst*
@@ -150,6 +160,13 @@ define void @test3() {
 ; CHECK-RT: %[[#CE1:]] = call [2 x i32] @_Z29__spirv_SpecConstantCompositeii_RA2_i(i32 %[[#SE1]], i32 %[[#SE2]])
 ; CHECK-RT: call %struct.MArrayConst @_Z29__spirv_SpecConstantCompositeA2_i_Rstruct.MArrayConst([2 x i32] %[[#CE1]])
   call void @_Z40__sycl_getComposite2020SpecConstantValueI11MArrayConstET_PKcPvS4_(%struct.MArrayConst* nonnull sret(%struct.MArrayConst) align 8 %tmp1, i8* getelementptr inbounds ([38 x i8], [38 x i8]* @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_marrayE17specialization_idI11MArrayConstES1_ET1_v, i64 0, i64 0), i8* bitcast (%class.specialization_id.4* @id_marray to i8*), i8* null)
+; Here we only check the mangling of generated __spirv_SpecConstantComposite function
+  %3 = bitcast %struct.MArrayConst2* %tmp2 to i8*
+; CHECK-RT: call %struct.MArrayConst2 @_Z29__spirv_SpecConstantCompositeA3_i_Rstruct.MArrayConst2
+  call void @_Z40__sycl_getComposite2020SpecConstantValueI11MArrayConst2ET_PKcPvS4_(%struct.MArrayConst2* nonnull sret(%struct.MArrayConst2) align 8 %tmp2, i8* getelementptr inbounds ([39 x i8], [39 x i8]* @__builtin_unique_stable_name.id_marray2, i64 0, i64 0), i8* bitcast (%class.specialization_id.5* @id_marray2 to i8*), i8* null)
+  %4 = bitcast %struct.MArrayConst3* %tmp3 to i8*
+; CHECK-RT: call %struct.MArrayConst3 @_Z29__spirv_SpecConstantCompositeA3_x_Rstruct.MArrayConst3
+  call void @_Z40__sycl_getComposite2020SpecConstantValueI11MArrayConst3ET_PKcPvS4_(%struct.MArrayConst3* nonnull sret(%struct.MArrayConst3) align 8 %tmp3, i8* getelementptr inbounds ([39 x i8], [39 x i8]* @__builtin_unique_stable_name.id_marray3, i64 0, i64 0), i8* bitcast (%class.specialization_id.6* @id_marray3 to i8*), i8* null)
   ret void
 }
 
@@ -171,14 +188,18 @@ declare dso_local void @_Z40__sycl_getComposite2020SpecConstantValueI11VectorCon
 
 declare dso_local void @_Z40__sycl_getComposite2020SpecConstantValueI11MArrayConstET_PKcPvS4_(%struct.MArrayConst* sret(%struct.MArrayConst) align 8, i8*, i8*, i8*) local_unnamed_addr #2
 
+declare dso_local void @_Z40__sycl_getComposite2020SpecConstantValueI11MArrayConst2ET_PKcPvS4_(%struct.MArrayConst2* sret(%struct.MArrayConst2) align 8, i8*, i8*, i8*) local_unnamed_addr #2
+
+declare dso_local void @_Z40__sycl_getComposite2020SpecConstantValueI11MArrayConst3ET_PKcPvS4_(%struct.MArrayConst3* sret(%struct.MArrayConst3) align 8, i8*, i8*, i8*) local_unnamed_addr #2
+
 attributes #0 = { uwtable mustprogress "denormal-fp-math"="preserve-sign,preserve-sign" "denormal-fp-math-f32"="ieee,ieee" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="true" "no-jump-tables"="false" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" "unsafe-fp-math"="true" "use-soft-float"="false" }
 attributes #1 = { argmemonly nofree nosync nounwind willreturn }
 attributes #2 = { "denormal-fp-math"="preserve-sign,preserve-sign" "denormal-fp-math-f32"="ieee,ieee" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" "unsafe-fp-math"="true" "use-soft-float"="false" }
 attributes #3 = { nounwind }
 
-; CHECK: !sycl.specialization-constants = !{![[#ID0:]], ![[#ID1:]], ![[#ID2:]], ![[#ID3:]], ![[#ID4:]], ![[#ID5:]]}
+; CHECK: !sycl.specialization-constants = !{![[#ID0:]], ![[#ID1:]], ![[#ID2:]], ![[#ID3:]], ![[#ID4:]], ![[#ID5:]]
 ;
-; CHECK-DEF: !sycl.specialization-constants-default-values = !{![[#ID4:]], ![[#ID5:]], ![[#ID6:]], ![[#ID7:]], ![[#ID8:]], ![[#ID9:]]}
+; CHECK-DEF: !sycl.specialization-constants-default-values = !{![[#ID4:]], ![[#ID5:]], ![[#ID6:]], ![[#ID7:]], ![[#ID8:]], ![[#ID9:]]
 ; CHECK-RT-NOT: !sycl.specialization-constants-default-values
 ;
 ; CHECK: ![[#ID0]] = !{!"_ZTS14name_generatorIL_Z9id_halfEE", i32 0, i32 0, i32 2}
