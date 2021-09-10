@@ -275,14 +275,7 @@ private:
   /// Maps names of kernels to their unique kernel IDs.
   /// TODO: Use std::unordered_set with transparent hash and equality functions
   ///       when C++20 is enabled for the runtime library.
-  /// Access must be guarded by the m_KernelIDsMutex mutex
   std::unordered_map<std::string, kernel_id> m_KernelIDs;
-
-  /// Protects kernel ID cache.
-  /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to
-  /// avoid deadlocks care must be taken not to acquire
-  /// \ref Sync::getGlobalLock() while holding this mutex.
-  std::mutex m_KernelIDsMutex;
 
   // Keeps track of pi_program to image correspondence. Needed for:
   // - knowing which specialization constants are used in the program and

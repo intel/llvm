@@ -1038,7 +1038,6 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       // ... or create the set first if it hasn't been
       KernelSetId KSId = getNextKernelSetId();
       {
-        std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
         for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
              ++EntriesIt) {
           auto Result = KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
@@ -1259,16 +1258,12 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
 }
 
 kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
-  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-
   auto KernelID = m_KernelIDs.find(KernelName);
   assert(KernelID != m_KernelIDs.end() && "Kernel ID missing");
   return KernelID->second;
 }
 
 std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
-  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-
   std::vector<sycl::kernel_id> AllKernelIDs;
   AllKernelIDs.reserve(m_KernelIDs.size());
   for (std::pair<std::string, kernel_id> KernelID : m_KernelIDs) {
@@ -1329,7 +1324,6 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
       pi_device_binary DevBin =
           const_cast<pi_device_binary>(&BinImage->getRawData());
       {
-        std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
         for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
              EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
           auto KernelID = m_KernelIDs.find(EntriesIt->name);
