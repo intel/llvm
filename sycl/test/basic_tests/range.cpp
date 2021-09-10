@@ -34,4 +34,30 @@ int main() {
   assert(three_dim_range.get(2) ==2);
   assert(three_dim_range[2] ==2);
   cout << "three_dim_range passed " << endl;
+
+  cl::sycl::range<1> one_dim_range_copy(64);
+  cl::sycl::range<2> two_dim_range_copy(64, 1);
+  cl::sycl::range<3> three_dim_range_copy(64, 1, 2);
+
+  assert((+one_dim_range) == one_dim_range);
+  assert(-(-one_dim_range) == one_dim_range);
+  assert((+two_dim_range) == two_dim_range);
+  assert(-(-two_dim_range) == two_dim_range);
+  assert((+three_dim_range) == three_dim_range);
+  assert(-(-three_dim_range) == three_dim_range);
+
+  assert((++one_dim_range) == (one_dim_range_copy + 1));
+  assert((--one_dim_range) == (one_dim_range_copy));
+  assert((++two_dim_range) == (two_dim_range_copy + 1));
+  assert((--two_dim_range) == (two_dim_range_copy));
+  assert((++three_dim_range) == (three_dim_range_copy + 1));
+  assert((--three_dim_range) == (three_dim_range_copy));
+
+  assert((one_dim_range++) == (one_dim_range_copy));
+  assert((one_dim_range--) == (one_dim_range_copy + 1));
+  assert((two_dim_range++) == (two_dim_range_copy));
+  assert((two_dim_range--) == (two_dim_range_copy + 1));
+  assert((three_dim_range++) == (three_dim_range_copy));
+  assert((three_dim_range--) == (three_dim_range_copy + 1));
+
 }
