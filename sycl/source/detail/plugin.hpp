@@ -92,7 +92,9 @@ public:
 
   plugin(RT::PiPlugin Plugin, backend UseBackend, void *LibraryHandle)
       : MPlugin(Plugin), MBackend(UseBackend), MLibraryHandle(LibraryHandle),
-        TracingMutex(std::make_shared<std::mutex>()) {}
+        TracingMutex(std::make_shared<std::mutex>()),
+        DeviceIdMutex(std::make_shared<std::mutex>()),
+        PlatformIdMutex(std::make_shared<std::mutex>()) {}
 
   plugin &operator=(const plugin &) = default;
   plugin(const plugin &) = default;
@@ -187,6 +189,7 @@ public:
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
   int getPlatformId(RT::PiPlatform Platform) {
+    std::lock_guard<std::mutex> Guard(*PlatformIdMutex);
     auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
     if (It != PiPlatforms.end())
       return It - PiPlatforms.begin();
@@ -203,19 +206,23 @@ public:
     int PlatformId = getPlatformId(Platform);
     if (PlatformId == 0)
       return 0;
+    std::lock_guard<std::mutex> Guard(*DeviceIdMutex);
     return LastDeviceIds[PlatformId - 1];
   }
   // set the id of the last device for the given platform
   void setLastDeviceId(RT::PiPlatform Platform, int Id) {
     int PlatformId = getPlatformId(Platform);
+    std::lock_guard<std::mutex> Guard(*DeviceIdMutex);
     LastDeviceIds[PlatformId] = Id;
   }
   // reset all last device ids to zeros
   void resetLastDeviceIds() {
+    std::lock_guard<std::mutex> Guard(*DeviceIdMutex);
     std::fill(LastDeviceIds.begin(), LastDeviceIds.end(), 0);
   }
 
   bool containsPiPlatform(RT::PiPlatform Platform) {
+    std::lock_guard<std::mutex> Guard(*PlatformIdMutex);
     auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
     if (It != PiPlatforms.end())
       return true;
@@ -227,6 +234,8 @@ private:
   backend MBackend;
   void *MLibraryHandle; // the handle returned from dlopen
   std::shared_ptr<std::mutex> TracingMutex;
+  std::shared_ptr<std::mutex> DeviceIdMutex;
+  std::shared_ptr<std::mutex> PlatformIdMutex;
   // vector of PiPlatforms that belong to this plugin
   std::vector<RT::PiPlatform> PiPlatforms;
   // represents the unique ids of the last device of each platform
