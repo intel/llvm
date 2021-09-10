@@ -1,4 +1,3 @@
-; RUN: opt < %s -analyze -enable-new-pm=0 -scalar-evolution | FileCheck %s
 ; RUN: opt < %s -disable-output "-passes=print<scalar-evolution>" 2>&1 | FileCheck %s
 
 ; ScalarEvolution should be able to understand the loop and eliminate the casts.
@@ -523,7 +522,7 @@ exit:
 ; of context sensativity.
 define void @ne_zero_max_btc(i32 %a) {
 ; CHECK-LABEL: Determining loop execution counts for: @ne_zero_max_btc
-; CHECK: Loop %for.body: backedge-taken count is (-1 + (zext i32 (1 umax (1 smin %a)) to i64))<nsw>
+; CHECK: Loop %for.body: backedge-taken count is 0
 ; CHECK: Loop %for.body: max backedge-taken count is 0
 entry:
   %cmp = icmp slt i32 %a, 1

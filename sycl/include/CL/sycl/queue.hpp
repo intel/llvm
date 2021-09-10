@@ -231,6 +231,10 @@ public:
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
+  // A shorthand for `get_device().has()' which is expected to be a bit quicker
+  // than the long version
+  bool device_has(aspect Aspect) const;
+
 public:
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
@@ -247,7 +251,7 @@ public:
     if (!is_host()) {
       auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
                                           event &E) {
-        if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
+        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
             KernelUsesAssert) {
           // __devicelib_assert_fail isn't supported by Device-side Runtime
           // Linking against fallback impl of __devicelib_assert_fail is
@@ -287,7 +291,7 @@ public:
 #if __SYCL_USE_FALLBACK_ASSERT
     auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
                            bool IsKernel, bool KernelUsesAssert, event &E) {
-      if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
+      if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
           KernelUsesAssert) {
         // __devicelib_assert_fail isn't supported by Device-side Runtime
         // Linking against fallback impl of __devicelib_assert_fail is performed

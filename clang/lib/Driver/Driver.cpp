@@ -1325,7 +1325,8 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   // Silence driver warnings if requested
   Diags.setIgnoreAllWarnings(Args.hasArg(options::OPT_w));
 
-  // -no-canonical-prefixes is used very early in main.
+  // -canonical-prefixes, -no-canonical-prefixes are used very early in main.
+  Args.ClaimAllArgs(options::OPT_canonical_prefixes);
   Args.ClaimAllArgs(options::OPT_no_canonical_prefixes);
 
   // f(no-)integated-cc1 is also used very early in main.
@@ -4315,7 +4316,7 @@ class OffloadingActionBuilder final {
 
           for (StringRef Val : A->getValues()) {
             if (Val == "all") {
-              for (auto &K : devicelib_link_info.keys())
+              for (const auto &K : devicelib_link_info.keys())
                 devicelib_link_info[K] = true && !NoDeviceLibs;
               break;
             }
