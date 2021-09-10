@@ -304,7 +304,10 @@ bool program_impl::has_kernel(std::string KernelName,
   if (is_host()) {
     return !IsCreatedFromSource;
   }
-  return has_cl_kernel(KernelName);
+  bool hasKernel = false;
+  const detail::plugin &Plugin = getPlugin();
+  Plugin.call<PiApiKind::piProgramHasKernel>(MProgram, KernelName.c_str(), &hasKernel);
+  return hasKernel;
 }
 
 kernel program_impl::get_kernel(std::string KernelName,
@@ -413,26 +416,6 @@ std::vector<RT::PiDevice> program_impl::get_pi_devices() const {
     PiDevices.push_back(getSyclObjImpl(Device)->getHandleRef());
   }
   return PiDevices;
-}
-
-bool program_impl::has_cl_kernel(const std::string &KernelName) const {
-  size_t Size;
-  const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piProgramGetInfo>(
-      MProgram, PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size);
-  std::string ClResult(Size, ' ');
-  Plugin.call<PiApiKind::piProgramGetInfo>(
-      MProgram, PI_PROGRAM_INFO_KERNEL_NAMES, ClResult.size(), &ClResult[0],
-      nullptr);
-  // Get rid of the null terminator
-  ClResult.pop_back();
-  std::vector<std::string> KernelNames(split_string(ClResult, ';'));
-  for (const auto &Name : KernelNames) {
-    if (Name == KernelName) {
-      return true;
-    }
-  }
-  return false;
 }
 
 RT::PiKernel program_impl::get_pi_kernel(const std::string &KernelName) const {

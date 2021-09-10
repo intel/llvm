@@ -1170,6 +1170,10 @@ __SYCL_EXPORT pi_result piProgramGetInfo(pi_program program,
                                          void *param_value,
                                          size_t *param_value_size_ret);
 
+__SYCL_EXPORT pi_result piProgramHasKernel(pi_program program,
+		                           const char *kernel_name,
+					   bool *has_kernel);
+
 __SYCL_EXPORT pi_result
 piProgramLink(pi_context context, pi_uint32 num_devices,
               const pi_device *device_list, const char *options,

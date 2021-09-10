@@ -567,30 +567,6 @@ pi_result _pi_program::build_program(const char *build_options) {
   return success ? PI_SUCCESS : PI_BUILD_PROGRAM_FAILURE;
 }
 
-/// Finds kernel names by searching for entry points in the PTX source, as the
-/// CUDA driver API doesn't expose an operation for this.
-/// Note: This is currently only being used by the SYCL program class for the
-///       has_kernel method, so an alternative would be to move the has_kernel
-///       query to PI and use cuModuleGetFunction to check for a kernel.
-/// Note: Another alternative is to add kernel names as metadata, like with
-///       reqd_work_group_size.
-std::string getKernelNames(pi_program program) {
-  std::string source(program->binary_,
-                     program->binary_ + program->binarySizeInBytes_);
-  std::regex entries_pattern(".entry\\s+([^\\([:s:]]*)");
-  std::string names("");
-  std::smatch match;
-  bool first_match = true;
-  while (std::regex_search(source, match, entries_pattern)) {
-    assert(match.size() == 2);
-    names += first_match ? "" : ";";
-    names += match[1]; // Second element is the group.
-    source = match.suffix().str();
-    first_match = false;
-  }
-  return names;
-}
-
 /// RAII object that calls the reference count release function on the held PI
 /// object on destruction.
 ///
@@ -2969,15 +2945,33 @@ pi_result cuda_piProgramGetInfo(pi_program program, pi_program_info param_name,
   case PI_PROGRAM_INFO_BINARIES:
     return getInfoArray(1, param_value_size, param_value, param_value_size_ret,
                         &program->binary_);
-  case PI_PROGRAM_INFO_KERNEL_NAMES: {
-    return getInfo(param_value_size, param_value, param_value_size_ret,
-                   getKernelNames(program).c_str());
-  }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
   cl::sycl::detail::pi::die("Program info request not implemented");
   return {};
+}
+
+pi_result cuda_piProgramHasKernel(pi_program program, const char *kernel_name, bool *has_kernel) {
+  assert(has_kernel != nullptr);
+
+  CUfunction func;
+  CUresult ret = cuModuleGetFunction(&func, program->get(), kernel_name);
+  pi_result retError = PI_SUCCESS;
+
+  switch (ret) {
+  case CUDA_SUCCESS:
+    *has_kernel = true;
+    break;
+  case CUDA_ERROR_NOT_FOUND:
+    *has_kernel = false;
+    break;
+  default:
+    *has_kernel = false;
+    retError = PI_CHECK_ERROR(ret);
+  }
+
+  return retError;
 }
 
 /// Creates a new PI program object that is the outcome of linking all input
@@ -4853,6 +4847,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextProgramGetNativeHandle, cuda_piextProgramGetNativeHandle)
   _PI_CL(piextProgramCreateWithNativeHandle,
          cuda_piextProgramCreateWithNativeHandle)
+  _PI_CL(piProgramHasKernel, cuda_piProgramHasKernel)
   // Kernel
   _PI_CL(piKernelCreate, cuda_piKernelCreate)
   _PI_CL(piKernelSetArg, cuda_piKernelSetArg)

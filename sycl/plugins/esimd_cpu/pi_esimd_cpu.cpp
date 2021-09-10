@@ -991,6 +991,10 @@ pi_result piProgramGetInfo(pi_program, pi_program_info, size_t, void *,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piProgramHasKernel(pi_program, const char* kernel_name, bool* has_kernel) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piProgramLink(pi_context, pi_uint32, const pi_device *, const char *,
                         pi_uint32, const pi_program *,
                         void (*)(pi_program, void *), void *, pi_program *) {

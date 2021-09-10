@@ -73,6 +73,7 @@ _PI_API(piProgramRelease)
 _PI_API(piextProgramSetSpecializationConstant)
 _PI_API(piextProgramGetNativeHandle)
 _PI_API(piextProgramCreateWithNativeHandle)
+_PI_API(piProgramHasKernel)
 // Kernel
 _PI_API(piKernelCreate)
 _PI_API(piKernelSetArg)
