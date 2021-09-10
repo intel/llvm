@@ -1434,18 +1434,18 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
   // The file being compiled that contains the integration footer is not being
   // compiled in the directory of the original source.  Add that directory
-  // as an -I option so we can properly find potential headers there.  The
-  // original source search directory should also be placed before any user
+  // as an -iquote option so we can properly find potential user headers there.
+  // The original source search directory should also be placed before any user
   // search directories.
   if (ContainsAppendFooterAction(&JA)) {
     SmallString<128> SourcePath(Inputs[0].getBaseInput());
     llvm::sys::path::remove_filename(SourcePath);
     if (!SourcePath.empty()) {
-      CmdArgs.push_back("-I");
+      CmdArgs.push_back("-iquote");
       CmdArgs.push_back(Args.MakeArgString(SourcePath));
     } else if (llvm::ErrorOr<std::string> CWD =
                    D.getVFS().getCurrentWorkingDirectory()) {
-      CmdArgs.push_back("-I");
+      CmdArgs.push_back("-iquote");
       CmdArgs.push_back(Args.MakeArgString(*CWD));
     }
   }
@@ -3286,7 +3286,7 @@ static void RenderSCPOptions(const ToolChain &TC, const ArgList &Args,
                              ArgStringList &CmdArgs) {
   const llvm::Triple &EffectiveTriple = TC.getEffectiveTriple();
 
-  if (!EffectiveTriple.isOSLinux())
+  if (!EffectiveTriple.isOSFreeBSD() && !EffectiveTriple.isOSLinux())
     return;
 
   if (!EffectiveTriple.isX86() && !EffectiveTriple.isSystemZ() &&
@@ -4424,11 +4424,11 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   SmallString<128> SourcePath(InputFile.getBaseInput());
   llvm::sys::path::remove_filename(SourcePath);
   if (!SourcePath.empty()) {
-    HostCompileArgs.push_back("-I");
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "-I" : "-iquote");
     HostCompileArgs.push_back(TCArgs.MakeArgString(SourcePath));
   } else if (llvm::ErrorOr<std::string> CWD =
                  TC.getDriver().getVFS().getCurrentWorkingDirectory()) {
-    HostCompileArgs.push_back("-I");
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "-I" : "-iquote");
     HostCompileArgs.push_back(TCArgs.MakeArgString(*CWD));
   }
 
@@ -6216,6 +6216,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_openmp_simd);
       Args.AddAllArgs(CmdArgs, options::OPT_fopenmp_enable_irbuilder);
       Args.AddAllArgs(CmdArgs, options::OPT_fopenmp_version_EQ);
+      if (!Args.hasFlag(options::OPT_fopenmp_extensions,
+                        options::OPT_fno_openmp_extensions, /*Default=*/true))
+        CmdArgs.push_back("-fno-openmp-extensions");
       Args.AddAllArgs(CmdArgs, options::OPT_fopenmp_cuda_number_of_sm_EQ);
       Args.AddAllArgs(CmdArgs, options::OPT_fopenmp_cuda_blocks_per_sm_EQ);
       Args.AddAllArgs(CmdArgs,
@@ -6252,6 +6255,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       Args.AddLastArg(CmdArgs, options::OPT_fopenmp_simd,
                       options::OPT_fno_openmp_simd);
     Args.AddAllArgs(CmdArgs, options::OPT_fopenmp_version_EQ);
+    if (!Args.hasFlag(options::OPT_fopenmp_extensions,
+                      options::OPT_fno_openmp_extensions, /*Default=*/true))
+      CmdArgs.push_back("-fno-openmp-extensions");
   }
 
   const SanitizerArgs &Sanitize = TC.getSanitizerArgs();
@@ -7120,7 +7126,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (IsHIP)
     CmdArgs.push_back("-fcuda-allow-variadic-functions");
 
-  if (IsCudaDevice || IsHIPDevice) {
+  if (IsCudaDevice || IsHIPDevice || IsSYCLOffloadDevice) {
     StringRef InlineThresh =
         Args.getLastArgValue(options::OPT_fgpu_inline_threshold_EQ);
     if (!InlineThresh.empty()) {
@@ -8661,10 +8667,19 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
       Targets += ',';
     Targets += Action::GetOffloadKindName(Dep.DependentOffloadKind);
     Targets += '-';
-    Targets += Dep.DependentToolChain->getTriple().normalize();
-    if (Dep.DependentOffloadKind == Action::OFK_HIP &&
+    std::string NormalizedTriple =
+        Dep.DependentToolChain->getTriple().normalize();
+    Targets += NormalizedTriple;
+    if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
+         Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
-      Targets += '-';
+      // If OffloadArch is present it can only appear as the 6th hyphen
+      // separated field of Bundle Entry ID. So, pad required number of
+      // hyphens in Triple.
+      // e.g. if NormalizedTriple is nvptx64-nvidia-cuda, 2 more - to
+      // generate nvptx64-nvidia-cuda--
+      for (int i = 4 - StringRef(NormalizedTriple).count("-"); i > 0; i--)
+        Targets += '-';
       Targets += Dep.DependentBoundArch;
     }
   }
@@ -8773,7 +8788,9 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
       ExtArg += ",+SPV_INTEL_usm_storage_classes";
     else
       // Don't enable several freshly added extensions on FPGA H/W
-      ExtArg += ",+SPV_INTEL_token_type,+SPV_INTEL_bfloat16_conversion";
+      ExtArg += ",+SPV_INTEL_token_type"
+                ",+SPV_INTEL_bfloat16_conversion"
+                ",+SPV_INTEL_joint_matrix";
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
