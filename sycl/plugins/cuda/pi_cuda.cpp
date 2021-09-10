@@ -2408,19 +2408,18 @@ pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
     retErr = PI_OUT_OF_HOST_MEMORY;
   }
 
-  *kernel = retKernel.release();
+  pi_device device = program->get_context()->get_device();
+  pi_kernel piKernel = retKernel.get();
+  size_t reqdThreadsPerBlock[3] = {};
+  pi_result retError = cuda_piKernelGetGroupInfo(
+      piKernel, device, PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+      sizeof(reqdThreadsPerBlock), reqdThreadsPerBlock, nullptr);
+  assert(retError == PI_SUCCESS);
 
-  {
-    pi_device device = program->get_context()->get_device();
-    size_t reqdThreadsPerBlock[3] = {};
-    pi_result retError = cuda_piKernelGetGroupInfo(
-        *kernel, device, PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(reqdThreadsPerBlock), reqdThreadsPerBlock, nullptr);
-    assert(retError == PI_SUCCESS);
-
-    (*kernel)->save_reqdThreadsPerBlock(sizeof(reqdThreadsPerBlock),
+  piKernel->save_reqd_threads_per_block(sizeof(reqdThreadsPerBlock),
                                         reqdThreadsPerBlock);
-  }
+
+  *kernel = retKernel.release();
 
   return retErr;
 }
@@ -2583,9 +2582,8 @@ pi_result cuda_piEnqueueKernelLaunch(
   pi_uint32 local_size = kernel->get_local_size();
 
   {
-    kernel->get_reqdThreadsPerBlock(sizeof(reqdThreadsPerBlock),
-                                    reqdThreadsPerBlock);
-
+    kernel->get_reqd_threads_per_block(sizeof(reqdThreadsPerBlock),
+                                       reqdThreadsPerBlock);
     maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
     command_queue->device_->get_max_work_item_sizes(sizeof(maxThreadsPerBlock),
                                                     maxThreadsPerBlock);
