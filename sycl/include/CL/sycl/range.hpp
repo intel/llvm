@@ -63,8 +63,8 @@ public:
 
 // OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=
 #define __SYCL_GEN_OPT_BASE(op)                                                \
-    friend range<dimensions> operator op(                                      \
-      const range<dimensions> &lhs, const range<dimensions> &rhs) {            \
+  friend range<dimensions> operator op(const range<dimensions> &lhs,           \
+                                       const range<dimensions> &rhs) {         \
     range<dimensions> result(lhs);                                             \
     for (int i = 0; i < dimensions; ++i) {                                     \
       result.common_array[i] = lhs.common_array[i] op rhs.common_array[i];     \
@@ -72,9 +72,9 @@ public:
     return result;                                                             \
   }
 
-  #ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
-// Enable operators with integral types only
-  #define __SYCL_GEN_OPT(op)                                                   \
+#ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
+  // Enable operators with integral types only
+#define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
   template <typename T>                                                        \
   friend IntegralType<T, range<dimensions>> operator op(                       \
@@ -94,26 +94,26 @@ public:
     }                                                                          \
     return result;                                                             \
   }
-  #else
-  #define __SYCL_GEN_OPT(op)                                                   \
+#else
+#define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
-  friend range<dimensions> operator op(                                        \
-      const range<dimensions> &lhs, const size_t &rhs) {                       \
+  friend range<dimensions> operator op(const range<dimensions> &lhs,           \
+                                       const size_t &rhs) {                    \
     range<dimensions> result(lhs);                                             \
     for (int i = 0; i < dimensions; ++i) {                                     \
       result.common_array[i] = lhs.common_array[i] op rhs;                     \
     }                                                                          \
     return result;                                                             \
   }                                                                            \
-  friend range<dimensions> operator op(                                        \
-      const size_t &lhs, const range<dimensions> &rhs) {                       \
+  friend range<dimensions> operator op(const size_t &lhs,                      \
+                                       const range<dimensions> &rhs) {         \
     range<dimensions> result(rhs);                                             \
     for (int i = 0; i < dimensions; ++i) {                                     \
       result.common_array[i] = lhs op rhs.common_array[i];                     \
     }                                                                          \
     return result;                                                             \
   }
-  #endif // __SYCL_DISABLE_ID_TO_INT_CONV__
+#endif // __SYCL_DISABLE_ID_TO_INT_CONV__
 
   __SYCL_GEN_OPT(+)
   __SYCL_GEN_OPT(-)
@@ -137,15 +137,15 @@ public:
 
 // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
 #define __SYCL_GEN_OPT(op)                                                     \
-  friend range<dimensions> &operator op(                                       \
-      range<dimensions> &lhs, const range<dimensions> &rhs) {                  \
+  friend range<dimensions> &operator op(range<dimensions> &lhs,                \
+                                        const range<dimensions> &rhs) {        \
     for (int i = 0; i < dimensions; ++i) {                                     \
       lhs.common_array[i] op rhs[i];                                           \
     }                                                                          \
     return lhs;                                                                \
   }                                                                            \
-  friend range<dimensions> &operator op(                                       \
-      range<dimensions> &lhs, const size_t &rhs) {                             \
+  friend range<dimensions> &operator op(range<dimensions> &lhs,                \
+                                        const size_t &rhs) {                   \
     for (int i = 0; i < dimensions; ++i) {                                     \
       lhs.common_array[i] op rhs;                                              \
     }                                                                          \
@@ -209,7 +209,6 @@ public:
   __SYCL_GEN_OPT(--)
 
 #undef __SYCL_GEN_OPT
-
 
 private:
   friend class handler;

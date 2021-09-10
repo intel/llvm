@@ -6,9 +6,9 @@
 #include <CL/sycl.hpp>
 
 int main() {
-    cl::sycl::id<1> id_obj(64);
-    // expected-warning@+1 {{'operator range' is deprecated: range() conversion is deprecated}}
-    (void)(cl::sycl::range<1>)id_obj;
+  cl::sycl::id<1> id_obj(64);
+  // expected-warning@+1 {{'operator range' is deprecated: range() conversion is deprecated}}
+  (void)(cl::sycl::range<1>) id_obj;
 
-    return 0;
+  return 0;
 }

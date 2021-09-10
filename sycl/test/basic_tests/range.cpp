@@ -59,5 +59,4 @@ int main() {
   assert((two_dim_range--) == (two_dim_range_copy + 1));
   assert((three_dim_range++) == (three_dim_range_copy));
   assert((three_dim_range--) == (three_dim_range_copy + 1));
-
 }

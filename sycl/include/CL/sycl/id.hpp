@@ -48,8 +48,7 @@ public:
 
   /* The following constructor is only available in the id struct
    * specialization where: dimensions==1 */
-  template <int N = dimensions> 
-  id(ParamTy<N, 1, size_t> dim0) : base(dim0) {}
+  template <int N = dimensions> id(ParamTy<N, 1, size_t> dim0) : base(dim0) {}
 
   template <int N = dimensions>
   id(ParamTy<N, 1, const range<dimensions>> &range_size)
@@ -86,7 +85,7 @@ public:
   id(ParamTy<N, 3, const item<dimensions, with_offset>> &item)
       : base(item.get_id(0), item.get_id(1), item.get_id(2)) {}
 
-  __SYCL_DEPRECATED("range() conversion is deprecated") 
+  __SYCL_DEPRECATED("range() conversion is deprecated")
   explicit operator range<dimensions>() const {
     range<dimensions> result(
         detail::InitializedVal<dimensions, range>::template get<0>());
@@ -145,8 +144,8 @@ public:
 
 // OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=
 #define __SYCL_GEN_OPT_BASE(op)                                                \
-  friend id<dimensions> operator op(                                           \
-      const id<dimensions> &lhs, const id<dimensions> &rhs) {                  \
+  friend id<dimensions> operator op(const id<dimensions> &lhs,                 \
+                                    const id<dimensions> &rhs) {               \
     id<dimensions> result;                                                     \
     for (int i = 0; i < dimensions; ++i) {                                     \
       result.common_array[i] = lhs.common_array[i] op rhs.common_array[i];     \
@@ -179,8 +178,8 @@ public:
 #else
 #define __SYCL_GEN_OPT(op)                                                     \
   __SYCL_GEN_OPT_BASE(op)                                                      \
-  friend id<dimensions> operator op(                                           \
-            const id<dimensions> &lhs, const size_t &rhs) {                    \
+  friend id<dimensions> operator op(const id<dimensions> &lhs,                 \
+                                    const size_t &rhs) {                       \
     id<dimensions> result;                                                     \
     for (int i = 0; i < dimensions; ++i) {                                     \
       result.common_array[i] = lhs.common_array[i] op rhs;                     \
@@ -219,8 +218,8 @@ public:
 
 // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
 #define __SYCL_GEN_OPT(op)                                                     \
-  friend id<dimensions> &operator op(                                          \
-            id<dimensions> &lhs, const id<dimensions> &rhs) {                  \
+  friend id<dimensions> &operator op(id<dimensions> &lhs,                      \
+                                     const id<dimensions> &rhs) {              \
     for (int i = 0; i < dimensions; ++i) {                                     \
       lhs.common_array[i] op rhs.common_array[i];                              \
     }                                                                          \
@@ -254,7 +253,7 @@ public:
       result.common_array[i] = (op rhs.common_array[i]);                       \
     }                                                                          \
     return result;                                                             \
-  }                                                                            \
+  }
 
   __SYCL_GEN_OPT(+)
   __SYCL_GEN_OPT(-)
@@ -265,10 +264,10 @@ public:
 #define __SYCL_GEN_OPT(op)                                                     \
   friend id<dimensions> &operator op(id<dimensions> &rhs) {                    \
     for (int i = 0; i < dimensions; ++i) {                                     \
-      op rhs.common_array[i];                            \
+      op rhs.common_array[i];                                                  \
     }                                                                          \
     return rhs;                                                                \
-  }                                                                            \
+  }
 
   __SYCL_GEN_OPT(++)
   __SYCL_GEN_OPT(--)
@@ -284,7 +283,7 @@ public:
       op lhs.common_array[i];                                                  \
     }                                                                          \
     return old_lhs;                                                            \
-  }                                                                            \
+  }
 
   __SYCL_GEN_OPT(++)
   __SYCL_GEN_OPT(--)

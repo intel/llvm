@@ -465,9 +465,7 @@ int main() {
     assert((two_dim_id--) == (two_dim_id_copy + 1));
     assert((three_dim_id++) == (three_dim_id_copy));
     assert((three_dim_id--) == (three_dim_id_copy + 1));
-
   }
-
 
 #undef numValue
 #endif // __SYCL_DISABLE_ID_TO_INT_CONV__
