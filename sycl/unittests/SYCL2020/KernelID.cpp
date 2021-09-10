@@ -289,7 +289,9 @@ TEST(KernelID, InvalidKernelName) {
     sycl::get_kernel_id<class NotAKernel>();
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
-    EXPECT_EQ(std::string("No kernel found with the specified name"), e.what());
+    EXPECT_EQ(std::string("No kernel found with the specified name -46 "
+                          "(CL_INVALID_KERNEL_NAME)"),
+              e.what());
   } catch (...) {
     FAIL() << "Expected sycl::runtime_error";
   }
