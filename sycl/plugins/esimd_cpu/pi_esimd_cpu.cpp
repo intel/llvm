@@ -1027,7 +1027,7 @@ pi_result piextProgramGetNativeHandle(pi_program, pi_native_handle *) {
 }
 
 pi_result piextProgramCreateWithNativeHandle(pi_native_handle, pi_context,
-                                             pi_program *) {
+                                             pi_program *, bool) {
   DIE_NO_IMPLEMENTATION;
 }
 

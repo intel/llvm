@@ -3235,7 +3235,7 @@ pi_result piProgramCreate(pi_context Context, const void *ILBytes,
   // and piProgramCompile. Also it is only then we know the build options.
 
   try {
-    *Program = new _pi_program(Context, ILBytes, Length, _pi_program::IL);
+    *Program = new _pi_program(Context, ILBytes, Length, _pi_program::IL, true);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3281,7 +3281,7 @@ pi_result piProgramCreateWithBinary(
   // information to distinguish the cases.
 
   try {
-    *Program = new _pi_program(Context, Binary, Length, _pi_program::Native);
+    *Program = new _pi_program(Context, Binary, Length, _pi_program::Native, true);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3528,7 +3528,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
             return res;
           }
           Input = new _pi_program(Input->Context, ZeModule, _pi_program::Object,
-                                  Input->HasImports);
+                                  true, Input->HasImports);
           Input->HasImportsAndIsLinked = true;
         }
       } else {
@@ -3551,7 +3551,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
     // the description of the failure).
     if (ZeResult == ZE_RESULT_SUCCESS ||
         ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
-      *RetProgram = new _pi_program(Context, std::move(Inputs), ZeBuildLog);
+      *RetProgram = new _pi_program(Context, std::move(Inputs), ZeBuildLog, true);
     }
     if (ZeResult != ZE_RESULT_SUCCESS)
       return mapError(ZeResult);
@@ -3783,7 +3783,8 @@ pi_result piextProgramGetNativeHandle(pi_program Program,
 
 pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
                                              pi_context Context,
-                                             pi_program *Program) {
+                                             pi_program *Program,
+                                             bool OwnNativeHandle) {
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
@@ -3795,7 +3796,8 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
   // executable (state Object).
 
   try {
-    *Program = new _pi_program(Context, ZeModule, _pi_program::Exe);
+    *Program =
+      new _pi_program(Context, ZeModule, _pi_program::Exe, OwnNativeHandle);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {

@@ -3161,10 +3161,14 @@ pi_result cuda_piextProgramGetNativeHandle(pi_program program,
 /// \param[in] nativeHandle The native handle to create PI program object from.
 /// \param[in] context The PI context of the program.
 /// \param[out] program Set to the PI program object created from native handle.
+/// \param[in] ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
 ///
 /// \return TBD
 pi_result cuda_piextProgramCreateWithNativeHandle(pi_native_handle, pi_context,
-                                                  pi_program *) {
+                                                  pi_program *,
+                                                  bool ownNativeHandle) {
+  (void)ownNativeHandle;
   cl::sycl::detail::pi::die(
       "Creation of PI program from native handle not implemented");
   return {};

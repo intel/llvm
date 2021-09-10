@@ -110,6 +110,9 @@ __SYCL_EXPORT kernel make_kernel(pi_native_handle NativeHandle,
                                  const context &TargetContext, backend Backend);
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
+                   bool KeepOwnership, bundle_state State, backend Backend);
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
+make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
                    bundle_state State, backend Backend);
 } // namespace detail
 
@@ -209,6 +212,21 @@ make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
 }
 
 template <backend Backend, bundle_state State>
+__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_kernel_bundle free function")
+typename std::enable_if<
+    detail::InteropFeatureSupportMap<Backend>::MakeKernelBundle == true,
+    kernel_bundle<State>>::type
+make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
+                       kernel_bundle<State>> &BackendObject,
+                   const context &TargetContext, bool KeepOwnership) {
+  std::shared_ptr<detail::kernel_bundle_impl> KBImpl =
+      detail::make_kernel_bundle(
+          detail::pi::cast<pi_native_handle>(BackendObject), TargetContext,
+          KeepOwnership, State, Backend);
+  return detail::createSyclObjFromImpl<kernel_bundle<State>>(KBImpl);
+}
+
+template <backend Backend, bundle_state State>
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeKernelBundle == true,
     kernel_bundle<State>>::type
@@ -218,7 +236,7 @@ make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
   std::shared_ptr<detail::kernel_bundle_impl> KBImpl =
       detail::make_kernel_bundle(
           detail::pi::cast<pi_native_handle>(BackendObject), TargetContext,
-          State, Backend);
+          false, State, Backend);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(KBImpl);
 }
 } // namespace sycl

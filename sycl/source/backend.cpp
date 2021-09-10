@@ -119,12 +119,18 @@ __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
 std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
                    bundle_state State, backend Backend) {
+  return make_kernel_bundle(NativeHandle, TargetContext, false, State, Backend);
+}
+
+std::shared_ptr<detail::kernel_bundle_impl>
+make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
+                   bool KeepOwnership, bundle_state State, backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
 
   pi::PiProgram PiProgram = nullptr;
   Plugin.call<PiApiKind::piextProgramCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), &PiProgram);
+      NativeHandle, ContextImpl->getHandleRef(), &PiProgram, !KeepOwnership);
 
   std::vector<pi::PiDevice> ProgramDevices;
   size_t NumDevices = 0;

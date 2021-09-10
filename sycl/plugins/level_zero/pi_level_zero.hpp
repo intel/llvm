@@ -1056,8 +1056,9 @@ struct _pi_program : _pi_object {
   };
 
   // Construct a program in IL or Native state.
-  _pi_program(pi_context Context, const void *Input, size_t Length, state St)
-      : State(St), Context(Context), Code(new uint8_t[Length]),
+  _pi_program(pi_context Context, const void *Input, size_t Length, state St, bool OwnZeModule)
+      : State(St), Context(Context), OwnZeModule(OwnZeModule),
+        Code(new uint8_t[Length]),
         CodeLength(Length), ZeModule(nullptr), HasImports(false),
         HasImportsAndIsLinked(false), ZeBuildLog(nullptr) {
 
@@ -1066,14 +1067,16 @@ struct _pi_program : _pi_object {
 
   // Construct a program in either Object or Exe state.
   _pi_program(pi_context Context, ze_module_handle_t ZeModule, state St,
-              bool HasImports = false)
-      : State(St), Context(Context), ZeModule(ZeModule), HasImports(HasImports),
+              bool OwnZeModule, bool HasImports = false)
+      : State(St), Context(Context), OwnZeModule(OwnZeModule),
+        ZeModule(ZeModule), HasImports(HasImports),
         HasImportsAndIsLinked(false), ZeBuildLog(nullptr) {}
 
   // Construct a program in LinkedExe state.
   _pi_program(pi_context Context, std::vector<LinkedReleaser> &&Inputs,
-              ze_module_build_log_handle_t ZeLog)
-      : State(LinkedExe), Context(Context), ZeModule(nullptr),
+              ze_module_build_log_handle_t ZeLog, bool OwnZeModule)
+      : State(LinkedExe), Context(Context), OwnZeModule(OwnZeModule),
+        ZeModule(nullptr),
         HasImports(false), HasImportsAndIsLinked(false),
         LinkedPrograms(std::move(Inputs)), ZeBuildLog(ZeLog) {}
 
@@ -1082,6 +1085,10 @@ struct _pi_program : _pi_object {
   // Used for programs in all states.
   state State;
   pi_context Context; // Context of the program.
+
+  // Indicates if we own the ZeModule or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeModule;
 
   // Used for programs in IL or Native states.
   std::unique_ptr<uint8_t[]> Code; // Array containing raw IL / native code.
