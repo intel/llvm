@@ -1515,21 +1515,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return Res;
   }
 
-  case OpVariableLengthArrayINTEL: {
-    auto *VLA = static_cast<SPIRVVariableLengthArrayINTEL *>(BV);
-    llvm::Type *Ty = transType(BV->getType()->getPointerElementType());
-    llvm::Value *ArrSize = transValue(VLA->getOperand(0), F, BB, false);
-    return mapValue(
-        BV, new AllocaInst(Ty, SPIRAS_Private, ArrSize, BV->getName(), BB));
-  }
-  case OpRestoreMemoryINTEL: {
-    auto *Restore = static_cast<SPIRVRestoreMemoryINTEL *>(BV);
-    llvm::Value *Ptr = transValue(Restore->getOperand(0), F, BB, false);
-    Function *StackRestore =
-        Intrinsic::getDeclaration(M, Intrinsic::stackrestore);
-    return mapValue(BV, CallInst::Create(StackRestore, {Ptr}, "", BB));
-  }
-
   case OpFunctionParameter: {
     auto BA = static_cast<SPIRVFunctionParameter *>(BV);
     assert(F && "Invalid function");
@@ -1579,10 +1564,27 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   // Translation of instructions
   int OpCode = BV->getOpCode();
   switch (OpCode) {
+  case OpVariableLengthArrayINTEL: {
+    auto *VLA = static_cast<SPIRVVariableLengthArrayINTEL *>(BV);
+    llvm::Type *Ty = transType(BV->getType()->getPointerElementType());
+    llvm::Value *ArrSize = transValue(VLA->getOperand(0), F, BB);
+    return mapValue(
+        BV, new AllocaInst(Ty, SPIRAS_Private, ArrSize, BV->getName(), BB));
+  }
+
+  case OpRestoreMemoryINTEL: {
+    auto *Restore = static_cast<SPIRVRestoreMemoryINTEL *>(BV);
+    llvm::Value *Ptr = transValue(Restore->getOperand(0), F, BB);
+    Function *StackRestore =
+        Intrinsic::getDeclaration(M, Intrinsic::stackrestore);
+    return mapValue(BV, CallInst::Create(StackRestore, {Ptr}, "", BB));
+  }
+
   case OpSaveMemoryINTEL: {
     Function *StackSave = Intrinsic::getDeclaration(M, Intrinsic::stacksave);
     return mapValue(BV, CallInst::Create(StackSave, "", BB));
   }
+
   case OpBranch: {
     auto *BR = static_cast<SPIRVBranch *>(BV);
     auto *BI = BranchInst::Create(
@@ -3033,7 +3035,8 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
     if (isFuncNoUnwind())
       Func->addFnAttr(Attribute::NoUnwind);
     auto OC = BI->getOpCode();
-    if (isGroupOpCode(OC) || isIntelSubgroupOpCode(OC))
+    if (isGroupOpCode(OC) || isIntelSubgroupOpCode(OC) ||
+        OC == OpControlBarrier)
       Func->addFnAttr(Attribute::Convergent);
   }
   auto Call =
@@ -3877,7 +3880,7 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
 
   auto SEVAttr = Attribute::get(*Context, kVCMetadata::VCSingleElementVector);
   if (BF->hasDecorate(DecorationSingleElementVectorINTEL))
-    F->addAttribute(AttributeList::ReturnIndex, SEVAttr);
+    F->addAttributeAtIndex(AttributeList::ReturnIndex, SEVAttr);
 
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
@@ -3887,22 +3890,22 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
     if (BA->hasDecorate(DecorationFuncParamIOKindINTEL, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentIOKind,
                                       std::to_string(Kind));
-      F->addAttribute(ArgNo + 1, Attr);
+      F->addParamAttr(ArgNo, Attr);
     }
     if (BA->hasDecorate(internal::DecorationFuncParamKindINTEL, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentKind,
                                       std::to_string(Kind));
-      F->addAttribute(ArgNo + 1, Attr);
+      F->addParamAttr(ArgNo, Attr);
     }
     if (BA->hasDecorate(DecorationSingleElementVectorINTEL))
-      F->addAttribute(ArgNo + 1, SEVAttr);
+      F->addParamAttr(ArgNo, SEVAttr);
     if (BA->hasDecorate(internal::DecorationFuncParamDescINTEL)) {
       auto Desc =
           BA->getDecorationStringLiteral(internal::DecorationFuncParamDescINTEL)
               .front();
       Attribute Attr =
           Attribute::get(*Context, kVCMetadata::VCArgumentDesc, Desc);
-      F->addAttribute(ArgNo + 1, Attr);
+      F->addParamAttr(ArgNo, Attr);
     }
   }
 
@@ -4003,14 +4006,14 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
   if (IsVCFloatControl) {
     Attribute Attr = Attribute::get(*Context, kVCMetadata::VCFloatControl,
                                     std::to_string(FloatControl));
-    F->addAttribute(AttributeList::FunctionIndex, Attr);
+    F->addFnAttr(Attr);
   }
 
   if (auto EM = BF->getExecutionMode(ExecutionModeSharedLocalMemorySizeINTEL)) {
     unsigned int SLMSize = EM->getLiterals()[0];
     Attribute Attr = Attribute::get(*Context, kVCMetadata::VCSLMSize,
                                     std::to_string(SLMSize));
-    F->addAttribute(AttributeList::FunctionIndex, Attr);
+    F->addFnAttr(Attr);
   }
 
   return true;

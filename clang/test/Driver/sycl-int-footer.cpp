@@ -3,7 +3,7 @@
 // RUN:   | FileCheck -check-prefix FOOTER %s -DSRCDIR=%/S -DCMDDIR=cmdline/dir
 // FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}"{{.*}} "-include" "dummy.h"
 // FOOTER: append-file{{.*}} "[[INPUTFILE:.+\.cpp]]" "--append=[[INTFOOTER]]" "--orig-filename=[[INPUTFILE]]" "--output=[[APPENDEDSRC:.+\.cpp]]"
-// FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-include" "dummy.h"{{.*}} "-I" "[[SRCDIR]]" "-I" "cmdline/dir"
+// FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-include" "dummy.h"{{.*}} "-iquote" "[[SRCDIR]]" "-I" "cmdline/dir"
 // FOOTER-NOT: "-include" "[[INTHEADER]]"
 
 /// Preprocessed file creation with integration footer
