@@ -43,9 +43,6 @@ namespace Check_VLA_Restriction {
 void no_restriction(int p) {
   int index[p + 2];
 }
-void no_restriction_also(int p) {
-  int index[p + 2];
-}
 } // namespace Check_VLA_Restriction
 
 void *operator new(std::size_t size, void *ptr) throw() { return ptr; };
@@ -79,7 +76,7 @@ bool isa_B(A *a) {
   if (f1 == f2) // expected-note {{called by 'isa_B'}}
     return false;
 
-  Check_VLA_Restriction::no_restriction_also(7); //#call_vla
+  Check_VLA_Restriction::no_restriction(7); //#call_vla
   int *ip = new int;                     // expected-error {{SYCL kernel cannot allocate storage}}
   int i;
   int *p3 = new (&i) int;                                    // no error on placement new

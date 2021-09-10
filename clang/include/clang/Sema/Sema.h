@@ -380,7 +380,7 @@ private:
     //   access/access.hpp
     // If Kind is kind_vla, then
     //   encodes the number of VLA dimensions and the size of the underlying
-    //   type as (dim << 24 | size)
+    //   type as (dim << 24 | size).
     int Info = 0;
     // Offset of the captured parameter value in the lambda or function object.
     unsigned Offset = 0;

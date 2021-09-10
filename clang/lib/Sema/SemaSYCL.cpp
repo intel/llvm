@@ -1716,10 +1716,6 @@ public:
     return isValid();
   }
 
-  bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
-    return isValid();
-  }
-
   bool handleOtherType(FieldDecl *FD, QualType FieldTy) final {
     Diag.Report(FD->getLocation(), diag::err_bad_kernel_param_type) << FieldTy;
     IsInvalid = true;
@@ -2216,18 +2212,18 @@ public:
     // device in memory allocations
     if (AS != LangAS::sycl_global_device && AS != LangAS::sycl_global_host)
       Quals.setAddressSpace(LangAS::sycl_global);
-    // Handle VLAs if this is a pointer to one
+    // Handle VLAs if this is a pointer to one.
     ASTContext &Context = SemaRef.getASTContext();
     QualType VLATy = PointeeTy;
     int Dim = 0;
     // Decay VLA type until we get to a non-VLA, keeping track of dimensions
-    // as we go along
+    // as we go along.
     while (VLATy->isVariableArrayType()) {
       VLATy = Context.getArrayDecayedType(VLATy);
       VLATy = VLATy->getPointeeType();
       ++Dim;
     }
-    // Reconstruct the type as pointers to the underlying type
+    // Reconstruct the type as pointers to the underlying type.
     PointeeTy = VLATy;
     for (int Index = 0; Index < Dim; ++Index)
       PointeeTy = Context.getPointerType(PointeeTy);
@@ -3445,11 +3441,13 @@ public:
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     QualType PointeeTy = FieldTy->getPointeeType();
-    unsigned int Dim = 0;
+    unsigned Dim = 0;
     ASTContext &Context = SemaRef.getASTContext();
-    // VLAs are encoded as (Dim << 24) | Size
-    // where Dim is the number of VLA dimensions and
-    // Size is the size of the underlying type
+    // VLAs are encoded as (Dim << 24) | Size, where Dim is the
+    // number of VLA dimensions and Size is the size of the
+    // underlying type. Dim indicates that an equal number of
+    // preceding entries (of std_layout kind) describe the
+    // corresponding extent of that dimension.
     while (PointeeTy->isVariableArrayType()) {
       PointeeTy = Context.getArrayDecayedType(PointeeTy);
       PointeeTy = PointeeTy->getPointeeType();
@@ -3458,8 +3456,7 @@ public:
     unsigned Size = Context.getTypeSizeInChars(PointeeTy).getQuantity();
     if (Dim)
       Header.addParamDesc(SYCLIntegrationHeader::kind_vla,
-                          static_cast<unsigned>(Size | (Dim << 24)),
-                          offsetOf(FD, FieldTy));
+                          Size | (Dim << 24u), offsetOf(FD, FieldTy));
     else
       addParam(FD, FieldTy,
                ((StructDepth) ? SYCLIntegrationHeader::kind_std_layout
