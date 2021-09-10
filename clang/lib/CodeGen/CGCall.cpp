@@ -5353,8 +5353,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   if (getLangOpts().SYCLIsDevice && CI->doesNotReturn()) {
     if (auto *F = CI->getCalledFunction())
       F->removeFnAttr(llvm::Attribute::NoReturn);
-    CI->removeAttribute(llvm::AttributeList::FunctionIndex,
-                        llvm::Attribute::NoReturn);
+    CI->removeFnAttr(llvm::Attribute::NoReturn);
     SyclSkipNoReturn = true;
   }
 
