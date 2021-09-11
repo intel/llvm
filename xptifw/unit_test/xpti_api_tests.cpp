@@ -201,10 +201,8 @@ TEST(xptiApiTest, xptiTraceEnabled) {
   EXPECT_EQ(Result, false);
 }
 
-void trace_point_callback(uint16_t trace_type,
-                          xpti::trace_event_data_t *parent,
-                          xpti::trace_event_data_t *event,
-                          uint64_t instance,
+void trace_point_callback(uint16_t trace_type, xpti::trace_event_data_t *parent,
+                          xpti::trace_event_data_t *event, uint64_t instance,
                           const void *user_data) {
 
   if (user_data)
@@ -213,17 +211,15 @@ void trace_point_callback(uint16_t trace_type,
 
 void trace_point_callback2(uint16_t trace_type,
                            xpti::trace_event_data_t *parent,
-                           xpti::trace_event_data_t *event,
-                           uint64_t instance,
+                           xpti::trace_event_data_t *event, uint64_t instance,
                            const void *user_data) {
   if (user_data)
     (*static_cast<int *>(const_cast<void *>(user_data))) = 1;
 }
 
-void fn_callback(uint16_t trace_type,
-                 xpti::trace_event_data_t *parent,
-                 xpti::trace_event_data_t *event,
-                 uint64_t instance, const void *user_data) {
+void fn_callback(uint16_t trace_type, xpti::trace_event_data_t *parent,
+                 xpti::trace_event_data_t *event, uint64_t instance,
+                 const void *user_data) {
   func_callback_update++;
 }
 

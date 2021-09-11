@@ -13,10 +13,9 @@
 #include <set>
 #include <unordered_map>
 
-void tpCallback(uint16_t trace_type,
-                xpti::trace_event_data_t *parent,
-                xpti::trace_event_data_t *event,
-                uint64_t instance, const void *user_data) {
+void tpCallback(uint16_t trace_type, xpti::trace_event_data_t *parent,
+                xpti::trace_event_data_t *event, uint64_t instance,
+                const void *user_data) {
 
   if (user_data)
     (*static_cast<int *>(const_cast<void *>(user_data))) = trace_type;
