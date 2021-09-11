@@ -5,6 +5,10 @@ macro(add_xpti_lib target_name)
   target_compile_definitions(${target_name} PRIVATE -DXPTI_STATIC_LIBRARY)
   target_include_directories(${target_name} PRIVATE ${XPTI_DIR}/include)
 
+  if (MSVC)
+    target_compile_options(${target_name} PRIVATE /EHsc)
+  endif()
+
   # Set the location of the library installation
   install(TARGETS ${target_name}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT xpti
