@@ -107,7 +107,7 @@ __SYCL_EXPORT kernel make_kernel(const context &Context,
 
 // TODO: remove this version (without ownership) when allowed to break ABI.
 __SYCL_EXPORT kernel make_kernel(const context &Context,
-                                pi_native_handle NativeHandle) {
+                                 pi_native_handle NativeHandle) {
   return make_kernel(Context, NativeHandle, false);
 }
 

@@ -61,8 +61,7 @@ __SYCL_EXPORT queue make_queue(const context &Context,
 __SYCL_EXPORT kernel make_kernel(const context &Context,
                                  pi_native_handle NativeHandle) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_kernel(NativeHandle, Context, false,
-                             backend::opencl);
+  return detail::make_kernel(NativeHandle, Context, false, backend::opencl);
 }
 } // namespace opencl
 } // namespace sycl

@@ -1056,11 +1056,11 @@ struct _pi_program : _pi_object {
   };
 
   // Construct a program in IL or Native state.
-  _pi_program(pi_context Context, const void *Input, size_t Length, state St, bool OwnZeModule)
+  _pi_program(pi_context Context, const void *Input, size_t Length, state St,
+              bool OwnZeModule)
       : State(St), Context(Context), OwnZeModule(OwnZeModule),
-        Code(new uint8_t[Length]),
-        CodeLength(Length), ZeModule(nullptr), HasImports(false),
-        HasImportsAndIsLinked(false), ZeBuildLog(nullptr) {
+        Code(new uint8_t[Length]), CodeLength(Length), ZeModule(nullptr),
+        HasImports(false), HasImportsAndIsLinked(false), ZeBuildLog(nullptr) {
 
     std::memcpy(Code.get(), Input, Length);
   }
@@ -1076,8 +1076,7 @@ struct _pi_program : _pi_object {
   _pi_program(pi_context Context, std::vector<LinkedReleaser> &&Inputs,
               ze_module_build_log_handle_t ZeLog, bool OwnZeModule)
       : State(LinkedExe), Context(Context), OwnZeModule(OwnZeModule),
-        ZeModule(nullptr),
-        HasImports(false), HasImportsAndIsLinked(false),
+        ZeModule(nullptr), HasImports(false), HasImportsAndIsLinked(false),
         LinkedPrograms(std::move(Inputs)), ZeBuildLog(ZeLog) {}
 
   ~_pi_program();

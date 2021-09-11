@@ -198,4 +198,5 @@ struct free_memory {
 |4|2021-07-06|Rehana Begam|Introduced explicit ownership for queue
 |5|2021-07-25|Sergey Maslov|Introduced SYCL interop for events
 |6|2021-08-30|Dmitry Vodopyanov|Updated according to SYCL 2020 reqs for extensions
-|7|2021-09-09|Rehana Begam|Introduced explicit ownership for `kernel_bundle`
+|7|2021-09-09|Rehana Begam|Introduced explicit ownership for kernel_bundle
+|8|2021-09-10|Rehana Begam|Introduced explicit ownership for kernel

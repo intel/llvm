@@ -3281,7 +3281,8 @@ pi_result piProgramCreateWithBinary(
   // information to distinguish the cases.
 
   try {
-    *Program = new _pi_program(Context, Binary, Length, _pi_program::Native, true);
+    *Program =
+        new _pi_program(Context, Binary, Length, _pi_program::Native, true);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3551,7 +3552,8 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
     // the description of the failure).
     if (ZeResult == ZE_RESULT_SUCCESS ||
         ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
-      *RetProgram = new _pi_program(Context, std::move(Inputs), ZeBuildLog, true);
+      *RetProgram =
+          new _pi_program(Context, std::move(Inputs), ZeBuildLog, true);
     }
     if (ZeResult != ZE_RESULT_SUCCESS)
       return mapError(ZeResult);
@@ -3797,7 +3799,7 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
 
   try {
     *Program =
-      new _pi_program(Context, ZeModule, _pi_program::Exe, OwnNativeHandle);
+        new _pi_program(Context, ZeModule, _pi_program::Exe, OwnNativeHandle);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {

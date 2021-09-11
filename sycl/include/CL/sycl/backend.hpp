@@ -208,8 +208,8 @@ make_buffer(const typename backend_traits<Backend>::template input_type<
 template <backend Backend>
 kernel
 make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
-                &BackendObject, const context &TargetContext,
-                bool KeepOwnership) {
+                &BackendObject,
+            const context &TargetContext, bool KeepOwnership) {
   return detail::make_kernel(detail::pi::cast<pi_native_handle>(BackendObject),
                              TargetContext, KeepOwnership, Backend);
 }
