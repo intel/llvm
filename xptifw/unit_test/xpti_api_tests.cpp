@@ -3,7 +3,7 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-#include "xpti_trace_framework.hpp"
+#include "xpti/xpti_trace_framework.hpp"
 
 #include <gtest/gtest.h>
 #include <iostream>
@@ -208,7 +208,7 @@ XPTI_CALLBACK_API void trace_point_callback(uint16_t trace_type,
                                             const void *user_data) {
 
   if (user_data)
-    (*(int *)user_data) = 1;
+    (*static_cast<int *>(const_cast<void *>(user_data))) = 1;
 }
 
 XPTI_CALLBACK_API void trace_point_callback2(uint16_t trace_type,
@@ -217,7 +217,7 @@ XPTI_CALLBACK_API void trace_point_callback2(uint16_t trace_type,
                                              uint64_t instance,
                                              const void *user_data) {
   if (user_data)
-    (*(int *)user_data) = 1;
+    (*static_cast<int *>(const_cast<void *>(user_data))) = 1;
 }
 
 XPTI_CALLBACK_API void fn_callback(uint16_t trace_type,

@@ -38,8 +38,31 @@ if (NOT DEFINED LLVM_EXTERNAL_XPTIFW_SOURCE_DIR)
   endif()
 endif()
 
-# Now simply link against gtest or gtest_main as needed. Eg
-add_executable(xpti_tests xpti_api_tests.cpp xpti_correctness_tests.cpp)
-target_link_libraries(xpti_tests gtest)
-target_link_libraries(xpti_tests gtest_main xptifw)
-add_test(NAME example_test COMMAND xpti_tests)
+add_executable(XPTIFWUnitTests
+  xpti_api_tests.cpp
+  xpti_correctness_tests.cpp
+)
+
+# Silence warnings from GTest
+target_include_directories(XPTIFWUnitTests SYSTEM PRIVATE
+  ${gtest_SOURCE_DIR}/include
+  ${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include
+)
+target_link_libraries(XPTIFWUnitTests PRIVATE
+  gtest
+  gtest_main
+  xptifw
+)
+
+# Override default LLVM bin location
+set_target_properties(XPTIFWUnitTests
+  PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME XPTIFWTests COMMAND XPTIFWUnitTests)
+
+add_custom_target(check-xptifw-unittest COMMAND
+  ${CMAKE_CURRENT_BINARY_DIR}/XPTIFWUnitTests)
+add_dependencies(check-xptifw-unittest XPTIFWUnitTests)
+add_dependencies(check-xptifw check-xptifw-unittest)

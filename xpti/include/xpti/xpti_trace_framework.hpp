@@ -6,13 +6,14 @@
 //
 //
 #pragma once
+
 #include <cstdint>
 #include <memory>
 #include <sstream>
 #include <thread>
 
-#include "xpti_data_types.h"
-#include "xpti_trace_framework.h"
+#include "xpti/xpti_data_types.h"
+#include "xpti/xpti_trace_framework.h"
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <string>

@@ -3,8 +3,8 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-#include "xpti_trace_framework.h"
-#include "xpti_trace_framework.hpp"
+#include "xpti/xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.hpp"
 
 #include <gtest/gtest.h>
 #include <iostream>
@@ -19,7 +19,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t trace_type,
                                   uint64_t instance, const void *user_data) {
 
   if (user_data)
-    (*(int *)user_data) = trace_type;
+    (*static_cast<int *>(const_cast<void *>(user_data))) = trace_type;
 }
 
 #define NOTIFY(stream, tt, event, retval)                                      \
@@ -74,7 +74,7 @@ TEST(xptiCorrectnessTest, xptiTracePointTest) {
   std::vector<uint64_t> uids;
   xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)0xdeadbeef);
 
-  auto ID = xptiRegisterPayload(&p);
+  (void)xptiRegisterPayload(&p);
 
   uint64_t id = xpti::invalid_uid;
   nestedTest(&p, uids);
@@ -89,7 +89,7 @@ TEST(xptiCorrectnessTest, xptiTracePointTest) {
   uids.clear();
   xpti::payload_t p1("bar", "foo.cpp", 15, 0, (void *)0xdeaddead);
 
-  ID = xptiRegisterPayload(&p1);
+  (void)xptiRegisterPayload(&p1);
 
   id = xpti::invalid_uid;
   nestedTest(&p1, uids);
@@ -167,43 +167,62 @@ TEST(xptiCorrectnessTest, xptiNotifySubscribersForDefaultTracePointTypes) {
   xpti::payload_t p("foo", "foo.cpp", 1, 0, (void *)13);
   xptiForceSetTraceEnabled(true);
 
-  uint8_t StreamID = xptiRegisterStream("test_foo");
+  uint8_t StreamID = xptiRegisterStream("test_foo2");
   auto Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::graph_create, tpCallback);
+  ASSERT_EQ(static_cast<xpti::result_t>(Result),
+            xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::node_create, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::edge_create, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::region_begin, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::region_end, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::task_begin, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::task_end, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::barrier_begin, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::barrier_end, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::lock_begin, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::lock_end, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::transfer_begin, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::transfer_end, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::thread_begin, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::thread_end, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::wait_begin, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::wait_end, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
   Result = xptiRegisterCallback(
       StreamID, (uint16_t)xpti::trace_point_type_t::signal, tpCallback);
+  ASSERT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
 
   auto GE =
       xptiMakeEvent("foo", &p, 0, (xpti::trace_activity_type_t)1, &Instance);
@@ -455,11 +474,10 @@ TEST(xptiCorrectnessTest, xptiUniversalIDUnorderedMapTest) {
 }
 
 TEST(xptiCorrectnessTest, xptiUserDefinedEventTypes) {
-  uint64_t Instance;
   xpti::payload_t p("foo", "foo.cpp", 1, 0, (void *)13);
   xptiForceSetTraceEnabled(true);
 
-  uint8_t StreamID = xptiRegisterStream("test_foo");
+  (void)xptiRegisterStream("test_foo");
   typedef enum {
     extn_ev1 = XPTI_EVENT(0),
     extn_ev2 = XPTI_EVENT(1),

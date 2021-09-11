@@ -1,16 +1,29 @@
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.8)
 
 set(XPTI_VERSION 0.4.1)
+project (xpti VERSION "${XPTI_VERSION}" LANGUAGES CXX)
+
 set(XPTI_DIR ${CMAKE_CURRENT_LIST_DIR})
 # Setting the same version as SYCL
 set(CMAKE_CXX_STANDARD 11)
+
+option(XPTI_ENABLE_WERROR OFF)
+
+if (XPTI_ENABLE_WERROR)
+  if(MSVC)
+    set(CMAKE_CXX_FLAGS "/WX ${CMAKE_CXX_FLAGS}")
+    add_definitions(
+      -wd4996 # Suppress 'function': was declared deprecated'
+    )
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+  endif()
+endif()
 
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "No build type selected, default to Release")
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type (default Release)" FORCE)
 endif()
-
-project (xpti)
 
 if (MSVC)
   # MSVC provides two incompatible build variants for its CRT: release and debug
@@ -63,5 +76,10 @@ set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/lib/${CMAKE_BUILD_TYPE})
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
-include_directories(${CMAKE_SOURCE_DIR}/include)
 add_subdirectory(src)
+
+include(GNUInstallDirs)
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/xpti
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  COMPONENT xpti
+)
