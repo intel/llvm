@@ -77,6 +77,11 @@ set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/lib/${CMAKE_BUILD_TYPE})
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
+if (LLVM_BINARY_DIR)
+  file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/include/xpti
+       DESTINATION ${LLVM_BINARY_DIR}/include)
+endif()
+
 add_subdirectory(src)
 
 include(GNUInstallDirs)
