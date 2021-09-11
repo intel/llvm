@@ -22,12 +22,16 @@
 //   and thus control compile-times / code-size.
 //
 // Todos:
-// - Limit the times a recursive function get specialized when
-// `func-specialization-max-iters`
-//   increases linearly. See discussion in https://reviews.llvm.org/D106426 for
-//   details.
+// - Specializing recursive functions relies on running the transformation a
+//   number of times, which is controlled by option
+//   `func-specialization-max-iters`. Thus, increasing this value and the
+//   number of iterations, will linearly increase the number of times recursive
+//   functions get specialized, see also the discussion in
+//   https://reviews.llvm.org/D106426 for details. Perhaps there is a
+//   compile-time friendlier way to control/limit the number of specialisations
+//   for recursive functions.
 // - Don't transform the function if there is no function specialization
-// happens.
+//   happens.
 //
 //===----------------------------------------------------------------------===//
 
@@ -335,9 +339,8 @@ private:
                           SmallVectorImpl<Function *> &Specializations) {
 
     // Do not specialize the cloned function again.
-    if (SpecializedFuncs.contains(F)) {
+    if (SpecializedFuncs.contains(F))
       return false;
-    }
 
     // If we're optimizing the function for size, we shouldn't specialize it.
     if (F->hasOptSize() ||
@@ -656,6 +659,12 @@ private:
       if (!isa<CallInst>(U) && !isa<InvokeInst>(U))
         continue;
       auto &CS = *cast<CallBase>(U);
+      // If the call site has attribute minsize set, that callsite won't be
+      // specialized.
+      if (CS.hasFnAttr(Attribute::MinSize)) {
+        AllConstant = false;
+        continue;
+      }
 
       // If the parent of the call site will never be executed, we don't need
       // to worry about the passed value.
@@ -664,11 +673,9 @@ private:
 
       auto *V = CS.getArgOperand(A->getArgNo());
       // TrackValueOfGlobalVariable only tracks scalar global variables.
-      if (auto *GV = dyn_cast<GlobalVariable>(V)) {
-        if (!GV->getValueType()->isSingleValueType()) {
+      if (auto *GV = dyn_cast<GlobalVariable>(V))
+        if (!GV->getValueType()->isSingleValueType())
           return false;
-        }
-      }
 
       if (isa<Constant>(V) && (Solver.getLatticeValueFor(V).isConstant() ||
                                EnableSpecializationForLiteralConstant))
@@ -687,6 +694,9 @@ private:
   /// This function modifies calls to function \p F whose argument at index \p
   /// ArgNo is equal to constant \p C. The calls are rewritten to call function
   /// \p Clone instead.
+  ///
+  /// Callsites that have been marked with the MinSize function attribute won't
+  /// be specialized and rewritten.
   void rewriteCallSites(Function *F, Function *Clone, Argument &Arg,
                         Constant *C) {
     unsigned ArgNo = Arg.getArgNo();
@@ -778,9 +788,9 @@ bool llvm::runFunctionSpecialization(
       for (BasicBlock &BB : *F) {
         if (!Solver.isBlockExecutable(&BB))
           continue;
+        // FIXME: The solver may make changes to the function here, so set
+        // Changed, even if later function specialization does not trigger.
         for (auto &I : make_early_inc_range(BB))
-          // FIXME: The solver may make changes to the function here, so set Changed, even if later
-          // function specialization does not trigger.
           Changed |= FS.tryToReplaceWithConstant(&I);
       }
     }
@@ -806,7 +816,7 @@ bool llvm::runFunctionSpecialization(
     // Run the solver for the specialized functions.
     RunSCCPSolver(CurrentSpecializations);
 
-    // Replace some unresolved constant arguments
+    // Replace some unresolved constant arguments.
     constantArgPropagation(FuncDecls, M, Solver);
 
     CurrentSpecializations.clear();
