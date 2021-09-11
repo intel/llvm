@@ -48,21 +48,21 @@ target_include_directories(XPTIFWUnitTests SYSTEM PRIVATE
   ${gtest_SOURCE_DIR}/include
   ${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include
 )
+
+if (TARGET Support)
+  set(SUPPORT_LIB Support)
+endif()
+
 target_link_libraries(XPTIFWUnitTests PRIVATE
   gtest
   gtest_main
   xptifw
-)
-
-# Override default LLVM bin location
-set_target_properties(XPTIFWUnitTests
-  PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  ${SUPPORT_LIB}
 )
 
 add_test(NAME XPTIFWTests COMMAND XPTIFWUnitTests)
 
 add_custom_target(check-xptifw-unittest COMMAND
-  ${CMAKE_CURRENT_BINARY_DIR}/XPTIFWUnitTests)
+  $<TARGET_PROPERTY:XPTIFWUnitTests,RUNTIME_OUTPUT_DIRECTORY>/XPTIFWUnitTests)
 add_dependencies(check-xptifw-unittest XPTIFWUnitTests)
 add_dependencies(check-xptifw check-xptifw-unittest)

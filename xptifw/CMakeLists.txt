@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.8)
 set(XPTI_VERSION 0.4.1)
 
 project (xptifw VERSION "${XPTI_VERSION}" LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 14)
 
 set(XPTIFW_DIR ${CMAKE_CURRENT_LIST_DIR})
 # The XPTI framework requires the includes from

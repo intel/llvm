@@ -13,10 +13,10 @@
 #include <set>
 #include <unordered_map>
 
-XPTI_CALLBACK_API void tpCallback(uint16_t trace_type,
-                                  xpti::trace_event_data_t *parent,
-                                  xpti::trace_event_data_t *event,
-                                  uint64_t instance, const void *user_data) {
+void tpCallback(uint16_t trace_type,
+                xpti::trace_event_data_t *parent,
+                xpti::trace_event_data_t *event,
+                uint64_t instance, const void *user_data) {
 
   if (user_data)
     (*static_cast<int *>(const_cast<void *>(user_data))) = trace_type;
@@ -72,7 +72,7 @@ void nestedTest(xpti::payload_t *p, std::vector<uint64_t> &uids) {
 
 TEST(xptiCorrectnessTest, xptiTracePointTest) {
   std::vector<uint64_t> uids;
-  xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)0xdeadbeef);
+  xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)(0xdeadbeefull));
 
   (void)xptiRegisterPayload(&p);
 
@@ -87,7 +87,7 @@ TEST(xptiCorrectnessTest, xptiTracePointTest) {
   }
 
   uids.clear();
-  xpti::payload_t p1("bar", "foo.cpp", 15, 0, (void *)0xdeaddead);
+  xpti::payload_t p1("bar", "foo.cpp", 15, 0, (void *)(0xdeaddeadull));
 
   (void)xptiRegisterPayload(&p1);
 

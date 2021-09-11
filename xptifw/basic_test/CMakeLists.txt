@@ -19,6 +19,6 @@ set_target_properties(XPTIFWBasicTests
 )
 
 add_custom_target(check-xptifw-basictest COMMAND
-  ${CMAKE_CURRENT_BINARY_DIR}/XPTIFWUnitTests)
+  $<TARGET_PROPERTY:XPTIFWBasicTests,RUNTIME_OUTPUT_DIRECTORY>/XPTIFWBasicTests)
 add_dependencies(check-xptifw-basictest XPTIFWBasicTests)
 add_dependencies(check-xptifw check-xptifw-basictest)
