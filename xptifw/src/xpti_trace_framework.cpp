@@ -993,7 +993,17 @@ public:
   }
 
 private:
+  friend void ::xptiFrameworkFinalize();
+
+  static Framework *release() {
+    Framework *TmpFramework = MInstance.load(std::memory_order_relaxed);
+    MInstance.store(nullptr, std::memory_order_relaxed);
+    return TmpFramework;
+  }
+
+  /// Stores singleton instance
   static std::atomic<Framework *> MInstance;
+  /// Trivially destructible mutex for double-checked lock idiom
   static utils::SpinLock MSingletoneMutex;
   /// Thread-safe counter used for generating universal IDs
   xpti::safe_uint64_t MUniversalIDs;
@@ -1031,7 +1041,9 @@ XPTI_EXPORT_API void xptiFrameworkFinalize() {
 
   xpti::GFrameworkReferenceCounter--;
   if (xpti::GFrameworkReferenceCounter == 0) {
-    delete &xpti::Framework::instance();
+    xpti::Framework *FW = xpti::Framework::release();
+    if (FW)
+      delete FW;
   }
 }
 
