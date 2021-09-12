@@ -152,10 +152,10 @@ XPTI_EXPORT_API void xptiFrameworkInitialize() {
 
 XPTI_EXPORT_API void xptiFrameworkFinalize() {
   if (xpti::ProxyLoader::instance().noErrors()) {
-    void *f = xpti::ProxyLoader::instance().functionByIndex(
-        XPTI_FRAMEWORK_INITIALIZE);
+    void *f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_FRAMEWORK_FINALIZE);
     if (f) {
-      (*reinterpret_cast<xpti_framework_initialize_t>(f))();
+      (*reinterpret_cast<xpti_framework_finalize_t>(f))();
     }
   }
 

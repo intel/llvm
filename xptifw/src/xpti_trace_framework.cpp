@@ -7,6 +7,7 @@
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_string_table.hpp"
 
+#include <atomic>
 #include <cassert>
 #include <cstdio>
 #include <iostream>
@@ -976,11 +977,24 @@ public:
   }
 
   static Framework &instance() {
-    static Framework *framework = new Framework();
-    return *framework;
+    Framework *TmpFramework = MInstance.load(std::memory_order_relaxed);
+    std::atomic_thread_fence(std::memory_order_acquire);
+    if (TmpFramework == nullptr) {
+      std::lock_guard<utils::SpinLock> Lock{MSingletoneMutex};
+      TmpFramework = MInstance.load(std::memory_order_relaxed);
+      if (TmpFramework == nullptr) {
+        TmpFramework = new Framework();
+        std::atomic_thread_fence(std::memory_order_release);
+        MInstance.store(TmpFramework, std::memory_order_relaxed);
+      }
+    }
+
+    return *TmpFramework;
   }
 
 private:
+  static std::atomic<Framework *> MInstance;
+  static utils::SpinLock MSingletoneMutex;
   /// Thread-safe counter used for generating universal IDs
   xpti::safe_uint64_t MUniversalIDs;
   /// Manages loading the subscribers and calling their init() functions
@@ -1000,6 +1014,9 @@ private:
 };
 
 static int GFrameworkReferenceCounter = 0;
+
+std::atomic<Framework *> Framework::MInstance;
+utils::SpinLock Framework::MSingletoneMutex;
 } // namespace xpti
 
 extern "C" {
