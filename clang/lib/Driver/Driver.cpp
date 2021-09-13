@@ -913,8 +913,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     for (const StringRef AllowedValue : AllowedValues)
       if (AllowedValue.equals(ArgValue))
         return;
-    Diag(clang::diag::err_drv_invalid_value)
-        << A->getOption().getName() << ArgValue;
+    Diag(clang::diag::err_drv_invalid_argument_to_option)
+        << ArgValue << A->getOption().getName();
   };
   checkSingleArgValidity(SYCLLink, {"early", "image"});
   checkSingleArgValidity(
