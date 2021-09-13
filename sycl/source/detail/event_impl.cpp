@@ -187,6 +187,13 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 
 void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+  if (MDoSubmitFunctor && !MAlreadySubmitted) {
+    MAlreadySubmitted = true;
+    EventImplPtr EventImpl = MDoSubmitFunctor(true);
+    wait(EventImpl);
+    return;
+  }
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
   uint64_t IId;

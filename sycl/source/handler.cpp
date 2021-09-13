@@ -233,6 +233,26 @@ event handler::finalize() {
   return MLastEvent;
 }
 
+void handler::depends_on(event Event) {
+  detail::EventImplPtr eventImpl = detail::getSyclObjImpl(Event);
+  detail::EventImplPtr eventImplRet = eventImpl->doFinalize();
+  if (eventImplRet) {
+    eventImpl = eventImplRet;
+  }
+  MEvents.push_back(eventImpl);
+}
+
+void handler::depends_on(const std::vector<event> &Events) {
+  for (const event &Event : Events) {
+    detail::EventImplPtr eventImpl = detail::getSyclObjImpl(Event);
+    detail::EventImplPtr eventImplRet = eventImpl->doFinalize();
+    if (eventImplRet) {
+      eventImpl = eventImplRet;
+    }
+    MEvents.push_back(eventImpl);
+  }
+}
+
 void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
                                    access::target AccTarget) {
   detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);

@@ -28,6 +28,9 @@ using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
 using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
 
+class event_impl;
+using EventImplPtr = std::shared_ptr<event_impl>;
+
 class event_impl {
 public:
   /// Constructs a ready SYCL event.
@@ -137,6 +140,25 @@ public:
   /// @param Context is a shared pointer to an instance of valid context_impl.
   void setContextImpl(const ContextImplPtr &Context);
 
+  void setSubmitFunctor(std::function<EventImplPtr(bool)> DoSubmitFunctor) {
+    MDoSubmitFunctor = DoSubmitFunctor;
+  }
+
+  EventImplPtr doFinalize() {
+    if (MDoSubmitFunctor && !MAlreadySubmitted) {
+      MAlreadySubmitted = true;
+      return MDoSubmitFunctor(true);
+    }
+    return nullptr;
+  }
+
+  void doIfNotFinalized() {
+    if (MDoSubmitFunctor && !MAlreadySubmitted) {
+      MAlreadySubmitted = true;
+      MDoSubmitFunctor(false);
+    }
+  }
+
   /// Returns command that is associated with the event.
   ///
   /// Scheduler mutex must be locked in read mode when this is called.
@@ -183,6 +205,9 @@ private:
   // backend's representation (e.g. alloca). Used values are listed in
   // HostEventState enum.
   std::atomic<int> MState;
+
+  std::function<EventImplPtr(bool)> MDoSubmitFunctor;
+  mutable bool MAlreadySubmitted = false;
 };
 
 } // namespace detail

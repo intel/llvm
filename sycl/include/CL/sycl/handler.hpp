@@ -1134,18 +1134,12 @@ public:
   /// Registers event dependencies on this command group.
   ///
   /// \param Event is a valid SYCL event to wait on.
-  void depends_on(event Event) {
-    MEvents.push_back(detail::getSyclObjImpl(Event));
-  }
+  void depends_on(event Event);
 
   /// Registers event dependencies on this command group.
   ///
   /// \param Events is a vector of valid SYCL events to wait on.
-  void depends_on(const std::vector<event> &Events) {
-    for (const event &Event : Events) {
-      MEvents.push_back(detail::getSyclObjImpl(Event));
-    }
-  }
+  void depends_on(const std::vector<event> &Events);
 
   template <typename T>
   using remove_cv_ref_t =
