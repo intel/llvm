@@ -1,7 +1,4 @@
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=2017 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=1.2.1 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
 #include <CL/sycl.hpp>
 

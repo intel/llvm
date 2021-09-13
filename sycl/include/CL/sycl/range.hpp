@@ -199,7 +199,6 @@ public:
   friend range<dimensions> operator op(range<dimensions> &lhs, int) {          \
     range<dimensions> old_lhs(lhs);                                            \
     for (int i = 0; i < dimensions; ++i) {                                     \
-      /*old_lhs.common_array[i] = lhs.common_array[i];*/                       \
       op lhs.common_array[i];                                                  \
     }                                                                          \
     return old_lhs;                                                            \
