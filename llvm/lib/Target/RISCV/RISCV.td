@@ -250,9 +250,55 @@ def : ProcessorModel<"rocket-rv64", RocketModel, [Feature64Bit]>;
 def : ProcessorModel<"sifive-7-rv32", SiFive7Model, []>;
 def : ProcessorModel<"sifive-7-rv64", SiFive7Model, [Feature64Bit]>;
 
+def : ProcessorModel<"sifive-e20", RocketModel, [FeatureStdExtM,
+                                                 FeatureStdExtC]>;
+
+def : ProcessorModel<"sifive-e21", RocketModel, [FeatureStdExtM,
+                                                 FeatureStdExtA,
+                                                 FeatureStdExtC]>;
+
+def : ProcessorModel<"sifive-e24", RocketModel, [FeatureStdExtM,
+                                                 FeatureStdExtA,
+                                                 FeatureStdExtF,
+                                                 FeatureStdExtC]>;
+
 def : ProcessorModel<"sifive-e31", RocketModel, [FeatureStdExtM,
                                                  FeatureStdExtA,
                                                  FeatureStdExtC]>;
+
+def : ProcessorModel<"sifive-e34", RocketModel, [FeatureStdExtM,
+                                                 FeatureStdExtA,
+                                                 FeatureStdExtF,
+                                                 FeatureStdExtC]>;
+
+def : ProcessorModel<"sifive-e76", SiFive7Model, [FeatureStdExtM,
+                                                  FeatureStdExtA,
+                                                  FeatureStdExtF,
+                                                  FeatureStdExtC]>;
+
+def : ProcessorModel<"sifive-s21", RocketModel, [Feature64Bit,
+                                                 FeatureStdExtM,
+                                                 FeatureStdExtA,
+                                                 FeatureStdExtC]>;
+
+def : ProcessorModel<"sifive-s51", RocketModel, [Feature64Bit,
+                                                 FeatureStdExtM,
+                                                 FeatureStdExtA,
+                                                 FeatureStdExtC]>;
+
+def : ProcessorModel<"sifive-s54", RocketModel, [Feature64Bit,
+                                                 FeatureStdExtM,
+                                                 FeatureStdExtA,
+                                                 FeatureStdExtF,
+                                                 FeatureStdExtD,
+                                                 FeatureStdExtC]>;
+
+def : ProcessorModel<"sifive-s76", SiFive7Model, [Feature64Bit,
+                                                  FeatureStdExtM,
+                                                  FeatureStdExtA,
+                                                  FeatureStdExtF,
+                                                  FeatureStdExtD,
+                                                  FeatureStdExtC]>;
 
 def : ProcessorModel<"sifive-u54", RocketModel, [Feature64Bit,
                                                  FeatureStdExtM,
@@ -260,11 +306,6 @@ def : ProcessorModel<"sifive-u54", RocketModel, [Feature64Bit,
                                                  FeatureStdExtF,
                                                  FeatureStdExtD,
                                                  FeatureStdExtC]>;
-
-def : ProcessorModel<"sifive-e76", SiFive7Model, [FeatureStdExtM,
-                                                  FeatureStdExtA,
-                                                  FeatureStdExtF,
-                                                  FeatureStdExtC]>;
 
 def : ProcessorModel<"sifive-u74", SiFive7Model, [Feature64Bit,
                                                   FeatureStdExtM,

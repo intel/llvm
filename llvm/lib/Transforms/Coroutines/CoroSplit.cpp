@@ -622,7 +622,7 @@ static void replaceSwiftErrorOps(Function &F, coro::Shape &Shape,
 
     // If there are no arguments, this is a 'get' operation.
     Value *MappedResult;
-    if (Op->getNumArgOperands() == 0) {
+    if (Op->arg_empty()) {
       auto ValueTy = Op->getType();
       auto Slot = getSwiftErrorSlot(ValueTy);
       MappedResult = Builder.CreateLoad(ValueTy, Slot);
@@ -1142,11 +1142,13 @@ static void updateCoroFrame(coro::Shape &Shape, Function *ResumeFn,
 static void postSplitCleanup(Function &F) {
   removeUnreachableBlocks(F);
 
+#ifndef NDEBUG
   // For now, we do a mandatory verification step because we don't
   // entirely trust this pass.  Note that we don't want to add a verifier
   // pass to FPM below because it will also verify all the global data.
   if (verifyFunction(F, &errs()))
     report_fatal_error("Broken function");
+#endif
 }
 
 // Assuming we arrived at the block NewBlock from Prev instruction, store
