@@ -477,9 +477,10 @@ private:
                        Type == CG::CGTYPE::CodeplayInteropTask))
       Handler.depends_on(MLastEvent);
 
-    SubmitPostProcessF PostProcessFunction = PostProcess ? (*PostProcess) : nullptr;
+    SubmitPostProcessF PostProcessFunction =
+        PostProcess ? (*PostProcess) : nullptr;
     auto MUploadDataFunctor = [this, &Self, &Loc, CGF, Handler,
-                              PostProcessFunction](bool SubmittedExplicitly) {
+                               PostProcessFunction](bool SubmittedExplicitly) {
       Self->setSubmittedExplicitly(SubmittedExplicitly);
       event Event;
 
@@ -488,9 +489,10 @@ private:
         bool KernelUsesAssert = false;
         if (IsKernel)
           KernelUsesAssert =
-              Handler.MKernel ? true
-                              : ProgramManager::getInstance().kernelUsesAssert(
-                                    Handler.MOSModuleHandle, Handler.MKernelName);
+              Handler.MKernel
+                  ? true
+                  : ProgramManager::getInstance().kernelUsesAssert(
+                        Handler.MOSModuleHandle, Handler.MKernelName);
 
         Event = Handler.finalize();
 
