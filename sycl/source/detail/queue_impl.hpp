@@ -472,14 +472,14 @@ private:
     // Scheduler will later omit events, that are not required to execute tasks.
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
-    const CG::CGTYPE Type = Handler.getType();
+    const CG::CGTYPE Type = Handler->getType();
     if (MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
                        Type == CG::CGTYPE::CodeplayInteropTask))
-      Handler.depends_on(MLastEvent);
+      Handler->depends_on(MLastEvent);
 
     SubmitPostProcessF PostProcessFunction =
         PostProcess ? (*PostProcess) : nullptr;
-    auto MUploadDataFunctor = [this, &Self, &Loc, CGF, Handler,
+    auto MUploadDataFunctor = [this, &Self, &Loc, CGF, Handler, Type,
                                PostProcessFunction](bool SubmittedExplicitly) {
       Self->setSubmittedExplicitly(SubmittedExplicitly);
       event Event;
@@ -489,16 +489,16 @@ private:
         bool KernelUsesAssert = false;
         if (IsKernel)
           KernelUsesAssert =
-              Handler.MKernel
+              Handler->MKernel
                   ? true
                   : ProgramManager::getInstance().kernelUsesAssert(
-                        Handler.MOSModuleHandle, Handler.MKernelName);
+                        Handler->MOSModuleHandle, Handler->MKernelName);
 
-        Event = Handler.finalize();
+        Event = Handler->finalize();
 
         PostProcessFunction(IsKernel, KernelUsesAssert, Event);
       } else
-        Event = Handler.finalize();
+        Event = Handler->finalize();
 
       if (MIsInorder)
         MLastEvent = Event;
