@@ -402,9 +402,6 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
-  bool kernelUsesAssert(const std::string &KernelName,
-                        OSModuleHandle Handle) const;
-
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;
   }
@@ -438,10 +435,10 @@ private:
       bool IsKernel = Handler.getType() == CG::Kernel;
       bool KernelUsesAssert = false;
       if (IsKernel)
-        KernelUsesAssert = Handler.MKernel
-                               ? true
-                               : kernelUsesAssert(Handler.MKernelName,
-                                                  Handler.MOSModuleHandle);
+        KernelUsesAssert =
+            Handler.MKernel ? true
+                            : ProgramManager::getInstance().kernelUsesAssert(
+                                  Handler.MOSModuleHandle, Handler.MKernelName);
 
       Event = Handler.finalize();
 

@@ -351,10 +351,6 @@ pi_native_handle queue_impl::getNative() const {
   return Handle;
 }
 
-bool queue_impl::kernelUsesAssert(const std::string &KernelName,
-                                  OSModuleHandle Handle) const {
-  return ProgramManager::getInstance().kernelUsesAssert(Handle, KernelName);
-}
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
