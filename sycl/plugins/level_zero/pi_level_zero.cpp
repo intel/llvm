@@ -847,7 +847,7 @@ static const int ZeMaxCommandListCacheSize = [] {
 }();
 
 // Configuration of the command-list batching.
-typedef struct {
+typedef struct CommandListBatchConfig {
   // Default value of 0. This specifies to use dynamic batch size adjustment.
   // Other values will try to collect specified amount of commands.
   pi_uint32 Size{0};
