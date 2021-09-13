@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -DFAKE_PLUGIN -shared %s -o %t_fake_plugin.so
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env SYCL_OVERRIDE_PI_OPENCL=%t_fake_plugin.so env SYCL_OVERRIDE_PI_LEVEL_ZERO=%t_fake_plugin.so env SYCL_OVERRIDE_PI_CUDA=%t_fake_plugin.so env SYCL_OVERRIDE_PI_ROCM=%t_fake_plugin.so env SYCL_PI_TRACE=-1 %t.out > %t.log 2>&1
+// RUN: env SYCL_OVERRIDE_PI_OPENCL=%t_fake_plugin.so env SYCL_OVERRIDE_PI_LEVEL_ZERO=%t_fake_plugin.so env SYCL_OVERRIDE_PI_CUDA=%t_fake_plugin.so env SYCL_OVERRIDE_PI_HIP=%t_fake_plugin.so env SYCL_PI_TRACE=-1 %t.out > %t.log 2>&1
 // RUN: FileCheck %s --input-file %t.log
 // REQUIRES: linux
 

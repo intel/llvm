@@ -66,8 +66,8 @@ using backend_return_t =
     typename backend_traits<Backend>::template return_type<SyclType>;
 
 template <backend BackendName, class SyclObjectT>
-auto get_native(const SyclObjectT &Obj) ->
-    typename interop<BackendName, SyclObjectT>::type {
+auto get_native(const SyclObjectT &Obj)
+    -> backend_return_t<BackendName, SyclObjectT> {
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName)
     throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
@@ -146,17 +146,18 @@ make_context(
 }
 
 template <backend Backend>
+__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
-make_queue(const typename backend_traits<Backend>::template input_type<queue>
-               &BackendObject,
-           const context &TargetContext, bool KeepOwnership,
-           const async_handler Handler = {}) {
+    make_queue(
+        const typename backend_traits<Backend>::template input_type<queue>
+            &BackendObject,
+        const context &TargetContext, bool KeepOwnership,
+        const async_handler Handler = {}) {
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
                             TargetContext, KeepOwnership, Handler, Backend);
 }
 
-// TODO: remove this version (without ownership) when allowed to break ABI.
 template <backend Backend>
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
@@ -178,11 +179,13 @@ make_event(const typename backend_traits<Backend>::template input_type<event>
 }
 
 template <backend Backend>
+__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_event free function")
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeEvent == true, event>::type
-make_event(const typename backend_traits<Backend>::template input_type<event>
-               &BackendObject,
-           const context &TargetContext, bool KeepOwnership) {
+    make_event(
+        const typename backend_traits<Backend>::template input_type<event>
+            &BackendObject,
+        const context &TargetContext, bool KeepOwnership) {
   return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
                             TargetContext, KeepOwnership, Backend);
 }

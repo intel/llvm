@@ -25,14 +25,14 @@ using namespace cl::sycl;
 struct CudaContextsTest : public ::testing::Test {
 
 protected:
-  detail::plugin *plugin = pi::initializeAndGet(backend::cuda);
+  std::optional<detail::plugin> plugin = pi::initializeAndGet(backend::cuda);
 
   pi_platform platform_;
   pi_device device_;
 
   void SetUp() override {
     // skip the tests if the CUDA backend is not available
-    if (!plugin) {
+    if (!plugin.has_value()) {
       GTEST_SKIP();
     }
 
