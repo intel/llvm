@@ -71,12 +71,11 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
                               QueueImplPtr Queue) {
   EventImplPtr NewEvent = nullptr;
-  const bool IsKernel = CommandGroup->getType() == CG::Kernel;
+  const CG::CGTYPE Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
-  const bool IsHostKernel = CommandGroup->getType() == CG::RunOnHostIntel;
   std::vector<StreamImplPtr> Streams;
 
-  if (IsKernel) {
+  if (Type == CG::Kernel) {
     Streams = ((CGExecKernel *)CommandGroup.get())->getStreams();
     // Stream's flush buffer memory is mainly initialized in stream's __init
     // method. However, this method is not available on host device.
@@ -146,7 +145,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     acquireWriteLock(Lock);
 
     Command *NewCmd = nullptr;
-    switch (CommandGroup->getType()) {
+    switch (Type) {
     case CG::UpdateHost:
       NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
                                              DefaultHostQueue, AuxiliaryCmds);
@@ -172,7 +171,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     auto CleanUp = [&]() {
       if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
-        if (IsHostKernel)
+        if (Type == CG::RunOnHostIntel)
           static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
 
         NewEvent->setCommand(nullptr);

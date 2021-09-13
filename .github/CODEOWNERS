@@ -73,10 +73,6 @@ sycl/source/function_pointer.cpp @AlexeySachkov
 sycl/include/CL/sycl/half_type.hpp @AlexeySachkov
 sycl/source/half_type.cpp @AlexeySachkov
 
-# vec and swizzles
-sycl/include/CL/sycl/swizzles.def @turinevgeny
-sycl/include/CL/sycl/types.hpp @turinevgeny
-
 # XPTI instrumentation utilities
 xpti/ @tovinkere @andykaylor @alexbatashev
 xptifw/ @tovinkere @andykaylor @alexbatashev
