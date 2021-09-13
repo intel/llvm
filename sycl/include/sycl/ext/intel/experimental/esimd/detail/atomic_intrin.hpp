@@ -9,6 +9,8 @@
 
 #include <CL/sycl/exception.hpp>
 
+// This function implements atomic update of pre-existing variable in the absense
+// of C++ 20's atomic_ref. 
 template <typename Ty> Ty atomic_add_fetch(Ty *ptr, Ty val) {
 #ifdef _WIN32
   // TODO: Windows will be supported soon
