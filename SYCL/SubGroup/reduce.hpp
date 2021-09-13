@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "helper.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 template <typename... Ts> class sycl_subgr;
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename SpecializationKernelName, typename T, class BinaryOperation>
 void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
@@ -67,7 +67,7 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
 template <typename SpecializationKernelName, typename T>
 void check(queue &Queue, size_t G = 256, size_t L = 64) {
   // limit data range for half to avoid rounding issues
-  if (std::is_same<T, cl::sycl::half>::value) {
+  if (std::is_same<T, sycl::half>::value) {
     G = 64;
     L = 32;
   }

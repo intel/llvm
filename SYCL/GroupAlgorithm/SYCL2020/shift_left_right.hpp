@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "helpers.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 template <typename T, int N> class sycl_subgr;
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // TODO remove this workaround when clang will support correct generation of
 // half typename in integration header

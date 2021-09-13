@@ -14,11 +14,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
+
 #include <cassert>
 #include <memory>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   int data = 5;
@@ -506,7 +507,7 @@ int main() {
   {
     size_t size = 32;
     const size_t dims = 1;
-    cl::sycl::range<dims> r(size);
+    sycl::range<dims> r(size);
 
     std::shared_ptr<bool> bool_shrd(new bool[size],
                                     [](bool *data) { delete[] data; });
@@ -522,18 +523,18 @@ int main() {
     int_vector.reserve(size);
     double_vector.reserve(size);
 
-    cl::sycl::queue Queue;
+    sycl::queue Queue;
     std::mutex m;
     {
-      cl::sycl::buffer<bool, dims> buf_bool_shrd(
+      sycl::buffer<bool, dims> buf_bool_shrd(
           bool_shrd, r,
-          cl::sycl::property_list{cl::sycl::property::buffer::use_mutex(m)});
-      cl::sycl::buffer<int, dims> buf_int_shrd(
+          sycl::property_list{sycl::property::buffer::use_mutex(m)});
+      sycl::buffer<int, dims> buf_int_shrd(
           int_shrd, r,
-          cl::sycl::property_list{cl::sycl::property::buffer::use_mutex(m)});
-      cl::sycl::buffer<double, dims> buf_double_shrd(
+          sycl::property_list{sycl::property::buffer::use_mutex(m)});
+      sycl::buffer<double, dims> buf_double_shrd(
           double_shrd, r,
-          cl::sycl::property_list{cl::sycl::property::buffer::use_mutex(m)});
+          sycl::property_list{sycl::property::buffer::use_mutex(m)});
       m.lock();
       std::fill(bool_shrd.get(), (bool_shrd.get() + size), bool());
       std::fill(int_shrd.get(), (int_shrd.get() + size), int());
@@ -547,14 +548,14 @@ int main() {
       buf_int_shrd.set_write_back(true);
       buf_double_shrd.set_write_back(true);
 
-      Queue.submit([&](cl::sycl::handler &cgh) {
+      Queue.submit([&](sycl::handler &cgh) {
         auto Accessor_bool =
-            buf_bool_shrd.get_access<cl::sycl::access::mode::write>(cgh);
+            buf_bool_shrd.get_access<sycl::access::mode::write>(cgh);
         auto Accessor_int =
-            buf_int_shrd.get_access<cl::sycl::access::mode::write>(cgh);
+            buf_int_shrd.get_access<sycl::access::mode::write>(cgh);
         auto Accessor_double =
-            buf_double_shrd.get_access<cl::sycl::access::mode::write>(cgh);
-        cgh.parallel_for<class FillBuffer>(r, [=](cl::sycl::id<1> WIid) {
+            buf_double_shrd.get_access<sycl::access::mode::write>(cgh);
+        cgh.parallel_for<class FillBuffer>(r, [=](sycl::id<1> WIid) {
           Accessor_bool[WIid] = true;
           Accessor_int[WIid] = 3;
           Accessor_double[WIid] = 7.5;
@@ -650,20 +651,18 @@ int main() {
   {
     std::allocator<float8> buf_alloc;
     std::shared_ptr<float8> data(new float8[8], [](float8 *p) { delete[] p; });
-    cl::sycl::buffer<float8, 1, std::allocator<float8>> b(
-        data, cl::sycl::range<1>(8), buf_alloc);
+    sycl::buffer<float8, 1, std::allocator<float8>> b(data, sycl::range<1>(8),
+                                                      buf_alloc);
   }
 
   {
     constexpr int Size = 6;
-    cl::sycl::buffer<char, 1> Buf_1(Size);
-    cl::sycl::buffer<char, 1> Buf_2(Size / 2);
+    sycl::buffer<char, 1> Buf_1(Size);
+    sycl::buffer<char, 1> Buf_2(Size / 2);
 
     {
-      auto AccA =
-          Buf_1.get_access<cl::sycl::access::mode::read_write>(Size / 2);
-      auto AccB =
-          Buf_2.get_access<cl::sycl::access::mode::read_write>(Size / 2);
+      auto AccA = Buf_1.get_access<sycl::access::mode::read_write>(Size / 2);
+      auto AccB = Buf_2.get_access<sycl::access::mode::read_write>(Size / 2);
       assert(AccA.get_size() == AccB.get_size());
       assert(AccA.get_range() == AccB.get_range());
       assert(AccA.get_count() == AccB.get_count());

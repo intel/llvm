@@ -12,7 +12,7 @@
 //
 //===------------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cassert>
 #include <iostream>
@@ -31,7 +31,7 @@ int main() {
       sycl::buffer<int> buf(data, sycl::range<1>(n));
       sycl::buffer<int> results_buf(results, sycl::range<1>(checks_number));
       sycl::queue q;
-      q.submit([&](cl::sycl::handler &cgh) {
+      q.submit([&](sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
                        sycl::access::target::global_buffer>
             acc(buf.get_access<sycl::access::mode::write>(cgh));
@@ -65,7 +65,7 @@ int main() {
       sycl::buffer<int> buf(data, sycl::range<1>(n));
       sycl::buffer<int> results_buf(results, sycl::range<1>(checks_number));
       sycl::queue q;
-      q.submit([&](cl::sycl::handler &cgh) {
+      q.submit([&](sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
                        sycl::access::target::global_buffer>
             acc(buf.get_access<sycl::access::mode::write>(cgh));
@@ -100,7 +100,7 @@ int main() {
       sycl::buffer<int> results_buf(results, sycl::range<1>(checks_number));
       sycl::queue q;
       sycl::id<1> offset(1);
-      q.submit([&](cl::sycl::handler &cgh) {
+      q.submit([&](sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
                        sycl::access::target::global_buffer>
             acc(buf.get_access<sycl::access::mode::write>(cgh));
@@ -134,7 +134,7 @@ int main() {
       sycl::buffer<int> results_buf(results, sycl::range<1>(checks_number));
       sycl::queue q;
       sycl::nd_range<1> NDR(sycl::range<1>{n}, sycl::range<1>{2});
-      q.submit([&](cl::sycl::handler &cgh) {
+      q.submit([&](sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
                        sycl::access::target::global_buffer>
             acc(buf.get_access<sycl::access::mode::write>(cgh));
