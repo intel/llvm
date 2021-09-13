@@ -1655,7 +1655,8 @@ pi_result rocm_piContextCreate(const pi_context_properties *properties,
       break;
     default:
       // Unknown property.
-      cl::sycl::detail::pi::die("Unknown piContextCreate property in property list");
+      cl::sycl::detail::pi::die(
+          "Unknown piContextCreate property in property list");
       return PI_INVALID_VALUE;
     }
   }
