@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <set>
 #include <unordered_map>
 #include <vector>
 
@@ -212,6 +213,8 @@ public:
   ProgramManager();
   ~ProgramManager() = default;
 
+  bool kernelUsesAssert(OSModuleHandle M, const std::string &KernelName) const;
+
 private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
@@ -236,6 +239,9 @@ private:
                              const std::string &KernelName) const;
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId) const;
+
+  /// Add info on kernels using assert into cache
+  void cacheKernelUsesAssertInfo(OSModuleHandle M, RTDeviceBinaryImage &Img);
 
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name and the OS module it's coming from, allowing
@@ -310,6 +316,9 @@ private:
 
   /// True iff a SPIR-V file has been specified with an environment variable
   bool m_UseSpvFile = false;
+
+  using KernelNameWithOSModule = std::pair<std::string, OSModuleHandle>;
+  std::set<KernelNameWithOSModule> m_KernelUsesAssert;
 };
 } // namespace detail
 } // namespace sycl

@@ -197,8 +197,8 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
   } else if (Plt.get_backend() == sycl::backend::cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
-  } else if (Plt.get_backend() == sycl::backend::rocm) {
-    std::cout << "Test is not supported on ROCm platform, skipping\n";
+  } else if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 

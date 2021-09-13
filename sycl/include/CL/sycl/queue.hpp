@@ -83,7 +83,7 @@ class AssertInfoCopier;
 static event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
 #endif
-}
+} // namespace detail
 
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
 ///
@@ -1024,6 +1024,7 @@ public:
   ///
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   auto get_native() const -> typename interop<BackendName, queue>::type {
     return reinterpret_cast<typename interop<BackendName, queue>::type>(
         getNative());
