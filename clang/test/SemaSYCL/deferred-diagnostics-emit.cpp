@@ -83,13 +83,13 @@ void setup_sycl_operation(const T VA[]) {
       trickyFloatType malFloatTrick = 41;
       // expected-error@+1 {{'__float128' is not supported on this target}}
       floatDef malFloatDef = 44;
-      // expected-error@+2 {{'malFloat' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
+      // expected-error@+2 {{'malFloat' requires 128 bit size '__float128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'__float128' is not supported on this target}}
       auto whatFloat = malFloat;
-      // expected-error@+2 {{'bar<__float128>' requires 128 bit size '__float128' type support, but device 'spir64' does not support it}}
+      // expected-error@+2 {{'bar<__float128>' requires 128 bit size '__float128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'__float128' is not supported on this target}}
       auto malAutoTemp5 = bar<__float128>();
-      // expected-error@+2 {{'bar<const __float128>' requires 128 bit size 'const __float128' type support, but device 'spir64' does not support it}}
+      // expected-error@+2 {{'bar<const __float128>' requires 128 bit size 'const __float128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'__float128' is not supported on this target}}
       auto malAutoTemp6 = bar<trickyFloatType>();
       // expected-error@+1 {{'__float128' is not supported on this target}}
@@ -106,13 +106,13 @@ void setup_sycl_operation(const T VA[]) {
       tricky128Type mal128Trick = 2;
       // expected-error@+1 {{'__int128' is not supported on this target}}
       int128Def malIntDef = 9;
-      // expected-error@+2 {{'malIntent' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
+      // expected-error@+2 {{'malIntent' requires 128 bit size '__int128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'__int128' is not supported on this target}}
       auto whatInt128 = malIntent;
-      // expected-error@+2 {{'bar<__int128>' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
+      // expected-error@+2 {{'bar<__int128>' requires 128 bit size '__int128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'__int128' is not supported on this target}}
       auto malAutoTemp = bar<__int128>();
-      // expected-error@+2 {{'bar<const __int128>' requires 128 bit size 'const __int128' type support, but device 'spir64' does not support it}}
+      // expected-error@+2 {{'bar<const __int128>' requires 128 bit size 'const __int128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'__int128' is not supported on this target}}
       auto malAutoTemp2 = bar<tricky128Type>();
       // expected-error@+1 {{'__int128' is not supported on this target}}
@@ -127,13 +127,13 @@ void setup_sycl_operation(const T VA[]) {
       megeType malTypeDefTrick = 4;
       // expected-error@+1 {{'__int128' is not supported on this target}}
       int128tDef malInt2Def = 6;
-      // expected-error@+2 {{'malUInt128' requires 128 bit size '__uint128_t' (aka 'unsigned __int128') type support, but device 'spir64' does not support it}}
+      // expected-error@+2 {{'malUInt128' requires 128 bit size '__uint128_t' (aka 'unsigned __int128') type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'unsigned __int128' is not supported on this target}}
       auto whatUInt = malUInt128;
-      // expected-error@+2 {{'bar<__int128>' requires 128 bit size '__int128' type support, but device 'spir64' does not support it}}
+      // expected-error@+2 {{'bar<__int128>' requires 128 bit size '__int128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'__int128' is not supported on this target}}
       auto malAutoTemp3 = bar<__int128_t>();
-      // expected-error@+2 {{'bar<const unsigned __int128>' requires 128 bit size 'const unsigned __int128' type support, but device 'spir64' does not support it}}
+      // expected-error@+2 {{'bar<const unsigned __int128>' requires 128 bit size 'const unsigned __int128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'unsigned __int128' is not supported on this target}}
       auto malAutoTemp4 = bar<megeType>();
       // expected-error@+1 {{'__int128' is not supported on this target}}

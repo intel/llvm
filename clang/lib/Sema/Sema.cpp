@@ -1922,7 +1922,10 @@ Sema::SemaDiagnosticBuilder Sema::Diag(SourceLocation Loc, unsigned DiagID,
   return DB;
 }
 
-void Sema::checkDeviceDecl(ValueDecl *D, SourceLocation Loc) {
+void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
+  if (!LangOpts.SYCLIsDevice && !(LangOpts.OpenMP && LangOpts.OpenMPIsDevice))
+    return;
+
   if (isUnevaluatedContext())
     return;
 
@@ -1942,16 +1945,22 @@ void Sema::checkDeviceDecl(ValueDecl *D, SourceLocation Loc) {
 
   // Try to associate errors with the lexical context, if that is a function, or
   // the value declaration otherwise.
-  FunctionDecl *FD =
-      isa<FunctionDecl>(C) ? cast<FunctionDecl>(C) : dyn_cast<FunctionDecl>(D);
+  FunctionDecl *FD = isa<FunctionDecl>(C) ? cast<FunctionDecl>(C)
+                                          : dyn_cast_or_null<FunctionDecl>(D);
+
   auto CheckType = [&](QualType Ty) {
     if (Ty->isDependentType())
       return;
 
     if (Ty->isExtIntType()) {
       if (!Context.getTargetInfo().hasExtIntType()) {
-        targetDiag(Loc, diag::err_device_unsupported_type, FD)
-            << D << false /*show bit size*/ << 0 /*bitsize*/
+        PartialDiagnostic PD = PDiag(diag::err_target_unsupported_type);
+        if (D)
+          PD << D;
+        else
+          PD << "expression";
+        targetDiag(Loc, PD, FD)
+            << false /*show bit size*/ << 0 /*bitsize*/
             << Ty << Context.getTargetInfo().getTriple().str();
       }
       return;
@@ -1968,21 +1977,31 @@ void Sema::checkDeviceDecl(ValueDecl *D, SourceLocation Loc) {
     }
 
     if ((Ty->isFloat16Type() && !Context.getTargetInfo().hasFloat16Type()) ||
-        (Ty->isFloat128Type() && !Context.getTargetInfo().hasFloat128Type()) ||
+        ((Ty->isFloat128Type() ||
+          (Ty->isRealFloatingType() && Context.getTypeSize(Ty) == 128)) &&
+         !Context.getTargetInfo().hasFloat128Type()) ||
         (Ty->isIbm128Type() && !Context.getTargetInfo().hasIbm128Type()) ||
         (Ty->isIntegerType() && Context.getTypeSize(Ty) == 128 &&
          !Context.getTargetInfo().hasInt128Type()) ||
         LongDoubleMismatched) {
-      if (targetDiag(Loc, diag::err_device_unsupported_type, FD)
-          << D << true /*show bit size*/
+      PartialDiagnostic PD = PDiag(diag::err_target_unsupported_type);
+      if (D)
+        PD << D;
+      else
+        PD << "expression";
+
+      if (targetDiag(Loc, PD, FD)
+          << true /*show bit size*/
           << static_cast<unsigned>(Context.getTypeSize(Ty)) << Ty
-          << Context.getTargetInfo().getTriple().str())
-        D->setInvalidDecl();
-      targetDiag(D->getLocation(), diag::note_defined_here, FD) << D;
+          << Context.getTargetInfo().getTriple().str()) {
+        if (D)
+          D->setInvalidDecl();
+      }
+      if (D)
+        targetDiag(D->getLocation(), diag::note_defined_here, FD) << D;
     }
   };
 
-  QualType Ty = D->getType();
   CheckType(Ty);
 
   if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
