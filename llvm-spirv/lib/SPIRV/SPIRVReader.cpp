@@ -3426,7 +3426,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
           isStaticMemoryAttribute
               ? llvm::Intrinsic::getDeclaration(M, Intrinsic::var_annotation)
               : llvm::Intrinsic::getDeclaration(M, Intrinsic::ptr_annotation,
-                                                AllocatedTy);
+                                                BaseInst->getType());
 
       llvm::Value *Args[] = {BaseInst,
                              Builder.CreateBitCast(GS, Int8PtrTyPrivate),
