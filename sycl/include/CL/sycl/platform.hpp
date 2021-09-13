@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
 #include <CL/sycl/aspects.hpp>
+#include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/stl.hpp>
@@ -24,6 +26,9 @@ class device;
 namespace detail {
 class platform_impl;
 }
+
+// Feature test macro for Default Context
+#define SYCL_EXT_ONEAPI_DEFAULT_CONTEXT 1
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
@@ -131,6 +136,11 @@ public:
   /// \return true if all of the SYCL devices on this platform have the
   /// given feature.
   bool has(aspect Aspect) const;
+
+  /// Return this platform's default context
+  ///
+  /// \return the default context
+  context ext_oneapi_get_default_context() const;
 
 private:
   pi_native_handle getNative() const;

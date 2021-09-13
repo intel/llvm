@@ -356,20 +356,6 @@ pi_native_handle queue_impl::getNative() const {
   return Handle;
 }
 
-bool queue_impl::kernelUsesAssert(const std::string &KernelName,
-                                  OSModuleHandle Handle) const {
-  RTDeviceBinaryImage &BinImg = ProgramManager::getInstance().getDeviceImage(
-      Handle, KernelName, get_context(), get_device());
-
-  const pi::DeviceBinaryImage::PropertyRange &AssertUsedRange =
-      BinImg.getAssertUsed();
-  if (AssertUsedRange.isAvailable())
-    for (const auto &Prop : AssertUsedRange)
-      if (Prop->Name == KernelName)
-        return true;
-
-  return false;
-}
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

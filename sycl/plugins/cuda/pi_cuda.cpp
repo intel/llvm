@@ -111,7 +111,7 @@ pi_result forLatestEvents(const pi_event *event_wait_list,
 ///
 pi_result check_error(CUresult result, const char *function, int line,
                       const char *file) {
-  if (result == CUDA_SUCCESS) {
+  if (result == CUDA_SUCCESS || result == CUDA_ERROR_DEINITIALIZED) {
     return PI_SUCCESS;
   }
 
@@ -2560,17 +2560,11 @@ pi_result cuda_piEnqueueKernelLaunch(
   int threadsPerBlock[3] = {32, 1, 1};
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
-  size_t reqdThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
   pi_uint32 local_size = kernel->get_local_size();
 
   {
-    pi_result retError = cuda_piKernelGetGroupInfo(
-        kernel, command_queue->device_,
-        PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(reqdThreadsPerBlock), reqdThreadsPerBlock, nullptr);
-    assert(retError == PI_SUCCESS);
-
+    size_t *reqdThreadsPerBlock = kernel->reqdThreadsPerBlock_;
     maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
     command_queue->device_->get_max_work_item_sizes(sizeof(maxThreadsPerBlock),
                                                     maxThreadsPerBlock);
