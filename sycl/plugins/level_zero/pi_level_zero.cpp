@@ -1529,7 +1529,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     PrintPiTrace = true;
   }
 
-  if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
+  if ((ZeDebug & ZE_DEBUG_CALL_COUNT) && !ZeCallCount) {
     ZeCallCount = new std::map<const char *, int>;
   }
 
