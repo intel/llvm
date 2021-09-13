@@ -13,7 +13,9 @@
 #include <iostream>
 
 int main() {
-  sycl::ext::oneapi::group_mask g{sycl::marray<uint32_t, 4>{0}};
+  auto g =
+      sycl::detail::Builder::createGroupMask<sycl::ext::oneapi::group_mask>(
+          sycl::marray<uint32_t, 4>{0});
   assert(g.none() && !g.any() && !g.all());
   assert(g[10] == false); // reference::operator[](id) const;
   g[10] = true;           // reference::operator=(bool);
@@ -66,17 +68,23 @@ int main() {
   b.reset_low();
   b.reset_high();
   assert(!b[13] && b[43] && b[79] && !b[101]);
-  b.insert_bits({1, 2, 4, 8});
+  b.insert_bits(sycl::marray<uint32_t, 4>{1, 2, 4, 8});
   assert(b[96] && b[65] && b[34] && b[3]);
   g = b;
   g <<= 33;
   assert(!g[96] && !g[65] && !g[34] && !g[3] && g[98] && g[67] && g[36]);
-  b.insert_bits({1, 1, 1, 1}, 15);
+  b.insert_bits(sycl::marray<uint32_t, 4>{1, 1, 1, 1}, 15);
   assert(b[111] && !b[96] && b[79] && !b[65] && b[47] && !b[34] && b[15] &&
          b[3]);
+
+  auto r = b.extract_bits<class sycl::marray<uint32_t, 4>>();
+  for(size_t i=0; i<b.size();i++) {
+    assert(b[i]==(bool)(r[3-(i/32)] & (1<<(i%32))));
+  }
   b >>= 79;
   assert(b[32] && b[0]);
   b.flip(32);
   b.flip(0);
   assert(b.none());
+  b.insert_bits((int)1);
 }

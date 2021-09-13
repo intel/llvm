@@ -9,16 +9,22 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
+#include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/marray.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace detail {
+class Builder;
+} // namespace detail
+
 namespace ext {
 namespace oneapi {
 
 struct group_mask {
+  friend class detail::Builder;
   static constexpr size_t max_bits = 128 /* implementation-defined */;
   static constexpr size_t word_size = sizeof(uint32_t) * CHAR_BIT;
   /* Bitmask is packed in marray of uint32_t elements. This value represents
@@ -95,12 +101,16 @@ struct group_mask {
     return {operator[](i) ? i : size()};
   }
 
-  template <typename T = marray<uint32_t, marray_size>>
-  void insert_bits(const T &bits, id<1> pos = 0) {
+  template <typename T,
+            typename = detail::enable_if_t<std::is_integral<T>::value>>
+  void insert_bits(T bits, id<1> pos = 0) {}
+
+  template <typename T, size_t N>
+  void insert_bits(const marray<T, N> &bits, id<1> pos = 0) {
     group_mask tmp(bits);
     if (pos.get(0) > 0) {
-      operator<<=(max_bits - pos.get(0));
-      operator>>=(max_bits - pos.get(0));
+      operator<<=(size() - pos.get(0));
+      operator>>=(size() - pos.get(0));
       tmp <<= pos.get(0);
     } else {
       reset();
@@ -193,28 +203,30 @@ struct group_mask {
   }
 
   group_mask(const group_mask &rhs) : Bits(rhs.Bits) {}
+
   template <typename Group>
   friend group_mask group_ballot(Group g, bool predicate);
 
-  group_mask(const marray<uint32_t, marray_size> &rhs) : Bits(rhs) {}
-
-  group_mask operator&(const group_mask &rhs) const {
-    auto Res = *this;
+  friend group_mask operator&(const group_mask &lhs, const group_mask &rhs) {
+    auto Res = lhs;
     Res &= rhs;
     return Res;
   }
-  group_mask operator|(const group_mask &rhs) const {
-    auto Res = *this;
+
+  friend group_mask operator|(const group_mask &lhs, const group_mask &rhs) {
+    auto Res = lhs;
     Res |= rhs;
     return Res;
   }
-  group_mask operator^(const group_mask &rhs) const {
-    auto Res = *this;
+
+  friend group_mask operator^(const group_mask &lhs, const group_mask &rhs) {
+    auto Res = lhs;
     Res ^= rhs;
     return Res;
   }
 
 private:
+  group_mask(const marray<uint32_t, marray_size> &rhs) : Bits(rhs) {}
   marray<uint32_t, marray_size> Bits;
 };
 template <typename Group> group_mask group_ballot(Group g, bool predicate) {
@@ -222,8 +234,9 @@ template <typename Group> group_mask group_ballot(Group g, bool predicate) {
 #ifdef __SYCL_DEVICE_ONLY__
   auto res = __spirv_GroupNonUniformBallot(
       detail::spirv::group_scope<Group>::value, predicate);
-  return marray<uint32_t, group_mask::marray_size>{res[3], res[2], res[1],
-                                                   res[0]};
+  return detail::Builder::createGroupMask<group_mask>(
+      marray<uint32_t, group_mask::marray_size>{res[3], res[2], res[1],
+                                                res[0]});
 #else
   (void)predicate;
   throw exception{errc::feature_not_supported,

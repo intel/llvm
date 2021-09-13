@@ -31,6 +31,7 @@ template <int Dims> class range;
 template <int Dims> class id;
 template <int Dims> class nd_item;
 template <int Dims> class h_item;
+template <typename Type, std::size_t NumElements> class marray;
 enum class memory_order;
 
 namespace detail {
@@ -80,6 +81,11 @@ public:
                                  const range<Dims> &Local,
                                  const id<Dims> &Index) {
     return group<Dims>(Global, Local, Global / Local, Index);
+  }
+
+  template <class ResType, size_t Size>
+  static ResType createGroupMask(marray<uint32_t, Size> Bits) {
+    return ResType(Bits);
   }
 
   template <int Dims, bool WithOffset>

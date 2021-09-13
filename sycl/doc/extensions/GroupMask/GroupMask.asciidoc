@@ -82,7 +82,7 @@ must be encountered by all work-items in the group in converged control flow.
 |Function|Description
 
 |`template <typename Group> Group::mask_type group_ballot(Group g, bool predicate = true)`
-|Return a `group_mask` representing the set of work-items in group _g_ for which _predicate_ is `true`.
+|Return a `group_mask` with one bit for each work-item in group _g_. A bit is set in this mask if and only if the corresponding work-item's _predicate_ is `true`.
 |===
 
 === Group Masks
@@ -219,14 +219,22 @@ work-item with the id `max_local_range()-1`.
  to the right using a logical shift.  Bits that are shifted out to the right are
  discarded, and zeroes are shifted in from the left.
 
-|`group_mask operator &(const group_mask &rhs) const`
-|Return a mask representing the result of performing a bitwise AND of two masks.
+|===
 
-|`group_mask operator \|(const group_mask &rhs) const`
-|Return a mask representing the result of performing a bitwise OR of two masks.
+|===
+|Function|Description
 
-|`group_mask operator ^(const group_mask &rhs) const`
-|Return a mask representing the result of performing a bitwise XOR of two masks.
+|`group_mask operator &(const group_mask& lhs, const group_mask& rhs)`
+|Return a mask representing the result of performing a bitwise AND of `lhs` and
+ `rhs`.
+
+|`group_mask operator \|(const group_mask& lhs, const group_mask& rhs)`
+|Return a mask representing the result of performing a bitwise OR of `lhs` and
+ `rhs`.
+
+|`group_mask operator ^(const group_mask& lhs, const group_mask& rhs)`
+|Return a mask representing the result of performing a bitwise XOR of `lhs` and
+ `rhs`.
 
 |===
 
@@ -291,10 +299,11 @@ struct group_mask {
   group_mask operator <<(size_t n) const;
   group_mask operator >>(size_t n) const;
 
-  group_mask operator &(const group_mask &rhs) const;
-  group_mask operator |(const group_mask &rhs) const;
-  group_mask operator ^(const group_mask &rhs) const;
 };
+
+group_mask operator &(const group_mask& lhs, const group_mask& rhs);
+group_mask operator |(const group_mask& lhs, const group_mask& rhs);
+group_mask operator ^(const group_mask& lhs, const group_mask& rhs);
 
 } // namespace oneapi
 } // namespace ext
@@ -319,6 +328,7 @@ None.
 |========================================
 |Rev|Date|Author|Changes
 |1|2021-08-11|John Pennycook|*Initial public working draft*
+|2|2021-09-13|Vladimir Lazarev|*Update during implementation*
 |========================================
 
 //************************************************************************
