@@ -4438,10 +4438,6 @@ pi_result hip_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> event_ptr{nullptr};
 
-  // TODO implement handling the flags once the expected behaviour
-  // of piextUSMEnqueuePrefetch is detailed in the USM extension
-  assert(flags == 0u);
-
   try {
     ScopedContext active(queue->get_context());
     result = hip_piEnqueueEventsWait(queue, num_events_in_waitlist,
