@@ -509,6 +509,11 @@ private:
       return EventImpl;
     };
 
+    if (MHostQueue) {
+      EventImplPtr EventImpl = MUploadDataFunctor(true);
+      return detail::createSyclObjFromImpl<event>(EventImpl);
+    }
+
     event EventFake;
     EventImplPtr EventImplFake = detail::getSyclObjImpl(EventFake);
     addEvent(EventFake);
