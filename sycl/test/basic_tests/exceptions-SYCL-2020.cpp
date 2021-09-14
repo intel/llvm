@@ -94,9 +94,9 @@ int main() {
   sycl::backend_traits<sycl::backend::esimd_cpu>::errc someESIMDErrCode{EC};
   sycl::errc_for<sycl::backend::esimd_cpu> anotherESIMDErrCode{EC};
   assert(someESIMDErrCode == anotherESIMDErrCode);
-  sycl::backend_traits<sycl::backend::rocm>::errc someROCMErrCode{EC};
-  sycl::errc_for<sycl::backend::rocm> anotherROCMErrCode{EC};
-  assert(someROCMErrCode == anotherROCMErrCode);
+  sycl::backend_traits<sycl::backend::hip>::errc someHIPErrCode{EC};
+  sycl::errc_for<sycl::backend::hip> anotherHIPErrCode{EC};
+  assert(someHIPErrCode == anotherHIPErrCode);
 
   std::cout << "OK" << std::endl;
   return 0;

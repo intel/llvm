@@ -11,9 +11,9 @@
 #include "llvm/ProfileData/ProfileCommon.h"
 #include <unordered_set>
 
-static cl::opt<std::string> OutputFilename("output", cl::value_desc("output"),
-                                           cl::Required,
-                                           cl::desc("Output profile file"));
+cl::opt<std::string> OutputFilename("output", cl::value_desc("output"),
+                                    cl::Required,
+                                    cl::desc("Output profile file"));
 static cl::alias OutputA("o", cl::desc("Alias for --output"),
                          cl::aliasopt(OutputFilename));
 
@@ -26,6 +26,11 @@ static cl::opt<SampleProfileFormat> OutputFormat(
         clEnumValN(SPF_Text, "text", "Text encoding"),
         clEnumValN(SPF_GCC, "gcc",
                    "GCC encoding (only meaningful for -sample)")));
+
+cl::opt<bool> UseMD5(
+    "use-md5", cl::init(false), cl::Hidden,
+    cl::desc("Use md5 to represent function names in the output profile (only "
+             "meaningful for -extbinary)"));
 
 static cl::opt<int32_t, true> RecursionCompression(
     "compress-recursion",
@@ -41,7 +46,7 @@ static cl::opt<bool> CSProfMergeColdContext(
              "profile."));
 
 static cl::opt<bool> CSProfTrimColdContext(
-    "csprof-trim-cold-context", cl::init(true), cl::ZeroOrMore,
+    "csprof-trim-cold-context", cl::init(false), cl::ZeroOrMore,
     cl::desc("If the total count of the profile after all merge is done "
              "is still smaller than threshold, it will be trimmed."));
 
@@ -99,6 +104,15 @@ void ProfileGenerator::write() {
   auto WriterOrErr = SampleProfileWriter::create(OutputFilename, OutputFormat);
   if (std::error_code EC = WriterOrErr.getError())
     exitWithError(EC, OutputFilename);
+
+  if (UseMD5) {
+    if (OutputFormat != SPF_Ext_Binary)
+      WithColor::warning() << "-use-md5 is ignored. Specify "
+                              "--format=extbinary to enable it\n";
+    else
+      WriterOrErr.get()->setUseMD5();
+  }
+
   write(std::move(WriterOrErr.get()), ProfileMap);
 }
 
