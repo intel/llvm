@@ -1536,8 +1536,10 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
         ZeCallCount = new std::map<const char *, int>;
       }
     });
-  } catch (...) {
+  } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
   }
 
   if (NumEntries == 0 && Platforms != nullptr) {
