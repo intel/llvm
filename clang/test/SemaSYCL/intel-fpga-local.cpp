@@ -182,7 +182,7 @@ void check_ast()
   // No diagnostic is emitted because the arguments match.
   // Duplicate attribute is silently ignored.
   //CHECK: VarDecl{{.*}}var_bankwidth 'int'
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
   //CHECK: IntelFPGABankWidthAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 16
@@ -194,7 +194,7 @@ void check_ast()
   // No diagnostic is emitted because the arguments match.
   // Duplicate attribute is silently ignored.
   //CHECK: VarDecl{{.*}}var_numbanks 'int'
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
   //CHECK: IntelFPGANumBanksAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 8
@@ -431,7 +431,7 @@ void diagnostics()
 
   // Checking of different argument values.
   //CHECK: VarDecl{{.*}}bw_bw 'unsigned int [64]'
-  //CHECK:IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK:IntelFPGAMemoryAttr{{.*}}Implicit Default
   //CHECK: IntelFPGABankWidthAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 8
@@ -510,7 +510,7 @@ void diagnostics()
   unsigned int nb_reg[64];
 
   //CHECK: VarDecl{{.*}}nb_nb 'unsigned int [64]'
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
   //CHECK:IntelFPGANumBanksAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 8
@@ -598,7 +598,7 @@ void diagnostics()
   //CHECK: VarDecl{{.*}} bb_reg 'unsigned int [4]'
   //CHECK: IntelFPGANumBanksAttr{{.*}}Implicit
   //CHECK-NEXT: IntegerLiteral{{.*}}'int' 4
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
   //CHECK: IntelFPGABankBitsAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 2
