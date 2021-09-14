@@ -111,7 +111,7 @@ pi_result forLatestEvents(const pi_event *event_wait_list,
 ///
 pi_result check_error(CUresult result, const char *function, int line,
                       const char *file) {
-  if (result == CUDA_SUCCESS) {
+  if (result == CUDA_SUCCESS || result == CUDA_ERROR_DEINITIALIZED) {
     return PI_SUCCESS;
   }
 
@@ -137,47 +137,48 @@ pi_result check_error(CUresult result, const char *function, int line,
 /// \cond NODOXY
 #define PI_CHECK_ERROR(result) check_error(result, __func__, __LINE__, __FILE__)
 
-/// RAII type to guarantee recovering original CUDA context
-/// Scoped context is used across all PI CUDA plugin implementation
-/// to activate the PI Context on the current thread, matching the
-/// CUDA driver semantics where the context used for the CUDA Driver
-/// API is the one active on the thread.
-/// The implementation tries to avoid replacing the CUcontext if it cans
+/// ScopedContext is used across all PI CUDA plugin implementation to ensure
+/// that the proper CUDA context is active for the given PI context.
+//
+/// This class will only replace the context if necessary, and will leave the
+/// new context active on the current thread. If there was an active context
+/// already it will simply be replaced.
+//
+/// Previously active contexts are not restored for two reasons:
+/// * Performance: context switches are expensive so leaving the context active
+///   means subsequent SYCL calls with the same context will be cheaper.
+/// * Multi-threading cleanup: contexts are set active per thread and deleting a
+///   context will only deactivate it for the current thread. This means other
+///   threads may end up with deleted active contexts. In particular this can
+///   happen with host_tasks as they run in a thread pool. When the context
+///   associated with these tasks is deleted it will remain active in the
+///   threads of the thread pool. So it would be invalid for any other task
+///   running on these threads to try to restore the deleted context. With the
+///   current implementation this is not an issue because the active deleted
+///   context will just be replaced.
+//
+/// This approach does mean that CUDA interop tasks should NOT expect their
+/// contexts to be restored by SYCL.
 class ScopedContext {
-  pi_context placedContext_;
-  CUcontext original_;
-  bool needToRecover_;
-
 public:
-  ScopedContext(pi_context ctxt) : placedContext_{ctxt}, needToRecover_{false} {
-
-    if (!placedContext_) {
+  ScopedContext(pi_context ctxt) {
+    if (!ctxt) {
       throw PI_INVALID_CONTEXT;
     }
 
-    CUcontext desired = placedContext_->get();
-    PI_CHECK_ERROR(cuCtxGetCurrent(&original_));
-    if (original_ != desired) {
-      // Sets the desired context as the active one for the thread
+    CUcontext desired = ctxt->get();
+    CUcontext original = nullptr;
+
+    PI_CHECK_ERROR(cuCtxGetCurrent(&original));
+
+    // Make sure the desired context is active on the current thread, setting
+    // it if necessary
+    if (original != desired) {
       PI_CHECK_ERROR(cuCtxSetCurrent(desired));
-      if (original_ == nullptr) {
-        // No context is installed on the current thread
-        // This is the most common case. We can activate the context in the
-        // thread and leave it there until all the PI context referring to the
-        // same underlying CUDA context are destroyed. This emulates
-        // the behaviour of the CUDA runtime api, and avoids costly context
-        // switches. No action is required on this side of the if.
-      } else {
-        needToRecover_ = true;
-      }
     }
   }
 
-  ~ScopedContext() {
-    if (needToRecover_) {
-      PI_CHECK_ERROR(cuCtxSetCurrent(original_));
-    }
-  }
+  ~ScopedContext() {}
 };
 
 /// \cond NODOXY
@@ -685,10 +686,10 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
     static pi_uint32 numPlatforms = 1;
     static _pi_platform platformId;
 
-    if (num_entries == 0 and platforms != nullptr) {
+    if (num_entries == 0 && platforms != nullptr) {
       return PI_INVALID_VALUE;
     }
-    if (platforms == nullptr and num_platforms == nullptr) {
+    if (platforms == nullptr && num_platforms == nullptr) {
       return PI_INVALID_VALUE;
     }
 
@@ -2559,17 +2560,11 @@ pi_result cuda_piEnqueueKernelLaunch(
   int threadsPerBlock[3] = {32, 1, 1};
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
-  size_t reqdThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
   pi_uint32 local_size = kernel->get_local_size();
 
   {
-    pi_result retError = cuda_piKernelGetGroupInfo(
-        kernel, command_queue->device_,
-        PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(reqdThreadsPerBlock), reqdThreadsPerBlock, nullptr);
-    assert(retError == PI_SUCCESS);
-
+    size_t *reqdThreadsPerBlock = kernel->reqdThreadsPerBlock_;
     maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
     command_queue->device_->get_max_work_item_sizes(sizeof(maxThreadsPerBlock),
                                                     maxThreadsPerBlock);
@@ -4508,7 +4503,7 @@ pi_result cuda_piextUSMFree(pi_context context, void *ptr) {
                                          CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
     result = PI_CHECK_ERROR(cuPointerGetAttributes(
         2, attributes, attribute_values, (CUdeviceptr)ptr));
-    assert(type == CU_MEMORYTYPE_DEVICE or type == CU_MEMORYTYPE_HOST);
+    assert(type == CU_MEMORYTYPE_DEVICE || type == CU_MEMORYTYPE_HOST);
     if (is_managed || type == CU_MEMORYTYPE_DEVICE) {
       // Memory allocated with cuMemAlloc and cuMemAllocManaged must be freed
       // with cuMemFree
@@ -4712,7 +4707,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
       }
       result = PI_CHECK_ERROR(cuPointerGetAttribute(
           &value, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)ptr));
-      assert(value == CU_MEMORYTYPE_DEVICE or value == CU_MEMORYTYPE_HOST);
+      assert(value == CU_MEMORYTYPE_DEVICE || value == CU_MEMORYTYPE_HOST);
       if (value == CU_MEMORYTYPE_DEVICE) {
         // pointer to device memory
         return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -4724,7 +4719,11 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
                        PI_MEM_TYPE_HOST);
       }
       // should never get here
+#ifdef _MSC_VER
+      __assume(0);
+#else
       __builtin_unreachable();
+#endif
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      PI_MEM_TYPE_UNKNOWN);
     }

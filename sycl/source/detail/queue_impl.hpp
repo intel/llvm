@@ -20,6 +20,7 @@
 #include <CL/sycl/properties/queue_properties.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
@@ -50,6 +51,22 @@ enum QueueOrder { Ordered, OOO };
 
 class queue_impl {
 public:
+  // \return a default context for the platform if it includes the device
+  // passed and default contexts are enabled, a new context otherwise.
+  static ContextImplPtr getDefaultOrNew(const DeviceImplPtr &Device) {
+    if (!SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
+      return detail::getSyclObjImpl(
+          context{createSyclObjFromImpl<device>(Device), {}, {}});
+
+    ContextImplPtr DefaultContext = detail::getSyclObjImpl(
+        Device->get_platform().ext_oneapi_get_default_context());
+
+    if (DefaultContext->hasDevice(Device))
+      return DefaultContext;
+
+    return detail::getSyclObjImpl(
+        context{createSyclObjFromImpl<device>(Device), {}, {}});
+  }
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
   ///
@@ -59,14 +76,7 @@ public:
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(const DeviceImplPtr &Device, const async_handler &AsyncHandler,
              const property_list &PropList)
-      : queue_impl(Device,
-                   detail::getSyclObjImpl(
-                       context(createSyclObjFromImpl<device>(Device), {},
-                               (DefaultContextType == CUDAContextT::primary)
-                                   ? property_list{property::context::cuda::
-                                                       use_primary_context()}
-                                   : property_list{})),
-                   AsyncHandler, PropList){};
+      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
@@ -81,7 +91,8 @@ public:
              const async_handler &AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
-        MAssertHappenedBuffer(range<1>{1}) {
+        MAssertHappenedBuffer(range<1>{1}),
+        MIsInorder(has_property<property::queue::in_order>()) {
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
@@ -104,8 +115,9 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   queue_impl(RT::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
-      : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
-        MAssertHappenedBuffer(range<1>{1}) {
+      : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(),
+        MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
+        MIsInorder(has_property<property::queue::in_order>()) {
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
@@ -402,9 +414,6 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
-  bool kernelUsesAssert(const std::string &KernelName,
-                        OSModuleHandle Handle) const;
-
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;
   }
@@ -427,21 +436,21 @@ private:
     // Scheduler will later omit events, that are not required to execute tasks.
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
-    if (has_property<property::queue::in_order>() &&
-        (Handler.getType() == CG::CGTYPE::CodeplayHostTask ||
-         Handler.getType() == CG::CGTYPE::CodeplayInteropTask))
+    const CG::CGTYPE Type = Handler.getType();
+    if (MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
+                       Type == CG::CGTYPE::CodeplayInteropTask))
       Handler.depends_on(MLastEvent);
 
     event Event;
 
     if (PostProcess) {
-      bool IsKernel = Handler.getType() == CG::Kernel;
+      bool IsKernel = Type == CG::Kernel;
       bool KernelUsesAssert = false;
       if (IsKernel)
-        KernelUsesAssert = Handler.MKernel
-                               ? true
-                               : kernelUsesAssert(Handler.MKernelName,
-                                                  Handler.MOSModuleHandle);
+        KernelUsesAssert =
+            Handler.MKernel ? true
+                            : ProgramManager::getInstance().kernelUsesAssert(
+                                  Handler.MOSModuleHandle, Handler.MKernelName);
 
       Event = Handler.finalize();
 
@@ -449,7 +458,7 @@ private:
     } else
       Event = Handler.finalize();
 
-    if (has_property<property::queue::in_order>())
+    if (MIsInorder)
       MLastEvent = Event;
 
     addEvent(Event);
@@ -513,6 +522,7 @@ private:
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
 
   event MLastEvent;
+  const bool MIsInorder;
 };
 
 } // namespace detail

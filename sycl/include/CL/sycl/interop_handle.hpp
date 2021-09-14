@@ -86,7 +86,7 @@ public:
   template <backend Backend = backend::opencl>
   backend_return_t<Backend, queue> get_native_queue() const {
 #ifndef __SYCL_DEVICE_ONLY__
-    // TODO: replace the exception thrown below with the SYCL-2020 exception
+    // TODO: replace the exception thrown below with the SYCL 2020 exception
     // with the error code 'errc::backend_mismatch' when those new exceptions
     // are ready to be used.
     if (Backend != get_backend())
@@ -107,7 +107,7 @@ public:
   template <backend Backend = backend::opencl>
   backend_return_t<Backend, device> get_native_device() const {
 #ifndef __SYCL_DEVICE_ONLY__
-    // TODO: replace the exception thrown below with the SYCL-2020 exception
+    // TODO: replace the exception thrown below with the SYCL 2020 exception
     // with the error code 'errc::backend_mismatch' when those new exceptions
     // are ready to be used.
     if (Backend != get_backend())
@@ -129,7 +129,7 @@ public:
   template <backend Backend = backend::opencl>
   backend_return_t<Backend, context> get_native_context() const {
 #ifndef __SYCL_DEVICE_ONLY__
-    // TODO: replace the exception thrown below with the SYCL-2020 exception
+    // TODO: replace the exception thrown below with the SYCL 2020 exception
     // with the error code 'errc::backend_mismatch' when those new exceptions
     // are ready to be used.
     if (Backend != get_backend())

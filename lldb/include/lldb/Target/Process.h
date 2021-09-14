@@ -99,6 +99,7 @@ public:
   bool GetOSPluginReportsAllThreads() const;
   void SetOSPluginReportsAllThreads(bool does_report);
   bool GetSteppingRunsAllThreads() const;
+  FollowForkMode GetFollowForkMode() const;
 
 protected:
   Process *m_process; // Can be nullptr for global ProcessProperties
@@ -980,6 +981,15 @@ public:
   /// Subclasses of Process should implement this function if they need to do
   /// anything after a process exec's itself.
   virtual void DoDidExec() {}
+
+  /// Called after a reported fork.
+  virtual void DidFork(lldb::pid_t child_pid, lldb::tid_t child_tid) {}
+
+  /// Called after a reported vfork.
+  virtual void DidVFork(lldb::pid_t child_pid, lldb::tid_t child_tid) {}
+
+  /// Called after reported vfork completion.
+  virtual void DidVForkDone() {}
 
   /// Called before launching to a process.
   ///

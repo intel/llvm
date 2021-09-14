@@ -155,9 +155,6 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
   auto ExecBundle = sycl::link(sycl::compile(KernelBundle));
   EXPECT_FALSE(ExecBundle.empty()) << "Expect non-empty exec kernel bundle";
 
-  auto ContextImpl = QueueImpl->getContextImplPtr();
-  auto DeviceImpl = QueueImpl->getDeviceImplPtr();
-
   // Emulating processing of command group function
   MockHandler MockCGH(QueueImpl);
   MockCGH.use_kernel_bundle(ExecBundle);
@@ -200,8 +197,8 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
   } else if (Plt.get_backend() == sycl::backend::cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
-  } else if (Plt.get_backend() == sycl::backend::rocm) {
-    std::cout << "Test is not supported on ROCm platform, skipping\n";
+  } else if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 
@@ -212,13 +209,10 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};
-  std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
-      sycl::detail::getSyclObjImpl(Queue);
-  const sycl::context Ctx = Queue.get_context();
 
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(
-          Ctx, {Dev},
+          Queue.get_context(), {Dev},
           {sycl::get_kernel_id<EAMTestKernel>(),
            sycl::get_kernel_id<EAMTestKernel2>()});
 
