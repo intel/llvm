@@ -4426,12 +4426,14 @@ pi_result hip_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
   return result;
 }
 
+// flags is currently ignored as it is a placeholder for future features
 pi_result hip_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                       size_t size, pi_usm_migration_flags flags,
                                       pi_uint32 num_events_in_waitlist,
                                       const pi_event *events_waitlist,
                                       pi_event *event) {
 
+  assert(!(flags & ~PI_USM_MIGRATION_TBD0));
   assert(queue != nullptr);
   assert(ptr != nullptr);
   hipStream_t hipStream = queue->get();

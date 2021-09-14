@@ -4589,13 +4589,15 @@ pi_result cuda_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
   return result;
 }
 
+// flags is currently ignored as it is a placeholder for future features
 pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                        size_t size,
                                        pi_usm_migration_flags flags,
                                        pi_uint32 num_events_in_waitlist,
                                        const pi_event *events_waitlist,
                                        pi_event *event) {
-  assert(queue != nullptr);
+  assert(!(flags & ~PI_USM_MIGRATION_TBD0), PI_INVALID_VALUE)
+      assert(queue != nullptr);
   assert(ptr != nullptr);
   CUstream cuStream = queue->get();
   pi_result result = PI_SUCCESS;

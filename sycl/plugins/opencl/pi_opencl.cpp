@@ -1005,6 +1005,7 @@ pi_result piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking, void *dst_ptr,
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
+// flags is currently ignored as it is a placeholder for future features
 pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
                                   pi_usm_migration_flags flags,
                                   pi_uint32 num_events_in_waitlist,
@@ -1012,7 +1013,8 @@ pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
                                   pi_event *event) {
   (void)ptr;
   (void)size;
-  (void)flags;
+
+  assert(!(flags & ~PI_USM_MIGRATION_TBD0));
 
   return cast<pi_result>(clEnqueueMarkerWithWaitList(
       cast<cl_command_queue>(queue), num_events_in_waitlist,
