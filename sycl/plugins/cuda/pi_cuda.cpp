@@ -2946,7 +2946,8 @@ pi_result cuda_piProgramGetInfo(pi_program program, pi_program_info param_name,
   return {};
 }
 
-pi_result cuda_piProgramHasKernel(pi_program program, const char *kernel_name, bool *has_kernel) {
+pi_result cuda_piProgramHasKernel(pi_program program, const char *kernel_name,
+                                  bool *has_kernel) {
   assert(has_kernel != nullptr);
 
   CUfunction func;

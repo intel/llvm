@@ -2800,7 +2800,8 @@ pi_result hip_piProgramGetInfo(pi_program program, pi_program_info param_name,
   return {};
 }
 
-pi_result rocm_piProgramHasKernel(pi_program program, const char *kernel_name, bool *has_kernel) {
+pi_result hip_piProgramHasKernel(pi_program program, const char *kernel_name,
+                                 bool *has_kernel) {
   assert(has_kernel != nullptr);
 
   hipFunction_t func;

@@ -3547,13 +3547,16 @@ std::vector<std::string> split_string(const std::string &str, char delimeter) {
   return result;
 }
 
-pi_result piProgramHasKernel(pi_program program, const char *kernel_name, bool *has_kernel) {
+pi_result piProgramHasKernel(pi_program program, const char *kernel_name,
+                             bool *has_kernel) {
   assert(has_kernel != nullptr);
 
   size_t Size;
-  pi_result ret_err = piProgramGetInfo(program, PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size);
+  pi_result ret_err = piProgramGetInfo(program, PI_PROGRAM_INFO_KERNEL_NAMES, 0,
+                                       nullptr, &Size);
   std::string ClResult(Size, ' ');
-  ret_err = piProgramGetInfo(program, PI_PROGRAM_INFO_KERNEL_NAMES, ClResult.size(), &ClResult[0], nullptr);
+  ret_err = piProgramGetInfo(program, PI_PROGRAM_INFO_KERNEL_NAMES,
+                             ClResult.size(), &ClResult[0], nullptr);
   // Get rid of the null terminator
   ClResult.pop_back();
   std::vector<std::string> KernelNames(split_string(ClResult, ';'));

@@ -676,23 +676,27 @@ std::vector<std::string> split_string(const std::string &str, char delimeter) {
   return result;
 }
 
-pi_result piProgramHasKernel(pi_program program, const char *kernel_name, bool *has_kernel) {
+pi_result piProgramHasKernel(pi_program program, const char *kernel_name,
+                             bool *has_kernel) {
   assert(has_kernel != nullptr);
 
   size_t Size;
-  cl_int Res = clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size);
+  cl_int Res =
+      clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES,
+                       0, nullptr, &Size);
   if (Res != CL_SUCCESS) {
     *has_kernel = false;
     return cast<pi_result>(Res);
   }
 
   std::string ClResult(Size, ' ');
-  Res = clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES, ClResult.size(), &ClResult[0], nullptr);
+  Res =
+      clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES,
+                       ClResult.size(), &ClResult[0], nullptr);
   if (Res != CL_SUCCESS) {
     *has_kernel = false;
     return cast<pi_result>(Res);
   }
-
 
   // Get rid of the null terminator
   ClResult.pop_back();
@@ -704,7 +708,7 @@ pi_result piProgramHasKernel(pi_program program, const char *kernel_name, bool *
     }
   }
   *has_kernel = false;
-  return PI_SUCCESS;  
+  return PI_SUCCESS;
 }
 
 pi_result piProgramLink(pi_context context, pi_uint32 num_devices,

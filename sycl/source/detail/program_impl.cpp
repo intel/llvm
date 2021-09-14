@@ -306,7 +306,8 @@ bool program_impl::has_kernel(std::string KernelName,
   }
   bool hasKernel = false;
   const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piProgramHasKernel>(MProgram, KernelName.c_str(), &hasKernel);
+  Plugin.call<PiApiKind::piProgramHasKernel>(MProgram, KernelName.c_str(),
+                                             &hasKernel);
   return hasKernel;
 }
 

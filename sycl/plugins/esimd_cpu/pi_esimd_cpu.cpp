@@ -996,7 +996,8 @@ pi_result piProgramGetInfo(pi_program, pi_program_info, size_t, void *,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piProgramHasKernel(pi_program, const char* kernel_name, bool* has_kernel) {
+pi_result piProgramHasKernel(pi_program, const char *kernel_name,
+                             bool *has_kernel) {
   DIE_NO_IMPLEMENTATION;
 }
 

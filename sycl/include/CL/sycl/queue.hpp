@@ -63,7 +63,8 @@
 // Helper macro to identify if fallback assert is needed
 // FIXME remove __NVPTX__ condition once devicelib supports CUDA
 // FIXME remove __AMDGCN__ condition once devicelib supports HIP
-#if !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__) && !defined(__AMDGCN__)
+#if !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__) &&           \
+    !defined(__AMDGCN__)
 #define __SYCL_USE_FALLBACK_ASSERT 1
 #else
 #define __SYCL_USE_FALLBACK_ASSERT 0
