@@ -44,13 +44,13 @@ public:
   __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   event(cl_event ClEvent, const context &SyclContext);
 
-  event(const event &rhs) = default;
+  event(const event &rhs);
 
-  event(event &&rhs) = default;
+  event(event &&rhs);
 
-  event &operator=(const event &rhs) = default;
+  event &operator=(const event &rhs);
 
-  event &operator=(event &&rhs) = default;
+  event &operator=(event &&rhs);
 
   bool operator==(const event &rhs) const;
 

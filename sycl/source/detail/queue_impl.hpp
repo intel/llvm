@@ -40,6 +40,8 @@ using DeviceImplPtr = std::shared_ptr<detail::device_impl>;
 /// Sets max number of queues supported by FPGA RT.
 static constexpr size_t MaxNumQueues = 256;
 
+static constexpr size_t DefaultSubmissionVectorSize = 128;
+
 //// Possible CUDA context types supported by PI CUDA backend
 /// TODO: Implement this as a property once there is an extension document
 enum class CUDAContextT : char { primary, custom };
@@ -105,6 +107,7 @@ public:
               : QueueOrder::OOO;
       MQueues.push_back(createQueue(QOrder));
     }
+    MEventsSharedToSubmit.reserve(DefaultSubmissionVectorSize);
   }
 
   /// Constructs a SYCL queue from plugin interoperability handle.
@@ -131,9 +134,12 @@ public:
 
     // TODO catch an exception and put it to list of asynchronous exceptions
     getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
+    MEventsSharedToSubmit.reserve(DefaultSubmissionVectorSize);
   }
 
   ~queue_impl() {
+    implicitly_do_submit();
+
     throw_asynchronous();
     if (!MHostQueue) {
       getPlugin().call<PiApiKind::piQueueRelease>(MQueues[0]);
@@ -167,6 +173,10 @@ public:
 
   /// \return true if this queue is a SYCL host queue.
   bool is_host() const { return MHostQueue; }
+
+  bool is_event_required() const {
+    return MIsEventRequired || MisSubmittedExplicitly;
+  }
 
   /// Queries SYCL queue for information.
   ///
@@ -264,6 +274,7 @@ public:
   /// \param Order specifies whether the queue being constructed as in-order
   /// or out-of-order.
   RT::PiQueue createQueue(QueueOrder Order) {
+    bool enable_profiling = false;
     RT::PiQueueProperties CreationFlags = 0;
 
     if (Order == QueueOrder::OOO) {
@@ -271,6 +282,7 @@ public:
     }
     if (MPropList.has_property<property::queue::enable_profiling>()) {
       CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
+      enable_profiling = true;
     }
     if (MPropList.has_property<property::queue::cuda::use_default_stream>()) {
       CreationFlags |= __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
@@ -294,6 +306,9 @@ public:
       Plugin.checkPiResult(Error);
     }
 
+    MIsEventRequired =
+        enable_profiling ||
+        (!MSupportOOO || getPlugin().getBackend() == backend::level_zero);
     return Queue;
   }
 
@@ -419,6 +434,27 @@ public:
   }
 
 private:
+  void setSubmittedExplicitly(bool isSubmittedExplicitly) {
+    MisSubmittedExplicitly = isSubmittedExplicitly;
+  }
+
+  void implicitly_do_submit() {
+    if (MEventsSharedToSubmit.empty()) {
+      return;
+    }
+
+    std::vector<detail::EventImplPtr> EventImpls;
+    EventImpls.reserve(DefaultSubmissionVectorSize);
+    {
+      std::lock_guard<mutex_class> Lock(MMutexSubmit);
+      EventImpls.swap(MEventsSharedToSubmit);
+    }
+
+    for (detail::EventImplPtr EventImpl : EventImpls) {
+      EventImpl->doIfNotFinalized();
+    }
+  }
+
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -429,40 +465,64 @@ private:
                     const std::shared_ptr<queue_impl> &Self,
                     const detail::code_location &Loc,
                     const SubmitPostProcessF *PostProcess) {
-    handler Handler(Self, MHostQueue);
-    Handler.saveCodeLoc(Loc);
-    CGF(Handler);
+    handler *Handler = new handler(Self, MHostQueue);
+    Handler->saveCodeLoc(Loc);
+    CGF(*Handler);
 
     // Scheduler will later omit events, that are not required to execute tasks.
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
-    const CG::CGTYPE Type = Handler.getType();
+    const CG::CGTYPE Type = Handler->getType();
     if (MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
                        Type == CG::CGTYPE::CodeplayInteropTask))
-      Handler.depends_on(MLastEvent);
+      Handler->depends_on(MLastEvent);
 
-    event Event;
+    SubmitPostProcessF PostProcessFunction =
+        PostProcess ? (*PostProcess) : nullptr;
+    auto MUploadDataFunctor = [this, &Self, &Loc, CGF, Handler, Type,
+                               PostProcessFunction](bool SubmittedExplicitly) {
+      Self->setSubmittedExplicitly(SubmittedExplicitly);
+      event Event;
 
-    if (PostProcess) {
-      bool IsKernel = Type == CG::Kernel;
-      bool KernelUsesAssert = false;
-      if (IsKernel)
-        KernelUsesAssert =
-            Handler.MKernel ? true
-                            : ProgramManager::getInstance().kernelUsesAssert(
-                                  Handler.MOSModuleHandle, Handler.MKernelName);
+      if (PostProcessFunction) {
+        bool IsKernel = Type == CG::Kernel;
+        bool KernelUsesAssert = false;
+        if (IsKernel)
+          KernelUsesAssert =
+              Handler->MKernel
+                  ? true
+                  : ProgramManager::getInstance().kernelUsesAssert(
+                        Handler->MOSModuleHandle, Handler->MKernelName);
 
-      Event = Handler.finalize();
+        Event = Handler->finalize();
 
-      (*PostProcess)(IsKernel, KernelUsesAssert, Event);
-    } else
-      Event = Handler.finalize();
+        PostProcessFunction(IsKernel, KernelUsesAssert, Event);
+      } else
+        Event = Handler->finalize();
 
-    if (MIsInorder)
-      MLastEvent = Event;
+      if (MIsInorder)
+        MLastEvent = Event;
 
-    addEvent(Event);
-    return Event;
+      addEvent(Event);
+      EventImplPtr EventImpl = detail::getSyclObjImpl(Event);
+      delete Handler;
+      return EventImpl;
+    };
+
+    if (MHostQueue) {
+      EventImplPtr EventImpl = MUploadDataFunctor(true);
+      return detail::createSyclObjFromImpl<event>(EventImpl);
+    }
+
+    event EventFake;
+    EventImplPtr EventImplFake = detail::getSyclObjImpl(EventFake);
+    addEvent(EventFake);
+    {
+      std::lock_guard<mutex_class> Lock(MMutexSubmit);
+      MEventsSharedToSubmit.push_back(EventImplFake);
+    }
+    EventImplFake->setSubmitFunctor(MUploadDataFunctor);
+    return EventFake;
   }
 
   // When instrumentation is enabled emits trace event for wait begin and
@@ -514,6 +574,10 @@ private:
   // Assume OOO support by default.
   bool MSupportOOO = true;
 
+  bool MIsEventRequired = false;
+  bool MisSubmittedExplicitly = true;
+  std::vector<EventImplPtr> MEventsSharedToSubmit;
+  std::mutex MMutexSubmit;
   // Thread pool for host task and event callbacks execution.
   // The thread pool is instantiated upon the very first call to getThreadPool()
   std::unique_ptr<ThreadPool> MHostTaskThreadPool;

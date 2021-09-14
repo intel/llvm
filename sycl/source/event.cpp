@@ -28,6 +28,44 @@ event::event(cl_event ClEvent, const context &SyclContext)
     : impl(std::make_shared<detail::event_impl>(
           detail::pi::cast<RT::PiEvent>(ClEvent), SyclContext)) {}
 
+event::event(const event &rhs) {
+  auto EventImpl = rhs.impl->doFinalize();
+  if (EventImpl) {
+    impl = EventImpl;
+  } else {
+    impl = rhs.impl;
+  }
+}
+
+event::event(event &&rhs) {
+  auto EventImpl = rhs.impl->doFinalize();
+  if (EventImpl) {
+    impl = EventImpl;
+  } else {
+    impl = std::move(rhs.impl);
+  }
+}
+
+event &event::operator=(const event &rhs) {
+  auto EventImpl = rhs.impl->doFinalize();
+  if (EventImpl) {
+    impl = EventImpl;
+  } else {
+    impl = rhs.impl;
+  }
+  return *this;
+}
+
+event &event::operator=(event &&rhs) {
+  auto EventImpl = rhs.impl->doFinalize();
+  if (EventImpl) {
+    impl = EventImpl;
+  } else {
+    impl = std::move(rhs.impl);
+  }
+  return *this;
+}
+
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
