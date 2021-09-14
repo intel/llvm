@@ -4596,8 +4596,10 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                        pi_uint32 num_events_in_waitlist,
                                        const pi_event *events_waitlist,
                                        pi_event *event) {
-  assert(!(flags & ~PI_USM_MIGRATION_TBD0), PI_INVALID_VALUE)
-      assert(queue != nullptr);
+
+  if (!(flags & ~PI_USM_MIGRATION_TBD0))
+    return PI_INVALID_VALUE;
+  assert(queue != nullptr);
   assert(ptr != nullptr);
   CUstream cuStream = queue->get();
   pi_result result = PI_SUCCESS;

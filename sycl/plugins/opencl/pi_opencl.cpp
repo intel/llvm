@@ -1014,7 +1014,8 @@ pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
   (void)ptr;
   (void)size;
 
-  assert(!(flags & ~PI_USM_MIGRATION_TBD0));
+  if (!(flags & ~PI_USM_MIGRATION_TBD0))
+    return PI_INVALID_VALUE;
 
   return cast<pi_result>(clEnqueueMarkerWithWaitList(
       cast<cl_command_queue>(queue), num_events_in_waitlist,

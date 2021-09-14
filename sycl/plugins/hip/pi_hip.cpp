@@ -4433,7 +4433,8 @@ pi_result hip_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                       const pi_event *events_waitlist,
                                       pi_event *event) {
 
-  assert(!(flags & ~PI_USM_MIGRATION_TBD0));
+  if (!(flags & ~PI_USM_MIGRATION_TBD0))
+    return PI_INVALID_VALUE;
   assert(queue != nullptr);
   assert(ptr != nullptr);
   hipStream_t hipStream = queue->get();
