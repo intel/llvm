@@ -137,9 +137,6 @@ static pi_result mapError(ze_result_t ZeResult) {
   return It->second;
 }
 
-// This will count the calls to Level-Zero
-static std::map<const char *, int> *ZeCallCount = nullptr;
-
 // Trace a call to Level-Zero RT
 #define ZE_CALL(ZeName, ZeArgs)                                                \
   {                                                                            \
@@ -183,6 +180,14 @@ static void zePrint(const char *Format, ...) {
     va_end(Args);
   }
 }
+
+// This will count the calls to Level-Zero
+static std::map<const char *, int> *ZeCallCount = [] {
+  if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
+    return new std::map<const char *, int>;
+  }
+  return (std::map<const char *, int> *)nullptr;
+}();
 
 // Helper function to implement zeHostSynchronize.
 // The behavior is to avoid infinite wait during host sync under ZE_DEBUG.
@@ -1527,10 +1532,6 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
   if (PiTraceValue == -1) { // Means print all PI traces
     PrintPiTrace = true;
-  }
-
-  if ((ZeDebug & ZE_DEBUG_CALL_COUNT) && !ZeCallCount) {
-    ZeCallCount = new std::map<const char *, int>;
   }
 
   if (NumEntries == 0 && Platforms != nullptr) {
