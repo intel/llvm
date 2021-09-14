@@ -962,7 +962,7 @@ piextDeviceGetNativeHandle(pi_device device, pi_native_handle *nativeHandle);
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI device from.
-/// \param platform is the platform of the device.
+/// \param platform is the platform of the device (optional).
 /// \param device is the PI device created from the native handle.
 __SYCL_EXPORT pi_result piextDeviceCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_platform platform, pi_device *device);
