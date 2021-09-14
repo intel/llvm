@@ -5,10 +5,10 @@
 #include <CL/sycl.hpp>
 #include <iostream>
 int main() {
-#if SYCL_EXT_ONEAPI_GROUP_MASK == 1
-  std::cout << "SYCL_EXT_ONEAPI_GROUP_MASK=1" << std::endl;
+#if SYCL_EXT_ONEAPI_SUB_GROUP_MASK == 1
+  std::cout << "SYCL_EXT_ONEAPI_SUB_GROUP_MASK=1" << std::endl;
 #else
-  std::cerr << "SYCL_EXT_ONEAPI_GROUP_MASK!=1" << std::endl;
+  std::cerr << "SYCL_EXT_ONEAPI_SUB_GROUP_MASK!=1" << std::endl;
   exit(1);
 #endif
   exit(0);

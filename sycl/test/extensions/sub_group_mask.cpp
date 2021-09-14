@@ -1,7 +1,7 @@
 // RUN: %clangxx -g -O0 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %t.out
 
-//==-------- group_mask.cpp - SYCL group_mask test -------------------------==//
+//==-------- sub_group_mask.cpp - SYCL sub-group mask test -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,9 +13,8 @@
 #include <iostream>
 
 int main() {
-  auto g =
-      sycl::detail::Builder::createGroupMask<sycl::ext::oneapi::group_mask>(
-          sycl::marray<uint32_t, 4>{0});
+  auto g = sycl::detail::Builder::createSubGroupMask<
+      sycl::ext::oneapi::sub_group_mask>(0);
   assert(g.none() && !g.any() && !g.all());
   assert(g[10] == false); // reference::operator[](id) const;
   g[10] = true;           // reference::operator=(bool);
@@ -26,38 +25,38 @@ int main() {
   assert(g[10] == false);
   assert(g[11] == true);
   assert(g.test(10) == false && g.test(11) == true);
-  g.set(101, 1);
+  g.set(30, 1);
   g.set(11, 0);
-  g.set(53, 1);
+  g.set(23, 1);
   assert(!g.none() && g.any() && !g.all());
 
   assert(g.count() == 2);
-  assert(g.find_low() == 53);
-  assert(g.find_high() == 101);
-  assert(g.size() == 128);
+  assert(g.find_low() == 23);
+  assert(g.find_high() == 30);
+  assert(g.size() == 32);
 
   g.reset();
   assert(g.none() && !g.any() && !g.all());
   assert(g.find_low() == g.size() && g.find_high() == g.size());
   g.set();
   assert(!g.none() && g.any() && g.all());
-  assert(g.find_low() == 0 && g.find_high() == 127);
+  assert(g.find_low() == 0 && g.find_high() == 31);
   g.flip();
   assert(g.none() && !g.any() && !g.all());
 
   g.flip(13);
-  g.flip(43);
-  g.flip(79);
+  g.flip(23);
+  g.flip(29);
   auto b = g;
   assert(b == g && !(b != g));
-  g.flip(101);
-  assert(g.find_high() == 101);
-  assert(b.find_high() == 79);
+  g.flip(31);
+  assert(g.find_high() == 31);
+  assert(b.find_high() == 29);
   assert(b != g && !(b == g));
-  b.flip(101);
+  b.flip(31);
   assert(b == g && !(b != g));
   b = g >> 1;
-  assert(b[12] && b[42] && b[78] && b[100]);
+  assert(b[12] && b[22] && b[28] && b[30]);
   b <<= 1;
   assert(b == g);
   g ^= ~b;
@@ -67,24 +66,25 @@ int main() {
   assert((g ^ ~g).all());
   b.reset_low();
   b.reset_high();
-  assert(!b[13] && b[43] && b[79] && !b[101]);
-  b.insert_bits(sycl::marray<uint32_t, 4>{1, 2, 4, 8});
-  assert(b[96] && b[65] && b[34] && b[3]);
-  g = b;
-  g <<= 33;
-  assert(!g[96] && !g[65] && !g[34] && !g[3] && g[98] && g[67] && g[36]);
-  b.insert_bits(sycl::marray<uint32_t, 4>{1, 1, 1, 1}, 15);
-  assert(b[111] && !b[96] && b[79] && !b[65] && b[47] && !b[34] && b[15] &&
-         b[3]);
-
-  auto r = b.extract_bits<class sycl::marray<uint32_t, 4>>();
-  for(size_t i=0; i<b.size();i++) {
-    assert(b[i]==(bool)(r[3-(i/32)] & (1<<(i%32))));
-  }
-  b >>= 79;
-  assert(b[32] && b[0]);
-  b.flip(32);
-  b.flip(0);
-  assert(b.none());
-  b.insert_bits((int)1);
+  assert(!b[13] && b[23] && b[29] && !b[31]);
+  b.insert_bits(0x01020408);
+  assert(b[24] && b[17] && b[10] && b[3]);
+  b <<= 13;
+  assert(!b[24] && !b[17] && !b[10] && !b[3] && b[30] && b[23] && b[16]);
+  b.insert_bits((char)0b01010101, 18);
+  assert(b[18] && b[20] && b[22] && b[24] && b[30] && !b[23] && b[16]);
+  b[3] = true;
+  b.insert_bits(sycl::marray<char, 8>{1, 2, 4, 8, 16, 32, 64, 128}, 5);
+  assert(!b[18] && !b[20] && !b[22] && !b[24] && !b[30] && !b[16] && b[3] &&
+         b[5] && b[14] && b[23]);
+  char r;
+  b.extract_bits(r);
+  assert(r == 0b00101000);
+  long r2 = -1;
+  b.extract_bits(r2, 16);
+  assert(r2 == 128);
+  b[31] = true;
+  sycl::marray<char, 6> r3{-1};
+  b.extract_bits(r3, 14);
+  assert(r3[0] == 1 && r3[1] == 2 && r3[2] == 2 && !r3[3] && !r3[4] && !r3[5]);
 }
