@@ -7,6 +7,10 @@ It is built on top of Level-Zero runtime enabled with [Level-Zero API](https://s
 The Level-Zero backend is aimed to provide the best possible performance of SYCL application on a variety of targets supported.
 The currently supported targets are all Intel GPUs starting with Gen9.
 
+This extension provides a feature-test macro as described in the core SYCL specification section 6.3.3 "Feature test macros".
+Therefore, an implementation supporting this extension must predefine the macro `SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO`.
+Applications can test for the existence of this macro to determine if the implementation supports this feature.
+
 NOTE: This extension is following SYCL 2020 backend specification. Prior API for interoperability with Level-Zero is marked
       as deprecated and will be removed in the next release.
 
@@ -164,7 +168,7 @@ make_platform<backend::ext_oneapi_level_zero>(
         backend::ext_oneapi_level_zero, platform> &)
 ```
 </td>
-<td>Constructs a SYCL platform instance from a Level-Zero <code>ze_driver_handle_t</code></td>
+<td>Constructs a SYCL platform instance from a Level-Zero <code>ze_driver_handle_t</code>. The SYCL execution environment contains a fixed number of platforms that are enumerated via <code>sycl::platform::get_platforms()</code>. Calling this function does not create a new platform. Rather it merely creates a <code>sycl::platform</code> object that is a copy of one of the platforms from that enumeration.</td>
 </tr><tr>
 <td>
 
@@ -174,7 +178,7 @@ make_device<backend::ext_oneapi_level_zero>(
         backend::ext_oneapi_level_zero, device> &)
 ```
 </td>
-<td>Constructs a SYCL device instance from a Level-Zero <code>ze_device_handle_t</code>.</td>
+<td>Constructs a SYCL device instance from a Level-Zero <code>ze_device_handle_t</code>. The SYCL execution environment contains a fixed number of devices that are enumerated via <code>sycl::device::get_devices()</code> and <code>sycl::device::get_sub_devices(...)</code>. Calling this function does not create a new device. Rather it merely creates a <code>sycl::device</code> object that is a copy of one of the devices from those enumerations.</td>
 </tr><tr>
 <td>
 
@@ -219,7 +223,7 @@ make_kernel_bundle<backend::ext_oneapi_level_zero,
     const context &Context)
 ```
 </td>
-<td>Constructs a SYCL kernel_bundle instance from a Level-Zero <code>ze_module_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The Level-Zero module must be fully linked (i.e. not require further linking through [<code>zeModuleDynamicLink</code>](https://spec.oneapi.com/level-zero/latest/core/api.html?highlight=zemoduledynamiclink#_CPPv419zeModuleDynamicLink8uint32_tP18ze_module_handle_tP28ze_module_build_log_handle_t)), and thus the SYCL kernel_bundle is created in the "executable" state.</td>
+<td>Constructs a SYCL kernel_bundle instance from a Level-Zero <code>ze_module_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The Level-Zero module must be fully linked (i.e. not require further linking through <a href="https://spec.oneapi.com/level-zero/latest/core/api.html?highlight=zemoduledynamiclink#_CPPv419zeModuleDynamicLink8uint32_tP18ze_module_handle_tP28ze_module_build_log_handle_t"><code>zeModuleDynamicLink</code></a>), and thus the SYCL kernel_bundle is created in the "executable" state.</td>
 </tr>
 </table>
 
