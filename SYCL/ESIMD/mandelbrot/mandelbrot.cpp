@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// UNSUPPORTED: cuda || rocm
+// UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %T/output.ppm %S/golden_hw.ppm
 

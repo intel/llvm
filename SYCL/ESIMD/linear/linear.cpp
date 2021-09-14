@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// UNSUPPORTED: cuda || rocm
+// UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out %S/linear_in.bmp %S/linear_gold_hw.bmp
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %S/linear_in.bmp %S/linear_gold_hw.bmp

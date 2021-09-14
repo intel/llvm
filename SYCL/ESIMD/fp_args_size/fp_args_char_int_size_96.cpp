@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// UNSUPPORTED: cuda || rocm
+// UNSUPPORTED: cuda || hip
 // RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl -I%S/.. %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 

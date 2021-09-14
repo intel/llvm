@@ -4,7 +4,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
 // Missing __spirv_GroupAll on AMD:
-// XFAIL: rocm_amd
+// XFAIL: hip_amd
 
 #include "support.h"
 #include <CL/sycl.hpp>

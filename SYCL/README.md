@@ -81,19 +81,19 @@ list of configurations. Each configuration includes backend separated
 from comma-separated list of target devices with colon. Example:
 
 ```
--DCHECK_SYCL_ALL="opencl:cpu,host;level_zero:gpu,host;cuda:gpu;rocm:gpu"
+-DCHECK_SYCL_ALL="opencl:cpu,host;level_zero:gpu,host;cuda:gpu;hip:gpu"
 ```
 
 ***SYCL_BE*** SYCL backend to be used for testing. Supported values are:
  - **opencl** - for OpenCL backend;
  - **cuda** - for CUDA backend;
- - **rocm** - for ROCm backend;
+ - **hip** - for HIP backend;
  - **level_zero** - Level Zero backend.
 
 ***SYCL_TARGET_DEVICES*** comma separated list of target devices for testing.
 Default value is cpu,gpu,acc,host. Supported values are:
  - **cpu**  - CPU device available in OpenCL backend only;
- - **gpu**  - GPU device available in OpenCL, Level Zero, CUDA, and ROCm backends;
+ - **gpu**  - GPU device available in OpenCL, Level Zero, CUDA, and HIP backends;
  - **acc**  - FPGA emulator device available in OpenCL backend only;
  - **host** - SYCL Host device available with all backends.
 
@@ -106,12 +106,12 @@ specified by this variable.
 
 ***LEVEL_ZERO_LIBS_DIR*** path to Level Zero libraries.
 
-***ROCM_PLATFORM*** platform selection for ROCm targeted devices.
+***HIP_PLATFORM*** platform selection for HIP targeted devices.
 Defaults to AMD if no value is given. Supported values are:
- - **AMD**    - for ROCm to target AMD GPUs
- - **NVIDIA** - for ROCm to target NVIDIA GPUs
+ - **AMD**    - for HIP to target AMD GPUs
+ - **NVIDIA** - for HIP to target NVIDIA GPUs
  
- ***AMD_ARCH*** Flag must be set for when using ROCm triple.
+ ***AMD_ARCH*** Flag must be set for when using HIP AMD triple.
  For example it may be set to "gfx906".
 
 
@@ -134,7 +134,7 @@ unavailable.
 
  * **windows**, **linux** - host OS;
  * **cpu**, **gpu**, **host**, **accelerator** - target device;
- * **cuda**, **rocm**, **opencl**, **level_zero** - target backend;
+ * **cuda**, **hip**, **opencl**, **level_zero** - target backend;
  * **sycl-ls** - sycl-ls tool availability;
  * **cl_options** - CL command line options recognized (or not) by compiler;
  * **opencl_icd** - OpenCL ICD loader availability;
@@ -152,7 +152,7 @@ configure specific single test execution in the command line:
  * **dpcpp_compiler** - full path to dpcpp compiler;
  * **target_device** - comma-separated list of target devices (cpu, gpu, acc,
    host);
- * **sycl_be** - SYCL backend to be used (opencl, level_zero, cuda, rocm);
+ * **sycl_be** - SYCL backend to be used (opencl, level_zero, cuda, hip);
  * **dump_ir** - if IR dumping is supported for compiler (True, False);
  * **gpu-intel-dg1** - tells LIT infra that Intel GPU DG1 is present in the
    system. It is developer / CI infra responsibility to make sure that the

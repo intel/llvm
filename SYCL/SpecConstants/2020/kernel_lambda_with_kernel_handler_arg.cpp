@@ -2,7 +2,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 //
 // Hits an assert in the Lower Work Group Scope Code pass on AMD:
-// XFAIL: rocm_amd
+// XFAIL: hip_amd
 
 // This test checks all possible scenarios of running single_task, parallel_for
 // and parallel_for_work_group to verify that this code compiles and runs

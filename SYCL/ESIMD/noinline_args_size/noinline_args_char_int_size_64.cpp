@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// UNSUPPORTED: cuda || rocm
+// UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
 // RUN: env IGC_FunctionControl=3 IGC_ForceInlineStackCallWithImplArg=1 %GPU_RUN_PLACEHOLDER %t.out
 

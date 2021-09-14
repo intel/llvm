@@ -8,7 +8,7 @@
 // This is a test for a bug found simd_view::operator--
 //
 // REQUIRES: gpu
-// UNSUPPORTED: cuda || rocm
+// UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 

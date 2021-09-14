@@ -1,4 +1,4 @@
-// REQUIRES: gpu, cuda, rocm, opencl, sycl-ls
+// REQUIRES: gpu, cuda, hip, opencl, sycl-ls
 
 // RUN: sycl-ls --verbose >%t.default.out
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-OPENCL,CHECK-CUSTOM-GPU-OPENCL --input-file %t.default.out
@@ -15,11 +15,11 @@
 // CHECK-BUILTIN-GPU-CUDA: gpu_selector(){{.*}}GPU : CUDA
 // CHECK-CUSTOM-GPU-CUDA: custom_selector(gpu){{.*}}GPU : CUDA
 
-// RUN: env SYCL_DEVICE_FILTER=rocm sycl-ls --verbose >%t.rocm.out
-// RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-ROCM,CHECK-CUSTOM-GPU-ROCM --input-file %t.rocm.out
+// RUN: env SYCL_DEVICE_FILTER=hip sycl-ls --verbose >%t.hip.out
+// RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-HIP,CHECK-CUSTOM-GPU-HIP --input-file %t.hip.out
 
-// CHECK-BUILTIN-GPU-ROCM: gpu_selector(){{.*}}GPU : ROCm
-// CHECK-CUSTOM-GPU-ROCM: custom_selector(gpu){{.*}}GPU : ROCm
+// CHECK-BUILTIN-GPU-HIP: gpu_selector(){{.*}}GPU : HIP
+// CHECK-CUSTOM-GPU-HIP: custom_selector(gpu){{.*}}GPU : HIP
 
 //==---- sycl-ls-gpu-sycl-be.cpp - SYCL test for discovered/selected devices
 //--==//

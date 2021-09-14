@@ -39,7 +39,7 @@ int main() {
   bool HasLevelZeroDevices = false;
   bool HasOpenCLDevices = false;
   bool HasCUDADevices = false;
-  bool HasROCmDevices = false;
+  bool HasHIPDevices = false;
   bool HasOpenCLGPU = false;
   bool HasLevelZeroGPU = false;
 
@@ -51,8 +51,8 @@ int main() {
       HasOpenCLDevices = true;
     } else if (Backend == backend::cuda) {
       HasCUDADevices = true;
-    } else if (Backend == backend::rocm) {
-      HasROCmDevices = true;
+    } else if (Backend == backend::hip) {
+      HasHIPDevices = true;
     }
   }
 
@@ -67,7 +67,7 @@ int main() {
   std::cout << "HasLevelZeroDevices = " << HasLevelZeroDevices << std::endl;
   std::cout << "HasOpenCLDevices    = " << HasOpenCLDevices << std::endl;
   std::cout << "HasCUDADevices      = " << HasCUDADevices << std::endl;
-  std::cout << "HasROCmDevices      = " << HasROCmDevices << std::endl;
+  std::cout << "HasHIPDevices       = " << HasHIPDevices << std::endl;
   std::cout << "HasOpenCLGPU        = " << HasOpenCLGPU << std::endl;
   std::cout << "HasLevelZeroGPU     = " << HasLevelZeroGPU << std::endl;
 
@@ -202,15 +202,15 @@ int main() {
     std::cout << "...PASS" << std::endl;
   }
 
-  if (HasROCmDevices) {
-    std::cout << "Test 'rocm'";
-    device d19(ext::oneapi::filter_selector("rocm"));
-    assert(d19.get_platform().get_backend() == backend::rocm);
+  if (HasHIPDevices) {
+    std::cout << "Test 'hip'";
+    device d19(ext::oneapi::filter_selector("hip"));
+    assert(d19.get_platform().get_backend() == backend::hip);
     std::cout << "...PASS" << std::endl;
 
-    std::cout << "test 'rocm:gpu'";
-    device d20(ext::oneapi::filter_selector("rocm:gpu"));
-    assert(d20.is_gpu() && d19.get_platform().get_backend() == backend::rocm);
+    std::cout << "test 'hip:gpu'";
+    device d20(ext::oneapi::filter_selector("hip:gpu"));
+    assert(d20.is_gpu() && d19.get_platform().get_backend() == backend::hip);
     std::cout << "...PASS" << std::endl;
   }
 

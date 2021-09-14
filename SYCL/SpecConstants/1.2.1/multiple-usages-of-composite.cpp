@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda || rocm
+// UNSUPPORTED: cuda || hip
 //
 // RUN: %clangxx -fsycl %s -o %t.out -v
 // RUN: %HOST_RUN_PLACEHOLDER %t.out %HOST_CHECK_PLACEHOLDER

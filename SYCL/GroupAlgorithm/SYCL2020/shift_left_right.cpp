@@ -5,7 +5,7 @@
 //
 // Missing __spirv_SubgroupId, __spirv_SubgroupMaxSize, __spirv_SubgroupShuffle*
 // on AMD:
-// XFAIL: rocm_amd
+// XFAIL: hip_amd
 //
 //==------------ shift_left_right.cpp -*- C++ -*----------------------------==//
 //

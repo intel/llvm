@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda || rocm
+// UNSUPPORTED: cuda || hip
 // CUDA does not support device code splitting.
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel -o %t.out %s

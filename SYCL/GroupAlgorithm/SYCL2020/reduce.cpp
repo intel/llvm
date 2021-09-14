@@ -4,7 +4,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
 // Missinsg __spirv_GroupIAdd, __spirv_GroupSMin and __spirv_GroupSMax on AMD:
-// XFAIL: rocm_amd
+// XFAIL: hip_amd
 
 // TODO: enable compile+runtime checks for operations defined in SPIR-V 1.3.
 // That requires either adding a switch to clang (-spirv-max-version=1.3) or

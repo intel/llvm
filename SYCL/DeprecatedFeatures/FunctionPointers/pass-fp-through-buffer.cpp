@@ -1,5 +1,5 @@
 // REQUIRES: TEMPORARILY_DISABLED
-// UNSUPPORTED: cuda || rocm
+// UNSUPPORTED: cuda || hip
 // CUDA does not support the function pointer as kernel argument extension.
 
 // RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl -D__SYCL_INTERNAL_API %s -o %t.out

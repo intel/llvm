@@ -1,5 +1,5 @@
 // REQUIRES: ocloc, gpu
-// UNSUPPORTED: cuda || rocm
+// UNSUPPORTED: cuda || hip
 // CUDA does neither support device code splitting nor SPIR.
 //
 // RUN: %clangxx -fsycl -fsycl-device-code-split=per_source \

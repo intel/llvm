@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// UNSUPPORTED: cuda || rocm
+// UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
