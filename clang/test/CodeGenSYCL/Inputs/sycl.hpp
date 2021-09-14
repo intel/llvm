@@ -197,7 +197,6 @@ public:
 private:
   void __init(__attribute__((opencl_global)) dataT *Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
-  void __init_esimd(__attribute__((opencl_global)) dataT *Ptr) {}
   friend class stream;
 };
 

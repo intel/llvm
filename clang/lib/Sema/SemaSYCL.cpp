@@ -58,7 +58,6 @@ enum KernelInvocationKind {
 };
 
 static constexpr llvm::StringLiteral InitMethodName = "__init";
-static constexpr llvm::StringLiteral InitESIMDMethodName = "__init_esimd";
 static constexpr llvm::StringLiteral InitSpecConstantsBuffer =
     "__init_specialization_constants_buffer";
 static constexpr llvm::StringLiteral FinalizeMethodName = "__finalize";
@@ -1981,11 +1980,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   bool handleSpecialType(FieldDecl *FD, QualType FieldTy) {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
-    llvm::StringLiteral MethodName = KernelDecl->hasAttr<SYCLSimdAttr>()
-                                         ? InitESIMDMethodName
-                                         : InitMethodName;
     CXXMethodDecl *InitMethod =
-        isCXXRecordWithInitOrFinalizeMember(RecordDecl, MethodName);
+        isCXXRecordWithInitOrFinalizeMember(RecordDecl, InitMethodName);
     assert(InitMethod && "The type must have the __init method");
 
     // Don't do -1 here because we count on this to be the first parameter added
@@ -2089,11 +2085,8 @@ public:
                              QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
-    llvm::StringLiteral MethodName = KernelDecl->hasAttr<SYCLSimdAttr>()
-                                         ? InitESIMDMethodName
-                                         : InitMethodName;
     CXXMethodDecl *InitMethod =
-        isCXXRecordWithInitOrFinalizeMember(RecordDecl, MethodName);
+        isCXXRecordWithInitOrFinalizeMember(RecordDecl, InitMethodName);
     assert(InitMethod && "The type must have the __init method");
 
     // Get access mode of accessor.
@@ -2244,10 +2237,8 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
   bool handleSpecialType(QualType FieldTy) {
     const CXXRecordDecl *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
-    llvm::StringLiteral MethodName =
-        IsSIMD ? InitESIMDMethodName : InitMethodName;
     CXXMethodDecl *InitMethod =
-        isCXXRecordWithInitOrFinalizeMember(RecordDecl, MethodName);
+        isCXXRecordWithInitOrFinalizeMember(RecordDecl, InitMethodName);
     assert(InitMethod && "The type must have the __init method");
     for (const ParmVarDecl *Param : InitMethod->parameters())
       addParam(Param->getType());
@@ -2814,11 +2805,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return VD;
   }
 
-  const llvm::StringLiteral getInitMethodName() const {
-    bool IsSIMDKernel = isESIMDKernelType(KernelObj);
-    return IsSIMDKernel ? InitESIMDMethodName : InitMethodName;
-  }
-
   // Default inits the type, then calls the init-method in the body.
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
     addFieldInit(FD, Ty, None,
@@ -2827,7 +2813,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     addFieldMemberExpr(FD, Ty);
 
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
-    createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
+    createSpecialMethodCall(RecordDecl, InitMethodName, BodyStmts);
     CXXMethodDecl *FinalizeMethod =
         isCXXRecordWithInitOrFinalizeMember(RecordDecl, FinalizeMethodName);
     // A finalize-method is expected for special type such as stream.
@@ -2842,7 +2828,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   bool handleSpecialType(const CXXBaseSpecifier &BS, QualType Ty) {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     addBaseInit(BS, Ty, InitializationKind::CreateDefault(KernelCallerSrcLoc));
-    createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
+    createSpecialMethodCall(RecordDecl, InitMethodName, BodyStmts);
     return true;
   }
 
