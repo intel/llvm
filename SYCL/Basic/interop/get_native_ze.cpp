@@ -27,7 +27,8 @@ int main() {
 
   ze_kernel_handle_t Handle = Kernel.get_native<BE>();
 
-  ze_kernel_properties_t KernelProperties;
+  ze_kernel_properties_t KernelProperties = {
+      ZE_STRUCTURE_TYPE_KERNEL_PROPERTIES, 0};
   ze_result_t Err = zeKernelGetProperties(Handle, &KernelProperties);
   assert(Err == ZE_RESULT_SUCCESS);
 
