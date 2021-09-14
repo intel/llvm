@@ -28,7 +28,6 @@ Developing oneAPI DPC++ Compiler
    CompilerAndRuntimeDesign
    KernelParameterPassing
    EnvironmentVariables
-   InternalEnvironmentVariables
    PluginInterface
    ABIPolicyGuide
    SpecializationConstants
