@@ -2732,8 +2732,8 @@ pi_result hip_piMemImageCreate(pi_context context, pi_mem_flags flags,
 
 /// \TODO Not implemented
 pi_result hip_piMemImageGetInfo(pi_mem image, pi_image_info param_name,
-                                 size_t param_value_size, void *param_value,
-                                 size_t *param_value_size_ret) {
+                                size_t param_value_size, void *param_value,
+                                size_t *param_value_size_ret) {
   (void)image;
   (void)param_name;
   (void)param_value_size;
@@ -2798,8 +2798,8 @@ pi_result hip_piProgramBuild(pi_program program, pi_uint32 num_devices,
 }
 
 /// \TODO Not implemented
-pi_result hip_piProgramCreate(pi_context context, const void *il,
-                               size_t length, pi_program *res_program) {
+pi_result hip_piProgramCreate(pi_context context, const void *il, size_t length,
+                              pi_program *res_program) {
   (void)context;
   (void)il;
   (void)length;
@@ -4226,11 +4226,11 @@ pi_result hip_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
 
 /// \TODO Not implemented in HIP, requires untie from OpenCL
 pi_result hip_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
-                                     const void *fill_color,
-                                     const size_t *origin, const size_t *region,
-                                     pi_uint32 num_events_in_wait_list,
-                                     const pi_event *event_wait_list,
-                                     pi_event *event) {
+                                    const void *fill_color,
+                                    const size_t *origin, const size_t *region,
+                                    pi_uint32 num_events_in_wait_list,
+                                    const pi_event *event_wait_list,
+                                    pi_event *event) {
   (void)command_queue;
   (void)image;
   (void)fill_color;
