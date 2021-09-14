@@ -1530,10 +1530,15 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   }
 
   static std::once_flag ZeCallCountInitialized;
-  std::call_once(ZeCallCountInitialized, []() {
-    if (ZeDebug & ZE_DEBUG_CALL_COUNT)
-      ZeCallCount = new std::map<const char *, int>;
-  });
+  try {
+    std::call_once(ZeCallCountInitialized, []() {
+      if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
+        ZeCallCount = new std::map<const char *, int>;
+      }
+    });
+  } catch (...) {
+    return PI_OUT_OF_HOST_MEMORY;
+  }
 
   if (NumEntries == 0 && Platforms != nullptr) {
     return PI_INVALID_VALUE;
