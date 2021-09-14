@@ -43,6 +43,9 @@ constexpr bool ConfigFromCompileDefEnabled = false;
 constexpr bool ConfigFromCompileDefEnabled = true;
 #endif // DISABLE_CONFIG_FROM_COMPILE_TIME
 
+constexpr int MAX_CONFIG_NAME = 256;
+constexpr int MAX_CONFIG_VALUE = 256;
+
 // Enum of config IDs for accessing other arrays
 enum ConfigID {
   START = 0,
@@ -58,7 +61,7 @@ constexpr const char *getStrOrNullptr(const char *Str) {
 }
 
 // Intializes configs from the configuration file
-void readConfig();
+void readConfig(bool ForceInitialization = false);
 
 template <ConfigID Config> class SYCLConfigBase;
 
@@ -136,7 +139,7 @@ public:
          {"PI_LEVEL_ZERO", backend::level_zero},
          {"PI_LEVEL0", backend::level_zero}, // for backward compatibility
          {"PI_CUDA", backend::cuda},
-         {"PI_ROCM", backend::rocm}}};
+         {"PI_HIP", backend::hip}}};
     if (ValStr) {
       auto It = std::find_if(
           std::begin(SyclBeMap), std::end(SyclBeMap),
@@ -145,7 +148,7 @@ public:
           });
       if (It == SyclBeMap.end())
         pi::die("Invalid backend. "
-                "Valid values are PI_OPENCL/PI_LEVEL_ZERO/PI_CUDA/PI_ROCM");
+                "Valid values are PI_OPENCL/PI_LEVEL_ZERO/PI_CUDA/PI_HIP");
       static backend Backend = It->second;
       BackendPtr = &Backend;
     }
@@ -279,6 +282,38 @@ public:
     // the threads will get the same value as the first thread.
     Initialized = true;
     return FilterList;
+  }
+};
+
+template <> class SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS> {
+  using BaseT = SYCLConfigBase<SYCL_ENABLE_DEFAULT_CONTEXTS>;
+
+public:
+  static bool get() {
+#ifdef WIN32
+    constexpr bool DefaultValue = false;
+#else
+    constexpr bool DefaultValue = true;
+#endif
+
+    const char *ValStr = getCachedValue();
+
+    if (!ValStr)
+      return DefaultValue;
+
+    return ValStr[0] == '1';
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
   }
 };
 

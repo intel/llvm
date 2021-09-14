@@ -112,3 +112,14 @@
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT %s
 // SYCL_TARGET_OPT_AOT-NOT: error: cannot deduce implicit triple value for '-Xsycl-target-backend'
 // SYCL_TARGET_OPT_AOT: {{opencl-aot|ocloc|aoc}}{{.*}} "-DFOO"
+
+/// Do not process directories when checking for default sections in fat objs
+// RUN:  %clangxx -### -Wl,-rpath,%S -fsycl -fsycl-targets=spir64_x86_64 %t_empty.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix NO_DIR_CHECK %s
+// RUN:  %clangxx -### -Xlinker -rpath -Xlinker %S -fsycl -fsycl-targets=spir64_fpga %t_empty.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix NO_DIR_CHECK %s
+// RUN:  %clangxx -### -Wl,-rpath,%S -fsycl -fsycl-targets=spir64_gen %t_empty.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix NO_DIR_CHECK %s
+// RUN:  %clangxx -### -Wl,-rpath,%S -fsycl -fintelfpga %t_empty.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix NO_DIR_CHECK %s
+// NO_DIR_CHECK-NOT: clang-offload-bundler: error: '{{.*}}': Is a directory

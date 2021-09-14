@@ -366,6 +366,11 @@ TEST(Assert, TestPositive) {
       printf("Test is not supported on CUDA platform, skipping\n");
       return;
     }
+
+    if (Plt.get_backend() == sycl::backend::hip) {
+      printf("Test is not supported on HIP platform, skipping\n");
+      return;
+    }
   }
 
 #ifndef _WIN32

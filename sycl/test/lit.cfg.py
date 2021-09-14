@@ -104,7 +104,7 @@ if triple == 'nvptx64-nvidia-cuda':
     config.available_features.add('cuda')
 
 if triple == 'amdgcn-amd-amdhsa':
-    config.available_features.add('rocm_amd')
+    config.available_features.add('hip_amd')
     # For AMD the specific GPU has to be specified with --offload-arch
     if not re.match('.*--offload-arch.*', config.sycl_clang_extra_flags):
         raise Exception("Error: missing --offload-arch flag when trying to "  \
