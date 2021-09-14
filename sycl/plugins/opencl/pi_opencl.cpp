@@ -657,11 +657,12 @@ pi_result piProgramCreateWithBinary(
   return ret_err;
 }
 
-// Function gets characters between delimeter's in str 
+// Function gets characters between delimeter's in str
 // then checks if they are equal to the sub_str.
 // returns true if there is at least one instance
 // returns false if there are no instances of the name
-bool is_in_seperated_string(const std::string &str, char delimeter, std::string sub_str) {
+bool is_in_seperated_string(const std::string &str, char delimeter,
+                            std::string sub_str) {
   size_t beg = 0;
   size_t length = 0;
   for (const auto &x : str) {
@@ -677,7 +678,7 @@ bool is_in_seperated_string(const std::string &str, char delimeter, std::string 
   }
   if (length != 0)
     if (str.substr(beg, length) == sub_str)
-      return true;	
+      return true;
 
   return false;
 }

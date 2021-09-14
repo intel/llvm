@@ -3532,7 +3532,8 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
 // then checks if they are equal to the sub_str.
 // returns true if there is at least one instance
 // returns false if there are no instances of the name
-bool is_in_seperated_string(const std::string &str, char delimeter, std::string sub_str) {
+bool is_in_seperated_string(const std::string &str, char delimeter,
+                            std::string sub_str) {
   size_t beg = 0;
   size_t length = 0;
   for (const auto &x : str) {
@@ -3558,16 +3559,16 @@ pi_result piProgramHasKernel(pi_program program, const char *kernel_name,
   assert(has_kernel != nullptr);
 
   size_t Size;
-  pi_result ret_err =
-      piProgramGetInfo(program, PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size);
+  pi_result ret_err = piProgramGetInfo(program, PI_PROGRAM_INFO_KERNEL_NAMES, 0,
+                                       nullptr, &Size);
   if (ret_err != PI_SUCCESS) {
     *has_kernel = false;
     return ret_err;
   }
 
   std::string ClResult(Size, ' ');
-  ret_err =
-      piProgramGetInfo(program, PI_PROGRAM_INFO_KERNEL_NAMES, ClResult.size(), &ClResult[0], nullptr);
+  ret_err = piProgramGetInfo(program, PI_PROGRAM_INFO_KERNEL_NAMES,
+                             ClResult.size(), &ClResult[0], nullptr);
   if (ret_err != PI_SUCCESS) {
     *has_kernel = false;
     return ret_err;
