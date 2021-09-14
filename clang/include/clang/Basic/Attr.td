@@ -1355,7 +1355,7 @@ def SYCLIntelNumSimdWorkItems : InheritableAttr {
 }
 
 def SYCLIntelUseStallEnableClusters : InheritableAttr {
-  let Spellings = [CXX11<"intel", "use_stall_enable_clusters">];
+  let Spellings = [CXX11<"intel","use_stall_enable_clusters">];
   let LangOpts = [SYCLIsHost, SYCLIsDevice];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [SYCLIntelUseStallEnableClustersAttrDocs];
