@@ -43,18 +43,15 @@
 #pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 template <class _Alloc>
 class __allocator_destructor
 {
-    typedef _LIBCPP_NODEBUG_TYPE allocator_traits<_Alloc> __alloc_traits;
+    typedef _LIBCPP_NODEBUG allocator_traits<_Alloc> __alloc_traits;
 public:
-    typedef _LIBCPP_NODEBUG_TYPE typename __alloc_traits::pointer pointer;
-    typedef _LIBCPP_NODEBUG_TYPE typename __alloc_traits::size_type size_type;
+    typedef _LIBCPP_NODEBUG typename __alloc_traits::pointer pointer;
+    typedef _LIBCPP_NODEBUG typename __alloc_traits::size_type size_type;
 private:
     _Alloc& __alloc_;
     size_type __s_;
@@ -1873,7 +1870,5 @@ atomic_compare_exchange_weak_explicit(shared_ptr<_Tp>* __p, shared_ptr<_Tp>* __v
 #endif // !defined(_LIBCPP_HAS_NO_ATOMIC_HEADER)
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___MEMORY_SHARED_PTR_H

@@ -22,7 +22,8 @@
 
 using namespace cl::sycl;
 
-int TestCounter;
+int TestCounter = 0;
+int DeviceRetainCounter = 0;
 
 static pi_result redefinedContextRetain(pi_context c) {
   ++TestCounter;
@@ -36,6 +37,7 @@ static pi_result redefinedQueueRetain(pi_queue c) {
 
 static pi_result redefinedDeviceRetain(pi_device c) {
   ++TestCounter;
+  ++DeviceRetainCounter;
   return PI_SUCCESS;
 }
 
@@ -111,7 +113,8 @@ TEST(GetNative, GetNativeHandle) {
   get_native<backend::opencl>(Device);
   get_native<backend::opencl>(Event);
 
-  // When creating a context, the piDeviceRetain is called so here is the 6
-  // retain calls
-  ASSERT_EQ(TestCounter, 6) << "Not all the retain methods was called";
+  // Depending on global caches state, piDeviceRetain is called either once or
+  // twice, so there'll be 5 or 6 calls.
+  ASSERT_EQ(TestCounter, 5 + DeviceRetainCounter - 1)
+      << "Not all the retain methods were called";
 }

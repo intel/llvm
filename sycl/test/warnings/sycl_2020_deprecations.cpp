@@ -140,6 +140,12 @@ int main() {
   auto MCA = sycl::info::device::max_constant_args;
   (void)MCA;
 
+  // expected-warning@+1{{'extensions' is deprecated: platform::extensions is deprecated, use device::get_info() with info::device::aspects instead.}}
+  auto PE = sycl::info::platform::extensions;
+
+  // expected-warning@+1{{'extensions' is deprecated: device::extensions is deprecated, use info::device::aspects instead.}}
+  auto DE = sycl::info::device::extensions;
+
   // expected-warning@+3{{'atomic_fence' is deprecated: use sycl::atomic_fence instead}}
   // expected-error@+2{{no member named 'ONEAPI' in namespace 'sycl'}}
   // expected-error@+2{{no member named 'ONEAPI' in namespace 'sycl'}}
@@ -149,6 +155,29 @@ int main() {
   // expected-error@+1{{no member named 'INTEL' in namespace 'sycl'}}
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
+
+  // expected-warning@+1{{'intel' is deprecated: use 'ext::intel::experimental' instead}}
+  auto SLExtIntel = sycl::ext::intel::source_language::opencl_c;
+  (void)SLExtIntel;
+
+  // expected-warning@+1{{'level_zero' is deprecated: use 'ext_oneapi_level_zero' instead}}
+  auto LevelZeroBackend = sycl::backend::level_zero;
+  (void)LevelZeroBackend;
+
+  sycl::half Val = 1.0f;
+  // expected-warning@+1{{'bit_cast<unsigned short, sycl::detail::half_impl::half>' is deprecated: use 'sycl::bit_cast' instead}}
+  auto BitCastRes = sycl::detail::bit_cast<unsigned short>(Val);
+  (void)BitCastRes;
+
+  // expected-warning@+1{{'submit_barrier' is deprecated: use 'ext_oneapi_submit_barrier' instead}}
+  Queue.submit_barrier();
+
+  // expected-warning@+1{{'barrier' is deprecated: use 'ext_oneapi_barrier' instead}}
+  Queue.submit([&](sycl::handler &CGH) { CGH.barrier(); });
+  
+  // expected-warning@+1{{'half' is deprecated: use 'sycl::half' instead}}
+  half H;
+  (void)H;
 
   return 0;
 }

@@ -4823,6 +4823,15 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
     O << "\n";
   }
+
+  // Sentinel in place for 2 reasons:
+  // 1- to make sure we don't get a warning because this collection is empty.
+  // 2- to provide an obvious value that we can use when debugging to see that
+  //    we have left valid kernel information.
+  // integer-field values are negative, so they are obviously invalid, notable
+  // enough to 'stick out' and 'negative enough' to not be easily reachable by a
+  // mathematical error.
+  O << "  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 }, \n";
   O << "};\n\n";
 
   O << "// Specializations of KernelInfo for kernel function types:\n";
@@ -5339,48 +5348,4 @@ bool Util::matchQualifiedTypeName(QualType Ty,
     return false; // only classes/structs supported
   const auto *Ctx = cast<DeclContext>(RecTy);
   return Util::matchContext(Ctx, Scopes);
-}
-
-void Sema::MarkSYCLKernel(SourceLocation NewLoc, QualType Ty,
-                          bool IsInstantiation) {
-  auto MangleCallback = [](ASTContext &Ctx,
-                           const NamedDecl *ND) -> llvm::Optional<unsigned> {
-    if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
-      Ctx.AddSYCLKernelNamingDecl(RD);
-    // We always want to go into the lambda mangling (skipping the unnamed
-    // struct version), so make sure we return a value here.
-    return 1;
-  };
-
-  std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
-      Context, Context.getDiagnostics(), MangleCallback)};
-  llvm::raw_null_ostream Out;
-  Ctx->mangleTypeName(Ty, Out);
-
-  // Evaluate whether this would change any of the already evaluated
-  // __builtin_sycl_unique_stable_name/id values.
-  for (auto &Itr : Context.SYCLUniqueStableNameEvaluatedValues) {
-    const auto *NameExpr = dyn_cast<SYCLUniqueStableNameExpr>(Itr.first);
-    const auto *IdExpr = dyn_cast<SYCLUniqueStableIdExpr>(Itr.first);
-    assert((NameExpr || IdExpr) && "Unknown expr type?");
-
-    const std::string &CurName = NameExpr ? NameExpr->ComputeName(Context)
-                                          : IdExpr->ComputeName(Context);
-    if (Itr.second != CurName) {
-      Diag(NewLoc, diag::err_kernel_invalidates_sycl_unique_stable_name)
-          << IsInstantiation << (IdExpr != nullptr);
-      Diag(Itr.first->getExprLoc(),
-           diag::note_sycl_unique_stable_name_evaluated_here)
-          << (IdExpr != nullptr);
-      // Update this so future diagnostics work correctly.
-      Itr.second = CurName;
-    }
-  }
-}
-
-void Sema::AddSYCLKernelLambda(const FunctionDecl *FD) {
-  if (IsSYCLUnnamedKernel(*this, FD)) {
-    QualType ObjTy = GetSYCLKernelObjectType(FD);
-    MarkSYCLKernel(FD->getLocation(), ObjTy, /*IsInstantiation*/ true);
-  }
 }
