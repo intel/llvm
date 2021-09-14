@@ -3528,23 +3528,29 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
   return PI_SUCCESS;
 }
 
-std::vector<std::string> split_string(const std::string &str, char delimeter) {
-  std::vector<std::string> result;
+// Function gets characters between delimeter's in str
+// then checks if they are equal to the sub_str.
+// returns true if there is at least one instance
+// returns false if there are no instances of the name
+bool is_in_seperated_string(const std::string &str, char delimeter, std::string sub_str) {
   size_t beg = 0;
   size_t length = 0;
   for (const auto &x : str) {
     if (x == delimeter) {
-      result.push_back(str.substr(beg, length));
+      if (str.substr(beg, length) == sub_str)
+        return true;
+
       beg += length + 1;
       length = 0;
       continue;
     }
     length++;
   }
-  if (length != 0) {
-    result.push_back(str.substr(beg, length));
-  }
-  return result;
+  if (length != 0)
+    if (str.substr(beg, length) == sub_str)
+      return true;
+
+  return false;
 }
 
 pi_result piProgramHasKernel(pi_program program, const char *kernel_name,
@@ -3552,22 +3558,25 @@ pi_result piProgramHasKernel(pi_program program, const char *kernel_name,
   assert(has_kernel != nullptr);
 
   size_t Size;
-  pi_result ret_err = piProgramGetInfo(program, PI_PROGRAM_INFO_KERNEL_NAMES, 0,
-                                       nullptr, &Size);
-  std::string ClResult(Size, ' ');
-  ret_err = piProgramGetInfo(program, PI_PROGRAM_INFO_KERNEL_NAMES,
-                             ClResult.size(), &ClResult[0], nullptr);
-  // Get rid of the null terminator
-  ClResult.pop_back();
-  std::vector<std::string> KernelNames(split_string(ClResult, ';'));
-  for (const auto &Name : KernelNames) {
-    if (Name == kernel_name) {
-      *has_kernel = true;
-      return ret_err;
-    }
+  pi_result ret_err =
+      piProgramGetInfo(program, PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size);
+  if (ret_err != PI_SUCCESS) {
+    *has_kernel = false;
+    return ret_err;
   }
-  *has_kernel = false;
-  return ret_err;
+
+  std::string ClResult(Size, ' ');
+  ret_err =
+      piProgramGetInfo(program, PI_PROGRAM_INFO_KERNEL_NAMES, ClResult.size(), &ClResult[0], nullptr);
+  if (ret_err != PI_SUCCESS) {
+    *has_kernel = false;
+    return ret_err;
+  }
+
+  // Get rid of the null terminator and search for kernel_name
+  ClResult.pop_back();
+  *has_kernel = is_in_seperated_string(ClResult, ';', (std::string)kernel_name);
+  return PI_SUCCESS;
 }
 
 pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
