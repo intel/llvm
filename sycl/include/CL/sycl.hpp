@@ -16,6 +16,7 @@
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/builtins.hpp>
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/define_vendors.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/event.hpp>

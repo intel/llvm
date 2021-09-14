@@ -54,6 +54,9 @@ def ConstVoidPtr : ConstType<VoidPtr>;
 def SizeTType : NamedType<"size_t">;
 def LongDoublePtr : PtrType<LongDoubleType>;
 
+def IntMaxTType : NamedType<"intmax_t">;
+def UIntMaxTType : NamedType<"uintmax_t">;
+
 // _Noreturn is really not a type, but it is convenient to treat it as a type.
 def NoReturn : NamedType<"_Noreturn void">;
 
@@ -74,6 +77,8 @@ def OnceFlagTypePtr : PtrType<OnceFlagType>;
 def CallOnceFuncType : NamedType<"__call_once_func_t">;
 def MtxTType : NamedType<"mtx_t">;
 def MtxTTypePtr : PtrType<MtxTType>;
+def CndTType : NamedType<"cnd_t">;
+def CndTTypePtr : PtrType<CndTType>;
 def ThrdStartTType : NamedType<"thrd_start_t">;
 def ThrdTType : NamedType<"thrd_t">;
 def ThrdTTypePtr : PtrType<ThrdTType>;

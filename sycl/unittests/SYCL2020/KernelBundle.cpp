@@ -71,8 +71,8 @@ TEST(KernelBundle, GetKernelBundleFromKernel) {
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::rocm) {
-    std::cout << "Test is not supported on ROCm platform, skipping\n";
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 
@@ -109,8 +109,8 @@ TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::rocm) {
-    std::cout << "Test is not supported on ROCm platform, skipping\n";
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 
