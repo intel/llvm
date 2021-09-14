@@ -1333,7 +1333,6 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
       if (!compatibleWithDevice(BinImage, Dev))
         continue;
 
-      // TODO: Cache kernel_ids
       std::vector<sycl::kernel_id> KernelIDs;
       // Collect kernel names for the image
       pi_device_binary DevBin =
