@@ -8723,11 +8723,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back(Output.getFilename());
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     TranslatorArgs.push_back("-spirv-max-version=1.3");
-    // TODO: align debug info for FPGA H/W when its SPIR-V consumer is ready
-    if (C.getDriver().isFPGAEmulationMode())
-      TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
-    else
-      TranslatorArgs.push_back("-spirv-debug-info-version=legacy");
+    TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
     // Prevent crash in the translator if input IR contains DIExpression
     // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
     TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
