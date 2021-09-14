@@ -1,10 +1,10 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// TODO: accelerator may not suport atomics required by the current
-// implementation. Enable testing when implementation is fixed.
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out
+// TODO: test disabled due to sporadic fails in level_zero:gpu RT.
+// UNSUPPORTED: linux && level_zero
 
 #include "reduction_range_scalar.hpp"
 

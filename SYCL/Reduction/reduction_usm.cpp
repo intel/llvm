@@ -3,6 +3,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+// TODO: test disabled due to sporadic fails in level_zero:gpu RT.
+// UNSUPPORTED: linux && level_zero
+
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with USM var. It tests both
 // ext::oneapi::reduction and SYCL-2020 reduction (sycl::reduction) assuming

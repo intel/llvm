@@ -195,7 +195,7 @@ void printTestLabel(bool IsSYCL2020, const RangeT &Range, bool ToCERR = false) {
 }
 
 template <typename BOp, typename T> constexpr bool isPreciseResultFP() {
-  return (std::is_floating_point_v<T> || std::is_same_v<T, half>)&&(
+  return (std::is_floating_point_v<T> || std::is_same_v<T, sycl::half>)&&(
       std::is_same_v<ext::oneapi::minimum<>, BOp> ||
       std::is_same_v<ext::oneapi::minimum<T>, BOp> ||
       std::is_same_v<ext::oneapi::maximum<>, BOp> ||
@@ -209,7 +209,7 @@ int checkResults(queue &Q, bool IsSYCL2020, BinaryOperation,
   std::string ErrorStr;
   bool Passed;
 
-  if constexpr (std::is_floating_point_v<T> || std::is_same_v<T, half>) {
+  if constexpr (std::is_floating_point_v<T> || std::is_same_v<T, sycl::half>) {
     // It is a pretty simple and naive FP diff check here, which though
     // should work reasonably well for most of cases handled in reduction
     // tests.

@@ -30,6 +30,13 @@ int test(queue &Q, T Identity, T Init, BinaryOperation BOp,
     return 0;
   }
 
+  // TODO: Perhaps, this is a _temporary_ fix for CI. The test may run
+  // for too long when the range is big. That is especially bad on ACC.
+  if (GlobalRange.size() > 65536 && Q.get_device().is_accelerator()) {
+    std::cout << " SKIPPED due to risk of timeout in CI" << std::endl;
+    return 0;
+  }
+
   buffer<T, Dims> InBuf(GlobalRange);
   buffer<T, 1> OutBuf(1);
 

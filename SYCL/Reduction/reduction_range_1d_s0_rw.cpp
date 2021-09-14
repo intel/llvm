@@ -6,6 +6,9 @@
 // implementation. Enable testing when implementation is fixed.
 // RUNx: %ACC_RUN_PLACEHOLDER %t.out
 
+// TODO: test disabled due to sporadic fails in level_zero:gpu RT.
+// UNSUPPORTED: linux && level_zero
+
 // This test performs basic checks of parallel_for(range<1>, reduction, func)
 // with reductions initialized with 0-dimensional read_write accessor
 // accessing 1 element buffer.

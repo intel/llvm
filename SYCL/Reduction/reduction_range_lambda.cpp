@@ -1,10 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-
-// TODO: accelerator may not suport atomics required by the current
-// implementation. Enable testing when implementation is fixed.
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 // This test performs basic checks of parallel_for(range, reduction, lambda)
 // with reductions initialized with 1-dimensional accessor accessing

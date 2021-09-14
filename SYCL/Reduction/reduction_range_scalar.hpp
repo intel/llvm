@@ -32,7 +32,7 @@ int test(queue &Q, T Identity, T Init, BinaryOperation BOp,
 
   // TODO: Perhaps, this is a _temporary_ fix for CI. The test may run
   // for too long when the range is big. That is especially bad on ACC.
-  if (Range.size() > 65536) {
+  if (Range.size() > 65536 && Q.get_device().is_accelerator()) {
     std::cout << " SKIPPED due to risk of timeout in CI" << std::endl;
     return 0;
   }

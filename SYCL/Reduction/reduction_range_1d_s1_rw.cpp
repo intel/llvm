@@ -3,6 +3,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+// TODO: test disabled due to sporadic fails in level_zero:gpu RT.
+// UNSUPPORTED: linux && level_zero
+
 // This test performs basic checks of parallel_for(range<1>, reduction, func)
 // with reductions initialized with 1-dimensional read_write accessor
 // accessing 1 element buffer.
