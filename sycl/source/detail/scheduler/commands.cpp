@@ -161,11 +161,14 @@ static std::string commandToName(Command::CommandType Type) {
 static std::vector<RT::PiEvent>
 getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
   std::vector<RT::PiEvent> RetPiEvents;
-  for (auto &EventImpl : EventImpls) {
-    if (EventImpl->getHandleRef() != nullptr)
-      RetPiEvents.push_back(EventImpl->getHandleRef());
-  }
-
+  RetPiEvents.reserve(EventImpls.size());
+  for (auto &EventImpl : EventImpls)
+    if (auto PiEvent = EventImpl->getHandleRef())
+      RetPiEvents.emplace_back(PiEvent);
+    else {
+      EventImpl->waitInternal(); // it is - queue_wait/clFinish
+      return {}; // because we have already waited for all the commands.
+    }
   return RetPiEvents;
 }
 
@@ -190,8 +193,9 @@ class DispatchHostTask {
     for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
       std::vector<RT::PiEvent> RawEvents = getPiEvents(PluginWithEvents.second);
       try {
-        PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
-                                                              RawEvents.data());
+        if (!RawEvents.empty())
+          PluginWithEvents.first->call<PiApiKind::piEventsWait>(
+              RawEvents.size(), RawEvents.data());
       } catch (const sycl::exception &E) {
         CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
         HostTask.MQueue->reportAsyncException(std::current_exception());
@@ -314,8 +318,9 @@ void Command::waitForEvents(QueueImplPtr Queue,
 
       for (auto &CtxWithEvents : RequiredEventsPerContext) {
         std::vector<RT::PiEvent> RawEvents = getPiEvents(CtxWithEvents.second);
-        CtxWithEvents.first->getPlugin().call<PiApiKind::piEventsWait>(
-            RawEvents.size(), RawEvents.data());
+        if (!RawEvents.empty())
+          CtxWithEvents.first->getPlugin().call<PiApiKind::piEventsWait>(
+              RawEvents.size(), RawEvents.data());
       }
     } else {
 #ifndef NDEBUG
@@ -326,8 +331,9 @@ void Command::waitForEvents(QueueImplPtr Queue,
 
       std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
       const detail::plugin &Plugin = Queue->getPlugin();
-      Plugin.call<PiApiKind::piEnqueueEventsWait>(
-          Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
+      if (!RawEvents.empty())
+        Plugin.call<PiApiKind::piEnqueueEventsWait>(
+            Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
     }
   }
 }
@@ -1735,6 +1741,182 @@ static void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
   }
 }
 
+static pi_result SetKernelParamsAndLaunch2(
+    std::vector<ArgDesc> &Args, RT::PiKernel Kernel, NDRDescT &NDRDesc,
+    const QueueImplPtr &Queue,
+    const ProgramManager::KernelArgMask &EliminatedArgMask) {
+
+  const detail::plugin &Plugin = Queue->getPlugin();
+
+  auto setFunc = [&Plugin, Kernel, &Queue](detail::ArgDesc &Arg,
+                                           size_t NextTrueIndex) {
+    switch (Arg.MType) {
+    case kernel_param_kind_t::kind_stream:
+      throw cl::sycl::feature_not_supported("Unsupported stream case.",
+                                            PI_INVALID_OPERATION);
+      break;
+    case kernel_param_kind_t::kind_accessor: {
+      throw cl::sycl::feature_not_supported("Unsupported accessor case.",
+                                            PI_INVALID_OPERATION);
+      break;
+    }
+    case kernel_param_kind_t::kind_std_layout: {
+      Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, Arg.MSize,
+                                             Arg.MPtr);
+      break;
+    }
+    case kernel_param_kind_t::kind_sampler: {
+      sampler *SamplerPtr = (sampler *)Arg.MPtr;
+      RT::PiSampler Sampler = detail::getSyclObjImpl(*SamplerPtr)
+                                  ->getOrCreateSampler(Queue->get_context());
+      Plugin.call<PiApiKind::piextKernelSetArgSampler>(Kernel, NextTrueIndex,
+                                                       &Sampler);
+      break;
+    }
+    case kernel_param_kind_t::kind_pointer: {
+      Plugin.call<PiApiKind::piextKernelSetArgPointer>(Kernel, NextTrueIndex,
+                                                       Arg.MSize, Arg.MPtr);
+      break;
+    }
+    case kernel_param_kind_t::kind_specialization_constants_buffer: {
+      throw cl::sycl::feature_not_supported(
+          "Unsupported specialization constants buffer case.",
+          PI_INVALID_OPERATION);
+      /*
+      if (Queue->is_host()) {
+        throw cl::sycl::feature_not_supported(
+            "SYCL2020 specialization constants are not yet supported on host "
+            "device",
+            PI_INVALID_OPERATION);
+      }
+      assert(DeviceImageImpl != nullptr);
+      RT::PiMem SpecConstsBuffer = DeviceImageImpl->get_spec_const_buffer_ref();
+      Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                      &SpecConstsBuffer);
+      */
+      break;
+    }
+    case kernel_param_kind_t::kind_invalid:
+      throw runtime_error("Invalid kernel param kind", PI_INVALID_VALUE);
+      break;
+    }
+  };
+
+  if (EliminatedArgMask.empty()) {
+    for (ArgDesc &Arg : Args) {
+      setFunc(Arg, Arg.MIndex);
+    }
+  } else {
+    // TODO this is not necessary as long as we can guarantee that the arguments
+    // are already sorted (e. g. handle the sorting in handler if necessary due
+    // to set_arg(...) usage).
+    std::sort(Args.begin(), Args.end(), [](const ArgDesc &A, const ArgDesc &B) {
+      return A.MIndex < B.MIndex;
+    });
+    int LastIndex = -1;
+    size_t NextTrueIndex = 0;
+
+    for (ArgDesc &Arg : Args) {
+      // Handle potential gaps in set arguments (e. g. if some of them are set
+      // on the user side).
+      for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
+        if (!EliminatedArgMask[Idx])
+          ++NextTrueIndex;
+      LastIndex = Arg.MIndex;
+
+      if (EliminatedArgMask[Arg.MIndex])
+        continue;
+
+      setFunc(Arg, NextTrueIndex);
+      ++NextTrueIndex;
+    }
+  }
+
+  adjustNDRangePerKernel(NDRDesc, Kernel, *(Queue->getDeviceImplPtr()));
+
+  // Remember this information before the range dimensions are reversed
+  const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
+
+  ReverseRangeDimensionsForKernel(NDRDesc);
+
+  size_t RequiredWGSize[3] = {0, 0, 0};
+  size_t *LocalSize = nullptr;
+  if (HasLocalSize)
+    LocalSize = &NDRDesc.LocalSize[0];
+  else {
+    Plugin.call<PiApiKind::piKernelGetGroupInfo>(
+        Kernel, Queue->getDeviceImplPtr()->getHandleRef(),
+        PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
+        RequiredWGSize, /* param_value_size_ret = */ nullptr);
+
+    const bool EnforcedLocalSize =
+        (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
+         RequiredWGSize[2] != 0);
+    if (EnforcedLocalSize)
+      LocalSize = RequiredWGSize;
+  }
+
+  pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
+      Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
+      &NDRDesc.GlobalSize[0], LocalSize, 0, nullptr, nullptr);
+
+  return Error;
+}
+
+cl_int enqueueImpKernel(NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
+                        std::string &KernelName,
+                        detail::OSModuleHandle &OSModuleHandle,
+                        QueueImplPtr &Queue,
+                        std::unique_ptr<HostKernelBase> &HostKernel) {
+
+  if (Queue->is_host()) {
+    for (ArgDesc &Arg : Args)
+      if (kernel_param_kind_t::kind_accessor == Arg.MType) {
+        throw cl::sycl::feature_not_supported("Unsupported accessor case.",
+                                              PI_INVALID_OPERATION);
+      }
+    HostKernel->call(NDRDesc, nullptr);
+    return CL_SUCCESS;
+  }
+
+  // Run OpenCL kernel
+  auto ContextImpl = Queue->getContextImplPtr();
+  auto DeviceImpl = Queue->getDeviceImplPtr();
+  RT::PiKernel Kernel = nullptr;
+  std::mutex *KernelMutex = nullptr;
+  RT::PiProgram Program = nullptr;
+
+  std::tie(Kernel, KernelMutex, Program) =
+      detail::ProgramManager::getInstance().getOrCreateKernel(
+          OSModuleHandle, ContextImpl, DeviceImpl, KernelName, nullptr);
+
+  pi_result Error = PI_SUCCESS;
+  const ProgramManager::KernelArgMask &EliminatedArgMask =
+      detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
+          // OSModuleHandle, ContextImpl, DeviceImpl, Program, KernelName,
+          // true); //TODO remove after merge:
+          OSModuleHandle, Program, KernelName);
+
+  if (KernelMutex != nullptr) {
+    // For cacheable kernels, we use per-kernel mutex
+    std::lock_guard<std::mutex> Lock(*KernelMutex);
+    Error = SetKernelParamsAndLaunch2(Args, Kernel, NDRDesc, Queue,
+                                      EliminatedArgMask);
+  } else {
+    Error = SetKernelParamsAndLaunch2(Args, Kernel, NDRDesc, Queue,
+                                      EliminatedArgMask);
+  }
+
+  if (PI_SUCCESS != Error) {
+    // If we have got non-success error code, let's analyze it to emit nice
+    // exception explaining what was wrong
+    const device_impl &DeviceImpl = *(Queue->getDeviceImplPtr());
+    return detail::enqueue_kernel_launch::handleError(Error, DeviceImpl, Kernel,
+                                                      NDRDesc);
+  }
+  return PI_SUCCESS;
+}
+
 pi_result ExecCGCommand::SetKernelParamsAndLaunch(
     CGExecKernel *ExecKernel,
     std::shared_ptr<device_image_impl> DeviceImageImpl, RT::PiKernel Kernel,
@@ -2263,15 +2445,16 @@ cl_int ExecCGCommand::enqueueImp() {
   case CG::CGTYPE::BarrierWaitlist: {
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
-    std::vector<RT::PiEvent> PiEvents = getPiEvents(Events);
-    if (MQueue->get_device().is_host() || PiEvents.empty()) {
+    if (MQueue->get_device().is_host() || Events.empty()) {
       // NOP for host device.
       // If Events is empty, then the barrier has no effect.
       return PI_SUCCESS;
     }
+    std::vector<RT::PiEvent> PiEvents = getPiEvents(Events);
     const detail::plugin &Plugin = MQueue->getPlugin();
     Plugin.call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], &Event);
+        MQueue->getHandleRef(), PiEvents.size(),
+        (PiEvents.empty() ? nullptr : &PiEvents[0]), &Event);
 
     return PI_SUCCESS;
   }

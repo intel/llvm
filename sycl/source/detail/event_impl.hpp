@@ -44,6 +44,8 @@ public:
   event_impl(RT::PiEvent Event, const context &SyclContext);
   event_impl(QueueImplPtr Queue);
 
+  void set_queue_as_event_is_empty(QueueImplPtr Queue);
+
   /// Checks if this event is a SYCL host event.
   ///
   /// All devices that do not support OpenCL interoperability are treated as
@@ -183,6 +185,8 @@ private:
   // backend's representation (e.g. alloca). Used values are listed in
   // HostEventState enum.
   std::atomic<int> MState;
+
+  QueueImplPtr MQueue = nullptr;
 };
 
 } // namespace detail

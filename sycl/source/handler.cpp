@@ -20,6 +20,7 @@
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -105,6 +106,7 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
+  bool is_Kernel_bundle_used = false;
   // Kernel_bundles could not be used before CGType version 1
   if (getCGTypeVersion(MCGType) >
       static_cast<unsigned int>(detail::CG::CG_VERSION::V0)) {
@@ -112,6 +114,7 @@ event handler::finalize() {
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
         getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
+      is_Kernel_bundle_used = true;
       switch (KernelBundleImpPtr->get_bundle_state()) {
       case bundle_state::input: {
         // Underlying level expects kernel_bundle to be in executable state
@@ -132,8 +135,36 @@ event handler::finalize() {
     }
   }
 
+  auto type = getType();
+  if (type == detail::CG::Kernel && MStreamStorage.size() == 0 &&
+      MRequirements.size() == 0 && MEvents.size() == 0 &&
+      !is_Kernel_bundle_used && !MKernel &&
+      // TODO remove this check when level_zero supports the option - avoidance
+      // the event creation, and queue::wait() uses piQueueFinish for level_zero
+      !(!MIsHost && MQueue->getPlugin().getBackend() == backend::level_zero)) {
+    if (!MQueue->is_event_required()) {
+
+      auto ret_val = enqueueImpKernel(MNDRDesc, MArgs, MKernelName,
+                                      MOSModuleHandle, MQueue, MHostKernel);
+
+      if (CL_SUCCESS != ret_val)
+        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+
+      detail::EventImplPtr Event = nullptr;
+      if (MIsHost) {
+        Event = std::make_shared<cl::sycl::detail::event_impl>(MQueue);
+        Event->setComplete();
+      } else {
+        Event = std::make_shared<cl::sycl::detail::event_impl>();
+      }
+      Event->set_queue_as_event_is_empty(MQueue);
+      MLastEvent = detail::createSyclObjFromImpl<event>(Event);
+      return MLastEvent;
+    }
+  }
+
   std::unique_ptr<detail::CG> CommandGroup;
-  switch (getType()) {
+  switch (type) {
   case detail::CG::Kernel:
   case detail::CG::RunOnHostIntel: {
     // Copy kernel name here instead of move so that it's available after

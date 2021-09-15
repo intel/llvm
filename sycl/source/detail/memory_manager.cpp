@@ -25,11 +25,22 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   // devices associated with the same Backend.
   if (!Events.empty()) {
     const detail::plugin &Plugin = Events[0]->getPlugin();
-    std::vector<RT::PiEvent> PiEvents(Events.size());
+    std::vector<RT::PiEvent> PiEvents;
+    PiEvents.reserve(Events.size());
+    /*std::vector<RT::PiEvent> PiEvents(Events.size());
     std::transform(Events.begin(), Events.end(), PiEvents.begin(),
                    [](const EventImplPtr &EventImpl) {
                      return EventImpl->getHandleRef();
-                   });
+                   });*/
+    for (auto &EventImpl : Events) {
+      if (auto PiEvent = EventImpl->getHandleRef())
+        PiEvents.emplace_back(PiEvent);
+      else {
+        EventImpl->waitInternal(); // it is - queue_wait/clFinish
+        return; // because we have already waited for all the commands.
+      }
+    }
+
     Plugin.call<PiApiKind::piEventsWait>(PiEvents.size(), &PiEvents[0]);
   }
 }
