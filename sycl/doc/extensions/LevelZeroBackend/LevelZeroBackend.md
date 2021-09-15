@@ -180,7 +180,7 @@ make_device<backend::ext_oneapi_level_zero>(
         backend::ext_oneapi_level_zero, device> &)
 ```
 </td>
-<td>Constructs a SYCL device instance from a Level-Zero <code>ze_device_handle_t</code>. The SYCL execution environment contains a fixed number of devices that are enumerated via <code>sycl::device::get_devices()</code> and <code>sycl::device::create_sub_devices(...)</code>. Calling this function does not create a new device. Rather it merely creates a <code>sycl::device</code> object that is a copy of one of the devices from those enumerations.</td>
+<td>Constructs a SYCL device instance from a Level-Zero <code>ze_device_handle_t</code>. The SYCL execution environment for the Level Zero backend contains a fixed number of devices that are enumerated via <code>sycl::device::get_devices()</code> and a fixed number of sub-devices that are enumerated via <code>sycl::device::create_sub_devices(...)</code>. Calling this function does not create a new device. Rather it merely creates a <code>sycl::device</code> object that is a copy of one of the devices from those enumerations.</td>
 </tr><tr>
 <td>
 
