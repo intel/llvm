@@ -151,17 +151,20 @@ public:
       return nullptr;
     }
 
-    if (MDoSubmitFunctor && !MAlreadySubmitted) {
-      MAlreadySubmitted = true;
-      return MDoSubmitFunctor(true);
+    if (MDoSubmitFunctor) {
+      std::function<EventImplPtr(bool)> EmptyFunctor;
+      EmptyFunctor.swap(MDoSubmitFunctor);
+      EventImplPtr EventImpl = EmptyFunctor(true);
+      return EventImpl;
     }
     return nullptr;
   }
 
   void doIfNotFinalized() {
-    if (MDoSubmitFunctor && !MAlreadySubmitted) {
-      MAlreadySubmitted = true;
-      MDoSubmitFunctor(false);
+    if (MDoSubmitFunctor) {
+      std::function<EventImplPtr(bool)> EmptyFunctor;
+      EmptyFunctor.swap(MDoSubmitFunctor);
+      EmptyFunctor(false);
     }
   }
 
@@ -212,8 +215,7 @@ private:
   // HostEventState enum.
   std::atomic<int> MState;
 
-  std::function<EventImplPtr(bool)> MDoSubmitFunctor;
-  mutable bool MAlreadySubmitted = false;
+  mutable std::function<EventImplPtr(bool)> MDoSubmitFunctor;
   size_t FunctorCallsCount = 0;
 };
 

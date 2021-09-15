@@ -187,9 +187,10 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 
 void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
-  if (MDoSubmitFunctor && !MAlreadySubmitted) {
-    MAlreadySubmitted = true;
-    EventImplPtr EventImpl = MDoSubmitFunctor(true);
+  if (MDoSubmitFunctor) {
+    std::function<EventImplPtr(bool)> EmptyFunctor;
+    EmptyFunctor.swap(MDoSubmitFunctor);
+    EventImplPtr EventImpl = EmptyFunctor(true);
     wait(EventImpl);
     return;
   }
