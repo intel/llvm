@@ -110,6 +110,7 @@ protected:
       : MMsg(Msg + " " + detail::codeToString(CLErr)), MCLErr(CLErr),
         MContext(Context) {}
 
+
   // base constructors used by SYCL 1.2.1 exception subclasses
   exception(std::error_code ec, const char *Msg, const cl_int CLErr,
             std::shared_ptr<context> Context = nullptr)
@@ -122,6 +123,7 @@ protected:
   }
 
   exception(const string_class &Msg) : MMsg(Msg), MContext(nullptr) {}
+
 
   // base constructor for all SYCL 2020 constructors
   // exception(context *ctxPtr, std::error_code ec, const std::string
