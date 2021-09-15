@@ -1953,8 +1953,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
         SYCLIntelBufferLocationAttr::CreateImplicit(Ctx, LocationID));
   }
 
-  // Handle accessor's parameters for both, accessor as a field to a base class,
-  // or accessor as a base class.
+  // Additional processing is required for accessor type.
   void handleAccessorType(const CXXRecordDecl *RecordDecl, SourceLocation Loc) {
     handleAccessorPropertyList(Params.back(), RecordDecl, Loc);
     if (KernelDecl->hasAttr<SYCLSimdAttr>())
@@ -1993,7 +1992,9 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       addParam(FD, ParamTy.getCanonicalType());
       if (ParamTy.getTypePtr()->isPointerType() &&
           !isCXXRecordWithInitOrFinalizeMember(RecordDecl, FinalizeMethodName))
-        // Handle parameters for accessors as a field of a base class.
+        // isPointerType removes sampler type.
+        // !isCXXRecordWithInitOrFinalizeMember removes stream type. Do this
+        // only for accessor type.
         handleAccessorType(RecordDecl, FD->getLocation());
     }
     LastParamIndex = ParamIndex;
@@ -2099,7 +2100,9 @@ public:
       addParam(BS, ParamTy.getCanonicalType());
       if (ParamTy.getTypePtr()->isPointerType() &&
           !isCXXRecordWithInitOrFinalizeMember(RecordDecl, FinalizeMethodName))
-        // Handle parameters for accessors as a base class.
+        // isPointerType removes sampler type.
+        // !isCXXRecordWithInitOrFinalizeMember removes stream type. Do this
+        // only for accessor type.
         handleAccessorType(RecordDecl, BS.getBeginLoc());
     }
     LastParamIndex = ParamIndex;
