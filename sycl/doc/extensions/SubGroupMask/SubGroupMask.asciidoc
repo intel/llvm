@@ -21,7 +21,7 @@ IMPORTANT: This specification is a draft.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
 
-This document describes an extension which adds a `sub_group_mask` type.  Such a mask can be used to efficiently represent subsets of work-items in a sub-group for which a given Boolean condition holds.  Sub-group mask functionality is currently limited to groups that are instances of the `sub_group` class.
+This document describes an extension which adds a `sub_group_mask` type.  Such a mask can be used to efficiently represent subsets of work-items in a sub-group for which a given Boolean condition holds.
 
 == Notice
 
@@ -74,14 +74,14 @@ the specification.
 
 === Ballot
 
-The `sub_group_ballot` algorithm converts a Boolean condition from each work-item
-in the group into a group mask.  Like other group algorithms, `sub_group_ballot`
+The `group_ballot` algorithm converts a Boolean condition from each work-item
+in the group into a group mask.  Like other group algorithms, `group_ballot`
 must be encountered by all work-items in the group in converged control flow.
 
 |===
 |Function|Description
 
-|`template <typename Group> Group::mask_type sub_group_ballot(Group g, bool predicate = true)`
+|`template <typename Group> Group::mask_type group_ballot(Group g, bool predicate = true)`
 |Return a `sub_group_mask` with one bit for each work-item in group _g_. A bit is set in this mask if and only if the corresponding work-item's _predicate_ is `true`.
 |===
 

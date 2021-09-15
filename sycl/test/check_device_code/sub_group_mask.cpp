@@ -4,7 +4,7 @@
 
 using namespace sycl;
 
-SYCL_EXTERNAL void test_group_mask(group<> g) {
-  ext::oneapi::sub_group_ballot(g, true);
+SYCL_EXTERNAL void test_group_mask(sub_group g) {
+  ext::oneapi::group_ballot(g, true);
 }
 // CHECK: %{{.*}} =  call spir_func <4 x i32> @_Z[[#]]__spirv_GroupNonUniformBallotjb(i32 {{.*}}, i1{{.*}})

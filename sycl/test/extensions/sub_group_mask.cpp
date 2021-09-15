@@ -14,7 +14,7 @@
 
 int main() {
   auto g = sycl::detail::Builder::createSubGroupMask<
-      sycl::ext::oneapi::sub_group_mask>(0);
+      sycl::ext::oneapi::sub_group_mask>(0, 32);
   assert(g.none() && !g.any() && !g.all());
   assert(g[10] == false); // reference::operator[](id) const;
   g[10] = true;           // reference::operator=(bool);

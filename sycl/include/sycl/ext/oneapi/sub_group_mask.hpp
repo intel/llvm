@@ -77,7 +77,7 @@ struct sub_group_mask {
     }
     return count;
   }
-  uint32_t size() const { return max_bits; }
+  uint32_t size() const { return bits_num; }
   id<1> find_low() const {
     size_t i = 0;
     while (i < size() && !operator[](i))
@@ -206,10 +206,13 @@ struct sub_group_mask {
     return Tmp;
   }
 
-  sub_group_mask(const sub_group_mask &rhs) : Bits(rhs.Bits) {}
+  sub_group_mask(const sub_group_mask &rhs)
+      : Bits(rhs.Bits), bits_num(rhs.bits_num) {}
 
   template <typename Group>
-  friend sub_group_mask sub_group_ballot(Group g, bool predicate);
+  friend detail::enable_if_t<
+      std::is_same<std::decay_t<Group>, sub_group>::value, sub_group_mask>
+  group_ballot(Group g, bool predicate);
 
   friend sub_group_mask operator&(const sub_group_mask &lhs,
                                   const sub_group_mask &rhs) {
@@ -233,22 +236,31 @@ struct sub_group_mask {
   }
 
 private:
-  sub_group_mask(uint32_t rhs) : Bits(rhs) {}
+  sub_group_mask(uint32_t rhs, size_t bn) : Bits(rhs), bits_num(bn) {
+    assert(bits_num <= max_bits);
+  }
   uint32_t Bits;
+  // Number of valuable bits
+  size_t bits_num;
 };
+
 template <typename Group>
-sub_group_mask sub_group_ballot(Group g, bool predicate) {
+detail::enable_if_t<std::is_same<std::decay_t<Group>, sub_group>::value,
+                    sub_group_mask>
+group_ballot(Group g, bool predicate) {
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
   auto res = __spirv_GroupNonUniformBallot(
       detail::spirv::group_scope<Group>::value, predicate);
-  return detail::Builder::createSubGroupMask<sub_group_mask>(res[0]);
+  return detail::Builder::createSubGroupMask<sub_group_mask>(
+      res[0], g.get_max_local_range()[0]);
 #else
   (void)predicate;
   throw exception{errc::feature_not_supported,
                   "Sub-group mask is not supported on host device"};
 #endif
 }
+
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl
