@@ -137,13 +137,13 @@ work-item with the id `max_local_range()-1`.
 |Return the highest `id` with a corresponding bit set in the mask. If no bits
  are set, the return value is equal to `size()`.
 
-|`template <typename T = marray<uint32_t, marray_size>> void insert_bits(const T &bits, id<1> pos = 0)`
+|`template <typename T> void insert_bits(const T &bits, id<1> pos = 0)`
 |Insert `CHAR_BIT * sizeof(T)` bits into the mask, starting from _pos_.  `T`
  must be an integral type or a SYCL `marray` of integral types. If _pos_ pass:[+]
  `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ pass:[+]
  `CHAR_BIT * sizeof(T)`) bits are ignored.
 
-|`template <typename T = marray<uint32_t, marray_size>> void extract_bits(T &out, id<1> pos = 0) const`
+|`template <typename T> void extract_bits(T &out, id<1> pos = 0) const`
 |Return `CHAR_BIT * sizeof(T)` bits from the mask, starting from _pos_.  `T`
  must be an integral type or a SYCL `marray` of integral types. If _pos_ pass:[+]
  `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ pass:[+]
@@ -258,7 +258,6 @@ struct sub_group_mask {
   };
 
   static constexpr size_t max_bits = /* implementation-defined */;
-  static constexpr size_t marray_size = /* implementation defined */;
 
   bool operator[](id<1> id) const;
   reference operator[](id<1> id);
@@ -271,10 +270,10 @@ struct sub_group_mask {
   id<1> find_low() const;
   id<1> find_high() const;
 
-  template <typename T = marray<uint32_t, marray_size>>
+  template <typename T>
   void insert_bits(const T &bits, id<1> pos = 0);
 
-  template <typename T = marray<uint32_t, marray_size>>
+  template <typename T>
   void extract_bits(T &out, id<1> pos = 0);
 
   void set();
