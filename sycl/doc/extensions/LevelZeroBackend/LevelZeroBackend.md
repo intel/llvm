@@ -9,8 +9,8 @@ The currently supported targets are all Intel GPUs starting with Gen9.
 
 This extension provides a feature-test macro as described in the core SYCL specification section 6.3.3 "Feature test macros". Therefore, an implementation supporting this extension must predefine the macro SYCL_EXT_ONEAPI_DEVICE_IF to one of the values defined in the table below. Applications can test for the existence of this macro to determine if the implementation supports this feature, or applications can test the macro’s value to determine which of the extension’s APIs the implementation supports.
 
-|Value|Description
-|===|===
+|Value|Description|
+|===|:===|
 |1|Initial extension version.
 
 NOTE: This extension is following SYCL 2020 backend specification. Prior API for interoperability with Level-Zero is marked
