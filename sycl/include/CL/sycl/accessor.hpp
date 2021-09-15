@@ -904,6 +904,11 @@ protected:
       MData += Offset[0];
   }
 
+  // __init variant used by the device compiler for ESIMD kernels.
+  // TODO In ESIMD accessors usage is limited for now - access range, mem
+  // range and offset are not supported.
+  void __init_esimd(ConcreteASPtrType Ptr) { MData = Ptr; }
+
   ConcreteASPtrType getQualifiedPtr() const { return MData; }
 
   template <typename, int, access::mode, access::target, access::placeholder,
@@ -2021,6 +2026,9 @@ private:
   // It does not call the base class's init method.
   void __init(OCLImageTy Image) { this->imageAccessorInit(Image); }
 
+  // __init variant used by the device compiler for ESIMD kernels.
+  void __init_esimd(OCLImageTy Image) { this->imageAccessorInit(Image); }
+
 public:
   // Default constructor for objects later initialized with __init member.
   accessor() = default;
@@ -2080,6 +2088,9 @@ private:
   // Front End requires this method to be defined in the accessor class.
   // It does not call the base class's init method.
   void __init(OCLImageTy Image) { this->imageAccessorInit(Image); }
+
+  // __init variant used by the device compiler for ESIMD kernels.
+  void __init_esimd(OCLImageTy Image) { this->imageAccessorInit(Image); }
 
 public:
   // Default constructor for objects later initialized with __init member.
