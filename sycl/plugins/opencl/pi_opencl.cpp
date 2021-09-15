@@ -661,7 +661,7 @@ pi_result piProgramCreateWithBinary(
 // then checks if they are equal to the sub_str.
 // returns true if there is at least one instance
 // returns false if there are no instances of the name
-bool is_in_seperated_string(const std::string &str, char delimeter,
+bool is_in_separated_string(const std::string &str, char delimiter,
                             std::string sub_str) {
   size_t beg = 0;
   size_t length = 0;
