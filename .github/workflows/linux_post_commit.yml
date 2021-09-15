@@ -28,12 +28,12 @@ jobs:
                  ;;
              SharedLibs)
                  wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-                 sudo add-apt-repository "deb http://apt.llvm.org/bionic/   llvm-toolchain-bionic-12 main"
+                 sudo add-apt-repository "deb http://apt.llvm.org/bionic/   llvm-toolchain-bionic-13 main"
                  sudo apt-get update
-                 sudo apt-get install -y clang-12
+                 sudo apt-get install -y clang-13
                  export ARGS="--shared-libs"
-                 export CC="clang-12"
-                 export CXX="clang++-12"
+                 export CC="clang-13"
+                 export CXX="clang++-13"
                  ;;
              NoAssertions)
                  export ARGS="--no-assertions"
@@ -74,4 +74,3 @@ jobs:
        with:
          name: sycl_linux_${{ matrix.config }}
          path: llvm_sycl.tar.gz
-
