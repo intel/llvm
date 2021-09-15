@@ -63,7 +63,7 @@ public:
     auto range_size = g.get_local_range().size();
     if (scratch_size >= memory_required<T>(Group::fence_scope, range_size)) {
       auto id = sycl::detail::Builder::getNDItem<Group::dimensions>();
-      uint32_t local_id = id.get_local_id();
+      std::size_t local_id = id.get_local_linear_id();
       T *temp = reinterpret_cast<T *>(scratch);
       ::new (temp + local_id) T(val);
       sycl::detail::merge_sort(g, temp, range_size, comp,

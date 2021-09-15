@@ -67,8 +67,8 @@ struct GetValueType<sycl::multi_ptr<ElementType, Space>> {
   using type = ElementType;
 };
 
-// since we couldn't assign data to raw memory, it's better to use placement for
-// first assignment
+// since we couldn't assign data to raw memory, it's better to use placement
+// for first assignment
 template <typename Acc, typename T>
 void set_value(Acc ptr, const std::size_t idx, const T &val, bool is_first) {
   if (is_first) {
@@ -97,8 +97,8 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
   const std::size_t local_size_1 = local_end_1 - local_start_1;
   const std::size_t local_size_2 = local_end_2 - local_start_2;
 
-  // TODO: process cases where all elements of 1st sequence > 2nd, 2nd > 1st to
-  // improve performance
+  // TODO: process cases where all elements of 1st sequence > 2nd, 2nd > 1st
+  // to improve performance
 
   // Process 1st sequence
   if (local_start_1 < local_end_1) {
@@ -204,7 +204,7 @@ void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
                 std::byte *scratch) {
   using T = typename GetValueType<Iter>::type;
   auto id = sycl::detail::Builder::getNDItem<Group::dimensions>();
-  const std::size_t idx = id.get_local_id();
+  const std::size_t idx = id.get_local_linear_id();
   const std::size_t local = group.get_local_range().size();
   const std::size_t chunk = (n - 1) / local + 1;
 
