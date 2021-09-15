@@ -3537,7 +3537,7 @@ bool is_in_separated_string(const std::string &str, char delimiter,
   size_t beg = 0;
   size_t length = 0;
   for (const auto &x : str) {
-    if (x == delimeter) {
+    if (x == delimiter) {
       if (str.substr(beg, length) == sub_str)
         return true;
 
@@ -3576,7 +3576,7 @@ pi_result piProgramHasKernel(pi_program program, const char *kernel_name,
 
   // Get rid of the null terminator and search for kernel_name
   ClResult.pop_back();
-  *has_kernel = is_in_seperated_string(ClResult, ';', (std::string)kernel_name);
+  *has_kernel = is_in_separated_string(ClResult, ';', kernel_name);
   return PI_SUCCESS;
 }
 
