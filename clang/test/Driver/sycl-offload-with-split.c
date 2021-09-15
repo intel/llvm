@@ -222,19 +222,17 @@
 
 /// Check parallel compilation enforcement for split modules when running SPIR-V translation and AOT compilation
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-parallel-jobs=4 -fsycl-targets=spir64-unknown-unknown %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS-SPIRV
+// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-parallel-jobs=4 -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS-SPIRV,CHK-PARALLEL-JOBS-FPGA
+// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=aoc
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-parallel-jobs=4 -fintelfpga -Xshardware %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS-SPIRV,CHK-PARALLEL-JOBS-FPGA
+// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=aoc
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-parallel-jobs=4 -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS-SPIRV,CHK-PARALLEL-JOBS-GEN
+// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=ocloc
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-parallel-jobs=4 -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
-// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS-SPIRV,CHK-PARALLEL-JOBS-CPU
-// CHK-PARALLEL-JOBS-SPIRV: llvm-foreach{{.*}} "--jobs=4" "--" "{{.*}}llvm-spirv{{.*}}"
-// CHK-PARALLEL-JOBS-FPGA: llvm-foreach{{.*}} "--jobs=4" "--" "{{.*}}aoc{{.*}}
-// CHK-PARALLEL-JOBS-GEN: llvm-foreach{{.*}} "--jobs=4" "--" "{{.*}}ocloc{{.*}}
-// CHK-PARALLEL-JOBS-CPU: llvm-foreach{{.*}} "--jobs=4" "--" "{{.*}}opencl-aot{{.*}}
+// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=opencl-aot
+// CHK-PARALLEL-JOBS: llvm-foreach{{.*}} "--jobs=4" "--" "{{.*}}llvm-spirv{{.*}}"
+// CHK-PARALLEL-JOBS-AOT: llvm-foreach{{.*}} "--jobs=4" "--" "{{.*}}[[BE_COMPILER]]{{.*}}
 
 /// ###########################################################################
 
