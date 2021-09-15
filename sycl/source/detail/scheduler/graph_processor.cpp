@@ -23,16 +23,17 @@ static Command *getCommand(const EventImplPtr &Event) {
 
 std::vector<EventImplPtr>
 Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
-  Command *Cmd = getCommand(Event);
-  // Command can be nullptr if user creates cl::sycl::event explicitly,
-  // as such event is not mapped to any SYCL task.
-  if (!Cmd)
-    return {};
   std::vector<EventImplPtr> Result;
-  for (const DepDesc &Dep : Cmd->MDeps) {
+
+  for (const DepDesc &Dep : Event->getDeps()) {
     if (Dep.MDepCommand)
       Result.push_back(Dep.MDepCommand->getEvent());
   }
+  for (const auto &PDep : Event->getPreparedDepsEvents())
+    Result.push_back(PDep);
+  for (const auto &PHostDep : Event->getPreparedHostDepsEvents())
+    Result.push_back(PHostDep);
+
   return Result;
 }
 
