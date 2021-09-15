@@ -1953,9 +1953,10 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
         SYCLIntelBufferLocationAttr::CreateImplicit(Ctx, LocationID));
   }
 
-  // There is a discrepancy in how inherited accessors are handled.
-  void handleInheritedAccessor(const CXXRecordDecl *RecordDecl, FieldDecl *FD) {
-    handleAccessorPropertyList(Params.back(), RecordDecl, FD->getLocation());
+  // Handle accessor's parameters for both, accessor as a field to a base class,
+  // or accessor as a base class.
+  void handleAccessorType(const CXXRecordDecl *RecordDecl, SourceLocation Loc) {
+    handleAccessorPropertyList(Params.back(), RecordDecl, Loc);
     if (KernelDecl->hasAttr<SYCLSimdAttr>())
       // In ESIMD kernels accessor's pointer argument needs to be marked
       Params.back()->addAttr(
@@ -1992,7 +1993,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       addParam(FD, ParamTy.getCanonicalType());
       if (ParamTy.getTypePtr()->isPointerType() &&
           !isCXXRecordWithInitOrFinalizeMember(RecordDecl, FinalizeMethodName))
-        handleInheritedAccessor(RecordDecl, FD);
+        // Handle parameters for accessors as a field of a base class.
+        handleAccessorType(RecordDecl, FD->getLocation());
     }
     LastParamIndex = ParamIndex;
     return true;
@@ -2089,27 +2091,16 @@ public:
         isCXXRecordWithInitOrFinalizeMember(RecordDecl, InitMethodName);
     assert(InitMethod && "The type must have the __init method");
 
-    // Get access mode of accessor.
-    const auto *AccessorSpecializationDecl =
-        cast<ClassTemplateSpecializationDecl>(RecordDecl);
-    const TemplateArgument &AccessModeArg =
-        AccessorSpecializationDecl->getTemplateArgs().get(2);
-
     // Don't do -1 here because we count on this to be the first parameter added
     // (if any).
     size_t ParamIndex = Params.size();
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
       addParam(BS, ParamTy.getCanonicalType());
-      if (ParamTy.getTypePtr()->isPointerType()) {
-        handleAccessorPropertyList(Params.back(), RecordDecl, BS.getBeginLoc());
-
-        // Add implicit attribute to parameter decl when it is a read only
-        // SYCL accessor.
-        if (isReadOnlyAccessor(AccessModeArg))
-          Params.back()->addAttr(SYCLAccessorReadonlyAttr::CreateImplicit(
-              SemaRef.getASTContext()));
-      }
+      if (ParamTy.getTypePtr()->isPointerType() &&
+          !isCXXRecordWithInitOrFinalizeMember(RecordDecl, FinalizeMethodName))
+        // Handle parameters for accessors as a base class.
+        handleAccessorType(RecordDecl, BS.getBeginLoc());
     }
     LastParamIndex = ParamIndex;
     return true;
