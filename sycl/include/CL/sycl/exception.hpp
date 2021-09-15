@@ -122,7 +122,7 @@ protected:
     MCLErr = CLErr;
   }
 
-  exception(const string_class &Msg) : MMsg(Msg), MContext(nullptr) {}
+  exception(const std::string &Msg) : MMsg(Msg), MContext(nullptr) {}
 
 
   // base constructor for all SYCL 2020 constructors
