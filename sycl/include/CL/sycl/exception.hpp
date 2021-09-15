@@ -124,7 +124,6 @@ protected:
 
   exception(const std::string &Msg) : MMsg(Msg), MContext(nullptr) {}
 
-
   // base constructor for all SYCL 2020 constructors
   // exception(context *ctxPtr, std::error_code ec, const std::string
   // &what_arg);
