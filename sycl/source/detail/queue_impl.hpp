@@ -446,7 +446,7 @@ private:
     std::vector<detail::EventImplPtr> EventImpls;
     EventImpls.reserve(DefaultSubmissionVectorSize);
     {
-      std::lock_guard<mutex_class> Lock(MMutexSubmit);
+      std::lock_guard<std::mutex> Lock(MMutexSubmit);
       EventImpls.swap(MEventsSharedToSubmit);
     }
 
@@ -518,7 +518,7 @@ private:
     EventImplPtr EventImplFake = detail::getSyclObjImpl(EventFake);
     addEvent(EventFake);
     {
-      std::lock_guard<mutex_class> Lock(MMutexSubmit);
+      std::lock_guard<std::mutex> Lock(MMutexSubmit);
       MEventsSharedToSubmit.push_back(EventImplFake);
     }
     EventImplFake->setSubmitFunctor(MUploadDataFunctor);
