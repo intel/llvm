@@ -333,10 +333,11 @@ void Command::waitForEvents(QueueImplPtr Queue,
 }
 
 Command::Command(CommandType Type, QueueImplPtr Queue)
-    : MQueue(std::move(Queue)), MEvent(std::make_shared<detail::event_impl>(MQueue)),
+    : MQueue(std::move(Queue)),
+      MEvent(std::make_shared<detail::event_impl>(MQueue)),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
-      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()),
-      MType(Type), MDeps(MEvent->getDeps()) {
+      MPreparedHostDepsEvents(MEvent->getPreparedHostDepsEvents()), MType(Type),
+      MDeps(MEvent->getDeps()) {
   MSubmittedQueue = MQueue;
   MEvent->setCommand(this);
   MEvent->setContextImpl(MQueue->getContextImplPtr());

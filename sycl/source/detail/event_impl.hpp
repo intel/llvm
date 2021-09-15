@@ -165,9 +165,7 @@ public:
   /// Returns vector of DepDesc dependencies.
   ///
   /// @return a reference to MDeps.
-  std::vector<DepDesc> &getDeps() {
-    return MDeps;
-  }
+  std::vector<DepDesc> &getDeps() { return MDeps; }
 
   /// Returns vector of event dependencies.
   ///
