@@ -7,9 +7,13 @@ It is built on top of Level-Zero runtime enabled with [Level-Zero API](https://s
 The Level-Zero backend is aimed to provide the best possible performance of SYCL application on a variety of targets supported.
 The currently supported targets are all Intel GPUs starting with Gen9.
 
-This extension provides a feature-test macro as described in the core SYCL specification section 6.3.3 "Feature test macros".
-Therefore, an implementation supporting this extension must predefine the macro `SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO`.
-Applications can test for the existence of this macro to determine if the implementation supports this feature.
+This extension provides a feature-test macro as described in the core SYCL specification section 6.3.3 "Feature test macros". Therefore, an implementation supporting this extension must predefine the macro SYCL_EXT_ONEAPI_DEVICE_IF to one of the values defined in the table below. Applications can test for the existence of this macro to determine if the implementation supports this feature, or applications can test the macro’s value to determine which of the extension’s APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.
+|===
 
 NOTE: This extension is following SYCL 2020 backend specification. Prior API for interoperability with Level-Zero is marked
       as deprecated and will be removed in the next release.
@@ -178,7 +182,7 @@ make_device<backend::ext_oneapi_level_zero>(
         backend::ext_oneapi_level_zero, device> &)
 ```
 </td>
-<td>Constructs a SYCL device instance from a Level-Zero <code>ze_device_handle_t</code>. The SYCL execution environment contains a fixed number of devices that are enumerated via <code>sycl::device::get_devices()</code> and <code>sycl::device::get_sub_devices(...)</code>. Calling this function does not create a new device. Rather it merely creates a <code>sycl::device</code> object that is a copy of one of the devices from those enumerations.</td>
+<td>Constructs a SYCL device instance from a Level-Zero <code>ze_device_handle_t</code>. The SYCL execution environment contains a fixed number of devices that are enumerated via <code>sycl::device::get_devices()</code> and <code>sycl::device::create_sub_devices(...)</code>. Calling this function does not create a new device. Rather it merely creates a <code>sycl::device</code> object that is a copy of one of the devices from those enumerations.</td>
 </tr><tr>
 <td>
 
