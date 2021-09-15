@@ -24,15 +24,18 @@ static Command *getCommand(const EventImplPtr &Event) {
 std::vector<EventImplPtr>
 Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
   std::vector<EventImplPtr> Result;
+  
+  std::vector<DepDesc> Deps = Event->getDeps();
+  std::vector<EventImplPtr> PDeps = Event->getPreparedDepsEvents();
+  std::vector<EventImplPtr> PHDeps = Event->getPreparedHostDepsEvents();
 
-  for (const DepDesc &Dep : Event->getDeps()) {
+  Result.reserve(Deps.size() + PDeps.size() + PHDeps.size());
+  for (const DepDesc &Dep : Deps) {
     if (Dep.MDepCommand)
       Result.push_back(Dep.MDepCommand->getEvent());
   }
-  for (const auto &PDep : Event->getPreparedDepsEvents())
-    Result.push_back(PDep);
-  for (const auto &PHostDep : Event->getPreparedHostDepsEvents())
-    Result.push_back(PHostDep);
+  auto it = Result.insert(Result.begin() + Deps.size(), PDeps.begin(), PDeps.end());
+  Result.insert(it + PDeps.size(), PHDeps.begin(), PHDeps.end());
 
   return Result;
 }

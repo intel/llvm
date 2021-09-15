@@ -332,6 +332,9 @@ void Command::waitForEvents(QueueImplPtr Queue,
   }
 }
 
+/// It is safe to bind MPreparedDepsEvents, MPreparedHostDepsEvents
+/// and MDeps references to event_impl class members because Command
+/// should not outlive the event connected to it.  
 Command::Command(CommandType Type, QueueImplPtr Queue)
     : MQueue(std::move(Queue)),
       MEvent(std::make_shared<detail::event_impl>(MQueue)),

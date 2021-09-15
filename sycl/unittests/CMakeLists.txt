@@ -13,6 +13,7 @@ include(AddSYCLUnitTest)
 
 add_subdirectory(allowlist)
 add_subdirectory(config)
+add_subdirectory(event)
 add_subdirectory(misc)
 add_subdirectory(pi)
 add_subdirectory(kernel-and-program)
