@@ -40,6 +40,7 @@
 // changes the API version from 3.5 to 4.6.
 // 5.7 Added new context and ownership arguments to
 //   piextEventCreateWithNativeHandle
+// 6.8 Added new ownership argument to piextProgramCreateWithNativeHandle.
 //
 #include "CL/cl.h"
 #define _PI_H_VERSION_MAJOR 5
@@ -1219,9 +1220,12 @@ piextProgramGetNativeHandle(pi_program program, pi_native_handle *nativeHandle);
 ///
 /// \param nativeHandle is the native handle to create PI program from.
 /// \param context is the PI context of the program.
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
 /// \param program is the PI program created from the native handle.
 __SYCL_EXPORT pi_result piextProgramCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, pi_program *program);
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    pi_program *program);
 
 //
 // Kernel

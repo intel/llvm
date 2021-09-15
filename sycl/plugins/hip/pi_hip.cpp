@@ -2949,11 +2949,14 @@ pi_result hip_piextProgramGetNativeHandle(pi_program program,
 ///
 /// \param[in] nativeHandle The native handle to create PI program object from.
 /// \param[in] context The PI context of the program.
+/// \param[in] ownNativeHandle tells if should assume the ownership of
+///            the native handle.
 /// \param[out] program Set to the PI program object created from native handle.
 ///
 /// \return TBD
 pi_result hip_piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                  pi_context context,
+                                                 bool ownNativeHandle,
                                                  pi_program *program) {
   cl::sycl::detail::pi::die(
       "Creation of PI program from native handle not implemented");
