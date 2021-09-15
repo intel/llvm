@@ -78,8 +78,35 @@ template <> struct BackendInput<backend::level_zero, context> {
   using type = struct {
     interop<backend::level_zero, context>::type NativeHandle;
     std::vector<device> DeviceList;
-    ext::oneapi::level_zero::ownership Ownership;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
   };
+};
+
+template <> struct BackendInput<backend::level_zero, queue> {
+  using type = struct {
+    interop<backend::level_zero, queue>::type NativeHandle;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
+  };
+};
+
+template <> struct BackendInput<backend::level_zero, event> {
+  using type = struct {
+    interop<backend::level_zero, event>::type NativeHandle;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
+  };
+};
+
+template <bundle_state State>
+struct BackendInput<backend::level_zero, kernel_bundle<State>> {
+  using type = ze_module_handle_t;
+};
+
+template <bundle_state State>
+struct BackendReturn<backend::level_zero, kernel_bundle<State>> {
+  using type = std::vector<ze_module_handle_t>;
 };
 
 template <> struct BackendReturn<backend::level_zero, kernel> {
@@ -90,11 +117,11 @@ template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakePlatform = true;
   static constexpr bool MakeDevice = true;
   static constexpr bool MakeContext = true;
-  static constexpr bool MakeQueue = false;
+  static constexpr bool MakeQueue = true;
   static constexpr bool MakeEvent = true;
+  static constexpr bool MakeKernelBundle = true;
   static constexpr bool MakeBuffer = false;
   static constexpr bool MakeKernel = false;
-  static constexpr bool MakeKernelBundle = false;
 };
 } // namespace detail
 
@@ -122,7 +149,7 @@ __SYCL_EXPORT event make_event(const context &Context,
 // Construction of SYCL platform.
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, platform>::value> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL-2020 sycl::make_platform free function")
+__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_platform free function")
 T make(typename interop<backend::level_zero, T>::type Interop) {
   return make_platform(reinterpret_cast<pi_native_handle>(Interop));
 }
@@ -130,7 +157,7 @@ T make(typename interop<backend::level_zero, T>::type Interop) {
 // Construction of SYCL device.
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, device>::value> * = nullptr>
-__SYCL_DEPRECATED("Use SYCL-2020 sycl::make_device free function")
+__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_device free function")
 T make(const platform &Platform,
        typename interop<backend::level_zero, T>::type Interop) {
   return make_device(Platform, reinterpret_cast<pi_native_handle>(Interop));
@@ -147,7 +174,7 @@ T make(const platform &Platform,
 ///
 template <typename T, typename std::enable_if<
                           std::is_same<T, context>::value>::type * = nullptr>
-__SYCL_DEPRECATED("Use SYCL-2020 sycl::make_context free function")
+__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_context free function")
 T make(const std::vector<device> &DeviceList,
        typename interop<backend::level_zero, T>::type Interop,
        ownership Ownership = ownership::transfer) {
@@ -158,6 +185,7 @@ T make(const std::vector<device> &DeviceList,
 // Construction of SYCL program.
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, program>::value> * = nullptr>
+__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_kernel_bundle free function")
 T make(const context &Context,
        typename interop<backend::level_zero, T>::type Interop) {
   return make_program(Context, reinterpret_cast<pi_native_handle>(Interop));
@@ -166,6 +194,7 @@ T make(const context &Context,
 // Construction of SYCL queue.
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, queue>::value> * = nullptr>
+__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
 T make(const context &Context,
        typename interop<backend::level_zero, T>::type Interop,
        ownership Ownership = ownership::transfer) {
@@ -176,6 +205,7 @@ T make(const context &Context,
 // Construction of SYCL event.
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, event>::value> * = nullptr>
+__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_event free function")
 T make(const context &Context,
        typename interop<backend::level_zero, T>::type Interop,
        ownership Ownership = ownership::transfer) {
@@ -197,9 +227,46 @@ context make_context<backend::level_zero>(
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
 
+// Specialization of sycl::make_queue for Level-Zero backend.
+template <>
+queue make_queue<backend::level_zero>(
+    const backend_input_t<backend::level_zero, queue> &BackendObject,
+    const context &TargetContext, const async_handler Handler) {
+  return ext::oneapi::level_zero::make_queue(
+      TargetContext,
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
+}
+
+// Specialization of sycl::make_event for Level-Zero backend.
+template <>
+event make_event<backend::level_zero>(
+    const backend_input_t<backend::level_zero, event> &BackendObject,
+    const context &TargetContext) {
+  return ext::oneapi::level_zero::make_event(
+      TargetContext,
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
+}
+
+// TODO: remove this specialization when generic is changed to call
+// .GetNative() instead of .get_native() member of kernel_bundle.
+template <>
+auto get_native<backend::level_zero>(
+    const kernel_bundle<bundle_state::executable> &Obj)
+    -> backend_return_t<backend::level_zero,
+                        kernel_bundle<bundle_state::executable>> {
+  // TODO use SYCL 2020 exception when implemented
+  if (Obj.get_backend() != backend::level_zero)
+    throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
+
+  return Obj.template getNative<backend::level_zero>();
+}
+
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
     level_zero {
   using namespace ext::oneapi::level_zero;
 }
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
