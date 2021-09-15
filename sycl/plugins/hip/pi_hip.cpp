@@ -4445,15 +4445,14 @@ pi_result hip_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                       const pi_event *events_waitlist,
                                       pi_event *event) {
 
+  // flags is currently unused so fail if set
+  if (flags != 0)
+    return PI_INVALID_VALUE;
   assert(queue != nullptr);
   assert(ptr != nullptr);
   hipStream_t hipStream = queue->get();
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> event_ptr{nullptr};
-
-  // TODO implement handling the flags once the expected behaviour
-  // of piextUSMEnqueuePrefetch is detailed in the USM extension
-  assert(flags == 0u);
 
   try {
     ScopedContext active(queue->get_context());

@@ -6648,7 +6648,9 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
                                   pi_uint32 NumEventsInWaitList,
                                   const pi_event *EventWaitList,
                                   pi_event *Event) {
-  PI_ASSERT(!(Flags & ~PI_USM_MIGRATION_TBD0), PI_INVALID_VALUE);
+
+  // flags is currently unused so fail if set
+  PI_ASSERT(Flags == 0, PI_INVALID_VALUE);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
