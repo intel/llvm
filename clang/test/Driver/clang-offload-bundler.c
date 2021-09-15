@@ -325,9 +325,9 @@
 // RUN: clang-offload-bundler -type=bc -targets=host-%itanium_abi_triple -inputs=%t.bundle3.bc -check-section
 // RUN: clang-offload-bundler -type=bc -targets=openmp-powerpc64le-ibm-linux-gnu -inputs=%t.bundle3.bc -check-section
 // RUN: clang-offload-bundler -type=bc -targets=openmp-x86_64-pc-linux-gnu -inputs=%t.bundle3.bc -check-section
-// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocr-intel-linux-sycldevice -inputs=%t.bundle3.bc -check-section
-// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aoco-intel-linux-sycldevice -inputs=%t.bundle3.bc -check-section
-// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocx-intel-linux-sycldevice -inputs=%t.bundle3.bc -check-section
+// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocr-intel-linux -inputs=%t.bundle3.bc -check-section
+// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aoco-intel-linux -inputs=%t.bundle3.bc -check-section
+// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocx-intel-linux -inputs=%t.bundle3.bc -check-section
 
 //
 // Check archive bundle.

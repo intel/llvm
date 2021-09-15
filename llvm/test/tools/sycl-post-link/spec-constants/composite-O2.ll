@@ -8,26 +8,26 @@
 ; CHECK-LABEL: define {{.*}} spir_kernel void @_ZTS4Test
 ; CHECK: %[[#NS0:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID:]], i32
 ; CHECK: %[[#NS1:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#ID + 1]], float
-; CHECK: %[[#NA0:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif(i32 %[[#NS0]], float %[[#NS1]])
+; CHECK: %[[#NA0:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif_Rstruct._ZTS1A.A(i32 %[[#NS0]], float %[[#NS1]])
 ;
 ; CHECK: %[[#NS2:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 2]], i32
 ; CHECK: %[[#NS3:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#ID + 3]], float
-; CHECK: %[[#NA1:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif(i32 %[[#NS2]], float %[[#NS3]])
+; CHECK: %[[#NA1:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif_Rstruct._ZTS1A.A(i32 %[[#NS2]], float %[[#NS3]])
 ;
-; CHECK: %[[#NA:]] = call [2 x %struct._ZTS1A.A] @_Z29__spirv_SpecConstantCompositestruct._ZTS1A.Astruct._ZTS1A.A(%struct._ZTS1A.A %[[#NA0]], %struct._ZTS1A.A %[[#NA1]])
+; CHECK: %[[#NA:]] = call [2 x %struct._ZTS1A.A] @_Z29__spirv_SpecConstantCompositestruct._ZTS1A.Astruct._ZTS1A.A_RA2_struct._ZTS1A.A(%struct._ZTS1A.A %[[#NA0]], %struct._ZTS1A.A %[[#NA1]])
 ;
 ; CHECK: %[[#B0:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 4]], i32{{.*}})
 ; CHECK: %[[#B1:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 5]], i32{{.*}})
-; CHECK: %[[#BV:]] = call <2 x i32> @_Z29__spirv_SpecConstantCompositeii(i32 %[[#B0]], i32 %[[#B1]])
-; CHECK: %[[#B:]] = call %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" @_Z29__spirv_SpecConstantCompositeDv2_i(<2 x i32> %[[#BV]])
+; CHECK: %[[#BV:]] = call <2 x i32> @_Z29__spirv_SpecConstantCompositeii_RDv2_i(i32 %[[#B0]], i32 %[[#B1]])
+; CHECK: %[[#B:]] = call %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" @"_Z29__spirv_SpecConstantCompositeDv2_i_Rclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"(<2 x i32> %[[#BV]])
 ;
-; CHECK: %[[#POD:]] = call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"([2 x %struct._ZTS1A.A] %[[#NA]], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" %[[#B]])
+; CHECK: %[[#POD:]] = call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeA2_struct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec_Rstruct._ZTS3POD.POD"([2 x %struct._ZTS1A.A] %[[#NA]], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" %[[#B]])
 ; CHECK: store %struct._ZTS3POD.POD %[[#POD]]
 
 ; CHECK-LABEL: define {{.*}} spir_kernel void @_ZTS17SpecializedKernel
 ; CHECK: %[[#N0:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 6]], i32
 ; CHECK: %[[#N1:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#ID + 7]], float
-; CHECK: %[[#CONST:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif(i32 %[[#N0]], float %[[#N1]])
+; CHECK: %[[#CONST:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif_Rstruct._ZTS1A.A(i32 %[[#N0]], float %[[#N1]])
 ; CHECK: %struct._ZTS1A.A %[[#CONST]]
 ;
 ; CHECK: !sycl.specialization-constants = !{![[#MD0:]], ![[#MD1:]]}
@@ -43,7 +43,7 @@
 ; CHECK-SAME: i32 [[#ID + 7]], i32 4, i32 4}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 %struct._ZTS3POD.POD = type { [2 x %struct._ZTS1A.A], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" }
 %struct._ZTS1A.A = type { i32, float }

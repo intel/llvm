@@ -59,6 +59,49 @@ TEST(xptiCorrectnessTest, xptiRegisterString) {
   EXPECT_STREQ(LUTStr, TStr);
 }
 
+void nestedTest(xpti::payload_t *p, std::vector<uint64_t> &uids) {
+  xpti::framework::tracepoint_t t(p);
+  uint64_t hash = t.universal_id();
+  uids.push_back(hash);
+
+  if (uids.size() < 5) {
+    xpti::payload_t pp;
+    nestedTest(&pp, uids);
+  }
+}
+
+TEST(xptiCorrectnessTest, xptiTracePointTest) {
+  std::vector<uint64_t> uids;
+  xpti::payload_t p("foo", "foo.cpp", 10, 0, (void *)0xdeadbeef);
+
+  auto ID = xptiRegisterPayload(&p);
+
+  uint64_t id = xpti::invalid_uid;
+  nestedTest(&p, uids);
+  for (auto &e : uids) {
+    EXPECT_NE(e, xpti::invalid_uid);
+    if (id != xpti::invalid_uid) {
+      EXPECT_EQ(e, id);
+      id = e;
+    }
+  }
+
+  uids.clear();
+  xpti::payload_t p1("bar", "foo.cpp", 15, 0, (void *)0xdeaddead);
+
+  ID = xptiRegisterPayload(&p1);
+
+  id = xpti::invalid_uid;
+  nestedTest(&p1, uids);
+  for (auto &e : uids) {
+    EXPECT_NE(e, xpti::invalid_uid);
+    if (id != xpti::invalid_uid) {
+      EXPECT_EQ(e, id);
+      id = e;
+    }
+  }
+}
+
 TEST(xptiCorrectnessTest, xptiInitializeForDefaultTracePointTypes) {
   // We will test functionality of a subscriber
   // without actually creating a plugin

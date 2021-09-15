@@ -191,6 +191,7 @@
 // CHECK-IR1: [[DESCTY:%.+]] = type { i16, i16, [[IMAGETY]]*, [[ENTTY]]*, [[ENTTY]]* }
 // CHECK-IR1-NOT: @llvm.global_ctors
 // CHECK-IR1-NOT: @llvm.global_dtors
+// CHECK-IR1-NOT: section ".tgtimg"
 // CHECK-IR1: @.sycl_offloading.lalala = constant [[DESCTY]] { i16 {{[0-9]+}}, i16 1, [[IMAGETY]]* getelementptr inbounds ([1 x [[IMAGETY]]], [1 x [[IMAGETY]]]* @.sycl_offloading.device_images, i64 0, i64 0), [[ENTTY]]* null, [[ENTTY]]* null }
 
 // -------
@@ -208,9 +209,9 @@
 // -------
 // Check that device image can be extracted from the wrapper object by the clang-offload-bundler tool.
 //
-// RUN: clang-offload-wrapper -o %t.wrapper.bc -host=x86_64-pc-linux-gnu -kind=sycl -target=spir64-unknown-linux-sycldevice %t1.tgt
+// RUN: clang-offload-wrapper -o %t.wrapper.bc -host=x86_64-pc-linux-gnu -kind=sycl -target=spir64-unknown-linux %t1.tgt
 // RUN: %clang -target x86_64-pc-linux-gnu -c %t.wrapper.bc -o %t.wrapper.o
-// RUN: clang-offload-bundler --type=o --inputs=%t.wrapper.o --targets=sycl-spir64-unknown-linux-sycldevice --outputs=%t1.out --unbundle
+// RUN: clang-offload-bundler --type=o --inputs=%t.wrapper.o --targets=sycl-spir64-unknown-linux --outputs=%t1.out --unbundle
 // RUN: diff %t1.out %t1.tgt
 
 // Check that clang-offload-wrapper adds LLVMOMPOFFLOAD notes

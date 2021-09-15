@@ -121,12 +121,12 @@ inline pi_result redefinedProgramCreateEAM(pi_context, const void *, size_t,
 class MockHandler : public sycl::handler {
 
 public:
-  MockHandler(sycl::shared_ptr_class<sycl::detail::queue_impl> Queue)
+  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue)
       : sycl::handler(Queue, /* IsHost */ false) {}
 
-  sycl::unique_ptr_class<sycl::detail::CG> finalize() {
+  std::unique_ptr<sycl::detail::CG> finalize() {
     auto CGH = static_cast<sycl::handler *>(this);
-    sycl::unique_ptr_class<sycl::detail::CG> CommandGroup;
+    std::unique_ptr<sycl::detail::CG> CommandGroup;
     switch (getType()) {
     case sycl::detail::CG::Kernel: {
       CommandGroup.reset(new sycl::detail::CGExecKernel(
@@ -155,15 +155,12 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
   auto ExecBundle = sycl::link(sycl::compile(KernelBundle));
   EXPECT_FALSE(ExecBundle.empty()) << "Expect non-empty exec kernel bundle";
 
-  auto ContextImpl = QueueImpl->getContextImplPtr();
-  auto DeviceImpl = QueueImpl->getDeviceImplPtr();
-
   // Emulating processing of command group function
   MockHandler MockCGH(QueueImpl);
   MockCGH.use_kernel_bundle(ExecBundle);
   MockCGH.single_task<EAMTestKernel>([] {}); // Actual kernel does not matter
 
-  sycl::unique_ptr_class<sycl::detail::CG> CmdGroup = MockCGH.finalize();
+  std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
   auto *ExecKernel = static_cast<sycl::detail::CGExecKernel *>(CmdGroup.get());
 
   const auto &KernelBundleImplPtr = ExecKernel->getKernelBundle();
@@ -184,8 +181,7 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
               !ExecKernel->MSyclKernel->isCreatedFromSource());
 
   return sycl::detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-      ExecKernel->MOSModuleHandle, ContextImpl, DeviceImpl, Program,
-      ExecKernel->MKernelName);
+      ExecKernel->MOSModuleHandle, Program, ExecKernel->MKernelName);
 }
 
 // After both kernels are compiled ProgramManager.NativePrograms contains info
@@ -201,8 +197,8 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
   } else if (Plt.get_backend() == sycl::backend::cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
-  } else if (Plt.get_backend() == sycl::backend::rocm) {
-    std::cout << "Test is not supported on ROCm platform, skipping\n";
+  } else if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 
@@ -213,13 +209,10 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};
-  std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
-      sycl::detail::getSyclObjImpl(Queue);
-  const sycl::context Ctx = Queue.get_context();
 
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(
-          Ctx, {Dev},
+          Queue.get_context(), {Dev},
           {sycl::get_kernel_id<EAMTestKernel>(),
            sycl::get_kernel_id<EAMTestKernel2>()});
 
