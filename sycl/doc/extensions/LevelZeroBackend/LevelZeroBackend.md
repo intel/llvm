@@ -7,7 +7,8 @@ It is built on top of Level-Zero runtime enabled with [Level-Zero API](https://s
 The Level-Zero backend is aimed to provide the best possible performance of SYCL application on a variety of targets supported.
 The currently supported targets are all Intel GPUs starting with Gen9.
 
-This extension provides a feature-test macro as described in the core SYCL specification section 6.3.3 "Feature test macros". Therefore, an implementation supporting this extension must predefine the macro SYCL_EXT_ONEAPI_DEVICE_IF to one of the values defined in the table below. Applications can test for the existence of this macro to determine if the implementation supports this feature, or applications can test the macro’s value to determine which of the extension’s APIs the implementation supports.
+This extension provides a feature-test macro as described in the core SYCL specification section 6.3.3 "Feature test macros". Therefore, an implementation supporting this extension must predefine the macro SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO to one of the values defined in the table below. Applications can test for the existence of this macro to determine if the implementation supports this feature, or applications can test the macro’s value to determine which of the extension’s APIs the implementation supports.
+
 
 |Value|Description|
 |---|:---|
