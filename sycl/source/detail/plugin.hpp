@@ -224,7 +224,6 @@ public:
 
 // The function is expected to be called in a thread safe manner
   bool containsPiPlatform(RT::PiPlatform Platform) {
-    std::lock_guard<std::mutex> Guard(*PlatformIdMutex);
     auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
     if (It != PiPlatforms.end())
       return true;
