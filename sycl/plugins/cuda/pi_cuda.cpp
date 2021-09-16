@@ -686,10 +686,10 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
     static pi_uint32 numPlatforms = 1;
     static _pi_platform platformId;
 
-    if (num_entries == 0 and platforms != nullptr) {
+    if (num_entries == 0 && platforms != nullptr) {
       return PI_INVALID_VALUE;
     }
-    if (platforms == nullptr and num_platforms == nullptr) {
+    if (platforms == nullptr && num_platforms == nullptr) {
       return PI_INVALID_VALUE;
     }
 
@@ -2560,17 +2560,11 @@ pi_result cuda_piEnqueueKernelLaunch(
   int threadsPerBlock[3] = {32, 1, 1};
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
-  size_t reqdThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
   pi_uint32 local_size = kernel->get_local_size();
 
   {
-    pi_result retError = cuda_piKernelGetGroupInfo(
-        kernel, command_queue->device_,
-        PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(reqdThreadsPerBlock), reqdThreadsPerBlock, nullptr);
-    assert(retError == PI_SUCCESS);
-
+    size_t *reqdThreadsPerBlock = kernel->reqdThreadsPerBlock_;
     maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
     command_queue->device_->get_max_work_item_sizes(sizeof(maxThreadsPerBlock),
                                                     maxThreadsPerBlock);
@@ -4509,7 +4503,7 @@ pi_result cuda_piextUSMFree(pi_context context, void *ptr) {
                                          CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
     result = PI_CHECK_ERROR(cuPointerGetAttributes(
         2, attributes, attribute_values, (CUdeviceptr)ptr));
-    assert(type == CU_MEMORYTYPE_DEVICE or type == CU_MEMORYTYPE_HOST);
+    assert(type == CU_MEMORYTYPE_DEVICE || type == CU_MEMORYTYPE_HOST);
     if (is_managed || type == CU_MEMORYTYPE_DEVICE) {
       // Memory allocated with cuMemAlloc and cuMemAllocManaged must be freed
       // with cuMemFree
@@ -4713,7 +4707,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
       }
       result = PI_CHECK_ERROR(cuPointerGetAttribute(
           &value, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)ptr));
-      assert(value == CU_MEMORYTYPE_DEVICE or value == CU_MEMORYTYPE_HOST);
+      assert(value == CU_MEMORYTYPE_DEVICE || value == CU_MEMORYTYPE_HOST);
       if (value == CU_MEMORYTYPE_DEVICE) {
         // pointer to device memory
         return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -4725,7 +4719,11 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
                        PI_MEM_TYPE_HOST);
       }
       // should never get here
+#ifdef _MSC_VER
+      __assume(0);
+#else
       __builtin_unreachable();
+#endif
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      PI_MEM_TYPE_UNKNOWN);
     }
