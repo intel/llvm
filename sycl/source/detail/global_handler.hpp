@@ -95,6 +95,8 @@ private:
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
   InstWithLock<std::vector<plugin>> MPlugins;
+  // MPluginsMutex is used to guard the MPlugins vector only.
+  // Each individual plugin change should use plugin's mutex data members.
   InstWithLock<std::mutex> MPluginsMutex;
   InstWithLock<device_filter_list> MDeviceFilterList;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
