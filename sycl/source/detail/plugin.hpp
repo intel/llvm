@@ -233,8 +233,6 @@ private:
   backend MBackend;
   void *MLibraryHandle; // the handle returned from dlopen
   std::shared_ptr<std::mutex> TracingMutex;
-  std::shared_ptr<std::mutex> DeviceIdMutex;
-  std::shared_ptr<std::mutex> PlatformIdMutex;
   // vector of PiPlatforms that belong to this plugin
   std::vector<RT::PiPlatform> PiPlatforms;
   // represents the unique ids of the last device of each platform
