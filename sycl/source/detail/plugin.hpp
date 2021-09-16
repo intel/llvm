@@ -189,7 +189,7 @@ public:
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
   int getPlatformId(RT::PiPlatform Platform) {
-// The function is expected to be called in a thread safe manner
+    // The function is expected to be called in a thread safe manner
     auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
     if (It != PiPlatforms.end())
       return It - PiPlatforms.begin();
@@ -221,7 +221,7 @@ public:
     std::fill(LastDeviceIds.begin(), LastDeviceIds.end(), 0);
   }
 
-// The function is expected to be called in a thread safe manner
+  // The function is expected to be called in a thread safe manner
   bool containsPiPlatform(RT::PiPlatform Platform) {
     auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
     return It != PiPlatforms.end();

@@ -96,8 +96,8 @@ static bool IsBannedPlatform(platform Platform) {
 std::vector<platform> platform_impl::get_platforms() {
   std::vector<platform> Platforms;
   std::vector<plugin> &Plugins = RT::initialize();
-     // Locking plugins mutex as the function modifies plugins state.
-    const std::lock_guard<std::mutex> Guard(
+  // Locking plugins mutex as the function modifies plugins state.
+  const std::lock_guard<std::mutex> Guard(
       GlobalHandler::instance().getPluginsMutex());
   info::device_type ForcedType = detail::get_forced_type();
   for (unsigned int i = 0; i < Plugins.size(); i++) {
@@ -151,7 +151,7 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
     return;
 
   std::vector<plugin> &Plugins = RT::initialize();
-// Locking plugins mutex as the function modifies plugins state.
+  // Locking plugins mutex as the function modifies plugins state.
   const std::lock_guard<std::mutex> Guard(
       GlobalHandler::instance().getPluginsMutex());
 

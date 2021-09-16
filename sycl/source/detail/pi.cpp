@@ -371,7 +371,9 @@ bool trace(TraceLevel Level) {
 // Initializes all available Plugins.
 std::vector<plugin> &initialize() {
   static std::once_flag PluginsInitDone;
-  std::call_once(PluginsInitDone, [&]() { initializePlugins(GlobalHandler::instance().getPlugins()); });
+  std::call_once(PluginsInitDone, [&]() {
+    initializePlugins(GlobalHandler::instance().getPlugins());
+  });
   return GlobalHandler::instance().getPlugins();
   return Plugins;
 }
