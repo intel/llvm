@@ -216,6 +216,7 @@ public:
     LastDeviceIds[PlatformId] = Id;
   }
   // reset all last device ids to zeros
+  // The function is expected to be called in a thread safe manner
   void resetLastDeviceIds() {
     std::lock_guard<std::mutex> Guard(*DeviceIdMutex);
     std::fill(LastDeviceIds.begin(), LastDeviceIds.end(), 0);
