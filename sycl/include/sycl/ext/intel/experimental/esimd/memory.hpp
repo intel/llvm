@@ -649,8 +649,8 @@ inline ESIMD_NODEBUG void esimd_sbarrier(split_barrier_action flag) {
 /// Declare per-work-group slm size.
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void slm_init(uint32_t size);
 
-/// SLM gather (version for 4-byte block size).
-/// \tparam T element type of the input vector.
+/// SLM gather.
+/// \tparam T element type of the input vector, must be 4-byte type.
 /// \tparam N size of the \p offsets , \p pred and returned vectors. Must be 16
 /// or 32.
 /// @param offsets byte-offsets within the SLM.
@@ -665,26 +665,8 @@ ESIMD_INLINE ESIMD_NODEBUG
   return __esimd_slm_read<T, N>(offsets.data(), pred.data());
 }
 
-/// SLM gather (version for 1- and 2-byte block size).
-/// \tparam T element type of the input vector.
-/// \tparam N size of the \p offsets , \p pred and returned vectors. Must be 16
-/// or 32.
-/// @param offsets byte-offsets within the SLM.
-/// @param pred predication control used for masking lanes.
-/// @return vector of read values of type \p T.
-/// \ingroup sycl_esimd
-template <typename T, int N>
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
-    (N == 16 || N == 32) && (sizeof(T) == 1 || sizeof(T) == 2), simd<T, N>>
-slm_load(simd<uint32_t, N> offsets, simd<uint16_t, N> pred = 1) {
-  typedef typename detail::dword_type<T>::type T1;
-  simd<T1, N> temp = __esimd_slm_read<T1, N>(offsets.data(), pred.data());
-  simd<T, N> res = temp;
-  return res;
-}
-
-/// SLM scatter (version for 4-byte block size).
-/// \tparam T element type of the input vector.
+/// SLM scatter.
+/// \tparam T element type of the input vector, must be 4-byte type.
 /// \tparam N size of the \p offsets , \p pred and \p vals vectors. Must be 16
 /// or 32.
 /// @param vals values to be written.
@@ -698,24 +680,6 @@ ESIMD_INLINE ESIMD_NODEBUG
     slm_store(simd<T, N> vals, simd<uint32_t, N> offsets,
               simd<uint16_t, N> pred = 1) {
   __esimd_slm_write<T, N>(offsets.data(), vals.data(), pred.data());
-}
-
-/// SLM scatter (version for 1- and 2-byte block size).
-/// \tparam T element type of the input vector.
-/// \tparam N size of the \p offsets , \p pred and \p vals vectors. Must be 16
-/// or 32.
-/// @param vals values to be written.
-/// @param offsets byte-offsets within the SLM.
-/// @param pred predication control used for masking lanes.
-/// \ingroup sycl_esimd
-template <typename T, int N>
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
-    (N == 16 || N == 32) && (sizeof(T) == 1 || sizeof(T) == 2), void>
-slm_store(simd<T, N> vals, simd<uint32_t, N> offsets,
-          simd<uint16_t, N> pred = 1) {
-  typedef typename detail::dword_type<T>::type T1;
-  simd<T1, N> temp = vals;
-  __esimd_slm_write<T1, N>(offsets.data(), temp.data(), pred.data());
 }
 
 /// SLM gather4.
