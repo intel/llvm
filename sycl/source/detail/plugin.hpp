@@ -225,9 +225,7 @@ public:
 // The function is expected to be called in a thread safe manner
   bool containsPiPlatform(RT::PiPlatform Platform) {
     auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
-    if (It != PiPlatforms.end())
-      return true;
-    return false;
+    return It != PiPlatforms.end();
   }
 
 private:
