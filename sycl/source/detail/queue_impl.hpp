@@ -40,8 +40,6 @@ using DeviceImplPtr = std::shared_ptr<detail::device_impl>;
 /// Sets max number of queues supported by FPGA RT.
 static constexpr size_t MaxNumQueues = 256;
 
-static constexpr size_t DefaultSubmissionVectorSize = 128;
-
 //// Possible CUDA context types supported by PI CUDA backend
 /// TODO: Implement this as a property once there is an extension document
 enum class CUDAContextT : char { primary, custom };
@@ -107,7 +105,6 @@ public:
               : QueueOrder::OOO;
       MQueues.push_back(createQueue(QOrder));
     }
-    MEventsSharedToSubmit.reserve(DefaultSubmissionVectorSize);
   }
 
   /// Constructs a SYCL queue from plugin interoperability handle.
@@ -134,7 +131,6 @@ public:
 
     // TODO catch an exception and put it to list of asynchronous exceptions
     getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
-    MEventsSharedToSubmit.reserve(DefaultSubmissionVectorSize);
   }
 
   ~queue_impl() {
@@ -443,15 +439,15 @@ private:
       return;
     }
 
-    std::vector<detail::EventImplPtr> EventImpls;
-    EventImpls.reserve(DefaultSubmissionVectorSize);
+    std::queue<detail::EventImplPtr> EventImpls;
     {
       std::lock_guard<std::mutex> Lock(MMutexSubmit);
       EventImpls.swap(MEventsSharedToSubmit);
     }
 
-    for (detail::EventImplPtr EventImpl : EventImpls) {
-      EventImpl->doIfNotFinalized();
+    while (!EventImpls.empty()) {
+      EventImpls.front()->doIfNotFinalized();
+      EventImpls.pop();
     }
   }
 
@@ -519,7 +515,7 @@ private:
     addEvent(EventFake);
     {
       std::lock_guard<std::mutex> Lock(MMutexSubmit);
-      MEventsSharedToSubmit.push_back(EventImplFake);
+      MEventsSharedToSubmit.emplace(EventImplFake);
     }
     EventImplFake->setSubmitFunctor(MUploadDataFunctor);
     return EventFake;
@@ -576,7 +572,7 @@ private:
 
   bool MIsEventRequired = false;
   bool MisSubmittedExplicitly = true;
-  std::vector<EventImplPtr> MEventsSharedToSubmit;
+  std::queue<EventImplPtr> MEventsSharedToSubmit;
   std::mutex MMutexSubmit;
   // Thread pool for host task and event callbacks execution.
   // The thread pool is instantiated upon the very first call to getThreadPool()

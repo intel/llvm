@@ -142,7 +142,7 @@ public:
 
   void setSubmitFunctor(std::function<EventImplPtr(bool)> DoSubmitFunctor) {
     MDoSubmitFunctor = DoSubmitFunctor;
-    FunctorCallsCount = 1;
+    FunctorCallsCount = 2;
   }
 
   EventImplPtr doFinalize() {
@@ -154,8 +154,7 @@ public:
     if (MDoSubmitFunctor) {
       std::function<EventImplPtr(bool)> EmptyFunctor;
       EmptyFunctor.swap(MDoSubmitFunctor);
-      EventImplPtr EventImpl = EmptyFunctor(true);
-      return EventImpl;
+      return EmptyFunctor(true);
     }
     return nullptr;
   }
