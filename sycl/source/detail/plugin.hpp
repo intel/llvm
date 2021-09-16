@@ -210,6 +210,7 @@ public:
     return LastDeviceIds[PlatformId - 1];
   }
   // set the id of the last device for the given platform
+  // The function is expected to be called in a thread safe manner
   void setLastDeviceId(RT::PiPlatform Platform, int Id) {
     int PlatformId = getPlatformId(Platform);
     std::lock_guard<std::mutex> Guard(*DeviceIdMutex);
