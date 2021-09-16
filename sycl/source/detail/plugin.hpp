@@ -189,7 +189,7 @@ public:
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
   int getPlatformId(RT::PiPlatform Platform) {
-    std::lock_guard<std::mutex> Guard(*PlatformIdMutex);
+// The function is expected to be called in a thread safe manner
     auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
     if (It != PiPlatforms.end())
       return It - PiPlatforms.begin();
