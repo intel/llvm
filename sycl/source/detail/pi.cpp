@@ -500,7 +500,7 @@ template <backend BE> const plugin &getPlugin() {
   if (Plugin)
     return *Plugin;
 
-  std::vector<plugin> &Plugins = pi::initialize();
+  const std::vector<plugin> &Plugins = pi::initialize();
   for (const auto &P : Plugins)
     if (P.getBackend() == BE) {
       Plugin = &P;
