@@ -1957,7 +1957,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   void handleAccessorType(const CXXRecordDecl *RecordDecl, SourceLocation Loc) {
     handleAccessorPropertyList(Params.back(), RecordDecl, Loc);
     if (KernelDecl->hasAttr<SYCLSimdAttr>())
-      // In ESIMD kernels accessor's pointer argument needs to be marked
+      // In ESIMD, the kernels accessor's pointer argument needs to be marked.
       Params.back()->addAttr(
           SYCLSimdAccessorPtrAttr::CreateImplicit(SemaRef.getASTContext()));
     // Get access mode of accessor.
@@ -2297,10 +2297,11 @@ public:
   using SyclKernelFieldHandler::handleSyclHalfType;
 };
 
-std::string getKernelArgDesc(std::string KernelArgDescription) {
+std::string getKernelArgDesc(StringRef KernelArgDescription) {
   if (KernelArgDescription == ":" || KernelArgDescription == "")
     return "";
-  return ("Compiler generated argument for " + KernelArgDescription + ",");
+  return ("Compiler generated argument for " + KernelArgDescription + ",")
+      .str();
 }
 
 class SyclOptReportCreator : public SyclKernelFieldHandler {
@@ -2308,12 +2309,11 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
   SourceLocation KernelInvocationLoc;
 
   void addParam(const FieldDecl *KernelArg, QualType KernelArgType,
-                std::string KernelArgDescription) {
+                StringRef KernelArgDescription) {
     StringRef NameToEmitInDescription = KernelArg->getName();
     const RecordDecl *KernelArgParent = KernelArg->getParent();
-    if (KernelArgParent && KernelArgDescription == "decomposed struct/class") {
+    if (KernelArgParent && KernelArgDescription == "decomposed struct/class")
       NameToEmitInDescription = KernelArgParent->getName();
-    }
 
     bool isWrappedField = KernelArgDescription == "WrappedPointer" ||
                           KernelArgDescription == "WrappedArray";
@@ -2350,7 +2350,7 @@ class SyclOptReportCreator : public SyclKernelFieldHandler {
 
   // Handles base classes.
   void addParam(const CXXBaseSpecifier &, QualType KernelArgType,
-                std::string KernelArgDescription) {
+                StringRef KernelArgDescription) {
     unsigned KernelArgSize =
         SemaRef.getASTContext().getTypeSizeInChars(KernelArgType).getQuantity();
     SemaRef.getDiagnostics().getSYCLOptReport().AddKernelArgs(
@@ -3224,6 +3224,7 @@ public:
             isCXXRecordWithInitOrFinalizeMember(ClassTy, InitMethodName);
         assert(InitMethod && "type must have __init method");
         const ParmVarDecl *SamplerArg = InitMethod->getParamDecl(0);
+        assert(SamplerArg && "Init method must have arguments");
         addParam(SamplerArg->getType(), SYCLIntegrationHeader::kind_sampler,
                  offsetOf(FD, FieldTy));
       }
