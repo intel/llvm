@@ -186,7 +186,7 @@ public:
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
   int getPlatformId(RT::PiPlatform Platform) {
-    // The function is expected to be called in a thread safe manner
+    std::lock_guard<std::mutex> Guard(*PlatformIdMutex);
     auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
     if (It != PiPlatforms.end())
       return It - PiPlatforms.begin();
@@ -199,27 +199,27 @@ public:
   // We need to return the same starting index for the given platform.
   // So, instead of returing the last device id of the given platform,
   // return the last device id of the predecessor platform.
-  // The function is expected to be called in a thread safe manner
   int getStartingDeviceId(RT::PiPlatform Platform) {
     int PlatformId = getPlatformId(Platform);
     if (PlatformId == 0)
       return 0;
+    std::lock_guard<std::mutex> Guard(*DeviceIdMutex);
     return LastDeviceIds[PlatformId - 1];
   }
   // set the id of the last device for the given platform
-  // The function is expected to be called in a thread safe manner
   void setLastDeviceId(RT::PiPlatform Platform, int Id) {
     int PlatformId = getPlatformId(Platform);
+    std::lock_guard<std::mutex> Guard(*DeviceIdMutex);
     LastDeviceIds[PlatformId] = Id;
   }
   // reset all last device ids to zeros
-  // The function is expected to be called in a thread safe manner
   void resetLastDeviceIds() {
+    std::lock_guard<std::mutex> Guard(*DeviceIdMutex);
     std::fill(LastDeviceIds.begin(), LastDeviceIds.end(), 0);
   }
 
-  // The function is expected to be called in a thread safe manner
   bool containsPiPlatform(RT::PiPlatform Platform) {
+    std::lock_guard<std::mutex> Guard(*PlatformIdMutex);
     auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
     return It != PiPlatforms.end();
   }
@@ -229,6 +229,8 @@ private:
   backend MBackend;
   void *MLibraryHandle; // the handle returned from dlopen
   std::shared_ptr<std::mutex> TracingMutex;
+  std::shared_ptr<std::mutex> DeviceIdMutex;
+  std::shared_ptr<std::mutex> PlatformIdMutex;
   // vector of PiPlatforms that belong to this plugin
   std::vector<RT::PiPlatform> PiPlatforms;
   // represents the unique ids of the last device of each platform
