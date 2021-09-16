@@ -89,12 +89,9 @@ auto packCallArguments(ArgsT &&... Args) {
 class plugin {
 public:
   plugin() = delete;
-
   plugin(RT::PiPlugin Plugin, backend UseBackend, void *LibraryHandle)
       : MPlugin(Plugin), MBackend(UseBackend), MLibraryHandle(LibraryHandle),
-        TracingMutex(std::make_shared<std::mutex>()),
-        DeviceIdMutex(std::make_shared<std::mutex>()),
-        PlatformIdMutex(std::make_shared<std::mutex>()) {}
+        TracingMutex(std::make_shared<std::mutex>()) {}
 
   plugin &operator=(const plugin &) = default;
   plugin(const plugin &) = default;

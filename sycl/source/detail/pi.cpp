@@ -375,7 +375,6 @@ std::vector<plugin> &initialize() {
     initializePlugins(GlobalHandler::instance().getPlugins());
   });
   return GlobalHandler::instance().getPlugins();
-  return Plugins;
 }
 
 static void initializePlugins(std::vector<plugin> &Plugins) {
