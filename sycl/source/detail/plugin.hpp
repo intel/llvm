@@ -206,7 +206,6 @@ public:
     int PlatformId = getPlatformId(Platform);
     if (PlatformId == 0)
       return 0;
-    std::lock_guard<std::mutex> Guard(*DeviceIdMutex);
     return LastDeviceIds[PlatformId - 1];
   }
   // set the id of the last device for the given platform
