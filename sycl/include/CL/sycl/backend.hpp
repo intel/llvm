@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/backend.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/context.hpp>

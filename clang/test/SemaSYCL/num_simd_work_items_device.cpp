@@ -42,8 +42,8 @@ struct FuncObj {
 };
 
 #ifdef TRIGGER_ERROR
-// If the declaration has a [[intel::reqd_work_group_size]]
-// [[cl::reqd_work_group_size]] attribute, tests that check
+// If the declaration has a [[sycl::reqd_work_group_size]]
+// or [[cl::reqd_work_group_size]] attribute, tests that check
 // if the work group size attribute argument (the last argument)
 // can be evenly divided by the [[intel::num_simd_work_items()]] attribute.
 struct TRIFuncObjBad1 {
@@ -60,7 +60,7 @@ struct TRIFuncObjBad2 {
   operator()() const {}
 };
 
-// Tests for the default values of [[intel::reqd_work_group_size()]].
+// Tests for the default values of [[sycl::reqd_work_group_size()]].
 
 // FIXME: This should be accepted instead of error which turns out to be
 // an implementation bug that shouldn't be visible to the user as there
@@ -131,9 +131,7 @@ struct TRIFuncObjBad8 {
 [[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 [[sycl::reqd_work_group_size(4, 2, 3)]] void func1(); // expected-note{{conflicting attribute is here}}
 
-[[intel::reqd_work_group_size(4, 2, 3)]] // expected-note{{conflicting attribute is here}} \
-                                         // expected-warning {{attribute 'intel::reqd_work_group_size' is deprecated}} \
-                                         // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+[[sycl::reqd_work_group_size(4, 2, 3)]]         // expected-note{{conflicting attribute is here}}
 [[intel::num_simd_work_items(2)]] void func2(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 
 [[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
@@ -211,7 +209,7 @@ struct TRIFuncObjBad18 {
 };
 
 #endif // TRIGGER_ERROR
-// If the declaration has a [[intel::reqd_work_group_size()]]
+// If the declaration has a [[sycl::reqd_work_group_size()]]
 // or [[cl::reqd_work_group_size()]] or
 // __attribute__((reqd_work_group_size)) attribute, check to see
 // if the last argument can be evenly divided by the
