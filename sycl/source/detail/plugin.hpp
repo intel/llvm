@@ -222,6 +222,7 @@ public:
     std::fill(LastDeviceIds.begin(), LastDeviceIds.end(), 0);
   }
 
+// The function is expected to be called in a thread safe manner
   bool containsPiPlatform(RT::PiPlatform Platform) {
     std::lock_guard<std::mutex> Guard(*PlatformIdMutex);
     auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
