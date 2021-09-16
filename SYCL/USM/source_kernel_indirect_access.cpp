@@ -6,6 +6,7 @@
 
 #include <CL/cl.h>
 #include <CL/sycl.hpp>
+#include <CL/sycl/backend/opencl.hpp>
 
 using namespace sycl;
 
@@ -22,13 +23,13 @@ kernel void test(global ulong *PSrc, global ulong *PDst) {
 int main() {
   queue Q{};
 
-  cl_context Ctx = Q.get_context().get();
+  cl_context Ctx = get_native<backend::opencl>(Q.get_context());
   cl_program Prog = clCreateProgramWithSource(Ctx, 1, &Src, NULL, NULL);
   clBuildProgram(Prog, 0, NULL, NULL, NULL, NULL);
 
   cl_kernel OclKernel = clCreateKernel(Prog, "test", NULL);
 
-  cl::sycl::kernel SyclKernel(OclKernel, Q.get_context());
+  kernel SyclKernel = make_kernel<backend::opencl>(OclKernel, Q.get_context());
 
   auto POuter = malloc_shared<int *>(1, Q);
   auto PInner = malloc_shared<int>(1, Q);

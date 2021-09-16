@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
+#include <CL/sycl/backend/opencl.hpp>
 #include <iostream>
 
 using namespace cl::sycl;
@@ -33,7 +34,7 @@ int main() {
     queue Queue{property::queue::in_order()};
 
     bool result = true;
-    cl_command_queue cq = Queue.get();
+    cl_command_queue cq = get_native<backend::opencl>(Queue);
     device dev = Queue.get_device();
     bool expected_result = dev.is_host() ? true : isQueueInOrder(cq);
 

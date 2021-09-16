@@ -169,7 +169,7 @@ void test3(queue &Q) {
 
   Q.submit([&](handler &CGH) {
     auto Func = [=](interop_handle IH) {
-      cl_event Ev = Event.get();
+      cl_event Ev = get_native<backend::opencl>(Event);
 
       int RC = clWaitForEvents(1, &Ev);
 

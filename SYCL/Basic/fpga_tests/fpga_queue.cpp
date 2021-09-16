@@ -1,10 +1,7 @@
 // REQUIRES: opencl, opencl_icd
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %opencl_lib
-// RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 //==------------- fpga_queue.cpp - SYCL FPGA queues test -------------------==//
 //
@@ -14,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
+#include <CL/sycl/backend/opencl.hpp>
 #include <iostream>
 #include <set>
 
@@ -25,7 +23,7 @@ const int maxNumQueues = 256;
 void GetCLQueue(event sycl_event, std::set<cl_command_queue> &cl_queues) {
   try {
     cl_command_queue cl_queue;
-    cl_event cl_event = sycl_event.get();
+    cl_event cl_event = get_native<backend::opencl>(sycl_event);
     cl_int error = clGetEventInfo(cl_event, CL_EVENT_COMMAND_QUEUE,
                                   sizeof(cl_queue), &cl_queue, nullptr);
     assert(CL_SUCCESS == error && "Failed to obtain queue from OpenCL event");
@@ -108,7 +106,9 @@ int main() {
     int result = cl_queues.size();
     device dev = Queue.get_device();
     int expected_result =
-        dev.is_host() ? 0 : getExpectedQueueNumber(dev.get(), 3);
+        dev.is_host()
+            ? 0
+            : getExpectedQueueNumber(get_native<backend::opencl>(dev), 3);
 
     if (expected_result != result) {
       std::cout << "Result Num of queues = " << result << std::endl
@@ -149,7 +149,9 @@ int main() {
     int result = cl_queues.size();
     device dev = Queue.get_device();
     int expected_result =
-        dev.is_host() ? 0 : getExpectedQueueNumber(dev.get(), maxNumQueues);
+        dev.is_host() ? 0
+                      : getExpectedQueueNumber(get_native<backend::opencl>(dev),
+                                               maxNumQueues);
 
     if (expected_result != result) {
       std::cout << "Result Num of queues = " << result << std::endl

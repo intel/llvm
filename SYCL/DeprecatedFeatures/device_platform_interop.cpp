@@ -1,6 +1,6 @@
 // REQUIRES: opencl
 
-// RUN: %clangxx -fsycl %s -o %t.run
+// RUN: %clangxx -fsycl -D__SYCL_INTERNAL_API %s -o %t.run
 // RUN: %GPU_RUN_PLACEHOLDER %t.run
 // RUN: %CPU_RUN_PLACEHOLDER %t.run
 // RUN: %ACC_RUN_PLACEHOLDER %t.run

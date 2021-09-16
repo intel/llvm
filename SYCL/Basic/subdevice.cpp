@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl.hpp>
+#include <CL/sycl/backend/opencl.hpp>
 #include <algorithm>
 #include <cassert>
 #include <iostream>
@@ -50,8 +51,9 @@ int main() {
             SubDevicesEq[0].get_info<info::device::partition_type_property>() ==
             info::partition_property::partition_equally);
 
-        assert(SubDevicesEq[0].get_info<info::device::parent_device>().get() ==
-               dev.get());
+        assert(sycl::get_native<sycl::backend::opencl>(
+                   SubDevicesEq[0].get_info<info::device::parent_device>()) ==
+               sycl::get_native<sycl::backend::opencl>(dev));
       } catch (feature_not_supported) {
         // okay skip it
       }

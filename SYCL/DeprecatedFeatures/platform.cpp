@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -D__SYCL_INTERNAL_API %s -o %t.out
 // RUN: env SYCL_DEVICE_FILTER=host,%sycl_be %t.out
 //==--------------- platform.cpp - SYCL platform test ----------------------==//
 //

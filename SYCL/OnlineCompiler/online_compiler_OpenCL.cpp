@@ -11,6 +11,7 @@
 // re-used by other backends is kept in online_compiler_common.hpp file.
 
 #include <CL/sycl.hpp>
+#include <CL/sycl/backend/opencl.hpp>
 #include <sycl/ext/intel/online_compiler.hpp>
 
 #include <vector>
@@ -22,7 +23,8 @@ sycl::kernel getSYCLKernelWithIL(sycl::context &Context,
                                  const std::vector<byte> &IL) {
   cl_int Err;
   cl_program ClProgram =
-      clCreateProgramWithIL(Context.get(), IL.data(), IL.size(), &Err);
+      clCreateProgramWithIL(sycl::get_native<sycl::backend::opencl>(Context),
+                            IL.data(), IL.size(), &Err);
   if (Err != CL_SUCCESS)
     throw sycl::runtime_error("clCreateProgramWithIL() failed", Err);
 
@@ -34,7 +36,7 @@ sycl::kernel getSYCLKernelWithIL(sycl::context &Context,
   if (Err != CL_SUCCESS)
     throw sycl::runtime_error("clCreateKernel() failed", Err);
 
-  return sycl::kernel(ClKernel, Context);
+  return sycl::make_kernel<sycl::backend::opencl>(ClKernel, Context);
 }
 #endif // RUN_KERNELS
 

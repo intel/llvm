@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -D__SYCL_INTERNAL_API %s -o %t.out
 // RUN: %BE_RUN_PLACEHOLDER %t.out
-//==--------------- queue.cpp - SYCL queue test ----------------------------==//
+//==-------- queue_old_interop.cpp - SYCL queue OpenCL interop test --------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,7 +8,6 @@
 //
 //===----------------------------------------------------------------------===//
 #include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
 #include <iostream>
 
 using namespace cl::sycl;
@@ -24,7 +23,7 @@ void print_queue_info(const queue &q) {
                  q.get_context().get_platform().get_backend() !=
                      cl::sycl::backend::opencl)
                     ? nullptr
-                    : sycl::get_native<sycl::backend::opencl>(q))
+                    : q.get())
             << std::endl;
   std::cout << "queue wraps " << get_type(q.get_device()) << " device"
             << std::endl;
@@ -51,7 +50,7 @@ int main() {
     assert(deviceA.is_host() == MovedQueue.is_host());
     if (!deviceA.is_host() &&
         deviceA.get_platform().get_backend() == cl::sycl::backend::opencl) {
-      assert(sycl::get_native<sycl::backend::opencl>(MovedQueue) != nullptr);
+      assert(MovedQueue.get() != nullptr);
     }
   }
   {
@@ -64,8 +63,7 @@ int main() {
     assert(deviceA.is_host() == WillMovedQueue.is_host());
     if (!deviceA.is_host() &&
         deviceA.get_platform().get_backend() == cl::sycl::backend::opencl) {
-      assert(sycl::get_native<sycl::backend::opencl>(WillMovedQueue) !=
-             nullptr);
+      assert(WillMovedQueue.get() != nullptr);
     }
   }
   {
