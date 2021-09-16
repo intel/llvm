@@ -202,6 +202,7 @@ public:
   // We need to return the same starting index for the given platform.
   // So, instead of returing the last device id of the given platform,
   // return the last device id of the predecessor platform.
+  // The function is expected to be called in a thread safe manner
   int getStartingDeviceId(RT::PiPlatform Platform) {
     int PlatformId = getPlatformId(Platform);
     if (PlatformId == 0)
