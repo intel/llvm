@@ -8804,7 +8804,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     ForeachArgs.push_back(
         TCArgs.MakeArgString("--out-replace=" + OutputFileName));
     StringRef ParallelJobs =
-        TCArgs.getLastArgValue(options::OPT_fsycl_parallel_jobs_EQ);
+        TCArgs.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
     if (!ParallelJobs.empty())
       ForeachArgs.push_back(TCArgs.MakeArgString("--jobs=" + ParallelJobs));
 

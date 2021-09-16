@@ -2680,7 +2680,7 @@ def fsycl_footer_path_EQ : Joined<["-"], "fsycl-footer-path=">,
 def fno_sycl_link_spirv : Flag<["-"], "fno-sycl-link-spirv">,
   Flags<[CoreOption]>, HelpText<"Disable adding of the default (spir64) triple "
   "when discovered in user specified objects and archives.">;
-def fsycl_parallel_jobs_EQ : Joined<["-"], "fsycl-parallel-jobs=">,
+def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
   Flags<[CoreOption]>, Group<f_Group>,
   HelpText<"Controls the parallelism of post device code link actions performed"
   "by the toolchain, like generating SPIR-V files for each device image"
