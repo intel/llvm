@@ -8,6 +8,8 @@
 
 #pragma once
 
+#ifdef __SYCL_INTERNAL_API
+
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/device.hpp>
@@ -91,3 +93,5 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 }
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+#endif

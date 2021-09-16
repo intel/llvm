@@ -6,7 +6,7 @@ on:
       - sycl
 jobs:
    check:
-     runs-on: ubuntu-18.04
+     runs-on: ubuntu-20.04
      if: github.repository == 'intel/llvm'
      strategy:
        fail-fast: false
@@ -28,12 +28,12 @@ jobs:
                  ;;
              SharedLibs)
                  wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-                 sudo add-apt-repository "deb http://apt.llvm.org/bionic/   llvm-toolchain-bionic-12 main"
+                 sudo add-apt-repository "deb http://apt.llvm.org/focal/   llvm-toolchain-focal-13 main"
                  sudo apt-get update
-                 sudo apt-get install -y clang-12
+                 sudo apt-get install -y clang-13
                  export ARGS="--shared-libs"
-                 export CC="clang-12"
-                 export CXX="clang++-12"
+                 export CC="clang-13"
+                 export CXX="clang++-13"
                  ;;
              NoAssertions)
                  export ARGS="--no-assertions"
@@ -42,7 +42,7 @@ jobs:
          mkdir -p $GITHUB_WORKSPACE/build
          cd $GITHUB_WORKSPACE/build
          python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
-         -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release $ARGS
+         -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release --ci-defaults $ARGS
      - name: Compile
        run: |
          python3 $GITHUB_WORKSPACE/src/buildbot/compile.py -w  $GITHUB_WORKSPACE \
@@ -74,4 +74,3 @@ jobs:
        with:
          name: sycl_linux_${{ matrix.config }}
          path: llvm_sycl.tar.gz
-

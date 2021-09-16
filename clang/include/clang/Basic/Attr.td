@@ -1353,8 +1353,7 @@ def SYCLIntelKernelArgsRestrict : InheritableAttr {
 }
 
 def SYCLIntelNumSimdWorkItems : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","num_simd_work_items">,
-                   CXX11<"intel","num_simd_work_items">];
+  let Spellings = [CXX11<"intel", "num_simd_work_items">];
   let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -1371,8 +1370,7 @@ def SYCLIntelUseStallEnableClusters : InheritableAttr {
 }
 
 def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","scheduler_target_fmax_mhz">,
-                   CXX11<"intel","scheduler_target_fmax_mhz">];
+  let Spellings = [CXX11<"intel", "scheduler_target_fmax_mhz">];
   let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -1381,8 +1379,7 @@ def SYCLIntelSchedulerTargetFmaxMhz : InheritableAttr {
 }
 
 def SYCLIntelMaxWorkGroupSize : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","max_work_group_size">,
-                   CXX11<"intel","max_work_group_size">];
+  let Spellings = [CXX11<"intel", "max_work_group_size">];
   let Args = [ExprArgument<"XDim">,
               ExprArgument<"YDim">,
               ExprArgument<"ZDim">];
@@ -1407,8 +1404,7 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
 }
 
 def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","max_global_work_dim">,
-                   CXX11<"intel","max_global_work_dim">];
+  let Spellings = [CXX11<"intel", "max_global_work_dim">];
   let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -1417,8 +1413,7 @@ def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
 }
 
 def SYCLIntelNoGlobalWorkOffset : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","no_global_work_offset">,
-                   CXX11<"intel","no_global_work_offset">];
+  let Spellings = [CXX11<"intel", "no_global_work_offset">];
   let Args = [ExprArgument<"Value", /*optional*/1>];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -1940,8 +1935,7 @@ def Mode : Attr {
 }
 
 def SYCLIntelFPGAIVDep : StmtAttr {
-  let Spellings = [CXX11<"intelfpga","ivdep">,
-                   CXX11<"intel","ivdep">];
+  let Spellings = [CXX11<"intel", "ivdep">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [
@@ -1986,8 +1980,7 @@ def SYCLIntelFPGAIVDep : StmtAttr {
 }
 
 def SYCLIntelFPGAInitiationInterval : DeclOrStmtAttr {
-  let Spellings = [CXX11<"intelfpga","ii">,
-                   CXX11<"intel","ii">,
+  let Spellings = [CXX11<"intel", "ii">,
                    CXX11<"intel", "initiation_interval">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt, Function],
                               ErrorDiag,
@@ -2000,8 +1993,7 @@ def SYCLIntelFPGAInitiationInterval : DeclOrStmtAttr {
 }
 
 def SYCLIntelFPGAMaxConcurrency : DeclOrStmtAttr {
-  let Spellings = [CXX11<"intelfpga","max_concurrency">,
-                   CXX11<"intel","max_concurrency">];
+  let Spellings = [CXX11<"intel", "max_concurrency">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt, Function],
                              ErrorDiag,
                              "'for', 'while', 'do' statements, and functions">;
@@ -2013,8 +2005,7 @@ def SYCLIntelFPGAMaxConcurrency : DeclOrStmtAttr {
 }
 
 def SYCLIntelFPGALoopCoalesce : StmtAttr {
-  let Spellings = [CXX11<"intelfpga","loop_coalesce">,
-                   CXX11<"intel","loop_coalesce">];
+  let Spellings = [CXX11<"intel", "loop_coalesce">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NExpr", /*opt*/1>];
@@ -2024,8 +2015,7 @@ def SYCLIntelFPGALoopCoalesce : StmtAttr {
 }
 
 def SYCLIntelFPGADisableLoopPipelining : DeclOrStmtAttr {
-  let Spellings = [CXX11<"intelfpga","disable_loop_pipelining">,
-                   CXX11<"intel","disable_loop_pipelining">];
+  let Spellings = [CXX11<"intel", "disable_loop_pipelining">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt, Function],
                               ErrorDiag,
                               "'for', 'while', 'do' statements, and functions">;
@@ -2060,8 +2050,7 @@ def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
                         SYCLIntelFPGADisableLoopPipelining]>;
 
 def SYCLIntelFPGAMaxInterleaving : StmtAttr {
-  let Spellings = [CXX11<"intelfpga","max_interleaving">,
-                   CXX11<"intel","max_interleaving">];
+  let Spellings = [CXX11<"intel", "max_interleaving">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NExpr">];
@@ -2073,8 +2062,7 @@ def : MutualExclusions<[SYCLIntelFPGADisableLoopPipelining,
                         SYCLIntelFPGAMaxInterleaving]>;
 
 def SYCLIntelFPGASpeculatedIterations : StmtAttr {
-  let Spellings = [CXX11<"intelfpga","speculated_iterations">,
-                   CXX11<"intel","speculated_iterations">];
+  let Spellings = [CXX11<"intel", "speculated_iterations">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
                              ErrorDiag, "'for', 'while', and 'do' statements">;
   let Args = [ExprArgument<"NExpr">];
@@ -2127,8 +2115,7 @@ def IntelFPGALocalOrStaticVar : SubsetSubject<Var,
                               "local variables, static variables">;
 
 def IntelFPGADoublePump : Attr {
-  let Spellings = [CXX11<"intelfpga", "doublepump">,
-                   CXX11<"intel", "doublepump">];
+  let Spellings = [CXX11<"intel", "doublepump">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
@@ -2136,8 +2123,7 @@ def IntelFPGADoublePump : Attr {
 }
 
 def IntelFPGASinglePump : Attr {
-  let Spellings = [CXX11<"intelfpga", "singlepump">,
-                   CXX11<"intel", "singlepump">];
+  let Spellings = [CXX11<"intel", "singlepump">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
@@ -2145,8 +2131,7 @@ def IntelFPGASinglePump : Attr {
 }
 
 def IntelFPGAMemory : Attr {
-  let Spellings = [CXX11<"intelfpga", "memory">,
-                   CXX11<"intel", "fpga_memory">];
+  let Spellings = [CXX11<"intel", "fpga_memory">];
   let Args = [EnumArgument<"Kind", "MemoryKind",
                            ["MLAB", "BLOCK_RAM", ""],
                            ["MLAB", "BlockRAM", "Default"], 1>];
@@ -2166,8 +2151,7 @@ def IntelFPGAMemory : Attr {
 }
 
 def IntelFPGARegister : Attr {
-  let Spellings = [CXX11<"intelfpga", "register">,
-                   CXX11<"intel", "fpga_register">];
+  let Spellings = [CXX11<"intel", "fpga_register">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
@@ -2178,8 +2162,7 @@ def : MutualExclusions<[IntelFPGADoublePump, IntelFPGASinglePump,
 
 // One integral argument.
 def IntelFPGABankWidth : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","bankwidth">,
-                   CXX11<"intel","bankwidth">];
+  let Spellings = [CXX11<"intel", "bankwidth">];
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticAgentMemVar,
                               Field], ErrorDiag>;
@@ -2189,8 +2172,7 @@ def IntelFPGABankWidth : InheritableAttr {
 def : MutualExclusions<[IntelFPGARegister, IntelFPGABankWidth]>;
 
 def IntelFPGANumBanks : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","numbanks">,
-                   CXX11<"intel","numbanks">];
+  let Spellings = [CXX11<"intel", "numbanks">];
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticAgentMemVar,
                               Field], ErrorDiag>;
@@ -2199,8 +2181,7 @@ def IntelFPGANumBanks : InheritableAttr {
 }
 
 def IntelFPGAPrivateCopies : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","private_copies">,
-                   CXX11<"intel","private_copies">];
+  let Spellings = [CXX11<"intel", "private_copies">];
   let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Subjects = SubjectList<[IntelFPGALocalNonConstVar, Field], ErrorDiag>;
@@ -2210,8 +2191,7 @@ def : MutualExclusions<[IntelFPGARegister, IntelFPGAPrivateCopies]>;
 
 // Two string arguments.
 def IntelFPGAMerge : Attr {
-  let Spellings = [CXX11<"intelfpga","merge">,
-                   CXX11<"intel","merge">];
+  let Spellings = [CXX11<"intel", "merge">];
   let Args = [StringArgument<"Name">, StringArgument<"Direction">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalOrStaticVar,
                               Field], ErrorDiag>;
@@ -2221,8 +2201,7 @@ def IntelFPGAMerge : Attr {
 def : MutualExclusions<[IntelFPGARegister, IntelFPGAMerge]>;
 
 def IntelFPGAMaxReplicates : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","max_replicates">,
-                   CXX11<"intel","max_replicates">];
+  let Spellings = [CXX11<"intel", "max_replicates">];
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticAgentMemVar,
                               Field], ErrorDiag>;
@@ -2232,8 +2211,7 @@ def IntelFPGAMaxReplicates : InheritableAttr {
 def : MutualExclusions<[IntelFPGARegister, IntelFPGAMaxReplicates]>;
 
 def IntelFPGASimpleDualPort : Attr {
-  let Spellings = [CXX11<"intelfpga","simple_dual_port">,
-                   CXX11<"intel","simple_dual_port">];
+  let Spellings = [CXX11<"intel", "simple_dual_port">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticAgentMemVar,
                               Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
@@ -2258,8 +2236,7 @@ def SYCLIntelPipeIO : Attr {
 
 // Variadic integral arguments.
 def IntelFPGABankBits : Attr {
-  let Spellings = [CXX11<"intelfpga", "bank_bits">,
-                   CXX11<"intel", "bank_bits">];
+  let Spellings = [CXX11<"intel", "bank_bits">];
   let Args = [VariadicExprArgument<"Args">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticAgentMemVar,
                               Field], ErrorDiag>;
@@ -2270,8 +2247,7 @@ def : MutualExclusions<[IntelFPGARegister, IntelFPGABankBits]>;
 def : MutualExclusions<[IntelFPGARegister, IntelFPGANumBanks]>;
 
 def IntelFPGAForcePow2Depth : InheritableAttr {
-  let Spellings = [CXX11<"intelfpga","force_pow2_depth">,
-                   CXX11<"intel","force_pow2_depth">];
+  let Spellings = [CXX11<"intel", "force_pow2_depth">];
   let Args = [ExprArgument<"Value">];
   let Subjects = SubjectList<[IntelFPGAConstVar, IntelFPGALocalStaticAgentMemVar,
                               Field], ErrorDiag>;

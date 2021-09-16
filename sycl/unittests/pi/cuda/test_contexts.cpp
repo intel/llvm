@@ -14,6 +14,7 @@
 
 #include <cuda.h>
 
+#include "CudaUtils.hpp"
 #include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
@@ -63,7 +64,7 @@ protected:
 
 TEST_F(CudaContextsTest, ContextLifetime) {
   // start with no active context
-  cuCtxSetCurrent(nullptr);
+  pi::clearCudaContext();
 
   // create a context
   pi_context context;
@@ -149,7 +150,7 @@ TEST_F(CudaContextsTest, ContextLifetimeExisting) {
 // still able to work correctly in that thread.
 TEST_F(CudaContextsTest, ContextThread) {
   // start with no active context
-  cuCtxSetCurrent(nullptr);
+  pi::clearCudaContext();
 
   // create two PI contexts
   pi_context context1;
