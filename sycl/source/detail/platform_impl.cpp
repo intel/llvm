@@ -151,6 +151,9 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
     return;
 
   std::vector<plugin> &Plugins = RT::initialize();
+// Locking plugins mutex as the function modifies plugins state.
+  const std::lock_guard<std::mutex> Guard(
+      GlobalHandler::instance().getPluginsMutex());
 
   auto It =
       std::find_if(Plugins.begin(), Plugins.end(), [Platform](plugin &Plugin) {
