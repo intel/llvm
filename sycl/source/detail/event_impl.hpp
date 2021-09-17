@@ -13,8 +13,8 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
-#include <detail/scheduler/commands.hpp>
 #include <detail/plugin.hpp>
+#include <detail/scheduler/commands.hpp>
 
 #include <atomic>
 #include <cassert>

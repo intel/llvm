@@ -192,9 +192,8 @@ TEST(QueueWait, QueueWaitTest) {
 
   // Test for event::get_wait_list
   {
-    sycl::event eA = Q.submit([&](sycl::handler &cgh) {
-      cgh.host_task([]() {});
-    });
+    sycl::event eA =
+        Q.submit([&](sycl::handler &cgh) { cgh.host_task([]() {}); });
     sycl::event eB = Q.submit([&](sycl::handler &cgh) {
       cgh.depends_on(eA);
       cgh.host_task([]() {});
