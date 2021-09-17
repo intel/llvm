@@ -1028,7 +1028,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
   }
 
   // Make sure the Linked Allocas are marked visited by the previous walk.
-  // Remove all dependencies AllocaCommands has on other commands.
+  // Remove allocation commands from the users of their dependencies.
   for (AllocaCommandBase *AllocaCmd : AllocaCommands) {
     AllocaCommandBase *LinkedCmd = AllocaCmd->MLinkedAllocaCmd;
 
