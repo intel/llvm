@@ -11,8 +11,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // RUN: %ACC_RUN_PLACEHOLDER %t1.out
 
-// XFAIL: cuda
-
 #include <CL/sycl.hpp>
 
 using namespace cl::sycl;
