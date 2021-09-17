@@ -131,4 +131,3 @@ __SYCL_WARNING("DPCPP does not support C++ version earlier than C++17. Some "
 #endif
 
 #endif
-
