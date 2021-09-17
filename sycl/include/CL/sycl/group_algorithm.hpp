@@ -18,6 +18,7 @@
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/sub_group.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
+#include <sycl/ext/oneapi/group_sort.hpp>
 
 __SYCL_OPEN_NS() {
 namespace detail {

@@ -898,6 +898,29 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                                << "-ffreestanding";
   }
 
+  // Diagnose incorrect inputs to SYCL options.
+  // FIXME: Since the option definition includes the list of possible values,
+  // the validation must be automatic, not requiring separate disjointed code
+  // blocks accross the driver code. Long-term, the detection of incorrect
+  // values must happen at the level of TableGen and Arg class design, with
+  // Compilation/Driver class constructors handling the driver-specific
+  // diagnostic output.
+  auto checkSingleArgValidity = [&](Arg *A,
+                                    SmallVector<StringRef, 4> AllowedValues) {
+    if (!A)
+      return;
+    const char *ArgValue = A->getValue();
+    for (const StringRef AllowedValue : AllowedValues)
+      if (AllowedValue.equals(ArgValue))
+        return;
+    Diag(clang::diag::err_drv_invalid_argument_to_option)
+        << ArgValue << A->getOption().getName();
+  };
+  checkSingleArgValidity(SYCLLink, {"early", "image"});
+  checkSingleArgValidity(
+      C.getInputArgs().getLastArg(options::OPT_fsycl_device_code_split_EQ),
+      {"per_kernel", "per_source", "auto", "off"});
+
   bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
@@ -1325,7 +1348,8 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   // Silence driver warnings if requested
   Diags.setIgnoreAllWarnings(Args.hasArg(options::OPT_w));
 
-  // -no-canonical-prefixes is used very early in main.
+  // -canonical-prefixes, -no-canonical-prefixes are used very early in main.
+  Args.ClaimAllArgs(options::OPT_canonical_prefixes);
   Args.ClaimAllArgs(options::OPT_no_canonical_prefixes);
 
   // f(no-)integated-cc1 is also used very early in main.
@@ -4315,7 +4339,7 @@ class OffloadingActionBuilder final {
 
           for (StringRef Val : A->getValues()) {
             if (Val == "all") {
-              for (auto &K : devicelib_link_info.keys())
+              for (const auto &K : devicelib_link_info.keys())
                 devicelib_link_info[K] = true && !NoDeviceLibs;
               break;
             }
@@ -7757,6 +7781,8 @@ bool clang::driver::isOptimizationLevelFast(const ArgList &Args) {
 }
 
 bool clang::driver::isObjectFile(std::string FileName) {
+  if (llvm::sys::fs::is_directory(FileName))
+    return false;
   if (!llvm::sys::path::has_extension(FileName))
     // Any file with no extension should be considered an Object. Take into
     // account -lsomelib library filenames.

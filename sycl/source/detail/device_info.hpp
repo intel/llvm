@@ -126,7 +126,7 @@ template <info::device param> struct get_device_info<platform, param> {
 // for string return type in other specializations.
 template <info::device param> struct get_device_info_string {
   static std::string get(RT::PiDevice dev, const plugin &Plugin) {
-    size_t resultSize;
+    size_t resultSize = 0;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(param), 0, nullptr, &resultSize);
     if (resultSize == 0) {

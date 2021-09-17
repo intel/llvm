@@ -256,8 +256,8 @@ TEST(ITTNotify, UseKernelBundle) {
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::rocm) {
-    std::cerr << "Test is not supported on ROCm platform, skipping\n";
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cerr << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 
@@ -297,8 +297,8 @@ TEST(ITTNotify, VarNotSet) {
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::rocm) {
-    std::cerr << "Test is not supported on ROCm platform, skipping\n";
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cerr << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 

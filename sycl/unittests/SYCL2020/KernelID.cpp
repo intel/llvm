@@ -17,6 +17,7 @@
 class TestKernel1;
 class TestKernel2;
 class TestKernel3;
+class ServiceKernel1;
 
 __SYCL_INT_HEADER_OPEN_NS() {
 namespace detail {
@@ -56,6 +57,19 @@ template <> struct KernelInfo<TestKernel3> {
   static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 
+template <> struct KernelInfo<ServiceKernel1> {
+  static constexpr unsigned getNumParams() { return 0; }
+  static const kernel_param_desc_t &getParamDesc(int) {
+    static kernel_param_desc_t Dummy;
+    return Dummy;
+  }
+  static constexpr const char *getName() {
+    return "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1";
+  }
+  static constexpr bool isESIMD() { return false; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
+};
 } // namespace detail
 } // __SYCL_INT_HEADER_OPEN_NS()
 __SYCL_INT_HEADER_CLOSE_NS()
@@ -83,7 +97,9 @@ generateDefaultImage(std::initializer_list<std::string> Kernels) {
 
 static sycl::unittest::PiImage Imgs[2] = {
     generateDefaultImage({"KernelID_TestKernel1", "KernelID_TestKernel3"}),
-    generateDefaultImage({"KernelID_TestKernel2"})};
+    generateDefaultImage(
+        {"KernelID_TestKernel2",
+         "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1"})};
 static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 
 TEST(KernelID, AllProgramKernelIds) {
@@ -105,6 +121,20 @@ TEST(KernelID, AllProgramKernelIds) {
   }
 }
 
+TEST(KernelID, NoServiceKernelIds) {
+  const char *ServiceKernel1Name =
+      sycl::detail::KernelInfo<ServiceKernel1>::getName();
+
+  std::vector<sycl::kernel_id> AllKernelIDs = sycl::get_kernel_ids();
+
+  auto NoFoundServiceKernelID = std::none_of(
+      AllKernelIDs.begin(), AllKernelIDs.end(), [=](sycl::kernel_id KernelID) {
+        return strcmp(KernelID.get_name(), ServiceKernel1Name) == 0;
+      });
+
+  EXPECT_TRUE(NoFoundServiceKernelID);
+}
+
 TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
@@ -114,6 +144,11 @@ TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
 
   if (Plt.get_backend() == sycl::backend::cuda) {
     std::cout << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 
@@ -155,6 +190,11 @@ TEST(KernelID, KernelBundleKernelIDsIntersectAll) {
     return;
   }
 
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
+    return;
+  }
+
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 
@@ -186,6 +226,11 @@ TEST(KernelID, KernelIDHasKernel) {
 
   if (Plt.get_backend() == sycl::backend::cuda) {
     std::cout << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 
@@ -267,4 +312,31 @@ TEST(KernelID, KernelIDHasKernel) {
   EXPECT_TRUE(InputBundle7.has_kernel(TestKernel1ID));
   EXPECT_TRUE(InputBundle7.has_kernel(TestKernel2ID));
   EXPECT_TRUE(InputBundle7.has_kernel(TestKernel3ID));
+}
+
+TEST(KernelID, InvalidKernelName) {
+  sycl::platform Plt{sycl::default_selector()};
+  if (Plt.is_host()) {
+    std::cout << "Test is not supported on host, skipping\n";
+    return; // test is not supported on host.
+  }
+
+  if (Plt.get_backend() == sycl::backend::cuda) {
+    std::cout << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  sycl::unittest::PiMock Mock{Plt};
+  setupDefaultMockAPIs(Mock);
+
+  try {
+    sycl::get_kernel_id<class NotAKernel>();
+    throw std::logic_error("sycl::runtime_error didn't throw");
+  } catch (sycl::runtime_error const &e) {
+    EXPECT_EQ(std::string("No kernel found with the specified name -46 "
+                          "(CL_INVALID_KERNEL_NAME)"),
+              e.what());
+  } catch (...) {
+    FAIL() << "Expected sycl::runtime_error";
+  }
 }

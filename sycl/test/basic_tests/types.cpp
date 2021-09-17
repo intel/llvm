@@ -90,8 +90,14 @@ template <> inline void checkSizeForFloatingPoint<s::half, sizeof(int16_t)>() {
 }
 
 int main() {
+  // Test for half constexpr default constructors
+  constexpr sycl::specialization_id<sycl::vec<sycl::half, 2>> id(1.0);
+  constexpr sycl::marray<sycl::half, 2> MH(3);
   // Check the size and alignment of the SYCL vectors.
   checkVectors();
+
+  // Table 4.93: Additional scalar data types supported by SYCL.
+  static_assert(sizeof(s::byte) == sizeof(int8_t), "");
 
   // Table 4.94: Scalar data type aliases supported by SYCL
   static_assert(is_same<s::cl_bool, decltype(0 != 1)>::value, "");

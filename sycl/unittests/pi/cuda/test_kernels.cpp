@@ -24,7 +24,7 @@ using namespace sycl;
 struct CudaKernelsTest : public ::testing::Test {
 
 protected:
-  detail::plugin *plugin = pi::initializeAndGet(backend::cuda);
+  std::optional<detail::plugin> plugin = pi::initializeAndGet(backend::cuda);
   pi_platform platform_;
   pi_device device_;
   pi_context context_;
@@ -32,7 +32,7 @@ protected:
 
   void SetUp() override {
     // skip the tests if the CUDA backend is not available
-    if (!plugin) {
+    if (!plugin.has_value()) {
       GTEST_SKIP();
     }
 
@@ -65,7 +65,7 @@ protected:
   }
 
   void TearDown() override {
-    if (plugin) {
+    if (plugin.has_value()) {
       plugin->call<detail::PiApiKind::piDeviceRelease>(device_);
       plugin->call<detail::PiApiKind::piQueueRelease>(queue_);
       plugin->call<detail::PiApiKind::piContextRelease>(context_);

@@ -66,6 +66,7 @@ using half __SYCL2020_DEPRECATED("use 'sycl::half' instead") =
   __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)
 
 __SYCL_OPEN_NS() {
+using byte __SYCL2020_DEPRECATED("use std::byte instead") = std::uint8_t;
 using schar = signed char;
 using uchar = unsigned char;
 using ushort = unsigned short;

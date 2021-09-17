@@ -26,7 +26,7 @@ enum class backend : char {
   cuda = 3,
   all = 4,
   esimd_cpu = 5,
-  rocm = 6,
+  hip = 6,
 };
 
 template <backend Backend, typename SYCLObjectT> struct interop;
@@ -57,8 +57,8 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   case backend::esimd_cpu:
     Out << "esimd_cpu";
     break;
-  case backend::rocm:
-    Out << "rocm";
+  case backend::hip:
+    Out << "hip";
     break;
   case backend::all:
     Out << "all";

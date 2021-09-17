@@ -84,7 +84,7 @@ void stream_impl::flush() {
             ->second->FlushBuf
             .get_access<access::mode::read_write, access::target::host_buffer>(
                 cgh);
-    cgh.codeplay_host_task([=] {
+    cgh.host_task([=] {
       printf("%s", BufHostAcc.get_pointer());
       fflush(stdout);
     });

@@ -111,7 +111,7 @@ pi_result forLatestEvents(const pi_event *event_wait_list,
 ///
 pi_result check_error(CUresult result, const char *function, int line,
                       const char *file) {
-  if (result == CUDA_SUCCESS) {
+  if (result == CUDA_SUCCESS || result == CUDA_ERROR_DEINITIALIZED) {
     return PI_SUCCESS;
   }
 
@@ -677,18 +677,21 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 /// Triggers the CUDA Driver initialization (cuInit) the first time, so this
 /// must be the first PI API called.
 ///
+/// However because multiple devices in a context is not currently supported,
+/// place each device in a separate platform.
+///
 pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
                               pi_uint32 *num_platforms) {
 
   try {
     static std::once_flag initFlag;
     static pi_uint32 numPlatforms = 1;
-    static _pi_platform platformId;
+    static std::vector<_pi_platform> platformIds;
 
-    if (num_entries == 0 and platforms != nullptr) {
+    if (num_entries == 0 && platforms != nullptr) {
       return PI_INVALID_VALUE;
     }
-    if (platforms == nullptr and num_platforms == nullptr) {
+    if (platforms == nullptr && num_platforms == nullptr) {
       return PI_INVALID_VALUE;
     }
 
@@ -708,14 +711,18 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
             return;
           }
           try {
-            platformId.devices_.reserve(numDevices);
+            // make one platform per device
+            numPlatforms = numDevices;
+            platformIds.resize(numDevices);
+
             for (int i = 0; i < numDevices; ++i) {
               CUdevice device;
               err = PI_CHECK_ERROR(cuDeviceGet(&device, i));
-              platformId.devices_.emplace_back(
-                  new _pi_device{device, &platformId});
+              platformIds[i].devices_.emplace_back(
+                  new _pi_device{device, &platformIds[i]});
+
               {
-                const auto &dev = platformId.devices_.back().get();
+                const auto &dev = platformIds[i].devices_.back().get();
                 size_t maxWorkGroupSize = 0u;
                 size_t maxThreadsPerBlock[3] = {};
                 pi_result retError = cuda_piDeviceGetInfo(
@@ -736,11 +743,17 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
-            platformId.devices_.clear();
+            for (int i = 0; i < numDevices; ++i) {
+              platformIds[i].devices_.clear();
+            }
+            platformIds.clear();
             err = PI_OUT_OF_HOST_MEMORY;
           } catch (...) {
             // Clear and rethrow to allow retry
-            platformId.devices_.clear();
+            for (int i = 0; i < numDevices; ++i) {
+              platformIds[i].devices_.clear();
+            }
+            platformIds.clear();
             throw;
           }
         },
@@ -751,7 +764,9 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
     }
 
     if (platforms != nullptr) {
-      *platforms = &platformId;
+      for (unsigned i = 0; i < std::min(num_entries, numPlatforms); ++i) {
+        platforms[i] = &platformIds[i];
+      }
     }
 
     return err;
@@ -2559,17 +2574,11 @@ pi_result cuda_piEnqueueKernelLaunch(
   int threadsPerBlock[3] = {32, 1, 1};
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
-  size_t reqdThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
   pi_uint32 local_size = kernel->get_local_size();
 
   {
-    pi_result retError = cuda_piKernelGetGroupInfo(
-        kernel, command_queue->device_,
-        PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(reqdThreadsPerBlock), reqdThreadsPerBlock, nullptr);
-    assert(retError == PI_SUCCESS);
-
+    size_t *reqdThreadsPerBlock = kernel->reqdThreadsPerBlock_;
     maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
     command_queue->device_->get_max_work_item_sizes(sizeof(maxThreadsPerBlock),
                                                     maxThreadsPerBlock);
@@ -4508,7 +4517,7 @@ pi_result cuda_piextUSMFree(pi_context context, void *ptr) {
                                          CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
     result = PI_CHECK_ERROR(cuPointerGetAttributes(
         2, attributes, attribute_values, (CUdeviceptr)ptr));
-    assert(type == CU_MEMORYTYPE_DEVICE or type == CU_MEMORYTYPE_HOST);
+    assert(type == CU_MEMORYTYPE_DEVICE || type == CU_MEMORYTYPE_HOST);
     if (is_managed || type == CU_MEMORYTYPE_DEVICE) {
       // Memory allocated with cuMemAlloc and cuMemAllocManaged must be freed
       // with cuMemFree
@@ -4600,15 +4609,15 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                        pi_uint32 num_events_in_waitlist,
                                        const pi_event *events_waitlist,
                                        pi_event *event) {
+
+  // flags is currently unused so fail if set
+  if (flags != 0)
+    return PI_INVALID_VALUE;
   assert(queue != nullptr);
   assert(ptr != nullptr);
   CUstream cuStream = queue->get();
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> event_ptr{nullptr};
-
-  // TODO implement handling the flags once the expected behaviour
-  // of piextUSMEnqueuePrefetch is detailed in the USM extension
-  assert(flags == 0u);
 
   try {
     ScopedContext active(queue->get_context());
@@ -4712,7 +4721,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
       }
       result = PI_CHECK_ERROR(cuPointerGetAttribute(
           &value, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)ptr));
-      assert(value == CU_MEMORYTYPE_DEVICE or value == CU_MEMORYTYPE_HOST);
+      assert(value == CU_MEMORYTYPE_DEVICE || value == CU_MEMORYTYPE_HOST);
       if (value == CU_MEMORYTYPE_DEVICE) {
         // pointer to device memory
         return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -4724,7 +4733,11 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
                        PI_MEM_TYPE_HOST);
       }
       // should never get here
+#ifdef _MSC_VER
+      __assume(0);
+#else
       __builtin_unreachable();
+#endif
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      PI_MEM_TYPE_UNKNOWN);
     }

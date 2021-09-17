@@ -197,6 +197,42 @@ checkValueRange(const T &V) {
 #endif
 }
 
+template <typename TransformedArgType, int Dims, typename KernelType>
+class RoundedRangeKernel {
+public:
+  RoundedRangeKernel(range<Dims> NumWorkItems, KernelType KernelFunc)
+      : NumWorkItems(NumWorkItems), KernelFunc(KernelFunc) {}
+
+  void operator()(TransformedArgType Arg) const {
+    if (Arg[0] >= NumWorkItems[0])
+      return;
+    Arg.set_allowed_range(NumWorkItems);
+    KernelFunc(Arg);
+  }
+
+private:
+  range<Dims> NumWorkItems;
+  KernelType KernelFunc;
+};
+
+template <typename TransformedArgType, int Dims, typename KernelType>
+class RoundedRangeKernelWithKH {
+public:
+  RoundedRangeKernelWithKH(range<Dims> NumWorkItems, KernelType KernelFunc)
+      : NumWorkItems(NumWorkItems), KernelFunc(KernelFunc) {}
+
+  void operator()(TransformedArgType Arg, kernel_handler KH) const {
+    if (Arg[0] >= NumWorkItems[0])
+      return;
+    Arg.set_allowed_range(NumWorkItems);
+    KernelFunc(Arg, KH);
+  }
+
+private:
+  range<Dims> NumWorkItems;
+  KernelType KernelFunc;
+};
+
 } // namespace detail
 
 namespace ext {
@@ -553,8 +589,7 @@ private:
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
-    if (detail::isKernelLambdaCallableWithKernelHandler<KernelType,
-                                                        LambdaArgType>()) {
+    if constexpr (IsCallableWithKernelHandler) {
       getOrInsertHandlerKernelBundle(/*Insert=*/true);
     }
   }
@@ -1267,18 +1302,6 @@ public:
     setType(detail::CG::RunOnHostIntel);
   }
 
-  template <typename FuncT>
-  __SYCL2020_DEPRECATED(
-      "codeplay_host_task() is deprecated, use host_task() instead")
-  detail::enable_if_t<
-      detail::check_fn_signature<detail::remove_reference_t<FuncT>,
-                                 void()>::value ||
-      detail::check_fn_signature<
-          detail::remove_reference_t<FuncT>,
-          void(interop_handle)>::value> codeplay_host_task(FuncT Func) {
-    host_task_impl(Func);
-  }
-
   /// Enqueues a command to the SYCL runtime to invoke \p Func once.
   template <typename FuncT>
   detail::enable_if_t<
@@ -1374,7 +1397,7 @@ public:
             int Dims, typename Reduction>
   void parallel_for(range<Dims> Range, Reduction Redu,
                     _KERNELFUNCPARAM(KernelFunc)) {
-    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
+    std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
 
     // Before running the kernels, check that device has enough local memory
     // to hold local arrays required for the tree-reduction algorithm.
@@ -1460,7 +1483,7 @@ public:
   parallel_for(nd_range<Dims> Range, Reduction Redu,
                _KERNELFUNCPARAM(KernelFunc)) {
 
-    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
+    std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
     device D = detail::getDeviceFromHandler(*this);
 
     if (D.has(aspect::atomic64)) {
@@ -2466,19 +2489,12 @@ private:
                                    range<Dims> NumWorkItems) {
     if constexpr (detail::isKernelLambdaCallableWithKernelHandler<
                       KernelType, TransformedArgType>()) {
-      return [=](TransformedArgType Arg, kernel_handler KH) {
-        if (Arg[0] >= NumWorkItems[0])
-          return;
-        Arg.set_allowed_range(NumWorkItems);
-        KernelFunc(Arg, KH);
-      };
+      return detail::RoundedRangeKernelWithKH<TransformedArgType, Dims,
+                                              KernelType>(NumWorkItems,
+                                                          KernelFunc);
     } else {
-      return [=](TransformedArgType Arg) {
-        if (Arg[0] >= NumWorkItems[0])
-          return;
-        Arg.set_allowed_range(NumWorkItems);
-        KernelFunc(Arg);
-      };
+      return detail::RoundedRangeKernel<TransformedArgType, Dims, KernelType>(
+          NumWorkItems, KernelFunc);
     }
   }
 };

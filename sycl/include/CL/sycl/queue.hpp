@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/assert_happened.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/service_kernel_names.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/event.hpp>
@@ -78,11 +79,10 @@ class queue;
 namespace detail {
 class queue_impl;
 #if __SYCL_USE_FALLBACK_ASSERT
-class AssertInfoCopier;
 static event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
 #endif
-}
+} // namespace detail
 
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
 ///
@@ -230,6 +230,10 @@ public:
   template <info::queue param>
   typename info::param_traits<info::queue, param>::return_type get_info() const;
 
+  // A shorthand for `get_device().has()' which is expected to be a bit quicker
+  // than the long version
+  bool device_has(aspect Aspect) const;
+
 public:
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
@@ -246,7 +250,7 @@ public:
     if (!is_host()) {
       auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
                                           event &E) {
-        if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
+        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
             KernelUsesAssert) {
           // __devicelib_assert_fail isn't supported by Device-side Runtime
           // Linking against fallback impl of __devicelib_assert_fail is
@@ -286,7 +290,7 @@ public:
 #if __SYCL_USE_FALLBACK_ASSERT
     auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
                            bool IsKernel, bool KernelUsesAssert, event &E) {
-      if (IsKernel && !get_device().has(aspect::ext_oneapi_native_assert) &&
+      if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
           KernelUsesAssert) {
         // __devicelib_assert_fail isn't supported by Device-side Runtime
         // Linking against fallback impl of __devicelib_assert_fail is performed
@@ -447,7 +451,7 @@ public:
   /// \return an event representing fill operation.
   template <typename T>
   event fill(void *Ptr, const T &Pattern, size_t Count,
-             const vector_class<event> &DepEvents) {
+             const std::vector<event> &DepEvents) {
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
       CGH.fill<T>(Ptr, Pattern, Count);
@@ -489,7 +493,7 @@ public:
   /// dependencies.
   /// \return an event representing fill operation.
   event memset(void *Ptr, int Value, size_t Count,
-               const vector_class<event> &DepEvents);
+               const std::vector<event> &DepEvents);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -529,7 +533,7 @@ public:
   /// dependencies.
   /// \return an event representing copy operation.
   event memcpy(void *Dest, const void *Src, size_t Count,
-               const vector_class<event> &DepEvents);
+               const std::vector<event> &DepEvents);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -574,7 +578,7 @@ public:
   /// \return an event representing copy operation.
   template <typename T>
   event copy(const T *Src, T *Dest, size_t Count,
-             const vector_class<event> &DepEvents) {
+             const std::vector<event> &DepEvents) {
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvents);
   }
 
@@ -617,7 +621,7 @@ public:
   /// dependencies.
   /// \return an event representing advice operation.
   event mem_advise(const void *Ptr, size_t Length, int Advice,
-                   const vector_class<event> &DepEvents);
+                   const std::vector<event> &DepEvents);
 
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it
@@ -655,7 +659,7 @@ public:
   /// dependencies.
   /// \return an event representing prefetch operation.
   event prefetch(const void *Ptr, size_t Count,
-                 const vector_class<event> &DepEvents) {
+                 const std::vector<event> &DepEvents) {
     return submit([=](handler &CGH) {
       CGH.depends_on(DepEvents);
       CGH.prefetch(Ptr, Count);
@@ -1019,6 +1023,7 @@ public:
   ///
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   auto get_native() const -> typename interop<BackendName, queue>::type {
     return reinterpret_cast<typename interop<BackendName, queue>::type>(
         getNative());
@@ -1060,7 +1065,7 @@ private:
   /// \param CodeLoc code location
   ///
   /// This method stores additional information within event_impl class instance
-  event submit_impl_and_postprocess(function_class<void(handler &)> CGH,
+  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
                                     const detail::code_location &CodeLoc,
                                     const SubmitPostProcessF &PostProcess);
   /// A template-free version of submit.
@@ -1069,7 +1074,7 @@ private:
   /// \param CodeLoc code location
   ///
   /// This method stores additional information within event_impl class instance
-  event submit_impl_and_postprocess(function_class<void(handler &)> CGH,
+  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
                                     queue secondQueue,
                                     const detail::code_location &CodeLoc,
                                     const SubmitPostProcessF &PostProcess);
@@ -1166,7 +1171,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 
     auto Acc = Buffer.get_access<access::mode::write>(CGH);
 
-    CGH.single_task<AssertInfoCopier>([Acc] {
+    CGH.single_task<__sycl_service_kernel__::AssertInfoCopier>([Acc] {
 #ifdef __SYCL_DEVICE_ONLY__
       __devicelib_assert_read(&Acc[0]);
 #else
@@ -1181,7 +1186,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 
     auto Acc = Buffer.get_access<mode::read, target::host_buffer>(CGH);
 
-    CGH.codeplay_host_task([=] {
+    CGH.host_task([=] {
       const detail::AssertHappened *AH = &Acc[0];
 
       // Don't use assert here as msvc will insert reference to __imp__wassert

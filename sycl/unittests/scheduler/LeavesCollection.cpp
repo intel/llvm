@@ -19,7 +19,7 @@ class LeavesCollectionTest : public ::testing::Test {
 protected:
   sycl::async_handler MAsyncHandler =
       [](sycl::exception_list ExceptionList) {
-        for (sycl::exception_ptr_class ExceptionPtr : ExceptionList) {
+        for (std::exception_ptr ExceptionPtr : ExceptionList) {
           try {
             std::rethrow_exception(ExceptionPtr);
           } catch (sycl::exception &E) {

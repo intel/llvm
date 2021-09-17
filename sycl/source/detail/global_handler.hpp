@@ -12,10 +12,12 @@
 #include <CL/sycl/detail/util.hpp>
 
 #include <memory>
+#include <unordered_map>
 
 __SYCL_OPEN_NS() {
 namespace detail {
 class platform_impl;
+class context_impl;
 class Scheduler;
 class ProgramManager;
 class Sync;
@@ -24,6 +26,7 @@ class device_filter_list;
 class XPTIRegistry;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
+using ContextImplPtr = std::shared_ptr<context_impl>;
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
@@ -52,6 +55,11 @@ public:
   ProgramManager &getProgramManager();
   Sync &getSync();
   std::vector<PlatformImplPtr> &getPlatformCache();
+
+  std::unordered_map<PlatformImplPtr, ContextImplPtr> &
+  getPlatformToDefaultContextCache();
+
+  std::mutex &getPlatformToDefaultContextCacheMutex();
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
   std::vector<plugin> &getPlugins();
@@ -79,6 +87,9 @@ private:
   InstWithLock<ProgramManager> MProgramManager;
   InstWithLock<Sync> MSync;
   InstWithLock<std::vector<PlatformImplPtr>> MPlatformCache;
+  InstWithLock<std::unordered_map<PlatformImplPtr, ContextImplPtr>>
+      MPlatformToDefaultContextCache;
+  InstWithLock<std::mutex> MPlatformToDefaultContextCacheMutex;
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
   InstWithLock<std::vector<plugin>> MPlugins;
