@@ -4537,13 +4537,13 @@ class OffloadingActionBuilder final {
         bool SYCLDeviceLibLinked = false;
         FullLinkObjects.push_back(DeviceLinkAction);
 
-        // FIXME: Link all wrapper and fallback device libraries as default,
-        // When spv online link is supported by all backends, the fallback
-        // device libraries are only needed when current toolchain is using
-        // AOT compilation.
+        // Link fallback libraries when AOT compiling for SPIRV. For JIT SPIRV
+        // we either link fallback libraries at runtime or rely on native
+        // support from a device compiler. Fallback libraries do not support
+        // non-SPIRV targets.
         if (isSPIR) {
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
-              *TC, FullLinkObjects, true,
+              *TC, FullLinkObjects, isSpirvAOT,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
         }
 
