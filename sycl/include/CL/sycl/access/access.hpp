@@ -137,7 +137,7 @@ template <access::target accessTarget> struct TargetToAS {
 };
 
 #ifdef __ENABLE_USM_ADDR_SPACE__
-template <> struct TargetToAS<access::target::global_buffer> {
+template <> struct TargetToAS<access::target::device> {
   constexpr static access::address_space AS =
       access::address_space::global_device_space;
 };

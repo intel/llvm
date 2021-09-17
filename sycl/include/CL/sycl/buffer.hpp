@@ -290,8 +290,7 @@ public:
                     ext::oneapi::accessor_property_list<>>(*this);
   }
 
-  template <access::mode mode,
-            access::target target = access::target::global_buffer>
+  template <access::mode mode, access::target target = access::target::device>
   accessor<T, dimensions, mode, target, access::placeholder::false_t,
            ext::oneapi::accessor_property_list<>>
   get_access(handler &commandGroupHandler, range<dimensions> accessRange,
