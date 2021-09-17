@@ -89,10 +89,6 @@ std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {
   return getOrCreate(MHandlerExtendedMembersMutex);
 }
 
-std::mutex &GlobalHandler::getPluginsMutex() {
-  return getOrCreate(MPluginsMutex);
-}
-
 void shutdown() {
   // First, release resources, that may access plugins.
   GlobalHandler::instance().MScheduler.Inst.reset(nullptr);

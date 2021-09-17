@@ -98,7 +98,6 @@ std::vector<platform> platform_impl::get_platforms() {
   std::vector<plugin> &Plugins = RT::initialize();
   info::device_type ForcedType = detail::get_forced_type();
   for (unsigned int i = 0; i < Plugins.size(); i++) {
-    Plugins[i].resetLastDeviceIds();
     pi_uint32 NumPlatforms = 0;
     // Move to the next plugin if the plugin fails to initialize.
     // This way platforms from other plugins get a chance to be discovered.
@@ -160,6 +159,7 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   int InsertIDx = 0;
   // DeviceIds should be given consecutive numbers across platforms in the same
   // backend
+  std::lock_guard<std::mutex> Guard(*Plugin.getPluginMutex());
   int DeviceNum = Plugin.getStartingDeviceId(Platform);
   for (RT::PiDevice Device : PiDevices) {
     RT::PiDeviceType PiDevType;
