@@ -235,16 +235,21 @@ namespace __SEIEE {
   template <class SimdT1, class RegionT1, class SimdT2, class RegionT2,        \
             class T1 = typename __SEIEE::shape_type<RegionT1>::element_type,   \
             class T2 = typename __SEIEE::shape_type<RegionT2>::element_type,   \
+            auto N1 = __SEIEE::shape_type<RegionT1>::length,                   \
+            auto N2 = __SEIEE::shape_type<RegionT2>::length,                   \
             class =                                                            \
                 std::enable_if_t<__SEIEED::is_simd_type_v<SimdT1> ==           \
                                      __SEIEED::is_simd_type_v<SimdT2> &&       \
-                                 (__SEIEE::shape_type<RegionT1>::length ==     \
-                                  __SEIEE::shape_type<RegionT2>::length) &&    \
-                                 COND>>                                        \
+                                 (N1 == N2 || N1 == 1 || N2 == 1) && COND>>    \
   inline auto operator BINOP(                                                  \
       const __SEIEE::simd_view<SimdT1, RegionT1> &LHS,                         \
       const __SEIEE::simd_view<SimdT2, RegionT2> &RHS) {                       \
-    return LHS.read() BINOP RHS.read();                                        \
+    if constexpr (N1 == 1)                                                     \
+      return (T1)LHS.read()[0] BINOP RHS.read();                               \
+    else if constexpr (N2 == 1)                                                \
+      return LHS.read() BINOP(T2) RHS.read()[0];                               \
+    else                                                                       \
+      return LHS.read() BINOP RHS.read();                                      \
   }                                                                            \
                                                                                \
   /* simd* BINOP simd_view<simd*...> */                                        \
@@ -337,20 +342,27 @@ __ESIMD_DEF_SIMD_VIEW_BIN_OP(||, __SEIEED::is_simd_mask_type_v<SimdT1>)
                                                                                \
   /* simd_view CMPOP simd_view */                                              \
   template <class SimdT1, class RegionT1, class SimdT2, class RegionT2,        \
-            class =                                                            \
-                std::enable_if_t</* both views must have the same base type    \
-                                    kind - simds or masks: */                  \
-                                 (__SEIEED::is_simd_type_v<SimdT1> ==          \
-                                  __SEIEED::is_simd_type_v<                    \
-                                      SimdT2>)&&/* the length of the views     \
-                                                   must match as well: */      \
-                                 (__SEIEE::shape_type<RegionT1>::length ==     \
-                                  __SEIEE::shape_type<RegionT2>::length) &&    \
-                                 COND>>                                        \
+            auto N1 = __SEIEE::shape_type<RegionT1>::length,                   \
+            auto N2 = __SEIEE::shape_type<RegionT2>::length,                   \
+            class = std::enable_if_t</* both views must have the same base     \
+                                        type kind - simds or masks: */         \
+                                     (__SEIEED::is_simd_type_v<SimdT1> ==      \
+                                      __SEIEED::is_simd_type_v<                \
+                                          SimdT2>)&&/* the length of the views \
+                                                       must match as well: */  \
+                                     (N1 == N2 || N1 == 1 || N2 == 1) &&       \
+                                     COND>>                                    \
   inline auto operator CMPOP(                                                  \
       const __SEIEE::simd_view<SimdT1, RegionT1> &LHS,                         \
       const __SEIEE::simd_view<SimdT2, RegionT2> &RHS) {                       \
-    return LHS.read() CMPOP RHS.read();                                        \
+    using T1 = typename __SEIEE::shape_type<RegionT1>::element_type;           \
+    using T2 = typename __SEIEE::shape_type<RegionT2>::element_type;           \
+    if constexpr (N1 == 1)                                                     \
+      return (T1)LHS.read()[0] CMPOP RHS.read();                               \
+    else if constexpr (N2 == 1)                                                \
+      return LHS.read() CMPOP(T2) RHS.read()[0];                               \
+    else                                                                       \
+      return LHS.read() CMPOP RHS.read();                                      \
   }                                                                            \
                                                                                \
   /* simd_view CMPOP simd_obj_impl */                                          \

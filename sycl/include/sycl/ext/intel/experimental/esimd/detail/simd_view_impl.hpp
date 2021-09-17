@@ -286,12 +286,16 @@ public:
 
   /// @{
   /// Assignment operators.
-  Derived &operator=(const Derived &Other) { return write(Other.read()); }
+  simd_view_impl &operator=(const simd_view_impl &Other) {
+    return write(Other.read());
+  }
 
   Derived &operator=(const value_type &Val) { return write(Val); }
 
   /// Move assignment operator.
-  Derived &operator=(Derived &&Other) { return write(Other.read()); }
+  simd_view_impl &operator=(simd_view_impl &&Other) {
+    return write(Other.read());
+  }
 
   template <class T, int N, class SimdT,
             class = std::enable_if_t<(is_simd_type_v<SimdT> ==
@@ -342,7 +346,7 @@ public:
   template <typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is2D()>>
   auto row(int i) {
-    return select<1, 0, getSizeX(), 1>(i, 0)
+    return select<1, 1, getSizeX(), 1>(i, 0)
         .template bit_cast_view<element_type>();
   }
 
@@ -351,7 +355,7 @@ public:
   template <typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is2D()>>
   auto column(int i) {
-    return select<getSizeY(), 1, 1, 0>(0, i);
+    return select<getSizeY(), 1, 1, 1>(0, i);
   }
 
   /// Read a single element from a 1D region, by value only.
@@ -375,7 +379,7 @@ public:
   template <typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is1D()>>
   auto operator[](int i) {
-    return select<1, 0>(i);
+    return select<1, 1>(i);
   }
 
   /// Return a writeable view of a single element.
@@ -383,7 +387,7 @@ public:
             typename = sycl::detail::enable_if_t<T::is1D()>>
   __SYCL_DEPRECATED("use operator[] form.")
   auto operator()(int i) {
-    return select<1, 0>(i);
+    return select<1, 1>(i);
   }
 
   /// \name Replicate
@@ -402,7 +406,7 @@ public:
   /// \return replicated simd instance.
   template <int Rep, int W>
   get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
-    return replicate<Rep, 0, W>(0, OffsetX);
+    return replicate<Rep, 1, W>(0, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -413,7 +417,7 @@ public:
   template <int Rep, int W>
   get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
                                               uint16_t OffsetX) {
-    return replicate<Rep, 0, W>(OffsetY, OffsetX);
+    return replicate<Rep, 1, W>(OffsetY, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.

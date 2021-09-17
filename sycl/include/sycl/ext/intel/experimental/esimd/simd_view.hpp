@@ -70,6 +70,11 @@ public:
   simd_view(const simd_view &Other) = default;
   simd_view(simd_view &&Other) = default;
 
+  simd_view &operator=(const simd_view &Other) {
+    BaseClass::operator=(Other);
+    return *this;
+  }
+
   using BaseClass::operator--;
   using BaseClass::operator++;
   using BaseClass::operator=;
@@ -162,7 +167,7 @@ class simd_view<BaseTy, std::pair<region1d_scalar_t<T>, NestedRegion>>
     : public detail::simd_view_impl<
           BaseTy, std::pair<region1d_scalar_t<T>, NestedRegion>> {
   template <typename, int> friend class simd;
-  template <typename, typename, typename> friend class detail::simd_view_impl;
+  template <typename, typename> friend class detail::simd_view_impl;
 
 public:
   using RegionTy = std::pair<region1d_scalar_t<T>, NestedRegion>;

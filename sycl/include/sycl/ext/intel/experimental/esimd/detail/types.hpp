@@ -329,12 +329,15 @@ static inline constexpr bool is_simd_mask_type_v = is_simd_mask_type<Ty>::value;
 
 // @{
 // Checks if given type is a view of the simd type.
-template <typename Ty> struct is_simd_view_type : std::false_type {};
+template <typename Ty> struct is_simd_view_type_impl : std::false_type {};
 
 template <class BaseT, class RegionT>
-struct is_simd_view_type<simd_view<BaseT, RegionT>>
+struct is_simd_view_type_impl<simd_view<BaseT, RegionT>>
     : std::conditional_t<is_simd_type_v<BaseT>, std::true_type,
                          std::false_type> {};
+
+template <class Ty>
+struct is_simd_view_type : is_simd_view_type_impl<remove_cvref_t<Ty>> {};
 
 template <typename Ty>
 static inline constexpr bool is_simd_view_type_v = is_simd_view_type<Ty>::value;
