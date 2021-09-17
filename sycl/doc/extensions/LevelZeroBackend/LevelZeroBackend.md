@@ -137,7 +137,15 @@ struct {
 std::vector<ze_module_handle_t>
 ```
 </td>
-<td><pre>ze_module_handle_t</pre></td>
+<td>
+
+``` C++
+struct {
+  ze_module_handle_t NativeHandle;
+  ext::oneapi::level_zero::ownership Ownership;
+}
+```
+</td>
 </tr>
 </table>
 
@@ -226,7 +234,7 @@ make_kernel_bundle<backend::ext_oneapi_level_zero,
     const context &Context)
 ```
 </td>
-<td>Constructs a SYCL kernel_bundle instance from a Level-Zero <code>ze_module_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The Level-Zero module must be fully linked (i.e. not require further linking through <a href="https://spec.oneapi.com/level-zero/latest/core/api.html?highlight=zemoduledynamiclink#_CPPv419zeModuleDynamicLink8uint32_tP18ze_module_handle_tP28ze_module_build_log_handle_t"><code>zeModuleDynamicLink</code></a>), and thus the SYCL kernel_bundle is created in the "executable" state.</td>
+<td>Constructs a SYCL kernel_bundle instance from a Level-Zero <code>ze_module_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The Level-Zero module should be created on the same context. The Level-Zero module must be fully linked (i.e. not require further linking through <a href="https://spec.oneapi.com/level-zero/latest/core/api.html?highlight=zemoduledynamiclink#_CPPv419zeModuleDynamicLink8uint32_tP18ze_module_handle_tP28ze_module_build_log_handle_t"><code>zeModuleDynamicLink</code></a>), and thus the SYCL kernel_bundle is created in the "executable" state. The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details. If the behavior is "transfer" then runtime is going to destroy the input Level-Zero module, and hence the application must not to have any outstanding <code>ze_kernel_handle_t</code> handles to the underlying <code>ze_module_handle_t</code> by the time this interoperability <code>kernel_bundle</code> destructor is called.</td>
 </tr>
 </table>
 
