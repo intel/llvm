@@ -2220,14 +2220,9 @@ public:
     return true;
   }
 
-  // Generate kernel argument to intialize specialization constants. This
-  // argument is only generated when the target has no native support for
-  // specialization constants
+  // Generate kernel argument to initialize specialization constants.
   void handleSyclKernelHandlerType() {
     ASTContext &Context = SemaRef.getASTContext();
-    if (isDefaultSPIRArch(Context))
-      return;
-
     StringRef Name = "_arg__specialization_constants_buffer";
     addParam(Name, Context.getPointerType(Context.getAddrSpaceQualType(
                        Context.CharTy, LangAS::sycl_global)));
@@ -2470,9 +2465,6 @@ public:
   }
 
   void handleSyclKernelHandlerType() {
-    ASTContext &Context = SemaRef.getASTContext();
-    if (isDefaultSPIRArch(Context))
-      return;
     addParam(DC.getParamVarDeclsForCurrentField()[0]->getType(),
              "SYCL2020 specialization constant");
   }
@@ -3321,13 +3313,8 @@ public:
   void handleSyclKernelHandlerType(QualType Ty) {
     // The compiler generated kernel argument used to initialize SYCL 2020
     // specialization constants, `specialization_constants_buffer`, should
-    // have corresponding entry in integration header. This argument is
-    // only generated when target has no native support for specialization
-    // constants.
+    // have corresponding entry in integration header.
     ASTContext &Context = SemaRef.getASTContext();
-    if (isDefaultSPIRArch(Context))
-      return;
-
     // Offset is zero since kernel_handler argument is not part of
     // kernel object (i.e. it is not captured)
     addParam(Context.getPointerType(Context.CharTy),

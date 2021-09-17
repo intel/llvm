@@ -1797,8 +1797,10 @@ static pi_result SetKernelParamsAndLaunch(
       }
       assert(DeviceImageImpl != nullptr);
       RT::PiMem SpecConstsBuffer = DeviceImageImpl->get_spec_const_buffer_ref();
+      RT::PiMem *SpecConstsBufferArg =
+          SpecConstsBuffer ? &SpecConstsBuffer : nullptr;
       Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                      &SpecConstsBuffer);
+                                                      SpecConstsBufferArg);
       break;
     }
     case kernel_param_kind_t::kind_invalid:
