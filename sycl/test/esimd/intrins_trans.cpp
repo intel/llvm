@@ -117,7 +117,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 
   {
     sycl::accessor<int, 1, sycl::access::mode::read_write,
-                   sycl::access::target::global_buffer>
+                   sycl::access::target::device>
         acc;
     simd<uint32_t, 8> offsets = 1;
     simd<uint16_t, 8> pred{1, 0, 1, 0, 1, 0, 1, 0};
