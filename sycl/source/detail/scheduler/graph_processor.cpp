@@ -25,9 +25,9 @@ std::vector<EventImplPtr>
 Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
   std::vector<EventImplPtr> Result;
 
-  const std::vector<DepDesc> Deps = Event->getDeps();
-  const std::vector<EventImplPtr> PDeps = Event->getPreparedDepsEvents();
-  const std::vector<EventImplPtr> PHDeps = Event->getPreparedHostDepsEvents();
+  const std::vector<DepDesc> &Deps = Event->getDeps();
+  const std::vector<EventImplPtr> &PDeps = Event->getPreparedDepsEvents();
+  const std::vector<EventImplPtr> &PHDeps = Event->getPreparedHostDepsEvents();
 
   Result.reserve(Deps.size() + PDeps.size() + PHDeps.size());
   for (const DepDesc &Dep : Deps) {
