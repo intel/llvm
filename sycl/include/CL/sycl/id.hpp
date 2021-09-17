@@ -117,6 +117,10 @@ public:
 
 // OP is: ==, !=
 #ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
+  using detail::array<dimensions>::operator==;
+#if __cpp_impl_three_way_comparison < 201907
+  using detail::array<dimensions>::operator!=;
+#endif
 
   /* Enable operators with integral types.
    * Template operators take precedence than type conversion. In the case of
@@ -126,11 +130,6 @@ public:
 #define __SYCL_GEN_OPT(op)                                                     \
   template <typename T>                                                        \
   EnableIfIntegral<T, bool> operator op(const T &rhs) const {                  \
-    if (this->common_array[0] != rhs)                                          \
-      return false op true;                                                    \
-    return true op true;                                                       \
-  }                                                                            \
-  bool operator op(const id<dimensions> &rhs) const {                          \
     if (this->common_array[0] != rhs)                                          \
       return false op true;                                                    \
     return true op true;                                                       \
