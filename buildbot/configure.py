@@ -3,6 +3,7 @@ import os
 import platform
 import subprocess
 import sys
+import shutil
 
 def do_configure(args):
     # Get absolute path to source directory
@@ -134,6 +135,17 @@ def do_configure(args):
       sys.exit("Please specify both Level Zero headers and loader or don't specify "
                "none of them to let download from github.com")
 
+    if args.ccache_dir or args.ccache_max_size:
+        if shutil.which("ccache") is None:
+            print("ccache executable was not found, but CCache options are provided is provided.")
+            exit()
+        cmake_cmd.extend(["-DLLVM_CCACHE_BUILD=ON"])
+        if args.ccache_dir:
+            cmake_cmd.extend(["-DLLVM_CCACHE_DIR={}".format(args.ccache_dir)])
+        if args.ccache_max_size:
+            cmake_cmd.extend(["-DLLVM_CCACHE_MAXSIZE={}".format(args.ccache_max_size)])
+
+
     # Add additional CMake options if provided
     if args.cmake_opt:
       cmake_cmd += args.cmake_opt
@@ -199,6 +211,8 @@ def main():
     parser.add_argument("--use-lld", action="store_true", help="Use LLD linker for build")
     parser.add_argument("--llvm-external-projects", help="Add external projects to build. Add as comma seperated list.")
     parser.add_argument("--ci-defaults", action="store_true", help="Enable default CI parameters")
+    parser.add_argument("--ccache-dir", help="Enable CCache and store cache to specified directory.")
+    parser.add_argument("--ccache-max-size", help="Enable CCache and specify max cache size.")
     args = parser.parse_args()
 
     print("args:{}".format(args))
