@@ -1370,6 +1370,7 @@ __esimd_raw_send_load(uint8_t modifier, uint8_t execSize,
                       uint8_t numSrc0, uint8_t numDst, uint8_t sfid,
                       uint32_t exDesc, uint32_t msgDesc,
                       __SEIEED::vector_type_t<Ty2, N2> msgSrc0,
+                      __SEIEED::vector_type_t<Ty1, N1> msgDst) {
   throw cl::sycl::feature_not_supported();
   return 0;
 }
