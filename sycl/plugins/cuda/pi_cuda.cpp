@@ -575,20 +575,8 @@ pi_result _pi_program::build_program(const char *build_options) {
 /// Note: Another alternative is to add kernel names as metadata, like with
 ///       reqd_work_group_size.
 std::string getKernelNames(pi_program program) {
-  std::string source(program->binary_,
-                     program->binary_ + program->binarySizeInBytes_);
-  std::regex entries_pattern(".entry\\s+([^\\([:s:]]*)");
-  std::string names("");
-  std::smatch match;
-  bool first_match = true;
-  while (std::regex_search(source, match, entries_pattern)) {
-    assert(match.size() == 2);
-    names += first_match ? "" : ";";
-    names += match[1]; // Second element is the group.
-    source = match.suffix().str();
-    first_match = false;
-  }
-  return names;
+  cl::sycl::detail::pi::die("getKernelNames not implemented");
+  return {};
 }
 
 /// RAII object that calls the reference count release function on the held PI
@@ -921,11 +909,23 @@ pi_result cuda_piextDeviceSelectBinary(pi_device device,
   return PI_INVALID_BINARY;
 }
 
-pi_result cuda_piextGetDeviceFunctionPointer(pi_device, pi_program,
-                                             const char *, pi_uint64 *) {
-  cl::sycl::detail::pi::die(
-      "cuda_piextGetDeviceFunctionPointer not implemented");
-  return {};
+pi_result cuda_piextGetDeviceFunctionPointer(pi_device device,
+                                             pi_program program,
+                                             const char *func_name,
+                                             pi_uint64 *function_pointer_ret) {
+  // Check if device passed is the same the device bound to the context
+  assert(device == program->get_context()->get_device());
+  assert(function_pointer_ret != nullptr);
+
+  CUfunction func;
+  CUresult ret = cuModuleGetFunction(&func, program->get(), func_name);
+  *function_pointer_ret = (pi_uint64)func;
+  pi_result retError = PI_SUCCESS;
+
+  if (ret != CUDA_SUCCESS && ret != CUDA_ERROR_NOT_FOUND)
+    retError = PI_CHECK_ERROR(ret);
+
+  return retError;
 }
 
 /// \return PI_SUCCESS always since CUDA devices are always root devices.
