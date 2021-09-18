@@ -158,7 +158,15 @@ private:
   SPIRVBlockToLLVMStructMap BlockMap;
   SPIRVToLLVMPlaceholderMap PlaceholderMap;
   std::unique_ptr<SPIRVToLLVMDbgTran> DbgTran;
+  // GlobalAnnotations collects array of annotation entries for global variables
+  // and functions. They are used in translation of llvm.global.annotations
+  // instruction.
   std::vector<Constant *> GlobalAnnotations;
+  // AnnotationsMap helps to translate annotation strings for local variables.
+  // Map values are pointers on global strings in LLVM-IR. It is used to avoid
+  // duplication of these annotation strings in LLVM-IR, which can be caused by
+  // multiple translation of UserSemantic decorations with the same literal.
+  std::unordered_map<std::string, Constant *> AnnotationsMap;
 
   // Loops metadata is translated in the end of a function translation.
   // This storage contains pairs of translated loop header basic block and loop
