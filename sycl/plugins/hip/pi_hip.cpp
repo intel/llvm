@@ -1,4 +1,4 @@
-//==---------- pi_rocm.cpp - HIP Plugin -----------------------------------==//
+//==---------- pi_hip.cpp - HIP Plugin ------------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// \file pi_rocm.cpp
+/// \file pi_hip.cpp
 /// Implementation of HIP Plugin.
 ///
-/// \ingroup sycl_pi_rocm
+/// \ingroup sycl_pi_hip
 
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/hip_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>
-#include <pi_rocm.hpp>
+#include <pi_hip.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -367,12 +367,12 @@ void assertion(bool Condition, const char *Message) {
 extern "C" {
 
 // Required in a number of functions, so forward declare here
-pi_result rocm_piEnqueueEventsWait(pi_queue command_queue,
-                                   pi_uint32 num_events_in_wait_list,
-                                   const pi_event *event_wait_list,
-                                   pi_event *event);
-pi_result rocm_piEventRelease(pi_event event);
-pi_result rocm_piEventRetain(pi_event event);
+pi_result hip_piEnqueueEventsWait(pi_queue command_queue,
+                                  pi_uint32 num_events_in_wait_list,
+                                  const pi_event *event_wait_list,
+                                  pi_event *event);
+pi_result hip_piEventRelease(pi_event event);
+pi_result hip_piEventRetain(pi_event event);
 
 } // extern "C"
 
@@ -396,16 +396,16 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue)
   }
 
   if (queue_ != nullptr) {
-    rocm_piQueueRetain(queue_);
+    hip_piQueueRetain(queue_);
   }
-  rocm_piContextRetain(context_);
+  hip_piContextRetain(context_);
 }
 
 _pi_event::~_pi_event() {
   if (queue_ != nullptr) {
-    rocm_piQueueRelease(queue_);
+    hip_piQueueRelease(queue_);
   }
-  rocm_piContextRelease(context_);
+  hip_piContextRelease(context_);
 }
 
 pi_result _pi_event::start() {
@@ -518,10 +518,10 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
 _pi_program::_pi_program(pi_context ctxt)
     : module_{nullptr}, binary_{},
       binarySizeInBytes_{0}, refCount_{1}, context_{ctxt} {
-  rocm_piContextRetain(context_);
+  hip_piContextRetain(context_);
 }
 
-_pi_program::~_pi_program() { rocm_piContextRelease(context_); }
+_pi_program::~_pi_program() { hip_piContextRelease(context_); }
 
 pi_result _pi_program::set_binary(const char *source, size_t length) {
   assert((binary_ == nullptr && binarySizeInBytes_ == 0) &&
@@ -597,31 +597,31 @@ private:
   T Captive;
 
   static pi_result callRelease(pi_device Captive) {
-    return rocm_piDeviceRelease(Captive);
+    return hip_piDeviceRelease(Captive);
   }
 
   static pi_result callRelease(pi_context Captive) {
-    return rocm_piContextRelease(Captive);
+    return hip_piContextRelease(Captive);
   }
 
   static pi_result callRelease(pi_mem Captive) {
-    return rocm_piMemRelease(Captive);
+    return hip_piMemRelease(Captive);
   }
 
   static pi_result callRelease(pi_program Captive) {
-    return rocm_piProgramRelease(Captive);
+    return hip_piProgramRelease(Captive);
   }
 
   static pi_result callRelease(pi_kernel Captive) {
-    return rocm_piKernelRelease(Captive);
+    return hip_piKernelRelease(Captive);
   }
 
   static pi_result callRelease(pi_queue Captive) {
-    return rocm_piQueueRelease(Captive);
+    return hip_piQueueRelease(Captive);
   }
 
   static pi_result callRelease(pi_event Captive) {
-    return rocm_piEventRelease(Captive);
+    return hip_piEventRelease(Captive);
   }
 
 public:
@@ -645,7 +645,7 @@ public:
         // succeeded or not. Either way, the state of the program is compromised
         // and likely unrecoverable.
         cl::sycl::detail::pi::die(
-            "Unrecoverable program state reached in rocm_piMemRelease");
+            "Unrecoverable program state reached in hip_piMemRelease");
       }
     }
   }
@@ -671,13 +671,16 @@ extern "C" {
 /// Triggers the HIP Driver initialization (hipInit) the first time, so this
 /// must be the first PI API called.
 ///
-pi_result rocm_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
-                              pi_uint32 *num_platforms) {
+/// However because multiple devices in a context is not currently supported,
+/// place each device in a separate platform.
+///
+pi_result hip_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
+                             pi_uint32 *num_platforms) {
 
   try {
     static std::once_flag initFlag;
     static pi_uint32 numPlatforms = 1;
-    static _pi_platform platformId;
+    static std::vector<_pi_platform> platformIds;
 
     if (num_entries == 0 and platforms != nullptr) {
       return PI_INVALID_VALUE;
@@ -707,20 +710,28 @@ pi_result rocm_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
             return;
           }
           try {
-            platformId.devices_.reserve(numDevices);
+            numPlatforms = numDevices;
+            platformIds.resize(numDevices);
+
             for (int i = 0; i < numDevices; ++i) {
               hipDevice_t device;
               err = PI_CHECK_ERROR(hipDeviceGet(&device, i));
-              platformId.devices_.emplace_back(
-                  new _pi_device{device, &platformId});
+              platformIds[i].devices_.emplace_back(
+                  new _pi_device{device, &platformIds[i]});
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
-            platformId.devices_.clear();
+            for (int i = 0; i < numDevices; ++i) {
+              platformIds[i].devices_.clear();
+            }
+            platformIds.clear();
             err = PI_OUT_OF_HOST_MEMORY;
           } catch (...) {
             // Clear and rethrow to allow retry
-            platformId.devices_.clear();
+            for (int i = 0; i < numDevices; ++i) {
+              platformIds[i].devices_.clear();
+            }
+            platformIds.clear();
             throw;
           }
         },
@@ -731,7 +742,9 @@ pi_result rocm_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
     }
 
     if (platforms != nullptr) {
-      *platforms = &platformId;
+      for (unsigned i = 0; i < std::min(num_entries, numPlatforms); ++i) {
+        platforms[i] = &platformIds[i];
+      }
     }
 
     return err;
@@ -742,16 +755,16 @@ pi_result rocm_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
   }
 }
 
-pi_result rocm_piPlatformGetInfo(pi_platform platform,
-                                 pi_platform_info param_name,
-                                 size_t param_value_size, void *param_value,
-                                 size_t *param_value_size_ret) {
+pi_result hip_piPlatformGetInfo(pi_platform platform,
+                                pi_platform_info param_name,
+                                size_t param_value_size, void *param_value,
+                                size_t *param_value_size_ret) {
   assert(platform != nullptr);
 
   switch (param_name) {
   case PI_PLATFORM_INFO_NAME:
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   "AMD ROCM BACKEND");
+                   "AMD HIP BACKEND");
   case PI_PLATFORM_INFO_VENDOR:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    "AMD Corporation");
@@ -778,9 +791,9 @@ pi_result rocm_piPlatformGetInfo(pi_platform platform,
 /// Requesting a non-GPU device triggers an error, all PI HIP devices
 /// are GPUs.
 ///
-pi_result rocm_piDevicesGet(pi_platform platform, pi_device_type device_type,
-                            pi_uint32 num_entries, pi_device *devices,
-                            pi_uint32 *num_devices) {
+pi_result hip_piDevicesGet(pi_platform platform, pi_device_type device_type,
+                           pi_uint32 num_entries, pi_device *devices,
+                           pi_uint32 *num_devices) {
 
   pi_result err = PI_SUCCESS;
   const bool askingForDefault = device_type == PI_DEVICE_TYPE_DEFAULT;
@@ -810,11 +823,11 @@ pi_result rocm_piDevicesGet(pi_platform platform, pi_device_type device_type,
 
 /// \return PI_SUCCESS if the function is exehipted successfully
 /// HIP devices are always root devices so retain always returns success.
-pi_result rocm_piDeviceRetain(pi_device device) { return PI_SUCCESS; }
+pi_result hip_piDeviceRetain(pi_device device) { return PI_SUCCESS; }
 
-pi_result rocm_piContextGetInfo(pi_context context, pi_context_info param_name,
-                                size_t param_value_size, void *param_value,
-                                size_t *param_value_size_ret) {
+pi_result hip_piContextGetInfo(pi_context context, pi_context_info param_name,
+                               size_t param_value_size, void *param_value,
+                               size_t *param_value_size_ret) {
 
   switch (param_name) {
   case PI_CONTEXT_INFO_NUM_DEVICES:
@@ -832,7 +845,7 @@ pi_result rocm_piContextGetInfo(pi_context context, pi_context_info param_name,
   return PI_OUT_OF_RESOURCES;
 }
 
-pi_result rocm_piContextRetain(pi_context context) {
+pi_result hip_piContextRetain(pi_context context) {
   assert(context != nullptr);
   assert(context->get_reference_count() > 0);
 
@@ -840,7 +853,7 @@ pi_result rocm_piContextRetain(pi_context context) {
   return PI_SUCCESS;
 }
 
-pi_result rocm_piextContextSetExtendedDeleter(
+pi_result hip_piextContextSetExtendedDeleter(
     pi_context context, pi_context_extended_deleter function, void *user_data) {
   context->set_extended_deleter(function, user_data);
   return PI_SUCCESS;
@@ -848,7 +861,7 @@ pi_result rocm_piextContextSetExtendedDeleter(
 
 /// Not applicable to HIP, devices cannot be partitioned.
 ///
-pi_result rocm_piDevicePartition(
+pi_result hip_piDevicePartition(
     pi_device device,
     const cl_device_partition_property *properties, // TODO: untie from OpenCL
     pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices) {
@@ -857,10 +870,10 @@ pi_result rocm_piDevicePartition(
 
 /// \return If available, the first binary that is PTX
 ///
-pi_result rocm_piextDeviceSelectBinary(pi_device device,
-                                       pi_device_binary *binaries,
-                                       pi_uint32 num_binaries,
-                                       pi_uint32 *selected_binary) {
+pi_result hip_piextDeviceSelectBinary(pi_device device,
+                                      pi_device_binary *binaries,
+                                      pi_uint32 num_binaries,
+                                      pi_uint32 *selected_binary) {
   if (!binaries) {
     cl::sycl::detail::pi::die("No list of device images provided");
   }
@@ -868,7 +881,7 @@ pi_result rocm_piextDeviceSelectBinary(pi_device device,
     cl::sycl::detail::pi::die("No binary images in the list");
   }
 
-  // Look for an image for the ROCm target, and return the first one that is
+  // Look for an image for the HIP target, and return the first one that is
   // found
 #if defined(__HIP_PLATFORM_AMD__)
   const char *binary_type = __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN;
@@ -889,22 +902,22 @@ pi_result rocm_piextDeviceSelectBinary(pi_device device,
   return PI_INVALID_BINARY;
 }
 
-pi_result rocm_piextGetDeviceFunctionPointer(pi_device device,
-                                             pi_program program,
-                                             const char *function_name,
-                                             pi_uint64 *function_pointer_ret) {
+pi_result hip_piextGetDeviceFunctionPointer(pi_device device,
+                                            pi_program program,
+                                            const char *function_name,
+                                            pi_uint64 *function_pointer_ret) {
   cl::sycl::detail::pi::die(
-      "rocm_piextGetDeviceFunctionPointer not implemented");
+      "hip_piextGetDeviceFunctionPointer not implemented");
   return {};
 }
 
 /// \return PI_SUCCESS always since HIP devices are always root devices.
 ///
-pi_result rocm_piDeviceRelease(pi_device device) { return PI_SUCCESS; }
+pi_result hip_piDeviceRelease(pi_device device) { return PI_SUCCESS; }
 
-pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
-                               size_t param_value_size, void *param_value,
-                               size_t *param_value_size_ret) {
+pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
+                              size_t param_value_size, void *param_value,
+                              size_t *param_value_size_ret) {
 
   static constexpr pi_uint32 max_work_item_dimensions = 3u;
 
@@ -1203,7 +1216,7 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    size_t(0));
   }
   case PI_DEVICE_INFO_MAX_SAMPLERS: {
-    // This call is kind of meaningless for rocm, as samplers don't exist.
+    // This call is kind of meaningless for HIP, as samplers don't exist.
     // Closest thing is textures, which is 128.
     return getInfo(param_value_size, param_value, param_value_size_ret, 128u);
   }
@@ -1564,8 +1577,8 @@ pi_result rocm_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 /// \param[out] nativeHandle Set to the native handle of the PI device object.
 ///
 /// \return PI_SUCCESS
-pi_result rocm_piextDeviceGetNativeHandle(pi_device device,
-                                          pi_native_handle *nativeHandle) {
+pi_result hip_piextDeviceGetNativeHandle(pi_device device,
+                                         pi_native_handle *nativeHandle) {
   *nativeHandle = static_cast<pi_native_handle>(device->get());
   return PI_SUCCESS;
 }
@@ -1579,9 +1592,9 @@ pi_result rocm_piextDeviceGetNativeHandle(pi_device device,
 /// \param[out] device Set to the PI device object created from native handle.
 ///
 /// \return TBD
-pi_result rocm_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                                 pi_platform platform,
-                                                 pi_device *device) {
+pi_result hip_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_platform platform,
+                                                pi_device *device) {
   cl::sycl::detail::pi::die(
       "Creation of PI device from native handle not implemented");
   return {};
@@ -1607,12 +1620,12 @@ pi_result rocm_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// \param[out] retcontext Set to created context on success.
 ///
 /// \return PI_SUCCESS on success, otherwise an error return code.
-pi_result rocm_piContextCreate(const pi_context_properties *properties,
-                               pi_uint32 num_devices, const pi_device *devices,
-                               void (*pfn_notify)(const char *errinfo,
-                                                  const void *private_info,
-                                                  size_t cb, void *user_data),
-                               void *user_data, pi_context *retcontext) {
+pi_result hip_piContextCreate(const pi_context_properties *properties,
+                              pi_uint32 num_devices, const pi_device *devices,
+                              void (*pfn_notify)(const char *errinfo,
+                                                 const void *private_info,
+                                                 size_t cb, void *user_data),
+                              void *user_data, pi_context *retcontext) {
 
   assert(devices != nullptr);
   // TODO: How to implement context callback?
@@ -1624,7 +1637,7 @@ pi_result rocm_piContextCreate(const pi_context_properties *properties,
   pi_result errcode_ret = PI_SUCCESS;
 
   // Parse properties.
-  bool property_rocm_primary = false;
+  bool property_hip_primary = false;
   while (properties && (0 != *properties)) {
     // Consume property ID.
     pi_context_properties id = *properties;
@@ -1635,7 +1648,7 @@ pi_result rocm_piContextCreate(const pi_context_properties *properties,
     switch (id) {
     case __SYCL_PI_CONTEXT_PROPERTIES_HIP_PRIMARY:
       assert(value == PI_FALSE || value == PI_TRUE);
-      property_rocm_primary = static_cast<bool>(value);
+      property_hip_primary = static_cast<bool>(value);
       break;
     default:
       // Unknown property.
@@ -1648,7 +1661,7 @@ pi_result rocm_piContextCreate(const pi_context_properties *properties,
   try {
     hipCtx_t current = nullptr;
 
-    if (property_rocm_primary) {
+    if (property_hip_primary) {
       // Use the HIP primary context and assume that we want to use it
       // immediately as we want to forge context switches.
       hipCtx_t Ctxt;
@@ -1689,7 +1702,7 @@ pi_result rocm_piContextCreate(const pi_context_properties *properties,
   return errcode_ret;
 }
 
-pi_result rocm_piContextRelease(pi_context ctxt) {
+pi_result hip_piContextRelease(pi_context ctxt) {
 
   assert(ctxt != nullptr);
 
@@ -1737,8 +1750,8 @@ pi_result rocm_piContextRelease(pi_context ctxt) {
 /// \param[out] nativeHandle Set to the native handle of the PI context object.
 ///
 /// \return PI_SUCCESS
-pi_result rocm_piextContextGetNativeHandle(pi_context context,
-                                           pi_native_handle *nativeHandle) {
+pi_result hip_piextContextGetNativeHandle(pi_context context,
+                                          pi_native_handle *nativeHandle) {
   *nativeHandle = reinterpret_cast<pi_native_handle>(context->get());
   return PI_SUCCESS;
 }
@@ -1751,11 +1764,11 @@ pi_result rocm_piextContextGetNativeHandle(pi_context context,
 /// \param[out] context Set to the PI context object created from native handle.
 ///
 /// \return TBD
-pi_result rocm_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                                  pi_uint32 num_devices,
-                                                  const pi_device *devices,
-                                                  bool ownNativeHandle,
-                                                  pi_context *context) {
+pi_result hip_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                 pi_uint32 num_devices,
+                                                 const pi_device *devices,
+                                                 bool ownNativeHandle,
+                                                 pi_context *context) {
   cl::sycl::detail::pi::die(
       "Creation of PI context from native handle not implemented");
   return {};
@@ -1765,12 +1778,12 @@ pi_result rocm_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// Can trigger a manual copy depending on the mode.
 /// \TODO Implement USE_HOST_PTR using cuHostRegister
 ///
-pi_result rocm_piMemBufferCreate(pi_context context, pi_mem_flags flags,
-                                 size_t size, void *host_ptr, pi_mem *ret_mem,
-                                 const pi_mem_properties *properties) {
+pi_result hip_piMemBufferCreate(pi_context context, pi_mem_flags flags,
+                                size_t size, void *host_ptr, pi_mem *ret_mem,
+                                const pi_mem_properties *properties) {
   // Need input memory object
   assert(ret_mem != nullptr);
-  assert(properties == nullptr && "no mem properties goes to rocm RT yet");
+  assert(properties == nullptr && "no mem properties goes to HIP RT yet");
   // Currently, USE_HOST_PTR is not implemented using host register
   // since this triggers a weird segfault after program ends.
   // Setting this constant to true enables testing that behavior.
@@ -1842,7 +1855,7 @@ pi_result rocm_piMemBufferCreate(pi_context context, pi_mem_flags flags,
 /// If this is zero, calls the relevant HIP Free function
 /// \return PI_SUCCESS unless deallocation error
 ///
-pi_result rocm_piMemRelease(pi_mem memObj) {
+pi_result hip_piMemRelease(pi_mem memObj) {
   assert((memObj != nullptr) && "PI_INVALID_MEM_OBJECTS");
 
   pi_result ret = PI_SUCCESS;
@@ -1899,7 +1912,7 @@ pi_result rocm_piMemRelease(pi_mem memObj) {
     // or not. Either way, the state of the program is compromised and likely
     // unrecoverable.
     cl::sycl::detail::pi::die(
-        "Unrecoverable program state reached in rocm_piMemRelease");
+        "Unrecoverable program state reached in hip_piMemRelease");
   }
 
   return PI_SUCCESS;
@@ -1909,9 +1922,9 @@ pi_result rocm_piMemRelease(pi_mem memObj) {
 /// A buffer partition (or a sub-buffer, in OpenCL terms) is simply implemented
 /// as an offset over an existing HIP allocation.
 ///
-pi_result rocm_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
-                                    pi_buffer_create_type buffer_create_type,
-                                    void *buffer_create_info, pi_mem *memObj) {
+pi_result hip_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
+                                   pi_buffer_create_type buffer_create_type,
+                                   void *buffer_create_info, pi_mem *memObj) {
   assert((parent_buffer != nullptr) && "PI_INVALID_MEM_OBJECT");
   assert(parent_buffer->is_buffer() && "PI_INVALID_MEM_OBJECTS");
   assert(!parent_buffer->is_sub_buffer() && "PI_INVALID_MEM_OBJECT");
@@ -1973,11 +1986,11 @@ pi_result rocm_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   return PI_SUCCESS;
 }
 
-pi_result rocm_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
-                            size_t expectedQuerySize, void *queryOutput,
-                            size_t *writtenQuerySize) {
+pi_result hip_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
+                           size_t expectedQuerySize, void *queryOutput,
+                           size_t *writtenQuerySize) {
 
-  cl::sycl::detail::pi::die("rocm_piMemGetInfo not implemented");
+  cl::sycl::detail::pi::die("hip_piMemGetInfo not implemented");
 }
 
 /// Gets the native HIP handle of a PI mem object
@@ -1995,8 +2008,8 @@ pi_result rocm_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
 /// \param[out] mem Set to the PI mem object created from native handle.
 ///
 /// \return TBD
-pi_result rocm_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                              pi_mem *mem) {
+pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                             pi_mem *mem) {
   cl::sycl::detail::pi::die(
       "Creation of PI mem from native handle not implemented");
   return {};
@@ -2008,8 +2021,8 @@ pi_result rocm_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
 /// * __SYCL_PI_HIP_SYNC_WITH_DEFAULT -> hipStreamNonBlocking
 /// \return Pi queue object mapping to a HIPStream
 ///
-pi_result rocm_piQueueCreate(pi_context context, pi_device device,
-                             pi_queue_properties properties, pi_queue *queue) {
+pi_result hip_piQueueCreate(pi_context context, pi_device device,
+                            pi_queue_properties properties, pi_queue *queue) {
   try {
     pi_result err = PI_SUCCESS;
 
@@ -2045,9 +2058,9 @@ pi_result rocm_piQueueCreate(pi_context context, pi_device device,
   }
 }
 
-pi_result rocm_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
-                              size_t param_value_size, void *param_value,
-                              size_t *param_value_size_ret) {
+pi_result hip_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
+                             size_t param_value_size, void *param_value,
+                             size_t *param_value_size_ret) {
   assert(command_queue != nullptr);
 
   switch (param_name) {
@@ -2070,7 +2083,7 @@ pi_result rocm_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
   return {};
 }
 
-pi_result rocm_piQueueRetain(pi_queue command_queue) {
+pi_result hip_piQueueRetain(pi_queue command_queue) {
   assert(command_queue != nullptr);
   assert(command_queue->get_reference_count() > 0);
 
@@ -2078,7 +2091,7 @@ pi_result rocm_piQueueRetain(pi_queue command_queue) {
   return PI_SUCCESS;
 }
 
-pi_result rocm_piQueueRelease(pi_queue command_queue) {
+pi_result hip_piQueueRelease(pi_queue command_queue) {
   assert(command_queue != nullptr);
 
   if (command_queue->decrement_reference_count() > 0) {
@@ -2102,7 +2115,7 @@ pi_result rocm_piQueueRelease(pi_queue command_queue) {
   }
 }
 
-pi_result rocm_piQueueFinish(pi_queue command_queue) {
+pi_result hip_piQueueFinish(pi_queue command_queue) {
 
   // set default result to a negative result (avoid false-positve tests)
   pi_result result = PI_OUT_OF_HOST_MEMORY;
@@ -2132,8 +2145,8 @@ pi_result rocm_piQueueFinish(pi_queue command_queue) {
 /// \param[out] nativeHandle Set to the native handle of the PI queue object.
 ///
 /// \return PI_SUCCESS
-pi_result rocm_piextQueueGetNativeHandle(pi_queue queue,
-                                         pi_native_handle *nativeHandle) {
+pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
+                                        pi_native_handle *nativeHandle) {
   *nativeHandle = reinterpret_cast<pi_native_handle>(queue->get());
   return PI_SUCCESS;
 }
@@ -2150,22 +2163,22 @@ pi_result rocm_piextQueueGetNativeHandle(pi_queue queue,
 ///
 ///
 /// \return TBD
-pi_result rocm_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                                pi_context context,
-                                                pi_queue *queue,
-                                                bool ownNativeHandle) {
+pi_result hip_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                               pi_context context,
+                                               pi_queue *queue,
+                                               bool ownNativeHandle) {
   (void)ownNativeHandle;
   cl::sycl::detail::pi::die(
       "Creation of PI queue from native handle not implemented");
   return {};
 }
 
-pi_result rocm_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
-                                       pi_bool blocking_write, size_t offset,
-                                       size_t size, void *ptr,
-                                       pi_uint32 num_events_in_wait_list,
-                                       const pi_event *event_wait_list,
-                                       pi_event *event) {
+pi_result hip_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
+                                      pi_bool blocking_write, size_t offset,
+                                      size_t size, void *ptr,
+                                      pi_uint32 num_events_in_wait_list,
+                                      const pi_event *event_wait_list,
+                                      pi_event *event) {
 
   assert(buffer != nullptr);
   assert(command_queue != nullptr);
@@ -2176,8 +2189,8 @@ pi_result rocm_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
   try {
     ScopedContext active(command_queue->get_context());
 
-    retErr = rocm_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                      event_wait_list, nullptr);
+    retErr = hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                                     event_wait_list, nullptr);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -2206,12 +2219,12 @@ pi_result rocm_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
   return retErr;
 }
 
-pi_result rocm_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
-                                      pi_bool blocking_read, size_t offset,
-                                      size_t size, void *ptr,
-                                      pi_uint32 num_events_in_wait_list,
-                                      const pi_event *event_wait_list,
-                                      pi_event *event) {
+pi_result hip_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
+                                     pi_bool blocking_read, size_t offset,
+                                     size_t size, void *ptr,
+                                     pi_uint32 num_events_in_wait_list,
+                                     const pi_event *event_wait_list,
+                                     pi_event *event) {
 
   assert(buffer != nullptr);
   assert(command_queue != nullptr);
@@ -2222,8 +2235,8 @@ pi_result rocm_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
   try {
     ScopedContext active(command_queue->get_context());
 
-    retErr = rocm_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                      event_wait_list, nullptr);
+    retErr = hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                                     event_wait_list, nullptr);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -2253,7 +2266,7 @@ pi_result rocm_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
   return retErr;
 }
 
-pi_result rocm_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
+pi_result hip_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
 
   try {
     assert(num_events != 0);
@@ -2288,8 +2301,8 @@ pi_result rocm_piEventsWait(pi_uint32 num_events, const pi_event *event_list) {
   }
 }
 
-pi_result rocm_piKernelCreate(pi_program program, const char *kernel_name,
-                              pi_kernel *kernel) {
+pi_result hip_piKernelCreate(pi_program program, const char *kernel_name,
+                             pi_kernel *kernel) {
   assert(kernel != nullptr);
   assert(program != nullptr);
 
@@ -2328,8 +2341,8 @@ pi_result rocm_piKernelCreate(pi_program program, const char *kernel_name,
   return retErr;
 }
 
-pi_result rocm_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
-                              size_t arg_size, const void *arg_value) {
+pi_result hip_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
+                             size_t arg_size, const void *arg_value) {
 
   assert(kernel != nullptr);
   pi_result retErr = PI_SUCCESS;
@@ -2345,8 +2358,8 @@ pi_result rocm_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
   return retErr;
 }
 
-pi_result rocm_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
-                                       const pi_mem *arg_value) {
+pi_result hip_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
+                                      const pi_mem *arg_value) {
 
   assert(kernel != nullptr);
   assert(arg_value != nullptr);
@@ -2381,8 +2394,8 @@ pi_result rocm_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
   return retErr;
 }
 
-pi_result rocm_piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
-                                        const pi_sampler *arg_value) {
+pi_result hip_piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
+                                       const pi_sampler *arg_value) {
 
   assert(kernel != nullptr);
   assert(arg_value != nullptr);
@@ -2397,7 +2410,7 @@ pi_result rocm_piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
   return retErr;
 }
 
-pi_result rocm_piEnqueueKernelLaunch(
+pi_result hip_piEnqueueKernelLaunch(
     pi_queue command_queue, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
@@ -2419,13 +2432,13 @@ pi_result rocm_piEnqueueKernelLaunch(
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
 
   {
-    pi_result retError = rocm_piDeviceGetInfo(
+    pi_result retError = hip_piDeviceGetInfo(
         command_queue->device_, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
         sizeof(maxThreadsPerBlock), maxThreadsPerBlock, nullptr);
     assert(retError == PI_SUCCESS);
     (void)retError;
 
-    retError = rocm_piDeviceGetInfo(
+    retError = hip_piDeviceGetInfo(
         command_queue->device_, PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
         sizeof(maxWorkGroupSize), &maxWorkGroupSize, nullptr);
     assert(retError == PI_SUCCESS);
@@ -2474,23 +2487,23 @@ pi_result rocm_piEnqueueKernelLaunch(
     hipStream_t hipStream = command_queue->get();
     hipFunction_t hipFunc = kernel->get();
 
-    retError = rocm_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                        event_wait_list, nullptr);
+    retError = hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                                       event_wait_list, nullptr);
 
     // Set the implicit global offset parameter if kernel has offset variant
     if (kernel->get_with_offset_parameter()) {
-      std::uint32_t rocm_implicit_offset[3] = {0, 0, 0};
+      std::uint32_t hip_implicit_offset[3] = {0, 0, 0};
       if (global_work_offset) {
         for (size_t i = 0; i < work_dim; i++) {
-          rocm_implicit_offset[i] =
+          hip_implicit_offset[i] =
               static_cast<std::uint32_t>(global_work_offset[i]);
           if (global_work_offset[i] != 0) {
             hipFunc = kernel->get_with_offset_parameter();
           }
         }
       }
-      kernel->set_implicit_offset_arg(sizeof(rocm_implicit_offset),
-                                      rocm_implicit_offset);
+      kernel->set_implicit_offset_arg(sizeof(hip_implicit_offset),
+                                      hip_implicit_offset);
     }
 
     auto argIndices = kernel->get_arg_indices();
@@ -2521,21 +2534,22 @@ pi_result rocm_piEnqueueKernelLaunch(
 }
 
 /// \TODO Not implemented
-pi_result rocm_piEnqueueNativeKernel(
-    pi_queue queue, void (*user_func)(void *), void *args, size_t cb_args,
-    pi_uint32 num_mem_objects, const pi_mem *mem_list,
-    const void **args_mem_loc, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
+pi_result
+hip_piEnqueueNativeKernel(pi_queue queue, void (*user_func)(void *), void *args,
+                          size_t cb_args, pi_uint32 num_mem_objects,
+                          const pi_mem *mem_list, const void **args_mem_loc,
+                          pi_uint32 num_events_in_wait_list,
+                          const pi_event *event_wait_list, pi_event *event) {
   cl::sycl::detail::pi::die("Not implemented in HIP backend");
   return {};
 }
 
 /// \TODO Not implemented
 
-pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
-                                const pi_image_format *image_format,
-                                const pi_image_desc *image_desc, void *host_ptr,
-                                pi_mem *ret_mem) {
+pi_result hip_piMemImageCreate(pi_context context, pi_mem_flags flags,
+                               const pi_image_format *image_format,
+                               const pi_image_desc *image_desc, void *host_ptr,
+                               pi_mem *ret_mem) {
 
   // Need input memory object
   assert(ret_mem != nullptr);
@@ -2548,7 +2562,7 @@ pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
   if (image_format->image_channel_order !=
       pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_RGBA) {
     cl::sycl::detail::pi::die(
-        "rocm_piMemImageCreate only supports RGBA channel order");
+        "hip_piMemImageCreate only supports RGBA channel order");
   }
 
   // We have to use cuArray3DCreate, which has some caveats. The height and
@@ -2609,7 +2623,7 @@ pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
     break;
   default:
     cl::sycl::detail::pi::die(
-        "rocm_piMemImageCreate given unsupported image_channel_data_type");
+        "hip_piMemImageCreate given unsupported image_channel_data_type");
   }
 
   // When a dimension isn't used image_desc has the size set to 1
@@ -2686,14 +2700,14 @@ pi_result rocm_piMemImageCreate(pi_context context, pi_mem_flags flags,
 }
 
 /// \TODO Not implemented
-pi_result rocm_piMemImageGetInfo(pi_mem image, pi_image_info param_name,
-                                 size_t param_value_size, void *param_value,
-                                 size_t *param_value_size_ret) {
-  cl::sycl::detail::pi::die("rocm_piMemImageGetInfo not implemented");
+pi_result hip_piMemImageGetInfo(pi_mem image, pi_image_info param_name,
+                                size_t param_value_size, void *param_value,
+                                size_t *param_value_size_ret) {
+  cl::sycl::detail::pi::die("hip_piMemImageGetInfo not implemented");
   return {};
 }
 
-pi_result rocm_piMemRetain(pi_mem mem) {
+pi_result hip_piMemRetain(pi_mem mem) {
   assert(mem != nullptr);
   assert(mem->get_reference_count() > 0);
   mem->increment_reference_count();
@@ -2701,14 +2715,14 @@ pi_result rocm_piMemRetain(pi_mem mem) {
 }
 
 /// Not used as HIP backend only creates programs from binary.
-/// See \ref rocm_piclProgramCreateWithBinary.
+/// See \ref hip_piclProgramCreateWithBinary.
 ///
-pi_result rocm_piclProgramCreateWithSource(pi_context context, pi_uint32 count,
-                                           const char **strings,
-                                           const size_t *lengths,
-                                           pi_program *program) {
+pi_result hip_piclProgramCreateWithSource(pi_context context, pi_uint32 count,
+                                          const char **strings,
+                                          const size_t *lengths,
+                                          pi_program *program) {
   cl::sycl::detail::pi::hipPrint(
-      "rocm_piclProgramCreateWithSource not implemented");
+      "hip_piclProgramCreateWithSource not implemented");
   return PI_INVALID_OPERATION;
 }
 
@@ -2716,11 +2730,11 @@ pi_result rocm_piclProgramCreateWithSource(pi_context context, pi_uint32 count,
 /// used later on to extract functions (kernels).
 /// See \ref _pi_program for implementation details.
 ///
-pi_result rocm_piProgramBuild(pi_program program, pi_uint32 num_devices,
-                              const pi_device *device_list, const char *options,
-                              void (*pfn_notify)(pi_program program,
-                                                 void *user_data),
-                              void *user_data) {
+pi_result hip_piProgramBuild(pi_program program, pi_uint32 num_devices,
+                             const pi_device *device_list, const char *options,
+                             void (*pfn_notify)(pi_program program,
+                                                void *user_data),
+                             void *user_data) {
 
   assert(program != nullptr);
   assert(num_devices == 1 || num_devices == 0);
@@ -2741,9 +2755,9 @@ pi_result rocm_piProgramBuild(pi_program program, pi_uint32 num_devices,
 }
 
 /// \TODO Not implemented
-pi_result rocm_piProgramCreate(pi_context context, const void *il,
-                               size_t length, pi_program *res_program) {
-  cl::sycl::detail::pi::die("rocm_piProgramCreate not implemented");
+pi_result hip_piProgramCreate(pi_context context, const void *il, size_t length,
+                              pi_program *res_program) {
+  cl::sycl::detail::pi::die("hip_piProgramCreate not implemented");
   return {};
 }
 
@@ -2753,7 +2767,7 @@ pi_result rocm_piProgramCreate(pi_context context, const void *il,
 ///
 /// Note: Only supports one device
 ///
-pi_result rocm_piProgramCreateWithBinary(
+pi_result hip_piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
     size_t num_metadata_entries, const pi_device_binary_property *metadata,
@@ -2788,9 +2802,9 @@ pi_result rocm_piProgramCreateWithBinary(
   return retError;
 }
 
-pi_result rocm_piProgramGetInfo(pi_program program, pi_program_info param_name,
-                                size_t param_value_size, void *param_value,
-                                size_t *param_value_size_ret) {
+pi_result hip_piProgramGetInfo(pi_program program, pi_program_info param_name,
+                               size_t param_value_size, void *param_value,
+                               size_t *param_value_size_ret) {
   assert(program != nullptr);
 
   switch (param_name) {
@@ -2829,7 +2843,7 @@ pi_result rocm_piProgramGetInfo(pi_program program, pi_program_info param_name,
 ///  and the program.
 /// \TODO Implement asynchronous compilation
 ///
-pi_result rocm_piProgramCompile(
+pi_result hip_piProgramCompile(
     pi_program program, pi_uint32 num_devices, const pi_device *device_list,
     const char *options, pi_uint32 num_input_headers,
     const pi_program *input_headers, const char **header_include_names,
@@ -2853,10 +2867,10 @@ pi_result rocm_piProgramCompile(
   return retError;
 }
 
-pi_result rocm_piProgramGetBuildInfo(pi_program program, pi_device device,
-                                     cl_program_build_info param_name,
-                                     size_t param_value_size, void *param_value,
-                                     size_t *param_value_size_ret) {
+pi_result hip_piProgramGetBuildInfo(pi_program program, pi_device device,
+                                    cl_program_build_info param_name,
+                                    size_t param_value_size, void *param_value,
+                                    size_t *param_value_size_ret) {
 
   assert(program != nullptr);
 
@@ -2878,7 +2892,7 @@ pi_result rocm_piProgramGetBuildInfo(pi_program program, pi_device device,
   return {};
 }
 
-pi_result rocm_piProgramRetain(pi_program program) {
+pi_result hip_piProgramRetain(pi_program program) {
   assert(program != nullptr);
   assert(program->get_reference_count() > 0);
   program->increment_reference_count();
@@ -2888,13 +2902,13 @@ pi_result rocm_piProgramRetain(pi_program program) {
 /// Decreases the reference count of a pi_program object.
 /// When the reference count reaches 0, it unloads the module from
 /// the context.
-pi_result rocm_piProgramRelease(pi_program program) {
+pi_result hip_piProgramRelease(pi_program program) {
   assert(program != nullptr);
 
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
   assert(program->get_reference_count() != 0 &&
-         "Reference count overflow detected in rocm_piProgramRelease.");
+         "Reference count overflow detected in hip_piProgramRelease.");
 
   // decrement ref count. If it is 0, delete the program.
   if (program->decrement_reference_count() == 0) {
@@ -2923,8 +2937,8 @@ pi_result rocm_piProgramRelease(pi_program program) {
 /// \param[out] nativeHandle Set to the native handle of the PI program object.
 ///
 /// \return TBD
-pi_result rocm_piextProgramGetNativeHandle(pi_program program,
-                                           pi_native_handle *nativeHandle) {
+pi_result hip_piextProgramGetNativeHandle(pi_program program,
+                                          pi_native_handle *nativeHandle) {
   *nativeHandle = reinterpret_cast<pi_native_handle>(program->get());
   return PI_SUCCESS;
 }
@@ -2938,17 +2952,17 @@ pi_result rocm_piextProgramGetNativeHandle(pi_program program,
 /// \param[out] program Set to the PI program object created from native handle.
 ///
 /// \return TBD
-pi_result rocm_piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                                  pi_context context,
-                                                  pi_program *program) {
+pi_result hip_piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                 pi_context context,
+                                                 pi_program *program) {
   cl::sycl::detail::pi::die(
       "Creation of PI program from native handle not implemented");
   return {};
 }
 
-pi_result rocm_piKernelGetInfo(pi_kernel kernel, pi_kernel_info param_name,
-                               size_t param_value_size, void *param_value,
-                               size_t *param_value_size_ret) {
+pi_result hip_piKernelGetInfo(pi_kernel kernel, pi_kernel_info param_name,
+                              size_t param_value_size, void *param_value,
+                              size_t *param_value_size_ret) {
 
   if (kernel != nullptr) {
 
@@ -2982,12 +2996,12 @@ pi_result rocm_piKernelGetInfo(pi_kernel kernel, pi_kernel_info param_name,
   return PI_INVALID_KERNEL;
 }
 
-pi_result rocm_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
-                                    pi_kernel_group_info param_name,
-                                    size_t param_value_size, void *param_value,
-                                    size_t *param_value_size_ret) {
+pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
+                                   pi_kernel_group_info param_name,
+                                   size_t param_value_size, void *param_value,
+                                   size_t *param_value_size_ret) {
 
-  // here we want to query about a kernel's rocm blocks!
+  // here we want to query about a kernel's hip blocks!
 
   if (kernel != nullptr) {
 
@@ -3047,7 +3061,7 @@ pi_result rocm_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
   return PI_INVALID_KERNEL;
 }
 
-pi_result rocm_piKernelGetSubGroupInfo(
+pi_result hip_piKernelGetSubGroupInfo(
     pi_kernel kernel, pi_device device, pi_kernel_sub_group_info param_name,
     size_t input_value_size, const void *input_value, size_t param_value_size,
     void *param_value, size_t *param_value_size_ret) {
@@ -3070,9 +3084,9 @@ pi_result rocm_piKernelGetSubGroupInfo(
                               HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
                               kernel->get()) == hipSuccess);
       int warpSize = 0;
-      rocm_piKernelGetSubGroupInfo(kernel, device, PI_KERNEL_MAX_SUB_GROUP_SIZE,
-                                   0, nullptr, sizeof(uint32_t), &warpSize,
-                                   nullptr);
+      hip_piKernelGetSubGroupInfo(kernel, device, PI_KERNEL_MAX_SUB_GROUP_SIZE,
+                                  0, nullptr, sizeof(uint32_t), &warpSize,
+                                  nullptr);
       int maxWarps = (max_threads + warpSize - 1) / warpSize;
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      static_cast<uint32_t>(maxWarps));
@@ -3096,7 +3110,7 @@ pi_result rocm_piKernelGetSubGroupInfo(
   return PI_INVALID_KERNEL;
 }
 
-pi_result rocm_piKernelRetain(pi_kernel kernel) {
+pi_result hip_piKernelRetain(pi_kernel kernel) {
   assert(kernel != nullptr);
   assert(kernel->get_reference_count() > 0u);
 
@@ -3104,17 +3118,17 @@ pi_result rocm_piKernelRetain(pi_kernel kernel) {
   return PI_SUCCESS;
 }
 
-pi_result rocm_piKernelRelease(pi_kernel kernel) {
+pi_result hip_piKernelRelease(pi_kernel kernel) {
   assert(kernel != nullptr);
 
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
   assert(kernel->get_reference_count() != 0 &&
-         "Reference count overflow detected in rocm_piKernelRelease.");
+         "Reference count overflow detected in hip_piKernelRelease.");
 
   // decrement ref count. If it is 0, delete the program.
   if (kernel->decrement_reference_count() == 0) {
-    // no internal rocm resources to clean up. Just delete it.
+    // no internal hip resources to clean up. Just delete it.
     delete kernel;
     return PI_SUCCESS;
   }
@@ -3123,16 +3137,15 @@ pi_result rocm_piKernelRelease(pi_kernel kernel) {
 }
 
 // A NOP for the HIP backend
-pi_result rocm_piKernelSetExecInfo(pi_kernel kernel,
-                                   pi_kernel_exec_info param_name,
-                                   size_t param_value_size,
-                                   const void *param_value) {
+pi_result hip_piKernelSetExecInfo(pi_kernel kernel,
+                                  pi_kernel_exec_info param_name,
+                                  size_t param_value_size,
+                                  const void *param_value) {
   return PI_SUCCESS;
 }
 
-pi_result rocm_piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
-                                        size_t arg_size,
-                                        const void *arg_value) {
+pi_result hip_piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
+                                       size_t arg_size, const void *arg_value) {
   kernel->set_kernel_arg(arg_index, arg_size, arg_value);
   return PI_SUCCESS;
 }
@@ -3140,13 +3153,13 @@ pi_result rocm_piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
 //
 // Events
 //
-pi_result rocm_piEventCreate(pi_context context, pi_event *event) {
+pi_result hip_piEventCreate(pi_context context, pi_event *event) {
   cl::sycl::detail::pi::die("PI Event Create not implemented in HIP backend");
 }
 
-pi_result rocm_piEventGetInfo(pi_event event, pi_event_info param_name,
-                              size_t param_value_size, void *param_value,
-                              size_t *param_value_size_ret) {
+pi_result hip_piEventGetInfo(pi_event event, pi_event_info param_name,
+                             size_t param_value_size, void *param_value,
+                             size_t *param_value_size_ret) {
   assert(event != nullptr);
 
   switch (param_name) {
@@ -3175,11 +3188,11 @@ pi_result rocm_piEventGetInfo(pi_event event, pi_event_info param_name,
 
 /// Obtain profiling information from PI HIP events
 /// \TODO Untie from OpenCL, timings from HIP are only elapsed time.
-pi_result rocm_piEventGetProfilingInfo(pi_event event,
-                                       pi_profiling_info param_name,
-                                       size_t param_value_size,
-                                       void *param_value,
-                                       size_t *param_value_size_ret) {
+pi_result hip_piEventGetProfilingInfo(pi_event event,
+                                      pi_profiling_info param_name,
+                                      size_t param_value_size,
+                                      void *param_value,
+                                      size_t *param_value_size_ret) {
 
   assert(event != nullptr);
 
@@ -3206,40 +3219,39 @@ pi_result rocm_piEventGetProfilingInfo(pi_event event,
   return {};
 }
 
-pi_result rocm_piEventSetCallback(pi_event event,
-                                  pi_int32 command_exec_callback_type,
-                                  pfn_notify notify, void *user_data) {
+pi_result hip_piEventSetCallback(pi_event event,
+                                 pi_int32 command_exec_callback_type,
+                                 pfn_notify notify, void *user_data) {
 
   cl::sycl::detail::pi::die("Event Callback not implemented in HIP backend");
   return PI_SUCCESS;
 }
 
-pi_result rocm_piEventSetStatus(pi_event event, pi_int32 execution_status) {
+pi_result hip_piEventSetStatus(pi_event event, pi_int32 execution_status) {
 
   cl::sycl::detail::pi::die("Event Set Status not implemented in HIP backend");
   return PI_INVALID_VALUE;
 }
 
-pi_result rocm_piEventRetain(pi_event event) {
+pi_result hip_piEventRetain(pi_event event) {
   assert(event != nullptr);
 
   const auto refCount = event->increment_reference_count();
 
   cl::sycl::detail::pi::assertion(
-      refCount != 0,
-      "Reference count overflow detected in rocm_piEventRetain.");
+      refCount != 0, "Reference count overflow detected in hip_piEventRetain.");
 
   return PI_SUCCESS;
 }
 
-pi_result rocm_piEventRelease(pi_event event) {
+pi_result hip_piEventRelease(pi_event event) {
   assert(event != nullptr);
 
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
   cl::sycl::detail::pi::assertion(
       event->get_reference_count() != 0,
-      "Reference count overflow detected in rocm_piEventRelease.");
+      "Reference count overflow detected in hip_piEventRelease.");
 
   // decrement ref count. If it is 0, delete the event.
   if (event->decrement_reference_count() == 0) {
@@ -3260,10 +3272,10 @@ pi_result rocm_piEventRelease(pi_event event) {
 /// Enqueues a wait on the given CUstream for all events.
 /// See \ref enqueueEventWait
 ///
-pi_result rocm_piEnqueueEventsWait(pi_queue command_queue,
-                                   pi_uint32 num_events_in_wait_list,
-                                   const pi_event *event_wait_list,
-                                   pi_event *event) {
+pi_result hip_piEnqueueEventsWait(pi_queue command_queue,
+                                  pi_uint32 num_events_in_wait_list,
+                                  const pi_event *event_wait_list,
+                                  pi_event *event) {
   if (!command_queue) {
     return PI_INVALID_QUEUE;
   }
@@ -3303,8 +3315,8 @@ pi_result rocm_piEnqueueEventsWait(pi_queue command_queue,
 /// \param[out] nativeHandle Set to the native handle of the PI event object.
 ///
 /// \return PI_SUCCESS on success. PI_INVALID_EVENT if given a user event.
-pi_result rocm_piextEventGetNativeHandle(pi_event event,
-                                         pi_native_handle *nativeHandle) {
+pi_result hip_piextEventGetNativeHandle(pi_event event,
+                                        pi_native_handle *nativeHandle) {
   *nativeHandle = reinterpret_cast<pi_native_handle>(event->get());
   return PI_SUCCESS;
 }
@@ -3317,10 +3329,10 @@ pi_result rocm_piextEventGetNativeHandle(pi_event event,
 /// \param[out] event Set to the PI event object created from native handle.
 ///
 /// \return TBD
-pi_result rocm_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                                pi_context context,
-                                                bool ownNativeHandle,
-                                                pi_event *event) {
+pi_result hip_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                               pi_context context,
+                                               bool ownNativeHandle,
+                                               pi_event *event) {
   cl::sycl::detail::pi::die(
       "Creation of PI event from native handle not implemented");
   return {};
@@ -3334,9 +3346,9 @@ pi_result rocm_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
 ///
 /// \return PI_SUCCESS on success. PI_INVALID_VALUE if given an invalid property
 ///         or if there is multiple of properties from the same category.
-pi_result rocm_piSamplerCreate(pi_context context,
-                               const pi_sampler_properties *sampler_properties,
-                               pi_sampler *result_sampler) {
+pi_result hip_piSamplerCreate(pi_context context,
+                              const pi_sampler_properties *sampler_properties,
+                              pi_sampler *result_sampler) {
   std::unique_ptr<_pi_sampler> retImplSampl{new _pi_sampler(context)};
 
   bool propSeen[3] = {false, false, false};
@@ -3391,9 +3403,9 @@ pi_result rocm_piSamplerCreate(pi_context context,
 /// \param[out] param_value_size_ret Set to the size of the information value.
 ///
 /// \return PI_SUCCESS on success.
-pi_result rocm_piSamplerGetInfo(pi_sampler sampler, cl_sampler_info param_name,
-                                size_t param_value_size, void *param_value,
-                                size_t *param_value_size_ret) {
+pi_result hip_piSamplerGetInfo(pi_sampler sampler, cl_sampler_info param_name,
+                               size_t param_value_size, void *param_value,
+                               size_t *param_value_size_ret) {
   assert(sampler != nullptr);
 
   switch (param_name) {
@@ -3432,7 +3444,7 @@ pi_result rocm_piSamplerGetInfo(pi_sampler sampler, cl_sampler_info param_name,
 /// \param[in] sampler The sampler to increment the reference count of.
 ///
 /// \return PI_SUCCESS.
-pi_result rocm_piSamplerRetain(pi_sampler sampler) {
+pi_result hip_piSamplerRetain(pi_sampler sampler) {
   assert(sampler != nullptr);
   sampler->increment_reference_count();
   return PI_SUCCESS;
@@ -3444,14 +3456,14 @@ pi_result rocm_piSamplerRetain(pi_sampler sampler) {
 /// \param[in] sampler The sampler to decrement the reference count of.
 ///
 /// \return PI_SUCCESS.
-pi_result rocm_piSamplerRelease(pi_sampler sampler) {
+pi_result hip_piSamplerRelease(pi_sampler sampler) {
   assert(sampler != nullptr);
 
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
   cl::sycl::detail::pi::assertion(
       sampler->get_reference_count() != 0,
-      "Reference count overflow detected in rocm_piSamplerRelease.");
+      "Reference count overflow detected in hip_piSamplerRelease.");
 
   // decrement ref count. If it is 0, delete the sampler.
   if (sampler->decrement_reference_count() == 0) {
@@ -3520,7 +3532,7 @@ static pi_result commonEnqueueMemBufferCopyRect(
   return PI_SUCCESS;
 }
 
-pi_result rocm_piEnqueueMemBufferReadRect(
+pi_result hip_piEnqueueMemBufferReadRect(
     pi_queue command_queue, pi_mem buffer, pi_bool blocking_read,
     pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
     pi_buff_rect_region region, size_t buffer_row_pitch,
@@ -3539,8 +3551,8 @@ pi_result rocm_piEnqueueMemBufferReadRect(
   try {
     ScopedContext active(command_queue->get_context());
 
-    retErr = rocm_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                      event_wait_list, nullptr);
+    retErr = hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                                     event_wait_list, nullptr);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -3571,7 +3583,7 @@ pi_result rocm_piEnqueueMemBufferReadRect(
   return retErr;
 }
 
-pi_result rocm_piEnqueueMemBufferWriteRect(
+pi_result hip_piEnqueueMemBufferWriteRect(
     pi_queue command_queue, pi_mem buffer, pi_bool blocking_write,
     pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
     pi_buff_rect_region region, size_t buffer_row_pitch,
@@ -3590,8 +3602,8 @@ pi_result rocm_piEnqueueMemBufferWriteRect(
   try {
     ScopedContext active(command_queue->get_context());
 
-    retErr = rocm_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                      event_wait_list, nullptr);
+    retErr = hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                                     event_wait_list, nullptr);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -3622,12 +3634,12 @@ pi_result rocm_piEnqueueMemBufferWriteRect(
   return retErr;
 }
 
-pi_result rocm_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
-                                      pi_mem dst_buffer, size_t src_offset,
-                                      size_t dst_offset, size_t size,
-                                      pi_uint32 num_events_in_wait_list,
-                                      const pi_event *event_wait_list,
-                                      pi_event *event) {
+pi_result hip_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
+                                     pi_mem dst_buffer, size_t src_offset,
+                                     size_t dst_offset, size_t size,
+                                     pi_uint32 num_events_in_wait_list,
+                                     const pi_event *event_wait_list,
+                                     pi_event *event) {
   if (!command_queue) {
     return PI_INVALID_QUEUE;
   }
@@ -3638,8 +3650,8 @@ pi_result rocm_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
     ScopedContext active(command_queue->get_context());
 
     if (event_wait_list) {
-      rocm_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                               event_wait_list, nullptr);
+      hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                              event_wait_list, nullptr);
     }
 
     pi_result result;
@@ -3669,7 +3681,7 @@ pi_result rocm_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
   }
 }
 
-pi_result rocm_piEnqueueMemBufferCopyRect(
+pi_result hip_piEnqueueMemBufferCopyRect(
     pi_queue command_queue, pi_mem src_buffer, pi_mem dst_buffer,
     pi_buff_rect_offset src_origin, pi_buff_rect_offset dst_origin,
     pi_buff_rect_region region, size_t src_row_pitch, size_t src_slice_pitch,
@@ -3690,8 +3702,8 @@ pi_result rocm_piEnqueueMemBufferCopyRect(
   try {
     ScopedContext active(command_queue->get_context());
 
-    retErr = rocm_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                      event_wait_list, nullptr);
+    retErr = hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                                     event_wait_list, nullptr);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -3715,12 +3727,12 @@ pi_result rocm_piEnqueueMemBufferCopyRect(
   return retErr;
 }
 
-pi_result rocm_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
-                                      const void *pattern, size_t pattern_size,
-                                      size_t offset, size_t size,
-                                      pi_uint32 num_events_in_wait_list,
-                                      const pi_event *event_wait_list,
-                                      pi_event *event) {
+pi_result hip_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
+                                     const void *pattern, size_t pattern_size,
+                                     size_t offset, size_t size,
+                                     pi_uint32 num_events_in_wait_list,
+                                     const pi_event *event_wait_list,
+                                     pi_event *event) {
   assert(command_queue != nullptr);
 
   auto args_are_multiples_of_pattern_size =
@@ -3744,8 +3756,8 @@ pi_result rocm_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     ScopedContext active(command_queue->get_context());
 
     if (event_wait_list) {
-      rocm_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                               event_wait_list, nullptr);
+      hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                              event_wait_list, nullptr);
     }
 
     pi_result result;
@@ -3922,11 +3934,13 @@ static pi_result commonEnqueueMemImageNDCopy(
   return PI_INVALID_VALUE;
 }
 
-pi_result rocm_piEnqueueMemImageRead(
-    pi_queue command_queue, pi_mem image, pi_bool blocking_read,
-    const size_t *origin, const size_t *region, size_t row_pitch,
-    size_t slice_pitch, void *ptr, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
+pi_result hip_piEnqueueMemImageRead(pi_queue command_queue, pi_mem image,
+                                    pi_bool blocking_read, const size_t *origin,
+                                    const size_t *region, size_t row_pitch,
+                                    size_t slice_pitch, void *ptr,
+                                    pi_uint32 num_events_in_wait_list,
+                                    const pi_event *event_wait_list,
+                                    pi_event *event) {
 
   assert(command_queue != nullptr);
   assert(image != nullptr);
@@ -3939,8 +3953,8 @@ pi_result rocm_piEnqueueMemImageRead(
     ScopedContext active(command_queue->get_context());
 
     if (event_wait_list) {
-      rocm_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                               event_wait_list, nullptr);
+      hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                              event_wait_list, nullptr);
     }
 
     hipArray *array = image->mem_.surface_mem_.get_array();
@@ -3986,13 +4000,14 @@ pi_result rocm_piEnqueueMemImageRead(
   return retErr;
 }
 
-pi_result
-rocm_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
-                            pi_bool blocking_write, const size_t *origin,
-                            const size_t *region, size_t input_row_pitch,
-                            size_t input_slice_pitch, const void *ptr,
-                            pi_uint32 num_events_in_wait_list,
-                            const pi_event *event_wait_list, pi_event *event) {
+pi_result hip_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
+                                     pi_bool blocking_write,
+                                     const size_t *origin, const size_t *region,
+                                     size_t input_row_pitch,
+                                     size_t input_slice_pitch, const void *ptr,
+                                     pi_uint32 num_events_in_wait_list,
+                                     const pi_event *event_wait_list,
+                                     pi_event *event) {
 
   assert(command_queue != nullptr);
   assert(image != nullptr);
@@ -4005,8 +4020,8 @@ rocm_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
     ScopedContext active(command_queue->get_context());
 
     if (event_wait_list) {
-      rocm_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                               event_wait_list, nullptr);
+      hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                              event_wait_list, nullptr);
     }
 
     hipArray *array = image->mem_.surface_mem_.get_array();
@@ -4050,13 +4065,13 @@ rocm_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
   return retErr;
 }
 
-pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
-                                     pi_mem dst_image, const size_t *src_origin,
-                                     const size_t *dst_origin,
-                                     const size_t *region,
-                                     pi_uint32 num_events_in_wait_list,
-                                     const pi_event *event_wait_list,
-                                     pi_event *event) {
+pi_result hip_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
+                                    pi_mem dst_image, const size_t *src_origin,
+                                    const size_t *dst_origin,
+                                    const size_t *region,
+                                    pi_uint32 num_events_in_wait_list,
+                                    const pi_event *event_wait_list,
+                                    pi_event *event) {
 
   assert(src_image->mem_type_ == _pi_mem::mem_type::surface);
   assert(dst_image->mem_type_ == _pi_mem::mem_type::surface);
@@ -4070,8 +4085,8 @@ pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
     ScopedContext active(command_queue->get_context());
 
     if (event_wait_list) {
-      rocm_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                               event_wait_list, nullptr);
+      hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                              event_wait_list, nullptr);
     }
 
     hipArray *srcArray = src_image->mem_.surface_mem_.get_array();
@@ -4124,13 +4139,13 @@ pi_result rocm_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
 }
 
 /// \TODO Not implemented in HIP, requires untie from OpenCL
-pi_result rocm_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
-                                     const void *fill_color,
-                                     const size_t *origin, const size_t *region,
-                                     pi_uint32 num_events_in_wait_list,
-                                     const pi_event *event_wait_list,
-                                     pi_event *event) {
-  cl::sycl::detail::pi::die("rocm_piEnqueueMemImageFill not implemented");
+pi_result hip_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
+                                    const void *fill_color,
+                                    const size_t *origin, const size_t *region,
+                                    pi_uint32 num_events_in_wait_list,
+                                    const pi_event *event_wait_list,
+                                    pi_event *event) {
+  cl::sycl::detail::pi::die("hip_piEnqueueMemImageFill not implemented");
   return {};
 }
 
@@ -4140,13 +4155,13 @@ pi_result rocm_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
 /// and no read operation is done.
 /// \TODO Untie types from OpenCL
 ///
-pi_result rocm_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
-                                     pi_bool blocking_map,
-                                     pi_map_flags map_flags, size_t offset,
-                                     size_t size,
-                                     pi_uint32 num_events_in_wait_list,
-                                     const pi_event *event_wait_list,
-                                     pi_event *event, void **ret_map) {
+pi_result hip_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
+                                    pi_bool blocking_map,
+                                    pi_map_flags map_flags, size_t offset,
+                                    size_t size,
+                                    pi_uint32 num_events_in_wait_list,
+                                    const pi_event *event_wait_list,
+                                    pi_event *event, void **ret_map) {
   assert(ret_map != nullptr);
   assert(command_queue != nullptr);
   assert(buffer != nullptr);
@@ -4170,15 +4185,15 @@ pi_result rocm_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
 
   if (!is_pinned && ((map_flags & PI_MAP_READ) || (map_flags & PI_MAP_WRITE))) {
     // Pinned host memory is already on host so it doesn't need to be read.
-    ret_err = rocm_piEnqueueMemBufferRead(
+    ret_err = hip_piEnqueueMemBufferRead(
         command_queue, buffer, blocking_map, offset, size, hostPtr,
         num_events_in_wait_list, event_wait_list, event);
   } else {
     ScopedContext active(command_queue->get_context());
 
     if (is_pinned) {
-      ret_err = rocm_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                         event_wait_list, nullptr);
+      ret_err = hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                                        event_wait_list, nullptr);
     }
 
     if (event) {
@@ -4200,11 +4215,11 @@ pi_result rocm_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
 /// Requires the mapped pointer to be already registered in the given memobj.
 /// If memobj uses pinned host memory, this will not do a write.
 ///
-pi_result rocm_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
-                                 void *mapped_ptr,
-                                 pi_uint32 num_events_in_wait_list,
-                                 const pi_event *event_wait_list,
-                                 pi_event *event) {
+pi_result hip_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
+                                void *mapped_ptr,
+                                pi_uint32 num_events_in_wait_list,
+                                const pi_event *event_wait_list,
+                                pi_event *event) {
   pi_result ret_err = PI_SUCCESS;
 
   assert(command_queue != nullptr);
@@ -4222,7 +4237,7 @@ pi_result rocm_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
        (memobj->mem_.buffer_mem_.get_map_flags() &
         PI_MAP_WRITE_INVALIDATE_REGION))) {
     // Pinned host memory is only on host so it doesn't need to be written to.
-    ret_err = rocm_piEnqueueMemBufferWrite(
+    ret_err = hip_piEnqueueMemBufferWrite(
         command_queue, memobj, true,
         memobj->mem_.buffer_mem_.get_map_offset(mapped_ptr),
         memobj->mem_.buffer_mem_.get_size(), mapped_ptr,
@@ -4231,8 +4246,8 @@ pi_result rocm_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
     ScopedContext active(command_queue->get_context());
 
     if (is_pinned) {
-      ret_err = rocm_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
-                                         event_wait_list, nullptr);
+      ret_err = hip_piEnqueueEventsWait(command_queue, num_events_in_wait_list,
+                                        event_wait_list, nullptr);
     }
 
     if (event) {
@@ -4253,9 +4268,9 @@ pi_result rocm_piEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
 
 /// USM: Implements USM Host allocations using HIP Pinned Memory
 ///
-pi_result rocm_piextUSMHostAlloc(void **result_ptr, pi_context context,
-                                 pi_usm_mem_properties *properties, size_t size,
-                                 pi_uint32 alignment) {
+pi_result hip_piextUSMHostAlloc(void **result_ptr, pi_context context,
+                                pi_usm_mem_properties *properties, size_t size,
+                                pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(properties == nullptr);
@@ -4275,10 +4290,10 @@ pi_result rocm_piextUSMHostAlloc(void **result_ptr, pi_context context,
 
 /// USM: Implements USM device allocations using a normal HIP device pointer
 ///
-pi_result rocm_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
-                                   pi_device device,
-                                   pi_usm_mem_properties *properties,
-                                   size_t size, pi_uint32 alignment) {
+pi_result hip_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
+                                  pi_device device,
+                                  pi_usm_mem_properties *properties,
+                                  size_t size, pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
@@ -4299,10 +4314,10 @@ pi_result rocm_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
 
 /// USM: Implements USM Shared allocations using HIP Managed Memory
 ///
-pi_result rocm_piextUSMSharedAlloc(void **result_ptr, pi_context context,
-                                   pi_device device,
-                                   pi_usm_mem_properties *properties,
-                                   size_t size, pi_uint32 alignment) {
+pi_result hip_piextUSMSharedAlloc(void **result_ptr, pi_context context,
+                                  pi_device device,
+                                  pi_usm_mem_properties *properties,
+                                  size_t size, pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
@@ -4324,7 +4339,7 @@ pi_result rocm_piextUSMSharedAlloc(void **result_ptr, pi_context context,
 
 /// USM: Frees the given USM pointer associated with the context.
 ///
-pi_result rocm_piextUSMFree(pi_context context, void *ptr) {
+pi_result hip_piextUSMFree(pi_context context, void *ptr) {
 
   assert(context != nullptr);
   pi_result result = PI_SUCCESS;
@@ -4348,11 +4363,11 @@ pi_result rocm_piextUSMFree(pi_context context, void *ptr) {
   return result;
 }
 
-pi_result rocm_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
-                                     size_t count,
-                                     pi_uint32 num_events_in_waitlist,
-                                     const pi_event *events_waitlist,
-                                     pi_event *event) {
+pi_result hip_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
+                                    size_t count,
+                                    pi_uint32 num_events_in_waitlist,
+                                    const pi_event *events_waitlist,
+                                    pi_event *event) {
 
   assert(queue != nullptr);
   assert(ptr != nullptr);
@@ -4362,8 +4377,8 @@ pi_result rocm_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
 
   try {
     ScopedContext active(queue->get_context());
-    result = rocm_piEnqueueEventsWait(queue, num_events_in_waitlist,
-                                      events_waitlist, nullptr);
+    result = hip_piEnqueueEventsWait(queue, num_events_in_waitlist,
+                                     events_waitlist, nullptr);
     if (event) {
       event_ptr = std::unique_ptr<_pi_event>(
           _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_FILL, queue));
@@ -4383,12 +4398,12 @@ pi_result rocm_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
   return result;
 }
 
-pi_result rocm_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
-                                     void *dst_ptr, const void *src_ptr,
-                                     size_t size,
-                                     pi_uint32 num_events_in_waitlist,
-                                     const pi_event *events_waitlist,
-                                     pi_event *event) {
+pi_result hip_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
+                                    void *dst_ptr, const void *src_ptr,
+                                    size_t size,
+                                    pi_uint32 num_events_in_waitlist,
+                                    const pi_event *events_waitlist,
+                                    pi_event *event) {
 
   assert(queue != nullptr);
   assert(dst_ptr != nullptr);
@@ -4399,8 +4414,8 @@ pi_result rocm_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
 
   try {
     ScopedContext active(queue->get_context());
-    result = rocm_piEnqueueEventsWait(queue, num_events_in_waitlist,
-                                      events_waitlist, nullptr);
+    result = hip_piEnqueueEventsWait(queue, num_events_in_waitlist,
+                                     events_waitlist, nullptr);
     if (event) {
       event_ptr = std::unique_ptr<_pi_event>(
           _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue));
@@ -4424,27 +4439,25 @@ pi_result rocm_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
   return result;
 }
 
-pi_result rocm_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
-                                       size_t size,
-                                       pi_usm_migration_flags flags,
-                                       pi_uint32 num_events_in_waitlist,
-                                       const pi_event *events_waitlist,
-                                       pi_event *event) {
+pi_result hip_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
+                                      size_t size, pi_usm_migration_flags flags,
+                                      pi_uint32 num_events_in_waitlist,
+                                      const pi_event *events_waitlist,
+                                      pi_event *event) {
 
+  // flags is currently unused so fail if set
+  if (flags != 0)
+    return PI_INVALID_VALUE;
   assert(queue != nullptr);
   assert(ptr != nullptr);
   hipStream_t hipStream = queue->get();
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> event_ptr{nullptr};
 
-  // TODO implement handling the flags once the expected behaviour
-  // of piextUSMEnqueuePrefetch is detailed in the USM extension
-  assert(flags == 0u);
-
   try {
     ScopedContext active(queue->get_context());
-    result = rocm_piEnqueueEventsWait(queue, num_events_in_waitlist,
-                                      events_waitlist, nullptr);
+    result = hip_piEnqueueEventsWait(queue, num_events_in_waitlist,
+                                     events_waitlist, nullptr);
     if (event) {
       event_ptr = std::unique_ptr<_pi_event>(
           _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue));
@@ -4464,15 +4477,15 @@ pi_result rocm_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
 }
 
 /// USM: memadvise API to govern behavior of automatic migration mechanisms
-pi_result rocm_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
-                                        size_t length, pi_mem_advice advice,
-                                        pi_event *event) {
+pi_result hip_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
+                                       size_t length, pi_mem_advice advice,
+                                       pi_event *event) {
 
   assert(queue != nullptr);
   assert(ptr != nullptr);
   // TODO implement a mapping to hipMemAdvise once the expected behaviour
   // of piextUSMEnqueueMemAdvise is detailed in the USM extension
-  return rocm_piEnqueueEventsWait(queue, 0, nullptr, event);
+  return hip_piEnqueueEventsWait(queue, 0, nullptr, event);
 
   return PI_SUCCESS;
 }
@@ -4493,11 +4506,11 @@ pi_result rocm_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
 /// \param param_value_size is the size of the result in bytes
 /// \param param_value is the result
 /// \param param_value_ret is how many bytes were written
-pi_result rocm_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
-                                       pi_mem_info param_name,
-                                       size_t param_value_size,
-                                       void *param_value,
-                                       size_t *param_value_size_ret) {
+pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
+                                      pi_mem_info param_name,
+                                      size_t param_value_size,
+                                      void *param_value,
+                                      size_t *param_value_size_ret) {
 
   assert(context != nullptr);
   assert(ptr != nullptr);
@@ -4557,7 +4570,7 @@ pi_result rocm_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
           static_cast<int *>(hipPointerAttributeType.devicePointer);
       value = *devicePointer;
       pi_platform platform;
-      result = rocm_piPlatformsGet(0, &platform, nullptr);
+      result = hip_piPlatformsGet(0, &platform, nullptr);
       pi_device device = platform->devices_[value].get();
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      device);
@@ -4573,7 +4586,7 @@ pi_result rocm_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
-pi_result rocm_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
+pi_result hip_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 
 const char SupportedVersion[] = _PI_H_VERSION_STRING;
 
@@ -4594,122 +4607,120 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
               sizeof(PluginInit->PiFunctionTable));
 
 // Forward calls to HIP RT.
-#define _PI_CL(pi_api, rocm_api)                                               \
-  (PluginInit->PiFunctionTable).pi_api = (decltype(&::pi_api))(&rocm_api);
+#define _PI_CL(pi_api, hip_api)                                                \
+  (PluginInit->PiFunctionTable).pi_api = (decltype(&::pi_api))(&hip_api);
 
   // Platform
-  _PI_CL(piPlatformsGet, rocm_piPlatformsGet)
-  _PI_CL(piPlatformGetInfo, rocm_piPlatformGetInfo)
+  _PI_CL(piPlatformsGet, hip_piPlatformsGet)
+  _PI_CL(piPlatformGetInfo, hip_piPlatformGetInfo)
   // Device
-  _PI_CL(piDevicesGet, rocm_piDevicesGet)
-  _PI_CL(piDeviceGetInfo, rocm_piDeviceGetInfo)
-  _PI_CL(piDevicePartition, rocm_piDevicePartition)
-  _PI_CL(piDeviceRetain, rocm_piDeviceRetain)
-  _PI_CL(piDeviceRelease, rocm_piDeviceRelease)
-  _PI_CL(piextDeviceSelectBinary, rocm_piextDeviceSelectBinary)
-  _PI_CL(piextGetDeviceFunctionPointer, rocm_piextGetDeviceFunctionPointer)
-  _PI_CL(piextDeviceGetNativeHandle, rocm_piextDeviceGetNativeHandle)
+  _PI_CL(piDevicesGet, hip_piDevicesGet)
+  _PI_CL(piDeviceGetInfo, hip_piDeviceGetInfo)
+  _PI_CL(piDevicePartition, hip_piDevicePartition)
+  _PI_CL(piDeviceRetain, hip_piDeviceRetain)
+  _PI_CL(piDeviceRelease, hip_piDeviceRelease)
+  _PI_CL(piextDeviceSelectBinary, hip_piextDeviceSelectBinary)
+  _PI_CL(piextGetDeviceFunctionPointer, hip_piextGetDeviceFunctionPointer)
+  _PI_CL(piextDeviceGetNativeHandle, hip_piextDeviceGetNativeHandle)
   _PI_CL(piextDeviceCreateWithNativeHandle,
-         rocm_piextDeviceCreateWithNativeHandle)
+         hip_piextDeviceCreateWithNativeHandle)
   // Context
-  _PI_CL(piextContextSetExtendedDeleter, rocm_piextContextSetExtendedDeleter)
-  _PI_CL(piContextCreate, rocm_piContextCreate)
-  _PI_CL(piContextGetInfo, rocm_piContextGetInfo)
-  _PI_CL(piContextRetain, rocm_piContextRetain)
-  _PI_CL(piContextRelease, rocm_piContextRelease)
-  _PI_CL(piextContextGetNativeHandle, rocm_piextContextGetNativeHandle)
+  _PI_CL(piextContextSetExtendedDeleter, hip_piextContextSetExtendedDeleter)
+  _PI_CL(piContextCreate, hip_piContextCreate)
+  _PI_CL(piContextGetInfo, hip_piContextGetInfo)
+  _PI_CL(piContextRetain, hip_piContextRetain)
+  _PI_CL(piContextRelease, hip_piContextRelease)
+  _PI_CL(piextContextGetNativeHandle, hip_piextContextGetNativeHandle)
   _PI_CL(piextContextCreateWithNativeHandle,
-         rocm_piextContextCreateWithNativeHandle)
+         hip_piextContextCreateWithNativeHandle)
   // Queue
-  _PI_CL(piQueueCreate, rocm_piQueueCreate)
-  _PI_CL(piQueueGetInfo, rocm_piQueueGetInfo)
-  _PI_CL(piQueueFinish, rocm_piQueueFinish)
-  _PI_CL(piQueueRetain, rocm_piQueueRetain)
-  _PI_CL(piQueueRelease, rocm_piQueueRelease)
-  _PI_CL(piextQueueGetNativeHandle, rocm_piextQueueGetNativeHandle)
-  _PI_CL(piextQueueCreateWithNativeHandle,
-         rocm_piextQueueCreateWithNativeHandle)
+  _PI_CL(piQueueCreate, hip_piQueueCreate)
+  _PI_CL(piQueueGetInfo, hip_piQueueGetInfo)
+  _PI_CL(piQueueFinish, hip_piQueueFinish)
+  _PI_CL(piQueueRetain, hip_piQueueRetain)
+  _PI_CL(piQueueRelease, hip_piQueueRelease)
+  _PI_CL(piextQueueGetNativeHandle, hip_piextQueueGetNativeHandle)
+  _PI_CL(piextQueueCreateWithNativeHandle, hip_piextQueueCreateWithNativeHandle)
   // Memory
-  _PI_CL(piMemBufferCreate, rocm_piMemBufferCreate)
-  _PI_CL(piMemImageCreate, rocm_piMemImageCreate)
-  _PI_CL(piMemGetInfo, rocm_piMemGetInfo)
-  _PI_CL(piMemImageGetInfo, rocm_piMemImageGetInfo)
-  _PI_CL(piMemRetain, rocm_piMemRetain)
-  _PI_CL(piMemRelease, rocm_piMemRelease)
-  _PI_CL(piMemBufferPartition, rocm_piMemBufferPartition)
-  //_PI_CL(piextMemGetNativeHandle, rocm_piextMemGetNativeHandle)
-  _PI_CL(piextMemCreateWithNativeHandle, rocm_piextMemCreateWithNativeHandle)
+  _PI_CL(piMemBufferCreate, hip_piMemBufferCreate)
+  _PI_CL(piMemImageCreate, hip_piMemImageCreate)
+  _PI_CL(piMemGetInfo, hip_piMemGetInfo)
+  _PI_CL(piMemImageGetInfo, hip_piMemImageGetInfo)
+  _PI_CL(piMemRetain, hip_piMemRetain)
+  _PI_CL(piMemRelease, hip_piMemRelease)
+  _PI_CL(piMemBufferPartition, hip_piMemBufferPartition)
+  //_PI_CL(piextMemGetNativeHandle, hip_piextMemGetNativeHandle)
+  _PI_CL(piextMemCreateWithNativeHandle, hip_piextMemCreateWithNativeHandle)
   // Program
-  _PI_CL(piProgramCreate, rocm_piProgramCreate)
-  _PI_CL(piclProgramCreateWithSource, rocm_piclProgramCreateWithSource)
-  _PI_CL(piProgramCreateWithBinary, rocm_piProgramCreateWithBinary)
-  _PI_CL(piProgramGetInfo, rocm_piProgramGetInfo)
-  _PI_CL(piProgramCompile, rocm_piProgramCompile)
-  _PI_CL(piProgramBuild, rocm_piProgramBuild)
-  _PI_CL(piProgramGetBuildInfo, rocm_piProgramGetBuildInfo)
-  _PI_CL(piProgramRetain, rocm_piProgramRetain)
-  _PI_CL(piProgramRelease, rocm_piProgramRelease)
-  _PI_CL(piextProgramGetNativeHandle, rocm_piextProgramGetNativeHandle)
+  _PI_CL(piProgramCreate, hip_piProgramCreate)
+  _PI_CL(piclProgramCreateWithSource, hip_piclProgramCreateWithSource)
+  _PI_CL(piProgramCreateWithBinary, hip_piProgramCreateWithBinary)
+  _PI_CL(piProgramGetInfo, hip_piProgramGetInfo)
+  _PI_CL(piProgramCompile, hip_piProgramCompile)
+  _PI_CL(piProgramBuild, hip_piProgramBuild)
+  _PI_CL(piProgramGetBuildInfo, hip_piProgramGetBuildInfo)
+  _PI_CL(piProgramRetain, hip_piProgramRetain)
+  _PI_CL(piProgramRelease, hip_piProgramRelease)
+  _PI_CL(piextProgramGetNativeHandle, hip_piextProgramGetNativeHandle)
   _PI_CL(piextProgramCreateWithNativeHandle,
-         rocm_piextProgramCreateWithNativeHandle)
+         hip_piextProgramCreateWithNativeHandle)
   // Kernel
-  _PI_CL(piKernelCreate, rocm_piKernelCreate)
-  _PI_CL(piKernelSetArg, rocm_piKernelSetArg)
-  _PI_CL(piKernelGetInfo, rocm_piKernelGetInfo)
-  _PI_CL(piKernelGetGroupInfo, rocm_piKernelGetGroupInfo)
-  _PI_CL(piKernelGetSubGroupInfo, rocm_piKernelGetSubGroupInfo)
-  _PI_CL(piKernelRetain, rocm_piKernelRetain)
-  _PI_CL(piKernelRelease, rocm_piKernelRelease)
-  _PI_CL(piKernelSetExecInfo, rocm_piKernelSetExecInfo)
-  _PI_CL(piextKernelSetArgPointer, rocm_piextKernelSetArgPointer)
+  _PI_CL(piKernelCreate, hip_piKernelCreate)
+  _PI_CL(piKernelSetArg, hip_piKernelSetArg)
+  _PI_CL(piKernelGetInfo, hip_piKernelGetInfo)
+  _PI_CL(piKernelGetGroupInfo, hip_piKernelGetGroupInfo)
+  _PI_CL(piKernelGetSubGroupInfo, hip_piKernelGetSubGroupInfo)
+  _PI_CL(piKernelRetain, hip_piKernelRetain)
+  _PI_CL(piKernelRelease, hip_piKernelRelease)
+  _PI_CL(piKernelSetExecInfo, hip_piKernelSetExecInfo)
+  _PI_CL(piextKernelSetArgPointer, hip_piextKernelSetArgPointer)
   // Event
-  _PI_CL(piEventCreate, rocm_piEventCreate)
-  _PI_CL(piEventGetInfo, rocm_piEventGetInfo)
-  _PI_CL(piEventGetProfilingInfo, rocm_piEventGetProfilingInfo)
-  _PI_CL(piEventsWait, rocm_piEventsWait)
-  _PI_CL(piEventSetCallback, rocm_piEventSetCallback)
-  _PI_CL(piEventSetStatus, rocm_piEventSetStatus)
-  _PI_CL(piEventRetain, rocm_piEventRetain)
-  _PI_CL(piEventRelease, rocm_piEventRelease)
-  _PI_CL(piextEventGetNativeHandle, rocm_piextEventGetNativeHandle)
-  _PI_CL(piextEventCreateWithNativeHandle,
-         rocm_piextEventCreateWithNativeHandle)
+  _PI_CL(piEventCreate, hip_piEventCreate)
+  _PI_CL(piEventGetInfo, hip_piEventGetInfo)
+  _PI_CL(piEventGetProfilingInfo, hip_piEventGetProfilingInfo)
+  _PI_CL(piEventsWait, hip_piEventsWait)
+  _PI_CL(piEventSetCallback, hip_piEventSetCallback)
+  _PI_CL(piEventSetStatus, hip_piEventSetStatus)
+  _PI_CL(piEventRetain, hip_piEventRetain)
+  _PI_CL(piEventRelease, hip_piEventRelease)
+  _PI_CL(piextEventGetNativeHandle, hip_piextEventGetNativeHandle)
+  _PI_CL(piextEventCreateWithNativeHandle, hip_piextEventCreateWithNativeHandle)
   // Sampler
-  _PI_CL(piSamplerCreate, rocm_piSamplerCreate)
-  _PI_CL(piSamplerGetInfo, rocm_piSamplerGetInfo)
-  _PI_CL(piSamplerRetain, rocm_piSamplerRetain)
-  _PI_CL(piSamplerRelease, rocm_piSamplerRelease)
+  _PI_CL(piSamplerCreate, hip_piSamplerCreate)
+  _PI_CL(piSamplerGetInfo, hip_piSamplerGetInfo)
+  _PI_CL(piSamplerRetain, hip_piSamplerRetain)
+  _PI_CL(piSamplerRelease, hip_piSamplerRelease)
   // Queue commands
-  _PI_CL(piEnqueueKernelLaunch, rocm_piEnqueueKernelLaunch)
-  _PI_CL(piEnqueueNativeKernel, rocm_piEnqueueNativeKernel)
-  _PI_CL(piEnqueueEventsWait, rocm_piEnqueueEventsWait)
-  _PI_CL(piEnqueueMemBufferRead, rocm_piEnqueueMemBufferRead)
-  _PI_CL(piEnqueueMemBufferReadRect, rocm_piEnqueueMemBufferReadRect)
-  _PI_CL(piEnqueueMemBufferWrite, rocm_piEnqueueMemBufferWrite)
-  _PI_CL(piEnqueueMemBufferWriteRect, rocm_piEnqueueMemBufferWriteRect)
-  _PI_CL(piEnqueueMemBufferCopy, rocm_piEnqueueMemBufferCopy)
-  _PI_CL(piEnqueueMemBufferCopyRect, rocm_piEnqueueMemBufferCopyRect)
-  _PI_CL(piEnqueueMemBufferFill, rocm_piEnqueueMemBufferFill)
-  _PI_CL(piEnqueueMemImageRead, rocm_piEnqueueMemImageRead)
-  _PI_CL(piEnqueueMemImageWrite, rocm_piEnqueueMemImageWrite)
-  _PI_CL(piEnqueueMemImageCopy, rocm_piEnqueueMemImageCopy)
-  _PI_CL(piEnqueueMemImageFill, rocm_piEnqueueMemImageFill)
-  _PI_CL(piEnqueueMemBufferMap, rocm_piEnqueueMemBufferMap)
-  _PI_CL(piEnqueueMemUnmap, rocm_piEnqueueMemUnmap)
+  _PI_CL(piEnqueueKernelLaunch, hip_piEnqueueKernelLaunch)
+  _PI_CL(piEnqueueNativeKernel, hip_piEnqueueNativeKernel)
+  _PI_CL(piEnqueueEventsWait, hip_piEnqueueEventsWait)
+  _PI_CL(piEnqueueMemBufferRead, hip_piEnqueueMemBufferRead)
+  _PI_CL(piEnqueueMemBufferReadRect, hip_piEnqueueMemBufferReadRect)
+  _PI_CL(piEnqueueMemBufferWrite, hip_piEnqueueMemBufferWrite)
+  _PI_CL(piEnqueueMemBufferWriteRect, hip_piEnqueueMemBufferWriteRect)
+  _PI_CL(piEnqueueMemBufferCopy, hip_piEnqueueMemBufferCopy)
+  _PI_CL(piEnqueueMemBufferCopyRect, hip_piEnqueueMemBufferCopyRect)
+  _PI_CL(piEnqueueMemBufferFill, hip_piEnqueueMemBufferFill)
+  _PI_CL(piEnqueueMemImageRead, hip_piEnqueueMemImageRead)
+  _PI_CL(piEnqueueMemImageWrite, hip_piEnqueueMemImageWrite)
+  _PI_CL(piEnqueueMemImageCopy, hip_piEnqueueMemImageCopy)
+  _PI_CL(piEnqueueMemImageFill, hip_piEnqueueMemImageFill)
+  _PI_CL(piEnqueueMemBufferMap, hip_piEnqueueMemBufferMap)
+  _PI_CL(piEnqueueMemUnmap, hip_piEnqueueMemUnmap)
   // USM
-  _PI_CL(piextUSMHostAlloc, rocm_piextUSMHostAlloc)
-  _PI_CL(piextUSMDeviceAlloc, rocm_piextUSMDeviceAlloc)
-  _PI_CL(piextUSMSharedAlloc, rocm_piextUSMSharedAlloc)
-  _PI_CL(piextUSMFree, rocm_piextUSMFree)
-  _PI_CL(piextUSMEnqueueMemset, rocm_piextUSMEnqueueMemset)
-  _PI_CL(piextUSMEnqueueMemcpy, rocm_piextUSMEnqueueMemcpy)
-  _PI_CL(piextUSMEnqueuePrefetch, rocm_piextUSMEnqueuePrefetch)
-  _PI_CL(piextUSMEnqueueMemAdvise, rocm_piextUSMEnqueueMemAdvise)
-  _PI_CL(piextUSMGetMemAllocInfo, rocm_piextUSMGetMemAllocInfo)
+  _PI_CL(piextUSMHostAlloc, hip_piextUSMHostAlloc)
+  _PI_CL(piextUSMDeviceAlloc, hip_piextUSMDeviceAlloc)
+  _PI_CL(piextUSMSharedAlloc, hip_piextUSMSharedAlloc)
+  _PI_CL(piextUSMFree, hip_piextUSMFree)
+  _PI_CL(piextUSMEnqueueMemset, hip_piextUSMEnqueueMemset)
+  _PI_CL(piextUSMEnqueueMemcpy, hip_piextUSMEnqueueMemcpy)
+  _PI_CL(piextUSMEnqueuePrefetch, hip_piextUSMEnqueuePrefetch)
+  _PI_CL(piextUSMEnqueueMemAdvise, hip_piextUSMEnqueueMemAdvise)
+  _PI_CL(piextUSMGetMemAllocInfo, hip_piextUSMGetMemAllocInfo)
 
-  _PI_CL(piextKernelSetArgMemObj, rocm_piextKernelSetArgMemObj)
-  _PI_CL(piextKernelSetArgSampler, rocm_piextKernelSetArgSampler)
-  _PI_CL(piTearDown, rocm_piTearDown)
+  _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)
+  _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)
+  _PI_CL(piTearDown, hip_piTearDown)
 
 #undef _PI_CL
 

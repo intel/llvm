@@ -30,8 +30,8 @@ def do_configure(args):
     libclc_gen_remangled_variants = 'OFF'
     sycl_build_pi_cuda = 'OFF'
     sycl_build_pi_esimd_cpu = 'OFF'
-    sycl_build_pi_rocm = 'OFF'
-    sycl_build_pi_rocm_platform = 'AMD'
+    sycl_build_pi_hip = 'OFF'
+    sycl_build_pi_hip_platform = 'AMD'
     sycl_werror = 'ON'
     llvm_enable_assertions = 'ON'
     llvm_enable_doxygen = 'OFF'
@@ -40,8 +40,12 @@ def do_configure(args):
     llvm_enable_lld = 'OFF'
 
     sycl_enable_xpti_tracing = 'ON'
-
     xpti_enable_werror = 'ON'
+
+    if args.ci_defaults:
+        print("#############################################")
+        print("# Default CI configuration will be applied. #")
+        print("#############################################")
 
     # replace not append, so ARM ^ X86
     if args.arm:
@@ -50,7 +54,7 @@ def do_configure(args):
     if args.enable_esimd_cpu_emulation:
         sycl_build_pi_esimd_cpu = 'ON'
 
-    if args.cuda or args.rocm:
+    if args.cuda or args.hip:
         llvm_enable_projects += ';libclc'
 
     if args.cuda:
@@ -59,20 +63,20 @@ def do_configure(args):
         libclc_gen_remangled_variants = 'ON'
         sycl_build_pi_cuda = 'ON'
 
-    if args.rocm:
-        if args.rocm_platform == 'AMD':
+    if args.hip:
+        if args.hip_platform == 'AMD':
             llvm_targets_to_build += ';AMDGPU'
             libclc_targets_to_build += ';amdgcn--;amdgcn--amdhsa'
 
-            # The ROCm plugin for AMD uses lld for linking
+            # The HIP plugin for AMD uses lld for linking
             llvm_enable_projects += ';lld'
-        elif args.rocm_platform == 'NVIDIA' and not args.cuda:
+        elif args.hip_platform == 'NVIDIA' and not args.cuda:
             llvm_targets_to_build += ';NVPTX'
             libclc_targets_to_build += ';nvptx64--;nvptx64--nvidiacl'
         libclc_gen_remangled_variants = 'ON'
 
-        sycl_build_pi_rocm_platform = args.rocm_platform
-        sycl_build_pi_rocm = 'ON'
+        sycl_build_pi_hip_platform = args.hip_platform
+        sycl_build_pi_hip = 'ON'
 
     if args.no_werror:
         sycl_werror = 'OFF'
@@ -110,8 +114,8 @@ def do_configure(args):
         "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
         "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(libclc_gen_remangled_variants),
         "-DSYCL_BUILD_PI_CUDA={}".format(sycl_build_pi_cuda),
-        "-DSYCL_BUILD_PI_ROCM={}".format(sycl_build_pi_rocm),
-        "-DSYCL_BUILD_PI_ROCM_PLATFORM={}".format(sycl_build_pi_rocm_platform),
+        "-DSYCL_BUILD_PI_HIP={}".format(sycl_build_pi_hip),
+        "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
         "-DSYCL_ENABLE_WERROR={}".format(sycl_werror),
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
@@ -182,8 +186,8 @@ def main():
     parser.add_argument("-t", "--build-type",
                         metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
-    parser.add_argument("--rocm", action='store_true', help="switch from OpenCL to ROCm")
-    parser.add_argument("--rocm-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose ROCm backend")
+    parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
+    parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
     parser.add_argument("--enable-esimd-cpu-emulation", action='store_true', help="build with ESIMD_CPU emulation support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
@@ -197,6 +201,7 @@ def main():
     parser.add_argument("--libcxx-library", metavar="LIBCXX_LIBRARY_PATH", help="libcxx library path")
     parser.add_argument("--use-lld", action="store_true", help="Use LLD linker for build")
     parser.add_argument("--llvm-external-projects", help="Add external projects to build. Add as comma seperated list.")
+    parser.add_argument("--ci-defaults", action="store_true", help="Enable default CI parameters")
     args = parser.parse_args()
 
     print("args:{}".format(args))

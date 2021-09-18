@@ -25,6 +25,8 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declaration
 template <backend Backend> class backend_traits;
+template <backend Backend, class SyclT>
+auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 
 namespace detail {
 class kernel_id_impl;
@@ -176,8 +178,8 @@ protected:
   void set_specialization_constant_impl(const char *SpecName, void *Value,
                                         size_t Size) noexcept;
 
-  void get_specialization_constant_impl(const char *SpecName, void *Value) const
-      noexcept;
+  void get_specialization_constant_impl(const char *SpecName,
+                                        void *Value) const noexcept;
 
   bool is_specialization_constant_set(const char *SpecName) const noexcept;
 
@@ -308,9 +310,9 @@ public:
   }
 
   template <backend Backend>
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   std::vector<typename backend_traits<Backend>::template return_type<
-      kernel_bundle<State>>>
-  get_native() {
+      kernel_bundle<State>>> get_native() {
     std::vector<typename backend_traits<Backend>::template return_type<
         kernel_bundle<State>>>
         ReturnValue;
@@ -335,6 +337,25 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  template <backend Backend, class SyclT>
+  friend auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
+
+  template <backend Backend>
+  backend_return_t<Backend, kernel_bundle<State>> getNative() const {
+    // NOTE: implementation assumes that the return type is a
+    // derivative of std::vector.
+    backend_return_t<Backend, kernel_bundle<State>> ReturnValue;
+    ReturnValue.reserve(std::distance(begin(), end()));
+
+    for (const device_image<State> &DevImg : *this) {
+      ReturnValue.push_back(
+          detail::pi::cast<typename decltype(ReturnValue)::value_type>(
+              DevImg.getNative()));
+    }
+
+    return ReturnValue;
+  }
 };
 
 /////////////////////////
@@ -604,7 +625,7 @@ __SYCL_EXPORT std::vector<sycl::device> find_device_intersection(
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
           const std::vector<device> &Devs, const property_list &PropList);
-}
+} // namespace detail
 
 /// \returns a new kernel_bundle which contains the device images from the
 /// ObjectBundles that are translated into one or more new device images of
