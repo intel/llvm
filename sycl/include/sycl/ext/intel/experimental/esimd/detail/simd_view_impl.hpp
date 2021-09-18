@@ -277,11 +277,14 @@ public:
 
 #undef __ESIMD_DEF_UNARY_OP
 
-  template <class T = element_type, class SimdT = BaseTy,
-            class = std::enable_if_t<is_simd_mask_type_v<SimdT>>>
+  /// Unary logical negeation operator. Applies only to integer element types.
+  template <class T = element_type,
+            class = std::enable_if_t<std::is_integral_v<T>>>
   auto operator!() {
+    using MaskVecT = typename simd_mask_type<length>::vector_type;
     auto V = read().data() == 0;
-    return get_simd_t<element_type, length>(V);
+    return simd_mask_type<length>{__builtin_convertvector(V, MaskVecT) &
+                                  MaskVecT(1)};
   }
 
   /// @{
@@ -290,9 +293,12 @@ public:
     return write(Other.read());
   }
 
+  Derived &operator=(const Derived &Other) { return write(Other.read()); }
+
   Derived &operator=(const value_type &Val) { return write(Val); }
 
   /// Move assignment operator.
+  Derived &operator=(Derived &&Other) { return write(Other.read()); }
   simd_view_impl &operator=(simd_view_impl &&Other) {
     return write(Other.read());
   }
@@ -406,7 +412,7 @@ public:
   /// \return replicated simd instance.
   template <int Rep, int W>
   get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
-    return replicate<Rep, 1, W>(0, OffsetX);
+    return replicate<Rep, 0, W>(0, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.
@@ -417,7 +423,7 @@ public:
   template <int Rep, int W>
   get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
                                               uint16_t OffsetX) {
-    return replicate<Rep, 1, W>(OffsetY, OffsetX);
+    return replicate<Rep, 0, W>(OffsetY, OffsetX);
   }
 
   /// \tparam Rep is number of times region has to be replicated.

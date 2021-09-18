@@ -534,9 +534,17 @@ public:
   /// @} // Memory operations
 
   /// Bitwise inversion, available in all subclasses.
-  template <class T1 = Ty> Derived operator~() {
-    static_assert(std::is_integral_v<T1>, "'~' applies only to integral types");
-    return Derived(~M_data);
+  template <class T1 = Ty, class = std::enable_if_t<std::is_integral_v<T1>>>
+  Derived operator~() {
+    return Derived(~data());
+  }
+
+  /// Unary logical negation operator, available in all subclasses.
+  template <class T1 = Ty, class = std::enable_if_t<std::is_integral_v<T1>>>
+  simd_mask<N> operator!() {
+    using MaskVecT = typename simd_mask<N>::vector_type;
+    auto R = data() == vector_type(0);
+    return simd_mask<N>{__builtin_convertvector(R, MaskVecT) & MaskVecT(1)};
   }
 
 #define __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(BINOP, OPASSIGN, COND)              \

@@ -200,13 +200,6 @@ public:
   operator bool() {
     return base_type::data()[0] != 0;
   }
-
-  /// Unary logical negation operator.
-  simd_mask_impl operator!() {
-    auto R = base_type::data() == vector_type(0);
-    return simd_mask_impl{__builtin_convertvector(R, vector_type) &
-                          vector_type(1)};
-  }
 };
 
 } // namespace detail
