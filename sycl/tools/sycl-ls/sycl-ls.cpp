@@ -76,9 +76,11 @@ static void printDeviceInfo(const device &Device, const std::string &Prepend) {
 static void printSelectorChoice(const device_selector &Selector,
                                 const std::string &Prepend) {
   try {
-    const auto &Dev = device(Selector);
-    std::string DeviceTypeName = getDeviceTypeName(Dev);
-    printDeviceInfo(Dev, Prepend + DeviceTypeName);
+    const auto &Device = device(Selector);
+    std::string DeviceTypeName = getDeviceTypeName(Device);
+    auto Platform = Device.get_info<info::device::platform>();
+    auto PlatformName = Platform.get_info<info::platform::name>();
+    printDeviceInfo(Device, Prepend + DeviceTypeName + " : " + PlatformName);
   } catch (const cl::sycl::runtime_error &Exception) {
     // Truncate long string so it can fit in one-line
     std::string What = Exception.what();
