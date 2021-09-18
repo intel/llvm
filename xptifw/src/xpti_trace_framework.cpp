@@ -995,10 +995,10 @@ public:
 private:
   friend void ::xptiFrameworkFinalize();
 
-  static Framework *release() {
+  static void release() {
     Framework *TmpFramework = MInstance.load(std::memory_order_relaxed);
     MInstance.store(nullptr, std::memory_order_relaxed);
-    return TmpFramework;
+    delete TmpFramework;
   }
 
   /// Stores singleton instance
@@ -1041,9 +1041,7 @@ XPTI_EXPORT_API void xptiFrameworkFinalize() {
 
   xpti::GFrameworkReferenceCounter--;
   if (xpti::GFrameworkReferenceCounter == 0) {
-    xpti::Framework *FW = xpti::Framework::release();
-    if (FW)
-      delete FW;
+    xpti::Framework::release();
   }
 }
 
