@@ -18,9 +18,6 @@ option(XPTI_ENABLE_WERROR OFF)
 if (XPTI_ENABLE_WERROR)
   if(MSVC)
     set(CMAKE_CXX_FLAGS "/WX ${CMAKE_CXX_FLAGS}")
-    add_definitions(
-      -wd4996 # Suppress 'function': was declared deprecated'
-    )
   else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
   endif()

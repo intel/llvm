@@ -727,6 +727,8 @@ public:
 #endif
   }
 
+  void clear() { MCallbacksByStream.clear(); }
+
 private:
 #ifdef XPTI_STATISTICS
   std::string stringify_trace_type(xpti_trace_point_type_t TraceType) {
@@ -807,6 +809,7 @@ public:
     MUniversalIDs = 1;
     MTracepoints.clear();
     MStringTableRef.clear();
+    MNotifier.clear();
   }
 
   inline void setTraceEnabled(bool yesOrNo = true) { MTraceEnabled = yesOrNo; }
