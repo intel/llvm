@@ -64,7 +64,7 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(
     CmdArgs.push_back("-o");
     CmdArgs.push_back(OutputFileName);
   } else {
-    CmdArgs.push_back("-spirv-max-version=1.3");
+    CmdArgs.push_back("-spirv-max-version=1.4");
     CmdArgs.push_back("-spirv-ext=+all");
     if (!C.getDriver().isFPGAEmulationMode())
       CmdArgs.push_back("-spirv-debug-info-version=legacy");
