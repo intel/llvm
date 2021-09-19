@@ -12774,7 +12774,7 @@ static SDValue PerformAddcSubcCombine(SDNode *N,
                                       const ARMSubtarget *Subtarget) {
   SelectionDAG &DAG(DCI.DAG);
 
-  if (N->getOpcode() == ARMISD::SUBC) {
+  if (N->getOpcode() == ARMISD::SUBC && N->hasAnyUseOfValue(1)) {
     // (SUBC (ADDE 0, 0, C), 1) -> C
     SDValue LHS = N->getOperand(0);
     SDValue RHS = N->getOperand(1);
@@ -12946,7 +12946,7 @@ static SDValue PerformVQDMULHCombine(SDNode *N, SelectionDAG &DAG) {
   SDValue Shft;
   ConstantSDNode *Clamp;
 
-  if (!VT.isVector())
+  if (!VT.isVector() || VT.getScalarSizeInBits() > 64)
     return SDValue();
 
   if (N->getOpcode() == ISD::SMIN) {

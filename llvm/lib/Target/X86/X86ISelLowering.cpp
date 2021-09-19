@@ -36226,12 +36226,58 @@ static bool matchBinaryShuffle(MVT MaskVT, ArrayRef<int> Mask,
       IsBlend = false;
       break;
     }
-    if (IsBlend &&
-        DAG.computeKnownBits(V1, DemandedZeroV1).isZero() &&
-        DAG.computeKnownBits(V2, DemandedZeroV2).isZero()) {
-      Shuffle = ISD::OR;
-      SrcVT = DstVT = MaskVT.changeTypeToInteger();
-      return true;
+    if (IsBlend) {
+      if (DAG.computeKnownBits(V1, DemandedZeroV1).isZero() &&
+          DAG.computeKnownBits(V2, DemandedZeroV2).isZero()) {
+        Shuffle = ISD::OR;
+        SrcVT = DstVT = MaskVT.changeTypeToInteger();
+        return true;
+      }
+      if (NumV1Elts == NumV2Elts && NumV1Elts == NumMaskElts) {
+        // FIXME: handle mismatched sizes?
+        // TODO: investigate if `ISD::OR` handling in
+        // `TargetLowering::SimplifyDemandedVectorElts` can be improved instead.
+        auto computeKnownBitsElementWise = [&DAG](SDValue V) {
+          unsigned NumElts = V.getValueType().getVectorNumElements();
+          KnownBits Known(NumElts);
+          for (unsigned EltIdx = 0; EltIdx != NumElts; ++EltIdx) {
+            APInt Mask = APInt::getOneBitSet(NumElts, EltIdx);
+            KnownBits PeepholeKnown = DAG.computeKnownBits(V, Mask);
+            if (PeepholeKnown.isZero())
+              Known.Zero.setBit(EltIdx);
+            if (PeepholeKnown.isAllOnes())
+              Known.One.setBit(EltIdx);
+          }
+          return Known;
+        };
+
+        KnownBits V1Known = computeKnownBitsElementWise(V1);
+        KnownBits V2Known = computeKnownBitsElementWise(V2);
+
+        for (unsigned i = 0; i != NumMaskElts && IsBlend; ++i) {
+          int M = Mask[i];
+          if (M == SM_SentinelUndef)
+            continue;
+          if (M == SM_SentinelZero) {
+            IsBlend &= V1Known.Zero[i] && V2Known.Zero[i];
+            continue;
+          }
+          if (M == (int)i) {
+            IsBlend &= V2Known.Zero[i] || V1Known.One[i];
+            continue;
+          }
+          if (M == (int)(i + NumMaskElts)) {
+            IsBlend &= V1Known.Zero[i] || V2Known.One[i];
+            continue;
+          }
+          llvm_unreachable("will not get here.");
+        }
+        if (IsBlend) {
+          Shuffle = ISD::OR;
+          SrcVT = DstVT = MaskVT.changeTypeToInteger();
+          return true;
+        }
+      }
     }
   }
 
@@ -36487,7 +36533,7 @@ static SDValue combineX86ShuffleChain(ArrayRef<SDValue> Inputs, SDValue Root,
 
   // See if the shuffle is a hidden identity shuffle - repeated args in HOPs
   // etc. can be simplified.
-  if (VT1 == VT2 && VT1.getSizeInBits() == RootSizeInBits) {
+  if (VT1 == VT2 && VT1.getSizeInBits() == RootSizeInBits && VT1.isVector()) {
     SmallVector<int> ScaledMask, IdentityMask;
     unsigned NumElts = VT1.getVectorNumElements();
     if (Mask.size() <= NumElts &&
@@ -39356,6 +39402,31 @@ bool X86TargetLowering::SimplifyDemandedVectorEltsForTargetNode(
       return true;
     // Multiply by zero.
     KnownZero = LHSZero | RHSZero;
+    break;
+  }
+  case X86ISD::PSADBW: {
+    SDValue LHS = Op.getOperand(0);
+    SDValue RHS = Op.getOperand(1);
+    assert(VT.getScalarType() == MVT::i64 &&
+           LHS.getValueType() == RHS.getValueType() &&
+           LHS.getValueType().getScalarType() == MVT::i8 &&
+           "Unexpected PSADBW types");
+
+    // Aggressively peek through ops to get at the demanded elts.
+    if (!DemandedElts.isAllOnesValue()) {
+      unsigned NumSrcElts = LHS.getValueType().getVectorNumElements();
+      APInt DemandedSrcElts = APIntOps::ScaleBitMask(DemandedElts, NumSrcElts);
+      SDValue NewLHS = SimplifyMultipleUseDemandedVectorElts(
+          LHS, DemandedSrcElts, TLO.DAG, Depth + 1);
+      SDValue NewRHS = SimplifyMultipleUseDemandedVectorElts(
+          RHS, DemandedSrcElts, TLO.DAG, Depth + 1);
+      if (NewLHS || NewRHS) {
+        NewLHS = NewLHS ? NewLHS : LHS;
+        NewRHS = NewRHS ? NewRHS : RHS;
+        return TLO.CombineTo(
+            Op, TLO.DAG.getNode(Opc, SDLoc(Op), VT, NewLHS, NewRHS));
+      }
+    }
     break;
   }
   case X86ISD::VSHL:
