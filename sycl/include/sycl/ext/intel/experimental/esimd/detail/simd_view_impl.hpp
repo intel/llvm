@@ -311,15 +311,6 @@ public:
     return write(convert<element_type>(reinterpret_cast<const SimdT &>(Other)));
   }
 
-  template <class BaseTy1, class RegionTy1,
-            class = std::enable_if_t<
-                (is_simd_type_v<BaseTy1> == is_simd_type_v<BaseTy>)&&(
-                    __SEIEE::shape_type<RegionTy1>::length ==
-                    __SEIEE::shape_type<RegionTy>::length)>>
-  Derived &operator=(const simd_view<BaseTy1, RegionTy1> &Other) {
-    return write(convert<element_type>(Other.read()));
-  }
-
   template <class T1, class = std::enable_if_t<detail::is_vectorizable_v<T1>>>
   Derived &operator=(T1 RHS) {
     return write(value_type((element_type)RHS));
@@ -332,15 +323,18 @@ public:
     *this += 1;
     return cast_this_to_derived();
   }
+
   value_type operator++(int) {
     value_type Ret(read());
     operator++();
     return Ret;
   }
+
   Derived &operator--() {
     *this -= 1;
     return cast_this_to_derived();
   }
+
   value_type operator--(int) {
     value_type Ret(read());
     operator--();

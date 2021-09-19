@@ -26,22 +26,39 @@ SYCL_ESIMD_FUNCTION auto test_simd_view_bin_ops() {
     return ref0 + ref1;
 }
 
-// auto test_simd_view_bitwise_ops() __attribute__((sycl_device)) {
-//   simd<int, 16> v0 = 1;
-//   simd<int, 16> v1 = 2;
-//   auto ref0 = v0.select<8, 2>(0);
-//   auto ref1 = v1.select<8, 2>(0);
-//   simd<int, 8> v2 = (ref0 | ref1) & (ref0 | 3);
-//   ref0 |= 3;
-//   ref0 |= ref1;
-//   simd<int, 8> v3 = (ref0 ^ ref1) & (ref0 ^ 3);
-//   ref0 ^= 3;
-//   ref0 ^= ref1;
-//   simd<int, 8> v4 = (ref0 & ref1) | (ref0 & 3);
-//   ref0 &= 3;
-//   ref0 &= ref1;
-//   return ref0;
-// }
+SYCL_ESIMD_FUNCTION auto test_simd_view_bitwise_ops() {
+  simd<int, 16> v0 = 1;
+  simd<int, 16> v1 = 2;
+  auto ref0 = v0.select<8, 2>(0);
+  auto ref1 = v1.select<8, 2>(0);
+  simd<int, 8> v2 = (ref0 | ref1) & (ref0 | 3);
+  ref0 |= 3;
+  ref0 |= ref1;
+  simd<int, 8> v3 = (ref0 ^ ref1) & (ref0 ^ 3);
+  ref0 ^= 3;
+  ref0 ^= ref1;
+  simd<int, 8> v4 = (ref0 & ref1) | (ref0 & 3);
+  ref0 &= 3;
+  ref0 &= ref1;
+  return ref0;
+}
+
+SYCL_ESIMD_FUNCTION auto test_simd_mask_view_bitwise_ops() {
+  simd_mask<16> v0 = 1;
+  simd_mask<16> v1 = 2;
+  auto ref0 = v0.select<8, 2>(0);
+  auto ref1 = v1.select<8, 2>(0);
+  simd_mask<8> v2 = (ref0 | ref1) & (ref0 | 3);
+  ref0 |= 3;
+  ref0 |= ref1;
+  simd_mask<8> v3 = (ref0 ^ ref1) & (ref0 ^ 3);
+  ref0 ^= 3;
+  ref0 ^= ref1;
+  simd_mask<8> v4 = (ref0 & ref1) | (ref0 & 3);
+  ref0 &= 3;
+  ref0 &= ref1;
+  return ref0;
+}
 
 SYCL_ESIMD_FUNCTION bool test_simd_view_unary_ops() {
   simd<int, 16> v0 = 1;
@@ -223,4 +240,66 @@ void test_simd_view_len1_binop() SYCL_ESIMD_FUNCTION {
   auto v1 = s[0];
   auto v2 = s.select<2, 1>(0);
   auto x = v1 * v2;
+}
+
+void test_simd_view_assign_op() SYCL_ESIMD_FUNCTION {
+  // multiple elements
+  {
+#define N 4
+    // simd - assign views of different element type
+    simd<float, 32> v1 = 0;
+    simd<short, 16> v2 = 0;
+    // - region is a region type (top-level region)
+    v1.select<N, 2>(0) = v2.select<N, 2>(0);
+    v2.select<N, 2>(0) = v1.select<N, 2>(0);
+    // - region is a std::pair (nested region)
+    v1.select<8, 2>(0).select<N, 1>(1) = v2.select<8, 2>(0).select<N, 1>(1);
+    v2.select<8, 2>(0).select<N, 1>(1) = v1.select<8, 2>(0).select<N, 1>(1);
+    // - first region is top-level, second - nested
+    v1.select<4, 2>(0) = v2.select<8, 2>(0).select<4, 1>(1);
+    // - first region is nested, second - top-level
+    v2.select<8, 2>(0).select<4, 1>(1) = v1.select<4, 2>(0);
+
+    // simd_mask
+    simd_mask<32> m1 = 0;
+    simd_mask<16> m2 = 0;
+    // - region is a region type (top-level region)
+    m1.select<4, 2>(0) = m2.select<4, 2>(0);
+    m2.select<4, 2>(0) = m1.select<4, 2>(0);
+    // - region is a std::pair (nested region)
+    m1.select<8, 2>(0).select<N, 1>(1) = m2.select<8, 2>(0).select<N, 1>(1);
+    m2.select<8, 2>(0).select<N, 1>(1) = m1.select<8, 2>(0).select<N, 1>(1);
+    // - first region is top-level, second - nested
+    m1.select<4, 2>(0) = m2.select<8, 2>(0).select<4, 1>(1);
+    // - first region is nested, second - top-level
+    m2.select<8, 2>(0).select<4, 1>(1) = m1.select<4, 2>(0);
+#undef N
+  }
+  // single element
+  {
+#define N 1
+    // simd - assign views of different element type
+    simd<float, 16> v1 = 0;
+    simd<short, 8> v2 = 0;
+    // - region is a region type (top-level region)
+    v1.select<N, 1>(0) = v2.select<N, 1>(0);
+    v2[0] = v1[0];
+    v2[1] = v1.select<N, 1>(1);
+    // - region is a std::pair (nested region)
+    v1.select<4, 2>(0).select<N, 1>(1) = v2.select<4, 2>(0).select<N, 1>(1);
+    v2.select<4, 2>(0).select<N, 1>(1) = v1.select<4, 2>(0).select<N, 1>(1);
+
+    // simd_mask
+    simd_mask<16> m1 = 0;
+    simd_mask<8> m2 = 0;
+    // - region is a region type (top-level region)
+    m1.select<N, 1>(0) = m2.select<N, 1>(0);
+    m2[0] = m1[0];
+    m2[1] = m1.select<N, 1>(1);
+    // - region is a std::pair (nested region)
+    m1.select<4, 2>(0).select<N, 1>(1) = m2.select<4, 2>(0).select<N, 1>(1);
+    m2.select<4, 2>(0)[1] = m1.select<4, 2>(0)[1];
+    m2.select<4, 2>(0)[2] = m1.select<4, 2>(0).select<N, 1>(2);
+#undef N
+  }
 }
