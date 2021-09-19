@@ -962,7 +962,7 @@ piextDeviceGetNativeHandle(pi_device device, pi_native_handle *nativeHandle);
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI device from.
-/// \param platform is the platform of the device.
+/// \param platform is the platform of the device (optional).
 /// \param device is the PI device created from the native handle.
 __SYCL_EXPORT pi_result piextDeviceCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_platform platform, pi_device *device);
@@ -1560,6 +1560,9 @@ typedef enum : pi_bitfield {
   PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL
 } _pi_usm_mem_properties;
 
+// Flag is used for piProgramUSMEnqueuePrefetch. PI_USM_MIGRATION_TBD0 is a
+// placeholder for future developments and should not change the behaviour of
+// piProgramUSMEnqueuePrefetch
 typedef enum : pi_bitfield {
   PI_USM_MIGRATION_TBD0 = (1 << 0)
 } _pi_usm_migration_flags;
