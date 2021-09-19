@@ -1470,13 +1470,6 @@ static pi_result copyModule(ze_context_handle_t ZeContext,
 
 static bool setEnvVar(const char *var, const char *value);
 
-// Forward declarations for mock implementations of Level Zero APIs that
-// do not yet work in the driver.
-// TODO: Remove these mock definitions when they work in the driver.
-static ze_result_t
-zeModuleDynamicLinkMock(uint32_t numModules, ze_module_handle_t *phModules,
-                        ze_module_build_log_handle_t *phLinkLog);
-
 static ze_result_t
 zeModuleGetPropertiesMock(ze_module_handle_t hModule,
                           ze_module_properties_t *pModuleProperties);
@@ -3671,7 +3664,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
     // Link all the modules together.
     ze_module_build_log_handle_t ZeBuildLog;
     ze_result_t ZeResult =
-        ZE_CALL_NOCHECK(zeModuleDynamicLinkMock,
+        ZE_CALL_NOCHECK(zeModuleDynamicLink,
                         (ZeHandles.size(), ZeHandles.data(), &ZeBuildLog));
 
     // Construct a new program object to represent the linked executable.  This
@@ -3980,35 +3973,6 @@ static pi_result copyModule(ze_context_handle_t ZeContext,
           (ZeContext, ZeDevice, &ZeModuleDesc, &ZeModule, nullptr));
   *DestMod = ZeModule;
   return PI_SUCCESS;
-}
-
-// TODO: Remove this mock implementation once the Level Zero driver
-// implementation works.
-static ze_result_t
-zeModuleDynamicLinkMock(uint32_t numModules, ze_module_handle_t *phModules,
-                        ze_module_build_log_handle_t *phLinkLog) {
-
-  // If enabled, try calling the real driver API instead.  At the time this
-  // code was written, the "phLinkLog" parameter to zeModuleDynamicLink()
-  // doesn't work, so hard code it to NULL.
-  if (isOnlineLinkEnabled()) {
-    if (phLinkLog)
-      *phLinkLog = nullptr;
-    return ZE_CALL_NOCHECK(zeModuleDynamicLink,
-                           (numModules, phModules, nullptr));
-  }
-
-  // The mock implementation can only handle the degenerate case where there
-  // is only a single module that is "linked" to itself.  There is nothing to
-  // do in this degenerate case.
-  if (numModules > 1) {
-    die("piProgramLink: Program Linking is not supported yet in Level0");
-  }
-
-  // The mock does not support the link log.
-  if (phLinkLog)
-    *phLinkLog = nullptr;
-  return ZE_RESULT_SUCCESS;
 }
 
 // TODO: Remove this mock implementation once the Level Zero driver
