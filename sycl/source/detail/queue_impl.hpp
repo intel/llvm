@@ -453,10 +453,10 @@ private:
     // Scheduler will later omit events, that are not required to execute tasks.
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
-    bool IsInOrder = has_property<property::queue::in_order>();
+    const CG::CGTYPE Type = Handler.getType();
     bool NeedSeparateDependencyMgmt =
-        MIsInorder && (Handler.getType() == CG::CGTYPE::CodeplayHostTask ||
-                       Handler.getType() == CG::CGTYPE::CodeplayInteropTask);
+        MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
+                       Type == CG::CGTYPE::CodeplayInteropTask);
 
     event Event;
 
