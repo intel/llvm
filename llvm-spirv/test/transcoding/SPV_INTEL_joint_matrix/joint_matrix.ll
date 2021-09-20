@@ -13,7 +13,7 @@
 
 ; CHECK-SPIRV: Capability JointMatrixINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_joint_matrix"
-; CHECK-SPIRV: EntryPoint 6 [[#Kernel:]]
+; CHECK-SPIRV: Name [[#Kernel:]] "_ZTSZ4mainE11matrix_test"
 
 ; CHECK-SPIRV-DAG: TypeInt [[#ShortTy:]] 16 0
 ; CHECK-SPIRV-DAG: TypeInt [[#CharTy:]] 8 0

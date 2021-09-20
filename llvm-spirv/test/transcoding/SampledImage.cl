@@ -20,7 +20,7 @@ void sample_kernel(image2d_t input, float2 coords, global float4 *results, sampl
 }
 
 // CHECK-SPIRV: Capability LiteralSampler
-// CHECK-SPIRV: EntryPoint 6 [[sample_kernel:[0-9]+]] "sample_kernel"
+// CHECK-SPIRV: Name [[sample_kernel:[0-9]+]] "sample_kernel"
 
 // CHECK-SPIRV: TypeSampler [[TypeSampler:[0-9]+]]
 // CHECK-SPIRV: TypeSampledImage [[SampledImageTy:[0-9]+]]
