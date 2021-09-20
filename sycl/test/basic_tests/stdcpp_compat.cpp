@@ -1,13 +1,11 @@
-// RUN: %clangxx -std=c++14 -fsycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify=cxx14 %s -c -o %t.out
-// RUN: %clangxx -std=c++14 -fsycl --no-system-header-prefix=CL/sycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify=cxx14,warning_extension %s -c -o %t.out
+// RUN: %clangxx -std=c++14 -fsycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify=expected,cxx14 %s -c -o %t.out
+// RUN: %clangxx -std=c++14 -fsycl --no-system-header-prefix=CL/sycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify=cxx14,warning_extension,expected %s -c -o %t.out
 // RUN: %clangxx -std=c++17 -fsycl --no-system-header-prefix=CL/sycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify %s -c -o %t.out
 // RUN: %clangxx -std=c++20 -fsycl --no-system-header-prefix=CL/sycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify %s -c -o %t.out
 // RUN: %clangxx            -fsycl --no-system-header-prefix=CL/sycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify %s -c -o %t.out
 
 // The test checks SYCL headers C++ compiance and that a warning is emitted
 // when compiling in < C++17 mode.
-
-// expected-no-diagnostics
 
 #include <CL/sycl.hpp>
 
@@ -16,7 +14,8 @@
 // The next warning is not emitted in device compilation for some reason
 // warning_extension-warning@* 0-1 {{#warning is a language extension}}
 //
-// cxx14-warning@* 0-1 {{HAHA}}
+// The next warning is emitted for windows only
+// expected-warning@* 0-1 {{Alignment of class vec is not in accordance with SYCL specification requirements, a limitation of the MSVC compiler(Error C2719).Applied default alignment.}}
 
 
 class KernelName1;
