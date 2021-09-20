@@ -2578,6 +2578,8 @@ pi_result cuda_piEnqueueKernelLaunch(
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
   pi_uint32 local_size = kernel->get_local_size();
 
+  // Set the active context here as guessLocalWorkSize needs an active context
+  ScopedContext active(command_queue->get_context());
   {
     size_t *reqdThreadsPerBlock = kernel->reqdThreadsPerBlock_;
     maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
@@ -2631,7 +2633,6 @@ pi_result cuda_piEnqueueKernelLaunch(
   std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
-    ScopedContext active(command_queue->get_context());
     CUstream cuStream = command_queue->get();
     CUfunction cuFunc = kernel->get();
 
