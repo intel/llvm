@@ -4088,17 +4088,19 @@ class OffloadingActionBuilder final {
           if ((SYCLDeviceOnly || Args.hasArg(options::OPT_emit_llvm)) &&
               Args.hasArg(options::OPT_S))
             OutputType = types::TY_LLVM_IR;
-          if (SYCLDeviceOnly) {
-            if (Args.hasFlag(options::OPT_fno_sycl_use_bitcode,
-                             options::OPT_fsycl_use_bitcode, false)) {
-              auto *CompileAction =
-                  C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
-              A = C.MakeAction<SPIRVTranslatorJobAction>(CompileAction,
-                                                         types::TY_SPIRV);
+          // Use of -fsycl-device-obj=spirv converts the original LLVM-IR
+          // file to SPIR-V for later consumption.
+          if ((SYCLDeviceOnly || FinalPhase != phases::Link) &&
+              Args.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+                  .equals_insensitive("spirv")) {
+            auto *CompileAction =
+                C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
+            A = C.MakeAction<SPIRVTranslatorJobAction>(CompileAction,
+                                                       types::TY_SPIRV);
+            if (SYCLDeviceOnly)
               continue;
-            }
-          }
-          A = C.MakeAction<CompileJobAction>(A, OutputType);
+          } else
+            A = C.MakeAction<CompileJobAction>(A, OutputType);
           DeviceCompilerInput = A;
         }
         const auto *TC = ToolChains.front();

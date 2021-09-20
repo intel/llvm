@@ -328,9 +328,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   for (const auto &II : Inputs) {
     if (!II.isFilename())
       continue;
-    if (Args.hasFlag(options::OPT_fsycl_use_bitcode,
-                     options::OPT_fno_sycl_use_bitcode, true) ||
-        Args.hasArg(options::OPT_foffload_static_lib_EQ))
+    if (!Args.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+             .equals_insensitive("spirv"))
       SpirvInputs.push_back(II);
     else {
       const char *LLVMSpirvOutputFile = constructLLVMSpirvCommand(
