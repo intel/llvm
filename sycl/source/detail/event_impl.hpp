@@ -14,7 +14,6 @@
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/plugin.hpp>
-#include <detail/scheduler/commands.hpp>
 
 #include <atomic>
 #include <cassert>
@@ -162,11 +161,6 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
-  /// Returns vector of DepDesc dependencies.
-  ///
-  /// @return a reference to MDeps.
-  std::vector<DepDesc> &getDeps() { return MDeps; }
-
   /// Returns vector of event dependencies.
   ///
   /// @return a reference to MPreparedDepsEvents.
@@ -197,8 +191,6 @@ private:
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
 
-  /// Contains list of dependencies(edges)
-  std::vector<DepDesc> MDeps;
   /// Dependency events prepared for waiting by backend.
   std::vector<std::shared_ptr<event_impl>> MPreparedDepsEvents;
   std::vector<std::shared_ptr<event_impl>> MPreparedHostDepsEvents;

@@ -238,7 +238,7 @@ public:
   }
 
   /// Contains list of dependencies(edges)
-  std::vector<DepDesc> &MDeps;
+  std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
   std::unordered_set<Command *> MUsers;
   /// Indicates whether the command can be blocked from enqueueing.
