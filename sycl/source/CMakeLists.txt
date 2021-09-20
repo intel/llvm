@@ -200,6 +200,13 @@ if (MSVC)
   endif()
 
   set(SYCL_EXTRA_OPTS "/MD")
+  add_library(sycl_dependency_loader SHARED dependency_loader.c)
+  target_link_libraries(sycl PRIVATE sycl_dependency_loader)
+  add_library(sycl_dependency_loaderd SHARED dependency_loader.c)
+  target_compile_options(sycl_dependency_loaderd PRIVATE "/MDd")
+  target_link_libraries(sycld PRIVATE sycl_dependency_loaderd)
+
+  list(APPEND SYCL_RT_LIBS sycl_dependency_loader sycl_dependency_loaderd)
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)

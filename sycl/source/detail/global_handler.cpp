@@ -125,6 +125,7 @@ void shutdown() {
 }
 
 #ifdef _WIN32
+extern "C" __declspec(dllimport) void touchLibraries();
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
                                              LPVOID lpReserved) {
@@ -134,6 +135,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     shutdown();
     break;
   case DLL_PROCESS_ATTACH:
+    touchLibraries();
   case DLL_THREAD_ATTACH:
   case DLL_THREAD_DETACH:
     break;
