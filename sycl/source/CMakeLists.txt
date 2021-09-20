@@ -198,6 +198,8 @@ if (MSVC)
   else()
     add_sycl_rt_library(sycld COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
   endif()
+
+  set(SYCL_EXTRA_OPTS "/MD")
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
@@ -208,7 +210,6 @@ endif()
 
 if (MSVC)
 
-  set(SYCL_EXTRA_OPTS "/MD")
   add_library(sycl_dependency_loader SHARED dependency_loader.c)
   target_link_libraries(sycl PRIVATE sycl_dependency_loader)
   add_library(sycl_dependency_loaderd SHARED dependency_loader.c)
