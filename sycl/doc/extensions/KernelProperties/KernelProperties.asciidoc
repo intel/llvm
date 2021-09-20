@@ -347,9 +347,9 @@ that it depends upon for correctness.
 
 To enable this use-case, this extension adds a mechanism for implementations to
 extract a property list from a kernel functor, if a kernel functor declares
-a `property_list` member variable. Note that this member variable must be
-`static constexpr`, and kernel functors can therefore only encode properties
-with compile-time values.
+a `property_list` member variable named `properties`. Note that this member
+variable must be `static constexpr`, and kernel functors can therefore only
+encode properties with compile-time values.
 
 The example below shows how the kernel from the previous section could be
 rewritten to leverage an embedded property list:
