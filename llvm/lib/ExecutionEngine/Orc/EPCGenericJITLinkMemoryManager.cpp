@@ -9,6 +9,8 @@
 #include "llvm/ExecutionEngine/Orc/EPCGenericJITLinkMemoryManager.h"
 #include "llvm/ExecutionEngine/Orc/LookupAndRecordAddrs.h"
 
+#include <limits>
+
 namespace llvm {
 namespace orc {
 
@@ -32,7 +34,8 @@ public:
   MutableArrayRef<char> getWorkingMemory(ProtectionFlags Seg) override {
     auto I = Segs.find(Seg);
     assert(I != Segs.end() && "No allocation for seg");
-    return {I->second.WorkingMem, I->second.ContentSize};
+    assert(I->second.ContentSize <= std::numeric_limits<size_t>::max());
+    return {I->second.WorkingMem, static_cast<size_t>(I->second.ContentSize)};
   }
 
   JITTargetAddress getTargetMemory(ProtectionFlags Seg) override {
@@ -45,13 +48,14 @@ public:
     char *WorkingMem = WorkingBuffer.get();
     tpctypes::FinalizeRequest FR;
     for (auto &KV : Segs) {
+      assert(KV.second.ContentSize <= std::numeric_limits<size_t>::max());
       FR.push_back(tpctypes::SegFinalizeRequest{
           tpctypes::toWireProtectionFlags(
               static_cast<sys::Memory::ProtectionFlags>(KV.first)),
           KV.second.TargetAddr,
           alignTo(KV.second.ContentSize + KV.second.ZeroFillSize,
                   Parent.EPC.getPageSize()),
-          {WorkingMem, KV.second.ContentSize}});
+          {WorkingMem, static_cast<size_t>(KV.second.ContentSize)}});
       WorkingMem += KV.second.ContentSize;
     }
     Parent.EPC.callSPSWrapperAsync<shared::SPSOrcTargetProcessFinalize>(
@@ -81,29 +85,6 @@ private:
   std::unique_ptr<char[]> WorkingBuffer;
   SegInfoMap Segs;
 };
-
-/// Create from a ExecutorProcessControl instance.
-Expected<std::unique_ptr<EPCGenericJITLinkMemoryManager>>
-EPCGenericJITLinkMemoryManager::CreateUsingOrcRTFuncs(ExecutionSession &ES,
-                                                      JITDylib &OrcRuntimeJD) {
-
-  StringRef GlobalPrefix = "";
-  if (ES.getExecutorProcessControl().getTargetTriple().isOSBinFormatMachO())
-    GlobalPrefix = "_";
-
-  FuncAddrs FAs;
-  if (auto Err = lookupAndRecordAddrs(
-          ES, LookupKind::Static, makeJITDylibSearchOrder(&OrcRuntimeJD),
-          {{ES.intern((GlobalPrefix + "__orc_rt_reserve").str()), &FAs.Reserve},
-           {ES.intern((GlobalPrefix + "__orc_rt_finalize").str()),
-            &FAs.Finalize},
-           {ES.intern((GlobalPrefix + "__orc_rt_deallocate").str()),
-            &FAs.Deallocate}}))
-    return std::move(Err);
-
-  return std::make_unique<EPCGenericJITLinkMemoryManager>(
-      ES.getExecutorProcessControl(), FAs);
-}
 
 Expected<std::unique_ptr<jitlink::JITLinkMemoryManager::Allocation>>
 EPCGenericJITLinkMemoryManager::allocate(const jitlink::JITLinkDylib *JD,
