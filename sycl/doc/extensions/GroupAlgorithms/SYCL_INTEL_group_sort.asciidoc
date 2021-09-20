@@ -146,7 +146,7 @@ namespace sycl::ext::oneapi::experimental {
   class default_sorter {
   public:
     template<std::size_t Extent>
-    default_sorter(sycl::span<uint8_t, Extent> scratch, Compare comp = Compare());
+    default_sorter(sycl::span<std::byte, Extent> scratch, Compare comp = Compare());
 
     template<typename Group, typename Ptr>
     void operator()(Group g, Ptr first, Ptr last);
@@ -167,7 +167,7 @@ namespace sycl::ext::oneapi::experimental {
   class radix_sorter {
   public:
     template<std::size_t Extent>
-    radix_sorter(sycl::span<uint8_t, Extent> scratch,
+    radix_sorter(sycl::span<std::byte, Extent> scratch,
                  const std::bitset<sizeof(T) * CHAR_BIT> mask =
                      std::bitset<sizeof(T) * CHAR_BIT> (std::numeric_limits<unsigned long long>::max()));
 
@@ -215,7 +215,7 @@ Table 4. Constructors of the `default_sorter` class.
 |Constructor|Description
 
 |`template<std::size_t Extent>
-default_sorter(sycl::span<uint8_t, Extent> scratch, Compare comp = Compare())`
+default_sorter(sycl::span<std::byte, Extent> scratch, Compare comp = Compare())`
 |Creates the `default_sorter` object using `comp`.
 Additional memory for the algorithm is provided using `scratch`.
 If `scratch.size()` is less than the value returned by
@@ -264,7 +264,7 @@ Table 6. Constructors of the `radix_sorter` class.
 |Constructor|Description
 
 |`template<std::size_t Extent>
-radix_sorter(sycl::span<uint8_t, Extent> scratch, const std::bitset<sizeof(T) * CHAR_BIT> mask = std::bitset<sizeof(T) * CHAR_BIT>
+radix_sorter(sycl::span<std::byte, Extent> scratch, const std::bitset<sizeof(T) * CHAR_BIT> mask = std::bitset<sizeof(T) * CHAR_BIT>
 (std::numeric_limits<unsigned long long>::max()))`
 |Creates the `radix_sorter` object to sort values considering only bits
 that corresponds to 1 in `mask`.
@@ -350,16 +350,16 @@ namespace sycl::ext::oneapi::experimental {
   class group_with_scratchpad
   {
   public:
-    group_with_scratchpad(Group group, sycl::span<uint8_t, Extent> scratch);
+    group_with_scratchpad(Group group, sycl::span<std::byte, Extent> scratch);
     Group get_group() const;
 
-    sycl::span<uint8_t, Extent>
+    sycl::span<std::byte, Extent>
     get_memory() const;
   };
 
   // Deduction guides
   template<typename Group, std::size_t Extent>
-  group_with_scratchpad(Group, sycl::span<uint8_t, Extent>)
+  group_with_scratchpad(Group, sycl::span<std::byte, Extent>)
     -> group_with_scratchpad<Group, Extent>;
 
 }
@@ -372,7 +372,7 @@ Table 9. Constructors of the `group_with_scratchpad` class.
 |===
 |Constructor|Description
 
-|`group_with_scratchpad(Group group, sycl::span<uint8_t, Extent> scratch)`
+|`group_with_scratchpad(Group group, sycl::span<std::byte, Extent> scratch)`
 |Creates the `group_with_scratchpad` object using `group` and `scratch`.
 `sycl::is_group_v<std::decay_t<Group>>` must be true.
 `scratch.size()` must not be less than value returned by the `memory_required` method
@@ -388,7 +388,7 @@ Table 10. Member functions of the `group_with_scratchpad` class.
 |`Group get_group() const`
 |Returns the `Group` class object that is handled by the `group_with_scratchpad` object.
 
-|`sycl::span<uint8_t, Extent>
+|`sycl::span<std::byte, Extent>
 get_memory() const`
 |Returns `sycl::span` that represents an additional memory
 that is handled by the `group_with_scratchpad` object.
@@ -508,7 +508,7 @@ size_t temp_memory_size =
 
 q.submit([&](sycl::handler& h) {
   auto acc = sycl::accessor(buf, h);
-  auto scratch = sycl::local_accessor<uint8_t, 1>( {temp_memory_size}, h );
+  auto scratch = sycl::local_accessor<std::byte, 1>( {temp_memory_size}, h );
 
   h.parallel_for(
     sycl::nd_range<1>{ /*global_size = */ {256}, /*local_size = */ {256} },
@@ -546,7 +546,7 @@ size_t temp_memory_size =
 
 q.submit([&](sycl::handler& h) {
   auto acc = sycl::accessor(buf, h);
-  auto scratch = sycl::local_accessor<uint8_t, 1>( {temp_memory_size}, h);
+  auto scratch = sycl::local_accessor<std::byte, 1>( {temp_memory_size}, h);
 
   h.parallel_for(
     sycl::nd_range<1>{ local_range, local_range },
@@ -583,7 +583,7 @@ size_t temp_memory_size =
 q.submit([&](sycl::handler& h) {
   auto keys_acc = sycl::accessor(keys_buf, h);
   auto vals_acc = sycl::accessor(vals_buf, h);
-  auto scratch = sycl::local_accessor<uint8_t, 1>( {temp_memory_size}, h);
+  auto scratch = sycl::local_accessor<std::byte, 1>( {temp_memory_size}, h);
 
   h.parallel_for(
     sycl::nd_range<1>{ /*global_size = */ {1024}, /*local_size = */ {256} },

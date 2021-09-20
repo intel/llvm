@@ -335,6 +335,10 @@ module std [system] {
   module bit {
     header "bit"
     export *
+
+    module __bit {
+      module bit_cast { private header "__bit/bit_cast.h" }
+    }
   }
   module bitset {
     header "bitset"
@@ -370,6 +374,7 @@ module std [system] {
       module common_comparison_category { private header "__compare/common_comparison_category.h" }
       module compare_three_way_result   { private header "__compare/compare_three_way_result.h"   }
       module ordering                   { private header "__compare/ordering.h"                   }
+      module three_way_comparable       { private header "__compare/three_way_comparable.h"       }
     }
   }
   module complex {
@@ -441,6 +446,8 @@ module std [system] {
       module format_error         { private header "__format/format_error.h"         }
       module format_fwd           { private header "__format/format_fwd.h"           }
       module format_parse_context { private header "__format/format_parse_context.h" }
+      module format_string        { private header "__format/format_string.h"        }
+      module formatter            { private header "__format/formatter.h"            }
     }
   }
   module forward_list {
