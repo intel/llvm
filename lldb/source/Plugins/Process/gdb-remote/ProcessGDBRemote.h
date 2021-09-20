@@ -104,8 +104,6 @@ public:
   // PluginInterface protocol
   ConstString GetPluginName() override;
 
-  uint32_t GetPluginVersion() override;
-
   // Process Control
   Status WillResume() override;
 
@@ -234,6 +232,8 @@ public:
   void DidVFork(lldb::pid_t child_pid, lldb::tid_t child_tid) override;
   void DidVForkDone() override;
   void DidExec() override;
+
+  llvm::Expected<bool> SaveCore(llvm::StringRef outfile) override;
 
 protected:
   friend class ThreadGDBRemote;

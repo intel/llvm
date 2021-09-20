@@ -2060,8 +2060,9 @@ static bool canTailPredicateLoop(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
         return false;
       }
       if (isa<StoreInst>(I) || isa<LoadInst>(I)) {
-        Value *Ptr = isa<LoadInst>(I) ? I.getOperand(0) : I.getOperand(1);
-        int64_t NextStride = getPtrStride(PSE, Ptr, L);
+        Value *Ptr = getLoadStorePointerOperand(&I);
+        Type *AccessTy = getLoadStoreType(&I);
+        int64_t NextStride = getPtrStride(PSE, AccessTy, Ptr, L);
         if (NextStride == 1) {
           // TODO: for now only allow consecutive strides of 1. We could support
           // other strides as long as it is uniform, but let's keep it simple
@@ -2080,8 +2081,7 @@ static bool canTailPredicateLoop(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
           // least if they are loop invariant.
           // TODO: Loop variant strides should in theory work, too, but
           // this requires further testing.
-          const SCEV *PtrScev =
-              replaceSymbolicStrideSCEV(PSE, llvm::ValueToValueMap(), Ptr);
+          const SCEV *PtrScev = PSE.getSE()->getSCEV(Ptr);
           if (auto AR = dyn_cast<SCEVAddRecExpr>(PtrScev)) {
             const SCEV *Step = AR->getStepRecurrence(*PSE.getSE());
             if (PSE.getSE()->isLoopInvariant(Step, L))
