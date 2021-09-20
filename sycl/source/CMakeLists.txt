@@ -198,6 +198,15 @@ if (MSVC)
   else()
     add_sycl_rt_library(sycld COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
   endif()
+endif()
+
+if (SYCL_ENABLE_XPTI_TRACING)
+  add_sycl_rt_library(sycl XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_SOURCES})
+else()
+  add_sycl_rt_library(sycl COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
+endif()
+
+if (MSVC)
 
   set(SYCL_EXTRA_OPTS "/MD")
   add_library(sycl_dependency_loader SHARED dependency_loader.c)
@@ -207,12 +216,6 @@ if (MSVC)
   target_link_libraries(sycld PRIVATE sycl_dependency_loaderd)
 
   list(APPEND SYCL_RT_LIBS sycl_dependency_loader sycl_dependency_loaderd)
-endif()
-
-if (SYCL_ENABLE_XPTI_TRACING)
-  add_sycl_rt_library(sycl XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_SOURCES})
-else()
-  add_sycl_rt_library(sycl COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
 endif()
 
 # Enable new IN_LIST operator.
