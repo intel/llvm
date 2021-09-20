@@ -1,11 +1,23 @@
-// RUN: %clangxx -std=c++14 -fsycl --no-system-header-prefix=CL/sycl -Wall -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify=bad %s -c -o %t.out
+// RUN: %clangxx -std=c++14 -fsycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify=cxx14 %s -c -o %t.out
+// RUN: %clangxx -std=c++14 -fsycl --no-system-header-prefix=CL/sycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify=cxx14,warning_extension %s -c -o %t.out
 // RUN: %clangxx -std=c++17 -fsycl --no-system-header-prefix=CL/sycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify %s -c -o %t.out
 // RUN: %clangxx -std=c++20 -fsycl --no-system-header-prefix=CL/sycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify %s -c -o %t.out
 // RUN: %clangxx            -fsycl --no-system-header-prefix=CL/sycl -Wall -pedantic -Wno-c99-extensions -Wno-deprecated -fsyntax-only -Xclang -verify %s -c -o %t.out
 
+// The test checks SYCL headers C++ compiance and that a warning is emitted
+// when compiling in < C++17 mode.
+
 // expected-no-diagnostics
 
-#include <CL/sycl.hpp> // bad-warning@* {{DPCPP does not support C++ version earlier than C++17. Some features might not be available.}}
+#include <CL/sycl.hpp>
+
+// cxx14-warning@* {{DPCPP does not support C++ version earlier than C++17. Some features might not be available.}}
+//
+// The next warning is not emitted in device compilation for some reason
+// warning_extension-warning@* 0-1 {{#warning is a language extension}}
+//
+// cxx14-warning@* 0-1 {{HAHA}}
+
 
 class KernelName1;
 
