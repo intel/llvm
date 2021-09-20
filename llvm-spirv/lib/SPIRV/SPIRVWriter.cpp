@@ -4147,19 +4147,27 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // Literal S Literal I Literal rI Literal Q Literal O
 
     Type *ResTy = CI->getType();
-    SPIRVValue *Input =
-        transValue(CI->getOperand(0) /* A - integer input of any width */, BB);
 
-    std::vector<Value *> Operands = {
-        CI->getOperand(1) /* S - bool value, indicator of signedness */,
-        CI->getOperand(2) /* I - location of the fixed-point of the input */,
-        CI->getOperand(3) /* rI - location of the fixed-point of the result*/,
-        CI->getOperand(4) /* Quantization mode */,
-        CI->getOperand(5) /* Overflow mode */};
-    std::vector<SPIRVWord> Literals;
-    for (auto *O : Operands) {
-      Literals.push_back(cast<llvm::ConstantInt>(O)->getZExtValue());
+    auto OpItr = CI->value_op_begin();
+    auto OpEnd = OpItr + CI->getNumArgOperands();
+
+    // If the return type of an instruction is wider than 64-bit, then this
+    // instruction will return via 'sret' argument added into the arguments
+    // list. Here we reverse this, removing 'sret' argument and restoring
+    // the original return type.
+    if (CI->hasStructRetAttr()) {
+      assert(ResTy->isVoidTy() && "Return type is not void");
+      ResTy = cast<PointerType>(OpItr->getType())->getElementType();
+      OpItr++;
     }
+
+    SPIRVValue *Input =
+        transValue(*OpItr++ /* A - integer input of any width */, BB);
+
+    std::vector<SPIRVWord> Literals;
+    std::transform(OpItr, OpEnd, std::back_inserter(Literals), [](auto *O) {
+      return cast<llvm::ConstantInt>(O)->getZExtValue();
+    });
 
     return BM->addFixedPointIntelInst(OC, transType(ResTy), Input, Literals,
                                       BB);
@@ -4227,6 +4235,16 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     auto OpItr = CI->value_op_begin();
     auto OpEnd = OpItr + CI->getNumArgOperands();
 
+    // If the return type of an instruction is wider than 64-bit, then this
+    // instruction will return via 'sret' argument added into the arguments
+    // list. Here we reverse this, removing 'sret' argument and restoring
+    // the original return type.
+    if (CI->hasStructRetAttr()) {
+      assert(ResTy->isVoidTy() && "Return type is not void");
+      ResTy = cast<PointerType>(OpItr->getType())->getElementType();
+      OpItr++;
+    }
+
     SPIRVValue *InA = transValue(*OpItr++ /* A - input */, BB);
 
     std::vector<SPIRVWord> Literals;
@@ -4284,6 +4302,16 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
 
     auto OpItr = CI->value_op_begin();
     auto OpEnd = OpItr + CI->getNumArgOperands();
+
+    // If the return type of an instruction is wider than 64-bit, then this
+    // instruction will return via 'sret' argument added into the arguments
+    // list. Here we reverse this, removing 'sret' argument and restoring
+    // the original return type.
+    if (CI->hasStructRetAttr()) {
+      assert(ResTy->isVoidTy() && "Return type is not void");
+      ResTy = cast<PointerType>(OpItr->getType())->getElementType();
+      OpItr++;
+    }
 
     SPIRVValue *InA = transValue(*OpItr++ /* A - input */, BB);
 
