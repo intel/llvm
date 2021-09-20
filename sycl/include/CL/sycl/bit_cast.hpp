@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <CL/sycl/aliases.hpp>
+
 #include <type_traits>
 
 #if __cpp_lib_bit_cast
@@ -20,6 +22,15 @@ namespace sycl {
 // forward decl
 namespace detail {
 inline void memcpy(void *Dst, const void *Src, std::size_t Size);
+
+template <typename Type> struct type_helper {
+  using T = Type;
+};
+
+template <> struct type_helper <sycl::half> {
+  using T = uint16_t;
+};
+
 }
 
 template <typename To, typename From>
@@ -41,7 +52,7 @@ constexpr
 #if __has_builtin(__builtin_bit_cast)
   return __builtin_bit_cast(To, from);
 #else  // __has_builtin(__builtin_bit_cast)
-  static_assert(std::is_trivially_default_constructible<To>::value,
+  static_assert(std::is_trivially_default_constructible<typename detail::type_helper<To>::T>::value,
                 "To must be trivially default constructible");
   To to;
   sycl::detail::memcpy(&to, &from, sizeof(To));
