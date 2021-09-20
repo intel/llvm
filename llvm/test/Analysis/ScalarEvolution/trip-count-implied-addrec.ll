@@ -1,4 +1,3 @@
-; RUN: opt < %s -analyze -enable-new-pm=0 -scalar-evolution -scalar-evolution-classify-expressions=0 | FileCheck %s
 ; RUN: opt < %s -disable-output "-passes=print<scalar-evolution>"  -scalar-evolution-classify-expressions=0 2>&1 | FileCheck %s
 
 ; A collection of tests that show we can use facts about an exit test to
@@ -10,8 +9,8 @@
 @G = external global i8
 
 ; CHECK-LABEL: Determining loop execution counts for: @nw_implies_nuw
-; CHECK: Loop %for.body: Unpredictable backedge-taken count
-; CHECK: Loop %for.body: Unpredictable max backedge-taken count
+; CHECK: Loop %for.body: backedge-taken count is %n
+; CHECK: Loop %for.body: max backedge-taken count is -1
 define void @nw_implies_nuw(i16 %n) mustprogress {
 entry:
   br label %for.body

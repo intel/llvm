@@ -837,11 +837,12 @@ llvm::DIType *CGDebugInfo::CreateType(const BuiltinType *BT) {
   case BuiltinType::BFloat16:
   case BuiltinType::Float128:
   case BuiltinType::Double:
-    // FIXME: For targets where long double and __float128 have the same size,
-    // they are currently indistinguishable in the debugger without some
-    // special treatment. However, there is currently no consensus on encoding
-    // and this should be updated once a DWARF encoding exists for distinct
-    // floating point types of the same size.
+  case BuiltinType::Ibm128:
+    // FIXME: For targets where long double, __ibm128 and __float128 have the
+    // same size, they are currently indistinguishable in the debugger without
+    // some special treatment. However, there is currently no consensus on
+    // encoding and this should be updated once a DWARF encoding exists for
+    // distinct floating point types of the same size.
     Encoding = llvm::dwarf::DW_ATE_float;
     break;
   case BuiltinType::ShortAccum:
@@ -1233,7 +1234,8 @@ llvm::DIType *CGDebugInfo::CreateType(const TemplateSpecializationType *Ty,
 
   SmallString<128> NS;
   llvm::raw_svector_ostream OS(NS);
-  Ty->getTemplateName().print(OS, getPrintingPolicy(), /*qualified*/ false);
+  Ty->getTemplateName().print(OS, getPrintingPolicy(),
+                              TemplateName::Qualified::None);
   printTemplateArgumentList(OS, Ty->template_arguments(), getPrintingPolicy());
 
   SourceLocation Loc = AliasDecl->getLocation();

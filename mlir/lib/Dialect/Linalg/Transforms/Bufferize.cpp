@@ -73,56 +73,23 @@ allocateBuffersForResults(Location loc, LinalgOp linalgOp, ValueRange outputs,
   return success();
 }
 
-/// Specialization for `linalg::GenericOp`.
-/// A pattern to convert Generic Linalg operations which work on tensors to
-/// use buffers. BufferPlacement pass should be later used to move
-/// Alloc operations to the correct positions and insert the missing Dealloc
-/// operations in the correct places.
-static void
-finalizeBufferAllocationForGenericOp(ConversionPatternRewriter &rewriter,
-                                     GenericOp genericOp, ValueRange inputs,
-                                     ValueRange outputs) {
-  // Generate a new linalg operation that works on buffers.
-  auto newGenericOp = rewriter.create<GenericOp>(
-      genericOp.getLoc(),
-      /*resultTensorTypes=*/llvm::None,
-      /*inputs=*/inputs,
-      /*outputs=*/outputs, genericOp.indexing_maps(),
-      genericOp.iterator_types(), genericOp.docAttr(),
-      genericOp.library_callAttr());
-
-  // Create a new block in the region of the new Generic Op.
-  Block *oldBlock = genericOp.getBody();
-  Region &newRegion = newGenericOp.region();
-  Block *newBlock = rewriter.createBlock(&newRegion, newRegion.begin(),
-                                         oldBlock->getArgumentTypes());
-
-  // Clone the body of the old block to the new block.
-  BlockAndValueMapping mapping;
-  mapping.map(oldBlock->getArguments(), newBlock->getArguments());
-
-  OpBuilder::InsertionGuard guard(rewriter);
-  rewriter.setInsertionPointToEnd(newBlock);
-  for (auto &op : oldBlock->getOperations()) {
-    Operation *clonedOp = rewriter.clone(op, mapping);
-    mapping.map(op.getResults(), clonedOp->getResults());
-  }
-
-  // Replace the results of the old op with the new output buffers.
-  rewriter.replaceOp(genericOp, outputs);
-}
-
-/// Specialization for all other `linalg::LinalgOp`.
-static void finalizeBufferAllocation(ConversionPatternRewriter &rewriter,
-                                     linalg::LinalgOp linalgOp,
-                                     ValueRange inputs, ValueRange outputs) {
-  assert(!isa<linalg::GenericOp>(linalgOp.getOperation()));
+/// Create linalg op on buffers given the original tensor-based operation and
+/// the buffers for the outputs.
+LinalgOp
+mlir::linalg::createLinalgOpOnBuffers(ConversionPatternRewriter &rewriter,
+                                      LinalgOp linalgOp, ValueRange inputs,
+                                      ValueRange outputs) {
   SmallVector<Value, 8> newOperands = inputs;
   newOperands.append(outputs.begin(), outputs.end());
-  linalgOp.clone(rewriter, linalgOp.getLoc(),
-                 /*resultTypes=*/ArrayRef<Type>{}, newOperands);
-  // Replace the results of the old op with the new output buffers.
-  rewriter.replaceOp(linalgOp, outputs);
+  auto *newOp = linalgOp.cloneWithoutRegions(rewriter, linalgOp.getLoc(),
+                                             /*resultTypes=*/ArrayRef<Type>{},
+                                             newOperands);
+  for (auto regions : llvm::zip(linalgOp->getRegions(), newOp->getRegions())) {
+    auto &oldRegion = std::get<0>(regions);
+    auto &newRegion = std::get<1>(regions);
+    rewriter.inlineRegionBefore(oldRegion, newRegion, newRegion.begin());
+  }
+  return newOp;
 }
 
 //===----------------------------------------------------------------------===//
@@ -218,15 +185,9 @@ public:
       return op.emitOpError()
              << "Failed to allocate buffers for tensor results.";
     }
-
-    // Delegate to the linalg generic pattern.
-    if (auto genericOp = dyn_cast<linalg::GenericOp>(*op)) {
-      finalizeBufferAllocationForGenericOp(rewriter, genericOp,
-                                           adaptor.inputs(), newOutputBuffers);
-      return success();
-    }
-
-    finalizeBufferAllocation(rewriter, op, adaptor.inputs(), newOutputBuffers);
+    createLinalgOpOnBuffers(rewriter, op, adaptor.inputs(), newOutputBuffers);
+    // Replace the results of the old op with the new output buffers.
+    rewriter.replaceOp(op, newOutputBuffers);
     return success();
   }
 };
@@ -362,9 +323,8 @@ struct LinalgBufferizePass : public LinalgBufferizeBase<LinalgBufferizePass> {
     BufferizeTypeConverter typeConverter;
 
     // Mark all Standard operations legal.
-    target.addLegalDialect<AffineDialect, math::MathDialect,
-                           memref::MemRefDialect, StandardOpsDialect,
-                           tensor::TensorDialect>();
+    target.addLegalDialect<AffineDialect, memref::MemRefDialect,
+                           StandardOpsDialect, tensor::TensorDialect>();
     target.addIllegalOp<InitTensorOp, tensor::ExtractSliceOp,
                         tensor::InsertSliceOp, PadTensorOp>();
 

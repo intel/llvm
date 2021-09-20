@@ -106,12 +106,6 @@ int main() {
   sycl::profiling_error pre;
   // expected-warning@+1 {{'feature_not_supported' is deprecated: use sycl::exception with sycl::errc::feature_not_supported instead.}}
   sycl::feature_not_supported fns;
-  // expected-warning@+1{{'string_class' is deprecated: use STL classes directly}}
-  sycl::string_class Str = "abc";
-  (void)Str;
-  // expected-warning@+1{{'mutex_class' is deprecated: use STL classes directly}}
-  sycl::mutex_class Mtx;
-  (void)Mtx;
   // expected-warning@+1{{'exception' is deprecated: The version of an exception constructor which takes no arguments is deprecated.}}
   sycl::exception ex;
   // expected-warning@+1{{'get_cl_code' is deprecated: use sycl::exception.code() instead.}}
@@ -129,6 +123,10 @@ int main() {
           it.mem_fence();
         });
   });
+
+  // expected-warning@+1{{'byte' is deprecated: use std::byte instead}}
+  sycl::byte B;
+  (void)B;
 
   // expected-warning@+1{{'max_constant_buffer_size' is deprecated: max_constant_buffer_size is deprecated}}
   auto MCBS = sycl::info::device::max_constant_buffer_size;

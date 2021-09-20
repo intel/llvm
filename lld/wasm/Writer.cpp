@@ -278,7 +278,7 @@ void Writer::layoutMemory() {
 
         auto *tlsAlign = cast<DefinedGlobal>(WasmSym::tlsAlign);
         setGlobalPtr(tlsAlign, int64_t{1} << seg->alignment);
-      } else {
+      } else if (WasmSym::tlsBase) {
         auto *tlsBase = cast<DefinedGlobal>(WasmSym::tlsBase);
         setGlobalPtr(tlsBase, memoryPtr);
       }
@@ -518,7 +518,7 @@ void Writer::populateTargetFeatures() {
 
   // Validate that used features are allowed in output
   if (!inferFeatures) {
-    for (auto &feature : used.keys()) {
+    for (const auto &feature : used.keys()) {
       if (!allowed.count(std::string(feature)))
         error(Twine("Target feature '") + feature + "' used by " +
               used[feature] + " is not allowed.");
@@ -529,7 +529,7 @@ void Writer::populateTargetFeatures() {
   for (ObjFile *file : symtab->objectFiles) {
     StringRef fileName(file->getName());
     SmallSet<std::string, 8> objectFeatures;
-    for (auto &feature : file->getWasmObj()->getTargetFeatures()) {
+    for (const auto &feature : file->getWasmObj()->getTargetFeatures()) {
       if (feature.Prefix == WASM_FEATURE_PREFIX_DISALLOWED)
         continue;
       objectFeatures.insert(feature.Name);
@@ -538,7 +538,7 @@ void Writer::populateTargetFeatures() {
               fileName + " is disallowed by " + disallowed[feature.Name] +
               ". Use --no-check-features to suppress.");
     }
-    for (auto &feature : required.keys()) {
+    for (const auto &feature : required.keys()) {
       if (!objectFeatures.count(std::string(feature)))
         error(Twine("Missing target feature '") + feature + "' in " + fileName +
               ", required by " + required[feature] +
@@ -639,7 +639,7 @@ void Writer::calculateExports() {
     } else if (auto *t = dyn_cast<DefinedTag>(sym)) {
       export_ = {name, WASM_EXTERNAL_TAG, t->getTagIndex()};
     } else if (auto *d = dyn_cast<DefinedData>(sym)) {
-      if (d->segment && d->segment->isTLS()) {
+      if (sym->isTLS()) {
         // We can't currenly export TLS data symbols.
         if (sym->isExportedExplicit())
           error("TLS symbols cannot yet be exported: `" + toString(*sym) + "`");
@@ -1513,8 +1513,6 @@ void Writer::run() {
     log("Global Imports   : " + Twine(out.importSec->getNumImportedGlobals()));
     log("Tag Imports      : " + Twine(out.importSec->getNumImportedTags()));
     log("Table Imports    : " + Twine(out.importSec->getNumImportedTables()));
-    for (ObjFile *file : symtab->objectFiles)
-      file->dumpInfo();
   }
 
   createHeader();

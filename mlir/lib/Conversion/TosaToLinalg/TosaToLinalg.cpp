@@ -13,6 +13,7 @@
 #include "mlir/Conversion/TosaToLinalg/TosaToLinalg.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
@@ -254,7 +255,7 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
   // tosa::BitwiseNotOp
   if (isa<tosa::BitwiseNotOp>(op) && elementTy.isa<IntegerType>()) {
     auto allOnesAttr = rewriter.getIntegerAttr(
-        elementTy, APInt::getAllOnesValue(elementTy.getIntOrFloatBitWidth()));
+        elementTy, APInt::getAllOnes(elementTy.getIntOrFloatBitWidth()));
     auto allOnes = rewriter.create<ConstantOp>(loc, allOnesAttr);
     return rewriter.create<mlir::XOrOp>(loc, resultTypes, args[0], allOnes);
   }
@@ -308,6 +309,55 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
     auto extended =
         rewriter.create<ZeroExtendIOp>(loc, resultTypes, shouldRound);
     return rewriter.create<mlir::AddIOp>(loc, resultTypes, result, extended);
+  }
+
+  // tosa::ClzOp
+  if (isa<tosa::ClzOp>(op) && elementTy.isa<IntegerType>()) {
+    int bitWidth = elementTy.getIntOrFloatBitWidth();
+    auto zero =
+        rewriter.create<mlir::ConstantOp>(loc, IntegerAttr::get(elementTy, 0));
+    auto leadingZeros = rewriter.create<mlir::ConstantOp>(
+        loc, IntegerAttr::get(elementTy, bitWidth));
+
+    SmallVector<Value> operands = {args[0], leadingZeros, zero};
+    SmallVector<Type> types = {elementTy, elementTy, elementTy};
+
+    auto whileOp = rewriter.create<scf::WhileOp>(loc, types, operands);
+    Block *before = rewriter.createBlock(&whileOp.before(), {}, types);
+    Block *after = rewriter.createBlock(&whileOp.after(), {}, types);
+
+    // The conditional block of the while loop.
+    {
+      rewriter.setInsertionPointToStart(&whileOp.before().front());
+      Value input = before->getArgument(0);
+      Value zero = before->getArgument(2);
+
+      Value inputLargerThanZero =
+          rewriter.create<CmpIOp>(loc, CmpIPredicate::ne, input, zero);
+      rewriter.create<scf::ConditionOp>(loc, inputLargerThanZero,
+                                        before->getArguments());
+    }
+
+    // The body of the while loop: shift right until reaching a value of 0.
+    {
+      rewriter.setInsertionPointToStart(&whileOp.after().front());
+      Value input = after->getArgument(0);
+      Value leadingZeros = after->getArgument(1);
+
+      auto one = rewriter.create<mlir::ConstantOp>(
+          loc, IntegerAttr::get(elementTy, 1));
+      auto shifted = rewriter.create<mlir::UnsignedShiftRightOp>(
+          loc, resultTypes, input, one);
+      auto leadingZerosMinusOne =
+          rewriter.create<mlir::SubIOp>(loc, resultTypes, leadingZeros, one);
+
+      rewriter.create<scf::YieldOp>(
+          loc,
+          ValueRange({shifted, leadingZerosMinusOne, after->getArgument(2)}));
+    }
+
+    rewriter.setInsertionPointAfter(whileOp);
+    return whileOp->getResult(1);
   }
 
   // tosa::LogicalAnd
@@ -739,10 +789,10 @@ static Attribute createInitialValueForReduceOp(Operation *op, Type elementTy,
         elementTy, APInt::getSignedMinValue(elementTy.getIntOrFloatBitWidth()));
 
   if (isa<tosa::ReduceAllOp>(op) && elementTy.isInteger(1))
-    return rewriter.getIntegerAttr(elementTy, APInt::getAllOnesValue(1));
+    return rewriter.getIntegerAttr(elementTy, APInt::getAllOnes(1));
 
   if (isa<tosa::ReduceAnyOp>(op) && elementTy.isInteger(1))
-    return rewriter.getIntegerAttr(elementTy, APInt::getNullValue(1));
+    return rewriter.getIntegerAttr(elementTy, APInt::getZero(1));
 
   if (isa<tosa::ArgMaxOp>(op) && elementTy.isa<FloatType>())
     return rewriter.getFloatAttr(
@@ -1129,27 +1179,6 @@ public:
 
     input = applyPad(loc, input, pad, zeroAttr, rewriter);
 
-    // Broadcast the initial value to the output tensor before convolving.
-    SmallVector<AffineMap, 4> indexingMaps;
-    indexingMaps.push_back(AffineMap::get(
-        /*dimCount=*/resultTy.getRank(), /*symbolCount=*/0,
-        {rewriter.getAffineDimExpr(3)}, rewriter.getContext()));
-    indexingMaps.push_back(rewriter.getMultiDimIdentityMap(resultTy.getRank()));
-
-    Value initTensor =
-        rewriter.create<linalg::InitTensorOp>(loc, resultShape, resultETy);
-
-    Value biasBroadcast =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, resultTy, bias, initTensor, indexingMaps,
-                getNParallelLoopsAttrs(resultTy.getRank()),
-                [&](OpBuilder &nestedBuilder, Location nestedLoc,
-                    ValueRange args) {
-                  nestedBuilder.create<linalg::YieldOp>(nestedLoc, args[0]);
-                })
-            .getResult(0);
-
     // Extract the attributes for convolution.
     llvm::SmallVector<int64_t> stride, dilation;
     getValuesFromIntArrayAttribute(strideTosaAttr, stride);
@@ -1165,28 +1194,69 @@ public:
                                weightShape[2], weightShape[3]},
                               resultETy);
 
-    Value biasReshape =
-        rewriter.create<tosa::ReshapeOp>(loc, linalgConvTy, biasBroadcast);
-    Value conv;
+    // Broadcast the initial value to the output tensor before convolving.
+    SmallVector<AffineMap, 4> indexingMaps;
+    indexingMaps.push_back(AffineMap::get(
+        /*dimCount=*/resultTy.getRank(), /*symbolCount=*/0,
+        {rewriter.getAffineDimExpr(3)}, rewriter.getContext()));
+    indexingMaps.push_back(rewriter.getMultiDimIdentityMap(resultTy.getRank()));
+    indexingMaps.push_back(rewriter.getMultiDimIdentityMap(resultTy.getRank()));
+
+    Attribute resultZeroAttr = rewriter.getZeroAttr(resultETy);
+    Value initTensor = rewriter.create<linalg::InitTensorOp>(
+        loc, linalgConvTy.getShape(), resultETy);
+    Value zero = rewriter.create<ConstantOp>(loc, resultZeroAttr);
+    Value zeroTensor =
+        rewriter.create<linalg::FillOp>(loc, zero, initTensor).getResult(0);
+
+    Value biasInitTensor = rewriter.create<linalg::InitTensorOp>(
+        loc, resultTy.getShape(), resultETy);
     if (!isQuantized) {
-      conv = rewriter
-                 .create<linalg::DepthwiseConv2DNhwcOp>(
-                     loc, linalgConvTy, ValueRange{input, weight},
-                     ValueRange{biasReshape}, strideAttr, dilationAttr)
-                 .getResult(0);
+      Value conv = rewriter
+                       .create<linalg::DepthwiseConv2DNhwcOp>(
+                           loc, linalgConvTy, ValueRange{input, weight},
+                           ValueRange{zeroTensor}, strideAttr, dilationAttr)
+                       .getResult(0);
+      Value convReshape = rewriter.create<tosa::ReshapeOp>(loc, resultTy, conv);
+      Value result =
+          rewriter
+              .create<linalg::GenericOp>(
+                  loc, resultTy, ValueRange({bias, convReshape}),
+                  biasInitTensor, indexingMaps,
+                  getNParallelLoopsAttrs(resultTy.getRank()),
+                  [&](OpBuilder &nestedBuilder, Location nestedLoc,
+                      ValueRange args) {
+                    Value added =
+                        nestedBuilder.create<AddFOp>(loc, args[0], args[1]);
+                    nestedBuilder.create<linalg::YieldOp>(nestedLoc, added);
+                  })
+              .getResult(0);
+      rewriter.replaceOp(op, result);
     } else {
       auto iZpVal = rewriter.create<ConstantOp>(loc, iZp);
       auto kZpVal = rewriter.create<ConstantOp>(loc, kZp);
-      conv =
+      Value conv =
           rewriter
               .create<linalg::DepthwiseConv2DNhwcQOp>(
                   loc, linalgConvTy, ValueRange{input, weight, iZpVal, kZpVal},
-                  ValueRange{biasReshape}, strideAttr, dilationAttr)
+                  ValueRange{zeroTensor}, strideAttr, dilationAttr)
               .getResult(0);
+      Value convReshape = rewriter.create<tosa::ReshapeOp>(loc, resultTy, conv);
+      Value result =
+          rewriter
+              .create<linalg::GenericOp>(
+                  loc, resultTy, ValueRange({bias, convReshape}),
+                  biasInitTensor, indexingMaps,
+                  getNParallelLoopsAttrs(resultTy.getRank()),
+                  [&](OpBuilder &nestedBuilder, Location nestedLoc,
+                      ValueRange args) {
+                    Value added =
+                        nestedBuilder.create<AddIOp>(loc, args[0], args[1]);
+                    nestedBuilder.create<linalg::YieldOp>(nestedLoc, added);
+                  })
+              .getResult(0);
+      rewriter.replaceOp(op, result);
     }
-
-    Value reshape = rewriter.create<tosa::ReshapeOp>(loc, resultTy, conv);
-    rewriter.replaceOp(op, reshape);
     return success();
   }
 };
@@ -2885,6 +2955,7 @@ void mlir::tosa::populateTosaToLinalgOnTensorsConversionPatterns(
       PointwiseConverter<tosa::LogicalLeftShiftOp>,
       PointwiseConverter<tosa::LogicalRightShiftOp>,
       PointwiseConverter<tosa::ArithmeticRightShiftOp>,
+      PointwiseConverter<tosa::ClzOp>,
       PointwiseConverter<tosa::SelectOp>,
       PointwiseConverter<tosa::GreaterOp>,
       PointwiseConverter<tosa::GreaterEqualOp>,

@@ -377,9 +377,15 @@ template <typename DerivedT> struct PassInfoMixin {
     static_assert(std::is_base_of<PassInfoMixin, DerivedT>::value,
                   "Must pass the derived type as the template argument!");
     StringRef Name = getTypeName<DerivedT>();
-    if (Name.startswith("llvm::"))
-      Name = Name.drop_front(strlen("llvm::"));
+    Name.consume_front("llvm::");
     return Name;
+  }
+
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName) {
+    StringRef ClassName = DerivedT::name();
+    auto PassName = MapClassName2PassName(ClassName);
+    OS << PassName;
   }
 };
 
@@ -478,6 +484,16 @@ public:
   PassManager &operator=(PassManager &&RHS) {
     Passes = std::move(RHS.Passes);
     return *this;
+  }
+
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName) {
+    for (unsigned Idx = 0, Size = Passes.size(); Idx != Size; ++Idx) {
+      auto *P = Passes[Idx].get();
+      P->printPipeline(OS, MapClassName2PassName);
+      if (Idx + 1 < Size)
+        OS << ",";
+    }
   }
 
   /// Run all of the passes in this manager over the given unit of IR.
@@ -1195,6 +1211,8 @@ public:
 
   /// Runs the function pass across every function in the module.
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName);
 
   static bool isRequired() { return true; }
 
@@ -1243,6 +1261,12 @@ struct RequireAnalysisPass
 
     return PreservedAnalyses::all();
   }
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName) {
+    auto ClassName = AnalysisT::name();
+    auto PassName = MapClassName2PassName(ClassName);
+    OS << "require<" << PassName << ">";
+  }
   static bool isRequired() { return true; }
 };
 
@@ -1262,6 +1286,12 @@ struct InvalidateAnalysisPass
     auto PA = PreservedAnalyses::all();
     PA.abandon<AnalysisT>();
     return PA;
+  }
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName) {
+    auto ClassName = AnalysisT::name();
+    auto PassName = MapClassName2PassName(ClassName);
+    OS << "invalidate<" << PassName << ">";
   }
 };
 
@@ -1310,6 +1340,13 @@ public:
       PI.runAfterPass(P, IR, IterPA);
     }
     return PA;
+  }
+
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName) {
+    OS << "repeat<" << Count << ">(";
+    P.printPipeline(OS, MapClassName2PassName);
+    OS << ")";
   }
 
 private:

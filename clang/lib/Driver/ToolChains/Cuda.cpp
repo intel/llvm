@@ -125,7 +125,9 @@ CudaInstallationDetector::CudaInstallationDetector(
   SmallVector<Candidate, 4> Candidates;
 
   // In decreasing order so we prefer newer versions to older versions.
-  std::initializer_list<const char *> Versions = {"8.0", "7.5", "7.0"};
+  std::initializer_list<const char *> Versions = {
+      "11.4", "11.3", "11.2", "11.1", "10.2", "10.1", "10.0",
+      "9.2",  "9.1",  "9.0",  "8.0",  "7.5",  "7.0"};
   auto &FS = D.getVFS();
 
   if (Args.hasArg(clang::driver::options::OPT_cuda_path_EQ)) {
@@ -187,18 +189,29 @@ CudaInstallationDetector::CudaInstallationDetector(
     if (CheckLibDevice && !FS.exists(LibDevicePath))
       continue;
 
-    // On Linux, we have both lib and lib64 directories, and we need to choose
-    // based on our triple.  On MacOS, we have only a lib directory.
-    //
-    // It's sufficient for our purposes to be flexible: If both lib and lib64
-    // exist, we choose whichever one matches our triple.  Otherwise, if only
-    // lib exists, we use it.
-    if (HostTriple.isArch64Bit() && FS.exists(InstallPath + "/lib64"))
-      LibPath = InstallPath + "/lib64";
-    else if (FS.exists(InstallPath + "/lib"))
-      LibPath = InstallPath + "/lib";
-    else
-      continue;
+    if (HostTriple.isOSWindows()) {
+      if (HostTriple.isArch64Bit() && FS.exists(InstallPath + "/lib/x64"))
+        LibPath = InstallPath + "/lib/x64";
+      else if (FS.exists(InstallPath + "/lib/Win32"))
+        LibPath = InstallPath + "/lib/Win32";
+      else if (FS.exists(InstallPath + "/lib"))
+        LibPath = InstallPath + "/lib";
+      else
+        continue;
+    } else {
+      // On Linux, we have both lib and lib64 directories, and we need to choose
+      // based on our triple.  On MacOS, we have only a lib directory.
+      //
+      // It's sufficient for our purposes to be flexible: If both lib and lib64
+      // exist, we choose whichever one matches our triple.  Otherwise, if only
+      // lib exists, we use it.
+      if (HostTriple.isArch64Bit() && FS.exists(InstallPath + "/lib64"))
+        LibPath = InstallPath + "/lib64";
+      else if (FS.exists(InstallPath + "/lib"))
+        LibPath = InstallPath + "/lib";
+      else
+        continue;
+    }
 
     Version = CudaVersion::UNKNOWN;
     if (auto CudaHFile = FS.getBufferForFile(InstallPath + "/include/cuda.h"))
@@ -703,12 +716,19 @@ void CudaToolChain::addClangTargetOptions(
       llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
       LibraryPaths.emplace_back(WithInstallPath.c_str());
 
+      // Select remangled libclc variant. 64-bit longs default, 32-bit longs on
+      // Windows
       std::string LibSpirvTargetName =
           "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc";
+      if (HostTC.getTriple().isOSWindows())
+        LibSpirvTargetName =
+            "remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc";
+
       for (StringRef LibraryPath : LibraryPaths) {
         SmallString<128> LibSpirvTargetFile(LibraryPath);
         llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
-        if (llvm::sys::fs::exists(LibSpirvTargetFile)) {
+        if (llvm::sys::fs::exists(LibSpirvTargetFile) ||
+            DriverArgs.hasArg(options::OPT__HASH_HASH_HASH)) {
           LibSpirvFile = std::string(LibSpirvTargetFile.str());
           break;
         }

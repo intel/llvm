@@ -132,7 +132,7 @@ enum SecType {
 };
 
 static inline std::string getSecName(SecType Type) {
-  switch (Type) {
+  switch ((int)Type) { // Avoid -Wcovered-switch-default
   case SecInValid:
     return "InvalidSection";
   case SecProfSummary:
@@ -149,8 +149,9 @@ static inline std::string getSecName(SecType Type) {
     return "CSNameTableSection";
   case SecLBRProfile:
     return "LBRProfileSection";
+  default:
+    return "UnknownSection";
   }
-  llvm_unreachable("A SecType has no name for output");
 }
 
 // Entry type of section header table used by SampleProfileExtBinaryBaseReader
@@ -208,6 +209,13 @@ enum class SecFuncMetadataFlags : uint32_t {
   SecFlagHasAttribute = (1 << 1)
 };
 
+enum class SecFuncOffsetFlags : uint32_t {
+  SecFlagInvalid = 0,
+  // Store function offsets in an order of contexts. The order ensures that
+  // callee contexts of a given context laid out next to it.
+  SecFlagOrdered = (1 << 0),
+};
+
 // Verify section specific flag is used for the correct section.
 template <class SecFlagType>
 static inline void verifySecFlag(SecType Type, SecFlagType Flag) {
@@ -228,6 +236,8 @@ static inline void verifySecFlag(SecType Type, SecFlagType Flag) {
     IsFlagLegal = std::is_same<SecFuncMetadataFlags, SecFlagType>();
     break;
   default:
+  case SecFuncOffsetTable:
+    IsFlagLegal = std::is_same<SecFuncOffsetFlags, SecFlagType>();
     break;
   }
   if (!IsFlagLegal)

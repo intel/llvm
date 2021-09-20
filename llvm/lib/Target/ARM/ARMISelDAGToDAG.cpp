@@ -1125,7 +1125,7 @@ bool ARMDAGToDAGISel::SelectThumbAddrModeRRSext(SDValue N, SDValue &Base,
                                                 SDValue &Offset) {
   if (N.getOpcode() != ISD::ADD && !CurDAG->isBaseWithConstantOffset(N)) {
     ConstantSDNode *NC = dyn_cast<ConstantSDNode>(N);
-    if (!NC || !NC->isNullValue())
+    if (!NC || !NC->isZero())
       return false;
 
     Base = Offset = N;
@@ -1822,8 +1822,11 @@ bool ARMDAGToDAGISel::tryMVEIndexedLoad(SDNode *N) {
   else
     return false;
 
-  SDValue Ops[] = {Base, NewOffset,
-                   CurDAG->getTargetConstant(Pred, SDLoc(N), MVT::i32), PredReg,
+  SDValue Ops[] = {Base,
+                   NewOffset,
+                   CurDAG->getTargetConstant(Pred, SDLoc(N), MVT::i32),
+                   PredReg,
+                   CurDAG->getRegister(0, MVT::i32), // tp_reg
                    Chain};
   SDNode *New = CurDAG->getMachineNode(Opcode, SDLoc(N), MVT::i32,
                                        N->getValueType(0), MVT::Other, Ops);
@@ -2529,6 +2532,7 @@ void ARMDAGToDAGISel::AddMVEPredicateToOps(SDValueVector &Ops, SDLoc Loc,
                                            SDValue PredicateMask) {
   Ops.push_back(CurDAG->getTargetConstant(ARMVCC::Then, Loc, MVT::i32));
   Ops.push_back(PredicateMask);
+  Ops.push_back(CurDAG->getRegister(0, MVT::i32)); // tp_reg
 }
 
 template <typename SDValueVector>
@@ -2537,6 +2541,7 @@ void ARMDAGToDAGISel::AddMVEPredicateToOps(SDValueVector &Ops, SDLoc Loc,
                                            SDValue Inactive) {
   Ops.push_back(CurDAG->getTargetConstant(ARMVCC::Then, Loc, MVT::i32));
   Ops.push_back(PredicateMask);
+  Ops.push_back(CurDAG->getRegister(0, MVT::i32)); // tp_reg
   Ops.push_back(Inactive);
 }
 
@@ -2544,6 +2549,7 @@ template <typename SDValueVector>
 void ARMDAGToDAGISel::AddEmptyMVEPredicateToOps(SDValueVector &Ops, SDLoc Loc) {
   Ops.push_back(CurDAG->getTargetConstant(ARMVCC::None, Loc, MVT::i32));
   Ops.push_back(CurDAG->getRegister(0, MVT::i32));
+  Ops.push_back(CurDAG->getRegister(0, MVT::i32)); // tp_reg
 }
 
 template <typename SDValueVector>
@@ -2551,6 +2557,7 @@ void ARMDAGToDAGISel::AddEmptyMVEPredicateToOps(SDValueVector &Ops, SDLoc Loc,
                                                 EVT InactiveTy) {
   Ops.push_back(CurDAG->getTargetConstant(ARMVCC::None, Loc, MVT::i32));
   Ops.push_back(CurDAG->getRegister(0, MVT::i32));
+  Ops.push_back(CurDAG->getRegister(0, MVT::i32)); // tp_reg
   Ops.push_back(SDValue(
       CurDAG->getMachineNode(TargetOpcode::IMPLICIT_DEF, Loc, InactiveTy), 0));
 }
@@ -3549,7 +3556,7 @@ void ARMDAGToDAGISel::SelectCMPZ(SDNode *N, bool &SwitchEQNEToPLMI) {
     return;
 
   SDValue Zero = N->getOperand(1);
-  if (!isa<ConstantSDNode>(Zero) || !cast<ConstantSDNode>(Zero)->isNullValue() ||
+  if (!isa<ConstantSDNode>(Zero) || !cast<ConstantSDNode>(Zero)->isZero() ||
       And->getOpcode() != ISD::AND)
     return;
   SDValue X = And.getOperand(0);
