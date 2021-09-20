@@ -248,7 +248,8 @@ public:
     event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    if (!is_host()) {
+    if (!is_host() && get_backend() != backend::cuda &&
+        get_backend() != backend::hip) {
       auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
                                           event &E) {
         if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
@@ -289,22 +290,26 @@ public:
     event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
-                           bool IsKernel, bool KernelUsesAssert, event &E) {
-      if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-          KernelUsesAssert) {
-        // __devicelib_assert_fail isn't supported by Device-side Runtime
-        // Linking against fallback impl of __devicelib_assert_fail is performed
-        // by program manager class
-        submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr, CodeLoc);
-      }
-    };
+    if (get_backend() != backend::cuda && get_backend() != backend::hip) {
+      auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
+                             bool IsKernel, bool KernelUsesAssert, event &E) {
+        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+            KernelUsesAssert) {
+          // __devicelib_assert_fail isn't supported by Device-side Runtime
+          // Linking against fallback impl of __devicelib_assert_fail is
+          // performed by program manager class
+          submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr,
+                              CodeLoc);
+        }
+      };
 
-    Event =
-        submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc, PostProcess);
-#else
-    Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+      Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
+                                          PostProcess);
+    } else
 #endif // __SYCL_USE_FALLBACK_ASSERT
+    {
+      Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+    }
 
     return Event;
   }
