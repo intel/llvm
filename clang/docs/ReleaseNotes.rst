@@ -71,7 +71,16 @@ Deprecated Compiler Flags
 Modified Compiler Flags
 -----------------------
 
-- ...
+- Support has been added for the following processors (``-mcpu`` identifiers in parentheses):
+
+  - RISC-V SiFive E20 (``sifive-e20``).
+  - RISC-V SiFive E21 (``sifive-e21``).
+  - RISC-V SiFive E24 (``sifive-e24``).
+  - RISC-V SiFive E34 (``sifive-e34``).
+  - RISC-V SiFive S21 (``sifive-s21``).
+  - RISC-V SiFive S51 (``sifive-s51``).
+  - RISC-V SiFive S54 (``sifive-s54``).
+  - RISC-V SiFive S76 (``sifive-s76``).
 
 Removed Compiler Flags
 -------------------------
@@ -145,7 +154,8 @@ ABI Changes in Clang
 OpenMP Support in Clang
 -----------------------
 
-- ...
+- ``clang-nvlink-wrapper`` tool introduced to support linking of cubin files archived in an archive. See :doc:`ClangNvlinkWrapper`.
+
 
 CUDA Support in Clang
 ---------------------

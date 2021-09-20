@@ -17,6 +17,7 @@
 class TestKernel1;
 class TestKernel2;
 class TestKernel3;
+class ServiceKernel1;
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -57,6 +58,19 @@ template <> struct KernelInfo<TestKernel3> {
   static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 
+template <> struct KernelInfo<ServiceKernel1> {
+  static constexpr unsigned getNumParams() { return 0; }
+  static const kernel_param_desc_t &getParamDesc(int) {
+    static kernel_param_desc_t Dummy;
+    return Dummy;
+  }
+  static constexpr const char *getName() {
+    return "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1";
+  }
+  static constexpr bool isESIMD() { return false; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
+};
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
@@ -84,7 +98,9 @@ generateDefaultImage(std::initializer_list<std::string> Kernels) {
 
 static sycl::unittest::PiImage Imgs[2] = {
     generateDefaultImage({"KernelID_TestKernel1", "KernelID_TestKernel3"}),
-    generateDefaultImage({"KernelID_TestKernel2"})};
+    generateDefaultImage(
+        {"KernelID_TestKernel2",
+         "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1"})};
 static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 
 TEST(KernelID, AllProgramKernelIds) {
@@ -104,6 +120,20 @@ TEST(KernelID, AllProgramKernelIds) {
         std::find(AllKernelIDs.begin(), AllKernelIDs.end(), TestKernelID);
     EXPECT_NE(FoundKernelID, AllKernelIDs.end());
   }
+}
+
+TEST(KernelID, NoServiceKernelIds) {
+  const char *ServiceKernel1Name =
+      sycl::detail::KernelInfo<ServiceKernel1>::getName();
+
+  std::vector<sycl::kernel_id> AllKernelIDs = sycl::get_kernel_ids();
+
+  auto NoFoundServiceKernelID = std::none_of(
+      AllKernelIDs.begin(), AllKernelIDs.end(), [=](sycl::kernel_id KernelID) {
+        return strcmp(KernelID.get_name(), ServiceKernel1Name) == 0;
+      });
+
+  EXPECT_TRUE(NoFoundServiceKernelID);
 }
 
 TEST(KernelID, FreeKernelIDEqualsKernelBundleId) {
