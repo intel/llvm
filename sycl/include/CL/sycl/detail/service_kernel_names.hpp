@@ -8,8 +8,7 @@
 
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS(){
 namespace detail {
 namespace __sycl_service_kernel__ {
 
@@ -17,5 +16,5 @@ class AssertInfoCopier;
 
 } // namespace __sycl_service_kernel__
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

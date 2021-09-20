@@ -559,10 +559,11 @@ private:
   template <typename KernelName, typename KernelType, int Dims,
             typename LambdaArgType>
   void StoreLambda(KernelType KernelFunc) {
-    if (detail::isKernelLambdaCallableWithKernelHandler<KernelType,
-                                                        LambdaArgType>() &&
-        MIsHost) {
-      throw __sycl_ns::feature_not_supported(
+	  constexpr bool IsCallableWithKernelHandler =
+		  detail::isKernelLambdaCallableWithKernelHandler<KernelType,
+		  LambdaArgType>();
+	  if (IsCallableWithKernelHandler && MIsHost) {
+		  throw __sycl_ns::feature_not_supported(
           "kernel_handler is not yet supported by host device.",
           PI_INVALID_OPERATION);
     }

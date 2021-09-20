@@ -11,8 +11,7 @@
 #if __cplusplus >= 201703L
 #include <CL/sycl/detail/group_sort_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS() {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -96,6 +95,6 @@ public:
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 #endif // __cplusplus >=201703L

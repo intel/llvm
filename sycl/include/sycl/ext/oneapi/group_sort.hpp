@@ -19,8 +19,7 @@
 // define feature macro for group sorting algorithms
 #define SYCL_EXT_ONEAPI_GROUP_SORT 1
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS() {
 namespace ext {
 namespace oneapi {
 namespace detail {
@@ -140,6 +139,6 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
 
 } // namespace oneapi
 } // namespace ext
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 #endif // __cplusplus >=201703L
