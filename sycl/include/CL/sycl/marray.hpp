@@ -148,9 +148,9 @@ public:
   }
 
 #define __SYCL_BINOP_INTEGRAL(BINOP, OPASSIGN)                                 \
-  template <typename T = DataT>                                                \
-  friend typename std::enable_if<std::is_integral<T>::value, marray>           \
-  operator BINOP(const marray &Lhs, const marray &Rhs) {                       \
+  template <typename T = DataT,                                                \
+            typename = std::enable_if<std::is_integral<T>::value, marray>>     \
+  friend marray operator BINOP(const marray &Lhs, const marray &Rhs) {         \
     marray Ret;                                                                \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
       Ret[I] = Lhs[I] BINOP Rhs[I];                                            \
@@ -165,9 +165,9 @@ public:
   operator BINOP(const marray &Lhs, const T &Rhs) {                            \
     return Lhs BINOP marray(static_cast<DataT>(Rhs));                          \
   }                                                                            \
-  template <typename T = DataT>                                                \
-  friend typename std::enable_if<std::is_integral<T>::value, marray>           \
-      &operator OPASSIGN(marray &Lhs, const marray &Rhs) {                     \
+  template <typename T = DataT,                                                \
+            typename = std::enable_if<std::is_integral<T>::value, marray>>     \
+  friend marray &operator OPASSIGN(marray &Lhs, const marray &Rhs) {           \
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
   }                                                                            \

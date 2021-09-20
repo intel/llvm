@@ -81,6 +81,10 @@ public:
                                           const element_type &Y) {             \
     return X BINOP(value_type) Y;                                              \
   }                                                                            \
+  ESIMD_INLINE friend auto operator BINOP(const element_type &X,               \
+                                          const simd_view &Y) {                \
+    return (value_type)X BINOP Y;                                              \
+  }                                                                            \
   ESIMD_INLINE friend auto operator BINOP(const value_type &X,                 \
                                           const simd_view &Y) {                \
     using ComputeTy = detail::compute_type_t<value_type>;                      \
