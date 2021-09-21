@@ -464,12 +464,12 @@ public:
   }
 
   const device_image_plain *begin() const {
-    assert(!MDeviceImages.empty() && "MDeviceImages can't be empty");
-    // UB in case MDeviceImages is empty
-    return &MDeviceImages.front();
+    return MDeviceImages.data();
   }
 
-  const device_image_plain *end() const { return &MDeviceImages.back() + 1; }
+  const device_image_plain *end() const {
+    return MDeviceImages.data() + MDeviceImages.size();
+  }
 
   size_t size() const noexcept { return MDeviceImages.size(); }
 
