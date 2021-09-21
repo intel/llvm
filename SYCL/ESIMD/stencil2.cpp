@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
                   vin.select<WIDTH, 1>(GET_IDX(i + 10, 5)) * 0.02f;
 
               // predciate output
-              simd<ushort, WIDTH> p = (elm16 + h_pos * WIDTH) < DIM_SIZE - 10;
+              simd_mask<WIDTH> p = (elm16 + h_pos * WIDTH) < (DIM_SIZE - 10);
 
               simd<unsigned, WIDTH> elm16_off = elm16 * sizeof(float) + out_off;
               scatter<float, WIDTH>(outputMatrix, sum, elm16_off, p);

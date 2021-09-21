@@ -65,7 +65,7 @@ ESIMD_INLINE void cmk_write(ty *buf, uint32_t offset, simd<ty, size> v) {
 // Function bitonic_exchange{1,2,4,8} compares and swaps elements with
 // the particular strides
 ESIMD_INLINE simd<uint32_t, BASE_SZ>
-bitonic_exchange8(simd<uint32_t, BASE_SZ> A, simd<ushort, 32> flip) {
+bitonic_exchange8(simd<uint32_t, BASE_SZ> A, simd_mask<32> flip) {
   simd<uint32_t, BASE_SZ> B;
 #pragma unroll
   for (int i = 0; i < BASE_SZ; i += 32) {
@@ -80,7 +80,7 @@ bitonic_exchange8(simd<uint32_t, BASE_SZ> A, simd<ushort, 32> flip) {
 }
 
 ESIMD_INLINE simd<uint32_t, BASE_SZ>
-bitonic_exchange4(simd<uint32_t, BASE_SZ> A, simd<ushort, 32> flip) {
+bitonic_exchange4(simd<uint32_t, BASE_SZ> A, simd_mask<32> flip) {
   simd<uint32_t, BASE_SZ> B;
 #pragma unroll
   for (int i = 0; i < BASE_SZ; i += 32) {
@@ -109,7 +109,7 @@ bitonic_exchange4(simd<uint32_t, BASE_SZ> A, simd<ushort, 32> flip) {
 // each mov copies four 64-bit data, which is 4X SIMD efficiency
 // improvement over the straightforward implementation.
 ESIMD_INLINE simd<uint32_t, BASE_SZ>
-bitonic_exchange2(simd<uint32_t, BASE_SZ> A, simd<ushort, 32> flip) {
+bitonic_exchange2(simd<uint32_t, BASE_SZ> A, simd_mask<32> flip) {
   simd<uint32_t, BASE_SZ> B;
 #pragma unroll
   for (int i = 0; i < BASE_SZ; i += 32) {
@@ -124,7 +124,7 @@ bitonic_exchange2(simd<uint32_t, BASE_SZ> A, simd<ushort, 32> flip) {
 }
 
 ESIMD_INLINE simd<uint32_t, BASE_SZ>
-bitonic_exchange1(simd<uint32_t, BASE_SZ> A, simd<ushort, 32> flip) {
+bitonic_exchange1(simd<uint32_t, BASE_SZ> A, simd_mask<32> flip) {
   simd<uint32_t, BASE_SZ> B;
 #pragma unroll
   // each thread is handling 256-element chunk. Each iteration
@@ -219,8 +219,8 @@ ESIMD_INLINE void bitonic_merge(uint32_t offset, simd<uint32_t, BASE_SZ> &A,
   // similar to bitonic_exchange{1,2,4,8}.
 
   // exchange 8
-  simd<ushort, 32> flip13 = esimd_unpack_mask<32>(0xff00ff00); //(init_mask13);
-  simd<ushort, 32> flip14 = esimd_unpack_mask<32>(0x00ff00ff); //(init_mask14);
+  simd_mask<32> flip13 = esimd_unpack_mask<32>(0xff00ff00); //(init_mask13);
+  simd_mask<32> flip14 = esimd_unpack_mask<32>(0x00ff00ff); //(init_mask14);
   simd<uint32_t, BASE_SZ> B;
   for (int i = 0; i < BASE_SZ; i += 32) {
     B.select<8, 1>(i) = A.select<8, 1>(i + 8);
@@ -239,8 +239,8 @@ ESIMD_INLINE void bitonic_merge(uint32_t offset, simd<uint32_t, BASE_SZ> &A,
   }
 
   // exchange 4
-  simd<ushort, 32> flip15 = esimd_unpack_mask<32>(0xf0f0f0f0); //(init_mask15);
-  simd<ushort, 32> flip16 = esimd_unpack_mask<32>(0x0f0f0f0f); //(init_mask16);
+  simd_mask<32> flip15 = esimd_unpack_mask<32>(0xf0f0f0f0); //(init_mask15);
+  simd_mask<32> flip16 = esimd_unpack_mask<32>(0x0f0f0f0f); //(init_mask16);
 #pragma unroll
   for (int i = 0; i < BASE_SZ; i += 32) {
     auto MA = A.select<32, 1>(i).bit_cast_view<uint32_t, 4, 8>();
@@ -259,8 +259,8 @@ ESIMD_INLINE void bitonic_merge(uint32_t offset, simd<uint32_t, BASE_SZ> &A,
   }
 
   // exchange 2
-  simd<ushort, 32> flip17 = esimd_unpack_mask<32>(0xcccccccc); //(init_mask17);
-  simd<ushort, 32> flip18 = esimd_unpack_mask<32>(0x33333333); //(init_mask18);
+  simd_mask<32> flip17 = esimd_unpack_mask<32>(0xcccccccc); //(init_mask17);
+  simd_mask<32> flip18 = esimd_unpack_mask<32>(0x33333333); //(init_mask18);
 #pragma unroll
   for (int i = 0; i < BASE_SZ; i += 32) {
     auto MB = B.select<32, 1>(i).bit_cast_view<long long, 4, 4>();
@@ -279,8 +279,8 @@ ESIMD_INLINE void bitonic_merge(uint32_t offset, simd<uint32_t, BASE_SZ> &A,
                                    flip18);
   }
   // exchange 1
-  simd<ushort, 32> flip19 = esimd_unpack_mask<32>(0xaaaaaaaa); //(init_mask19);
-  simd<ushort, 32> flip20 = esimd_unpack_mask<32>(0x55555555); //(init_mask20);
+  simd_mask<32> flip19 = esimd_unpack_mask<32>(0xaaaaaaaa); //(init_mask19);
+  simd_mask<32> flip20 = esimd_unpack_mask<32>(0x55555555); //(init_mask20);
 #pragma unroll
   // Each iteration compares and swaps 2 32-element chunks
   for (int i = 0; i < BASE_SZ; i += 32) {
@@ -323,28 +323,28 @@ ESIMD_INLINE void cmk_bitonic_sort_256(uint32_t *buf1, uint32_t *buf2,
   simd<uint32_t, BASE_SZ> B;
   A = cmk_read<uint32_t, BASE_SZ>(buf1, offset);
 
-  simd<ushort, 32> flip1 = esimd_unpack_mask<32>(0x66666666); //(init_mask1);
+  simd_mask<32> flip1 = esimd_unpack_mask<32>(0x66666666); //(init_mask1);
 
   simd<unsigned short, 32> mask;
   // stage 0
   B = bitonic_exchange1(A, flip1);
   // stage 1
-  simd<ushort, 32> flip2 = esimd_unpack_mask<32>(0x3c3c3c3c); //(init_mask2);
-  simd<ushort, 32> flip3 = esimd_unpack_mask<32>(0x5a5a5a5a); //(init_mask3);
+  simd_mask<32> flip2 = esimd_unpack_mask<32>(0x3c3c3c3c); //(init_mask2);
+  simd_mask<32> flip3 = esimd_unpack_mask<32>(0x5a5a5a5a); //(init_mask3);
   A = bitonic_exchange2(B, flip2);
   B = bitonic_exchange1(A, flip3);
   // stage 2
-  simd<ushort, 32> flip4 = esimd_unpack_mask<32>(0x0ff00ff0); //(init_mask4);
-  simd<ushort, 32> flip5 = esimd_unpack_mask<32>(0x33cc33cc); //(init_mask5);
-  simd<ushort, 32> flip6 = esimd_unpack_mask<32>(0x55aa55aa); //(init_mask6);
+  simd_mask<32> flip4 = esimd_unpack_mask<32>(0x0ff00ff0); //(init_mask4);
+  simd_mask<32> flip5 = esimd_unpack_mask<32>(0x33cc33cc); //(init_mask5);
+  simd_mask<32> flip6 = esimd_unpack_mask<32>(0x55aa55aa); //(init_mask6);
   A = bitonic_exchange4(B, flip4);
   B = bitonic_exchange2(A, flip5);
   A = bitonic_exchange1(B, flip6);
   // stage 3
-  simd<ushort, 32> flip7 = esimd_unpack_mask<32>(0x00ffff00);  //(init_mask7);
-  simd<ushort, 32> flip8 = esimd_unpack_mask<32>(0x0f0ff0f0);  //(init_mask8);
-  simd<ushort, 32> flip9 = esimd_unpack_mask<32>(0x3333cccc);  //(init_mask9);
-  simd<ushort, 32> flip10 = esimd_unpack_mask<32>(0x5555aaaa); //(init_mask10);
+  simd_mask<32> flip7 = esimd_unpack_mask<32>(0x00ffff00);  //(init_mask7);
+  simd_mask<32> flip8 = esimd_unpack_mask<32>(0x0f0ff0f0);  //(init_mask8);
+  simd_mask<32> flip9 = esimd_unpack_mask<32>(0x3333cccc);  //(init_mask9);
+  simd_mask<32> flip10 = esimd_unpack_mask<32>(0x5555aaaa); //(init_mask10);
   B = bitonic_exchange8(A, flip7);
   A = bitonic_exchange4(B, flip8);
   B = bitonic_exchange2(A, flip9);

@@ -101,7 +101,7 @@ void cmk_sum_tuple_count(unsigned int *buf, unsigned int h_pos) {
       cnt_table.select<1, 1, TUPLE_SZ, 1>(1, 0);
 
   simd<unsigned, 8> voff(0, 1);        // 0, 1, 2, 3
-  simd<ushort, 8> p = voff < TUPLE_SZ; // predicate
+  simd_mask<8> p = voff < TUPLE_SZ;    // predicate
   voff = (voff + ((h_pos + 1) * PREFIX_ENTRIES * TUPLE_SZ - TUPLE_SZ)) *
          sizeof(unsigned);
   scatter<unsigned, 8>(buf, S.select<8, 1>(0), voff, p);

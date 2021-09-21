@@ -61,10 +61,10 @@ int main(void) {
             va.copy_from(A + i * VL);
             simd<int, OutputSize> vb;
 
-            vb.select<1, 0>(0) = reduce<int>(va, std::plus<>());
-            vb.select<1, 0>(1) = reduce<int>(va, std::multiplies<>());
-            vb.select<1, 0>(2) = hmax<int>(va);
-            vb.select<1, 0>(3) = hmin<int>(va);
+            vb[0] = reduce<int>(va, std::plus<>());
+            vb[1] = reduce<int>(va, std::multiplies<>());
+            vb[2] = hmax<int>(va);
+            vb[3] = hmin<int>(va);
 
             vb.copy_to(B + i * VL);
           });

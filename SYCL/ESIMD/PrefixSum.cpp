@@ -162,7 +162,7 @@ void cmk_acum_iterative(unsigned *buf, unsigned h_pos,
       cnt_table.select<1, 1, TUPLE_SZ, 1>(1, 0);
 
   simd<unsigned, 8> voff(0, 1);        // 0, 1, 2, 3
-  simd<ushort, 8> p = voff < TUPLE_SZ; // predicate
+  simd_mask<8> p = voff < TUPLE_SZ;    // predicate
   voff = (voff + (global_offset + stride_threads * TUPLE_SZ - TUPLE_SZ)) *
          sizeof(unsigned);
   scatter<unsigned, 8>(buf, S.select<8, 1>(0), voff, p);
@@ -182,7 +182,7 @@ void cmk_acum_final(unsigned *buf, unsigned h_pos, unsigned int stride_elems,
   simd<unsigned, TUPLE_SZ> prev = 0;
   for (unsigned i = 0; i < remaining; i += 32) {
 
-    simd<ushort, 32> p = elm32 < remaining;
+    simd_mask<32> p = elm32 < remaining;
 
     S = gather_rgba<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset,
                                                            p);

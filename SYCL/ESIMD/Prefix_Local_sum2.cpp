@@ -95,7 +95,7 @@ void cmk_acum_iterative(unsigned *buf, unsigned h_pos,
   simd<unsigned, 8> result = 0;
   result.select<TUPLE_SZ, 1>(0) = sum;
   simd<unsigned, 8> voff(0, 1);        // 0, 1, 2, 3
-  simd<ushort, 8> p = voff < TUPLE_SZ; // predicate
+  simd_mask<8> p = voff < TUPLE_SZ;    // predicate
   voff = (voff + (global_offset + stride_threads * TUPLE_SZ - TUPLE_SZ)) *
          sizeof(unsigned);
   scatter<unsigned, 8>(buf, result, voff, p);

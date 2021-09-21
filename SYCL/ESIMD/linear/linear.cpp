@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
             m += in.select<6, 1, 24, 1>(2, 6);
             m = m * 0.111f;
 
-            vout = vm;
+            vout = convert<unsigned char>(vm);
 
             media_block_store<unsigned char, 6, 24>(accOutput, h_pos * 24,
                                                     v_pos * 6, out);

@@ -311,9 +311,9 @@ int main(int argc, char *argv[]) {
                 int j = c / SIMD_SIZE;
                 int m = c & (SIMD_SIZE - 1);
 
-                xsum.row(j).select<1, 0>(m) += pointsXY.row(0)[k];
-                ysum.row(j).select<1, 0>(m) += pointsXY.row(1)[k];
-                npoints.row(j).select<1, 0>(m) += 1;
+                xsum.row(j).select<1, 1>(m) += pointsXY.row(0)[k];
+                ysum.row(j).select<1, 1>(m) += pointsXY.row(1)[k];
+                npoints.row(j).select<1, 1>(m) += 1;
               }
             }
             simd<unsigned int, SIMD_SIZE> offsets(0, sizeof(Accum4));
@@ -359,11 +359,11 @@ int main(int argc, char *argv[]) {
 
             simd<float, SIMD_SIZE> centroid(0);
             int num = reduce<int>(npoints, std::plus<>());
-            centroid.select<1, 0>(0) = reduce<float>(xsum, std::plus<>()) / num;
-            centroid.select<1, 0>(1) = reduce<float>(ysum, std::plus<>()) / num;
-            (centroid.bit_cast_view<int>()).select<1, 0>(2) = num;
+            centroid.select<1, 1>(0) = reduce<float>(xsum, std::plus<>()) / num;
+            centroid.select<1, 1>(1) = reduce<float>(ysum, std::plus<>()) / num;
+            (centroid.bit_cast_view<int>()).select<1, 1>(2) = num;
 
-            simd<ushort, SIMD_SIZE> mask(0);
+            simd_mask<SIMD_SIZE> mask(0);
             mask.select<3, 1>(0) = 1;
             int i = it.get_global_id(0) / SIMD_SIZE;
             int k = it.get_global_id(0) & (SIMD_SIZE - 1);

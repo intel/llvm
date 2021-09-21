@@ -61,7 +61,7 @@ ESIMD_INLINE void mandelbrot(ACC out_image, int ix, int iy, int crunch,
       mtemp += 1;
     } while ((mtemp < crunch) & (xx + yy < 4.0f));
 
-    m.select<1, 0>(lane) = mtemp;
+    m.select<1, 1>(lane) = mtemp;
 
   } // SIMT_END
 

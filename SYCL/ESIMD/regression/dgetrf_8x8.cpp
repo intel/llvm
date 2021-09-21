@@ -7,14 +7,10 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl -DUSE_REF %s -I%S/.. -o %t.ref.out
 // RUN: %clangxx -fsycl %s -I%S/.. -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.ref.out 3 2 1
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 3 2 1
+// RUN: %GPU_RUN_PLACEHOLDER %t.out 1
 //
-// This test checks the correctness of ESIMD program for batched LU
-// decomposition without pivoting. The program contains multiple branches
-// corresponding to LU input sizes; all internal functions are inlined.
+// Reduced version of dgetrf.cpp - M = 8, N = 8, single batch.
 //
 #include <CL/sycl.hpp>
 #include <math.h>
@@ -61,98 +57,33 @@ ESIMD_PRIVATE ESIMD_REGISTER(192) simd<double, 3 * 32 * 4> GRF;
 
 template <int M, int N, int K> ESIMD_INLINE void dgetrfnp_panel(int64_t *info) {
   auto a = V(GRF, M * N, 0);
-
-  if (K % 8) {
-    simd_mask<8> mask = 1;
-    for (int k = 0; k < K % 8; k++)
-      V1(mask, k) = 0;
-
-    for (int k = K % 8; k < 8 && k < K + N; k++) {
-      auto ak = V(a, M, (k - K % 8) * M);
-      auto ak0 = V8(ak, K & (-8));
+  for (int kk = 0; kk < N; kk += 8) {
+    simd<uint16_t, 8> mask = 1;
+    for (int k = 0; k < 8 && kk + k < N; k++) {
+      auto ak = V(a, M, (kk + k) * M);
+      auto ak0 = V8(ak, kk + K);
 
       V1(mask, k) = 0;
       if (ak0[k] != 0.0) {
         // scal
         double temp = 1.0 / ak0[k];
         ak0.merge(ak0 * temp, mask);
-        for (int i = 8 + K & (-8); i < M; i += 8) {
+        for (int i = 8 + K + kk; i < M; i += 8) {
           V8(ak, i) *= temp;
         }
 
         // update
-        for (int j = k - K % 8 + 1; j < N; j++) {
+        for (int j = kk + k + 1; j < N; j++) {
           auto aj = V(a, M, j * M);
-          auto aj0 = V8(aj, K & (-8));
+          auto aj0 = V8(aj, kk + K);
           auto temp = BCAST8(aj0, k);
           aj0.merge(aj0 - temp * ak0, aj0, mask);
-          for (int i = 8 + K & (-8); i < M; i += 8) {
+          for (int i = 8 + K + kk; i < M; i += 8) {
             V8(aj, i) -= temp * V8(ak, i);
           }
         }
       } else if (*info == 0) {
-        *info = K + k - K % 8 + 1;
-      }
-    }
-    for (int kk = 0; kk < N + K % 8 - 8; kk += 8) {
-      mask = 1;
-      for (int k = 0; k < 8 && kk + k < N + K % 8 - 8; k++) {
-        auto ak = V(a, M, (kk + k + 8 - K % 8) * M);
-        auto ak0 = V8(ak, kk + (K & (-8)) + 8);
-
-        V1(mask, k) = 0;
-        if (ak0[k] != 0.0) {
-          // scal
-          double temp = 1.0 / ak0[k];
-          ak0.merge(ak0 * temp, mask);
-          for (int i = 16 + (K & (-8)) + kk; i < M; i += 8) {
-            V8(ak, i) *= temp;
-          }
-
-          // update
-          for (int j = kk + k + 8 - K % 8 + 1; j < N; j++) {
-            auto aj = V(a, M, j * M);
-            auto aj0 = V8(aj, kk + (K & (-8)) + 8);
-            auto temp = BCAST8(aj0, k);
-            aj0.merge(aj0 - temp * ak0, aj0, mask);
-            for (int i = 16 + (K & (-8)) + kk; i < M; i += 8) {
-              V8(aj, i) -= temp * V8(ak, i);
-            }
-          }
-        } else if (*info == 0) {
-          *info = K + kk + k + 8 - K % 8 + 1;
-        }
-      }
-    }
-  } else {
-    for (int kk = 0; kk < N; kk += 8) {
-      simd<uint16_t, 8> mask = 1;
-      for (int k = 0; k < 8 && kk + k < N; k++) {
-        auto ak = V(a, M, (kk + k) * M);
-        auto ak0 = V8(ak, kk + K);
-
-        V1(mask, k) = 0;
-        if (ak0[k] != 0.0) {
-          // scal
-          double temp = 1.0 / ak0[k];
-          ak0.merge(ak0 * temp, mask);
-          for (int i = 8 + K + kk; i < M; i += 8) {
-            V8(ak, i) *= temp;
-          }
-
-          // update
-          for (int j = kk + k + 1; j < N; j++) {
-            auto aj = V(a, M, j * M);
-            auto aj0 = V8(aj, kk + K);
-            auto temp = BCAST8(aj0, k);
-            aj0.merge(aj0 - temp * ak0, aj0, mask);
-            for (int i = 8 + K + kk; i < M; i += 8) {
-              V8(aj, i) -= temp * V8(ak, i);
-            }
-          }
-        } else if (*info == 0) {
-          *info = K + kk + k + 1;
-        }
+        *info = K + kk + k + 1;
       }
     }
   }
@@ -176,40 +107,6 @@ ESIMD_INLINE void dgetrfnp_left_step(double *a, int64_t lda, int64_t *info) {
       data.copy_from(a1 + i);
       V8(p1, j * M + i) = data;
     }
-
-  if (K > 0) {
-    // (trsm) solve F*X=U for X, X overwrites U
-    // (gemm) update T=T-L*U
-    for (int kk = 0; kk < K; kk += 8) {
-      simd<uint16_t, 8> mask = 1;
-      simd<double, 8> a0k, aik;
-      for (k = 0; k < 8 && kk + k < K; k++) {
-        V1(mask, k) = 0;
-        simd<double, 8> data;
-        data.copy_from(a + kk + (kk + k) * lda);
-        V8(a0k, 0) = data;
-        for (j = 0; j < N; j++) {
-          auto aj = V(p1, M, j * M);
-          auto aj0 = V8(aj, kk);
-          auto temp = BCAST8(aj0, k);
-          aj0.merge(aj0 - temp * a0k, aj0, mask);
-        }
-      }
-      for (k = 0; k < 8 && kk + k < K; k++) {
-        for (i = kk + 8; i < M; i += 8) {
-          simd<double, 8> data;
-          data.copy_from(a + i + (kk + k) * lda);
-          V8(aik, 0) = data;
-          for (j = 0; j < N; j++) {
-            auto aj = V(p1, M, j * M);
-            auto aj0 = V8(aj, kk);
-            auto temp = BCAST8(aj0, k);
-            V8(aj, i) -= temp * aik;
-          }
-        }
-      }
-    }
-  }
   // (getrf) factorize T=P*L*U
   dgetrfnp_panel<M, N, K>(info);
 
@@ -221,84 +118,10 @@ ESIMD_INLINE void dgetrfnp_left_step(double *a, int64_t lda, int64_t *info) {
     }
 }
 
-ESIMD_INLINE void dgetrfnp_esimd(int64_t m, int64_t n, double *a, int64_t lda,
-                                 int64_t *ipiv, int64_t *info) {
+ESIMD_INLINE void dgetrfnp_esimd_8x8(double *a, int64_t lda, int64_t *ipiv,
+                                     int64_t *info) {
   *info = 0;
-#if defined(USE_REF)
-  int i, j, k;
-  for (k = 0; k < MIN(m, n); k++) {
-    double temp = a[k + k * lda];
-    if (!(*info) && temp == 0.0)
-      *info = k + 1;
-    // scal
-    temp = 1.0 / temp;
-    for (i = k + 1; i < m; i++) {
-      a[i + k * lda] *= temp;
-    }
-    // update
-    for (j = k + 1; j < n; j++) {
-      temp = a[k + j * lda];
-      for (i = k + 1; i < m; i++) {
-        a[i + j * lda] -= temp * a[i + k * lda];
-      }
-    }
-  }
-#else  // defined(USE_REF)
-  if (m == 8) {
-    if (n == 8)
-      dgetrfnp_left_step<8, 8, 0>(a, lda, info);
-  } else if (m == 16) {
-    if (n == 8)
-      dgetrfnp_left_step<16, 8, 0>(a, lda, info);
-    else if (n == 16)
-      dgetrfnp_left_step<16, 16, 0>(a, lda, info);
-  } else if (m == 32) {
-    if (n == 8)
-      dgetrfnp_left_step<32, 8, 0>(a, lda, info);
-    else if (n == 12)
-      dgetrfnp_left_step<32, 12, 0>(a, lda, info);
-    else if (n == 16) {
-      dgetrfnp_left_step<32, 8, 0>(a, lda, info);
-      dgetrfnp_left_step<32, 8, 8>(a, lda, info);
-    } else if (n == 24) {
-      dgetrfnp_left_step<32, 8, 0>(a, lda, info);
-      dgetrfnp_left_step<32, 8, 8>(a, lda, info);
-      dgetrfnp_left_step<32, 8, 16>(a, lda, info);
-    } else if (n == 32) {
-      dgetrfnp_left_step<32, 8, 0>(a, lda, info);
-      dgetrfnp_left_step<32, 8, 8>(a, lda, info);
-      dgetrfnp_left_step<32, 8, 16>(a, lda, info);
-      dgetrfnp_left_step<32, 8, 24>(a, lda, info);
-    }
-  } else if (m == 64) {
-    if (n == 6)
-      dgetrfnp_left_step<64, 6, 0>(a, lda, info);
-    else if (n == 16) {
-      dgetrfnp_left_step<64, 6, 0>(a, lda, info);
-      dgetrfnp_left_step<64, 6, 6>(a, lda, info);
-      dgetrfnp_left_step<64, 4, 12>(a, lda, info);
-    } else if (n == 32) {
-      dgetrfnp_left_step<64, 6, 0>(a, lda, info);
-      dgetrfnp_left_step<64, 6, 6>(a, lda, info);
-      dgetrfnp_left_step<64, 6, 12>(a, lda, info);
-      dgetrfnp_left_step<64, 6, 18>(a, lda, info);
-      dgetrfnp_left_step<64, 6, 24>(a, lda, info);
-      dgetrfnp_left_step<64, 2, 30>(a, lda, info);
-    } else if (n == 64) {
-      dgetrfnp_left_step<64, 6, 0>(a, lda, info);
-      dgetrfnp_left_step<64, 6, 6>(a, lda, info);
-      dgetrfnp_left_step<64, 6, 12>(a, lda, info);
-      dgetrfnp_left_step<64, 6, 18>(a, lda, info);
-      dgetrfnp_left_step<64, 6, 24>(a, lda, info);
-      dgetrfnp_left_step<64, 6, 30>(a, lda, info);
-      dgetrfnp_left_step<64, 6, 36>(a, lda, info);
-      dgetrfnp_left_step<64, 6, 42>(a, lda, info);
-      dgetrfnp_left_step<64, 6, 48>(a, lda, info);
-      dgetrfnp_left_step<64, 6, 54>(a, lda, info);
-      dgetrfnp_left_step<64, 4, 60>(a, lda, info);
-    }
-  }
-#endif // defined(USE_REF)
+  dgetrfnp_left_step<8, 8, 0>(a, lda, info);
 }
 
 void dgetrfnp_batch_strided_c(int64_t m, int64_t n, double *a, int64_t lda,
@@ -334,8 +157,8 @@ void dgetrfnp_batch_strided_c(int64_t m, int64_t n, double *a, int64_t lda,
       cgh.parallel_for<class dgetrfnp_batch_strided>(
           range, [=](nd_item<1> id) SYCL_ESIMD_KERNEL {
             int i = id.get_global_id(0);
-            dgetrfnp_esimd(m, n, &a_gpu[i * stride_a], lda,
-                           &ipiv_gpu[i * stride_ipiv], &info_gpu[i]);
+            dgetrfnp_esimd_8x8(&a_gpu[i * stride_a], lda,
+                               &ipiv_gpu[i * stride_ipiv], &info_gpu[i]);
           });
     });
     event.wait();
@@ -450,7 +273,7 @@ void dgetrfnp_batch_strided_c(int64_t m, int64_t n, double *a, int64_t lda,
 
 int main(int argc, char *argv[]) {
   int exit_status = 0;
-  int64_t m = 64, n = 64, lda = 64;
+  constexpr int64_t m = 8, n = 8, lda = 8;
   int64_t stride_a = lda * n, stride_ipiv = n;
 
   srand(1);
