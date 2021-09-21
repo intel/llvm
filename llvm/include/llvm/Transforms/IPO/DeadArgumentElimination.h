@@ -23,6 +23,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/Constants.h"
 #include <map>
 #include <set>
 #include <string>
@@ -143,6 +144,44 @@ private:
   bool RemoveDeadStuffFromFunction(Function *F);
   bool DeleteDeadVarargs(Function &Fn);
   bool RemoveDeadArgumentsFromCallers(Function &Fn);
+
+  void UpdateNVPTXMetadata(Module &M, Function *F, Function *NF);
+  llvm::DenseSet<Function *> NVPTXKernelSet;
+
+  bool IsNVPTXKernel(const Function *F) {return NVPTXKernelSet.contains(F);};
+
+  void BuildNVPTXKernelSet(const Module &M) {
+
+    auto NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
+    if(!NvvmMetadata) return;
+
+    for (auto MetadataNode : NvvmMetadata->operands()) {
+      if (MetadataNode->getNumOperands() != 3)
+        continue;
+
+      // NVPTX identifies kernel entry points using metadata nodes of the form:
+      //   !X = !{<function>, !"kernel", i32 1}
+      auto Type = dyn_cast<MDString>(MetadataNode->getOperand(1));
+      // Only process kernel entry points.
+      if (!Type || Type->getString() != "kernel")
+        continue;
+
+      // Get a pointer to the entry point function from the metadata.
+      const auto &FuncOperand = MetadataNode->getOperand(0);
+      if (!FuncOperand)
+        continue;
+      auto FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand);
+      if (!FuncConstant)
+        continue;
+      auto Func = dyn_cast<Function>(FuncConstant->getValue());
+      if (!Func)
+        continue;
+
+      if(mdconst::dyn_extract<ConstantInt>(MetadataNode->getOperand(2))->getValue() == 1)
+        NVPTXKernelSet.insert(Func);
+    }
+    return;
+  }
 };
 
 class DeadArgumentEliminationSYCLPass

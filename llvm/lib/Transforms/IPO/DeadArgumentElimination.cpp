@@ -572,11 +572,13 @@ void DeadArgumentEliminationPass::SurveyFunction(const Function &F) {
                       << " has musttail calls\n");
   }
 
+  // TODO rename things here
   // We can't modify arguments if the function is not local
   // but we can do so for SPIR kernel function in SYCL environment.
   // DAE is not currently supported for ESIMD kernels.
   bool FuncIsSpirNonEsimdKernel =
-      CheckSpirKernels && F.getCallingConv() == CallingConv::SPIR_KERNEL &&
+      CheckSpirKernels &&
+      (F.getCallingConv() == CallingConv::SPIR_KERNEL || IsNVPTXKernel(&F)) &&
       !F.getMetadata("sycl_explicit_simd");
   bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSpirNonEsimdKernel;
   if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
@@ -1131,6 +1133,8 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
   for (auto MD : MDs)
     NF->addMetadata(MD.first, *MD.second);
 
+  if(IsNVPTXKernel(F)) UpdateNVPTXMetadata(*(F->getParent()), F, NF);
+
   // Now that the old function is dead, delete it.
   F->eraseFromParent();
 
@@ -1140,6 +1144,8 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
 PreservedAnalyses DeadArgumentEliminationPass::run(Module &M,
                                                    ModuleAnalysisManager &) {
   bool Changed = false;
+
+  BuildNVPTXKernelSet(M);
 
   // First pass: Do a simple check to see if any functions can have their "..."
   // removed.  We can do this if they never call va_start.  This loop cannot be
@@ -1177,4 +1183,27 @@ PreservedAnalyses DeadArgumentEliminationPass::run(Module &M,
   if (!Changed)
     return PreservedAnalyses::all();
   return PreservedAnalyses::none();
+}
+
+void DeadArgumentEliminationPass::UpdateNVPTXMetadata(Module &M,
+                                                      Function *F,
+                                                      Function *NF) {
+
+  auto *NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
+  if (!NvvmMetadata)
+    return;
+
+  for (auto* MetadataNode : NvvmMetadata->operands()) {
+    const auto &FuncOperand = MetadataNode->getOperand(0);
+    if (!FuncOperand)
+      continue;
+    auto FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand);
+    if (!FuncConstant)
+      continue;
+    auto *Func = dyn_cast<Function>(FuncConstant->getValue());
+    if (Func != F)
+      continue;
+    // Update the metadata with the new function
+    MetadataNode->replaceOperandWith(0, llvm::ConstantAsMetadata::get(NF));
+  }
 }
