@@ -126,6 +126,9 @@ ESIMD_INLINE simd<To, N> convert(const simd<From, N> &val) {
 #undef __ESIMD_DEF_RELOP
 #undef __ESIMD_DEF_BITWISE_OP
 
+/// Represents a simd mask.
+template <int N> using simd_mask = detail::simd_mask_type<N>;
+
 } // namespace esimd
 } // namespace experimental
 } // namespace intel

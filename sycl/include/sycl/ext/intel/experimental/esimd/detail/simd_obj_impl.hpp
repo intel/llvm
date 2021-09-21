@@ -22,10 +22,6 @@ namespace ext {
 namespace intel {
 namespace experimental {
 namespace esimd {
-
-/// Represents a simd mask.
-template <int N> using simd_mask = detail::simd_mask_type<N>;
-
 namespace detail {
 
 /// The simd_obj_impl vector class.
@@ -200,12 +196,12 @@ public:
   }
 
   /// Whole region update with predicates.
-  void merge(const Derived &Val, const simd_mask<N> &Mask) {
+  void merge(const Derived &Val, const simd_mask_type<N> &Mask) {
     set(__esimd_wrregion<Ty, N, N, 0 /*VS*/, N, 1, N>(data(), Val.data(), 0,
                                                       Mask.data()));
   }
 
-  void merge(const Derived &Val1, Derived Val2, const simd_mask<N> &Mask) {
+  void merge(const Derived &Val1, Derived Val2, const simd_mask_type<N> &Mask) {
     Val2.merge(Val1, Mask);
     set(Val2.data());
   }
@@ -308,7 +304,7 @@ public:
   template <int Size>
   void iupdate(const simd<uint16_t, Size> &Indices,
                const resize_a_simd_type_t<Derived, Size> &Val,
-               const simd_mask<Size> &Mask) {
+               const simd_mask_type<Size> &Mask) {
     vector_type_t<uint16_t, Size> Offsets = Indices.data() * sizeof(Ty);
     set(__esimd_wrindirect<Ty, N, Size>(data(), Val.data(), Offsets,
                                         Mask.data()));
@@ -541,10 +537,11 @@ public:
 
   /// Unary logical negation operator, available in all subclasses.
   template <class T1 = Ty, class = std::enable_if_t<std::is_integral_v<T1>>>
-  simd_mask<N> operator!() {
-    using MaskVecT = typename simd_mask<N>::vector_type;
+  simd_mask_type<N> operator!() {
+    using MaskVecT = typename simd_mask_type<N>::vector_type;
     auto R = data() == vector_type(0);
-    return simd_mask<N>{__builtin_convertvector(R, MaskVecT) & MaskVecT(1)};
+    return simd_mask_type<N>{__builtin_convertvector(R, MaskVecT) &
+                             MaskVecT(1)};
   }
 
 #define __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN(BINOP, OPASSIGN, COND)              \
