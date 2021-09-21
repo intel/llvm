@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <sycl/ext/intel/experimental/esimd/detail/simd_mask_impl.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/simd_obj_impl.hpp>
 
 #include <sycl/ext/intel/experimental/esimd/detail/intrin.hpp>
@@ -21,10 +22,6 @@
 #ifndef __SYCL_DEVICE_ONLY__
 #include <iostream>
 #endif // __SYCL_DEVICE_ONLY__
-
-#define __ESIMD_MASK_DEPRECATION_MSG                                           \
-  "Use of 'simd' class to represent predicate or mask is deprecated. Use "     \
-  "'simd_mask' instead."
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -125,84 +122,6 @@ ESIMD_INLINE simd<To, N> convert(const simd<From, N> &val) {
   else
     return __builtin_convertvector(val.data(), detail::vector_type_t<To, N>);
 }
-
-namespace detail {
-template <typename T, int N>
-class simd_mask_impl
-    : public detail::simd_obj_impl<
-          T, N, simd_mask_impl<T, N>,
-          std::enable_if_t<std::is_same_v<detail::simd_mask_elem_type, T>>> {
-  using base_type = detail::simd_obj_impl<T, N, simd_mask_impl<T, N>>;
-
-public:
-  using element_type = T;
-  using vector_type = typename base_type::vector_type;
-  static_assert(std::is_same_v<vector_type, simd_mask_storage_t<N>> &&
-                "mask impl type mismatch");
-
-  simd_mask_impl() = default;
-  simd_mask_impl(const simd_mask_impl &other) : base_type(other) {}
-
-  /// Broadcast constructor with conversion.
-  template <class T1, class = std::enable_if_t<std::is_integral_v<T1>>>
-  simd_mask_impl(T1 Val) : base_type((T)Val) {}
-
-  /// Implicit conversion constructor from a raw vector object.
-  // TODO this should be made inaccessible from user code.
-  simd_mask_impl(const vector_type &Val) : base_type(Val) {}
-
-  /// Initializer list constructor.
-  __SYCL_DEPRECATED("use constructor from array, e.g: simd_mask<3> x({0,1,1});")
-  simd_mask_impl(std::initializer_list<T> Ilist) : base_type(Ilist) {}
-
-  /// Construct from an array. To allow e.g. simd_mask<N> m({1,0,0,1,...}).
-  template <int N1, class = std::enable_if_t<N1 == N>>
-  simd_mask_impl(const element_type(&&Arr)[N1]) {
-    base_type::template init_from_array<N1>(std::move(Arr));
-  }
-
-  /// Implicit conversion from simd.
-  __SYCL_DEPRECATED(__ESIMD_MASK_DEPRECATION_MSG)
-  simd_mask_impl(const simd<T, N> &Val) : base_type(Val.data()) {}
-
-private:
-  static inline constexpr bool mask_size_ok_for_mem_io() {
-    constexpr unsigned Sz = sizeof(element_type) * N;
-    return (Sz >= detail::OperandSize::OWORD) &&
-           (Sz % detail::OperandSize::OWORD == 0) &&
-           detail::isPowerOf2(Sz / detail::OperandSize::OWORD) &&
-           (Sz <= 8 * detail::OperandSize::OWORD);
-  }
-
-public:
-  // TODO add accessor-based mask memory operations.
-
-  /// Load constructor.
-  // Implementation note: use SFINAE to avoid overload ambiguity:
-  // 1) with 'simd_mask(element_type v)' in 'simd_mask<N> m(0)'
-  // 2) with 'simd_mask(const T1(&&arr)[N])' in simd_mask<N>
-  // m((element_type*)p)'
-  template <typename T1,
-            typename = std::enable_if_t<mask_size_ok_for_mem_io() &&
-                                        std::is_same_v<T1, element_type>>>
-  explicit simd_mask_impl(const T1 *ptr) {
-    base_type::copy_from(ptr);
-  }
-
-  /// Broadcast assignment operator to support simd_mask_impl<N> n = a > b;
-  simd_mask_impl &operator=(element_type val) noexcept {
-    base_type::set(val);
-    return *this;
-  }
-
-  template <class T1 = simd_mask_impl,
-            class = std::enable_if_t<T1::length == 1>>
-  operator bool() {
-    return base_type::data()[0] != 0;
-  }
-};
-
-} // namespace detail
 
 #undef __ESIMD_DEF_RELOP
 #undef __ESIMD_DEF_BITWISE_OP
