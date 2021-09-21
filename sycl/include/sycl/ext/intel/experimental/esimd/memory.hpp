@@ -317,7 +317,7 @@ ESIMD_INLINE ESIMD_NODEBUG
                                            !std::is_pointer<AccessorTy>::value,
                                        void>
     scatter(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
-            uint32_t glob_offset = 0, simd_mask<N> pred = simd_mask<N>{1}) {
+            uint32_t glob_offset = 0, simd_mask<N> pred = simd_mask<N>(1)) {
 
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
@@ -362,7 +362,7 @@ ESIMD_INLINE ESIMD_NODEBUG
 template <typename T, typename AccessorTy, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 ESIMD_INLINE ESIMD_NODEBUG T scalar_load(AccessorTy acc, uint32_t offset) {
-  const simd<T, 1> Res = gather<T>(acc, simd<uint32_t, 1>{offset});
+  const simd<T, 1> Res = gather<T>(acc, simd<uint32_t, 1>(offset));
   return Res[0];
 }
 
@@ -372,7 +372,7 @@ template <typename T, typename AccessorTy, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 ESIMD_INLINE ESIMD_NODEBUG void scalar_store(AccessorTy acc, uint32_t offset,
                                              T val) {
-  scatter<T>(acc, simd<T, 1>{val}, simd<uint32_t, 1>{offset});
+  scatter<T>(acc, simd<T, 1>(val), simd<uint32_t, 1>(offset));
 }
 
 /// Gathering read for the given starting pointer \p p and \p offsets.

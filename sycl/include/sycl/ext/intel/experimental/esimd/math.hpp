@@ -693,17 +693,17 @@ esimd_max(simd<T, SZ> src0, simd<T, SZ> src1, int flag = saturation_off) {
   if constexpr (std::is_floating_point<T>::value) {
     auto Result = __esimd_fmax<T, SZ>(src0.data(), src1.data());
     Result = (flag == saturation_off) ? Result : __esimd_satf<T, T, SZ>(Result);
-    return simd<T, SZ>{Result};
+    return simd<T, SZ>(Result);
   } else if constexpr (std::is_unsigned<T>::value) {
     auto Result = __esimd_umax<T, SZ>(src0.data(), src1.data());
     Result = (flag == saturation_off) ? Result
                                       : __esimd_uutrunc_sat<T, T, SZ>(Result);
-    return simd<T, SZ>{Result};
+    return simd<T, SZ>(Result);
   } else {
     auto Result = __esimd_smax<T, SZ>(src0.data(), src1.data());
     Result = (flag == saturation_off) ? Result
                                       : __esimd_sstrunc_sat<T, T, SZ>(Result);
-    return simd<T, SZ>{Result};
+    return simd<T, SZ>(Result);
   }
 }
 
@@ -780,17 +780,17 @@ esimd_min(simd<T, SZ> src0, simd<T, SZ> src1, int flag = saturation_off) {
   if constexpr (std::is_floating_point<T>::value) {
     auto Result = __esimd_fmin<T, SZ>(src0.data(), src1.data());
     Result = (flag == saturation_off) ? Result : __esimd_satf<T, T, SZ>(Result);
-    return simd<T, SZ>{Result};
+    return simd<T, SZ>(Result);
   } else if constexpr (std::is_unsigned<T>::value) {
     auto Result = __esimd_umin<T, SZ>(src0.data(), src1.data());
     Result = (flag == saturation_off) ? Result
                                       : __esimd_uutrunc_sat<T, T, SZ>(Result);
-    return simd<T, SZ>{Result};
+    return simd<T, SZ>(Result);
   } else {
     auto Result = __esimd_smin<T, SZ>(src0.data(), src1.data());
     Result = (flag == saturation_off) ? Result
                                       : __esimd_sstrunc_sat<T, T, SZ>(Result);
-    return simd<T, SZ>{Result};
+    return simd<T, SZ>(Result);
   }
 }
 
