@@ -905,7 +905,7 @@ pi_result hip_piextGetDeviceFunctionPointer(pi_device device,
 
   hipFunction_t func;
   hipError_t ret = hipModuleGetFunction(&func, program->get(), func_name);
-  *function_pointer_ret = reinterpret_cast<pi_uint64>func;
+  *function_pointer_ret = reinterpret_cast<pi_uint64> func;
   pi_result retError = PI_SUCCESS;
 
   if (ret != hipSuccess && ret != hipErrorNotFound)
