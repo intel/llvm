@@ -94,6 +94,7 @@ set(files
   __algorithm/upper_bound.h
   __availability
   __bit_reference
+  __bit/bit_cast.h
   __bits
   __bsd_locale_defaults.h
   __bsd_locale_fallbacks.h
@@ -103,6 +104,7 @@ set(files
   __compare/common_comparison_category.h
   __compare/compare_three_way_result.h
   __compare/ordering.h
+  __compare/three_way_comparable.h
   __concepts/arithmetic.h
   __concepts/assignable.h
   __concepts/boolean_testable.h
@@ -134,6 +136,8 @@ set(files
   __format/format_error.h
   __format/format_fwd.h
   __format/format_parse_context.h
+  __format/format_string.h
+  __format/formatter.h
   __function_like.h
   __functional_base
   __functional/binary_function.h

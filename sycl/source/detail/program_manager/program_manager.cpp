@@ -1064,6 +1064,16 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           auto Result = KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
           (void)Result;
           assert(Result.second && "Kernel sets are not disjoint");
+
+          // Skip creating unique kernel ID if it is a service kernel.
+          // SYCL service kernels are identified by having
+          // __sycl_service_kernel__ in the mangled name, primarily as part of
+          // the namespace of the name type.
+          if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
+            m_ServiceKernels.insert(EntriesIt->name);
+            continue;
+          }
+
           // ... and create a unique kernel ID for the entry
           std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
               std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
@@ -1352,7 +1362,6 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
       if (!compatibleWithDevice(BinImage, Dev))
         continue;
 
-      // TODO: Cache kernel_ids
       std::vector<sycl::kernel_id> KernelIDs;
       // Collect kernel names for the image
       pi_device_binary DevBin =
@@ -1362,11 +1371,23 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
         for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
              EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
           auto KernelID = m_KernelIDs.find(EntriesIt->name);
-          assert(KernelID != m_KernelIDs.end() &&
-                 "Kernel ID in device binary missing from cache");
+
+          if (KernelID == m_KernelIDs.end()) {
+            // Service kernels do not have kernel IDs
+            assert(m_ServiceKernels.find(EntriesIt->name) !=
+                       m_ServiceKernels.end() &&
+                   "Kernel ID in device binary missing from cache");
+            continue;
+          }
+
           KernelIDs.push_back(KernelID->second);
         }
       }
+
+      // If the image does not contain any non-service kernels we can skip it.
+      if (KernelIDs.empty())
+        continue;
+
       // device_image_impl expects kernel ids to be sorted for fast search
       std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
 
@@ -1577,7 +1598,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
 
   if (Error != PI_SUCCESS) {
     if (LinkedProg) {
-      const string_class ErrorMsg = getProgramBuildLog(LinkedProg, ContextImpl);
+      const std::string ErrorMsg = getProgramBuildLog(LinkedProg, ContextImpl);
       throw sycl::exception(make_error_code(errc::build), ErrorMsg);
     }
     Plugin.reportPiError(Error, "link()");

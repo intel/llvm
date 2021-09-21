@@ -41,6 +41,11 @@ def do_configure(args):
 
     sycl_enable_xpti_tracing = 'ON'
 
+    if args.ci_defaults:
+        print("#############################################")
+        print("# Default CI configuration will be applied. #")
+        print("#############################################")
+
     # replace not append, so ARM ^ X86
     if args.arm:
         llvm_targets_to_build = 'ARM;AArch64'
@@ -193,6 +198,7 @@ def main():
     parser.add_argument("--libcxx-library", metavar="LIBCXX_LIBRARY_PATH", help="libcxx library path")
     parser.add_argument("--use-lld", action="store_true", help="Use LLD linker for build")
     parser.add_argument("--llvm-external-projects", help="Add external projects to build. Add as comma seperated list.")
+    parser.add_argument("--ci-defaults", action="store_true", help="Enable default CI parameters")
     args = parser.parse_args()
 
     print("args:{}".format(args))

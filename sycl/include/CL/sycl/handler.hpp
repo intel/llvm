@@ -1546,7 +1546,7 @@ public:
             int Dims, typename Reduction>
   void parallel_for(range<Dims> Range, Reduction Redu,
                     _KERNELFUNCPARAM(KernelFunc)) {
-    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
+    std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
 
     // Before running the kernels, check that device has enough local memory
     // to hold local arrays required for the tree-reduction algorithm.
@@ -1632,7 +1632,7 @@ public:
   parallel_for(nd_range<Dims> Range, Reduction Redu,
                _KERNELFUNCPARAM(KernelFunc)) {
 
-    shared_ptr_class<detail::queue_impl> QueueCopy = MQueue;
+    std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
     device D = detail::getDeviceFromHandler(*this);
 
     if (D.has(aspect::atomic64)) {

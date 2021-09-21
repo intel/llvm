@@ -255,9 +255,6 @@
 #  else  // _BYTE_ORDER == _LITTLE_ENDIAN
 #    define _LIBCPP_BIG_ENDIAN
 #  endif  // _BYTE_ORDER == _LITTLE_ENDIAN
-#  ifndef __LONG_LONG_SUPPORTED
-#    define _LIBCPP_HAS_NO_LONG_LONG
-#  endif  // __LONG_LONG_SUPPORTED
 #endif // __FreeBSD__
 
 #if defined(__NetBSD__) || defined(__OpenBSD__)
@@ -307,6 +304,11 @@
 #    define _LIBCPP_BIG_ENDIAN
 #  endif
 #endif // __sun__
+
+#if defined(_AIX) && !defined(__64BIT__)
+   // The size of wchar is 2 byte on 32-bit mode on AIX.
+#  define _LIBCPP_SHORT_WCHAR   1
+#endif
 
 #if defined(__OpenBSD__)
    // Certain architectures provide arc4random(). Prefer using
@@ -792,7 +794,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #ifdef _LIBCPP_HAS_NO_UNICODE_CHARS
 typedef unsigned short char16_t;
 typedef unsigned int   char32_t;
-#endif // _LIBCPP_HAS_NO_UNICODE_CHARS
+#endif
 
 #ifndef __SIZEOF_INT128__
 #define _LIBCPP_HAS_NO_INT128
