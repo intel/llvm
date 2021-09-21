@@ -270,6 +270,7 @@ AArch64RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
   case AArch64::rtcGPR64RegClassID:
   case AArch64::WSeqPairsClassRegClassID:
   case AArch64::XSeqPairsClassRegClassID:
+  case AArch64::MatrixIndexGPR32_12_15RegClassID:
     return getRegBank(AArch64::GPRRegBankID);
   case AArch64::CCRRegClassID:
     return getRegBank(AArch64::CCRegBankID);
@@ -423,6 +424,8 @@ static bool isPreISelGenericFloatingPointOpcode(unsigned Opc) {
   case TargetOpcode::G_FRINT:
   case TargetOpcode::G_INTRINSIC_TRUNC:
   case TargetOpcode::G_INTRINSIC_ROUND:
+  case TargetOpcode::G_FMAXNUM:
+  case TargetOpcode::G_FMINNUM:
     return true;
   }
   return false;
@@ -487,7 +490,7 @@ bool AArch64RegisterBankInfo::hasFPConstraints(const MachineInstr &MI,
                                                const TargetRegisterInfo &TRI,
                                                unsigned Depth) const {
   unsigned Op = MI.getOpcode();
-  if (Op == TargetOpcode::G_INTRINSIC && isFPIntrinsic(getIntrinsicID(MI)))
+  if (Op == TargetOpcode::G_INTRINSIC && isFPIntrinsic(MI.getIntrinsicID()))
     return true;
 
   // Do we have an explicit floating point instruction?
@@ -528,6 +531,8 @@ bool AArch64RegisterBankInfo::onlyUsesFP(const MachineInstr &MI,
   case TargetOpcode::G_FPTOSI:
   case TargetOpcode::G_FPTOUI:
   case TargetOpcode::G_FCMP:
+  case TargetOpcode::G_LROUND:
+  case TargetOpcode::G_LLROUND:
     return true;
   default:
     break;
@@ -945,7 +950,7 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case TargetOpcode::G_INTRINSIC: {
     // Check if we know that the intrinsic has any constraints on its register
     // banks. If it does, then update the mapping accordingly.
-    unsigned ID = getIntrinsicID(MI);
+    unsigned ID = MI.getIntrinsicID();
     unsigned Idx = 0;
     if (!isFPIntrinsic(ID))
       break;
@@ -954,6 +959,12 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
         OpRegBankIdx[Idx] = PMI_FirstFPR;
       ++Idx;
     }
+    break;
+  }
+  case TargetOpcode::G_LROUND:
+  case TargetOpcode::G_LLROUND: {
+    // Source is always floating point and destination is always integer.
+    OpRegBankIdx = {PMI_FirstGPR, PMI_FirstFPR};
     break;
   }
   }

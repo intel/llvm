@@ -33,7 +33,7 @@ llvm.func @none() {
     log(repr(execution_engine_capsule))
     execution_engine._testing_release()
     execution_engine1 = ExecutionEngine._CAPICreate(execution_engine_capsule)
-    # CHECK: _mlir.execution_engine.ExecutionEngine
+    # CHECK: _mlirExecutionEngine.ExecutionEngine
     log(repr(execution_engine1))
 
 run(testCapsule)
@@ -56,7 +56,7 @@ run(testInvalidModule)
 
 def lowerToLLVM(module):
   import mlir.conversions
-  pm = PassManager.parse("convert-std-to-llvm")
+  pm = PassManager.parse("convert-memref-to-llvm,convert-std-to-llvm,reconcile-unrealized-casts")
   pm.run(module)
   return module
 
@@ -68,7 +68,7 @@ def testInvokeVoid():
 func @void() attributes { llvm.emit_c_interface } {
   return
 }
-    """)    
+    """)
     execution_engine = ExecutionEngine(lowerToLLVM(module))
     # Nothing to check other than no exception thrown here.
     execution_engine.invoke("void")
@@ -157,7 +157,7 @@ func private @some_callback_into_python(memref<*xf32>) -> () attributes { llvm.e
         execution_engine = ExecutionEngine(lowerToLLVM(module))
         execution_engine.register_runtime("some_callback_into_python", callback)
         inp_arr = np.array([[1.0, 2.0], [3.0, 4.0]], np.float32)
-        # CHECK: Inside callback: 
+        # CHECK: Inside callback:
         # CHECK{LITERAL}: [[1. 2.]
         # CHECK{LITERAL}:  [3. 4.]]
         execution_engine.invoke(
@@ -168,7 +168,7 @@ func private @some_callback_into_python(memref<*xf32>) -> () attributes { llvm.e
         strided_arr = np.lib.stride_tricks.as_strided(
             inp_arr_1, strides=(4, 0), shape=(3, 4)
         )
-        # CHECK: Inside callback: 
+        # CHECK: Inside callback:
         # CHECK{LITERAL}: [[5. 5. 5. 5.]
         # CHECK{LITERAL}:  [6. 6. 6. 6.]
         # CHECK{LITERAL}:  [7. 7. 7. 7.]]
@@ -219,7 +219,7 @@ func private @some_callback_into_python(memref<2x2xf32>) -> () attributes { llvm
 
 run(testRankedMemRefCallback)
 
-#  Test addition of two memref
+#  Test addition of two memrefs.
 # CHECK-LABEL: TEST: testMemrefAdd
 def testMemrefAdd():
     with Context():
@@ -308,3 +308,34 @@ def testDynamicMemrefAdd2D():
         log(np.allclose(arg1+arg2, res))
 
 run(testDynamicMemrefAdd2D)
+
+#  Test loading of shared libraries.
+# CHECK-LABEL: TEST: testSharedLibLoad
+def testSharedLibLoad():
+    with Context():
+        module = Module.parse(
+            """
+      module  {
+      func @main(%arg0: memref<1xf32>) attributes { llvm.emit_c_interface } {
+        %c0 = constant 0 : index
+        %cst42 = constant 42.0 : f32
+        memref.store %cst42, %arg0[%c0] : memref<1xf32>
+        %u_memref = memref.cast %arg0 : memref<1xf32> to memref<*xf32>
+        call @print_memref_f32(%u_memref) : (memref<*xf32>) -> ()
+        return
+      }
+      func private @print_memref_f32(memref<*xf32>) attributes { llvm.emit_c_interface }
+     } """
+        )
+        arg0 = np.array([0.0]).astype(np.float32)
+
+        arg0_memref_ptr = ctypes.pointer(ctypes.pointer(get_ranked_memref_descriptor(arg0)))
+
+        execution_engine = ExecutionEngine(lowerToLLVM(module), opt_level=3,
+                shared_libs=["../../../../lib/libmlir_runner_utils.so",
+                    "../../../../lib/libmlir_c_runner_utils.so"])
+        execution_engine.invoke("main", arg0_memref_ptr)
+        # CHECK: Unranked Memref
+        # CHECK-NEXT: [42]
+
+run(testSharedLibLoad)

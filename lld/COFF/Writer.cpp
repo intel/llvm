@@ -595,6 +595,7 @@ void Writer::finalizeAddresses() {
     // If the verification above thought we needed thunks, we should have
     // added some.
     assert(addressesChanged);
+    (void)addressesChanged;
 
     // Recalculate the layout for the whole image (and verify the ranges at
     // the start of the next round).
@@ -1582,6 +1583,7 @@ static void maybeAddAddressTakenFunction(SymbolRVASet &addressTakenSyms,
     break;
   case Symbol::LazyArchiveKind:
   case Symbol::LazyObjectKind:
+  case Symbol::LazyDLLSymbolKind:
   case Symbol::UndefinedKind:
     // Undefined symbols resolve to zero, so they don't have an RVA. Lazy
     // symbols shouldn't have relocations.

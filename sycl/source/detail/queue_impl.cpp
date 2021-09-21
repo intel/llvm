@@ -18,6 +18,7 @@
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include "xpti_trace_framework.hpp"
+#include <detail/xpti_registry.hpp>
 #include <sstream>
 #endif
 
@@ -42,7 +43,7 @@ template <> device queue_impl::get_info<info::queue::device>() const {
 }
 
 static event
-prepareUSMEvent(const shared_ptr_class<detail::queue_impl> &QueueImpl,
+prepareUSMEvent(const std::shared_ptr<detail::queue_impl> &QueueImpl,
                 RT::PiEvent NativeEvent) {
   auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
   EventImpl->getHandleRef() = NativeEvent;
@@ -50,49 +51,61 @@ prepareUSMEvent(const shared_ptr_class<detail::queue_impl> &QueueImpl,
   return detail::createSyclObjFromImpl<event>(EventImpl);
 }
 
-event queue_impl::memset(const shared_ptr_class<detail::queue_impl> &Self,
-                         void *Ptr, int Value, size_t Count) {
+event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
+                         void *Ptr, int Value, size_t Count,
+                         const std::vector<event> &DepEvents) {
   RT::PiEvent NativeEvent{};
-  MemoryManager::fill_usm(Ptr, Self, Count, Value, /*DepEvents*/ {},
-                          NativeEvent);
+  MemoryManager::fill_usm(Ptr, Self, Count, Value,
+                          getOrWaitEvents(DepEvents, MContext), NativeEvent);
 
   if (MContext->is_host())
     return event();
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
-  addSharedEvent(ResEvent);
+  // Track only if we won't be able to handle it with piQueueFinish.
+  // FIXME these events are stored for level zero until as a workaround, remove
+  // once piEventRelease no longer calls wait on the event in the plugin.
+  if (!MSupportOOO || getPlugin().getBackend() == backend::level_zero)
+    addSharedEvent(ResEvent);
   return ResEvent;
 }
 
-event queue_impl::memcpy(const shared_ptr_class<detail::queue_impl> &Self,
-                         void *Dest, const void *Src, size_t Count) {
+event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
+                         void *Dest, const void *Src, size_t Count,
+                         const std::vector<event> &DepEvents) {
   RT::PiEvent NativeEvent{};
-  MemoryManager::copy_usm(Src, Self, Count, Dest, /*DepEvents*/ {},
-                          NativeEvent);
+  MemoryManager::copy_usm(Src, Self, Count, Dest,
+                          getOrWaitEvents(DepEvents, MContext), NativeEvent);
 
   if (MContext->is_host())
     return event();
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
-  addSharedEvent(ResEvent);
+  // Track only if we won't be able to handle it with piQueueFinish.
+  // FIXME these events are stored for level zero until as a workaround, remove
+  // once piEventRelease no longer calls wait on the event in the plugin.
+  if (!MSupportOOO || getPlugin().getBackend() == backend::level_zero)
+    addSharedEvent(ResEvent);
   return ResEvent;
 }
 
-event queue_impl::mem_advise(const shared_ptr_class<detail::queue_impl> &Self,
+event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
-                             pi_mem_advice Advice) {
-  if (MContext->is_host()) {
-    return event();
-  }
-
-  // non-Host device
+                             pi_mem_advice Advice,
+                             const std::vector<event> &DepEvents) {
   RT::PiEvent NativeEvent{};
-  const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(getHandleRef(), Ptr, Length,
-                                                   Advice, &NativeEvent);
+  MemoryManager::advise_usm(Ptr, Self, Length, Advice,
+                            getOrWaitEvents(DepEvents, MContext), NativeEvent);
+
+  if (MContext->is_host())
+    return event();
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
-  addSharedEvent(ResEvent);
+  // Track only if we won't be able to handle it with piQueueFinish.
+  // FIXME these events are stored for level zero until as a workaround, remove
+  // once piEventRelease no longer calls wait on the event in the plugin.
+  if (!MSupportOOO || getPlugin().getBackend() == backend::level_zero)
+    addSharedEvent(ResEvent);
   return ResEvent;
 }
 
@@ -101,11 +114,17 @@ void queue_impl::addEvent(const event &Event) {
   Command *Cmd = (Command *)(Eimpl->getCommand());
   if (!Cmd) {
     // if there is no command on the event, we cannot track it with MEventsWeak
-    // as that will leave it with no owner. Track in MEventsShared
-    addSharedEvent(Event);
+    // as that will leave it with no owner. Track in MEventsShared only if we're
+    // unable to call piQueueFinish during wait.
+    // FIXME these events are stored for level zero until as a workaround,
+    // remove once piEventRelease no longer calls wait on the event in the
+    // plugin.
+    if (is_host() || !MSupportOOO ||
+        getPlugin().getBackend() == backend::level_zero)
+      addSharedEvent(Event);
   } else {
     std::weak_ptr<event_impl> EventWeakPtr{Eimpl};
-    std::lock_guard<mutex_class> Lock{MMutex};
+    std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
   }
 }
@@ -114,7 +133,11 @@ void queue_impl::addEvent(const event &Event) {
 /// but some events have no other owner. In this case,
 /// addSharedEvent will have the queue track the events via a shared pointer.
 void queue_impl::addSharedEvent(const event &Event) {
-  std::lock_guard<mutex_class> Lock(MMutex);
+  // FIXME The assertion should be corrected once the Level Zero workaround is
+  // removed.
+  assert(is_host() || !MSupportOOO ||
+         getPlugin().getBackend() == backend::level_zero);
+  std::lock_guard<std::mutex> Lock(MMutex);
   // Events stored in MEventsShared are not released anywhere else aside from
   // calls to queue::wait/wait_and_throw, which a user application might not
   // make, and ~queue_impl(). If the number of events grows large enough,
@@ -142,7 +165,7 @@ void queue_impl::addSharedEvent(const event &Event) {
 }
 
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
-                                        string_class &Name, int32_t StreamID,
+                                        std::string &Name, int32_t StreamID,
                                         uint64_t &IId) {
   void *TraceEvent = nullptr;
   (void)CodeLoc;
@@ -207,7 +230,7 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
   return TraceEvent;
 }
 
-void queue_impl::instrumentationEpilog(void *TelemetryEvent, string_class &Name,
+void queue_impl::instrumentationEpilog(void *TelemetryEvent, std::string &Name,
                                        int32_t StreamID, uint64_t IId) {
   (void)TelemetryEvent;
   (void)Name;
@@ -234,21 +257,62 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
 #endif
 
-  vector_class<std::weak_ptr<event_impl>> Events;
-  vector_class<event> USMEvents;
+  std::vector<std::weak_ptr<event_impl>> WeakEvents;
+  std::vector<event> SharedEvents;
   {
-    std::lock_guard<mutex_class> Lock(MMutex);
-    Events.swap(MEventsWeak);
-    USMEvents.swap(MEventsShared);
+    std::lock_guard<std::mutex> Lock(MMutex);
+    WeakEvents.swap(MEventsWeak);
+    SharedEvents.swap(MEventsShared);
   }
-
-  for (std::weak_ptr<event_impl> &EventImplWeakPtr : Events)
-    if (std::shared_ptr<event_impl> EventImplPtr = EventImplWeakPtr.lock())
-      EventImplPtr->wait(EventImplPtr);
-
-  for (event &Event : USMEvents)
-    Event.wait();
-
+  // If the queue is either a host one or does not support OOO (and we use
+  // multiple in-order queues as a result of that), wait for each event
+  // directly. Otherwise, only wait for unenqueued or host task events, starting
+  // from the latest submitted task in order to minimize total amount of calls,
+  // then handle the rest with piQueueFinish.
+  // TODO the new workflow has worse performance with Level Zero, keep the old
+  // behavior until this is addressed
+  if (!is_host() && getPlugin().getBackend() == backend::level_zero) {
+    for (std::weak_ptr<event_impl> &EventImplWeakPtr : WeakEvents)
+      if (std::shared_ptr<event_impl> EventImplSharedPtr =
+              EventImplWeakPtr.lock())
+        EventImplSharedPtr->wait(EventImplSharedPtr);
+    for (event &Event : SharedEvents)
+      Event.wait();
+  } else {
+    bool SupportsPiFinish = !is_host() && MSupportOOO;
+    for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
+         EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
+      if (std::shared_ptr<event_impl> EventImplSharedPtr =
+              EventImplWeakPtrIt->lock()) {
+        // A nullptr PI event indicates that piQueueFinish will not cover it,
+        // either because it's a host task event or an unenqueued one.
+        if (!SupportsPiFinish ||
+            nullptr == EventImplSharedPtr->getHandleRef()) {
+          EventImplSharedPtr->wait(EventImplSharedPtr);
+        }
+      }
+    }
+    if (SupportsPiFinish) {
+      const detail::plugin &Plugin = getPlugin();
+      Plugin.call<detail::PiApiKind::piQueueFinish>(getHandleRef());
+      for (std::weak_ptr<event_impl> &EventImplWeakPtr : WeakEvents)
+        if (std::shared_ptr<event_impl> EventImplSharedPtr =
+                EventImplWeakPtr.lock())
+          EventImplSharedPtr->cleanupCommand(EventImplSharedPtr);
+      // FIXME these events are stored for level zero until as a workaround,
+      // remove once piEventRelease no longer calls wait on the event in the
+      // plugin.
+      if (Plugin.getBackend() == backend::level_zero) {
+        SharedEvents.clear();
+      }
+      assert(SharedEvents.empty() &&
+             "Queues that support calling piQueueFinish "
+             "shouldn't have shared events");
+    } else {
+      for (event &Event : SharedEvents)
+        Event.wait();
+    }
+  }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
 #endif

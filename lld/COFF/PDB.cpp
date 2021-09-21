@@ -266,6 +266,7 @@ static void pdbMakeAbsolute(SmallVectorImpl<char> &fileName) {
   if (config->pdbSourcePath.empty()) {
     sys::path::native(fileName);
     sys::fs::make_absolute(fileName);
+    sys::path::remove_dots(fileName, true);
     return;
   }
 
@@ -1068,7 +1069,7 @@ void PDBLinker::createModuleDBI(ObjFile *file) {
   bool inArchive = !file->parentName.empty();
   objName = inArchive ? file->parentName : file->getName();
   pdbMakeAbsolute(objName);
-  StringRef modName = inArchive ? file->getName() : StringRef(objName);
+  StringRef modName = inArchive ? file->getName() : objName.str();
 
   file->moduleDBI = &exitOnErr(dbiBuilder.addModuleInfo(modName));
   file->moduleDBI->setObjFileName(objName);

@@ -64,7 +64,7 @@ This is an example workflow and configuration to get and build the LLVM source:
      * ``-DLLVM_ENABLE_PROJECTS='...'`` --- semicolon-separated list of the LLVM
        subprojects you'd like to additionally build. Can include any of: clang,
        clang-tools-extra, libcxx, libcxxabi, libunwind, lldb, compiler-rt, lld,
-       polly, or debuginfo-tests.
+       polly, or cross-project-tests.
 
        For example, to build LLVM, Clang, libcxx, and libcxxabi, use
        ``-DLLVM_ENABLE_PROJECTS="clang;libcxx;libcxxabi"``.
@@ -131,6 +131,8 @@ FreeBSD            x86\ :sup:`1`         GCC, Clang
 FreeBSD            amd64                 GCC, Clang
 NetBSD             x86\ :sup:`1`         GCC, Clang
 NetBSD             amd64                 GCC, Clang
+OpenBSD            x86\ :sup:`1`         GCC, Clang
+OpenBSD            amd64                 GCC, Clang
 macOS\ :sup:`2`    PowerPC               GCC
 macOS              x86                   GCC, Clang
 Cygwin/Win32       x86\ :sup:`1, 3`      GCC
@@ -816,7 +818,7 @@ layout:
 
 ``llvm/cmake``
 --------------
-Genereates system build files.
+Generates system build files.
 
 ``llvm/cmake/modules``
   Build configuration for llvm user defined options. Checks compiler version and 
@@ -910,7 +912,8 @@ share code among the `tools`_.
 
 ``llvm/lib/MC/``
 
-  (FIXME: T.B.D.)  ....?
+  The libraries represent and process code at machine code level. Handles 
+  assembly and object-file emission. 
 
 ``llvm/lib/ExecutionEngine/``
 

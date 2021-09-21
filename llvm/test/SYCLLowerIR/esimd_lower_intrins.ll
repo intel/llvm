@@ -4,7 +4,7 @@
 ; RUN: opt < %s -LowerESIMD -S | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 %opencl.image2d_ro_t = type opaque
 %opencl.image2d_wo_t = type opaque
@@ -179,7 +179,7 @@ define dso_local spir_func <16 x i32>  @FUNC_32() {
   %2 = load  <16 x i32>,  <16 x i32>* %a_2
   %a_3 = alloca  <16 x i32>
   %3 = load  <16 x i32>,  <16 x i32>* %a_3
-  %ret_val = call spir_func <16 x i32> @_Z14__esimd_uudp4aIjjjjLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
+  %ret_val = call spir_func <16 x i32> @_Z14__esimd_uudp4aIjjjjLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
 ; CHECK: %{{[0-9a-zA-Z_.]+}} = call <16 x i32> @llvm.genx.uudp4a.v16i32.v16i32.v16i32.v16i32(<16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}})
   ret <16 x i32>  %ret_val
 }
@@ -191,7 +191,7 @@ define dso_local spir_func <16 x i32>  @FUNC_33() {
   %2 = load  <16 x i32>,  <16 x i32>* %a_2
   %a_3 = alloca  <16 x i32>
   %3 = load  <16 x i32>,  <16 x i32>* %a_3
-  %ret_val = call spir_func <16 x i32> @_Z14__esimd_usdp4aIjiiiLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
+  %ret_val = call spir_func <16 x i32> @_Z14__esimd_usdp4aIjiiiLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
 ; CHECK: %{{[0-9a-zA-Z_.]+}} = call <16 x i32> @llvm.genx.usdp4a.v16i32.v16i32.v16i32.v16i32(<16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}})
   ret <16 x i32>  %ret_val
 }
@@ -203,7 +203,7 @@ define dso_local spir_func <16 x i32>  @FUNC_34() {
   %2 = load  <16 x i32>,  <16 x i32>* %a_2
   %a_3 = alloca  <16 x i32>
   %3 = load  <16 x i32>,  <16 x i32>* %a_3
-  %ret_val = call spir_func <16 x i32> @_Z14__esimd_sudp4aIijjjLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
+  %ret_val = call spir_func <16 x i32> @_Z14__esimd_sudp4aIijjjLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
 ; CHECK: %{{[0-9a-zA-Z_.]+}} = call <16 x i32> @llvm.genx.sudp4a.v16i32.v16i32.v16i32.v16i32(<16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}})
   ret <16 x i32>  %ret_val
 }
@@ -215,7 +215,7 @@ define dso_local spir_func <16 x i32>  @FUNC_35() {
   %2 = load  <16 x i32>,  <16 x i32>* %a_2
   %a_3 = alloca  <16 x i32>
   %3 = load  <16 x i32>,  <16 x i32>* %a_3
-  %ret_val = call spir_func <16 x i32> @_Z14__esimd_ssdp4aIiiiiLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
+  %ret_val = call spir_func <16 x i32> @_Z14__esimd_ssdp4aIiiiiLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
 ; CHECK: %{{[0-9a-zA-Z_.]+}} = call <16 x i32> @llvm.genx.ssdp4a.v16i32.v16i32.v16i32.v16i32(<16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}})
   ret <16 x i32>  %ret_val
 }
@@ -227,7 +227,7 @@ define dso_local spir_func <16 x i32>  @FUNC_36() {
   %2 = load  <16 x i32>,  <16 x i32>* %a_2
   %a_3 = alloca  <16 x i32>
   %3 = load  <16 x i32>,  <16 x i32>* %a_3
-  %ret_val = call spir_func <16 x i32> @_Z18__esimd_uudp4a_satIjjjjLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
+  %ret_val = call spir_func <16 x i32> @_Z18__esimd_uudp4a_satIjjjjLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
 ; CHECK: %{{[0-9a-zA-Z_.]+}} = call <16 x i32> @llvm.genx.uudp4a.sat.v16i32.v16i32.v16i32.v16i32(<16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}})
   ret <16 x i32>  %ret_val
 }
@@ -239,7 +239,7 @@ define dso_local spir_func <16 x i32>  @FUNC_37() {
   %2 = load  <16 x i32>,  <16 x i32>* %a_2
   %a_3 = alloca  <16 x i32>
   %3 = load  <16 x i32>,  <16 x i32>* %a_3
-  %ret_val = call spir_func <16 x i32> @_Z18__esimd_usdp4a_satIjiiiLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
+  %ret_val = call spir_func <16 x i32> @_Z18__esimd_usdp4a_satIjiiiLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
 ; CHECK: %{{[0-9a-zA-Z_.]+}} = call <16 x i32> @llvm.genx.usdp4a.sat.v16i32.v16i32.v16i32.v16i32(<16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}})
   ret <16 x i32>  %ret_val
 }
@@ -251,7 +251,7 @@ define dso_local spir_func <16 x i32>  @FUNC_38() {
   %2 = load  <16 x i32>,  <16 x i32>* %a_2
   %a_3 = alloca  <16 x i32>
   %3 = load  <16 x i32>,  <16 x i32>* %a_3
-  %ret_val = call spir_func <16 x i32> @_Z18__esimd_sudp4a_satIijjjLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
+  %ret_val = call spir_func <16 x i32> @_Z18__esimd_sudp4a_satIijjjLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
 ; CHECK: %{{[0-9a-zA-Z_.]+}} = call <16 x i32> @llvm.genx.sudp4a.sat.v16i32.v16i32.v16i32.v16i32(<16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}})
   ret <16 x i32>  %ret_val
 }
@@ -263,25 +263,25 @@ define dso_local spir_func <16 x i32>  @FUNC_39() {
   %2 = load  <16 x i32>,  <16 x i32>* %a_2
   %a_3 = alloca  <16 x i32>
   %3 = load  <16 x i32>,  <16 x i32>* %a_3
-  %ret_val = call spir_func <16 x i32> @_Z18__esimd_ssdp4a_satIiiiiLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
+  %ret_val = call spir_func <16 x i32> @_Z18__esimd_ssdp4a_satIiiiiLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %1, <16 x i32> %2, <16 x i32> %3)
 ; CHECK: %{{[0-9a-zA-Z_.]+}} = call <16 x i32> @llvm.genx.ssdp4a.sat.v16i32.v16i32.v16i32.v16i32(<16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}}, <16 x i32> %{{[0-9a-zA-Z_.]+}})
   ret <16 x i32>  %ret_val
 }
 
 define dso_local spir_func <8 x i32>  @FUNC_40() {
-  %ret_val = call spir_func  <8 x i32>  @_Z22__esimd_slm_block_readIiLi8EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT0_EE4typeEj(i32 0)
+  %ret_val = call spir_func  <8 x i32>  @_Z22__esimd_slm_block_readIiLi8EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT0_EE4typeEj(i32 0)
 ; CHECK: %{{[0-9a-zA-Z_.]+}} = call <8 x i32> @llvm.genx.oword.ld.v8i32(i32 0, i32 254, i32 0)
   ret <8 x i32>  %ret_val
 }
 
 define dso_local spir_func void  @FUNC_41() {
-  call spir_func void @_Z16__esimd_sbarrierN2cl4sycl5INTEL3gpu17EsimdSbarrierTypeE(i8 zeroext 1)
+  call spir_func void @_Z16__esimd_sbarrierN2cl4sycl3ext5intel3gpu17EsimdSbarrierTypeE(i8 zeroext 1)
 ; CHECK: call void @llvm.genx.sbarrier(i8 1)
   ret void
 }
 
 define dso_local spir_func void  @FUNC_42() {
-  call spir_func void @_Z16__esimd_sbarrierN2cl4sycl5INTEL3gpu17EsimdSbarrierTypeE(i8 zeroext 0)
+  call spir_func void @_Z16__esimd_sbarrierN2cl4sycl3ext5intel3gpu17EsimdSbarrierTypeE(i8 zeroext 0)
 ; CHECK: call void @llvm.genx.sbarrier(i8 0)
   ret void
 }
@@ -291,7 +291,7 @@ define dso_local spir_func <8 x i32>  @FUNC_43() {
   %1 = load <16 x i32>, <16 x i32>* %a_1
   %a_2 = alloca <8 x i16>
   %2 = load <8 x i16>, <8 x i16>* %a_2
-  %ret_val = call spir_func <8 x i32> @_Z18__esimd_rdindirectIiLi16ELi8ELi0EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT1_EE4typeENS4_IS5_XT0_EE4typeENS4_ItXT1_EE4typeE(<16 x i32> %1, <8 x i16> %2)
+  %ret_val = call spir_func <8 x i32> @_Z18__esimd_rdindirectIiLi16ELi8ELi0EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT1_EE4typeENS4_IS5_XT0_EE4typeENS4_ItXT1_EE4typeE(<16 x i32> %1, <8 x i16> %2)
 ; CHECK: %{{[0-9a-zA-Z_.]+}} = call <8 x i32> @llvm.genx.rdregioni.v8i32.v16i32.v8i16(<16 x i32> %{{[0-9a-zA-Z_.]+}}, i32 0, i32 8, i32 0, <8 x i16> %{{[0-9a-zA-Z_.]+}}, i32 0)
   ret <8 x i32>  %ret_val
 }
@@ -303,7 +303,7 @@ define dso_local spir_func <16 x i32>  @FUNC_44() {
   %2 = load  <8 x i32>,  <8 x i32>* %a_2
   %a_3 = alloca  <8 x i16>
   %3 = load  <8 x i16>,  <8 x i16>* %a_3
-  %ret_val = call spir_func <16 x i32> @_Z18__esimd_wrindirectIiLi16ELi8ELi0EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT0_EE4typeES7_NS4_IS5_XT1_EE4typeENS4_ItXT1_EE4typeESB_(<16 x i32> %1, <8 x i32> %2, <8 x i16> %3, <8 x i16> <i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1>)
+  %ret_val = call spir_func <16 x i32> @_Z18__esimd_wrindirectIiLi16ELi8ELi0EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT0_EE4typeES7_NS4_IS5_XT1_EE4typeENS4_ItXT1_EE4typeESB_(<16 x i32> %1, <8 x i32> %2, <8 x i16> %3, <8 x i16> <i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1>)
 ; CHECK: %{{[0-9a-zA-Z_.]+}} =  call <16 x i32> @llvm.genx.wrregioni.v16i32.v8i32.v8i16.v8i1(<16 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, i32 0, i32 8, i32 0, <8 x i16> %{{[0-9a-zA-Z_.]+}}, i32 0, <8 x i1> <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>)
   ret <16 x i32>  %ret_val
 }
@@ -359,6 +359,24 @@ define dso_local spir_func <16 x float>  @FUNC_50() {
   ret <16 x float>  %ret_val
 }
 
+define dso_local spir_func void  @FUNC_51() {
+  call spir_func void @_Z25__esimd_test_src_tmpl_argILi3ELi5ELi7ELi11ELi13EEvv()
+; CHECK:  call void @llvm.genx.test.src.tmpl.arg(i32 3, i1 true, i8 7, i16 11, i32 13, i8 17)
+  ret void
+}
+
+define dso_local spir_func <32 x half>  @FUNC_52() {
+  %ptr_a = alloca <32 x half>
+  %ptr_b = alloca <32 x half>
+  %ptr_c = alloca <32 x i16>
+  %a = load <32 x half>, <32 x half>* %ptr_a
+  %b = load <32 x half>, <32 x half>* %ptr_b
+  %c = load <32 x i16>, <32 x i16>* %ptr_c
+  %d = call spir_func <32 x half> @_Z16__esimd_wrregionIDF16_Li32ELi32ELi0ELi32ELi1ELi32EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIT_XT0_EE4typeESA_NS7_IS8_XT1_EE4typeEtNS7_ItXT1_EE4typeE(<32 x half> %a, <32 x half> %b, i16 zeroext 0, <32 x i16> %c)
+; CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x half> @llvm.genx.wrregionf.v32f16.v32f16.i16.v32i1(<32 x half> %{{[0-9a-zA-Z_.]+}}, <32 x half> %{{[0-9a-zA-Z_.]+}}, i32 0, i32 32, i32 1, i16 0, i32 32, <32 x i1> %{{[0-9a-zA-Z_.]+}})
+  ret <32 x half> %d
+}
+
 declare dso_local i32 @_Z15__esimd_lane_idv()
 
 declare dso_local spir_func <32 x i32> @_Z20__esimd_flat_atomic0ILN2cm3gen14CmAtomicOpTypeE2EjLi32ELNS1_9CacheHintE0ELS3_0EENS1_13__vector_typeIT0_XT1_EE4typeENS4_IyXT1_EE4typeENS4_ItXT1_EE4typeE(<32 x i64> %0, <32 x i16> %1)
@@ -391,22 +409,24 @@ declare dso_local spir_func void @_Z25__esimd_media_block_storeIiLi4ELi8E14ocl_i
 declare dso_local spir_func <32 x i32> @_Z13__esimd_vloadIiLi32EEN2cm3gen13__vector_typeIT_XT0_EE4typeEPKS5_(<32 x i32> addrspace(4)* %0)
 declare dso_local spir_func void @_Z14__esimd_vstoreIfLi16EEvPN2cm3gen13__vector_typeIT_XT0_EE4typeES5_(<16 x float> addrspace(4)* %0, <16 x float> %1)
 declare dso_local spir_func void @_ZN2cl4sycl3ext5intel12experimental5esimd8slm_initEj(i32)
-declare dso_local spir_func <16 x i32> @_Z14__esimd_uudp4aIjjjjLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
-declare dso_local spir_func <16 x i32> @_Z14__esimd_usdp4aIjiiiLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
-declare dso_local spir_func <16 x i32> @_Z14__esimd_sudp4aIijjjLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
-declare dso_local spir_func <16 x i32> @_Z14__esimd_ssdp4aIiiiiLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
-declare dso_local spir_func <16 x i32> @_Z18__esimd_uudp4a_satIjjjjLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
-declare dso_local spir_func <16 x i32> @_Z18__esimd_usdp4a_satIjiiiLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
-declare dso_local spir_func <16 x i32> @_Z18__esimd_sudp4a_satIijjjLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
-declare dso_local spir_func <16 x i32> @_Z18__esimd_ssdp4a_satIiiiiLi16EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
-declare dso_local spir_func <8 x i32> @_Z22__esimd_slm_block_readIiLi8EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT0_EE4typeEj(i32 %0)
-declare dso_local spir_func void @_Z16__esimd_sbarrierN2cl4sycl5INTEL3gpu17EsimdSbarrierTypeE(i8 %0)
-declare dso_local spir_func <8 x i32> @_Z18__esimd_rdindirectIiLi16ELi8ELi0EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT1_EE4typeENS4_IS5_XT0_EE4typeENS4_ItXT1_EE4typeE(<16 x i32>, <8 x i16>)
-declare dso_local spir_func <16 x i32> @_Z18__esimd_wrindirectIiLi16ELi8ELi0EEN2cl4sycl5INTEL3gpu11vector_typeIT_XT0_EE4typeES7_NS4_IS5_XT1_EE4typeENS4_ItXT1_EE4typeESB_(<16 x i32>, <8 x i32>, <8 x i16>, <8 x i16>)
+declare dso_local spir_func <16 x i32> @_Z14__esimd_uudp4aIjjjjLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
+declare dso_local spir_func <16 x i32> @_Z14__esimd_usdp4aIjiiiLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
+declare dso_local spir_func <16 x i32> @_Z14__esimd_sudp4aIijjjLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
+declare dso_local spir_func <16 x i32> @_Z14__esimd_ssdp4aIiiiiLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
+declare dso_local spir_func <16 x i32> @_Z18__esimd_uudp4a_satIjjjjLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
+declare dso_local spir_func <16 x i32> @_Z18__esimd_usdp4a_satIjiiiLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
+declare dso_local spir_func <16 x i32> @_Z18__esimd_sudp4a_satIijjjLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
+declare dso_local spir_func <16 x i32> @_Z18__esimd_ssdp4a_satIiiiiLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
+declare dso_local spir_func <8 x i32> @_Z22__esimd_slm_block_readIiLi8EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT0_EE4typeEj(i32 %0)
+declare dso_local spir_func void @_Z16__esimd_sbarrierN2cl4sycl3ext5intel3gpu17EsimdSbarrierTypeE(i8 %0)
+declare dso_local spir_func <8 x i32> @_Z18__esimd_rdindirectIiLi16ELi8ELi0EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT1_EE4typeENS4_IS5_XT0_EE4typeENS4_ItXT1_EE4typeE(<16 x i32>, <8 x i16>)
+declare dso_local spir_func <16 x i32> @_Z18__esimd_wrindirectIiLi16ELi8ELi0EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT0_EE4typeES7_NS4_IS5_XT1_EE4typeENS4_ItXT1_EE4typeESB_(<16 x i32>, <8 x i32>, <8 x i16>, <8 x i16>)
 declare dso_local spir_func <16 x float> @_Z12__esimd_rnddILi16EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIfXT_EE4typeES9_(<16 x float>)
 declare dso_local spir_func <16 x float> @_Z12__esimd_rnduILi16EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIfXT_EE4typeES9_(<16 x float>)
 declare dso_local spir_func <16 x float> @_Z12__esimd_rndzILi16EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIfXT_EE4typeES9_(<16 x float>)
 declare dso_local spir_func <16 x float> @_Z12__esimd_rndeILi16EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIfXT_EE4typeES9_(<16 x float>)
+declare dso_local spir_func void @_Z25__esimd_test_src_tmpl_argILi3ELi5ELi7ELi11ELi13EEvv()
+declare dso_local spir_func <32 x half> @_Z16__esimd_wrregionIDF16_Li32ELi32ELi0ELi32ELi1ELi32EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIT_XT0_EE4typeESA_NS7_IS8_XT1_EE4typeEtNS7_ItXT1_EE4typeE(<32 x half>, <32 x half>, i16 zeroext, <32 x i16>)
 
 attributes #0 = { "genx_byte_offset"="192" "genx_volatile" }
 

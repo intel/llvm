@@ -10,7 +10,7 @@ set(LLVM_LINK_COMPONENTS Support)
 set(GOOGLE_BENCHMARK_TARGET_FLAGS ${BENCHMARK_DIALECT_FLAG})
 if (LIBCXX_BENCHMARK_GCC_TOOLCHAIN)
   set(GOOGLE_BENCHMARK_TARGET_FLAGS
-      -gcc-toolchain ${LIBCXX_BENCHMARK_GCC_TOOLCHAIN})
+      --gcc-toolchain=${LIBCXX_BENCHMARK_GCC_TOOLCHAIN})
 endif()
 string(REPLACE ";" " " GOOGLE_BENCHMARK_TARGET_FLAGS "${GOOGLE_BENCHMARK_TARGET_FLAGS}")
 
@@ -145,11 +145,53 @@ add_libc_benchmark_unittest(json-test
 # Benchmarking tool
 #==============================================================================
 
-add_executable(libc-benchmark-main
-    EXCLUDE_FROM_ALL
-    LibcMemoryBenchmarkMain.cpp
+# Benchmark all implementations that can run on the target CPU.
+function(add_libc_multi_impl_benchmark name)
+  get_property(fq_implementations GLOBAL PROPERTY ${name}_implementations)
+  foreach(fq_config_name IN LISTS fq_implementations)
+    get_target_property(required_cpu_features ${fq_config_name} REQUIRE_CPU_FEATURES)
+    cpu_supports(can_run "${required_cpu_features}")
+    if(can_run)
+        set(benchmark_name ${fq_config_name}_benchmark)
+        add_executable(${benchmark_name}
+            EXCLUDE_FROM_ALL
+            LibcMemoryBenchmarkMain.cpp
+        )
+        get_target_property(entrypoint_object_file ${fq_config_name} "OBJECT_FILE_RAW")
+        target_link_libraries(${benchmark_name} PUBLIC json ${entrypoint_object_file})
+        string(TOUPPER ${name} name_upper)
+        target_compile_definitions(${benchmark_name} PRIVATE "-DLIBC_BENCHMARK_FUNCTION_${name_upper}=__llvm_libc::${name}" "-DLIBC_BENCHMARK_FUNCTION_NAME=\"${fq_config_name}\"")
+    else()
+      message(STATUS "Skipping benchmark for '${fq_config_name}' insufficient host cpu features '${required_cpu_features}'")
+    endif()
+  endforeach()
+endfunction()
+
+add_libc_multi_impl_benchmark(memcpy)
+add_libc_multi_impl_benchmark(memset)
+add_libc_multi_impl_benchmark(bzero)
+add_libc_multi_impl_benchmark(memcmp)
+add_libc_multi_impl_benchmark(bcmp)
+
+#==============================================================================
+# Google Benchmarking tool
+#==============================================================================
+
+# This target uses the Google Benchmark facility to report throughput for llvm
+# libc memory functions compiled for the host machine. This is useful to
+# continuously monitor the performance of the memory functions.
+add_executable(libc.benchmarks.memory_functions.opt_host
+  EXCLUDE_FROM_ALL
+  LibcMemoryGoogleBenchmarkMain.cpp
 )
-foreach(entrypoint_target libc.src.string.memcpy libc.src.string.memset)
-    get_target_property(entrypoint_object_file ${entrypoint_target} "OBJECT_FILE_RAW")
-    target_link_libraries(libc-benchmark-main PUBLIC json ${entrypoint_object_file})
-endforeach()
+
+target_link_libraries(libc.benchmarks.memory_functions.opt_host
+  PRIVATE
+  libc-memory-benchmark
+  libc.src.string.memcmp_opt_host
+  libc.src.string.bcmp_opt_host
+  libc.src.string.memcpy_opt_host
+  libc.src.string.memset_opt_host
+  libc.src.string.bzero_opt_host
+  benchmark_main
+)

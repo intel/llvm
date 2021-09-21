@@ -77,11 +77,10 @@ define <8 x i16> @combine_constfold_undef_v8i16() {
 define i32 @combine_constant_i32(i32 %a0) {
 ; CHECK-LABEL: combine_constant_i32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    xorl %eax, %eax
-; CHECK-NEXT:    movl %edi, %ecx
-; CHECK-NEXT:    incl %ecx
-; CHECK-NEXT:    setns %al
-; CHECK-NEXT:    addl $2147483647, %eax # imm = 0x7FFFFFFF
+; CHECK-NEXT:    # kill: def $edi killed $edi def $rdi
+; CHECK-NEXT:    leal 1(%rdi), %eax
+; CHECK-NEXT:    sarl $31, %eax
+; CHECK-NEXT:    xorl $-2147483648, %eax # imm = 0x80000000
 ; CHECK-NEXT:    incl %edi
 ; CHECK-NEXT:    cmovnol %edi, %eax
 ; CHECK-NEXT:    retq
@@ -92,12 +91,12 @@ define i32 @combine_constant_i32(i32 %a0) {
 define <8 x i16> @combine_constant_v8i16(<8 x i16> %a0) {
 ; SSE-LABEL: combine_constant_v8i16:
 ; SSE:       # %bb.0:
-; SSE-NEXT:    paddsw {{.*}}(%rip), %xmm0
+; SSE-NEXT:    paddsw {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: combine_constant_v8i16:
 ; AVX:       # %bb.0:
-; AVX-NEXT:    vpaddsw {{.*}}(%rip), %xmm0, %xmm0
+; AVX-NEXT:    vpaddsw {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
 ; AVX-NEXT:    retq
   %res = call <8 x i16> @llvm.sadd.sat.v8i16(<8 x i16> <i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1>, <8 x i16> %a0)
   ret <8 x i16> %res
@@ -125,13 +124,13 @@ define <8 x i16> @combine_zero_v8i16(<8 x i16> %a0) {
 define i32 @combine_no_overflow_i32(i32 %a0, i32 %a1) {
 ; CHECK-LABEL: combine_no_overflow_i32:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    # kill: def $esi killed $esi def $rsi
+; CHECK-NEXT:    # kill: def $edi killed $edi def $rdi
 ; CHECK-NEXT:    sarl $16, %edi
 ; CHECK-NEXT:    shrl $16, %esi
-; CHECK-NEXT:    xorl %eax, %eax
-; CHECK-NEXT:    movl %edi, %ecx
-; CHECK-NEXT:    addl %esi, %ecx
-; CHECK-NEXT:    setns %al
-; CHECK-NEXT:    addl $2147483647, %eax # imm = 0x7FFFFFFF
+; CHECK-NEXT:    leal (%rdi,%rsi), %eax
+; CHECK-NEXT:    sarl $31, %eax
+; CHECK-NEXT:    xorl $-2147483648, %eax # imm = 0x80000000
 ; CHECK-NEXT:    addl %edi, %esi
 ; CHECK-NEXT:    cmovnol %esi, %eax
 ; CHECK-NEXT:    retq

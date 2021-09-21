@@ -369,7 +369,7 @@ static void createResumeEntryBlock(Function &F, coro::Shape &Shape) {
                                  coro::Shape::SwitchFieldIndex::Resume,
                                   "ResumeFn.addr");
       auto *NullPtr = ConstantPointerNull::get(cast<PointerType>(
-          cast<PointerType>(GepIndex->getType())->getElementType()));
+          FrameTy->getTypeAtIndex(coro::Shape::SwitchFieldIndex::Resume)));
       Builder.CreateStore(NullPtr, GepIndex);
     } else {
       auto *GepIndex = Builder.CreateStructGEP(
@@ -477,7 +477,8 @@ static Function *createCloneDeclaration(Function &OrigF, coro::Shape &Shape,
   Function *NewF =
       Function::Create(FnTy, GlobalValue::LinkageTypes::InternalLinkage,
                        OrigF.getName() + Suffix);
-  NewF->addParamAttr(0, Attribute::NonNull);
+  if (Shape.ABI != coro::ABI::Async)
+    NewF->addParamAttr(0, Attribute::NonNull);
 
   // For the async lowering ABI we can't guarantee that the context argument is
   // not access via a different pointer not based on the argument.
@@ -621,7 +622,7 @@ static void replaceSwiftErrorOps(Function &F, coro::Shape &Shape,
 
     // If there are no arguments, this is a 'get' operation.
     Value *MappedResult;
-    if (Op->getNumArgOperands() == 0) {
+    if (Op->arg_empty()) {
       auto ValueTy = Op->getType();
       auto Slot = getSwiftErrorSlot(ValueTy);
       MappedResult = Builder.CreateLoad(ValueTy, Slot);
@@ -661,7 +662,6 @@ void CoroCloner::salvageDebugInfo() {
   // Remove all salvaged dbg.declare intrinsics that became
   // either unreachable or stale due to the CoroSplit transformation.
   DominatorTree DomTree(*NewF);
-  SmallDenseMap<BasicBlock *, bool, 8> UnreachableCache;
   auto IsUnreachableBlock = [&](BasicBlock *BB) {
     return !isPotentiallyReachable(&NewF->getEntryBlock(), BB, nullptr,
                                    &DomTree);
@@ -765,17 +765,16 @@ Value *CoroCloner::deriveNewFramePointer() {
   // context header.
   case coro::ABI::Async: {
     auto *ActiveAsyncSuspend = cast<CoroSuspendAsyncInst>(ActiveSuspend);
-    auto *CalleeContext =
-        NewF->getArg(ActiveAsyncSuspend->getStorageArgumentIndex());
+    auto ContextIdx = ActiveAsyncSuspend->getStorageArgumentIndex() & 0xff;
+    auto *CalleeContext = NewF->getArg(ContextIdx);
     auto *FramePtrTy = Shape.FrameTy->getPointerTo();
     auto *ProjectionFunc =
         ActiveAsyncSuspend->getAsyncContextProjectionFunction();
     auto DbgLoc =
         cast<CoroSuspendAsyncInst>(VMap[ActiveSuspend])->getDebugLoc();
     // Calling i8* (i8*)
-    auto *CallerContext = Builder.CreateCall(
-        cast<FunctionType>(ProjectionFunc->getType()->getPointerElementType()),
-        ProjectionFunc, CalleeContext);
+    auto *CallerContext = Builder.CreateCall(ProjectionFunc->getFunctionType(),
+                                             ProjectionFunc, CalleeContext);
     CallerContext->setCallingConv(ProjectionFunc->getCallingConv());
     CallerContext->setDebugLoc(DbgLoc);
     // The frame is located after the async_context header.
@@ -820,6 +819,20 @@ static void addFramePointerAttrs(AttributeList &Attrs, LLVMContext &Context,
   Attrs = Attrs.addParamAttributes(Context, ParamIndex, ParamAttrs);
 }
 
+static void addAsyncContextAttrs(AttributeList &Attrs, LLVMContext &Context,
+                                 unsigned ParamIndex) {
+  AttrBuilder ParamAttrs;
+  ParamAttrs.addAttribute(Attribute::SwiftAsync);
+  Attrs = Attrs.addParamAttributes(Context, ParamIndex, ParamAttrs);
+}
+
+static void addSwiftSelfAttrs(AttributeList &Attrs, LLVMContext &Context,
+                              unsigned ParamIndex) {
+  AttrBuilder ParamAttrs;
+  ParamAttrs.addAttribute(Attribute::SwiftSelf);
+  Attrs = Attrs.addParamAttributes(Context, ParamIndex, ParamAttrs);
+}
+
 /// Clone the body of the original function into a resume function of
 /// some sort.
 void CoroCloner::create() {
@@ -855,14 +868,17 @@ void CoroCloner::create() {
   auto &Context = NewF->getContext();
 
   // For async functions / continuations, adjust the scope line of the
-  // clone to the line number of the suspend point. The scope line is
+  // clone to the line number of the suspend point. However, only
+  // adjust the scope line when the files are the same. This ensures
+  // line number and file name belong together. The scope line is
   // associated with all pre-prologue instructions. This avoids a jump
   // in the linetable from the function declaration to the suspend point.
   if (DISubprogram *SP = NewF->getSubprogram()) {
     assert(SP != OrigF.getSubprogram() && SP->isDistinct());
     if (ActiveSuspend)
       if (auto DL = ActiveSuspend->getDebugLoc())
-        SP->setScopeLine(DL->getLine());
+        if (SP->getFile() == DL->getFile())
+          SP->setScopeLine(DL->getLine());
     // Update the linkage name to reflect the modified symbol name. It
     // is necessary to update the linkage name in Swift, since the
     // mangling changes for resume functions. It might also be the
@@ -889,17 +905,30 @@ void CoroCloner::create() {
   case coro::ABI::Switch:
     // Bootstrap attributes by copying function attributes from the
     // original function.  This should include optimization settings and so on.
-    NewAttrs = NewAttrs.addAttributes(Context, AttributeList::FunctionIndex,
-                                      OrigAttrs.getFnAttributes());
+    NewAttrs = NewAttrs.addFnAttributes(Context, OrigAttrs.getFnAttrs());
 
     addFramePointerAttrs(NewAttrs, Context, 0,
                          Shape.FrameSize, Shape.FrameAlign);
     break;
   case coro::ABI::Async: {
+    auto *ActiveAsyncSuspend = cast<CoroSuspendAsyncInst>(ActiveSuspend);
+    if (OrigF.hasParamAttribute(Shape.AsyncLowering.ContextArgNo,
+                                Attribute::SwiftAsync)) {
+      uint32_t ArgAttributeIndices =
+          ActiveAsyncSuspend->getStorageArgumentIndex();
+      auto ContextArgIndex = ArgAttributeIndices & 0xff;
+      addAsyncContextAttrs(NewAttrs, Context, ContextArgIndex);
+
+      // `swiftasync` must preceed `swiftself` so 0 is not a valid index for
+      // `swiftself`.
+      auto SwiftSelfIndex = ArgAttributeIndices >> 8;
+      if (SwiftSelfIndex)
+        addSwiftSelfAttrs(NewAttrs, Context, SwiftSelfIndex);
+    }
+
     // Transfer the original function's attributes.
-    auto FnAttrs = OrigF.getAttributes().getFnAttributes();
-    NewAttrs =
-        NewAttrs.addAttributes(Context, AttributeList::FunctionIndex, FnAttrs);
+    auto FnAttrs = OrigF.getAttributes().getFnAttrs();
+    NewAttrs = NewAttrs.addFnAttributes(Context, FnAttrs);
     break;
   }
   case coro::ABI::Retcon:
@@ -923,7 +952,7 @@ void CoroCloner::create() {
   case coro::ABI::RetconOnce:
     // Remove old returns.
     for (ReturnInst *Return : Returns)
-      changeToUnreachable(Return, /*UseLLVMTrap=*/false);
+      changeToUnreachable(Return);
     break;
 
   // With multi-suspend continuations, we'll already have eliminated the
@@ -1112,22 +1141,13 @@ static void updateCoroFrame(coro::Shape &Shape, Function *ResumeFn,
 static void postSplitCleanup(Function &F) {
   removeUnreachableBlocks(F);
 
+#ifndef NDEBUG
   // For now, we do a mandatory verification step because we don't
   // entirely trust this pass.  Note that we don't want to add a verifier
   // pass to FPM below because it will also verify all the global data.
   if (verifyFunction(F, &errs()))
     report_fatal_error("Broken function");
-
-  legacy::FunctionPassManager FPM(F.getParent());
-
-  FPM.add(createSCCPPass());
-  FPM.add(createCFGSimplificationPass());
-  FPM.add(createEarlyCSEPass());
-  FPM.add(createCFGSimplificationPass());
-
-  FPM.doInitialization();
-  FPM.run(F);
-  FPM.doFinalization();
+#endif
 }
 
 // Assuming we arrived at the block NewBlock from Prev instruction, store
@@ -1241,7 +1261,7 @@ static bool shouldBeMustTail(const CallInst &CI, const Function &F) {
       Attribute::SwiftSelf,    Attribute::SwiftError};
   AttributeList Attrs = CI.getAttributes();
   for (auto AK : ABIAttrs)
-    if (Attrs.hasParamAttribute(0, AK))
+    if (Attrs.hasParamAttr(0, AK))
       return false;
 
   return true;
@@ -1526,8 +1546,7 @@ static void coerceArguments(IRBuilder<> &Builder, FunctionType *FnTy,
 CallInst *coro::createMustTailCall(DebugLoc Loc, Function *MustTailCallFn,
                                    ArrayRef<Value *> Arguments,
                                    IRBuilder<> &Builder) {
-  auto *FnTy =
-      cast<FunctionType>(MustTailCallFn->getType()->getPointerElementType());
+  auto *FnTy = MustTailCallFn->getFunctionType();
   // Coerce the arguments, llvm optimizations seem to ignore the types in
   // vaarg functions and throws away casts in optimized mode.
   SmallVector<Value *, 8> CallArgs;
@@ -1547,8 +1566,8 @@ static void splitAsyncCoroutine(Function &F, coro::Shape &Shape,
   // Reset various things that the optimizer might have decided it
   // "knows" about the coroutine function due to not seeing a return.
   F.removeFnAttr(Attribute::NoReturn);
-  F.removeAttribute(AttributeList::ReturnIndex, Attribute::NoAlias);
-  F.removeAttribute(AttributeList::ReturnIndex, Attribute::NonNull);
+  F.removeRetAttr(Attribute::NoAlias);
+  F.removeRetAttr(Attribute::NonNull);
 
   auto &Context = F.getContext();
   auto *Int8PtrTy = Type::getInt8PtrTy(Context);
@@ -1579,8 +1598,23 @@ static void splitAsyncCoroutine(Function &F, coro::Shape &Shape,
     auto *Suspend = cast<CoroSuspendAsyncInst>(Shape.CoroSuspends[Idx]);
 
     // Create the clone declaration.
+    auto ResumeNameSuffix = ".resume.";
+    auto ProjectionFunctionName =
+        Suspend->getAsyncContextProjectionFunction()->getName();
+    bool UseSwiftMangling = false;
+    if (ProjectionFunctionName.equals("__swift_async_resume_project_context")) {
+      ResumeNameSuffix = "TQ";
+      UseSwiftMangling = true;
+    } else if (ProjectionFunctionName.equals(
+                   "__swift_async_resume_get_context")) {
+      ResumeNameSuffix = "TY";
+      UseSwiftMangling = true;
+    }
     auto *Continuation = createCloneDeclaration(
-        F, Shape, ".resume." + Twine(Idx), NextF, Suspend);
+        F, Shape,
+        UseSwiftMangling ? ResumeNameSuffix + Twine(Idx) + "_"
+                         : ResumeNameSuffix + Twine(Idx),
+        NextF, Suspend);
     Clones.push_back(Continuation);
 
     // Insert a branch to a new return block immediately before the suspend
@@ -1631,8 +1665,8 @@ static void splitRetconCoroutine(Function &F, coro::Shape &Shape,
   // Reset various things that the optimizer might have decided it
   // "knows" about the coroutine function due to not seeing a return.
   F.removeFnAttr(Attribute::NoReturn);
-  F.removeAttribute(AttributeList::ReturnIndex, Attribute::NoAlias);
-  F.removeAttribute(AttributeList::ReturnIndex, Attribute::NonNull);
+  F.removeRetAttr(Attribute::NoAlias);
+  F.removeRetAttr(Attribute::NonNull);
 
   // Allocate the frame.
   auto *Id = cast<AnyCoroIdRetconInst>(Shape.CoroBegin->getId());
@@ -2102,28 +2136,21 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
   // Split all the coroutines.
   for (LazyCallGraph::Node *N : Coroutines) {
     Function &F = N->getFunction();
-    Attribute Attr = F.getFnAttribute(CORO_PRESPLIT_ATTR);
-    StringRef Value = Attr.getValueAsString();
     LLVM_DEBUG(dbgs() << "CoroSplit: Processing coroutine '" << F.getName()
-                      << "' state: " << Value << "\n");
-    if (Value == UNPREPARED_FOR_SPLIT) {
-      // Enqueue a second iteration of the CGSCC pipeline on this SCC.
-      UR.CWorklist.insert(&C);
-      F.addFnAttr(CORO_PRESPLIT_ATTR, PREPARED_FOR_SPLIT);
-      continue;
-    }
+                      << "' state: "
+                      << F.getFnAttribute(CORO_PRESPLIT_ATTR).getValueAsString()
+                      << "\n");
     F.removeFnAttr(CORO_PRESPLIT_ATTR);
 
     SmallVector<Function *, 4> Clones;
     const coro::Shape Shape = splitCoroutine(F, Clones, ReuseFrameSlot);
     updateCallGraphAfterCoroutineSplit(*N, Shape, Clones, C, CG, AM, UR, FAM);
 
-    if ((Shape.ABI == coro::ABI::Async || Shape.ABI == coro::ABI::Retcon ||
-         Shape.ABI == coro::ABI::RetconOnce) &&
-        !Shape.CoroSuspends.empty()) {
-      // Run the CGSCC pipeline on the newly split functions.
-      // All clones will be in the same RefSCC, so choose a random clone.
-      UR.RCWorklist.insert(CG.lookupRefSCC(CG.get(*Clones[0])));
+    if (!Shape.CoroSuspends.empty()) {
+      // Run the CGSCC pipeline on the original and newly split functions.
+      UR.CWorklist.insert(&C);
+      for (Function *Clone : Clones)
+        UR.CWorklist.insert(CG.lookupSCC(CG.get(*Clone)));
     }
   }
 

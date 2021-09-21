@@ -292,7 +292,11 @@ struct MIMGBaseOpcodeInfo {
   bool LodOrClampOrMip;
   bool HasD16;
   bool MSAA;
+  bool BVH;
 };
+
+LLVM_READONLY
+const MIMGBaseOpcodeInfo *getMIMGBaseOpcode(unsigned Opc);
 
 LLVM_READONLY
 const MIMGBaseOpcodeInfo *getMIMGBaseOpcodeInfo(unsigned BaseOpcode);
@@ -689,6 +693,10 @@ uint64_t encodeMsg(uint64_t MsgId,
 
 unsigned getInitialPSInputAddr(const Function &F);
 
+bool getHasColorExport(const Function &F);
+
+bool getHasDepthExport(const Function &F);
+
 LLVM_READNONE
 bool isShader(CallingConv::ID CC);
 
@@ -737,6 +745,7 @@ bool isGFX9Plus(const MCSubtargetInfo &STI);
 bool isGFX10(const MCSubtargetInfo &STI);
 bool isGFX10Plus(const MCSubtargetInfo &STI);
 bool isGCN3Encoding(const MCSubtargetInfo &STI);
+bool isGFX10_AEncoding(const MCSubtargetInfo &STI);
 bool isGFX10_BEncoding(const MCSubtargetInfo &STI);
 bool hasGFX10_3Insts(const MCSubtargetInfo &STI);
 bool isGFX90A(const MCSubtargetInfo &STI);

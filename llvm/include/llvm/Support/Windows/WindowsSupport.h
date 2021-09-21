@@ -37,7 +37,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/Config/config.h" // Get build system configuration settings
+#include "llvm/Config/llvm-config.h" // Get build system configuration settings
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Chrono.h"
 #include "llvm/Support/Compiler.h"
@@ -68,7 +68,7 @@ llvm::VersionTuple GetWindowsOSVersion();
 bool MakeErrMsg(std::string *ErrMsg, const std::string &prefix);
 
 // Include GetLastError() in a fatal error message.
-LLVM_ATTRIBUTE_NORETURN inline void ReportLastErrorFatal(const char *Msg) {
+[[noreturn]] inline void ReportLastErrorFatal(const char *Msg) {
   std::string ErrMsg;
   MakeErrMsg(&ErrMsg, Msg);
   llvm::report_fatal_error(ErrMsg);

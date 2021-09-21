@@ -1,31 +1,33 @@
-// RUN: %clangxx -march=sapphirerapids -fsycl -O2 %s -o %t.out
+// RUN: %clangxx -DSYCL_EXT_ONEAPI_MATRIX=1 -march=sapphirerapids -fsycl -O2 %s -o %t.out
 #include <CL/sycl.hpp>
 #if (SYCL_EXT_ONEAPI_MATRIX == 1)
 #include <iostream>
 
 using namespace sycl;
-using namespace sycl::intel;
+using namespace sycl::ext::intel;
 using namespace sycl::ext::intel::experimental::matrix;
 
 #define TILE_SZ 16
-#define TM (3 * TILE_SZ-1)
-#define TN (3 * TILE_SZ-1)
-#define TK (9 * TILE_SZ+2)
+#define TM (3 * TILE_SZ - 1)
+#define TN (3 * TILE_SZ - 1)
+#define TK (9 * TILE_SZ + 2)
 
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix{
+template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
 public:
   T *mat;
 
 public:
   T *get_data() { return mat; }
   void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {
-  }
+  big_matrix(T *data) : mat(data) {}
 };
 
-template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A, size_t NUM_ROWS_B,
-          size_t NUM_COLS_B, size_t NUM_ROWS_C, size_t NUM_COLS_C>
-void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C, big_matrix<T2, NUM_ROWS_A, NUM_COLS_A> &A, big_matrix<T2, NUM_ROWS_B, NUM_COLS_B> &B) {
+template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
+          size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
+          size_t NUM_COLS_C>
+void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
+                     big_matrix<T2, NUM_ROWS_A, NUM_COLS_A> &A,
+                     big_matrix<T2, NUM_ROWS_B, NUM_COLS_B> &B) {
   size_t M = NUM_ROWS_C;
   size_t N = NUM_COLS_C;
   size_t K = NUM_COLS_A;
@@ -36,7 +38,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C, big_matrix<T2, N
   size_t NDRangeN = N / TN;
   buffer<unsigned short, 2> bufA(A.get_data(), range<2>(M, K));
   buffer<unsigned short, 2> bufB(B.get_data(), range<2>(K, N));
-  buffer<float, 2> bufC((float*)C.get_data(), range<2>(M, N));
+  buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
 
   queue q;
   q.submit([&](handler &cgh) {
@@ -46,7 +48,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C, big_matrix<T2, N
 
      cgh.parallel_for<class imatrix>(
          nd_range<2>({NDRangeM, NDRangeN}, {1, 1}),
-         [accA, accB, accC, M, N, K](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(1)]]
+         [ accA, accB, accC, M, N, K ](nd_item<2> spmd_item)
+             [[intel::reqd_sub_group_size(1)]]
 
          {
            // The submatrix API has to be accessed by all the workitems in a
@@ -57,13 +60,17 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C, big_matrix<T2, N
            const auto sg_startx = global_idx;
            const auto sg_starty = global_idy;
 
-           ONEAPI::sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<ONEAPI::sub_group, unsigned short, TM, TK> sub_a(sg);
-           // For B, since current implementation does not support non-packed layout,
-           // users need to specify the updated VNNI sizes along with the packed_b layout.
-           // By default, the layout is row_major and size is (TK, TN).
-           joint_matrix<ONEAPI::sub_group, unsigned short, TK / 2, TN * 2, matrix_layout::packed_b> sub_b(sg);
-           joint_matrix<ONEAPI::sub_group, float, TM, TN> sub_c(sg);
+           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<ext::oneapi::sub_group, unsigned short, TM, TK> sub_a(
+               sg);
+           // For B, since current implementation does not support non-packed
+           // layout, users need to specify the updated VNNI sizes along with
+           // the packed_b layout. By default, the layout is row_major and size
+           // is (TK, TN).
+           joint_matrix<ext::oneapi::sub_group, unsigned short, TK / 2, TN * 2,
+                        matrix_layout::packed_b>
+               sub_b(sg);
+           joint_matrix<ext::oneapi::sub_group, float, TM, TN> sub_c(sg);
 
            // Only the leader perform AMX computation.
            if (spmd_item.get_local_id(1) % TILE_SZ)
@@ -75,14 +82,13 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C, big_matrix<T2, N
                                  sg_starty * TN,
                              N, matrix_layout::row_major);
            for (int k = 0; k < K / TK; k += 1) { // K->int8_t
-             joint_matrix_load(sg, sub_a,
-                               accA.get_pointer() + (sg_startx * TM) * K +
-                                   k * TK,
-                               K, matrix_layout::row_major);
+             joint_matrix_load(
+                 sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k * TK,
+                 K, matrix_layout::row_major);
              // Assume we alreay in vnni format.
              joint_matrix_load(sg, sub_b,
-                               accB.get_pointer() +
-                                   (k * TK / 2) * (N * 2) + sg_starty * TN * 2,
+                               accB.get_pointer() + (k * TK / 2) * (N * 2) +
+                                   sg_starty * TN * 2,
                                N * 2, matrix_layout::packed_b);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
@@ -102,34 +108,33 @@ unsigned short B[MATRIX_K / 2][MATRIX_N * 2];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
 
-float make_fp32(short x)
-{
+float make_fp32(short x) {
   unsigned int y = x;
   y = y << 16;
-  float *res = reinterpret_cast<float*>(&y);
+  float *res = reinterpret_cast<float *>(&y);
   return *res;
 }
 
-unsigned short make_bf16(float x)
-{
-  int *res = reinterpret_cast<int*>(&x);
+unsigned short make_bf16(float x) {
+  int *res = reinterpret_cast<int *>(&x);
   *res = *res >> 16;
   return (unsigned short)*res;
 }
 
-void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N, int K) {
+void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
+                         int K) {
   // tiling
   for (int m = 0; m < M; m++)
     for (int n = 0; n < N; n++) {
       for (int k = 0; k < K; k++) {
-        short *va = (short *)(A_mem + m*K + k);
-        short *vb = (short *)(B_mem + k*N + n);
-        float acc = *((float*)(C_mem + m*N + n));
+        short *va = (short *)(A_mem + m * K + k);
+        short *vb = (short *)(B_mem + k * N + n);
+        float acc = *((float *)(C_mem + m * N + n));
         // FIXME: Should we do reduce-add in another version?
         for (int i = 0; i < 2; i++) {
           acc += (make_fp32(va[i]) * make_fp32(vb[i]));
         }
-        *((float*)(C_mem + m*N + n))= acc;
+        *((float *)(C_mem + m * N + n)) = acc;
       }
     }
 }
@@ -137,12 +142,12 @@ void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N, int K
 int main() {
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_K; j++) {
-      A[i][j] = make_bf16(1.0f * (i+j));
+      A[i][j] = make_bf16(1.0f * (i + j));
     }
   }
   for (int i = 0; i < MATRIX_K / 2; i++) {
     for (int j = 0; j < MATRIX_N * 2; j++) {
-      B[i][j] =  make_bf16(2.0f*i + 3.0f*j);
+      B[i][j] = make_bf16(2.0f * i + 3.0f * j);
     }
   }
   for (int i = 0; i < MATRIX_M; i++) {
@@ -155,10 +160,11 @@ int main() {
   big_matrix<float, MATRIX_M, MATRIX_N> MC((float *)&C);
   big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
   big_matrix<unsigned short, MATRIX_M, MATRIX_K> MA((unsigned short *)&A);
-  big_matrix<unsigned short,MATRIX_K / 2, MATRIX_N * 2> MB((unsigned short *)&B);
+  big_matrix<unsigned short, MATRIX_K / 2, MATRIX_N * 2> MB(
+      (unsigned short *)&B);
   matrix_multiply(MC, MA, MB);
   matrix_multiply_ref((int32_t *)A, (int32_t *)B, (int32_t *)D, MATRIX_M,
-                    MATRIX_N, MATRIX_K / 2);
+                      MATRIX_N, MATRIX_K / 2);
 
   bool res = true;
   for (int i = 0; i < MATRIX_M; i++) {

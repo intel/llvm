@@ -472,6 +472,10 @@ public:
   clearFlags(SCEV::NoWrapFlags Flags, SCEV::NoWrapFlags OffFlags) {
     return (SCEV::NoWrapFlags)(Flags & ~OffFlags);
   }
+  LLVM_NODISCARD static bool hasFlags(SCEV::NoWrapFlags Flags,
+                                      SCEV::NoWrapFlags TestFlags) {
+    return TestFlags == maskFlags(Flags, TestFlags);
+  };
 
   ScalarEvolution(Function &F, TargetLibraryInfo &TLI, AssumptionCache &AC,
                   DominatorTree &DT, LoopInfo &LI);
@@ -504,6 +508,17 @@ public:
 
   /// Erase Value from ValueExprMap and ExprValueMap.
   void eraseValueFromMap(Value *V);
+
+  /// Is operation \p BinOp between \p LHS and \p RHS provably does not have
+  /// a signed/unsigned overflow (\p Signed)?
+  bool willNotOverflow(Instruction::BinaryOps BinOp, bool Signed,
+                       const SCEV *LHS, const SCEV *RHS);
+
+  /// Parse NSW/NUW flags from add/sub/mul IR binary operation \p Op into
+  /// SCEV no-wrap flags, and deduce flag[s] that aren't known yet.
+  /// Does not mutate the original instruction.
+  std::pair<SCEV::NoWrapFlags, bool /*Deduced*/>
+  getStrengthenedNoWrapFlagsFromBinOp(const OverflowingBinaryOperator *OBO);
 
   /// Return a SCEV expression for the full generality of the specified
   /// expression.
@@ -622,9 +637,25 @@ public:
   const SCEV *getNotSCEV(const SCEV *V);
 
   /// Return LHS-RHS.  Minus is represented in SCEV as A+B*-1.
+  ///
+  /// If the LHS and RHS are pointers which don't share a common base
+  /// (according to getPointerBase()), this returns a SCEVCouldNotCompute.
+  /// To compute the difference between two unrelated pointers, you can
+  /// explicitly convert the arguments using getPtrToIntExpr(), for pointer
+  /// types that support it.
   const SCEV *getMinusSCEV(const SCEV *LHS, const SCEV *RHS,
                            SCEV::NoWrapFlags Flags = SCEV::FlagAnyWrap,
                            unsigned Depth = 0);
+
+  /// Compute ceil(N / D). N and D are treated as unsigned values.
+  ///
+  /// Since SCEV doesn't have native ceiling division, this generates a
+  /// SCEV expression of the following form:
+  ///
+  /// umin(N, 1) + floor((N - umin(N, 1)) / D)
+  ///
+  /// A denominator of zero or poison is handled the same way as getUDivExpr().
+  const SCEV *getUDivCeilSCEV(const SCEV *N, const SCEV *D);
 
   /// Return a SCEV corresponding to a conversion of the input value to the
   /// specified type.  If the type must be extended, it is zero extended.
@@ -673,6 +704,9 @@ public:
   /// cases do exist.
   const SCEV *getPointerBase(const SCEV *V);
 
+  /// Compute an expression equivalent to S - getPointerBase(S).
+  const SCEV *removePointerBase(const SCEV *S);
+
   /// Return a SCEV expression for the specified value at the specified scope
   /// in the program.  The L value specifies a loop nest to evaluate the
   /// expression at, where null is the top-level or a specified loop is
@@ -705,17 +739,25 @@ public:
   bool isLoopBackedgeGuardedByCond(const Loop *L, ICmpInst::Predicate Pred,
                                    const SCEV *LHS, const SCEV *RHS);
 
-  /// Returns the maximum trip count of the loop if it is a single-exit
-  /// loop and we can compute a small maximum for that loop.
-  ///
-  /// Implemented in terms of the \c getSmallConstantTripCount overload with
-  /// the single exiting block passed to it. See that routine for details.
+  /// Convert from an "exit count" (i.e. "backedge taken count") to a "trip
+  /// count".  A "trip count" is the number of times the header of the loop
+  /// will execute if an exit is taken after the specified number of backedges
+  /// have been taken.  (e.g. TripCount = ExitCount + 1)  A zero result
+  /// must be interpreted as a loop having an unknown trip count.
+  const SCEV *getTripCountFromExitCount(const SCEV *ExitCount);
+
+  /// Returns the exact trip count of the loop if we can compute it, and
+  /// the result is a small constant.  '0' is used to represent an unknown
+  /// or non-constant trip count.  Note that a trip count is simply one more
+  /// than the backedge taken count for the loop.
   unsigned getSmallConstantTripCount(const Loop *L);
 
-  /// Returns the maximum trip count of this loop as a normal unsigned
-  /// value. Returns 0 if the trip count is unknown or not constant. This
-  /// "trip count" assumes that control exits via ExitingBlock. More
-  /// precisely, it is the number of times that control may reach ExitingBlock
+  /// Return the exact trip count for this loop if we exit through ExitingBlock.
+  /// '0' is used to represent an unknown or non-constant trip count.  Note
+  /// that a trip count is simply one more than the backedge taken count for
+  /// the same exit.
+  /// This "trip count" assumes that control exits via ExitingBlock. More
+  /// precisely, it is the number of times that control will reach ExitingBlock
   /// before taking the branch. For loops with multiple exits, it may not be
   /// the number times that the loop header executes if the loop exits
   /// prematurely via another branch.
@@ -727,12 +769,18 @@ public:
   /// Returns 0 if the trip count is unknown or not constant.
   unsigned getSmallConstantMaxTripCount(const Loop *L);
 
+  /// Returns the largest constant divisor of the trip count as a normal
+  /// unsigned value, if possible. This means that the actual trip count is
+  /// always a multiple of the returned value. Returns 1 if the trip count is
+  /// unknown or not guaranteed to be the multiple of a constant., Will also
+  /// return 1 if the trip count is very large (>= 2^32).
+  /// Note that the argument is an exit count for loop L, NOT a trip count.
+  unsigned getSmallConstantTripMultiple(const Loop *L,
+                                        const SCEV *ExitCount);
+
   /// Returns the largest constant divisor of the trip count of the
-  /// loop if it is a single-exit loop and we can compute a small maximum for
-  /// that loop.
-  ///
-  /// Implemented in terms of the \c getSmallConstantTripMultiple overload with
-  /// the single exiting block passed to it. See that routine for details.
+  /// loop.  Will return 1 if no trip count could be computed, or if a
+  /// divisor could not be found.
   unsigned getSmallConstantTripMultiple(const Loop *L);
 
   /// Returns the largest constant divisor of the trip count of this loop as a
@@ -1051,109 +1099,10 @@ public:
   /// Return the size of an element read or written by Inst.
   const SCEV *getElementSize(Instruction *Inst);
 
-  /// Compute the array dimensions Sizes from the set of Terms extracted from
-  /// the memory access function of this SCEVAddRecExpr (second step of
-  /// delinearization).
-  void findArrayDimensions(SmallVectorImpl<const SCEV *> &Terms,
-                           SmallVectorImpl<const SCEV *> &Sizes,
-                           const SCEV *ElementSize);
-
   void print(raw_ostream &OS) const;
   void verify() const;
   bool invalidate(Function &F, const PreservedAnalyses &PA,
                   FunctionAnalysisManager::Invalidator &Inv);
-
-  /// Collect parametric terms occurring in step expressions (first step of
-  /// delinearization).
-  void collectParametricTerms(const SCEV *Expr,
-                              SmallVectorImpl<const SCEV *> &Terms);
-
-  /// Return in Subscripts the access functions for each dimension in Sizes
-  /// (third step of delinearization).
-  void computeAccessFunctions(const SCEV *Expr,
-                              SmallVectorImpl<const SCEV *> &Subscripts,
-                              SmallVectorImpl<const SCEV *> &Sizes);
-
-  /// Gathers the individual index expressions from a GEP instruction.
-  ///
-  /// This function optimistically assumes the GEP references into a fixed size
-  /// array. If this is actually true, this function returns a list of array
-  /// subscript expressions in \p Subscripts and a list of integers describing
-  /// the size of the individual array dimensions in \p Sizes. Both lists have
-  /// either equal length or the size list is one element shorter in case there
-  /// is no known size available for the outermost array dimension. Returns true
-  /// if successful and false otherwise.
-  bool getIndexExpressionsFromGEP(const GetElementPtrInst *GEP,
-                                  SmallVectorImpl<const SCEV *> &Subscripts,
-                                  SmallVectorImpl<int> &Sizes);
-
-  /// Split this SCEVAddRecExpr into two vectors of SCEVs representing the
-  /// subscripts and sizes of an array access.
-  ///
-  /// The delinearization is a 3 step process: the first two steps compute the
-  /// sizes of each subscript and the third step computes the access functions
-  /// for the delinearized array:
-  ///
-  /// 1. Find the terms in the step functions
-  /// 2. Compute the array size
-  /// 3. Compute the access function: divide the SCEV by the array size
-  ///    starting with the innermost dimensions found in step 2. The Quotient
-  ///    is the SCEV to be divided in the next step of the recursion. The
-  ///    Remainder is the subscript of the innermost dimension. Loop over all
-  ///    array dimensions computed in step 2.
-  ///
-  /// To compute a uniform array size for several memory accesses to the same
-  /// object, one can collect in step 1 all the step terms for all the memory
-  /// accesses, and compute in step 2 a unique array shape. This guarantees
-  /// that the array shape will be the same across all memory accesses.
-  ///
-  /// FIXME: We could derive the result of steps 1 and 2 from a description of
-  /// the array shape given in metadata.
-  ///
-  /// Example:
-  ///
-  /// A[][n][m]
-  ///
-  /// for i
-  ///   for j
-  ///     for k
-  ///       A[j+k][2i][5i] =
-  ///
-  /// The initial SCEV:
-  ///
-  /// A[{{{0,+,2*m+5}_i, +, n*m}_j, +, n*m}_k]
-  ///
-  /// 1. Find the different terms in the step functions:
-  /// -> [2*m, 5, n*m, n*m]
-  ///
-  /// 2. Compute the array size: sort and unique them
-  /// -> [n*m, 2*m, 5]
-  /// find the GCD of all the terms = 1
-  /// divide by the GCD and erase constant terms
-  /// -> [n*m, 2*m]
-  /// GCD = m
-  /// divide by GCD -> [n, 2]
-  /// remove constant terms
-  /// -> [n]
-  /// size of the array is A[unknown][n][m]
-  ///
-  /// 3. Compute the access function
-  /// a. Divide {{{0,+,2*m+5}_i, +, n*m}_j, +, n*m}_k by the innermost size m
-  /// Quotient: {{{0,+,2}_i, +, n}_j, +, n}_k
-  /// Remainder: {{{0,+,5}_i, +, 0}_j, +, 0}_k
-  /// The remainder is the subscript of the innermost array dimension: [5i].
-  ///
-  /// b. Divide Quotient: {{{0,+,2}_i, +, n}_j, +, n}_k by next outer size n
-  /// Quotient: {{{0,+,0}_i, +, 1}_j, +, 1}_k
-  /// Remainder: {{{0,+,2}_i, +, 0}_j, +, 0}_k
-  /// The Remainder is the subscript of the next array dimension: [2i].
-  ///
-  /// The subscript of the outermost dimension is the Quotient: [j+k].
-  ///
-  /// Overall, we have: A[][n][m], and the access function: A[j+k][2i][5i].
-  void delinearize(const SCEV *Expr, SmallVectorImpl<const SCEV *> &Subscripts,
-                   SmallVectorImpl<const SCEV *> &Sizes,
-                   const SCEV *ElementSize);
 
   /// Return the DataLayout associated with the module this SCEV instance is
   /// operating on.
@@ -1241,7 +1190,8 @@ private:
 
   /// The type for ExprValueMap.
   using ValueOffsetPair = std::pair<Value *, ConstantInt *>;
-  using ExprValueMapType = DenseMap<const SCEV *, SetVector<ValueOffsetPair>>;
+  using ValueOffsetPairSetVector = SmallSetVector<ValueOffsetPair, 4>;
+  using ExprValueMapType = DenseMap<const SCEV *, ValueOffsetPairSetVector>;
 
   /// ExprValueMap -- This map records the original values from which
   /// the SCEV expr is generated from.
@@ -1293,7 +1243,7 @@ private:
   DenseMap<const SCEV *, uint32_t> MinTrailingZerosCache;
 
   /// Return the Value set from which the SCEV expr is generated.
-  SetVector<ValueOffsetPair> *getSCEVValues(const SCEV *S);
+  ValueOffsetPairSetVector *getSCEVValues(const SCEV *S);
 
   /// Private helper method for the GetMinTrailingZeros method
   uint32_t GetMinTrailingZerosImpl(const SCEV *S);
@@ -1390,6 +1340,9 @@ private:
     /// True iff the backedge is taken either exactly Max or zero times.
     bool MaxOrZero = false;
 
+    /// SCEV expressions used in any of the ExitNotTakenInfo counts.
+    SmallPtrSet<const SCEV *, 4> Operands;
+
     bool isComplete() const { return IsComplete; }
     const SCEV *getConstantMax() const { return ConstantMax; }
 
@@ -1458,7 +1411,7 @@ private:
 
     /// Return true if any backedge taken count expressions refer to the given
     /// subexpression.
-    bool hasOperand(const SCEV *S, ScalarEvolution *SE) const;
+    bool hasOperand(const SCEV *S) const;
   };
 
   /// Cache the backedge-taken count of the loops for this function as they
@@ -1512,6 +1465,10 @@ private:
   bool loopHasNoAbnormalExits(const Loop *L) {
     return getLoopProperties(L).HasNoAbnormalExits;
   }
+
+  /// Return true if this loop is finite by assumption.  That is,
+  /// to be infinite, it must also be undefined.
+  bool loopIsFiniteByAssumption(const Loop *L);
 
   /// Compute a LoopDisposition value.
   LoopDisposition computeLoopDisposition(const SCEV *S, const Loop *L);
@@ -1983,32 +1940,28 @@ private:
   Optional<std::pair<const SCEV *, SmallVector<const SCEVPredicate *, 3>>>
   createAddRecFromPHIWithCastsImpl(const SCEVUnknown *SymbolicPHI);
 
-  /// Compute the backedge taken count knowing the interval difference, the
-  /// stride and presence of the equality in the comparison.
-  const SCEV *computeBECount(const SCEV *Delta, const SCEV *Stride,
-                             bool Equality);
-
   /// Compute the maximum backedge count based on the range of values
   /// permitted by Start, End, and Stride. This is for loops of the form
   /// {Start, +, Stride} LT End.
   ///
-  /// Precondition: the induction variable is known to be positive.  We *don't*
-  /// assert these preconditions so please be careful.
+  /// Preconditions:
+  /// * the induction variable is known to be positive.
+  /// * the induction variable is assumed not to overflow (i.e. either it
+  ///   actually doesn't, or we'd have to immediately execute UB)
+  /// We *don't* assert these preconditions so please be careful.
   const SCEV *computeMaxBECountForLT(const SCEV *Start, const SCEV *Stride,
                                      const SCEV *End, unsigned BitWidth,
                                      bool IsSigned);
 
   /// Verify if an linear IV with positive stride can overflow when in a
   /// less-than comparison, knowing the invariant term of the comparison,
-  /// the stride and the knowledge of NSW/NUW flags on the recurrence.
-  bool doesIVOverflowOnLT(const SCEV *RHS, const SCEV *Stride, bool IsSigned,
-                          bool NoWrap);
+  /// the stride.
+  bool canIVOverflowOnLT(const SCEV *RHS, const SCEV *Stride, bool IsSigned);
 
   /// Verify if an linear IV with negative stride can overflow when in a
   /// greater-than comparison, knowing the invariant term of the comparison,
-  /// the stride and the knowledge of NSW/NUW flags on the recurrence.
-  bool doesIVOverflowOnGT(const SCEV *RHS, const SCEV *Stride, bool IsSigned,
-                          bool NoWrap);
+  /// the stride.
+  bool canIVOverflowOnGT(const SCEV *RHS, const SCEV *Stride, bool IsSigned);
 
   /// Get add expr already created or create a new one.
   const SCEV *getOrCreateAddExpr(ArrayRef<const SCEV *> Ops,
@@ -2039,14 +1992,8 @@ private:
   bool matchURem(const SCEV *Expr, const SCEV *&LHS, const SCEV *&RHS);
 
   /// Look for a SCEV expression with type `SCEVType` and operands `Ops` in
-  /// `UniqueSCEVs`.
-  ///
-  /// The first component of the returned tuple is the SCEV if found and null
-  /// otherwise.  The second component is the `FoldingSetNodeID` that was
-  /// constructed to look up the SCEV and the third component is the insertion
-  /// point.
-  std::tuple<SCEV *, FoldingSetNodeID, void *>
-  findExistingSCEVInCache(SCEVTypes SCEVType, ArrayRef<const SCEV *> Ops);
+  /// `UniqueSCEVs`.  Return if found, else nullptr.
+  SCEV *findExistingSCEVInCache(SCEVTypes SCEVType, ArrayRef<const SCEV *> Ops);
 
   FoldingSet<SCEV> UniqueSCEVs;
   FoldingSet<SCEVPredicate> UniquePreds;

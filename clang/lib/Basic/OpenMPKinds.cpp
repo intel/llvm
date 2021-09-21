@@ -21,7 +21,7 @@ using namespace clang;
 using namespace llvm::omp;
 
 unsigned clang::getOpenMPSimpleClauseType(OpenMPClauseKind Kind, StringRef Str,
-                                          unsigned OpenMPVersion) {
+                                          const LangOptions &LangOpts) {
   switch (Kind) {
   case OMPC_default:
     return llvm::StringSwitch<unsigned>(Str)
@@ -59,7 +59,9 @@ unsigned clang::getOpenMPSimpleClauseType(OpenMPClauseKind Kind, StringRef Str,
   .Case(#Name, static_cast<unsigned>(OMPC_MAP_MODIFIER_##Name))
 #include "clang/Basic/OpenMPKinds.def"
         .Default(OMPC_MAP_unknown);
-    if (OpenMPVersion < 51 && Type == OMPC_MAP_MODIFIER_present)
+    if (LangOpts.OpenMP < 51 && Type == OMPC_MAP_MODIFIER_present)
+      return OMPC_MAP_MODIFIER_unknown;
+    if (!LangOpts.OpenMPExtensions && Type == OMPC_MAP_MODIFIER_ompx_hold)
       return OMPC_MAP_MODIFIER_unknown;
     return Type;
   }
@@ -70,7 +72,7 @@ unsigned clang::getOpenMPSimpleClauseType(OpenMPClauseKind Kind, StringRef Str,
   .Case(#Name, static_cast<unsigned>(OMPC_MOTION_MODIFIER_##Name))
 #include "clang/Basic/OpenMPKinds.def"
         .Default(OMPC_MOTION_MODIFIER_unknown);
-    if (OpenMPVersion < 51 && Type == OMPC_MOTION_MODIFIER_present)
+    if (LangOpts.OpenMP < 51 && Type == OMPC_MOTION_MODIFIER_present)
       return OMPC_MOTION_MODIFIER_unknown;
     return Type;
   }
@@ -452,7 +454,8 @@ bool clang::isOpenMPLoopDirective(OpenMPDirectiveKind DKind) {
          DKind == OMPD_target_teams_distribute ||
          DKind == OMPD_target_teams_distribute_parallel_for ||
          DKind == OMPD_target_teams_distribute_parallel_for_simd ||
-         DKind == OMPD_target_teams_distribute_simd || DKind == OMPD_tile;
+         DKind == OMPD_target_teams_distribute_simd || DKind == OMPD_tile ||
+         DKind == OMPD_unroll;
 }
 
 bool clang::isOpenMPWorksharingDirective(OpenMPDirectiveKind DKind) {
@@ -580,7 +583,7 @@ bool clang::isOpenMPLoopBoundSharingDirective(OpenMPDirectiveKind Kind) {
 }
 
 bool clang::isOpenMPLoopTransformationDirective(OpenMPDirectiveKind DKind) {
-  return DKind == OMPD_tile;
+  return DKind == OMPD_tile || DKind == OMPD_unroll;
 }
 
 void clang::getOpenMPCaptureRegions(
@@ -668,6 +671,7 @@ void clang::getOpenMPCaptureRegions(
     CaptureRegions.push_back(OMPD_unknown);
     break;
   case OMPD_tile:
+  case OMPD_unroll:
     // loop transformations do not introduce captures.
     break;
   case OMPD_threadprivate:

@@ -15,6 +15,7 @@
 
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/IR/OpBase.td"
 
 //===----------------------------------------------------------------------===//
 // ArmNeon dialect definition
@@ -37,7 +38,8 @@ def ArmNeon_Dialect : Dialect {
 // intrinsic.
 class ArmNeon_IntrOp<string mnemonic, list<int> overloadedResults,
                      list<int> overloadedOperands, int numResults,
-                     list<OpTrait> traits = [], bit requiresAccessGroup = 0>
+                     list<OpTrait> traits = [], bit requiresAccessGroup = 0,
+                     bit requiresAliasScope = 0>
     : LLVM_IntrOpBase</*dialect=*/ArmNeon_Dialect,
                       /*opName=*/"intr." # mnemonic,
                       /*enumName=*/"aarch64_neon_" # !subst(".", "_", mnemonic),
@@ -45,7 +47,8 @@ class ArmNeon_IntrOp<string mnemonic, list<int> overloadedResults,
                       /*overloadedOperands=*/overloadedOperands,
                       /*traits=*/traits,
                       /*numResults=*/numResults,
-                      /*requiresAccessGroup=*/requiresAccessGroup>;
+                      /*requiresAccessGroup=*/requiresAccessGroup,
+                      /*requiresAliasScope=*/requiresAliasScope>;
 
 // ArmNeon dialect op that corresponds to an LLVM IR intrinsic with one
 // overloaded result.
@@ -116,5 +119,59 @@ def SdotOp : ArmNeon_OverloadedOperandsWithOneResultIntrOp<"sdot",[1], [
   let assemblyFormat =
     "$a `,` $b `,` $c attr-dict `:` type($b) `,` type($c) `to` type($res)";
   }
+
+class ArmNeon_2dOp<string mnemonic, list<OpTrait> traits = []>
+    : Op</*dialect=*/ArmNeon_Dialect,
+         /*opName=*/"2d." # mnemonic,
+         /*traits=*/traits>;
+
+def Sdot2dOp : ArmNeon_2dOp<"sdot", [
+      NoSideEffect,
+      AllTypesMatch<["b", "c"]>,
+      AllTypesMatch<["a", "res"]>,
+      PredOpTrait<
+        "operand `a` should be 1-dimensional",
+        CPred<"a().getType().cast<VectorType>().getShape().size() == 1">
+      >,
+      PredOpTrait<
+        "operand `b` should be 2-dimensional",
+        CPred<"b().getType().cast<VectorType>().getShape().size() == 2">
+      >,
+      PredOpTrait<
+        "operand `b` should have 4 columns",
+        CPred<"b().getType().cast<VectorType>().getShape()[1] == 4">
+      >,
+      PredOpTrait<
+        "operand `b` should have as many rows as the size of operand `a`",
+        CPred<"b().getType().cast<VectorType>().getShape()[0] == a().getType().cast<VectorType>().getShape()[0]">
+      >,
+      ]
+  > {
+  let summary = "sdot op";
+  let description = [{
+    The two input vectors `b` and `c` have a 2D shape, consisting of either 2
+    or 4 rows, each row having length 4. This operation computes the pair-wise
+    dot-products of the rows of `b` and `c` and accumulates them with the
+    corresponding entry of `a`:
+
+    ```
+    res[i] := a[i] + dot_product(b[i, ...], c[i, ...])
+    ```
+
+  }];
+  // Supports either:
+  //   (vector<2xi32>, vector<2x4xi8>, vector<2x4xi8>) -> vector<2xi32>
+  //   (vector<4xi32>, vector<4x4xi8>, vector<4x4xi8>) -> vector<4xi32>
+  // TODO: how do we express 2D shape requirements here?
+  let arguments = (ins VectorOfLengthAndType<[4, 2], [I32]>:$a,
+                       VectorOfLengthAndType<[16, 8], [I8]>:$b,
+                       VectorOfLengthAndType<[16, 8], [I8]>:$c);
+  let results = (outs VectorOfLengthAndType<[4, 2], [I32]>:$res);
+  let assemblyFormat =
+    "$a `,` $b `,` $c attr-dict `:` type($b) `,` type($c) `to` type($res)";
+  let extraClassDeclaration = [{
+    static constexpr int kReductionSize = 4;
+  }];
+}
 
 #endif // ARMNEON_OPS

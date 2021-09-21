@@ -236,19 +236,10 @@ void X86ExpandPseudo::expandCALL_RVMARKER(MachineBasicBlock &MBB,
     MBB.getParent()->moveCallSiteInfo(&MI, Marker);
 
   // Emit call to ObjC runtime.
-  unsigned RuntimeCallType = MI.getOperand(0).getImm();
-  assert(RuntimeCallType <= 1 && "objc runtime call type must be 0 or 1");
-  Module *M = MBB.getParent()->getFunction().getParent();
-  auto &Context = M->getContext();
-  auto *I8PtrTy = PointerType::get(IntegerType::get(Context, 8), 0);
-  FunctionCallee Fn = M->getOrInsertFunction(
-      RuntimeCallType == 0 ? "objc_retainAutoreleasedReturnValue"
-                           : "objc_unsafeClaimAutoreleasedReturnValue",
-      FunctionType::get(I8PtrTy, {I8PtrTy}, false));
   const uint32_t *RegMask =
       TRI->getCallPreservedMask(*MBB.getParent(), CallingConv::C);
   BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(X86::CALL64pcrel32))
-      .addGlobalAddress(cast<GlobalValue>(Fn.getCallee()), 0, 0)
+      .addGlobalAddress(MI.getOperand(0).getGlobal(), 0, 0)
       .addRegMask(RegMask)
       .addReg(X86::RAX,
               RegState::Implicit |
@@ -554,10 +545,13 @@ bool X86ExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
     MI.setDesc(TII->get(X86::LDTILECFG));
     return true;
   }
-  case X86::PTILELOADDV: {
+  case X86::PTILELOADDV:
+  case X86::PTILELOADDT1V: {
     for (unsigned i = 2; i > 0; --i)
       MI.RemoveOperand(i);
-    MI.setDesc(TII->get(X86::TILELOADD));
+    unsigned Opc =
+        Opcode == X86::PTILELOADDV ? X86::TILELOADD : X86::TILELOADDT1;
+    MI.setDesc(TII->get(Opc));
     return true;
   }
   case X86::PTDPBSSDV:

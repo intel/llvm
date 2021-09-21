@@ -14,6 +14,8 @@
 ///
 /// \ingroup sycl_pi_ocl
 
+#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
+
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/pi.h>
 
@@ -167,8 +169,8 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
                           size_t paramValueSize, void *paramValue,
                           size_t *paramValueSizeRet) {
   switch (paramName) {
-    // Intel GPU EU device-specific information extensions.
     // TODO: Check regularly to see if support in enabled in OpenCL.
+    // Intel GPU EU device-specific information extensions.
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
@@ -176,8 +178,19 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
+    // TODO: Check if device UUID extension is enabled in OpenCL.
+    // For details about Intel UUID extension, see
+    // sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md
+  case PI_DEVICE_INFO_UUID:
+  // TODO: Implement.
+  case PI_DEVICE_INFO_ATOMIC_64:
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
     return PI_INVALID_VALUE;
-
+  case PI_DEVICE_INFO_IMAGE_SRGB: {
+    cl_bool result = true;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
@@ -345,7 +358,9 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                           pi_context, pi_queue *piQueue) {
+                                           pi_context, pi_queue *piQueue,
+                                           bool ownNativeHandle) {
+  (void)ownNativeHandle;
   assert(piQueue != nullptr);
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
   return PI_SUCCESS;
@@ -626,12 +641,13 @@ pi_result piclProgramCreateWithSource(pi_context context, pi_uint32 count,
   return ret_err;
 }
 
-pi_result piProgramCreateWithBinary(pi_context context, pi_uint32 num_devices,
-                                    const pi_device *device_list,
-                                    const size_t *lengths,
-                                    const unsigned char **binaries,
-                                    pi_int32 *binary_status,
-                                    pi_program *ret_program) {
+pi_result piProgramCreateWithBinary(
+    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
+    const size_t *lengths, const unsigned char **binaries,
+    size_t num_metadata_entries, const pi_device_binary_property *metadata,
+    pi_int32 *binary_status, pi_program *ret_program) {
+  (void)metadata;
+  (void)num_metadata_entries;
 
   pi_result ret_err = PI_INVALID_OPERATION;
   *ret_program = cast<pi_program>(clCreateProgramWithBinary(
@@ -700,8 +716,17 @@ pi_result piEventCreate(pi_context context, pi_event *ret_event) {
 }
 
 pi_result piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                           pi_context context,
+                                           bool ownNativeHandle,
                                            pi_event *piEvent) {
+  (void)context;
+  // TODO: ignore this, but eventually want to return error as unsupported
+  (void)ownNativeHandle;
+
   assert(piEvent != nullptr);
+  assert(nativeHandle);
+  assert(context);
+
   *piEvent = reinterpret_cast<pi_event>(nativeHandle);
   return PI_SUCCESS;
 }
@@ -987,7 +1012,10 @@ pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
                                   pi_event *event) {
   (void)ptr;
   (void)size;
-  (void)flags;
+
+  // flags is currently unused so fail if set
+  if (flags != 0)
+    return PI_INVALID_VALUE;
 
   return cast<pi_result>(clEnqueueMarkerWithWaitList(
       cast<cl_command_queue>(queue), num_events_in_waitlist,

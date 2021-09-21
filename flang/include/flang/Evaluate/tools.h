@@ -460,6 +460,10 @@ template <typename TO> Expr<TO> ConvertToType(BOZLiteralConstant &&x) {
   }
 }
 
+template <typename T> bool IsBOZLiteral(const Expr<T> &expr) {
+  return std::holds_alternative<BOZLiteralConstant>(expr.u);
+}
+
 // Conversions to dynamic types
 std::optional<Expr<SomeType>> ConvertToType(
     const DynamicType &, Expr<SomeType> &&);
@@ -643,6 +647,16 @@ std::optional<Expr<SomeType>> Negation(
 // relational operator (e.g., .LT.), possibly with data type conversion.
 std::optional<Expr<LogicalResult>> Relate(parser::ContextualMessages &,
     RelationalOperator, Expr<SomeType> &&, Expr<SomeType> &&);
+
+// Create a relational operation between two identically-typed operands
+// and wrap it up in an Expr<LogicalResult>.
+template <typename T>
+Expr<LogicalResult> PackageRelation(
+    RelationalOperator opr, Expr<T> &&x, Expr<T> &&y) {
+  static_assert(IsSpecificIntrinsicType<T>);
+  return Expr<LogicalResult>{
+      Relational<SomeType>{Relational<T>{opr, std::move(x), std::move(y)}}};
+}
 
 template <int K>
 Expr<Type<TypeCategory::Logical, K>> LogicalNegation(
@@ -977,6 +991,23 @@ private:
   ConstantSubscripts extents_;
   std::optional<ConstantSubscripts> lbounds_;
 };
+
+// Given a collection of element values, package them as a Constant.
+// If the type is Character or a derived type, take the length or type
+// (resp.) from a another Constant.
+template <typename T>
+Constant<T> PackageConstant(std::vector<Scalar<T>> &&elements,
+    const Constant<T> &reference, const ConstantSubscripts &shape) {
+  if constexpr (T::category == TypeCategory::Character) {
+    return Constant<T>{
+        reference.LEN(), std::move(elements), ConstantSubscripts{shape}};
+  } else if constexpr (T::category == TypeCategory::Derived) {
+    return Constant<T>{reference.GetType().GetDerivedTypeSpec(),
+        std::move(elements), ConstantSubscripts{shape}};
+  } else {
+    return Constant<T>{std::move(elements), ConstantSubscripts{shape}};
+  }
+}
 
 } // namespace Fortran::evaluate
 

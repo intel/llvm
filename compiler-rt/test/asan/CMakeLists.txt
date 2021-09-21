@@ -26,7 +26,7 @@ endmacro()
 set(ASAN_TEST_DEPS ${SANITIZER_COMMON_LIT_TEST_DEPS})
 if(NOT COMPILER_RT_STANDALONE_BUILD)
   list(APPEND ASAN_TEST_DEPS asan)
-  if(NOT APPLE AND COMPILER_RT_HAS_LLD AND TARGET lld)
+  if(NOT APPLE AND COMPILER_RT_HAS_LLD AND "lld" IN_LIST LLVM_ENABLE_PROJECTS)
     list(APPEND ASAN_TEST_DEPS lld)
   endif()
 endif()
@@ -70,6 +70,12 @@ foreach(arch ${ASAN_TEST_ARCH})
       ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg.py)
     list(APPEND ASAN_DYNAMIC_TESTSUITES
       ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME})
+  endif()
+
+  # ARM on Linux may include thumb code, where fast unwinding does not work.
+  # Enable unwind tables so that we do not end up falling back to it in tests.
+  if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux" AND NOT ANDROID AND ${arch} MATCHES "arm")
+    set(ASAN_TEST_TARGET_CFLAGS "${ASAN_TEST_TARGET_CFLAGS} -funwind-tables")
   endif()
 endforeach()
 

@@ -434,6 +434,7 @@ CodeExtractor::findOrCreateBlockForHoisting(BasicBlock *CommonExitBlock) {
   }
   // Now add the old exit block to the outline region.
   Blocks.insert(CommonExitBlock);
+  OldTargets.push_back(NewExitBlock);
   return CommonExitBlock;
 }
 
@@ -885,7 +886,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
   //  "target-features" attribute allowing it to be lowered.
   // FIXME: This should be changed to check to see if a specific
   //           attribute can not be inherited.
-  for (const auto &Attr : oldFunction->getAttributes().getFnAttributes()) {
+  for (const auto &Attr : oldFunction->getAttributes().getFnAttrs()) {
     if (Attr.isStringAttribute()) {
       if (Attr.getKindAsString() == "thunk")
         continue;
@@ -902,6 +903,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::Convergent:
       case Attribute::Dereferenceable:
       case Attribute::DereferenceableOrNull:
+      case Attribute::ElementType:
       case Attribute::InAlloca:
       case Attribute::InReg:
       case Attribute::InaccessibleMemOnly:
@@ -942,6 +944,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       // Those attributes should be safe to propagate to the extracted function.
       case Attribute::AlwaysInline:
       case Attribute::Cold:
+      case Attribute::DisableSanitizerInstrumentation:
       case Attribute::Hot:
       case Attribute::NoRecurse:
       case Attribute::InlineHint:
@@ -954,6 +957,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::NonLazyBind:
       case Attribute::NoRedZone:
       case Attribute::NoUnwind:
+      case Attribute::NoSanitizeCoverage:
       case Attribute::NullPointerIsValid:
       case Attribute::OptForFuzzing:
       case Attribute::OptimizeNone:
@@ -1245,45 +1249,57 @@ CallInst *CodeExtractor::emitCallAndSwitchStatement(Function *newFunction,
   // not in the region to be extracted.
   std::map<BasicBlock *, BasicBlock *> ExitBlockMap;
 
+  // Iterate over the previously collected targets, and create new blocks inside
+  // the function to branch to.
   unsigned switchVal = 0;
+  for (BasicBlock *OldTarget : OldTargets) {
+    if (Blocks.count(OldTarget))
+      continue;
+    BasicBlock *&NewTarget = ExitBlockMap[OldTarget];
+    if (NewTarget)
+      continue;
+
+    // If we don't already have an exit stub for this non-extracted
+    // destination, create one now!
+    NewTarget = BasicBlock::Create(Context,
+                                    OldTarget->getName() + ".exitStub",
+                                    newFunction);
+    unsigned SuccNum = switchVal++;
+
+    Value *brVal = nullptr;
+    assert(NumExitBlocks < 0xffff && "too many exit blocks for switch");
+    switch (NumExitBlocks) {
+    case 0:
+    case 1: break;  // No value needed.
+    case 2:         // Conditional branch, return a bool
+      brVal = ConstantInt::get(Type::getInt1Ty(Context), !SuccNum);
+      break;
+    default:
+      brVal = ConstantInt::get(Type::getInt16Ty(Context), SuccNum);
+      break;
+    }
+
+    ReturnInst::Create(Context, brVal, NewTarget);
+
+    // Update the switch instruction.
+    TheSwitch->addCase(ConstantInt::get(Type::getInt16Ty(Context),
+                                        SuccNum),
+                        OldTarget);
+  }
+
   for (BasicBlock *Block : Blocks) {
     Instruction *TI = Block->getTerminator();
-    for (unsigned i = 0, e = TI->getNumSuccessors(); i != e; ++i)
-      if (!Blocks.count(TI->getSuccessor(i))) {
-        BasicBlock *OldTarget = TI->getSuccessor(i);
-        // add a new basic block which returns the appropriate value
-        BasicBlock *&NewTarget = ExitBlockMap[OldTarget];
-        if (!NewTarget) {
-          // If we don't already have an exit stub for this non-extracted
-          // destination, create one now!
-          NewTarget = BasicBlock::Create(Context,
-                                         OldTarget->getName() + ".exitStub",
-                                         newFunction);
-          unsigned SuccNum = switchVal++;
+    for (unsigned i = 0, e = TI->getNumSuccessors(); i != e; ++i) {
+      if (Blocks.count(TI->getSuccessor(i)))
+        continue;
+      BasicBlock *OldTarget = TI->getSuccessor(i);
+      // add a new basic block which returns the appropriate value
+      BasicBlock *NewTarget = ExitBlockMap[OldTarget];
+      assert(NewTarget && "Unknown target block!");
 
-          Value *brVal = nullptr;
-          switch (NumExitBlocks) {
-          case 0:
-          case 1: break;  // No value needed.
-          case 2:         // Conditional branch, return a bool
-            brVal = ConstantInt::get(Type::getInt1Ty(Context), !SuccNum);
-            break;
-          default:
-            brVal = ConstantInt::get(Type::getInt16Ty(Context), SuccNum);
-            break;
-          }
-
-          ReturnInst::Create(Context, brVal, NewTarget);
-
-          // Update the switch instruction.
-          TheSwitch->addCase(ConstantInt::get(Type::getInt16Ty(Context),
-                                              SuccNum),
-                             OldTarget);
-        }
-
-        // rewrite the original branch instruction with this new target
-        TI->setSuccessor(i, NewTarget);
-      }
+      // rewrite the original branch instruction with this new target
+      TI->setSuccessor(i, NewTarget);
+   }
   }
 
   // Store the arguments right after the definition of output value.
@@ -1386,12 +1402,17 @@ void CodeExtractor::moveCodeToFunction(Function *newFunction) {
   Function::BasicBlockListType &oldBlocks = oldFunc->getBasicBlockList();
   Function::BasicBlockListType &newBlocks = newFunction->getBasicBlockList();
 
+  auto newFuncIt = newFunction->front().getIterator();
   for (BasicBlock *Block : Blocks) {
     // Delete the basic block from the old function, and the list of blocks
     oldBlocks.remove(Block);
 
     // Insert this basic block into the new function
-    newBlocks.push_back(Block);
+    // Insert the original blocks after the entry block created
+    // for the new function. The entry block may be followed
+    // by a set of exit blocks at this point, but these exit
+    // blocks better be placed at the end of the new function.
+    newFuncIt = newBlocks.insertAfter(newFuncIt, Block);
   }
 }
 
@@ -1551,10 +1572,11 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
       I.setDebugLoc(DILocation::get(Ctx, DL.getLine(), DL.getCol(), NewSP));
 
     // Loop info metadata may contain line locations. Fix them up.
-    auto updateLoopInfoLoc = [&Ctx,
-                              NewSP](const DILocation &Loc) -> DILocation * {
-      return DILocation::get(Ctx, Loc.getLine(), Loc.getColumn(), NewSP,
-                             nullptr);
+    auto updateLoopInfoLoc = [&Ctx, NewSP](Metadata *MD) -> Metadata * {
+      if (auto *Loc = dyn_cast_or_null<DILocation>(MD))
+        return DILocation::get(Ctx, Loc->getLine(), Loc->getColumn(), NewSP,
+                               nullptr);
+      return MD;
     };
     updateLoopMetadataDebugLocations(I, updateLoopInfoLoc);
   }
@@ -1566,6 +1588,13 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
 
 Function *
 CodeExtractor::extractCodeRegion(const CodeExtractorAnalysisCache &CEAC) {
+  ValueSet Inputs, Outputs;
+  return extractCodeRegion(CEAC, Inputs, Outputs);
+}
+
+Function *
+CodeExtractor::extractCodeRegion(const CodeExtractorAnalysisCache &CEAC,
+                                 ValueSet &inputs, ValueSet &outputs) {
   if (!isEligible())
     return nullptr;
 
@@ -1624,6 +1653,16 @@ CodeExtractor::extractCodeRegion(const CodeExtractorAnalysisCache &CEAC) {
   }
   NumExitBlocks = ExitBlocks.size();
 
+  for (BasicBlock *Block : Blocks) {
+    Instruction *TI = Block->getTerminator();
+    for (unsigned i = 0, e = TI->getNumSuccessors(); i != e; ++i) {
+      if (Blocks.count(TI->getSuccessor(i)))
+        continue;
+      BasicBlock *OldTarget = TI->getSuccessor(i);
+      OldTargets.push_back(OldTarget);
+    }
+  }
+
   // If we have to split PHI nodes of the entry or exit blocks, do so now.
   severSplitPHINodesOfEntry(header);
   severSplitPHINodesOfExits(ExitBlocks);
@@ -1654,7 +1693,7 @@ CodeExtractor::extractCodeRegion(const CodeExtractorAnalysisCache &CEAC) {
   }
   newFuncRoot->getInstList().push_back(BranchI);
 
-  ValueSet inputs, outputs, SinkingCands, HoistingCands;
+  ValueSet SinkingCands, HoistingCands;
   BasicBlock *CommonExit = nullptr;
   findAllocas(CEAC, SinkingCands, HoistingCands, CommonExit);
   assert(HoistingCands.empty() || CommonExit);

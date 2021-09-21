@@ -17,6 +17,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Bitfields.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -332,9 +333,8 @@ public:
             AtomicOrdering Order, SyncScope::ID SSID, BasicBlock *InsertAtEnd);
 
   // allocate space for exactly two operands
-  void *operator new(size_t s) {
-    return User::operator new(s, 2);
-  }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   /// Return true if this is a store to a volatile memory location.
   bool isVolatile() const { return getSubclassData<VolatileField>(); }
@@ -462,9 +462,8 @@ public:
             BasicBlock *InsertAtEnd);
 
   // allocate space for exactly zero operands
-  void *operator new(size_t s) {
-    return User::operator new(s, 0);
-  }
+  void *operator new(size_t S) { return User::operator new(S, 0); }
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   /// Returns the ordering constraint of this fence instruction.
   AtomicOrdering getOrdering() const {
@@ -546,9 +545,8 @@ public:
                     BasicBlock *InsertAtEnd);
 
   // allocate space for exactly three operands
-  void *operator new(size_t s) {
-    return User::operator new(s, 3);
-  }
+  void *operator new(size_t S) { return User::operator new(S, 3); }
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   using VolatileField = BoolBitfieldElementT<0>;
   using WeakField = BoolBitfieldElementT<VolatileField::NextBit>;
@@ -624,6 +622,20 @@ public:
     assert(isValidFailureOrdering(Ordering) &&
            "invalid CmpXchg failure ordering");
     setSubclassData<FailureOrderingField>(Ordering);
+  }
+
+  /// Returns a single ordering which is at least as strong as both the
+  /// success and failure orderings for this cmpxchg.
+  AtomicOrdering getMergedOrdering() const {
+    if (getFailureOrdering() == AtomicOrdering::SequentiallyConsistent)
+      return AtomicOrdering::SequentiallyConsistent;
+    if (getFailureOrdering() == AtomicOrdering::Acquire) {
+      if (getSuccessOrdering() == AtomicOrdering::Monotonic)
+        return AtomicOrdering::Acquire;
+      if (getSuccessOrdering() == AtomicOrdering::Release)
+        return AtomicOrdering::AcquireRelease;
+    }
+    return getSuccessOrdering();
   }
 
   /// Returns the synchronization scope ID of this cmpxchg instruction.
@@ -777,9 +789,8 @@ public:
                 BasicBlock *InsertAtEnd);
 
   // allocate space for exactly two operands
-  void *operator new(size_t s) {
-    return User::operator new(s, 2);
-  }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   using VolatileField = BoolBitfieldElementT<0>;
   using AtomicOrderingField =
@@ -945,13 +956,9 @@ public:
                                    const Twine &NameStr = "",
                                    Instruction *InsertBefore = nullptr) {
     unsigned Values = 1 + unsigned(IdxList.size());
-    if (!PointeeType) {
-      PointeeType =
-          cast<PointerType>(Ptr->getType()->getScalarType())->getElementType();
-    } else {
-      assert(cast<PointerType>(Ptr->getType()->getScalarType())
-                 ->isOpaqueOrPointeeTypeMatches(PointeeType));
-    }
+    assert(PointeeType && "Must specify element type");
+    assert(cast<PointerType>(Ptr->getType()->getScalarType())
+               ->isOpaqueOrPointeeTypeMatches(PointeeType));
     return new (Values) GetElementPtrInst(PointeeType, Ptr, IdxList, Values,
                                           NameStr, InsertBefore);
   }
@@ -961,26 +968,24 @@ public:
                                    const Twine &NameStr,
                                    BasicBlock *InsertAtEnd) {
     unsigned Values = 1 + unsigned(IdxList.size());
-    if (!PointeeType) {
-      PointeeType =
-          cast<PointerType>(Ptr->getType()->getScalarType())->getElementType();
-    } else {
-      assert(cast<PointerType>(Ptr->getType()->getScalarType())
-                 ->isOpaqueOrPointeeTypeMatches(PointeeType));
-    }
+    assert(PointeeType && "Must specify element type");
+    assert(cast<PointerType>(Ptr->getType()->getScalarType())
+               ->isOpaqueOrPointeeTypeMatches(PointeeType));
     return new (Values) GetElementPtrInst(PointeeType, Ptr, IdxList, Values,
                                           NameStr, InsertAtEnd);
   }
 
-  /// Create an "inbounds" getelementptr. See the documentation for the
-  /// "inbounds" flag in LangRef.html for details.
-  static GetElementPtrInst *CreateInBounds(Value *Ptr,
-                                           ArrayRef<Value *> IdxList,
-                                           const Twine &NameStr = "",
-                                           Instruction *InsertBefore = nullptr){
-    return CreateInBounds(nullptr, Ptr, IdxList, NameStr, InsertBefore);
+  LLVM_ATTRIBUTE_DEPRECATED(static GetElementPtrInst *CreateInBounds(
+        Value *Ptr, ArrayRef<Value *> IdxList, const Twine &NameStr = "",
+        Instruction *InsertBefore = nullptr),
+      "Use the version with explicit element type instead") {
+    return CreateInBounds(
+        Ptr->getType()->getScalarType()->getPointerElementType(), Ptr, IdxList,
+        NameStr, InsertBefore);
   }
 
+  /// Create an "inbounds" getelementptr. See the documentation for the
+  /// "inbounds" flag in LangRef.html for details.
   static GetElementPtrInst *
   CreateInBounds(Type *PointeeType, Value *Ptr, ArrayRef<Value *> IdxList,
                  const Twine &NameStr = "",
@@ -991,11 +996,13 @@ public:
     return GEP;
   }
 
-  static GetElementPtrInst *CreateInBounds(Value *Ptr,
-                                           ArrayRef<Value *> IdxList,
-                                           const Twine &NameStr,
-                                           BasicBlock *InsertAtEnd) {
-    return CreateInBounds(nullptr, Ptr, IdxList, NameStr, InsertAtEnd);
+  LLVM_ATTRIBUTE_DEPRECATED(static GetElementPtrInst *CreateInBounds(
+        Value *Ptr, ArrayRef<Value *> IdxList, const Twine &NameStr,
+        BasicBlock *InsertAtEnd),
+      "Use the version with explicit element type instead") {
+    return CreateInBounds(
+        Ptr->getType()->getScalarType()->getPointerElementType(), Ptr, IdxList,
+        NameStr, InsertAtEnd);
   }
 
   static GetElementPtrInst *CreateInBounds(Type *PointeeType, Value *Ptr,
@@ -1017,8 +1024,8 @@ public:
   void setResultElementType(Type *Ty) { ResultElementType = Ty; }
 
   Type *getResultElementType() const {
-    assert(ResultElementType ==
-           cast<PointerType>(getType()->getScalarType())->getElementType());
+    assert(cast<PointerType>(getType()->getScalarType())
+               ->isOpaqueOrPointeeTypeMatches(ResultElementType));
     return ResultElementType;
   }
 
@@ -1084,8 +1091,12 @@ public:
   /// instruction, which may be a vector of pointers.
   static Type *getGEPReturnType(Type *ElTy, Value *Ptr,
                                 ArrayRef<Value *> IdxList) {
-    Type *PtrTy = PointerType::get(checkGEPType(getIndexedType(ElTy, IdxList)),
-                                   Ptr->getType()->getPointerAddressSpace());
+    PointerType *OrigPtrTy = cast<PointerType>(Ptr->getType()->getScalarType());
+    unsigned AddrSpace = OrigPtrTy->getAddressSpace();
+    Type *ResultElemTy = checkGEPType(getIndexedType(ElTy, IdxList));
+    Type *PtrTy = OrigPtrTy->isOpaque()
+      ? PointerType::get(OrigPtrTy->getContext(), AddrSpace)
+      : PointerType::get(ResultElemTy, AddrSpace);
     // Vector GEP
     if (auto *PtrVTy = dyn_cast<VectorType>(Ptr->getType())) {
       ElementCount EltCount = PtrVTy->getElementCount();
@@ -1135,7 +1146,7 @@ public:
   /// the base GEP pointer.
   bool accumulateConstantOffset(const DataLayout &DL, APInt &Offset) const;
   bool collectOffset(const DataLayout &DL, unsigned BitWidth,
-                     SmallDenseMap<Value *, APInt, 8> &VariableOffsets,
+                     MapVector<Value *, APInt> &VariableOffsets,
                      APInt &ConstantOffset) const;
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {
@@ -1160,8 +1171,8 @@ GetElementPtrInst::GetElementPtrInst(Type *PointeeType, Value *Ptr,
                   Values, InsertBefore),
       SourceElementType(PointeeType),
       ResultElementType(getIndexedType(PointeeType, IdxList)) {
-  assert(ResultElementType ==
-         cast<PointerType>(getType()->getScalarType())->getElementType());
+  assert(cast<PointerType>(getType()->getScalarType())
+             ->isOpaqueOrPointeeTypeMatches(ResultElementType));
   init(Ptr, IdxList, NameStr);
 }
 
@@ -1174,8 +1185,8 @@ GetElementPtrInst::GetElementPtrInst(Type *PointeeType, Value *Ptr,
                   Values, InsertAtEnd),
       SourceElementType(PointeeType),
       ResultElementType(getIndexedType(PointeeType, IdxList)) {
-  assert(ResultElementType ==
-         cast<PointerType>(getType()->getScalarType())->getElementType());
+  assert(cast<PointerType>(getType()->getScalarType())
+             ->isOpaqueOrPointeeTypeMatches(ResultElementType));
   init(Ptr, IdxList, NameStr);
 }
 
@@ -1674,9 +1685,7 @@ public:
 
   /// Return true if the call can return twice
   bool canReturnTwice() const { return hasFnAttr(Attribute::ReturnsTwice); }
-  void setCanReturnTwice() {
-    addAttribute(AttributeList::FunctionIndex, Attribute::ReturnsTwice);
-  }
+  void setCanReturnTwice() { addFnAttr(Attribute::ReturnsTwice); }
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {
@@ -2019,7 +2028,8 @@ public:
   ShuffleVectorInst(Value *V1, Value *V2, ArrayRef<int> Mask,
                     const Twine &NameStr, BasicBlock *InsertAtEnd);
 
-  void *operator new(size_t s) { return User::operator new(s, 2); }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
+  void operator delete(void *Ptr) { return User::operator delete(Ptr); }
 
   /// Swap the operands and adjust the mask to preserve the semantics
   /// of the instruction.
@@ -2294,6 +2304,36 @@ public:
     return isExtractSubvectorMask(ShuffleMask, NumSrcElts, Index);
   }
 
+  /// Return true if this shuffle mask is an insert subvector mask.
+  /// A valid insert subvector mask inserts the lowest elements of a second
+  /// source operand into an in-place first source operand operand.
+  /// Both the sub vector width and the insertion index is returned.
+  static bool isInsertSubvectorMask(ArrayRef<int> Mask, int NumSrcElts,
+                                    int &NumSubElts, int &Index);
+  static bool isInsertSubvectorMask(const Constant *Mask, int NumSrcElts,
+                                    int &NumSubElts, int &Index) {
+    assert(Mask->getType()->isVectorTy() && "Shuffle needs vector constant.");
+    // Not possible to express a shuffle mask for a scalable vector for this
+    // case.
+    if (isa<ScalableVectorType>(Mask->getType()))
+      return false;
+    SmallVector<int, 16> MaskAsInts;
+    getShuffleMask(Mask, MaskAsInts);
+    return isInsertSubvectorMask(MaskAsInts, NumSrcElts, NumSubElts, Index);
+  }
+
+  /// Return true if this shuffle mask is an insert subvector mask.
+  bool isInsertSubvectorMask(int &NumSubElts, int &Index) const {
+    // Not possible to express a shuffle mask for a scalable vector for this
+    // case.
+    if (isa<ScalableVectorType>(getType()))
+      return false;
+
+    int NumSrcElts =
+        cast<FixedVectorType>(Op<0>()->getType())->getNumElements();
+    return isInsertSubvectorMask(ShuffleMask, NumSrcElts, NumSubElts, Index);
+  }
+
   /// Change values in a shuffle permute mask assuming the two vector operands
   /// of length InVecNumElts have swapped position.
   static void commuteShuffleMask(MutableArrayRef<int> Mask,
@@ -2476,9 +2516,8 @@ protected:
 
 public:
   // allocate space for exactly two operands
-  void *operator new(size_t s) {
-    return User::operator new(s, 2);
-  }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   static InsertValueInst *Create(Value *Agg, Value *Val,
                                  ArrayRef<unsigned> Idxs,
@@ -2854,9 +2893,7 @@ private:
                           const Twine &NameStr, BasicBlock *InsertAtEnd);
 
   // Allocate space for exactly zero operands.
-  void *operator new(size_t s) {
-    return User::operator new(s);
-  }
+  void *operator new(size_t S) { return User::operator new(S); }
 
   void growOperands(unsigned Size);
   void init(unsigned NumReservedValues, const Twine &NameStr);
@@ -2868,6 +2905,8 @@ protected:
   LandingPadInst *cloneImpl() const;
 
 public:
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
+
   /// Constructors - NumReservedClauses is a hint for the number of incoming
   /// clauses that this landingpad will have (use 0 if you really have no idea).
   static LandingPadInst *Create(Type *RetTy, unsigned NumReservedClauses,
@@ -3186,9 +3225,7 @@ class SwitchInst : public Instruction {
              BasicBlock *InsertAtEnd);
 
   // allocate space for exactly zero operands
-  void *operator new(size_t s) {
-    return User::operator new(s);
-  }
+  void *operator new(size_t S) { return User::operator new(S); }
 
   void init(Value *Value, BasicBlock *Default, unsigned NumReserved);
   void growOperands();
@@ -3200,6 +3237,8 @@ protected:
   SwitchInst *cloneImpl() const;
 
 public:
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
+
   // -2
   static const unsigned DefaultPseudoIndex = static_cast<unsigned>(~0L-1);
 
@@ -3584,9 +3623,7 @@ class IndirectBrInst : public Instruction {
   IndirectBrInst(Value *Address, unsigned NumDests, BasicBlock *InsertAtEnd);
 
   // allocate space for exactly zero operands
-  void *operator new(size_t s) {
-    return User::operator new(s);
-  }
+  void *operator new(size_t S) { return User::operator new(S); }
 
   void init(Value *Address, unsigned NumDests);
   void growOperands();
@@ -3598,6 +3635,8 @@ protected:
   IndirectBrInst *cloneImpl() const;
 
 public:
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
+
   /// Iterator type that casts an operand to a basic block.
   ///
   /// This only makes sense because the successors are stored as adjacent
@@ -4235,7 +4274,7 @@ class CatchSwitchInst : public Instruction {
                   BasicBlock *InsertAtEnd);
 
   // allocate space for exactly zero operands
-  void *operator new(size_t s) { return User::operator new(s); }
+  void *operator new(size_t S) { return User::operator new(S); }
 
   void init(Value *ParentPad, BasicBlock *UnwindDest, unsigned NumReserved);
   void growOperands(unsigned Size);
@@ -4247,6 +4286,8 @@ protected:
   CatchSwitchInst *cloneImpl() const;
 
 public:
+  void operator delete(void *Ptr) { return User::operator delete(Ptr); }
+
   static CatchSwitchInst *Create(Value *ParentPad, BasicBlock *UnwindDest,
                                  unsigned NumHandlers,
                                  const Twine &NameStr = "",
@@ -4675,9 +4716,8 @@ public:
   explicit UnreachableInst(LLVMContext &C, BasicBlock *InsertAtEnd);
 
   // allocate space for exactly zero operands
-  void *operator new(size_t s) {
-    return User::operator new(s, 0);
-  }
+  void *operator new(size_t S) { return User::operator new(S, 0); }
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   unsigned getNumSuccessors() const { return 0; }
 

@@ -10,9 +10,8 @@ target triple = "x86_64-pc-linux-gnu"
 @0 = private unnamed_addr global %struct.ident_t { i32 0, i32 34, i32 0, i32 0, i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str0, i32 0, i32 0) }, align 8
 @.str0 = private unnamed_addr constant [23 x i8] c";unknown;unknown;0;0;;\00", align 1
 
-; CHECK: remark: deduplication_remarks.c:4:0: OpenMP runtime call __kmpc_global_thread_num moved to beginning of OpenMP region
-; CHECK: remark: deduplication_remarks.c:4:0: OpenMP runtime call __kmpc_global_thread_num deduplicated
-; CHECK: remark: deduplication_remarks.c:4:0: OpenMP runtime call __kmpc_global_thread_num deduplicated
+; CHECK: remark: deduplication_remarks.c:7:10: OpenMP runtime call __kmpc_global_thread_num deduplicated
+; CHECK: remark: deduplication_remarks.c:9:10: OpenMP runtime call __kmpc_global_thread_num deduplicated
 define dso_local void @deduplicate() local_unnamed_addr !dbg !14 {
   %1 = tail call i32 @__kmpc_global_thread_num(%struct.ident_t* nonnull @0), !dbg !21
   call void @useI32(i32 %1), !dbg !23
@@ -30,7 +29,7 @@ declare !dbg !4 void @useI32(i32) local_unnamed_addr
 declare void @llvm.dbg.value(metadata, metadata, metadata)
 
 !llvm.dbg.cu = !{!0}
-!llvm.module.flags = !{!8, !9, !10, !11, !12}
+!llvm.module.flags = !{!8, !9, !10, !11, !12, !29}
 !llvm.ident = !{!13}
 
 !0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "clang version 10.0.0 ", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, retainedTypes: !3, splitDebugInlining: false, nameTableKind: None)
@@ -62,3 +61,4 @@ declare void @llvm.dbg.value(metadata, metadata, metadata)
 !26 = !DILocation(line: 9, column: 10, scope: !14)
 !27 = !DILocation(line: 10, column: 2, scope: !14)
 !28 = !DILocation(line: 13, column: 1, scope: !14)
+!29 = !{i32 7, !"openmp", i32 50}

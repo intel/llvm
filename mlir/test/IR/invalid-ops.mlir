@@ -2,7 +2,7 @@
 
 func @dim(%arg : tensor<1x?xf32>) {
   %c2 = constant 2 : index
-  memref.dim %arg, %c2 : tensor<1x?xf32> // expected-error {{'memref.dim' op index is out of range}}
+  tensor.dim %arg, %c2 : tensor<1x?xf32> // expected-error {{'tensor.dim' op index is out of range}}
   return
 }
 
@@ -70,7 +70,7 @@ func @affine_apply_wrong_result_count() {
 
 func @unknown_custom_op() {
 ^bb0:
-  %i = crazyThing() {value = 0} : () -> index  // expected-error {{custom op 'crazyThing' is unknown}}
+  %i = test.crazyThing() {value = 0} : () -> index  // expected-error {{custom op 'test.crazyThing' is unknown}}
   return
 }
 
@@ -159,7 +159,7 @@ func @func_with_ops(f32) {
 
 func @func_with_ops(f32) {
 ^bb0(%a : f32):
-  %sf = addf(%a, %a) : f32  // expected-error {{expected ':'}}
+  %sf = addf(%a, %a) : f32  // expected-error {{'std.addf' expected function type}}
 }
 
 // -----
@@ -815,7 +815,7 @@ func @trunci_cast_to_same_width(%arg0 : i16) {
 
 func @return_not_in_function() {
   "foo.region"() ({
-    // expected-error@+1 {{'std.return' op expects parent op 'func'}}
+    // expected-error@+1 {{'std.return' op expects parent op 'builtin.func'}}
     return
   }): () -> ()
   return
@@ -1214,9 +1214,9 @@ func @assume_alignment(%0: memref<4x4xf16>) {
 
 // -----
 
-func @subtensor_wrong_dynamic_type(%t: tensor<8x16x4xf32>, %idx : index) {
+func @slice_wrong_dynamic_type(%t: tensor<8x16x4xf32>, %idx : index) {
       // expected-error @+1 {{expected result type to be 'tensor<4x4x4xf32>' or a rank-reduced version. (mismatch of result sizes)}}
-  %0 = subtensor %t[0, 2, 0][4, 4, 4][1, 1, 1]
+  %0 = tensor.extract_slice %t[0, 2, 0][4, 4, 4][1, 1, 1]
     : tensor<8x16x4xf32> to tensor<?x4x4xf32>
 
   return
@@ -1224,9 +1224,9 @@ func @subtensor_wrong_dynamic_type(%t: tensor<8x16x4xf32>, %idx : index) {
 
 // -----
 
-func @subtensor_wrong_static_type(%t: tensor<8x16x4xf32>, %idx : index) {
+func @slice_wrong_static_type(%t: tensor<8x16x4xf32>, %idx : index) {
       // expected-error @+1 {{expected result type to be 'tensor<?x3x?xf32>' or a rank-reduced version. (mismatch of result sizes)}}
-  %0 = subtensor %t[0, 0, 0][%idx, 3, %idx][1, 1, 1]
+  %0 = tensor.extract_slice %t[0, 0, 0][%idx, 3, %idx][1, 1, 1]
     : tensor<8x16x4xf32> to tensor<4x4x4xf32>
 
   return

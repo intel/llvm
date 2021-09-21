@@ -33,12 +33,18 @@ static unsigned getNestingDepth(Operation *op) {
 class TestLoopUnrollingPass
     : public PassWrapper<TestLoopUnrollingPass, FunctionPass> {
 public:
+  StringRef getArgument() const final { return "test-loop-unrolling"; }
+  StringRef getDescription() const final {
+    return "Tests loop unrolling transformation";
+  }
   TestLoopUnrollingPass() = default;
   TestLoopUnrollingPass(const TestLoopUnrollingPass &) {}
   explicit TestLoopUnrollingPass(uint64_t unrollFactorParam,
-                                 unsigned loopDepthParam) {
+                                 unsigned loopDepthParam,
+                                 bool annotateLoopParam) {
     unrollFactor = unrollFactorParam;
     loopDepth = loopDepthParam;
+    annotateLoop = annotateLoopParam;
   }
 
   void runOnFunction() override {
@@ -48,12 +54,20 @@ public:
       if (getNestingDepth(forOp) == loopDepth)
         loops.push_back(forOp);
     });
+    auto annotateFn = [this](unsigned i, Operation *op, OpBuilder b) {
+      if (annotateLoop) {
+        op->setAttr("unrolled_iteration", b.getUI32IntegerAttr(i));
+      }
+    };
     for (auto loop : loops)
-      (void)loopUnrollByFactor(loop, unrollFactor);
+      (void)loopUnrollByFactor(loop, unrollFactor, annotateFn);
   }
   Option<uint64_t> unrollFactor{*this, "unroll-factor",
                                 llvm::cl::desc("Loop unroll factor."),
                                 llvm::cl::init(1)};
+  Option<bool> annotateLoop{*this, "annotate",
+                            llvm::cl::desc("Annotate unrolled iterations."),
+                            llvm::cl::init(false)};
   Option<bool> unrollUpToFactor{*this, "unroll-up-to-factor",
                                 llvm::cl::desc("Loop unroll up to factor."),
                                 llvm::cl::init(false)};
@@ -65,8 +79,7 @@ public:
 namespace mlir {
 namespace test {
 void registerTestLoopUnrollingPass() {
-  PassRegistration<TestLoopUnrollingPass>(
-      "test-loop-unrolling", "Tests loop unrolling transformation");
+  PassRegistration<TestLoopUnrollingPass>();
 }
 } // namespace test
 } // namespace mlir

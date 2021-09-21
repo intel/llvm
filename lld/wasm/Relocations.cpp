@@ -35,7 +35,7 @@ static bool allowUndefined(const Symbol* sym) {
   // Undefined functions and globals with explicit import name are allowed to be
   // undefined at link time.
   if (auto *f = dyn_cast<UndefinedFunction>(sym))
-    if (f->importName)
+    if (f->importName || config->importUndefined)
       return true;
   if (auto *g = dyn_cast<UndefinedGlobal>(sym))
     if (g->importName)
@@ -56,19 +56,19 @@ static void reportUndefined(Symbol *sym) {
       warn(toString(sym->getFile()) + ": undefined symbol: " + toString(*sym));
       break;
     case UnresolvedPolicy::Ignore:
-      if (auto *f = dyn_cast<UndefinedFunction>(sym)) {
-        if (!f->stubFunction) {
-          LLVM_DEBUG(dbgs()
-                     << "ignoring undefined symbol: " + toString(*sym) + "\n");
-          f->stubFunction = symtab->createUndefinedStub(*f->getSignature());
-          f->stubFunction->markLive();
-          // Mark the function itself as a stub which prevents it from being
-          // assigned a table entry.
-          f->isStub = true;
+      LLVM_DEBUG(dbgs() << "ignoring undefined symbol: " + toString(*sym) +
+                               "\n");
+      if (!config->importUndefined) {
+        if (auto *f = dyn_cast<UndefinedFunction>(sym)) {
+          if (!f->stubFunction) {
+            f->stubFunction = symtab->createUndefinedStub(*f->getSignature());
+            f->stubFunction->markLive();
+            // Mark the function itself as a stub which prevents it from being
+            // assigned a table entry.
+            f->isStub = true;
+          }
         }
       }
-      break;
-    case UnresolvedPolicy::ImportFuncs:
       break;
     }
   }
@@ -115,10 +115,17 @@ void scanRelocations(InputChunk *chunk) {
         addGOTEntry(sym);
       break;
     case R_WASM_MEMORY_ADDR_TLS_SLEB:
+    case R_WASM_MEMORY_ADDR_TLS_SLEB64:
       // In single-threaded builds TLS is lowered away and TLS data can be
       // merged with normal data and allowing TLS relocation in non-TLS
       // segments.
       if (config->sharedMemory) {
+        if (!sym->isTLS()) {
+          error(toString(file) + ": relocation " +
+                relocTypeToString(reloc.Type) +
+                " cannot be used against non-TLS symbol `" + toString(*sym) +
+                "`");
+        }
         if (auto *D = dyn_cast<DefinedData>(sym)) {
           if (!D->segment->outputSeg->isTLS()) {
             error(toString(file) + ": relocation " +
@@ -132,6 +139,12 @@ void scanRelocations(InputChunk *chunk) {
     }
 
     if (config->isPic) {
+      if (sym->isTLS() && sym->isUndefined()) {
+        error(toString(file) +
+              ": TLS symbol is undefined, but TLS symbols cannot yet be "
+              "imported: `" +
+              toString(*sym) + "`");
+      }
       switch (reloc.Type) {
       case R_WASM_TABLE_INDEX_SLEB:
       case R_WASM_TABLE_INDEX_SLEB64:

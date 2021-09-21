@@ -530,6 +530,15 @@ SDValue LanaiTargetLowering::LowerCCCArguments(
   return Chain;
 }
 
+bool LanaiTargetLowering::CanLowerReturn(
+    CallingConv::ID CallConv, MachineFunction &MF, bool IsVarArg,
+    const SmallVectorImpl<ISD::OutputArg> &Outs, LLVMContext &Context) const {
+  SmallVector<CCValAssign, 16> RVLocs;
+  CCState CCInfo(CallConv, IsVarArg, MF, RVLocs, Context);
+
+  return CCInfo.CheckReturn(Outs, RetCC_Lanai32);
+}
+
 SDValue
 LanaiTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
                                  bool IsVarArg,
@@ -1391,8 +1400,7 @@ static bool isConditionalZeroOrAllOnes(SDNode *N, bool AllOnes, SDValue &CC,
       // value is 0.
       OtherOp = DAG.getConstant(0, dl, VT);
     else
-      OtherOp =
-          DAG.getConstant(APInt::getAllOnesValue(VT.getSizeInBits()), dl, VT);
+      OtherOp = DAG.getAllOnesConstant(dl, VT);
     return true;
   }
   }

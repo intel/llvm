@@ -2,16 +2,24 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt
 ; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-SPV
+
+; RUN: llvm-spirv %t.rev.bc -spirv-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; CHECK-SPIRV-DAG: BuildNDRange {{[0-9]+}} {{[0-9]+}} [[GWS:[0-9]+]] [[LWS:[0-9]+]] [[GWO:[0-9]+]]
 ; CHECK-SPIRV-DAG: Constant {{[0-9]+}} [[GWS]] 123
 ; CHECK-SPIRV-DAG: Constant {{[0-9]+}} [[LWS]] 456
 ; CHECK-SPIRV-DAG: Constant {{[0-9]+}} [[GWO]] 0
 
-; CHECK-LLVM: call spir_func void @_Z10ndrange_1Djjj(%struct.ndrange_t* %ndrange, i32 0, i32 123, i32 456)
+; CHECK-LLVM: call spir_func void @_Z10ndrange_1Djjj(%struct.ndrange_t* sret(%struct.ndrange_t) %ndrange, i32 0, i32 123, i32 456)
+; CHECK-LLVM-SPV: call spir_func void @_Z23__spirv_BuildNDRange_1Diii(%struct.ndrange_t* sret(%struct.ndrange_t) %ndrange, i32 123, i32 456, i32 0)
 
 ; ModuleID = 'BuildNDRange.bc'
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

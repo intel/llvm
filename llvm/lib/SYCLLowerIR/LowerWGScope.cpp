@@ -587,7 +587,7 @@ static void dumpDot(const Function &F, const Twine &Suff) {
   std::error_code EC;
   auto FName =
       ("PFWG_Kernel_" + Suff + "_" + Twine(F.getValueID()) + ".dot").str();
-  raw_fd_ostream File(FName, EC, sys::fs::F_Text);
+  raw_fd_ostream File(FName, EC, sys::fs::OF_Text);
 
   if (!EC)
     WriteGraph(File, (const Function *)&F, false);
@@ -599,7 +599,7 @@ static void dumpIR(const Function &F, const Twine &Suff) {
   std::error_code EC;
   auto FName =
       ("PFWG_Kernel_" + Suff + "_" + Twine(F.getValueID()) + ".ll").str();
-  raw_fd_ostream File(FName, EC, sys::fs::F_Text);
+  raw_fd_ostream File(FName, EC, sys::fs::OF_Text);
 
   if (!EC)
     F.print(File, 0, 1, 1);
@@ -978,8 +978,7 @@ Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
   Type *RetTy = Type::getVoidTy(Ctx);
 
   AttributeList Attr;
-  Attr = Attr.addAttribute(Ctx, AttributeList::FunctionIndex,
-                           Attribute::Convergent);
+  Attr = Attr.addFnAttribute(Ctx, Attribute::Convergent);
   FunctionCallee FC =
       M.getOrInsertFunction(Name, Attr, RetTy, ScopeTy, ScopeTy, SemanticsTy);
   assert(FC.getCallee() && "spirv intrinsic creation failed");
@@ -992,7 +991,6 @@ Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
       ScopeTy, asUInt(spirv::MemorySemantics::SequentiallyConsistent) |
                    asUInt(spirv::MemorySemantics::WorkgroupMemory));
   auto BarrierCall = Bld.CreateCall(FC, {ArgExec, ArgMem, ArgSema});
-  BarrierCall->addAttribute(llvm::AttributeList::FunctionIndex,
-                            llvm::Attribute::Convergent);
+  BarrierCall->addFnAttr(llvm::Attribute::Convergent);
   return BarrierCall;
 }

@@ -1390,14 +1390,14 @@ CharLiteralParser::CharLiteralParser(const char *begin, const char *end,
   unsigned NumCharsSoFar = buffer_begin - &codepoint_buffer.front();
 
   if (NumCharsSoFar > 1) {
-    if (isWide())
-      PP.Diag(Loc, diag::warn_extraneous_char_constant);
-    else if (isAscii() && NumCharsSoFar == 4)
+    if (isAscii() && NumCharsSoFar == 4)
       PP.Diag(Loc, diag::warn_four_char_character_literal);
     else if (isAscii())
       PP.Diag(Loc, diag::warn_multichar_character_literal);
-    else
-      PP.Diag(Loc, diag::err_multichar_utf_character_literal);
+    else {
+      PP.Diag(Loc, diag::err_multichar_character_literal) << (isWide() ? 0 : 1);
+      HadError = true;
+    }
     IsMultiChar = true;
   } else {
     IsMultiChar = false;
@@ -1660,7 +1660,8 @@ void StringLiteralParser::init(ArrayRef<Token> StringToks){
       constexpr unsigned MaxRawStrDelimLen = 16;
 
       const char *Prefix = ThisTokBuf;
-      while (ThisTokBuf - Prefix < MaxRawStrDelimLen && ThisTokBuf[0] != '(')
+      while (static_cast<unsigned>(ThisTokBuf - Prefix) < MaxRawStrDelimLen &&
+             ThisTokBuf[0] != '(')
         ++ThisTokBuf;
       if (ThisTokBuf[0] != '(')
         return DiagnoseLexingError(StringToks[i].getLocation());

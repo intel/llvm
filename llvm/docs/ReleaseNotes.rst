@@ -1,12 +1,12 @@
 =========================
-LLVM 13.0.0 Release Notes
+LLVM 14.0.0 Release Notes
 =========================
 
 .. contents::
     :local:
 
 .. warning::
-   These are in-progress notes for the upcoming LLVM 13 release.
+   These are in-progress notes for the upcoming LLVM 14 release.
    Release notes for previous releases can be found on
    `the Download Page <https://releases.llvm.org/download.html>`_.
 
@@ -15,7 +15,7 @@ Introduction
 ============
 
 This document contains the release notes for the LLVM Compiler Infrastructure,
-release 13.0.0.  Here we describe the status of LLVM, including major improvements
+release 14.0.0.  Here we describe the status of LLVM, including major improvements
 from the previous release, improvements in various subprojects of LLVM, and
 some of the current users of the code.  All LLVM releases may be downloaded
 from the `LLVM releases web site <https://llvm.org/releases/>`_.
@@ -51,35 +51,27 @@ Non-comprehensive list of changes in this release
 
    Makes programs 10x faster by doing Special New Thing.
 
-* Windows Control-flow Enforcement Technology: the ``-ehcontguard`` option now
-  emits valid unwind entrypoints which are validated when the context is being
-  set during exception handling.
+* ...
 
 Changes to the LLVM IR
 ----------------------
 
-* The ``inalloca`` attribute now has a mandatory type field, similar
-  to ``byval`` and ``sret``.
-
-* The opaque pointer type ``ptr`` has been introduced. It is still in the
-  process of being worked on and should not be used yet.
+* Using the legacy pass manager for the optimization pipeline is deprecated and
+  will be removed after LLVM 14. In the meantime, only minimal effort will be
+  made to maintain the legacy pass manager for the optimization pipeline.
 
 Changes to building LLVM
 ------------------------
 
-* The build system now supports building multiple distributions, so that you can
-  e.g. have one distribution containing just tools and another for libraries (to
-  enable development). See :ref:`Multi-distribution configurations` for details.
+* ...
 
 Changes to TableGen
 -------------------
 
-Changes to Backend Code Generation
-----------------------------------
+Changes to the AArch64 Backend
+------------------------------
 
-* When lowering calls, only ABI attributes on the call itself are checked, not
-  the caller. Frontends need to make sure to properly set ABI attributes on
-  calls (and always should have).
+* ...
 
 Changes to the ARM Backend
 --------------------------
@@ -94,7 +86,7 @@ During this release ...
 Changes to the Hexagon Target
 -----------------------------
 
-* The Hexagon target now supports V68/HVX ISA.
+* ...
 
 Changes to the PowerPC Target
 -----------------------------
@@ -105,6 +97,8 @@ Changes to the X86 Target
 -------------------------
 
 During this release ...
+
+* Support for ``AVX512-FP16`` instructions has been added.
 
 Changes to the AMDGPU Target
 -----------------------------
@@ -128,6 +122,7 @@ Changes to the OCaml bindings
 Changes to the C API
 --------------------
 
+* ...
 
 Changes to the Go bindings
 --------------------------
@@ -136,9 +131,7 @@ Changes to the Go bindings
 Changes to the FastISel infrastructure
 --------------------------------------
 
-* FastISel no longer tracks killed registers, and instead leaves this to the
-  register allocator. This means that ``hasTrivialKill()`` is removed, as well
-  as the ``OpNIsKill`` parameters to the ``fastEmit_*()`` family of functions.
+* ...
 
 Changes to the DAG infrastructure
 ---------------------------------
@@ -152,15 +145,7 @@ During this release ...
 Changes to the LLVM tools
 ---------------------------------
 
-* The options ``--build-id-link-{dir,input,output}`` have been deleted.
-  (`D96310 <https://reviews.llvm.org/D96310>`_)
-
-* Support for in-order processors has been added to ``llvm-mca``.
-  (`D94928 <https://reviews.llvm.org/D94928>`_)
-
-* llvm-objdump supports ``-M {att,intel}`` now.
-  ``--x86-asm-syntax`` is a deprecated internal option which will be removed in LLVM 14.0.0.
-  (`D101695 <https://reviews.llvm.org/D101695>`_)
+* ...
 
 Changes to LLDB
 ---------------------------------
@@ -168,7 +153,7 @@ Changes to LLDB
 Changes to Sanitizers
 ---------------------
 
-External Open Source Projects Using LLVM 13
+External Open Source Projects Using LLVM 14
 ===========================================
 
 * A project...

@@ -79,17 +79,17 @@ template <int N>
 [[intel::max_global_work_dim(0)]] void func5();
 
 template <int N>
-[[intel::reqd_work_group_size(N)]] void func6(); // expected-error {{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+[[sycl::reqd_work_group_size(N)]] void func6(); // expected-error {{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
 template <int N>
 [[intel::max_global_work_dim(0)]] void func6();
 
 template <int N>
-[[intel::reqd_work_group_size(N, N)]] void func7(); // expected-error {{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+[[sycl::reqd_work_group_size(N, N)]] void func7(); // expected-error {{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
 template <int N>
 [[intel::max_global_work_dim(0)]] void func7();
 
 template <int N>
-[[intel::reqd_work_group_size(N, N, N)]] void func8(); // expected-error {{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
+[[sycl::reqd_work_group_size(N, N, N)]] void func8(); // expected-error {{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
 template <int N>
 [[intel::max_global_work_dim(0)]] void func8();
 
@@ -99,12 +99,12 @@ template <int N>
 [[intel::max_global_work_dim(0)]] void func9();
 
 template <int N>
-[[intel::reqd_work_group_size(N)]] void func10();
+[[sycl::reqd_work_group_size(N)]] void func10();
 template <int N>
 [[intel::max_global_work_dim(0)]] void func10();
 
 template <int N>
-[[intel::reqd_work_group_size(N, N)]] void func11();
+[[sycl::reqd_work_group_size(N, N)]] void func11();
 template <int N>
 [[intel::max_global_work_dim(0)]] void func11();
 

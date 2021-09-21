@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/info/info_desc.hpp>
+#include <CL/sycl/kernel_bundle_enums.hpp>
 #include <CL/sycl/stl.hpp>
 
 #include <memory>
@@ -22,6 +23,7 @@ namespace sycl {
 class program;
 class context;
 template <backend Backend> class backend_traits;
+template <bundle_state State> class kernel_bundle;
 
 namespace detail {
 class kernel_impl;
@@ -35,12 +37,21 @@ class auto_name {};
 /// the \c Name.
 template <typename Name, typename Type> struct get_kernel_name_t {
   using name = Name;
+  static_assert(
+      !std::is_same<Name, auto_name>::value,
+      "No kernel name provided without -fsycl-unnamed-lambda enabled!");
 };
 
+#ifdef __SYCL_UNNAMED_LAMBDA__
 /// Specialization for the case when \c Name is undefined.
+/// This is only legal with our compiler with the unnamed lambda
+/// extension, so make sure the specialiation isn't available in that case: the
+/// lack of specialization allows us to trigger static_assert from the primary
+/// definition.
 template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
   using name = Type;
 };
+#endif // __SYCL_UNNAMED_LAMBDA__
 
 } // namespace detail
 
@@ -100,6 +111,11 @@ public:
   /// \return a valid SYCL context
   context get_context() const;
 
+  /// Get the kernel_bundle associated with this kernel.
+  ///
+  /// \return a valid kernel_bundle<bundle_state::executable>
+  kernel_bundle<bundle_state::executable> get_kernel_bundle() const;
+
   /// Get the program that this kernel is defined for.
   ///
   /// The value returned must be equal to that returned by
@@ -143,8 +159,10 @@ public:
   /// \param Device is a valid SYCL device.
   /// \return depends on information being queried.
   template <info::kernel_work_group param>
+  __SYCL2020_DEPRECATED("get_work_group_info() is deprecated, use SYCL 2020 "
+                        "kernel_device_specific queries instead")
   typename info::param_traits<info::kernel_work_group, param>::return_type
-  get_work_group_info(const device &Device) const;
+      get_work_group_info(const device &Device) const;
 
   /// Query sub-group information from a kernel using the
   /// info::kernel_sub_group descriptor for a specific device.
@@ -187,7 +205,7 @@ private:
 
   pi_native_handle getNativeImpl() const;
 
-  shared_ptr_class<detail::kernel_impl> impl;
+  std::shared_ptr<detail::kernel_impl> impl;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);

@@ -8,8 +8,7 @@
 
 #include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
 
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
+#include "mlir/Conversion/LLVMCommon/VectorPattern.h"
 #include "mlir/Dialect/LLVMIR/FunctionCallUtils.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -17,7 +16,7 @@
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Support/MathExtras.h"
-#include "mlir/Target/LLVMIR/TypeTranslation.h"
+#include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "mlir/Transforms/DialectConversion.h"
 
 using namespace mlir;
@@ -131,18 +130,6 @@ static unsigned getAssumedAlignment(Value value) {
   }
   return align;
 }
-// Helper that returns data layout alignment of a memref associated with a
-// transfer op, including additional information from assume_alignment calls
-// on the source of the transfer
-LogicalResult getTransferOpAlignment(LLVMTypeConverter &typeConverter,
-                                     VectorTransferOpInterface xfer,
-                                     unsigned &align) {
-  if (failed(getMemRefAlignment(
-          typeConverter, xfer.getShapedType().cast<MemRefType>(), align)))
-    return failure();
-  align = std::max(align, getAssumedAlignment(xfer.source()));
-  return success();
-}
 
 // Helper that returns data layout alignment of a memref associated with a
 // load, store, scatter, or gather op, including additional information from
@@ -180,79 +167,6 @@ static Value castDataPtr(ConversionPatternRewriter &rewriter, Location loc,
                          Value ptr, MemRefType memRefType, Type vt) {
   auto pType = LLVM::LLVMPointerType::get(vt, memRefType.getMemorySpaceAsInt());
   return rewriter.create<LLVM::BitcastOp>(loc, pType, ptr);
-}
-
-static LogicalResult
-replaceTransferOpWithLoadOrStore(ConversionPatternRewriter &rewriter,
-                                 LLVMTypeConverter &typeConverter, Location loc,
-                                 TransferReadOp xferOp,
-                                 ArrayRef<Value> operands, Value dataPtr) {
-  unsigned align;
-  if (failed(getTransferOpAlignment(typeConverter, xferOp, align)))
-    return failure();
-  rewriter.replaceOpWithNewOp<LLVM::LoadOp>(xferOp, dataPtr, align);
-  return success();
-}
-
-static LogicalResult
-replaceTransferOpWithMasked(ConversionPatternRewriter &rewriter,
-                            LLVMTypeConverter &typeConverter, Location loc,
-                            TransferReadOp xferOp, ArrayRef<Value> operands,
-                            Value dataPtr, Value mask) {
-  Type vecTy = typeConverter.convertType(xferOp.getVectorType());
-  if (!vecTy)
-    return failure();
-
-  auto adaptor = TransferReadOpAdaptor(operands, xferOp->getAttrDictionary());
-  Value fill = rewriter.create<SplatOp>(loc, vecTy, adaptor.padding());
-
-  unsigned align;
-  if (failed(getTransferOpAlignment(typeConverter, xferOp, align)))
-    return failure();
-  rewriter.replaceOpWithNewOp<LLVM::MaskedLoadOp>(
-      xferOp, vecTy, dataPtr, mask, ValueRange{fill},
-      rewriter.getI32IntegerAttr(align));
-  return success();
-}
-
-static LogicalResult
-replaceTransferOpWithLoadOrStore(ConversionPatternRewriter &rewriter,
-                                 LLVMTypeConverter &typeConverter, Location loc,
-                                 TransferWriteOp xferOp,
-                                 ArrayRef<Value> operands, Value dataPtr) {
-  unsigned align;
-  if (failed(getTransferOpAlignment(typeConverter, xferOp, align)))
-    return failure();
-  auto adaptor = TransferWriteOpAdaptor(operands, xferOp->getAttrDictionary());
-  rewriter.replaceOpWithNewOp<LLVM::StoreOp>(xferOp, adaptor.vector(), dataPtr,
-                                             align);
-  return success();
-}
-
-static LogicalResult
-replaceTransferOpWithMasked(ConversionPatternRewriter &rewriter,
-                            LLVMTypeConverter &typeConverter, Location loc,
-                            TransferWriteOp xferOp, ArrayRef<Value> operands,
-                            Value dataPtr, Value mask) {
-  unsigned align;
-  if (failed(getTransferOpAlignment(typeConverter, xferOp, align)))
-    return failure();
-
-  auto adaptor = TransferWriteOpAdaptor(operands, xferOp->getAttrDictionary());
-  rewriter.replaceOpWithNewOp<LLVM::MaskedStoreOp>(
-      xferOp, adaptor.vector(), dataPtr, mask,
-      rewriter.getI32IntegerAttr(align));
-  return success();
-}
-
-static TransferReadOpAdaptor getTransferOpAdapter(TransferReadOp xferOp,
-                                                  ArrayRef<Value> operands) {
-  return TransferReadOpAdaptor(operands, xferOp->getAttrDictionary());
-}
-
-static TransferWriteOpAdaptor getTransferOpAdapter(TransferWriteOp xferOp,
-                                                   ArrayRef<Value> operands) {
-  return TransferWriteOpAdaptor(operands, xferOp->getAttrDictionary());
 }
 
 namespace {
@@ -627,6 +541,12 @@ public:
     }
 
     // For all other cases, insert the individual values individually.
+    Type eltType;
+    llvm::errs() << llvmType << "\n";
+    if (auto arrayType = llvmType.dyn_cast<LLVM::LLVMArrayType>())
+      eltType = arrayType.getElementType();
+    else
+      eltType = llvmType.cast<VectorType>().getElementType();
     Value insert = rewriter.create<LLVM::UndefOp>(loc, llvmType);
     int64_t insPos = 0;
     for (auto en : llvm::enumerate(maskArrayAttr)) {
@@ -637,7 +557,7 @@ public:
         value = adaptor.v2();
       }
       Value extract = extractOne(rewriter, *getTypeConverter(), loc, value,
-                                 llvmType, rank, extPos);
+                                 eltType, rank, extPos);
       insert = insertOne(rewriter, *getTypeConverter(), loc, insert, extract,
                          llvmType, rank, insPos++);
     }
@@ -1047,7 +967,7 @@ computeContiguousStrides(MemRefType memRefType) {
   // contiguous dynamic shapes in other ways than with just empty/identity
   // layout.
   auto sizes = memRefType.getShape();
-  for (int index = 0, e = strides.size() - 2; index < e; ++index) {
+  for (int index = 0, e = strides.size() - 1; index < e; ++index) {
     if (ShapedType::isDynamic(sizes[index + 1]) ||
         ShapedType::isDynamicStrideOrOffset(strides[index]) ||
         ShapedType::isDynamicStrideOrOffset(strides[index + 1]))
@@ -1134,85 +1054,6 @@ public:
 
     rewriter.replaceOp(castOp, {desc});
     return success();
-  }
-};
-
-/// Conversion pattern that converts a 1-D vector transfer read/write op into a
-/// a masked or unmasked read/write.
-template <typename ConcreteOp>
-class VectorTransferConversion : public ConvertOpToLLVMPattern<ConcreteOp> {
-public:
-  using ConvertOpToLLVMPattern<ConcreteOp>::ConvertOpToLLVMPattern;
-
-  LogicalResult
-  matchAndRewrite(ConcreteOp xferOp, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto adaptor = getTransferOpAdapter(xferOp, operands);
-
-    if (xferOp.getVectorType().getRank() > 1 ||
-        llvm::size(xferOp.indices()) == 0)
-      return failure();
-    if (xferOp.permutation_map() !=
-        AffineMap::getMinorIdentityMap(xferOp.permutation_map().getNumInputs(),
-                                       xferOp.getVectorType().getRank(),
-                                       xferOp->getContext()))
-      return failure();
-    auto memRefType = xferOp.getShapedType().template dyn_cast<MemRefType>();
-    if (!memRefType)
-      return failure();
-    // Only contiguous source tensors supported atm.
-    auto strides = computeContiguousStrides(memRefType);
-    if (!strides)
-      return failure();
-    // Out-of-bounds dims are handled by MaterializeTransferMask.
-    if (xferOp.hasOutOfBoundsDim())
-      return failure();
-
-    auto toLLVMTy = [&](Type t) {
-      return this->getTypeConverter()->convertType(t);
-    };
-
-    Location loc = xferOp->getLoc();
-
-    if (auto memrefVectorElementType =
-            memRefType.getElementType().template dyn_cast<VectorType>()) {
-      // Memref has vector element type.
-      if (memrefVectorElementType.getElementType() !=
-          xferOp.getVectorType().getElementType())
-        return failure();
-#ifndef NDEBUG
-      // Check that memref vector type is a suffix of 'vectorType.
-      unsigned memrefVecEltRank = memrefVectorElementType.getRank();
-      unsigned resultVecRank = xferOp.getVectorType().getRank();
-      assert(memrefVecEltRank <= resultVecRank);
-      // TODO: Move this to isSuffix in Vector/Utils.h.
-      unsigned rankOffset = resultVecRank - memrefVecEltRank;
-      auto memrefVecEltShape = memrefVectorElementType.getShape();
-      auto resultVecShape = xferOp.getVectorType().getShape();
-      for (unsigned i = 0; i < memrefVecEltRank; ++i)
-        assert(memrefVecEltShape[i] != resultVecShape[rankOffset + i] &&
-               "memref vector element shape should match suffix of vector "
-               "result shape.");
-#endif // ifndef NDEBUG
-    }
-
-    // Get the source/dst address as an LLVM vector pointer.
-    VectorType vtp = xferOp.getVectorType();
-    Value dataPtr = this->getStridedElementPtr(
-        loc, memRefType, adaptor.source(), adaptor.indices(), rewriter);
-    Value vectorDataPtr =
-        castDataPtr(rewriter, loc, dataPtr, memRefType, toLLVMTy(vtp));
-
-    // Rewrite as an unmasked masked read / write.
-    if (!xferOp.mask())
-      return replaceTransferOpWithLoadOrStore(rewriter,
-                                              *this->getTypeConverter(), loc,
-                                              xferOp, operands, vectorDataPtr);
-
-    // Rewrite as a masked read / write.
-    return replaceTransferOpWithMasked(rewriter, *this->getTypeConverter(), loc,
-                                       xferOp, operands, vectorDataPtr,
-                                       xferOp.mask());
   }
 };
 
@@ -1353,8 +1194,8 @@ private:
   // Helper to emit a call.
   static void emitCall(ConversionPatternRewriter &rewriter, Location loc,
                        Operation *ref, ValueRange params = ValueRange()) {
-    rewriter.create<LLVM::CallOp>(loc, TypeRange(),
-                                  rewriter.getSymbolRefAttr(ref), params);
+    rewriter.create<LLVM::CallOp>(loc, TypeRange(), SymbolRefAttr::get(ref),
+                                  params);
   }
 };
 
@@ -1444,9 +1285,10 @@ void mlir::populateVectorToLLVMConversionPatterns(
            VectorLoadStoreConversion<vector::MaskedStoreOp,
                                      vector::MaskedStoreOpAdaptor>,
            VectorGatherOpConversion, VectorScatterOpConversion,
-           VectorExpandLoadOpConversion, VectorCompressStoreOpConversion,
-           VectorTransferConversion<TransferReadOp>,
-           VectorTransferConversion<TransferWriteOp>>(converter);
+           VectorExpandLoadOpConversion, VectorCompressStoreOpConversion>(
+          converter);
+  // Transfer ops with rank > 1 are handled by VectorToSCF.
+  populateVectorTransferLoweringPatterns(patterns, /*maxTransferRank=*/1);
 }
 
 void mlir::populateVectorToLLVMMatrixConversionPatterns(

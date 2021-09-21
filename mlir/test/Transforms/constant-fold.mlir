@@ -548,7 +548,7 @@ func @dim(%x : tensor<8x4xf32>) -> index {
 
   // CHECK:[[C4:%.+]] = constant 4 : index
   %c1 = constant 1 : index
-  %0 = memref.dim %x, %c1 : tensor<8x4xf32>
+  %0 = tensor.dim %x, %c1 : tensor<8x4xf32>
 
   // CHECK-NEXT: return [[C4]]
   return %0 : index
@@ -746,7 +746,7 @@ func @fold_rank_memref(%arg0 : memref<?x?xf32>) -> (index) {
 func @nested_isolated_region() {
   // CHECK-NEXT: func @isolated_op
   // CHECK-NEXT: constant 2
-  func @isolated_op() {
+  builtin.func @isolated_op() {
     %0 = constant 1 : i32
     %2 = addi %0, %0 : i32
     "foo.yield"(%2) : (i32) -> ()

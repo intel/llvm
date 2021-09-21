@@ -348,6 +348,7 @@ struct ScalarEnumerationTraits<TargetStackID::Value> {
     IO.enumCase(ID, "default", TargetStackID::Default);
     IO.enumCase(ID, "sgpr-spill", TargetStackID::SGPRSpill);
     IO.enumCase(ID, "scalable-vector", TargetStackID::ScalableVector);
+    IO.enumCase(ID, "wasm-local", TargetStackID::WasmLocal);
     IO.enumCase(ID, "noalloc", TargetStackID::NoAlloc);
   }
 };
@@ -491,6 +492,7 @@ struct DebugValueSubstitution {
   unsigned SrcOp;
   unsigned DstInst;
   unsigned DstOp;
+  unsigned Subreg;
 
   bool operator==(const DebugValueSubstitution &Other) const {
     return std::tie(SrcInst, SrcOp, DstInst, DstOp) ==
@@ -504,6 +506,7 @@ template <> struct MappingTraits<DebugValueSubstitution> {
     YamlIO.mapRequired("srcop", Sub.SrcOp);
     YamlIO.mapRequired("dstinst", Sub.DstInst);
     YamlIO.mapRequired("dstop", Sub.DstOp);
+    YamlIO.mapRequired("subreg", Sub.Subreg);
   }
 
   static const bool flow = true;
@@ -704,6 +707,7 @@ struct MachineFunction {
   std::vector<CallSiteInfo> CallSitesInfo;
   std::vector<DebugValueSubstitution> DebugValueSubstitutions;
   MachineJumpTable JumpTableInfo;
+  std::vector<StringValue> MachineMetadataNodes;
   BlockStringValue Body;
 };
 
@@ -738,6 +742,9 @@ template <> struct MappingTraits<MachineFunction> {
     YamlIO.mapOptional("machineFunctionInfo", MF.MachineFuncInfo);
     if (!YamlIO.outputting() || !MF.JumpTableInfo.Entries.empty())
       YamlIO.mapOptional("jumpTable", MF.JumpTableInfo, MachineJumpTable());
+    if (!YamlIO.outputting() || !MF.MachineMetadataNodes.empty())
+      YamlIO.mapOptional("machineMetadataNodes", MF.MachineMetadataNodes,
+                         std::vector<StringValue>());
     YamlIO.mapOptional("body", MF.Body, BlockStringValue());
   }
 };

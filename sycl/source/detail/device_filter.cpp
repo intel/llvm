@@ -18,19 +18,6 @@ namespace sycl {
 namespace detail {
 
 device_filter::device_filter(const std::string &FilterString) {
-  const std::array<std::pair<std::string, info::device_type>, 5>
-      SyclDeviceTypeMap = {{{"host", info::device_type::host},
-                            {"cpu", info::device_type::cpu},
-                            {"gpu", info::device_type::gpu},
-                            {"acc", info::device_type::accelerator},
-                            {"*", info::device_type::all}}};
-  const std::array<std::pair<std::string, backend>, 5> SyclBeMap = {
-      {{"host", backend::host},
-       {"opencl", backend::opencl},
-       {"level_zero", backend::level_zero},
-       {"cuda", backend::cuda},
-       {"*", backend::all}}};
-
   size_t Cursor = 0;
   size_t ColonPos = 0;
   auto findElement = [&](auto Element) {
@@ -43,11 +30,11 @@ device_filter::device_filter(const std::string &FilterString) {
 
   // Handle the optional 1st field of the filter, backend
   // Check if the first entry matches with a known backend type
-  auto It =
-      std::find_if(std::begin(SyclBeMap), std::end(SyclBeMap), findElement);
+  auto It = std::find_if(std::begin(getSyclBeMap()), std::end(getSyclBeMap()),
+                         findElement);
   // If no match is found, set the backend type backend::all
   // which actually means 'any backend' will be a match.
-  if (It == SyclBeMap.end())
+  if (It == getSyclBeMap().end())
     Backend = backend::all;
   else {
     Backend = It->second;
@@ -62,11 +49,11 @@ device_filter::device_filter(const std::string &FilterString) {
   if (Cursor >= FilterString.size()) {
     DeviceType = info::device_type::all;
   } else {
-    auto Iter = std::find_if(std::begin(SyclDeviceTypeMap),
-                             std::end(SyclDeviceTypeMap), findElement);
+    auto Iter = std::find_if(std::begin(getSyclDeviceTypeMap()),
+                             std::end(getSyclDeviceTypeMap()), findElement);
     // If no match is found, set device_type 'all',
     // which actually means 'any device_type' will be a match.
-    if (Iter == SyclDeviceTypeMap.end())
+    if (Iter == getSyclDeviceTypeMap().end())
       DeviceType = info::device_type::all;
     else {
       DeviceType = Iter->second;
@@ -88,7 +75,8 @@ device_filter::device_filter(const std::string &FilterString) {
     } catch (...) {
       std::string Message =
           std::string("Invalid device filter: ") + FilterString +
-          "\nPossible backend values are {host,opencl,level_zero,cuda,*}.\n"
+          "\nPossible backend values are "
+          "{host,opencl,level_zero,cuda,hip,*}.\n"
           "Possible device types are {host,cpu,gpu,acc,*}.\n"
           "Device number should be an non-negative integer.\n";
       throw cl::sycl::invalid_parameter_error(Message, PI_INVALID_VALUE);

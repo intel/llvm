@@ -10,9 +10,6 @@
 // Ensure that none of the standard C++ headers implicitly include cassert or
 // assert.h (because assert() is implemented as a macro).
 
-// GCC 5 has incomplete support for C++17, so some headers fail when included.
-// UNSUPPORTED: gcc-5 && c++17
-
 // Prevent <ext/hash_map> from generating deprecated warnings for this test.
 #if defined(__DEPRECATED)
 #    undef __DEPRECATED
@@ -84,7 +81,9 @@
 #    include <filesystem>
 #endif
 #include <float.h>
-#include <format>
+#ifndef _LIBCPP_HAS_NO_INCOMPLETE_FORMAT
+#    include <format>
+#endif
 #include <forward_list>
 #ifndef _LIBCPP_HAS_NO_LOCALIZATION
 #    include <fstream>
@@ -136,7 +135,9 @@
 #endif
 #include <queue>
 #include <random>
-#include <ranges>
+#ifndef _LIBCPP_HAS_NO_INCOMPLETE_RANGES
+#    include <ranges>
+#endif
 #include <ratio>
 #ifndef _LIBCPP_HAS_NO_LOCALIZATION
 #    include <regex>

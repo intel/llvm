@@ -7,6 +7,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
+// UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // <format>
 
@@ -24,6 +25,8 @@
 // using wformat_parse_context = basic_format_parse_context<wchar_t>;
 
 #include <format>
+
+#include <string_view>
 #include <type_traits>
 
 #include "test_macros.h"

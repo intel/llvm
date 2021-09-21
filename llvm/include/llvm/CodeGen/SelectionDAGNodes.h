@@ -462,7 +462,7 @@ protected:
   // SubclassData.  These are designed to fit within a uint16_t so they pack
   // with NodeType.
 
-#if defined(_AIX) && (!defined(__GNUC__) || defined(__ibmxl__))
+#if defined(_AIX) && (!defined(__GNUC__) || defined(__clang__))
 // Except for GCC; by default, AIX compilers store bit-fields in 4-byte words
 // and give the `pack` pragma push semantics.
 #define BEGIN_TWO_BYTE_PACK() _Pragma("pack(2)")
@@ -509,15 +509,19 @@ BEGIN_TWO_BYTE_PACK()
 
   class LSBaseSDNodeBitfields {
     friend class LSBaseSDNode;
+    friend class VPLoadStoreSDNode;
     friend class MaskedLoadStoreSDNode;
     friend class MaskedGatherScatterSDNode;
+    friend class VPGatherScatterSDNode;
 
     uint16_t : NumMemSDNodeBits;
 
     // This storage is shared between disparate class hierarchies to hold an
     // enumeration specific to the class hierarchy in use.
     //   LSBaseSDNode => enum ISD::MemIndexedMode
+    //   VPLoadStoreBaseSDNode => enum ISD::MemIndexedMode
     //   MaskedLoadStoreBaseSDNode => enum ISD::MemIndexedMode
+    //   VPGatherScatterSDNode => enum ISD::MemIndexType
     //   MaskedGatherScatterSDNode => enum ISD::MemIndexType
     uint16_t AddressingMode : 3;
   };
@@ -525,8 +529,10 @@ BEGIN_TWO_BYTE_PACK()
 
   class LoadSDNodeBitfields {
     friend class LoadSDNode;
+    friend class VPLoadSDNode;
     friend class MaskedLoadSDNode;
     friend class MaskedGatherSDNode;
+    friend class VPGatherSDNode;
 
     uint16_t : NumLSBaseSDNodeBits;
 
@@ -536,8 +542,10 @@ BEGIN_TWO_BYTE_PACK()
 
   class StoreSDNodeBitfields {
     friend class StoreSDNode;
+    friend class VPStoreSDNode;
     friend class MaskedStoreSDNode;
     friend class MaskedScatterSDNode;
+    friend class VPScatterSDNode;
 
     uint16_t : NumLSBaseSDNodeBits;
 
@@ -1304,7 +1312,14 @@ public:
   /// Return the atomic ordering requirements for this memory operation. For
   /// cmpxchg atomic operations, return the atomic ordering requirements when
   /// store occurs.
-  AtomicOrdering getOrdering() const { return MMO->getOrdering(); }
+  AtomicOrdering getSuccessOrdering() const {
+    return MMO->getSuccessOrdering();
+  }
+
+  /// Return a single atomic ordering that is at least as strong as both the
+  /// success and failure orderings for an atomic operation.  (For operations
+  /// other than cmpxchg, this is equivalent to getSuccessOrdering().)
+  AtomicOrdering getMergedOrdering() const { return MMO->getMergedOrdering(); }
 
   /// Return true if the memory operation ordering is Unordered or higher.
   bool isAtomic() const { return MMO->isAtomic(); }
@@ -1346,7 +1361,9 @@ public:
   const SDValue &getBasePtr() const {
     switch (getOpcode()) {
     case ISD::STORE:
+    case ISD::VP_STORE:
     case ISD::MSTORE:
+    case ISD::VP_SCATTER:
       return getOperand(2);
     case ISD::MGATHER:
     case ISD::MSCATTER:
@@ -1360,33 +1377,40 @@ public:
   static bool classof(const SDNode *N) {
     // For some targets, we lower some target intrinsics to a MemIntrinsicNode
     // with either an intrinsic or a target opcode.
-    return N->getOpcode() == ISD::LOAD                ||
-           N->getOpcode() == ISD::STORE               ||
-           N->getOpcode() == ISD::PREFETCH            ||
-           N->getOpcode() == ISD::ATOMIC_CMP_SWAP     ||
-           N->getOpcode() == ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS ||
-           N->getOpcode() == ISD::ATOMIC_SWAP         ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_ADD     ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_SUB     ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_AND     ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_CLR     ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_OR      ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_XOR     ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_NAND    ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_MIN     ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_MAX     ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_UMIN    ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_UMAX    ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_FADD    ||
-           N->getOpcode() == ISD::ATOMIC_LOAD_FSUB    ||
-           N->getOpcode() == ISD::ATOMIC_LOAD         ||
-           N->getOpcode() == ISD::ATOMIC_STORE        ||
-           N->getOpcode() == ISD::MLOAD               ||
-           N->getOpcode() == ISD::MSTORE              ||
-           N->getOpcode() == ISD::MGATHER             ||
-           N->getOpcode() == ISD::MSCATTER            ||
-           N->isMemIntrinsic()                        ||
-           N->isTargetMemoryOpcode();
+    switch (N->getOpcode()) {
+    case ISD::LOAD:
+    case ISD::STORE:
+    case ISD::PREFETCH:
+    case ISD::ATOMIC_CMP_SWAP:
+    case ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS:
+    case ISD::ATOMIC_SWAP:
+    case ISD::ATOMIC_LOAD_ADD:
+    case ISD::ATOMIC_LOAD_SUB:
+    case ISD::ATOMIC_LOAD_AND:
+    case ISD::ATOMIC_LOAD_CLR:
+    case ISD::ATOMIC_LOAD_OR:
+    case ISD::ATOMIC_LOAD_XOR:
+    case ISD::ATOMIC_LOAD_NAND:
+    case ISD::ATOMIC_LOAD_MIN:
+    case ISD::ATOMIC_LOAD_MAX:
+    case ISD::ATOMIC_LOAD_UMIN:
+    case ISD::ATOMIC_LOAD_UMAX:
+    case ISD::ATOMIC_LOAD_FADD:
+    case ISD::ATOMIC_LOAD_FSUB:
+    case ISD::ATOMIC_LOAD:
+    case ISD::ATOMIC_STORE:
+    case ISD::MLOAD:
+    case ISD::MSTORE:
+    case ISD::MGATHER:
+    case ISD::MSCATTER:
+    case ISD::VP_LOAD:
+    case ISD::VP_STORE:
+    case ISD::VP_GATHER:
+    case ISD::VP_SCATTER:
+      return true;
+    default:
+      return N->isMemIntrinsic() || N->isTargetMemoryOpcode();
+    }
   }
 };
 
@@ -1553,8 +1577,14 @@ public:
   Align getAlignValue() const { return Value->getAlignValue(); }
 
   bool isOne() const { return Value->isOne(); }
-  bool isNullValue() const { return Value->isZero(); }
-  bool isAllOnesValue() const { return Value->isMinusOne(); }
+  bool isZero() const { return Value->isZero(); }
+  // NOTE: This is soft-deprecated.  Please use `isZero()` instead.
+  bool isNullValue() const { return isZero(); }
+  bool isAllOnes() const { return Value->isMinusOne(); }
+  // NOTE: This is soft-deprecated.  Please use `isAllOnes()` instead.
+  bool isAllOnesValue() const { return isAllOnes(); }
+  bool isMaxSignedValue() const { return Value->isMaxValue(true); }
+  bool isMinSignedValue() const { return Value->isMinValue(true); }
 
   bool isOpaque() const { return ConstantSDNodeBits.IsOpaque; }
 
@@ -2306,6 +2336,116 @@ public:
   }
 };
 
+/// This base class is used to represent VP_LOAD and VP_STORE nodes
+class VPLoadStoreSDNode : public MemSDNode {
+public:
+  friend class SelectionDAG;
+
+  VPLoadStoreSDNode(ISD::NodeType NodeTy, unsigned Order, const DebugLoc &dl,
+                    SDVTList VTs, ISD::MemIndexedMode AM, EVT MemVT,
+                    MachineMemOperand *MMO)
+      : MemSDNode(NodeTy, Order, dl, VTs, MemVT, MMO) {
+    LSBaseSDNodeBits.AddressingMode = AM;
+    assert(getAddressingMode() == AM && "Value truncated");
+  }
+
+  // VPLoadSDNode (Chain, Ptr, Offset, Mask, EVL)
+  // VPStoreSDNode (Chain, Data, Ptr, Offset, Mask, EVL)
+  // Mask is a vector of i1 elements;
+  // the type of EVL is TLI.getVPExplicitVectorLengthTy().
+  const SDValue &getOffset() const {
+    return getOperand(getOpcode() == ISD::MLOAD ? 2 : 3);
+  }
+  const SDValue &getBasePtr() const {
+    return getOperand(getOpcode() == ISD::VP_LOAD ? 1 : 2);
+  }
+  const SDValue &getMask() const {
+    return getOperand(getOpcode() == ISD::VP_LOAD ? 3 : 4);
+  }
+  const SDValue &getVectorLength() const {
+    return getOperand(getOpcode() == ISD::VP_LOAD ? 4 : 5);
+  }
+
+  /// Return the addressing mode for this load or store:
+  /// unindexed, pre-inc, pre-dec, post-inc, or post-dec.
+  ISD::MemIndexedMode getAddressingMode() const {
+    return static_cast<ISD::MemIndexedMode>(LSBaseSDNodeBits.AddressingMode);
+  }
+
+  /// Return true if this is a pre/post inc/dec load/store.
+  bool isIndexed() const { return getAddressingMode() != ISD::UNINDEXED; }
+
+  /// Return true if this is NOT a pre/post inc/dec load/store.
+  bool isUnindexed() const { return getAddressingMode() == ISD::UNINDEXED; }
+
+  static bool classof(const SDNode *N) {
+    return N->getOpcode() == ISD::VP_LOAD || N->getOpcode() == ISD::VP_STORE;
+  }
+};
+
+/// This class is used to represent a VP_LOAD node
+class VPLoadSDNode : public VPLoadStoreSDNode {
+public:
+  friend class SelectionDAG;
+
+  VPLoadSDNode(unsigned Order, const DebugLoc &dl, SDVTList VTs,
+               ISD::MemIndexedMode AM, ISD::LoadExtType ETy, bool isExpanding,
+               EVT MemVT, MachineMemOperand *MMO)
+      : VPLoadStoreSDNode(ISD::VP_LOAD, Order, dl, VTs, AM, MemVT, MMO) {
+    LoadSDNodeBits.ExtTy = ETy;
+    LoadSDNodeBits.IsExpanding = isExpanding;
+  }
+
+  ISD::LoadExtType getExtensionType() const {
+    return static_cast<ISD::LoadExtType>(LoadSDNodeBits.ExtTy);
+  }
+
+  const SDValue &getBasePtr() const { return getOperand(1); }
+  const SDValue &getOffset() const { return getOperand(2); }
+  const SDValue &getMask() const { return getOperand(3); }
+  const SDValue &getVectorLength() const { return getOperand(4); }
+
+  static bool classof(const SDNode *N) {
+    return N->getOpcode() == ISD::VP_LOAD;
+  }
+  bool isExpandingLoad() const { return LoadSDNodeBits.IsExpanding; }
+};
+
+/// This class is used to represent a VP_STORE node
+class VPStoreSDNode : public VPLoadStoreSDNode {
+public:
+  friend class SelectionDAG;
+
+  VPStoreSDNode(unsigned Order, const DebugLoc &dl, SDVTList VTs,
+                ISD::MemIndexedMode AM, bool isTrunc, bool isCompressing,
+                EVT MemVT, MachineMemOperand *MMO)
+      : VPLoadStoreSDNode(ISD::VP_STORE, Order, dl, VTs, AM, MemVT, MMO) {
+    StoreSDNodeBits.IsTruncating = isTrunc;
+    StoreSDNodeBits.IsCompressing = isCompressing;
+  }
+
+  /// Return true if this is a truncating store.
+  /// For integers this is the same as doing a TRUNCATE and storing the result.
+  /// For floats, it is the same as doing an FP_ROUND and storing the result.
+  bool isTruncatingStore() const { return StoreSDNodeBits.IsTruncating; }
+
+  /// Returns true if the op does a compression to the vector before storing.
+  /// The node contiguously stores the active elements (integers or floats)
+  /// in src (those with their respective bit set in writemask k) to unaligned
+  /// memory at base_addr.
+  bool isCompressingStore() const { return StoreSDNodeBits.IsCompressing; }
+
+  const SDValue &getValue() const { return getOperand(1); }
+  const SDValue &getBasePtr() const { return getOperand(2); }
+  const SDValue &getOffset() const { return getOperand(3); }
+  const SDValue &getMask() const { return getOperand(4); }
+  const SDValue &getVectorLength() const { return getOperand(5); }
+
+  static bool classof(const SDNode *N) {
+    return N->getOpcode() == ISD::VP_STORE;
+  }
+};
+
 /// This base class is used to represent MLOAD and MSTORE nodes
 class MaskedLoadStoreSDNode : public MemSDNode {
 public:
@@ -2408,6 +2548,94 @@ public:
 
   static bool classof(const SDNode *N) {
     return N->getOpcode() == ISD::MSTORE;
+  }
+};
+
+/// This is a base class used to represent
+/// VP_GATHER and VP_SCATTER nodes
+///
+class VPGatherScatterSDNode : public MemSDNode {
+public:
+  friend class SelectionDAG;
+
+  VPGatherScatterSDNode(ISD::NodeType NodeTy, unsigned Order,
+                        const DebugLoc &dl, SDVTList VTs, EVT MemVT,
+                        MachineMemOperand *MMO, ISD::MemIndexType IndexType)
+      : MemSDNode(NodeTy, Order, dl, VTs, MemVT, MMO) {
+    LSBaseSDNodeBits.AddressingMode = IndexType;
+    assert(getIndexType() == IndexType && "Value truncated");
+  }
+
+  /// How is Index applied to BasePtr when computing addresses.
+  ISD::MemIndexType getIndexType() const {
+    return static_cast<ISD::MemIndexType>(LSBaseSDNodeBits.AddressingMode);
+  }
+  bool isIndexScaled() const {
+    return (getIndexType() == ISD::SIGNED_SCALED) ||
+           (getIndexType() == ISD::UNSIGNED_SCALED);
+  }
+  bool isIndexSigned() const {
+    return (getIndexType() == ISD::SIGNED_SCALED) ||
+           (getIndexType() == ISD::SIGNED_UNSCALED);
+  }
+
+  // In the both nodes address is Op1, mask is Op2:
+  // VPGatherSDNode  (Chain, base, index, scale, mask, vlen)
+  // VPScatterSDNode (Chain, value, base, index, scale, mask, vlen)
+  // Mask is a vector of i1 elements
+  const SDValue &getBasePtr() const {
+    return getOperand((getOpcode() == ISD::VP_GATHER) ? 1 : 2);
+  }
+  const SDValue &getIndex() const {
+    return getOperand((getOpcode() == ISD::VP_GATHER) ? 2 : 3);
+  }
+  const SDValue &getScale() const {
+    return getOperand((getOpcode() == ISD::VP_GATHER) ? 3 : 4);
+  }
+  const SDValue &getMask() const {
+    return getOperand((getOpcode() == ISD::VP_GATHER) ? 4 : 5);
+  }
+  const SDValue &getVectorLength() const {
+    return getOperand((getOpcode() == ISD::VP_GATHER) ? 5 : 6);
+  }
+
+  static bool classof(const SDNode *N) {
+    return N->getOpcode() == ISD::VP_GATHER ||
+           N->getOpcode() == ISD::VP_SCATTER;
+  }
+};
+
+/// This class is used to represent an VP_GATHER node
+///
+class VPGatherSDNode : public VPGatherScatterSDNode {
+public:
+  friend class SelectionDAG;
+
+  VPGatherSDNode(unsigned Order, const DebugLoc &dl, SDVTList VTs, EVT MemVT,
+                 MachineMemOperand *MMO, ISD::MemIndexType IndexType)
+      : VPGatherScatterSDNode(ISD::VP_GATHER, Order, dl, VTs, MemVT, MMO,
+                              IndexType) {}
+
+  static bool classof(const SDNode *N) {
+    return N->getOpcode() == ISD::VP_GATHER;
+  }
+};
+
+/// This class is used to represent an VP_SCATTER node
+///
+class VPScatterSDNode : public VPGatherScatterSDNode {
+public:
+  friend class SelectionDAG;
+
+  VPScatterSDNode(unsigned Order, const DebugLoc &dl, SDVTList VTs, EVT MemVT,
+                  MachineMemOperand *MMO, ISD::MemIndexType IndexType)
+      : VPGatherScatterSDNode(ISD::VP_SCATTER, Order, dl, VTs, MemVT, MMO,
+                              IndexType) {}
+
+  const SDValue &getValue() const { return getOperand(1); }
+
+  static bool classof(const SDNode *N) {
+    return N->getOpcode() == ISD::VP_SCATTER;
   }
 };
 
@@ -2705,16 +2933,6 @@ namespace ISD {
     const StoreSDNode *St = dyn_cast<StoreSDNode>(N);
     return St && !St->isTruncatingStore() &&
       St->getAddressingMode() == ISD::UNINDEXED;
-  }
-
-  /// Returns true if the specified node is a non-truncating store.
-  inline bool isNON_TRUNCStore(const SDNode *N) {
-    return isa<StoreSDNode>(N) && !cast<StoreSDNode>(N)->isTruncatingStore();
-  }
-
-  /// Returns true if the specified node is a truncating store.
-  inline bool isTRUNCStore(const SDNode *N) {
-    return isa<StoreSDNode>(N) && cast<StoreSDNode>(N)->isTruncatingStore();
   }
 
   /// Returns true if the specified node is an unindexed store.

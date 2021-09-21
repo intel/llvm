@@ -97,7 +97,7 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
   Mock.redefine<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   queue InOrderQueue{Ctx, Selector, property::queue::in_order()};
   cl::sycl::detail::QueueImplPtr InOrderQueueImpl =
       detail::getSyclObjImpl(InOrderQueue);
@@ -112,18 +112,21 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
   buffer<int, 1> Buf(&val, range<1>(1));
   detail::Requirement Req = getMockRequirement(Buf);
 
+  std::vector<detail::Command *> AuxCmds;
   detail::MemObjRecord *Record =
-      MS.getOrInsertMemObjRecord(InOrderQueueImpl, &Req);
-  MS.getOrCreateAllocaForReq(Record, &Req, InOrderQueueImpl);
-  MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue);
+      MS.getOrInsertMemObjRecord(InOrderQueueImpl, &Req, AuxCmds);
+  MS.getOrCreateAllocaForReq(Record, &Req, InOrderQueueImpl, AuxCmds);
+  MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue, AuxCmds);
 
   // Check that sequential memory movements submitted to the same in-order
   // queue do not depend on each other.
-  detail::Command *Cmd = MS.insertMemoryMove(Record, &Req, DefaultHostQueue);
+  detail::Command *Cmd =
+      MS.insertMemoryMove(Record, &Req, DefaultHostQueue, AuxCmds);
   detail::EnqueueResultT Res;
+  auto ReadLock = MS.acquireGraphReadLock();
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
-  Cmd = MS.insertMemoryMove(Record, &Req, InOrderQueueImpl);
+  Cmd = MS.insertMemoryMove(Record, &Req, InOrderQueueImpl, AuxCmds);
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
-  Cmd = MS.insertMemoryMove(Record, &Req, DefaultHostQueue);
+  Cmd = MS.insertMemoryMove(Record, &Req, DefaultHostQueue, AuxCmds);
   MockScheduler::enqueueCommand(Cmd, Res, detail::NON_BLOCKING);
 }

@@ -200,7 +200,7 @@ bool AMDGPUPromoteAllocaImpl::run(Function &F) {
 
 std::pair<Value *, Value *>
 AMDGPUPromoteAllocaImpl::getLocalSizeYZ(IRBuilder<> &Builder) {
-  const Function &F = *Builder.GetInsertBlock()->getParent();
+  Function &F = *Builder.GetInsertBlock()->getParent();
   const AMDGPUSubtarget &ST = AMDGPUSubtarget::get(TM, F);
 
   if (!IsAMDHSA) {
@@ -256,11 +256,12 @@ AMDGPUPromoteAllocaImpl::getLocalSizeYZ(IRBuilder<> &Builder) {
     = Intrinsic::getDeclaration(Mod, Intrinsic::amdgcn_dispatch_ptr);
 
   CallInst *DispatchPtr = Builder.CreateCall(DispatchPtrFn, {});
-  DispatchPtr->addAttribute(AttributeList::ReturnIndex, Attribute::NoAlias);
-  DispatchPtr->addAttribute(AttributeList::ReturnIndex, Attribute::NonNull);
+  DispatchPtr->addRetAttr(Attribute::NoAlias);
+  DispatchPtr->addRetAttr(Attribute::NonNull);
+  F.removeFnAttr("amdgpu-no-dispatch-ptr");
 
   // Size of the dispatch packet struct.
-  DispatchPtr->addDereferenceableAttr(AttributeList::ReturnIndex, 64);
+  DispatchPtr->addDereferenceableRetAttr(64);
 
   Type *I32Ty = Type::getInt32Ty(Mod->getContext());
   Value *CastDispatchPtr = Builder.CreateBitCast(
@@ -288,23 +289,27 @@ AMDGPUPromoteAllocaImpl::getLocalSizeYZ(IRBuilder<> &Builder) {
 
 Value *AMDGPUPromoteAllocaImpl::getWorkitemID(IRBuilder<> &Builder,
                                               unsigned N) {
-  const AMDGPUSubtarget &ST =
-      AMDGPUSubtarget::get(TM, *Builder.GetInsertBlock()->getParent());
+  Function *F = Builder.GetInsertBlock()->getParent();
+  const AMDGPUSubtarget &ST = AMDGPUSubtarget::get(TM, *F);
   Intrinsic::ID IntrID = Intrinsic::not_intrinsic;
+  StringRef AttrName;
 
   switch (N) {
   case 0:
     IntrID = IsAMDGCN ? (Intrinsic::ID)Intrinsic::amdgcn_workitem_id_x
                       : (Intrinsic::ID)Intrinsic::r600_read_tidig_x;
+    AttrName = "amdgpu-no-workitem-id-x";
     break;
   case 1:
     IntrID = IsAMDGCN ? (Intrinsic::ID)Intrinsic::amdgcn_workitem_id_y
                       : (Intrinsic::ID)Intrinsic::r600_read_tidig_y;
+    AttrName = "amdgpu-no-workitem-id-y";
     break;
 
   case 2:
     IntrID = IsAMDGCN ? (Intrinsic::ID)Intrinsic::amdgcn_workitem_id_z
                       : (Intrinsic::ID)Intrinsic::r600_read_tidig_z;
+    AttrName = "amdgpu-no-workitem-id-z";
     break;
   default:
     llvm_unreachable("invalid dimension");
@@ -313,6 +318,7 @@ Value *AMDGPUPromoteAllocaImpl::getWorkitemID(IRBuilder<> &Builder,
   Function *WorkitemIdFn = Intrinsic::getDeclaration(Mod, IntrID);
   CallInst *CI = Builder.CreateCall(WorkitemIdFn);
   ST.makeLIDRangeMetadata(CI);
+  F->removeFnAttr(AttrName);
 
   return CI;
 }
@@ -960,8 +966,8 @@ bool AMDGPUPromoteAllocaImpl::handleAlloca(AllocaInst &I, bool SufficientLDS) {
     if (!Call) {
       if (ICmpInst *CI = dyn_cast<ICmpInst>(V)) {
         Value *Src0 = CI->getOperand(0);
-        Type *EltTy = Src0->getType()->getPointerElementType();
-        PointerType *NewTy = PointerType::get(EltTy, AMDGPUAS::LOCAL_ADDRESS);
+        PointerType *NewTy = PointerType::getWithSamePointeeType(
+            cast<PointerType>(Src0->getType()), AMDGPUAS::LOCAL_ADDRESS);
 
         if (isa<ConstantPointerNull>(CI->getOperand(0)))
           CI->setOperand(0, ConstantPointerNull::get(NewTy));
@@ -977,8 +983,8 @@ bool AMDGPUPromoteAllocaImpl::handleAlloca(AllocaInst &I, bool SufficientLDS) {
       if (isa<AddrSpaceCastInst>(V))
         continue;
 
-      Type *EltTy = V->getType()->getPointerElementType();
-      PointerType *NewTy = PointerType::get(EltTy, AMDGPUAS::LOCAL_ADDRESS);
+      PointerType *NewTy = PointerType::getWithSamePointeeType(
+          cast<PointerType>(V->getType()), AMDGPUAS::LOCAL_ADDRESS);
 
       // FIXME: It doesn't really make sense to try to do this for all
       // instructions.
@@ -1035,11 +1041,11 @@ bool AMDGPUPromoteAllocaImpl::handleAlloca(AllocaInst &I, bool SufficientLDS) {
       continue;
     case Intrinsic::objectsize: {
       Value *Src = Intr->getOperand(0);
-      Type *SrcTy = Src->getType()->getPointerElementType();
-      Function *ObjectSize = Intrinsic::getDeclaration(Mod,
-        Intrinsic::objectsize,
-        { Intr->getType(), PointerType::get(SrcTy, AMDGPUAS::LOCAL_ADDRESS) }
-      );
+      Function *ObjectSize = Intrinsic::getDeclaration(
+          Mod, Intrinsic::objectsize,
+          {Intr->getType(),
+           PointerType::getWithSamePointeeType(
+               cast<PointerType>(Src->getType()), AMDGPUAS::LOCAL_ADDRESS)});
 
       CallInst *NewCall = Builder.CreateCall(
           ObjectSize,
@@ -1065,9 +1071,9 @@ bool AMDGPUPromoteAllocaImpl::handleAlloca(AllocaInst &I, bool SufficientLDS) {
                                     MI->getRawSource(), MI->getSourceAlign(),
                                     MI->getLength(), MI->isVolatile());
 
-    for (unsigned I = 1; I != 3; ++I) {
-      if (uint64_t Bytes = Intr->getDereferenceableBytes(I)) {
-        B->addDereferenceableAttr(I, Bytes);
+    for (unsigned I = 0; I != 2; ++I) {
+      if (uint64_t Bytes = Intr->getParamDereferenceableBytes(I)) {
+        B->addDereferenceableParamAttr(I, Bytes);
       }
     }
 

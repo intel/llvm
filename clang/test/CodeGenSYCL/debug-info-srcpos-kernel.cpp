@@ -25,15 +25,15 @@ int main() {
 }
 
 // CHECK: define{{.*}} spir_kernel {{.*}}19use_kernel_for_test({{.*}}){{.*}} !dbg [[KERNEL:![0-9]+]] {{.*}}{
-// CHECK: getelementptr inbounds %"class.{{.*}}.anon"{{.*}} !dbg [[LINE_A0:![0-9]+]]
+// CHECK: getelementptr inbounds %class.{{.*}}.anon{{.*}} !dbg [[LINE_A0:![0-9]+]]
 // CHECK: call spir_func void {{.*}}6__init{{.*}} !dbg [[LINE_A0]]
-// CHECK: call spir_func void @"_ZZ4mainENK3$_0clEv"{{.*}} !dbg [[LINE_B0:![0-9]+]]
+// CHECK: call spir_func void @_ZZ4mainENKUlvE_clEv{{.*}} !dbg [[LINE_B0:![0-9]+]]
 // CHECK: ret void, !dbg [[LINE_C0:![0-9]+]]
-// CHECK: [[FILE:![0-9]+]] = !DIFile(filename: "{{.*}}debug-info-srcpos-kernel.cpp"{{.*}})
 // CHECK: [[KERNEL]] = {{.*}}!DISubprogram(name: "{{.*}}19use_kernel_for_test"
-// CHECK-SAME: scope: [[FILE]]
-// CHECK-SAME: file: [[FILE]]
+// CHECK-SAME: scope: [[FILE:![0-9]+]],
+// CHECK-SAME: file: [[FILE]],
 // CHECK-SAME: flags: DIFlagArtificial | DIFlagPrototyped
+// CHECK: [[FILE]] = !DIFile(filename: "{{.*}}debug-info-srcpos-kernel.cpp"{{.*}})
 // CHECK: [[LINE_A0]] = !DILocation(line: 15,{{.*}}scope: [[KERNEL]]
 // CHECK: [[LINE_B0]] = !DILocation(line: 16,{{.*}}scope: [[BLOCK:![0-9]+]]
 // CHECK: [[BLOCK]] = distinct !DILexicalBlock(scope: [[KERNEL]]

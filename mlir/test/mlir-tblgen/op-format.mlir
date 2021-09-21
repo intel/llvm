@@ -151,6 +151,9 @@ test.format_operand_e_op %i64, %memref : i64, memref<1xf64>
 // CHECK: test.format_variadic_operand %[[I64]], %[[I64]], %[[I64]] : i64, i64, i64
 test.format_variadic_operand %i64, %i64, %i64 : i64, i64, i64
 
+// CHECK: test.format_variadic_of_variadic_operand (%[[I64]], %[[I64]]), (), (%[[I64]]) : (i64, i64), (), (i64)
+test.format_variadic_of_variadic_operand (%i64, %i64), (), (%i64) : (i64, i64), (), (i64)
+
 // CHECK: test.format_multiple_variadic_operands (%[[I64]], %[[I64]], %[[I64]]), (%[[I64]], %[[I32]] : i64, i32)
 test.format_multiple_variadic_operands (%i64, %i64, %i64), (%i64, %i32 : i64, i32)
 
@@ -348,3 +351,6 @@ test.format_infer_variadic_type_from_non_variadic %i64, %i64 : i64
 
 // CHECK: test.format_types_match_attr 1 : i64
 %ignored_res5 = test.format_types_match_attr 1 : i64
+
+// CHECK: test.format_types_match_context %[[I64]] : i64
+%ignored_res6 = test.format_types_match_context %i64 : i64

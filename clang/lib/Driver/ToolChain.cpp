@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Driver/ToolChain.h"
-#include "InputInfo.h"
 #include "ToolChains/Arch/ARM.h"
 #include "ToolChains/Clang.h"
 #include "ToolChains/Flang.h"
@@ -18,6 +17,7 @@
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Job.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
@@ -390,6 +390,7 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
   case Action::InputClass:
   case Action::BindArchClass:
   case Action::OffloadClass:
+  case Action::ForEachWrappingClass:
   case Action::LipoJobClass:
   case Action::DsymutilJobClass:
   case Action::VerifyDebugInfoJobClass:
@@ -450,6 +451,9 @@ static StringRef getArchNameForCompilerRTLib(const ToolChain &TC,
   // For historic reasons, Android library is using i686 instead of i386.
   if (TC.getArch() == llvm::Triple::x86 && Triple.isAndroid())
     return "i686";
+
+  if (TC.getArch() == llvm::Triple::x86_64 && Triple.isX32())
+    return "x32";
 
   return llvm::Triple::getArchTypeName(TC.getArch());
 }
@@ -856,7 +860,7 @@ ToolChain::UnwindLibType ToolChain::GetUnwindLibType(
   else if (LibName == "platform" || LibName == "") {
     ToolChain::RuntimeLibType RtLibType = GetRuntimeLibType(Args);
     if (RtLibType == ToolChain::RLT_CompilerRT) {
-      if (getTriple().isAndroid())
+      if (getTriple().isAndroid() || getTriple().isOSAIX())
         unwindLibType = ToolChain::UNW_CompilerRT;
       else
         unwindLibType = ToolChain::UNW_None;
@@ -1169,7 +1173,10 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
     // matches the current toolchain triple. If it is not present
     // at all, target and host share a toolchain.
     if (A->getOption().matches(options::OPT_m_Group)) {
-      if (SameTripleAsHost)
+      // AMD GPU is a special case, as -mcpu is required for the device
+      // compilation, except for SYCL which uses --offload-arch.
+      if (SameTripleAsHost || (getTriple().getArch() == llvm::Triple::amdgcn &&
+                               DeviceOffloadKind != Action::OFK_SYCL))
         DAL->append(A);
       else
         Modified = true;

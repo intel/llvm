@@ -15,7 +15,9 @@
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/ScopedHashTable.h"
+#include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
@@ -380,7 +382,7 @@ void PatternLowering::generateSwitch(SwitchNode *switchNode,
   if (kind == Predicates::OperandCountAtLeastQuestion ||
       kind == Predicates::ResultCountAtLeastQuestion) {
     // Order the children such that the cases are in reverse numerical order.
-    SmallVector<unsigned> sortedChildren(
+    SmallVector<unsigned> sortedChildren = llvm::to_vector<16>(
         llvm::seq<unsigned>(0, switchNode->getChildren().size()));
     llvm::sort(sortedChildren, [&](unsigned lhs, unsigned rhs) {
       return cast<UnsignedAnswer>(switchNode->getChild(lhs).first)->getValue() >
@@ -557,9 +559,10 @@ SymbolRefAttr PatternLowering::generateRewriter(
       /*results=*/llvm::None));
 
   builder.create<pdl_interp::FinalizeOp>(rewriter.getLoc());
-  return builder.getSymbolRefAttr(
+  return SymbolRefAttr::get(
+      builder.getContext(),
       pdl_interp::PDLInterpDialect::getRewriterModuleName(),
-      builder.getSymbolRefAttr(rewriterFunc));
+      SymbolRefAttr::get(rewriterFunc));
 }
 
 void PatternLowering::generateRewriter(

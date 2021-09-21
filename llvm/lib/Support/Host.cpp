@@ -18,6 +18,7 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/Support/BCD.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -296,6 +297,42 @@ StringRef sys::detail::getHostCPUNameForARM(StringRef ProcCpuinfoContent) {
   return "generic";
 }
 
+namespace {
+StringRef getCPUNameFromS390Model(unsigned int Id, bool HaveVectorSupport) {
+  switch (Id) {
+    case 2064:  // z900 not supported by LLVM
+    case 2066:
+    case 2084:  // z990 not supported by LLVM
+    case 2086:
+    case 2094:  // z9-109 not supported by LLVM
+    case 2096:
+      return "generic";
+    case 2097:
+    case 2098:
+      return "z10";
+    case 2817:
+    case 2818:
+      return "z196";
+    case 2827:
+    case 2828:
+      return "zEC12";
+    case 2964:
+    case 2965:
+      return HaveVectorSupport? "z13" : "zEC12";
+    case 3906:
+    case 3907:
+      return HaveVectorSupport? "z14" : "zEC12";
+    case 8561:
+    case 8562:
+      return HaveVectorSupport? "z15" : "zEC12";
+    case 3931:
+    case 3932:
+    default:
+      return HaveVectorSupport? "arch14" : "zEC12";
+  }
+}
+} // end anonymous namespace
+
 StringRef sys::detail::getHostCPUNameForS390x(StringRef ProcCpuinfoContent) {
   // STIDP is a privileged operation, so use /proc/cpuinfo instead.
 
@@ -331,18 +368,8 @@ StringRef sys::detail::getHostCPUNameForS390x(StringRef ProcCpuinfoContent) {
       if (Pos != StringRef::npos) {
         Pos += sizeof("machine = ") - 1;
         unsigned int Id;
-        if (!Lines[I].drop_front(Pos).getAsInteger(10, Id)) {
-          if (Id >= 8561 && HaveVectorSupport)
-            return "z15";
-          if (Id >= 3906 && HaveVectorSupport)
-            return "z14";
-          if (Id >= 2964 && HaveVectorSupport)
-            return "z13";
-          if (Id >= 2827)
-            return "zEC12";
-          if (Id >= 2817)
-            return "z196";
-        }
+        if (!Lines[I].drop_front(Pos).getAsInteger(10, Id))
+          return getCPUNameFromS390Model(Id, HaveVectorSupport);
       }
       break;
     }
@@ -745,6 +772,22 @@ getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
       *Subtype = X86::INTEL_COREI7_ICELAKE_CLIENT;
       break;
 
+    // Tigerlake:
+    case 0x8c:
+    case 0x8d:
+      CPU = "tigerlake";
+      *Type = X86::INTEL_COREI7;
+      *Subtype = X86::INTEL_COREI7_TIGERLAKE;
+      break;
+
+    // Alderlake:
+    case 0x97:
+    case 0x9a:
+      CPU = "alderlake";
+      *Type = X86::INTEL_COREI7;
+      *Subtype = X86::INTEL_COREI7_ALDERLAKE;
+      break;
+
     // Icelake Xeon:
     case 0x6a:
     case 0x6c:
@@ -1028,8 +1071,10 @@ static void getAvailableFeatures(unsigned ECX, unsigned EDX, unsigned MaxLeaf,
     setFeature(X86::FEATURE_FMA);
   if ((ECX >> 19) & 1)
     setFeature(X86::FEATURE_SSE4_1);
-  if ((ECX >> 20) & 1)
+  if ((ECX >> 20) & 1) {
     setFeature(X86::FEATURE_SSE4_2);
+    setFeature(X86::FEATURE_CRC32);
+  }
   if ((ECX >> 23) & 1)
     setFeature(X86::FEATURE_POPCNT);
   if ((ECX >> 25) & 1)
@@ -1229,6 +1274,29 @@ StringRef sys::getHostCPUName() {
   StringRef Content = P ? P->getBuffer() : "";
   return detail::getHostCPUNameForS390x(Content);
 }
+#elif defined(__MVS__)
+StringRef sys::getHostCPUName() {
+  // Get pointer to Communications Vector Table (CVT).
+  // The pointer is located at offset 16 of the Prefixed Save Area (PSA).
+  // It is stored as 31 bit pointer and will be zero-extended to 64 bit.
+  int *StartToCVTOffset = reinterpret_cast<int *>(0x10);
+  // Since its stored as a 31-bit pointer, get the 4 bytes from the start
+  // of address.
+  int ReadValue = *StartToCVTOffset;
+  // Explicitly clear the high order bit.
+  ReadValue = (ReadValue & 0x7FFFFFFF);
+  char *CVT = reinterpret_cast<char *>(ReadValue);
+  // The model number is located in the CVT prefix at offset -6 and stored as
+  // signless packed decimal.
+  uint16_t Id = *(uint16_t *)&CVT[-6];
+  // Convert number to integer.
+  Id = decodePackedBCD<uint16_t>(Id, false);
+  // Check for vector support. It's stored in field CVTFLAG5 (offset 244),
+  // bit CVTVEF (X'80'). The facilities list is part of the PSA but the vector
+  // extension can only be used if bit CVTVEF is on.
+  bool HaveVectorSupport = CVT[244] & 0x80;
+  return getCPUNameFromS390Model(Id, HaveVectorSupport);
+}
 #elif defined(__APPLE__) && defined(__aarch64__)
 StringRef sys::getHostCPUName() {
   return "cyclone";
@@ -1374,7 +1442,7 @@ int computeHostNumPhysicalCores() {
 }
 #elif defined(__linux__) && defined(__s390x__)
 int computeHostNumPhysicalCores() { return sysconf(_SC_NPROCESSORS_ONLN); }
-#elif defined(__APPLE__) && defined(__x86_64__)
+#elif defined(__APPLE__)
 #include <sys/param.h>
 #include <sys/sysctl.h>
 
@@ -1452,6 +1520,7 @@ bool sys::getHostCPUFeatures(StringMap<bool> &Features) {
   Features["cx16"]   = (ECX >> 13) & 1;
   Features["sse4.1"] = (ECX >> 19) & 1;
   Features["sse4.2"] = (ECX >> 20) & 1;
+  Features["crc32"]  = Features["sse4.2"];
   Features["movbe"]  = (ECX >> 22) & 1;
   Features["popcnt"] = (ECX >> 23) & 1;
   Features["aes"]    = (ECX >> 25) & 1;
@@ -1567,6 +1636,7 @@ bool sys::getHostCPUFeatures(StringMap<bool> &Features) {
   // For more info, see X86 ISA docs.
   Features["pconfig"] = HasLeaf7 && ((EDX >> 18) & 1);
   Features["amx-bf16"]   = HasLeaf7 && ((EDX >> 22) & 1) && HasAMXSave;
+  Features["avx512fp16"] = HasLeaf7 && ((EDX >> 23) & 1) && HasAVX512Save;
   Features["amx-tile"]   = HasLeaf7 && ((EDX >> 24) & 1) && HasAMXSave;
   Features["amx-int8"]   = HasLeaf7 && ((EDX >> 25) & 1) && HasAMXSave;
   bool HasLeaf7Subleaf1 =

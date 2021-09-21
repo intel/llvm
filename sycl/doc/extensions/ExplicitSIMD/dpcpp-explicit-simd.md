@@ -155,41 +155,41 @@ a.select<4, 2>(0) = b;  // selected elements of a are replaced
 
 
 Gen ISA provides powerful register region addressing modes to facilitate cross-lane
-SIMD vector operation. To exploit this feature Explicit SIMD provides ```replicate``` function
+SIMD vector operation. To exploit this feature Explicit SIMD provides ```replicate``` functions
 to allow programmer to implement any native Gen ISA region in the following forms:
 - ```replicate<REP>()```: replicate a simd vector object **REP** times and return a new simd
 vector of **REP** * Width, where Width specifies the original vector size.
-- ```replicate<REP, W>(uint16_t i)```: replicate **W** consecutive elements starting at the
+- ```replicate_w<REP, W>(uint16_t i)```: replicate **W** consecutive elements starting at the
 i-th element from the simd vector object **REP** times, and return a new simd vector of **REP** * **W** length.
-- ```replicate<REP, VS, W>(uint16_t i)```: replicate **REP** blocks of **W** consecutive
+- ```replicate_vs_w<REP, VS, W>(uint16_t i)```: replicate **REP** blocks of **W** consecutive
 elements starting at the i-th from the simd vector object with each block strided by **VS**
 elements, and return a new vector of **REP** * **W** length. Selected blocks of **W**
 elements will overlap if **VS** < **W**.
-- ```replicate<REP, VS, W, HS>(uint16_t i=0 )```: replicate **REP** blocks of **W** sequential
+- ```replicate_vs_w_hs<REP, VS, W, HS>(uint16_t i=0 )```: replicate **REP** blocks of **W** sequential
 elements with a stride of **HS** starting at the i-th element from the simd vector object with
 each block strided by **VS** elements, and return a new vector of **REP** * **W** length.
 Selected blocks of **W** elements will overlap if **VS** < **W**.
 
 To avoid explicit type cast and the resulting move instructions for large vectors, Explicit SIMD allows
 programmer to reinterpret the fundamental data element type of a simd vector object and change
-its shape to 1D or 2D object through the ```format``` function:
-- ```format<EltTy>( )```: returns a reference to the calling simd object interpreted as a new
+its shape to 1D or 2D object through the ```bit_cast_view``` function:
+- ```bit_cast_view<EltTy>( )```: returns a reference to the calling simd object interpreted as a new
 simd vector with the size determined by the template **EltTy** parameter.
-- ```format<EltTy, Height, Width>( )```: returns a reference to the calling simd object interpreted
+- ```bit_cast_view<EltTy, Height, Width>( )```: returns a reference to the calling simd object interpreted
 as a new 2D simd_view object with the shape determined by the template parameters **Height** and**Width**. The size of the new 2D block must not exceed the size of the original object.
 
 ```cpp
   simd<int, 16> v1;
    // ...
-  auto v2 = v1.format<short>;
+  auto v2 = v1.bit_cast_view<short>;
   // v2 is a reference to the location of v1
   // interpreted as a vector of 32 shorts.
   // ...
-  auto m1 = v1.format<int, 4, 4>;
+  auto m1 = v1.bit_cast_view<int, 4, 4>;
   // m1 is a reference to the location of v1
   // interpreted as a matrix 4x4 of ints.
   // ...
-  auto m2 = v1.format<char, 4, 16>( );
+  auto m2 = v1.bit_cast_view<char, 4, 16>( );
   // m2 is a reference to the location of v1
   // interpreted as a matrix 4x16 of chars.
 ```
@@ -237,13 +237,13 @@ different shapes and dimensions as illustrated below (`auto` resolves to a
 `simd_view` class supports all the element-wise operations and
 other utility functions defined for `simd` class. It also
 provides region accessors and more generic operations tailored for 2D regions,
-such as row/column operators and 2D select/replicate/format/merge operations.
+such as row/column operators and 2D select/replicate/bit_cast_view/merge operations.
 
 ```cpp
   simd<float, 32> v1;
-  auto m1 = v1.format<float, 4, 8>();
+  auto m1 = v1.bit_cast_view<float, 4, 8>();
   simd<float, 4> v2;
-  auto m2 = v2.format<float, 2, 2>();
+  auto m2 = v2.bit_cast_view<float, 2, 2>();
 
   // ...
   m2 = m1.select<2, 2, 2, 4>(1, 2);  // v_size = 2, v_stride = 2,
@@ -357,13 +357,13 @@ template <typename T, int n, ChannelMaskType Mask,
           CacheHint L3H = CacheHint::Default>
     typename std::enable_if<(n == 16 || n == 32),
                             simd<T, n * NumChannels(Mask)>>::type
-    flat_load4(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1);
+    gather_rgba(T *p, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1);
 
 template <typename T, int n, ChannelMaskType Mask,
           CacheHint L1H = CacheHint::Default,
           CacheHint L3H = CacheHint::Default>
 typename std::enable_if<(n == 16 || n == 32), void>::type
-    flat_store4(T *p, simd<T, n * NumChannels(Mask)> vals,
+    scatter_rgba(T *p, simd<T, n * NumChannels(Mask)> vals,
             simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1);
 ```
 

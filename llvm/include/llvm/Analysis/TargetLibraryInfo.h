@@ -52,6 +52,7 @@ class TargetLibraryInfoImpl {
   llvm::DenseMap<unsigned, std::string> CustomNames;
   static StringLiteral const StandardNames[NumLibFuncs];
   bool ShouldExtI32Param, ShouldExtI32Return, ShouldSignExtI32Param;
+  unsigned SizeOfInt;
 
   enum AvailabilityState {
     StandardName = 3, // (memset to all ones)
@@ -189,6 +190,16 @@ public:
   /// This queries the 'wchar_size' metadata.
   unsigned getWCharSize(const Module &M) const;
 
+  /// Get size of a C-level int or unsigned int, in bits.
+  unsigned getIntSize() const {
+    return SizeOfInt;
+  }
+
+  /// Initialize the C-level size of an integer.
+  void setIntSize(unsigned Bits) {
+    SizeOfInt = Bits;
+  }
+
   /// Returns the largest vectorization factor used in the list of
   /// vector functions.
   void getWidestVF(StringRef ScalarF, ElementCount &FixedVF,
@@ -227,7 +238,7 @@ public:
     else {
       // Disable individual libc/libm calls in TargetLibraryInfo.
       LibFunc LF;
-      AttributeSet FnAttrs = (*F)->getAttributes().getFnAttributes();
+      AttributeSet FnAttrs = (*F)->getAttributes().getFnAttrs();
       for (const Attribute &Attr : FnAttrs) {
         if (!Attr.isStringAttribute())
           continue;
@@ -388,6 +399,11 @@ public:
   /// \copydoc TargetLibraryInfoImpl::getWCharSize()
   unsigned getWCharSize(const Module &M) const {
     return Impl->getWCharSize(M);
+  }
+
+  /// \copydoc TargetLibraryInfoImpl::getIntSize()
+  unsigned getIntSize() const {
+    return Impl->getIntSize();
   }
 
   /// Handle invalidation from the pass manager.

@@ -1129,15 +1129,22 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
 
   const auto &MFnI = *MF.getInfo<AArch64FunctionInfo>();
   if (MFnI.shouldSignReturnAddress()) {
+
+    unsigned PACI;
     if (MFnI.shouldSignWithBKey()) {
       BuildMI(MBB, MBBI, DL, TII->get(AArch64::EMITBKEY))
           .setMIFlag(MachineInstr::FrameSetup);
-      BuildMI(MBB, MBBI, DL, TII->get(AArch64::PACIBSP))
-          .setMIFlag(MachineInstr::FrameSetup);
+      PACI = Subtarget.hasPAuth() ? AArch64::PACIB : AArch64::PACIBSP;
     } else {
-      BuildMI(MBB, MBBI, DL, TII->get(AArch64::PACIASP))
-          .setMIFlag(MachineInstr::FrameSetup);
+      PACI = Subtarget.hasPAuth() ? AArch64::PACIA : AArch64::PACIASP;
     }
+
+    auto MI = BuildMI(MBB, MBBI, DL, TII->get(PACI));
+    if (Subtarget.hasPAuth())
+      MI.addReg(AArch64::LR, RegState::Define)
+          .addReg(AArch64::LR)
+          .addReg(AArch64::SP, RegState::InternalRead);
+    MI.setMIFlag(MachineInstr::FrameSetup);
 
     unsigned CFIIndex =
         MF.addFrameInst(MCCFIInstruction::createNegateRAState(nullptr));
@@ -1198,7 +1205,7 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
       emitFrameOffset(MBB, MBBI, DL, AArch64::SP, AArch64::SP,
                       StackOffset::getFixed(-NumBytes), TII,
                       MachineInstr::FrameSetup, false, NeedsWinCFI, &HasWinCFI);
-      if (!NeedsWinCFI && needsFrameMoves) {
+      if (needsFrameMoves) {
         // Label used to tie together the PROLOG_LABEL and the MachineMoves.
         MCSymbol *FrameLabel = MMI.getContext().createTempSymbol();
           // Encode the stack size of the leaf function.
@@ -1731,7 +1738,7 @@ void AArch64FrameLowering::emitEpilogue(MachineFunction &MF,
 
     // Adjust local stack
     emitFrameOffset(MBB, LastPopI, DL, AArch64::SP, AArch64::SP,
-                    StackOffset::getFixed(-AFI->getLocalStackSize()), TII,
+                    StackOffset::getFixed(AFI->getLocalStackSize()), TII,
                     MachineInstr::FrameDestroy, false, NeedsWinCFI);
 
     // SP has been already adjusted while restoring callee save regs.

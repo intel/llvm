@@ -583,8 +583,10 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
       // Can't use Intrinsic::getDeclaration here as the return types might
       // then only be structurally equal.
       FunctionType* fType = FunctionType::get(F->getReturnType(), Tys, false);
+      StringRef Suffix =
+          F->getContext().supportsTypedPointers() ? "p0i8" : "p0";
       NewFn = Function::Create(fType, F->getLinkage(), F->getAddressSpace(),
-                               "llvm." + Name + ".p0i8", F->getParent());
+                               "llvm." + Name + "." + Suffix, F->getParent());
       return true;
     }
     static const Regex vstRegex("^arm\\.neon\\.vst([1234]|[234]lane)\\.v[a-z0-9]*$");
@@ -778,7 +780,7 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
         Intrinsic::lifetime_start : Intrinsic::invariant_start;
       auto Args = F->getFunctionType()->params();
       Type* ObjectPtr[1] = {Args[1]};
-      if (F->getName() != Intrinsic::getName(ID, ObjectPtr)) {
+      if (F->getName() != Intrinsic::getName(ID, ObjectPtr, F->getParent())) {
         rename(F);
         NewFn = Intrinsic::getDeclaration(F->getParent(), ID, ObjectPtr);
         return true;
@@ -792,7 +794,7 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
 
       auto Args = F->getFunctionType()->params();
       Type* ObjectPtr[1] = {Args[IsLifetimeEnd ? 1 : 2]};
-      if (F->getName() != Intrinsic::getName(ID, ObjectPtr)) {
+      if (F->getName() != Intrinsic::getName(ID, ObjectPtr, F->getParent())) {
         rename(F);
         NewFn = Intrinsic::getDeclaration(F->getParent(), ID, ObjectPtr);
         return true;
@@ -814,7 +816,8 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
   case 'm': {
     if (Name.startswith("masked.load.")) {
       Type *Tys[] = { F->getReturnType(), F->arg_begin()->getType() };
-      if (F->getName() != Intrinsic::getName(Intrinsic::masked_load, Tys)) {
+      if (F->getName() !=
+          Intrinsic::getName(Intrinsic::masked_load, Tys, F->getParent())) {
         rename(F);
         NewFn = Intrinsic::getDeclaration(F->getParent(),
                                           Intrinsic::masked_load,
@@ -825,7 +828,8 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
     if (Name.startswith("masked.store.")) {
       auto Args = F->getFunctionType()->params();
       Type *Tys[] = { Args[0], Args[1] };
-      if (F->getName() != Intrinsic::getName(Intrinsic::masked_store, Tys)) {
+      if (F->getName() !=
+          Intrinsic::getName(Intrinsic::masked_store, Tys, F->getParent())) {
         rename(F);
         NewFn = Intrinsic::getDeclaration(F->getParent(),
                                           Intrinsic::masked_store,
@@ -837,7 +841,8 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
     // to the new overload which includes an address space
     if (Name.startswith("masked.gather.")) {
       Type *Tys[] = {F->getReturnType(), F->arg_begin()->getType()};
-      if (F->getName() != Intrinsic::getName(Intrinsic::masked_gather, Tys)) {
+      if (F->getName() !=
+          Intrinsic::getName(Intrinsic::masked_gather, Tys, F->getParent())) {
         rename(F);
         NewFn = Intrinsic::getDeclaration(F->getParent(),
                                           Intrinsic::masked_gather, Tys);
@@ -847,7 +852,8 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
     if (Name.startswith("masked.scatter.")) {
       auto Args = F->getFunctionType()->params();
       Type *Tys[] = {Args[0], Args[1]};
-      if (F->getName() != Intrinsic::getName(Intrinsic::masked_scatter, Tys)) {
+      if (F->getName() !=
+          Intrinsic::getName(Intrinsic::masked_scatter, Tys, F->getParent())) {
         rename(F);
         NewFn = Intrinsic::getDeclaration(F->getParent(),
                                           Intrinsic::masked_scatter, Tys);
@@ -928,7 +934,8 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
     if (Name.startswith("objectsize.")) {
       Type *Tys[2] = { F->getReturnType(), F->arg_begin()->getType() };
       if (F->arg_size() == 2 || F->arg_size() == 3 ||
-          F->getName() != Intrinsic::getName(Intrinsic::objectsize, Tys)) {
+          F->getName() !=
+              Intrinsic::getName(Intrinsic::objectsize, Tys, F->getParent())) {
         rename(F);
         NewFn = Intrinsic::getDeclaration(F->getParent(), Intrinsic::objectsize,
                                           Tys);
@@ -941,7 +948,8 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
     if (Name == "prefetch") {
       // Handle address space overloading.
       Type *Tys[] = {F->arg_begin()->getType()};
-      if (F->getName() != Intrinsic::getName(Intrinsic::prefetch, Tys)) {
+      if (F->getName() !=
+          Intrinsic::getName(Intrinsic::prefetch, Tys, F->getParent())) {
         rename(F);
         NewFn =
             Intrinsic::getDeclaration(F->getParent(), Intrinsic::prefetch, Tys);
@@ -1415,10 +1423,9 @@ static Value *UpgradeMaskedLoad(IRBuilder<> &Builder,
       return Builder.CreateAlignedLoad(ValTy, Ptr, Alignment);
 
   // Convert the mask from an integer type to a vector of i1.
-  unsigned NumElts =
-      cast<FixedVectorType>(Passthru->getType())->getNumElements();
+  unsigned NumElts = cast<FixedVectorType>(ValTy)->getNumElements();
   Mask = getX86MaskVec(Builder, Mask, NumElts);
-  return Builder.CreateMaskedLoad(Ptr, Alignment, Mask, Passthru);
+  return Builder.CreateMaskedLoad(ValTy, Ptr, Alignment, Mask, Passthru);
 }
 
 static Value *upgradeAbs(IRBuilder<> &Builder, CallInst &CI) {
@@ -1774,8 +1781,7 @@ static bool upgradeAVX512MaskToSelect(StringRef Name, IRBuilder<> &Builder,
   } else
     return false;
 
-  SmallVector<Value *, 4> Args(CI.arg_operands().begin(),
-                               CI.arg_operands().end());
+  SmallVector<Value *, 4> Args(CI.args());
   Args.pop_back();
   Args.pop_back();
   Rep = Builder.CreateCall(Intrinsic::getDeclaration(CI.getModule(), IID),
@@ -2119,8 +2125,7 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
                                { CI->getOperand(0), CI->getArgOperand(1) });
       Rep = ApplyX86MaskOn1BitsVec(Builder, Rep, CI->getArgOperand(2));
     } else if (IsX86 && Name.startswith("avx512.cmp.p")) {
-      SmallVector<Value *, 4> Args(CI->arg_operands().begin(),
-                                   CI->arg_operands().end());
+      SmallVector<Value *, 4> Args(CI->args());
       Type *OpTy = Args[0]->getType();
       unsigned VecWidth = OpTy->getPrimitiveSizeInBits();
       unsigned EltWidth = OpTy->getScalarSizeInBits();
@@ -3681,8 +3686,7 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
   case Intrinsic::arm_neon_vst2lane:
   case Intrinsic::arm_neon_vst3lane:
   case Intrinsic::arm_neon_vst4lane: {
-    SmallVector<Value *, 4> Args(CI->arg_operands().begin(),
-                                 CI->arg_operands().end());
+    SmallVector<Value *, 4> Args(CI->args());
     NewCall = Builder.CreateCall(NewFn, Args);
     break;
   }
@@ -3791,8 +3795,7 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
   case Intrinsic::x86_xop_vpermil2ps:
   case Intrinsic::x86_xop_vpermil2pd_256:
   case Intrinsic::x86_xop_vpermil2ps_256: {
-    SmallVector<Value *, 4> Args(CI->arg_operands().begin(),
-                                 CI->arg_operands().end());
+    SmallVector<Value *, 4> Args(CI->args());
     VectorType *FltIdxTy = cast<VectorType>(Args[2]->getType());
     VectorType *IntIdxTy = VectorType::getInteger(FltIdxTy);
     Args[2] = Builder.CreateBitCast(Args[2], IntIdxTy);
@@ -3853,8 +3856,7 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
   case Intrinsic::x86_avx2_mpsadbw: {
     // Need to truncate the last argument from i32 to i8 -- this argument models
     // an inherently 8-bit immediate operand to these x86 instructions.
-    SmallVector<Value *, 4> Args(CI->arg_operands().begin(),
-                                 CI->arg_operands().end());
+    SmallVector<Value *, 4> Args(CI->args());
 
     // Replace the last argument with a trunc.
     Args.back() = Builder.CreateTrunc(Args.back(), Type::getInt8Ty(C), "trunc");
@@ -3868,8 +3870,7 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
   case Intrinsic::x86_avx512_mask_cmp_ps_128:
   case Intrinsic::x86_avx512_mask_cmp_ps_256:
   case Intrinsic::x86_avx512_mask_cmp_ps_512: {
-    SmallVector<Value *, 4> Args(CI->arg_operands().begin(),
-                                 CI->arg_operands().end());
+    SmallVector<Value *, 4> Args(CI->args());
     unsigned NumElts =
         cast<FixedVectorType>(Args[0]->getType())->getNumElements();
     Args[3] = getX86MaskVec(Builder, Args[3], NumElts);
@@ -3890,8 +3891,7 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
 
   case Intrinsic::invariant_start:
   case Intrinsic::invariant_end: {
-    SmallVector<Value *, 4> Args(CI->arg_operands().begin(),
-                                 CI->arg_operands().end());
+    SmallVector<Value *, 4> Args(CI->args());
     NewCall = Builder.CreateCall(NewFn, Args);
     break;
   }
@@ -3899,8 +3899,7 @@ void llvm::UpgradeIntrinsicCall(CallInst *CI, Function *NewFn) {
   case Intrinsic::masked_store:
   case Intrinsic::masked_gather:
   case Intrinsic::masked_scatter: {
-    SmallVector<Value *, 4> Args(CI->arg_operands().begin(),
-                                 CI->arg_operands().end());
+    SmallVector<Value *, 4> Args(CI->args());
     NewCall = Builder.CreateCall(NewFn, Args);
     NewCall->copyMetadata(*CI);
     break;
@@ -4356,8 +4355,8 @@ struct StrictFPUpgradeVisitor : public InstVisitor<StrictFPUpgradeVisitor> {
       return;
     // If we get here, the caller doesn't have the strictfp attribute
     // but this callsite does. Replace the strictfp attribute with nobuiltin.
-    Call.removeAttribute(AttributeList::FunctionIndex, Attribute::StrictFP);
-    Call.addAttribute(AttributeList::FunctionIndex, Attribute::NoBuiltin);
+    Call.removeFnAttr(Attribute::StrictFP);
+    Call.addFnAttr(Attribute::NoBuiltin);
   }
 };
 } // namespace
@@ -4378,8 +4377,7 @@ void llvm::UpgradeFunctionAttributes(Function &F) {
   }
 
   // Remove all incompatibile attributes from function.
-  F.removeAttributes(AttributeList::ReturnIndex,
-                     AttributeFuncs::typeIncompatible(F.getReturnType()));
+  F.removeRetAttrs(AttributeFuncs::typeIncompatible(F.getReturnType()));
   for (auto &Arg : F.args())
     Arg.removeAttrs(AttributeFuncs::typeIncompatible(Arg.getType()));
 }

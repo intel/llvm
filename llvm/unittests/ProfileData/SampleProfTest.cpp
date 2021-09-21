@@ -9,6 +9,7 @@
 #include "llvm/ProfileData/SampleProf.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
@@ -57,7 +58,8 @@ struct SampleProfTest : ::testing::Test {
   void readProfile(const Module &M, StringRef Profile,
                    StringRef RemapFile = "") {
     auto ReaderOrErr = SampleProfileReader::create(
-        std::string(Profile), Context, std::string(RemapFile));
+        std::string(Profile), Context, FSDiscriminatorPass::Base,
+        std::string(RemapFile));
     ASSERT_TRUE(NoError(ReaderOrErr.getError()));
     Reader = std::move(ReaderOrErr.get());
     Reader->setModule(&M);
@@ -191,7 +193,7 @@ struct SampleProfTest : ::testing::Test {
     BooSamples.addHeadSamples(1);
     BooSamples.addBodySamples(1, 0, 1232);
 
-    StringMap<FunctionSamples> Profiles;
+    SampleProfileMap Profiles;
     Profiles[FooName] = std::move(FooSamples);
     Profiles[BarName] = std::move(BarSamples);
     Profiles[BazName] = std::move(BazSamples);
@@ -325,7 +327,7 @@ struct SampleProfTest : ::testing::Test {
     verifyProfileSummary(Summary, M, true, true);
   }
 
-  void addFunctionSamples(StringMap<FunctionSamples> *Smap, const char *Fname,
+  void addFunctionSamples(SampleProfileMap *Smap, const char *Fname,
                           uint64_t TotalSamples, uint64_t HeadSamples) {
     StringRef Name(Fname);
     FunctionSamples FcnSamples;
@@ -336,8 +338,8 @@ struct SampleProfTest : ::testing::Test {
     (*Smap)[Name] = FcnSamples;
   }
 
-  StringMap<FunctionSamples> setupFcnSamplesForElisionTest(StringRef Policy) {
-    StringMap<FunctionSamples> Smap;
+  SampleProfileMap setupFcnSamplesForElisionTest(StringRef Policy) {
+    SampleProfileMap Smap;
     addFunctionSamples(&Smap, "foo", uint64_t(20301), uint64_t(1437));
     if (Policy == "" || Policy == "all")
       return Smap;
@@ -371,7 +373,7 @@ struct SampleProfTest : ::testing::Test {
 
     Module M("my_module", Context);
     setupModuleForElisionTest(&M, Policy);
-    StringMap<FunctionSamples> ProfMap = setupFcnSamplesForElisionTest(Policy);
+    SampleProfileMap ProfMap = setupFcnSamplesForElisionTest(Policy);
 
     // write profile
     createWriter(Format, ProfileFile.path());

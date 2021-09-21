@@ -181,24 +181,25 @@ findVCToolChainViaEnvironment(llvm::vfs::FileSystem &VFS, std::string &Path,
 
       // whatever/VC/bin --> old toolchain, VC dir is toolchain dir.
       llvm::StringRef TestPath = PathEntry;
-      bool IsBin = llvm::sys::path::filename(TestPath).equals_lower("bin");
+      bool IsBin =
+          llvm::sys::path::filename(TestPath).equals_insensitive("bin");
       if (!IsBin) {
         // Strip any architecture subdir like "amd64".
         TestPath = llvm::sys::path::parent_path(TestPath);
-        IsBin = llvm::sys::path::filename(TestPath).equals_lower("bin");
+        IsBin = llvm::sys::path::filename(TestPath).equals_insensitive("bin");
       }
       if (IsBin) {
         llvm::StringRef ParentPath = llvm::sys::path::parent_path(TestPath);
         llvm::StringRef ParentFilename = llvm::sys::path::filename(ParentPath);
-        if (ParentFilename.equals_lower("VC")) {
+        if (ParentFilename.equals_insensitive("VC")) {
           Path = std::string(ParentPath);
           VSLayout = MSVCToolChain::ToolsetLayout::OlderVS;
           return true;
         }
-        if (ParentFilename.equals_lower("x86ret") ||
-            ParentFilename.equals_lower("x86chk") ||
-            ParentFilename.equals_lower("amd64ret") ||
-            ParentFilename.equals_lower("amd64chk")) {
+        if (ParentFilename.equals_insensitive("x86ret") ||
+            ParentFilename.equals_insensitive("x86chk") ||
+            ParentFilename.equals_insensitive("amd64ret") ||
+            ParentFilename.equals_insensitive("amd64chk")) {
           Path = std::string(ParentPath);
           VSLayout = MSVCToolChain::ToolsetLayout::DevDivInternal;
           return true;
@@ -217,7 +218,7 @@ findVCToolChainViaEnvironment(llvm::vfs::FileSystem &VFS, std::string &Path,
         for (llvm::StringRef Prefix : ExpectedPrefixes) {
           if (It == End)
             goto NotAToolChain;
-          if (!It->startswith_lower(Prefix))
+          if (!It->startswith_insensitive(Prefix))
             goto NotAToolChain;
           ++It;
         }
@@ -570,17 +571,26 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddAllArgValues(CmdArgs, options::OPT__SLASH_link);
 
+  // A user can add the -out: option to the /link sequence on the command line
+  // which we do not want to use when we are performing the host link when
+  // gathering dependencies used for device compilation.  Add an additional
+  // -out: to override in case it was seen.
+  if (JA.getType() == types::TY_Host_Dependencies_Image && Output.isFilename())
+    CmdArgs.push_back(
+        Args.MakeArgString(std::string("-out:") + Output.getFilename()));
+
   // Control Flow Guard checks
   if (Arg *A = Args.getLastArg(options::OPT__SLASH_guard)) {
     StringRef GuardArgs = A->getValue();
-    if (GuardArgs.equals_lower("cf") || GuardArgs.equals_lower("cf,nochecks")) {
+    if (GuardArgs.equals_insensitive("cf") ||
+        GuardArgs.equals_insensitive("cf,nochecks")) {
       // MSVC doesn't yet support the "nochecks" modifier.
       CmdArgs.push_back("-guard:cf");
-    } else if (GuardArgs.equals_lower("cf-")) {
+    } else if (GuardArgs.equals_insensitive("cf-")) {
       CmdArgs.push_back("-guard:cf-");
-    } else if (GuardArgs.equals_lower("ehcont")) {
+    } else if (GuardArgs.equals_insensitive("ehcont")) {
       CmdArgs.push_back("-guard:ehcont");
-    } else if (GuardArgs.equals_lower("ehcont-")) {
+    } else if (GuardArgs.equals_insensitive("ehcont-")) {
       CmdArgs.push_back("-guard:ehcont-");
     }
   }
@@ -657,10 +667,10 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     = Args.getLastArgValue(options::OPT_fuse_ld_EQ, CLANG_DEFAULT_LINKER);
   if (Linker.empty())
     Linker = "link";
-  if (Linker.equals_lower("lld"))
+  if (Linker.equals_insensitive("lld"))
     Linker = "lld-link";
 
-  if (Linker.equals_lower("link")) {
+  if (Linker.equals_insensitive("link")) {
     // If we're using the MSVC linker, it's not sufficient to just use link
     // from the program PATH, because other environments like GnuWin32 install
     // their own link.exe which may come first.
@@ -719,7 +729,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       // find it.
       for (const char *Cursor = EnvBlock.data(); *Cursor != '\0';) {
         llvm::StringRef EnvVar(Cursor);
-        if (EnvVar.startswith_lower("path=")) {
+        if (EnvVar.startswith_insensitive("path=")) {
           using SubDirectoryType = toolchains::MSVCToolChain::SubDirectoryType;
           constexpr size_t PrefixLen = 5; // strlen("path=")
           Environment.push_back(Args.MakeArgString(
@@ -1316,23 +1326,35 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
   for (const auto &Path : DriverArgs.getAllArgValues(options::OPT__SLASH_imsvc))
     addSystemInclude(DriverArgs, CC1Args, Path);
 
+  auto AddSystemIncludesFromEnv = [&](StringRef Var) -> bool {
+    if (auto Val = llvm::sys::Process::GetEnv(Var)) {
+      SmallVector<StringRef, 8> Dirs;
+      StringRef(*Val).split(Dirs, ";", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+      if (!Dirs.empty()) {
+        addSystemIncludes(DriverArgs, CC1Args, Dirs);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Add %INCLUDE%-like dirs via /external:env: flags.
+  for (const auto &Var :
+       DriverArgs.getAllArgValues(options::OPT__SLASH_external_env)) {
+    AddSystemIncludesFromEnv(Var);
+  }
+
   if (DriverArgs.hasArg(options::OPT_nostdlibinc))
     return;
 
-  // Honor %INCLUDE%. It should know essential search paths with vcvarsall.bat.
-  // Skip if the user expressly set a vctoolsdir
+  // Honor %INCLUDE% and %EXTERNAL_INCLUDE%. It should have essential search
+  // paths set by vcvarsall.bat. Skip if the user expressly set a vctoolsdir.
   if (!DriverArgs.getLastArg(options::OPT__SLASH_vctoolsdir,
                              options::OPT__SLASH_winsysroot)) {
-    if (llvm::Optional<std::string> cl_include_dir =
-            llvm::sys::Process::GetEnv("INCLUDE")) {
-      SmallVector<StringRef, 8> Dirs;
-      StringRef(*cl_include_dir)
-          .split(Dirs, ";", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
-      for (StringRef Dir : Dirs)
-        addSystemInclude(DriverArgs, CC1Args, Dir);
-      if (!Dirs.empty())
-        return;
-    }
+    bool Found = AddSystemIncludesFromEnv("INCLUDE");
+    Found |= AddSystemIncludesFromEnv("EXTERNAL_INCLUDE");
+    if (Found)
+      return;
   }
 
   // When built with access to the proper Windows APIs, try to actually find
@@ -1354,7 +1376,7 @@ void MSVCToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
     }
 
     std::string WindowsSDKDir;
-    int major;
+    int major = 0;
     std::string windowsSDKIncludeVersion;
     std::string windowsSDKLibVersion;
     if (getWindowsSDKDir(getVFS(), DriverArgs, WindowsSDKDir, major,
@@ -1410,8 +1432,8 @@ VersionTuple MSVCToolChain::computeMSVCVersion(const Driver *D,
   if (MSVT.empty() &&
       Args.hasFlag(options::OPT_fms_extensions, options::OPT_fno_ms_extensions,
                    IsWindowsMSVC)) {
-    // -fms-compatibility-version=19.11 is default, aka 2017, 15.3
-    MSVT = VersionTuple(19, 11);
+    // -fms-compatibility-version=19.14 is default, aka 2017, 15.7
+    MSVT = VersionTuple(19, 14);
   }
   return MSVT;
 }
@@ -1562,6 +1584,18 @@ static void TranslateDArg(Arg *A, llvm::opt::DerivedArgList &DAL,
   DAL.AddJoinedArg(A, Opts.getOption(options::OPT_D), NewVal);
 }
 
+static void TranslatePermissive(Arg *A, llvm::opt::DerivedArgList &DAL,
+                                const OptTable &Opts) {
+  DAL.AddFlagArg(A, Opts.getOption(options::OPT__SLASH_Zc_twoPhase_));
+  DAL.AddFlagArg(A, Opts.getOption(options::OPT_fno_operator_names));
+}
+
+static void TranslatePermissiveMinus(Arg *A, llvm::opt::DerivedArgList &DAL,
+                                     const OptTable &Opts) {
+  DAL.AddFlagArg(A, Opts.getOption(options::OPT__SLASH_Zc_twoPhase));
+  DAL.AddFlagArg(A, Opts.getOption(options::OPT_foperator_names));
+}
+
 llvm::opt::DerivedArgList *
 MSVCToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
                              StringRef BoundArch,
@@ -1604,6 +1638,12 @@ MSVCToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     } else if (A->getOption().matches(options::OPT_D)) {
       // Translate -Dfoo#bar into -Dfoo=bar.
       TranslateDArg(A, *DAL, Opts);
+    } else if (A->getOption().matches(options::OPT__SLASH_permissive)) {
+      // Expand /permissive
+      TranslatePermissive(A, *DAL, Opts);
+    } else if (A->getOption().matches(options::OPT__SLASH_permissive_)) {
+      // Expand /permissive-
+      TranslatePermissiveMinus(A, *DAL, Opts);
     } else if (OFK != Action::OFK_HIP) {
       // HIP Toolchain translates input args by itself.
       DAL->append(A);
@@ -1611,4 +1651,14 @@ MSVCToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   }
 
   return DAL;
+}
+
+void MSVCToolChain::addClangTargetOptions(
+    const ArgList &DriverArgs, ArgStringList &CC1Args,
+    Action::OffloadKind DeviceOffloadKind) const {
+  // MSVC STL kindly allows removing all usages of typeid by defining
+  // _HAS_STATIC_RTTI to 0. Do so, when compiling with -fno-rtti
+  if (DriverArgs.hasArg(options::OPT_fno_rtti, options::OPT_frtti,
+                        /*Default=*/false))
+    CC1Args.push_back("-D_HAS_STATIC_RTTI=0");
 }

@@ -116,7 +116,7 @@ void Analysis::writeSnippet(raw_ostream &OS, ArrayRef<uint8_t> Bytes,
     raw_svector_ostream OSS(InstPrinterStr);
     InstPrinter_->printInst(&MI, 0, "", *SubtargetInfo_, OSS);
     Bytes = Bytes.drop_front(MISize);
-    Lines.emplace_back(StringRef(InstPrinterStr).trim());
+    Lines.emplace_back(InstPrinterStr.str().trim());
   }
   writeEscaped<Tag>(OS, join(Lines, Separator));
 }
@@ -151,12 +151,15 @@ void Analysis::printInstructionRowCsv(const size_t PointId,
   OS << "\n";
 }
 
-Analysis::Analysis(const Target &Target, std::unique_ptr<MCInstrInfo> InstrInfo,
+Analysis::Analysis(const Target &Target,
+                   std::unique_ptr<MCSubtargetInfo> SubtargetInfo,
+                   std::unique_ptr<MCInstrInfo> InstrInfo,
                    const InstructionBenchmarkClustering &Clustering,
                    double AnalysisInconsistencyEpsilon,
                    bool AnalysisDisplayUnstableOpcodes,
                    const std::string &ForceCpuName)
-    : Clustering_(Clustering), InstrInfo_(std::move(InstrInfo)),
+    : Clustering_(Clustering), SubtargetInfo_(std::move(SubtargetInfo)),
+      InstrInfo_(std::move(InstrInfo)),
       AnalysisInconsistencyEpsilonSquared_(AnalysisInconsistencyEpsilon *
                                            AnalysisInconsistencyEpsilon),
       AnalysisDisplayUnstableOpcodes_(AnalysisDisplayUnstableOpcodes) {

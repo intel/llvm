@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "misc-intrinsic.h"
-#include "descriptor.h"
+#include "flang/Runtime/misc-intrinsic.h"
 #include "terminator.h"
+#include "flang/Runtime/descriptor.h"
 #include <algorithm>
 #include <cstring>
 
@@ -41,9 +41,6 @@ void RTNAME(TransferSize)(Descriptor &result, const Descriptor &source,
   }
   if (const DescriptorAddendum * addendum{mold.Addendum()}) {
     *result.Addendum() = *addendum;
-    auto &flags{result.Addendum()->flags()};
-    flags &= ~DescriptorAddendum::StaticDescriptor;
-    flags |= DescriptorAddendum::DoNotFinalize;
   }
   if (int stat{result.Allocate()}) {
     Terminator{sourceFile, line}.Crash(

@@ -7,15 +7,13 @@
 ; specialization constant intrinsics in an unoptimized device code compiled
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
-target triple = "spir64-unknown-linux-sycldevice"
+target triple = "spir64-unknown-linux"
 
 %"UserSpecConstIDType" = type { i8 }
 
 $FOO = comdat any
 
 @__unique_stable_name.FOO = private unnamed_addr constant [18 x i8] c"_ZTS11MyBoolConst\00", align 1
-; check that post link removes the no longer used global
-; CHECK-NOT: @__unique_stable_name.FOO
 
 declare dso_local spir_func zeroext i1 @_Z33__sycl_getScalarSpecConstantValueIbET_PKc(i8 addrspace(4)*) #7
 

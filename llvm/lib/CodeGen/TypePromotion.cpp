@@ -30,9 +30,6 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Intrinsics.h"
-#include "llvm/IR/IntrinsicsARM.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Verifier.h"
@@ -195,11 +192,8 @@ public:
 
 }
 
-static bool GenerateSignBits(Value *V) {
-  if (!isa<Instruction>(V))
-    return false;
-
-  unsigned Opc = cast<Instruction>(V)->getOpcode();
+static bool GenerateSignBits(Instruction *I) {
+  unsigned Opc = I->getOpcode();
   return Opc == Instruction::AShr || Opc == Instruction::SDiv ||
          Opc == Instruction::SRem || Opc == Instruction::SExt;
 }
@@ -370,7 +364,7 @@ bool TypePromotion::isSafeWrap(Instruction *I) {
   Total += OverflowConst->getValue().getBitWidth() < 32 ?
     OverflowConst->getValue().abs().zext(32) : OverflowConst->getValue().abs();
 
-  APInt Max = APInt::getAllOnesValue(TypePromotion::TypeSize);
+  APInt Max = APInt::getAllOnes(TypePromotion::TypeSize);
 
   if (Total.getBitWidth() > Max.getBitWidth()) {
     if (Total.ugt(Max.zext(Total.getBitWidth())))
@@ -406,17 +400,14 @@ bool TypePromotion::shouldPromote(Value *V) {
 
 /// Return whether we can safely mutate V's type to ExtTy without having to be
 /// concerned with zero extending or truncation.
-static bool isPromotedResultSafe(Value *V) {
-  if (GenerateSignBits(V))
+static bool isPromotedResultSafe(Instruction *I) {
+  if (GenerateSignBits(I))
     return false;
 
-  if (!isa<Instruction>(V))
+  if (!isa<OverflowingBinaryOperator>(I))
     return true;
 
-  if (!isa<OverflowingBinaryOperator>(V))
-    return true;
-
-  return cast<Instruction>(V)->hasNoUnsignedWrap();
+  return I->hasNoUnsignedWrap();
 }
 
 void IRPromoter::ReplaceAllUsersOfWith(Value *From, Value *To) {
@@ -518,8 +509,6 @@ void IRPromoter::ExtendSources() {
 void IRPromoter::PromoteTree() {
   LLVM_DEBUG(dbgs() << "IR Promotion: Mutating the tree..\n");
 
-  IRBuilder<> Builder{Ctx};
-
   // Mutate the types of the instructions within the tree. Here we handle
   // constant operands.
   for (auto *V : Visited) {
@@ -542,8 +531,8 @@ void IRPromoter::PromoteTree() {
         I->setOperand(i, UndefValue::get(ExtTy));
     }
 
-    // Mutate the result type, unless this is an icmp.
-    if (!isa<ICmpInst>(I)) {
+    // Mutate the result type, unless this is an icmp or switch.
+    if (!isa<ICmpInst>(I) && !isa<SwitchInst>(I)) {
       I->mutateType(ExtTy);
       Promoted.insert(I);
     }
@@ -801,7 +790,7 @@ bool TypePromotion::isLegalToPromote(Value *V) {
   if (SafeToPromote.count(I))
    return true;
 
-  if (isPromotedResultSafe(V) || isSafeWrap(I)) {
+  if (isPromotedResultSafe(I) || isSafeWrap(I)) {
     SafeToPromote.insert(I);
     return true;
   }
@@ -921,9 +910,6 @@ bool TypePromotion::TryToPromote(Value *V, unsigned PromotedWidth) {
   // DAG optimizations should be able to handle these cases better, especially
   // for function arguments.
   if (ToPromote < 2 || (Blocks.size() == 1 && (NonFreeArgs > SafeWrap.size())))
-    return false;
-
-  if (ToPromote < 2)
     return false;
 
   IRPromoter Promoter(*Ctx, cast<IntegerType>(OrigTy), PromotedWidth,

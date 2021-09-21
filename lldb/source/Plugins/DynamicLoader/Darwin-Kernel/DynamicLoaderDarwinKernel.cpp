@@ -35,7 +35,7 @@
 
 //#define ENABLE_DEBUG_PRINTF // COMMENT THIS LINE OUT PRIOR TO CHECKIN
 #ifdef ENABLE_DEBUG_PRINTF
-#include <stdio.h>
+#include <cstdio>
 #define DEBUG_PRINTF(fmt, ...) printf(fmt, ##__VA_ARGS__)
 #else
 #define DEBUG_PRINTF(fmt, ...)
@@ -107,7 +107,7 @@ public:
     m_collection_sp->Initialize(g_dynamicloaderdarwinkernel_properties);
   }
 
-  ~DynamicLoaderDarwinKernelProperties() override {}
+  ~DynamicLoaderDarwinKernelProperties() override = default;
 
   bool GetLoadKexts() const {
     const uint32_t idx = ePropertyLoadKexts;
@@ -1568,8 +1568,6 @@ const char *DynamicLoaderDarwinKernel::GetPluginDescriptionStatic() {
 lldb_private::ConstString DynamicLoaderDarwinKernel::GetPluginName() {
   return GetPluginNameStatic();
 }
-
-uint32_t DynamicLoaderDarwinKernel::GetPluginVersion() { return 1; }
 
 lldb::ByteOrder
 DynamicLoaderDarwinKernel::GetByteOrderFromMagic(uint32_t magic) {

@@ -6,18 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/Host/Config.h"
-
 #include "ClangUtilityFunction.h"
 #include "ClangExpressionDeclMap.h"
 #include "ClangExpressionParser.h"
 #include "ClangExpressionSourceCode.h"
 #include "ClangPersistentVariables.h"
 
-#include <stdio.h>
-#if HAVE_SYS_TYPES_H
+#include <cstdio>
 #include <sys/types.h>
-#endif
 
 
 #include "lldb/Core/Module.h"
@@ -49,7 +45,7 @@ ClangUtilityFunction::ClangUtilityFunction(ExecutionContextScope &exe_scope,
     llvm::SmallString<128> result_path;
     llvm::sys::fs::createTemporaryFile("lldb", "expr", temp_fd, result_path);
     if (temp_fd != -1) {
-      lldb_private::NativeFile file(temp_fd, File::eOpenOptionWrite, true);
+      lldb_private::NativeFile file(temp_fd, File::eOpenOptionWriteOnly, true);
       text = "#line 1 \"" + std::string(result_path) + "\"\n" + text;
       size_t bytes_written = text.size();
       file.Write(text.c_str(), bytes_written);
@@ -65,7 +61,7 @@ ClangUtilityFunction::ClangUtilityFunction(ExecutionContextScope &exe_scope,
   }
 }
 
-ClangUtilityFunction::~ClangUtilityFunction() {}
+ClangUtilityFunction::~ClangUtilityFunction() = default;
 
 /// Install the utility function into a process
 ///

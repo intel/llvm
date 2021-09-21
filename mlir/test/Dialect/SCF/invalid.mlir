@@ -428,7 +428,7 @@ func @parallel_invalid_yield(
 
 func @yield_invalid_parent_op() {
   "my.op"() ({
-   // expected-error@+1 {{'scf.yield' op expects parent op to be one of 'scf.if, scf.for, scf.parallel, scf.while'}}
+   // expected-error@+1 {{'scf.yield' op expects parent op to be one of 'scf.execute_region, scf.for, scf.if, scf.parallel, scf.while'}}
    scf.yield
   }) : () -> ()
   return
@@ -462,7 +462,7 @@ func @while_bad_terminator() {
 
 func @while_cross_region_type_mismatch() {
   %true = constant true
-  // expected-error@+1 {{expects the same number of trailing operands of the 'before' block terminator and 'after' region arguments}}
+  // expected-error@+1 {{'scf.while' op  region control flow edge from Region #0 to Region #1: source has 0 operands, but target successor needs 1}}
   scf.while : () -> () {
     scf.condition(%true)
   } do {
@@ -475,8 +475,7 @@ func @while_cross_region_type_mismatch() {
 
 func @while_cross_region_type_mismatch() {
   %true = constant true
-  // expected-error@+2 {{expects the same types for trailing operands of the 'before' block terminator and 'after' region arguments}}
-  // expected-note@+1 {{for argument 0, found 'i1' and 'i32}}
+  // expected-error@+1 {{'scf.while' op  along control flow edge from Region #0 to Region #1: source type #0 'i1' should match input type #0 'i32'}}
   scf.while : () -> () {
     scf.condition(%true) %true : i1
   } do {
@@ -489,7 +488,7 @@ func @while_cross_region_type_mismatch() {
 
 func @while_result_type_mismatch() {
   %true = constant true
-  // expected-error@+1 {{expects the same number of trailing operands of the 'before' block terminator and op results}}
+  // expected-error@+1 {{'scf.while' op  region control flow edge from Region #0 to parent results: source has 1 operands, but target successor needs 0}}
   scf.while : () -> () {
     scf.condition(%true) %true : i1
   } do {
@@ -509,4 +508,15 @@ func @while_bad_terminator() {
     // expected-note@+1 {{terminator here}}
     "some.other_terminator"() : () -> ()
   }
+}
+
+// -----
+
+func @execute_region() {
+  // expected-error @+1 {{region cannot have any arguments}}
+  "scf.execute_region"() ({
+  ^bb0(%i : i32):
+    scf.yield
+  }) : () -> ()
+  return
 }

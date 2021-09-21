@@ -72,6 +72,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerCommon.h"
+#include "llvm/Transforms/Instrumentation/AddressSanitizerOptions.h"
 #include "llvm/Transforms/Utils/ASanStackFrameLayout.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -116,13 +117,6 @@ static const uint64_t kPS4CPU_ShadowOffset64 = 1ULL << 40;
 static const uint64_t kWindowsShadowOffset32 = 3ULL << 28;
 static const uint64_t kEmscriptenShadowOffset = 0;
 
-static const uint64_t kMyriadShadowScale = 5;
-static const uint64_t kMyriadMemoryOffset32 = 0x80000000ULL;
-static const uint64_t kMyriadMemorySize32 = 0x20000000ULL;
-static const uint64_t kMyriadTagShift = 29;
-static const uint64_t kMyriadDDRTag = 4;
-static const uint64_t kMyriadCacheBitMask32 = 0x40000000ULL;
-
 // The shadow memory space is dynamically allocated.
 static const uint64_t kWindowsShadowOffset64 = kDynamicShadowSentinel;
 
@@ -153,6 +147,8 @@ const char kAsanPtrSub[] = "__sanitizer_ptr_sub";
 const char kAsanHandleNoReturnName[] = "__asan_handle_no_return";
 static const int kMaxAsanStackMallocSizeClass = 10;
 const char kAsanStackMallocNameTemplate[] = "__asan_stack_malloc_";
+const char kAsanStackMallocAlwaysNameTemplate[] =
+    "__asan_stack_malloc_always_";
 const char kAsanStackFreeNameTemplate[] = "__asan_stack_free_";
 const char kAsanGenPrefix[] = "___asan_gen_";
 const char kODRGenPrefix[] = "__odr_asan_gen_";
@@ -181,6 +177,14 @@ const char kAMDGPUAddressPrivateName[] = "llvm.amdgcn.is.private";
 static const size_t kNumberOfAccessSizes = 5;
 
 static const unsigned kAllocaRzSize = 32;
+
+// ASanAccessInfo implementation constants.
+constexpr size_t kCompileKernelShift = 0;
+constexpr size_t kCompileKernelMask = 0x1;
+constexpr size_t kAccessSizeIndexShift = 1;
+constexpr size_t kAccessSizeIndexMask = 0xf;
+constexpr size_t kIsWriteShift = 5;
+constexpr size_t kIsWriteMask = 0x1;
 
 // Command-line flags.
 
@@ -257,9 +261,19 @@ static cl::opt<uint32_t> ClMaxInlinePoisoningSize(
         "Inline shadow poisoning for blocks up to the given size in bytes."),
     cl::Hidden, cl::init(64));
 
-static cl::opt<bool> ClUseAfterReturn("asan-use-after-return",
-                                      cl::desc("Check stack-use-after-return"),
-                                      cl::Hidden, cl::init(true));
+static cl::opt<AsanDetectStackUseAfterReturnMode> ClUseAfterReturn(
+    "asan-use-after-return",
+    cl::desc("Sets the mode of detection for stack-use-after-return."),
+    cl::values(
+        clEnumValN(AsanDetectStackUseAfterReturnMode::Never, "never",
+                   "Never detect stack use after return."),
+        clEnumValN(
+            AsanDetectStackUseAfterReturnMode::Runtime, "runtime",
+            "Detect stack use after return if "
+            "binary flag 'ASAN_OPTIONS=detect_stack_use_after_return' is set."),
+        clEnumValN(AsanDetectStackUseAfterReturnMode::Always, "always",
+                   "Always detect stack use after return.")),
+    cl::Hidden, cl::init(AsanDetectStackUseAfterReturnMode::Runtime));
 
 static cl::opt<bool> ClRedzoneByvalArgs("asan-redzone-byval-args",
                                         cl::desc("Create redzones for byval "
@@ -341,6 +355,10 @@ static cl::opt<uint64_t>
 
 static cl::opt<bool> ClOpt("asan-opt", cl::desc("Optimize instrumentation"),
                            cl::Hidden, cl::init(true));
+
+static cl::opt<bool> ClOptimizeCallbacks("asan-optimize-callbacks",
+                                         cl::desc("Optimize callbacks"),
+                                         cl::Hidden, cl::init(false));
 
 static cl::opt<bool> ClOptSameTemp(
     "asan-opt-same-temp", cl::desc("Instrument the same temp just once"),
@@ -436,7 +454,7 @@ struct ShadowMapping {
 
 } // end anonymous namespace
 
-static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
+static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
                                       bool IsKasan) {
   bool IsAndroid = TargetTriple.isAndroid();
   bool IsIOS = TargetTriple.isiOS() || TargetTriple.isWatchOS();
@@ -456,17 +474,12 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
   bool IsRISCV64 = TargetTriple.getArch() == Triple::riscv64;
   bool IsWindows = TargetTriple.isOSWindows();
   bool IsFuchsia = TargetTriple.isOSFuchsia();
-  bool IsMyriad = TargetTriple.getVendor() == llvm::Triple::Myriad;
   bool IsEmscripten = TargetTriple.isOSEmscripten();
   bool IsAMDGPU = TargetTriple.isAMDGPU();
 
-  // Asan support for AMDGPU assumes X86 as the host right now.
-  if (IsAMDGPU)
-    IsX86_64 = true;
-
   ShadowMapping Mapping;
 
-  Mapping.Scale = IsMyriad ? kMyriadShadowScale : kDefaultShadowScale;
+  Mapping.Scale = kDefaultShadowScale;
   if (ClMappingScale.getNumOccurrences() > 0) {
     Mapping.Scale = ClMappingScale;
   }
@@ -486,11 +499,6 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
       Mapping.Offset = kWindowsShadowOffset32;
     else if (IsEmscripten)
       Mapping.Offset = kEmscriptenShadowOffset;
-    else if (IsMyriad) {
-      uint64_t ShadowOffset = (kMyriadMemoryOffset32 + kMyriadMemorySize32 -
-                               (kMyriadMemorySize32 >> Mapping.Scale));
-      Mapping.Offset = ShadowOffset - (kMyriadMemoryOffset32 >> Mapping.Scale);
-    }
     else
       Mapping.Offset = kDefaultShadowOffset32;
   } else {  // LongSize == 64
@@ -532,6 +540,9 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
       Mapping.Offset = kAArch64_ShadowOffset64;
     else if (IsRISCV64)
       Mapping.Offset = kRISCV64_ShadowOffset64;
+    else if (IsAMDGPU)
+      Mapping.Offset = (kSmallX86_64ShadowOffsetBase &
+                        (kSmallX86_64ShadowOffsetAlignMask << Mapping.Scale));
     else
       Mapping.Offset = kDefaultShadowOffset64;
   }
@@ -559,6 +570,32 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
 
   return Mapping;
 }
+
+namespace llvm {
+void getAddressSanitizerParams(const Triple &TargetTriple, int LongSize,
+                               bool IsKasan, uint64_t *ShadowBase,
+                               int *MappingScale, bool *OrShadowOffset) {
+  auto Mapping = getShadowMapping(TargetTriple, LongSize, IsKasan);
+  *ShadowBase = Mapping.Offset;
+  *MappingScale = Mapping.Scale;
+  *OrShadowOffset = Mapping.OrShadowOffset;
+}
+
+ASanAccessInfo::ASanAccessInfo(int32_t Packed)
+    : Packed(Packed),
+      AccessSizeIndex((Packed >> kAccessSizeIndexShift) & kAccessSizeIndexMask),
+      IsWrite((Packed >> kIsWriteShift) & kIsWriteMask),
+      CompileKernel((Packed >> kCompileKernelShift) & kCompileKernelMask) {}
+
+ASanAccessInfo::ASanAccessInfo(bool IsWrite, bool CompileKernel,
+                               uint8_t AccessSizeIndex)
+    : Packed((IsWrite << kIsWriteShift) +
+             (CompileKernel << kCompileKernelShift) +
+             (AccessSizeIndex << kAccessSizeIndexShift)),
+      AccessSizeIndex(AccessSizeIndex), IsWrite(IsWrite),
+      CompileKernel(CompileKernel) {}
+
+} // namespace llvm
 
 static uint64_t getRedzoneSizeForScale(int MappingScale) {
   // Redzone used for stack and globals is at least 32 bytes.
@@ -611,17 +648,26 @@ char ASanGlobalsMetadataWrapperPass::ID = 0;
 struct AddressSanitizer {
   AddressSanitizer(Module &M, const GlobalsMetadata *GlobalsMD,
                    bool CompileKernel = false, bool Recover = false,
-                   bool UseAfterScope = false)
+                   bool UseAfterScope = false,
+                   AsanDetectStackUseAfterReturnMode UseAfterReturn =
+                       AsanDetectStackUseAfterReturnMode::Runtime)
       : CompileKernel(ClEnableKasan.getNumOccurrences() > 0 ? ClEnableKasan
                                                             : CompileKernel),
         Recover(ClRecover.getNumOccurrences() > 0 ? ClRecover : Recover),
-        UseAfterScope(UseAfterScope || ClUseAfterScope), GlobalsMD(*GlobalsMD) {
+        UseAfterScope(UseAfterScope || ClUseAfterScope),
+        UseAfterReturn(ClUseAfterReturn.getNumOccurrences() ? ClUseAfterReturn
+                                                            : UseAfterReturn),
+        GlobalsMD(*GlobalsMD) {
     C = &(M.getContext());
     LongSize = M.getDataLayout().getPointerSizeInBits();
     IntptrTy = Type::getIntNTy(*C, LongSize);
+    Int8PtrTy = Type::getInt8PtrTy(*C);
+    Int32Ty = Type::getInt32Ty(*C);
     TargetTriple = Triple(M.getTargetTriple());
 
     Mapping = getShadowMapping(TargetTriple, LongSize, this->CompileKernel);
+
+    assert(this->UseAfterReturn != AsanDetectStackUseAfterReturnMode::Invalid);
   }
 
   uint64_t getAllocaSizeInBytes(const AllocaInst &AI) const {
@@ -705,7 +751,10 @@ private:
   bool CompileKernel;
   bool Recover;
   bool UseAfterScope;
+  AsanDetectStackUseAfterReturnMode UseAfterReturn;
   Type *IntptrTy;
+  Type *Int8PtrTy;
+  Type *Int32Ty;
   ShadowMapping Mapping;
   FunctionCallee AsanHandleNoReturnFunc;
   FunctionCallee AsanPtrCmpFunction, AsanPtrSubFunction;
@@ -732,11 +781,13 @@ class AddressSanitizerLegacyPass : public FunctionPass {
 public:
   static char ID;
 
-  explicit AddressSanitizerLegacyPass(bool CompileKernel = false,
-                                      bool Recover = false,
-                                      bool UseAfterScope = false)
+  explicit AddressSanitizerLegacyPass(
+      bool CompileKernel = false, bool Recover = false,
+      bool UseAfterScope = false,
+      AsanDetectStackUseAfterReturnMode UseAfterReturn =
+          AsanDetectStackUseAfterReturnMode::Runtime)
       : FunctionPass(ID), CompileKernel(CompileKernel), Recover(Recover),
-        UseAfterScope(UseAfterScope) {
+        UseAfterScope(UseAfterScope), UseAfterReturn(UseAfterReturn) {
     initializeAddressSanitizerLegacyPassPass(*PassRegistry::getPassRegistry());
   }
 
@@ -755,7 +806,7 @@ public:
     const TargetLibraryInfo *TLI =
         &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
     AddressSanitizer ASan(*F.getParent(), &GlobalsMD, CompileKernel, Recover,
-                          UseAfterScope);
+                          UseAfterScope, UseAfterReturn);
     return ASan.instrumentFunction(F, TLI);
   }
 
@@ -763,6 +814,7 @@ private:
   bool CompileKernel;
   bool Recover;
   bool UseAfterScope;
+  AsanDetectStackUseAfterReturnMode UseAfterReturn;
 };
 
 class ModuleAddressSanitizer {
@@ -922,7 +974,6 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
   SmallVector<AllocaInst *, 16> AllocaVec;
   SmallVector<AllocaInst *, 16> StaticAllocasToMoveUp;
   SmallVector<Instruction *, 8> RetVec;
-  unsigned StackAlignment;
 
   FunctionCallee AsanStackMallocFunc[kMaxAsanStackMallocSizeClass + 1],
       AsanStackFreeFunc[kMaxAsanStackMallocSizeClass + 1];
@@ -954,7 +1005,6 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
       : F(F), ASan(ASan), DIB(*F.getParent(), /*AllowUnresolved*/ false),
         C(ASan.C), IntptrTy(ASan.IntptrTy),
         IntptrPtrTy(PointerType::get(IntptrTy, 0)), Mapping(ASan.Mapping),
-        StackAlignment(1 << Mapping.Scale),
         PoisonStack(ClStack &&
                     !Triple(F.getParent()->getTargetTriple()).isAMDGPU()) {}
 
@@ -1078,7 +1128,6 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
       return;
     }
 
-    StackAlignment = std::max(StackAlignment, AI.getAlignment());
     if (!AI.isStaticAlloca())
       DynamicAllocaVec.push_back(&AI);
     else
@@ -1205,18 +1254,14 @@ GlobalsMetadata ASanGlobalsMetadataAnalysis::run(Module &M,
   return GlobalsMetadata(M);
 }
 
-AddressSanitizerPass::AddressSanitizerPass(bool CompileKernel, bool Recover,
-                                           bool UseAfterScope)
-    : CompileKernel(CompileKernel), Recover(Recover),
-      UseAfterScope(UseAfterScope) {}
-
 PreservedAnalyses AddressSanitizerPass::run(Function &F,
                                             AnalysisManager<Function> &AM) {
   auto &MAMProxy = AM.getResult<ModuleAnalysisManagerFunctionProxy>(F);
   Module &M = *F.getParent();
   if (auto *R = MAMProxy.getCachedResult<ASanGlobalsMetadataAnalysis>(M)) {
     const TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
-    AddressSanitizer Sanitizer(M, R, CompileKernel, Recover, UseAfterScope);
+    AddressSanitizer Sanitizer(M, R, Options.CompileKernel, Options.Recover,
+                               Options.UseAfterScope, Options.UseAfterReturn);
     if (Sanitizer.instrumentFunction(F, TLI))
       return PreservedAnalyses::none();
     return PreservedAnalyses::all();
@@ -1263,11 +1308,12 @@ INITIALIZE_PASS_END(
     "AddressSanitizer: detects use-after-free and out-of-bounds bugs.", false,
     false)
 
-FunctionPass *llvm::createAddressSanitizerFunctionPass(bool CompileKernel,
-                                                       bool Recover,
-                                                       bool UseAfterScope) {
+FunctionPass *llvm::createAddressSanitizerFunctionPass(
+    bool CompileKernel, bool Recover, bool UseAfterScope,
+    AsanDetectStackUseAfterReturnMode UseAfterReturn) {
   assert(!CompileKernel || Recover);
-  return new AddressSanitizerLegacyPass(CompileKernel, Recover, UseAfterScope);
+  return new AddressSanitizerLegacyPass(CompileKernel, Recover, UseAfterScope,
+                                        UseAfterReturn);
 }
 
 char ModuleAddressSanitizerLegacyPass::ID = 0;
@@ -1720,8 +1766,6 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
                                          uint32_t TypeSize, bool IsWrite,
                                          Value *SizeArgument, bool UseCalls,
                                          uint32_t Exp) {
-  bool IsMyriad = TargetTriple.getVendor() == llvm::Triple::Myriad;
-
   if (TargetTriple.isAMDGPU()) {
     InsertBefore = instrumentAMDGPUAddress(OrigIns, InsertBefore, Addr,
                                            TypeSize, IsWrite, SizeArgument);
@@ -1730,9 +1774,20 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
   }
 
   IRBuilder<> IRB(InsertBefore);
-  Value *AddrLong = IRB.CreatePointerCast(Addr, IntptrTy);
   size_t AccessSizeIndex = TypeSizeToSizeIndex(TypeSize);
+  const ASanAccessInfo AccessInfo(IsWrite, CompileKernel, AccessSizeIndex);
 
+  if (UseCalls && ClOptimizeCallbacks) {
+    const ASanAccessInfo AccessInfo(IsWrite, CompileKernel, AccessSizeIndex);
+    Module *M = IRB.GetInsertBlock()->getParent()->getParent();
+    IRB.CreateCall(
+        Intrinsic::getDeclaration(M, Intrinsic::asan_check_memaccess),
+        {IRB.CreatePointerCast(Addr, Int8PtrTy),
+         ConstantInt::get(Int32Ty, AccessInfo.Packed)});
+    return;
+  }
+
+  Value *AddrLong = IRB.CreatePointerCast(Addr, IntptrTy);
   if (UseCalls) {
     if (Exp == 0)
       IRB.CreateCall(AsanMemoryAccessCallback[IsWrite][0][AccessSizeIndex],
@@ -1741,24 +1796,6 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
       IRB.CreateCall(AsanMemoryAccessCallback[IsWrite][1][AccessSizeIndex],
                      {AddrLong, ConstantInt::get(IRB.getInt32Ty(), Exp)});
     return;
-  }
-
-  if (IsMyriad) {
-    // Strip the cache bit and do range check.
-    // AddrLong &= ~kMyriadCacheBitMask32
-    AddrLong = IRB.CreateAnd(AddrLong, ~kMyriadCacheBitMask32);
-    // Tag = AddrLong >> kMyriadTagShift
-    Value *Tag = IRB.CreateLShr(AddrLong, kMyriadTagShift);
-    // Tag == kMyriadDDRTag
-    Value *TagCheck =
-        IRB.CreateICmpEQ(Tag, ConstantInt::get(IntptrTy, kMyriadDDRTag));
-
-    Instruction *TagCheckTerm =
-        SplitBlockAndInsertIfThen(TagCheck, InsertBefore, false,
-                                  MDBuilder(*C).createBranchWeights(1, 100000));
-    assert(cast<BranchInst>(TagCheckTerm)->isUnconditional());
-    IRB.SetInsertPoint(TagCheckTerm);
-    InsertBefore = TagCheckTerm;
   }
 
   Type *ShadowTy =
@@ -1926,7 +1963,7 @@ bool ModuleAddressSanitizer::shouldInstrumentGlobal(GlobalVariable *G) const {
     switch (C->getSelectionKind()) {
     case Comdat::Any:
     case Comdat::ExactMatch:
-    case Comdat::NoDuplicates:
+    case Comdat::NoDeduplicate:
       break;
     case Comdat::Largest:
     case Comdat::SameSize:
@@ -2113,7 +2150,7 @@ void ModuleAddressSanitizer::SetComdatForGlobalMetadata(
     // linkage to internal linkage so that a symbol table entry is emitted. This
     // is necessary in order to create the comdat group.
     if (TargetTriple.isOSBinFormatCOFF()) {
-      C->setSelectionKind(Comdat::NoDuplicates);
+      C->setSelectionKind(Comdat::NoDeduplicate);
       if (G->hasPrivateLinkage())
         G->setLinkage(GlobalValue::InternalLinkage);
     }
@@ -2143,8 +2180,9 @@ Instruction *ModuleAddressSanitizer::CreateAsanModuleDtor(Module &M) {
   AsanDtorFunction = Function::createWithDefaultAttr(
       FunctionType::get(Type::getVoidTy(*C), false),
       GlobalValue::InternalLinkage, 0, kAsanModuleDtorName, &M);
-  AsanDtorFunction->addAttribute(AttributeList::FunctionIndex,
-                                 Attribute::NoUnwind);
+  AsanDtorFunction->addFnAttr(Attribute::NoUnwind);
+  // Ensure Dtor cannot be discarded, even if in a comdat.
+  appendToUsed(M, {AsanDtorFunction});
   BasicBlock *AsanDtorBB = BasicBlock::Create(*C, "", AsanDtorFunction);
 
   return ReturnInst::Create(*C, AsanDtorBB);
@@ -2931,13 +2969,20 @@ bool AddressSanitizer::LooksLikeCodeInBug11395(Instruction *I) {
 
 void FunctionStackPoisoner::initializeCallbacks(Module &M) {
   IRBuilder<> IRB(*C);
-  for (int i = 0; i <= kMaxAsanStackMallocSizeClass; i++) {
-    std::string Suffix = itostr(i);
-    AsanStackMallocFunc[i] = M.getOrInsertFunction(
-        kAsanStackMallocNameTemplate + Suffix, IntptrTy, IntptrTy);
-    AsanStackFreeFunc[i] =
-        M.getOrInsertFunction(kAsanStackFreeNameTemplate + Suffix,
-                              IRB.getVoidTy(), IntptrTy, IntptrTy);
+  if (ASan.UseAfterReturn == AsanDetectStackUseAfterReturnMode::Always ||
+      ASan.UseAfterReturn == AsanDetectStackUseAfterReturnMode::Runtime) {
+    const char *MallocNameTemplate =
+        ASan.UseAfterReturn == AsanDetectStackUseAfterReturnMode::Always
+            ? kAsanStackMallocAlwaysNameTemplate
+            : kAsanStackMallocNameTemplate;
+    for (int Index = 0; Index <= kMaxAsanStackMallocSizeClass; Index++) {
+      std::string Suffix = itostr(Index);
+      AsanStackMallocFunc[Index] = M.getOrInsertFunction(
+          MallocNameTemplate + Suffix, IntptrTy, IntptrTy);
+      AsanStackFreeFunc[Index] =
+          M.getOrInsertFunction(kAsanStackFreeNameTemplate + Suffix,
+                                IRB.getVoidTy(), IntptrTy, IntptrTy);
+    }
   }
   if (ASan.UseAfterScope) {
     AsanPoisonStackMemoryFunc = M.getOrInsertFunction(
@@ -3288,8 +3333,9 @@ void FunctionStackPoisoner::processStaticAllocas() {
   auto DescriptionString = ComputeASanStackFrameDescription(SVD);
   LLVM_DEBUG(dbgs() << DescriptionString << " --- " << L.FrameSize << "\n");
   uint64_t LocalStackSize = L.FrameSize;
-  bool DoStackMalloc = ClUseAfterReturn && !ASan.CompileKernel &&
-                       LocalStackSize <= kMaxStackMallocSize;
+  bool DoStackMalloc =
+      ASan.UseAfterReturn != AsanDetectStackUseAfterReturnMode::Never &&
+      !ASan.CompileKernel && LocalStackSize <= kMaxStackMallocSize;
   bool DoDynamicAlloca = ClDynamicAllocaStack;
   // Don't do dynamic alloca or stack malloc if:
   // 1) There is inline asm: too often it makes assumptions on which registers
@@ -3311,31 +3357,42 @@ void FunctionStackPoisoner::processStaticAllocas() {
   if (DoStackMalloc) {
     LocalStackBaseAlloca =
         IRB.CreateAlloca(IntptrTy, nullptr, "asan_local_stack_base");
-    // void *FakeStack = __asan_option_detect_stack_use_after_return
-    //     ? __asan_stack_malloc_N(LocalStackSize)
-    //     : nullptr;
-    // void *LocalStackBase = (FakeStack) ? FakeStack : alloca(LocalStackSize);
-    Constant *OptionDetectUseAfterReturn = F.getParent()->getOrInsertGlobal(
-        kAsanOptionDetectUseAfterReturn, IRB.getInt32Ty());
-    Value *UseAfterReturnIsEnabled = IRB.CreateICmpNE(
-        IRB.CreateLoad(IRB.getInt32Ty(), OptionDetectUseAfterReturn),
-        Constant::getNullValue(IRB.getInt32Ty()));
-    Instruction *Term =
-        SplitBlockAndInsertIfThen(UseAfterReturnIsEnabled, InsBefore, false);
-    IRBuilder<> IRBIf(Term);
-    StackMallocIdx = StackMallocSizeClass(LocalStackSize);
-    assert(StackMallocIdx <= kMaxAsanStackMallocSizeClass);
-    Value *FakeStackValue =
-        IRBIf.CreateCall(AsanStackMallocFunc[StackMallocIdx],
-                         ConstantInt::get(IntptrTy, LocalStackSize));
-    IRB.SetInsertPoint(InsBefore);
-    FakeStack = createPHI(IRB, UseAfterReturnIsEnabled, FakeStackValue, Term,
-                          ConstantInt::get(IntptrTy, 0));
-
+    if (ASan.UseAfterReturn == AsanDetectStackUseAfterReturnMode::Runtime) {
+      // void *FakeStack = __asan_option_detect_stack_use_after_return
+      //     ? __asan_stack_malloc_N(LocalStackSize)
+      //     : nullptr;
+      // void *LocalStackBase = (FakeStack) ? FakeStack :
+      //                        alloca(LocalStackSize);
+      Constant *OptionDetectUseAfterReturn = F.getParent()->getOrInsertGlobal(
+          kAsanOptionDetectUseAfterReturn, IRB.getInt32Ty());
+      Value *UseAfterReturnIsEnabled = IRB.CreateICmpNE(
+          IRB.CreateLoad(IRB.getInt32Ty(), OptionDetectUseAfterReturn),
+          Constant::getNullValue(IRB.getInt32Ty()));
+      Instruction *Term =
+          SplitBlockAndInsertIfThen(UseAfterReturnIsEnabled, InsBefore, false);
+      IRBuilder<> IRBIf(Term);
+      StackMallocIdx = StackMallocSizeClass(LocalStackSize);
+      assert(StackMallocIdx <= kMaxAsanStackMallocSizeClass);
+      Value *FakeStackValue =
+          IRBIf.CreateCall(AsanStackMallocFunc[StackMallocIdx],
+                           ConstantInt::get(IntptrTy, LocalStackSize));
+      IRB.SetInsertPoint(InsBefore);
+      FakeStack = createPHI(IRB, UseAfterReturnIsEnabled, FakeStackValue, Term,
+                            ConstantInt::get(IntptrTy, 0));
+    } else {
+      // assert(ASan.UseAfterReturn == AsanDetectStackUseAfterReturnMode:Always)
+      // void *FakeStack = __asan_stack_malloc_N(LocalStackSize);
+      // void *LocalStackBase = (FakeStack) ? FakeStack :
+      //                        alloca(LocalStackSize);
+      StackMallocIdx = StackMallocSizeClass(LocalStackSize);
+      FakeStack = IRB.CreateCall(AsanStackMallocFunc[StackMallocIdx],
+                                 ConstantInt::get(IntptrTy, LocalStackSize));
+    }
     Value *NoFakeStack =
         IRB.CreateICmpEQ(FakeStack, Constant::getNullValue(IntptrTy));
-    Term = SplitBlockAndInsertIfThen(NoFakeStack, InsBefore, false);
-    IRBIf.SetInsertPoint(Term);
+    Instruction *Term =
+        SplitBlockAndInsertIfThen(NoFakeStack, InsBefore, false);
+    IRBuilder<> IRBIf(Term);
     Value *AllocaValue =
         DoDynamicAlloca ? createAllocaForLayout(IRBIf, L, true) : StaticAlloca;
 

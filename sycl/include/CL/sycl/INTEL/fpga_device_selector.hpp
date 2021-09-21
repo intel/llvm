@@ -8,45 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl.hpp>
+#include <CL/sycl/detail/defines_elementary.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace INTEL {
+__SYCL_WARNING(
+    "CL/sycl/INTEL/fpga_device_selector.hpp usage is deprecated, include "
+    "sycl/ext/intel/fpga_device_selector.hpp instead")
 
-class platform_selector : public device_selector {
-private:
-  std::string device_platform_name;
-
-public:
-  platform_selector(const std::string &platform_name)
-      : device_platform_name(platform_name) {}
-
-  int operator()(const device &device) const override {
-    const platform &pf = device.get_platform();
-    const std::string &platform_name = pf.get_info<info::platform::name>();
-    if (platform_name == device_platform_name) {
-      return 10000;
-    }
-    return -1;
-  }
-};
-
-static constexpr auto EMULATION_PLATFORM_NAME =
-    "Intel(R) FPGA Emulation Platform for OpenCL(TM)";
-static constexpr auto HARDWARE_PLATFORM_NAME =
-    "Intel(R) FPGA SDK for OpenCL(TM)";
-
-class fpga_selector : public platform_selector {
-public:
-  fpga_selector() : platform_selector(HARDWARE_PLATFORM_NAME) {}
-};
-
-class fpga_emulator_selector : public platform_selector {
-public:
-  fpga_emulator_selector() : platform_selector(EMULATION_PLATFORM_NAME) {}
-};
-
-} // namespace INTEL
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+#include <sycl/ext/intel/fpga_device_selector.hpp>

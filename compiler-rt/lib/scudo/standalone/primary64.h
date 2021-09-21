@@ -25,8 +25,9 @@ namespace scudo {
 //
 // It starts by reserving NumClasses * 2^RegionSizeLog bytes, equally divided in
 // Regions, specific to each size class. Note that the base of that mapping is
-// random (based to the platform specific map() capabilities), and that each
-// Region actually starts at a random offset from its base.
+// random (based to the platform specific map() capabilities). If
+// PrimaryEnableRandomOffset is set, each Region actually starts at a random
+// offset from its base.
 //
 // Regions are mapped incrementally on demand to fulfill allocation requests,
 // those mappings being split into equally sized Blocks based on the size class
@@ -57,7 +58,9 @@ public:
 
   static bool canAllocate(uptr Size) { return Size <= SizeClassMap::MaxSize; }
 
-  void initLinkerInitialized(s32 ReleaseToOsInterval) {
+  void init(s32 ReleaseToOsInterval) {
+    DCHECK(isAligned(reinterpret_cast<uptr>(this), alignof(ThisT)));
+    DCHECK_EQ(PrimaryBase, 0U);
     // Reserve the space required for the Primary.
     PrimaryBase = reinterpret_cast<uptr>(
         map(nullptr, PrimarySize, nullptr, MAP_NOACCESS, &Data));
@@ -69,21 +72,25 @@ public:
     const uptr PageSize = getPageSizeCached();
     for (uptr I = 0; I < NumClasses; I++) {
       RegionInfo *Region = getRegionInfo(I);
-      // The actual start of a region is offseted by a random number of pages.
-      Region->RegionBeg =
-          getRegionBaseByClassId(I) + (getRandomModN(&Seed, 16) + 1) * PageSize;
+      // The actual start of a region is offset by a random number of pages
+      // when PrimaryEnableRandomOffset is set.
+      Region->RegionBeg = getRegionBaseByClassId(I) +
+                          (Config::PrimaryEnableRandomOffset
+                               ? ((getRandomModN(&Seed, 16) + 1) * PageSize)
+                               : 0);
       Region->RandState = getRandomU32(&Seed);
       Region->ReleaseInfo.LastReleaseAtNs = Time;
     }
     setOption(Option::ReleaseInterval, static_cast<sptr>(ReleaseToOsInterval));
   }
-  void init(s32 ReleaseToOsInterval) {
-    memset(this, 0, sizeof(*this));
-    initLinkerInitialized(ReleaseToOsInterval);
-  }
 
   void unmapTestOnly() {
+    for (uptr I = 0; I < NumClasses; I++) {
+      RegionInfo *Region = getRegionInfo(I);
+      *Region = {};
+    }
     unmap(reinterpret_cast<void *>(PrimaryBase), PrimarySize, UNMAP_ALL, &Data);
+    PrimaryBase = 0U;
   }
 
   TransferBatch *popBatch(CacheT *C, uptr ClassId) {
@@ -157,9 +164,9 @@ public:
       PoppedBlocks += Region->Stats.PoppedBlocks;
       PushedBlocks += Region->Stats.PushedBlocks;
     }
-    Str->append("Stats: SizeClassAllocator64: %zuM mapped (%zuM rss) in %zu "
+    Str->append("Stats: SizeClassAllocator64: %zuM mapped (%uM rss) in %zu "
                 "allocations; remains %zu\n",
-                TotalMapped >> 20, 0, PoppedBlocks,
+                TotalMapped >> 20, 0U, PoppedBlocks,
                 PoppedBlocks - PushedBlocks);
 
     for (uptr I = 0; I < NumClasses; I++)
@@ -265,8 +272,7 @@ private:
   static const uptr NumClasses = SizeClassMap::NumClasses;
   static const uptr PrimarySize = RegionSize * NumClasses;
 
-  // Call map for user memory with at least this size.
-  static const uptr MapSizeIncrement = 1UL << 18;
+  static const uptr MapSizeIncrement = Config::PrimaryMapSizeIncrement;
   // Fill at most this number of batches from the newly map'd memory.
   static const u32 MaxNumBatches = SCUDO_ANDROID ? 4U : 8U;
 
@@ -339,7 +345,7 @@ private:
       if (UNLIKELY(RegionBase + MappedUser + MapSize > RegionSize)) {
         if (!Region->Exhausted) {
           Region->Exhausted = true;
-          ScopedString Str(1024);
+          ScopedString Str;
           getStats(&Str);
           Str.append(
               "Scudo OOM: The process has exhausted %zuM for size class %zu.\n",

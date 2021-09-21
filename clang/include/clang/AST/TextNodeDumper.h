@@ -19,6 +19,7 @@
 #include "clang/AST/CommentCommandTraits.h"
 #include "clang/AST/CommentVisitor.h"
 #include "clang/AST/DeclVisitor.h"
+#include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/TemplateArgumentVisitor.h"
@@ -188,6 +189,8 @@ public:
 
   void Visit(const GenericSelectionExpr::ConstAssociation &A);
 
+  void Visit(const concepts::Requirement *R);
+
   void Visit(const APValue &Value, QualType Ty);
 
   void dumpPointer(const void *Ptr);
@@ -249,6 +252,8 @@ public:
   void VisitCastExpr(const CastExpr *Node);
   void VisitImplicitCastExpr(const ImplicitCastExpr *Node);
   void VisitDeclRefExpr(const DeclRefExpr *Node);
+  void VisitSYCLUniqueStableNameExpr(const SYCLUniqueStableNameExpr *Node);
+  void VisitSYCLUniqueStableIdExpr(const SYCLUniqueStableIdExpr *Node);
   void VisitPredefinedExpr(const PredefinedExpr *Node);
   void VisitCharacterLiteral(const CharacterLiteral *Node);
   void VisitIntegerLiteral(const IntegerLiteral *Node);
@@ -295,6 +300,7 @@ public:
   void VisitObjCBoolLiteralExpr(const ObjCBoolLiteralExpr *Node);
   void VisitOMPIteratorExpr(const OMPIteratorExpr *Node);
   void VisitConceptSpecializationExpr(const ConceptSpecializationExpr *Node);
+  void VisitRequiresExpr(const RequiresExpr *Node);
 
   void VisitRValueReferenceType(const ReferenceType *T);
   void VisitArrayType(const ArrayType *T);
@@ -350,6 +356,7 @@ public:
   void VisitUsingDecl(const UsingDecl *D);
   void VisitUnresolvedUsingTypenameDecl(const UnresolvedUsingTypenameDecl *D);
   void VisitUnresolvedUsingValueDecl(const UnresolvedUsingValueDecl *D);
+  void VisitUsingEnumDecl(const UsingEnumDecl *D);
   void VisitUsingShadowDecl(const UsingShadowDecl *D);
   void VisitConstructorUsingShadowDecl(const ConstructorUsingShadowDecl *D);
   void VisitLinkageSpecDecl(const LinkageSpecDecl *D);

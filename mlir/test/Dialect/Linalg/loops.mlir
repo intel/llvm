@@ -182,7 +182,7 @@ func @dot_view(%arg0: memref<?xf32, offset: ?, strides: [1]>, %arg1: memref<?xf3
 //       CHECKPARALLEL:   store %[[res]], %{{.*}}[] : memref<f32>
 
 func @fill_view(%arg0: memref<?xf32, offset: ?, strides: [1]>, %arg1: f32) {
-  linalg.fill(%arg0, %arg1) : memref<?xf32, offset: ?, strides: [1]>, f32
+  linalg.fill(%arg1, %arg0) : f32, memref<?xf32, offset: ?, strides: [1]>
   return
 }
 // CHECK-LABEL: func @fill_view(
@@ -196,7 +196,7 @@ func @fill_view(%arg0: memref<?xf32, offset: ?, strides: [1]>, %arg1: f32) {
 //       CHECKPARALLEL:     store %{{.*}}, %{{.*}}[%{{.*}}] : memref<?xf32, #[[$strided1D]]>
 
 func @fill_view0(%arg0: memref<f32>, %arg1: f32) {
-  linalg.fill(%arg0, %arg1) : memref<f32>, f32
+  linalg.fill(%arg1, %arg0) : f32, memref<f32>
   return
 }
 // CHECK-LABEL: func @fill_view0(%{{.*}}: memref<f32>, %{{.*}}: f32) {
@@ -206,7 +206,7 @@ func @fill_view0(%arg0: memref<f32>, %arg1: f32) {
 //       CHECKPARALLEL:   store %{{.*}}, %{{.*}}[] : memref<f32>
 
 func @fill_view3(%arg0: memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>, %arg1: f32) {
-  linalg.fill(%arg0, %arg1) : memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>, f32
+  linalg.fill(%arg1, %arg0) : f32, memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>
   return
 }
 // CHECK-LABEL: func @fill_view3(
@@ -975,6 +975,30 @@ func @generic_op_zero_rank(%arg0: memref<f32>, %arg1: memref<3x4xf32>)
 //       CHECKPARALLEL:   %[[a:.*]] = memref.load %[[ARG0]][]
 //       CHECKPARALLEL:   store %[[a]], %[[ARG1]][%[[i]], %[[j]]]
 
+func @generic_op_scalar(%arg0: f32, %arg1: memref<3x4xf32>)
+{
+  linalg.generic #trait_broadcast
+      ins(%arg0 : f32)
+     outs(%arg1 : memref<3x4xf32>) {
+    ^bb(%a: f32, %b: f32) :
+      linalg.yield %a : f32
+  }
+  return
+}
+
+// CHECK-LABEL: @generic_op_scalar
+//  CHECK-SAME: %[[ARG0:[a-zA-Z0-9_]*]]: f32
+//  CHECK-SAME: %[[ARG1:[a-zA-Z0-9_]*]]: memref<3x4xf32>
+//       CHECK: scf.for %[[i:.*]] = {{.*}}
+//       CHECK:   scf.for %[[j:.*]] = {{.*}}
+//       CHECK:     store %[[ARG0]], %[[ARG1]][%[[i]], %[[j]]]
+
+// CHECKPARALLEL-LABEL: @generic_op_scalar
+//  CHECKPARALLEL-SAME: %[[ARG0:[a-zA-Z0-9_]*]]: f32
+//  CHECKPARALLEL-SAME: %[[ARG1:[a-zA-Z0-9_]*]]: memref<3x4xf32>
+//       CHECKPARALLEL: scf.parallel (%[[i:[a-zA-Z0-9_]*]], %[[j:[a-zA-Z0-9_]*]])
+//       CHECKPARALLEL:   store %[[ARG0]], %[[ARG1]][%[[i]], %[[j]]]
+
 func @generic_index_op_zero_rank(%arg0: memref<i32>, %arg1: memref<3x4xi32>)
 {
   linalg.generic #trait_broadcast
@@ -1341,9 +1365,9 @@ func @conv3d_no_symbols(%in : memref<?x?x?xf32>, %filter : memref<?x?x?xf32>, %o
 //  CHECK-SAME: %[[arg0:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
 //  CHECK-SAME: %[[arg1:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
 //  CHECK-SAME: %[[arg2:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
-//       CHECK: %[[c2:.*]] = constant 2 : index
-//       CHECK: %[[c0:.*]] = constant 0 : index
-//       CHECK: %[[c1:.*]] = constant 1 : index
+//       CHECK-DAG: %[[c2:.*]] = constant 2 : index
+//       CHECK-DAG: %[[c0:.*]] = constant 0 : index
+//       CHECK-DAG: %[[c1:.*]] = constant 1 : index
 //       CHECK: %[[dim0:.*]] = memref.dim %[[arg1]], %[[c0]] : memref<?x?x?xf32>
 //       CHECK: %[[dim1:.*]] = memref.dim %[[arg1]], %[[c1]] : memref<?x?x?xf32>
 //       CHECK: %[[dim2:.*]] = memref.dim %[[arg1]], %[[c2]] : memref<?x?x?xf32>
@@ -1372,9 +1396,9 @@ func @conv3d_no_symbols(%in : memref<?x?x?xf32>, %filter : memref<?x?x?xf32>, %o
 //  CHECKPARALLEL-SAME: %[[arg0:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
 //  CHECKPARALLEL-SAME: %[[arg1:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
 //  CHECKPARALLEL-SAME: %[[arg2:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
-//       CHECKPARALLEL: %[[c2:.*]] = constant 2 : index
-//       CHECKPARALLEL: %[[c0:.*]] = constant 0 : index
-//       CHECKPARALLEL: %[[c1:.*]] = constant 1 : index
+//       CHECKPARALLEL-DAG: %[[c2:.*]] = constant 2 : index
+//       CHECKPARALLEL-DAG: %[[c0:.*]] = constant 0 : index
+//       CHECKPARALLEL-DAG: %[[c1:.*]] = constant 1 : index
 //       CHECKPARALLEL: %[[dim0:.*]] = memref.dim %[[arg1]], %[[c0]] : memref<?x?x?xf32>
 //       CHECKPARALLEL: %[[dim1:.*]] = memref.dim %[[arg1]], %[[c1]] : memref<?x?x?xf32>
 //       CHECKPARALLEL: %[[dim2:.*]] = memref.dim %[[arg1]], %[[c2]] : memref<?x?x?xf32>

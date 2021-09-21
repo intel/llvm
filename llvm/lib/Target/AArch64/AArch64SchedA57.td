@@ -32,7 +32,8 @@ def CortexA57Model : SchedMachineModel {
   let CompleteModel = 1;
 
   list<Predicate> UnsupportedFeatures = !listconcat(SVEUnsupported.F,
-                                                    PAUnsupported.F);
+                                                    PAUnsupported.F,
+                                                    SMEUnsupported.F);
 }
 
 //===----------------------------------------------------------------------===//
@@ -115,6 +116,7 @@ def : ReadAdvance<ReadIM,      0>;
 def : ReadAdvance<ReadIMA,     2, [WriteIM32, WriteIM64]>;
 def : ReadAdvance<ReadID,      0>;
 def : ReadAdvance<ReadExtrHi,  0>;
+def : ReadAdvance<ReadST,      0>;
 def : ReadAdvance<ReadAdrBase, 0>;
 def : ReadAdvance<ReadVLD,     0>;
 

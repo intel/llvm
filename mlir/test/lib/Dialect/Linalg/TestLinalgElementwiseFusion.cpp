@@ -24,8 +24,8 @@ static void addOperands(Operation *op, SetVector<Value> &operandSet) {
     return;
   TypeSwitch<Operation *, void>(op)
       .Case<linalg::LinalgOp>([&](linalg::LinalgOp linalgOp) {
-        operandSet.insert(linalgOp.getInputs().begin(),
-                          linalgOp.getInputs().end());
+        SmallVector<Value> inputOperands = linalgOp.getInputOperands();
+        operandSet.insert(inputOperands.begin(), inputOperands.end());
       })
       .Default([&](Operation *operation) {
         operandSet.insert(operation->operand_begin(), operation->operand_end());
@@ -51,6 +51,12 @@ struct TestLinalgElementwiseFusion
     registry.insert<AffineDialect, linalg::LinalgDialect, memref::MemRefDialect,
                     tensor::TensorDialect>();
   }
+  StringRef getArgument() const final {
+    return "test-linalg-elementwise-fusion-patterns";
+  }
+  StringRef getDescription() const final {
+    return "Test Linalg element wise operation fusion patterns";
+  }
 
   void runOnFunction() override {
     MLIRContext *context = &this->getContext();
@@ -67,11 +73,61 @@ struct TestLinalgElementwiseFusion
   }
 };
 
+struct TestLinalgControlFuseByExpansion
+    : public PassWrapper<TestLinalgControlFuseByExpansion, FunctionPass> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry
+        .insert<AffineDialect, linalg::LinalgDialect, tensor::TensorDialect>();
+  }
+  StringRef getArgument() const final {
+    return "test-linalg-control-fusion-by-expansion";
+  }
+  StringRef getDescription() const final {
+    return "Test controlling of fusion of elementwise ops with reshape by "
+           "expansion";
+  }
+
+  void runOnFunction() override {
+    MLIRContext *context = &this->getContext();
+    FuncOp funcOp = this->getFunction();
+    RewritePatternSet fusionPatterns(context);
+
+    linalg::ControlElementwiseOpsFusionFn controlReshapeFusionFn =
+        [](const OpResult &producer, OpOperand &consumer) {
+          if (auto collapseOp =
+                  producer.getDefiningOp<linalg::TensorCollapseShapeOp>()) {
+            if (!collapseOp.src().getDefiningOp<linalg::LinalgOp>()) {
+              return false;
+            }
+          }
+          if (auto expandOp =
+                  dyn_cast<linalg::TensorExpandShapeOp>(consumer.getOwner())) {
+            if (expandOp->hasOneUse()) {
+              OpOperand &use = *expandOp->getUses().begin();
+              auto linalgOp = dyn_cast<linalg::LinalgOp>(use.getOwner());
+              if (linalgOp && linalgOp.isOutputTensor(&use))
+                return true;
+            }
+          }
+          return linalg::skipUnitDimReshape(producer, consumer);
+        };
+
+    linalg::populateFoldReshapeOpsByExpansionPatterns(fusionPatterns,
+                                                      controlReshapeFusionFn);
+    (void)applyPatternsAndFoldGreedily(funcOp.getBody(),
+                                       std::move(fusionPatterns));
+  }
+};
+
 struct TestPushExpandingReshape
     : public PassWrapper<TestPushExpandingReshape, FunctionPass> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry
         .insert<AffineDialect, linalg::LinalgDialect, tensor::TensorDialect>();
+  }
+  StringRef getArgument() const final { return "test-linalg-push-reshape"; }
+  StringRef getDescription() const final {
+    return "Test Linalg reshape push patterns";
   }
 
   void runOnFunction() override {
@@ -86,14 +142,15 @@ struct TestPushExpandingReshape
 
 namespace test {
 void registerTestLinalgElementwiseFusion() {
-  PassRegistration<TestLinalgElementwiseFusion> testElementwiseFusionPass(
-      "test-linalg-elementwise-fusion-patterns",
-      "Test Linalg element wise operation fusion patterns");
+  PassRegistration<TestLinalgElementwiseFusion>();
+}
+
+void registerTestLinalgControlFuseByExpansion() {
+  PassRegistration<TestLinalgControlFuseByExpansion>();
 }
 
 void registerTestPushExpandingReshape() {
-  PassRegistration<TestPushExpandingReshape> testPushExpandingReshapePass(
-      "test-linalg-push-reshape", "Test Linalg reshape push patterns");
+  PassRegistration<TestPushExpandingReshape>();
 }
 } // namespace test
 

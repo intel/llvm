@@ -9,6 +9,7 @@
 #ifndef MEMREF_OPS
 #define MEMREF_OPS
 
+include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Dialect/MemRef/IR/MemRefBase.td"
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/CastInterfaces.td"
@@ -165,7 +166,7 @@ def MemRef_AllocaOp : AllocLikeOp<"alloca", AutomaticAllocationScopeResource> {
     The `alloca` operation allocates memory on the stack, to be automatically
     released when control transfers back from the region of its closest
     surrounding operation with an
-    [`AutomaticAllocationScope`](../Traits.md#automaticallocationscope) trait.
+    [`AutomaticAllocationScope`](../Traits.md/#automaticallocationscope) trait.
     The amount of memory allocated is specified by its memref and additional
     operands. For example:
 
@@ -197,6 +198,87 @@ def MemRef_AllocaOp : AllocLikeOp<"alloca", AutomaticAllocationScopeResource> {
     chosen.
   }];
 }
+
+//===----------------------------------------------------------------------===//
+// AllocaScopeOp
+//===----------------------------------------------------------------------===//
+
+def MemRef_AllocaScopeOp : MemRef_Op<"alloca_scope",
+      [AutomaticAllocationScope,
+       DeclareOpInterfaceMethods<RegionBranchOpInterface>,
+       SingleBlockImplicitTerminator<"AllocaScopeReturnOp">,
+       RecursiveSideEffects,
+       NoRegionArguments]> {
+  let summary = "explicitly delimited scope for stack allocation";
+  let description = [{
+    The `memref.alloca_scope` operation represents an explicitly-delimited
+    scope for the alloca allocations. Any `memref.alloca` operations that are
+    used within this scope are going to be cleaned up automatically once
+    the control-flow exits the nested region. For example:
+
+    ```mlir
+    memref.alloca_scope {
+      %myalloca = memref.alloca(): memref<4x3xf32>
+      ...
+    }
+    ```
+
+    Here, `%myalloca` memref is valid within the explicitly delimited scope
+    and is automatically deallocated at the end of the given region. Conceptually,
+    `memref.alloca_scope` is a passthrough operation with
+    `AutomaticAllocationScope` that spans the body of the region within the operation.
+
+    `memref.alloca_scope` may also return results that are defined in the nested
+    region. To return a value, one should use `memref.alloca_scope.return`
+    operation:
+
+    ```mlir
+    %result = memref.alloca_scope {
+      ...
+      memref.alloca_scope.return %value
+    }
+    ```
+
+    If `memref.alloca_scope` returns no value, the `memref.alloca_scope.return ` can
+    be left out, and will be inserted implicitly.
+  }];
+
+  let results = (outs Variadic<AnyType>:$results);
+  let regions = (region SizedRegion<1>:$bodyRegion);
+}
+
+//===----------------------------------------------------------------------===//
+// AllocaScopeReturnOp
+//===----------------------------------------------------------------------===//
+
+def MemRef_AllocaScopeReturnOp : MemRef_Op<"alloca_scope.return",
+      [HasParent<"AllocaScopeOp">,
+       NoSideEffect,
+       ReturnLike,
+       Terminator]> {
+  let summary = "terminator for alloca_scope operation";
+  let description = [{
+    `memref.alloca_scope.return` operation returns zero or more SSA values
+    from the region within `memref.alloca_scope`. If no values are returned,
+    the return operation may be omitted. Otherwise, it has to be present
+    to indicate which values are going to be returned. For example:
+
+    ```mlir
+    memref.alloca_scope.return %value
+    ```
+  }];
+
+  let arguments = (ins Variadic<AnyType>:$results);
+  let builders = [OpBuilder<(ins), [{ /*nothing to do */ }]>];
+
+  let assemblyFormat =
+      [{ attr-dict ($results^ `:` type($results))? }];
+
+  // No custom verification needed.
+  let verifier = ?;
+}
+
+
 
 //===----------------------------------------------------------------------===//
 // BufferCastOp
@@ -343,15 +425,17 @@ def CloneOp : MemRef_Op<"clone", [
     %arg1 = memref.clone %arg0 : memref<?xf32> to memref<?xf32>
     ```
 
-    Note, that mutating the source or result of the clone operation leads to
-    undefined behavior.
+    Valid implementations of this operation may alias the input and output
+    views or create an actual copy. Mutating the source or result
+    of the clone operation after the clone operation thus leads to undefined
+    behavior.
   }];
 
   let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "", []>:$input);
   let results = (outs Arg<AnyRankedOrUnrankedMemRef, "", []>:$output);
 
   let extraClassDeclaration = [{
-    Value getSource() { return input();}
+    Value getSource() { return input(); }
     Value getTarget() { return output(); }
   }];
 
@@ -360,6 +444,43 @@ def CloneOp : MemRef_Op<"clone", [
   let hasFolder = 1;
   let verifier = ?;
   let hasCanonicalizer = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// CopyOp
+//===----------------------------------------------------------------------===//
+
+def CopyOp : MemRef_Op<"copy",
+    [CopyOpInterface, SameOperandsElementType, SameOperandsShape]> {
+
+  let description = [{
+    Copies the data from the source to the destination memref.
+
+    Usage:
+
+    ```mlir
+    memref.copy %arg0, %arg1 : memref<?xf32> to memref<?xf32>
+    ```
+
+    Source and destination are expected to have the same element type and shape.
+    Otherwise, the result is undefined. They may have different layouts.
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "the memref to copy from",
+                           [MemRead]>:$source,
+                       Arg<AnyRankedOrUnrankedMemRef, "the memref to copy to",
+                           [MemWrite]>:$target);
+
+  let extraClassDeclaration = [{
+    Value getSource() { return source();}
+    Value getTarget() { return target(); }
+  }];
+
+  let assemblyFormat = [{
+    $source `,` $target attr-dict `:` type($source) `to` type($target)
+  }];
+
+  let verifier = ?;
 }
 
 //===----------------------------------------------------------------------===//
@@ -393,7 +514,7 @@ def MemRef_DeallocOp : MemRef_Op<"dealloc", [MemRefsNormalizable]> {
 // DimOp
 //===----------------------------------------------------------------------===//
 
-def DimOp : MemRef_Op<"dim", [NoSideEffect, MemRefsNormalizable]> {
+def MemRef_DimOp : MemRef_Op<"dim", [NoSideEffect, MemRefsNormalizable]> {
   let summary = "dimension index operation";
   let description = [{
     The `dim` operation takes a memref and a dimension operand of type `index`.
@@ -419,18 +540,17 @@ def DimOp : MemRef_Op<"dim", [NoSideEffect, MemRefsNormalizable]> {
     ```
   }];
 
-  let arguments = (ins AnyTypeOf<[AnyTensor, AnyRankedOrUnrankedMemRef],
-                                 "any memref or tensor type">:$memrefOrTensor,
+  let arguments = (ins AnyRankedOrUnrankedMemRef:$source,
                        Index:$index);
   let results = (outs Index:$result);
 
   let assemblyFormat = [{
-    attr-dict $memrefOrTensor `,` $index `:` type($memrefOrTensor)
+    attr-dict $source `,` $index `:` type($source)
   }];
 
   let builders = [
-    OpBuilder<(ins "Value":$memrefOrTensor, "int64_t":$index)>,
-    OpBuilder<(ins "Value":$memrefOrTensor, "Value":$index)>
+    OpBuilder<(ins "Value":$source, "int64_t":$index)>,
+    OpBuilder<(ins "Value":$source, "Value":$index)>
   ];
 
   let extraClassDeclaration = [{
@@ -553,8 +673,8 @@ def LoadOp : MemRef_Op<"load",
 
     In an `affine.if` or `affine.for` body, the indices of a load are restricted
     to SSA values bound to surrounding loop induction variables,
-    [symbols](Affine.md#dimensions-and-symbols), results of a
-    [`constant` operation](#stdconstant-constantop), or the result of an
+    [symbols](Affine.md/#dimensions-and-symbols), results of a
+    [`constant` operation](Standard.md/#stdconstant-constantop), or the result of an
     `affine.apply` operation that can in turn take as arguments all of the
     aforementioned SSA values or the recursively result of such an
     `affine.apply` operation.
@@ -574,10 +694,10 @@ def LoadOp : MemRef_Op<"load",
     **Context:** The `load` and `store` operations are specifically crafted to
     fully resolve a reference to an element of a memref, and (in affine
     `affine.if` and `affine.for` operations) the compiler can follow use-def
-    chains (e.g. through [`affine.apply`](Affine.md#affineapply-affineapplyop)
+    chains (e.g. through [`affine.apply`](Affine.md/#affineapply-affineapplyop)
     operations) to precisely analyze references at compile-time using polyhedral
     techniques. This is possible because of the
-    [restrictions on dimensions and symbols](Affine.md#restrictions-on-dimensions-and-symbols)
+    [restrictions on dimensions and symbols](Affine.md/#restrictions-on-dimensions-and-symbols)
     in these contexts.
   }];
 
@@ -658,7 +778,7 @@ def MemRef_PrefetchOp : MemRef_Op<"prefetch"> {
 def MemRef_ReinterpretCastOp:
     BaseOpWithOffsetSizesAndStrides<MemRef_Dialect, "reinterpret_cast", [
       NoSideEffect, AttrSizedOperandSegments, ViewLikeOpInterface,
-      OffsetSizeAndStrideOpInterface
+      OffsetSizeAndStrideOpInterface, MemRefsNormalizable
     ]> {
   let summary = "memref reinterpret cast operation";
   let description = [{
@@ -810,6 +930,150 @@ def MemRef_ReshapeOp: MemRef_Op<"reshape", [
 }
 
 //===----------------------------------------------------------------------===//
+// ExpandShapeOp / CollapseShapeOp
+//===----------------------------------------------------------------------===//
+
+def IndexListArrayAttr :
+  TypedArrayAttrBase<I64ArrayAttr, "Array of 64-bit integer array attributes">;
+
+class MemRef_ReassociativeReshapeOp<string mnemonic, list<OpTrait> traits = []> :
+    MemRef_Op<mnemonic, !listconcat(traits,
+      [NoSideEffect, ViewLikeOpInterface])>,
+    Arguments<(ins AnyStridedMemRef:$src, IndexListArrayAttr:$reassociation)>,
+    Results<(outs AnyStridedMemRef:$result)>{
+  let builders = [
+    // Builders for a contracting reshape whose result type is computed from
+    // `src` and `reassociation`.
+    OpBuilder<(ins "Value":$src,
+      "ArrayRef<ReassociationIndices>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    OpBuilder<(ins "Value":$src,
+      "ArrayRef<ReassociationExprs>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
+      auto reassociationMaps =
+          convertReassociationMapsToIndices($_builder, reassociation);
+      build($_builder, $_state, src, reassociationMaps, attrs);
+    }]>,
+
+    // Builders for a reshape whose result type is passed explicitly. This may
+    // be either a contracting or expanding reshape.
+    OpBuilder<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationIndices>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
+      build($_builder, $_state, resultType, src, attrs);
+      $_state.addAttribute("reassociation",
+                          getReassociationIndicesAttribute($_builder, reassociation));
+    }]>,
+    OpBuilder<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationExprs>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
+      auto reassociationMaps =
+          convertReassociationMapsToIndices($_builder, reassociation);
+      build($_builder, $_state, resultType, src, reassociationMaps, attrs);
+    }]>
+  ];
+
+  code commonExtraClassDeclaration = [{
+    SmallVector<AffineMap, 4> getReassociationMaps();
+    SmallVector<ReassociationExprs, 4> getReassociationExprs();
+    SmallVector<ReassociationIndices, 4> getReassociationIndices() {
+      SmallVector<ReassociationIndices, 4> reassociationIndices;
+      for (auto attr : reassociation())
+        reassociationIndices.push_back(llvm::to_vector<2>(
+            llvm::map_range(attr.cast<ArrayAttr>(), [&](Attribute indexAttr) {
+              return indexAttr.cast<IntegerAttr>().getInt();
+            })));
+      return reassociationIndices;
+    };
+    MemRefType getSrcType() { return src().getType().cast<MemRefType>(); }
+    MemRefType getResultType() { return result().getType().cast<MemRefType>(); }
+    Value getViewSource() { return src(); }
+  }];
+
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
+  let printer = [{ return ::print(p, *this); }];
+  let parser = [{ return ::parseReshapeLikeOp(parser, result); }];
+}
+
+def MemRef_ExpandShapeOp : MemRef_ReassociativeReshapeOp<"expand_shape"> {
+  let summary = "operation to produce a memref with a higher rank.";
+  let description = [{
+    The `memref.expand_shape` op produces a new view with a higher rank whose
+    sizes are a reassociation of the original `view`. Depending on whether or
+    not the reassociated MemRefType is contiguous, the resulting memref may
+    require explicit alloc and copies.
+
+    A reassociation is defined as a continuous grouping of dimensions and is
+    represented with an array of I64ArrayAttr attribute.
+
+    For now, it is assumed that either:
+      1. a reassociation produces and consumes contiguous MemRefType or,
+      2. the reshape op will be folded into its consumers (by changing the shape
+         of the computations).
+    All other cases are undefined behavior and a reshape op may not lower to
+    LLVM if it cannot be proven statically that it does not require alloc+copy.
+
+    The operand memref type when dimensions can be zero-ranked if the result
+    memref type is statically shaped with all dimensions being unit extent. In
+    such case the reassociation map is empty.
+
+    The verification rule is that the reassociation maps are applied to the
+    result memref with the larger rank to obtain the operand memref with the
+    smaller rank.
+
+    Example:
+
+    ```mlir
+    // Dimension expansion i -> (i', j') and (k) -> (k')
+    %1 = memref.expand_shape %0 [[0, 1], [2]] :
+      memref<?x?xf32, stride_spec> into memref<?x?x?xf32, stride_spec_2>
+    ```
+  }];
+  let extraClassDeclaration = commonExtraClassDeclaration;
+}
+
+def MemRef_CollapseShapeOp : MemRef_ReassociativeReshapeOp<"collapse_shape"> {
+  let summary = "operation to produce a memref with a smaller rank.";
+  let description = [{
+    The `memref.collapse_shape` op produces a new view with a smaller rank
+    whose sizes are a reassociation of the original `view`. Depending on
+    whether or not the reassociated MemRefType is contiguous, the resulting
+    memref may require explicit alloc and copies.
+
+    A reassociation is defined as a continuous grouping of dimensions and is
+    represented with an array of I64ArrayAttr attribute.
+
+    For now, it is assumed that either:
+      1. a reassociation produces and consumes contiguous MemRefType or,
+      2. the reshape op will be folded into its consumers (by changing the shape
+         of the computations).
+    All other cases are undefined behavior and a reshape op may not lower to
+    LLVM if it cannot be proven statically that it does not require alloc+copy.
+
+    The result memref type of a reshape can be zero-ranked if the operand
+    memref type is statically shaped with all dimensions being unit extent. In
+    such case the reassociation map is empty.
+
+    The verification rule is that the reassociation maps are applied to the
+    operand memref with the larger rank to obtain the result memref with the
+    smaller rank.
+
+    Examples:
+
+    ```mlir
+    // Dimension collapse (i, j) -> i' and k -> k'
+    %1 = memref.collapse_shape %0 [[0, 1], [2]] :
+      memref<?x?x?xf32, stride_spec> into memref<?x?xf32, stride_spec_2>
+    ```
+  }];
+  let extraClassDeclaration = commonExtraClassDeclaration;
+}
+
+//===----------------------------------------------------------------------===//
 // StoreOp
 //===----------------------------------------------------------------------===//
 
@@ -826,9 +1090,9 @@ def MemRef_StoreOp : MemRef_Op<"store",
 
     In an affine context, the indices of a store are restricted to SSA values
     bound to surrounding loop induction variables,
-    [symbols](Affine.md#restrictions-on-dimensions-and-symbols), results of a
-    [`constant` operation](#stdconstant-constantop), or the result of an
-    [`affine.apply`](Affine.md#affineapply-affineapplyop) operation that can in
+    [symbols](Affine.md/#restrictions-on-dimensions-and-symbols), results of a
+    [`constant` operation](Standard.md/#stdconstant-constantop), or the result of an
+    [`affine.apply`](Affine.md/#affineapply-affineapplyop) operation that can in
     turn take as arguments all of the aforementioned SSA values or the
     recursively result of such an `affine.apply` operation.
 
@@ -841,10 +1105,10 @@ def MemRef_StoreOp : MemRef_Op<"store",
     **Context:** The `load` and `store` operations are specifically crafted to
     fully resolve a reference to an element of a memref, and (in polyhedral
     `affine.if` and `affine.for` operations) the compiler can follow use-def
-    chains (e.g. through [`affine.apply`](Affine.md#affineapply-affineapplyop)
+    chains (e.g. through [`affine.apply`](Affine.md/#affineapply-affineapplyop)
     operations) to precisely analyze references at compile-time using polyhedral
     techniques. This is possible because of the
-    [restrictions on dimensions and symbols](Affine.md#restrictions-on-dimensions-and-symbols)
+    [restrictions on dimensions and symbols](Affine.md/#restrictions-on-dimensions-and-symbols)
     in these contexts.
   }];
 
@@ -1169,6 +1433,7 @@ def TensorLoadOp : MemRef_Op<"tensor_load",
 
   let assemblyFormat = "$memref attr-dict `:` type($memref)";
 
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 

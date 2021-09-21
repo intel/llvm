@@ -106,6 +106,7 @@ public:
   /// PropList.
   ///
   /// \param Platform is an instance of SYCL platform.
+  /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
   explicit context(const platform &Platform, async_handler AsyncHandler,
                    const property_list &PropList = {});
@@ -120,7 +121,7 @@ public:
   ///
   /// \param DeviceList is a list of SYCL device instances.
   /// \param PropList is an instance of property_list.
-  explicit context(const vector_class<device> &DeviceList,
+  explicit context(const std::vector<device> &DeviceList,
                    const property_list &PropList = {});
 
   /// Constructs a SYCL context instance using list of devices.
@@ -136,7 +137,7 @@ public:
   /// \param DeviceList is a list of SYCL device instances.
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
-  explicit context(const vector_class<device> &DeviceList,
+  explicit context(const std::vector<device> &DeviceList,
                    async_handler AsyncHandler,
                    const property_list &PropList = {});
 
@@ -209,12 +210,13 @@ public:
   /// Gets devices associated with this SYCL context.
   ///
   /// \return a vector of valid SYCL device instances.
-  vector_class<device> get_devices() const;
+  std::vector<device> get_devices() const;
 
   /// Gets the native handle of the SYCL context.
   ///
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   auto get_native() const -> typename interop<BackendName, context>::type {
     return reinterpret_cast<typename interop<BackendName, context>::type>(
         getNative());
@@ -222,11 +224,11 @@ public:
 
 private:
   /// Constructs a SYCL context object from a valid context_impl instance.
-  context(shared_ptr_class<detail::context_impl> Impl);
+  context(std::shared_ptr<detail::context_impl> Impl);
 
   pi_native_handle getNative() const;
 
-  shared_ptr_class<detail::context_impl> impl;
+  std::shared_ptr<detail::context_impl> impl;
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
@@ -245,7 +247,7 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::context> {
   size_t operator()(const cl::sycl::context &Context) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::context_impl>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::context_impl>>()(
         cl::sycl::detail::getSyclObjImpl(Context));
   }
 };

@@ -9,20 +9,26 @@
 #include "InlayHints.h"
 #include "Protocol.h"
 #include "TestTU.h"
+#include "TestWorkspace.h"
 #include "XRefs.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace clang {
 namespace clangd {
+
+std::ostream &operator<<(std::ostream &Stream, const InlayHint &Hint) {
+  return Stream << Hint.label;
+}
+
 namespace {
 
 using ::testing::UnorderedElementsAre;
 
-std::vector<InlayHint> parameterHints(ParsedAST &AST) {
+std::vector<InlayHint> hintsOfKind(ParsedAST &AST, InlayHintKind Kind) {
   std::vector<InlayHint> Result;
   for (auto &Hint : inlayHints(AST)) {
-    if (Hint.kind == InlayHintKind::ParameterHint)
+    if (Hint.kind == Kind)
       Result.push_back(Hint);
   }
   return Result;
@@ -31,6 +37,11 @@ std::vector<InlayHint> parameterHints(ParsedAST &AST) {
 struct ExpectedHint {
   std::string Label;
   std::string RangeName;
+
+  friend std::ostream &operator<<(std::ostream &Stream,
+                                  const ExpectedHint &Hint) {
+    return Stream << Hint.RangeName << ": " << Hint.Label;
+  }
 };
 
 MATCHER_P2(HintMatcher, Expected, Code, "") {
@@ -39,15 +50,27 @@ MATCHER_P2(HintMatcher, Expected, Code, "") {
 }
 
 template <typename... ExpectedHints>
-void assertParameterHints(llvm::StringRef AnnotatedSource,
-                          ExpectedHints... Expected) {
+void assertHints(InlayHintKind Kind, llvm::StringRef AnnotatedSource,
+                 ExpectedHints... Expected) {
   Annotations Source(AnnotatedSource);
   TestTU TU = TestTU::withCode(Source.code());
-  TU.ExtraArgs.push_back("-std=c++11");
+  TU.ExtraArgs.push_back("-std=c++14");
   auto AST = TU.build();
 
-  EXPECT_THAT(parameterHints(AST),
+  EXPECT_THAT(hintsOfKind(AST, Kind),
               UnorderedElementsAre(HintMatcher(Expected, Source)...));
+}
+
+template <typename... ExpectedHints>
+void assertParameterHints(llvm::StringRef AnnotatedSource,
+                          ExpectedHints... Expected) {
+  assertHints(InlayHintKind::ParameterHint, AnnotatedSource, Expected...);
+}
+
+template <typename... ExpectedHints>
+void assertTypeHints(llvm::StringRef AnnotatedSource,
+                     ExpectedHints... Expected) {
+  assertHints(InlayHintKind::TypeHint, AnnotatedSource, Expected...);
 }
 
 TEST(ParameterHints, Smoke) {
@@ -263,7 +286,6 @@ TEST(ParameterHints, DependentCalls) {
       void bar(A<T> a, T t) {
         nonmember($par1[[t]]);
         a.member($par2[[t]]);
-        // FIXME: This one does not work yet.
         A<T>::static_member($par3[[t]]);
         // We don't want to arbitrarily pick between
         // "anInt" or "aDouble", so just show no hint.
@@ -272,7 +294,8 @@ TEST(ParameterHints, DependentCalls) {
     };
   )cpp",
                        ExpectedHint{"par1: ", "par1"},
-                       ExpectedHint{"par2: ", "par2"});
+                       ExpectedHint{"par2: ", "par2"},
+                       ExpectedHint{"par3: ", "par3"});
 }
 
 TEST(ParameterHints, VariadicFunction) {
@@ -375,6 +398,230 @@ TEST(ParameterHints, SetterFunctions) {
                        ExpectedHint{"timeoutMillis: ", "timeoutMillis"},
                        ExpectedHint{"timeout_millis: ", "timeout_millis"});
 }
+
+TEST(ParameterHints, IncludeAtNonGlobalScope) {
+  Annotations FooInc(R"cpp(
+    void bar() { foo(42); }
+  )cpp");
+  Annotations FooCC(R"cpp(
+    struct S {
+      void foo(int param);
+      #include "foo.inc"
+    };
+  )cpp");
+
+  TestWorkspace Workspace;
+  Workspace.addSource("foo.inc", FooInc.code());
+  Workspace.addMainFile("foo.cc", FooCC.code());
+
+  auto AST = Workspace.openFile("foo.cc");
+  ASSERT_TRUE(bool(AST));
+
+  // Ensure the hint for the call in foo.inc is NOT materialized in foo.cc.
+  EXPECT_EQ(hintsOfKind(*AST, InlayHintKind::ParameterHint).size(), 0u);
+}
+
+TEST(TypeHints, Smoke) {
+  assertTypeHints(R"cpp(
+    auto $waldo[[waldo]] = 42;
+  )cpp",
+                  ExpectedHint{": int", "waldo"});
+}
+
+TEST(TypeHints, Decorations) {
+  assertTypeHints(R"cpp(
+    int x = 42;
+    auto* $var1[[var1]] = &x;
+    auto&& $var2[[var2]] = x;
+    const auto& $var3[[var3]] = x;
+  )cpp",
+                  ExpectedHint{": int *", "var1"},
+                  ExpectedHint{": int &", "var2"},
+                  ExpectedHint{": const int &", "var3"});
+}
+
+TEST(TypeHints, DecltypeAuto) {
+  assertTypeHints(R"cpp(
+    int x = 42;
+    int& y = x;
+    decltype(auto) $z[[z]] = y;
+  )cpp",
+                  ExpectedHint{": int &", "z"});
+}
+
+TEST(TypeHints, NoQualifiers) {
+  assertTypeHints(R"cpp(
+    namespace A {
+      namespace B {
+        struct S1 {};
+        S1 foo();
+        auto $x[[x]] = foo();
+
+        struct S2 {
+          template <typename T>
+          struct Inner {};
+        };
+        S2::Inner<int> bar();
+        auto $y[[y]] = bar();
+      }
+    }
+  )cpp",
+                  ExpectedHint{": S1", "x"}, ExpectedHint{": Inner<int>", "y"});
+}
+
+TEST(TypeHints, Lambda) {
+  // Do not print something overly verbose like the lambda's location.
+  // Show hints for init-captures (but not regular captures).
+  assertTypeHints(R"cpp(
+    void f() {
+      int cap = 42;
+      auto $L[[L]] = [cap, $init[[init]] = 1 + 1](int a) { 
+        return a + cap + init; 
+      };
+    }
+  )cpp",
+                  ExpectedHint{": (lambda)", "L"},
+                  ExpectedHint{": int", "init"});
+}
+
+// Structured bindings tests.
+// Note, we hint the individual bindings, not the aggregate.
+
+TEST(TypeHints, StructuredBindings_PublicStruct) {
+  assertTypeHints(R"cpp(
+    // Struct with public fields.
+    struct Point {
+      int x;
+      int y;
+    };
+    Point foo();
+    auto [$x[[x]], $y[[y]]] = foo();
+  )cpp",
+                  ExpectedHint{": int", "x"}, ExpectedHint{": int", "y"});
+}
+
+TEST(TypeHints, StructuredBindings_Array) {
+  assertTypeHints(R"cpp(
+    int arr[2];
+    auto [$x[[x]], $y[[y]]] = arr;
+  )cpp",
+                  ExpectedHint{": int", "x"}, ExpectedHint{": int", "y"});
+}
+
+TEST(TypeHints, StructuredBindings_TupleLike) {
+  assertTypeHints(R"cpp(
+    // Tuple-like type.
+    struct IntPair {
+      int a;
+      int b;
+    };
+    namespace std {
+      template <typename T>
+      struct tuple_size {};
+      template <>
+      struct tuple_size<IntPair> {
+        constexpr static unsigned value = 2;
+      };
+      template <unsigned I, typename T>
+      struct tuple_element {};
+      template <unsigned I>
+      struct tuple_element<I, IntPair> {
+        using type = int;
+      };
+    }
+    template <unsigned I>
+    int get(const IntPair& p) {
+      if constexpr (I == 0) {
+        return p.a;
+      } else if constexpr (I == 1) {
+        return p.b;
+      }
+    }
+    IntPair bar();
+    auto [$x[[x]], $y[[y]]] = bar();
+  )cpp",
+                  ExpectedHint{": int", "x"}, ExpectedHint{": int", "y"});
+}
+
+TEST(TypeHints, StructuredBindings_NoInitializer) {
+  assertTypeHints(R"cpp(
+    // No initializer (ill-formed).
+    // Do not show useless "NULL TYPE" hint.    
+    auto [x, y];  /*error-ok*/
+  )cpp");
+}
+
+TEST(TypeHints, ReturnTypeDeduction) {
+  assertTypeHints(
+      R"cpp(
+    auto f1(int x$ret1a[[)]];  // Hint forward declaration too
+    auto f1(int x$ret1b[[)]] { return x + 1; }
+
+    // Include pointer operators in hint
+    int s;
+    auto& f2($ret2[[)]] { return s; }
+
+    // Do not hint `auto` for trailing return type.
+    auto f3() -> int;
+
+    // `auto` conversion operator
+    struct A {
+      operator auto($retConv[[)]] { return 42; }
+    };
+
+    // FIXME: Dependent types do not work yet.
+    template <typename T>
+    struct S {
+      auto method() { return T(); }
+    };
+  )cpp",
+      ExpectedHint{"-> int", "ret1a"}, ExpectedHint{"-> int", "ret1b"},
+      ExpectedHint{"-> int &", "ret2"}, ExpectedHint{"-> int", "retConv"});
+}
+
+TEST(TypeHints, DependentType) {
+  assertTypeHints(R"cpp(
+    template <typename T>
+    void foo(T arg) {
+      // The hint would just be "auto" and we can't do any better.
+      auto var1 = arg.method();
+      // FIXME: It would be nice to show "T" as the hint.
+      auto $var2[[var2]] = arg;
+    }
+  )cpp");
+}
+
+TEST(TypeHints, LongTypeName) {
+  assertTypeHints(R"cpp(
+    template <typename, typename, typename>
+    struct A {};
+    struct MultipleWords {};
+    A<MultipleWords, MultipleWords, MultipleWords> foo();
+    // Omit type hint past a certain length (currently 32)
+    auto var = foo();
+  )cpp");
+}
+
+TEST(TypeHints, DefaultTemplateArgs) {
+  assertTypeHints(R"cpp(
+    template <typename, typename = int>
+    struct A {};
+    A<float> foo();
+    auto $var[[var]] = foo();
+  )cpp",
+                  ExpectedHint{": A<float>", "var"});
+}
+
+// FIXME: Low-hanging fruit where we could omit a type hint:
+//  - auto x = TypeName(...);
+//  - auto x = (TypeName) (...);
+//  - auto x = static_cast<TypeName>(...);  // and other built-in casts
+
+// Annoyances for which a heuristic is not obvious:
+//  - auto x = llvm::dyn_cast<LongTypeName>(y);  // and similar
+//  - stdlib algos return unwieldy __normal_iterator<X*, ...> type
+//    (For this one, perhaps we should omit type hints that start
+//     with a double underscore.)
 
 } // namespace
 } // namespace clangd

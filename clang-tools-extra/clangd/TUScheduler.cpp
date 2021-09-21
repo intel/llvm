@@ -909,6 +909,7 @@ void PreambleThread::build(Request Req) {
     ASTPeer.updatePreamble(std::move(Req.CI), std::move(Req.Inputs),
                            LatestBuild, std::move(Req.CIDiags),
                            std::move(Req.WantDiags));
+    Callbacks.onPreamblePublished(FileName);
   });
 
   if (!LatestBuild || Inputs.ForceRebuild) {
@@ -1379,11 +1380,13 @@ bool ASTWorker::blockUntilIdle(Deadline Timeout) const {
   };
   // Make sure ASTWorker has processed all requests, which might issue new
   // updates to PreamblePeer.
-  WaitUntilASTWorkerIsIdle();
+  if (!WaitUntilASTWorkerIsIdle())
+    return false;
   // Now that ASTWorker processed all requests, ensure PreamblePeer has served
   // all update requests. This might create new PreambleRequests for the
   // ASTWorker.
-  PreamblePeer.blockUntilIdle(Timeout);
+  if (!PreamblePeer.blockUntilIdle(Timeout))
+    return false;
   assert(Requests.empty() &&
          "No new normal tasks can be scheduled concurrently with "
          "blockUntilIdle(): ASTWorker isn't threadsafe");
@@ -1505,6 +1508,10 @@ bool TUScheduler::update(PathRef File, ParseInputs Inputs,
     FD->Contents = Inputs.Contents;
   }
   FD->Worker->update(std::move(Inputs), WantDiags, ContentChanged);
+  // There might be synthetic update requests, don't change the LastActiveFile
+  // in such cases.
+  if (ContentChanged)
+    LastActiveFile = File.str();
   return NewFile;
 }
 
@@ -1534,6 +1541,10 @@ void TUScheduler::runQuick(llvm::StringRef Name, llvm::StringRef Path,
 void TUScheduler::runWithSemaphore(llvm::StringRef Name, llvm::StringRef Path,
                                    llvm::unique_function<void()> Action,
                                    Semaphore &Sem) {
+  if (Path.empty())
+    Path = LastActiveFile;
+  else
+    LastActiveFile = Path.str();
   if (!PreambleTasks) {
     WithContext WithProvidedContext(Opts.ContextProvider(Path));
     return Action();
@@ -1558,6 +1569,7 @@ void TUScheduler::runWithAST(
         "trying to get AST for non-added document", ErrorCode::InvalidParams));
     return;
   }
+  LastActiveFile = File.str();
 
   It->second->Worker->runWithAST(Name, std::move(Action), Invalidation);
 }
@@ -1572,6 +1584,7 @@ void TUScheduler::runWithPreamble(llvm::StringRef Name, PathRef File,
         ErrorCode::InvalidParams));
     return;
   }
+  LastActiveFile = File.str();
 
   if (!PreambleTasks) {
     trace::Span Tracer(Name);

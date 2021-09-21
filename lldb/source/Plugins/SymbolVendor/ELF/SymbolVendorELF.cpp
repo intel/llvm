@@ -8,7 +8,7 @@
 
 #include "SymbolVendorELF.h"
 
-#include <string.h>
+#include <cstring>
 
 #include "Plugins/ObjectFile/ELF/ObjectFileELF.h"
 #include "lldb/Core/Module.h"
@@ -147,5 +147,3 @@ SymbolVendorELF::CreateInstance(const lldb::ModuleSP &module_sp,
 
 // PluginInterface protocol
 ConstString SymbolVendorELF::GetPluginName() { return GetPluginNameStatic(); }
-
-uint32_t SymbolVendorELF::GetPluginVersion() { return 1; }

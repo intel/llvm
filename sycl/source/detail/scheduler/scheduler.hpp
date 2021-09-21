@@ -432,14 +432,14 @@ public:
 
   /// Allocate buffers in the pool for a provided stream
   ///
-  /// \param Pointer to the stream object
-  /// \param Size of the stream buffer
-  /// \param Size of the flush buffer for a single work item
+  /// \param Impl to the stream object
+  /// \param StreamBufferSize of the stream buffer
+  /// \param FlushBufferSize of the flush buffer for a single work item
   void allocateStreamBuffers(stream_impl *, size_t, size_t);
 
   /// Deallocate all stream buffers in the pool
   ///
-  /// \param Pointer to the stream object
+  /// \param Impl to the stream object
   void deallocateStreamBuffers(stream_impl *);
 
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
@@ -450,12 +450,17 @@ public:
   ~Scheduler();
 
 protected:
+  // TODO: after switching to C++17, change std::shared_timed_mutex to
+  // std::shared_mutex
+  using RWLockT = std::shared_timed_mutex;
+  using ReadLockT = std::shared_lock<RWLockT>;
+  using WriteLockT = std::unique_lock<RWLockT>;
+
   /// Provides exclusive access to std::shared_timed_mutex object with deadlock
   /// avoidance
   ///
-  /// \param Lock is an instance of std::unique_lock<std::shared_timed_mutex>
-  /// class
-  void lockSharedTimedMutex(std::unique_lock<std::shared_timed_mutex> &Lock);
+  /// \param Lock is an instance of WriteLockT, created with \c std::defer_lock
+  void acquireWriteLock(WriteLockT &Lock);
 
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req);
 
@@ -474,25 +479,27 @@ protected:
     /// \sa queue::submit, Scheduler::addCG
     ///
     /// \return a command that represents command group execution.
-    Command *addCG(std::unique_ptr<detail::CG> CommandGroup,
-                   QueueImplPtr Queue);
+    Command *addCG(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
+                   std::vector<Command *> &ToEnqueue);
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.
     ///
     /// \return a command that represents command group execution.
     Command *addCGUpdateHost(std::unique_ptr<detail::CG> CommandGroup,
-                             QueueImplPtr HostQueue);
+                             QueueImplPtr HostQueue,
+                             std::vector<Command *> &ToEnqueue);
 
     /// Enqueues a command to update memory to the latest state.
     ///
     /// \param Req is a requirement, that describes memory object.
-    Command *addCopyBack(Requirement *Req);
+    Command *addCopyBack(Requirement *Req, std::vector<Command *> &ToEnqueue);
 
     /// Enqueues a command to create a host accessor.
     ///
     /// \param Req points to memory being accessed.
-    Command *addHostAccessor(Requirement *Req);
+    Command *addHostAccessor(Requirement *Req,
+                             std::vector<Command *> &ToEnqueue);
 
     /// [Provisional] Optimizes the whole graph.
     void optimize();
@@ -522,7 +529,8 @@ protected:
     /// \return a pointer to MemObjRecord for pointer to memory object. If the
     /// record is not found, nullptr is returned.
     MemObjRecord *getOrInsertMemObjRecord(const QueueImplPtr &Queue,
-                                          const Requirement *Req);
+                                          const Requirement *Req,
+                                          std::vector<Command *> &ToEnqueue);
 
     /// Decrements leaf counters for all leaves of the record.
     void decrementLeafCountersForRecord(MemObjRecord *Record);
@@ -537,7 +545,8 @@ protected:
 
     /// Adds new command to leaves if needed.
     void addNodeToLeaves(MemObjRecord *Record, Command *Cmd,
-                         access::mode AccessMode);
+                         access::mode AccessMode,
+                         std::vector<Command *> &ToEnqueue);
 
     /// Removes commands from leaves.
     void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
@@ -547,10 +556,11 @@ protected:
     /// \param Cmd dependant command
     /// \param DepEvent event to depend on
     /// \param Dep optional DepDesc to perform connection properly
+    /// \returns the connecting command which is to be enqueued
     ///
     /// Optionality of Dep is set by Dep.MDepCommand equal to nullptr.
-    void connectDepEvent(Command *const Cmd, EventImplPtr DepEvent,
-                         const DepDesc &Dep);
+    Command *connectDepEvent(Command *const Cmd, EventImplPtr DepEvent,
+                             const DepDesc &Dep);
 
     std::vector<SYCLMemObjI *> MMemObjs;
 
@@ -565,16 +575,19 @@ protected:
     /// \param Req is a Requirement describing destination.
     /// \param Queue is a queue that is bound to target context.
     Command *insertMemoryMove(MemObjRecord *Record, Requirement *Req,
-                              const QueueImplPtr &Queue);
+                              const QueueImplPtr &Queue,
+                              std::vector<Command *> &ToEnqueue);
 
     // Inserts commands required to remap the memory object to its current host
     // context so that the required access mode becomes valid.
     Command *remapMemoryObject(MemObjRecord *Record, Requirement *Req,
-                               AllocaCommandBase *HostAllocaCmd);
+                               AllocaCommandBase *HostAllocaCmd,
+                               std::vector<Command *> &ToEnqueue);
 
     UpdateHostRequirementCommand *
     insertUpdateHostReqCmd(MemObjRecord *Record, Requirement *Req,
-                           const QueueImplPtr &Queue);
+                           const QueueImplPtr &Queue,
+                           std::vector<Command *> &ToEnqueue);
 
     /// Finds dependencies for the requirement.
     std::set<Command *> findDepsForReq(MemObjRecord *Record,
@@ -586,7 +599,8 @@ protected:
         std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
         EmptyCommand *>
     addEmptyCmd(Command *Cmd, const std::vector<T *> &Req,
-                const QueueImplPtr &Queue, Command::BlockReason Reason);
+                const QueueImplPtr &Queue, Command::BlockReason Reason,
+                std::vector<Command *> &ToEnqueue);
 
   protected:
     /// Finds a command dependency corresponding to the record.
@@ -598,6 +612,7 @@ protected:
                                         const ContextImplPtr &Context);
 
     friend class Command;
+    friend class Scheduler;
 
   private:
     friend class ::MockScheduler;
@@ -605,9 +620,10 @@ protected:
     /// Searches for suitable alloca in memory record.
     ///
     /// If none found, creates new one.
-    AllocaCommandBase *getOrCreateAllocaForReq(MemObjRecord *Record,
-                                               const Requirement *Req,
-                                               QueueImplPtr Queue);
+    AllocaCommandBase *
+    getOrCreateAllocaForReq(MemObjRecord *Record, const Requirement *Req,
+                            QueueImplPtr Queue,
+                            std::vector<Command *> &ToEnqueue);
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
 
@@ -711,27 +727,43 @@ protected:
     static std::vector<EventImplPtr> getWaitList(EventImplPtr Event);
 
     /// Waits for the command, associated with Event passed, is completed.
-    static void waitForEvent(EventImplPtr Event);
+    /// \param GraphReadLock read-lock which is already acquired for reading
+    /// \param LockTheLock selects if graph lock should be locked upon return
+    ///
+    /// The function may unlock and lock GraphReadLock as needed. Upon return
+    /// the lock is left in locked state if and only if LockTheLock is true.
+    static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock,
+                             bool LockTheLock = true);
 
     /// Enqueues the command and all its dependencies.
     ///
     /// \param EnqueueResult is set to specific status if enqueue failed.
     /// \return true if the command is successfully enqueued.
+    ///
+    /// The function may unlock and lock GraphReadLock as needed. Upon return
+    /// the lock is left in locked state.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
                                BlockingT Blocking = NON_BLOCKING);
   };
 
-  void waitForRecordToFinish(MemObjRecord *Record);
+  /// This function waits on all of the graph leaves which somehow use the
+  /// memory object which is represented by \c Record. The function is called
+  /// upon destruction of memory buffer.
+  /// \param Record memory record to await graph leaves of to finish
+  /// \param GraphReadLock locked graph read lock
+  ///
+  /// GraphReadLock will be unlocked/locked as needed. Upon return from the
+  /// function, GraphReadLock will be left in locked state.
+  void waitForRecordToFinish(MemObjRecord *Record, ReadLockT &GraphReadLock);
 
   GraphBuilder MGraphBuilder;
-  // TODO: after switching to C++17, change std::shared_timed_mutex to
-  // std::shared_mutex
-  std::shared_timed_mutex MGraphLock;
+  RWLockT MGraphLock;
 
   QueueImplPtr DefaultHostQueue;
 
   friend class Command;
   friend class DispatchHostTask;
+  friend class queue_impl;
 
   /// Stream buffers structure.
   ///

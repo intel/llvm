@@ -8,11 +8,12 @@
 // CHECK-LABEL: @basic
 func @basic(%arg0: tensor<?xf32>) -> tensor<?xf32> {
   // CHECK: linalg.generic{{.*}}[#[[$MAP]], #[[$MAP]]]
+  // CHECK:   attrs =  {someattr}
   // CHECK:   ^bb0(%[[BBARG:.*]]: f32, %{{.*}}: f32):
   // CHECK:     addf %[[BBARG]], %[[BBARG]]
   %0 = linalg.generic {indexing_maps = [#map, #map, #map], iterator_types = ["parallel"]}
      ins(%arg0, %arg0 : tensor<?xf32>, tensor<?xf32>)
-    outs(%arg0 : tensor<?xf32>) {
+    outs(%arg0 : tensor<?xf32>) attrs = {someattr} {
   ^bb0(%arg1: f32, %arg2: f32, %arg3: f32):
     %1 = addf %arg1, %arg2 : f32
     linalg.yield %1 : f32
@@ -85,29 +86,6 @@ func @multiple_different_redundant_args(%arg0: tensor<?xf32>, %arg1: tensor<?xf3
     outs(%arg0 : tensor<?xf32>) {
   ^bb0(%arg2: f32, %arg3: f32, %arg4: f32, %arg5: f32, %arg6: f32):
     %1 = "test.elementwise_mappable"(%arg2, %arg3, %arg4, %arg5) : (f32, f32, f32, f32) -> f32
-    linalg.yield %1 : f32
-  } -> tensor<?xf32>
-  return %0 : tensor<?xf32>
-}
-
-// -----
-
-// Test case: linalg.indexed_generic.
-// Other than the payload argument handling, everything else is the same.
-
-#map = affine_map<(d0) -> (d0)>
-
-// CHECK: #[[$MAP:.*]] = affine_map<(d0) -> (d0)>
-// CHECK-LABEL: @indexed_generic
-func @indexed_generic(%arg0: tensor<?xf32>) -> tensor<?xf32> {
-  // CHECK: linalg.generic
-  // CHECK:   ^bb0(%[[BBARG:.*]]: f32, %{{[a-zA-Z0-9]+}}: f32):
-  // CHECK:     addf %[[BBARG]], %[[BBARG]]
-  %0 = linalg.indexed_generic {indexing_maps = [#map, #map, #map], iterator_types = ["parallel"]}
-      ins(%arg0, %arg0 : tensor<?xf32>, tensor<?xf32>)
-     outs(%arg0 : tensor<?xf32>) {
-  ^bb0(%index: index, %arg1: f32, %arg2: f32, %arg3: f32):
-    %1 = addf %arg1, %arg2 : f32
     linalg.yield %1 : f32
   } -> tensor<?xf32>
   return %0 : tensor<?xf32>

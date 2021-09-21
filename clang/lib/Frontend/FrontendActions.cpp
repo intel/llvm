@@ -62,6 +62,27 @@ InitOnlyAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
 void InitOnlyAction::ExecuteAction() {
 }
 
+// Basically PreprocessOnlyAction::ExecuteAction.
+void ReadPCHAndPreprocessAction::ExecuteAction() {
+  Preprocessor &PP = getCompilerInstance().getPreprocessor();
+
+  // Ignore unknown pragmas.
+  PP.IgnorePragmas();
+
+  Token Tok;
+  // Start parsing the specified input file.
+  PP.EnterMainSourceFile();
+  do {
+    PP.Lex(Tok);
+  } while (Tok.isNot(tok::eof));
+}
+
+std::unique_ptr<ASTConsumer>
+ReadPCHAndPreprocessAction::CreateASTConsumer(CompilerInstance &CI,
+                                              StringRef InFile) {
+  return std::make_unique<ASTConsumer>();
+}
+
 //===----------------------------------------------------------------------===//
 // AST Consumer Actions
 //===----------------------------------------------------------------------===//
@@ -218,7 +239,8 @@ GenerateModuleFromModuleMapAction::CreateOutputFile(CompilerInstance &CI,
   // Because this is exposed via libclang we must disable RemoveFileOnSignal.
   return CI.createDefaultOutputFile(/*Binary=*/true, InFile, /*Extension=*/"",
                                     /*RemoveFileOnSignal=*/false,
-                                    /*CreateMissingDirectories=*/true);
+                                    /*CreateMissingDirectories=*/true,
+                                    /*ForceUseTemporary=*/true);
 }
 
 bool GenerateModuleInterfaceAction::BeginSourceFileAction(
@@ -970,4 +992,18 @@ void PrintDependencyDirectivesSourceMinimizerAction::ExecuteAction() {
     return;
   }
   llvm::outs() << Output;
+}
+
+void GetDependenciesByModuleNameAction::ExecuteAction() {
+  CompilerInstance &CI = getCompilerInstance();
+  Preprocessor &PP = CI.getPreprocessor();
+  SourceManager &SM = PP.getSourceManager();
+  FileID MainFileID = SM.getMainFileID();
+  SourceLocation FileStart = SM.getLocForStartOfFile(MainFileID);
+  SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Path;
+  IdentifierInfo *ModuleID = PP.getIdentifierInfo(ModuleName);
+  Path.push_back(std::make_pair(ModuleID, FileStart));
+  auto ModResult = CI.loadModule(FileStart, Path, Module::Hidden, false);
+  PPCallbacks *CB = PP.getPPCallbacks();
+  CB->moduleImport(SourceLocation(), Path, ModResult);
 }

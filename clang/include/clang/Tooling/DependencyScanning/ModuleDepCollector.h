@@ -1,9 +1,8 @@
 //===- ModuleDepCollector.h - Callbacks to collect deps ---------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,6 +28,18 @@ namespace dependencies {
 
 class DependencyConsumer;
 
+/// Modular dependency that has already been built prior to the dependency scan.
+struct PrebuiltModuleDep {
+  std::string ModuleName;
+  std::string PCMFile;
+  std::string ModuleMapFile;
+
+  explicit PrebuiltModuleDep(const Module *M)
+      : ModuleName(M->getTopLevelModuleName()),
+        PCMFile(M->getASTFile()->getName()),
+        ModuleMapFile(M->PresumedModuleMapFile) {}
+};
+
 /// This is used to identify a specific module.
 struct ModuleID {
   /// The name of the module. This may include `:` for C++20 module partitions,
@@ -42,6 +53,16 @@ struct ModuleID {
   /// Modules with the same name but a different \c ContextHash should be
   /// treated as separate modules for the purpose of a build.
   std::string ContextHash;
+
+  bool operator==(const ModuleID &Other) const {
+    return ModuleName == Other.ModuleName && ContextHash == Other.ContextHash;
+  }
+};
+
+struct ModuleIDHasher {
+  std::size_t operator()(const ModuleID &MID) const {
+    return llvm::hash_combine(MID.ModuleName, MID.ContextHash);
+  }
 };
 
 struct ModuleDeps {
@@ -63,6 +84,10 @@ struct ModuleDeps {
   /// A collection of absolute paths to files that this module directly depends
   /// on, not including transitive dependencies.
   llvm::StringSet<> FileDeps;
+
+  /// A collection of prebuilt modular dependencies this module directly depends
+  /// on, not including transitive dependencies.
+  std::vector<PrebuiltModuleDep> PrebuiltModuleDeps;
 
   /// A list of module identifiers this module directly depends on, not
   /// including transitive dependencies.
@@ -140,8 +165,18 @@ private:
   ModuleDepCollector &MDC;
   /// Working set of direct modular dependencies.
   llvm::DenseSet<const Module *> DirectModularDeps;
+  /// Working set of direct modular dependencies that have already been built.
+  llvm::DenseSet<const Module *> DirectPrebuiltModularDeps;
 
   void handleImport(const Module *Imported);
+
+  /// Adds direct modular dependencies that have already been built to the
+  /// ModuleDeps instance.
+  void
+  addAllSubmodulePrebuiltDeps(const Module *M, ModuleDeps &MD,
+                              llvm::DenseSet<const Module *> &SeenSubmodules);
+  void addModulePrebuiltDeps(const Module *M, ModuleDeps &MD,
+                             llvm::DenseSet<const Module *> &SeenSubmodules);
 
   /// Traverses the previously collected direct modular dependencies to discover
   /// transitive modular dependencies and fills the parent \c ModuleDepCollector
@@ -158,7 +193,8 @@ private:
 class ModuleDepCollector final : public DependencyCollector {
 public:
   ModuleDepCollector(std::unique_ptr<DependencyOutputOptions> Opts,
-                     CompilerInstance &I, DependencyConsumer &C);
+                     CompilerInstance &I, DependencyConsumer &C,
+                     CompilerInvocation &&OriginalCI);
 
   void attachToPreprocessor(Preprocessor &PP) override;
   void attachToASTReader(ASTReader &R) override;
@@ -181,6 +217,17 @@ private:
   std::unordered_map<const Module *, ModuleDeps> ModularDeps;
   /// Options that control the dependency output generation.
   std::unique_ptr<DependencyOutputOptions> Opts;
+  /// The original Clang invocation passed to dependency scanner.
+  CompilerInvocation OriginalInvocation;
+
+  /// Checks whether the module is known as being prebuilt.
+  bool isPrebuiltModule(const Module *M);
+
+  /// Constructs a CompilerInvocation that can be used to build the given
+  /// module, excluding paths to discovered modular dependencies that are yet to
+  /// be built.
+  CompilerInvocation
+  makeInvocationForModuleBuildWithoutPaths(const ModuleDeps &Deps) const;
 };
 
 } // end namespace dependencies

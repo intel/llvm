@@ -18,6 +18,7 @@
 #include "ElseAfterReturnCheck.h"
 #include "FunctionCognitiveComplexityCheck.h"
 #include "FunctionSizeCheck.h"
+#include "IdentifierLengthCheck.h"
 #include "IdentifierNamingCheck.h"
 #include "ImplicitBoolConversionCheck.h"
 #include "InconsistentDeclarationParameterNameCheck.h"
@@ -43,6 +44,7 @@
 #include "StaticAccessedThroughInstanceCheck.h"
 #include "StaticDefinitionInAnonymousNamespaceCheck.h"
 #include "StringCompareCheck.h"
+#include "SuspiciousCallArgumentCheck.h"
 #include "UniqueptrDeleteReleaseCheck.h"
 #include "UppercaseLiteralSuffixCheck.h"
 #include "UseAnyOfAllOfCheck.h"
@@ -72,6 +74,8 @@ public:
         "readability-function-cognitive-complexity");
     CheckFactories.registerCheck<FunctionSizeCheck>(
         "readability-function-size");
+    CheckFactories.registerCheck<IdentifierLengthCheck>(
+        "readability-identifier-length");
     CheckFactories.registerCheck<IdentifierNamingCheck>(
         "readability-identifier-naming");
     CheckFactories.registerCheck<ImplicitBoolConversionCheck>(
@@ -122,6 +126,8 @@ public:
         "readability-redundant-string-init");
     CheckFactories.registerCheck<SimplifyBooleanExprCheck>(
         "readability-simplify-boolean-expr");
+    CheckFactories.registerCheck<SuspiciousCallArgumentCheck>(
+        "readability-suspicious-call-argument");
     CheckFactories.registerCheck<UniqueptrDeleteReleaseCheck>(
         "readability-uniqueptr-delete-release");
     CheckFactories.registerCheck<UppercaseLiteralSuffixCheck>(

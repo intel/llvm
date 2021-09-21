@@ -76,6 +76,8 @@ public:
   bool isFunction() const { return result_ != nullptr; }
   bool isInterface() const { return isInterface_; }
   void set_isInterface(bool value = true) { isInterface_ = value; }
+  bool isDummy() const { return isDummy_; }
+  void set_isDummy(bool value = true) { isDummy_ = value; }
   Scope *entryScope() { return entryScope_; }
   const Scope *entryScope() const { return entryScope_; }
   void set_entryScope(Scope &scope) { entryScope_ = &scope; }
@@ -95,6 +97,7 @@ public:
 
 private:
   bool isInterface_{false}; // true if this represents an interface-body
+  bool isDummy_{false}; // true when interface of dummy procedure
   std::vector<Symbol *> dummyArgs_; // nullptr -> alternate return indicator
   Symbol *result_{nullptr};
   Scope *entryScope_{nullptr}; // if ENTRY, points to subprogram's scope
@@ -259,7 +262,7 @@ public:
   void add_paramDecl(const Symbol &symbol) { paramDecls_.push_back(symbol); }
   void add_component(const Symbol &);
   void set_sequence(bool x = true) { sequence_ = x; }
-  void set_isForwardReferenced() { isForwardReferenced_ = true; }
+  void set_isForwardReferenced(bool value) { isForwardReferenced_ = value; }
   const std::list<SourceName> &componentNames() const {
     return componentNames_;
   }
@@ -494,6 +497,7 @@ public:
       LocalityShared, // named in SHARED locality-spec
       InDataStmt, // initialized in a DATA statement
       InNamelist, // flag is set if the symbol is in Namelist statement
+      CompilerCreated,
       // OpenACC data-sharing attribute
       AccPrivate, AccFirstPrivate, AccShared,
       // OpenACC data-mapping attribute
@@ -508,9 +512,9 @@ public:
       OmpCopyIn, OmpCopyPrivate,
       // OpenMP miscellaneous flags
       OmpCommonBlock, OmpReduction, OmpAligned, OmpAllocate,
-      OmpAllocateDirective, OmpDeclareSimd, OmpDeclareTarget, OmpThreadprivate,
-      OmpDeclareReduction, OmpFlushed, OmpCriticalLock, OmpIfSpecified, OmpNone,
-      OmpPreDetermined);
+      OmpDeclarativeAllocateDirective, OmpExecutableAllocateDirective,
+      OmpDeclareSimd, OmpDeclareTarget, OmpThreadprivate, OmpDeclareReduction,
+      OmpFlushed, OmpCriticalLock, OmpIfSpecified, OmpNone, OmpPreDetermined);
   using Flags = common::EnumSet<Flag, Flag_enumSize>;
 
   const Scope &owner() const { return *owner_; }
@@ -776,7 +780,7 @@ struct SymbolAddressCompare {
   }
 };
 
-// Symbol comparison is based on the order of cooked source
+// Symbol comparison is usually based on the order of cooked source
 // stream creation and, when both are from the same cooked source,
 // their positions in that cooked source stream.
 // Don't use this comparator or OrderedSymbolSet to hold
@@ -788,12 +792,17 @@ struct SymbolSourcePositionCompare {
   bool operator()(const MutableSymbolRef &, const MutableSymbolRef &) const;
 };
 
+struct SymbolOffsetCompare {
+  bool operator()(const SymbolRef &, const SymbolRef &) const;
+  bool operator()(const MutableSymbolRef &, const MutableSymbolRef &) const;
+};
+
 using UnorderedSymbolSet = std::set<SymbolRef, SymbolAddressCompare>;
-using OrderedSymbolSet = std::set<SymbolRef, SymbolSourcePositionCompare>;
+using SourceOrderedSymbolSet = std::set<SymbolRef, SymbolSourcePositionCompare>;
 
 template <typename A>
-OrderedSymbolSet OrderBySourcePosition(const A &container) {
-  OrderedSymbolSet result;
+SourceOrderedSymbolSet OrderBySourcePosition(const A &container) {
+  SourceOrderedSymbolSet result;
   for (SymbolRef x : container) {
     result.emplace(x);
   }

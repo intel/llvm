@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %flang -fopenmp
+! RUN: %python %S/test_errors.py %s %flang -fopenmp
 ! OpenMP Version 4.5
 ! Various checks with the ordered construct
 

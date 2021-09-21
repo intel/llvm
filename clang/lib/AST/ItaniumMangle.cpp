@@ -125,15 +125,16 @@ class ItaniumMangleContextImpl : public ItaniumMangleContext {
   typedef std::pair<const DeclContext*, IdentifierInfo*> DiscriminatorKeyTy;
   llvm::DenseMap<DiscriminatorKeyTy, unsigned> Discriminator;
   llvm::DenseMap<const NamedDecl*, unsigned> Uniquifier;
+  const DiscriminatorOverrideTy DiscriminatorOverride = nullptr;
 
-  bool IsDevCtx = false;
   bool NeedsUniqueInternalLinkageNames = false;
 
 public:
-  explicit ItaniumMangleContextImpl(ASTContext &Context,
-                                    DiagnosticsEngine &Diags,
-                                    bool IsUniqueNameMangler)
-      : ItaniumMangleContext(Context, Diags, IsUniqueNameMangler) {}
+  explicit ItaniumMangleContextImpl(
+      ASTContext &Context, DiagnosticsEngine &Diags,
+      DiscriminatorOverrideTy DiscriminatorOverride)
+      : ItaniumMangleContext(Context, Diags),
+        DiscriminatorOverride(DiscriminatorOverride) {}
 
   /// @name Mangler Entry Points
   /// @{
@@ -147,9 +148,6 @@ public:
   void needsUniqueInternalLinkageNames() override {
     NeedsUniqueInternalLinkageNames = true;
   }
-
-  bool isDeviceMangleContext() const override { return IsDevCtx; }
-  void setDeviceMangleContext(bool IsDev) override { IsDevCtx = IsDev; }
 
   void mangleCXXName(GlobalDecl GD, raw_ostream &) override;
   void mangleThunk(const CXXMethodDecl *MD, const ThunkInfo &Thunk,
@@ -245,6 +243,10 @@ public:
     Name += llvm::utostr(LambdaId);
     Name += '>';
     return Name;
+  }
+
+  DiscriminatorOverrideTy getDiscriminatorOverride() const override {
+    return DiscriminatorOverride;
   }
 
   /// @}
@@ -647,7 +649,7 @@ bool ItaniumMangleContextImpl::isUniqueInternalLinkageDecl(
 
   // For C functions without prototypes, return false as their
   // names should not be mangled.
-  if (!FD->hasPrototype())
+  if (!FD->getType()->getAs<FunctionProtoType>())
     return false;
 
   if (isInternalLinkageDecl(ND))
@@ -1516,8 +1518,16 @@ void CXXNameMangler::mangleUnqualifiedName(GlobalDecl GD,
     // <lambda-sig> ::= <template-param-decl>* <parameter-type>+
     //     # Parameter types or 'v' for 'void'.
     if (const CXXRecordDecl *Record = dyn_cast<CXXRecordDecl>(TD)) {
-      if (Record->isLambda() && (Record->getLambdaManglingNumber() ||
-                                 Context.isUniqueNameMangler())) {
+      llvm::Optional<unsigned> DeviceNumber =
+          Context.getDiscriminatorOverride()(Context.getASTContext(), Record);
+
+      // If we have a device-number via the discriminator, use that to mangle
+      // the lambda, otherwise use the typical lambda-mangling-number. In either
+      // case, a '0' should be mangled as a normal unnamed class instead of as a
+      // lambda.
+      if (Record->isLambda() &&
+          ((DeviceNumber && *DeviceNumber > 0) ||
+           (!DeviceNumber && Record->getLambdaManglingNumber() > 0))) {
         assert(!AdditionalAbiTags &&
                "Lambda type cannot have additional abi tags");
         mangleLambda(Record);
@@ -1921,37 +1931,6 @@ void CXXNameMangler::mangleTemplateParamDecl(const NamedDecl *Decl) {
   }
 }
 
-// Handles the __builtin_unique_stable_name feature for lambdas.  Instead of the
-// ordinal of the lambda in its mangling, this does line/column to uniquely and
-// reliably identify the lambda.  Additionally, macro expansions are expressed
-// as well to prevent macros causing duplicates.
-static void mangleUniqueNameLambda(CXXNameMangler &Mangler, SourceManager &SM,
-                                   raw_ostream &Out,
-                                   const CXXRecordDecl *Lambda) {
-  SourceLocation Loc = Lambda->getLocation();
-
-  PresumedLoc PLoc = SM.getPresumedLoc(Loc);
-  Mangler.mangleNumber(PLoc.getLine());
-  Out << "_";
-  Mangler.mangleNumber(PLoc.getColumn());
-
-  while(Loc.isMacroID()) {
-    SourceLocation SLToPrint = Loc;
-    if (SM.isMacroArgExpansion(Loc))
-      SLToPrint = SM.getImmediateExpansionRange(Loc).getBegin();
-
-    PLoc = SM.getPresumedLoc(SM.getSpellingLoc(SLToPrint));
-    Out << "m";
-    Mangler.mangleNumber(PLoc.getLine());
-    Out << "_";
-    Mangler.mangleNumber(PLoc.getColumn());
-
-    Loc = SM.getImmediateMacroCallerLoc(Loc);
-    if (Loc.isFileID())
-      Loc = SM.getImmediateMacroCallerLoc(SLToPrint);
-  }
-}
-
 void CXXNameMangler::mangleLambda(const CXXRecordDecl *Lambda) {
   // When trying to be ABI-compatibility with clang 12 and before, mangle a
   // <data-member-prefix> now, with no substitutions.
@@ -1975,12 +1954,6 @@ void CXXNameMangler::mangleLambda(const CXXRecordDecl *Lambda) {
   mangleLambdaSig(Lambda);
   Out << "E";
 
-  if (Context.isUniqueNameMangler()) {
-    mangleUniqueNameLambda(
-        *this, Context.getASTContext().getSourceManager(), Out, Lambda);
-    return;
-  }
-
   // The number is omitted for the first closure type with a given
   // <lambda-sig> in a given context; it is n-2 for the nth closure type
   // (in lexical order) with that same <lambda-sig> and context.
@@ -1992,9 +1965,11 @@ void CXXNameMangler::mangleLambda(const CXXRecordDecl *Lambda) {
   // if the host-side CXX ABI has different numbering for lambda. In such case,
   // if the mangle context is that device-side one, use the device-side lambda
   // mangling number for this lambda.
-  unsigned Number = Context.isDeviceMangleContext()
-                        ? Lambda->getDeviceLambdaManglingNumber()
-                        : Lambda->getLambdaManglingNumber();
+  llvm::Optional<unsigned> DeviceNumber =
+      Context.getDiscriminatorOverride()(Context.getASTContext(), Lambda);
+  unsigned Number =
+      DeviceNumber ? *DeviceNumber : Lambda->getLambdaManglingNumber();
+
   assert(Number > 0 && "Lambda should be mangled as an unnamed class");
   if (Number > 1)
     mangleNumber(Number - 2);
@@ -2892,6 +2867,7 @@ void CXXNameMangler::mangleType(const BuiltinType *T) {
   //                 ::= d  # double
   //                 ::= e  # long double, __float80
   //                 ::= g  # __float128
+  //                 ::= g  # __ibm128
   // UNSUPPORTED:    ::= Dd # IEEE 754r decimal floating point (64 bits)
   // UNSUPPORTED:    ::= De # IEEE 754r decimal floating point (128 bits)
   // UNSUPPORTED:    ::= Df # IEEE 754r decimal floating point (32 bits)
@@ -3020,6 +2996,11 @@ void CXXNameMangler::mangleType(const BuiltinType *T) {
     Out << TI->getBFloat16Mangling();
     break;
   }
+  case BuiltinType::Ibm128: {
+    const TargetInfo *TI = &getASTContext().getTargetInfo();
+    Out << TI->getIbm128Mangling();
+    break;
+  }
   case BuiltinType::NullPtr:
     Out << "Dn";
     break;
@@ -3146,6 +3127,8 @@ StringRef CXXNameMangler::getCallingConvQualifierName(CallingConv CC) {
     return "ms_abi";
   case CC_Swift:
     return "swiftcall";
+  case CC_SwiftAsync:
+    return "swiftasynccall";
   }
   llvm_unreachable("bad calling convention");
 }
@@ -3180,6 +3163,7 @@ CXXNameMangler::mangleExtParameterInfo(FunctionProtoType::ExtParameterInfo PI) {
 
   // All of these start with "swift", so they come before "ns_consumed".
   case ParameterABI::SwiftContext:
+  case ParameterABI::SwiftAsyncContext:
   case ParameterABI::SwiftErrorResult:
   case ParameterABI::SwiftIndirectResult:
     mangleVendorQualifier(getParameterABISpelling(PI.getABI()));
@@ -4256,6 +4240,10 @@ recurse:
   case Expr::AtomicExprClass:
   case Expr::SourceLocExprClass:
   case Expr::BuiltinBitCastExprClass:
+  case Expr::SYCLBuiltinNumFieldsExprClass:
+  case Expr::SYCLBuiltinFieldTypeExprClass:
+  case Expr::SYCLBuiltinNumBasesExprClass:
+  case Expr::SYCLBuiltinBaseTypeExprClass:
   {
     NotPrimaryExpr();
     if (!NullOut) {
@@ -5073,6 +5061,25 @@ recurse:
     Out << "v18co_yield";
     mangleExpression(cast<CoawaitExpr>(E)->getOperand());
     break;
+  case Expr::SYCLUniqueStableNameExprClass: {
+    const auto *USN = cast<SYCLUniqueStableNameExpr>(E);
+    NotPrimaryExpr();
+
+    Out << "u33__builtin_sycl_unique_stable_name";
+    mangleType(USN->getTypeSourceInfo()->getType());
+
+    Out << "E";
+    break;
+  }
+  case Expr::SYCLUniqueStableIdExprClass: {
+    const auto *USID = cast<SYCLUniqueStableIdExpr>(E);
+    NotPrimaryExpr();
+
+    Out << "cl31__builtin_sycl_unique_stable_id";
+    mangleExpression(USID->getExpr());
+    Out << "E";
+    break;
+  }
   }
 
   if (AsTemplateArg && !IsPrimaryExpr)
@@ -6426,7 +6433,16 @@ void ItaniumMangleContextImpl::mangleLambdaSig(const CXXRecordDecl *Lambda,
 }
 
 ItaniumMangleContext *ItaniumMangleContext::create(ASTContext &Context,
-                                                   DiagnosticsEngine &Diags,
-                                                   bool IsUniqueNameMangler) {
-  return new ItaniumMangleContextImpl(Context, Diags, IsUniqueNameMangler);
+                                                   DiagnosticsEngine &Diags) {
+  return new ItaniumMangleContextImpl(
+      Context, Diags,
+      [](ASTContext &, const NamedDecl *) -> llvm::Optional<unsigned> {
+        return llvm::None;
+      });
+}
+
+ItaniumMangleContext *
+ItaniumMangleContext::create(ASTContext &Context, DiagnosticsEngine &Diags,
+                             DiscriminatorOverrideTy DiscriminatorOverride) {
+  return new ItaniumMangleContextImpl(Context, Diags, DiscriminatorOverride);
 }

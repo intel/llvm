@@ -177,7 +177,7 @@ private:
     /// If true, the object has been zero-extended.
     bool isZExt = false;
 
-    /// If true, the object has been zero-extended.
+    /// If true, the object has been sign-extended.
     bool isSExt = false;
 
     uint8_t SSPLayout;
@@ -341,6 +341,8 @@ public:
                             bool ForcedRealign)
       : StackAlignment(assumeAligned(StackAlignment)),
         StackRealignable(StackRealignable), ForcedRealign(ForcedRealign) {}
+
+  MachineFrameInfo(const MachineFrameInfo &) = delete;
 
   /// Return true if there are any stack objects in this function.
   bool hasStackObjects() const { return !Objects.empty(); }

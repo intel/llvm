@@ -422,7 +422,28 @@ public:
       return TypeWidenVector;
     return TargetLoweringBase::getPreferredVectorAction(VT);
   }
+  unsigned
+  getNumRegisters(LLVMContext &Context, EVT VT,
+                  Optional<MVT> RegisterVT) const override {
+    // i128 inline assembly operand.
+    if (VT == MVT::i128 &&
+        RegisterVT.hasValue() && RegisterVT.getValue() == MVT::Untyped)
+      return 1;
+    return TargetLowering::getNumRegisters(Context, VT);
+  }
   bool isCheapToSpeculateCtlz() const override { return true; }
+  bool preferZeroCompareBranch() const override { return true; }
+  bool hasBitPreservingFPLogic(EVT VT) const override {
+    EVT ScVT = VT.getScalarType();
+    return ScVT == MVT::f32 || ScVT == MVT::f64 || ScVT == MVT::f128;
+  }
+  bool isMaskAndCmp0FoldingBeneficial(const Instruction &AndI) const override {
+    ConstantInt* Mask = dyn_cast<ConstantInt>(AndI.getOperand(1));
+    return Mask && Mask->getValue().isIntN(16);
+  }
+  bool convertSetCCLogicToBitwiseLogic(EVT VT) const override {
+    return VT.isScalarInteger();
+  }
   EVT getSetCCResultType(const DataLayout &DL, LLVMContext &,
                          EVT) const override;
   bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
@@ -517,6 +538,15 @@ public:
   const MCPhysReg *getScratchRegisters(CallingConv::ID CC) const override;
   bool allowTruncateForTailCall(Type *, Type *) const override;
   bool mayBeEmittedAsTailCall(const CallInst *CI) const override;
+  bool splitValueIntoRegisterParts(SelectionDAG &DAG, const SDLoc &DL,
+                                   SDValue Val, SDValue *Parts,
+                                   unsigned NumParts, MVT PartVT,
+                                   Optional<CallingConv::ID> CC) const override;
+  SDValue
+  joinRegisterPartsIntoValue(SelectionDAG &DAG, const SDLoc &DL,
+                             const SDValue *Parts, unsigned NumParts,
+                             MVT PartVT, EVT ValueVT,
+                             Optional<CallingConv::ID> CC) const override;
   SDValue LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv,
                                bool isVarArg,
                                const SmallVectorImpl<ISD::InputArg> &Ins,
@@ -550,7 +580,7 @@ public:
                                            unsigned Depth) const override;
 
   ISD::NodeType getExtendForAtomicOps() const override {
-    return ISD::ZERO_EXTEND;
+    return ISD::ANY_EXTEND;
   }
   ISD::NodeType getExtendForAtomicCmpSwapArg() const override {
     return ISD::ZERO_EXTEND;

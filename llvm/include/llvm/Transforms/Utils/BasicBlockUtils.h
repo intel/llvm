@@ -111,7 +111,7 @@ bool MergeBlockSuccessorsIntoGivenBlocks(
 /// Try to remove redundant dbg.value instructions from given basic block.
 /// Returns true if at least one instruction was removed. Remove redundant
 /// pseudo ops when RemovePseudoOp is true.
-bool RemoveRedundantDbgInstrs(BasicBlock *BB, bool RemovePseudoOp = false);
+bool RemoveRedundantDbgInstrs(BasicBlock *BB);
 
 /// Replace all uses of an instruction (specified by BI) with a value, then
 /// remove and delete the original instruction.
@@ -213,29 +213,6 @@ BasicBlock *SplitKnownCriticalEdge(Instruction *TI, unsigned SuccNum,
                                    const CriticalEdgeSplittingOptions &Options =
                                        CriticalEdgeSplittingOptions(),
                                    const Twine &BBName = "");
-
-inline BasicBlock *
-SplitCriticalEdge(BasicBlock *BB, succ_iterator SI,
-                  const CriticalEdgeSplittingOptions &Options =
-                      CriticalEdgeSplittingOptions()) {
-  return SplitCriticalEdge(BB->getTerminator(), SI.getSuccessorIndex(),
-                           Options);
-}
-
-/// If the edge from *PI to BB is not critical, return false. Otherwise, split
-/// all edges between the two blocks and return true. This updates all of the
-/// same analyses as the other SplitCriticalEdge function. If P is specified, it
-/// updates the analyses described above.
-inline bool SplitCriticalEdge(BasicBlock *Succ, pred_iterator PI,
-                              const CriticalEdgeSplittingOptions &Options =
-                                  CriticalEdgeSplittingOptions()) {
-  bool MadeChange = false;
-  Instruction *TI = (*PI)->getTerminator();
-  for (unsigned i = 0, e = TI->getNumSuccessors(); i != e; ++i)
-    if (TI->getSuccessor(i) == Succ)
-      MadeChange |= !!SplitCriticalEdge(TI, i, Options);
-  return MadeChange;
-}
 
 /// If an edge from Src to Dst is critical, split the edge and return true,
 /// otherwise return false. This method requires that there be an edge between
@@ -487,15 +464,15 @@ void SplitBlockAndInsertIfThenElse(Value *Cond, Instruction *SplitBefore,
                                    MDNode *BranchWeights = nullptr);
 
 /// Check whether BB is the merge point of a if-region.
-/// If so, return the boolean condition that determines which entry into
+/// If so, return the branch instruction that determines which entry into
 /// BB will be taken.  Also, return by references the block that will be
 /// entered from if the condition is true, and the block that will be
 /// entered if the condition is false.
 ///
 /// This does no checking to see if the true/false blocks have large or unsavory
 /// instructions in them.
-Value *GetIfCondition(BasicBlock *BB, BasicBlock *&IfTrue,
-                      BasicBlock *&IfFalse);
+BranchInst *GetIfCondition(BasicBlock *BB, BasicBlock *&IfTrue,
+                           BasicBlock *&IfFalse);
 
 // Split critical edges where the source of the edge is an indirectbr
 // instruction. This isn't always possible, but we can handle some easy cases.

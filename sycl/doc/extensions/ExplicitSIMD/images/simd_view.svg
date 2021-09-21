@@ -8,7 +8,7 @@
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    sodipodi:docname="simd_view.svg"
-   inkscape:version="1.0rc1 (09960d6f05, 2020-04-09)"
+   inkscape:version="1.0.2-2 (e86c870879, 2021-01-15)"
    id="svg8"
    version="1.1"
    viewBox="0 0 262.13336 97.751869"
@@ -514,10 +514,10 @@
   </defs>
   <sodipodi:namedview
      inkscape:window-maximized="1"
-     inkscape:window-y="-9"
-     inkscape:window-x="69"
-     inkscape:window-height="1411"
-     inkscape:window-width="2482"
+     inkscape:window-y="-8"
+     inkscape:window-x="-8"
+     inkscape:window-height="1017"
+     inkscape:window-width="1920"
      fit-margin-bottom="5"
      fit-margin-left="5"
      fit-margin-right="5"
@@ -526,8 +526,8 @@
      inkscape:document-rotation="0"
      inkscape:current-layer="layer1"
      inkscape:document-units="mm"
-     inkscape:cy="84.459695"
-     inkscape:cx="662.07333"
+     inkscape:cy="124.8658"
+     inkscape:cx="602.2278"
      inkscape:zoom="0.98994949"
      inkscape:pageshadow="2"
      inkscape:pageopacity="0.0"
@@ -543,7 +543,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -1648,7 +1648,7 @@
       </g>
     </g>
     <g
-       transform="matrix(0.35277777,0,0,-0.35277777,-209.3988,86.934552)"
+       transform="matrix(0.35277777,0,0,-0.35277777,-208.86963,87.463719)"
        id="g1555">
       <g
          clip-path="url(#clipPath1561)"
@@ -1664,23 +1664,25 @@
       </g>
     </g>
     <g
-       transform="matrix(0.35277777,0,0,-0.35277777,-209.3988,86.934552)"
+       transform="matrix(0.35277777,0,0,-0.35277777,-208.88573,92.814482)"
        id="g1567">
       <g
          clip-path="url(#clipPath1573)"
          id="g1569">
         <text
            id="text1577"
-           style="font-variant:normal;font-weight:bold;font-size:18px;font-family:Calibri;-inkscape-font-specification:Calibri-Bold;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none"
-           transform="matrix(1,0,0,-1,467.81,166.68)"><tspan
-             id="tspan1575"
+           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:18px;font-family:Calibri;-inkscape-font-specification:'Calibri, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none"
+           transform="scale(1,-1)"
+           x="468.56763"
+           y="-183.34752"><tspan
              sodipodi:role="line"
-             y="0"
-             x="0 9 17.406 26.514 36.216 40.535999 45.936001 55.619999 62.009998 76.643997 85.410004">even.format</tspan></text>
+             id="tspan866"
+             x="468.56763"
+             y="-183.34752">even.bit_cast_view</tspan></text>
       </g>
     </g>
     <g
-       transform="matrix(0.35277777,0,0,-0.35277777,-209.3988,86.934552)"
+       transform="matrix(0.35277777,0,0,-0.35277777,-189.81951,86.934552)"
        id="g1579">
       <g
          clip-path="url(#clipPath1585)"

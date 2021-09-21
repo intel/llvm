@@ -17,3 +17,5 @@ _SPIRV_OP(InvalidInstruction, "Can't translate llvm instruction:\n")
 _SPIRV_OP(InvalidWordCount,
           "Can't encode instruction with word count greater than 65535:\n")
 _SPIRV_OP(Requires1_1, "Feature requires SPIR-V 1.1 or greater:")
+_SPIRV_OP(RequiresExtension,
+          "Feature requires the following SPIR-V extension:\n")

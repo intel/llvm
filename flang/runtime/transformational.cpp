@@ -16,7 +16,7 @@
 // work with arbitrary lower bounds.  This may be technically an extension
 // of the standard but it more likely to conform with its intent.
 
-#include "transformational.h"
+#include "flang/Runtime/transformational.h"
 #include "copy.h"
 #include "terminator.h"
 #include "tools.h"
@@ -130,7 +130,7 @@ static inline std::size_t AllocateResult(Descriptor &result,
 
 extern "C" {
 
-// CSHIFT of rank > 1
+// CSHIFT where rank of ARRAY argument > 1
 void RTNAME(Cshift)(Descriptor &result, const Descriptor &source,
     const Descriptor &shift, int dim, const char *sourceFile, int line) {
   Terminator terminator{sourceFile, line};
@@ -172,7 +172,7 @@ void RTNAME(Cshift)(Descriptor &result, const Descriptor &source,
   }
 }
 
-// CSHIFT of vector
+// CSHIFT where rank of ARRAY argument == 1
 void RTNAME(CshiftVector)(Descriptor &result, const Descriptor &source,
     std::int64_t shift, const char *sourceFile, int line) {
   Terminator terminator{sourceFile, line};
@@ -184,6 +184,9 @@ void RTNAME(CshiftVector)(Descriptor &result, const Descriptor &source,
   for (SubscriptValue j{0}; j < extent; ++j) {
     SubscriptValue resultAt{1 + j};
     SubscriptValue sourceAt{lb + (j + shift) % extent};
+    if (sourceAt < 0) {
+      sourceAt += extent;
+    }
     CopyElement(result, &resultAt, source, &sourceAt, terminator);
   }
 }
@@ -281,6 +284,8 @@ void RTNAME(EoshiftVector)(Descriptor &result, const Descriptor &source,
     SubscriptValue sourceAt{lb + j - 1 + shift};
     if (sourceAt >= lb && sourceAt < lb + extent) {
       CopyElement(result, &j, source, &sourceAt, terminator);
+    } else if (boundary) {
+      CopyElement(result, &j, *boundary, 0, terminator);
     }
   }
 }
@@ -350,9 +355,9 @@ void RTNAME(Pack)(Descriptor &result, const Descriptor &source,
   }
 }
 
-} // extern "C" - TODO put Reshape under extern "C"
+// RESHAPE
 // F2018 16.9.163
-OwningPtr<Descriptor> RTNAME(Reshape)(const Descriptor &source,
+void RTNAME(Reshape)(Descriptor &result, const Descriptor &source,
     const Descriptor &shape, const Descriptor *pad, const Descriptor *order,
     const char *sourceFile, int line) {
   // Compute and check the rank of the result.
@@ -364,13 +369,11 @@ OwningPtr<Descriptor> RTNAME(Reshape)(const Descriptor &source,
       resultRank >= 0 && resultRank <= static_cast<SubscriptValue>(maxRank));
 
   // Extract and check the shape of the result; compute its element count.
-  SubscriptValue lowerBound[maxRank]; // all 1's
   SubscriptValue resultExtent[maxRank];
   std::size_t shapeElementBytes{shape.ElementBytes()};
   std::size_t resultElements{1};
   SubscriptValue shapeSubscript{shape.GetDimension(0).LowerBound()};
   for (SubscriptValue j{0}; j < resultRank; ++j, ++shapeSubscript) {
-    lowerBound[j] = 1;
     resultExtent[j] = GetInt64(
         shape.Element<char>(&shapeSubscript), shapeElementBytes, terminator);
     RUNTIME_CHECK(terminator, resultExtent[j] >= 0);
@@ -396,9 +399,10 @@ OwningPtr<Descriptor> RTNAME(Reshape)(const Descriptor &source,
     RUNTIME_CHECK(terminator, order->GetDimension(0).Extent() == resultRank);
     std::uint64_t values{0};
     SubscriptValue orderSubscript{order->GetDimension(0).LowerBound()};
+    std::size_t orderElementBytes{order->ElementBytes()};
     for (SubscriptValue j{0}; j < resultRank; ++j, ++orderSubscript) {
-      auto k{GetInt64(order->OffsetElement<char>(orderSubscript),
-          shapeElementBytes, terminator)};
+      auto k{GetInt64(order->Element<char>(&orderSubscript), orderElementBytes,
+          terminator)};
       RUNTIME_CHECK(
           terminator, k >= 1 && k <= resultRank && !((values >> k) & 1));
       values |= std::uint64_t{1} << k;
@@ -410,61 +414,33 @@ OwningPtr<Descriptor> RTNAME(Reshape)(const Descriptor &source,
     }
   }
 
-  // Create and populate the result's descriptor.
-  const DescriptorAddendum *sourceAddendum{source.Addendum()};
-  const typeInfo::DerivedType *sourceDerivedType{
-      sourceAddendum ? sourceAddendum->derivedType() : nullptr};
-  OwningPtr<Descriptor> result;
-  if (sourceDerivedType) {
-    result = Descriptor::Create(*sourceDerivedType, nullptr, resultRank,
-        resultExtent, CFI_attribute_allocatable);
-  } else {
-    result = Descriptor::Create(source.type(), elementBytes, nullptr,
-        resultRank, resultExtent,
-        CFI_attribute_allocatable); // TODO rearrange these arguments
-  }
-  DescriptorAddendum *resultAddendum{result->Addendum()};
-  RUNTIME_CHECK(terminator, resultAddendum);
-  resultAddendum->flags() |= DescriptorAddendum::DoNotFinalize;
-  if (sourceDerivedType) {
-    std::size_t lenParameters{sourceAddendum->LenParameters()};
-    for (std::size_t j{0}; j < lenParameters; ++j) {
-      resultAddendum->SetLenParameterValue(
-          j, sourceAddendum->LenParameterValue(j));
-    }
-  }
-  // Allocate storage for the result's data.
-  int status{result->Allocate(lowerBound, resultExtent)};
-  if (status != CFI_SUCCESS) {
-    terminator.Crash("RESHAPE: Allocate failed (error %d)", status);
-  }
+  // Allocate result descriptor
+  AllocateResult(
+      result, source, resultRank, resultExtent, terminator, "RESHAPE");
 
   // Populate the result's elements.
   SubscriptValue resultSubscript[maxRank];
-  result->GetLowerBounds(resultSubscript);
+  result.GetLowerBounds(resultSubscript);
   SubscriptValue sourceSubscript[maxRank];
   source.GetLowerBounds(sourceSubscript);
   std::size_t resultElement{0};
   std::size_t elementsFromSource{std::min(resultElements, sourceElements)};
   for (; resultElement < elementsFromSource; ++resultElement) {
-    CopyElement(*result, resultSubscript, source, sourceSubscript, terminator);
+    CopyElement(result, resultSubscript, source, sourceSubscript, terminator);
     source.IncrementSubscripts(sourceSubscript);
-    result->IncrementSubscripts(resultSubscript, dimOrder);
+    result.IncrementSubscripts(resultSubscript, dimOrder);
   }
   if (resultElement < resultElements) {
     // Remaining elements come from the optional PAD= argument.
     SubscriptValue padSubscript[maxRank];
     pad->GetLowerBounds(padSubscript);
     for (; resultElement < resultElements; ++resultElement) {
-      CopyElement(*result, resultSubscript, *pad, padSubscript, terminator);
+      CopyElement(result, resultSubscript, *pad, padSubscript, terminator);
       pad->IncrementSubscripts(padSubscript);
-      result->IncrementSubscripts(resultSubscript, dimOrder);
+      result.IncrementSubscripts(resultSubscript, dimOrder);
     }
   }
-
-  return result;
 }
-extern "C" { // TODO - remove when Reshape is under extern "C"
 
 // SPREAD
 void RTNAME(Spread)(Descriptor &result, const Descriptor &source, int dim,

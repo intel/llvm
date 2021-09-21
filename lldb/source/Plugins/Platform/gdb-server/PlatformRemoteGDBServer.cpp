@@ -212,7 +212,7 @@ PlatformRemoteGDBServer::PlatformRemoteGDBServer()
 ///
 /// The destructor is virtual since this class is designed to be
 /// inherited from by the plug-in instance.
-PlatformRemoteGDBServer::~PlatformRemoteGDBServer() {}
+PlatformRemoteGDBServer::~PlatformRemoteGDBServer() = default;
 
 bool PlatformRemoteGDBServer::GetSupportedArchitectureAtIndex(uint32_t idx,
                                                               ArchSpec &arch) {
@@ -740,8 +740,8 @@ const UnixSignalsSP &PlatformRemoteGDBServer::GetRemoteUnixSignals() {
   m_remote_signals_sp = UnixSignals::Create(GetRemoteSystemArchitecture());
 
   StringExtractorGDBRemote response;
-  auto result = m_gdb_client.SendPacketAndWaitForResponse("jSignalsInfo",
-                                                          response, false);
+  auto result =
+      m_gdb_client.SendPacketAndWaitForResponse("jSignalsInfo", response);
 
   if (result != decltype(result)::Success ||
       response.GetResponseType() != response.eResponse)

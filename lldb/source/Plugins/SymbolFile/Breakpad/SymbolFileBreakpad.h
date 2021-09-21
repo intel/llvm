@@ -51,7 +51,7 @@ public:
   SymbolFileBreakpad(lldb::ObjectFileSP objfile_sp)
       : SymbolFile(std::move(objfile_sp)) {}
 
-  ~SymbolFileBreakpad() override {}
+  ~SymbolFileBreakpad() override = default;
 
   uint32_t CalculateAbilities() override;
 
@@ -147,7 +147,6 @@ public:
                 const RegisterInfoResolver &resolver) override;
 
   ConstString GetPluginName() override { return GetPluginNameStatic(); }
-  uint32_t GetPluginVersion() override { return 1; }
 
 private:
   // A class representing a position in the breakpad file. Useful for

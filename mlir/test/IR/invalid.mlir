@@ -178,6 +178,16 @@ func @no_return() {
 
 // -----
 
+func @no_terminator() {
+  br ^bb1
+^bb1:
+  %x = constant 0 : i32
+  %y = constant 1 : i32  // expected-error {{block with no terminator}}
+}
+
+
+// -----
+
 "       // expected-error {{expected}}
 "
 
@@ -253,7 +263,7 @@ func @for_negative_stride() {
 // -----
 
 func @non_operation() {
-  asd   // expected-error {{custom op 'asd' is unknown}}
+  test.asd   // expected-error {{custom op 'test.asd' is unknown}}
 }
 
 // -----

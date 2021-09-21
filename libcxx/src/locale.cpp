@@ -12,28 +12,29 @@
 #define _LCONV_C99
 #endif
 
-#include "string"
-#include "locale"
-#include "codecvt"
-#include "vector"
 #include "algorithm"
-#include "typeinfo"
-#ifndef _LIBCPP_NO_EXCEPTIONS
-#  include "type_traits"
-#endif
 #include "clocale"
+#include "codecvt"
+#include "cstdio"
+#include "cstdlib"
 #include "cstring"
-#if defined(_LIBCPP_MSVCRT)
-#define _CTYPE_DISABLE_MACROS
-#endif
 #include "cwctype"
-#if defined(_LIBCPP_MSVCRT) || defined(__MINGW32__)
-#include "__support/win32/locale_win32.h"
-#elif !defined(__BIONIC__) && !defined(__NuttX__)
-#include <langinfo.h>
+#include "locale"
+#include "string"
+#include "type_traits"
+#include "typeinfo"
+#include "vector"
+
+#if defined(_LIBCPP_MSVCRT)
+#   define _CTYPE_DISABLE_MACROS
 #endif
-#include <stdlib.h>
-#include <stdio.h>
+
+#if defined(_LIBCPP_MSVCRT) || defined(__MINGW32__)
+#   include "__support/win32/locale_win32.h"
+#elif !defined(__BIONIC__) && !defined(__NuttX__)
+#   include <langinfo.h>
+#endif
+
 #include "include/atomic_support.h"
 #include "include/sso_allocator.h"
 #include "__undef_macros"
@@ -81,33 +82,11 @@ struct release
     void operator()(locale::facet* p) {p->__release_shared();}
 };
 
-template <class T, class A0>
-inline
-T&
-make(A0 a0)
+template <class T, class ...Args>
+T& make(Args ...args)
 {
     static typename aligned_storage<sizeof(T)>::type buf;
-    auto *obj = ::new (&buf) T(a0);
-    return *obj;
-}
-
-template <class T, class A0, class A1>
-inline
-T&
-make(A0 a0, A1 a1)
-{
-    static typename aligned_storage<sizeof(T)>::type buf;
-    ::new (&buf) T(a0, a1);
-    return *reinterpret_cast<T*>(&buf);
-}
-
-template <class T, class A0, class A1, class A2>
-inline
-T&
-make(A0 a0, A1 a1, A2 a2)
-{
-    static typename aligned_storage<sizeof(T)>::type buf;
-    auto *obj = ::new (&buf) T(a0, a1, a2);
+    auto *obj = ::new (&buf) T(args...);
     return *obj;
 }
 
@@ -283,13 +262,6 @@ _LIBCPP_SUPPRESS_DEPRECATED_POP
 #endif // _LIBCPP_NO_EXCEPTIONS
 }
 
-// NOTE avoid the `base class should be explicitly initialized in the
-// copy constructor` warning emitted by GCC
-#if defined(__clang__) || _GNUC_VER >= 406
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wextra"
-#endif
-
 locale::__imp::__imp(const __imp& other)
     : facets_(max<size_t>(N, other.facets_.size())),
       name_(other.name_)
@@ -299,10 +271,6 @@ locale::__imp::__imp(const __imp& other)
         if (facets_[i])
             facets_[i]->__add_shared();
 }
-
-#if defined(__clang__) || _GNUC_VER >= 406
-#pragma GCC diagnostic pop
-#endif
 
 locale::__imp::__imp(const __imp& other, const string& name, locale::category c)
     : facets_(N),
@@ -780,8 +748,6 @@ collate_byname<wchar_t>::do_transform(const char_type* lo, const char_type* hi) 
     return out;
 }
 
-// template <> class ctype<wchar_t>;
-
 const ctype_base::mask ctype_base::space;
 const ctype_base::mask ctype_base::print;
 const ctype_base::mask ctype_base::cntrl;
@@ -794,6 +760,8 @@ const ctype_base::mask ctype_base::xdigit;
 const ctype_base::mask ctype_base::blank;
 const ctype_base::mask ctype_base::alnum;
 const ctype_base::mask ctype_base::graph;
+
+// template <> class ctype<wchar_t>;
 
 locale::id ctype<wchar_t>::id;
 
@@ -3517,15 +3485,25 @@ __codecvt_utf8<wchar_t>::do_length(state_type&,
 {
     const uint8_t* _frm = reinterpret_cast<const uint8_t*>(frm);
     const uint8_t* _frm_end = reinterpret_cast<const uint8_t*>(frm_end);
+#if defined(_LIBCPP_SHORT_WCHAR)
+    return utf8_to_ucs2_length(_frm, _frm_end, mx, _Maxcode_, _Mode_);
+#else
     return utf8_to_ucs4_length(_frm, _frm_end, mx, _Maxcode_, _Mode_);
+#endif
 }
 
 int
 __codecvt_utf8<wchar_t>::do_max_length() const noexcept
 {
+#if defined(_LIBCPP_SHORT_WCHAR)
+    if (_Mode_ & consume_header)
+        return 6;
+    return 3;
+#else
     if (_Mode_ & consume_header)
         return 7;
     return 4;
+#endif
 }
 
 // __codecvt_utf8<char16_t>
@@ -3685,14 +3663,25 @@ __codecvt_utf16<wchar_t, false>::do_out(state_type&,
     const intern_type* frm, const intern_type* frm_end, const intern_type*& frm_nxt,
     extern_type* to, extern_type* to_end, extern_type*& to_nxt) const
 {
+#if defined(_LIBCPP_SHORT_WCHAR)
+    const uint16_t* _frm = reinterpret_cast<const uint16_t*>(frm);
+    const uint16_t* _frm_end = reinterpret_cast<const uint16_t*>(frm_end);
+    const uint16_t* _frm_nxt = _frm;
+#else
     const uint32_t* _frm = reinterpret_cast<const uint32_t*>(frm);
     const uint32_t* _frm_end = reinterpret_cast<const uint32_t*>(frm_end);
     const uint32_t* _frm_nxt = _frm;
+#endif
     uint8_t* _to = reinterpret_cast<uint8_t*>(to);
     uint8_t* _to_end = reinterpret_cast<uint8_t*>(to_end);
     uint8_t* _to_nxt = _to;
+#if defined(_LIBCPP_SHORT_WCHAR)
+    result r = ucs2_to_utf16be(_frm, _frm_end, _frm_nxt, _to, _to_end, _to_nxt,
+                               _Maxcode_, _Mode_);
+#else
     result r = ucs4_to_utf16be(_frm, _frm_end, _frm_nxt, _to, _to_end, _to_nxt,
                                _Maxcode_, _Mode_);
+#endif
     frm_nxt = frm + (_frm_nxt - _frm);
     to_nxt = to + (_to_nxt - _to);
     return r;
@@ -3706,11 +3695,19 @@ __codecvt_utf16<wchar_t, false>::do_in(state_type&,
     const uint8_t* _frm = reinterpret_cast<const uint8_t*>(frm);
     const uint8_t* _frm_end = reinterpret_cast<const uint8_t*>(frm_end);
     const uint8_t* _frm_nxt = _frm;
+#if defined(_LIBCPP_SHORT_WCHAR)
+    uint16_t* _to = reinterpret_cast<uint16_t*>(to);
+    uint16_t* _to_end = reinterpret_cast<uint16_t*>(to_end);
+    uint16_t* _to_nxt = _to;
+    result r = utf16be_to_ucs2(_frm, _frm_end, _frm_nxt, _to, _to_end, _to_nxt,
+                               _Maxcode_, _Mode_);
+#else
     uint32_t* _to = reinterpret_cast<uint32_t*>(to);
     uint32_t* _to_end = reinterpret_cast<uint32_t*>(to_end);
     uint32_t* _to_nxt = _to;
     result r = utf16be_to_ucs4(_frm, _frm_end, _frm_nxt, _to, _to_end, _to_nxt,
                                _Maxcode_, _Mode_);
+#endif
     frm_nxt = frm + (_frm_nxt - _frm);
     to_nxt = to + (_to_nxt - _to);
     return r;
@@ -3742,15 +3739,25 @@ __codecvt_utf16<wchar_t, false>::do_length(state_type&,
 {
     const uint8_t* _frm = reinterpret_cast<const uint8_t*>(frm);
     const uint8_t* _frm_end = reinterpret_cast<const uint8_t*>(frm_end);
+#if defined(_LIBCPP_SHORT_WCHAR)
+    return utf16be_to_ucs2_length(_frm, _frm_end, mx, _Maxcode_, _Mode_);
+#else
     return utf16be_to_ucs4_length(_frm, _frm_end, mx, _Maxcode_, _Mode_);
+#endif
 }
 
 int
 __codecvt_utf16<wchar_t, false>::do_max_length() const noexcept
 {
+#if defined(_LIBCPP_SHORT_WCHAR)
+    if (_Mode_ & consume_header)
+        return 4;
+    return 2;
+#else
     if (_Mode_ & consume_header)
         return 6;
     return 4;
+#endif
 }
 
 // __codecvt_utf16<wchar_t, true>
@@ -3760,14 +3767,25 @@ __codecvt_utf16<wchar_t, true>::do_out(state_type&,
     const intern_type* frm, const intern_type* frm_end, const intern_type*& frm_nxt,
     extern_type* to, extern_type* to_end, extern_type*& to_nxt) const
 {
+#if defined(_LIBCPP_SHORT_WCHAR)
+    const uint16_t* _frm = reinterpret_cast<const uint16_t*>(frm);
+    const uint16_t* _frm_end = reinterpret_cast<const uint16_t*>(frm_end);
+    const uint16_t* _frm_nxt = _frm;
+#else
     const uint32_t* _frm = reinterpret_cast<const uint32_t*>(frm);
     const uint32_t* _frm_end = reinterpret_cast<const uint32_t*>(frm_end);
     const uint32_t* _frm_nxt = _frm;
+#endif
     uint8_t* _to = reinterpret_cast<uint8_t*>(to);
     uint8_t* _to_end = reinterpret_cast<uint8_t*>(to_end);
     uint8_t* _to_nxt = _to;
+#if defined(_LIBCPP_SHORT_WCHAR)
+    result r = ucs2_to_utf16le(_frm, _frm_end, _frm_nxt, _to, _to_end, _to_nxt,
+                               _Maxcode_, _Mode_);
+#else
     result r = ucs4_to_utf16le(_frm, _frm_end, _frm_nxt, _to, _to_end, _to_nxt,
                                _Maxcode_, _Mode_);
+#endif
     frm_nxt = frm + (_frm_nxt - _frm);
     to_nxt = to + (_to_nxt - _to);
     return r;
@@ -3781,11 +3799,19 @@ __codecvt_utf16<wchar_t, true>::do_in(state_type&,
     const uint8_t* _frm = reinterpret_cast<const uint8_t*>(frm);
     const uint8_t* _frm_end = reinterpret_cast<const uint8_t*>(frm_end);
     const uint8_t* _frm_nxt = _frm;
+#if defined(_LIBCPP_SHORT_WCHAR)
+    uint16_t* _to = reinterpret_cast<uint16_t*>(to);
+    uint16_t* _to_end = reinterpret_cast<uint16_t*>(to_end);
+    uint16_t* _to_nxt = _to;
+    result r = utf16le_to_ucs2(_frm, _frm_end, _frm_nxt, _to, _to_end, _to_nxt,
+                               _Maxcode_, _Mode_);
+#else
     uint32_t* _to = reinterpret_cast<uint32_t*>(to);
     uint32_t* _to_end = reinterpret_cast<uint32_t*>(to_end);
     uint32_t* _to_nxt = _to;
     result r = utf16le_to_ucs4(_frm, _frm_end, _frm_nxt, _to, _to_end, _to_nxt,
                                _Maxcode_, _Mode_);
+#endif
     frm_nxt = frm + (_frm_nxt - _frm);
     to_nxt = to + (_to_nxt - _to);
     return r;
@@ -3817,15 +3843,25 @@ __codecvt_utf16<wchar_t, true>::do_length(state_type&,
 {
     const uint8_t* _frm = reinterpret_cast<const uint8_t*>(frm);
     const uint8_t* _frm_end = reinterpret_cast<const uint8_t*>(frm_end);
+#if defined(_LIBCPP_SHORT_WCHAR)
+    return utf16le_to_ucs2_length(_frm, _frm_end, mx, _Maxcode_, _Mode_);
+#else
     return utf16le_to_ucs4_length(_frm, _frm_end, mx, _Maxcode_, _Mode_);
+#endif
 }
 
 int
 __codecvt_utf16<wchar_t, true>::do_max_length() const noexcept
 {
+#if defined(_LIBCPP_SHORT_WCHAR)
+    if (_Mode_ & consume_header)
+        return 4;
+    return 2;
+#else
     if (_Mode_ & consume_header)
         return 6;
     return 4;
+#endif
 }
 
 // __codecvt_utf16<char16_t, false>
@@ -4135,9 +4171,15 @@ __codecvt_utf8_utf16<wchar_t>::do_out(state_type&,
     const intern_type* frm, const intern_type* frm_end, const intern_type*& frm_nxt,
     extern_type* to, extern_type* to_end, extern_type*& to_nxt) const
 {
+#if defined(_LIBCPP_SHORT_WCHAR)
+    const uint16_t* _frm = reinterpret_cast<const uint16_t*>(frm);
+    const uint16_t* _frm_end = reinterpret_cast<const uint16_t*>(frm_end);
+    const uint16_t* _frm_nxt = _frm;
+#else
     const uint32_t* _frm = reinterpret_cast<const uint32_t*>(frm);
     const uint32_t* _frm_end = reinterpret_cast<const uint32_t*>(frm_end);
     const uint32_t* _frm_nxt = _frm;
+#endif
     uint8_t* _to = reinterpret_cast<uint8_t*>(to);
     uint8_t* _to_end = reinterpret_cast<uint8_t*>(to_end);
     uint8_t* _to_nxt = _to;
@@ -4156,9 +4198,15 @@ __codecvt_utf8_utf16<wchar_t>::do_in(state_type&,
     const uint8_t* _frm = reinterpret_cast<const uint8_t*>(frm);
     const uint8_t* _frm_end = reinterpret_cast<const uint8_t*>(frm_end);
     const uint8_t* _frm_nxt = _frm;
+#if defined(_LIBCPP_SHORT_WCHAR)
+    uint16_t* _to = reinterpret_cast<uint16_t*>(to);
+    uint16_t* _to_end = reinterpret_cast<uint16_t*>(to_end);
+    uint16_t* _to_nxt = _to;
+#else
     uint32_t* _to = reinterpret_cast<uint32_t*>(to);
     uint32_t* _to_end = reinterpret_cast<uint32_t*>(to_end);
     uint32_t* _to_nxt = _to;
+#endif
     result r = utf8_to_utf16(_frm, _frm_end, _frm_nxt, _to, _to_end, _to_nxt,
                              _Maxcode_, _Mode_);
     frm_nxt = frm + (_frm_nxt - _frm);
@@ -4412,7 +4460,7 @@ static bool checked_string_to_char_convert(char& dest,
     dest = res;
     return true;
   }
-  // FIXME: Work around specific multibyte sequences that we can reasonable
+  // FIXME: Work around specific multibyte sequences that we can reasonably
   // translate into a different single byte.
   switch (wout) {
   case L'\u202F': // narrow non-breaking space
@@ -4597,7 +4645,10 @@ void
 __num_put_base::__format_int(char* __fmtp, const char* __len, bool __signd,
                              ios_base::fmtflags __flags)
 {
-    if (__flags & ios_base::showpos)
+    if ((__flags & ios_base::showpos) &&
+        (__flags & ios_base::basefield) != ios_base::oct &&
+        (__flags & ios_base::basefield) != ios_base::hex &&
+	__signd)
         *__fmtp++ = '+';
     if (__flags & ios_base::showbase)
         *__fmtp++ = '#';

@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include <chrono>
+#include <cstdarg>
 #include <fstream>
 #include <mutex>
 #include <sstream>
-#include <stdarg.h>
 
 #include "LLDBUtils.h"
 #include "VSCode.h"
@@ -30,8 +30,7 @@ namespace lldb_vscode {
 VSCode g_vsc;
 
 VSCode::VSCode()
-    : variables(), broadcaster("lldb-vscode"), num_regs(0), num_locals(0),
-      num_globals(0), log(),
+    : broadcaster("lldb-vscode"),
       exception_breakpoints(
           {{"cpp_catch", "C++ Catch", lldb::eLanguageTypeC_plus_plus},
            {"cpp_throw", "C++ Throw", lldb::eLanguageTypeC_plus_plus},
@@ -42,7 +41,7 @@ VSCode::VSCode()
       focus_tid(LLDB_INVALID_THREAD_ID), sent_terminated_event(false),
       stop_at_entry(false), is_attach(false), reverse_request_seq(0),
       waiting_for_run_in_terminal(false),
-      progress_event_queue(
+      progress_event_reporter(
           [&](const ProgressEvent &event) { SendJSON(event.ToJSON()); }) {
   const char *log_file_path = getenv("LLDBVSCODE_LOG");
 #if defined(_WIN32)
@@ -322,8 +321,9 @@ void VSCode::SendOutput(OutputType o, const llvm::StringRef output) {
 //   };
 // }
 
-void VSCode::SendProgressEvent(const ProgressEvent &event) {
-  progress_event_queue.Push(event);
+void VSCode::SendProgressEvent(uint64_t progress_id, const char *message,
+                               uint64_t completed, uint64_t total) {
+  progress_event_reporter.Push(progress_id, message, completed, total);
 }
 
 void __attribute__((format(printf, 3, 4)))
@@ -381,10 +381,12 @@ lldb::SBFrame VSCode::GetLLDBFrame(const llvm::json::Object &arguments) {
 
 llvm::json::Value VSCode::CreateTopLevelScopes() {
   llvm::json::Array scopes;
-  scopes.emplace_back(CreateScope("Locals", VARREF_LOCALS, num_locals, false));
-  scopes.emplace_back(
-      CreateScope("Globals", VARREF_GLOBALS, num_globals, false));
-  scopes.emplace_back(CreateScope("Registers", VARREF_REGS, num_regs, false));
+  scopes.emplace_back(CreateScope("Locals", VARREF_LOCALS,
+                                  g_vsc.variables.locals.GetSize(), false));
+  scopes.emplace_back(CreateScope("Globals", VARREF_GLOBALS,
+                                  g_vsc.variables.globals.GetSize(), false));
+  scopes.emplace_back(CreateScope("Registers", VARREF_REGS,
+                                  g_vsc.variables.registers.GetSize(), false));
   return llvm::json::Value(std::move(scopes));
 }
 
@@ -524,6 +526,46 @@ PacketStatus VSCode::SendReverseRequest(llvm::json::Object request,
 void VSCode::RegisterRequestCallback(std::string request,
                                      RequestCallback callback) {
   request_handlers[request] = callback;
+}
+
+void Variables::Clear() {
+  locals.Clear();
+  globals.Clear();
+  registers.Clear();
+  expandable_variables.clear();
+}
+
+int64_t Variables::GetNewVariableRefence(bool is_permanent) {
+  if (is_permanent)
+    return next_permanent_var_ref++;
+  return next_temporary_var_ref++;
+}
+
+bool Variables::IsPermanentVariableReference(int64_t var_ref) {
+  return var_ref >= PermanentVariableStartIndex;
+}
+
+lldb::SBValue Variables::GetVariable(int64_t var_ref) const {
+  if (IsPermanentVariableReference(var_ref)) {
+    auto pos = expandable_permanent_variables.find(var_ref);
+    if (pos != expandable_permanent_variables.end())
+      return pos->second;
+  } else {
+    auto pos = expandable_variables.find(var_ref);
+    if (pos != expandable_variables.end())
+      return pos->second;
+  }
+  return lldb::SBValue();
+}
+
+int64_t Variables::InsertExpandableVariable(lldb::SBValue variable,
+                                            bool is_permanent) {
+  int64_t var_ref = GetNewVariableRefence(is_permanent);
+  if (is_permanent)
+    expandable_permanent_variables.insert(std::make_pair(var_ref, variable));
+  else
+    expandable_variables.insert(std::make_pair(var_ref, variable));
+  return var_ref;
 }
 
 } // namespace lldb_vscode

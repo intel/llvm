@@ -41,7 +41,7 @@ std::ostream &operator<<(std::ostream &Out, const spec_constant_impl &V);
 
 // Used to define specialization constant registry. Must be ordered map, since
 // the order of entries matters in stableSerializeSpecConstRegistry.
-using SpecConstRegistryT = std::map<string_class, spec_constant_impl>;
+using SpecConstRegistryT = std::map<std::string, spec_constant_impl>;
 
 void stableSerializeSpecConstRegistry(const SpecConstRegistryT &Reg,
                                       SerializedObj &Dst);

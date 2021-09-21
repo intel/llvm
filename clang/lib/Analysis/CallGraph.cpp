@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Analysis/CallGraph.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclObjC.h"
@@ -134,6 +135,37 @@ public:
         NumObjCCallEdges++;
       }
     }
+  }
+
+  void VisitIfStmt(IfStmt *If) {
+    if (G->shouldSkipConstantExpressions()) {
+      if (llvm::Optional<Stmt *> ActiveStmt =
+              If->getNondiscardedCase(G->getASTContext())) {
+        if (*ActiveStmt)
+          this->Visit(*ActiveStmt);
+        return;
+      }
+    }
+
+    StmtVisitor::VisitIfStmt(If);
+  }
+
+  void VisitDeclStmt(DeclStmt *DS) {
+    if (G->shouldSkipConstantExpressions()) {
+      auto IsConstexprVarDecl = [](Decl *D) {
+        if (const auto *VD = dyn_cast<VarDecl>(D))
+          return VD->isConstexpr();
+        return false;
+      };
+      if (llvm::any_of(DS->decls(), IsConstexprVarDecl)) {
+        assert(llvm::all_of(DS->decls(), IsConstexprVarDecl) &&
+               "Situation where a decl-group would be a mix of decl types, or "
+               "constexpr and not?");
+        return;
+      }
+    }
+
+    StmtVisitor::VisitDeclStmt(DS);
   }
 
   void VisitChildren(Stmt *S) {

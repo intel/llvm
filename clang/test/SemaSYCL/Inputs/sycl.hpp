@@ -39,18 +39,22 @@ enum class address_space : int {
 
 class property_list {};
 
-namespace INTEL {
+namespace ext {
+namespace intel {
 namespace property {
 struct buffer_location {
   template <int> class instance {};
 };
 } // namespace property
-} // namespace INTEL
+} // namespace intel
+} // namespace ext
 
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 template <typename... properties>
 class accessor_property_list {};
-} // namespace ONEAPI
+} // namespace oneapi
+} // namespace ext
 
 namespace detail {
 namespace half_impl {
@@ -102,7 +106,7 @@ struct DeviceValueType<dataT, access::target::local> {
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t,
-          typename propertyListT = ONEAPI::accessor_property_list<>>
+          typename propertyListT = ext::oneapi::accessor_property_list<>>
 class accessor {
 
 public:
@@ -114,6 +118,7 @@ private:
   using PtrType = typename DeviceValueType<dataT, accessTarget>::type *;
   void __init(PtrType Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
+  friend class stream;
 };
 
 template <int dimensions, access::mode accessmode, access::target accesstarget>
@@ -226,15 +231,15 @@ template <typename Type> struct get_kernel_wrapper_name_t {
 };
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
-template <typename KernelName = auto_name, typename KernelType>
-ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) {
+template <typename KernelName, typename KernelType>
+ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) { // #KernelSingleTaskFunc
   kernelFunc(); // #KernelSingleTaskKernelFuncCall
 }
-template <typename KernelName = auto_name, typename KernelType>
+template <typename KernelName, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc, kernel_handler kh) {
   kernelFunc(kh);
 }
-template <typename KernelName = auto_name, typename KernelType>
+template <typename KernelName, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_parallel_for(const KernelType &kernelFunc) {
   kernelFunc();
 }
@@ -291,19 +296,34 @@ class stream {
 public:
   stream(unsigned long BufferSize, unsigned long MaxStatementSize,
          handler &CGH) {}
+#ifdef __SYCL_DEVICE_ONLY__
+  // Default constructor for objects later initialized with __init member.
+  stream() = default;
+#endif
 
-  void __init() {}
+  void __init(__attribute((opencl_global)) char *Ptr, range<1> AccessRange,
+              range<1> MemRange, id<1> Offset, int _FlushBufferSize) {
+    Acc.__init(Ptr, AccessRange, MemRange, Offset);
+    FlushBufferSize = _FlushBufferSize;
+  }
+
   void use() const {}
 
   void __finalize() {}
+
+private:
+  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write> Acc;
+  int FlushBufferSize;
 };
 
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 namespace experimental {
 template <typename T, typename ID = T>
 class spec_constant {};
 } // namespace experimental
-} // namespace ONEAPI
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // namespace cl
 

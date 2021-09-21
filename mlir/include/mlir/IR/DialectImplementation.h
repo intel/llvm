@@ -228,8 +228,16 @@ public:
   /// Parse a `=` token if present.
   virtual ParseResult parseOptionalEqual() = 0;
 
+  /// Parse a quoted string token.
+  ParseResult parseString(std::string *string) {
+    auto loc = getCurrentLocation();
+    if (parseOptionalString(string))
+      return emitError(loc, "expected string");
+    return success();
+  }
+
   /// Parse a quoted string token if present.
-  virtual ParseResult parseOptionalString(StringRef *string) = 0;
+  virtual ParseResult parseOptionalString(std::string *string) = 0;
 
   /// Parse a given keyword.
   ParseResult parseKeyword(StringRef keyword, const Twine &msg = "") {

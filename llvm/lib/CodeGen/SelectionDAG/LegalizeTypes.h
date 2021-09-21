@@ -298,6 +298,7 @@ private:
   SDValue PromoteIntRes_Atomic1(AtomicSDNode *N);
   SDValue PromoteIntRes_AtomicCmpSwap(AtomicSDNode *N, unsigned ResNo);
   SDValue PromoteIntRes_EXTRACT_SUBVECTOR(SDNode *N);
+  SDValue PromoteIntRes_INSERT_SUBVECTOR(SDNode *N);
   SDValue PromoteIntRes_VECTOR_REVERSE(SDNode *N);
   SDValue PromoteIntRes_VECTOR_SHUFFLE(SDNode *N);
   SDValue PromoteIntRes_VECTOR_SPLICE(SDNode *N);
@@ -331,14 +332,14 @@ private:
   SDValue PromoteIntRes_VSELECT(SDNode *N);
   SDValue PromoteIntRes_SELECT_CC(SDNode *N);
   SDValue PromoteIntRes_SETCC(SDNode *N);
-  SDValue PromoteIntRes_SHL(SDNode *N);
-  SDValue PromoteIntRes_SimpleIntBinOp(SDNode *N);
-  SDValue PromoteIntRes_ZExtIntBinOp(SDNode *N);
-  SDValue PromoteIntRes_SExtIntBinOp(SDNode *N);
+  SDValue PromoteIntRes_SHL(SDNode *N, bool IsVP);
+  SDValue PromoteIntRes_SimpleIntBinOp(SDNode *N, bool IsVP);
+  SDValue PromoteIntRes_ZExtIntBinOp(SDNode *N, bool IsVP);
+  SDValue PromoteIntRes_SExtIntBinOp(SDNode *N, bool IsVP);
   SDValue PromoteIntRes_UMINUMAX(SDNode *N);
   SDValue PromoteIntRes_SIGN_EXTEND_INREG(SDNode *N);
-  SDValue PromoteIntRes_SRA(SDNode *N);
-  SDValue PromoteIntRes_SRL(SDNode *N);
+  SDValue PromoteIntRes_SRA(SDNode *N, bool IsVP);
+  SDValue PromoteIntRes_SRL(SDNode *N, bool IsVP);
   SDValue PromoteIntRes_TRUNCATE(SDNode *N);
   SDValue PromoteIntRes_UADDSUBO(SDNode *N, unsigned ResNo);
   SDValue PromoteIntRes_ADDSUBCARRY(SDNode *N, unsigned ResNo);
@@ -463,6 +464,8 @@ private:
 
   void ExpandIntRes_Rotate            (SDNode *N, SDValue &Lo, SDValue &Hi);
   void ExpandIntRes_FunnelShift       (SDNode *N, SDValue &Lo, SDValue &Hi);
+
+  void ExpandIntRes_VSCALE            (SDNode *N, SDValue &Lo, SDValue &Hi);
 
   void ExpandShiftByConstant(SDNode *N, const APInt &Amt,
                              SDValue &Lo, SDValue &Hi);
@@ -813,7 +816,7 @@ private:
 
   // Vector Result Splitting: <128 x ty> -> 2 x <64 x ty>.
   void SplitVectorResult(SDNode *N, unsigned ResNo);
-  void SplitVecRes_BinOp(SDNode *N, SDValue &Lo, SDValue &Hi);
+  void SplitVecRes_BinOp(SDNode *N, SDValue &Lo, SDValue &Hi, bool IsVP);
   void SplitVecRes_TernaryOp(SDNode *N, SDValue &Lo, SDValue &Hi);
   void SplitVecRes_UnaryOp(SDNode *N, SDValue &Lo, SDValue &Hi);
   void SplitVecRes_ExtendOp(SDNode *N, SDValue &Lo, SDValue &Hi);
@@ -909,7 +912,7 @@ private:
   SDValue WidenVecRes_VECTOR_SHUFFLE(ShuffleVectorSDNode *N);
 
   SDValue WidenVecRes_Ternary(SDNode *N);
-  SDValue WidenVecRes_Binary(SDNode *N);
+  SDValue WidenVecRes_Binary(SDNode *N, bool IsVP);
   SDValue WidenVecRes_BinaryCanTrap(SDNode *N);
   SDValue WidenVecRes_BinaryWithExtraScalarOp(SDNode *N);
   SDValue WidenVecRes_StrictFP(SDNode *N);

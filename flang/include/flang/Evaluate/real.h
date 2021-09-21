@@ -55,6 +55,7 @@ public:
 
   constexpr Real() {} // +0.0
   constexpr Real(const Real &) = default;
+  constexpr Real(Real &&) = default;
   constexpr Real(const Word &bits) : word_{bits} {}
   constexpr Real &operator=(const Real &) = default;
   constexpr Real &operator=(Real &&) = default;
@@ -114,8 +115,10 @@ public:
   ValueWithRealFlags<Real> Divide(
       const Real &, Rounding rounding = defaultRounding) const;
 
-  // SQRT(x**2 + y**2) but computed so as to avoid spurious overflow
-  // TODO: not yet implemented; needed for CABS
+  ValueWithRealFlags<Real> SQRT(Rounding rounding = defaultRounding) const;
+
+  // HYPOT(x,y)=SQRT(x**2 + y**2) computed so as to avoid spurious
+  // intermediate overflows.
   ValueWithRealFlags<Real> HYPOT(
       const Real &, Rounding rounding = defaultRounding) const;
 

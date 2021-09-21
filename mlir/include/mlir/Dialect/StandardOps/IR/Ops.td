@@ -21,15 +21,11 @@ include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/VectorInterfaces.td"
-include "mlir/Interfaces/ViewLikeInterface.td"
 
 def StandardOps_Dialect : Dialect {
   let name = "std";
-  let cppNamespace = "";
+  let cppNamespace = "::mlir";
   let hasConstantMaterializer = 1;
-  // TODO: This dependency is needed to handle memref ops in the
-  // canonicalize pass and should be resolved.
-  let dependentDialects = ["memref::MemRefDialect"];
 }
 
 // Base class for Standard dialect ops.
@@ -53,7 +49,8 @@ class ArithmeticCastOp<string mnemonic, list<OpTrait> traits = []> :
       DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
       NoSideEffect, SameOperandsAndResultShape,
       DeclareOpInterfaceMethods<CastOpInterface>]> {
-  let results = (outs AnyType);
+  let arguments = (ins AnyType:$in);
+  let results = (outs AnyType:$out);
 
   let builders = [
     OpBuilder<(ins "Value":$source, "Type":$destType), [{
@@ -460,6 +457,32 @@ def AtomicYieldOp : Std_Op<"atomic_yield", [
 }
 
 //===----------------------------------------------------------------------===//
+// BitcastOp
+//===----------------------------------------------------------------------===//
+
+def BitcastOp : ArithmeticCastOp<"bitcast"> {
+  let summary = "bitcast between values of equal bit width";
+  let description = [{
+    Bitcast an integer or floating point value to an integer or floating point
+    value of equal bit width. When operating on vectors, casts elementwise.
+
+    Note that this implements a logical bitcast independent of target
+    endianness. This allows constant folding without target information and is
+    consitent with the bitcast constant folders in LLVM (see
+    https://github.com/llvm/llvm-project/blob/18c19414eb/llvm/lib/IR/ConstantFold.cpp#L168)
+    For targets where the source and target type have the same endianness (which
+    is the standard), this cast will also change no bits at runtime, but it may
+    still require an operation, for example if the machine has different
+    floating point and integer register files. For targets that have a different
+    endianness for the source and target types (e.g. float is big-endian and
+    integer is little-endian) a proper lowering would add operations to swap the
+    order of words in addition to the bitcast.
+  }];
+  let hasFolder = 1;
+}
+
+
+//===----------------------------------------------------------------------===//
 // BranchOp
 //===----------------------------------------------------------------------===//
 
@@ -537,7 +560,7 @@ def CallOp : Std_Op<"call",
   let builders = [
     OpBuilder<(ins "FuncOp":$callee, CArg<"ValueRange", "{}">:$operands), [{
       $_state.addOperands(operands);
-      $_state.addAttribute("callee",$_builder.getSymbolRefAttr(callee));
+      $_state.addAttribute("callee", SymbolRefAttr::get(callee));
       $_state.addTypes(callee.getType().getResults());
     }]>,
     OpBuilder<(ins "SymbolRefAttr":$callee, "TypeRange":$results,
@@ -546,14 +569,19 @@ def CallOp : Std_Op<"call",
       $_state.addAttribute("callee", callee);
       $_state.addTypes(results);
     }]>,
+    OpBuilder<(ins "StringAttr":$callee, "TypeRange":$results,
+      CArg<"ValueRange", "{}">:$operands), [{
+      build($_builder, $_state, SymbolRefAttr::get(callee), results, operands);
+    }]>,
     OpBuilder<(ins "StringRef":$callee, "TypeRange":$results,
       CArg<"ValueRange", "{}">:$operands), [{
-      build($_builder, $_state, $_builder.getSymbolRefAttr(callee), results,
-            operands);
+      build($_builder, $_state, StringAttr::get($_builder.getContext(), callee),
+            results, operands);
     }]>];
 
   let extraClassDeclaration = [{
     StringRef getCallee() { return callee(); }
+    StringAttr getCalleeAttr() { return calleeAttr().getAttr(); }
     FunctionType getCalleeType();
 
     /// Get the argument operands to the called function.
@@ -708,34 +736,6 @@ def FloorFOp : FloatUnaryOp<"floorf"> {
 // CmpFOp
 //===----------------------------------------------------------------------===//
 
-// The predicate indicates the type of the comparison to perform:
-// (un)orderedness, (in)equality and less/greater than (or equal to) as
-// well as predicates that are always true or false.
-def CMPF_P_FALSE   : I64EnumAttrCase<"AlwaysFalse", 0, "false">;
-def CMPF_P_OEQ     : I64EnumAttrCase<"OEQ", 1, "oeq">;
-def CMPF_P_OGT     : I64EnumAttrCase<"OGT", 2, "ogt">;
-def CMPF_P_OGE     : I64EnumAttrCase<"OGE", 3, "oge">;
-def CMPF_P_OLT     : I64EnumAttrCase<"OLT", 4, "olt">;
-def CMPF_P_OLE     : I64EnumAttrCase<"OLE", 5, "ole">;
-def CMPF_P_ONE     : I64EnumAttrCase<"ONE", 6, "one">;
-def CMPF_P_ORD     : I64EnumAttrCase<"ORD", 7, "ord">;
-def CMPF_P_UEQ     : I64EnumAttrCase<"UEQ", 8, "ueq">;
-def CMPF_P_UGT     : I64EnumAttrCase<"UGT", 9, "ugt">;
-def CMPF_P_UGE     : I64EnumAttrCase<"UGE", 10, "uge">;
-def CMPF_P_ULT     : I64EnumAttrCase<"ULT", 11, "ult">;
-def CMPF_P_ULE     : I64EnumAttrCase<"ULE", 12, "ule">;
-def CMPF_P_UNE     : I64EnumAttrCase<"UNE", 13, "une">;
-def CMPF_P_UNO     : I64EnumAttrCase<"UNO", 14, "uno">;
-def CMPF_P_TRUE    : I64EnumAttrCase<"AlwaysTrue", 15, "true">;
-
-def CmpFPredicateAttr : I64EnumAttr<
-    "CmpFPredicate", "",
-    [CMPF_P_FALSE, CMPF_P_OEQ, CMPF_P_OGT, CMPF_P_OGE, CMPF_P_OLT, CMPF_P_OLE,
-     CMPF_P_ONE, CMPF_P_ORD, CMPF_P_UEQ, CMPF_P_UGT, CMPF_P_UGE, CMPF_P_ULT,
-     CMPF_P_ULE, CMPF_P_UNE, CMPF_P_UNO, CMPF_P_TRUE]> {
-  let cppNamespace = "::mlir";
-}
-
 def CmpFOp : Std_Op<"cmpf", [NoSideEffect, SameTypeOperands,
     DeclareOpInterfaceMethods<VectorUnrollOpInterface>, TypesMatchWith<
     "result type has i1 element type and same shape as operands",
@@ -800,24 +800,6 @@ def CmpFOp : Std_Op<"cmpf", [NoSideEffect, SameTypeOperands,
 //===----------------------------------------------------------------------===//
 // CmpIOp
 //===----------------------------------------------------------------------===//
-
-def CMPI_P_EQ  : I64EnumAttrCase<"eq", 0>;
-def CMPI_P_NE  : I64EnumAttrCase<"ne", 1>;
-def CMPI_P_SLT : I64EnumAttrCase<"slt", 2>;
-def CMPI_P_SLE : I64EnumAttrCase<"sle", 3>;
-def CMPI_P_SGT : I64EnumAttrCase<"sgt", 4>;
-def CMPI_P_SGE : I64EnumAttrCase<"sge", 5>;
-def CMPI_P_ULT : I64EnumAttrCase<"ult", 6>;
-def CMPI_P_ULE : I64EnumAttrCase<"ule", 7>;
-def CMPI_P_UGT : I64EnumAttrCase<"ugt", 8>;
-def CMPI_P_UGE : I64EnumAttrCase<"uge", 9>;
-
-def CmpIPredicateAttr : I64EnumAttr<
-    "CmpIPredicate", "",
-    [CMPI_P_EQ, CMPI_P_NE, CMPI_P_SLT, CMPI_P_SLE, CMPI_P_SGT,
-     CMPI_P_SGE, CMPI_P_ULT, CMPI_P_ULE, CMPI_P_UGT, CMPI_P_UGE]> {
-  let cppNamespace = "::mlir";
-}
 
 def CmpIOp : Std_Op<"cmpi", [NoSideEffect, SameTypeOperands,
     DeclareOpInterfaceMethods<VectorUnrollOpInterface>, TypesMatchWith<
@@ -1055,7 +1037,8 @@ def CondBranchOp : Std_Op<"cond_br",
 //===----------------------------------------------------------------------===//
 
 def ConstantOp : Std_Op<"constant",
-    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+    [ConstantLike, NoSideEffect,
+     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
   let summary = "constant";
   let description = [{
     Syntax:
@@ -1196,12 +1179,12 @@ def FmaFOp : FloatTernaryOp<"fmaf"> {
 // FPExtOp
 //===----------------------------------------------------------------------===//
 
-def FPExtOp : ArithmeticCastOp<"fpext">, Arguments<(ins AnyType:$in)> {
+def FPExtOp : ArithmeticCastOp<"fpext"> {
   let summary = "cast from floating-point to wider floating-point";
   let description = [{
     Cast a floating-point value to a larger floating-point-typed value.
     The destination type must to be strictly wider than the source type.
-    Only scalars are currently supported.
+    When operating on vectors, casts elementwise.
   }];
 }
 
@@ -1209,11 +1192,12 @@ def FPExtOp : ArithmeticCastOp<"fpext">, Arguments<(ins AnyType:$in)> {
 // FPToSIOp
 //===----------------------------------------------------------------------===//
 
-def FPToSIOp : ArithmeticCastOp<"fptosi">, Arguments<(ins AnyType:$in)> {
+def FPToSIOp : ArithmeticCastOp<"fptosi"> {
   let summary = "cast from floating-point type to integer type";
   let description = [{
     Cast from a value interpreted as floating-point to the nearest (rounding
-    towards zero) signed integer value.
+    towards zero) signed integer value. When operating on vectors, casts
+    elementwise.
   }];
 }
 
@@ -1221,11 +1205,12 @@ def FPToSIOp : ArithmeticCastOp<"fptosi">, Arguments<(ins AnyType:$in)> {
 // FPToUIOp
 //===----------------------------------------------------------------------===//
 
-def FPToUIOp : ArithmeticCastOp<"fptoui">, Arguments<(ins AnyType:$in)> {
+def FPToUIOp : ArithmeticCastOp<"fptoui"> {
   let summary = "cast from floating-point type to integer type";
   let description = [{
     Cast from a value interpreted as floating-point to the nearest (rounding
-    towards zero) unsigned integer value.
+    towards zero) unsigned integer value. When operating on vectors, casts
+    elementwise.
   }];
 }
 
@@ -1233,26 +1218,29 @@ def FPToUIOp : ArithmeticCastOp<"fptoui">, Arguments<(ins AnyType:$in)> {
 // FPTruncOp
 //===----------------------------------------------------------------------===//
 
-def FPTruncOp : ArithmeticCastOp<"fptrunc">, Arguments<(ins AnyType:$in)> {
+def FPTruncOp : ArithmeticCastOp<"fptrunc"> {
   let summary = "cast from floating-point to narrower floating-point";
   let description = [{
     Truncate a floating-point value to a smaller floating-point-typed value.
     The destination type must be strictly narrower than the source type.
     If the value cannot be exactly represented, it is rounded using the default
-    rounding mode. Only scalars are currently supported.
+    rounding mode. When operating on vectors, casts elementwise.
   }];
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
 // IndexCastOp
 //===----------------------------------------------------------------------===//
 
-def IndexCastOp : ArithmeticCastOp<"index_cast">, Arguments<(ins AnyType:$in)> {
+def IndexCastOp : ArithmeticCastOp<"index_cast"> {
   let summary = "cast between index and integer types";
   let description = [{
-    Casts between integer scalars and 'index' scalars. Index is an integer of
-    platform-specific bit width. If casting to a wider integer, the value is
-    sign-extended. If casting to a narrower integer, the value is truncated.
+    Casts between scalar or vector integers and corresponding 'index' scalar or
+    vectors. Index is an integer of platform-specific bit width. If casting to
+    a wider integer, the value is sign-extended. If casting to a narrower
+    integer, the value is truncated.
   }];
 
   let hasFolder = 1;
@@ -1503,6 +1491,7 @@ def SelectOp : Std_Op<"select", [NoSideEffect,
       Value getFalseValue() { return false_value(); }
   }];
 
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 
@@ -1726,13 +1715,13 @@ def SignExtendIOp : Std_Op<"sexti", [NoSideEffect,
 // SIToFPOp
 //===----------------------------------------------------------------------===//
 
-def SIToFPOp : ArithmeticCastOp<"sitofp">, Arguments<(ins AnyType:$in)> {
+def SIToFPOp : ArithmeticCastOp<"sitofp"> {
   let summary = "cast from integer type to floating-point";
   let description = [{
-    Cast from a value interpreted as signed or vector of signed integers to the
-    corresponding floating-point scalar or vector value. If the value cannot be
-    exactly represented, it is rounded using the default rounding mode. Scalars
-    and vector types are currently supported.
+    Cast from a value interpreted as a signed integer to the corresponding
+    floating-point value. If the value cannot be exactly represented, it is
+    rounded using the default rounding mode. When operating on vectors, casts
+    elementwise.
   }];
 }
 
@@ -1803,245 +1792,6 @@ def SubIOp : IntBinaryOp<"subi"> {
 }
 
 //===----------------------------------------------------------------------===//
-// SubTensorOp
-//===----------------------------------------------------------------------===//
-
-def SubTensorOp : BaseOpWithOffsetSizesAndStrides<
-    StandardOps_Dialect, "subtensor", [NoSideEffect, AttrSizedOperandSegments,
-                                       OffsetSizeAndStrideOpInterface]> {
-  let summary = "subtensor operation";
-  let description = [{
-    The "subtensor" operation extract a tensor from another tensor as
-    specified by the operation's offsets, sizes and strides arguments.
-
-    The subtensor operation supports the following arguments:
-
-    * source: the "base" tensor from which to extract a subtensor.
-    * offsets: tensor-rank number of offsets into the "base" tensor from which
-               to extract the subtensor.
-    * sizes: tensor-rank number of sizes which specify the sizes of the result
-             tensor type.
-    * strides: tensor-rank number of strides specifying subsampling in each
-               dimension.
-
-    The representation based on offsets, sizes and strides support a
-    partially-static specification via attributes specified through the
-    `static_offsets`, `static_sizes` and `static_strides` arguments. A special
-    sentinel value ShapedType::kDynamicSize and
-    ShapedType::kDynamicStrideOrOffset encodes that the corresponding entry has
-    a dynamic value.
-
-    After buffer-allocation, the "subtensor" op is expected to lower into a
-    "subview" op.
-
-    A subtensor operation may additionally reduce the rank of the resulting
-    tensor by removing dimensions that are statically known to be of size 1.
-
-    Example:
-
-    ```
-    // Rank-reducing subtensor.
-    %1 = subtensor %0[0, 0, 0][1, 16, 4][1, 1, 1] :
-      tensor<8x16x4xf32> to tensor<16x4xf32>
-    %3 = subtensor %2[3, 4, 2][1, 6, 3][1, 1, 1] :
-      tensor<8x16x4xf32> to tensor<6x3xf32>
-    ```
-  }];
-
-  let arguments = (ins
-    AnyRankedTensor:$source,
-    Variadic<Index>:$offsets,
-    Variadic<Index>:$sizes,
-    Variadic<Index>:$strides,
-    I64ArrayAttr:$static_offsets,
-    I64ArrayAttr:$static_sizes,
-    I64ArrayAttr:$static_strides
-  );
-  let results = (outs AnyRankedTensor:$result);
-
-  let assemblyFormat = [{
-    $source ``
-    custom<OperandsOrIntegersOffsetsOrStridesList>($offsets, $static_offsets)
-    custom<OperandsOrIntegersSizesList>($sizes, $static_sizes)
-    custom<OperandsOrIntegersOffsetsOrStridesList>($strides, $static_strides)
-    attr-dict `:` type($source) `to` type($result)
-  }];
-
-  let builders = [
-    // Build a SubTensorOp with mixed static and dynamic entries and inferred
-    // result type.
-    OpBuilder<(ins "Value":$source, "ArrayRef<OpFoldResult>":$offsets,
-      "ArrayRef<OpFoldResult>":$sizes, "ArrayRef<OpFoldResult>":$strides,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
-    // Build a SubTensorOp with mixed static and dynamic entries and custom
-    // result type. If the type passed is nullptr, it is inferred.
-    OpBuilder<(ins "RankedTensorType":$resultType, "Value":$source,
-      "ArrayRef<OpFoldResult>":$offsets, "ArrayRef<OpFoldResult>":$sizes,
-      "ArrayRef<OpFoldResult>":$strides,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
-    // Build a SubTensorOp with dynamic entries and custom result type. If the
-    // type passed is nullptr, it is inferred.
-    OpBuilder<(ins "Value":$source, "ValueRange":$offsets,
-      "ValueRange":$sizes, "ValueRange":$strides,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
-    // Build a SubTensorOp with dynamic entries and inferred result type.
-    OpBuilder<(ins "RankedTensorType":$resultType, "Value":$source,
-      "ValueRange":$offsets, "ValueRange":$sizes, "ValueRange":$strides,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
-  ];
-
-  let extraClassDeclaration = extraBaseClassDeclaration # [{
-    /// Returns the type of the base tensor operand.
-    RankedTensorType getSourceType() {
-      return source().getType().cast<RankedTensorType>();
-    }
-
-    /// The result of a subtensor is always a tensor.
-    RankedTensorType getType() {
-      return getResult().getType().cast<RankedTensorType>();
-    }
-
-    /// A subtensor result type can be fully inferred from the source type and
-    /// the static representation of offsets, sizes and strides. Special
-    /// sentinels encode the dynamic case.
-    static Type inferResultType(RankedTensorType sourceRankedTensorType,
-                                ArrayRef<int64_t> staticOffsets,
-                                ArrayRef<int64_t> staticSizes,
-                                ArrayRef<int64_t> staticStrides);
-    static Type inferResultType(RankedTensorType sourceRankedTensorType,
-                                ArrayRef<OpFoldResult> staticOffsets,
-                                ArrayRef<OpFoldResult> staticSizes,
-                                ArrayRef<OpFoldResult> staticStrides);
-    static Type inferRankReducedResultType(unsigned resultRank,
-                                           RankedTensorType sourceRankedTensorType,
-                                           ArrayRef<int64_t> staticOffsets,
-                                           ArrayRef<int64_t> staticSizes,
-                                           ArrayRef<int64_t> staticStrides);
-    static Type inferRankReducedResultType(unsigned resultRank,
-                                           RankedTensorType sourceRankedTensorType,
-                                           ArrayRef<OpFoldResult> staticOffsets,
-                                           ArrayRef<OpFoldResult> staticSizes,
-                                           ArrayRef<OpFoldResult> staticStrides);
-
-    /// Return the expected rank of each of the`static_offsets`, `static_sizes`
-    /// and `static_strides` attributes.
-    std::array<unsigned, 3> getArrayAttrMaxRanks() {
-      unsigned rank = getSourceType().getRank();
-      return {rank, rank, rank};
-    }
-
-    /// Return the number of leading operands before the `offsets`, `sizes` and
-    /// and `strides` operands.
-    static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 1; }
-  }];
-
-  let hasCanonicalizer = 1;
-  let hasFolder = 1;
-}
-
-//===----------------------------------------------------------------------===//
-// SubTensorInsertOp
-//===----------------------------------------------------------------------===//
-
-def SubTensorInsertOp : BaseOpWithOffsetSizesAndStrides<
-    StandardOps_Dialect, "subtensor_insert",
-    [NoSideEffect, AttrSizedOperandSegments, OffsetSizeAndStrideOpInterface,
-     TypesMatchWith<"expected result type to match dest type",
-                    "dest", "result", "$_self">]> {
-  let summary = "subtensor_insert operation";
-  let description = [{
-    The "subtensor_insert" operation insert a tensor `source` into another
-    tensor `dest` as specified by the operation's offsets, sizes and strides
-    arguments.
-
-    It returns a copy of `dest` with the proper subtensor updated with the value
-    of `source`.
-
-    The subtensor_insert operation has the encodes the following information:
-
-    * source: the tensor that is inserted.
-    * dest: the tensor into which the source tensor is inserted.
-    * offsets: tensor-rank number of offsets into the "base" tensor from which
-               to extract the subtensor.
-    * sizes: tensor-rank number of sizes which specify the sizes of the result
-             tensor type.
-    * strides: tensor-rank number of strides that specify subsampling in each
-               dimension.
-
-    The representation based on offsets, sizes and strides support a
-    partially-static specification via attributes specified through the
-    `static_offsets`, `static_sizes` and `static_strides` arguments. A special
-    sentinel value ShapedType::kDynamicSize and
-    ShapedType::kDynamicStrideOrOffset encodes that the corresponding entry has
-    a dynamic value.
-
-    After buffer-allocation, the "subtensor_insert" op is expected to become
-    an in-place buffer update.
-  }];
-
-  let arguments = (ins
-    AnyRankedTensor:$source,
-    AnyRankedTensor:$dest,
-    Variadic<Index>:$offsets,
-    Variadic<Index>:$sizes,
-    Variadic<Index>:$strides,
-    I64ArrayAttr:$static_offsets,
-    I64ArrayAttr:$static_sizes,
-    I64ArrayAttr:$static_strides
-  );
-  let results = (outs AnyRankedTensor:$result);
-
-  let assemblyFormat = [{
-    $source `into` $dest ``
-    custom<OperandsOrIntegersOffsetsOrStridesList>($offsets, $static_offsets)
-    custom<OperandsOrIntegersSizesList>($sizes, $static_sizes)
-    custom<OperandsOrIntegersOffsetsOrStridesList>($strides, $static_strides)
-    attr-dict `:` type($source) `into` type($dest)
-  }];
-
-  let verifier = ?;
-
-  let builders = [
-    // Build a SubTensorInsertOp with mixed static and dynamic entries.
-    OpBuilder<(ins "Value":$source, "Value":$dest,
-      "ArrayRef<OpFoldResult>":$offsets, "ArrayRef<OpFoldResult>":$sizes,
-      "ArrayRef<OpFoldResult>":$strides,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
-    // Build a SubTensorInsertOp with dynamic entries.
-    OpBuilder<(ins "Value":$source, "Value":$dest,
-      "ValueRange":$offsets, "ValueRange":$sizes, "ValueRange":$strides,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
-  ];
-
-  let extraClassDeclaration = extraBaseClassDeclaration # [{
-    /// Returns the type of the base tensor operand.
-    RankedTensorType getSourceType() {
-      return source().getType().cast<RankedTensorType>();
-    }
-
-    /// The result of a subtensor_insert is always a tensor.
-    RankedTensorType getType() {
-      return getResult().getType().cast<RankedTensorType>();
-    }
-
-    /// Return the expected rank of each of the`static_offsets`, `static_sizes`
-    /// and `static_strides` attributes.
-    std::array<unsigned, 3> getArrayAttrMaxRanks() {
-      unsigned rank = getType().getRank();
-      return {rank, rank, rank};
-    }
-
-    /// Return the number of leading operands before the `offsets`, `sizes` and
-    /// and `strides` operands.
-    static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 2; }
-  }];
-
-  let hasCanonicalizer = 1;
-  let hasFolder = 1;
-}
-
-
-//===----------------------------------------------------------------------===//
 // SwitchOp
 //===----------------------------------------------------------------------===//
 
@@ -2068,14 +1818,17 @@ def SwitchOp : Std_Op<"switch",
     ```
   }];
 
-  let arguments = (ins AnyInteger:$flag,
-                       Variadic<AnyType>:$defaultOperands,
-                       Variadic<AnyType>:$caseOperands,
-                       OptionalAttr<AnyIntElementsAttr>:$case_values,
-                       OptionalAttr<I32ElementsAttr>:$case_operand_offsets);
+  let arguments = (ins
+    AnyInteger:$flag,
+    Variadic<AnyType>:$defaultOperands,
+    VariadicOfVariadic<AnyType, "case_operand_segments">:$caseOperands,
+    OptionalAttr<AnyIntElementsAttr>:$case_values,
+    I32ElementsAttr:$case_operand_segments
+  );
   let successors = (successor
-                        AnySuccessor:$defaultDestination,
-                        VariadicSuccessor<AnySuccessor>:$caseDestinations);
+    AnySuccessor:$defaultDestination,
+    VariadicSuccessor<AnySuccessor>:$caseDestinations
+  );
   let builders = [
     OpBuilder<(ins "Value":$flag,
       "Block *":$defaultDestination,
@@ -2105,19 +1858,22 @@ def SwitchOp : Std_Op<"switch",
                             $case_values,
                             $caseDestinations,
                             $caseOperands,
-                            type($caseOperands),
-                            $case_operand_offsets)
+                            type($caseOperands))
    `]`
     attr-dict
   }];
 
   let extraClassDeclaration = [{
     /// Return the operands for the case destination block at the given index.
-    OperandRange getCaseOperands(unsigned index);
+    OperandRange getCaseOperands(unsigned index) {
+      return caseOperands()[index];
+    }
 
     /// Return a mutable range of operands for the case destination block at the
     /// given index.
-    MutableOperandRange getCaseOperandsMutable(unsigned index);
+    MutableOperandRange getCaseOperandsMutable(unsigned index) {
+      return caseOperandsMutable()[index];
+    }
   }];
 
   let hasCanonicalizer = 1;
@@ -2171,13 +1927,13 @@ def TruncateIOp : Std_Op<"trunci", [NoSideEffect,
 // UIToFPOp
 //===----------------------------------------------------------------------===//
 
-def UIToFPOp : ArithmeticCastOp<"uitofp">, Arguments<(ins AnyType:$in)> {
+def UIToFPOp : ArithmeticCastOp<"uitofp"> {
   let summary = "cast from unsigned integer type to floating-point";
   let description = [{
-    Cast from a value interpreted as unsigned integer or vector of unsigned
-    integers to the corresponding scalar or vector floating-point value. If the
-    value cannot be exactly represented, it is rounded using the default
-    rounding mode. Scalars and vector types are currently supported.
+    Cast from a value interpreted as unsigned integer to the corresponding
+    floating-point value. If the value cannot be exactly represented, it is
+    rounded using the default rounding mode. When operating on vectors, casts
+    elementwise.
   }];
 }
 

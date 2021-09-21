@@ -34,6 +34,7 @@
 
 namespace mlir {
 class DLTIDialect;
+class RewritePatternSet;
 } // namespace mlir
 
 #include "TestOpEnums.h.inc"
@@ -44,10 +45,9 @@ class DLTIDialect;
 #define GET_OP_CLASSES
 #include "TestOps.h.inc"
 
-namespace mlir {
 namespace test {
-void registerTestDialect(DialectRegistry &registry);
-} // namespace test
-} // namespace mlir
+void registerTestDialect(::mlir::DialectRegistry &registry);
+void populateTestReductionPatterns(::mlir::RewritePatternSet &patterns);
+} // end namespace test
 
 #endif // MLIR_TESTDIALECT_H

@@ -24,9 +24,9 @@ kernel:
   for (int i = 0; i < n_sc_sets; i++) {
     cl::sycl::program program(q.get_context());
     const int *sc_set = &sc_vals[i][0];
-    cl::sycl::ONEAPI::experimental::spec_constant<int32_t, SC0> sc0 =
+    cl::sycl::ext::oneapi::experimental::spec_constant<int32_t, SC0> sc0 =
         program.set_spec_constant<SC0>(sc_set[0]);
-    cl::sycl::ONEAPI::experimental::spec_constant<int32_t, SC1> sc1 =
+    cl::sycl::ext::oneapi::experimental::spec_constant<int32_t, SC1> sc1 =
         program.set_spec_constant<SC1>(sc_set[1]);
 
     program.build_with_kernel_type<KernelAAA>();
@@ -56,7 +56,7 @@ instance, setting new values and rebuilding it via
 `sc0.get()` and  `sc1.get()` within thhe device code with the corresponding
 constant values (`sc_vals[i][0]` and `sc_vals[i][1]`). Full runnable example
 can be found on
-[github](https://github.com/intel/llvm/blob/sycl/sycl/test/on-device/spec_const/spec_const_redefine.cpp).
+[github](https://github.com/intel/llvm-test-suite/blob/intel/SYCL/SpecConstants/1.2.1/spec_const_redefine.cpp).
 
 Specialization constants can be used in programs compiled Ahead-Of-Time, in this
 case a specialization constant takes default value for its type (as specified by

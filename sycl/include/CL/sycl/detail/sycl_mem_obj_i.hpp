@@ -20,8 +20,8 @@ class event_impl;
 class context_impl;
 struct MemObjRecord;
 
-using EventImplPtr = shared_ptr_class<detail::event_impl>;
-using ContextImplPtr = shared_ptr_class<detail::context_impl>;
+using EventImplPtr = std::shared_ptr<detail::event_impl>;
+using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 
 // The class serves as an interface in the scheduler for all SYCL memory
 // objects.
@@ -29,7 +29,7 @@ class SYCLMemObjI {
 public:
   virtual ~SYCLMemObjI() = default;
 
-  enum MemObjType { BUFFER = 0, IMAGE = 1, UNDEFINED = 2 };
+  enum MemObjType { Buffer = 0, Image = 1, Undefined = 2 };
 
   virtual MemObjType getType() const = 0;
 
@@ -68,10 +68,10 @@ public:
 protected:
   // Pointer to the record that contains the memory commands. This is managed
   // by the scheduler.
-  // fixme replace with unique_ptr_class once it is implemented. Standard
+  // fixme replace with std::unique_ptr once it is implemented. Standard
   // unique_ptr requires knowlege of sizeof(MemObjRecord) at compile time
   // which is unavailable.
-  shared_ptr_class<MemObjRecord> MRecord;
+  std::shared_ptr<MemObjRecord> MRecord;
   friend class Scheduler;
   friend class ExecCGCommand;
 };

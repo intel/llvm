@@ -742,4 +742,20 @@ SPIRVType *SPIRVTypeStructContinuedINTEL::getMemberType(size_t I) const {
   return static_cast<SPIRVType *>(SPIRVEntry::getEntry(Elements[I]));
 }
 
+void SPIRVModuleProcessed::validate() const {
+  assert(WordCount == FixedWC + getSizeInWords(ProcessStr) &&
+         "Incorrect word count in OpModuleProcessed");
+}
+
+void SPIRVModuleProcessed::encode(spv_ostream &O) const {
+  getEncoder(O) << ProcessStr;
+}
+
+void SPIRVModuleProcessed::decode(std::istream &I) {
+  getDecoder(I) >> ProcessStr;
+  Module->addModuleProcessed(ProcessStr);
+}
+
+std::string SPIRVModuleProcessed::getProcessStr() { return ProcessStr; }
+
 } // namespace SPIRV

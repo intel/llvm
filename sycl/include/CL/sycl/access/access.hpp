@@ -21,7 +21,8 @@ enum class target {
   image = 2017,
   host_buffer = 2018,
   host_image = 2019,
-  image_array = 2020
+  image_array = 2020,
+  device = global_buffer,
 };
 
 enum class mode {
@@ -46,8 +47,14 @@ enum class address_space : int {
   global_space = 1,
   constant_space = 2,
   local_space = 3,
-  global_device_space = 4,
-  global_host_space = 5
+  ext_intel_global_device_space = 4,
+  ext_intel_host_device_space = 5,
+  global_device_space __SYCL2020_DEPRECATED(
+      "use 'ext_intel_global_device_space' instead") =
+      ext_intel_global_device_space,
+  global_host_space __SYCL2020_DEPRECATED(
+      "use 'ext_intel_host_device_space' instead") =
+      ext_intel_host_device_space,
 };
 
 } // namespace access

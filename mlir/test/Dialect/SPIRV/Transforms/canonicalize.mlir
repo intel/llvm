@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -split-input-file -pass-pipeline='func(canonicalize)' | FileCheck %s
+// RUN: mlir-opt %s -split-input-file -pass-pipeline='builtin.func(canonicalize)' | FileCheck %s
 
 //===----------------------------------------------------------------------===//
 // spv.AccessChain
@@ -339,9 +339,9 @@ func @const_fold_scalar_isub_flow() -> (i32, i32, i32, i32) {
   // 0xffff ffff - 0x7fff ffff -> 0xffff ffff + 0x8000 0001 = 0x1 8000 0000
   // CHECK-DAG: spv.Constant -2147483648
   // 0x0000 0001 - 0xffff ffff -> 0x0000 0001 + 0x0000 0001 = 0x0000 0002
-  // CHECK-DAG: spv.Constant 2
+  // CHECK-DAG: spv.Constant 2 :
   // 0x0000 0000 - 0xffff ffff -> 0x0000 0000 + 0x0000 0001 = 0x0000 0001
-  // CHECK-DAG: spv.Constant 1
+  // CHECK-DAG: spv.Constant 1 :
   // 0xffff fffe - 0x7fff ffff -> 0xffff fffe + 0x8000 0001 = 0x1 7fff ffff
   // CHECK-DAG: spv.Constant 2147483647
   %0 = spv.ISub %c1, %c3 : i32
@@ -486,9 +486,9 @@ func @convert_logical_or_true_false_vector(%arg: vector<3xi1>) -> (vector<3xi1>,
 
 func @canonicalize_selection_op_scalar_type(%cond: i1) -> () {
   %0 = spv.Constant 0: i32
-  // CHECK: %[[TRUE_VALUE:.*]] = spv.Constant 1 : i32
+  // CHECK-DAG: %[[TRUE_VALUE:.*]] = spv.Constant 1 : i32
   %1 = spv.Constant 1: i32
-  // CHECK: %[[FALSE_VALUE:.*]] = spv.Constant 2 : i32
+  // CHECK-DAG: %[[FALSE_VALUE:.*]] = spv.Constant 2 : i32
   %2 = spv.Constant 2: i32
   // CHECK: %[[DST_VAR:.*]] = spv.Variable init({{%.*}}) : !spv.ptr<i32, Function>
   %3 = spv.Variable init(%0) : !spv.ptr<i32, Function>
@@ -517,9 +517,9 @@ func @canonicalize_selection_op_scalar_type(%cond: i1) -> () {
 
 func @canonicalize_selection_op_vector_type(%cond: i1) -> () {
   %0 = spv.Constant dense<[0, 1, 2]> : vector<3xi32>
-  // CHECK: %[[TRUE_VALUE:.*]] = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
+  // CHECK-DAG: %[[TRUE_VALUE:.*]] = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
   %1 = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
-  // CHECK: %[[FALSE_VALUE:.*]] = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
+  // CHECK-DAG: %[[FALSE_VALUE:.*]] = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
   %2 = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
   // CHECK: %[[DST_VAR:.*]] = spv.Variable init({{%.*}}) : !spv.ptr<vector<3xi32>, Function>
   %3 = spv.Variable init(%0) : !spv.ptr<vector<3xi32>, Function>
@@ -590,9 +590,9 @@ func @cannot_canonicalize_selection_op_0(%cond: i1) -> () {
 // A conditional block consists of more than 2 operations.
 func @cannot_canonicalize_selection_op_1(%cond: i1) -> () {
   %0 = spv.Constant dense<[0, 1, 2]> : vector<3xi32>
-  // CHECK: %[[SRC_VALUE_0:.*]] = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
+  // CHECK-DAG: %[[SRC_VALUE_0:.*]] = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
   %1 = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
-  // CHECK: %[[SRC_VALUE_1:.*]] = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
+  // CHECK-DAG: %[[SRC_VALUE_1:.*]] = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
   %2 = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
   // CHECK: %[[DST_VAR_0:.*]] = spv.Variable init({{%.*}}) : !spv.ptr<vector<3xi32>, Function>
   %3 = spv.Variable init(%0) : !spv.ptr<vector<3xi32>, Function>
@@ -628,9 +628,9 @@ func @cannot_canonicalize_selection_op_1(%cond: i1) -> () {
 // A control-flow goes into `^then` block from `^else` block.
 func @cannot_canonicalize_selection_op_2(%cond: i1) -> () {
   %0 = spv.Constant dense<[0, 1, 2]> : vector<3xi32>
-  // CHECK: %[[SRC_VALUE_0:.*]] = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
+  // CHECK-DAG: %[[SRC_VALUE_0:.*]] = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
   %1 = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
-  // CHECK: %[[SRC_VALUE_1:.*]] = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
+  // CHECK-DAG: %[[SRC_VALUE_1:.*]] = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
   %2 = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
   // CHECK: %[[DST_VAR:.*]] = spv.Variable init({{%.*}}) : !spv.ptr<vector<3xi32>, Function>
   %3 = spv.Variable init(%0) : !spv.ptr<vector<3xi32>, Function>
@@ -663,8 +663,8 @@ func @cannot_canonicalize_selection_op_2(%cond: i1) -> () {
 func @cannot_canonicalize_selection_op_3(%cond: i1) -> () {
   %0 = spv.Constant dense<[0, 1, 2]> : vector<3xi32>
   %1 = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
-  // CHECK: %[[SRC_VALUE_0:.*]] = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
-  // CHECK: %[[SRC_VALUE_1:.*]] = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
+  // CHECK-DAG: %[[SRC_VALUE_0:.*]] = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
+  // CHECK-DAG: %[[SRC_VALUE_1:.*]] = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
   %2 = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
   // CHECK: %[[DST_VAR:.*]] = spv.Variable init({{%.*}}) : !spv.ptr<vector<3xi32>, Function>
   %3 = spv.Variable init(%0) : !spv.ptr<vector<3xi32>, Function>
@@ -696,9 +696,9 @@ func @cannot_canonicalize_selection_op_3(%cond: i1) -> () {
 // Different memory access attributes.
 func @cannot_canonicalize_selection_op_4(%cond: i1) -> () {
   %0 = spv.Constant dense<[0, 1, 2]> : vector<3xi32>
-  // CHECK: %[[SRC_VALUE_0:.*]] = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
+  // CHECK-DAG: %[[SRC_VALUE_0:.*]] = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
   %1 = spv.Constant dense<[1, 2, 3]> : vector<3xi32>
-  // CHECK: %[[SRC_VALUE_1:.*]] = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
+  // CHECK-DAG: %[[SRC_VALUE_1:.*]] = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
   %2 = spv.Constant dense<[2, 3, 4]> : vector<3xi32>
   // CHECK: %[[DST_VAR:.*]] = spv.Variable init({{%.*}}) : !spv.ptr<vector<3xi32>, Function>
   %3 = spv.Variable init(%0) : !spv.ptr<vector<3xi32>, Function>

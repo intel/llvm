@@ -42,11 +42,6 @@ static cl::opt<unsigned> UseDerefAtPointSemantics(
     "use-dereferenceable-at-point-semantics", cl::Hidden, cl::init(false),
     cl::desc("Deref attributes and metadata infer facts at definition only"));
 
-
-static cl::opt<unsigned> NonGlobalValueMaxNameSize(
-    "non-global-value-max-name-size", cl::Hidden, cl::init(1024),
-    cl::desc("Maximum size for the name of non-global values."));
-
 //===----------------------------------------------------------------------===//
 //                                Value Class
 //===----------------------------------------------------------------------===//
@@ -63,10 +58,13 @@ Value::Value(Type *ty, unsigned scid)
   // FIXME: Why isn't this in the subclass gunk??
   // Note, we cannot call isa<CallInst> before the CallInst has been
   // constructed.
-  if (SubclassID == Instruction::Call || SubclassID == Instruction::Invoke ||
-      SubclassID == Instruction::CallBr)
+  unsigned OpCode = 0;
+  if (SubclassID >= InstructionVal)
+    OpCode = SubclassID - InstructionVal;
+  if (OpCode == Instruction::Call || OpCode == Instruction::Invoke ||
+      OpCode == Instruction::CallBr)
     assert((VTy->isFirstClassType() || VTy->isVoidTy() || VTy->isStructTy()) &&
-           "invalid CallInst type!");
+           "invalid CallBase type!");
   else if (SubclassID != BasicBlockVal &&
            (/*SubclassID < ConstantFirstVal ||*/ SubclassID > ConstantLastVal))
     assert((VTy->isFirstClassType() || VTy->isVoidTy()) &&
@@ -323,11 +321,6 @@ void Value::setNameImpl(const Twine &NewName) {
   if (getName() == NameRef)
     return;
 
-  // Cap the size of non-GlobalValue names.
-  if (NameRef.size() > NonGlobalValueMaxNameSize && !isa<GlobalValue>(this))
-    NameRef =
-        NameRef.substr(0, std::max(1u, (unsigned)NonGlobalValueMaxNameSize));
-
   assert(!getType()->isVoidTy() && "Cannot assign a name to void values!");
 
   // Get the symbol table to update for this object.
@@ -530,6 +523,39 @@ void Value::replaceAllUsesWith(Value *New) {
 
 void Value::replaceNonMetadataUsesWith(Value *New) {
   doRAUW(New, ReplaceMetadataUses::No);
+}
+
+void Value::replaceUsesWithIf(Value *New,
+                              llvm::function_ref<bool(Use &U)> ShouldReplace) {
+  assert(New && "Value::replaceUsesWithIf(<null>) is invalid!");
+  assert(New->getType() == getType() &&
+         "replaceUses of value with new value of different type!");
+
+  SmallVector<TrackingVH<Constant>, 8> Consts;
+  SmallPtrSet<Constant *, 8> Visited;
+
+  for (use_iterator UI = use_begin(), E = use_end(); UI != E;) {
+    Use &U = *UI;
+    ++UI;
+    if (!ShouldReplace(U))
+      continue;
+    // Must handle Constants specially, we cannot call replaceUsesOfWith on a
+    // constant because they are uniqued.
+    if (auto *C = dyn_cast<Constant>(U.getUser())) {
+      if (!isa<GlobalValue>(C)) {
+        if (Visited.insert(C).second)
+          Consts.push_back(TrackingVH<Constant>(C));
+        continue;
+      }
+    }
+    U.set(New);
+  }
+
+  while (!Consts.empty()) {
+    // FIXME: handleOperandChange() updates all the uses in a given Constant,
+    //        not just the one passed to ShouldReplace
+    Consts.pop_back_val()->handleOperandChange(this, New);
+  }
 }
 
 /// Replace llvm.dbg.* uses of MetadataAsValue(ValueAsMetadata(V)) outside BB
@@ -826,10 +852,9 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
       CanBeNull = true;
     }
   } else if (const auto *Call = dyn_cast<CallBase>(this)) {
-    DerefBytes = Call->getDereferenceableBytes(AttributeList::ReturnIndex);
+    DerefBytes = Call->getRetDereferenceableBytes();
     if (DerefBytes == 0) {
-      DerefBytes =
-          Call->getDereferenceableOrNullBytes(AttributeList::ReturnIndex);
+      DerefBytes = Call->getRetDereferenceableOrNullBytes();
       CanBeNull = true;
     }
   } else if (const LoadInst *LI = dyn_cast<LoadInst>(this)) {
@@ -871,6 +896,7 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
       // CanBeNull flag.
       DerefBytes = DL.getTypeStoreSize(GV->getValueType()).getFixedSize();
       CanBeNull = false;
+      CanBeFreed = false;
     }
   }
   return DerefBytes;

@@ -58,7 +58,6 @@ using namespace llvm::PatternMatch;
 
 static const char *LLVMLoopDisableNonforced = "llvm.loop.disable_nonforced";
 static const char *LLVMLoopDisableLICM = "llvm.licm.disable";
-static const char *LLVMLoopMustProgress = "llvm.loop.mustprogress";
 
 bool llvm::formDedicatedExitBlocks(Loop *L, DominatorTree *DT, LoopInfo *LI,
                                    MemorySSAUpdater *MSSAU,
@@ -255,48 +254,6 @@ void llvm::addStringMetadataToLoop(Loop *TheLoop, const char *StringMD,
   TheLoop->setLoopID(NewLoopID);
 }
 
-/// Find string metadata for loop
-///
-/// If it has a value (e.g. {"llvm.distribute", 1} return the value as an
-/// operand or null otherwise.  If the string metadata is not found return
-/// Optional's not-a-value.
-Optional<const MDOperand *> llvm::findStringMetadataForLoop(const Loop *TheLoop,
-                                                            StringRef Name) {
-  MDNode *MD = findOptionMDForLoop(TheLoop, Name);
-  if (!MD)
-    return None;
-  switch (MD->getNumOperands()) {
-  case 1:
-    return nullptr;
-  case 2:
-    return &MD->getOperand(1);
-  default:
-    llvm_unreachable("loop metadata has 0 or 1 operand");
-  }
-}
-
-static Optional<bool> getOptionalBoolLoopAttribute(const Loop *TheLoop,
-                                                   StringRef Name) {
-  MDNode *MD = findOptionMDForLoop(TheLoop, Name);
-  if (!MD)
-    return None;
-  switch (MD->getNumOperands()) {
-  case 1:
-    // When the value is absent it is interpreted as 'attribute set'.
-    return true;
-  case 2:
-    if (ConstantInt *IntMD =
-            mdconst::extract_or_null<ConstantInt>(MD->getOperand(1).get()))
-      return IntMD->getZExtValue();
-    return true;
-  }
-  llvm_unreachable("unexpected number of options");
-}
-
-bool llvm::getBooleanLoopAttribute(const Loop *TheLoop, StringRef Name) {
-  return getOptionalBoolLoopAttribute(TheLoop, Name).getValueOr(false);
-}
-
 Optional<ElementCount>
 llvm::getOptionalElementCountLoopAttribute(const Loop *TheLoop) {
   Optional<int> Width =
@@ -309,20 +266,6 @@ llvm::getOptionalElementCountLoopAttribute(const Loop *TheLoop) {
   }
 
   return None;
-}
-
-llvm::Optional<int> llvm::getOptionalIntLoopAttribute(const Loop *TheLoop,
-                                                      StringRef Name) {
-  const MDOperand *AttrMD =
-      findStringMetadataForLoop(TheLoop, Name).getValueOr(nullptr);
-  if (!AttrMD)
-    return None;
-
-  ConstantInt *IntMD = mdconst::extract_or_null<ConstantInt>(AttrMD->get());
-  if (!IntMD)
-    return None;
-
-  return IntMD->getSExtValue();
 }
 
 Optional<MDNode *> llvm::makeFollowupLoopID(
@@ -412,10 +355,6 @@ bool llvm::hasDisableAllTransformsHint(const Loop *L) {
 
 bool llvm::hasDisableLICMTransformsHint(const Loop *L) {
   return getBooleanLoopAttribute(L, LLVMLoopDisableLICM);
-}
-
-bool llvm::hasMustProgress(const Loop *L) {
-  return getBooleanLoopAttribute(L, LLVMLoopMustProgress);
 }
 
 TransformationMode llvm::hasUnrollTransformation(const Loop *L) {
@@ -771,21 +710,58 @@ void llvm::breakLoopBackedge(Loop *L, DominatorTree &DT, ScalarEvolution &SE,
 
   SE.forgetLoop(L);
 
-  // Note: By splitting the backedge, and then explicitly making it unreachable
-  // we gracefully handle corner cases such as non-bottom tested loops and the
-  // like.  We also have the benefit of being able to reuse existing well tested
-  // code.  It might be worth special casing the common bottom tested case at
-  // some point to avoid code churn.
-
   std::unique_ptr<MemorySSAUpdater> MSSAU;
   if (MSSA)
     MSSAU = std::make_unique<MemorySSAUpdater>(MSSA);
 
-  auto *BackedgeBB = SplitEdge(Latch, Header, &DT, &LI, MSSAU.get());
+  // Update the CFG and domtree.  We chose to special case a couple of
+  // of common cases for code quality and test readability reasons.
+  [&]() -> void {
+    if (auto *BI = dyn_cast<BranchInst>(Latch->getTerminator())) {
+      if (!BI->isConditional()) {
+        DomTreeUpdater DTU(&DT, DomTreeUpdater::UpdateStrategy::Eager);
+        (void)changeToUnreachable(BI, /*PreserveLCSSA*/ true, &DTU,
+                                  MSSAU.get());
+        return;
+      }
 
-  DomTreeUpdater DTU(&DT, DomTreeUpdater::UpdateStrategy::Eager);
-  (void)changeToUnreachable(BackedgeBB->getTerminator(), /*UseTrap*/false,
-                            /*PreserveLCSSA*/true, &DTU, MSSAU.get());
+      // Conditional latch/exit - note that latch can be shared by inner
+      // and outer loop so the other target doesn't need to an exit
+      if (L->isLoopExiting(Latch)) {
+        // TODO: Generalize ConstantFoldTerminator so that it can be used
+        // here without invalidating LCSSA or MemorySSA.  (Tricky case for
+        // LCSSA: header is an exit block of a preceeding sibling loop w/o
+        // dedicated exits.)
+        const unsigned ExitIdx = L->contains(BI->getSuccessor(0)) ? 1 : 0;
+        BasicBlock *ExitBB = BI->getSuccessor(ExitIdx);
+
+        DomTreeUpdater DTU(&DT, DomTreeUpdater::UpdateStrategy::Eager);
+        Header->removePredecessor(Latch, true);
+
+        IRBuilder<> Builder(BI);
+        auto *NewBI = Builder.CreateBr(ExitBB);
+        // Transfer the metadata to the new branch instruction (minus the
+        // loop info since this is no longer a loop)
+        NewBI->copyMetadata(*BI, {LLVMContext::MD_dbg,
+                                  LLVMContext::MD_annotation});
+
+        BI->eraseFromParent();
+        DTU.applyUpdates({{DominatorTree::Delete, Latch, Header}});
+        if (MSSA)
+          MSSAU->applyUpdates({{DominatorTree::Delete, Latch, Header}}, DT);
+        return;
+      }
+    }
+
+    // General case.  By splitting the backedge, and then explicitly making it
+    // unreachable we gracefully handle corner cases such as switch and invoke
+    // termiantors.
+    auto *BackedgeBB = SplitEdge(Latch, Header, &DT, &LI, MSSAU.get());
+
+    DomTreeUpdater DTU(&DT, DomTreeUpdater::UpdateStrategy::Eager);
+    (void)changeToUnreachable(BackedgeBB->getTerminator(),
+                              /*PreserveLCSSA*/ true, &DTU, MSSAU.get());
+  }();
 
   // Erase (and destroy) this loop instance.  Handles relinking sub-loops
   // and blocks within the loop as needed.
@@ -1020,11 +996,6 @@ Value *llvm::createSimpleTargetReduction(IRBuilderBase &Builder,
                                          const TargetTransformInfo *TTI,
                                          Value *Src, RecurKind RdxKind,
                                          ArrayRef<Value *> RedOps) {
-  TargetTransformInfo::ReductionFlags RdxFlags;
-  RdxFlags.IsMaxOp = RdxKind == RecurKind::SMax || RdxKind == RecurKind::UMax ||
-                     RdxKind == RecurKind::FMax;
-  RdxFlags.IsSigned = RdxKind == RecurKind::SMax || RdxKind == RecurKind::SMin;
-
   auto *SrcVecEltTy = cast<VectorType>(Src->getType())->getElementType();
   switch (RdxKind) {
   case RecurKind::Add:
@@ -1061,7 +1032,8 @@ Value *llvm::createSimpleTargetReduction(IRBuilderBase &Builder,
 
 Value *llvm::createTargetReduction(IRBuilderBase &B,
                                    const TargetTransformInfo *TTI,
-                                   RecurrenceDescriptor &Desc, Value *Src) {
+                                   const RecurrenceDescriptor &Desc,
+                                   Value *Src) {
   // TODO: Support in-order reductions based on the recurrence descriptor.
   // All ops in the reduction inherit fast-math-flags from the recurrence
   // descriptor.
@@ -1071,8 +1043,8 @@ Value *llvm::createTargetReduction(IRBuilderBase &B,
 }
 
 Value *llvm::createOrderedReduction(IRBuilderBase &B,
-                                    RecurrenceDescriptor &Desc, Value *Src,
-                                    Value *Start) {
+                                    const RecurrenceDescriptor &Desc,
+                                    Value *Src, Value *Start) {
   assert(Desc.getRecurrenceKind() == RecurKind::FAdd &&
          "Unexpected reduction kind");
   assert(Src->getType()->isVectorTy() && "Expected a vector type");
@@ -1141,58 +1113,6 @@ bool llvm::cannotBeMaxInLoop(const SCEV *S, const Loop *L, ScalarEvolution &SE,
 // As a side effect, reduces the amount of IV processing within the loop.
 //===----------------------------------------------------------------------===//
 
-// Return true if the SCEV expansion generated by the rewriter can replace the
-// original value. SCEV guarantees that it produces the same value, but the way
-// it is produced may be illegal IR.  Ideally, this function will only be
-// called for verification.
-static bool isValidRewrite(ScalarEvolution *SE, Value *FromVal, Value *ToVal) {
-  // If an SCEV expression subsumed multiple pointers, its expansion could
-  // reassociate the GEP changing the base pointer. This is illegal because the
-  // final address produced by a GEP chain must be inbounds relative to its
-  // underlying object. Otherwise basic alias analysis, among other things,
-  // could fail in a dangerous way. Ultimately, SCEV will be improved to avoid
-  // producing an expression involving multiple pointers. Until then, we must
-  // bail out here.
-  //
-  // Retrieve the pointer operand of the GEP. Don't use getUnderlyingObject
-  // because it understands lcssa phis while SCEV does not.
-  Value *FromPtr = FromVal;
-  Value *ToPtr = ToVal;
-  if (auto *GEP = dyn_cast<GEPOperator>(FromVal))
-    FromPtr = GEP->getPointerOperand();
-
-  if (auto *GEP = dyn_cast<GEPOperator>(ToVal))
-    ToPtr = GEP->getPointerOperand();
-
-  if (FromPtr != FromVal || ToPtr != ToVal) {
-    // Quickly check the common case
-    if (FromPtr == ToPtr)
-      return true;
-
-    // SCEV may have rewritten an expression that produces the GEP's pointer
-    // operand. That's ok as long as the pointer operand has the same base
-    // pointer. Unlike getUnderlyingObject(), getPointerBase() will find the
-    // base of a recurrence. This handles the case in which SCEV expansion
-    // converts a pointer type recurrence into a nonrecurrent pointer base
-    // indexed by an integer recurrence.
-
-    // If the GEP base pointer is a vector of pointers, abort.
-    if (!FromPtr->getType()->isPointerTy() || !ToPtr->getType()->isPointerTy())
-      return false;
-
-    const SCEV *FromBase = SE->getPointerBase(SE->getSCEV(FromPtr));
-    const SCEV *ToBase = SE->getPointerBase(SE->getSCEV(ToPtr));
-    if (FromBase == ToBase)
-      return true;
-
-    LLVM_DEBUG(dbgs() << "rewriteLoopExitValues: GEP rewrite bail out "
-                      << *FromBase << " != " << *ToBase << "\n");
-
-    return false;
-  }
-  return true;
-}
-
 static bool hasHardUserWithinLoop(const Loop *L, const Instruction *I) {
   SmallPtrSet<const Instruction *, 8> Visited;
   SmallVector<const Instruction *, 8> WorkList;
@@ -1224,9 +1144,6 @@ struct RewritePhi {
   const SCEV *ExpansionSCEV; // The SCEV of the incoming value we are rewriting.
   Instruction *ExpansionPoint; // Where we'd like to expand that SCEV?
   bool HighCost;               // Is this expansion a high-cost?
-
-  Value *Expansion = nullptr;
-  bool ValidRewrite = false;
 
   RewritePhi(PHINode *P, unsigned I, const SCEV *Val, Instruction *ExpansionPt,
              bool H)
@@ -1264,8 +1181,6 @@ static bool canLoopBeDeleted(Loop *L, SmallVector<RewritePhi, 8> &RewritePhiSet)
     // phase later. Skip it in the loop invariant check below.
     bool found = false;
     for (const RewritePhi &Phi : RewritePhiSet) {
-      if (!Phi.ValidRewrite)
-        continue;
       unsigned i = Phi.Ith;
       if (Phi.PN == P && (Phi.PN)->getIncomingValue(i) == Incoming) {
         found = true;
@@ -1399,57 +1314,39 @@ int llvm::rewriteLoopExitValues(Loop *L, LoopInfo *LI, TargetLibraryInfo *TLI,
     }
   }
 
-  // Now that we've done preliminary filtering and billed all the SCEV's,
-  // we can perform the last sanity check - the expansion must be valid.
-  for (RewritePhi &Phi : RewritePhiSet) {
-    Phi.Expansion = Rewriter.expandCodeFor(Phi.ExpansionSCEV, Phi.PN->getType(),
-                                           Phi.ExpansionPoint);
-
-    LLVM_DEBUG(dbgs() << "rewriteLoopExitValues: AfterLoopVal = "
-                      << *(Phi.Expansion) << '\n'
-                      << "  LoopVal = " << *(Phi.ExpansionPoint) << "\n");
-
-    // FIXME: isValidRewrite() is a hack. it should be an assert, eventually.
-    Phi.ValidRewrite = isValidRewrite(SE, Phi.ExpansionPoint, Phi.Expansion);
-    if (!Phi.ValidRewrite) {
-      DeadInsts.push_back(Phi.Expansion);
-      continue;
-    }
-
-#ifndef NDEBUG
-    // If we reuse an instruction from a loop which is neither L nor one of
-    // its containing loops, we end up breaking LCSSA form for this loop by
-    // creating a new use of its instruction.
-    if (auto *ExitInsn = dyn_cast<Instruction>(Phi.Expansion))
-      if (auto *EVL = LI->getLoopFor(ExitInsn->getParent()))
-        if (EVL != L)
-          assert(EVL->contains(L) && "LCSSA breach detected!");
-#endif
-  }
-
-  // TODO: after isValidRewrite() is an assertion, evaluate whether
-  // it is beneficial to change how we calculate high-cost:
-  // if we have SCEV 'A' which we know we will expand, should we calculate
-  // the cost of other SCEV's after expanding SCEV 'A',
-  // thus potentially giving cost bonus to those other SCEV's?
+  // TODO: evaluate whether it is beneficial to change how we calculate
+  // high-cost: if we have SCEV 'A' which we know we will expand, should we
+  // calculate the cost of other SCEV's after expanding SCEV 'A', thus
+  // potentially giving cost bonus to those other SCEV's?
 
   bool LoopCanBeDel = canLoopBeDeleted(L, RewritePhiSet);
   int NumReplaced = 0;
 
   // Transformation.
   for (const RewritePhi &Phi : RewritePhiSet) {
-    if (!Phi.ValidRewrite)
-      continue;
-
     PHINode *PN = Phi.PN;
-    Value *ExitVal = Phi.Expansion;
 
     // Only do the rewrite when the ExitValue can be expanded cheaply.
     // If LoopCanBeDel is true, rewrite exit value aggressively.
-    if (ReplaceExitValue == OnlyCheapRepl && !LoopCanBeDel && Phi.HighCost) {
-      DeadInsts.push_back(ExitVal);
+    if (ReplaceExitValue == OnlyCheapRepl && !LoopCanBeDel && Phi.HighCost)
       continue;
-    }
+
+    Value *ExitVal = Rewriter.expandCodeFor(
+        Phi.ExpansionSCEV, Phi.PN->getType(), Phi.ExpansionPoint);
+
+    LLVM_DEBUG(dbgs() << "rewriteLoopExitValues: AfterLoopVal = " << *ExitVal
+                      << '\n'
+                      << "  LoopVal = " << *(Phi.ExpansionPoint) << "\n");
+
+#ifndef NDEBUG
+    // If we reuse an instruction from a loop which is neither L nor one of
+    // its containing loops, we end up breaking LCSSA form for this loop by
+    // creating a new use of its instruction.
+    if (auto *ExitInsn = dyn_cast<Instruction>(ExitVal))
+      if (auto *EVL = LI->getLoopFor(ExitInsn->getParent()))
+        if (EVL != L)
+          assert(EVL->contains(L) && "LCSSA breach detected!");
+#endif
 
     NumReplaced++;
     Instruction *Inst = cast<Instruction>(PN->getIncomingValue(Phi.Ith));
@@ -1584,39 +1481,15 @@ struct PointerBounds {
 static PointerBounds expandBounds(const RuntimeCheckingPtrGroup *CG,
                                   Loop *TheLoop, Instruction *Loc,
                                   SCEVExpander &Exp) {
-  ScalarEvolution *SE = Exp.getSE();
-  // TODO: Add helper to retrieve pointers to CG.
-  Value *Ptr = CG->RtCheck.Pointers[CG->Members[0]].PointerValue;
-  const SCEV *Sc = SE->getSCEV(Ptr);
-
-  unsigned AS = Ptr->getType()->getPointerAddressSpace();
   LLVMContext &Ctx = Loc->getContext();
+  Type *PtrArithTy = Type::getInt8PtrTy(Ctx, CG->AddressSpace);
 
-  // Use this type for pointer arithmetic.
-  Type *PtrArithTy = Type::getInt8PtrTy(Ctx, AS);
-
-  if (SE->isLoopInvariant(Sc, TheLoop)) {
-    LLVM_DEBUG(dbgs() << "LAA: Adding RT check for a loop invariant ptr:"
-                      << *Ptr << "\n");
-    // Ptr could be in the loop body. If so, expand a new one at the correct
-    // location.
-    Instruction *Inst = dyn_cast<Instruction>(Ptr);
-    Value *NewPtr = (Inst && TheLoop->contains(Inst))
-                        ? Exp.expandCodeFor(Sc, PtrArithTy, Loc)
-                        : Ptr;
-    // We must return a half-open range, which means incrementing Sc.
-    const SCEV *ScPlusOne = SE->getAddExpr(Sc, SE->getOne(PtrArithTy));
-    Value *NewPtrPlusOne = Exp.expandCodeFor(ScPlusOne, PtrArithTy, Loc);
-    return {NewPtr, NewPtrPlusOne};
-  } else {
-    Value *Start = nullptr, *End = nullptr;
-    LLVM_DEBUG(dbgs() << "LAA: Adding RT check for range:\n");
-    Start = Exp.expandCodeFor(CG->Low, PtrArithTy, Loc);
-    End = Exp.expandCodeFor(CG->High, PtrArithTy, Loc);
-    LLVM_DEBUG(dbgs() << "Start: " << *CG->Low << " End: " << *CG->High
-                      << "\n");
-    return {Start, End};
-  }
+  Value *Start = nullptr, *End = nullptr;
+  LLVM_DEBUG(dbgs() << "LAA: Adding RT check for range:\n");
+  Start = Exp.expandCodeFor(CG->Low, PtrArithTy, Loc);
+  End = Exp.expandCodeFor(CG->High, PtrArithTy, Loc);
+  LLVM_DEBUG(dbgs() << "Start: " << *CG->Low << " End: " << *CG->High << "\n");
+  return {Start, End};
 }
 
 /// Turns a collection of checks into a collection of expanded upper and
@@ -1842,8 +1715,7 @@ Optional<IVConditionInfo> llvm::hasPartialIVCondition(Loop &L,
 
     // We could also allow loops with known trip counts without mustprogress,
     // but ScalarEvolution may not be available.
-    Info.PathIsNoop &=
-        L.getHeader()->getParent()->mustProgress() || hasMustProgress(&L);
+    Info.PathIsNoop &= isMustProgress(&L);
 
     // If the path is considered a no-op so far, check if it reaches a
     // single exit block without any phis. This ensures no values from the

@@ -845,10 +845,10 @@ define i32 @maxi8_mutiple_uses(i32) {
 ; THRESH-NEXT:    [[TMP14:%.*]] = insertelement <2 x i32> [[TMP13]], i32 [[TMP4]], i32 1
 ; THRESH-NEXT:    [[TMP15:%.*]] = icmp sgt <2 x i32> [[TMP12]], [[TMP14]]
 ; THRESH-NEXT:    [[TMP16:%.*]] = select <2 x i1> [[TMP15]], <2 x i32> [[TMP12]], <2 x i32> [[TMP14]]
-; THRESH-NEXT:    [[TMP17:%.*]] = extractelement <2 x i32> [[TMP16]], i32 1
-; THRESH-NEXT:    [[TMP18:%.*]] = extractelement <2 x i32> [[TMP16]], i32 0
-; THRESH-NEXT:    [[OP_EXTRA:%.*]] = icmp sgt i32 [[TMP18]], [[TMP17]]
-; THRESH-NEXT:    [[OP_EXTRA1:%.*]] = select i1 [[OP_EXTRA]], i32 [[TMP18]], i32 [[TMP17]]
+; THRESH-NEXT:    [[TMP17:%.*]] = extractelement <2 x i32> [[TMP16]], i32 0
+; THRESH-NEXT:    [[TMP18:%.*]] = extractelement <2 x i32> [[TMP16]], i32 1
+; THRESH-NEXT:    [[OP_EXTRA:%.*]] = icmp sgt i32 [[TMP17]], [[TMP18]]
+; THRESH-NEXT:    [[OP_EXTRA1:%.*]] = select i1 [[OP_EXTRA]], i32 [[TMP17]], i32 [[TMP18]]
 ; THRESH-NEXT:    [[TMP19:%.*]] = extractelement <2 x i1> [[TMP15]], i32 1
 ; THRESH-NEXT:    [[TMP20:%.*]] = select i1 [[TMP19]], i32 3, i32 4
 ; THRESH-NEXT:    store i32 [[TMP20]], i32* @var, align 8
@@ -1033,10 +1033,10 @@ define i32 @maxi8_wrong_parent(i32) {
 ; THRESH-NEXT:    [[TMP17:%.*]] = insertelement <2 x i32> poison, i32 [[TMP8]], i32 0
 ; THRESH-NEXT:    [[TMP18:%.*]] = insertelement <2 x i32> [[TMP17]], i32 [[TMP4]], i32 1
 ; THRESH-NEXT:    [[TMP19:%.*]] = select <2 x i1> [[TMP14]], <2 x i32> [[TMP16]], <2 x i32> [[TMP18]]
-; THRESH-NEXT:    [[TMP20:%.*]] = extractelement <2 x i32> [[TMP19]], i32 1
-; THRESH-NEXT:    [[TMP21:%.*]] = extractelement <2 x i32> [[TMP19]], i32 0
-; THRESH-NEXT:    [[OP_EXTRA:%.*]] = icmp sgt i32 [[TMP21]], [[TMP20]]
-; THRESH-NEXT:    [[OP_EXTRA1:%.*]] = select i1 [[OP_EXTRA]], i32 [[TMP21]], i32 [[TMP20]]
+; THRESH-NEXT:    [[TMP20:%.*]] = extractelement <2 x i32> [[TMP19]], i32 0
+; THRESH-NEXT:    [[TMP21:%.*]] = extractelement <2 x i32> [[TMP19]], i32 1
+; THRESH-NEXT:    [[OP_EXTRA:%.*]] = icmp sgt i32 [[TMP20]], [[TMP21]]
+; THRESH-NEXT:    [[OP_EXTRA1:%.*]] = select i1 [[OP_EXTRA]], i32 [[TMP20]], i32 [[TMP21]]
 ; THRESH-NEXT:    ret i32 [[OP_EXTRA1]]
 ;
   %2 = load i32, i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr, i64 0, i64 0), align 16
@@ -1334,8 +1334,8 @@ define i8 @umin_intrinsic_rdx_v16i8(i8* %p0) {
 
 define void @PR49730() {
 ; CHECK-LABEL: @PR49730(
-; CHECK-NEXT:    [[TMP1:%.*]] = call <4 x i32> @llvm.smin.v4i32(<4 x i32> undef, <4 x i32> <i32 2, i32 2, i32 1, i32 1>)
-; CHECK-NEXT:    [[TMP2:%.*]] = sub nsw <4 x i32> undef, [[TMP1]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call <4 x i32> @llvm.smin.v4i32(<4 x i32> poison, <4 x i32> <i32 2, i32 2, i32 1, i32 1>)
+; CHECK-NEXT:    [[TMP2:%.*]] = sub nsw <4 x i32> poison, [[TMP1]]
 ; CHECK-NEXT:    [[T12:%.*]] = sub nsw i32 undef, undef
 ; CHECK-NEXT:    [[TMP3:%.*]] = call i32 @llvm.vector.reduce.umin.v4i32(<4 x i32> [[TMP2]])
 ; CHECK-NEXT:    [[TMP4:%.*]] = call i32 @llvm.umin.i32(i32 [[TMP3]], i32 [[T12]])

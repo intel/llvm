@@ -15,6 +15,8 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
+namespace oneapi {
 namespace level_zero {
 using namespace detail;
 
@@ -41,13 +43,13 @@ __SYCL_EXPORT device make_device(const platform &Platform,
 
 //----------------------------------------------------------------------------
 // Implementation of level_zero::make<context>
-__SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
+__SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
                                    pi_native_handle NativeHandle,
                                    bool KeepOwnership) {
   const auto &Plugin = pi::getPlugin<backend::level_zero>();
   // Create PI context first.
   pi_context PiContext;
-  vector_class<pi_device> DeviceHandles;
+  std::vector<pi_device> DeviceHandles;
   for (auto Dev : DeviceList) {
     DeviceHandles.push_back(detail::getSyclObjImpl(Dev)->getHandleRef());
   }
@@ -60,7 +62,7 @@ __SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
 }
 
 // TODO: remove this version (without ownership) when allowed to break ABI.
-__SYCL_EXPORT context make_context(const vector_class<device> &DeviceList,
+__SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
                                    pi_native_handle NativeHandle) {
   return make_context(DeviceList, NativeHandle, false);
 }
@@ -79,13 +81,31 @@ __SYCL_EXPORT program make_program(const context &Context,
 //----------------------------------------------------------------------------
 // Implementation of level_zero::make<queue>
 __SYCL_EXPORT queue make_queue(const context &Context,
-                               pi_native_handle NativeHandle) {
+                               pi_native_handle NativeHandle,
+                               bool KeepOwnership) {
   const auto &ContextImpl = getSyclObjImpl(Context);
-  return detail::make_queue(NativeHandle, Context,
+  return detail::make_queue(NativeHandle, Context, KeepOwnership,
                             ContextImpl->get_async_handler(),
                             backend::level_zero);
 }
 
+// TODO: remove this version (without ownership) when allowed to break ABI.
+__SYCL_EXPORT queue make_queue(const context &Context,
+                               pi_native_handle NativeHandle) {
+  return make_queue(Context, NativeHandle, false);
+}
+
+//----------------------------------------------------------------------------
+// Implementation of level_zero::make<event>
+__SYCL_EXPORT event make_event(const context &Context,
+                               pi_native_handle NativeHandle,
+                               bool KeepOwnership) {
+  return detail::make_event(NativeHandle, Context, KeepOwnership,
+                            backend::level_zero);
+}
+
 } // namespace level_zero
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

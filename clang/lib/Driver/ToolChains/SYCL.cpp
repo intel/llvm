@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
 #include "CommonArgs.h"
-#include "InputInfo.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
 #include "llvm/Support/CommandLine.h"
@@ -64,7 +64,7 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(
     CmdArgs.push_back("-o");
     CmdArgs.push_back(OutputFileName);
   } else {
-    CmdArgs.push_back("-spirv-max-version=1.3");
+    CmdArgs.push_back("-spirv-max-version=1.4");
     CmdArgs.push_back("-spirv-ext=+all");
     CmdArgs.push_back("-spirv-debug-info-version=ocl-100");
     CmdArgs.push_back("-spirv-allow-extra-diexpressions");
@@ -80,6 +80,17 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::AtFileUTF8(), LLVMSpirv, CmdArgs, None));
   return OutputFileName;
+}
+
+static void addFPGATimingDiagnostic(std::unique_ptr<Command> &Cmd,
+                                    Compilation &C) {
+  const char *Msg = C.getArgs().MakeArgString(
+      "The FPGA image generated during this compile contains timing violations "
+      "and may produce functional errors if used. Refer to the Intel oneAPI "
+      "DPC++ FPGA Optimization Guide section on Timing Failures for more "
+      "information.");
+  Cmd->addDiagForErrorCode(/*ErrorCode*/ 42, Msg);
+  Cmd->addExitForErrorCode(/*ErrorCode*/ 42, false);
 }
 
 void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
@@ -119,8 +130,14 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   SmallString<128> ForeachPath(C.getDriver().Dir);
   llvm::sys::path::append(ForeachPath, "llvm-foreach");
   const char *Foreach = C.getArgs().MakeArgString(ForeachPath);
-  C.addCommand(std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
-                                         Foreach, ForeachArgs, None));
+
+  auto Cmd = std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
+                                       Foreach, ForeachArgs, None);
+  // FIXME: Add the FPGA specific timing diagnostic to the foreach call.
+  // The foreach call obscures the return codes from the tool it is calling
+  // to the compiler itself.
+  addFPGATimingDiagnostic(Cmd, C);
+  C.addCommand(std::move(Cmd));
 }
 
 // The list should match pre-built SYCL device library files located in
@@ -133,6 +150,7 @@ static llvm::SmallVector<StringRef, 10> SYCLDeviceLibList{
     "complex",
     "complex-fp64",
     "fallback-cassert",
+    "fallback-cstring",
     "fallback-cmath",
     "fallback-cmath-fp64",
     "fallback-complex",
@@ -274,7 +292,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                 const char *LinkingOutput) const {
 
   assert((getToolChain().getTriple().isSPIR() ||
-          getToolChain().getTriple().isNVPTX()) &&
+          getToolChain().getTriple().isNVPTX() ||
+          getToolChain().getTriple().isAMDGCN()) &&
          "Unsupported target");
 
   std::string SubArchName =
@@ -285,7 +304,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   // For CUDA, we want to link all BC files before resuming the normal
   // compilation path
-  if (getToolChain().getTriple().isNVPTX()) {
+  if (getToolChain().getTriple().isNVPTX() ||
+      getToolChain().getTriple().isAMDGCN()) {
     InputInfoList NvptxInputs;
     for (const auto &II : Inputs) {
       if (!II.isFilename())
@@ -364,8 +384,8 @@ void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
   llvm::Triple CPUTriple("spir64_x86_64");
   TC.AddImpliedTargetArgs(CPUTriple, Args, CmdArgs);
   // Add the target args passed in
-  TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
+  TC.TranslateBackendTargetArgs(CPUTriple, Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(CPUTriple, Args, CmdArgs);
 
   SmallString<128> ExecPath(
       getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
@@ -391,7 +411,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   ArgStringList TargetArgs;
-  TC.TranslateBackendTargetArgs(Args, TargetArgs);
+  TC.TranslateBackendTargetArgs(TC.getTriple(), Args, TargetArgs);
 
   // When performing emulation compilations for FPGA AOT, we want to use
   // opencl-aot instead of aoc.
@@ -494,7 +514,18 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   if (Arg *FinalOutput = Args.getLastArg(options::OPT_o, options::OPT__SLASH_o,
                                          options::OPT__SLASH_Fe)) {
     SmallString<128> FN(FinalOutput->getValue());
-    llvm::sys::path::replace_extension(FN, "prj");
+    // For "-o file.xxx" where the option value has an extension, if the
+    // extension is one of .a .o .out .lib .obj .exe, the output project
+    // directory name will be file.proj which omits the extension. Otherwise
+    // the output project directory name will be file.xxx.prj which keeps
+    // the original extension.
+    StringRef Ext = llvm::sys::path::extension(FN);
+    SmallVector<StringRef, 6> Exts = {".o",   ".a",   ".out",
+                                      ".obj", ".lib", ".exe"};
+    if (std::find(Exts.begin(), Exts.end(), Ext) != Exts.end())
+      llvm::sys::path::replace_extension(FN, "prj");
+    else
+      FN.append(".prj");
     const char *FolderName = Args.MakeArgString(FN);
     ReportOptArg += FolderName;
   } else {
@@ -511,8 +542,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
 
   // Add -Xsycl-target* options.
-  TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
+  TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
 
   // Look for -reuse-exe=XX option
   if (Arg *A = Args.getLastArg(options::OPT_reuse_exe_EQ)) {
@@ -525,6 +556,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                        Exec, CmdArgs, None);
+  addFPGATimingDiagnostic(Cmd, C);
   if (!ForeachInputs.empty())
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
                                 this, ReportOptArg, ForeachExt);
@@ -557,8 +589,8 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
-  TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
+  TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   SmallString<128> ExecPath(
       getToolChain().GetProgramPath(makeExeName(C, "ocloc")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
@@ -590,8 +622,8 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
 
   TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
-  TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
+  TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   SmallString<128> ExecPath(
       getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
@@ -639,6 +671,10 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
       }
     }
   }
+  // Strip out -O0 for FPGA Hardware device compilation.
+  if (!getDriver().isFPGAEmulationMode() &&
+      getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga)
+    DAL->eraseArg(options::OPT_O0);
 
   const OptTable &Opts = getDriver().getOpts();
   if (!BoundArch.empty()) {
@@ -671,7 +707,7 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     OptNoTriple = A->getOption().matches(Opt);
     if (A->getOption().matches(Opt_EQ)) {
       // Passing device args: -X<Opt>=<triple> -opt=val.
-      if (A->getValue() != getTripleString())
+      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple())
         // Provided triple does not match current tool chain.
         continue;
     } else if (!OptNoTriple)
@@ -737,7 +773,8 @@ void SYCLToolChain::AddImpliedTargetArgs(
 }
 
 void SYCLToolChain::TranslateBackendTargetArgs(
-    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs) const {
+    const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
+    llvm::opt::ArgStringList &CmdArgs) const {
   // Handle -Xs flags.
   for (auto *A : Args) {
     // When parsing the target args, the -Xs<opt> type option applies to all
@@ -747,6 +784,15 @@ void SYCLToolChain::TranslateBackendTargetArgs(
     //   -Xs "-DFOO -DBAR"
     //   -XsDFOO -XsDBAR
     // All of the above examples will pass -DFOO -DBAR to the backend compiler.
+
+    // Do not add the -Xs to the default SYCL triple (spir64) when we know we
+    // have implied the setting.
+    if ((A->getOption().matches(options::OPT_Xs) ||
+         A->getOption().matches(options::OPT_Xs_separate)) &&
+        Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
+        getDriver().isSYCLDefaultTripleImplied())
+      continue;
+
     if (A->getOption().matches(options::OPT_Xs)) {
       // Take the arg and create an option out of it.
       CmdArgs.push_back(Args.MakeArgString(Twine("-") + A->getValue()));
@@ -760,13 +806,22 @@ void SYCLToolChain::TranslateBackendTargetArgs(
       continue;
     }
   }
+  // Do not process -Xsycl-target-backend for implied spir64
+  if (Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
+      getDriver().isSYCLDefaultTripleImplied())
+    return;
   // Handle -Xsycl-target-backend.
   TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_backend,
                      options::OPT_Xsycl_backend_EQ);
 }
 
 void SYCLToolChain::TranslateLinkerTargetArgs(
-    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs) const {
+    const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
+    llvm::opt::ArgStringList &CmdArgs) const {
+  // Do not process -Xsycl-target-linker for implied spir64
+  if (Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
+      getDriver().isSYCLDefaultTripleImplied())
+    return;
   // Handle -Xsycl-target-linker.
   TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_linker,
                      options::OPT_Xsycl_linker_EQ);

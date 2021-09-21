@@ -229,6 +229,7 @@ public:
   ~TargetLoweringObjectFileXCOFF() override = default;
 
   static bool ShouldEmitEHBlock(const MachineFunction *MF);
+  static bool ShouldSetSSPCanaryBitInTB(const MachineFunction *MF);
 
   static MCSymbol *getEHInfoTableSymbol(const MachineFunction *MF);
 
@@ -281,6 +282,17 @@ public:
 
   MCSymbol *getFunctionEntryPointSymbol(const GlobalValue *Func,
                                         const TargetMachine &TM) const override;
+};
+
+class TargetLoweringObjectFileGOFF : public TargetLoweringObjectFile {
+public:
+  TargetLoweringObjectFileGOFF();
+  ~TargetLoweringObjectFileGOFF() override = default;
+
+  MCSection *SelectSectionForGlobal(const GlobalObject *GO, SectionKind Kind,
+                                    const TargetMachine &TM) const override;
+  MCSection *getExplicitSectionGlobal(const GlobalObject *GO, SectionKind Kind,
+                                      const TargetMachine &TM) const override;
 };
 
 } // end namespace llvm

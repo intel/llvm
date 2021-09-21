@@ -15,6 +15,9 @@ def do_configure(args):
 
     llvm_external_projects = 'sycl;llvm-spirv;opencl;libdevice;xpti;xptifw'
 
+    if args.llvm_external_projects:
+        llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")
+
     llvm_dir = os.path.join(abs_src_dir, "llvm")
     sycl_dir = os.path.join(abs_src_dir, "sycl")
     spirv_dir = os.path.join(abs_src_dir, "llvm-spirv")
@@ -24,24 +27,55 @@ def do_configure(args):
     llvm_targets_to_build = 'X86'
     llvm_enable_projects = 'clang;' + llvm_external_projects
     libclc_targets_to_build = ''
+    libclc_gen_remangled_variants = 'OFF'
     sycl_build_pi_cuda = 'OFF'
+    sycl_build_pi_esimd_cpu = 'OFF'
+    sycl_build_pi_hip = 'OFF'
+    sycl_build_pi_hip_platform = 'AMD'
     sycl_werror = 'ON'
     llvm_enable_assertions = 'ON'
     llvm_enable_doxygen = 'OFF'
     llvm_enable_sphinx = 'OFF'
     llvm_build_shared_libs = 'OFF'
+    llvm_enable_lld = 'OFF'
 
     sycl_enable_xpti_tracing = 'ON'
+
+    if args.ci_defaults:
+        print("#############################################")
+        print("# Default CI configuration will be applied. #")
+        print("#############################################")
 
     # replace not append, so ARM ^ X86
     if args.arm:
         llvm_targets_to_build = 'ARM;AArch64'
 
+    if args.enable_esimd_cpu_emulation:
+        sycl_build_pi_esimd_cpu = 'ON'
+
+    if args.cuda or args.hip:
+        llvm_enable_projects += ';libclc'
+
     if args.cuda:
         llvm_targets_to_build += ';NVPTX'
-        llvm_enable_projects += ';libclc'
         libclc_targets_to_build = 'nvptx64--;nvptx64--nvidiacl'
+        libclc_gen_remangled_variants = 'ON'
         sycl_build_pi_cuda = 'ON'
+
+    if args.hip:
+        if args.hip_platform == 'AMD':
+            llvm_targets_to_build += ';AMDGPU'
+            libclc_targets_to_build += ';amdgcn--;amdgcn--amdhsa'
+
+            # The HIP plugin for AMD uses lld for linking
+            llvm_enable_projects += ';lld'
+        elif args.hip_platform == 'NVIDIA' and not args.cuda:
+            llvm_targets_to_build += ';NVPTX'
+            libclc_targets_to_build += ';nvptx64--;nvptx64--nvidiacl'
+        libclc_gen_remangled_variants = 'ON'
+
+        sycl_build_pi_hip_platform = args.hip_platform
+        sycl_build_pi_hip = 'ON'
 
     if args.no_werror:
         sycl_werror = 'OFF'
@@ -55,6 +89,9 @@ def do_configure(args):
 
     if args.shared_libs:
         llvm_build_shared_libs = 'ON'
+
+    if args.use_lld:
+      llvm_enable_lld = 'ON'
 
     install_dir = os.path.join(abs_obj_dir, "install")
 
@@ -73,7 +110,10 @@ def do_configure(args):
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
+        "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(libclc_gen_remangled_variants),
         "-DSYCL_BUILD_PI_CUDA={}".format(sycl_build_pi_cuda),
+        "-DSYCL_BUILD_PI_HIP={}".format(sycl_build_pi_hip),
+        "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
         "-DSYCL_ENABLE_WERROR={}".format(sycl_werror),
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
@@ -81,7 +121,9 @@ def do_configure(args):
         "-DLLVM_ENABLE_DOXYGEN={}".format(llvm_enable_doxygen),
         "-DLLVM_ENABLE_SPHINX={}".format(llvm_enable_sphinx),
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
-        "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing)
+        "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
+        "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
+        "-DSYCL_BUILD_PI_ESIMD_CPU={}".format(sycl_build_pi_esimd_cpu)
     ]
 
     if args.l0_headers and args.l0_loader:
@@ -141,7 +183,10 @@ def main():
     parser.add_argument("-t", "--build-type",
                         metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
+    parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
+    parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
+    parser.add_argument("--enable-esimd-cpu-emulation", action='store_true', help="build with ESIMD_CPU emulation support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
     parser.add_argument("--no-werror", action='store_true', help="Don't treat warnings as errors")
@@ -151,6 +196,9 @@ def main():
     parser.add_argument("--use-libcxx", action="store_true", help="build sycl runtime with libcxx")
     parser.add_argument("--libcxx-include", metavar="LIBCXX_INCLUDE_PATH", help="libcxx include path")
     parser.add_argument("--libcxx-library", metavar="LIBCXX_LIBRARY_PATH", help="libcxx library path")
+    parser.add_argument("--use-lld", action="store_true", help="Use LLD linker for build")
+    parser.add_argument("--llvm-external-projects", help="Add external projects to build. Add as comma seperated list.")
+    parser.add_argument("--ci-defaults", action="store_true", help="Enable default CI parameters")
     args = parser.parse_args()
 
     print("args:{}".format(args))

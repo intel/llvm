@@ -15,14 +15,10 @@ target_link_libraries(lld
   lldCOFF
   lldDriver
   lldELF
-  lldMachO2
+  lldMachO
   lldMinGW
   lldWasm
   )
-
-if(LLVM_HAVE_LIBXAR)
-  target_link_libraries(lld PRIVATE ${XAR_LIB})
-endif()
 
 install(TARGETS lld
   RUNTIME DESTINATION bin)

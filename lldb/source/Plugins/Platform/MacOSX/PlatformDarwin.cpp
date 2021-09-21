@@ -8,7 +8,7 @@
 
 #include "PlatformDarwin.h"
 
-#include <string.h>
+#include <cstring>
 
 #include <algorithm>
 #include <memory>
@@ -54,7 +54,7 @@ PlatformDarwin::PlatformDarwin(bool is_host) : PlatformPOSIX(is_host) {}
 ///
 /// The destructor is virtual since this class is designed to be
 /// inherited from by the plug-in instance.
-PlatformDarwin::~PlatformDarwin() {}
+PlatformDarwin::~PlatformDarwin() = default;
 
 lldb_private::Status
 PlatformDarwin::PutFile(const lldb_private::FileSpec &source,
@@ -555,21 +555,21 @@ bool PlatformDarwin::x86GetSupportedArchitectureAtIndex(uint32_t idx,
   return false;
 }
 
-// The architecture selection rules for arm processors These cpu subtypes have
-// distinct names (e.g. armv7f) but armv7 binaries run fine on an armv7f
-// processor.
-
+/// The architecture selection rules for arm processors These cpu subtypes have
+/// distinct names (e.g. armv7f) but armv7 binaries run fine on an armv7f
+/// processor.
 bool PlatformDarwin::ARMGetSupportedArchitectureAtIndex(uint32_t idx,
                                                         ArchSpec &arch) {
   ArchSpec system_arch(GetSystemArchitecture());
 
-// When lldb is running on a watch or tv, set the arch OS name appropriately.
 #if defined(TARGET_OS_TV) && TARGET_OS_TV == 1
 #define OSNAME "tvos"
 #elif defined(TARGET_OS_WATCH) && TARGET_OS_WATCH == 1
 #define OSNAME "watchos"
 #elif defined(TARGET_OS_BRIDGE) && TARGET_OS_BRIDGE == 1
 #define OSNAME "bridgeos"
+#elif defined(TARGET_OS_OSX) && TARGET_OS_OSX == 1
+#define OSNAME "macosx"
 #else
 #define OSNAME "ios"
 #endif

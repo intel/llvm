@@ -51,11 +51,9 @@ public:
     return {nameData, nameSize};
   }
 
-  virtual uint64_t getVA() const { return 0; }
+  bool isLive() const;
 
-  virtual uint64_t getFileOffset() const {
-    llvm_unreachable("attempt to get an offset from a non-defined symbol");
-  }
+  virtual uint64_t getVA() const { return 0; }
 
   virtual bool isWeakDef() const { llvm_unreachable("cannot be weak def"); }
 
@@ -96,7 +94,8 @@ public:
 protected:
   Symbol(Kind k, StringRefZ name, InputFile *file)
       : symbolKind(k), nameData(name.data), nameSize(name.size), file(file),
-        isUsedInRegularObj(!file || isa<ObjFile>(file)) {}
+        isUsedInRegularObj(!file || isa<ObjFile>(file)),
+        used(!config->deadStrip) {}
 
   Kind symbolKind;
   const char *nameData;
@@ -105,21 +104,24 @@ protected:
 
 public:
   // True if this symbol was referenced by a regular (non-bitcode) object.
-  bool isUsedInRegularObj;
+  bool isUsedInRegularObj : 1;
+
+  // True if an undefined or dylib symbol is used from a live section.
+  bool used : 1;
 };
 
 class Defined : public Symbol {
 public:
   Defined(StringRefZ name, InputFile *file, InputSection *isec, uint64_t value,
           uint64_t size, bool isWeakDef, bool isExternal, bool isPrivateExtern,
-          bool isThumb, bool isReferencedDynamically)
+          bool isThumb, bool isReferencedDynamically, bool noDeadStrip)
       : Symbol(DefinedKind, name, file), isec(isec), value(value), size(size),
         overridesWeakDef(false), privateExtern(isPrivateExtern),
         includeInSymtab(true), thumb(isThumb),
-        referencedDynamically(isReferencedDynamically), weakDef(isWeakDef),
-        external(isExternal) {
-    if (isec)
-      isec->numRefs++;
+        referencedDynamically(isReferencedDynamically),
+        noDeadStrip(noDeadStrip), weakDef(isWeakDef), external(isExternal) {
+    if (auto concatIsec = dyn_cast_or_null<ConcatInputSection>(isec))
+      concatIsec->numRefs++;
   }
 
   bool isWeakDef() const override { return weakDef; }
@@ -127,14 +129,13 @@ public:
     return isWeakDef() && isExternal() && !privateExtern;
   }
   bool isTlv() const override {
-    return !isAbsolute() && isThreadLocalVariables(isec->flags);
+    return !isAbsolute() && isThreadLocalVariables(isec->getFlags());
   }
 
   bool isExternal() const { return external; }
   bool isAbsolute() const { return isec == nullptr; }
 
   uint64_t getVA() const override;
-  uint64_t getFileOffset() const override;
 
   static bool classof(const Symbol *s) { return s->kind() == DefinedKind; }
 
@@ -156,7 +157,14 @@ public:
   // symbol table by tools like strip. In theory, this could be set on arbitrary
   // symbols in input object files. In practice, it's used solely for the
   // synthetic __mh_execute_header symbol.
+  // This is information for the static linker, and it's also written to the
+  // output file's symbol table for tools running later (such as `strip`).
   bool referencedDynamically : 1;
+  // Set on symbols that should not be removed by dead code stripping.
+  // Set for example on `__attribute__((used))` globals, or on some Objective-C
+  // metadata. This is information only for the static linker and not written
+  // to the output.
+  bool noDeadStrip : 1;
 
 private:
   const bool weakDef : 1;
@@ -221,7 +229,10 @@ public:
   DylibSymbol(DylibFile *file, StringRefZ name, bool isWeakDef,
               RefState refState, bool isTlv)
       : Symbol(DylibKind, name, file), refState(refState), weakDef(isWeakDef),
-        tlv(isTlv) {}
+        tlv(isTlv) {
+    if (file && refState > RefState::Unreferenced)
+      file->numReferencedSymbols++;
+  }
 
   uint64_t getVA() const override;
   bool isWeakDef() const override { return weakDef; }
@@ -241,9 +252,25 @@ public:
   uint32_t stubsHelperIndex = UINT32_MAX;
   uint32_t lazyBindOffset = UINT32_MAX;
 
-  RefState refState : 2;
+  RefState getRefState() const { return refState; }
+
+  void reference(RefState newState) {
+    assert(newState > RefState::Unreferenced);
+    if (refState == RefState::Unreferenced && file)
+      getFile()->numReferencedSymbols++;
+    refState = std::max(refState, newState);
+  }
+
+  void unreference() {
+    // dynamic_lookup symbols have no file.
+    if (refState > RefState::Unreferenced && file) {
+      assert(getFile()->numReferencedSymbols > 0);
+      getFile()->numReferencedSymbols--;
+    }
+  }
 
 private:
+  RefState refState : 2;
   const bool weakDef : 1;
   const bool tlv : 1;
 };
@@ -279,8 +306,10 @@ T *replaceSymbol(Symbol *s, ArgT &&...arg) {
          "Not a Symbol");
 
   bool isUsedInRegularObj = s->isUsedInRegularObj;
+  bool used = s->used;
   T *sym = new (s) T(std::forward<ArgT>(arg)...);
   sym->isUsedInRegularObj |= isUsedInRegularObj;
+  sym->used |= used;
   return sym;
 }
 

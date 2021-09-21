@@ -103,6 +103,7 @@ class DynTypedNode;
 class DynTypedNodeList;
 class Expr;
 class GlobalDecl;
+class ItaniumMangleContext;
 class MangleContext;
 class MangleNumberingContext;
 class MaterializeTemporaryExpr;
@@ -163,24 +164,46 @@ namespace serialization {
 template <class> class AbstractTypeReader;
 } // namespace serialization
 
+enum class AlignRequirementKind {
+  /// The alignment was not explicit in code.
+  None,
+
+  /// The alignment comes from an alignment attribute on a typedef.
+  RequiredByTypedef,
+
+  /// The alignment comes from an alignment attribute on a record type.
+  RequiredByRecord,
+
+  /// The alignment comes from an alignment attribute on a enum type.
+  RequiredByEnum,
+};
+
 struct TypeInfo {
   uint64_t Width = 0;
   unsigned Align = 0;
-  bool AlignIsRequired : 1;
+  AlignRequirementKind AlignRequirement;
 
-  TypeInfo() : AlignIsRequired(false) {}
-  TypeInfo(uint64_t Width, unsigned Align, bool AlignIsRequired)
-      : Width(Width), Align(Align), AlignIsRequired(AlignIsRequired) {}
+  TypeInfo() : AlignRequirement(AlignRequirementKind::None) {}
+  TypeInfo(uint64_t Width, unsigned Align,
+           AlignRequirementKind AlignRequirement)
+      : Width(Width), Align(Align), AlignRequirement(AlignRequirement) {}
+  bool isAlignRequired() {
+    return AlignRequirement != AlignRequirementKind::None;
+  }
 };
 
 struct TypeInfoChars {
   CharUnits Width;
   CharUnits Align;
-  bool AlignIsRequired : 1;
+  AlignRequirementKind AlignRequirement;
 
-  TypeInfoChars() : AlignIsRequired(false) {}
-  TypeInfoChars(CharUnits Width, CharUnits Align, bool AlignIsRequired)
-      : Width(Width), Align(Align), AlignIsRequired(AlignIsRequired) {}
+  TypeInfoChars() : AlignRequirement(AlignRequirementKind::None) {}
+  TypeInfoChars(CharUnits Width, CharUnits Align,
+                AlignRequirementKind AlignRequirement)
+      : Width(Width), Align(Align), AlignRequirement(AlignRequirement) {}
+  bool isAlignRequired() {
+    return AlignRequirement != AlignRequirementKind::None;
+  }
 };
 
 /// Holds long-lived AST nodes (such as types and decls) that can be
@@ -458,6 +481,7 @@ private:
   friend class ASTWriter;
   template <class> friend class serialization::AbstractTypeReader;
   friend class CXXRecordDecl;
+  friend class IncrementalParser;
 
   /// A mapping to contain the template or declaration that
   /// a variable declaration describes or was instantiated from,
@@ -517,6 +541,17 @@ private:
   /// B<int> to the UnresolvedUsingDecl in B<T>.
   llvm::DenseMap<NamedDecl *, NamedDecl *> InstantiatedFromUsingDecl;
 
+  /// Like InstantiatedFromUsingDecl, but for using-enum-declarations. Maps
+  /// from the instantiated using-enum to the templated decl from whence it
+  /// came.
+  /// Note that using-enum-declarations cannot be dependent and
+  /// thus will never be instantiated from an "unresolved"
+  /// version thereof (as with using-declarations), so each mapping is from
+  /// a (resolved) UsingEnumDecl to a (resolved) UsingEnumDecl.
+  llvm::DenseMap<UsingEnumDecl *, UsingEnumDecl *>
+      InstantiatedFromUsingEnumDecl;
+
+  /// Simlarly maps instantiated UsingShadowDecls to their origin.
   llvm::DenseMap<UsingShadowDecl*, UsingShadowDecl*>
     InstantiatedFromUsingShadowDecl;
 
@@ -555,7 +590,7 @@ private:
   ImportDecl *FirstLocalImport = nullptr;
   ImportDecl *LastLocalImport = nullptr;
 
-  TranslationUnitDecl *TUDecl;
+  TranslationUnitDecl *TUDecl = nullptr;
   mutable ExternCContextDecl *ExternCContext = nullptr;
   mutable BuiltinTemplateDecl *MakeIntegerSeqDecl = nullptr;
   mutable BuiltinTemplateDecl *TypePackElementDecl = nullptr;
@@ -612,6 +647,7 @@ public:
   IdentifierTable &Idents;
   SelectorTable &Selectors;
   Builtin::Context &BuiltinInfo;
+  const TranslationUnitKind TUKind;
   mutable DeclarationNameTable DeclarationNames;
   IntrusiveRefCntPtr<ExternalASTSource> ExternalSource;
   ASTMutationListener *Listener = nullptr;
@@ -623,11 +659,22 @@ public:
   ParentMapContext &getParentMapContext();
 
   // A traversal scope limits the parts of the AST visible to certain analyses.
-  // RecursiveASTVisitor::TraverseAST will only visit reachable nodes, and
+  // RecursiveASTVisitor only visits specified children of TranslationUnitDecl.
   // getParents() will only observe reachable parent edges.
   //
-  // The scope is defined by a set of "top-level" declarations.
-  // Initially, it is the entire TU: {getTranslationUnitDecl()}.
+  // The scope is defined by a set of "top-level" declarations which will be
+  // visible under the TranslationUnitDecl.
+  // Initially, it is the entire TU, represented by {getTranslationUnitDecl()}.
+  //
+  // After setTraversalScope({foo, bar}), the exposed AST looks like:
+  // TranslationUnitDecl
+  //  - foo
+  //    - ...
+  //  - bar
+  //    - ...
+  // All other siblings of foo and bar are pruned from the tree.
+  // (However they are still accessible via TranslationUnitDecl->decls())
+  //
   // Changing the scope clears the parent cache, which is expensive to rebuild.
   std::vector<Decl *> getTraversalScope() const { return TraversalScope; }
   void setTraversalScope(const std::vector<Decl *> &);
@@ -885,30 +932,38 @@ public:
   MemberSpecializationInfo *getInstantiatedFromStaticDataMember(
                                                            const VarDecl *Var);
 
-  TemplateOrSpecializationInfo
-  getTemplateOrSpecializationInfo(const VarDecl *Var);
-
   /// Note that the static data member \p Inst is an instantiation of
   /// the static data member template \p Tmpl of a class template.
   void setInstantiatedFromStaticDataMember(VarDecl *Inst, VarDecl *Tmpl,
                                            TemplateSpecializationKind TSK,
                         SourceLocation PointOfInstantiation = SourceLocation());
 
+  TemplateOrSpecializationInfo
+  getTemplateOrSpecializationInfo(const VarDecl *Var);
+
   void setTemplateOrSpecializationInfo(VarDecl *Inst,
                                        TemplateOrSpecializationInfo TSI);
 
-  /// If the given using decl \p Inst is an instantiation of a
-  /// (possibly unresolved) using decl from a template instantiation,
-  /// return it.
+  /// If the given using decl \p Inst is an instantiation of
+  /// another (possibly unresolved) using decl, return it.
   NamedDecl *getInstantiatedFromUsingDecl(NamedDecl *Inst);
 
   /// Remember that the using decl \p Inst is an instantiation
   /// of the using decl \p Pattern of a class template.
   void setInstantiatedFromUsingDecl(NamedDecl *Inst, NamedDecl *Pattern);
 
+  /// If the given using-enum decl \p Inst is an instantiation of
+  /// another using-enum decl, return it.
+  UsingEnumDecl *getInstantiatedFromUsingEnumDecl(UsingEnumDecl *Inst);
+
+  /// Remember that the using enum decl \p Inst is an instantiation
+  /// of the using enum decl \p Pattern of a class template.
+  void setInstantiatedFromUsingEnumDecl(UsingEnumDecl *Inst,
+                                        UsingEnumDecl *Pattern);
+
+  UsingShadowDecl *getInstantiatedFromUsingShadowDecl(UsingShadowDecl *Inst);
   void setInstantiatedFromUsingShadowDecl(UsingShadowDecl *Inst,
                                           UsingShadowDecl *Pattern);
-  UsingShadowDecl *getInstantiatedFromUsingShadowDecl(UsingShadowDecl *Inst);
 
   FieldDecl *getInstantiatedFromUnnamedFieldDecl(FieldDecl *Field);
 
@@ -991,7 +1046,18 @@ public:
   /// Get the initializations to perform when importing a module, if any.
   ArrayRef<Decl*> getModuleInitializers(Module *M);
 
-  TranslationUnitDecl *getTranslationUnitDecl() const { return TUDecl; }
+  TranslationUnitDecl *getTranslationUnitDecl() const {
+    return TUDecl->getMostRecentDecl();
+  }
+  void addTranslationUnitDecl() {
+    assert(!TUDecl || TUKind == TU_Incremental);
+    TranslationUnitDecl *NewTUDecl = TranslationUnitDecl::Create(*this);
+    if (TraversalScope.empty() || TraversalScope.back() == TUDecl)
+      TraversalScope = {NewTUDecl};
+    if (TUDecl)
+      NewTUDecl->setPreviousDecl(TUDecl);
+    TUDecl = NewTUDecl;
+  }
 
   ExternCContextDecl *getExternCContextDecl() const;
   BuiltinTemplateDecl *getMakeIntegerSeqDecl() const;
@@ -1010,7 +1076,7 @@ public:
   CanQualType SignedCharTy, ShortTy, IntTy, LongTy, LongLongTy, Int128Ty;
   CanQualType UnsignedCharTy, UnsignedShortTy, UnsignedIntTy, UnsignedLongTy;
   CanQualType UnsignedLongLongTy, UnsignedInt128Ty;
-  CanQualType FloatTy, DoubleTy, LongDoubleTy, Float128Ty;
+  CanQualType FloatTy, DoubleTy, LongDoubleTy, Float128Ty, Ibm128Ty;
   CanQualType ShortAccumTy, AccumTy,
       LongAccumTy;  // ISO/IEC JTC1 SC22 WG14 N1169 Extension
   CanQualType UnsignedShortAccumTy, UnsignedAccumTy, UnsignedLongAccumTy;
@@ -1073,7 +1139,8 @@ public:
   llvm::DenseSet<const VarDecl *> CUDADeviceVarODRUsedByHost;
 
   ASTContext(LangOptions &LOpts, SourceManager &SM, IdentifierTable &idents,
-             SelectorTable &sels, Builtin::Context &builtins);
+             SelectorTable &sels, Builtin::Context &builtins,
+             TranslationUnitKind TUKind);
   ASTContext(const ASTContext &) = delete;
   ASTContext &operator=(const ASTContext &) = delete;
   ~ASTContext();
@@ -1590,6 +1657,8 @@ public:
   /// GCC extension.
   QualType getTypeOfExprType(Expr *e) const;
   QualType getTypeOfType(QualType t) const;
+
+  QualType getReferenceQualifiedType(const Expr *e) const;
 
   /// C++11 decltype.
   QualType getDecltypeType(Expr *e, QualType UnderlyingType) const;
@@ -2359,6 +2428,12 @@ public:
 
   /// If \p T is null pointer, assume the target in ASTContext.
   MangleContext *createMangleContext(const TargetInfo *T = nullptr);
+
+  /// Creates a device mangle context to correctly mangle lambdas in a mixed
+  /// architecture compile by setting the lambda mangling number source to the
+  /// DeviceLambdaManglingNumber. Currently this asserts that the TargetInfo
+  /// (from the AuxTargetInfo) is a an itanium target.
+  MangleContext *createDeviceMangleContext(const TargetInfo &T);
 
   void DeepCollectObjCIvars(const ObjCInterfaceDecl *OI, bool leafClass,
                             SmallVectorImpl<const ObjCIvarDecl*> &Ivars) const;

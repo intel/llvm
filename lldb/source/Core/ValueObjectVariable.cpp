@@ -33,7 +33,7 @@
 
 #include "llvm/ADT/StringRef.h"
 
-#include <assert.h>
+#include <cassert>
 #include <memory>
 
 namespace lldb_private {
@@ -63,7 +63,7 @@ ValueObjectVariable::ValueObjectVariable(ExecutionContextScope *exe_scope,
   m_name = var_sp->GetName();
 }
 
-ValueObjectVariable::~ValueObjectVariable() {}
+ValueObjectVariable::~ValueObjectVariable() = default;
 
 CompilerType ValueObjectVariable::GetCompilerTypeImpl() {
   Type *var_type = m_variable_sp->GetType();

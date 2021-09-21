@@ -42,24 +42,19 @@ void applyPermutationToVector(SmallVector<T, N> &inVec,
   inVec = auxVec;
 }
 
+/// Helper function that creates a memref::DimOp or tensor::DimOp depending on
+/// the type of `source`.
+Value createOrFoldDimOp(OpBuilder &b, Location loc, Value source, int64_t dim);
+
+/// Given an operation, retrieves the value of each dynamic dimension through
+/// constructing the necessary DimOp operators.
+SmallVector<Value, 4> getDynOperands(Location loc, Value val, OpBuilder &b);
+
 /// If `size` comes from an AffineMinOp and one of the values of AffineMinOp
 /// is a constant then return a new value set to the smallest such constant.
 /// If `size` comes from a ConstantOp, return the constant.
 /// Otherwise return nullptr.
 IntegerAttr getSmallestBoundingIndex(Value size);
-
-//===----------------------------------------------------------------------===//
-// Iterator type utilities
-//===----------------------------------------------------------------------===//
-
-/// Checks if an iterator_type attribute is parallel.
-bool isParallelIteratorType(Attribute attr);
-
-/// Checks if an iterator_type attribute is parallel.
-bool isReductionIteratorType(Attribute attr);
-
-/// Checks if an iterator_type attribute is parallel.
-bool isWindowIteratorType(Attribute attr);
 
 //===----------------------------------------------------------------------===//
 // Fusion utilities
@@ -78,7 +73,27 @@ bool isProducerLastWriteOfView(const LinalgDependenceGraph &graph,
 bool isFusableInto(const LinalgDependenceGraph &graph, LinalgOp consumer,
                    Value consumedView, LinalgOp producer);
 
-/// Creates subtensor/subview ops for all `tiledOperands` of the given
+/// Compute tile offsets, given a list of loop `ivs` and `tileSizes`. In case a
+/// tile size is zero (i.e., no tiling), the corresponding offset is also zero.
+SmallVector<Value> computeTileOffsets(OpBuilder &b, Location loc,
+                                      ValueRange ivs, ValueRange tileSizes);
+
+/// Compute tile sizes, given a list of loop `ivs`, `tileSizes` and dimension
+/// sizes (`sizeBounds`). In case a tile size is zero (i.e., no tiling), the
+/// corresponding result size is the corresponding value from `sizeBounds`.
+/// Note: The returned tile sizes are closed intervals.
+SmallVector<Value> computeTileSizes(OpBuilder &b, Location loc, ValueRange ivs,
+                                    ValueRange tileSizes,
+                                    ArrayRef<Value> sizeBounds);
+
+/// Creates an extract_slice/subview op for a single `valueToTile` with
+/// `builder`. This new operation extracts a tile of `valueToTile`, starting
+/// at offsets `lbs` and with sizes `subShapeSizes`.
+Value makeTiledShape(OpBuilder &builder, Location loc, Value valueToTile,
+                     ValueRange tileSizes, AffineMap map, ValueRange lbs,
+                     ValueRange ubs, ValueRange subShapeSizes);
+
+/// Creates extract_slice/subview ops for all `valuesToTile` of the given
 /// `linalgOp` with `builder`, assuming `linalgOp` is being fused into a loop
 /// nest for tiling with the given induction variables `ivs` and tile sizes
 /// `tileSizes`. `sizeBounds` are the iteration space bounds for *all* the
@@ -89,7 +104,7 @@ bool isFusableInto(const LinalgDependenceGraph &graph, LinalgOp consumer,
 /// number of values in `ivs`.
 SmallVector<Value, 4> makeTiledShapes(OpBuilder &builder, Location loc,
                                       LinalgOp linalgOp,
-                                      ArrayRef<Value> tiledOperands,
+                                      ArrayRef<Value> valuesToTile,
                                       ValueRange ivs, ValueRange tileSizes,
                                       ArrayRef<Value> sizeBounds);
 
@@ -118,15 +133,17 @@ Optional<FusionInfo> fuseProducerOfBuffer(OpBuilder &b,
                                           const LinalgDependenceGraph &graph);
 /// Tensor counterpart of `fuseProducerOfBuffer`.
 /// This implements the fusion part of the "tileAndFuse on tensors"
-/// transformation and thus requires the `consumerOpOperand` to be a `subtensor`
-/// op (generally obtained by applying the tiling transformation).
+/// transformation and thus requires the `consumerOpOperand` to be a
+/// `extract_slice` op (generally obtained by applying the tiling
+/// transformation).
 Optional<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
                                           OpOperand &consumerOpOperand);
 /// Tensor counterpart of `fuseProducerOfBuffer`.
 /// This implements the fusion part of the "tileAndFuse on tensors"
-/// transformation and thus requires the `consumerOpOperand` to be a `subtensor`
-/// op (generally obtained by applying the tiling transformation).
-/// Assumes `producerOfTensor` is a Linalg op that produces `consumerOpOperand`.
+/// transformation and thus requires the `consumerOpOperand` to be a
+/// `extract_slice` op (generally obtained by applying the tiling
+/// transformation). Assumes `producerOfTensor` is a Linalg op that produces
+/// `consumerOpOperand`.
 Optional<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
                                           OpResult producerOpResult,
                                           OpOperand &consumerOpOperand);
@@ -184,6 +201,8 @@ struct ProcInfo {
 };
 using ProcInfoCallBackFn = std::function<SmallVector<ProcInfo, 2>(
     OpBuilder &b, Location loc, ArrayRef<Range> parallelLoopRanges)>;
+using OneDimProcInfoCallBackFn =
+    std::function<ProcInfo(OpBuilder &b, Location loc)>;
 
 /// Options that allow distribution of loops generated in Linalg transforms to
 /// processors while generating the loops.
@@ -201,6 +220,11 @@ struct LinalgLoopDistributionOptions {
   /// applied. If the vector is less than the number of `scf.parallel` loops
   /// generated, then no distribution is applied.
   SmallVector<DistributionMethod, 0> distributionMethod = {};
+
+  /// The map keyed by the distribution type that contains callback functions
+  /// that return the Values for processor ID (`procId`), and number of
+  /// processors (`nprocs`) used to execute the parallel loops.
+  DenseMap<StringRef, OneDimProcInfoCallBackFn> procInfoMap;
 };
 
 /// Update the `lb`, `ub` and `step` to get per processor `lb`, `ub` and `step`.
@@ -239,7 +263,7 @@ struct RegionMatcher {
 /// Utility class used to generate nested loops with ranges described by
 /// `loopRanges` and loop type described by the `iteratorTypes`. `bodyBuilderFn`
 /// is used to generate the body of the innermost loop. It is passed a range
-/// of loop induction variables and a range of iterArgs.
+/// of loop induction variables and a range of operand values to use.
 template <typename LoopTy>
 struct GenerateLoopNest {
   static void doit(OpBuilder &b, Location loc, ArrayRef<Range> loopRanges,
@@ -247,7 +271,8 @@ struct GenerateLoopNest {
                    function_ref<scf::ValueVector(OpBuilder &, Location,
                                                  ValueRange, ValueRange)>
                        bodyBuilderFn,
-                   Optional<LinalgLoopDistributionOptions> = None);
+                   Optional<LinalgLoopDistributionOptions> = None,
+                   ArrayRef<StringRef> distributionTypes = {});
 };
 
 } // namespace linalg

@@ -36,9 +36,15 @@ def parse_commandline_args(parser):
                       help='List of regular expressions to replace matching value names')
   parser.add_argument('--prefix-filecheck-ir-name', default='',
                       help='Add a prefix to FileCheck IR value names to avoid conflicts with scripted names')
+  parser.add_argument('--global-value-regex', nargs='+', default=[],
+                      help='List of regular expressions that a global value declaration must match to generate a check (has no effect if checking globals is not enabled)')
+  parser.add_argument('--global-hex-value-regex', nargs='+', default=[],
+                      help='List of regular expressions such that, for matching global value declarations, literal integer values should be encoded in hex in the associated FileCheck directives')
   args = parser.parse_args()
-  global _verbose
+  global _verbose, _global_value_regex, _global_hex_value_regex
   _verbose = args.verbose
+  _global_value_regex = args.global_value_regex
+  _global_hex_value_regex = args.global_hex_value_regex
   return args
 
 
@@ -121,12 +127,12 @@ def itertests(test_patterns, parser, script_name, comment_prefix=None, argparse_
                      comment_prefix, argparse_callback)
 
 
-def should_add_line_to_output(input_line, prefix_set, skip_global_checks = False):
+def should_add_line_to_output(input_line, prefix_set, skip_global_checks = False, comment_marker = ';'):
   # Skip any blank comment lines in the IR.
-  if not skip_global_checks and input_line.strip() == ';':
+  if not skip_global_checks and input_line.strip() == comment_marker:
     return False
   # Skip a special double comment line we use as a separator.
-  if input_line.strip() == SEPARATOR:
+  if input_line.strip() == comment_marker + SEPARATOR:
     return False
   # Skip any blank lines in the IR.
   #if input_line.strip() == '':
@@ -204,7 +210,7 @@ SCRUB_LOOP_COMMENT_RE = re.compile(
     r'# =>This Inner Loop Header:.*|# in Loop:.*', flags=re.M)
 SCRUB_TAILING_COMMENT_TOKEN_RE = re.compile(r'(?<=\S)+[ \t]*#$', flags=re.M)
 
-SEPARATOR = ';.'
+SEPARATOR = '.'
 
 def error(msg, test_file=None):
   if test_file:
@@ -262,7 +268,7 @@ class function_body(object):
     self.extrascrub = extra
     self.args_and_sig = args_and_sig
     self.attrs = attrs
-  def is_same_except_arg_names(self, extrascrub, args_and_sig, attrs):
+  def is_same_except_arg_names(self, extrascrub, args_and_sig, attrs, is_asm):
     arg_names = set()
     def drop_arg_names(match):
         arg_names.add(match.group(variable_group_in_ir_value_match))
@@ -281,6 +287,11 @@ class function_body(object):
     ans1 = IR_VALUE_RE.sub(drop_arg_names, args_and_sig)
     if ans0 != ans1:
         return False
+    if is_asm:
+        # Check without replacements, the replacements are not applied to the
+        # body for asm checks.
+        return self.extrascrub == extrascrub
+
     es0 = IR_VALUE_RE.sub(repl_arg_names, self.extrascrub)
     es1 = IR_VALUE_RE.sub(repl_arg_names, extrascrub)
     es0 = SCRUB_IR_COMMENT_RE.sub(r'', es0)
@@ -291,11 +302,12 @@ class function_body(object):
     return self.scrub
 
 class FunctionTestBuilder:
-  def __init__(self, run_list, flags, scrubber_args):
+  def __init__(self, run_list, flags, scrubber_args, path):
     self._verbose = flags.verbose
     self._record_args = flags.function_signature
     self._check_attributes = flags.check_attributes
     self._scrubber_args = scrubber_args
+    self._path = path
     # Strip double-quotes if input was read by UTC_ARGS
     self._replace_value_regex = list(map(lambda x: x.strip('"'), flags.replace_value_regex))
     self._func_dict = {}
@@ -309,7 +321,7 @@ class FunctionTestBuilder:
 
   def finish_and_get_func_dict(self):
     for prefix in self._get_failed_prefixes():
-      warn('Prefix %s had conflicting output from different RUN lines for all functions' % (prefix,))
+      warn('Prefix %s had conflicting output from different RUN lines for all functions in test %s' % (prefix,self._path,))
     return self._func_dict
 
   def func_order(self):
@@ -318,7 +330,7 @@ class FunctionTestBuilder:
   def global_var_dict(self):
     return self._global_var_dict
 
-  def process_run_line(self, function_re, scrubber, raw_tool_output, prefixes):
+  def process_run_line(self, function_re, scrubber, raw_tool_output, prefixes, is_asm):
     build_global_values_dictionary(self._global_var_dict, raw_tool_output, prefixes)
     for m in function_re.finditer(raw_tool_output):
       if not m:
@@ -350,27 +362,6 @@ class FunctionTestBuilder:
         for l in scrubbed_body.splitlines():
           print('  ' + l, file=sys.stderr)
       for prefix in prefixes:
-        if func in self._func_dict[prefix]:
-          if (self._func_dict[prefix][func] is None or
-              str(self._func_dict[prefix][func]) != scrubbed_body or
-              self._func_dict[prefix][func].args_and_sig != args_and_sig or
-                  self._func_dict[prefix][func].attrs != attrs):
-            if (self._func_dict[prefix][func] is not None and
-                self._func_dict[prefix][func].is_same_except_arg_names(
-                scrubbed_extra,
-                args_and_sig,
-                attrs)):
-              self._func_dict[prefix][func].scrub = scrubbed_extra
-              self._func_dict[prefix][func].args_and_sig = args_and_sig
-              continue
-            else:
-              # This means a previous RUN line produced a body for this function
-              # that is different from the one produced by this current RUN line,
-              # so the body can't be common accross RUN lines. We use None to
-              # indicate that.
-              self._func_dict[prefix][func] = None
-              continue
-
         # Replace function names matching the regex.
         for regex in self._replace_value_regex:
           # Pattern that matches capture groups in the regex in leftmost order.
@@ -393,7 +384,30 @@ class FunctionTestBuilder:
                 func_repl = group_regex.sub(re.escape(g), func_repl, count=1)
             # Substitute function call names that match the regex with the same
             # capture groups set.
-            scrubbed_body = re.sub(func_repl, '{{' + func_repl + '}}', scrubbed_body)
+            scrubbed_body = re.sub(func_repl, '{{' + func_repl + '}}',
+                                   scrubbed_body)
+
+        if func in self._func_dict[prefix]:
+          if (self._func_dict[prefix][func] is None or
+              str(self._func_dict[prefix][func]) != scrubbed_body or
+              self._func_dict[prefix][func].args_and_sig != args_and_sig or
+                  self._func_dict[prefix][func].attrs != attrs):
+            if (self._func_dict[prefix][func] is not None and
+                self._func_dict[prefix][func].is_same_except_arg_names(
+                scrubbed_extra,
+                args_and_sig,
+                attrs,
+                is_asm)):
+              self._func_dict[prefix][func].scrub = scrubbed_extra
+              self._func_dict[prefix][func].args_and_sig = args_and_sig
+              continue
+            else:
+              # This means a previous RUN line produced a body for this function
+              # that is different from the one produced by this current RUN line,
+              # so the body can't be common accross RUN lines. We use None to
+              # indicate that.
+              self._func_dict[prefix][func] = None
+              continue
 
         self._func_dict[prefix][func] = function_body(
             scrubbed_body, scrubbed_extra, args_and_sig, attrs)
@@ -602,6 +616,12 @@ def generalize_check_lines(lines, is_analyze, vars_seen, global_vars_seen):
   for i, line in enumerate(lines):
     # An IR variable named '%.' matches the FileCheck regex string.
     line = line.replace('%.', '%dot')
+    for regex in _global_hex_value_regex:
+      if re.match('^@' + regex + ' = ', line):
+        line = re.sub(r'\bi([0-9]+) ([0-9]+)',
+            lambda m : 'i' + m.group(1) + ' [[#' + hex(int(m.group(2))) + ']]',
+            line)
+        break
     # Ignore any comments, since the check lines will too.
     scrubbed_line = SCRUB_IR_COMMENT_RE.sub(r'', line)
     lines[i] = scrubbed_line
@@ -778,6 +798,8 @@ def add_global_checks(glob_val_dict, comment_marker, prefix_list, output_lines, 
     for p in prefix_list:
       global_vars_seen = {}
       checkprefixes = p[0]
+      if checkprefixes is None:
+        continue
       for checkprefix in checkprefixes:
         if checkprefix in global_vars_seen_dict:
             global_vars_seen.update(global_vars_seen_dict[checkprefix])
@@ -792,13 +814,27 @@ def add_global_checks(glob_val_dict, comment_marker, prefix_list, output_lines, 
         if not glob_val_dict[checkprefix][nameless_value.check_prefix]:
           continue
 
-        output_lines.append(SEPARATOR)
-
+        check_lines = []
         global_vars_seen_before = [key for key in global_vars_seen.keys()]
         for line in glob_val_dict[checkprefix][nameless_value.check_prefix]:
+          if _global_value_regex:
+            matched = False
+            for regex in _global_value_regex:
+              if re.match('^@' + regex + ' = ', line):
+                matched = True
+                break
+            if not matched:
+              continue
           tmp = generalize_check_lines([line], is_analyze, set(), global_vars_seen)
           check_line = '%s %s: %s' % (comment_marker, checkprefix, tmp[0])
+          check_lines.append(check_line)
+        if not check_lines:
+          continue
+
+        output_lines.append(comment_marker + SEPARATOR)
+        for check_line in check_lines:
           output_lines.append(check_line)
+
         printed_prefixes.add((checkprefix, nameless_value.check_prefix))
 
         # Remembe new global variables we have not seen before
@@ -808,7 +844,7 @@ def add_global_checks(glob_val_dict, comment_marker, prefix_list, output_lines, 
         break
 
   if printed_prefixes:
-      output_lines.append(SEPARATOR)
+      output_lines.append(comment_marker + SEPARATOR)
 
 
 def check_prefix(prefix):
@@ -901,7 +937,7 @@ def dump_input_lines(output_lines, test_info, prefix_set, comment_string):
     args = input_line_info.args
     if line.strip() == comment_string:
       continue
-    if line.strip() == SEPARATOR:
+    if line.strip() == comment_string + SEPARATOR:
       continue
     if line.lstrip().startswith(comment_string):
       m = CHECK_RE.match(line)

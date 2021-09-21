@@ -240,9 +240,38 @@ bool isAbstract(const Decl *D) {
   return false;
 }
 
+bool isVirtual(const Decl *D) {
+  if (const auto *CMD = llvm::dyn_cast<CXXMethodDecl>(D))
+    return CMD->isVirtual();
+  return false;
+}
+
 bool isDependent(const Decl *D) {
   if (isa<UnresolvedUsingValueDecl>(D))
     return true;
+  return false;
+}
+
+/// Returns true if `Decl` is considered to be from a default/system library.
+/// This currently checks the systemness of the file by include type, although
+/// different heuristics may be used in the future (e.g. sysroot paths).
+bool isDefaultLibrary(const Decl *D) {
+  SourceLocation Loc = D->getLocation();
+  if (!Loc.isValid())
+    return false;
+  return D->getASTContext().getSourceManager().isInSystemHeader(Loc);
+}
+
+bool isDefaultLibrary(const Type *T) {
+  if (!T)
+    return false;
+  const Type *Underlying = T->getPointeeOrArrayElementType();
+  if (Underlying->isBuiltinType())
+    return true;
+  if (auto *TD = dyn_cast<TemplateTypeParmType>(Underlying))
+    return isDefaultLibrary(TD->getDecl());
+  if (auto *TD = Underlying->getAsTagDecl())
+    return isDefaultLibrary(TD);
   return false;
 }
 
@@ -310,15 +339,11 @@ public:
         LangOpts(AST.getLangOpts()) {}
 
   HighlightingToken &addToken(SourceLocation Loc, HighlightingKind Kind) {
-    Loc = getHighlightableSpellingToken(Loc, SourceMgr);
-    if (Loc.isInvalid())
+    auto Range = getRangeForSourceLocation(Loc);
+    if (!Range)
       return InvalidHighlightingToken;
-    const auto *Tok = TB.spelledTokenAt(Loc);
-    assert(Tok);
-    return addToken(
-        halfOpenToRange(SourceMgr,
-                        Tok->range(SourceMgr).toCharRange(SourceMgr)),
-        Kind);
+
+    return addToken(*Range, Kind);
   }
 
   HighlightingToken &addToken(Range R, HighlightingKind Kind) {
@@ -327,6 +352,11 @@ public:
     HT.Kind = Kind;
     Tokens.push_back(std::move(HT));
     return Tokens.back();
+  }
+
+  void addExtraModifier(SourceLocation Loc, HighlightingModifier Modifier) {
+    if (auto Range = getRangeForSourceLocation(Loc))
+      ExtraModifiers[*Range].push_back(Modifier);
   }
 
   std::vector<HighlightingToken> collect(ParsedAST &AST) && {
@@ -348,12 +378,22 @@ public:
             // this predicate would never fire.
             return T.R == TokRef.front().R;
           });
-      if (auto Resolved = resolveConflict(Conflicting))
+      if (auto Resolved = resolveConflict(Conflicting)) {
+        // Apply extra collected highlighting modifiers
+        auto Modifiers = ExtraModifiers.find(Resolved->R);
+        if (Modifiers != ExtraModifiers.end()) {
+          for (HighlightingModifier Mod : Modifiers->second) {
+            Resolved->addModifier(Mod);
+          }
+        }
+
         NonConflicting.push_back(*Resolved);
+      }
       // TokRef[Conflicting.size()] is the next token with a different range (or
       // the end of the Tokens).
       TokRef = TokRef.drop_front(Conflicting.size());
     }
+
     const auto &SM = AST.getSourceManager();
     StringRef MainCode = SM.getBufferOrFake(SM.getMainFileID()).getBuffer();
 
@@ -411,10 +451,23 @@ public:
   const HeuristicResolver *getResolver() const { return Resolver; }
 
 private:
+  llvm::Optional<Range> getRangeForSourceLocation(SourceLocation Loc) {
+    Loc = getHighlightableSpellingToken(Loc, SourceMgr);
+    if (Loc.isInvalid())
+      return llvm::None;
+
+    const auto *Tok = TB.spelledTokenAt(Loc);
+    assert(Tok);
+
+    return halfOpenToRange(SourceMgr,
+                           Tok->range(SourceMgr).toCharRange(SourceMgr));
+  }
+
   const syntax::TokenBuffer &TB;
   const SourceManager &SourceMgr;
   const LangOptions &LangOpts;
   std::vector<HighlightingToken> Tokens;
+  std::map<Range, llvm::SmallVector<HighlightingModifier, 1>> ExtraModifiers;
   const HeuristicResolver *Resolver;
   // returned from addToken(InvalidLoc)
   HighlightingToken InvalidHighlightingToken;
@@ -467,12 +520,79 @@ class CollectExtraHighlightings
 public:
   CollectExtraHighlightings(HighlightingsBuilder &H) : H(H) {}
 
+  bool VisitCXXConstructExpr(CXXConstructExpr *E) {
+    highlightMutableReferenceArguments(E->getConstructor(),
+                                       {E->getArgs(), E->getNumArgs()});
+
+    return true;
+  }
+
+  bool VisitCallExpr(CallExpr *E) {
+    // Highlighting parameters passed by non-const reference does not really
+    // make sense for literals...
+    if (isa<UserDefinedLiteral>(E))
+      return true;
+
+    // FIXME ...here it would make sense though.
+    if (isa<CXXOperatorCallExpr>(E))
+      return true;
+
+    highlightMutableReferenceArguments(
+        dyn_cast_or_null<FunctionDecl>(E->getCalleeDecl()),
+        {E->getArgs(), E->getNumArgs()});
+
+    return true;
+  }
+
+  void
+  highlightMutableReferenceArguments(const FunctionDecl *FD,
+                                     llvm::ArrayRef<const Expr *const> Args) {
+    if (!FD)
+      return;
+
+    if (auto *ProtoType = FD->getType()->getAs<FunctionProtoType>()) {
+      // Iterate over the types of the function parameters.
+      // If any of them are non-const reference paramteres, add it as a
+      // highlighting modifier to the corresponding expression
+      for (size_t I = 0;
+           I < std::min(size_t(ProtoType->getNumParams()), Args.size()); ++I) {
+        auto T = ProtoType->getParamType(I);
+
+        // Is this parameter passed by non-const reference?
+        // FIXME The condition !T->idDependentType() could be relaxed a bit,
+        // e.g. std::vector<T>& is dependent but we would want to highlight it
+        if (T->isLValueReferenceType() &&
+            !T.getNonReferenceType().isConstQualified() &&
+            !T->isDependentType()) {
+          if (auto *Arg = Args[I]) {
+            llvm::Optional<SourceLocation> Location;
+
+            // FIXME Add "unwrapping" for ArraySubscriptExpr and UnaryOperator,
+            //  e.g. highlight `a` in `a[i]`
+            // FIXME Handle dependent expression types
+            if (auto *DR = dyn_cast<DeclRefExpr>(Arg)) {
+              Location = DR->getLocation();
+            } else if (auto *M = dyn_cast<MemberExpr>(Arg)) {
+              Location = M->getMemberLoc();
+            }
+
+            if (Location)
+              H.addExtraModifier(*Location,
+                                 HighlightingModifier::UsedAsMutableReference);
+          }
+        }
+      }
+    }
+  }
+
   bool VisitDecltypeTypeLoc(DecltypeTypeLoc L) {
     if (auto K = kindForType(L.getTypePtr(), H.getResolver())) {
       auto &Tok = H.addToken(L.getBeginLoc(), *K)
                       .addModifier(HighlightingModifier::Deduced);
       if (auto Mod = scopeModifier(L.getTypePtr()))
         Tok.addModifier(*Mod);
+      if (isDefaultLibrary(L.getTypePtr()))
+        Tok.addModifier(HighlightingModifier::DefaultLibrary);
     }
     return true;
   }
@@ -485,8 +605,11 @@ public:
                              H.getResolver())) {
       auto &Tok = H.addToken(D->getTypeSpecStartLoc(), *K)
                       .addModifier(HighlightingModifier::Deduced);
-      if (auto Mod = scopeModifier(AT->getDeducedType().getTypePtrOrNull()))
+      const Type *Deduced = AT->getDeducedType().getTypePtrOrNull();
+      if (auto Mod = scopeModifier(Deduced))
         Tok.addModifier(*Mod);
+      if (isDefaultLibrary(Deduced))
+        Tok.addModifier(HighlightingModifier::DefaultLibrary);
     }
     return true;
   }
@@ -494,7 +617,7 @@ public:
   // We handle objective-C selectors specially, because one reference can
   // cover several non-contiguous tokens.
   void highlightObjCSelector(const ArrayRef<SourceLocation> &Locs, bool Decl,
-                             bool Class) {
+                             bool Class, bool DefaultLibrary) {
     HighlightingKind Kind =
         Class ? HighlightingKind::StaticMethod : HighlightingKind::Method;
     for (SourceLocation Part : Locs) {
@@ -504,20 +627,63 @@ public:
         Tok.addModifier(HighlightingModifier::Declaration);
       if (Class)
         Tok.addModifier(HighlightingModifier::Static);
+      if (DefaultLibrary)
+        Tok.addModifier(HighlightingModifier::DefaultLibrary);
     }
   }
 
   bool VisitObjCMethodDecl(ObjCMethodDecl *OMD) {
     llvm::SmallVector<SourceLocation> Locs;
     OMD->getSelectorLocs(Locs);
-    highlightObjCSelector(Locs, /*Decl=*/true, OMD->isClassMethod());
+    highlightObjCSelector(Locs, /*Decl=*/true, OMD->isClassMethod(),
+                          isDefaultLibrary(OMD));
     return true;
   }
 
   bool VisitObjCMessageExpr(ObjCMessageExpr *OME) {
     llvm::SmallVector<SourceLocation> Locs;
     OME->getSelectorLocs(Locs);
-    highlightObjCSelector(Locs, /*Decl=*/false, OME->isClassMessage());
+    bool DefaultLibrary = false;
+    if (ObjCMethodDecl *OMD = OME->getMethodDecl())
+      DefaultLibrary = isDefaultLibrary(OMD);
+    highlightObjCSelector(Locs, /*Decl=*/false, OME->isClassMessage(),
+                          DefaultLibrary);
+    return true;
+  }
+
+  // Objective-C allows you to use property syntax `self.prop` as sugar for
+  // `[self prop]` and `[self setProp:]` when there's no explicit `@property`
+  // for `prop` as well as for class properties. We treat this like a property
+  // even though semantically it's equivalent to a method expression.
+  void highlightObjCImplicitPropertyRef(const ObjCMethodDecl *OMD,
+                                        SourceLocation Loc) {
+    auto &Tok = H.addToken(Loc, HighlightingKind::Field)
+                    .addModifier(HighlightingModifier::ClassScope);
+    if (OMD->isClassMethod())
+      Tok.addModifier(HighlightingModifier::Static);
+    if (isDefaultLibrary(OMD))
+      Tok.addModifier(HighlightingModifier::DefaultLibrary);
+  }
+
+  bool VisitObjCPropertyRefExpr(ObjCPropertyRefExpr *OPRE) {
+    // We need to handle implicit properties here since they will appear to
+    // reference `ObjCMethodDecl` via an implicit `ObjCMessageExpr`, so normal
+    // highlighting will not work.
+    if (!OPRE->isImplicitProperty())
+      return true;
+    // A single property expr can reference both a getter and setter, but we can
+    // only provide a single semantic token, so prefer the getter. In most cases
+    // the end result should be the same, although it's technically possible
+    // that the user defines a setter for a system SDK.
+    if (OPRE->isMessagingGetter()) {
+      highlightObjCImplicitPropertyRef(OPRE->getImplicitPropertyGetter(),
+                                       OPRE->getLocation());
+      return true;
+    }
+    if (OPRE->isMessagingSetter()) {
+      highlightObjCImplicitPropertyRef(OPRE->getImplicitPropertySetter(),
+                                       OPRE->getLocation());
+    }
     return true;
   }
 
@@ -641,8 +807,12 @@ std::vector<HighlightingToken> getSemanticHighlightings(ParsedAST &AST) {
             Tok.addModifier(HighlightingModifier::Static);
           if (isAbstract(Decl))
             Tok.addModifier(HighlightingModifier::Abstract);
+          if (isVirtual(Decl))
+            Tok.addModifier(HighlightingModifier::Virtual);
           if (isDependent(Decl))
             Tok.addModifier(HighlightingModifier::DependentName);
+          if (isDefaultLibrary(Decl))
+            Tok.addModifier(HighlightingModifier::DefaultLibrary);
           if (Decl->isDeprecated())
             Tok.addModifier(HighlightingModifier::Deprecated);
           // Do not treat an UnresolvedUsingValueDecl as a declaration.
@@ -825,8 +995,14 @@ llvm::StringRef toSemanticTokenModifier(HighlightingModifier Modifier) {
     return "deduced"; // nonstandard
   case HighlightingModifier::Abstract:
     return "abstract";
+  case HighlightingModifier::Virtual:
+    return "virtual";
   case HighlightingModifier::DependentName:
     return "dependentName"; // nonstandard
+  case HighlightingModifier::DefaultLibrary:
+    return "defaultLibrary";
+  case HighlightingModifier::UsedAsMutableReference:
+    return "usedAsMutableReference"; // nonstandard
   case HighlightingModifier::FunctionScope:
     return "functionScope"; // nonstandard
   case HighlightingModifier::ClassScope:

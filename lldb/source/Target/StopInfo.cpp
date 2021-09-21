@@ -125,7 +125,7 @@ public:
       BreakpointSiteSP bp_site_sp(
           process_sp->GetBreakpointSiteList().FindByID(m_value));
       if (bp_site_sp)
-        return bp_site_sp->ValidForThisThread(&thread);
+        return bp_site_sp->ValidForThisThread(thread);
     }
     return false;
   }
@@ -413,7 +413,7 @@ protected:
             // The breakpoint site may have many locations associated with it,
             // not all of them valid for this thread.  Skip the ones that
             // aren't:
-            if (!bp_loc_sp->ValidForThisThread(thread_sp.get())) {
+            if (!bp_loc_sp->ValidForThisThread(*thread_sp)) {
               if (log) {
                 LLDB_LOGF(log,
                           "Breakpoint %s hit on thread 0x%llx but it was not "
@@ -481,6 +481,15 @@ protected:
                   continue;
                 }
               }
+            }
+
+            // We've done all the checks whose failure means "we consider lldb
+            // not to have hit the breakpoint".  Now we're going to check for
+            // conditions that might continue after hitting.  Start with the
+            // ignore count:
+            if (!bp_loc_sp->IgnoreCountShouldStop()) {
+              actually_said_continue = true;
+              continue;
             }
 
             // Check the auto-continue bit on the location, do this before the
@@ -1145,6 +1154,103 @@ protected:
   bool m_performed_action;
 };
 
+// StopInfoFork
+
+class StopInfoFork : public StopInfo {
+public:
+  StopInfoFork(Thread &thread, lldb::pid_t child_pid, lldb::tid_t child_tid)
+      : StopInfo(thread, child_pid), m_performed_action(false),
+        m_child_pid(child_pid), m_child_tid(child_tid) {}
+
+  ~StopInfoFork() override = default;
+
+  bool ShouldStop(Event *event_ptr) override { return false; }
+
+  StopReason GetStopReason() const override { return eStopReasonFork; }
+
+  const char *GetDescription() override { return "fork"; }
+
+protected:
+  void PerformAction(Event *event_ptr) override {
+    // Only perform the action once
+    if (m_performed_action)
+      return;
+    m_performed_action = true;
+    ThreadSP thread_sp(m_thread_wp.lock());
+    if (thread_sp)
+      thread_sp->GetProcess()->DidFork(m_child_pid, m_child_tid);
+  }
+
+  bool m_performed_action;
+
+private:
+  lldb::pid_t m_child_pid;
+  lldb::tid_t m_child_tid;
+};
+
+// StopInfoVFork
+
+class StopInfoVFork : public StopInfo {
+public:
+  StopInfoVFork(Thread &thread, lldb::pid_t child_pid, lldb::tid_t child_tid)
+      : StopInfo(thread, child_pid), m_performed_action(false),
+        m_child_pid(child_pid), m_child_tid(child_tid) {}
+
+  ~StopInfoVFork() override = default;
+
+  bool ShouldStop(Event *event_ptr) override { return false; }
+
+  StopReason GetStopReason() const override { return eStopReasonVFork; }
+
+  const char *GetDescription() override { return "vfork"; }
+
+protected:
+  void PerformAction(Event *event_ptr) override {
+    // Only perform the action once
+    if (m_performed_action)
+      return;
+    m_performed_action = true;
+    ThreadSP thread_sp(m_thread_wp.lock());
+    if (thread_sp)
+      thread_sp->GetProcess()->DidVFork(m_child_pid, m_child_tid);
+  }
+
+  bool m_performed_action;
+
+private:
+  lldb::pid_t m_child_pid;
+  lldb::tid_t m_child_tid;
+};
+
+// StopInfoVForkDone
+
+class StopInfoVForkDone : public StopInfo {
+public:
+  StopInfoVForkDone(Thread &thread)
+      : StopInfo(thread, 0), m_performed_action(false) {}
+
+  ~StopInfoVForkDone() override = default;
+
+  bool ShouldStop(Event *event_ptr) override { return false; }
+
+  StopReason GetStopReason() const override { return eStopReasonVForkDone; }
+
+  const char *GetDescription() override { return "vforkdone"; }
+
+protected:
+  void PerformAction(Event *event_ptr) override {
+    // Only perform the action once
+    if (m_performed_action)
+      return;
+    m_performed_action = true;
+    ThreadSP thread_sp(m_thread_wp.lock());
+    if (thread_sp)
+      thread_sp->GetProcess()->DidVForkDone();
+  }
+
+  bool m_performed_action;
+};
+
 } // namespace lldb_private
 
 StopInfoSP StopInfo::CreateStopReasonWithBreakpointSiteID(Thread &thread,
@@ -1192,6 +1298,23 @@ StopInfoSP StopInfo::CreateStopReasonProcessorTrace(Thread &thread,
 
 StopInfoSP StopInfo::CreateStopReasonWithExec(Thread &thread) {
   return StopInfoSP(new StopInfoExec(thread));
+}
+
+StopInfoSP StopInfo::CreateStopReasonFork(Thread &thread,
+                                          lldb::pid_t child_pid,
+                                          lldb::tid_t child_tid) {
+  return StopInfoSP(new StopInfoFork(thread, child_pid, child_tid));
+}
+
+
+StopInfoSP StopInfo::CreateStopReasonVFork(Thread &thread,
+                                           lldb::pid_t child_pid,
+                                           lldb::tid_t child_tid) {
+  return StopInfoSP(new StopInfoVFork(thread, child_pid, child_tid));
+}
+
+StopInfoSP StopInfo::CreateStopReasonVForkDone(Thread &thread) {
+  return StopInfoSP(new StopInfoVForkDone(thread));
 }
 
 ValueObjectSP StopInfo::GetReturnValueObject(StopInfoSP &stop_info_sp) {

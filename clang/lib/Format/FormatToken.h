@@ -52,6 +52,7 @@ namespace format {
   TYPE(FunctionDeclarationName)                                                \
   TYPE(FunctionLBrace)                                                         \
   TYPE(FunctionTypeLParen)                                                     \
+  TYPE(IfMacro)                                                                \
   TYPE(ImplicitStringLiteral)                                                  \
   TYPE(InheritanceColon)                                                       \
   TYPE(InheritanceComma)                                                       \
@@ -430,6 +431,15 @@ public:
 
   /// The next token in the unwrapped line.
   FormatToken *Next = nullptr;
+
+  /// The first token in set of column elements.
+  bool StartsColumn = false;
+
+  /// This notes the start of the line of an array initializer.
+  bool ArrayInitializerLineStart = false;
+
+  /// This starts an array initializer.
+  bool IsArrayInitializer = false;
 
   /// If this token starts a block, this contains all the unwrapped lines
   /// in it.
@@ -924,8 +934,8 @@ struct AdditionalKeywords {
     // already initialized.
     JsExtraKeywords = std::unordered_set<IdentifierInfo *>(
         {kw_as, kw_async, kw_await, kw_declare, kw_finally, kw_from,
-         kw_function, kw_get, kw_import, kw_is, kw_let, kw_module, kw_readonly,
-         kw_set, kw_type, kw_typeof, kw_var, kw_yield,
+         kw_function, kw_get, kw_import, kw_is, kw_let, kw_module, kw_override,
+         kw_readonly, kw_set, kw_type, kw_typeof, kw_var, kw_yield,
          // Keywords from the Java section.
          kw_abstract, kw_extends, kw_implements, kw_instanceof, kw_interface});
 

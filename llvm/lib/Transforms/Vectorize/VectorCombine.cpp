@@ -14,6 +14,7 @@
 
 #include "llvm/Transforms/Vectorize/VectorCombine.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/Loads.h"
@@ -60,8 +61,8 @@ namespace {
 class VectorCombine {
 public:
   VectorCombine(Function &F, const TargetTransformInfo &TTI,
-                const DominatorTree &DT, AAResults &AA)
-      : F(F), Builder(F.getContext()), TTI(TTI), DT(DT), AA(AA) {}
+                const DominatorTree &DT, AAResults &AA, AssumptionCache &AC)
+      : F(F), Builder(F.getContext()), TTI(TTI), DT(DT), AA(AA), AC(AC) {}
 
   bool run();
 
@@ -71,6 +72,7 @@ private:
   const TargetTransformInfo &TTI;
   const DominatorTree &DT;
   AAResults &AA;
+  AssumptionCache &AC;
 
   bool vectorizeLoadInsert(Instruction &I);
   ExtractElementInst *getShuffleExtract(ExtractElementInst *Ext0,
@@ -772,10 +774,104 @@ static bool isMemModifiedBetween(BasicBlock::iterator Begin,
   });
 }
 
+/// Helper class to indicate whether a vector index can be safely scalarized and
+/// if a freeze needs to be inserted.
+class ScalarizationResult {
+  enum class StatusTy { Unsafe, Safe, SafeWithFreeze };
+
+  StatusTy Status;
+  Value *ToFreeze;
+
+  ScalarizationResult(StatusTy Status, Value *ToFreeze = nullptr)
+      : Status(Status), ToFreeze(ToFreeze) {}
+
+public:
+  ScalarizationResult(const ScalarizationResult &Other) = default;
+  ~ScalarizationResult() {
+    assert(!ToFreeze && "freeze() not called with ToFreeze being set");
+  }
+
+  static ScalarizationResult unsafe() { return {StatusTy::Unsafe}; }
+  static ScalarizationResult safe() { return {StatusTy::Safe}; }
+  static ScalarizationResult safeWithFreeze(Value *ToFreeze) {
+    return {StatusTy::SafeWithFreeze, ToFreeze};
+  }
+
+  /// Returns true if the index can be scalarize without requiring a freeze.
+  bool isSafe() const { return Status == StatusTy::Safe; }
+  /// Returns true if the index cannot be scalarized.
+  bool isUnsafe() const { return Status == StatusTy::Unsafe; }
+  /// Returns true if the index can be scalarize, but requires inserting a
+  /// freeze.
+  bool isSafeWithFreeze() const { return Status == StatusTy::SafeWithFreeze; }
+
+  /// Freeze the ToFreeze and update the use in \p User to use it.
+  void freeze(IRBuilder<> &Builder, Instruction &UserI) {
+    assert(isSafeWithFreeze() &&
+           "should only be used when freezing is required");
+    assert(is_contained(ToFreeze->users(), &UserI) &&
+           "UserI must be a user of ToFreeze");
+    IRBuilder<>::InsertPointGuard Guard(Builder);
+    Builder.SetInsertPoint(cast<Instruction>(&UserI));
+    Value *Frozen =
+        Builder.CreateFreeze(ToFreeze, ToFreeze->getName() + ".frozen");
+    for (Use &U : make_early_inc_range((UserI.operands())))
+      if (U.get() == ToFreeze)
+        U.set(Frozen);
+
+    ToFreeze = nullptr;
+  }
+};
+
 /// Check if it is legal to scalarize a memory access to \p VecTy at index \p
 /// Idx. \p Idx must access a valid vector element.
-static bool canScalarizeAccess(FixedVectorType *VecTy, ConstantInt *Idx) {
-  return Idx->getValue().ult(VecTy->getNumElements());
+static ScalarizationResult canScalarizeAccess(FixedVectorType *VecTy,
+                                              Value *Idx, Instruction *CtxI,
+                                              AssumptionCache &AC) {
+  if (auto *C = dyn_cast<ConstantInt>(Idx)) {
+    if (C->getValue().ult(VecTy->getNumElements()))
+      return ScalarizationResult::safe();
+    return ScalarizationResult::unsafe();
+  }
+
+  unsigned IntWidth = Idx->getType()->getScalarSizeInBits();
+  APInt Zero(IntWidth, 0);
+  APInt MaxElts(IntWidth, VecTy->getNumElements());
+  ConstantRange ValidIndices(Zero, MaxElts);
+  ConstantRange IdxRange(IntWidth, true);
+
+  if (isGuaranteedNotToBePoison(Idx, &AC)) {
+    if (ValidIndices.contains(computeConstantRange(Idx, true, &AC, CtxI, 0)))
+      return ScalarizationResult::safe();
+    return ScalarizationResult::unsafe();
+  }
+
+  // If the index may be poison, check if we can insert a freeze before the
+  // range of the index is restricted.
+  Value *IdxBase;
+  ConstantInt *CI;
+  if (match(Idx, m_And(m_Value(IdxBase), m_ConstantInt(CI)))) {
+    IdxRange = IdxRange.binaryAnd(CI->getValue());
+  } else if (match(Idx, m_URem(m_Value(IdxBase), m_ConstantInt(CI)))) {
+    IdxRange = IdxRange.urem(CI->getValue());
+  }
+
+  if (ValidIndices.contains(IdxRange))
+    return ScalarizationResult::safeWithFreeze(IdxBase);
+  return ScalarizationResult::unsafe();
+}
+
+/// The memory operation on a vector of \p ScalarType had alignment of
+/// \p VectorAlignment. Compute the maximal, but conservatively correct,
+/// alignment that will be valid for the memory operation on a single scalar
+/// element of the same type with index \p Idx.
+static Align computeAlignmentAfterScalarization(Align VectorAlignment,
+                                                Type *ScalarType, Value *Idx,
+                                                const DataLayout &DL) {
+  if (auto *C = dyn_cast<ConstantInt>(Idx))
+    return commonAlignment(VectorAlignment,
+                           C->getZExtValue() * DL.getTypeStoreSize(ScalarType));
+  return commonAlignment(VectorAlignment, DL.getTypeStoreSize(ScalarType));
 }
 
 // Combine patterns like:
@@ -796,10 +892,10 @@ bool VectorCombine::foldSingleElementStore(Instruction &I) {
   // TargetTransformInfo.
   Instruction *Source;
   Value *NewElement;
-  ConstantInt *Idx;
+  Value *Idx;
   if (!match(SI->getValueOperand(),
              m_InsertElt(m_Instruction(Source), m_Value(NewElement),
-                         m_ConstantInt(Idx))))
+                         m_Value(Idx))))
     return false;
 
   if (auto *Load = dyn_cast<LoadInst>(Source)) {
@@ -810,19 +906,26 @@ bool VectorCombine::foldSingleElementStore(Instruction &I) {
     // modified between, vector type matches store size, and index is inbounds.
     if (!Load->isSimple() || Load->getParent() != SI->getParent() ||
         !DL.typeSizeEqualsStoreSize(Load->getType()) ||
-        !canScalarizeAccess(VecTy, Idx) ||
-        SrcAddr != SI->getPointerOperand()->stripPointerCasts() ||
+        SrcAddr != SI->getPointerOperand()->stripPointerCasts())
+      return false;
+
+    auto ScalarizableIdx = canScalarizeAccess(VecTy, Idx, Load, AC);
+    if (ScalarizableIdx.isUnsafe() ||
         isMemModifiedBetween(Load->getIterator(), SI->getIterator(),
                              MemoryLocation::get(SI), AA))
       return false;
 
-    Value *GEP = GetElementPtrInst::CreateInBounds(
-        SI->getPointerOperand(), {ConstantInt::get(Idx->getType(), 0), Idx});
-    Builder.Insert(GEP);
+    if (ScalarizableIdx.isSafeWithFreeze())
+      ScalarizableIdx.freeze(Builder, *cast<Instruction>(Idx));
+    Value *GEP = Builder.CreateInBoundsGEP(
+        SI->getValueOperand()->getType(), SI->getPointerOperand(),
+        {ConstantInt::get(Idx->getType(), 0), Idx});
     StoreInst *NSI = Builder.CreateStore(NewElement, GEP);
     NSI->copyMetadata(*SI);
-    if (SI->getAlign() < NSI->getAlign())
-      NSI->setAlignment(SI->getAlign());
+    Align ScalarOpAlignment = computeAlignmentAfterScalarization(
+        std::max(SI->getAlign(), Load->getAlign()), NewElement->getType(), Idx,
+        DL);
+    NSI->setAlignment(ScalarOpAlignment);
     replaceValue(I, *NSI);
     // Need erasing the store manually.
     I.eraseFromParent();
@@ -835,8 +938,8 @@ bool VectorCombine::foldSingleElementStore(Instruction &I) {
 /// Try to scalarize vector loads feeding extractelement instructions.
 bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
   Value *Ptr;
-  ConstantInt *Idx;
-  if (!match(&I, m_ExtractElt(m_Load(m_Value(Ptr)), m_ConstantInt(Idx))))
+  Value *Idx;
+  if (!match(&I, m_ExtractElt(m_Load(m_Value(Ptr)), m_Value(Idx))))
     return false;
 
   auto *LI = cast<LoadInst>(I.getOperand(0));
@@ -846,9 +949,6 @@ bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
 
   auto *FixedVT = dyn_cast<FixedVectorType>(LI->getType());
   if (!FixedVT)
-    return false;
-
-  if (!canScalarizeAccess(FixedVT, Idx))
     return false;
 
   InstructionCost OriginalCost = TTI.getMemoryOpCost(
@@ -864,6 +964,9 @@ bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
   for (User *U : LI->users()) {
     auto *UI = dyn_cast<ExtractElementInst>(U);
     if (!UI || UI->getParent() != LI->getParent())
+      return false;
+
+    if (!isGuaranteedNotToBePoison(UI->getOperand(1), &AC, LI, &DT))
       return false;
 
     // Check if any instruction between the load and the extract may modify
@@ -884,6 +987,12 @@ bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
     else if (LastCheckedInst->comesBefore(UI))
       LastCheckedInst = UI;
 
+    auto ScalarIdx = canScalarizeAccess(FixedVT, UI->getOperand(1), &I, AC);
+    if (!ScalarIdx.isSafe()) {
+      // TODO: Freeze index if it is safe to do so.
+      return false;
+    }
+
     auto *Index = dyn_cast<ConstantInt>(UI->getOperand(1));
     OriginalCost +=
         TTI.getVectorInstrCost(Instruction::ExtractElement, LI->getType(),
@@ -900,22 +1009,18 @@ bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
   // Replace extracts with narrow scalar loads.
   for (User *U : LI->users()) {
     auto *EI = cast<ExtractElementInst>(U);
-    IRBuilder<>::InsertPointGuard Guard(Builder);
     Builder.SetInsertPoint(EI);
-    Value *GEP = Builder.CreateInBoundsGEP(
-        FixedVT, Ptr, {Builder.getInt32(0), EI->getOperand(1)});
+
+    Value *Idx = EI->getOperand(1);
+    Value *GEP =
+        Builder.CreateInBoundsGEP(FixedVT, Ptr, {Builder.getInt32(0), Idx});
     auto *NewLoad = cast<LoadInst>(Builder.CreateLoad(
         FixedVT->getElementType(), GEP, EI->getName() + ".scalar"));
 
-    // Set the alignment for the new load. For index 0, we can use the original
-    // alignment. Otherwise choose the common alignment of the load's align and
-    // the alignment for the scalar type.
-    auto *ConstIdx = dyn_cast<ConstantInt>(EI->getOperand(1));
-    if (ConstIdx && ConstIdx->isNullValue())
-      NewLoad->setAlignment(LI->getAlign());
-    else
-      NewLoad->setAlignment(commonAlignment(
-          DL.getABITypeAlign(NewLoad->getType()), LI->getAlign()));
+    Align ScalarOpAlignment = computeAlignmentAfterScalarization(
+        LI->getAlign(), FixedVT->getElementType(), Idx, DL);
+    NewLoad->setAlignment(ScalarOpAlignment);
+
     replaceValue(*EI, *NewLoad);
   }
 
@@ -971,6 +1076,7 @@ public:
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<AssumptionCacheTracker>();
     AU.addRequired<DominatorTreeWrapperPass>();
     AU.addRequired<TargetTransformInfoWrapperPass>();
     AU.addRequired<AAResultsWrapperPass>();
@@ -985,10 +1091,11 @@ public:
   bool runOnFunction(Function &F) override {
     if (skipFunction(F))
       return false;
+    auto &AC = getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
     auto &TTI = getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
     auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
     auto &AA = getAnalysis<AAResultsWrapperPass>().getAAResults();
-    VectorCombine Combiner(F, TTI, DT, AA);
+    VectorCombine Combiner(F, TTI, DT, AA, AC);
     return Combiner.run();
   }
 };
@@ -998,6 +1105,7 @@ char VectorCombineLegacyPass::ID = 0;
 INITIALIZE_PASS_BEGIN(VectorCombineLegacyPass, "vector-combine",
                       "Optimize scalar/vector ops", false,
                       false)
+INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_END(VectorCombineLegacyPass, "vector-combine",
                     "Optimize scalar/vector ops", false, false)
@@ -1007,10 +1115,11 @@ Pass *llvm::createVectorCombinePass() {
 
 PreservedAnalyses VectorCombinePass::run(Function &F,
                                          FunctionAnalysisManager &FAM) {
+  auto &AC = FAM.getResult<AssumptionAnalysis>(F);
   TargetTransformInfo &TTI = FAM.getResult<TargetIRAnalysis>(F);
   DominatorTree &DT = FAM.getResult<DominatorTreeAnalysis>(F);
   AAResults &AA = FAM.getResult<AAManager>(F);
-  VectorCombine Combiner(F, TTI, DT, AA);
+  VectorCombine Combiner(F, TTI, DT, AA, AC);
   if (!Combiner.run())
     return PreservedAnalyses::all();
   PreservedAnalyses PA;

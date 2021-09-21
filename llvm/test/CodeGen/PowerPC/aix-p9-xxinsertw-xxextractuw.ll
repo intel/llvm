@@ -743,14 +743,12 @@ define <4 x float> @_Z10testInsEltILj0EDv4_ffET0_S1_T1_(<4 x float> %a, float %b
 ; CHECK-64-LABEL: _Z10testInsEltILj0EDv4_ffET0_S1_T1_:
 ; CHECK-64:       # %bb.0: # %entry
 ; CHECK-64-NEXT:    xscvdpspn 0, 1
-; CHECK-64-NEXT:    xxsldwi 0, 0, 0, 3
 ; CHECK-64-NEXT:    xxinsertw 34, 0, 0
 ; CHECK-64-NEXT:    blr
 ;
 ; CHECK-32-LABEL: _Z10testInsEltILj0EDv4_ffET0_S1_T1_:
 ; CHECK-32:       # %bb.0: # %entry
 ; CHECK-32-NEXT:    xscvdpspn 0, 1
-; CHECK-32-NEXT:    xxsldwi 0, 0, 0, 3
 ; CHECK-32-NEXT:    xxinsertw 34, 0, 0
 ; CHECK-32-NEXT:    blr
 entry:
@@ -762,14 +760,12 @@ define <4 x float> @_Z10testInsEltILj1EDv4_ffET0_S1_T1_(<4 x float> %a, float %b
 ; CHECK-64-LABEL: _Z10testInsEltILj1EDv4_ffET0_S1_T1_:
 ; CHECK-64:       # %bb.0: # %entry
 ; CHECK-64-NEXT:    xscvdpspn 0, 1
-; CHECK-64-NEXT:    xxsldwi 0, 0, 0, 3
 ; CHECK-64-NEXT:    xxinsertw 34, 0, 4
 ; CHECK-64-NEXT:    blr
 ;
 ; CHECK-32-LABEL: _Z10testInsEltILj1EDv4_ffET0_S1_T1_:
 ; CHECK-32:       # %bb.0: # %entry
 ; CHECK-32-NEXT:    xscvdpspn 0, 1
-; CHECK-32-NEXT:    xxsldwi 0, 0, 0, 3
 ; CHECK-32-NEXT:    xxinsertw 34, 0, 4
 ; CHECK-32-NEXT:    blr
 entry:
@@ -781,14 +777,12 @@ define <4 x float> @_Z10testInsEltILj2EDv4_ffET0_S1_T1_(<4 x float> %a, float %b
 ; CHECK-64-LABEL: _Z10testInsEltILj2EDv4_ffET0_S1_T1_:
 ; CHECK-64:       # %bb.0: # %entry
 ; CHECK-64-NEXT:    xscvdpspn 0, 1
-; CHECK-64-NEXT:    xxsldwi 0, 0, 0, 3
 ; CHECK-64-NEXT:    xxinsertw 34, 0, 8
 ; CHECK-64-NEXT:    blr
 ;
 ; CHECK-32-LABEL: _Z10testInsEltILj2EDv4_ffET0_S1_T1_:
 ; CHECK-32:       # %bb.0: # %entry
 ; CHECK-32-NEXT:    xscvdpspn 0, 1
-; CHECK-32-NEXT:    xxsldwi 0, 0, 0, 3
 ; CHECK-32-NEXT:    xxinsertw 34, 0, 8
 ; CHECK-32-NEXT:    blr
 entry:
@@ -800,14 +794,12 @@ define <4 x float> @_Z10testInsEltILj3EDv4_ffET0_S1_T1_(<4 x float> %a, float %b
 ; CHECK-64-LABEL: _Z10testInsEltILj3EDv4_ffET0_S1_T1_:
 ; CHECK-64:       # %bb.0: # %entry
 ; CHECK-64-NEXT:    xscvdpspn 0, 1
-; CHECK-64-NEXT:    xxsldwi 0, 0, 0, 3
 ; CHECK-64-NEXT:    xxinsertw 34, 0, 12
 ; CHECK-64-NEXT:    blr
 ;
 ; CHECK-32-LABEL: _Z10testInsEltILj3EDv4_ffET0_S1_T1_:
 ; CHECK-32:       # %bb.0: # %entry
 ; CHECK-32-NEXT:    xscvdpspn 0, 1
-; CHECK-32-NEXT:    xxsldwi 0, 0, 0, 3
 ; CHECK-32-NEXT:    xxinsertw 34, 0, 12
 ; CHECK-32-NEXT:    blr
 entry:
@@ -1568,14 +1560,12 @@ declare <4 x i32> @llvm.ppc.vsx.xxinsertw(<4 x i32>, <2 x i64>, i32)
 define <2 x i64> @intrinsicExtractTest(<2 x i64> %a) {
 ; CHECK-64-LABEL: intrinsicExtractTest:
 ; CHECK-64:       # %bb.0: # %entry
-; CHECK-64-NEXT:    xxextractuw 0, 34, 5
-; CHECK-64-NEXT:    xxlor 34, 0, 0
+; CHECK-64-NEXT:    xxextractuw 34, 34, 5
 ; CHECK-64-NEXT:    blr
 ;
 ; CHECK-32-LABEL: intrinsicExtractTest:
 ; CHECK-32:       # %bb.0: # %entry
-; CHECK-32-NEXT:    xxextractuw 0, 34, 5
-; CHECK-32-NEXT:    xxlor 34, 0, 0
+; CHECK-32-NEXT:    xxextractuw 34, 34, 5
 ; CHECK-32-NEXT:    blr
 entry:
   %ans = tail call <2 x i64> @llvm.ppc.vsx.xxextractuw(<2 x i64> %a, i32 5)

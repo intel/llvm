@@ -21,7 +21,7 @@ let CategoryName = "Inline Assembly Issue" in {
 def err_asm_empty : Error<"__asm used with no assembly instructions">;
 def err_inline_ms_asm_parsing : Error<"%0">;
 def err_msasm_unsupported_arch : Error<
-  "Unsupported architecture '%0' for MS-style inline assembly">;
+  "unsupported architecture '%0' for MS-style inline assembly">;
 def err_msasm_unable_to_create_target : Error<
   "MS-style inline assembly is not available: %0">;
 def err_gnu_inline_asm_disabled : Error<
@@ -580,6 +580,12 @@ def warn_cxx98_compat_noexcept_decl : Warning<
 def err_expected_catch : Error<"expected catch">;
 def err_using_namespace_in_class : Error<
   "'using namespace' is not allowed in classes">;
+def warn_cxx17_compat_using_enum_declaration : Warning<
+  "using enum declaration is incompatible with C++ standards before C++20">,
+  InGroup<CXXPre20Compat>, DefaultIgnore;
+def ext_using_enum_declaration : ExtWarn<
+  "using enum declaration is a C++20 extension">,
+  InGroup<CXX20>;
 def err_constructor_bad_name : Error<
   "missing return type for function %0; did you mean the constructor name %1?">;
 def err_destructor_tilde_identifier : Error<
@@ -693,6 +699,9 @@ def ext_using_attribute_ns : ExtWarn<
 def err_using_attribute_ns_conflict : Error<
   "attribute with scope specifier cannot follow default scope specifier">;
 def err_attributes_not_allowed : Error<"an attribute list cannot appear here">;
+def ext_cxx11_attr_placement : ExtWarn<
+  "ISO C++ does not allow an attribute list to appear here">,
+  InGroup<DiagGroup<"cxx-attribute-extension">>;
 def err_attributes_misplaced : Error<"misplaced attributes; expected attributes here">;
 def err_l_square_l_square_not_attribute : Error<
   "C++11 only allows consecutive left square brackets when "
@@ -797,10 +806,10 @@ def err_requires_expr_expected_type_constraint : Error<
 def err_requires_expr_simple_requirement_noexcept : Error<
   "'noexcept' can only be used in a compound requirement (with '{' '}' around "
   "the expression)">;
-def warn_requires_expr_in_simple_requirement : Warning<
-  "this requires expression will only be checked for syntactic validity; did "
+def err_requires_expr_in_simple_requirement : Error<
+  "requires expression in requirement body; did "
   "you intend to place it in a nested requirement? (add another 'requires' "
-  "before the expression)">, InGroup<DiagGroup<"requires-expression">>;
+  "before the expression)">;
 
 def err_missing_dependent_template_keyword : Error<
   "use 'template' keyword to treat '%0' as a dependent template name">;
@@ -922,9 +931,15 @@ def err_override_control_interface : Error<
 def ext_ms_sealed_keyword : ExtWarn<
   "'sealed' keyword is a Microsoft extension">,
   InGroup<MicrosoftSealed>;
+def ext_ms_abstract_keyword : ExtWarn<
+  "'abstract' keyword is a Microsoft extension">,
+  InGroup<MicrosoftAbstract>;
 
 def err_access_specifier_interface : Error<
   "interface types cannot specify '%select{private|protected}0' access">;
+
+def err_duplicate_class_virt_specifier : Error<
+  "class already marked '%0'">;
 
 def err_duplicate_virt_specifier : Error<
   "class member already marked '%0'">;
@@ -1288,8 +1303,8 @@ def err_omp_decl_in_declare_simd_variant : Error<
 def err_omp_unknown_map_type : Error<
   "incorrect map type, expected one of 'to', 'from', 'tofrom', 'alloc', 'release', or 'delete'">;
 def err_omp_unknown_map_type_modifier : Error<
-  "incorrect map type modifier, expected 'always', 'close', "
-  "%select{or 'mapper'|'mapper', or 'present'}0">;
+  "incorrect map type modifier, expected one of: 'always', 'close', 'mapper'"
+  "%select{|, 'present'}0%select{|, 'ompx_hold'}1">;
 def err_omp_map_type_missing : Error<
   "missing map type">;
 def err_omp_map_type_modifier_missing : Error<
@@ -1412,6 +1427,15 @@ def err_omp_expected_interop_type : Error<
 def warn_omp_more_one_interop_type
   : Warning<"interop type '%0' cannot be specified more than once">,
     InGroup<OpenMPClauses>;
+def err_expected_sequence_or_directive : Error<
+  "expected an OpenMP 'directive' or 'sequence' attribute argument">;
+def ext_omp_attributes : ExtWarn<
+  "specifying OpenMP directives with [[]] is an OpenMP 5.1 extension">,
+  InGroup<OpenMP51Ext>;
+def warn_omp51_compat_attributes : Warning<
+  "specifying OpenMP directives with [[]] is incompatible with OpenMP "
+  "standards before OpenMP 5.1">,
+  InGroup<OpenMPPre51Compat>, DefaultIgnore;
 
 // Pragma loop support.
 def err_pragma_loop_missing_argument : Error<

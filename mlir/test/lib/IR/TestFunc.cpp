@@ -12,9 +12,77 @@
 using namespace mlir;
 
 namespace {
+/// This is a test pass for verifying FuncOp's insertArgument method.
+struct TestFuncInsertArg
+    : public PassWrapper<TestFuncInsertArg, OperationPass<ModuleOp>> {
+  StringRef getArgument() const final { return "test-func-insert-arg"; }
+  StringRef getDescription() const final { return "Test inserting func args."; }
+  void runOnOperation() override {
+    auto module = getOperation();
+
+    for (FuncOp func : module.getOps<FuncOp>()) {
+      auto inserts = func->getAttrOfType<ArrayAttr>("test.insert_args");
+      if (!inserts || inserts.empty())
+        continue;
+      SmallVector<unsigned, 4> indicesToInsert;
+      SmallVector<Type, 4> typesToInsert;
+      SmallVector<DictionaryAttr, 4> attrsToInsert;
+      SmallVector<Optional<Location>, 4> locsToInsert;
+      for (auto insert : inserts.getAsRange<ArrayAttr>()) {
+        indicesToInsert.push_back(
+            insert[0].cast<IntegerAttr>().getValue().getZExtValue());
+        typesToInsert.push_back(insert[1].cast<TypeAttr>().getValue());
+        attrsToInsert.push_back(insert.size() > 2
+                                    ? insert[2].cast<DictionaryAttr>()
+                                    : DictionaryAttr::get(&getContext()));
+        locsToInsert.push_back(
+            insert.size() > 3
+                ? Optional<Location>(insert[3].cast<LocationAttr>())
+                : Optional<Location>{});
+      }
+      func->removeAttr("test.insert_args");
+      func.insertArguments(indicesToInsert, typesToInsert, attrsToInsert,
+                           locsToInsert);
+    }
+  }
+};
+
+/// This is a test pass for verifying FuncOp's insertResult method.
+struct TestFuncInsertResult
+    : public PassWrapper<TestFuncInsertResult, OperationPass<ModuleOp>> {
+  StringRef getArgument() const final { return "test-func-insert-result"; }
+  StringRef getDescription() const final {
+    return "Test inserting func results.";
+  }
+  void runOnOperation() override {
+    auto module = getOperation();
+
+    for (FuncOp func : module.getOps<FuncOp>()) {
+      auto inserts = func->getAttrOfType<ArrayAttr>("test.insert_results");
+      if (!inserts || inserts.empty())
+        continue;
+      SmallVector<unsigned, 4> indicesToInsert;
+      SmallVector<Type, 4> typesToInsert;
+      SmallVector<DictionaryAttr, 4> attrsToInsert;
+      for (auto insert : inserts.getAsRange<ArrayAttr>()) {
+        indicesToInsert.push_back(
+            insert[0].cast<IntegerAttr>().getValue().getZExtValue());
+        typesToInsert.push_back(insert[1].cast<TypeAttr>().getValue());
+        attrsToInsert.push_back(insert.size() > 2
+                                    ? insert[2].cast<DictionaryAttr>()
+                                    : DictionaryAttr::get(&getContext()));
+      }
+      func->removeAttr("test.insert_results");
+      func.insertResults(indicesToInsert, typesToInsert, attrsToInsert);
+    }
+  }
+};
+
 /// This is a test pass for verifying FuncOp's eraseArgument method.
 struct TestFuncEraseArg
     : public PassWrapper<TestFuncEraseArg, OperationPass<ModuleOp>> {
+  StringRef getArgument() const final { return "test-func-erase-arg"; }
+  StringRef getDescription() const final { return "Test erasing func args."; }
   void runOnOperation() override {
     auto module = getOperation();
 
@@ -39,6 +107,10 @@ struct TestFuncEraseArg
 /// This is a test pass for verifying FuncOp's eraseResult method.
 struct TestFuncEraseResult
     : public PassWrapper<TestFuncEraseResult, OperationPass<ModuleOp>> {
+  StringRef getArgument() const final { return "test-func-erase-result"; }
+  StringRef getDescription() const final {
+    return "Test erasing func results.";
+  }
   void runOnOperation() override {
     auto module = getOperation();
 
@@ -63,6 +135,8 @@ struct TestFuncEraseResult
 /// This is a test pass for verifying FuncOp's setType method.
 struct TestFuncSetType
     : public PassWrapper<TestFuncSetType, OperationPass<ModuleOp>> {
+  StringRef getArgument() const final { return "test-func-set-type"; }
+  StringRef getDescription() const final { return "Test FuncOp::setType."; }
   void runOnOperation() override {
     auto module = getOperation();
     SymbolTable symbolTable(module);
@@ -79,13 +153,14 @@ struct TestFuncSetType
 
 namespace mlir {
 void registerTestFunc() {
-  PassRegistration<TestFuncEraseArg>("test-func-erase-arg",
-                                     "Test erasing func args.");
+  PassRegistration<TestFuncInsertArg>();
 
-  PassRegistration<TestFuncEraseResult>("test-func-erase-result",
-                                        "Test erasing func results.");
+  PassRegistration<TestFuncInsertResult>();
 
-  PassRegistration<TestFuncSetType>("test-func-set-type",
-                                    "Test FuncOp::setType.");
+  PassRegistration<TestFuncEraseArg>();
+
+  PassRegistration<TestFuncEraseResult>();
+
+  PassRegistration<TestFuncSetType>();
 }
 } // namespace mlir

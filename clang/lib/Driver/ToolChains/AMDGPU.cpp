@@ -8,10 +8,10 @@
 
 #include "AMDGPU.h"
 #include "CommonArgs.h"
-#include "InputInfo.h"
 #include "clang/Basic/TargetID.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/Error.h"
@@ -251,7 +251,12 @@ RocmInstallationDetector::getInstallationPathCandidates() {
   if (ParentPath != InstallDir)
     ROCmSearchDirs.emplace_back(DeduceROCmPath(ParentPath));
 
-  // Device library may be installed in clang resource directory.
+  // Device library may be installed in clang or resource directory.
+  auto ClangRoot = llvm::sys::path::parent_path(InstallDir);
+  auto RealClangRoot = llvm::sys::path::parent_path(ParentPath);
+  ROCmSearchDirs.emplace_back(ClangRoot.str(), /*StrictChecking=*/true);
+  if (RealClangRoot != ClangRoot)
+    ROCmSearchDirs.emplace_back(RealClangRoot.str(), /*StrictChecking=*/true);
   ROCmSearchDirs.emplace_back(D.ResourceDir,
                               /*StrictChecking=*/true);
 
@@ -311,8 +316,8 @@ RocmInstallationDetector::RocmInstallationDetector(
   HIPPathArg = Args.getLastArgValue(clang::driver::options::OPT_hip_path_EQ);
   if (auto *A = Args.getLastArg(clang::driver::options::OPT_hip_version_EQ)) {
     HIPVersionArg = A->getValue();
-    unsigned Major = 0;
-    unsigned Minor = 0;
+    unsigned Major = ~0U;
+    unsigned Minor = ~0U;
     SmallVector<StringRef, 3> Parts;
     HIPVersionArg.split(Parts, '.');
     if (Parts.size())
@@ -323,7 +328,9 @@ RocmInstallationDetector::RocmInstallationDetector(
       VersionPatch = Parts[2].str();
     if (VersionPatch.empty())
       VersionPatch = "0";
-    if (Major == 0 || Minor == 0)
+    if (Major != ~0U && Minor == ~0U)
+      Minor = 0;
+    if (Major == ~0U || Minor == ~0U)
       D.Diag(diag::err_drv_invalid_value)
           << A->getAsString(Args) << HIPVersionArg;
 
@@ -409,10 +416,7 @@ void RocmInstallationDetector::detectDeviceLibrary() {
 
     // Make a path by appending sub-directories to InstallPath.
     auto MakePath = [&](const llvm::ArrayRef<const char *> &SubDirs) {
-      // Device library built by SPACK is installed to
-      // <rocm_root>/rocm-device-libs-<rocm_release_string>-<hash> directory.
-      auto SPACKPath = findSPACKPackage(Candidate, "rocm-device-libs");
-      auto Path = SPACKPath.empty() ? CandidatePath : SPACKPath;
+      auto Path = CandidatePath;
       for (auto SubDir : SubDirs)
         llvm::sys::path::append(Path, SubDir);
       return Path;
@@ -707,16 +711,26 @@ AMDGPUToolChain::getGPUArch(const llvm::opt::ArgList &DriverArgs) const {
       getTriple(), DriverArgs.getLastArgValue(options::OPT_mcpu_EQ));
 }
 
-void AMDGPUToolChain::checkTargetID(
-    const llvm::opt::ArgList &DriverArgs) const {
+AMDGPUToolChain::ParsedTargetIDType
+AMDGPUToolChain::getParsedTargetID(const llvm::opt::ArgList &DriverArgs) const {
   StringRef TargetID = DriverArgs.getLastArgValue(options::OPT_mcpu_EQ);
   if (TargetID.empty())
-    return;
+    return {None, None, None};
 
   llvm::StringMap<bool> FeatureMap;
   auto OptionalGpuArch = parseTargetID(getTriple(), TargetID, &FeatureMap);
-  if (!OptionalGpuArch) {
-    getDriver().Diag(clang::diag::err_drv_bad_target_id) << TargetID;
+  if (!OptionalGpuArch)
+    return {TargetID.str(), None, None};
+
+  return {TargetID.str(), OptionalGpuArch.getValue().str(), FeatureMap};
+}
+
+void AMDGPUToolChain::checkTargetID(
+    const llvm::opt::ArgList &DriverArgs) const {
+  auto PTID = getParsedTargetID(DriverArgs);
+  if (PTID.OptionalTargetID && !PTID.OptionalGPUArch) {
+    getDriver().Diag(clang::diag::err_drv_bad_target_id)
+        << PTID.OptionalTargetID.getValue();
   }
 }
 
@@ -734,13 +748,13 @@ AMDGPUToolChain::detectSystemGPUs(const ArgList &Args,
   llvm::FileRemover OutputRemover(OutputFile.c_str());
   llvm::Optional<llvm::StringRef> Redirects[] = {
       {""},
-      StringRef(OutputFile),
+      OutputFile.str(),
       {""},
   };
 
   std::string ErrorMessage;
   if (int Result = llvm::sys::ExecuteAndWait(
-          Program.c_str(), {}, {}, Redirects, /* SecondsToWait */ 0,
+          Program, {}, {}, Redirects, /* SecondsToWait */ 0,
           /*MemoryLimit*/ 0, &ErrorMessage)) {
     if (Result > 0) {
       ErrorMessage = "Exited with error code " + std::to_string(Result);
@@ -878,4 +892,39 @@ bool AMDGPUToolChain::shouldSkipArgument(const llvm::opt::Arg *A) const {
   if (O.matches(options::OPT_fPIE) || O.matches(options::OPT_fpie))
     return true;
   return false;
+}
+
+llvm::SmallVector<std::string, 12>
+ROCMToolChain::getCommonDeviceLibNames(const llvm::opt::ArgList &DriverArgs,
+                                       const std::string &GPUArch) const {
+  auto Kind = llvm::AMDGPU::parseArchAMDGCN(GPUArch);
+  const StringRef CanonArch = llvm::AMDGPU::getArchNameAMDGCN(Kind);
+
+  std::string LibDeviceFile = RocmInstallation.getLibDeviceFile(CanonArch);
+  if (LibDeviceFile.empty()) {
+    getDriver().Diag(diag::err_drv_no_rocm_device_lib) << 1 << GPUArch;
+    return {};
+  }
+
+  // If --hip-device-lib is not set, add the default bitcode libraries.
+  // TODO: There are way too many flags that change this. Do we need to check
+  // them all?
+  bool DAZ = DriverArgs.hasFlag(options::OPT_fgpu_flush_denormals_to_zero,
+                                options::OPT_fno_gpu_flush_denormals_to_zero,
+                                getDefaultDenormsAreZeroForTarget(Kind));
+  bool FiniteOnly = DriverArgs.hasFlag(
+      options::OPT_ffinite_math_only, options::OPT_fno_finite_math_only, false);
+  bool UnsafeMathOpt =
+      DriverArgs.hasFlag(options::OPT_funsafe_math_optimizations,
+                         options::OPT_fno_unsafe_math_optimizations, false);
+  bool FastRelaxedMath = DriverArgs.hasFlag(options::OPT_ffast_math,
+                                            options::OPT_fno_fast_math, false);
+  bool CorrectSqrt = DriverArgs.hasFlag(
+      options::OPT_fhip_fp32_correctly_rounded_divide_sqrt,
+      options::OPT_fno_hip_fp32_correctly_rounded_divide_sqrt);
+  bool Wave64 = isWave64(DriverArgs, Kind);
+
+  return RocmInstallation.getCommonBitcodeLibs(
+      DriverArgs, LibDeviceFile, Wave64, DAZ, FiniteOnly, UnsafeMathOpt,
+      FastRelaxedMath, CorrectSqrt);
 }

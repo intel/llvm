@@ -102,8 +102,6 @@ ConstString AppleObjCRuntimeV1::GetPluginName() {
   return GetPluginNameStatic();
 }
 
-uint32_t AppleObjCRuntimeV1::GetPluginVersion() { return 1; }
-
 BreakpointResolverSP
 AppleObjCRuntimeV1::CreateExceptionResolver(const BreakpointSP &bkpt,
                                             bool catch_bp, bool throw_bp) {
@@ -339,8 +337,6 @@ void AppleObjCRuntimeV1::UpdateISAToDescriptorMapIfNeeded() {
     if (!objc_module_sp)
       return;
 
-    uint32_t isa_count = 0;
-
     lldb::addr_t hash_table_ptr = GetISAHashTablePointer();
     if (hash_table_ptr != LLDB_INVALID_ADDRESS) {
       // Read the NXHashTable struct:
@@ -382,8 +378,6 @@ void AppleObjCRuntimeV1::UpdateISAToDescriptorMapIfNeeded() {
 
               if (bucket_isa_count == 0)
                 continue;
-
-              isa_count += bucket_isa_count;
 
               ObjCISA isa;
               if (bucket_isa_count == 1) {

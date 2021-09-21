@@ -96,21 +96,6 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     //===------------------------------------------------------------------===//
     InterfaceMethod<
       /*desc=*/[{
-        Return the number of induction variables in the basic block. This should
-        always be 0 for index-free linalg ops. For IndexedGeneric, this must be
-        equal to numLoops
-      }],
-      /*retTy=*/"unsigned",
-      /*methodName=*/"getNumPayloadInductionVariables",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/""
-    >,
-    //===------------------------------------------------------------------===//
-    // Loop types handling.
-    //===------------------------------------------------------------------===//
-    InterfaceMethod<
-      /*desc=*/[{
         Return the number of parallel loops.
       }],
       /*retTy=*/"unsigned",
@@ -229,7 +214,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*desc=*/[{
         Return the number of inputs.
       }],
-      /*retTy=*/"unsigned",
+      /*retTy=*/"int64_t",
       /*methodName=*/"getNumInputs",
       /*args=*/(ins),
       /*methodBody=*/"",
@@ -251,7 +236,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*desc=*/[{
         Return the number of outputs.
       }],
-      /*retTy=*/"unsigned",
+      /*retTy=*/"int64_t",
       /*methodName=*/"getNumOutputs",
       /*args=*/(ins),
       /*methodBody=*/"",
@@ -259,373 +244,225 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         return $_op.outputs().size();
       }]
     >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the number of inputs and outputs.
+      }],
+      /*retTy=*/"int64_t",
+      /*methodName=*/"getNumInputsAndOutputs",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return this->getOperation()->getNumOperands();
+      }]
+    >,
     //===------------------------------------------------------------------===//
     // Input operands handling.
     //===------------------------------------------------------------------===//
     InterfaceMethod<
       /*desc=*/[{
+        Return the input operands.
+      }],
+      /*retTy=*/"OpOperandVector",
+      /*methodName=*/"getInputOperands",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        int64_t numInputs = getNumInputs();
+        OpOperandVector result;
+        result.reserve(numInputs);
+        llvm::transform(
+          this->getOperation()->getOpOperands().take_front(numInputs),
+          std::back_inserter(result),
+          [](OpOperand &opOperand) { return &opOperand; });
+        return result;
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
         Return the `i`-th input operand.
       }],
-      /*retTy=*/"Value",
-      /*methodName=*/"getInput",
-      /*args=*/(ins "unsigned":$i),
+      /*retTy=*/"OpOperand*",
+      /*methodName=*/"getInputOperand",
+      /*args=*/(ins "int64_t":$i),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        assert(i < $_op.getNumInputs());
-        return this->getOperation()->getOperand(i);
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the `i`-th input shaped type
-      }],
-      /*retTy=*/"ShapedType",
-      /*methodName=*/"getInputShapedType",
-      /*args=*/(ins "unsigned":$i),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return getInput(i).getType().template cast<ShapedType>();
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the range of input operands.
-      }],
-      /*retTy=*/"Operation::operand_range",
-      /*methodName=*/"getInputs",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        auto range = this->getOperation()->getOperands();
-        return {range.begin(), range.begin() + $_op.getNumInputs()};
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the OpOperands for the input operands.
-      }],
-      /*retTy=*/" MutableArrayRef<OpOperand>",
-      /*methodName=*/"getInputOpOperands",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return this->getOperation()->getOpOperands().take_front(getNumInputs());
+        assert(i >= 0 && i < getNumInputs());
+        return &this->getOperation()->getOpOperand(i);
       }]
     >,
     InterfaceMethod<
       /*desc=*/[{
         Return the subset of input operands that are of buffer type.
       }],
-      /*retTy=*/"SmallVector<Value, 4>",
-      /*methodName=*/"getInputBuffers",
+      /*retTy=*/"OpOperandVector",
+      /*methodName=*/"getInputBufferOperands",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return llvm::to_vector<4>(llvm::make_filter_range(
-          getInputs(), [](Value in){ return in.getType().template isa<MemRefType>(); }));
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the number of input buffer operands.
-      }],
-      /*retTy=*/"unsigned",
-      /*methodName=*/"getNumInputBuffers",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return $_op.getInputBuffers().size();
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the `index`^th input buffer.
-      }],
-      /*retTy=*/"Value",
-      /*methodName=*/"getInputBuffer",
-      /*args=*/(ins "unsigned":$index),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        assert(index < getNumInputBuffers());
-        return getInputBuffers()[index];
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the subset of input operands that are of buffer type.
-      }],
-      /*retTy=*/"SmallVector<OpOperand*, 4>",
-      /*methodName=*/"getInputBuffersOpOperands",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        SmallVector<OpOperand*, 4> res;
-        res.reserve(getNumInputs());
-        for (OpOperand &o : getInputOpOperands())
-          if (o.get().getType().isa<MemRefType>())
-            res.push_back(&o);
-        return res;
+        OpOperandVector result;
+        result.reserve(getNumInputs());
+        llvm::copy_if(getInputOperands(),
+          std::back_inserter(result),
+          [](OpOperand *opOperand) {
+            return opOperand->get().getType().template isa<MemRefType>();
+          });
+        return result;
       }]
     >,
     InterfaceMethod<
       /*desc=*/[{
         Return the subset of input operands that are of tensor type.
       }],
-      /*retTy=*/"SmallVector<Value, 4>",
-      /*methodName=*/"getInputTensors",
+      /*retTy=*/"OpOperandVector",
+      /*methodName=*/"getInputTensorOperands",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return llvm::to_vector<4>(llvm::make_filter_range(
-          getInputs(),
-          [](Value in){ return in.getType().template isa<RankedTensorType>(); }));
+        OpOperandVector result;
+        result.reserve(getNumInputs());
+        llvm::copy_if(getInputOperands(),
+          std::back_inserter(result),
+          [](OpOperand *opOperand) {
+            return opOperand->get().getType().template isa<RankedTensorType>();
+          });
+        return result;
       }]
     >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the subset of op operands that are of tensor type.
-      }],
-      /*retTy=*/"SmallVector<OpOperand*, 4>",
-      /*methodName=*/"getInputTensorsOpOperands",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        SmallVector<OpOperand*, 4> res;
-        res.reserve(getNumInputs());
-        for (OpOperand &o : getInputOpOperands())
-          if (o.get().getType().isa<RankedTensorType>())
-            res.push_back(&o);
-        return res;
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the types of the subset of input operands that are of buffer type.
-      }],
-      /*retTy=*/"SmallVector<MemRefType, 4>",
-      /*methodName=*/"getInputBufferTypes" ,
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return llvm::to_vector<4>(
-          llvm::map_range(
-            llvm::make_filter_range(
-              ValueRange(getInputs()).getTypes(),
-              [](Type in){ return in.isa<MemRefType>(); }),
-            [](Type in){ return in.cast<MemRefType>(); }));
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the types of the subset of input operands that are of ranked
-        tensor type.
-      }],
-      /*retTy=*/"SmallVector<RankedTensorType, 4>",
-      /*methodName=*/"getInputTensorTypes" ,
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return llvm::to_vector<4>(
-          llvm::map_range(
-            llvm::make_filter_range(
-              ValueRange(getInputs()).getTypes(),
-              [](Type in){ return in.isa<RankedTensorType>(); }),
-            [](Type in){ return in.cast<RankedTensorType>(); }));
-      }]
-    >,
-
     //===------------------------------------------------------------------===//
     // Output operands handling.
     //===------------------------------------------------------------------===//
     InterfaceMethod<
       /*desc=*/[{
+        Return the output operands.
+      }],
+      /*retTy=*/"OpOperandVector",
+      /*methodName=*/"getOutputOperands",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        int64_t numOutputs = getNumOutputs();
+        OpOperandVector result;
+        result.reserve(numOutputs);
+        llvm::transform(
+          this->getOperation()->getOpOperands()
+            .take_back(numOutputs),
+          std::back_inserter(result),
+          [](OpOperand &opOperand) { return &opOperand; });
+        return result;
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
         Return the `i`-th output operand.
       }],
-      /*retTy=*/"Value",
-      /*methodName=*/"getOutput",
-      /*args=*/(ins "unsigned":$i),
+      /*retTy=*/"OpOperand*",
+      /*methodName=*/"getOutputOperand",
+      /*args=*/(ins "int64_t":$i),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        assert(i < $_op.getNumOutputs());
-        return this->getOperation()->getOperand(i + $_op.getNumInputs());
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the `i`-th output shaped type
-      }],
-      /*retTy=*/"ShapedType",
-      /*methodName=*/"getOutputShapedType",
-      /*args=*/(ins "unsigned":$i),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return getOutput(i).getType().template cast<ShapedType>();
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the range of output operands.
-      }],
-      /*retTy=*/"Operation::operand_range",
-      /*methodName=*/"getOutputs",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        auto start =
-          this->getOperation()->getOperands().begin() + $_op.getNumInputs();
-        return {start, start + $_op.getNumOutputs()};
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the OpOperands for the output operands.
-      }],
-      /*retTy=*/" MutableArrayRef<OpOperand>",
-      /*methodName=*/"getOutputOpOperands",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return this->getOperation()->getOpOperands().slice(
-          getNumInputs(), getNumOutputs());
+        assert(i >= 0 && i < getNumOutputs());
+        return &this->getOperation()->getOpOperand(getNumInputs() + i);
       }]
     >,
     InterfaceMethod<
       /*desc=*/[{
         Return the subset of output operands that are of buffer type.
       }],
-      /*retTy=*/"SmallVector<Value, 4>",
-      /*methodName=*/"getOutputBuffers",
+      /*retTy=*/"OpOperandVector",
+      /*methodName=*/"getOutputBufferOperands",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return llvm::to_vector<4>(llvm::make_filter_range(
-          getOutputs(), [](Value in){ return in.getType().template isa<MemRefType>(); }));
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the `index`^th output buffer.
-      }],
-      /*retTy=*/"Value",
-      /*methodName=*/"getOutputBuffer",
-      /*args=*/(ins "unsigned":$index),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        assert(index < getNumOutputBuffers());
-        return getOutputBuffers()[index];
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the subset of output operands that are of buffer type.
-      }],
-      /*retTy=*/"SmallVector<OpOperand*, 4>",
-      /*methodName=*/"getOutputBuffersOpOperands",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        SmallVector<OpOperand*, 4> res;
-        res.reserve(getNumOutputs());
-        for (OpOperand &o : getOutputOpOperands())
-          if (o.get().getType().isa<MemRefType>())
-            res.push_back(&o);
-        return res;
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the number of output buffer operands.
-      }],
-      /*retTy=*/"unsigned",
-      /*methodName=*/"getNumOutputBuffers",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return $_op.getOutputBuffers().size();
+        OpOperandVector result;
+        result.reserve(getNumOutputs());
+        llvm::copy_if(getOutputOperands(),
+          std::back_inserter(result),
+          [](OpOperand *opOperand) {
+            return opOperand->get().getType().template isa<MemRefType>();
+          });
+        return result;
       }]
     >,
     InterfaceMethod<
       /*desc=*/[{
         Return the subset of output operands that are of tensor type.
       }],
-      /*retTy=*/"SmallVector<Value, 4>",
-      /*methodName=*/"getOutputTensors",
+      /*retTy=*/"OpOperandVector",
+      /*methodName=*/"getOutputTensorOperands",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return llvm::to_vector<4>(llvm::make_filter_range(
-          getOutputs(),
-          [](Value in){ return in.getType().template isa<RankedTensorType>(); }));
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the subset of output operands that are of tensor type.
-      }],
-      /*retTy=*/"SmallVector<OpOperand*, 4>",
-      /*methodName=*/"getOutputTensorsOpOperands",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        SmallVector<OpOperand*, 4> res;
-        res.reserve(getNumOutputs());
-        for (OpOperand &o : getOutputOpOperands())
-          if (o.get().getType().isa<RankedTensorType>())
-            res.push_back(&o);
-        return res;
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the number of output tensor operands.
-      }],
-      /*retTy=*/"unsigned",
-      /*methodName=*/"getNumOutputTensors",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return $_op.getOutputTensors().size();
+        OpOperandVector result;
+        result.reserve(getNumOutputs());
+        llvm::copy_if(getOutputOperands(),
+          std::back_inserter(result),
+          [](OpOperand *opOperand) {
+            return opOperand->get().getType().template isa<RankedTensorType>();
+          });
+        return result;
       }]
     >,
     InterfaceMethod<
       /*desc=*/[{
         Return the types of the subset of output operands that are of buffer type.
       }],
-      /*retTy=*/"SmallVector<MemRefType, 4>",
-      /*methodName=*/"getOutputBufferTypes" ,
+      /*retTy=*/"SmallVector<MemRefType>",
+      /*methodName=*/"getOutputBufferTypes",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return llvm::to_vector<4>(
-          llvm::map_range(
-            llvm::make_filter_range(
-              ValueRange(getOutputs()).getTypes(),
-              [](Type in){ return in.isa<MemRefType>(); }),
-            [](Type in){ return in.cast<MemRefType>(); }));
+        SmallVector<MemRefType> result;
+        result.reserve(getNumOutputs());
+        llvm::transform(getOutputBufferOperands(),
+          std::back_inserter(result),
+          [](OpOperand *opOperands) {
+            return opOperands->get().getType().cast<MemRefType>();
+          });
+        return result;
       }]
     >,
     InterfaceMethod<
       /*desc=*/[{
-        Return the types of the subset of output operands that are of ranked
-        tensor type.
+        Return the types of the subset of output operands that are of tensor type.
       }],
-      /*retTy=*/"SmallVector<RankedTensorType, 4>",
-      /*methodName=*/"getOutputTensorTypes" ,
+      /*retTy=*/"SmallVector<RankedTensorType>",
+      /*methodName=*/"getOutputTensorTypes",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return llvm::to_vector<4>(
-          llvm::map_range(
-            llvm::make_filter_range(
-              ValueRange(getOutputs()).getTypes(),
-              [](Type in){ return in.isa<RankedTensorType>(); }),
-            [](Type in){ return in.cast<RankedTensorType>(); }));
+        SmallVector<RankedTensorType> result;
+        result.reserve(getNumOutputs());
+        llvm::transform(getOutputTensorOperands(),
+          std::back_inserter(result),
+          [](OpOperand *opOperands) {
+            return opOperands->get().getType().cast<RankedTensorType>();
+          });
+        return result;
       }]
     >,
-
     //===------------------------------------------------------------------===//
     // Input and Output arguments handling.
     //===------------------------------------------------------------------===//
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the range over input and output operands.
+      }],
+      /*retTy=*/"OpOperandVector",
+      /*methodName=*/"getInputAndOutputOperands",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        int64_t numInputsAndOutputs = getNumInputsAndOutputs();
+        OpOperandVector result;
+        result.reserve(numInputsAndOutputs);
+        llvm::transform(
+          this->getOperation()->getOpOperands(),
+          std::back_inserter(result),
+          [](OpOperand &opOperand) { return &opOperand; });
+        return result;
+      }]
+    >,
     InterfaceMethod<
       /*desc=*/[{
         Return true if the payload uses the value loaded from `opOperand`. This
@@ -633,48 +470,21 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         uninitialized, as well as properly cloning "read-write" operands.
       }],
       /*retTy=*/"bool",
-      /*methodName=*/"payloadUsesValueFromOpOperand",
+      /*methodName=*/"payloadUsesValueFromOperand",
       /*args=*/(ins "OpOperand *":$opOperand),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        unsigned bbArgNumber =
-          $_op.getNumPayloadInductionVariables() + opOperand->getOperandNumber();
+        unsigned bbArgNumber = opOperand->getOperandNumber();
         // Safeguard against the named linalg ops that are manually defined and
         // that only support buffer semantics: we should not be there.
         // Such ops have an empty regionBuilder and are not constructed with a
         // region for now. In the future they are slated to disappear.
         assert(this->getOperation()->getNumRegions() == 1 && "unexpected "
-               "missing region (calling `payloadUsesValueFromOpOperand` on "
+               "missing region (calling `payloadUsesValueFromOperand` on "
                "manually defined named Linalg op?)");
         Block &block = this->getOperation()->getRegion(0).front();
         // Init tensors have uses.
         return !block.getArgument(bbArgNumber).use_empty();
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return true if the payload uses the value loaded from input operand
-        `index`.
-      }],
-      /*retTy=*/"bool",
-      /*methodName=*/"payloadUsesValueFromInputOperandIndex",
-      /*args=*/(ins "unsigned":$index),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return payloadUsesValueFromOpOperand(&getInputOpOperands()[index]);
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return true if the payload uses the value loaded from output operand
-        `index`.
-      }],
-      /*retTy=*/"bool",
-      /*methodName=*/"payloadUsesValueFromOutputOperandIndex",
-      /*args=*/(ins "unsigned":$index),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return payloadUsesValueFromOpOperand(&getOutputOpOperands()[index]);
       }]
     >,
     InterfaceMethod<
@@ -721,148 +531,85 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*defaultImplementation=*/[{
         if (!$_op.isOutputTensor(opOperand))
           return false;
-        return payloadUsesValueFromOpOperand(opOperand);
+        return payloadUsesValueFromOperand(opOperand);
       }]
     >,
     InterfaceMethod<
       /*desc=*/[{
-        Return true if the operand at output index `index` is an init tensor.
+        Return the `opOperand` rank or zero for scalars.
+      }],
+      /*retTy=*/"int64_t",
+      /*methodName=*/"getRank",
+      /*args=*/(ins "OpOperand*":$opOperand),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        assert(opOperand->getOwner() == this->getOperation());
+        if (auto shapedType =
+              opOperand->get().getType().template dyn_cast<ShapedType>())
+          return shapedType.getRank();
+        return 0;
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the `opOperand` shape or an empty vector for scalars.
+      }],
+      /*retTy=*/"ArrayRef<int64_t>",
+      /*methodName=*/"getShape",
+      /*args=*/(ins "OpOperand*":$opOperand),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        assert(opOperand->getOwner() == this->getOperation());
+        if (auto shapedType =
+              opOperand->get().getType().template dyn_cast<ShapedType>())
+          return shapedType.getShape();
+        return {};
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return true if the `opOperand` is a scalar value.
       }],
       /*retTy=*/"bool",
-      /*methodName=*/"isIndexOfInitTensor",
-      /*args=*/(ins "unsigned":$index),
+      /*methodName=*/"isScalar",
+      /*args=*/(ins "OpOperand*":$opOperand),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        assert(index < getNumOutputs());
-        return isInitTensor(
-          &this->getOperation()->getOpOperands()[$_op.getNumInputs() + index]);
+        assert(opOperand->getOwner() == this->getOperation());
+        return !opOperand->get().getType().template isa<ShapedType>();
       }]
     >,
     InterfaceMethod<
       /*desc=*/[{
-        Return the output operands that are init tensors.
+        Return the input or output indexing map for `opOperand`.
       }],
-      /*retTy=*/"SmallVector<Value, 4>",
-      /*methodName=*/"getInitTensors",
-      /*args=*/(ins),
+      /*retTy=*/"AffineMap",
+      /*methodName=*/"getTiedIndexingMap",
+      /*args=*/(ins "OpOperand*":$opOperand),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        auto start =
-          this->getOperation()->getOpOperands().begin() + $_op.getNumInputs();
-        return llvm::to_vector<4>(
-          llvm::map_range(
-            llvm::make_filter_range(
-              llvm::make_range(start, start + $_op.getNumOutputs()),
-              [&](OpOperand &opOperand) {
-                return $_op.isInitTensor(&opOperand);
-              }),
-              [&](OpOperand &opOperand) {
-                return opOperand.get();
-              }));
+        assert(opOperand->getOwner() == this->getOperation());
+        auto indexingMaps =
+          $_op.indexing_maps().template getAsValueRange<AffineMapAttr>();
+        return *(indexingMaps.begin() + opOperand->getOperandNumber());
       }]
     >,
     InterfaceMethod<
       /*desc=*/[{
-        Return the number of init tensor operands.
+        Return the result tied to `opOperand`.
       }],
-      /*retTy=*/"unsigned",
-      /*methodName=*/"getNumInitTensors",
-      /*args=*/(ins),
+      /*retTy=*/"OpResult",
+      /*methodName=*/"getTiedOpResult",
+      /*args=*/(ins "OpOperand*":$opOperand),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return getInitTensors().size();
+        assert(opOperand->getOwner() == this->getOperation());
+        int64_t resultIndex = opOperand->getOperandNumber() - getNumInputs();
+        assert(resultIndex >= 0 &&
+               resultIndex < this->getOperation()->getNumResults() );
+        return this->getOperation()->getResult(resultIndex);
       }]
     >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the number of input and output operands.
-      }],
-      /*retTy=*/"unsigned",
-      /*methodName=*/"getNumShapedOperands",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return $_op.getNumInputs() + $_op.getNumOutputs();
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the `i`-th shaped operand value.
-      }],
-      /*retTy=*/"Value",
-      /*methodName=*/"getShapedOperand",
-      /*args=*/(ins "unsigned":$i),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        assert(i < $_op.getNumShapedOperands());
-        return this->getOperation()->getOperand(i);
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the range over input and output operands.
-      }],
-      /*retTy=*/"Operation::operand_range",
-      /*methodName=*/"getShapedOperands",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        auto range = this->getOperation()->getOperands();
-        return {range.begin(), range.begin() + getNumShapedOperands()};
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the OpOperands for all the shaped operands.
-      }],
-      /*retTy=*/" MutableArrayRef<OpOperand>",
-      /*methodName=*/"getShapedOpOperands",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return this->getOperation()->getOpOperands().take_front(
-          getNumShapedOperands());
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the OpOperands for all the shaped operands.
-      }],
-      /*retTy=*/" OpOperand&",
-      /*methodName=*/"getShapedOpOperand",
-      /*args=*/(ins "unsigned":$i),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return *(this->getShapedOpOperands().begin() + i);
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the range over input and output operands.
-      }],
-      /*retTy=*/"SmallVector<ShapedType, 4>",
-      /*methodName=*/"getShapedOperandTypes",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return llvm::to_vector<4>(
-          llvm::map_range(
-            getShapedOperands(),
-            [](Value v) { return v.getType().cast<ShapedType>(); }));
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the `i`-th shaped type
-      }],
-      /*retTy=*/"ShapedType",
-      /*methodName=*/"getShapedType",
-      /*args=*/(ins "unsigned":$i),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        return $_op.getShapedOperand(i).getType().template cast<ShapedType>();
-      }]>,
-
     //===------------------------------------------------------------------===//
     // Other interface methods.
     //===------------------------------------------------------------------===//
@@ -917,75 +664,21 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return llvm::to_vector<4>(
-          $_op.indexing_maps().template getAsValueRange<AffineMapAttr>());
+        auto range = $_op.indexing_maps()
+          .template getAsValueRange<AffineMapAttr>();
+        return {range.begin(), range.end()};
       }]
     >,
     InterfaceMethod<
       /*desc=*/[{
-        Return the input or output indexing map at index `i`.
+        Return true if any of the operands has a dynamic shape.
       }],
-      /*retTy=*/"AffineMap",
-      /*methodName=*/"getIndexingMap",
-      /*args=*/(ins "unsigned":$i),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        assert(i < $_op.getNumShapedOperands());
-        return getIndexingMaps()[i];
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the input indexing map at index `i`.
-      }],
-      /*retTy=*/"AffineMap",
-      /*methodName=*/"getInputIndexingMap",
-      /*args=*/(ins "unsigned":$i),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        assert(i < $_op.getNumInputs());
-        return getIndexingMaps()[i];
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the input indexing maps.
-      }],
-      /*retTy=*/"SmallVector<AffineMap>",
-      /*methodName=*/"getInputIndexingMaps",
+      /*retTy=*/"bool",
+      /*methodName=*/"hasDynamicShape",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        auto maps = $_op.getIndexingMaps();
-        return SmallVector<AffineMap>{maps.begin(),
-                                      maps.begin() + $_op.getNumInputs()};
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the output indexing map at index `i`.
-      }],
-      /*retTy=*/"AffineMap",
-      /*methodName=*/"getOutputIndexingMap",
-      /*args=*/(ins "unsigned":$i),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        assert(i < $_op.getNumOutputs());
-        return getIndexingMaps()[i + $_op.getNumInputs()];
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the output indexing maps.
-      }],
-      /*retTy=*/"SmallVector<AffineMap>",
-      /*methodName=*/"getOutputIndexingMaps",
-      /*args=*/(ins),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        auto maps = $_op.getIndexingMaps();
-        return SmallVector<AffineMap>{maps.begin() + $_op.getNumInputs(),
-                                      maps.begin() + $_op.getNumShapedOperands()};
+        return llvm::any_of(getStaticShape(), ShapedType::isDynamic);
       }]
     >,
     InterfaceMethod<
@@ -998,8 +691,11 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         return this->getOperation()->getNumResults() == 0 &&
-          llvm::all_of(getShapedOperands(), [](Value v) {
-            return v.getType().template isa<MemRefType>(); });
+          llvm::all_of(this->getOperation()->getOpOperands(),
+            [&](OpOperand &opOperand) {
+              return isScalar(&opOperand) ||
+                     opOperand.get().getType().template isa<MemRefType>();
+            });
       }]
     >,
     InterfaceMethod<
@@ -1011,9 +707,11 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return llvm::all_of(getShapedOperands(), [](Value v) {
-          return v.getType().template isa<RankedTensorType>();
-        });
+        return llvm::all_of(this->getOperation()->getOpOperands(),
+          [&](OpOperand &opOperand) {
+            return isScalar(&opOperand) ||
+                   opOperand.get().getType().template isa<RankedTensorType>();
+          });
       }]
     >,
     InterfaceMethod<
@@ -1080,7 +778,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         only works with permutation affine maps.
         A more advanced Tensor-Comprehension like inference is possible but has
         proven to be ambiguous in unfavorable case.
-        A safer and more robust alternative is to allow each each op to define
+        A safer and more robust alternative is to allow each op to define
         its own AffineMap.
       }],
       /*retTy=*/"AffineMap",
@@ -1093,54 +791,22 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     >,
     InterfaceMethod<
       /*desc=*/[{
-        Return the position in the results of the affine map computed
-        by getLoopsToShapesMap() that represents the shape of an
-        operand (input or output) at a dimension.
-      }],
-      /*retTy=*/"Optional<unsigned>",
-      /*methodName=*/"getOperandDimPositionInLoopsToShapeMap",
-      /*args=*/(ins "unsigned":$operandIdx, "unsigned":$dim),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        unsigned pos = 0;
-        for (auto type : llvm::enumerate(getShapedOperandTypes())) {
-          if (type.index() == operandIdx) return pos + dim;
-          pos += type.value().getRank();
-        }
-        return {};
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return the position in the results of the affine map computed
-        by getLoopsToShapesMap() that represents the shape of an
-        input operand at a dimension.
-      }],
-      /*retTy=*/"Optional<unsigned>",
-      /*methodName=*/"getInputValueDimPositionInLoopsToShapeMap",
-      /*args=*/(ins "unsigned":$inputIdx, "unsigned":$dim),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        if (inputIdx >= getNumInputs()) return {};
-        return getOperandDimPositionInLoopsToShapeMap(inputIdx, dim);
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
         Return the range of position in the result of the affine map
         computed by getLoopsToShapesMap() which correspond to the
         AffineExprs used to access the outputs of the operation.
       }],
-      /*retTy=*/"std::pair<unsigned, unsigned>",
+      /*retTy=*/"std::pair<int64_t, int64_t>",
       /*methodName=*/"getResultsPositionInLoopsToShapeMap",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return
-          {*getOperandDimPositionInLoopsToShapeMap(getNumInputs(), 0),
-           (*getOperandDimPositionInLoopsToShapeMap
-                 (getNumInputs() + getNumOutputs() - 1,
-                  getOutputShapedType(getNumOutputs()-1).getRank() - 1)) + 1};
+        int64_t inputRankSum = 0;
+        int64_t outputRankSum = 0;
+        for(OpOperand *input : getInputOperands())
+          inputRankSum += getRank(input);
+        for(OpOperand *output : getOutputOperands())
+          outputRankSum += getRank(output);
+        return {inputRankSum, inputRankSum + outputRankSum};
       }]
     >,
     InterfaceMethod<
@@ -1149,16 +815,14 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         generating any new IR. For each shape dimension, returns >=0 if that
         dimension is statically known, or ShapeType::kDynamicSize otherwise.
       }],
-      /*retTy=*/"SmallVector<int64_t, 8>",
+      /*retTy=*/"SmallVector<int64_t>",
       /*methodName=*/"getStaticShape",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        SmallVector<int64_t, 8> res;
-        for (Value v : getShapedOperands()) {
-          auto shape = v.getType().cast<ShapedType>().getShape();
-          res.append(shape.begin(), shape.end());
-        }
+        SmallVector<int64_t> res;
+        for (OpOperand *opOperand : getInputAndOutputOperands())
+          llvm::append_range(res, getShape(opOperand));
         return res;
       }]
     >,
@@ -1174,14 +838,13 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        SmallVector<int64_t, 8> viewSizes = getStaticShape();
+        SmallVector<int64_t> viewSizes = getStaticShape();
         AffineMap invertedMap = getShapesToLoopsMap();
         if (!invertedMap)
           return {};
         return invertedMap.compose(viewSizes);
       }]
     >,
-
     //===------------------------------------------------------------------===//
     // Other static interface methods.
     //===------------------------------------------------------------------===//
@@ -1227,13 +890,34 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         return b.createOperation(state);
       }]
     >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Clone the current operation with the given location, operands
+        and BlockAndValueMapping but leave the regions empty. This is
+        used to abstract away the optional underlying region creation.
+        This does not change the balance between input, output_buffer
+        and init_tensors operands.
+      }],
+      /*retTy=*/"Operation *",
+      /*methodName=*/"cloneWithoutRegions",
+      (ins "OpBuilder &":$b, "Location":$loc, "TypeRange":$resultTypes,
+           "ValueRange":$operands),
+      [{
+        OperationState state(
+          loc, ConcreteOp::getOperationName(), operands, resultTypes,
+          $_op->getAttrs());
+        for (size_t cnt = 0, e = $_op->getNumRegions(); cnt < e; ++cnt)
+          state.addRegion();
+        return b.createOperation(state);
+      }]
+    >,
     StaticInterfaceMethod<
       /*desc=*/[{
         Returns the region builder for constructing the body for linalg.generic.
         Returns a null function if this named op does not define a region
         builder.
       }],
-      /*retTy=*/"std::function<void(ImplicitLocOpBuilder &, Block &, ValueRange)>",
+      /*retTy=*/"std::function<void(ImplicitLocOpBuilder &, Block &)>",
       /*methodName=*/"getRegionBuilder",
       (ins),
       [{ return ConcreteOp::getRegionBuilder(); }]
@@ -1260,26 +944,10 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     /// `createFlatListOfOperandStaticDims`.
     SmallVector<int64_t, 4> computeStaticLoopSizes();
 
-    /// Returns all the operands past the inputs, output_buffers and
-    /// init_tensors operands. Asserts that these operands are value types to
-    /// allow transformations like tiling to just use the values when cloning
-    /// `linalgOp`.
-    Operation::operand_range getAssumedNonShapedOperands() {
-      Operation::operand_range res{
-        getOperation()->getOperands().begin() + getNumShapedOperands(),
-        getOperation()->getOperands().end()};
-      for (Type t : TypeRange{res}) {
-        (void)t;
-        assert((t.isSignlessIntOrIndexOrFloat() || t.template isa<VectorType>())
-               &&"expected scalar or vector type");
-      }
-      return res;
-    }
-
     /// Returns the value that expresses the shape of the output in terms of
     /// shape of the input operands where possible
-    LogicalResult reifyReturnTypeShapesPerResultDim(OpBuilder &b,
-        SmallVectorImpl<SmallVector<Value>> &reifiedReturnShapes);
+    LogicalResult reifyResultShapes(OpBuilder &b,
+        ReifiedRankedShapedTypeDims &reifiedReturnShapes);
 
     //========================================================================//
     // Helper functions to mutate the `operand_segment_sizes` attribute.

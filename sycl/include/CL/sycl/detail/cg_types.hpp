@@ -184,34 +184,24 @@ constexpr bool isKernelLambdaCallableWithKernelHandler() {
 
 // Helpers for running kernel lambda on the host device
 
-template <typename KernelType,
-          typename std::enable_if_t<isKernelLambdaCallableWithKernelHandler<
-              KernelType>()> * = nullptr>
-constexpr void runKernelWithoutArg(KernelType KernelName) {
-  kernel_handler KH;
-  KernelName(KH);
+template <typename KernelType> void runKernelWithoutArg(KernelType KernelName) {
+  if constexpr (isKernelLambdaCallableWithKernelHandler<KernelType>()) {
+    kernel_handler KH;
+    KernelName(KH);
+  } else {
+    KernelName();
+  }
 }
 
-template <typename KernelType,
-          typename std::enable_if_t<!isKernelLambdaCallableWithKernelHandler<
-              KernelType>()> * = nullptr>
-constexpr void runKernelWithoutArg(KernelType KernelName) {
-  KernelName();
-}
-
-template <typename ArgType, typename KernelType,
-          typename std::enable_if_t<isKernelLambdaCallableWithKernelHandler<
-              KernelType, ArgType>()> * = nullptr>
+template <typename ArgType, typename KernelType>
 constexpr void runKernelWithArg(KernelType KernelName, ArgType Arg) {
-  kernel_handler KH;
-  KernelName(Arg, KH);
-}
-
-template <typename ArgType, typename KernelType,
-          typename std::enable_if_t<!isKernelLambdaCallableWithKernelHandler<
-              KernelType, ArgType>()> * = nullptr>
-constexpr void runKernelWithArg(KernelType KernelName, ArgType Arg) {
-  KernelName(Arg);
+  if constexpr (isKernelLambdaCallableWithKernelHandler<KernelType,
+                                                        ArgType>()) {
+    kernel_handler KH;
+    KernelName(Arg, KH);
+  } else {
+    KernelName(Arg);
+  }
 }
 
 // The pure virtual class aimed to store lambda/functors of any type.
@@ -229,7 +219,7 @@ class InteropTask {
   std::function<void(cl::sycl::interop_handler)> MFunc;
 
 public:
-  InteropTask(function_class<void(cl::sycl::interop_handler)> Func)
+  InteropTask(std::function<void(cl::sycl::interop_handler)> Func)
       : MFunc(Func) {}
   void call(cl::sycl::interop_handler &h) { MFunc(h); }
 };

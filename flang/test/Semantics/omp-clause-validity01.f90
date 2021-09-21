@@ -1,12 +1,10 @@
-! RUN: %S/test_errors.sh %s %t %flang_fc1 -fopenmp
+! RUN: %python %S/test_errors.py %s %flang_fc1 -fopenmp
 use omp_lib
 ! Check OpenMP clause validity for the following directives:
 !
 !    2.5 PARALLEL construct
 !    2.7.1 Loop construct
 !    ...
-
-! TODO: all the internal errors
 
   integer :: b = 128
   integer :: z, c = 32
@@ -86,7 +84,7 @@ use omp_lib
   do i = 1, N
      z = 2
   enddo
-   !$omp end target data
+  !$omp end target data
 
   !ERROR: SCHEDULE clause is not allowed on the PARALLEL directive
   !$omp parallel schedule(static)
@@ -176,7 +174,7 @@ use omp_lib
       exit outofparallel
     end do inner
   end do outer
-  !$end omp do
+  !$omp end do
   !$omp end parallel
   end do outofparallel
 
@@ -494,9 +492,6 @@ use omp_lib
   !$omp flush seq_cst
   !ERROR: RELAXED clause is not allowed on the FLUSH directive
   !$omp flush relaxed
-
-  !$omp cancel DO
-  !$omp cancellation point parallel
 
 ! 2.13.2 critical Construct
 

@@ -32,8 +32,8 @@ class context_impl;
 class event_impl;
 class plugin;
 
-using ContextImplPtr = shared_ptr_class<context_impl>;
-using EventImplPtr = shared_ptr_class<event_impl>;
+using ContextImplPtr = std::shared_ptr<context_impl>;
+using EventImplPtr = std::shared_ptr<event_impl>;
 
 template <typename T>
 class aligned_allocator;
@@ -64,7 +64,7 @@ class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
 
 public:
   SYCLMemObjT(const size_t SizeInBytes, const property_list &Props,
-              unique_ptr_class<SYCLMemObjAllocator> Allocator)
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : MAllocator(std::move(Allocator)), MProps(Props), MInteropEvent(nullptr),
         MInteropContext(nullptr), MInteropMemObject(nullptr),
         MOpenCLInterop(false), MHostPtrReadOnly(false), MNeedWriteBack(true),
@@ -72,16 +72,16 @@ public:
         MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr) {}
 
   SYCLMemObjT(const property_list &Props,
-              unique_ptr_class<SYCLMemObjAllocator> Allocator)
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : SYCLMemObjT(/*SizeInBytes*/ 0, Props, std::move(Allocator)) {}
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
               const size_t SizeInBytes, event AvailableEvent,
-              unique_ptr_class<SYCLMemObjAllocator> Allocator);
+              std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
               event AvailableEvent,
-              unique_ptr_class<SYCLMemObjAllocator> Allocator)
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : SYCLMemObjT(MemObject, SyclContext, /*SizeInBytes*/ 0, AvailableEvent,
                     std::move(Allocator)) {}
 
@@ -90,7 +90,9 @@ public:
   const plugin &getPlugin() const;
 
   __SYCL_DLL_LOCAL size_t getSize() const override { return MSizeInBytes; }
-  __SYCL_DLL_LOCAL size_t get_count() const {
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  __SYCL_DLL_LOCAL size_t get_count() const { return size(); }
+  __SYCL_DLL_LOCAL size_t size() const noexcept {
     size_t AllocatorValueSize = MAllocator->getValueSize();
     return (getSize() + AllocatorValueSize - 1) / AllocatorValueSize;
   }
@@ -110,12 +112,12 @@ public:
   }
 
   __SYCL_DLL_LOCAL void *allocateHostMem() override {
-    return MAllocator->allocate(get_count());
+    return MAllocator->allocate(size());
   }
 
   __SYCL_DLL_LOCAL void releaseHostMem(void *Ptr) override {
     if (Ptr)
-      MAllocator->deallocate(Ptr, get_count());
+      MAllocator->deallocate(Ptr, size());
   }
 
   void releaseMem(ContextImplPtr Context, void *MemAllocation) override;
@@ -134,16 +136,16 @@ public:
 
   template <template <typename T> class PtrT, typename T>
   __SYCL_DLL_LOCAL
-      enable_if_t<std::is_convertible<PtrT<T>, weak_ptr_class<T>>::value>
+      enable_if_t<std::is_convertible<PtrT<T>, std::weak_ptr<T>>::value>
       set_final_data(PtrT<T> FinalData) {
-    weak_ptr_class<T> TempFinalData(FinalData);
+    std::weak_ptr<T> TempFinalData(FinalData);
     set_final_data(TempFinalData);
   }
 
   template <typename T>
-  __SYCL_DLL_LOCAL void set_final_data(weak_ptr_class<T> FinalData) {
+  __SYCL_DLL_LOCAL void set_final_data(std::weak_ptr<T> FinalData) {
     MUploadDataFunctor = [this, FinalData]() {
-      if (shared_ptr_class<T> LockedFinalData = FinalData.lock()) {
+      if (std::shared_ptr<T> LockedFinalData = FinalData.lock()) {
         updateHostMemory(LockedFinalData.get());
       }
     };
@@ -231,7 +233,7 @@ public:
   }
 
   template <typename T>
-  __SYCL_DLL_LOCAL void handleHostData(const shared_ptr_class<T> &HostPtr,
+  __SYCL_DLL_LOCAL void handleHostData(const std::shared_ptr<T> &HostPtr,
                                        const size_t RequiredAlign) {
     MSharedPtrStorage = HostPtr;
     MHostPtrReadOnly = std::is_const<T>::value;
@@ -292,11 +294,15 @@ public:
     throw runtime_error("Not implemented", PI_INVALID_OPERATION);
   }
 
-  __SYCL_DLL_LOCAL MemObjType getType() const override { return UNDEFINED; }
+  __SYCL_DLL_LOCAL MemObjType getType() const override {
+    return MemObjType::Undefined;
+  }
 
   ContextImplPtr getInteropContext() const override { return MInteropContext; }
 
   bool hasUserDataPtr() const { return MUserPtr != nullptr; };
+
+  bool isInterop() const;
 
 protected:
   // An allocateMem helper that determines which host ptr to use
@@ -304,7 +310,7 @@ protected:
                         void *&HostPtr, bool &HostPtrReadOnly);
 
   // Allocator used for allocation memory on host.
-  unique_ptr_class<SYCLMemObjAllocator> MAllocator;
+  std::unique_ptr<SYCLMemObjAllocator> MAllocator;
   // Properties passed by user.
   property_list MProps;
   // Event passed by user to interoperability constructor.
@@ -329,10 +335,10 @@ protected:
   // Copy of memory passed by user to constructor.
   void *MShadowCopy;
   // Function which update host with final data on memory object destruction.
-  function_class<void(void)> MUploadDataFunctor;
+  std::function<void(void)> MUploadDataFunctor;
   // Field which holds user's shared_ptr in case of memory object is created
   // using constructor with shared_ptr.
-  shared_ptr_class<const void> MSharedPtrStorage;
+  std::shared_ptr<const void> MSharedPtrStorage;
 };
 
 } // namespace detail

@@ -43,6 +43,9 @@ def Bsymbolic: F<"Bsymbolic">, HelpText<"Bind default visibility defined symbols
 def Bsymbolic_functions: F<"Bsymbolic-functions">,
   HelpText<"Bind default visibility defined function symbols locally for -shared">;
 
+def Bsymbolic_non_weak_functions: F<"Bsymbolic-non-weak-functions">,
+  HelpText<"Bind default visibility defined STB_GLOBAL function symbols locally for -shared">;
+
 def Bdynamic: F<"Bdynamic">, HelpText<"Link against shared libraries (default)">;
 
 def Bstatic: F<"Bstatic">, HelpText<"Do not link against shared libraries">;
@@ -126,9 +129,7 @@ def color_diagnostics_eq: J<"color-diagnostics=">,
   HelpText<"Use colors in diagnostics (default: auto)">,
   MetaVarName<"[auto,always,never]">;
 
-defm cref: B<"cref",
-    "Output cross reference table",
-    "Do not output cross reference table">;
+def cref: FF<"cref">, HelpText<"Output cross reference table">;
 
 defm define_common: B<"define-common",
     "Assign space to common symbols",
@@ -155,10 +156,8 @@ def discard_none: F<"discard-none">,
 defm dynamic_linker: Eq<"dynamic-linker", "Which dynamic linker to use">;
 
 defm dynamic_list : Eq<"dynamic-list",
-   "Read a list of dynamic symbols. (executable) Put matched non-local defined"
-   "symbols to the dynamic symbol table. (shared object) References to matched"
-   "non-local STV_DEFAULT symbols shouldn't be bound to definitions within the "
-   "shared object. Implies -Bsymbolic but does not set DF_SYMBOLIC">,
+   "Similar to --export-dynamic-symbol-list. When creating a shared object, "
+   "this additionally implies -Bsymbolic but does not set DF_SYMBOLIC">,
    MetaVarName<"<file>">;
 
 def eb: F<"EB">, HelpText<"Select the big-endian format in OUTPUT_FORMAT">;
@@ -207,6 +206,10 @@ defm export_dynamic_symbol : EEq<"export-dynamic-symbol",
     "shouldn't be bound to definitions within the shared object. "
     "Does not imply -Bsymbolic.">,
     MetaVarName<"glob">;
+
+defm export_dynamic_symbol_list : EEq<"export-dynamic-symbol-list",
+   "Read a list of dynamic symbol patterns. Apply --export-dynamic-symbol on each pattern">,
+    MetaVarName<"file">;
 
 defm fatal_warnings: B<"fatal-warnings",
     "Treat warnings as errors",
@@ -560,6 +563,9 @@ def lto_cs_profile_generate: FF<"lto-cs-profile-generate">,
   HelpText<"Perform context sensitive PGO instrumentation">;
 def lto_cs_profile_file: JJ<"lto-cs-profile-file=">,
   HelpText<"Context sensitive profile file path">;
+defm lto_pgo_warn_mismatch: BB<"lto-pgo-warn-mismatch",
+  "turn on warnings about profile cfg mismatch (default)>",
+  "turn off warnings about profile cfg mismatch">;
 def lto_obj_path_eq: JJ<"lto-obj-path=">;
 def lto_sample_profile: JJ<"lto-sample-profile=">,
   HelpText<"Sample profile file path">;
@@ -711,4 +717,10 @@ def: F<"Qy">;
 // Hidden option used for testing MIPS multi-GOT implementation.
 defm mips_got_size:
   Eq<"mips-got-size", "Max size of a single MIPS GOT. 0x10000 by default.">,
+  Flags<[HelpHidden]>;
+
+// Hidden option used to opt-in to additional output checks.
+defm check_dynamic_relocations: BB<"check-dynamic-relocations",
+    "Perform additional validation of the written dynamic relocations",
+    "Do not perform additional validation of the written dynamic relocations">,
   Flags<[HelpHidden]>;

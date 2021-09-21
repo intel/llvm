@@ -14,6 +14,8 @@ set(LLVM_INCLUDE_DIR ${LLVM_PATH}/include CACHE PATH "Path to llvm/include")
 set(LLVM_PATH ${LLVM_PATH} CACHE PATH "Path to LLVM source tree")
 set(LLVM_MAIN_SRC_DIR ${LLVM_PATH})
 set(LLVM_CMAKE_PATH "${LLVM_PATH}/cmake/modules")
+set(LLVM_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+set(LLVM_LIBRARY_OUTPUT_INTDIR "${CMAKE_CURRENT_BINARY_DIR}/lib")
 
 if (EXISTS "${LLVM_CMAKE_PATH}")
   list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_PATH}")
@@ -25,6 +27,12 @@ else()
 endif()
 
 message(STATUS "Configuring for standalone build.")
+
+# By default, we target the host, but this can be overridden at CMake invocation time.
+include(GetHostTriple)
+get_host_triple(LLVM_INFERRED_HOST_TRIPLE)
+set(LLVM_HOST_TRIPLE "${LLVM_INFERRED_HOST_TRIPLE}" CACHE STRING "Host on which LLVM binaries will run")
+set(LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_HOST_TRIPLE}" CACHE STRING "Target triple used by default.")
 
 # Add LLVM Functions --------------------------------------------------------
 if (WIN32)

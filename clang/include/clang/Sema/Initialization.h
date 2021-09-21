@@ -335,8 +335,15 @@ public:
   }
 
   /// Create the initialization entity for a temporary.
-  static InitializedEntity InitializeTemporary(TypeSourceInfo *TypeInfo) {
-    return InitializeTemporary(TypeInfo, TypeInfo->getType());
+  static InitializedEntity InitializeTemporary(ASTContext &Context,
+                                               TypeSourceInfo *TypeInfo) {
+    QualType Type = TypeInfo->getType();
+    if (Context.getLangOpts().OpenCLCPlusPlus) {
+      assert(!Type.hasAddressSpace() && "Temporary already has address space!");
+      Type = Context.getAddrSpaceQualType(Type, LangAS::opencl_private);
+    }
+
+    return InitializeTemporary(TypeInfo, Type);
   }
 
   /// Create the initialization entity for a temporary.
@@ -804,7 +811,7 @@ public:
     SK_ResolveAddressOfOverloadedFunction,
 
     /// Perform a derived-to-base cast, producing an rvalue.
-    SK_CastDerivedToBaseRValue,
+    SK_CastDerivedToBasePRValue,
 
     /// Perform a derived-to-base cast, producing an xvalue.
     SK_CastDerivedToBaseXValue,
@@ -831,8 +838,8 @@ public:
     /// function or via a constructor.
     SK_UserConversion,
 
-    /// Perform a qualification conversion, producing an rvalue.
-    SK_QualificationConversionRValue,
+    /// Perform a qualification conversion, producing a prvalue.
+    SK_QualificationConversionPRValue,
 
     /// Perform a qualification conversion, producing an xvalue.
     SK_QualificationConversionXValue,

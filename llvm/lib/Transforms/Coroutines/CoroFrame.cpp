@@ -429,12 +429,15 @@ private:
   Align StructAlign;
   bool IsFinished = false;
 
+  Optional<Align> MaxFrameAlignment;
+
   SmallVector<Field, 8> Fields;
   DenseMap<Value*, unsigned> FieldIndexByKey;
 
 public:
-  FrameTypeBuilder(LLVMContext &Context, DataLayout const &DL)
-      : DL(DL), Context(Context) {}
+  FrameTypeBuilder(LLVMContext &Context, DataLayout const &DL,
+                   Optional<Align> MaxFrameAlignment)
+      : DL(DL), Context(Context), MaxFrameAlignment(MaxFrameAlignment) {}
 
   /// Add a field to this structure for the storage of an `alloca`
   /// instruction.
@@ -485,7 +488,8 @@ public:
 
   /// Add a field to this structure.
   LLVM_NODISCARD FieldIDType addField(Type *Ty, MaybeAlign FieldAlignment,
-                                      bool IsHeader = false) {
+                                      bool IsHeader = false,
+                                      bool IsSpillOfValue = false) {
     assert(!IsFinished && "adding fields to a finished builder");
     assert(Ty && "must provide a type for a field");
 
@@ -500,8 +504,16 @@ public:
 
     // The field alignment might not be the type alignment, but we need
     // to remember the type alignment anyway to build the type.
-    Align TyAlignment = DL.getABITypeAlign(Ty);
-    if (!FieldAlignment) FieldAlignment = TyAlignment;
+    // If we are spilling values we don't need to worry about ABI alignment
+    // concerns.
+    auto ABIAlign = DL.getABITypeAlign(Ty);
+    Align TyAlignment =
+        (IsSpillOfValue && MaxFrameAlignment)
+            ? (*MaxFrameAlignment < ABIAlign ? *MaxFrameAlignment : ABIAlign)
+            : ABIAlign;
+    if (!FieldAlignment) {
+      FieldAlignment = TyAlignment;
+    }
 
     // Lay out header fields immediately.
     uint64_t Offset;
@@ -937,7 +949,7 @@ static void buildFrameDebugInfo(Function &F, coro::Shape &Shape,
   unsigned LineNum = PromiseDIVariable->getLine();
 
   DICompositeType *FrameDITy = DBuilder.createStructType(
-      PromiseDIScope, "__coro_frame_ty", DFile, LineNum, Shape.FrameSize * 8,
+      DIS, "__coro_frame_ty", DFile, LineNum, Shape.FrameSize * 8,
       Shape.FrameAlign.value() * 8, llvm::DINode::FlagArtificial, nullptr,
       llvm::DINodeArray());
   StructType *FrameTy = Shape.FrameTy;
@@ -1031,8 +1043,7 @@ static void buildFrameDebugInfo(Function &F, coro::Shape &Shape,
       Name = NameCache[Index].str();
       DITy = TyCache[Index];
     } else {
-      DITy = solveDIType(DBuilder, Ty, Layout, PromiseDIScope, LineNum,
-                         DITypeCache);
+      DITy = solveDIType(DBuilder, Ty, Layout, FrameDITy, LineNum, DITypeCache);
       assert(DITy && "SolveDIType shouldn't return nullptr.\n");
       Name = DITy->getName().str();
       Name += "_" + std::to_string(UnknownTypeNum);
@@ -1040,8 +1051,8 @@ static void buildFrameDebugInfo(Function &F, coro::Shape &Shape,
     }
 
     Elements.push_back(DBuilder.createMemberType(
-        PromiseDIScope, Name, DFile, LineNum, SizeInBits, AlignInBits,
-        OffsetInBits, llvm::DINode::FlagArtificial, DITy));
+        FrameDITy, Name, DFile, LineNum, SizeInBits, AlignInBits, OffsetInBits,
+        llvm::DINode::FlagArtificial, DITy));
   }
 
   DBuilder.replaceArrays(FrameDITy, DBuilder.getOrCreateArray(Elements));
@@ -1090,7 +1101,11 @@ static StructType *buildFrameType(Function &F, coro::Shape &Shape,
     return StructType::create(C, Name);
   }();
 
-  FrameTypeBuilder B(C, DL);
+  // We will use this value to cap the alignment of spilled values.
+  Optional<Align> MaxFrameAlignment;
+  if (Shape.ABI == coro::ABI::Async)
+    MaxFrameAlignment = Shape.AsyncLowering.getContextAlignment();
+  FrameTypeBuilder B(C, DL, MaxFrameAlignment);
 
   AllocaInst *PromiseAlloca = Shape.getPromiseAlloca();
   Optional<FieldIDType> SwitchIndexFieldId;
@@ -1137,7 +1152,14 @@ static StructType *buildFrameType(Function &F, coro::Shape &Shape,
         PromiseAlloca, DenseMap<Instruction *, llvm::Optional<APInt>>{}, false);
   // Create an entry for every spilled value.
   for (auto &S : FrameData.Spills) {
-    FieldIDType Id = B.addField(S.first->getType(), None);
+    Type *FieldType = S.first->getType();
+    // For byval arguments, we need to store the pointed value in the frame,
+    // instead of the pointer itself.
+    if (const Argument *A = dyn_cast<Argument>(S.first))
+      if (A->hasByValAttr())
+        FieldType = A->getParamByValType();
+    FieldIDType Id =
+        B.addField(FieldType, None, false /*header*/, true /*IsSpillOfValue*/);
     FrameData.setFieldIndex(S.first, Id);
   }
 
@@ -1540,9 +1562,11 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
 
   for (auto const &E : FrameData.Spills) {
     Value *Def = E.first;
+    auto SpillAlignment = Align(FrameData.getAlign(Def));
     // Create a store instruction storing the value into the
     // coroutine frame.
     Instruction *InsertPt = nullptr;
+    bool NeedToCopyArgPtrValue = false;
     if (auto *Arg = dyn_cast<Argument>(Def)) {
       // For arguments, we will place the store instruction right after
       // the coroutine frame pointer instruction, i.e. bitcast of
@@ -1552,6 +1576,9 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
       // If we're spilling an Argument, make sure we clear 'nocapture'
       // from the coroutine function.
       Arg->getParent()->removeParamAttr(Arg->getArgNo(), Attribute::NoCapture);
+
+      if (Arg->hasByValAttr())
+        NeedToCopyArgPtrValue = true;
 
     } else if (auto *CSI = dyn_cast<AnyCoroSuspendInst>(Def)) {
       // Don't spill immediately after a suspend; splitting assumes
@@ -1587,7 +1614,15 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
     Builder.SetInsertPoint(InsertPt);
     auto *G = Builder.CreateConstInBoundsGEP2_32(
         FrameTy, FramePtr, 0, Index, Def->getName() + Twine(".spill.addr"));
-    Builder.CreateStore(Def, G);
+    if (NeedToCopyArgPtrValue) {
+      // For byval arguments, we need to store the pointed value in the frame,
+      // instead of the pointer itself.
+      auto *Value =
+          Builder.CreateLoad(Def->getType()->getPointerElementType(), Def);
+      Builder.CreateAlignedStore(Value, G, SpillAlignment);
+    } else {
+      Builder.CreateAlignedStore(Def, G, SpillAlignment);
+    }
 
     BasicBlock *CurrentBlock = nullptr;
     Value *CurrentReload = nullptr;
@@ -1601,9 +1636,12 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
 
         auto *GEP = GetFramePointer(E.first);
         GEP->setName(E.first->getName() + Twine(".reload.addr"));
-        CurrentReload = Builder.CreateLoad(
-            FrameTy->getElementType(FrameData.getFieldIndex(E.first)), GEP,
-            E.first->getName() + Twine(".reload"));
+        if (NeedToCopyArgPtrValue)
+          CurrentReload = GEP;
+        else
+          CurrentReload = Builder.CreateAlignedLoad(
+              FrameTy->getElementType(FrameData.getFieldIndex(E.first)), GEP,
+              SpillAlignment, E.first->getName() + Twine(".reload"));
 
         TinyPtrVector<DbgDeclareInst *> DIs = FindDbgDeclareUses(Def);
         for (DbgDeclareInst *DDI : DIs) {
@@ -1713,7 +1751,7 @@ static Instruction *insertSpills(const FrameDataInfo &FrameData,
       auto *FramePtrRaw =
           Builder.CreateBitCast(FramePtr, Type::getInt8PtrTy(C));
       auto *AliasPtr = Builder.CreateGEP(
-          FramePtrRaw,
+          Type::getInt8Ty(C), FramePtrRaw,
           ConstantInt::get(Type::getInt64Ty(C), Alias.second.getValue()));
       auto *AliasPtrTyped =
           Builder.CreateBitCast(AliasPtr, Alias.first->getType());
@@ -1816,6 +1854,24 @@ static void rewritePHIsForCleanupPad(BasicBlock *CleanupPadBB,
     SetDispatchValuePN->addIncoming(SwitchConstant, Pred);
     SwitchOnDispatch->addCase(SwitchConstant, CaseBB);
     SwitchIndex++;
+  }
+}
+
+static void cleanupSinglePredPHIs(Function &F) {
+  SmallVector<PHINode *, 32> Worklist;
+  for (auto &BB : F) {
+    for (auto &Phi : BB.phis()) {
+      if (Phi.getNumIncomingValues() == 1) {
+        Worklist.push_back(&Phi);
+      } else
+        break;
+    }
+  }
+  while (!Worklist.empty()) {
+    auto *Phi = Worklist.back();
+    Worklist.pop_back();
+    auto *OriginalValue = Phi->getIncomingValue(0);
+    Phi->replaceAllUsesWith(OriginalValue);
   }
 }
 
@@ -1926,11 +1982,17 @@ static void rewriteMaterializableInstructions(IRBuilder<> &IRB,
     for (Instruction *U : E.second) {
       // If we have not seen this block, materialize the value.
       if (CurrentBlock != U->getParent()) {
+
+        bool IsInCoroSuspendBlock = isa<AnyCoroSuspendInst>(U);
         CurrentBlock = U->getParent();
+        auto *InsertBlock = IsInCoroSuspendBlock
+                                ? CurrentBlock->getSinglePredecessor()
+                                : CurrentBlock;
         CurrentMaterialization = cast<Instruction>(Def)->clone();
         CurrentMaterialization->setName(Def->getName());
         CurrentMaterialization->insertBefore(
-            &*CurrentBlock->getFirstInsertionPt());
+            IsInCoroSuspendBlock ? InsertBlock->getTerminator()
+                                 : &*InsertBlock->getFirstInsertionPt());
       }
       if (auto *PN = dyn_cast<PHINode>(U)) {
         assert(PN->getNumIncomingValues() == 1 &&
@@ -2449,11 +2511,11 @@ void coro::salvageDebugInfo(
   DIExpression *Expr = DVI->getExpression();
   // Follow the pointer arithmetic all the way to the incoming
   // function argument and convert into a DIExpression.
-  bool OutermostLoad = true;
+  bool SkipOutermostLoad = !isa<DbgValueInst>(DVI);
   Value *Storage = DVI->getVariableLocationOp(0);
   Value *OriginalStorage = Storage;
-  while (Storage) {
-    if (auto *LdInst = dyn_cast<LoadInst>(Storage)) {
+  while (auto *Inst = dyn_cast_or_null<Instruction>(Storage)) {
+    if (auto *LdInst = dyn_cast<LoadInst>(Inst)) {
       Storage = LdInst->getOperand(0);
       // FIXME: This is a heuristic that works around the fact that
       // LLVM IR debug intrinsics cannot yet distinguish between
@@ -2461,26 +2523,25 @@ void coro::salvageDebugInfo(
       // implicitly a memory location no DW_OP_deref operation for the
       // last direct load from an alloca is necessary.  This condition
       // effectively drops the *last* DW_OP_deref in the expression.
-      if (!OutermostLoad)
+      if (!SkipOutermostLoad)
         Expr = DIExpression::prepend(Expr, DIExpression::DerefBefore);
-      OutermostLoad = false;
-    } else if (auto *StInst = dyn_cast<StoreInst>(Storage)) {
+    } else if (auto *StInst = dyn_cast<StoreInst>(Inst)) {
       Storage = StInst->getOperand(0);
-    } else if (auto *GEPInst = dyn_cast<GetElementPtrInst>(Storage)) {
-      SmallVector<Value *> AdditionalValues;
-      DIExpression *SalvagedExpr = llvm::salvageDebugInfoImpl(
-          *GEPInst, Expr,
-          /*WithStackValue=*/false, 0, AdditionalValues);
-      // Debug declares cannot currently handle additional location
-      // operands.
-      if (!SalvagedExpr || !AdditionalValues.empty())
+    } else {
+      SmallVector<uint64_t, 16> Ops;
+      SmallVector<Value *, 0> AdditionalValues;
+      Value *Op = llvm::salvageDebugInfoImpl(
+          *Inst, Expr ? Expr->getNumLocationOperands() : 0, Ops,
+          AdditionalValues);
+      if (!Op || !AdditionalValues.empty()) {
+        // If salvaging failed or salvaging produced more than one location
+        // operand, give up.
         break;
-      Expr = SalvagedExpr;
-      Storage = GEPInst->getOperand(0);
-    } else if (auto *BCInst = dyn_cast<llvm::BitCastInst>(Storage))
-      Storage = BCInst->getOperand(0);
-    else
-      break;
+      }
+      Storage = Op;
+      Expr = DIExpression::appendOpsToArg(Expr, Ops, 0, /*StackValue*/ false);
+    }
+    SkipOutermostLoad = false;
   }
   if (!Storage)
     return;
@@ -2562,6 +2623,10 @@ void coro::buildCoroutineFrame(Function &F, Shape &Shape) {
       splitAround(Call, "MustTailCall.Before.CoroEnd");
     }
   }
+
+  // Later code makes structural assumptions about single predecessors phis e.g
+  // that they are not live accross a suspend point.
+  cleanupSinglePredPHIs(F);
 
   // Transforms multi-edge PHI Nodes, so that any value feeding into a PHI will
   // never has its definition separated from the PHI by the suspend point.

@@ -530,6 +530,10 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VMAXu16:
     case MVE_VMAXu32:
     case MVE_VMAXu8:
+    case MVE_VMAXNMf16:
+    case MVE_VMAXNMf32:
+    case MVE_VMAXNMAf16:
+    case MVE_VMAXNMAf32:
     case MVE_VMINAs16:
     case MVE_VMINAs32:
     case MVE_VMINAs8:
@@ -539,6 +543,10 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VMINu16:
     case MVE_VMINu32:
     case MVE_VMINu8:
+    case MVE_VMINNMf16:
+    case MVE_VMINNMf32:
+    case MVE_VMINNMAf16:
+    case MVE_VMINNMAf32:
     case MVE_VMLADAVas16:
     case MVE_VMLADAVas32:
     case MVE_VMLADAVas8:
@@ -734,6 +742,12 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VMULi16:
     case MVE_VMULi8:
     case MVE_VMULi32:
+    case MVE_VMULHs32:
+    case MVE_VMULHs16:
+    case MVE_VMULHs8:
+    case MVE_VMULHu32:
+    case MVE_VMULHu16:
+    case MVE_VMULHu8:
     case MVE_VMVN:
     case MVE_VMVNimmi16:
     case MVE_VMVNimmi32:
@@ -906,6 +920,12 @@ TEST(MachineInstrValidTailPredication, IsCorrect) {
     case MVE_VRINTf32P:
     case MVE_VRINTf32X:
     case MVE_VRINTf32Z:
+    case MVE_VRMULHs32:
+    case MVE_VRMULHs16:
+    case MVE_VRMULHs8:
+    case MVE_VRMULHu32:
+    case MVE_VRMULHu16:
+    case MVE_VRMULHu8:
     case MVE_VRSHL_by_vecs16:
     case MVE_VRSHL_by_vecs32:
     case MVE_VRSHL_by_vecs8:

@@ -39,6 +39,7 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PluginLoader.h"
+#include "llvm/Support/Process.h"
 #include <cstdlib>
 
 using namespace lld;
@@ -54,7 +55,7 @@ enum Flavor {
   Wasm,      // -flavor wasm
 };
 
-LLVM_ATTRIBUTE_NORETURN static void die(const Twine &s) {
+[[noreturn]] static void die(const Twine &s) {
   llvm::errs() << s << "\n";
   exit(1);
 }
@@ -131,7 +132,7 @@ static Flavor parseFlavor(std::vector<const char *> &v) {
 
   // Deduct the flavor from argv[0].
   StringRef arg0 = path::filename(v[0]);
-  if (arg0.endswith_lower(".exe"))
+  if (arg0.endswith_insensitive(".exe"))
     arg0 = arg0.drop_back(4);
   return parseProgname(arg0);
 }
@@ -199,6 +200,7 @@ static unsigned inTestVerbosity() {
 
 int main(int argc, const char **argv) {
   InitLLVM x(argc, argv);
+  sys::Process::UseANSIEscapeCodes(true);
 
   // Not running in lit tests, just take the shortest codepath with global
   // exception handling and no memory cleanup on exit.

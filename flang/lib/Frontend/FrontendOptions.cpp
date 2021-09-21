@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang/Frontend/FrontendOptions.h"
-#include "flang/Evaluate/expression.h"
 
 using namespace Fortran::frontend;
 
@@ -30,34 +29,6 @@ bool Fortran::frontend::mustBePreprocessed(llvm::StringRef suffix) {
   return suffix == "F" || suffix == "FOR" || suffix == "fpp" ||
       suffix == "FPP" || suffix == "F90" || suffix == "F95" ||
       suffix == "F03" || suffix == "F08" || suffix == "F18";
-}
-
-// TODO: This is a copy of `asFortran` from f18.cpp and is added here for
-// compatiblity. It doesn't really belong here, but I couldn't find a better
-// place. We should decide whether to add it to the Evaluate or Parse/Unparse
-// APIs or some dedicated utility library in the driver.
-Fortran::parser::AnalyzedObjectsAsFortran
-Fortran::frontend::getBasicAsFortran() {
-  return Fortran::parser::AnalyzedObjectsAsFortran{
-      [](llvm::raw_ostream &o, const Fortran::evaluate::GenericExprWrapper &x) {
-        if (x.v) {
-          x.v->AsFortran(o);
-        } else {
-          o << "(bad expression)";
-        }
-      },
-      [](llvm::raw_ostream &o,
-          const Fortran::evaluate::GenericAssignmentWrapper &x) {
-        if (x.v) {
-          x.v->AsFortran(o);
-        } else {
-          o << "(bad assignment)";
-        }
-      },
-      [](llvm::raw_ostream &o, const Fortran::evaluate::ProcedureRef &x) {
-        x.AsFortran(o << "CALL ");
-      },
-  };
 }
 
 InputKind FrontendOptions::GetInputKindForExtension(llvm::StringRef extension) {

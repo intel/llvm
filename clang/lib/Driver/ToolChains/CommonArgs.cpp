@@ -17,7 +17,6 @@
 #include "Arch/X86.h"
 #include "HIP.h"
 #include "Hexagon.h"
-#include "InputInfo.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/ObjCRuntime.h"
@@ -27,6 +26,7 @@
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Job.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
@@ -274,6 +274,15 @@ void tools::AddLinkerInputs(const ToolChain &TC, const InputInfoList &Inputs,
       // Pass -z prefix for gcc linker compatibility.
       A.claim();
       A.render(Args, CmdArgs);
+    } else if (A.getOption().matches(options::OPT_b)) {
+      const llvm::Triple &T = TC.getTriple();
+      if (!T.isOSAIX()) {
+        TC.getDriver().Diag(diag::err_drv_unsupported_opt_for_target)
+            << A.getSpelling() << T.str();
+      }
+      // Pass -b prefix for AIX linker.
+      A.claim();
+      A.render(Args, CmdArgs);
     } else {
       A.renderAsInput(Args, CmdArgs);
     }
@@ -354,8 +363,8 @@ static StringRef getWebAssemblyTargetCPU(const ArgList &Args) {
   return "generic";
 }
 
-std::string tools::getCPUName(const ArgList &Args, const llvm::Triple &T,
-                              bool FromAs) {
+std::string tools::getCPUName(const Driver &D, const ArgList &Args,
+                              const llvm::Triple &T, bool FromAs) {
   Arg *A;
 
   switch (T.getArch()) {
@@ -411,14 +420,9 @@ std::string tools::getCPUName(const ArgList &Args, const llvm::Triple &T,
     if (!TargetCPUName.empty())
       return TargetCPUName;
 
-    if (T.isOSAIX()) {
-      unsigned major, minor, unused_micro;
-      T.getOSVersion(major, minor, unused_micro);
-      // The minimal arch level moved from pwr4 for AIX7.1 to
-      // pwr7 for AIX7.2.
-      TargetCPUName =
-          (major < 7 || (major == 7 && minor < 2)) ? "pwr4" : "pwr7";
-    } else if (T.getArch() == llvm::Triple::ppc64le)
+    if (T.isOSAIX())
+      TargetCPUName = "pwr7";
+    else if (T.getArch() == llvm::Triple::ppc64le)
       TargetCPUName = "ppc64le";
     else if (T.getArch() == llvm::Triple::ppc64)
       TargetCPUName = "ppc64";
@@ -446,7 +450,7 @@ std::string tools::getCPUName(const ArgList &Args, const llvm::Triple &T,
 
   case llvm::Triple::x86:
   case llvm::Triple::x86_64:
-    return x86::getX86TargetCPU(Args, T);
+    return x86::getX86TargetCPU(D, Args, T);
 
   case llvm::Triple::hexagon:
     return "hexagon" +
@@ -514,7 +518,7 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
   // the plugin.
 
   // Handle flags for selecting CPU variants.
-  std::string CPU = getCPUName(Args, ToolChain.getTriple());
+  std::string CPU = getCPUName(D, Args, ToolChain.getTriple());
   if (!CPU.empty())
     CmdArgs.push_back(Args.MakeArgString(Twine("-plugin-opt=mcpu=") + CPU));
 
@@ -665,7 +669,7 @@ void tools::addArchSpecificRPath(const ToolChain &TC, const ArgList &Args,
   std::string CandidateRPath = TC.getArchSpecificLibPath();
   if (TC.getVFS().exists(CandidateRPath)) {
     CmdArgs.push_back("-rpath");
-    CmdArgs.push_back(Args.MakeArgString(CandidateRPath.c_str()));
+    CmdArgs.push_back(Args.MakeArgString(CandidateRPath));
   }
 }
 
@@ -737,11 +741,6 @@ static bool addSanitizerDynamicList(const ToolChain &TC, const ArgList &Args,
   // the option, so don't try to pass it.
   if (TC.getTriple().getOS() == llvm::Triple::Solaris)
     return true;
-  // Myriad is static linking only.  Furthermore, some versions of its
-  // linker have the bug where --export-dynamic overrides -static, so
-  // don't use --export-dynamic on that platform.
-  if (TC.getTriple().getVendor() == llvm::Triple::Myriad)
-    return true;
   SmallString<128> SanRT(TC.getCompilerRT(Args, Sanitizer));
   if (llvm::sys::fs::exists(SanRT + ".syms")) {
     CmdArgs.push_back(Args.MakeArgString("--dynamic-list=" + SanRT + ".syms"));
@@ -751,6 +750,9 @@ static bool addSanitizerDynamicList(const ToolChain &TC, const ArgList &Args,
 }
 
 static const char *getAsNeededOption(const ToolChain &TC, bool as_needed) {
+  assert(!TC.getTriple().isOSAIX() &&
+         "AIX linker does not support any form of --as-needed option yet.");
+
   // While the Solaris 11.2 ld added --as-needed/--no-as-needed as aliases
   // for the native forms -z ignore/-z record, they are missing in Illumos,
   // so always use the native form.
@@ -779,14 +781,14 @@ void tools::linkSanitizerRuntimeDeps(const ToolChain &TC,
   }
   CmdArgs.push_back("-lm");
   // There's no libdl on all OSes.
-  if (!TC.getTriple().isOSFreeBSD() &&
-      !TC.getTriple().isOSNetBSD() &&
+  if (!TC.getTriple().isOSFreeBSD() && !TC.getTriple().isOSNetBSD() &&
       !TC.getTriple().isOSOpenBSD() &&
-       TC.getTriple().getOS() != llvm::Triple::RTEMS)
+      TC.getTriple().getOS() != llvm::Triple::RTEMS)
     CmdArgs.push_back("-ldl");
   // Required for backtrace on some OSes
   if (TC.getTriple().isOSFreeBSD() ||
-      TC.getTriple().isOSNetBSD())
+      TC.getTriple().isOSNetBSD() ||
+      TC.getTriple().isOSOpenBSD())
     CmdArgs.push_back("-lexecinfo");
 }
 
@@ -1437,7 +1439,8 @@ static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
 
   LibGccType LGT = getLibGccType(TC, D, Args);
   bool AsNeeded = LGT == LibGccType::UnspecifiedLibGcc &&
-                  !TC.getTriple().isAndroid() && !TC.getTriple().isOSCygMing();
+                  !TC.getTriple().isAndroid() &&
+                  !TC.getTriple().isOSCygMing() && !TC.getTriple().isOSAIX();
   if (AsNeeded)
     CmdArgs.push_back(getAsNeededOption(TC, true));
 
@@ -1452,17 +1455,23 @@ static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
     break;
   }
   case ToolChain::UNW_CompilerRT:
-    if (LGT == LibGccType::StaticLibGcc)
+    if (TC.getTriple().isOSAIX()) {
+      // AIX only has libunwind as a shared library. So do not pass
+      // anything in if -static is specified.
+      if (LGT != LibGccType::StaticLibGcc)
+        CmdArgs.push_back("-lunwind");
+    } else if (LGT == LibGccType::StaticLibGcc) {
       CmdArgs.push_back("-l:libunwind.a");
-    else if (TC.getTriple().isOSCygMing()) {
+    } else if (TC.getTriple().isOSCygMing()) {
       if (LGT == LibGccType::SharedLibGcc)
         CmdArgs.push_back("-l:libunwind.dll.a");
       else
         // Let the linker choose between libunwind.dll.a and libunwind.a
         // depending on what's available, and depending on the -static flag
         CmdArgs.push_back("-lunwind");
-    } else
+    } else {
       CmdArgs.push_back("-l:libunwind.so");
+    }
     break;
   }
 
@@ -1688,6 +1697,12 @@ void tools::addOpenMPDeviceRTL(const Driver &D,
                                StringRef BitcodeSuffix,
                                const llvm::Triple &Triple) {
   SmallVector<StringRef, 8> LibraryPaths;
+
+  // Add path to clang lib / lib64 folder.
+  SmallString<256> DefaultLibPath = llvm::sys::path::parent_path(D.Dir);
+  llvm::sys::path::append(DefaultLibPath, Twine("lib") + CLANG_LIBDIR_SUFFIX);
+  LibraryPaths.emplace_back(DefaultLibPath.c_str());
+
   // Add user defined library paths from LIBRARY_PATH.
   llvm::Optional<std::string> LibPath =
       llvm::sys::Process::GetEnv("LIBRARY_PATH");
@@ -1699,31 +1714,30 @@ void tools::addOpenMPDeviceRTL(const Driver &D,
       LibraryPaths.emplace_back(Path.trim());
   }
 
-  // Add path to lib / lib64 folder.
-  SmallString<256> DefaultLibPath = llvm::sys::path::parent_path(D.Dir);
-  llvm::sys::path::append(DefaultLibPath, Twine("lib") + CLANG_LIBDIR_SUFFIX);
-  LibraryPaths.emplace_back(DefaultLibPath.c_str());
-
   OptSpecifier LibomptargetBCPathOpt =
       Triple.isAMDGCN() ? options::OPT_libomptarget_amdgcn_bc_path_EQ
                         : options::OPT_libomptarget_nvptx_bc_path_EQ;
 
   StringRef ArchPrefix = Triple.isAMDGCN() ? "amdgcn" : "nvptx";
+  std::string LibOmpTargetName = "libomptarget-" + BitcodeSuffix.str() + ".bc";
+
   // First check whether user specifies bc library
   if (const Arg *A = DriverArgs.getLastArg(LibomptargetBCPathOpt)) {
-    std::string LibOmpTargetName(A->getValue());
-    if (llvm::sys::fs::exists(LibOmpTargetName)) {
+    SmallString<128> LibOmpTargetFile(A->getValue());
+    if (llvm::sys::fs::exists(LibOmpTargetFile) &&
+        llvm::sys::fs::is_directory(LibOmpTargetFile)) {
+      llvm::sys::path::append(LibOmpTargetFile, LibOmpTargetName);
+    }
+
+    if (llvm::sys::fs::exists(LibOmpTargetFile)) {
       CC1Args.push_back("-mlink-builtin-bitcode");
-      CC1Args.push_back(DriverArgs.MakeArgString(LibOmpTargetName));
+      CC1Args.push_back(DriverArgs.MakeArgString(LibOmpTargetFile));
     } else {
       D.Diag(diag::err_drv_omp_offload_target_bcruntime_not_found)
-          << LibOmpTargetName;
+          << LibOmpTargetFile;
     }
   } else {
     bool FoundBCLibrary = false;
-
-    std::string LibOmpTargetName =
-        "libomptarget-" + BitcodeSuffix.str() + ".bc";
 
     for (StringRef LibraryPath : LibraryPaths) {
       SmallString<128> LibOmpTargetFile(LibraryPath);

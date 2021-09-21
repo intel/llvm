@@ -213,6 +213,9 @@ public:
     ///             where N = size(What)
     RangeSet negate(RangeSet What);
 
+    /// Return associated value factory.
+    BasicValueFactory &getValueFactory() const { return ValueFactory; }
+
   private:
     /// Return a persistent version of the given container.
     RangeSet makePersistent(ContainerType &&From);
@@ -256,7 +259,7 @@ public:
   ///  by FoldingSet.
   void Profile(llvm::FoldingSetNodeID &ID) const { Profile(ID, *this); }
 
-  /// getConcreteValue - If a symbol is contrained to equal a specific integer
+  /// getConcreteValue - If a symbol is constrained to equal a specific integer
   ///  constant then this method returns that value.  Otherwise, it returns
   ///  NULL.
   const llvm::APSInt *getConcreteValue() const {
@@ -383,6 +386,11 @@ protected:
 private:
   static void computeAdjustment(SymbolRef &Sym, llvm::APSInt &Adjustment);
 };
+
+/// Try to simplify a given symbolic expression's associated value based on the
+/// constraints in State. This is needed because the Environment bindings are
+/// not getting updated when a new constraint is added to the State.
+SymbolRef simplify(ProgramStateRef State, SymbolRef Sym);
 
 } // namespace ento
 } // namespace clang

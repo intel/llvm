@@ -118,7 +118,9 @@ public:
       return;
     }
     if (Ty.isVector()) {
-      OS << "GILLT_v" << Ty.getNumElements() << "s" << Ty.getScalarSizeInBits();
+      OS << (Ty.isScalable() ? "GILLT_nxv" : "GILLT_v")
+         << Ty.getElementCount().getKnownMinValue() << "s"
+         << Ty.getScalarSizeInBits();
       return;
     }
     if (Ty.isPointer()) {
@@ -136,7 +138,10 @@ public:
       return;
     }
     if (Ty.isVector()) {
-      OS << "LLT::vector(" << Ty.getNumElements() << ", "
+      OS << "LLT::vector("
+         << (Ty.isScalable() ? "ElementCount::getScalable("
+                             : "ElementCount::getFixed(")
+         << Ty.getElementCount().getKnownMinValue() << "), "
          << Ty.getScalarSizeInBits() << ")";
       return;
     }
@@ -169,10 +174,21 @@ public:
     if (Ty.isPointer() && Ty.getAddressSpace() != Other.Ty.getAddressSpace())
       return Ty.getAddressSpace() < Other.Ty.getAddressSpace();
 
-    if (Ty.isVector() && Ty.getNumElements() != Other.Ty.getNumElements())
-      return Ty.getNumElements() < Other.Ty.getNumElements();
+    if (Ty.isVector() && Ty.getElementCount() != Other.Ty.getElementCount())
+      return std::make_tuple(Ty.isScalable(),
+                             Ty.getElementCount().getKnownMinValue()) <
+             std::make_tuple(Other.Ty.isScalable(),
+                             Other.Ty.getElementCount().getKnownMinValue());
 
-    return Ty.getSizeInBits() < Other.Ty.getSizeInBits();
+    assert((!Ty.isVector() || Ty.isScalable() == Other.Ty.isScalable()) &&
+           "Unexpected mismatch of scalable property");
+    return Ty.isVector()
+               ? std::make_tuple(Ty.isScalable(),
+                                 Ty.getSizeInBits().getKnownMinSize()) <
+                     std::make_tuple(Other.Ty.isScalable(),
+                                     Other.Ty.getSizeInBits().getKnownMinSize())
+               : Ty.getSizeInBits().getFixedSize() <
+                     Other.Ty.getSizeInBits().getFixedSize();
   }
 
   bool operator==(const LLTCodeGen &B) const { return Ty == B.Ty; }
@@ -187,12 +203,9 @@ class InstructionMatcher;
 static Optional<LLTCodeGen> MVTToLLT(MVT::SimpleValueType SVT) {
   MVT VT(SVT);
 
-  if (VT.isScalableVector())
-    return None;
-
-  if (VT.isFixedLengthVector() && VT.getVectorNumElements() != 1)
+  if (VT.isVector() && !VT.getVectorElementCount().isScalar())
     return LLTCodeGen(
-        LLT::vector(VT.getVectorNumElements(), VT.getScalarSizeInBits()));
+        LLT::vector(VT.getVectorElementCount(), VT.getScalarSizeInBits()));
 
   if (VT.isInteger() || VT.isFloatingPoint())
     return LLTCodeGen(LLT::scalar(VT.getSizeInBits()));
@@ -3781,7 +3794,8 @@ Optional<unsigned> GlobalISelEmitter::getMemSizeBitsFromPredicate(const TreePred
     return None;
 
   // Align so unusual types like i1 don't get rounded down.
-  return llvm::alignTo(MemTyOrNone->get().getSizeInBits(), 8);
+  return llvm::alignTo(
+      static_cast<unsigned>(MemTyOrNone->get().getSizeInBits()), 8);
 }
 
 Expected<InstructionMatcher &> GlobalISelEmitter::addBuiltinPredicates(

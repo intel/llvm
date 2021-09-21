@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device \
-// RUN:   -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice \
+// RUN:   -internal-isystem %S/Inputs -triple spir64-unknown-unknown \
 // RUN:   -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 // This test checks
@@ -26,7 +26,7 @@ void test(int val) {
   });
 
   // --- Name
-  // CHECK-LABEL: define {{.*}}spir_kernel void @"_ZTSZZ4testiENK3$_0clERN2cl4sycl7handlerEE12esimd_kernel"(
+  // CHECK-LABEL: define {{.*}}spir_kernel void @_ZTSZZ4testiENKUlRN2cl4sycl7handlerEE_clES2_E12esimd_kernel(
   // --- Attributes
   // CHECK: {{.*}} !kernel_arg_accessor_ptr ![[ACC_PTR_ATTR:[0-9]+]] !sycl_explicit_simd !{{[0-9]+}} {{.*}}{
   // --- init_esimd call is expected instead of __init:

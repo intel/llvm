@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "assume-queries"
-
 #include "llvm/Analysis/AssumeBundleQueries.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AssumptionCache.h"
@@ -17,6 +15,8 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/DebugCounter.h"
+
+#define DEBUG_TYPE "assume-queries"
 
 using namespace llvm;
 using namespace llvm::PatternMatch;
@@ -44,7 +44,7 @@ bool llvm::hasAttributeInAssume(AssumeInst &Assume, Value *IsOn,
                                 StringRef AttrName, uint64_t *ArgVal) {
   assert(Attribute::isExistingAttribute(AttrName) &&
          "this attribute doesn't exist");
-  assert((ArgVal == nullptr || Attribute::doesAttrKindHaveArgument(
+  assert((ArgVal == nullptr || Attribute::isIntAttrKind(
                                    Attribute::getAttrKindFromName(AttrName))) &&
          "requested value for an attribute that has no argument");
   if (Assume.bundle_op_infos().empty())
@@ -130,10 +130,10 @@ bool llvm::isAssumeWithEmptyBundle(AssumeInst &Assume) {
 }
 
 static CallInst::BundleOpInfo *getBundleFromUse(const Use *U) {
-  auto *Intr = dyn_cast<IntrinsicInst>(U->getUser());
   if (!match(U->getUser(),
              m_Intrinsic<Intrinsic::assume>(m_Unless(m_Specific(U->get())))))
     return nullptr;
+  auto *Intr = cast<IntrinsicInst>(U->getUser());
   return &Intr->getBundleOpInfoForOperand(U->getOperandNo());
 }
 

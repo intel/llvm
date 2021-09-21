@@ -32,6 +32,8 @@ public:
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override;
 
     size_t m_thread_buffer_size;
+    bool m_enable_tsc;
+    llvm::Optional<size_t> m_psb_period;
   };
 
   CommandObjectThreadTraceStartIntelPT(TraceIntelPT &trace,
@@ -53,7 +55,7 @@ public:
 
 protected:
   bool DoExecuteOnThreads(Args &command, CommandReturnObject &result,
-                          const std::vector<lldb::tid_t> &tids) override;
+                          llvm::ArrayRef<lldb::tid_t> tids) override;
 
   TraceIntelPT &m_trace;
   CommandOptions m_options;
@@ -74,6 +76,8 @@ public:
 
     size_t m_thread_buffer_size;
     size_t m_process_buffer_size_limit;
+    bool m_enable_tsc;
+    llvm::Optional<size_t> m_psb_period;
   };
 
   CommandObjectProcessTraceStartIntelPT(TraceIntelPT &trace,

@@ -20,7 +20,8 @@
 using namespace llvm;
 using namespace gsym;
 
-GsymCreator::GsymCreator() : StrTab(StringTableBuilder::ELF) {
+GsymCreator::GsymCreator(bool Quiet)
+    : StrTab(StringTableBuilder::ELF), Quiet(Quiet) {
   insertFile(StringRef());
 }
 
@@ -223,9 +224,13 @@ llvm::Error GsymCreator::finalize(llvm::raw_ostream &OS) {
   Funcs.erase(
       removeIfBinary(Funcs.begin(), Funcs.end(),
                      [&](const auto &Prev, const auto &Curr) {
-                       if (Prev.Range.intersects(Curr.Range)) {
-                         // Overlapping address ranges.
-                         if (Prev.Range == Curr.Range) {
+                       // Empty ranges won't intersect, but we still need to
+                       // catch the case where we have multiple symbols at the
+                       // same address and coalesce them.
+                       const bool ranges_equal = Prev.Range == Curr.Range;
+                       if (ranges_equal || Prev.Range.intersects(Curr.Range)) {
+                         // Overlapping ranges or empty identical ranges.
+                         if (ranges_equal) {
                            // Same address range. Check if one is from debug
                            // info and the other is from a symbol table. If
                            // so, then keep the one with debug info. Our
@@ -248,25 +253,30 @@ llvm::Error GsymCreator::finalize(llvm::raw_ostream &OS) {
                                // the latter.
                                return true;
                              } else {
-                               OS << "warning: same address range contains "
-                                     "different debug "
-                                  << "info. Removing:\n"
-                                  << Prev << "\nIn favor of this one:\n"
-                                  << Curr << "\n";
+                               if (!Quiet) {
+                                 OS << "warning: same address range contains "
+                                       "different debug "
+                                    << "info. Removing:\n"
+                                    << Prev << "\nIn favor of this one:\n"
+                                    << Curr << "\n";
+                               }
                                return true;
                              }
                            }
                          } else {
-                           // print warnings about overlaps
-                           OS << "warning: function ranges overlap:\n"
-                              << Prev << "\n"
-                              << Curr << "\n";
+                           if (!Quiet) { // print warnings about overlaps
+                             OS << "warning: function ranges overlap:\n"
+                                << Prev << "\n"
+                                << Curr << "\n";
+                           }
                          }
                        } else if (Prev.Range.size() == 0 &&
                                   Curr.Range.contains(Prev.Range.Start)) {
-                         OS << "warning: removing symbol:\n"
-                            << Prev << "\nKeeping:\n"
-                            << Curr << "\n";
+                         if (!Quiet) {
+                           OS << "warning: removing symbol:\n"
+                              << Prev << "\nKeeping:\n"
+                              << Curr << "\n";
+                         }
                          return true;
                        }
 

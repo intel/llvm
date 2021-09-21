@@ -25,6 +25,9 @@
 #include "kmp_str.h"
 #include "kmp_wrapper_getpid.h"
 #include <ctype.h> // toupper()
+#if OMPD_SUPPORT
+#include "ompd-specific.h"
+#endif
 
 static int __kmp_env_toPrint(char const *name, int flag);
 
@@ -161,7 +164,12 @@ int __kmp_convert_to_milliseconds(char const *data) {
     return (INT_MAX);
   value = (double)0.0;
   mult = '\0';
+#if KMP_OS_WINDOWS && KMP_MSVC_COMPAT
+  // On Windows, each %c parameter needs additional size parameter for sscanf_s
+  nvalues = KMP_SSCANF(data, "%lf%c%c", &value, &mult, 1, &extra, 1);
+#else
   nvalues = KMP_SSCANF(data, "%lf%c%c", &value, &mult, &extra);
+#endif
   if (nvalues < 1)
     return (-1);
   if (nvalues == 1)
@@ -423,6 +431,7 @@ static void __kmp_stg_parse_par_range(char const *name, char const *value,
                                       int *out_range, char *out_routine,
                                       char *out_file, int *out_lb,
                                       int *out_ub) {
+  const char *par_range_value;
   size_t len = KMP_STRLEN(value) + 1;
   par_range_to_print = (char *)KMP_INTERNAL_MALLOC(len + 1);
   KMP_STRNCPY_S(par_range_to_print, len + 1, value, len + 1);
@@ -431,11 +440,14 @@ static void __kmp_stg_parse_par_range(char const *name, char const *value,
   __kmp_par_range_ub = INT_MAX;
   for (;;) {
     unsigned int len;
-    if (*value == '\0') {
+    if (!value || *value == '\0') {
       break;
     }
     if (!__kmp_strcasecmp_with_sentinel("routine", value, '=')) {
-      value = strchr(value, '=') + 1;
+      par_range_value = strchr(value, '=') + 1;
+      if (!par_range_value)
+        goto par_range_error;
+      value = par_range_value;
       len = __kmp_readstr_with_sentinel(out_routine, value,
                                         KMP_PAR_RANGE_ROUTINE_LEN - 1, ',');
       if (len == 0) {
@@ -448,7 +460,10 @@ static void __kmp_stg_parse_par_range(char const *name, char const *value,
       continue;
     }
     if (!__kmp_strcasecmp_with_sentinel("filename", value, '=')) {
-      value = strchr(value, '=') + 1;
+      par_range_value = strchr(value, '=') + 1;
+      if (!par_range_value)
+        goto par_range_error;
+      value = par_range_value;
       len = __kmp_readstr_with_sentinel(out_file, value,
                                         KMP_PAR_RANGE_FILENAME_LEN - 1, ',');
       if (len == 0) {
@@ -462,7 +477,10 @@ static void __kmp_stg_parse_par_range(char const *name, char const *value,
     }
     if ((!__kmp_strcasecmp_with_sentinel("range", value, '=')) ||
         (!__kmp_strcasecmp_with_sentinel("incl_range", value, '='))) {
-      value = strchr(value, '=') + 1;
+      par_range_value = strchr(value, '=') + 1;
+      if (!par_range_value)
+        goto par_range_error;
+      value = par_range_value;
       if (KMP_SSCANF(value, "%d:%d", out_lb, out_ub) != 2) {
         goto par_range_error;
       }
@@ -474,7 +492,10 @@ static void __kmp_stg_parse_par_range(char const *name, char const *value,
       continue;
     }
     if (!__kmp_strcasecmp_with_sentinel("excl_range", value, '=')) {
-      value = strchr(value, '=') + 1;
+      par_range_value = strchr(value, '=') + 1;
+      if (!par_range_value)
+        goto par_range_error;
+      value = par_range_value;
       if (KMP_SSCANF(value, "%d:%d", out_lb, out_ub) != 2) {
         goto par_range_error;
       }
@@ -1014,6 +1035,28 @@ static void __kmp_stg_print_warnings(kmp_str_buf_t *buffer, char const *name,
   // AC: TODO: change to print_int? (needs documentation change)
   __kmp_stg_print_bool(buffer, name, __kmp_generate_warnings);
 } // __kmp_stg_print_warnings
+
+// -----------------------------------------------------------------------------
+// KMP_NESTING_MODE
+
+static void __kmp_stg_parse_nesting_mode(char const *name, char const *value,
+                                         void *data) {
+  __kmp_stg_parse_int(name, value, 0, INT_MAX, &__kmp_nesting_mode);
+#if KMP_AFFINITY_SUPPORTED && KMP_USE_HWLOC
+  if (__kmp_nesting_mode > 0)
+    __kmp_affinity_top_method = affinity_top_method_hwloc;
+#endif
+} // __kmp_stg_parse_nesting_mode
+
+static void __kmp_stg_print_nesting_mode(kmp_str_buf_t *buffer,
+                                         char const *name, void *data) {
+  if (__kmp_env_format) {
+    KMP_STR_BUF_PRINT_NAME;
+  } else {
+    __kmp_str_buf_print(buffer, "   %s", name);
+  }
+  __kmp_str_buf_print(buffer, "=%d\n", __kmp_nesting_mode);
+} // __kmp_stg_print_nesting_mode
 
 // -----------------------------------------------------------------------------
 // OMP_NESTED, OMP_NUM_THREADS
@@ -1659,6 +1702,8 @@ static void __kmp_stg_parse_barrier_pattern(char const *name, char const *value,
   const char *var;
   /* ---------- Barrier method control ------------ */
 
+  static int dist_req = 0, non_dist_req = 0;
+  static bool warn = 1;
   for (int i = bs_plain_barrier; i < bs_last_barrier; i++) {
     var = __kmp_barrier_pattern_env_name[i];
 
@@ -1670,6 +1715,11 @@ static void __kmp_stg_parse_barrier_pattern(char const *name, char const *value,
       for (j = bp_linear_bar; j < bp_last_bar; j++) {
         if (__kmp_match_with_sentinel(__kmp_barrier_pattern_name[j], value, 1,
                                       ',')) {
+          if (j == bp_dist_bar) {
+            dist_req++;
+          } else {
+            non_dist_req++;
+          }
           __kmp_barrier_gather_pattern[i] = (kmp_bar_pat_e)j;
           break;
         }
@@ -1684,6 +1734,11 @@ static void __kmp_stg_parse_barrier_pattern(char const *name, char const *value,
       if (comma != NULL) {
         for (j = bp_linear_bar; j < bp_last_bar; j++) {
           if (__kmp_str_match(__kmp_barrier_pattern_name[j], 1, comma + 1)) {
+            if (j == bp_dist_bar) {
+              dist_req++;
+            } else {
+              non_dist_req++;
+            }
             __kmp_barrier_release_pattern[i] = (kmp_bar_pat_e)j;
             break;
           }
@@ -1696,6 +1751,28 @@ static void __kmp_stg_parse_barrier_pattern(char const *name, char const *value,
                      __kmp_barrier_pattern_name[bp_linear_bar]);
         }
       }
+    }
+  }
+  if ((dist_req == 0) && (non_dist_req != 0)) {
+    // Something was set to a barrier other than dist; set all others to hyper
+    for (int i = bs_plain_barrier; i < bs_last_barrier; i++) {
+      if (__kmp_barrier_release_pattern[i] == bp_dist_bar)
+        __kmp_barrier_release_pattern[i] = bp_hyper_bar;
+      if (__kmp_barrier_gather_pattern[i] == bp_dist_bar)
+        __kmp_barrier_gather_pattern[i] = bp_hyper_bar;
+    }
+  } else if (non_dist_req != 0) {
+    // some requests for dist, plus requests for others; set all to dist
+    if (non_dist_req > 0 && dist_req > 0 && warn) {
+      KMP_INFORM(BarrierPatternOverride, name,
+                 __kmp_barrier_pattern_name[bp_dist_bar]);
+      warn = 0;
+    }
+    for (int i = bs_plain_barrier; i < bs_last_barrier; i++) {
+      if (__kmp_barrier_release_pattern[i] != bp_dist_bar)
+        __kmp_barrier_release_pattern[i] = bp_dist_bar;
+      if (__kmp_barrier_gather_pattern[i] != bp_dist_bar)
+        __kmp_barrier_gather_pattern[i] = bp_dist_bar;
     }
   }
 } // __kmp_stg_parse_barrier_pattern
@@ -1714,7 +1791,7 @@ static void __kmp_stg_print_barrier_pattern(kmp_str_buf_t *buffer,
         __kmp_str_buf_print(buffer, "   %s='",
                             __kmp_barrier_pattern_env_name[i]);
       }
-      KMP_DEBUG_ASSERT(j < bs_last_barrier && k < bs_last_barrier);
+      KMP_DEBUG_ASSERT(j < bp_last_bar && k < bp_last_bar);
       __kmp_str_buf_print(buffer, "%s,%s'\n", __kmp_barrier_pattern_name[j],
                           __kmp_barrier_pattern_name[k]);
     }
@@ -3963,8 +4040,11 @@ static const char *__kmp_parse_single_omp_schedule(const char *name,
   else if (!__kmp_strcasecmp_with_sentinel("static", ptr, *delim))
     sched = kmp_sch_static;
 #if KMP_STATIC_STEAL_ENABLED
-  else if (!__kmp_strcasecmp_with_sentinel("static_steal", ptr, *delim))
-    sched = kmp_sch_static_steal;
+  else if (!__kmp_strcasecmp_with_sentinel("static_steal", ptr, *delim)) {
+    // replace static_steal with dynamic to better cope with ordered loops
+    sched = kmp_sch_dynamic_chunked;
+    sched_modifier = sched_type::kmp_sch_modifier_nonmonotonic;
+  }
 #endif
   else {
     // If there is no proper schedule kind, then this schedule is invalid
@@ -5011,7 +5091,7 @@ static void __kmp_stg_print_omp_cancellation(kmp_str_buf_t *buffer,
 } // __kmp_stg_print_omp_cancellation
 
 #if OMPT_SUPPORT
-static int __kmp_tool = 1;
+int __kmp_tool = 1;
 
 static void __kmp_stg_parse_omp_tool(char const *name, char const *value,
                                      void *data) {
@@ -5028,7 +5108,7 @@ static void __kmp_stg_print_omp_tool(kmp_str_buf_t *buffer, char const *name,
   }
 } // __kmp_stg_print_omp_tool
 
-static char *__kmp_tool_libraries = NULL;
+char *__kmp_tool_libraries = NULL;
 
 static void __kmp_stg_parse_omp_tool_libraries(char const *name,
                                                char const *value, void *data) {
@@ -5049,7 +5129,7 @@ static void __kmp_stg_print_omp_tool_libraries(kmp_str_buf_t *buffer,
   }
 } // __kmp_stg_print_omp_tool_libraries
 
-static char *__kmp_tool_verbose_init = NULL;
+char *__kmp_tool_verbose_init = NULL;
 
 static void __kmp_stg_parse_omp_tool_verbose_init(char const *name,
                                                   char const *value,
@@ -5106,6 +5186,8 @@ static kmp_setting_t __kmp_stg_table[] = {
     {"KMP_WARNINGS", __kmp_stg_parse_warnings, __kmp_stg_print_warnings, NULL,
      0, 0},
 
+    {"KMP_NESTING_MODE", __kmp_stg_parse_nesting_mode,
+     __kmp_stg_print_nesting_mode, NULL, 0, 0},
     {"OMP_NESTED", __kmp_stg_parse_nested, __kmp_stg_print_nested, NULL, 0, 0},
     {"OMP_NUM_THREADS", __kmp_stg_parse_num_threads,
      __kmp_stg_print_num_threads, NULL, 0, 0},
@@ -6144,5 +6226,48 @@ void __kmp_display_env_impl(int display_env, int display_env_verbose) {
 
   __kmp_printf("\n");
 }
+
+#if OMPD_SUPPORT
+// Dump environment variables for OMPD
+void __kmp_env_dump() {
+
+  kmp_env_blk_t block;
+  kmp_str_buf_t buffer, env, notdefined;
+
+  __kmp_stg_init();
+  __kmp_str_buf_init(&buffer);
+  __kmp_str_buf_init(&env);
+  __kmp_str_buf_init(&notdefined);
+
+  __kmp_env_blk_init(&block, NULL);
+  __kmp_env_blk_sort(&block);
+
+  __kmp_str_buf_print(&notdefined, ": %s", KMP_I18N_STR(NotDefined));
+
+  for (int i = 0; i < __kmp_stg_count; ++i) {
+    if (__kmp_stg_table[i].print == NULL)
+      continue;
+    __kmp_str_buf_clear(&env);
+    __kmp_stg_table[i].print(&env, __kmp_stg_table[i].name,
+                             __kmp_stg_table[i].data);
+    if (env.used < 4) // valid definition must have indents (3) and a new line
+      continue;
+    if (strstr(env.str, notdefined.str))
+      // normalize the string
+      __kmp_str_buf_print(&buffer, "%s=undefined\n", __kmp_stg_table[i].name);
+    else
+      __kmp_str_buf_cat(&buffer, env.str + 3, env.used - 3);
+  }
+
+  ompd_env_block = (char *)__kmp_allocate(buffer.used + 1);
+  KMP_MEMCPY(ompd_env_block, buffer.str, buffer.used + 1);
+  ompd_env_block_size = (ompd_size_t)KMP_STRLEN(ompd_env_block);
+
+  __kmp_env_blk_free(&block);
+  __kmp_str_buf_free(&buffer);
+  __kmp_str_buf_free(&env);
+  __kmp_str_buf_free(&notdefined);
+}
+#endif // OMPD_SUPPORT
 
 // end of file

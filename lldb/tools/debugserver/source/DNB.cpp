@@ -11,12 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "DNB.h"
-#include <inttypes.h>
+#include <cinttypes>
+#include <csignal>
+#include <cstdio>
+#include <cstdlib>
 #include <libproc.h>
 #include <map>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/sysctl.h>
@@ -46,7 +46,6 @@
 #include "DNBLog.h"
 #include "DNBThreadResumeActions.h"
 #include "DNBTimer.h"
-#include "MacOSX/DarwinLog/DarwinLogCollector.h"
 #include "MacOSX/Genealogy.h"
 #include "MacOSX/MachProcess.h"
 #include "MacOSX/MachTask.h"
@@ -1658,10 +1657,6 @@ nub_size_t DNBProcessGetAvailableProfileData(nub_process_t pid, char *buf,
   if (GetProcessSP(pid, procSP))
     return procSP->GetAsyncProfileData(buf, buf_size);
   return 0;
-}
-
-DarwinLogEventVector DNBProcessGetAvailableDarwinLogEvents(nub_process_t pid) {
-  return DarwinLogCollector::GetEventsForProcess(pid);
 }
 
 nub_size_t DNBProcessGetStopCount(nub_process_t pid) {

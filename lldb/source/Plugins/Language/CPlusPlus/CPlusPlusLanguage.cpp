@@ -59,13 +59,45 @@ lldb_private::ConstString CPlusPlusLanguage::GetPluginNameStatic() {
   return g_name;
 }
 
+bool CPlusPlusLanguage::SymbolNameFitsToLanguage(Mangled mangled) const {
+  const char *mangled_name = mangled.GetMangledName().GetCString();
+  return mangled_name && CPlusPlusLanguage::IsCPPMangledName(mangled_name);
+}
+
+ConstString CPlusPlusLanguage::GetDemangledFunctionNameWithoutArguments(
+    Mangled mangled) const {
+  const char *mangled_name_cstr = mangled.GetMangledName().GetCString();
+  ConstString demangled_name = mangled.GetDemangledName();
+  if (demangled_name && mangled_name_cstr && mangled_name_cstr[0]) {
+    if (mangled_name_cstr[0] == '_' && mangled_name_cstr[1] == 'Z' &&
+        (mangled_name_cstr[2] != 'T' && // avoid virtual table, VTT structure,
+                                        // typeinfo structure, and typeinfo
+                                        // mangled_name
+         mangled_name_cstr[2] != 'G' && // avoid guard variables
+         mangled_name_cstr[2] != 'Z'))  // named local entities (if we
+                                        // eventually handle eSymbolTypeData,
+                                        // we will want this back)
+    {
+      CPlusPlusLanguage::MethodName cxx_method(demangled_name);
+      if (!cxx_method.GetBasename().empty()) {
+        std::string shortname;
+        if (!cxx_method.GetContext().empty())
+          shortname = cxx_method.GetContext().str() + "::";
+        shortname += cxx_method.GetBasename().str();
+        return ConstString(shortname);
+      }
+    }
+  }
+  if (demangled_name)
+    return demangled_name;
+  return mangled.GetMangledName();
+}
+
 // PluginInterface protocol
 
 lldb_private::ConstString CPlusPlusLanguage::GetPluginName() {
   return GetPluginNameStatic();
 }
-
-uint32_t CPlusPlusLanguage::GetPluginVersion() { return 1; }
 
 // Static Functions
 
@@ -1147,7 +1179,7 @@ bool CPlusPlusLanguage::IsSourceFile(llvm::StringRef file_path) const {
   const auto suffixes = {".cpp", ".cxx", ".c++", ".cc",  ".c",
                          ".h",   ".hh",  ".hpp", ".hxx", ".h++"};
   for (auto suffix : suffixes) {
-    if (file_path.endswith_lower(suffix))
+    if (file_path.endswith_insensitive(suffix))
       return true;
   }
 

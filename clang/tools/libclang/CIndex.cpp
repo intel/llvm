@@ -55,6 +55,7 @@
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/thread.h"
 #include <mutex>
 
 #if LLVM_ENABLE_THREADS != 0 && defined(__APPLE__)
@@ -1987,7 +1988,8 @@ public:
     return static_cast<const FieldDecl *>(data[0]);
   }
   SourceLocation getLoc() const {
-    return SourceLocation::getFromRawEncoding((unsigned)(uintptr_t)data[1]);
+    return SourceLocation::getFromRawEncoding(
+        (SourceLocation::UIntTy)(uintptr_t)data[1]);
   }
 };
 class EnqueueVisitor : public ConstStmtVisitor<EnqueueVisitor, void> {
@@ -2050,6 +2052,7 @@ public:
   void VisitOMPParallelDirective(const OMPParallelDirective *D);
   void VisitOMPSimdDirective(const OMPSimdDirective *D);
   void VisitOMPTileDirective(const OMPTileDirective *D);
+  void VisitOMPUnrollDirective(const OMPUnrollDirective *D);
   void VisitOMPForDirective(const OMPForDirective *D);
   void VisitOMPForSimdDirective(const OMPForSimdDirective *D);
   void VisitOMPSectionsDirective(const OMPSectionsDirective *D);
@@ -2226,6 +2229,12 @@ void OMPClauseEnqueue::VisitOMPSimdlenClause(const OMPSimdlenClause *C) {
 void OMPClauseEnqueue::VisitOMPSizesClause(const OMPSizesClause *C) {
   for (auto E : C->getSizesRefs())
     Visitor->AddStmt(E);
+}
+
+void OMPClauseEnqueue::VisitOMPFullClause(const OMPFullClause *C) {}
+
+void OMPClauseEnqueue::VisitOMPPartialClause(const OMPPartialClause *C) {
+  Visitor->AddStmt(C->getFactor());
 }
 
 void OMPClauseEnqueue::VisitOMPAllocatorClause(const OMPAllocatorClause *C) {
@@ -2898,6 +2907,10 @@ void EnqueueVisitor::VisitOMPSimdDirective(const OMPSimdDirective *D) {
 }
 
 void EnqueueVisitor::VisitOMPTileDirective(const OMPTileDirective *D) {
+  VisitOMPLoopBasedDirective(D);
+}
+
+void EnqueueVisitor::VisitOMPUnrollDirective(const OMPUnrollDirective *D) {
   VisitOMPLoopBasedDirective(D);
 }
 
@@ -5580,6 +5593,8 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
     return cxstring::createRef("OMPSimdDirective");
   case CXCursor_OMPTileDirective:
     return cxstring::createRef("OMPTileDirective");
+  case CXCursor_OMPUnrollDirective:
+    return cxstring::createRef("OMPUnrollDirective");
   case CXCursor_OMPForDirective:
     return cxstring::createRef("OMPForDirective");
   case CXCursor_OMPForSimdDirective:
@@ -6471,6 +6486,7 @@ CXCursor clang_getCursorDefinition(CXCursor C) {
   case Decl::Concept:
   case Decl::LifetimeExtendedTemporary:
   case Decl::RequiresExprBody:
+  case Decl::UnresolvedUsingIfExists:
     return C;
 
   // Declaration kinds that don't make any sense here, but are
@@ -6545,7 +6561,8 @@ CXCursor clang_getCursorDefinition(CXCursor C) {
   }
 
   case Decl::Using:
-    return MakeCursorOverloadedDeclRef(cast<UsingDecl>(D), D->getLocation(),
+  case Decl::UsingEnum:
+    return MakeCursorOverloadedDeclRef(cast<BaseUsingDecl>(D), D->getLocation(),
                                        TU);
 
   case Decl::UsingShadow:
@@ -6775,10 +6792,10 @@ void clang_enableStackTraces(void) {
 
 void clang_executeOnThread(void (*fn)(void *), void *user_data,
                            unsigned stack_size) {
-  llvm::llvm_execute_on_thread(fn, user_data,
-                               stack_size == 0
-                                   ? clang::DesiredStackSize
-                                   : llvm::Optional<unsigned>(stack_size));
+  llvm::thread Thread(stack_size == 0 ? clang::DesiredStackSize
+                                      : llvm::Optional<unsigned>(stack_size),
+                      fn, user_data);
+  Thread.join();
 }
 
 //===----------------------------------------------------------------------===//

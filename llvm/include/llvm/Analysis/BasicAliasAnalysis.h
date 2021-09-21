@@ -116,6 +116,9 @@ private:
     // Context instruction to use when querying information about this index.
     const Instruction *CxtI;
 
+    /// True if all operations in this expression are NSW.
+    bool IsNSW;
+
     void dump() const {
       print(dbgs());
       dbgs() << "\n";
@@ -183,10 +186,6 @@ private:
   static DecomposedGEP
   DecomposeGEPExpression(const Value *V, const DataLayout &DL,
                          AssumptionCache *AC, DominatorTree *DT);
-
-  static bool isGEPBaseAtNegativeOffset(const GEPOperator *GEPOp,
-      const DecomposedGEP &DecompGEP, const DecomposedGEP &DecompObject,
-      LocationSize ObjectAccessSize);
 
   /// A Heuristic for aliasGEP that searches for a constant offset
   /// between the variables.

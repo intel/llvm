@@ -263,7 +263,7 @@ TEST_F(AArch64GISelMITest, TestKnownBitsPtrToIntViceVersa) {
 TEST_F(AArch64GISelMITest, TestKnownBitsAND) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load 1)
+   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load (s8))
    %mask0:_(s8) = G_CONSTANT i8 52
    %mask1:_(s8) = G_CONSTANT i8 10
    %tmp0:_(s8) = G_AND %unknown, %mask0
@@ -295,7 +295,7 @@ TEST_F(AArch64GISelMITest, TestKnownBitsAND) {
 TEST_F(AArch64GISelMITest, TestKnownBitsOR) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load 1)
+   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load (s8))
    %mask0:_(s8) = G_CONSTANT i8 52
    %mask1:_(s8) = G_CONSTANT i8 10
    %tmp0:_(s8) = G_AND %unknown, %mask0
@@ -327,7 +327,7 @@ TEST_F(AArch64GISelMITest, TestKnownBitsOR) {
 TEST_F(AArch64GISelMITest, TestKnownBitsXOR) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load 1)
+   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load (s8))
    %mask0:_(s8) = G_CONSTANT i8 52
    %mask1:_(s8) = G_CONSTANT i8 10
    %tmp0:_(s8) = G_AND %unknown, %mask0
@@ -378,7 +378,7 @@ TEST_F(AArch64GISelMITest, TestKnownBitsXORConstant) {
 TEST_F(AArch64GISelMITest, TestKnownBitsASHR) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load 1)
+   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load (s8))
    %mask0:_(s8) = G_CONSTANT i8 38
    %mask1:_(s8) = G_CONSTANT i8 202
    %tmp0:_(s8) = G_AND %unknown, %mask0
@@ -422,7 +422,7 @@ TEST_F(AArch64GISelMITest, TestKnownBitsASHR) {
 TEST_F(AArch64GISelMITest, TestKnownBitsLSHR) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load 1)
+   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load (s8))
    %mask0:_(s8) = G_CONSTANT i8 38
    %mask1:_(s8) = G_CONSTANT i8 202
    %tmp0:_(s8) = G_AND %unknown, %mask0
@@ -466,7 +466,7 @@ TEST_F(AArch64GISelMITest, TestKnownBitsLSHR) {
 TEST_F(AArch64GISelMITest, TestKnownBitsSHL) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load 1)
+   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load (s8))
    %mask0:_(s8) = G_CONSTANT i8 51
    %mask1:_(s8) = G_CONSTANT i8 72
    %tmp:_(s8) = G_AND %unknown, %mask0
@@ -494,7 +494,7 @@ TEST_F(AArch64GISelMITest, TestKnownBitsSHL) {
 TEST_F(AArch64GISelMITest, TestKnownBitsADD) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %unknown:_(s16) = G_LOAD %ptr(p0) :: (load 2)
+   %unknown:_(s16) = G_LOAD %ptr(p0) :: (load (s16))
    %mask0:_(s16) = G_CONSTANT i16 4642
    %mask1:_(s16) = G_CONSTANT i16 9536
    %tmp0:_(s16) = G_AND %unknown, %mask0
@@ -527,7 +527,7 @@ TEST_F(AArch64GISelMITest, TestKnownBitsADD) {
 TEST_F(AArch64GISelMITest, TestKnownBitsSUB) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %unknown:_(s16) = G_LOAD %ptr(p0) :: (load 2)
+   %unknown:_(s16) = G_LOAD %ptr(p0) :: (load (s16))
    %mask0:_(s16) = G_CONSTANT i16 4642
    %mask1:_(s16) = G_CONSTANT i16 9536
    %tmp0:_(s16) = G_AND %unknown, %mask0
@@ -557,7 +557,7 @@ TEST_F(AArch64GISelMITest, TestKnownBitsSUB) {
 TEST_F(AArch64GISelMITest, TestKnownBitsMUL) {
   StringRef MIRString = R"(
    %ptr0:_(p0) = G_IMPLICIT_DEF
-   %load0:_(s16) = G_LOAD %ptr0(p0) :: (load 2)
+   %load0:_(s16) = G_LOAD %ptr0(p0) :: (load (s16))
    %mask0:_(s16) = G_CONSTANT i16 4
    %mask1:_(s16) = G_CONSTANT i16 18
    %tmp:_(s16) = G_AND %load0, %mask0
@@ -636,7 +636,7 @@ TEST_F(AArch64GISelMITest, TestKnownBitsFCMP) {
 TEST_F(AArch64GISelMITest, TestKnownBitsSelect) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load 1)
+   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load (s8))
    %mask0:_(s8) = G_CONSTANT i8 24
    %mask1:_(s8) = G_CONSTANT i8 224
    %tmp0:_(s8) = G_AND %unknown, %mask0
@@ -747,7 +747,7 @@ TEST_F(AArch64GISelMITest, TestNumSignBitsConstant) {
 
 TEST_F(AArch64GISelMITest, TestNumSignBitsSext) {
   StringRef MIRString = "  %3:_(p0) = G_IMPLICIT_DEF\n"
-                        "  %4:_(s8) = G_LOAD %3 :: (load 1)\n"
+                        "  %4:_(s8) = G_LOAD %3 :: (load (s8))\n"
                         "  %5:_(s32) = G_SEXT %4\n"
                         "  %6:_(s32) = COPY %5\n"
 
@@ -768,7 +768,7 @@ TEST_F(AArch64GISelMITest, TestNumSignBitsSext) {
 TEST_F(AArch64GISelMITest, TestNumSignBitsSextInReg) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %load4:_(s32) = G_LOAD %ptr :: (load 4)
+   %load4:_(s32) = G_LOAD %ptr :: (load (s32))
 
    %inreg7:_(s32) = G_SEXT_INREG %load4, 7
    %copy_inreg7:_(s32) = COPY %inreg7
@@ -782,7 +782,7 @@ TEST_F(AArch64GISelMITest, TestNumSignBitsSextInReg) {
    %inreg31:_(s32) = G_SEXT_INREG %load4, 31
    %copy_inreg31:_(s32) = COPY %inreg31
 
-   %load1:_(s8) = G_LOAD %ptr :: (load 1)
+   %load1:_(s8) = G_LOAD %ptr :: (load (s8))
    %sext_load1:_(s32) = G_SEXT %load1
 
    %inreg6_sext:_(s32) = G_SEXT_INREG %sext_load1, 6
@@ -832,7 +832,7 @@ TEST_F(AArch64GISelMITest, TestNumSignBitsSextInReg) {
 TEST_F(AArch64GISelMITest, TestNumSignBitsAssertSext) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %load4:_(s32) = G_LOAD %ptr :: (load 4)
+   %load4:_(s32) = G_LOAD %ptr :: (load (s32))
 
    %assert_sext1:_(s32) = G_ASSERT_SEXT %load4, 1
    %copy_assert_sext1:_(s32) = COPY %assert_sext1
@@ -849,7 +849,7 @@ TEST_F(AArch64GISelMITest, TestNumSignBitsAssertSext) {
    %assert_sext31:_(s32) = G_ASSERT_SEXT %load4, 31
    %copy_assert_sext31:_(s32) = COPY %assert_sext31
 
-   %load1:_(s8) = G_LOAD %ptr :: (load 1)
+   %load1:_(s8) = G_LOAD %ptr :: (load (s8))
    %sext_load1:_(s32) = G_SEXT %load1
 
    %assert_sext6_sext:_(s32) = G_ASSERT_SEXT %sext_load1, 6
@@ -900,7 +900,7 @@ TEST_F(AArch64GISelMITest, TestNumSignBitsAssertSext) {
 
 TEST_F(AArch64GISelMITest, TestNumSignBitsTrunc) {
   StringRef MIRString = "  %3:_(p0) = G_IMPLICIT_DEF\n"
-                        "  %4:_(s32) = G_LOAD %3 :: (load 4)\n"
+                        "  %4:_(s32) = G_LOAD %3 :: (load (s32))\n"
                         "  %5:_(s8) = G_TRUNC %4\n"
                         "  %6:_(s8) = COPY %5\n"
 
@@ -928,16 +928,16 @@ TEST_F(AMDGPUGISelMITest, TestNumSignBitsTrunc) {
   StringRef MIRString =
     "  %3:_(<4 x s32>) = G_IMPLICIT_DEF\n"
     "  %4:_(s32) = G_IMPLICIT_DEF\n"
-    "  %5:_(s32) = G_AMDGPU_BUFFER_LOAD_UBYTE %3, %4, %4, %4, 0, 0, 0 :: (load 1)\n"
+    "  %5:_(s32) = G_AMDGPU_BUFFER_LOAD_UBYTE %3, %4, %4, %4, 0, 0, 0 :: (load (s8))\n"
     "  %6:_(s32) = COPY %5\n"
 
-    "  %7:_(s32) = G_AMDGPU_BUFFER_LOAD_SBYTE %3, %4, %4, %4, 0, 0, 0 :: (load 1)\n"
+    "  %7:_(s32) = G_AMDGPU_BUFFER_LOAD_SBYTE %3, %4, %4, %4, 0, 0, 0 :: (load (s8))\n"
     "  %8:_(s32) = COPY %7\n"
 
-    "  %9:_(s32) = G_AMDGPU_BUFFER_LOAD_USHORT %3, %4, %4, %4, 0, 0, 0 :: (load 2)\n"
+    "  %9:_(s32) = G_AMDGPU_BUFFER_LOAD_USHORT %3, %4, %4, %4, 0, 0, 0 :: (load (s16))\n"
     "  %10:_(s32) = COPY %9\n"
 
-    "  %11:_(s32) = G_AMDGPU_BUFFER_LOAD_SSHORT %3, %4, %4, %4, 0, 0, 0 :: (load 2)\n"
+    "  %11:_(s32) = G_AMDGPU_BUFFER_LOAD_SSHORT %3, %4, %4, %4, 0, 0, 0 :: (load (s16))\n"
     "  %12:_(s32) = COPY %11\n";
 
   setUp(MIRString);
@@ -1011,7 +1011,7 @@ TEST_F(AMDGPUGISelMITest, TestIsKnownToBeAPowerOfTwo) {
   %copy_trunc_five:_(s1) = COPY %trunc_five
 
   %ptr:_(p1) = G_IMPLICIT_DEF
-  %shift_amt:_(s32) = G_LOAD %ptr :: (load 4, addrspace 1)
+  %shift_amt:_(s32) = G_LOAD %ptr :: (load (s32), addrspace 1)
 
   %shl_1:_(s32) = G_SHL %one, %shift_amt
   %copy_shl_1:_(s32) = COPY %shl_1
@@ -1019,7 +1019,7 @@ TEST_F(AMDGPUGISelMITest, TestIsKnownToBeAPowerOfTwo) {
   %shl_2:_(s32) = G_SHL %two, %shift_amt
   %copy_shl_2:_(s32) = COPY %shl_2
 
-  %not_sign_mask:_(s32) = G_LOAD %ptr :: (load 4, addrspace 1)
+  %not_sign_mask:_(s32) = G_LOAD %ptr :: (load (s32), addrspace 1)
   %sign_mask:_(s32) = G_CONSTANT i32 -2147483648
 
   %lshr_not_sign_mask:_(s32) = G_LSHR %not_sign_mask, %shift_amt
@@ -1072,7 +1072,7 @@ TEST_F(AMDGPUGISelMITest, TestIsKnownToBeAPowerOfTwo) {
 
 TEST_F(AArch64GISelMITest, TestMetadata) {
   StringRef MIRString = "  %imp:_(p0) = G_IMPLICIT_DEF\n"
-                        "  %load:_(s8) = G_LOAD %imp(p0) :: (load 1)\n"
+                        "  %load:_(s8) = G_LOAD %imp(p0) :: (load (s8))\n"
                         "  %ext:_(s32) = G_ZEXT %load(s8)\n"
                         "  %cst:_(s32) = G_CONSTANT i32 1\n"
                         "  %and:_(s32) = G_AND %ext, %cst\n"
@@ -1109,7 +1109,7 @@ TEST_F(AArch64GISelMITest, TestMetadata) {
   KnownBits Res = Info.getKnownBits(And->getOperand(1).getReg());
 
   // We don't know what the result of the load is, so we don't know any ones.
-  EXPECT_TRUE(Res.One.isNullValue());
+  EXPECT_TRUE(Res.One.isZero());
 
   // We know that the value is in [0, 2). So, we don't know if the first bit
   // is 0 or not. However, we do know that every other bit must be 0.
@@ -1369,7 +1369,8 @@ TEST_F(AArch64GISelMITest, TestKnownBitsBSwapBitReverse) {
   if (!TM)
     return;
 
-  const uint32_t TestVal = 0x11223344;
+  const uint32_t ByteSwappedVal = 0x44332211;
+  const uint32_t BitSwappedVal = 0x22cc4488;
 
   Register CopyBSwap = Copies[Copies.size() - 2];
   Register CopyBitReverse = Copies[Copies.size() - 1];
@@ -1378,19 +1379,19 @@ TEST_F(AArch64GISelMITest, TestKnownBitsBSwapBitReverse) {
 
   KnownBits BSwapKnown = Info.getKnownBits(CopyBSwap);
   EXPECT_EQ(32u, BSwapKnown.getBitWidth());
-  EXPECT_EQ(TestVal, BSwapKnown.One.getZExtValue());
-  EXPECT_EQ(~TestVal, BSwapKnown.Zero.getZExtValue());
+  EXPECT_EQ(ByteSwappedVal, BSwapKnown.One.getZExtValue());
+  EXPECT_EQ(~ByteSwappedVal, BSwapKnown.Zero.getZExtValue());
 
   KnownBits BitReverseKnown = Info.getKnownBits(CopyBitReverse);
   EXPECT_EQ(32u, BitReverseKnown.getBitWidth());
-  EXPECT_EQ(TestVal, BitReverseKnown.One.getZExtValue());
-  EXPECT_EQ(~TestVal, BitReverseKnown.Zero.getZExtValue());
+  EXPECT_EQ(BitSwappedVal, BitReverseKnown.One.getZExtValue());
+  EXPECT_EQ(~BitSwappedVal, BitReverseKnown.Zero.getZExtValue());
 }
 
 TEST_F(AArch64GISelMITest, TestKnownBitsUMAX) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load 1)
+   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load (s8))
    %mask0:_(s8) = G_CONSTANT i8 10
    %mask1:_(s8) = G_CONSTANT i8 1
    %tmp0:_(s8) = G_AND %unknown, %mask0
@@ -1471,7 +1472,7 @@ TEST_F(AArch64GISelMITest, TestKnownBitsUMax) {
 TEST_F(AArch64GISelMITest, TestKnownBitsUMIN) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load 1)
+   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load (s8))
    %mask0:_(s8) = G_CONSTANT i8 10
    %mask1:_(s8) = G_CONSTANT i8 1
    %tmp0:_(s8) = G_AND %unknown, %mask0
@@ -1505,7 +1506,7 @@ TEST_F(AArch64GISelMITest, TestKnownBitsUMIN) {
 TEST_F(AArch64GISelMITest, TestKnownBitsSMAX) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load 1)
+   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load (s8))
    %mask0:_(s8) = G_CONSTANT i8 128
    %mask1:_(s8) = G_CONSTANT i8 64
    %tmp0:_(s8) = G_AND %unknown, %mask0
@@ -1540,7 +1541,7 @@ TEST_F(AArch64GISelMITest, TestKnownBitsSMAX) {
 TEST_F(AArch64GISelMITest, TestKnownBitsSMIN) {
   StringRef MIRString = R"(
    %ptr:_(p0) = G_IMPLICIT_DEF
-   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load 1)
+   %unknown:_(s8) = G_LOAD %ptr(p0) :: (load (s8))
    %mask0:_(s8) = G_CONSTANT i8 128
    %mask1:_(s8) = G_CONSTANT i8 64
    %tmp0:_(s8) = G_AND %unknown, %mask0
@@ -1600,11 +1601,11 @@ TEST_F(AArch64GISelMITest, TestInvalidQueries) {
 
 
   // We don't know what the result of the shift is, but we should not crash
-  EXPECT_TRUE(EqSizeRes.One.isNullValue());
-  EXPECT_TRUE(EqSizeRes.Zero.isNullValue());
+  EXPECT_TRUE(EqSizeRes.One.isZero());
+  EXPECT_TRUE(EqSizeRes.Zero.isZero());
 
-  EXPECT_TRUE(BiggerSizeRes.One.isNullValue());
-  EXPECT_TRUE(BiggerSizeRes.Zero.isNullValue());
+  EXPECT_TRUE(BiggerSizeRes.One.isZero());
+  EXPECT_TRUE(BiggerSizeRes.Zero.isZero());
 }
 
 TEST_F(AArch64GISelMITest, TestKnownBitsAssertZext) {
@@ -1669,4 +1670,250 @@ TEST_F(AArch64GISelMITest, TestKnownBitsAssertZext) {
   EXPECT_EQ(64u, Res.getBitWidth());
   EXPECT_EQ(0u, Res.One.getZExtValue());
   EXPECT_EQ(0xFFFFFFFFFFFFFFF8u, Res.Zero.getZExtValue());
+}
+
+TEST_F(AArch64GISelMITest, TestKnownBitsCTPOP) {
+  StringRef MIRString = R"(
+   %src:_(s32) = COPY $w0
+   %unknown:_(s32) = G_CTPOP %src
+   %unknown_copy:_(s32) = COPY %unknown
+   %constant_4294967295:_(s32) = G_CONSTANT i32 4294967295
+   %thirtytwo:_(s32) = G_CTPOP %constant_4294967295
+   %thirtytwo_copy:_(s32) = COPY %thirtytwo
+   %constant_15:_(s32) = G_CONSTANT i32 15
+   %four:_(s32) = G_CTPOP %constant_15
+   %four_copy:_(s32) = COPY %four
+   %constant_1:_(s32) = G_CONSTANT i32 1
+   %one:_(s32) = G_CTPOP %constant_1
+   %one_copy:_(s32) = COPY %one
+)";
+  setUp(MIRString);
+  if (!TM)
+    return;
+
+  Register UnknownCopy = Copies[Copies.size() - 4];
+  Register ThirtytwoCopy = Copies[Copies.size() - 3];
+  Register FourCopy = Copies[Copies.size() - 2];
+  Register OneCopy = Copies[Copies.size() - 1];
+
+  GISelKnownBits Info(*MF);
+  MachineInstr *Copy;
+  Register SrcReg;
+  KnownBits Res;
+
+  Copy = MRI->getVRegDef(UnknownCopy);
+  SrcReg = Copy->getOperand(1).getReg();
+  Res = Info.getKnownBits(SrcReg);
+  EXPECT_EQ(32u, Res.getBitWidth());
+  EXPECT_EQ(0u, Res.One.getZExtValue());
+  EXPECT_EQ(0xFFFFFFC0u, Res.Zero.getZExtValue());
+
+  Copy = MRI->getVRegDef(ThirtytwoCopy);
+  SrcReg = Copy->getOperand(1).getReg();
+  Res = Info.getKnownBits(SrcReg);
+  EXPECT_EQ(32u, Res.getBitWidth());
+  EXPECT_EQ(0u, Res.One.getZExtValue());
+  EXPECT_EQ(0xFFFFFFC0u, Res.Zero.getZExtValue());
+
+  Copy = MRI->getVRegDef(FourCopy);
+  SrcReg = Copy->getOperand(1).getReg();
+  Res = Info.getKnownBits(SrcReg);
+  EXPECT_EQ(32u, Res.getBitWidth());
+  EXPECT_EQ(0u, Res.One.getZExtValue());
+  EXPECT_EQ(0xFFFFFFF8u, Res.Zero.getZExtValue());
+
+  Copy = MRI->getVRegDef(OneCopy);
+  SrcReg = Copy->getOperand(1).getReg();
+  Res = Info.getKnownBits(SrcReg);
+  EXPECT_EQ(32u, Res.getBitWidth());
+  EXPECT_EQ(0u, Res.One.getZExtValue());
+  EXPECT_EQ(0xFFFFFFFEu, Res.Zero.getZExtValue());
+}
+
+TEST_F(AMDGPUGISelMITest, TestKnownBitsUBFX) {
+  StringRef MIRString = "  %3:_(s32) = G_IMPLICIT_DEF\n"
+                        "  %4:_(s32) = G_CONSTANT i32 12\n"
+                        "  %5:_(s32) = G_CONSTANT i32 8\n"
+                        "  %6:_(s32) = G_UBFX %3, %4(s32), %5\n"
+                        "  %ubfx_copy:_(s32) = COPY %6\n"
+                        "  %7:_(s32) = G_CONSTANT i32 28672\n"
+                        "  %8:_(s32) = G_UBFX %7, %4(s32), %5\n"
+                        "  %ubfx_copy_val:_(s32) = COPY %8\n"
+                        "  %9:_(s32) = G_IMPLICIT_DEF\n"
+                        "  %10:_(s32) = G_IMPLICIT_DEF\n"
+                        "  %11:_(s32) = G_UBFX %3, %9(s32), %10\n"
+                        "  %ubfx_copy_unk:_(s32) = COPY %11\n"
+                        "  %12:_(s32) = G_UBFX %3, %9(s32), %5\n"
+                        "  %ubfx_copy_unk_off:_(s32) = COPY %12\n"
+                        "  %13:_(s32) = G_UBFX %3, %4(s32), %10\n"
+                        "  %ubfx_copy_unk_width:_(s32) = COPY %13\n";
+  setUp(MIRString);
+  if (!TM)
+    return;
+  Register CopyBfxReg = Copies[Copies.size() - 5];
+  Register CopyValBfxReg = Copies[Copies.size() - 4];
+  Register CopyUnkBfxReg = Copies[Copies.size() - 3];
+  Register CopyUnkOffBfxReg = Copies[Copies.size() - 2];
+  Register CopyUnkWidthBfxReg = Copies[Copies.size() - 1];
+
+  MachineInstr *CopyBfx = MRI->getVRegDef(CopyBfxReg);
+  Register SrcReg = CopyBfx->getOperand(1).getReg();
+  MachineInstr *CopyValBfx = MRI->getVRegDef(CopyValBfxReg);
+  Register ValSrcReg = CopyValBfx->getOperand(1).getReg();
+  MachineInstr *CopyUnkBfx = MRI->getVRegDef(CopyUnkBfxReg);
+  Register UnkSrcReg = CopyUnkBfx->getOperand(1).getReg();
+  MachineInstr *CopyUnkOffBfx = MRI->getVRegDef(CopyUnkOffBfxReg);
+  Register UnkOffSrcReg = CopyUnkOffBfx->getOperand(1).getReg();
+  MachineInstr *CopyUnkWidthBfx = MRI->getVRegDef(CopyUnkWidthBfxReg);
+  Register UnkWidthSrcReg = CopyUnkWidthBfx->getOperand(1).getReg();
+
+  GISelKnownBits Info(*MF);
+
+  KnownBits Res1 = Info.getKnownBits(SrcReg);
+  EXPECT_EQ(0u, Res1.One.getZExtValue());
+  EXPECT_EQ(0xffffff00u, Res1.Zero.getZExtValue());
+
+  KnownBits Res2 = Info.getKnownBits(ValSrcReg);
+  EXPECT_EQ(7u, Res2.One.getZExtValue());
+  EXPECT_EQ(0xfffffff8u, Res2.Zero.getZExtValue());
+
+  KnownBits Res3 = Info.getKnownBits(UnkSrcReg);
+  EXPECT_EQ(0u, Res3.One.getZExtValue());
+  EXPECT_EQ(0u, Res3.Zero.getZExtValue());
+
+  KnownBits Res4 = Info.getKnownBits(UnkOffSrcReg);
+  EXPECT_EQ(0u, Res4.One.getZExtValue());
+  EXPECT_EQ(0xffffff00u, Res4.Zero.getZExtValue());
+
+  KnownBits Res5 = Info.getKnownBits(UnkWidthSrcReg);
+  EXPECT_EQ(0u, Res5.One.getZExtValue());
+  EXPECT_EQ(0xfff00000u, Res5.Zero.getZExtValue());
+}
+
+TEST_F(AMDGPUGISelMITest, TestKnownBitsSBFX) {
+  StringRef MIRString = "  %3:_(s32) = G_IMPLICIT_DEF\n"
+                        "  %4:_(s32) = G_CONSTANT i32 8\n"
+                        "  %5:_(s32) = G_CONSTANT i32 4\n"
+                        "  %6:_(s32) = G_SBFX %3, %4(s32), %5\n"
+                        "  %sbfx_copy:_(s32) = COPY %6\n"
+                        "  %7:_(s32) = G_CONSTANT i32 2047\n"
+                        "  %8:_(s32) = G_SBFX %7, %4(s32), %5\n"
+                        "  %sbfx_copy_val:_(s32) = COPY %8\n"
+                        "  %9:_(s32) = G_CONSTANT i32 2048\n"
+                        "  %10:_(s32) = G_SBFX %9, %4(s32), %5\n"
+                        "  %sbfx_copy_neg_val:_(s32) = COPY %10\n"
+                        "  %11:_(s32) = G_IMPLICIT_DEF\n"
+                        "  %12:_(s32) = G_SBFX %7, %11(s32), %5\n"
+                        "  %sbfx_copy_unk_off:_(s32) = COPY %12\n"
+                        "  %13:_(s32) = G_SBFX %9, %4(s32), %11\n"
+                        "  %sbfx_copy_unk_width:_(s32) = COPY %13\n";
+  setUp(MIRString);
+  if (!TM)
+    return;
+  Register CopyBfxReg = Copies[Copies.size() - 5];
+  Register CopyValBfxReg = Copies[Copies.size() - 4];
+  Register CopyNegValBfxReg = Copies[Copies.size() - 3];
+  Register CopyUnkOffBfxReg = Copies[Copies.size() - 2];
+  Register CopyUnkWidthBfxReg = Copies[Copies.size() - 1];
+
+  MachineInstr *CopyBfx = MRI->getVRegDef(CopyBfxReg);
+  Register SrcReg = CopyBfx->getOperand(1).getReg();
+  MachineInstr *CopyValBfx = MRI->getVRegDef(CopyValBfxReg);
+  Register ValSrcReg = CopyValBfx->getOperand(1).getReg();
+  MachineInstr *CopyNegValBfx = MRI->getVRegDef(CopyNegValBfxReg);
+  Register NegValSrcReg = CopyNegValBfx->getOperand(1).getReg();
+  MachineInstr *CopyUnkOffBfx = MRI->getVRegDef(CopyUnkOffBfxReg);
+  Register UnkOffSrcReg = CopyUnkOffBfx->getOperand(1).getReg();
+  MachineInstr *CopyUnkWidthBfx = MRI->getVRegDef(CopyUnkWidthBfxReg);
+  Register UnkWidthSrcReg = CopyUnkWidthBfx->getOperand(1).getReg();
+
+  GISelKnownBits Info(*MF);
+
+  KnownBits Res1 = Info.getKnownBits(SrcReg);
+  EXPECT_EQ(0u, Res1.One.getZExtValue());
+  EXPECT_EQ(0u, Res1.Zero.getZExtValue());
+
+  KnownBits Res2 = Info.getKnownBits(ValSrcReg);
+  EXPECT_EQ(7u, Res2.One.getZExtValue());
+  EXPECT_EQ(0xfffffff8u, Res2.Zero.getZExtValue());
+
+  KnownBits Res3 = Info.getKnownBits(NegValSrcReg);
+  EXPECT_EQ(0xfffffff8u, Res3.One.getZExtValue());
+  EXPECT_EQ(7u, Res3.Zero.getZExtValue());
+
+  KnownBits Res4 = Info.getKnownBits(UnkOffSrcReg);
+  EXPECT_EQ(0u, Res4.One.getZExtValue());
+  EXPECT_EQ(0u, Res4.Zero.getZExtValue());
+
+  KnownBits Res5 = Info.getKnownBits(UnkWidthSrcReg);
+  EXPECT_EQ(0u, Res5.One.getZExtValue());
+  EXPECT_EQ(0u, Res5.Zero.getZExtValue());
+}
+
+TEST_F(AMDGPUGISelMITest, TestNumSignBitsUBFX) {
+  StringRef MIRString = "  %3:_(s32) = G_IMPLICIT_DEF\n"
+                        "  %4:_(s32) = G_CONSTANT i32 12\n"
+                        "  %5:_(s32) = G_CONSTANT i32 8\n"
+                        "  %6:_(s32) = G_UBFX %3, %4(s32), %5\n"
+                        "  %ubfx_copy_unk:_(s32) = COPY %6\n"
+                        "  %7:_(s32) = G_CONSTANT i32 28672\n"
+                        "  %8:_(s32) = G_UBFX %7, %4(s32), %5\n"
+                        "  %ubfx_copy_pos:_(s32) = COPY %8\n"
+                        "  %9:_(s32) = G_CONSTANT i32 -1\n"
+                        "  %10:_(s32) = G_UBFX %9, %4(s32), %5\n"
+                        "  %ubfx_copy_neg:_(s32) = COPY %10\n"
+                        "  %11:_(s32) = G_IMPLICIT_DEF\n"
+                        "  %12:_(s32) = G_UBFX %7, %11(s32), %5\n"
+                        "  %ubfx_copy_unk_off:_(s32) = COPY %12\n"
+                        "  %13:_(s32) = G_UBFX %7, %4(s32), %11\n"
+                        "  %ubfx_copy_unk_width:_(s32) = COPY %13\n";
+  setUp(MIRString);
+  if (!TM)
+    return;
+  Register CopyUnkBfxReg = Copies[Copies.size() - 5];
+  Register CopyPosBfxReg = Copies[Copies.size() - 4];
+  Register CopyNegBfxReg = Copies[Copies.size() - 3];
+  Register CopyUnkOffBfxReg = Copies[Copies.size() - 2];
+  Register CopyUnkWidthBfxReg = Copies[Copies.size() - 1];
+
+  GISelKnownBits Info(*MF);
+  EXPECT_EQ(24u, Info.computeNumSignBits(CopyUnkBfxReg));
+  EXPECT_EQ(29u, Info.computeNumSignBits(CopyPosBfxReg));
+  EXPECT_EQ(24u, Info.computeNumSignBits(CopyNegBfxReg));
+  EXPECT_EQ(24u, Info.computeNumSignBits(CopyUnkOffBfxReg));
+  EXPECT_EQ(29u, Info.computeNumSignBits(CopyUnkWidthBfxReg));
+}
+
+TEST_F(AMDGPUGISelMITest, TestNumSignBitsSBFX) {
+  StringRef MIRString = "  %3:_(s32) = G_CONSTANT i32 -1\n"
+                        "  %4:_(s32) = G_CONSTANT i32 8\n"
+                        "  %5:_(s32) = G_CONSTANT i32 4\n"
+                        "  %6:_(s32) = G_SBFX %3, %4(s32), %5\n"
+                        "  %sbfx_copy_neg:_(s32) = COPY %6\n"
+                        "  %7:_(s32) = G_CONSTANT i32 2047\n"
+                        "  %8:_(s32) = G_SBFX %7, %4(s32), %5\n"
+                        "  %sbfx_copy_pos:_(s32) = COPY %8\n"
+                        "  %9:_(s32) = G_CONSTANT i32 2048\n"
+                        "  %10:_(s32) = G_SBFX %9, %4(s32), %5\n"
+                        "  %sbfx_copy_hiset:_(s32) = COPY %10\n"
+                        "  %11:_(s32) = G_IMPLICIT_DEF\n"
+                        "  %12:_(s32) = G_SBFX %11, %4(s32), %5\n"
+                        "  %sbfx_copy_unk:_(s32) = COPY %12\n"
+                        "  %13:_(s32) = G_SBFX %3, %11(s32), %5\n"
+                        "  %sbfx_copy_unk_off:_(s32) = COPY %13\n";
+  setUp(MIRString);
+  if (!TM)
+    return;
+  Register CopyNegBfxReg = Copies[Copies.size() - 5];
+  Register CopyPosBfxReg = Copies[Copies.size() - 4];
+  Register CopyHiSetBfxReg = Copies[Copies.size() - 3];
+  Register CopyUnkValBfxReg = Copies[Copies.size() - 2];
+  Register CopyUnkOffBfxReg = Copies[Copies.size() - 1];
+
+  GISelKnownBits Info(*MF);
+  EXPECT_EQ(32u, Info.computeNumSignBits(CopyNegBfxReg));
+  EXPECT_EQ(29u, Info.computeNumSignBits(CopyPosBfxReg));
+  EXPECT_EQ(29u, Info.computeNumSignBits(CopyHiSetBfxReg));
+  EXPECT_EQ(1u, Info.computeNumSignBits(CopyUnkValBfxReg));
+  EXPECT_EQ(1u, Info.computeNumSignBits(CopyUnkOffBfxReg));
 }

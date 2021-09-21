@@ -311,27 +311,15 @@ public:
   /// Go through the uses list for this definition and make each use point
   /// to "V" if the callback ShouldReplace returns true for the given Use.
   /// Unlike replaceAllUsesWith() this function does not support basic block
-  /// values or constant users.
+  /// values.
   void replaceUsesWithIf(Value *New,
-                         llvm::function_ref<bool(Use &U)> ShouldReplace) {
-    assert(New && "Value::replaceUsesWithIf(<null>) is invalid!");
-    assert(New->getType() == getType() &&
-           "replaceUses of value with new value of different type!");
-
-    for (use_iterator UI = use_begin(), E = use_end(); UI != E;) {
-      Use &U = *UI;
-      ++UI;
-      if (!ShouldReplace(U))
-        continue;
-      U.set(New);
-    }
-  }
+                         llvm::function_ref<bool(Use &U)> ShouldReplace);
 
   /// replaceUsesOutsideBlock - Go through the uses list for this definition and
   /// make each use point to "V" instead of "this" when the use is outside the
   /// block. 'This's use list is expected to have at least one element.
   /// Unlike replaceAllUsesWith() this function does not support basic block
-  /// values or constant users.
+  /// values.
   void replaceUsesOutsideBlock(Value *V, BasicBlock *BB);
 
   //----------------------------------------------------------------------
@@ -793,8 +781,8 @@ public:
   ///
   /// This is the greatest alignment value supported by load, store, and alloca
   /// instructions, and global values.
-  static const unsigned MaxAlignmentExponent = 29;
-  static const unsigned MaximumAlignment = 1u << MaxAlignmentExponent;
+  static constexpr unsigned MaxAlignmentExponent = 30;
+  static constexpr unsigned MaximumAlignment = 1u << MaxAlignmentExponent;
 
   /// Mutate the type of this Value to be of the specified type.
   ///

@@ -51,3 +51,24 @@ TEST(ItaniumDemangle, MethodOverride) {
   ASSERT_NE(nullptr, Parser.parse());
   EXPECT_THAT(Parser.Types, testing::ElementsAre('i', 'j', 'l'));
 }
+
+TEST(ItaniumDemangle, HalfType) {
+  struct TestParser : AbstractManglingParser<TestParser, TestAllocator> {
+    std::vector<std::string> Types;
+
+    TestParser(const char *Str)
+        : AbstractManglingParser(Str, Str + strlen(Str)) {}
+
+    Node *parseType() {
+      Node *N = AbstractManglingParser<TestParser, TestAllocator>::parseType();
+      StringView Name = N->getBaseName();
+      Types.push_back(std::string(Name.begin(), Name.end()));
+      return N;
+    }
+  };
+
+  // void f(A<_Float16>, _Float16);
+  TestParser Parser("_Z1f1AIDF16_EDF16_");
+  ASSERT_NE(nullptr, Parser.parse());
+  EXPECT_THAT(Parser.Types, testing::ElementsAre("_Float16", "A", "_Float16"));
+}

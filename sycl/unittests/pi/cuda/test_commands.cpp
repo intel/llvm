@@ -10,6 +10,7 @@
 
 #include <cuda.h>
 
+#include "CudaUtils.hpp"
 #include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/pi.hpp>
@@ -21,7 +22,7 @@ using namespace cl::sycl;
 struct CudaCommandsTest : public ::testing::Test {
 
 protected:
-  detail::plugin plugin = pi::initializeAndGet(backend::cuda);
+  std::optional<detail::plugin> plugin = pi::initializeAndGet(backend::cuda);
 
   pi_platform platform_;
   pi_device device_;
@@ -29,29 +30,34 @@ protected:
   pi_queue queue_;
 
   void SetUp() override {
-    cuCtxSetCurrent(nullptr);
-    pi_uint32 numPlatforms = 0;
-    ASSERT_EQ(plugin.getBackend(), backend::cuda);
+    // skip the tests if the CUDA backend is not available
+    if (!plugin.has_value()) {
+      GTEST_SKIP();
+    }
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    pi::clearCudaContext();
+    pi_uint32 numPlatforms = 0;
+    ASSERT_EQ(plugin->getBackend(), backend::cuda);
+
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &numPlatforms)),
               PI_SUCCESS)
         << "piPlatformsGet failed.\n";
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piPlatformsGet>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   numPlatforms, &platform_, nullptr)),
               PI_SUCCESS)
         << "piPlatformsGet failed.\n";
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piDevicesGet>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piDevicesGet>(
                   platform_, PI_DEVICE_TYPE_GPU, 1, &device_, nullptr)),
               PI_SUCCESS);
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piContextCreate>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piContextCreate>(
                   nullptr, 1, &device_, nullptr, nullptr, &context_)),
               PI_SUCCESS);
     ASSERT_NE(context_, nullptr);
 
-    ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piQueueCreate>(
+    ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piQueueCreate>(
                   context_, device_, 0, &queue_)),
               PI_SUCCESS);
     ASSERT_NE(queue_, nullptr);
@@ -60,8 +66,10 @@ protected:
   }
 
   void TearDown() override {
-    plugin.call<detail::PiApiKind::piQueueRelease>(queue_);
-    plugin.call<detail::PiApiKind::piContextRelease>(context_);
+    if (plugin.has_value()) {
+      plugin->call<detail::PiApiKind::piQueueRelease>(queue_);
+      plugin->call<detail::PiApiKind::piContextRelease>(context_);
+    }
   }
 
   CudaCommandsTest() = default;
@@ -77,15 +85,15 @@ TEST_F(CudaCommandsTest, PIEnqueueReadBufferBlocking) {
 
   pi_mem memObj;
   ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+      (plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
           context_, PI_MEM_FLAGS_ACCESS_RW, bytes, nullptr, &memObj, nullptr)),
       PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
                 queue_, memObj, true, 0, bytes, data, 0, nullptr, nullptr)),
             PI_SUCCESS);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferRead>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piEnqueueMemBufferRead>(
                 queue_, memObj, true, 0, bytes, output, 0, nullptr, nullptr)),
             PI_SUCCESS);
 
@@ -107,22 +115,22 @@ TEST_F(CudaCommandsTest, PIEnqueueReadBufferNonBlocking) {
 
   pi_mem memObj;
   ASSERT_EQ(
-      (plugin.call_nocheck<detail::PiApiKind::piMemBufferCreate>(
+      (plugin->call_nocheck<detail::PiApiKind::piMemBufferCreate>(
           context_, PI_MEM_FLAGS_ACCESS_RW, bytes, nullptr, &memObj, nullptr)),
       PI_SUCCESS);
 
   pi_event cpIn, cpOut;
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piEnqueueMemBufferWrite>(
                 queue_, memObj, false, 0, bytes, data, 0, nullptr, &cpIn)),
             PI_SUCCESS);
   ASSERT_NE(cpIn, nullptr);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEnqueueMemBufferRead>(
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piEnqueueMemBufferRead>(
                 queue_, memObj, false, 0, bytes, output, 0, nullptr, &cpOut)),
             PI_SUCCESS);
   ASSERT_NE(cpOut, nullptr);
 
-  ASSERT_EQ((plugin.call_nocheck<detail::PiApiKind::piEventsWait>(1, &cpOut)),
+  ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piEventsWait>(1, &cpOut)),
             PI_SUCCESS);
 
   bool isSame =

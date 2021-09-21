@@ -43,6 +43,7 @@ class MIMGBaseOpcode : PredicateControl {
   bit HasD16 = 0;
   bit IsAtomicRet = 0;
   bit MSAA = 0;
+  bit BVH = 0;
 }
 
 def MIMGBaseOpcode : GenericEnum {
@@ -54,7 +55,7 @@ def MIMGBaseOpcodesTable : GenericTable {
   let CppTypeName = "MIMGBaseOpcodeInfo";
   let Fields = ["BaseOpcode", "Store", "Atomic", "AtomicX2", "Sampler",
                 "Gather4", "NumExtraArgs", "Gradients", "G16", "Coordinates",
-                "LodOrClampOrMip", "HasD16", "MSAA"];
+                "LodOrClampOrMip", "HasD16", "MSAA", "BVH"];
   string TypeOf_BaseOpcode = "MIMGBaseOpcode";
 
   let PrimaryKey = ["BaseOpcode"];
@@ -713,8 +714,11 @@ class MIMGAddrSize<int dw, bit enable_disasm> {
                            !if(!eq(NumWords, 2), VReg_64,
                            !if(!eq(NumWords, 3), VReg_96,
                            !if(!eq(NumWords, 4), VReg_128,
+                           !if(!eq(NumWords, 5), VReg_160,
+                           !if(!eq(NumWords, 6), VReg_192,
+                           !if(!eq(NumWords, 7), VReg_224,
                            !if(!le(NumWords, 8), VReg_256,
-                           !if(!le(NumWords, 16), VReg_512, ?)))))));
+                           !if(!le(NumWords, 16), VReg_512, ?))))))))));
 
   // Whether the instruction variant with this vaddr size should be enabled for
   // the auto-generated disassembler.
@@ -732,9 +736,9 @@ class isRangeInList<int min, int max, list<int> lst> {
   bit ret = !foldl(0, lst, lhs, y, !or(lhs, !and(!le(min, y), !le(y, max))));
 }
 
-class MIMGAddrSizes_tmp<list<MIMGAddrSize> lst, int min> {
-  list<MIMGAddrSize> List = lst;
-  int Min = min;
+class MIMGAddrSizes_dw_range<list<int> range> {
+  int Min = !head(range);
+  int Max = !if(!empty(!tail(range)), Min, !head(!tail(range)));
 }
 
 class MIMG_Sampler_AddrSizes<AMDGPUSampleVariant sample> {
@@ -755,12 +759,17 @@ class MIMG_Sampler_AddrSizes<AMDGPUSampleVariant sample> {
   // required numbers of address words. The disassembler defaults to the
   // smallest register class.
   list<MIMGAddrSize> MachineInstrs =
-    !foldl(MIMGAddrSizes_tmp<[], 0>, [1, 2, 3, 4, 8, 16], lhs, dw,
-           !if(isRangeInList<lhs.Min, dw, AllNumAddrWords>.ret,
-               MIMGAddrSizes_tmp<
-                  !listconcat(lhs.List, [MIMGAddrSize<dw, !empty(lhs.List)>]),
-                  !if(!eq(dw, 3), 3, !add(dw, 1))>, // we still need _V4 for codegen w/ 3 dwords
-               lhs)).List;
+    !foldl([]<MIMGAddrSize>,
+           !foreach(range,
+                    // V4 is generated for V3 and V4
+                    // V8 is generated for V5 through V8
+                    // V16 is generated for V9 through V16
+                    [[1],[2],[3],[3,4],[5],[6],[7],[5,8],[9,16]],
+                    MIMGAddrSizes_dw_range<range>),
+           lhs, dw,
+           !if(isRangeInList<dw.Min, dw.Max, AllNumAddrWords>.ret,
+               !listconcat(lhs, [MIMGAddrSize<dw.Max, !empty(lhs)>]),
+               lhs));
 
   // For NSA, generate machine instructions for all possible numbers of words
   // except 1 (which is already covered by the non-NSA case).
@@ -864,6 +873,14 @@ multiclass MIMG_Gather <mimgopc op, AMDGPUSampleVariant sample, bit wqm = 0,
 multiclass MIMG_Gather_WQM <mimgopc op, AMDGPUSampleVariant sample>
     : MIMG_Gather<op, sample, 1>;
 
+class MIMG_IntersectRay_Helper<bit Is64, bit A16> {
+  int num_addrs = !if(Is64, !if(A16, 9, 12), !if(A16, 8, 11));
+  // TODO: MIMGAddrSize will choose VReg_512 which is a 16 register tuple,
+  // when we only need 9, 11 or 12 depending on A16 field and ptr size.
+  RegisterClass RegClass = MIMGAddrSize<num_addrs, 0>.RegClass;
+  int VAddrDwords = !srl(RegClass.Size, 5);
+}
+
 class MIMG_IntersectRay_gfx10<mimgopc op, string opcode, RegisterClass AddrRC, bit A16>
     : MIMG_gfx10<op.BASE, (outs VReg_128:$vdata), "AMDGPU"> {
 
@@ -882,10 +899,13 @@ class MIMG_IntersectRay_nsa_gfx10<mimgopc op, string opcode, int num_addrs, bit 
   let AsmString = opcode#" $vdata, "#nsah.AddrAsm#", $srsrc"#!if(A16, "$a16", "");
 }
 
-multiclass MIMG_IntersectRay<mimgopc op, string opcode, int num_addrs, bit A16> {
-  def "" : MIMGBaseOpcode;
-  let SubtargetPredicate = HasGFX10_BEncoding,
-      AssemblerPredicate = HasGFX10_BEncoding,
+multiclass MIMG_IntersectRay<mimgopc op, string opcode, bit Is64, bit A16> {
+  defvar info = MIMG_IntersectRay_Helper<Is64, A16>;
+  def "" : MIMGBaseOpcode {
+    let BVH = 1;
+  }
+  let SubtargetPredicate = HasGFX10_AEncoding,
+      AssemblerPredicate = HasGFX10_AEncoding,
       AsmMatchConverter = !if(A16, "cvtIntersectRay", ""),
       dmask = 0xf,
       unorm = 1,
@@ -900,13 +920,11 @@ multiclass MIMG_IntersectRay<mimgopc op, string opcode, int num_addrs, bit A16> 
       d16 = 0,
       BaseOpcode = !cast<MIMGBaseOpcode>(NAME),
       VDataDwords = 4 in {
-    // TODO: MIMGAddrSize will choose VReg_512 which is a 16 register tuple,
-    // when we only need 9, 11 or 12 depending on A16 field and ptr size.
-    def "_sa" : MIMG_IntersectRay_gfx10<op, opcode, MIMGAddrSize<num_addrs, 0>.RegClass, A16> {
-      let VAddrDwords = !srl(MIMGAddrSize<num_addrs, 0>.RegClass.Size, 5);
+    def _sa_gfx10 : MIMG_IntersectRay_gfx10<op, opcode, info.RegClass, A16> {
+      let VAddrDwords = info.VAddrDwords;
     }
-    def _nsa : MIMG_IntersectRay_nsa_gfx10<op, opcode, num_addrs, A16> {
-      let VAddrDwords = num_addrs;
+    def _nsa_gfx10 : MIMG_IntersectRay_nsa_gfx10<op, opcode, info.num_addrs, A16> {
+      let VAddrDwords = info.num_addrs;
     }
   }
 }
@@ -1034,13 +1052,13 @@ defm IMAGE_SAMPLE_C_CD_CL_O_G16 : MIMG_Sampler <mimgopc<0xef>, AMDGPUSample_c_cd
 //def IMAGE_RSRC256 : MIMG_NoPattern_RSRC256 <"image_rsrc256", 0x0000007e>;
 //def IMAGE_SAMPLER : MIMG_NoPattern_ <"image_sampler", 0x0000007f>;
 
-let SubtargetPredicate = HasGFX10_BEncoding in
+let SubtargetPredicate = HasGFX10_AEncoding in
 defm IMAGE_MSAA_LOAD_X : MIMG_NoSampler <mimgopc<0x80>, "image_msaa_load", 1, 0, 0, 1>;
 
-defm IMAGE_BVH_INTERSECT_RAY       : MIMG_IntersectRay<mimgopc<0xe6>, "image_bvh_intersect_ray", 11, 0>;
-defm IMAGE_BVH_INTERSECT_RAY_a16   : MIMG_IntersectRay<mimgopc<0xe6>, "image_bvh_intersect_ray", 8, 1>;
-defm IMAGE_BVH64_INTERSECT_RAY     : MIMG_IntersectRay<mimgopc<0xe7>, "image_bvh64_intersect_ray", 12, 0>;
-defm IMAGE_BVH64_INTERSECT_RAY_a16 : MIMG_IntersectRay<mimgopc<0xe7>, "image_bvh64_intersect_ray", 9, 1>;
+defm IMAGE_BVH_INTERSECT_RAY       : MIMG_IntersectRay<mimgopc<0xe6>, "image_bvh_intersect_ray", 0, 0>;
+defm IMAGE_BVH_INTERSECT_RAY_a16   : MIMG_IntersectRay<mimgopc<0xe6>, "image_bvh_intersect_ray", 0, 1>;
+defm IMAGE_BVH64_INTERSECT_RAY     : MIMG_IntersectRay<mimgopc<0xe7>, "image_bvh64_intersect_ray", 1, 0>;
+defm IMAGE_BVH64_INTERSECT_RAY_a16 : MIMG_IntersectRay<mimgopc<0xe7>, "image_bvh64_intersect_ray", 1, 1>;
 
 /********** ========================================= **********/
 /********** Table of dimension-aware image intrinsics **********/

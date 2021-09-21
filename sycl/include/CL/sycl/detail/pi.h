@@ -36,10 +36,14 @@
 // 2. A number of types needed to define pi_device_binary_property_set added.
 // 3. Added new ownership argument to piextContextCreateWithNativeHandle.
 // 4. Add interoperability interfaces for kernel.
+// 4.6 Added new ownership argument to piextQueueCreateWithNativeHandle which
+// changes the API version from 3.5 to 4.6.
+// 5.7 Added new context and ownership arguments to
+//   piextEventCreateWithNativeHandle
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 3
-#define _PI_H_VERSION_MINOR 5
+#define _PI_H_VERSION_MAJOR 5
+#define _PI_H_VERSION_MINOR 7
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -52,6 +56,7 @@
 #include <CL/cl_ext.h>
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
+
 #include <cstdint>
 
 #ifdef __cplusplus
@@ -278,6 +283,8 @@ typedef enum {
       CL_DEVICE_CROSS_DEVICE_SHARED_MEM_CAPABILITIES_INTEL,
   PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT =
       CL_DEVICE_SHARED_SYSTEM_MEM_CAPABILITIES_INTEL,
+  // Intel UUID extension.
+  PI_DEVICE_INFO_UUID = CL_DEVICE_UUID_KHR,
   // These are Intel-specific extensions.
   PI_DEVICE_INFO_PCI_ADDRESS = 0x10020,
   PI_DEVICE_INFO_GPU_EU_COUNT = 0x10021,
@@ -285,7 +292,10 @@ typedef enum {
   PI_DEVICE_INFO_GPU_SLICES = 0x10023,
   PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 0x10024,
   PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 0x10025,
-  PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026
+  PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026,
+  PI_DEVICE_INFO_IMAGE_SRGB = 0x10027,
+  PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
+  PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111
 } _pi_device_info;
 
 typedef enum {
@@ -305,6 +315,8 @@ typedef enum {
   PI_CONTEXT_INFO_NUM_DEVICES = CL_CONTEXT_NUM_DEVICES,
   PI_CONTEXT_INFO_PROPERTIES = CL_CONTEXT_PROPERTIES,
   PI_CONTEXT_INFO_REFERENCE_COUNT = CL_CONTEXT_REFERENCE_COUNT,
+  // Atomics capabilities extensions
+  PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10010
 } _pi_context_info;
 
 typedef enum {
@@ -433,7 +445,8 @@ typedef enum {
   PI_IMAGE_CHANNEL_ORDER_LUMINANCE = CL_LUMINANCE,
   PI_IMAGE_CHANNEL_ORDER_Rx = CL_Rx,
   PI_IMAGE_CHANNEL_ORDER_RGx = CL_RGx,
-  PI_IMAGE_CHANNEL_ORDER_RGBx = CL_RGBx
+  PI_IMAGE_CHANNEL_ORDER_RGBx = CL_RGBx,
+  PI_IMAGE_CHANNEL_ORDER_sRGBA = CL_sRGBA
 } _pi_image_channel_order;
 
 typedef enum {
@@ -501,6 +514,13 @@ constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_ADDRESSING_MODE =
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_FILTER_MODE =
     CL_SAMPLER_FILTER_MODE;
 
+using pi_memory_order_capabilities = pi_bitfield;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELAXED = 0x01;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_ACQUIRE = 0x02;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELEASE = 0x04;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_ACQ_REL = 0x08;
+constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_SEQ_CST = 0x10;
+
 typedef enum {
   PI_PROFILING_INFO_COMMAND_QUEUED = CL_PROFILING_COMMAND_QUEUED,
   PI_PROFILING_INFO_COMMAND_SUBMIT = CL_PROFILING_COMMAND_SUBMIT,
@@ -515,6 +535,7 @@ typedef enum {
 using pi_mem_flags = pi_bitfield;
 // Access
 constexpr pi_mem_flags PI_MEM_FLAGS_ACCESS_RW = CL_MEM_READ_WRITE;
+constexpr pi_mem_flags PI_MEM_ACCESS_READ_ONLY = CL_MEM_READ_ONLY;
 // Host pointer
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_USE = CL_MEM_USE_HOST_PTR;
 constexpr pi_mem_flags PI_MEM_FLAGS_HOST_PTR_COPY = CL_MEM_COPY_HOST_PTR;
@@ -667,6 +688,13 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA "spir64_fpga"
 /// PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
 #define __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN "amdgcn"
+
+/// Extension to denote native support of assert feature by an arbitrary device
+/// piDeviceGetInfo call should return this extension when the device supports
+/// native asserts if supported extensions' names are requested
+#define PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT                              \
+  "pi_ext_intel_devicelib_assert"
 
 /// Device binary image property set names recognized by the SYCL runtime.
 /// Name must be consistent with
@@ -681,8 +709,16 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO "SYCL/kernel param opt"
+/// PropertySetRegistry::SYCL_KERNEL_PROGRAM_METADATA defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA "SYCL/program metadata"
 /// PropertySetRegistry::SYCL_MISC_PROP defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP "SYCL/misc properties"
+#define __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED "SYCL/assert used"
+
+/// Program metadata tags recognized by the PI backends. For kernels the tag
+/// must appear after the kernel name.
+#define __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE                    \
+  "@reqd_work_group_size"
 
 /// This struct is a record of the device binary information. If the Kind field
 /// denotes a portable binary type (SPIR-V or LLVM IR), the DeviceTargetSpec
@@ -898,6 +934,9 @@ __SYCL_EXPORT pi_result piDevicesGet(pi_platform platform,
                                      pi_uint32 num_entries, pi_device *devices,
                                      pi_uint32 *num_devices);
 
+/// Returns requested info for provided native device
+/// Return PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT for
+/// PI_DEVICE_INFO_EXTENSIONS query when the device supports native asserts
 __SYCL_EXPORT pi_result piDeviceGetInfo(pi_device device,
                                         pi_device_info param_name,
                                         size_t param_value_size,
@@ -923,7 +962,7 @@ piextDeviceGetNativeHandle(pi_device device, pi_native_handle *nativeHandle);
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI device from.
-/// \param platform is the platform of the device.
+/// \param platform is the platform of the device (optional).
 /// \param device is the PI device created from the native handle.
 __SYCL_EXPORT pi_result piextDeviceCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_platform platform, pi_device *device);
@@ -1038,8 +1077,11 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 /// \param nativeHandle is the native handle to create PI queue from.
 /// \param context is the PI context of the queue.
 /// \param queue is the PI queue created from the native handle.
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, pi_queue *queue);
+    pi_native_handle nativeHandle, pi_context context, pi_queue *queue,
+    bool ownNativeHandle);
 
 //
 // Memory
@@ -1100,9 +1142,26 @@ __SYCL_EXPORT pi_result piclProgramCreateWithSource(pi_context context,
                                                     const size_t *lengths,
                                                     pi_program *ret_program);
 
+/// Creates a PI program for a context and loads the given binary into it.
+///
+/// \param context is the PI context to associate the program with.
+/// \param num_devices is the number of devices in device_list.
+/// \param device_list is a pointer to a list of devices. These devices must all
+///                    be in context.
+/// \param lengths is an array of sizes in bytes of the binary in binaries.
+/// \param binaries is a pointer to a list of program binaries.
+/// \param num_metadata_entries is the number of metadata entries in metadata.
+/// \param metadata is a pointer to a list of program metadata entries. The
+///                 use of metadata entries is backend-defined.
+/// \param binary_status returns whether the program binary was loaded
+///                      succesfully or not, for each device in device_list.
+///                      binary_status is ignored if it is null and otherwise
+///                      it must be an array of num_devices elements.
+/// \param ret_program is the PI program created from the program binaries.
 __SYCL_EXPORT pi_result piProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
+    size_t num_metadata_entries, const pi_device_binary_property *metadata,
     pi_int32 *binary_status, pi_program *ret_program);
 
 __SYCL_EXPORT pi_result piProgramGetInfo(pi_program program,
@@ -1313,9 +1372,13 @@ piextEventGetNativeHandle(pi_event event, pi_native_handle *nativeHandle);
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI event from.
+/// \param context is the corresponding PI context
+/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
+///        the native handle, if it can.
 /// \param event is the PI event created from the native handle.
 __SYCL_EXPORT pi_result piextEventCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_event *event);
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    pi_event *event);
 
 //
 // Sampler
@@ -1497,6 +1560,9 @@ typedef enum : pi_bitfield {
   PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL
 } _pi_usm_mem_properties;
 
+// Flag is used for piProgramUSMEnqueuePrefetch. PI_USM_MIGRATION_TBD0 is a
+// placeholder for future developments and should not change the behaviour of
+// piProgramUSMEnqueuePrefetch
 typedef enum : pi_bitfield {
   PI_USM_MIGRATION_TBD0 = (1 << 0)
 } _pi_usm_migration_flags;
@@ -1512,8 +1578,8 @@ using pi_usm_migration_flags = _pi_usm_migration_flags;
 ///
 /// \param result_ptr contains the allocated memory
 /// \param context is the pi_context
-/// \param pi_usm_mem_properties are optional allocation properties
-/// \param size_t is the size of the allocation
+/// \param properties are optional allocation properties
+/// \param size is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
 __SYCL_EXPORT pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
                                           pi_usm_mem_properties *properties,
@@ -1524,8 +1590,8 @@ __SYCL_EXPORT pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
 /// \param result_ptr contains the allocated memory
 /// \param context is the pi_context
 /// \param device is the device the memory will be allocated on
-/// \param pi_usm_mem_properties are optional allocation properties
-/// \param size_t is the size of the allocation
+/// \param properties are optional allocation properties
+/// \param size is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
 __SYCL_EXPORT pi_result piextUSMDeviceAlloc(void **result_ptr,
                                             pi_context context,
@@ -1538,8 +1604,8 @@ __SYCL_EXPORT pi_result piextUSMDeviceAlloc(void **result_ptr,
 /// \param result_ptr contains the allocated memory
 /// \param context is the pi_context
 /// \param device is the device the memory will be allocated on
-/// \param pi_usm_mem_properties are optional allocation properties
-/// \param size_t is the size of the allocation
+/// \param properties are optional allocation properties
+/// \param size is the size of the allocation
 /// \param alignment is the desired alignment of the allocation
 __SYCL_EXPORT pi_result piextUSMSharedAlloc(void **result_ptr,
                                             pi_context context,
@@ -1629,10 +1695,19 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemAdvise(pi_queue queue,
 /// \param param_name is the type of query to perform
 /// \param param_value_size is the size of the result in bytes
 /// \param param_value is the result
-/// \param param_value_ret is how many bytes were written
+/// \param param_value_size_ret is how many bytes were written
 __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
     pi_context context, const void *ptr, pi_mem_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
+
+/// API to get Plugin internal data, opaque to SYCL RT. Some devices whose
+/// device code is compiled by the host compiler (e.g. CPU emulators) may use it
+/// to access some device code functionality implemented in/behind the plugin.
+/// \param opaque_data_param - unspecified argument, interpretation is specific
+/// to a plugin \param opaque_data_return - placeholder for the returned opaque
+/// data.
+__SYCL_EXPORT pi_result piextPluginGetOpaqueData(void *opaque_data_param,
+                                                 void **opaque_data_return);
 
 /// API to notify that the plugin should clean up its resources.
 /// No PI calls should be made until the next piPluginInit call.

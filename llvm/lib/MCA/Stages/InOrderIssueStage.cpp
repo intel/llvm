@@ -12,35 +12,60 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/MCA/Stages/InOrderIssueStage.h"
-
-#include "llvm/MC/MCSchedule.h"
-#include "llvm/MCA/HWEventListener.h"
+#include "llvm/MCA/HardwareUnits/LSUnit.h"
 #include "llvm/MCA/HardwareUnits/RegisterFile.h"
-#include "llvm/MCA/HardwareUnits/ResourceManager.h"
 #include "llvm/MCA/HardwareUnits/RetireControlUnit.h"
 #include "llvm/MCA/Instruction.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/Error.h"
-
-#include <algorithm>
 
 #define DEBUG_TYPE "llvm-mca"
 namespace llvm {
 namespace mca {
 
+void StallInfo::clear() {
+  IR.invalidate();
+  CyclesLeft = 0;
+  Kind = StallKind::DEFAULT;
+}
+
+void StallInfo::update(const InstRef &Inst, unsigned Cycles, StallKind SK) {
+  IR = Inst;
+  CyclesLeft = Cycles;
+  Kind = SK;
+}
+
+void StallInfo::cycleEnd() {
+  if (!isValid())
+    return;
+
+  if (!CyclesLeft)
+    return;
+
+  --CyclesLeft;
+}
+
+InOrderIssueStage::InOrderIssueStage(const MCSubtargetInfo &STI,
+                                     RegisterFile &PRF, CustomBehaviour &CB,
+                                     LSUnit &LSU)
+    : STI(STI), PRF(PRF), RM(STI.getSchedModel()), CB(CB), LSU(LSU),
+      NumIssued(), SI(), CarryOver(), Bandwidth(), LastWriteBackCycle() {}
+
+unsigned InOrderIssueStage::getIssueWidth() const {
+  return STI.getSchedModel().IssueWidth;
+}
+
 bool InOrderIssueStage::hasWorkToComplete() const {
-  return !IssuedInst.empty() || StalledInst || CarriedOver;
+  return !IssuedInst.empty() || SI.isValid() || CarriedOver;
 }
 
 bool InOrderIssueStage::isAvailable(const InstRef &IR) const {
-  if (StalledInst || CarriedOver)
+  if (SI.isValid() || CarriedOver)
     return false;
 
   const Instruction &Inst = *IR.getInstruction();
   unsigned NumMicroOps = Inst.getNumMicroOps();
   const InstrDesc &Desc = Inst.getDesc();
 
-  bool ShouldCarryOver = NumMicroOps > SM.IssueWidth;
+  bool ShouldCarryOver = NumMicroOps > getIssueWidth();
   if (Bandwidth < NumMicroOps && !ShouldCarryOver)
     return false;
 
@@ -61,21 +86,8 @@ static bool hasResourceHazard(const ResourceManager &RM, const InstRef &IR) {
   return false;
 }
 
-static unsigned findLastWriteBackCycle(const InstRef &IR) {
-  unsigned LastWBCycle = 0;
-  for (const WriteState &WS : IR.getInstruction()->getDefs()) {
-    int CyclesLeft = WS.getCyclesLeft();
-    if (CyclesLeft == UNKNOWN_CYCLES)
-      CyclesLeft = WS.getLatency();
-    if (CyclesLeft < 0)
-      CyclesLeft = 0;
-    LastWBCycle = std::max(LastWBCycle, (unsigned)CyclesLeft);
-  }
-  return LastWBCycle;
-}
-
 static unsigned findFirstWriteBackCycle(const InstRef &IR) {
-  unsigned FirstWBCycle = ~0U;
+  unsigned FirstWBCycle = IR.getInstruction()->getLatency();
   for (const WriteState &WS : IR.getInstruction()->getDefs()) {
     int CyclesLeft = WS.getCyclesLeft();
     if (CyclesLeft == UNKNOWN_CYCLES)
@@ -90,87 +102,56 @@ static unsigned findFirstWriteBackCycle(const InstRef &IR) {
 /// Return a number of cycles left until register requirements of the
 /// instructions are met.
 static unsigned checkRegisterHazard(const RegisterFile &PRF,
-                                    const MCSchedModel &SM,
                                     const MCSubtargetInfo &STI,
                                     const InstRef &IR) {
-  unsigned StallCycles = 0;
-  SmallVector<WriteRef, 4> Writes;
-  SmallVector<WriteRef, 4> CommittedWrites;
-
   for (const ReadState &RS : IR.getInstruction()->getUses()) {
-    const ReadDescriptor &RD = RS.getDescriptor();
-    const MCSchedClassDesc *SC = SM.getSchedClassDesc(RD.SchedClassID);
-
-    PRF.collectWrites(STI, RS, Writes, CommittedWrites);
-    for (const WriteRef &WR : Writes) {
-      const WriteState *WS = WR.getWriteState();
-      unsigned WriteResID = WS->getWriteResourceID();
-      int ReadAdvance = STI.getReadAdvanceCycles(SC, RD.UseIndex, WriteResID);
-      LLVM_DEBUG(dbgs() << "[E] ReadAdvance for #" << IR << ": " << ReadAdvance
-                        << '\n');
-
-      if (WS->getCyclesLeft() == UNKNOWN_CYCLES) {
-        // Try again in the next cycle until the value is known
-        StallCycles = std::max(StallCycles, 1U);
-        continue;
-      }
-
-      int CyclesLeft = WS->getCyclesLeft() - ReadAdvance;
-      if (CyclesLeft > 0) {
-        LLVM_DEBUG(dbgs() << "[E] Register hazard: " << WS->getRegisterID()
-                          << '\n');
-        StallCycles = std::max(StallCycles, (unsigned)CyclesLeft);
-      }
-    }
-    Writes.clear();
-
-    for (const WriteRef &WR : CommittedWrites) {
-      unsigned WriteResID = WR.getWriteResourceID();
-      assert(!WR.getWriteState() && "Should be already committed!");
-      assert(WR.hasKnownWriteBackCycle() && "Invalid write!");
-      assert(STI.getReadAdvanceCycles(SC, RD.UseIndex, WriteResID) < 0);
-      unsigned ReadAdvance = static_cast<unsigned>(
-          -STI.getReadAdvanceCycles(SC, RD.UseIndex, WriteResID));
-      unsigned Elapsed = PRF.getElapsedCyclesFromWriteBack(WR);
-      assert(Elapsed < ReadAdvance && "Should not have been added to the set!");
-      unsigned CyclesLeft = (ReadAdvance - Elapsed);
-      StallCycles = std::max(StallCycles, CyclesLeft);
-    }
+    RegisterFile::RAWHazard Hazard = PRF.checkRAWHazards(STI, RS);
+    if (Hazard.isValid())
+      return Hazard.hasUnknownCycles() ? 1U : Hazard.CyclesLeft;
   }
 
-  return StallCycles;
+  return 0;
 }
 
-bool InOrderIssueStage::canExecute(const InstRef &IR,
-                                   unsigned *StallCycles) const {
-  *StallCycles = 0;
+bool InOrderIssueStage::canExecute(const InstRef &IR) {
+  assert(!SI.getCyclesLeft() && "Should not have reached this code!");
+  assert(!SI.isValid() && "Should not have reached this code!");
 
-  if (unsigned RegStall = checkRegisterHazard(PRF, SM, STI, IR)) {
-    *StallCycles = RegStall;
-    // FIXME: add a parameter to HWStallEvent to indicate a number of cycles.
-    for (unsigned I = 0; I < RegStall; ++I) {
-      notifyEvent<HWStallEvent>(
-          HWStallEvent(HWStallEvent::RegisterFileStall, IR));
-      notifyEvent<HWPressureEvent>(
-          HWPressureEvent(HWPressureEvent::REGISTER_DEPS, IR));
-    }
-  } else if (hasResourceHazard(*RM, IR)) {
-    *StallCycles = 1;
-    notifyEvent<HWStallEvent>(
-        HWStallEvent(HWStallEvent::DispatchGroupStall, IR));
-    notifyEvent<HWPressureEvent>(
-        HWPressureEvent(HWPressureEvent::RESOURCES, IR));
-  } else if (LastWriteBackCycle) {
+  if (unsigned Cycles = checkRegisterHazard(PRF, STI, IR)) {
+    SI.update(IR, Cycles, StallInfo::StallKind::REGISTER_DEPS);
+    return false;
+  }
+
+  if (hasResourceHazard(RM, IR)) {
+    SI.update(IR, /* delay */ 1, StallInfo::StallKind::DISPATCH);
+    return false;
+  }
+
+  if (IR.getInstruction()->isMemOp() && !LSU.isReady(IR)) {
+    // This load (store) aliases with a preceding store (load). Delay
+    // it until the depenency is cleared.
+    SI.update(IR, /* delay */ 1, StallInfo::StallKind::LOAD_STORE);
+    return false;
+  }
+
+  if (unsigned CustomStallCycles = CB.checkCustomHazard(IssuedInst, IR)) {
+    SI.update(IR, CustomStallCycles, StallInfo::StallKind::CUSTOM_STALL);
+    return false;
+  }
+
+  if (LastWriteBackCycle) {
     if (!IR.getInstruction()->getDesc().RetireOOO) {
       unsigned NextWriteBackCycle = findFirstWriteBackCycle(IR);
-      // Delay the instruction to ensure that writes occur in program order
+      // Delay the instruction to ensure that writes happen in program order.
       if (NextWriteBackCycle < LastWriteBackCycle) {
-        *StallCycles = LastWriteBackCycle - NextWriteBackCycle;
+        SI.update(IR, LastWriteBackCycle - NextWriteBackCycle,
+                  StallInfo::StallKind::DELAY);
+        return false;
       }
     }
   }
 
-  return *StallCycles == 0;
+  return true;
 }
 
 static void addRegisterReadWrite(RegisterFile &PRF, Instruction &IS,
@@ -186,47 +167,57 @@ static void addRegisterReadWrite(RegisterFile &PRF, Instruction &IS,
     PRF.addRegisterWrite(WriteRef(SourceIndex, &WS), UsedRegs);
 }
 
-static void notifyInstructionIssue(
-    const InstRef &IR,
-    const SmallVectorImpl<std::pair<ResourceRef, ResourceCycles>> &UsedRes,
-    const Stage &S) {
-
-  S.notifyEvent<HWInstructionEvent>(
+void InOrderIssueStage::notifyInstructionIssued(const InstRef &IR,
+                                                ArrayRef<ResourceUse> UsedRes) {
+  notifyEvent<HWInstructionEvent>(
       HWInstructionEvent(HWInstructionEvent::Ready, IR));
-  S.notifyEvent<HWInstructionEvent>(HWInstructionIssuedEvent(IR, UsedRes));
+  notifyEvent<HWInstructionEvent>(HWInstructionIssuedEvent(IR, UsedRes));
 
   LLVM_DEBUG(dbgs() << "[E] Issued #" << IR << "\n");
 }
 
-static void notifyInstructionDispatch(const InstRef &IR, unsigned Ops,
-                                      const SmallVectorImpl<unsigned> &UsedRegs,
-                                      const Stage &S) {
-
-  S.notifyEvent<HWInstructionEvent>(
+void InOrderIssueStage::notifyInstructionDispatched(
+    const InstRef &IR, unsigned Ops, ArrayRef<unsigned> UsedRegs) {
+  notifyEvent<HWInstructionEvent>(
       HWInstructionDispatchedEvent(IR, UsedRegs, Ops));
 
   LLVM_DEBUG(dbgs() << "[E] Dispatched #" << IR << "\n");
 }
 
+void InOrderIssueStage::notifyInstructionExecuted(const InstRef &IR) {
+  notifyEvent<HWInstructionEvent>(
+      HWInstructionEvent(HWInstructionEvent::Executed, IR));
+  LLVM_DEBUG(dbgs() << "[E] Instruction #" << IR << " is executed\n");
+}
+
+void InOrderIssueStage::notifyInstructionRetired(const InstRef &IR,
+                                                 ArrayRef<unsigned> FreedRegs) {
+  notifyEvent<HWInstructionEvent>(HWInstructionRetiredEvent(IR, FreedRegs));
+  LLVM_DEBUG(dbgs() << "[E] Retired #" << IR << " \n");
+}
+
 llvm::Error InOrderIssueStage::execute(InstRef &IR) {
-  if (llvm::Error E = tryIssue(IR, &StallCyclesLeft))
+  Instruction &IS = *IR.getInstruction();
+  if (IS.isMemOp())
+    IS.setLSUTokenID(LSU.dispatch(IR));
+
+  if (llvm::Error E = tryIssue(IR))
     return E;
 
-  if (StallCyclesLeft) {
-    StalledInst = IR;
-  }
+  if (SI.isValid())
+    notifyStallEvent();
 
   return llvm::ErrorSuccess();
 }
 
-llvm::Error InOrderIssueStage::tryIssue(InstRef &IR, unsigned *StallCycles) {
+llvm::Error InOrderIssueStage::tryIssue(InstRef &IR) {
   Instruction &IS = *IR.getInstruction();
   unsigned SourceIndex = IR.getSourceIndex();
   const InstrDesc &Desc = IS.getDesc();
 
-  if (!canExecute(IR, StallCycles)) {
-    LLVM_DEBUG(dbgs() << "[E] Stalled #" << IR << " for " << *StallCycles
-                      << " cycles\n");
+  if (!canExecute(IR)) {
+    LLVM_DEBUG(dbgs() << "[N] Stalled #" << SI.getInstruction() << " for "
+                      << SI.getCyclesLeft() << " cycles\n");
     Bandwidth = 0;
     return llvm::ErrorSuccess();
   }
@@ -238,18 +229,21 @@ llvm::Error InOrderIssueStage::tryIssue(InstRef &IR, unsigned *StallCycles) {
   addRegisterReadWrite(PRF, IS, SourceIndex, STI, UsedRegs);
 
   unsigned NumMicroOps = IS.getNumMicroOps();
-  notifyInstructionDispatch(IR, NumMicroOps, UsedRegs, *this);
+  notifyInstructionDispatched(IR, NumMicroOps, UsedRegs);
 
-  SmallVector<std::pair<ResourceRef, ResourceCycles>, 4> UsedResources;
-  RM->issueInstruction(Desc, UsedResources);
+  SmallVector<ResourceUse, 4> UsedResources;
+  RM.issueInstruction(Desc, UsedResources);
   IS.execute(SourceIndex);
 
+  if (IS.isMemOp())
+    LSU.onInstructionIssued(IR);
+
   // Replace resource masks with valid resource processor IDs.
-  for (std::pair<ResourceRef, ResourceCycles> &Use : UsedResources) {
+  for (ResourceUse &Use : UsedResources) {
     uint64_t Mask = Use.first.first;
-    Use.first.first = RM->resolveResourceMask(Mask);
+    Use.first.first = RM.resolveResourceMask(Mask);
   }
-  notifyInstructionIssue(IR, UsedResources, *this);
+  notifyInstructionIssued(IR, UsedResources);
 
   bool ShouldCarryOver = NumMicroOps > Bandwidth;
   if (ShouldCarryOver) {
@@ -263,10 +257,23 @@ llvm::Error InOrderIssueStage::tryIssue(InstRef &IR, unsigned *StallCycles) {
     Bandwidth = Desc.EndGroup ? 0 : Bandwidth - NumMicroOps;
   }
 
+  // If the instruction has a latency of 0, we need to handle
+  // the execution and retirement now.
+  if (IS.isExecuted()) {
+    PRF.onInstructionExecuted(&IS);
+    LSU.onInstructionExecuted(IR);
+    notifyEvent<HWInstructionEvent>(
+        HWInstructionEvent(HWInstructionEvent::Executed, IR));
+    LLVM_DEBUG(dbgs() << "[E] Instruction #" << IR << " is executed\n");
+
+    retireInstruction(IR);
+    return llvm::ErrorSuccess();
+  }
+
   IssuedInst.push_back(IR);
 
   if (!IR.getInstruction()->getDesc().RetireOOO)
-    LastWriteBackCycle = findLastWriteBackCycle(IR);
+    LastWriteBackCycle = IS.getCyclesLeft();
 
   return llvm::ErrorSuccess();
 }
@@ -282,16 +289,15 @@ void InOrderIssueStage::updateIssuedInst() {
 
     IS.cycleEvent();
     if (!IS.isExecuted()) {
-      LLVM_DEBUG(dbgs() << "[E] Instruction #" << IR
+      LLVM_DEBUG(dbgs() << "[N] Instruction #" << IR
                         << " is still executing\n");
       ++I;
       continue;
     }
 
     PRF.onInstructionExecuted(&IS);
-    notifyEvent<HWInstructionEvent>(
-        HWInstructionEvent(HWInstructionEvent::Executed, IR));
-    LLVM_DEBUG(dbgs() << "[E] Instruction #" << IR << " is executed\n");
+    LSU.onInstructionExecuted(IR);
+    notifyInstructionExecuted(IR);
     ++NumExecuted;
 
     retireInstruction(*I);
@@ -307,18 +313,17 @@ void InOrderIssueStage::updateCarriedOver() {
   if (!CarriedOver)
     return;
 
-  assert(!StalledInst && "A stalled instruction cannot be carried over.");
+  assert(!SI.isValid() && "A stalled instruction cannot be carried over.");
 
   if (CarryOver > Bandwidth) {
     CarryOver -= Bandwidth;
     Bandwidth = 0;
     LLVM_DEBUG(dbgs() << "[N] Carry over (" << CarryOver << "uops left) #"
-               << CarriedOver << " \n");
+                      << CarriedOver << " \n");
     return;
   }
 
-  LLVM_DEBUG(dbgs() << "[N] Carry over (complete) #" << CarriedOver
-             << " \n");
+  LLVM_DEBUG(dbgs() << "[N] Carry over (complete) #" << CarriedOver << " \n");
 
   if (CarriedOver.getInstruction()->getDesc().EndGroup)
     Bandwidth = 0;
@@ -337,19 +342,53 @@ void InOrderIssueStage::retireInstruction(InstRef &IR) {
   for (const WriteState &WS : IS.getDefs())
     PRF.removeRegisterWrite(WS, FreedRegs);
 
-  notifyEvent<HWInstructionEvent>(HWInstructionRetiredEvent(IR, FreedRegs));
-  LLVM_DEBUG(dbgs() << "[E] Retired #" << IR << " \n");
+  if (IS.isMemOp())
+    LSU.onInstructionRetired(IR);
+
+  notifyInstructionRetired(IR, FreedRegs);
+}
+
+void InOrderIssueStage::notifyStallEvent() {
+  assert(SI.getCyclesLeft() && "A zero cycles stall?");
+  assert(SI.isValid() && "Invalid stall information found!");
+
+  const InstRef &IR = SI.getInstruction();
+
+  switch (SI.getStallKind()) {
+  default:
+    break;
+  case StallInfo::StallKind::REGISTER_DEPS: {
+    notifyEvent<HWStallEvent>(
+        HWStallEvent(HWStallEvent::RegisterFileStall, IR));
+    notifyEvent<HWPressureEvent>(
+        HWPressureEvent(HWPressureEvent::REGISTER_DEPS, IR));
+    break;
+  }
+  case StallInfo::StallKind::DISPATCH: {
+    notifyEvent<HWStallEvent>(
+        HWStallEvent(HWStallEvent::DispatchGroupStall, IR));
+    notifyEvent<HWPressureEvent>(
+        HWPressureEvent(HWPressureEvent::RESOURCES, IR));
+    break;
+  }
+  case StallInfo::StallKind::CUSTOM_STALL: {
+    notifyEvent<HWStallEvent>(
+        HWStallEvent(HWStallEvent::CustomBehaviourStall, IR));
+    break;
+  }
+  }
 }
 
 llvm::Error InOrderIssueStage::cycleStart() {
   NumIssued = 0;
-  Bandwidth = SM.IssueWidth;
+  Bandwidth = getIssueWidth();
 
   PRF.cycleStart();
+  LSU.cycleEvent();
 
   // Release consumed resources.
   SmallVector<ResourceRef, 4> Freed;
-  RM->cycleEvent(Freed);
+  RM.cycleEvent(Freed);
 
   updateIssuedInst();
 
@@ -357,28 +396,34 @@ llvm::Error InOrderIssueStage::cycleStart() {
   updateCarriedOver();
 
   // Issue instructions scheduled for this cycle
-  if (!StallCyclesLeft && StalledInst) {
-    if (llvm::Error E = tryIssue(StalledInst, &StallCyclesLeft))
-      return E;
+  if (SI.isValid()) {
+    if (!SI.getCyclesLeft()) {
+      // Make a copy of the reference, and try issue it again.
+      // Do not take the instruction reference because SI.clear() will
+      // invalidate it.
+      InstRef IR = SI.getInstruction();
+      SI.clear();
+
+      if (llvm::Error E = tryIssue(IR))
+        return E;
+    }
+
+    if (SI.getCyclesLeft()) {
+      // The instruction is still stalled, cannot issue any new instructions in
+      // this cycle.
+      notifyStallEvent();
+      Bandwidth = 0;
+      return llvm::ErrorSuccess();
+    }
   }
 
-  if (!StallCyclesLeft) {
-    StalledInst.invalidate();
-    assert(NumIssued <= SM.IssueWidth && "Overflow.");
-  } else {
-    // The instruction is still stalled, cannot issue any new instructions in
-    // this cycle.
-    Bandwidth = 0;
-  }
-
+  assert((NumIssued <= getIssueWidth()) && "Overflow.");
   return llvm::ErrorSuccess();
 }
 
 llvm::Error InOrderIssueStage::cycleEnd() {
   PRF.cycleEnd();
-
-  if (StallCyclesLeft > 0)
-    --StallCyclesLeft;
+  SI.cycleEnd();
 
   if (LastWriteBackCycle > 0)
     --LastWriteBackCycle;

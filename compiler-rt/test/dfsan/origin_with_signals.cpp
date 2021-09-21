@@ -3,11 +3,11 @@
 // Origin tracking uses ChainedOriginDepot that is not async signal safe, so we
 // do not track origins inside signal handlers.
 //
-// RUN: %clangxx_dfsan -gmlt -mllvm -dfsan-track-origins=1 -mllvm -dfsan-fast-16-labels=true %s -o %t && \
+// RUN: %clangxx_dfsan -gmlt -mllvm -dfsan-track-origins=1 %s -o %t && \
 // RUN:     %run %t >%t.out 2>&1
 // RUN: FileCheck %s < %t.out
 //
-// RUN: %clangxx_dfsan -gmlt -mllvm -dfsan-instrument-with-call-threshold=0 -mllvm -dfsan-track-origins=1 -mllvm -dfsan-fast-16-labels=true %s -o %t && \
+// RUN: %clangxx_dfsan -gmlt -mllvm -dfsan-instrument-with-call-threshold=0 -mllvm -dfsan-track-origins=1 %s -o %t && \
 // RUN:     %run %t >%t.out 2>&1
 // RUN: FileCheck %s < %t.out
 //
@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
 
 // CHECK: Taint value 0x8 {{.*}} origin tracking ()
 // CHECK: Origin value: {{.*}}, Taint value was stored to memory at
-// CHECK-NOT: {{.*}} in dfs$SignalHandler {{.*}}origin_with_signals.cpp{{.*}}
+// CHECK-NOT: {{.*}} in SignalHandler.dfsan {{.*}}origin_with_signals.cpp{{.*}}
 
 // CHECK: #0 {{.*}} in main {{.*}}origin_with_signals.cpp:[[@LINE-14]]
 

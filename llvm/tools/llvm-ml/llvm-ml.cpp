@@ -36,11 +36,13 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/WithColor.h"
+#include <ctime>
 
 using namespace llvm;
 using namespace llvm::opt;
@@ -129,8 +131,31 @@ static int AssembleInput(StringRef ProgName, const Target *TheTarget,
                          MCAsmInfo &MAI, MCSubtargetInfo &STI,
                          MCInstrInfo &MCII, MCTargetOptions &MCOptions,
                          const opt::ArgList &InputArgs) {
+  struct tm TM;
+  time_t Timestamp;
+  if (InputArgs.hasArg(OPT_timestamp)) {
+    StringRef TimestampStr = InputArgs.getLastArgValue(OPT_timestamp);
+    int64_t IntTimestamp;
+    if (TimestampStr.getAsInteger(10, IntTimestamp)) {
+      WithColor::error(errs(), ProgName)
+          << "invalid timestamp '" << TimestampStr
+          << "'; must be expressed in seconds since the UNIX epoch.\n";
+      return 1;
+    }
+    Timestamp = IntTimestamp;
+  } else {
+    Timestamp = time(nullptr);
+  }
+  if (InputArgs.hasArg(OPT_utc)) {
+    // Not thread-safe.
+    TM = *gmtime(&Timestamp);
+  } else {
+    // Not thread-safe.
+    TM = *localtime(&Timestamp);
+  }
+
   std::unique_ptr<MCAsmParser> Parser(
-      createMCMasmParser(SrcMgr, Ctx, Str, MAI, 0));
+      createMCMasmParser(SrcMgr, Ctx, Str, MAI, TM, 0));
   std::unique_ptr<MCTargetAsmParser> TAP(
       TheTarget->createMCAsmParser(STI, *Parser, MCII, MCOptions));
 
@@ -219,7 +244,7 @@ int main(int Argc, char **Argv) {
 
   if (InputArgs.hasArg(OPT_help)) {
     std::string Usage = llvm::formatv("{0} [ /options ] file", ProgName).str();
-    T.PrintHelp(outs(), Usage.c_str(), "LLVM MASM Assembler",
+    T.printHelp(outs(), Usage.c_str(), "LLVM MASM Assembler",
                 /*ShowHidden=*/false);
     return 0;
   } else if (InputFilename.empty()) {
@@ -263,8 +288,21 @@ int main(int Argc, char **Argv) {
   SrcMgr.AddNewSourceBuffer(std::move(*BufferPtr), SMLoc());
 
   // Record the location of the include directories so that the lexer can find
-  // it later.
-  SrcMgr.setIncludeDirs(InputArgs.getAllArgValues(OPT_include_path));
+  // included files later.
+  std::vector<std::string> IncludeDirs =
+      InputArgs.getAllArgValues(OPT_include_path);
+  if (!InputArgs.hasArg(OPT_ignore_include_envvar)) {
+    if (llvm::Optional<std::string> IncludeEnvVar =
+            llvm::sys::Process::GetEnv("INCLUDE")) {
+      SmallVector<StringRef, 8> Dirs;
+      StringRef(*IncludeEnvVar)
+          .split(Dirs, ";", /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+      IncludeDirs.reserve(IncludeDirs.size() + Dirs.size());
+      for (StringRef Dir : Dirs)
+        IncludeDirs.push_back(Dir.str());
+    }
+  }
+  SrcMgr.setIncludeDirs(IncludeDirs);
 
   std::unique_ptr<MCRegisterInfo> MRI(TheTarget->createMCRegInfo(TripleName));
   assert(MRI && "Unable to create target register info!");

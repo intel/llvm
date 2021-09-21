@@ -107,9 +107,11 @@ public:
 
   Command(CommandType Type, QueueImplPtr Queue);
 
-  void addDep(DepDesc NewDep);
+  /// \return an optional connection cmd to enqueue
+  [[nodiscard]] Command *addDep(DepDesc NewDep);
 
-  void addDep(EventImplPtr Event);
+  /// \return an optional connection cmd to enqueue
+  [[nodiscard]] Command *addDep(EventImplPtr Event);
 
   void addUser(Command *NewUser) { MUsers.insert(NewUser); }
 
@@ -136,6 +138,8 @@ public:
 
   const QueueImplPtr &getQueue() const { return MQueue; }
 
+  const QueueImplPtr &getSubmittedQueue() const { return MSubmittedQueue; }
+
   const EventImplPtr &getEvent() const { return MEvent; }
 
   // Methods needed to support SYCL instrumentation
@@ -149,7 +153,7 @@ public:
   void resolveReleaseDependencies(std::set<Command *> &list);
   /// Creates an edge event when the dependency is a command.
   void emitEdgeEventForCommandDependence(Command *Cmd, void *ObjAddr,
-                                         const string_class &Prefix,
+                                         const std::string &Prefix,
                                          bool IsCommand);
   /// Creates an edge event when the dependency is an event.
   void emitEdgeEventForEventDependence(Command *Cmd, RT::PiEvent &EventAddr);
@@ -187,14 +191,18 @@ public:
   /// for memory copy commands.
   virtual const QueueImplPtr &getWorkerQueue() const;
 
+  /// Returns true iff the command produces a PI event on non-host devices.
+  virtual bool producesPiEvent() const;
+
 protected:
-  EventImplPtr MEvent;
   QueueImplPtr MQueue;
+  QueueImplPtr MSubmittedQueue;
+  EventImplPtr MEvent;
 
   /// Dependency events prepared for waiting by backend.
   /// See processDepEvent for details.
-  std::vector<EventImplPtr> MPreparedDepsEvents;
-  std::vector<EventImplPtr> MPreparedHostDepsEvents;
+  std::vector<EventImplPtr> &MPreparedDepsEvents;
+  std::vector<EventImplPtr> &MPreparedHostDepsEvents;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      RT::PiEvent &Event);
@@ -204,13 +212,15 @@ protected:
   /// Perform glueing of events from different contexts
   /// \param DepEvent event this commands should depend on
   /// \param Dep optional DepDesc to perform connection of events properly
+  /// \return returns an optional connection command to enqueue
   ///
   /// Glueing (i.e. connecting) will be performed if and only if DepEvent is
   /// not from host context and its context doesn't match to context of this
   /// command. Context of this command is fetched via getWorkerContext().
   ///
   /// Optionality of Dep is set by Dep.MDepCommand not equal to nullptr.
-  void processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep);
+  [[nodiscard]] Command *processDepEvent(EventImplPtr DepEvent,
+                                         const DepDesc &Dep);
 
   /// Private interface. Derived classes should implement this method.
   virtual cl_int enqueueImp() = 0;
@@ -268,11 +278,11 @@ public:
   /// address.
   void *MAddress = nullptr;
   /// Buffer to build the address string.
-  string_class MAddressString;
+  std::string MAddressString;
   /// Buffer to build the command node type.
-  string_class MCommandNodeType;
+  std::string MCommandNodeType;
   /// Buffer to build the command end-user understandable name.
-  string_class MCommandName;
+  std::string MCommandName;
   /// Flag to indicate if makeTraceEventProlog() has been run.
   bool MTraceEventPrologComplete = false;
   /// Flag to indicate if this is the first time we are seeing this payload.
@@ -302,6 +312,8 @@ public:
 
   void emitInstrumentationData() override;
 
+  bool producesPiEvent() const final;
+
 private:
   cl_int enqueueImp() final;
 
@@ -319,6 +331,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() override;
+  bool producesPiEvent() const final;
 
 private:
   cl_int enqueueImp() final;
@@ -342,6 +355,8 @@ public:
   const Requirement *getRequirement() const final { return &MRequirement; }
 
   void emitInstrumentationData() override;
+
+  bool producesPiEvent() const final;
 
   void *MMemAllocation = nullptr;
 
@@ -387,7 +402,8 @@ private:
 class AllocaSubBufCommand : public AllocaCommandBase {
 public:
   AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
-                      AllocaCommandBase *ParentAlloca);
+                      AllocaCommandBase *ParentAlloca,
+                      std::vector<Command *> &ToEnqueue);
 
   void *getMemAllocation() const final;
   void printDot(std::ostream &Stream) const final;
@@ -428,6 +444,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() override;
+  bool producesPiEvent() const final;
 
 private:
   cl_int enqueueImp() final;
@@ -450,6 +467,7 @@ public:
   void emitInstrumentationData() final;
   const ContextImplPtr &getWorkerContext() const final;
   const QueueImplPtr &getWorkerQueue() const final;
+  bool producesPiEvent() const final;
 
 private:
   cl_int enqueueImp() final;
@@ -491,7 +509,7 @@ class ExecCGCommand : public Command {
 public:
   ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
 
-  vector_class<StreamImplPtr> getStreams() const;
+  std::vector<StreamImplPtr> getStreams() const;
 
   void clearStreams();
 
@@ -513,6 +531,8 @@ public:
     MCommandGroup.release();
   }
 
+  bool producesPiEvent() const final;
+
 private:
   cl_int enqueueImp() final;
 
@@ -522,11 +542,13 @@ private:
       CGExecKernel *ExecKernel,
       std::shared_ptr<device_image_impl> DeviceImageImpl, RT::PiKernel Kernel,
       NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents,
-      RT::PiEvent &Event, ProgramManager::KernelArgMask EliminatedArgMask);
+      RT::PiEvent &Event,
+      const ProgramManager::KernelArgMask &EliminatedArgMask);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 
   friend class Command;
+  friend class Scheduler;
 };
 
 class UpdateHostRequirementCommand : public Command {

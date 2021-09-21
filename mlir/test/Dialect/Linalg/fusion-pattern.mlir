@@ -4,7 +4,7 @@ module {
   func @basic_fusion(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>,
                      %arg2: memref<?x?xf32>) {
     %cst = constant 0.000000e+00 : f32
-    linalg.fill(%arg2, %cst) : memref<?x?xf32>, f32
+    linalg.fill(%cst, %arg2) : f32, memref<?x?xf32>
     linalg.matmul {__internal_linalg_transform__ = "basic_fusion"}
       ins(%arg0, %arg1 : memref<?x?xf32>, memref<?x?xf32>)
       outs(%arg2 : memref<?x?xf32>)
@@ -28,7 +28,7 @@ module {
 //  CHECK-DAG:   %[[C64:.+]] = constant 64 : index
 //  CHECK-DAG:   %[[C16:.+]] = constant 16 : index
 //  CHECK-DAG:   %[[CST:.+]] = constant 0.0{{.*}} : f32
-//  CHECK-DAG:   linalg.fill(%[[ARG2]], %[[CST]])
+//  CHECK-DAG:   linalg.fill(%[[CST]], %[[ARG2]])
 // CHECK-SAME:   __internal_linalg_transform__ = "after_basic_fusion_original"
 //  CHECK-DAG:   %[[M:.+]] = memref.dim %[[ARG0]], %[[C0]]
 //  CHECK-DAG:   %[[N:.+]] = memref.dim %[[ARG1]], %[[C1]]
@@ -43,25 +43,22 @@ module {
 //      CHECK:     %[[TILE_N:.+]] = affine.min #[[MAP2]](%[[IV1]])[%[[N]]]
 //      CHECK:     %[[SV2:.+]] = memref.subview %[[ARG1]][0, %[[IV1]]]
 // CHECK-SAME:       %[[K_2]], %[[TILE_N]]
-//      CHECK:     %[[M_2:.+]] = memref.dim %[[ARG2]], %[[C0]]
-//      CHECK:     %[[TILE_M_2:.+]] = affine.min #[[MAP0]](%[[IV0]])[%[[M_2]]]
-//      CHECK:     %[[N_2:.+]] = memref.dim %[[ARG2]], %[[C1]]
-//      CHECK:     %[[TILE_N_2:.+]] = affine.min #[[MAP2]](%[[IV1]])[%[[N_2]]]
 //      CHECK:     %[[SV3:.+]] = memref.subview %[[ARG2]][%[[IV0]], %[[IV1]]]
-// CHECK-SAME:       [%[[TILE_M_2]], %[[TILE_N_2]]]
+// CHECK-SAME:       [%[[TILE_M]], %[[TILE_N]]]
+//      CHECK:     %[[M_2:.+]] = memref.dim %[[ARG2]], %[[C0]]
+//      CHECK:     %[[N_2:.+]] = memref.dim %[[ARG2]], %[[C1]]
 //      CHECK:     %[[TILE_M_3:.+]] = affine.min #[[MAP4]](%[[IV0]])[%[[M_2]], %[[M]]]
 //      CHECK:     %[[TILE_N_3:.+]] = affine.min #[[MAP5]](%[[IV1]])[%[[N_2]], %[[N]]]
 //      CHECK:     %[[SV3_2:.+]] = memref.subview %[[ARG2]][%[[IV0]], %[[IV1]]]
 // CHECK-SAME:       [%[[TILE_M_3]], %[[TILE_N_3]]]
-//      CHECK:     linalg.fill(%[[SV3_2]], %[[CST]])
+//      CHECK:     linalg.fill(%[[CST]], %[[SV3_2]])
 // CHECK-SAME:       __internal_linalg_transform__ = "after_basic_fusion_producer"
 //      CHECK:     scf.for %[[IV2:.+]] = %[[C0]] to %[[K]] step %[[C16]] {
 //      CHECK:       %[[TILE_K:.+]] = affine.min #[[MAP3]](%[[IV2]])[%[[K]]]
 //      CHECK:       %[[SV4:.+]] = memref.subview %[[SV1]][0, %[[IV2]]]
 // CHECK-SAME:         [%[[TILE_M]], %[[TILE_K]]]
-//      CHECK:       %[[TILE_K_2:.+]] = affine.min #[[MAP3]](%[[IV2]])[%[[K_2]]]
 //      CHECK:       %[[SV5:.+]] = memref.subview %[[SV2]][%[[IV2]], 0]
-// CHECK-SAME:         [%[[TILE_K_2]], %[[TILE_N]]]
+// CHECK-SAME:         [%[[TILE_K]], %[[TILE_N]]]
 //      CHECK:       linalg.matmul
 // CHECK-SAME:         __internal_linalg_transform__ = "after_basic_fusion"
 // CHECK-SAME:         ins(%[[SV4]], %[[SV5]]
@@ -79,7 +76,7 @@ module {
                               %arg2: memref<?x?xf32>, %arg3: memref<?x?xf32>) {
     %cst = constant 0.000000e+00 : f32
     linalg.copy(%arg1, %arg2) : memref<?x?xf32>, memref<?x?xf32>
-    linalg.fill(%arg3, %cst) : memref<?x?xf32>, f32
+    linalg.fill(%cst, %arg3) : f32, memref<?x?xf32>
     linalg.matmul {__internal_linalg_transform__ = "rhs_fusion"}
       ins(%arg0, %arg2 : memref<?x?xf32>, memref<?x?xf32>)
       outs(%arg3 : memref<?x?xf32>)
@@ -112,18 +109,15 @@ module {
 //      CHECK:     %[[SV1:.+]] = memref.subview %[[ARG2]][0, %[[IV0]]]
 // CHECK-SAME:       [%[[K]], %[[TILE_N]]]
 //      CHECK:     %[[M:.+]] = memref.dim %[[ARG3]], %[[C0]]
-//      CHECK:     %[[N_2:.+]] = memref.dim %[[ARG3]], %[[C1]]
-//      CHECK:     %[[TILE_N_2:.+]] = affine.min #[[MAP0]](%[[IV0]])[%[[N_2]]]
 //      CHECK:     %[[SV2:.+]] = memref.subview %[[ARG3]][0, %[[IV0]]]
-// CHECK-SAME:       [%[[M]], %[[TILE_N_2]]]
-//      CHECK:     %[[K_2:.+]] = memref.dim %[[ARG1]], %[[C0]]
+// CHECK-SAME:       [%[[M]], %[[TILE_N]]
 //      CHECK:     %[[N_3:.+]] = memref.dim %[[ARG1]], %[[C1]]
+//      CHECK:     %[[K_2:.+]] = memref.dim %[[ARG1]], %[[C0]]
 //      CHECK:     %[[TILE_N_3:.+]] = affine.min #[[MAP4]](%[[IV0]])[%[[N_3]], %[[N]]]
 //      CHECK:     %[[SV3:.+]] = memref.subview %[[ARG1]][0, %[[IV0]]]
 // CHECK-SAME:       [%[[K_2]], %[[TILE_N_3]]]
-//      CHECK:     %[[TILE_N_4:.+]] = affine.min #[[MAP4]](%[[IV0]])[%[[N]], %[[N]]]
 //      CHECK:     %[[SV3_2:.+]] = memref.subview %[[ARG2]][0, %[[IV0]]]
-// CHECK-SAME:       [%[[K]], %[[TILE_N_4]]]
+// CHECK-SAME:       [%[[K]], %[[TILE_N_3]]]
 //      CHECK:     linalg.copy(%[[SV3]], %[[SV3_2]])
 // CHECK-SAME:       __internal_linalg_transform__ = "after_rhs_fusion_producer"
 //  CHECK-NOT:     linalg.fill
@@ -136,12 +130,10 @@ module {
 //      CHECK:         %[[TILE_K:.+]] = affine.min #[[MAP3]](%[[IV2]])[%[[K_2]]]
 //      CHECK:         %[[SV4:.+]] = memref.subview %[[ARG0]][%[[IV1]], %[[IV2]]]
 // CHECK-SAME:           [%[[TILE_M]], %[[TILE_K]]]
-//      CHECK:         %[[TILE_K_2:.+]] = affine.min #[[MAP3]](%[[IV2]])[%[[K]]]
 //      CHECK:         %[[SV5:.+]] = memref.subview %[[SV1]][%[[IV2]], 0]
-// CHECK-SAME:           [%[[TILE_K_2]], %[[TILE_N]]]
-//      CHECK:         %[[TILE_M_2:.+]] = affine.min #[[MAP2]](%[[IV1]])[%[[M]]]
+// CHECK-SAME:           [%[[TILE_K]], %[[TILE_N]]]
 //      CHECK:         %[[SV6:.+]] = memref.subview %[[SV2]][%[[IV1]], 0]
-// CHECK-SAME:           [%[[TILE_M_2]], %[[TILE_N_2]]]
+// CHECK-SAME:           [%[[TILE_M]], %[[TILE_N]]]
 //      CHECK:         linalg.matmul
 // CHECK-SAME:           __internal_linalg_transform__ = "after_rhs_fusion"
 // CHECK-SAME:           ins(%[[SV4]], %[[SV5]]
@@ -161,7 +153,7 @@ module {
                               %arg2: memref<?x?xf32>, %arg3: memref<?x?xf32>) {
     %cst = constant 0.000000e+00 : f32
     linalg.copy(%arg0, %arg1) : memref<?x?xf32>, memref<?x?xf32>
-    linalg.fill(%arg3, %cst) : memref<?x?xf32>, f32
+    linalg.fill(%cst, %arg3) : f32, memref<?x?xf32>
     linalg.matmul {__internal_linalg_transform__ = "two_operand_fusion"}
       ins(%arg1, %arg2 : memref<?x?xf32>, memref<?x?xf32>)
       outs(%arg3 : memref<?x?xf32>)
@@ -186,7 +178,7 @@ module {
 //  CHECK-DAG:   %[[CST:.+]] = constant 0.0{{.*}} : f32
 //      CHECK:   linalg.copy(%[[ARG0]], %[[ARG1]])
 // CHECK-SAME:     __internal_linalg_transform__ = "after_two_operand_fusion_original"
-//      CHECK:   linalg.fill(%[[ARG3]], %[[CST]])
+//      CHECK:   linalg.fill(%[[CST]], %[[ARG3]])
 // CHECK-SAME:     __internal_linalg_transform__ = "after_two_operand_fusion_original"
 //  CHECK-DAG:   %[[M:.+]] = memref.dim %[[ARG1]], %[[C0]]
 //      CHECK:   scf.parallel (%[[IV0:.+]]) =
@@ -195,11 +187,10 @@ module {
 //      CHECK:     %[[K:.+]] = memref.dim %[[ARG1]], %[[C1]]
 //      CHECK:     %[[SV1:.+]] = memref.subview %[[ARG1]][%[[IV0]], 0]
 // CHECK-SAME:       [%[[TILE_M]], %[[K]]]
-//      CHECK:     %[[M_2:.+]] = memref.dim %[[ARG3]], %[[C0]]
-//      CHECK:     %[[TILE_M_2:.+]] = affine.min #[[MAP0]](%[[IV0]])[%[[M_2]]]
 //      CHECK:     %[[N:.+]] = memref.dim %[[ARG3]], %[[C1]]
 //      CHECK:     %[[SV2:.+]] = memref.subview %[[ARG3]][%[[IV0]], 0]
-// CHECK-SAME:       [%[[TILE_M_2]], %[[N]]]
+// CHECK-SAME:       [%[[TILE_M]], %[[N]]]
+//      CHECK:     %[[M_2:.+]] = memref.dim %[[ARG3]], %[[C0]]
 //      CHECK:     %[[TILE_M_3:.+]] = affine.min #[[MAP4]](%[[IV0]])[%[[M_2]], %[[M]]]
 //      CHECK:     %[[SV2_2:.+]] = memref.subview %[[ARG3]][%[[IV0]], 0]
 // CHECK-SAME:       [%[[TILE_M_3]], %[[N]]]
@@ -208,12 +199,11 @@ module {
 //      CHECK:     %[[K_3:.+]] = memref.dim %[[ARG0]], %[[C1]]
 //      CHECK:     %[[SV3:.+]] = memref.subview %[[ARG0]][%[[IV0]], 0]
 // CHECK-SAME:       [%[[TILE_M_4]], %[[K_3]]]
-//      CHECK:     %[[TILE_M_5:.+]] = affine.min #[[MAP4]](%[[IV0]])[%[[M]], %[[M]]]
 //      CHECK:     %[[SV3_2:.+]] = memref.subview %[[ARG1]][%[[IV0]], 0]
-// CHECK-SAME:       [%[[TILE_M_5]], %[[K]]]
+// CHECK-SAME:       [%[[TILE_M_4]], %[[K]]]
 //      CHECK:     linalg.copy(%[[SV3]], %[[SV3_2]])
 // CHECK-SAME:       __internal_linalg_transform__ = "after_two_operand_fusion_producer"
-//      CHECK:     linalg.fill(%[[SV2_2]], %[[CST]])
+//      CHECK:     linalg.fill(%[[CST]], %[[SV2_2]])
 // CHECK-SAME:       __internal_linalg_transform__ = "after_two_operand_fusion_producer"
 //  CHECK-DAG:     %[[N_2:.+]] = memref.dim %[[ARG2]], %[[C1]]
 //      CHECK:     scf.parallel (%[[IV1:.+]]) =
@@ -222,14 +212,11 @@ module {
 //      CHECK:         %[[TILE_K:.+]] = affine.min #[[MAP2]](%[[IV2]])[%[[K]]]
 //      CHECK:         %[[SV4:.+]] = memref.subview %[[SV1]][0, %[[IV2]]]
 // CHECK-SAME:           [%[[TILE_M]], %[[TILE_K]]]
-//      CHECK:         %[[K_2:.+]] = memref.dim %[[ARG2]], %[[C0]]
-//      CHECK:         %[[TILE_K_2:.+]] = affine.min #[[MAP2]](%[[IV2]])[%[[K_2]]]
 //      CHECK:         %[[TILE_N:.+]] = affine.min #[[MAP3]](%[[IV1]])[%[[N_2]]]
 //      CHECK:         %[[SV5:.+]] = memref.subview %[[ARG2]][%[[IV2]], %[[IV1]]]
-// CHECK-SAME:           [%[[TILE_K_2]], %[[TILE_N]]]
-//      CHECK:         %[[TILE_N_2:.+]] = affine.min #[[MAP3]](%[[IV1]])[%[[N]]]
+// CHECK-SAME:           [%[[TILE_K]], %[[TILE_N]]]
 //      CHECK:         %[[SV6:.+]] = memref.subview %[[SV2]][0, %[[IV1]]]
-// CHECK-SAME:           [%[[TILE_M_2]], %[[TILE_N_2]]]
+// CHECK-SAME:           [%[[TILE_M]], %[[TILE_N]]]
 //      CHECK:         linalg.matmul
 // CHECK-SAME:           __internal_linalg_transform__ = "after_two_operand_fusion"
 // CHECK-SAME:           ins(%[[SV4]], %[[SV5]]
@@ -280,19 +267,16 @@ module {
 //      CHECK:     %[[K2:.+]] = memref.dim %[[ARG2]], %[[C1]]
 //      CHECK:     %[[SV1:.+]] = memref.subview %[[ARG2]][%[[IV0]], 0]
 // CHECK-SAME:       [%[[TILE_M]], %[[K2]]]
-//      CHECK:     %[[M_2:.+]] = memref.dim %[[ARG4]], %[[C0]]
-//      CHECK:     %[[TILE_M_2:.+]] = affine.min #[[MAP0]](%[[IV0]])[%[[M_2]]]
 //      CHECK:     %[[N:.+]] = memref.dim %[[ARG4]], %[[C1]]
 //      CHECK:     %[[SV2:.+]] = memref.subview %[[ARG4]][%[[IV0]], 0]
-// CHECK-SAME:       [%[[TILE_M_2]], %[[N]]]
+// CHECK-SAME:       [%[[TILE_M]], %[[N]]]
 //      CHECK:     %[[M_3:.+]] = memref.dim %[[ARG0]], %[[C0]]
 //      CHECK:     %[[TILE_M_3:.+]] = affine.min #[[MAP4]](%[[IV0]])[%[[M_3]], %[[M]]]
 //      CHECK:     %[[K1:.+]] = memref.dim %[[ARG0]], %[[C1]]
 //      CHECK:     %[[SV3:.+]] = memref.subview %[[ARG0]][%[[IV0]], 0]
 // CHECK-SAME:       [%[[TILE_M_3]], %[[K1]]]
-//      CHECK:     %[[TILE_M_4:.+]] = affine.min #[[MAP4]](%[[IV0]])[%[[M]], %[[M]]]
 //      CHECK:     %[[SV1_2:.+]] = memref.subview %[[ARG2]][%[[IV0]], 0]
-// CHECK-SAME:       [%[[TILE_M_4]], %[[K2]]]
+// CHECK-SAME:       [%[[TILE_M_3]], %[[K2]]]
 //      CHECK:     linalg.matmul
 // CHECK-SAME:         __internal_linalg_transform__ = "after_lhs_fusion_producer"
 // CHECK-SAME:         ins(%[[SV3]], %[[ARG1]]
@@ -305,14 +289,11 @@ module {
 //      CHECK:         %[[TILE_K:.+]] = affine.min #[[MAP2]](%[[IV2]])[%[[K2]]]
 //      CHECK:         %[[SV6:.+]] = memref.subview %[[SV1]][0, %[[IV2]]]
 // CHECK-SAME:           [%[[TILE_M]], %[[TILE_K]]]
-//      CHECK:         %[[K_2:.+]] = memref.dim %[[ARG3]], %[[C0]]
-//      CHECK:         %[[TILE_K_2:.+]] = affine.min #[[MAP2]](%[[IV2]])[%[[K_2]]]
 //      CHECK:         %[[TILE_N:.+]] = affine.min #[[MAP3]](%[[IV1]])[%[[N_2]]]
 //      CHECK:         %[[SV7:.+]] = memref.subview %[[ARG3]][%[[IV2]], %[[IV1]]]
-// CHECK-SAME:           [%[[TILE_K_2]], %[[TILE_N]]]
-//      CHECK:         %[[TILE_N_2:.+]] = affine.min #[[MAP3]](%[[IV1]])[%[[N]]]
+// CHECK-SAME:           [%[[TILE_K]], %[[TILE_N]]]
 //      CHECK:         %[[SV8:.+]] = memref.subview %[[SV2]][0, %[[IV1]]]
-// CHECK-SAME:           [%[[TILE_M_2]], %[[TILE_N_2]]]
+// CHECK-SAME:           [%[[TILE_M]], %[[TILE_N]]]
 //      CHECK:         linalg.matmul
 // CHECK-SAME:           __internal_linalg_transform__ = "after_lhs_fusion"
 // CHECK-SAME:           ins(%[[SV6]], %[[SV7]]
@@ -428,7 +409,7 @@ module {
     %c64 = constant 64 : index
     %c16 = constant 16 : index
     %cst = constant 0.000000e+00 : f32
-    linalg.fill(%arg2, %cst) : memref<?x?xf32>, f32
+    linalg.fill(%cst, %arg2) : f32, memref<?x?xf32>
     %0 = memref.dim %arg0, %c0 : memref<?x?xf32>
     %1 = memref.dim %arg1, %c1 : memref<?x?xf32>
     %2 = memref.dim %arg0, %c1 : memref<?x?xf32>
@@ -463,7 +444,7 @@ module {
   func @basic_conv_fusion(%arg0: memref<?x?x?x?xf32>, %arg1: memref<?x?x?x?xf32>,
                           %arg2: memref<?x?x?x?xf32>) {
     %cst = constant 0.000000e+00 : f32
-    linalg.fill(%arg2, %cst) : memref<?x?x?x?xf32>, f32
+    linalg.fill(%cst, %arg2) : f32, memref<?x?x?x?xf32>
     linalg.conv(%arg0, %arg1, %arg2) {
       dilations = [1, 1], strides = [1, 1],
       __internal_linalg_transform__ = "basic_fusion"} :

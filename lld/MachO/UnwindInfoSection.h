@@ -9,35 +9,41 @@
 #ifndef LLD_MACHO_UNWIND_INFO_H
 #define LLD_MACHO_UNWIND_INFO_H
 
-#include "MergedOutputSection.h"
+#include "ConcatOutputSection.h"
 #include "SyntheticSections.h"
 
 #include "mach-o/compact_unwind_encoding.h"
-#include "llvm/ADT/DenseMap.h"
-
-#include <vector>
 
 namespace lld {
 namespace macho {
 
+template <class Ptr> struct CompactUnwindEntry {
+  Ptr functionAddress;
+  uint32_t functionLength;
+  compact_unwind_encoding_t encoding;
+  Ptr personality;
+  Ptr lsda;
+};
+
 class UnwindInfoSection : public SyntheticSection {
 public:
-  bool isNeeded() const override { return compactUnwindSection != nullptr; }
-  uint64_t getSize() const override { return unwindInfoSize; }
-  virtual void prepareRelocations(InputSection *) = 0;
-
-  void setCompactUnwindSection(MergedOutputSection *cuSection) {
-    compactUnwindSection = cuSection;
+  bool isNeeded() const override {
+    return !compactUnwindSection->inputs.empty() && !allEntriesAreOmitted;
   }
+  uint64_t getSize() const override { return unwindInfoSize; }
+  virtual void addInput(ConcatInputSection *) = 0;
+  std::vector<ConcatInputSection *> getInputs() {
+    return compactUnwindSection->inputs;
+  }
+  void prepareRelocations();
 
 protected:
-  UnwindInfoSection()
-      : SyntheticSection(segment_names::text, section_names::unwindInfo) {
-    align = 4;
-  }
+  UnwindInfoSection();
+  virtual void prepareRelocations(ConcatInputSection *) = 0;
 
-  MergedOutputSection *compactUnwindSection = nullptr;
+  ConcatOutputSection *compactUnwindSection;
   uint64_t unwindInfoSize = 0;
+  bool allEntriesAreOmitted = true;
 };
 
 UnwindInfoSection *makeUnwindInfoSection();

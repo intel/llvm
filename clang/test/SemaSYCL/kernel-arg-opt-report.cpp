@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -fsycl-is-device \
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device \
 // RUN: -Wno-sycl-2017-compat -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml
 // RUN: FileCheck -check-prefix=SPIR --input-file %t-host.yaml %s
 
@@ -221,10 +221,10 @@ int main() {
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          'sycl::stream'
+// SPIR-NEXT: String:          '__global char *'
 // SPIR-NEXT: String:          ', '
 // SPIR-NEXT: String:          'Size: '
-// SPIR-NEXT: Argument:        '3'
+// SPIR-NEXT: Argument:        '8'
 // SPIR-NEXT: String:          ')'
 
 // SPIR: --- !Passed
@@ -237,15 +237,15 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '8'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          acc
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          '__global int *'
+// SPIR-NEXT: String:          'struct sycl::range<1>'
 // SPIR-NEXT: String:          ', '
 // SPIR-NEXT: String:          'Size: '
-// SPIR-NEXT: Argument:        '8'
+// SPIR-NEXT: Argument:        '1'
 // SPIR-NEXT: String:          ')'
 
 // SPIR: --- !Passed
@@ -258,8 +258,8 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '9'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          acc
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
@@ -279,12 +279,12 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '10'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          acc
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          'struct sycl::range<1>'
+// SPIR-NEXT: String:          'struct sycl::id<1>'
 // SPIR-NEXT: String:          ', '
 // SPIR-NEXT: String:          'Size: '
 // SPIR-NEXT: Argument:        '1'
@@ -300,15 +300,15 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '11'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
-// SPIR-NEXT: String:          acc
+// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          'struct sycl::id<1>'
+// SPIR-NEXT: String:          int
 // SPIR-NEXT: String:          ', '
 // SPIR-NEXT: String:          'Size: '
-// SPIR-NEXT: Argument:        '1'
+// SPIR-NEXT: Argument:        '4'
 // SPIR-NEXT: String:          ')'
 
 // SPIR: --- !Passed
@@ -402,7 +402,7 @@ int main() {
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // SPIR-NEXT: Line: 53, Column: 9 }
-// SPIR-NEXT: Function:        '_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3XYZ'
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '0'
@@ -423,7 +423,7 @@ int main() {
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // SPIR-NEXT: Line: 53, Column: 9 }
-// SPIR-NEXT: Function:        '_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3XYZ'
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '1'
@@ -444,7 +444,7 @@ int main() {
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // SPIR-NEXT: Line: 53, Column: 9 }
-// SPIR-NEXT: Function:        '_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3XYZ'
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '2'
@@ -465,7 +465,7 @@ int main() {
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // SPIR-NEXT: Line: 53, Column: 9 }
-// SPIR-NEXT: Function:        '_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3XYZ'
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '3'
@@ -486,7 +486,7 @@ int main() {
 // SPIR: Name:{{.*}}Region
 // SPIR: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // SPIR-NEXT: Line: 53, Column: 9 }
-// SPIR-NEXT: Function:        '_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3XYZ'
+// SPIR-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
 // SPIR-NEXT: Args:
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '4'
@@ -507,7 +507,7 @@ int main() {
 // NVPTX: Name:{{.*}}Region
 // NVPTX: DebugLoc:{{.*}} { File: '{{.*}}kernel-arg-opt-report.cpp',
 // NVPTX: Line: 53, Column: 9 }
-// NVPTX-NEXT: Function:        '_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE3XYZ'
+// NVPTX-NEXT: Function:        _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E3XYZ
 // NVPTX-NEXT: Args:
 // NVPTX-NEXT: String:          'Arg '
 // NVPTX: Argument:        '5'

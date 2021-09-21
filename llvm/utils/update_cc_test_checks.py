@@ -33,8 +33,8 @@ SUBST = {
     '%clangxx': ['--driver-mode=g++'],
 }
 
-def get_line2spell_and_mangled(args, clang_args):
-  ret = {}
+def get_line2func_list(args, clang_args):
+  ret = collections.defaultdict(list)
   # Use clang's JSON AST dump to get the mangled name
   json_dump_args = [args.clang] + clang_args + ['-fsyntax-only', '-o', '-']
   if '-cc1' not in json_dump_args:
@@ -55,26 +55,37 @@ def get_line2spell_and_mangled(args, clang_args):
 
   # Parse the clang JSON and add all children of type FunctionDecl.
   # TODO: Should we add checks for global variables being emitted?
-  def parse_clang_ast_json(node):
+  def parse_clang_ast_json(node, loc, search):
     node_kind = node['kind']
     # Recurse for the following nodes that can contain nested function decls:
     if node_kind in ('NamespaceDecl', 'LinkageSpecDecl', 'TranslationUnitDecl',
-                     'CXXRecordDecl'):
+                     'CXXRecordDecl', 'ClassTemplateSpecializationDecl'):
+      # Specializations must use the loc from the specialization, not the
+      # template, and search for the class's spelling as the specialization
+      # does not mention the method names in the source.
+      if node_kind == 'ClassTemplateSpecializationDecl':
+        inner_loc = node['loc']
+        inner_search = node['name']
+      else:
+        inner_loc = None
+        inner_search = None
       if 'inner' in node:
         for inner in node['inner']:
-          parse_clang_ast_json(inner)
+          parse_clang_ast_json(inner, inner_loc, inner_search)
     # Otherwise we ignore everything except functions:
     if node_kind not in ('FunctionDecl', 'CXXMethodDecl', 'CXXConstructorDecl',
                          'CXXDestructorDecl', 'CXXConversionDecl'):
       return
+    if loc is None:
+      loc = node['loc']
     if node.get('isImplicit') is True and node.get('storageClass') == 'extern':
-      common.debug('Skipping builtin function:', node['name'], '@', node['loc'])
+      common.debug('Skipping builtin function:', node['name'], '@', loc)
       return
-    common.debug('Found function:', node['kind'], node['name'], '@', node['loc'])
-    line = node['loc'].get('line')
+    common.debug('Found function:', node['kind'], node['name'], '@', loc)
+    line = loc.get('line')
     # If there is no line it is probably a builtin function -> skip
     if line is None:
-      common.debug('Skipping function without line number:', node['name'], '@', node['loc'])
+      common.debug('Skipping function without line number:', node['name'], '@', loc)
       return
 
     # If there is no 'inner' object, it is a function declaration and we can
@@ -88,20 +99,23 @@ def get_line2spell_and_mangled(args, clang_args):
           has_body = True
           break
     if not has_body:
-      common.debug('Skipping function without body:', node['name'], '@', node['loc'])
+      common.debug('Skipping function without body:', node['name'], '@', loc)
       return
     spell = node['name']
+    if search is None:
+      search = spell
     mangled = node.get('mangledName', spell)
-    ret[int(line)-1] = (spell, mangled)
+    ret[int(line)-1].append((spell, mangled, search))
 
   ast = json.loads(stdout)
   if ast['kind'] != 'TranslationUnitDecl':
     common.error('Clang AST dump JSON format changed?')
     sys.exit(2)
-  parse_clang_ast_json(ast)
+  parse_clang_ast_json(ast, None, None)
 
-  for line, func_name in sorted(ret.items()):
-    common.debug('line {}: found function {}'.format(line+1, func_name), file=sys.stderr)
+  for line, funcs in sorted(ret.items()):
+    for func in funcs:
+      common.debug('line {}: found function {}'.format(line+1, func), file=sys.stderr)
   if not ret:
     common.warn('Did not find any functions using', ' '.join(json_dump_args))
   return ret
@@ -147,6 +161,8 @@ def config():
                       help='Keep function signature information around for the check line')
   parser.add_argument('--check-attributes', action='store_true',
                       help='Check "Function Attributes" for functions')
+  parser.add_argument('--check-globals', action='store_true',
+                      help='Check global entries (global variables, metadata, attribute sets, ...) for functions')
   parser.add_argument('tests', nargs='+')
   args = common.parse_commandline_args(parser)
   infer_dependent_args(args)
@@ -197,7 +213,7 @@ def get_function_body(builder, args, filename, clang_args, extra_commands,
   if '-emit-llvm' in clang_args:
     builder.process_run_line(
             common.OPT_FUNCTION_RE, common.scrub_body, raw_tool_output,
-            prefixes)
+            prefixes, False)
   else:
     print('The clang command line should include -emit-llvm as asm tests '
           'are discouraged in Clang testsuite.', file=sys.stderr)
@@ -220,7 +236,7 @@ def main():
                              comment_prefix='//', argparse_callback=infer_dependent_args):
     # Build a list of filechecked and non-filechecked RUN lines.
     run_list = []
-    line2spell_and_mangled_list = collections.defaultdict(list)
+    line2func_list = collections.defaultdict(list)
 
     subs = {
       '%s' : ti.path,
@@ -275,7 +291,8 @@ def main():
     builder = common.FunctionTestBuilder(
       run_list=filecheck_run_list,
       flags=ti.args,
-      scrubber_args=[])
+      scrubber_args=[],
+      path=ti.path)
 
     for prefixes, args, extra_commands, triple_in_cmd in run_list:
       # Execute non-filechecked runline.
@@ -293,13 +310,14 @@ def main():
 
       # Invoke clang -Xclang -ast-dump=json to get mapping from start lines to
       # mangled names. Forward all clang args for now.
-      for k, v in get_line2spell_and_mangled(ti.args, clang_args).items():
-        line2spell_and_mangled_list[k].append(v)
+      for k, v in get_line2func_list(ti.args, clang_args).items():
+        line2func_list[k].extend(v)
 
     func_dict = builder.finish_and_get_func_dict()
     global_vars_seen_dict = {}
     prefix_set = set([prefix for p in filecheck_run_list for prefix in p[0]])
     output_lines = []
+    has_checked_pre_function_globals = False
 
     include_generated_funcs = common.find_arg_in_test(ti,
                                                       lambda args: ti.args.include_generated_funcs,
@@ -332,6 +350,10 @@ def main():
                              prefixes,
                              func_dict, func)
 
+      if ti.args.check_globals:
+        common.add_global_checks(builder.global_var_dict(), '//', run_list,
+                                 output_lines, global_vars_seen_dict, True,
+                                 True)
       common.add_checks_at_end(output_lines, filecheck_run_list, builder.func_order(),
                                '//', lambda my_output_lines, prefixes, func:
                                check_generator(my_output_lines,
@@ -346,15 +368,19 @@ def main():
         m = common.CHECK_RE.match(line)
         if m and m.group(1) in prefix_set:
           continue  # Don't append the existing CHECK lines
-        if idx in line2spell_and_mangled_list:
+        # Skip special separator comments added by commmon.add_global_checks.
+        if line.strip() == '//' + common.SEPARATOR:
+          continue
+        if idx in line2func_list:
           added = set()
-          for spell, mangled in line2spell_and_mangled_list[idx]:
+          for spell, mangled, search in line2func_list[idx]:
             # One line may contain multiple function declarations.
             # Skip if the mangled name has been added before.
-            # The line number may come from an included file,
-            # we simply require the spelling name to appear on the line
-            # to exclude functions from other files.
-            if mangled in added or spell not in line:
+            # The line number may come from an included file, we simply require
+            # the search string (normally the function's spelling name, but is
+            # the class's spelling name for class specializations) to appear on
+            # the line to exclude functions from other files.
+            if mangled in added or search not in line:
               continue
             if args.functions is None or any(re.search(regex, spell) for regex in args.functions):
               last_line = output_lines[-1].strip()
@@ -363,6 +389,11 @@ def main():
                 # line as part of common.add_ir_checks()
                 output_lines.pop()
                 last_line = output_lines[-1].strip()
+              if ti.args.check_globals and not has_checked_pre_function_globals:
+                common.add_global_checks(builder.global_var_dict(), '//',
+                                         run_list, output_lines,
+                                         global_vars_seen_dict, True, True)
+                has_checked_pre_function_globals = True
               if added:
                 output_lines.append('//')
               added.add(mangled)
@@ -374,6 +405,9 @@ def main():
         if include_line:
           output_lines.append(line.rstrip('\n'))
 
+    if ti.args.check_globals:
+      common.add_global_checks(builder.global_var_dict(), '//', run_list,
+                               output_lines, global_vars_seen_dict, True, False)
     common.debug('Writing %d lines to %s...' % (len(output_lines), ti.path))
     with open(ti.path, 'wb') as f:
       f.writelines(['{}\n'.format(l).encode('utf-8') for l in output_lines])

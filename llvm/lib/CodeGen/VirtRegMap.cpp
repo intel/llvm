@@ -30,6 +30,7 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SlotIndexes.h"
+#include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
@@ -94,6 +95,12 @@ void VirtRegMap::assignVirt2Phys(Register virtReg, MCPhysReg physReg) {
 unsigned VirtRegMap::createSpillSlot(const TargetRegisterClass *RC) {
   unsigned Size = TRI->getSpillSize(*RC);
   Align Alignment = TRI->getSpillAlign(*RC);
+  // Set preferred alignment if we are still able to realign the stack
+  auto &ST = MF->getSubtarget();
+  Align CurrentAlign = ST.getFrameLowering()->getStackAlign();
+  if (Alignment > CurrentAlign && !ST.getRegisterInfo()->canRealignStack(*MF)) {
+    Alignment = CurrentAlign;
+  }
   int SS = MF->getFrameInfo().CreateSpillStackObject(Size, Alignment);
   ++NumSpillSlots;
   return SS;
@@ -181,6 +188,7 @@ class VirtRegRewriter : public MachineFunctionPass {
   SlotIndexes *Indexes;
   LiveIntervals *LIS;
   VirtRegMap *VRM;
+  LiveDebugVariables *DebugVars;
   DenseSet<Register> RewriteRegs;
   bool ClearVirtRegs;
 
@@ -238,6 +246,10 @@ void VirtRegRewriter::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<LiveStacks>();
   AU.addPreserved<LiveStacks>();
   AU.addRequired<VirtRegMap>();
+
+  if (!ClearVirtRegs)
+    AU.addPreserved<LiveDebugVariables>();
+
   MachineFunctionPass::getAnalysisUsage(AU);
 }
 
@@ -249,6 +261,7 @@ bool VirtRegRewriter::runOnMachineFunction(MachineFunction &fn) {
   Indexes = &getAnalysis<SlotIndexes>();
   LIS = &getAnalysis<LiveIntervals>();
   VRM = &getAnalysis<VirtRegMap>();
+  DebugVars = getAnalysisIfAvailable<LiveDebugVariables>();
   LLVM_DEBUG(dbgs() << "********** REWRITE VIRTUAL REGISTERS **********\n"
                     << "********** Function: " << MF->getName() << '\n');
   LLVM_DEBUG(VRM->dump());
@@ -262,10 +275,13 @@ bool VirtRegRewriter::runOnMachineFunction(MachineFunction &fn) {
   // Rewrite virtual registers.
   rewrite();
 
-  // Write out new DBG_VALUE instructions.
-  getAnalysis<LiveDebugVariables>().emitDebugValues(VRM);
+  if (DebugVars && ClearVirtRegs) {
+    // Write out new DBG_VALUE instructions.
 
-  if (ClearVirtRegs) {
+    // We only do this if ClearVirtRegs is specified since this should be the
+    // final run of the pass and we don't want to emit them multiple times.
+    DebugVars->emitDebugValues(VRM);
+
     // All machine operands and other references to virtual registers have been
     // replaced. Remove the virtual registers and release all the transient data.
     VRM->clearAllVirt();

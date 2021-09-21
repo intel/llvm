@@ -249,6 +249,18 @@ public:
     All,
   };
 
+  enum class AltivecSrcCompatKind {
+    // All vector compares produce scalars except vector pixel and vector bool.
+    // The types vector pixel and vector bool return vector results.
+    Mixed,
+    // All vector compares produce vector results as in GCC.
+    GCC,
+    // All vector compares produce scalars as in XL.
+    XL,
+    // Default clang behaviour.
+    Default = Mixed,
+  };
+
   enum class SignReturnAddressScopeKind {
     /// No signing for any function.
     None,
@@ -286,6 +298,8 @@ public:
 
   /// Set of enabled sanitizers.
   SanitizerSet Sanitize;
+  /// Is at least one coverage instrumentation type enabled.
+  bool SanitizeCoverage = false;
 
   /// Paths to files specifying which objects
   /// (files, functions, variables) should not be instrumented.
@@ -345,6 +359,9 @@ public:
 
   /// A list of all -fno-builtin-* function names (e.g., memset).
   std::vector<std::string> NoBuiltinFuncs;
+
+  /// A prefix map for __FILE__, __BASE_FILE__ and __builtin_FILE().
+  std::map<std::string, std::string, std::greater<std::string>> MacroPrefixMap;
 
   /// Triples of the OpenMP targets that the host code codegen should
   /// take into account in order to generate accurate offloading descriptors.
@@ -432,6 +449,13 @@ public:
   /// Return the OpenCL C or C++ version as a VersionTuple.
   VersionTuple getOpenCLVersionTuple() const;
 
+  /// Return the OpenCL version that kernel language is compatible with
+  unsigned getOpenCLCompatibleVersion() const;
+
+  /// Return the OpenCL C or C++ for OpenCL language name and version
+  /// as a string.
+  std::string getOpenCLVersionString() const;
+
   /// Check if return address signing is enabled.
   bool hasSignReturnAddress() const {
     return getSignReturnAddressScope() != SignReturnAddressScopeKind::None;
@@ -462,6 +486,11 @@ public:
   bool hasWasmExceptions() const {
     return getExceptionHandling() == ExceptionHandlingKind::Wasm;
   }
+
+  bool isSYCL() const { return SYCLIsDevice || SYCLIsHost; }
+
+  /// Remap path prefix according to -fmacro-prefix-path option.
+  void remapPathPrefix(SmallString<256> &Path) const;
 };
 
 /// Floating point control options
@@ -699,7 +728,11 @@ enum TranslationUnitKind {
   TU_Prefix,
 
   /// The translation unit is a module.
-  TU_Module
+  TU_Module,
+
+  /// The translation unit is a is a complete translation unit that we might
+  /// incrementally extend later.
+  TU_Incremental
 };
 
 } // namespace clang

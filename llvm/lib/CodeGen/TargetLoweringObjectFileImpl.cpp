@@ -48,6 +48,7 @@
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCSectionCOFF.h"
 #include "llvm/MC/MCSectionELF.h"
+#include "llvm/MC/MCSectionGOFF.h"
 #include "llvm/MC/MCSectionMachO.h"
 #include "llvm/MC/MCSectionWasm.h"
 #include "llvm/MC/MCSectionXCOFF.h"
@@ -532,10 +533,10 @@ static const Comdat *getELFComdat(const GlobalValue *GV) {
     return nullptr;
 
   if (C->getSelectionKind() != Comdat::Any &&
-      C->getSelectionKind() != Comdat::NoDuplicates)
+      C->getSelectionKind() != Comdat::NoDeduplicate)
     report_fatal_error("ELF COMDATs only support SelectionKind::Any and "
-                       "SelectionKind::NoDuplicates, '" + C->getName() +
-                       "' cannot be lowered.");
+                       "SelectionKind::NoDeduplicate, '" +
+                       C->getName() + "' cannot be lowered.");
 
   return C;
 }
@@ -653,6 +654,82 @@ public:
 };
 }
 
+/// Calculate an appropriate unique ID for a section, and update Flags,
+/// EntrySize and NextUniqueID where appropriate.
+static unsigned
+calcUniqueIDUpdateFlagsAndSize(const GlobalObject *GO, StringRef SectionName,
+                               SectionKind Kind, const TargetMachine &TM,
+                               MCContext &Ctx, Mangler &Mang, unsigned &Flags,
+                               unsigned &EntrySize, unsigned &NextUniqueID,
+                               const bool Retain, const bool ForceUnique) {
+  // Increment uniqueID if we are forced to emit a unique section.
+  // This works perfectly fine with section attribute or pragma section as the
+  // sections with the same name are grouped together by the assembler.
+  if (ForceUnique)
+    return NextUniqueID++;
+
+  // A section can have at most one associated section. Put each global with
+  // MD_associated in a unique section.
+  const bool Associated = GO->getMetadata(LLVMContext::MD_associated);
+  if (Associated) {
+    Flags |= ELF::SHF_LINK_ORDER;
+    return NextUniqueID++;
+  }
+
+  if (Retain) {
+    if ((Ctx.getAsmInfo()->useIntegratedAssembler() ||
+         Ctx.getAsmInfo()->binutilsIsAtLeast(2, 36)) &&
+        !TM.getTargetTriple().isOSSolaris())
+      Flags |= ELF::SHF_GNU_RETAIN;
+    return NextUniqueID++;
+  }
+
+  // If two symbols with differing sizes end up in the same mergeable section
+  // that section can be assigned an incorrect entry size. To avoid this we
+  // usually put symbols of the same size into distinct mergeable sections with
+  // the same name. Doing so relies on the ",unique ," assembly feature. This
+  // feature is not avalible until bintuils version 2.35
+  // (https://sourceware.org/bugzilla/show_bug.cgi?id=25380).
+  const bool SupportsUnique = Ctx.getAsmInfo()->useIntegratedAssembler() ||
+                              Ctx.getAsmInfo()->binutilsIsAtLeast(2, 35);
+  if (!SupportsUnique) {
+    Flags &= ~ELF::SHF_MERGE;
+    EntrySize = 0;
+    return MCContext::GenericSectionID;
+  }
+
+  const bool SymbolMergeable = Flags & ELF::SHF_MERGE;
+  const bool SeenSectionNameBefore =
+      Ctx.isELFGenericMergeableSection(SectionName);
+  // If this is the first ocurrence of this section name, treat it as the
+  // generic section
+  if (!SymbolMergeable && !SeenSectionNameBefore)
+    return MCContext::GenericSectionID;
+
+  // Symbols must be placed into sections with compatible entry sizes. Generate
+  // unique sections for symbols that have not been assigned to compatible
+  // sections.
+  const auto PreviousID =
+      Ctx.getELFUniqueIDForEntsize(SectionName, Flags, EntrySize);
+  if (PreviousID)
+    return *PreviousID;
+
+  // If the user has specified the same section name as would be created
+  // implicitly for this symbol e.g. .rodata.str1.1, then we don't need
+  // to unique the section as the entry size for this symbol will be
+  // compatible with implicitly created sections.
+  SmallString<128> ImplicitSectionNameStem =
+      getELFSectionNameForGlobal(GO, Kind, Mang, TM, EntrySize, false);
+  if (SymbolMergeable &&
+      Ctx.isELFImplicitMergeableSectionNamePrefix(SectionName) &&
+      SectionName.startswith(ImplicitSectionNameStem))
+    return MCContext::GenericSectionID;
+
+  // We have seen this section name before, but with different flags or entity
+  // size. Create a new unique ID.
+  return NextUniqueID++;
+}
+
 static MCSection *selectExplicitSectionGlobal(
     const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM,
     MCContext &Ctx, Mangler &Mang, unsigned &NextUniqueID,
@@ -693,69 +770,11 @@ static MCSection *selectExplicitSectionGlobal(
   }
 
   unsigned EntrySize = getEntrySizeForKind(Kind);
+  const unsigned UniqueID = calcUniqueIDUpdateFlagsAndSize(
+      GO, SectionName, Kind, TM, Ctx, Mang, Flags, EntrySize, NextUniqueID,
+      Retain, ForceUnique);
 
-  // A section can have at most one associated section. Put each global with
-  // MD_associated in a unique section.
-  unsigned UniqueID = MCContext::GenericSectionID;
   const MCSymbolELF *LinkedToSym = getLinkedToSymbol(GO, TM);
-  const bool Associated = GO->getMetadata(LLVMContext::MD_associated);
-  if (Associated || Retain) {
-    UniqueID = NextUniqueID++;
-    if (Associated)
-      Flags |= ELF::SHF_LINK_ORDER;
-    if (Retain && (Ctx.getAsmInfo()->useIntegratedAssembler() ||
-                   Ctx.getAsmInfo()->binutilsIsAtLeast(2, 36)))
-      Flags |= ELF::SHF_GNU_RETAIN;
-  } else {
-    if (Ctx.getAsmInfo()->useIntegratedAssembler() ||
-        Ctx.getAsmInfo()->binutilsIsAtLeast(2, 35)) {
-      // Symbols must be placed into sections with compatible entry
-      // sizes. Generate unique sections for symbols that have not
-      // been assigned to compatible sections.
-      if (Flags & ELF::SHF_MERGE) {
-        auto maybeID = Ctx.getELFUniqueIDForEntsize(SectionName, Flags,
-                                                    EntrySize);
-        if (maybeID)
-          UniqueID = *maybeID;
-        else {
-          // If the user has specified the same section name as would be created
-          // implicitly for this symbol e.g. .rodata.str1.1, then we don't need
-          // to unique the section as the entry size for this symbol will be
-          // compatible with implicitly created sections.
-          SmallString<128> ImplicitSectionNameStem = getELFSectionNameForGlobal(
-              GO, Kind, Mang, TM, EntrySize, false);
-          if (!(Ctx.isELFImplicitMergeableSectionNamePrefix(SectionName) &&
-                SectionName.startswith(ImplicitSectionNameStem)))
-            UniqueID = NextUniqueID++;
-        }
-      } else {
-        // We need to unique the section if the user has explicity
-        // assigned a non-mergeable symbol to a section name for
-        // a generic mergeable section.
-        if (Ctx.isELFGenericMergeableSection(SectionName)) {
-          auto maybeID = Ctx.getELFUniqueIDForEntsize(
-              SectionName, Flags, EntrySize);
-          UniqueID = maybeID ? *maybeID : NextUniqueID++;
-        }
-      }
-    } else {
-      // If two symbols with differing sizes end up in the same mergeable
-      // section that section can be assigned an incorrect entry size. To avoid
-      // this we usually put symbols of the same size into distinct mergeable
-      // sections with the same name. Doing so relies on the ",unique ,"
-      // assembly feature. This feature is not avalible until bintuils
-      // version 2.35 (https://sourceware.org/bugzilla/show_bug.cgi?id=25380).
-      Flags &= ~ELF::SHF_MERGE;
-      EntrySize = 0;
-    }
-  }
-
-  // Increment uniqueID if we are forced to emit a unique section.
-  // This works perfectly fine with section attribute or pragma section as the
-  // sections with the same name are grouped together by the assembler.
-  if (ForceUnique && UniqueID == MCContext::GenericSectionID)
-    UniqueID = NextUniqueID++;
-
   MCSectionELF *Section = Ctx.getELFSection(
       SectionName, getELFSectionType(SectionName, Kind), Flags, EntrySize,
       Group, IsComdat, UniqueID, LinkedToSym);
@@ -837,8 +856,10 @@ static MCSection *selectELFSectionForGlobal(
     EmitUniqueSection = true;
     Flags |= ELF::SHF_LINK_ORDER;
   }
-  if (Retain && (Ctx.getAsmInfo()->useIntegratedAssembler() ||
-                 Ctx.getAsmInfo()->binutilsIsAtLeast(2, 36))) {
+  if (Retain &&
+      (Ctx.getAsmInfo()->useIntegratedAssembler() ||
+       Ctx.getAsmInfo()->binutilsIsAtLeast(2, 36)) &&
+      !TM.getTargetTriple().isOSSolaris()) {
     EmitUniqueSection = true;
     Flags |= ELF::SHF_GNU_RETAIN;
   }
@@ -1463,11 +1484,10 @@ static bool canUsePrivateLabel(const MCAsmInfo &AsmInfo,
   if (!AsmInfo.isSectionAtomizableBySymbols(Section))
     return true;
 
-  // If it is not dead stripped, it is safe to use private labels.
-  const MCSectionMachO &SMO = cast<MCSectionMachO>(Section);
-  if (SMO.hasAttribute(MachO::S_ATTR_NO_DEAD_STRIP))
-    return true;
-
+  // FIXME: we should be able to use private labels for sections that can't be
+  // dead-stripped (there's no issue with blocking atomization there), but `ld
+  // -r` sometimes drops the no_dead_strip attribute from sections so for safety
+  // we don't allow it.
   return false;
 }
 
@@ -1555,7 +1575,7 @@ static int getSelectionForCOFF(const GlobalValue *GV) {
         return COFF::IMAGE_COMDAT_SELECT_EXACT_MATCH;
       case Comdat::Largest:
         return COFF::IMAGE_COMDAT_SELECT_LARGEST;
-      case Comdat::NoDuplicates:
+      case Comdat::NoDeduplicate:
         return COFF::IMAGE_COMDAT_SELECT_NODUPLICATES;
       case Comdat::SameSize:
         return COFF::IMAGE_COMDAT_SELECT_SAME_SIZE;
@@ -1913,7 +1933,7 @@ const MCExpr *TargetLoweringObjectFileCOFF::lowerRelativeReference(
 
 static std::string APIntToHexString(const APInt &AI) {
   unsigned Width = (AI.getBitWidth() / 8) * 2;
-  std::string HexString = AI.toString(16, /*Signed=*/false);
+  std::string HexString = toString(AI, 16, /*Signed=*/false);
   llvm::transform(HexString, HexString.begin(), tolower);
   unsigned Size = HexString.size();
   assert(Width >= Size && "hex string is too large!");
@@ -1925,7 +1945,7 @@ static std::string APIntToHexString(const APInt &AI) {
 static std::string scalarConstantToHexString(const Constant *C) {
   Type *Ty = C->getType();
   if (isa<UndefValue>(C)) {
-    return APIntToHexString(APInt::getNullValue(Ty->getPrimitiveSizeInBits()));
+    return APIntToHexString(APInt::getZero(Ty->getPrimitiveSizeInBits()));
   } else if (const auto *CFP = dyn_cast<ConstantFP>(C)) {
     return APIntToHexString(CFP->getValueAPF().bitcastToAPInt());
   } else if (const auto *CI = dyn_cast<ConstantInt>(C)) {
@@ -2171,6 +2191,17 @@ bool TargetLoweringObjectFileXCOFF::ShouldEmitEHBlock(
   return true;
 }
 
+bool TargetLoweringObjectFileXCOFF::ShouldSetSSPCanaryBitInTB(
+    const MachineFunction *MF) {
+  const Function &F = MF->getFunction();
+  if (!F.hasStackProtectorFnAttr())
+    return false;
+  // FIXME: check presence of canary word
+  // There are cases that the stack protectors are not really inserted even if
+  // the attributes are on.
+  return true;
+}
+
 MCSymbol *
 TargetLoweringObjectFileXCOFF::getEHInfoTableSymbol(const MachineFunction *MF) {
   return MF->getMMI().getContext().getOrCreateSymbol(
@@ -2386,7 +2417,20 @@ bool TargetLoweringObjectFileXCOFF::shouldPutJumpTableInFunctionSection(
 MCSection *TargetLoweringObjectFileXCOFF::getSectionForConstant(
     const DataLayout &DL, SectionKind Kind, const Constant *C,
     Align &Alignment) const {
-  //TODO: Enable emiting constant pool to unique sections when we support it.
+  // TODO: Enable emiting constant pool to unique sections when we support it.
+  if (Alignment > Align(16))
+    report_fatal_error("Alignments greater than 16 not yet supported.");
+
+  if (Alignment == Align(8)) {
+    assert(ReadOnly8Section && "Section should always be initialized.");
+    return ReadOnly8Section;
+  }
+
+  if (Alignment == Align(16)) {
+    assert(ReadOnly16Section && "Section should always be initialized.");
+    return ReadOnly16Section;
+  }
+
   return ReadOnlySection;
 }
 
@@ -2415,7 +2459,8 @@ MCSection *TargetLoweringObjectFileXCOFF::getStaticDtorSection(
 const MCExpr *TargetLoweringObjectFileXCOFF::lowerRelativeReference(
     const GlobalValue *LHS, const GlobalValue *RHS,
     const TargetMachine &TM) const {
-  report_fatal_error("XCOFF not yet implemented.");
+  /* Not implemented yet, but don't crash, return nullptr. */
+  return nullptr;
 }
 
 XCOFF::StorageClass
@@ -2493,4 +2538,25 @@ MCSection *TargetLoweringObjectFileXCOFF::getSectionForTOCEntry(
       XCOFF::CsectProperties(
           TM.getCodeModel() == CodeModel::Large ? XCOFF::XMC_TE : XCOFF::XMC_TC,
           XCOFF::XTY_SD));
+}
+
+//===----------------------------------------------------------------------===//
+//                                  GOFF
+//===----------------------------------------------------------------------===//
+TargetLoweringObjectFileGOFF::TargetLoweringObjectFileGOFF()
+    : TargetLoweringObjectFile() {}
+
+MCSection *TargetLoweringObjectFileGOFF::getExplicitSectionGlobal(
+    const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
+  return SelectSectionForGlobal(GO, Kind, TM);
+}
+
+MCSection *TargetLoweringObjectFileGOFF::SelectSectionForGlobal(
+    const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
+  auto *Symbol = TM.getSymbol(GO);
+  if (Kind.isBSS())
+    return getContext().getGOFFSection(Symbol->getName(),
+                                       SectionKind::getBSS());
+
+  return getContext().getObjectFileInfo()->getTextSection();
 }

@@ -251,26 +251,34 @@ getChangedSymbolAssignment(const SymbolAssignmentMap &oldValues) {
 // Process INSERT [AFTER|BEFORE] commands. For each command, we move the
 // specified output section to the designated place.
 void LinkerScript::processInsertCommands() {
+  std::vector<OutputSection *> moves;
   for (const InsertCommand &cmd : insertCommands) {
-    // If cmd.os is empty, it may have been discarded by
-    // adjustSectionsBeforeSorting(). We do not handle such output sections.
-    auto from = llvm::find(sectionCommands, cmd.os);
-    if (from == sectionCommands.end())
-      continue;
-    sectionCommands.erase(from);
+    for (StringRef name : cmd.names) {
+      // If base is empty, it may have been discarded by
+      // adjustSectionsBeforeSorting(). We do not handle such output sections.
+      auto from = llvm::find_if(sectionCommands, [&](BaseCommand *base) {
+        return isa<OutputSection>(base) &&
+               cast<OutputSection>(base)->name == name;
+      });
+      if (from == sectionCommands.end())
+        continue;
+      moves.push_back(cast<OutputSection>(*from));
+      sectionCommands.erase(from);
+    }
 
     auto insertPos = llvm::find_if(sectionCommands, [&cmd](BaseCommand *base) {
       auto *to = dyn_cast<OutputSection>(base);
       return to != nullptr && to->name == cmd.where;
     });
     if (insertPos == sectionCommands.end()) {
-      error("unable to insert " + cmd.os->name +
+      error("unable to insert " + cmd.names[0] +
             (cmd.isAfter ? " after " : " before ") + cmd.where);
     } else {
       if (cmd.isAfter)
         ++insertPos;
-      sectionCommands.insert(insertPos, cmd.os);
+      sectionCommands.insert(insertPos, moves.begin(), moves.end());
     }
+    moves.clear();
   }
 }
 
@@ -547,52 +555,73 @@ LinkerScript::createInputSectionList(OutputSection &outCmd) {
 
 // Create output sections described by SECTIONS commands.
 void LinkerScript::processSectionCommands() {
-  size_t i = 0;
-  for (BaseCommand *base : sectionCommands) {
-    if (auto *sec = dyn_cast<OutputSection>(base)) {
-      std::vector<InputSectionBase *> v = createInputSectionList(*sec);
+  auto process = [this](OutputSection *osec) {
+    std::vector<InputSectionBase *> v = createInputSectionList(*osec);
 
-      // The output section name `/DISCARD/' is special.
-      // Any input section assigned to it is discarded.
-      if (sec->name == "/DISCARD/") {
-        for (InputSectionBase *s : v)
-          discard(s);
-        discardSynthetic(*sec);
-        sec->sectionCommands.clear();
-        continue;
-      }
-
-      // This is for ONLY_IF_RO and ONLY_IF_RW. An output section directive
-      // ".foo : ONLY_IF_R[OW] { ... }" is handled only if all member input
-      // sections satisfy a given constraint. If not, a directive is handled
-      // as if it wasn't present from the beginning.
-      //
-      // Because we'll iterate over SectionCommands many more times, the easy
-      // way to "make it as if it wasn't present" is to make it empty.
-      if (!matchConstraints(v, sec->constraint)) {
-        for (InputSectionBase *s : v)
-          s->parent = nullptr;
-        sec->sectionCommands.clear();
-        continue;
-      }
-
-      // Handle subalign (e.g. ".foo : SUBALIGN(32) { ... }"). If subalign
-      // is given, input sections are aligned to that value, whether the
-      // given value is larger or smaller than the original section alignment.
-      if (sec->subalignExpr) {
-        uint32_t subalign = sec->subalignExpr().getValue();
-        for (InputSectionBase *s : v)
-          s->alignment = subalign;
-      }
-
-      // Set the partition field the same way OutputSection::recordSection()
-      // does. Partitions cannot be used with the SECTIONS command, so this is
-      // always 1.
-      sec->partition = 1;
-
-      sec->sectionIndex = i++;
+    // The output section name `/DISCARD/' is special.
+    // Any input section assigned to it is discarded.
+    if (osec->name == "/DISCARD/") {
+      for (InputSectionBase *s : v)
+        discard(s);
+      discardSynthetic(*osec);
+      osec->sectionCommands.clear();
+      return false;
     }
-  }
+
+    // This is for ONLY_IF_RO and ONLY_IF_RW. An output section directive
+    // ".foo : ONLY_IF_R[OW] { ... }" is handled only if all member input
+    // sections satisfy a given constraint. If not, a directive is handled
+    // as if it wasn't present from the beginning.
+    //
+    // Because we'll iterate over SectionCommands many more times, the easy
+    // way to "make it as if it wasn't present" is to make it empty.
+    if (!matchConstraints(v, osec->constraint)) {
+      for (InputSectionBase *s : v)
+        s->parent = nullptr;
+      osec->sectionCommands.clear();
+      return false;
+    }
+
+    // Handle subalign (e.g. ".foo : SUBALIGN(32) { ... }"). If subalign
+    // is given, input sections are aligned to that value, whether the
+    // given value is larger or smaller than the original section alignment.
+    if (osec->subalignExpr) {
+      uint32_t subalign = osec->subalignExpr().getValue();
+      for (InputSectionBase *s : v)
+        s->alignment = subalign;
+    }
+
+    // Set the partition field the same way OutputSection::recordSection()
+    // does. Partitions cannot be used with the SECTIONS command, so this is
+    // always 1.
+    osec->partition = 1;
+    return true;
+  };
+
+  // Process OVERWRITE_SECTIONS first so that it can overwrite the main script
+  // or orphans.
+  DenseMap<StringRef, OutputSection *> map;
+  size_t i = 0;
+  for (OutputSection *osec : overwriteSections)
+    if (process(osec) && !map.try_emplace(osec->name, osec).second)
+      warn("OVERWRITE_SECTIONS specifies duplicate " + osec->name);
+  for (BaseCommand *&base : sectionCommands)
+    if (auto *osec = dyn_cast<OutputSection>(base)) {
+      if (OutputSection *overwrite = map.lookup(osec->name)) {
+        log(overwrite->location + " overwrites " + osec->name);
+        overwrite->sectionIndex = i++;
+        base = overwrite;
+      } else if (process(osec)) {
+        osec->sectionIndex = i++;
+      }
+    }
+
+  // If an OVERWRITE_SECTIONS specified output section is not in
+  // sectionCommands, append it to the end. The section will be inserted by
+  // orphan placement.
+  for (OutputSection *osec : overwriteSections)
+    if (osec->partition == 1 && osec->sectionIndex == UINT32_MAX)
+      sectionCommands.push_back(osec);
 }
 
 void LinkerScript::processSymbolAssignments() {
@@ -820,17 +849,8 @@ void LinkerScript::diagnoseOrphanHandling() const {
 }
 
 uint64_t LinkerScript::advance(uint64_t size, unsigned alignment) {
-  bool isTbss =
-      (ctx->outSec->flags & SHF_TLS) && ctx->outSec->type == SHT_NOBITS;
-  uint64_t start = isTbss ? dot + ctx->threadBssOffset : dot;
-  start = alignTo(start, alignment);
-  uint64_t end = start + size;
-
-  if (isTbss)
-    ctx->threadBssOffset = end - dot;
-  else
-    dot = end;
-  return end;
+  dot = alignTo(dot, alignment) + size;
+  return dot;
 }
 
 void LinkerScript::output(InputSection *s) {
@@ -902,13 +922,24 @@ static OutputSection *findFirstSection(PhdrEntry *load) {
 // This function assigns offsets to input sections and an output section
 // for a single sections command (e.g. ".text { *(.text); }").
 void LinkerScript::assignOffsets(OutputSection *sec) {
+  const bool isTbss = (sec->flags & SHF_TLS) && sec->type == SHT_NOBITS;
   const bool sameMemRegion = ctx->memRegion == sec->memRegion;
   const bool prevLMARegionIsDefault = ctx->lmaRegion == nullptr;
   const uint64_t savedDot = dot;
   ctx->memRegion = sec->memRegion;
   ctx->lmaRegion = sec->lmaRegion;
 
-  if (sec->flags & SHF_ALLOC) {
+  if (!(sec->flags & SHF_ALLOC)) {
+    // Non-SHF_ALLOC sections have zero addresses.
+    dot = 0;
+  } else if (isTbss) {
+    // Allow consecutive SHF_TLS SHT_NOBITS output sections. The address range
+    // starts from the end address of the previous tbss section.
+    if (ctx->tbssAddr == 0)
+      ctx->tbssAddr = dot;
+    else
+      dot = ctx->tbssAddr;
+  } else {
     if (ctx->memRegion)
       dot = ctx->memRegion->curPos;
     if (sec->addrExpr)
@@ -921,9 +952,6 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
     if (ctx->memRegion && ctx->memRegion->curPos < dot)
       expandMemoryRegion(ctx->memRegion, dot - ctx->memRegion->curPos,
                          ctx->memRegion->name, sec->name);
-  } else {
-    // Non-SHF_ALLOC sections have zero addresses.
-    dot = 0;
   }
 
   switchTo(sec);
@@ -979,8 +1007,13 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
 
   // Non-SHF_ALLOC sections do not affect the addresses of other OutputSections
   // as they are not part of the process image.
-  if (!(sec->flags & SHF_ALLOC))
+  if (!(sec->flags & SHF_ALLOC)) {
     dot = savedDot;
+  } else if (isTbss) {
+    // NOBITS TLS sections are similar. Additionally save the end address.
+    ctx->tbssAddr = dot;
+    dot = savedDot;
+  }
 }
 
 static bool isDiscardable(OutputSection &sec) {

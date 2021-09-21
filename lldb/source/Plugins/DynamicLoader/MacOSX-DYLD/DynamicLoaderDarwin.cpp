@@ -36,7 +36,7 @@
 
 //#define ENABLE_DEBUG_PRINTF // COMMENT THIS LINE OUT PRIOR TO CHECKIN
 #ifdef ENABLE_DEBUG_PRINTF
-#include <stdio.h>
+#include <cstdio>
 #define DEBUG_PRINTF(fmt, ...) printf(fmt, ##__VA_ARGS__)
 #else
 #define DEBUG_PRINTF(fmt, ...)
@@ -60,7 +60,7 @@ DynamicLoaderDarwin::DynamicLoaderDarwin(Process *process)
       m_dyld_image_infos_stop_id(UINT32_MAX), m_dyld(), m_mutex() {}
 
 // Destructor
-DynamicLoaderDarwin::~DynamicLoaderDarwin() {}
+DynamicLoaderDarwin::~DynamicLoaderDarwin() = default;
 
 /// Called after attaching a process.
 ///

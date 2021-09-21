@@ -44,6 +44,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
+#include <algorithm>
 #include <memory>
 
 using namespace llvm;
@@ -57,6 +58,7 @@ cl::OptionCategory PostLinkCat{"sycl-post-link options"};
 static constexpr char COL_CODE[] = "Code";
 static constexpr char COL_SYM[] = "Symbols";
 static constexpr char COL_PROPS[] = "Properties";
+static constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
 
 // InputFilename - The filename to read from.
 static cl::opt<std::string> InputFilename{
@@ -162,12 +164,17 @@ static cl::opt<bool> EmitKernelParamInfo{
     "emit-param-info", cl::desc("emit kernel parameter optimization info"),
     cl::cat(PostLinkCat)};
 
+static cl::opt<bool> EmitProgramMetadata{"emit-program-metadata",
+                                         cl::desc("emit SYCL program metadata"),
+                                         cl::cat(PostLinkCat)};
+
 struct ImagePropSaveInfo {
   bool NeedDeviceLibReqMask;
   bool DoSpecConst;
   bool SetSpecConstAtRT;
   bool SpecConstsMet;
   bool EmitKernelParamInfo;
+  bool EmitProgramMetadata;
   bool IsEsimdKernel;
 };
 
@@ -231,6 +238,17 @@ static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
   return Scope_PerModule;
 }
 
+// Return true if the function is a SPIRV or SYCL builtin, e.g.
+// _Z28__spirv_GlobalInvocationId_xv
+static bool funcIsSpirvSyclBuiltin(StringRef FName) {
+  if (!FName.consume_front("_Z"))
+    return false;
+  // now skip the digits
+  FName = FName.drop_while([](char C) { return std::isdigit(C); });
+
+  return FName.startswith("__spirv_") || FName.startswith("__sycl_");
+}
+
 // This function decides how kernels of the input module M will be distributed
 // ("split") into multiple modules based on the command options and IR
 // attributes. The decision is recorded in the output map parameter
@@ -241,22 +259,18 @@ static void collectKernelModuleMap(
     Module &M, std::map<StringRef, std::vector<Function *>> &ResKernelModuleMap,
     KernelMapEntryScope EntryScope) {
 
+  // Process module entry points: kernels and SYCL_EXTERNAL functions.
+  // Only they have sycl-module-id attribute, so any other unrefenced
+  // functions are dropped. SPIRV and SYCL builtin functions are not
+  // considered as module entry points.
   for (auto &F : M.functions()) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+    if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
+        !funcIsSpirvSyclBuiltin(F.getName())) {
       switch (EntryScope) {
       case Scope_PerKernel:
         ResKernelModuleMap[F.getName()].push_back(&F);
         break;
       case Scope_PerModule: {
-        constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
-
-        // TODO It may make sense to group all kernels w/o the attribute into
-        // a separate module rather than issuing an error. Should probably be
-        // controlled by an option.
-        if (!F.hasFnAttribute(ATTR_SYCL_MODULE_ID))
-          error("no '" + Twine(ATTR_SYCL_MODULE_ID) +
-                "' attribute in kernel '" + F.getName() +
-                "', per-module split not possible");
         Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
         StringRef Val = Id.getValueAsString();
         ResKernelModuleMap[Val].push_back(&F);
@@ -267,8 +281,121 @@ static void collectKernelModuleMap(
         ResKernelModuleMap["<GLOBAL>"].push_back(&F);
         break;
       }
+    } else if (EntryScope == Scope_PerModule &&
+               F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+      // TODO It may make sense to group all kernels w/o the attribute into
+      // a separate module rather than issuing an error. Should probably be
+      // controlled by an option.
+      // Functions with spir_func calling convention are allowed to not have
+      // a sycl-module-id attribute.
+      error("no '" + Twine(ATTR_SYCL_MODULE_ID) + "' attribute in kernel '" +
+            F.getName() + "', per-module split not possible");
     }
   }
+}
+
+enum HasAssertStatus { No_Assert, Assert, Assert_Indirect };
+
+// Go through function call graph searching for assert call.
+static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
+  // Map holds the info about assertions in already examined functions:
+  // true  - if there is an assertion in underlying functions,
+  // false - if there are definetely no assertions in underlying functions.
+  static std::map<llvm::Function *, bool> hasAssertionInCallGraphMap;
+  std::vector<llvm::Function *> FuncCallStack;
+
+  static std::vector<llvm::Function *> isIndirectlyCalledInGraph;
+
+  std::vector<llvm::Function *> Workstack;
+  Workstack.push_back(Func);
+
+  while (!Workstack.empty()) {
+    Function *F = Workstack.back();
+    Workstack.pop_back();
+    if (F != Func)
+      FuncCallStack.push_back(F);
+
+    bool HasIndirectlyCalledAttr = false;
+    if (std::find(isIndirectlyCalledInGraph.begin(),
+                  isIndirectlyCalledInGraph.end(),
+                  F) != isIndirectlyCalledInGraph.end())
+      HasIndirectlyCalledAttr = true;
+    else if (F->hasFnAttribute("referenced-indirectly")) {
+      HasIndirectlyCalledAttr = true;
+      isIndirectlyCalledInGraph.push_back(F);
+    }
+
+    bool IsLeaf = true;
+    for (auto &I : instructions(F)) {
+      if (!isa<CallBase>(&I))
+        continue;
+
+      Function *CF = cast<CallBase>(&I)->getCalledFunction();
+      if (!CF)
+        continue;
+
+      bool IsIndirectlyCalled =
+          HasIndirectlyCalledAttr ||
+          std::find(isIndirectlyCalledInGraph.begin(),
+                    isIndirectlyCalledInGraph.end(),
+                    CF) != isIndirectlyCalledInGraph.end();
+
+      // Return if we've already discovered if there are asserts in the
+      // function call graph.
+      auto HasAssert = hasAssertionInCallGraphMap.find(CF);
+      if (HasAssert != hasAssertionInCallGraphMap.end()) {
+        // If we know, that this function does not contain assert, we still
+        // should investigate another instructions in the function.
+        if (!HasAssert->second)
+          continue;
+
+        return IsIndirectlyCalled ? Assert_Indirect : Assert;
+      }
+
+      if (CF->getName().startswith("__devicelib_assert_fail")) {
+        // Mark all the functions above in call graph as ones that can call
+        // assert.
+        for (auto *It : FuncCallStack)
+          hasAssertionInCallGraphMap[It] = true;
+
+        hasAssertionInCallGraphMap[Func] = true;
+        hasAssertionInCallGraphMap[CF] = true;
+
+        return IsIndirectlyCalled ? Assert_Indirect : Assert;
+      }
+
+      if (!CF->isDeclaration()) {
+        Workstack.push_back(CF);
+        IsLeaf = false;
+        if (HasIndirectlyCalledAttr)
+          isIndirectlyCalledInGraph.push_back(CF);
+      }
+    }
+
+    if (IsLeaf && !FuncCallStack.empty()) {
+      // Mark the leaf function as one that definetely does not call assert.
+      hasAssertionInCallGraphMap[FuncCallStack.back()] = false;
+      FuncCallStack.clear();
+    }
+  }
+  return No_Assert;
+}
+
+// Gets reqd_work_group_size information for function Func.
+static std::vector<uint32_t>
+getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
+  auto ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
+  if (!ReqdWorkGroupSizeMD)
+    return {};
+  // TODO: Remove 3-operand assumption when it is relaxed.
+  assert(ReqdWorkGroupSizeMD->getNumOperands() == 3);
+  uint32_t X = mdconst::extract<ConstantInt>(ReqdWorkGroupSizeMD->getOperand(0))
+                   ->getZExtValue();
+  uint32_t Y = mdconst::extract<ConstantInt>(ReqdWorkGroupSizeMD->getOperand(1))
+                   ->getZExtValue();
+  uint32_t Z = mdconst::extract<ConstantInt>(ReqdWorkGroupSizeMD->getOperand(2))
+                   ->getZExtValue();
+  return {X, Y, Z};
 }
 
 // Input parameter KernelModuleMap is a map containing groups of kernels with
@@ -458,9 +585,62 @@ static string_vector saveDeviceImageProperty(
       }
     }
 
+    // Metadata names may be composite so we keep them alive until the
+    // properties have been written.
+    SmallVector<std::string, 4> MetadataNames;
+    if (ImgPSInfo.EmitProgramMetadata) {
+      auto &ProgramMetadata =
+          PropSet[llvm::util::PropertySetRegistry::SYCL_PROGRAM_METADATA];
+
+      // Add reqd_work_group_size information to program metadata
+      for (const Function &Func : ResultModules[I]->functions()) {
+        std::vector<uint32_t> KernelReqdWorkGroupSize =
+            getKernelReqdWorkGroupSizeMetadata(Func);
+        if (KernelReqdWorkGroupSize.empty())
+          continue;
+        MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
+        ProgramMetadata.insert({MetadataNames.back(), KernelReqdWorkGroupSize});
+      }
+    }
+
     if (ImgPSInfo.IsEsimdKernel) {
       PropSet[llvm::util::PropertySetRegistry::SYCL_MISC_PROP].insert(
           {"isEsimdImage", true});
+    }
+
+    {
+      Module *M = ResultModules[I].get();
+      bool HasIndirectlyCalledAssert = false;
+      std::vector<llvm::Function *> Kernels;
+      for (auto &F : M->functions()) {
+        // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
+        // TODO: handle function pointers.
+        if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+          continue;
+
+        Kernels.push_back(&F);
+        if (HasIndirectlyCalledAssert)
+          continue;
+
+        HasAssertStatus HasAssert = hasAssertInFunctionCallGraph(&F);
+        switch (HasAssert) {
+        case Assert:
+          PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
+              {F.getName(), true});
+          break;
+        case Assert_Indirect:
+          HasIndirectlyCalledAssert = true;
+          break;
+        case No_Assert:
+          break;
+        }
+      }
+
+      if (HasIndirectlyCalledAssert) {
+        for (auto *F : Kernels)
+          PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
+              {F->getName(), true});
+      }
     }
 
     std::error_code EC;
@@ -522,17 +702,31 @@ static void LowerEsimdConstructs(Module &M) {
     MPM.add(createInstructionCombiningPass());
     MPM.add(createDeadCodeEliminationPass());
   }
-  MPM.add(createGenXSPIRVWriterAdaptorPass());
+  MPM.add(createGenXSPIRVWriterAdaptorPass(/*RewriteTypes=*/true));
   MPM.run(M);
 }
 
 using TableFiles = std::map<StringRef, string_vector>;
 
 static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
-                                   bool SyclAndEsimdKernels) {
+                                   bool SyclAndEsimdCode) {
   TableFiles TblFiles;
   if (!M)
     return TblFiles;
+
+  // After linking device bitcode "llvm.used" holds references to the kernels
+  // that are defined in the device image. But after splitting device image into
+  // separate kernels we may end up with having references to kernel declaration
+  // originating from "llvm.used" in the IR that is passed to llvm-spirv tool,
+  // and these declarations cause an assertion in llvm-spirv. To workaround this
+  // issue remove "llvm.used" from the input module before performing any other
+  // actions.
+  bool IsLLVMUsedRemoved = false;
+  if (GlobalVariable *GV = M->getGlobalVariable("llvm.used")) {
+    assert(GV->user_empty() && "unexpected llvm.used users");
+    GV->eraseFromParent();
+    IsLLVMUsedRemoved = true;
+  }
 
   if (IsEsimd && LowerEsimd)
     LowerEsimdConstructs(*M);
@@ -572,9 +766,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     SpecConstantsPass SCP(SetSpecConstAtRT);
     // Register required analysis
     MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-    RunSpecConst.addPass(SCP);
-    // This pass deletes unreachable globals.
-    RunSpecConst.addPass(GlobalDCEPass());
+    RunSpecConst.addPass(std::move(SCP));
 
     for (auto &MPtr : ResultModules) {
       // perform the spec constant intrinsics transformation on each resulting
@@ -595,7 +787,8 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     // no spec constants and no splitting.
     // We cannot reuse input module for ESIMD code since it was transformed.
     bool CanReuseInputModule = !SpecConstsMet && (ResultModules.size() == 1) &&
-                               !SyclAndEsimdKernels && !IsEsimd;
+                               !SyclAndEsimdCode && !IsEsimd &&
+                               !IsLLVMUsedRemoved;
     string_vector Files =
         CanReuseInputModule
             ? string_vector{InputFilename}
@@ -609,7 +802,8 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   {
     ImagePropSaveInfo ImgPSInfo = {
         true,          DoSpecConst,         SetSpecConstAtRT,
-        SpecConstsMet, EmitKernelParamInfo, IsEsimd};
+        SpecConstsMet, EmitKernelParamInfo, EmitProgramMetadata,
+        IsEsimd};
     string_vector Files = saveDeviceImageProperty(ResultModules, ImgPSInfo);
     std::copy(Files.begin(), Files.end(),
               std::back_inserter(TblFiles[COL_PROPS]));
@@ -635,23 +829,28 @@ using ModulePair = std::pair<std::unique_ptr<Module>, std::unique_ptr<Module>>;
 // This function splits a module with a mix of SYCL and ESIMD kernels
 // into two separate modules.
 static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
-  // Collect information about the SYCL and ESIMD kernels in the module.
-  std::vector<Function *> SyclKernels;
-  std::vector<Function *> EsimdKernels;
+  std::vector<Function *> SyclFunctions;
+  std::vector<Function *> EsimdFunctions;
+  // Collect information about the SYCL and ESIMD functions in the module.
+  // Process module entry points: kernels and SYCL_EXTERNAL functions.
+  // Only they have sycl-module-id attribute, so any other unrefenced
+  // functions are dropped. SPIRV and SYCL builtin functions are not
+  // considered as module entry points.
   for (auto &F : M->functions()) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+    if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
+        !funcIsSpirvSyclBuiltin(F.getName())) {
       if (F.getMetadata("sycl_explicit_simd"))
-        EsimdKernels.push_back(&F);
+        EsimdFunctions.push_back(&F);
       else
-        SyclKernels.push_back(&F);
+        SyclFunctions.push_back(&F);
     }
   }
 
   // If only SYCL kernels or only ESIMD kernels, no splitting needed.
-  if (EsimdKernels.empty())
+  if (EsimdFunctions.empty())
     return std::make_pair(std::move(M), std::unique_ptr<Module>(nullptr));
 
-  if (SyclKernels.empty())
+  if (SyclFunctions.empty())
     return std::make_pair(std::unique_ptr<Module>(nullptr), std::move(M));
 
   // Key values in KernelModuleMap are not significant, but they define the
@@ -659,7 +858,7 @@ static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
   // caller of the splitSyclEsimd function expects a pair of 1-Sycl and 2-Esimd
   // modules, hence the strings names below.
   std::map<StringRef, std::vector<Function *>> KernelModuleMap(
-      {{"1-SYCL", SyclKernels}, {"2-ESIMD", EsimdKernels}});
+      {{"1-SYCL", SyclFunctions}, {"2-ESIMD", EsimdFunctions}});
   std::vector<std::unique_ptr<Module>> ResultModules;
   splitModule(*M, KernelModuleMap, ResultModules);
   assert(ResultModules.size() == 2);
@@ -675,13 +874,13 @@ static TableFiles processInputModule(std::unique_ptr<Module> M) {
   std::unique_ptr<Module> EsimdModule;
   std::tie(SyclModule, EsimdModule) = splitSyclEsimd(std::move(M));
 
-  // Do we have both Sycl and Esimd kernels?
-  bool SyclAndEsimdKernels = SyclModule && EsimdModule;
+  // Do we have both Sycl and Esimd code?
+  bool SyclAndEsimdCode = SyclModule && EsimdModule;
 
   TableFiles SyclTblFiles =
-      processOneModule(std::move(SyclModule), false, SyclAndEsimdKernels);
+      processOneModule(std::move(SyclModule), false, SyclAndEsimdCode);
   TableFiles EsimdTblFiles =
-      processOneModule(std::move(EsimdModule), true, SyclAndEsimdKernels);
+      processOneModule(std::move(EsimdModule), true, SyclAndEsimdCode);
 
   // Merge the two resulting file maps
   TableFiles MergedTblFiles;
@@ -711,7 +910,8 @@ int main(int argc, char **argv) {
       "- SYCL and ESIMD kernels can be split into separate modules with\n"
       "  '-split-esimd' option. The option has no effect when there is only\n"
       "  one type of kernels in the input module. Functions unreachable from\n"
-      "  any kernel are dropped from the resulting module(s).\n"
+      "  any kernel or SYCL_EXTERNAL function are dropped from the resulting\n"
+      "  module(s)."
       "- Module splitter to split a big input module into smaller ones.\n"
       "  Groups kernels using function attribute 'sycl-module-id', i.e.\n"
       "  kernels with the same values of the 'sycl-module-id' attribute will\n"
@@ -753,8 +953,10 @@ int main(int argc, char **argv) {
   bool DoSplitEsimd = SplitEsimd.getNumOccurrences() > 0;
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
   bool DoParamInfo = EmitKernelParamInfo.getNumOccurrences() > 0;
+  bool DoProgMetadata = EmitProgramMetadata.getNumOccurrences() > 0;
 
-  if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo && !DoSplitEsimd) {
+  if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
+      !DoProgMetadata && !DoSplitEsimd) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
@@ -778,6 +980,11 @@ int main(int argc, char **argv) {
            << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
+  if (IROutputOnly && DoProgMetadata) {
+    errs() << "error: -" << EmitProgramMetadata.ArgStr << " can't be used with"
+           << " -" << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
   SMDiagnostic Err;
   std::unique_ptr<Module> M = parseIRFile(InputFilename, Err, Context);
   // It is OK to use raw pointer here as we control that it does not outlive M
@@ -787,18 +994,6 @@ int main(int argc, char **argv) {
   if (!MPtr) {
     Err.print(argv[0], errs());
     return 1;
-  }
-
-  // After linking device bitcode "llvm.used" holds references to the kernels
-  // that are defined in the device image. But after splitting device image into
-  // separate kernels we may end up with having references to kernel declaration
-  // originating from "llvm.used" in the IR that is passed to llvm-spirv tool,
-  // and these declarations cause an assertion in llvm-spirv. To workaround this
-  // issue remove "llvm.used" from the input module before performing any other
-  // actions.
-  if (GlobalVariable *GV = MPtr->getGlobalVariable("llvm.used")) {
-    assert(GV->user_empty() && "unexpected llvm.used users");
-    GV->eraseFromParent();
   }
 
   if (OutputFilename.getNumOccurrences() == 0)

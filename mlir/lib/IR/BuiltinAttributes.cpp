@@ -10,13 +10,14 @@
 #include "AttributeDetail.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BuiltinDialect.h"
-#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/IntegerSet.h"
+#include "mlir/IR/Operation.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Interfaces/DecodeAttributesInterfaces.h"
+#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/Sequence.h"
-#include "llvm/ADT/Twine.h"
 #include "llvm/Support/Endian.h"
 
 using namespace mlir;
@@ -39,6 +40,17 @@ void BuiltinDialect::registerAttributes() {
                 SymbolRefAttr, IntegerAttr, IntegerSetAttr, OpaqueAttr,
                 OpaqueElementsAttr, SparseElementsAttr, StringAttr, TypeAttr,
                 UnitAttr>();
+}
+
+//===----------------------------------------------------------------------===//
+// ArrayAttr
+//===----------------------------------------------------------------------===//
+
+void ArrayAttr::walkImmediateSubElements(
+    function_ref<void(Attribute)> walkAttrsFn,
+    function_ref<void(Type)> walkTypesFn) const {
+  for (Attribute attr : getValue())
+    walkAttrsFn(attr);
 }
 
 //===----------------------------------------------------------------------===//
@@ -196,6 +208,36 @@ DictionaryAttr DictionaryAttr::getEmptyUnchecked(MLIRContext *context) {
   return Base::get(context, ArrayRef<NamedAttribute>());
 }
 
+void DictionaryAttr::walkImmediateSubElements(
+    function_ref<void(Attribute)> walkAttrsFn,
+    function_ref<void(Type)> walkTypesFn) const {
+  for (Attribute attr : llvm::make_second_range(getValue()))
+    walkAttrsFn(attr);
+}
+
+//===----------------------------------------------------------------------===//
+// StringAttr
+//===----------------------------------------------------------------------===//
+
+StringAttr StringAttr::getEmptyStringAttrUnchecked(MLIRContext *context) {
+  return Base::get(context, "", NoneType::get(context));
+}
+
+/// Twine support for StringAttr.
+StringAttr StringAttr::get(MLIRContext *context, const Twine &twine) {
+  // Fast-path empty twine.
+  if (twine.isTriviallyEmpty())
+    return get(context);
+  SmallVector<char, 32> tempStr;
+  return Base::get(context, twine.toStringRef(tempStr), NoneType::get(context));
+}
+
+/// Twine support for StringAttr.
+StringAttr StringAttr::get(const Twine &twine, Type type) {
+  SmallVector<char, 32> tempStr;
+  return Base::get(type.getContext(), twine.toStringRef(tempStr), type);
+}
+
 //===----------------------------------------------------------------------===//
 // FloatAttr
 //===----------------------------------------------------------------------===//
@@ -230,13 +272,29 @@ LogicalResult FloatAttr::verify(function_ref<InFlightDiagnostic()> emitError,
 // SymbolRefAttr
 //===----------------------------------------------------------------------===//
 
-FlatSymbolRefAttr SymbolRefAttr::get(MLIRContext *ctx, StringRef value) {
-  return get(ctx, value, llvm::None).cast<FlatSymbolRefAttr>();
+SymbolRefAttr SymbolRefAttr::get(MLIRContext *ctx, StringRef value,
+                                 ArrayRef<FlatSymbolRefAttr> nestedRefs) {
+  return get(StringAttr::get(ctx, value), nestedRefs);
 }
 
-StringRef SymbolRefAttr::getLeafReference() const {
+FlatSymbolRefAttr SymbolRefAttr::get(MLIRContext *ctx, StringRef value) {
+  return get(ctx, value, {}).cast<FlatSymbolRefAttr>();
+}
+
+FlatSymbolRefAttr SymbolRefAttr::get(StringAttr value) {
+  return get(value, {}).cast<FlatSymbolRefAttr>();
+}
+
+FlatSymbolRefAttr SymbolRefAttr::get(Operation *symbol) {
+  auto symName =
+      symbol->getAttrOfType<StringAttr>(SymbolTable::getSymbolAttrName());
+  assert(symName && "value does not have a valid symbol name");
+  return SymbolRefAttr::get(symName);
+}
+
+StringAttr SymbolRefAttr::getLeafReference() const {
   ArrayRef<FlatSymbolRefAttr> nestedRefs = getNestedReferences();
-  return nestedRefs.empty() ? getRootReference() : nestedRefs.back().getValue();
+  return nestedRefs.empty() ? getRootReference() : nestedRefs.back().getAttr();
 }
 
 //===----------------------------------------------------------------------===//
@@ -318,7 +376,7 @@ LogicalResult OpaqueAttr::verify(function_ref<InFlightDiagnostic()> emitError,
            << " attribute created with unregistered dialect. If this is "
               "intended, please call allowUnregisteredDialects() on the "
               "MLIRContext, or use -allow-unregistered-dialect with "
-              "mlir-opt";
+              "the MLIR opt tool used";
   }
 
   return success();
@@ -982,12 +1040,28 @@ DenseElementsAttr DenseElementsAttr::reshape(ShapedType newType) {
   if (curType == newType)
     return *this;
 
-  (void)curType;
   assert(newType.getElementType() == curType.getElementType() &&
          "expected the same element type");
   assert(newType.getNumElements() == curType.getNumElements() &&
          "expected the same number of elements");
   return DenseIntOrFPElementsAttr::getRaw(newType, getRawData(), isSplat());
+}
+
+/// Return a new DenseElementsAttr that has the same data as the current
+/// attribute, but has bitcast elements such that it is now 'newType'. The new
+/// type must have the same shape and element types of the same bitwidth as the
+/// current type.
+DenseElementsAttr DenseElementsAttr::bitcast(Type newElType) {
+  ShapedType curType = getType();
+  Type curElType = curType.getElementType();
+  if (curElType == newElType)
+    return *this;
+
+  assert(getDenseElementBitWidth(newElType) ==
+             getDenseElementBitWidth(curElType) &&
+         "expected element types with the same bitwidth");
+  return DenseIntOrFPElementsAttr::getRaw(curType.clone(newElType),
+                                          getRawData(), isSplat());
 }
 
 DenseElementsAttr
@@ -1306,7 +1380,7 @@ APFloat SparseElementsAttr::getZeroAPFloat() const {
 /// Get a zero APInt for the given sparse attribute.
 APInt SparseElementsAttr::getZeroAPInt() const {
   auto eltType = getType().getElementType().cast<IntegerType>();
-  return APInt::getNullValue(eltType.getWidth());
+  return APInt::getZero(eltType.getWidth());
 }
 
 /// Get a zero attribute for the given attribute type.
@@ -1345,4 +1419,14 @@ std::vector<ptrdiff_t> SparseElementsAttr::getFlattenedSparseIndices() const {
     flatSparseIndices.push_back(getFlattenedIndex(
         {&*std::next(sparseIndexValues.begin(), i * rank), rank}));
   return flatSparseIndices;
+}
+
+//===----------------------------------------------------------------------===//
+// TypeAttr
+//===----------------------------------------------------------------------===//
+
+void TypeAttr::walkImmediateSubElements(
+    function_ref<void(Attribute)> walkAttrsFn,
+    function_ref<void(Type)> walkTypesFn) const {
+  walkTypesFn(getValue());
 }

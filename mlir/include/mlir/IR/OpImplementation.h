@@ -98,7 +98,9 @@ public:
                                    ArrayRef<StringRef> elidedAttrs = {}) = 0;
 
   /// Print the entire operation with the default generic assembly form.
-  virtual void printGenericOp(Operation *op) = 0;
+  /// If `printOpName` is true, then the operation name is printed (the default)
+  /// otherwise it is omitted and the print will start with the operand list.
+  virtual void printGenericOp(Operation *op, bool printOpName = true) = 0;
 
   /// Prints a region.
   /// If 'printEntryBlockArgs' is false, the arguments of the
@@ -928,18 +930,29 @@ using OpAsmSetValueNameFn = function_ref<void(Value, StringRef)>;
 class OpAsmDialectInterface
     : public DialectInterface::Base<OpAsmDialectInterface> {
 public:
+  /// Holds the result of `getAlias` hook call.
+  enum class AliasResult {
+    /// The object (type or attribute) is not supported by the hook
+    /// and an alias was not provided.
+    NoAlias,
+    /// An alias was provided, but it might be overriden by other hook.
+    OverridableAlias,
+    /// An alias was provided and it should be used
+    /// (no other hooks will be checked).
+    FinalAlias
+  };
+
   OpAsmDialectInterface(Dialect *dialect) : Base(dialect) {}
 
   /// Hooks for getting an alias identifier alias for a given symbol, that is
   /// not necessarily a part of this dialect. The identifier is used in place of
   /// the symbol when printing textual IR. These aliases must not contain `.` or
-  /// end with a numeric digit([0-9]+). Returns success if an alias was
-  /// provided, failure otherwise.
-  virtual LogicalResult getAlias(Attribute attr, raw_ostream &os) const {
-    return failure();
+  /// end with a numeric digit([0-9]+).
+  virtual AliasResult getAlias(Attribute attr, raw_ostream &os) const {
+    return AliasResult::NoAlias;
   }
-  virtual LogicalResult getAlias(Type type, raw_ostream &os) const {
-    return failure();
+  virtual AliasResult getAlias(Type type, raw_ostream &os) const {
+    return AliasResult::NoAlias;
   }
 
   /// Get a special name to use when printing the given operation. See

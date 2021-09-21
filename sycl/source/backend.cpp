@@ -80,12 +80,18 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &Context,
                                const async_handler &Handler, backend Backend) {
+  return make_queue(NativeHandle, Context, false, Handler, Backend);
+}
+
+__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+                               const context &Context, bool KeepOwnership,
+                               const async_handler &Handler, backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
   Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), &PiQueue);
+      NativeHandle, ContextImpl->getHandleRef(), &PiQueue, !KeepOwnership);
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<queue>(
       std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler));
@@ -93,11 +99,18 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
 
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &Context, backend Backend) {
+  return make_event(NativeHandle, Context, false, Backend);
+}
+
+__SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
+                               const context &Context, bool KeepOwnership,
+                               backend Backend) {
   const auto &Plugin = getPlugin(Backend);
+  const auto &ContextImpl = getSyclObjImpl(Context);
 
   pi::PiEvent PiEvent = nullptr;
-  Plugin.call<PiApiKind::piextEventCreateWithNativeHandle>(NativeHandle,
-                                                           &PiEvent);
+  Plugin.call<PiApiKind::piextEventCreateWithNativeHandle>(
+      NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiEvent);
 
   return detail::createSyclObjFromImpl<event>(
       std::make_shared<event_impl>(PiEvent, Context));

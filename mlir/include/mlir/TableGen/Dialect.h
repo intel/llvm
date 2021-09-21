@@ -51,8 +51,15 @@ public:
   // Returns the dialects extra class declaration code.
   llvm::Optional<StringRef> getExtraClassDeclaration() const;
 
-  // Returns true if this dialect has a constant materializer.
+  /// Returns true if this dialect has a canonicalizer.
+  bool hasCanonicalizer() const;
+
+  /// Returns true if this dialect has a constant materializer.
   bool hasConstantMaterializer() const;
+
+  /// Returns true if the destructor definition is provided explicitly or
+  /// false if a default should be generated.
+  bool hasNonDefaultDestructor() const;
 
   /// Returns true if this dialect has an operation attribute verifier.
   bool hasOperationAttrVerify() const;

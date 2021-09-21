@@ -9,12 +9,12 @@
 // Implements the intrinsic subroutines RANDOM_INIT, RANDOM_NUMBER, and
 // RANDOM_SEED.
 
-#include "random.h"
-#include "cpp-type.h"
-#include "descriptor.h"
+#include "flang/Runtime/random.h"
 #include "lock.h"
 #include "flang/Common/leading-zero-bit-count.h"
 #include "flang/Common/uint128.h"
+#include "flang/Runtime/cpp-type.h"
+#include "flang/Runtime/descriptor.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -103,7 +103,7 @@ void RTNAME(RandomNumber)(
     Generate<CppTypeFor<TypeCategory::Real, 10>, 64>(harvest);
     break;
 #elif LONG_DOUBLE == 128
-  case 4:
+  case 16:
     Generate<CppTypeFor<TypeCategory::Real, 16>, 113>(harvest);
     break;
 #endif

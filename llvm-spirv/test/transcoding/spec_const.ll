@@ -34,10 +34,8 @@ target triple = "spir"
 ; Function Attrs: nofree norecurse nounwind writeonly
  define spir_kernel void @foo(i8 addrspace(1)* nocapture %b, i8 addrspace(1)* nocapture %c, i16 addrspace(1)* nocapture %s, i32 addrspace(1)* nocapture %i, i64 addrspace(1)* nocapture %l, half addrspace(1)* nocapture %h, float addrspace(1)* nocapture %f, double addrspace(1)* nocapture %d) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
 entry:
-  ; CHECK-LLVM: %conv = select i1 false, i8 1, i8 0
-  ; CHECK-LLVM: store i8 %conv, i8 addrspace(1)* %b, align 1
-  ; CHECK-LLVM-SPEC: %conv = select i1 true, i8 1, i8 0
-  ; CHECK-LLVM-SPEC: store i8 %conv, i8 addrspace(1)* %b, align 1
+  ; CHECK-LLVM: store i8 0, i8 addrspace(1)* %b, align 1
+  ; CHECK-LLVM-SPEC: store i8 1, i8 addrspace(1)* %b, align 1
   %0 = call i1 @_Z20__spirv_SpecConstantib(i32 0, i1 false)
   %conv = zext i1 %0 to i8
   store i8 %conv, i8 addrspace(1)* %b, align 1

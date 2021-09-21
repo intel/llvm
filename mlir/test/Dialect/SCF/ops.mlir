@@ -279,3 +279,34 @@ func @infinite_while() {
   }
   return
 }
+
+// CHECK-LABEL: func @execute_region
+func @execute_region() -> i64 {
+  // CHECK:      scf.execute_region -> i64 {
+  // CHECK-NEXT:   constant
+  // CHECK-NEXT:   scf.yield
+  // CHECK-NEXT: }
+  %res = scf.execute_region -> i64 {
+    %c1 = constant 1 : i64
+    scf.yield %c1 : i64
+  }
+
+  // CHECK:      scf.execute_region -> (i64, i64) {
+  %res2:2 = scf.execute_region -> (i64, i64) {
+    %c1 = constant 1 : i64
+    scf.yield %c1, %c1 : i64, i64
+  }
+
+  // CHECK:       scf.execute_region {
+  // CHECK-NEXT:    br ^bb1
+  // CHECK-NEXT:  ^bb1:
+  // CHECK-NEXT:    scf.yield
+  // CHECK-NEXT:  }
+  "scf.execute_region"() ({
+  ^bb0:
+    br ^bb1
+  ^bb1:
+    scf.yield
+  }) : () -> ()
+  return %res : i64
+}

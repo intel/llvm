@@ -1,4 +1,4 @@
-﻿# Level-Zero backend specification
+# Level-Zero backend specification
 
 ## 1. Introduction
 
@@ -7,9 +7,15 @@ It is built on top of Level-Zero runtime enabled with [Level-Zero API](https://s
 The Level-Zero backend is aimed to provide the best possible performance of SYCL application on a variety of targets supported.
 The currently supported targets are all Intel GPUs starting with Gen9.
 
-NOTE: This specification is a draft. While describing the currently implemented behaviors it is known to be not complete nor exhaustive.
-      We shall continue to add more information, e.g. explain general mapping of SYCL programming model to Level-Zero API.
-      It will also be gradually changing to a SYCL-2020 conforming implementation.
+This extension provides a feature-test macro as described in the core SYCL specification section 6.3.3 "Feature test macros". Therefore, an implementation supporting this extension must predefine the macro SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO to one of the values defined in the table below. Applications can test for the existence of this macro to determine if the implementation supports this feature, or applications can test the macro’s value to determine which of the extension’s APIs the implementation supports.
+
+
+|Value|Description|
+|---|:---|
+|1|Initial extension version.
+
+NOTE: This extension is following SYCL 2020 backend specification. Prior API for interoperability with Level-Zero is marked
+      as deprecated and will be removed in the next release.
 
 ## 2. Prerequisites
 
@@ -18,12 +24,12 @@ For further details see <https://software.intel.com/content/www/us/en/develop/ar
                   
 ## 3. User-visible Level-Zero backend selection (and the default backend)
 
-The Level-Zero backend is added to the cl::sycl::backend enumeration:
+The Level-Zero backend is added to the sycl::backend enumeration:
 
 ``` C++
 enum class backend {
   // ...
-  level_zero,
+  ext_oneapi_level_zero,
   // ...
 };
 ```
@@ -45,7 +51,7 @@ programmatically select the Level-Zero backend.
                 
 When neither the environment variable nor the filtering device selector are used, the implementation chooses
 the Level-Zero backend for GPU devices supported by the installed Level-Zero runtime.
-The serving backend for a SYCL platform can be queried with the ```get_backend()``` member function of ```cl::sycl::platform```.
+The serving backend for a SYCL platform can be queried with the ```get_backend()``` member function of ```sycl::platform```.
 
 ## 4. Interoperability with the Level-Zero API
 
@@ -55,41 +61,174 @@ and they must be included in the order shown:
 
 ``` C++
   #include "level_zero/ze_api.h"
-  #include "sycl/backend/level_zero.hpp"
+  #include "sycl/ext/oneapi/backend/level_zero.hpp"
 ```
 ### 4.1 Mapping of SYCL objects to Level-Zero handles
 
-These SYCL objects encapsulate the corresponding Level-Zero handles:
-|  SYCL object  |    Level-Zero handle   |
-|-------------|:------------|
-|platform |ze_driver_handle_t|
-|device   |ze_device_handle_t|
-|context  |ze_context_handle_t|
-|queue    |ze_command_queue_handle_t|
-|program  |ze_module_handle_t|
+SYCL objects encapsulate the corresponding Level-Zero handles and this extension provides the following specialization of the interoperability types:
+
+<table>
+<tr>
+<th>SyclType</th>
+<th>
+
+``` C++
+backend_return_t<backend::ext_oneapi_level_zero,
+                 SyclType>
+```
+</th>
+<th>
+
+``` C++
+backend_input_t<backend::ext_oneapi_level_zero,
+                SyclType>
+```
+</th>
+</tr><tr>
+<td>platform</td>
+<td><pre>ze_driver_handle_t</pre></td>
+<td><pre>ze_driver_handle_t</pre></td>
+</tr><tr>
+<td>device</td>
+<td><pre>ze_device_handle_t</pre></td>
+<td><pre>ze_device_handle_t</pre></td>
+</tr><tr>
+<td>context</td>
+<td><pre>ze_context_handle_t</pre></td>
+<td>
+
+``` C++
+struct {
+  ze_context_handle_t NativeHandle;
+  std::vector<device> DeviceList;
+  ext::oneapi::level_zero::ownership Ownership;
+}
+```
+</td>
+</tr><tr>
+<td>queue</td>
+<td><pre>ze_command_queue_handle_t</pre></td>
+<td>
+
+``` C++
+struct {
+  ze_command_queue_handle_t NativeHandle;
+  ext::oneapi::level_zero::ownership Ownership;
+}
+```
+</td>
+</tr><tr>
+<td>event</td>
+<td><pre>ze_event_handle_t</pre></td>
+<td>
+
+``` C++
+struct {
+  ze_event_handle_t NativeHandle;
+  ext::oneapi::level_zero::ownership Ownership;
+}
+```
+</td>
+</tr><tr>
+<td>kernel_bundle</td>
+<td>
+
+``` C++
+std::vector<ze_module_handle_t>
+```
+</td>
+<td><pre>ze_module_handle_t</pre></td>
+</tr>
+</table>
 
 ### 4.2 Obtaining of native Level-Zero handles from SYCL objects
                 
-The ```get_native<cl::sycl::backend::level_zero>()``` member function is how a raw native Level-Zero handle can be obtained
-for a specific SYCL object. It is currently supported for SYCL ```platform```, ```device```, ```context```, ```queue```, ```event```
-and ```program``` classes. There is also a free-function defined in ```cl::sycl``` namespace that can be used instead of the member function:
+The ```sycl::get_native<backend::ext_oneapi_level_zero>``` free-function is how a raw native Level-Zero handle can be obtained
+for a specific SYCL object.
 ``` C++
 template <backend BackendName, class SyclObjectT>
-auto get_native(const SyclObjectT &Obj) ->
-	typename interop<BackendName, SyclObjectT>::type;
+auto get_native(const SyclObjectT &Obj)
+    -> backend_return_t<BackendName, SyclObjectT>
 ```
+It is currently supported for SYCL ```platform```, ```device```, ```context```, ```queue```, ```event```
+and ```kernel_bundle``` classes.
+
 ### 4.3 Construct a SYCL object from a Level-Zero handle
         
-The following free functions defined in the ```cl::sycl::level_zero``` namespace allow an application to create
-a SYCL object that encapsulates a corresponding Level-Zero object:
+The following free functions defined in the ```sycl``` namespace are specialized for Level-Zero backend to allow
+an application to create a SYCL object that encapsulates a corresponding Level-Zero object:
 
-| Level-Zero interoperability function |Description|
-|-------------|:------------|
-|``` make<platform>(ze_driver_handle_t);```|Constructs a SYCL platform instance from a Level-Zero ```ze_driver_handle_t```.|
-|``` make<device>(const platform &, ze_device_handle_t);```|Constructs a SYCL device instance from a Level-Zero ```ze_device_handle_t```. The platform argument gives a SYCL platform, encapsulating a Level-Zero driver supporting the passed Level-Zero device.|
-|``` make<context>(const vector_class<device> &, ze_context_handle_t, ownership = transfer);```| Constructs a SYCL context instance from a Level-Zero ```ze_context_handle_t```. The context is created against the devices passed in. There must be at least one device given and all the devices must be from the same SYCL platform and thus from the same Level-Zero driver. The ```ownership``` argument specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.|
-|``` make<queue>(const context &, ze_command_queue_handle_t);```| Constructs a SYCL queue instance from a Level-Zero ```ze_command_queue_handle_t```. The context argument must be a valid SYCL context encapsulating a Level-Zero context. The queue is attached to the first device in the passed SYCL context.|
-|``` make<program>(const context &, ze_module_handle_t);```| Constructs a SYCL program instance from a Level-Zero ```ze_module_handle_t```. The context argument must be a valid SYCL context encapsulating a Level-Zero context. The Level-Zero module must be fully linked (i.e. not require further linking through [```zeModuleDynamicLink```](https://spec.oneapi.com/level-zero/latest/core/api.html?highlight=zemoduledynamiclink#_CPPv419zeModuleDynamicLink8uint32_tP18ze_module_handle_tP28ze_module_build_log_handle_t)), and thus the SYCL program is created in the "linked" state.|
+<table>
+<tr>
+<th>Level-Zero interoperability function</th>
+<th style="text-align:left"> Description</th>
+</tr><tr>
+<td>
+
+``` C++
+make_platform<backend::ext_oneapi_level_zero>(
+    const backend_input_t<
+        backend::ext_oneapi_level_zero, platform> &)
+```
+</td>
+<td>Constructs a SYCL platform instance from a Level-Zero <code>ze_driver_handle_t</code>. The SYCL execution environment contains a fixed number of platforms that are enumerated via <code>sycl::platform::get_platforms()</code>. Calling this function does not create a new platform. Rather it merely creates a <code>sycl::platform</code> object that is a copy of one of the platforms from that enumeration.</td>
+</tr><tr>
+<td>
+
+``` C++
+make_device<backend::ext_oneapi_level_zero>(
+    const backend_input_t<
+        backend::ext_oneapi_level_zero, device> &)
+```
+</td>
+<td>Constructs a SYCL device instance from a Level-Zero <code>ze_device_handle_t</code>. The SYCL execution environment for the Level Zero backend contains a fixed number of devices that are enumerated via <code>sycl::device::get_devices()</code> and a fixed number of sub-devices that are enumerated via <code>sycl::device::create_sub_devices(...)</code>. Calling this function does not create a new device. Rather it merely creates a <code>sycl::device</code> object that is a copy of one of the devices from those enumerations.</td>
+</tr><tr>
+<td>
+
+``` C++
+make_context<backend::ext_oneapi_level_zero>(
+    const backend_input_t<
+        backend::ext_oneapi_level_zero, context> &)
+```
+</td>
+<td>Constructs a SYCL context instance from a Level-Zero <code>ze_context_handle_t</code>. The context is created against the devices passed in <code>DeviceList</code> structure member. There must be at least one device given and all the devices must be from the same SYCL platform and thus from the same Level-Zero driver. The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.</td>
+</tr><tr>
+<td>
+
+``` C++
+make_queue<backend::ext_oneapi_level_zero>(
+    const backend_input_t<
+        backend::ext_oneapi_level_zero, queue> &,
+    const context &Context)
+```
+</td>
+<td>Constructs a SYCL queue instance from a Level-Zero <code>ze_command_queue_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The queue is attached to the first device in the passed SYCL context. The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.</td>
+</tr><tr>
+<td>
+
+``` C++
+make_event<backend::ext_oneapi_level_zero>(
+    const backend_input_t<
+        backend::ext_oneapi_level_zero, event> &,
+    const context &Context)
+```
+</td>
+<td>Constructs a SYCL event instance from a Level-Zero <code>ze_event_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The Level-Zero event should be allocated from an event pool created in the same context. The <code>Ownership</code> input structure member specifies if the SYCL runtime should take ownership of the passed native handle. The default behavior is to transfer the ownership to the SYCL runtime. See section 4.4 for details.</td>
+</tr><tr>
+<td>
+
+``` C++
+make_kernel_bundle<backend::ext_oneapi_level_zero,
+                   bundle_state::executable>(
+    const backend_input_t<
+        backend::ext_oneapi_level_zero,
+        kernel_bundle<bundle_state::executable>> &,
+    const context &Context)
+```
+</td>
+<td>Constructs a SYCL kernel_bundle instance from a Level-Zero <code>ze_module_handle_t</code>. The <code>Context</code> argument must be a valid SYCL context encapsulating a Level-Zero context. The Level-Zero module must be fully linked (i.e. not require further linking through <a href="https://spec.oneapi.com/level-zero/latest/core/api.html?highlight=zemoduledynamiclink#_CPPv419zeModuleDynamicLink8uint32_tP18ze_module_handle_tP28ze_module_build_log_handle_t"><code>zeModuleDynamicLink</code></a>), and thus the SYCL kernel_bundle is created in the "executable" state.</td>
+</tr>
+</table>
 
 NOTE: We shall consider adding other interoperability as needed, if possible.
                 
@@ -97,21 +236,25 @@ NOTE: We shall consider adding other interoperability as needed, if possible.
         
 The Level-Zero runtime doesn't do reference-counting of its objects, so it is crucial to adhere to these
 practices of how Level-Zero handles are managed. By default, the ownership is transferred to the SYCL runtime, but
-some interoparability API supports overriding this behavior and keep the ownership in the application.
+some interoperability API supports overriding this behavior and keep the ownership in the application.
 Use this enumeration for explicit specification of the ownership:
 ``` C++
 namespace sycl {
+namespace ext {
+namespace oneapi {
 namespace level_zero {
 
 enum class ownership { transfer, keep };
 
-} // namesace level_zero
+} // namespace level_zero
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 ```
                 
 #### 4.4.1 SYCL runtime takes ownership (default)
                 
-Whenever the application creates a SYCL object from the corresponding Level-Zero handle via one of the ```make<T>()``` functions,
+Whenever the application creates a SYCL object from the corresponding Level-Zero handle via one of the ```make_*``` functions,
 the SYCL runtime takes ownership of the Level-Zero handle, if no explicit ```ownership::keep``` was specified.
 The application must not use the Level-Zero handle after the last host copy of the SYCL object is destroyed (
 as described in the core SYCL specification under "Common reference semantics"), and the application must not
@@ -127,7 +270,7 @@ handle before the last host copy of the SYCL object is destroyed (as described i
                                                                 
 #### 4.4.3 Obtaining native handle does not change ownership
 
-The application may call the ```get_native<T>()``` member function of a SYCL object to retrieve the underlying Level-Zero handle.
+The application may call the ```get_native<backend::ext_oneapi_level_zero>``` free function on a SYCL object to retrieve the underlying Level-Zero handle.
 Doing so does not change the ownership of the the Level-Zero handle.  Therefore, the application may not use this
 handle after the last host copy of the SYCL object is destroyed (as described in the core SYCL specification under
 "Common reference semantics") unless the SYCL object was created by the application with ```ownership::keep```.
@@ -166,7 +309,7 @@ New descriptors added as part of this specification are described in the table b
 ``` C++
 namespace sycl{
 namespace ext {
-namespace oneapi{
+namespace oneapi {
 namespace level_zero {
 namespace info {
 namespace device {
@@ -189,4 +332,7 @@ struct free_memory {
 |1|2021-01-26|Sergey Maslov|Initial public working draft
 |2|2021-02-22|Sergey Maslov|Introduced explicit ownership for context
 |3|2021-04-13|James Brodman|Free Memory Query
-
+|4|2021-07-06|Rehana Begam|Introduced explicit ownership for queue
+|5|2021-07-25|Sergey Maslov|Introduced SYCL interop for events
+|6|2021-08-30|Dmitry Vodopyanov|Updated according to SYCL 2020 reqs for extensions
+|7|2021-09-13|Sergey Maslov|Updated according to SYCL 2020 standard

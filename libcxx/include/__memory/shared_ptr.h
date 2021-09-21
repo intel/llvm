@@ -12,18 +12,23 @@
 
 #include <__availability>
 #include <__config>
-#include <__functional_base> // std::less, std::binary_function
+#include <__functional_base>
+#include <__functional/binary_function.h>
+#include <__functional/operations.h>
+#include <__functional/reference_wrapper.h>
 #include <__memory/addressof.h>
 #include <__memory/allocation_guard.h>
-#include <__memory/allocator.h>
 #include <__memory/allocator_traits.h>
+#include <__memory/allocator.h>
 #include <__memory/compressed_pair.h>
 #include <__memory/pointer_traits.h>
 #include <__memory/unique_ptr.h>
+#include <__utility/forward.h>
 #include <cstddef>
 #include <cstdlib> // abort
 #include <iosfwd>
 #include <stdexcept>
+#include <typeinfo>
 #include <type_traits>
 #include <utility>
 #if !defined(_LIBCPP_HAS_NO_ATOMIC_HEADER)
@@ -38,18 +43,15 @@
 #pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 template <class _Alloc>
 class __allocator_destructor
 {
-    typedef _LIBCPP_NODEBUG_TYPE allocator_traits<_Alloc> __alloc_traits;
+    typedef _LIBCPP_NODEBUG allocator_traits<_Alloc> __alloc_traits;
 public:
-    typedef _LIBCPP_NODEBUG_TYPE typename __alloc_traits::pointer pointer;
-    typedef _LIBCPP_NODEBUG_TYPE typename __alloc_traits::size_type size_type;
+    typedef _LIBCPP_NODEBUG typename __alloc_traits::pointer pointer;
+    typedef _LIBCPP_NODEBUG typename __alloc_traits::size_type size_type;
 private:
     _Alloc& __alloc_;
     size_type __s_;
@@ -435,7 +437,7 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     _LIBCPP_CONSTEXPR shared_ptr(nullptr_t) _NOEXCEPT;
 
-    template<class _Yp, class = _EnableIf<
+    template<class _Yp, class = __enable_if_t<
         _And<
             __compatible_with<_Yp, _Tp>
             // In C++03 we get errors when trying to do SFINAE with the
@@ -588,7 +590,7 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     bool unique() const _NOEXCEPT {return use_count() == 1;}
     _LIBCPP_INLINE_VISIBILITY
-    _LIBCPP_EXPLICIT operator bool() const _NOEXCEPT {return get() != nullptr;}
+    explicit operator bool() const _NOEXCEPT {return get() != nullptr;}
     template <class _Up>
         _LIBCPP_INLINE_VISIBILITY
         bool owner_before(shared_ptr<_Up> const& __p) const _NOEXCEPT
@@ -681,7 +683,7 @@ private:
     template <class _Up> friend class _LIBCPP_TEMPLATE_VIS weak_ptr;
 };
 
-#ifndef _LIBCPP_HAS_NO_DEDUCTION_GUIDES
+#if _LIBCPP_STD_VER >= 17
 template<class _Tp>
 shared_ptr(weak_ptr<_Tp>) -> shared_ptr<_Tp>;
 template<class _Tp, class _Dp>
@@ -1091,7 +1093,7 @@ shared_ptr<_Tp>::reset(_Yp* __p, _Dp __d, _Alloc __a)
 //
 // std::allocate_shared and std::make_shared
 //
-template<class _Tp, class _Alloc, class ..._Args, class = _EnableIf<!is_array<_Tp>::value> >
+template<class _Tp, class _Alloc, class ..._Args, class = __enable_if_t<!is_array<_Tp>::value> >
 _LIBCPP_HIDE_FROM_ABI
 shared_ptr<_Tp> allocate_shared(const _Alloc& __a, _Args&& ...__args)
 {
@@ -1103,7 +1105,7 @@ shared_ptr<_Tp> allocate_shared(const _Alloc& __a, _Args&& ...__args)
     return shared_ptr<_Tp>::__create_with_control_block((*__control_block).__get_elem(), _VSTD::addressof(*__control_block));
 }
 
-template<class _Tp, class ..._Args, class = _EnableIf<!is_array<_Tp>::value> >
+template<class _Tp, class ..._Args, class = __enable_if_t<!is_array<_Tp>::value> >
 _LIBCPP_HIDE_FROM_ABI
 shared_ptr<_Tp> make_shared(_Args&& ...__args)
 {
@@ -1401,7 +1403,7 @@ public:
     template <class _Up> friend class _LIBCPP_TEMPLATE_VIS shared_ptr;
 };
 
-#ifndef _LIBCPP_HAS_NO_DEDUCTION_GUIDES
+#if _LIBCPP_STD_VER >= 17
 template<class _Tp>
 weak_ptr(shared_ptr<_Tp>) -> weak_ptr<_Tp>;
 #endif
@@ -1594,11 +1596,20 @@ template <class _Tp = void> struct owner_less;
 template <class _Tp> struct owner_less;
 #endif
 
+
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 template <class _Tp>
 struct _LIBCPP_TEMPLATE_VIS owner_less<shared_ptr<_Tp> >
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
     : binary_function<shared_ptr<_Tp>, shared_ptr<_Tp>, bool>
+#endif
 {
-    typedef bool result_type;
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef bool result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef shared_ptr<_Tp> first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef shared_ptr<_Tp> second_argument_type;
+#endif
     _LIBCPP_INLINE_VISIBILITY
     bool operator()(shared_ptr<_Tp> const& __x, shared_ptr<_Tp> const& __y) const _NOEXCEPT
         {return __x.owner_before(__y);}
@@ -1610,11 +1621,19 @@ struct _LIBCPP_TEMPLATE_VIS owner_less<shared_ptr<_Tp> >
         {return __x.owner_before(__y);}
 };
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 template <class _Tp>
 struct _LIBCPP_TEMPLATE_VIS owner_less<weak_ptr<_Tp> >
+#if !defined(_LIBCPP_ABI_NO_BINDER_BASES)
     : binary_function<weak_ptr<_Tp>, weak_ptr<_Tp>, bool>
+#endif
 {
-    typedef bool result_type;
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef bool result_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef weak_ptr<_Tp> first_argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef weak_ptr<_Tp> second_argument_type;
+#endif
     _LIBCPP_INLINE_VISIBILITY
     bool operator()(  weak_ptr<_Tp> const& __x,   weak_ptr<_Tp> const& __y) const _NOEXCEPT
         {return __x.owner_before(__y);}
@@ -1690,11 +1709,13 @@ template <class _Tp> struct _LIBCPP_TEMPLATE_VIS hash;
 template <class _Tp>
 struct _LIBCPP_TEMPLATE_VIS hash<shared_ptr<_Tp> >
 {
-    typedef shared_ptr<_Tp>      argument_type;
-    typedef size_t               result_type;
+#if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_BINDER_TYPEDEFS)
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef shared_ptr<_Tp> argument_type;
+    _LIBCPP_DEPRECATED_IN_CXX17 typedef size_t          result_type;
+#endif
 
     _LIBCPP_INLINE_VISIBILITY
-    result_type operator()(const argument_type& __ptr) const _NOEXCEPT
+    size_t operator()(const shared_ptr<_Tp>& __ptr) const _NOEXCEPT
     {
         return hash<typename shared_ptr<_Tp>::element_type*>()(__ptr.get());
     }
@@ -1849,7 +1870,5 @@ atomic_compare_exchange_weak_explicit(shared_ptr<_Tp>* __p, shared_ptr<_Tp>* __v
 #endif // !defined(_LIBCPP_HAS_NO_ATOMIC_HEADER)
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___MEMORY_SHARED_PTR_H

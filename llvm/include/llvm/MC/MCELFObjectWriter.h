@@ -47,7 +47,7 @@ struct ELFRelocationEntry {
         << ", OriginalAddend=" << OriginalAddend;
   }
 
-  void dump() const { print(errs()); }
+  LLVM_DUMP_METHOD void dump() const { print(errs()); }
 };
 
 class MCELFObjectTargetWriter : public MCObjectTargetWriter {
@@ -78,6 +78,8 @@ public:
       case Triple::PS4:
       case Triple::FreeBSD:
         return ELF::ELFOSABI_FREEBSD;
+      case Triple::Solaris:
+        return ELF::ELFOSABI_SOLARIS;
       default:
         return ELF::ELFOSABI_NONE;
     }

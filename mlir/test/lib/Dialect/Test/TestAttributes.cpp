@@ -21,7 +21,7 @@
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
-using namespace mlir::test;
+using namespace test;
 
 //===----------------------------------------------------------------------===//
 // AttrWithSelfTypeParamAttr
@@ -92,6 +92,8 @@ void CompoundAAttr::print(DialectAsmPrinter &printer) const {
 //===----------------------------------------------------------------------===//
 // Tablegen Generated Definitions
 //===----------------------------------------------------------------------===//
+
+#include "TestAttrInterfaces.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
 #include "TestAttrDefs.cpp.inc"

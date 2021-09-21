@@ -2,6 +2,7 @@
 add_mlir_library(MLIRLinalgTestPasses
   TestConvVectorization.cpp
   TestLinalgCodegenStrategy.cpp
+  TestLinalgDistribution.cpp
   TestLinalgElementwiseFusion.cpp
   TestLinalgFusionTransforms.cpp
   TestLinalgHoisting.cpp
@@ -11,7 +12,7 @@ add_mlir_library(MLIRLinalgTestPasses
 
   LINK_LIBS PUBLIC
   MLIRAffine
-  MLIRGPU
+  MLIRGPUTransforms
   MLIRLinalg
   MLIRLinalgTransforms
   MLIRLLVMToLLVMIRTranslation

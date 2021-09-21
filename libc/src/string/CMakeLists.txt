@@ -9,6 +9,24 @@ add_header_library(
 )
 
 add_entrypoint_object(
+  memchr
+  SRCS
+    memchr.cpp
+  HDRS
+    memchr.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
+  memrchr
+  SRCS
+    memrchr.cpp
+  HDRS
+    memrchr.h
+)
+
+add_entrypoint_object(
   strcat
   SRCS
     strcat.cpp
@@ -17,6 +35,22 @@ add_entrypoint_object(
   DEPENDS
     .strcpy
     .string_utils
+)
+
+add_entrypoint_object(
+  strchr
+  SRCS
+    strchr.cpp
+  HDRS
+    strchr.h
+)
+
+add_entrypoint_object(
+  strcmp
+  SRCS
+    strcmp.cpp
+  HDRS
+    strcmp.h
 )
 
 add_entrypoint_object(
@@ -31,6 +65,16 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  strcspn
+  SRCS
+    strcspn.cpp
+  HDRS
+    strcspn.h
+  DEPENDS
+    .string_utils
+)
+
+add_entrypoint_object(
   strlen
   SRCS
     strlen.cpp
@@ -41,56 +85,11 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
-  strcmp
+  strncmp
   SRCS
-    strcmp.cpp
+    strncmp.cpp
   HDRS
-    strcmp.h
-)
-
-add_entrypoint_object(
-  memchr
-  SRCS
-    memchr.cpp
-  HDRS
-    memchr.h
-  DEPENDS
-    .string_utils
-)
-
-add_entrypoint_object(
-  memcmp
-  SRCS
-    memcmp.cpp
-  HDRS
-    memcmp.h
-)
-
-add_entrypoint_object(
-  memmove
-  SRCS
-    memmove.cpp
-  HDRS
-    memmove.h
-  DEPENDS
-    libc.src.__support.integer_operations
-    libc.src.string.memcpy
-)
-
-add_entrypoint_object(
-  strchr
-  SRCS
-    strchr.cpp
-  HDRS
-    strchr.h
-)
-
-add_entrypoint_object(
-  strstr
-  SRCS
-    strstr.cpp
-  HDRS
-    strstr.h
+    strncmp.h
 )
 
 add_entrypoint_object(
@@ -112,11 +111,13 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
-  memrchr
+  strpbrk
   SRCS
-    memrchr.cpp
+    strpbrk.cpp
   HDRS
-    memrchr.h
+    strpbrk.h
+  DEPENDS
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -125,16 +126,6 @@ add_entrypoint_object(
     strrchr.cpp
   HDRS
     strrchr.h
-)
-
-add_entrypoint_object(
-  strcspn
-  SRCS
-    strcspn.cpp
-  HDRS
-    strcspn.h
-  DEPENDS
-    .string_utils
 )
 
 add_entrypoint_object(
@@ -148,13 +139,11 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
-  strpbrk
+  strstr
   SRCS
-    strpbrk.cpp
+    strstr.cpp
   HDRS
-    strpbrk.h
-  DEPENDS
-    .string_utils
+    strstr.h
 )
 
 add_entrypoint_object(
@@ -194,12 +183,108 @@ function(add_implementation name impl_name)
     SRCS ${ADD_IMPL_SRCS}
     HDRS ${ADD_IMPL_HDRS}
     DEPENDS ${ADD_IMPL_DEPENDS}
-    COMPILE_OPTIONS ${ADD_IMPL_COMPILE_OPTIONS}
+    COMPILE_OPTIONS ${ADD_IMPL_COMPILE_OPTIONS} "SHELL:-mllvm -combiner-global-alias-analysis"
   )
   get_fq_target_name(${impl_name} fq_target_name)
   set_target_properties(${fq_target_name} PROPERTIES REQUIRE_CPU_FEATURES "${ADD_IMPL_REQUIRE}")
   set_property(GLOBAL APPEND PROPERTY "${name}_implementations" "${fq_target_name}")
 endfunction()
+
+# ------------------------------------------------------------------------------
+# bcmp
+# ------------------------------------------------------------------------------
+
+function(add_bcmp bcmp_name)
+  add_implementation(bcmp ${bcmp_name}
+    SRCS ${LIBC_BCMP_SRC}
+    HDRS ${LIBC_SOURCE_DIR}/src/string/bcmp.h
+    DEPENDS
+      .memory_utils.memory_utils
+      libc.include.string
+    COMPILE_OPTIONS
+      -fno-builtin-memcmp
+      -fno-builtin-bcmp
+    ${ARGN}
+  )
+endfunction()
+
+if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
+  set(LIBC_BCMP_SRC ${LIBC_SOURCE_DIR}/src/string/bcmp.cpp)
+  add_bcmp(bcmp_x86_64_opt_sse2   COMPILE_OPTIONS -march=k8             REQUIRE SSE2)
+  add_bcmp(bcmp_x86_64_opt_sse4   COMPILE_OPTIONS -march=nehalem        REQUIRE SSE4_2)
+  add_bcmp(bcmp_x86_64_opt_avx2   COMPILE_OPTIONS -march=haswell        REQUIRE AVX2)
+  add_bcmp(bcmp_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512F)
+  add_bcmp(bcmp_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
+  add_bcmp(bcmp)
+else()
+  set(LIBC_BCMP_SRC ${LIBC_SOURCE_DIR}/src/string/bcmp.cpp)
+  add_bcmp(bcmp_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
+  add_bcmp(bcmp)
+endif()
+
+# ------------------------------------------------------------------------------
+# bzero
+# ------------------------------------------------------------------------------
+
+function(add_bzero bzero_name)
+  add_implementation(bzero ${bzero_name}
+    SRCS ${LIBC_SOURCE_DIR}/src/string/bzero.cpp
+    HDRS ${LIBC_SOURCE_DIR}/src/string/bzero.h
+    DEPENDS
+      .memory_utils.memory_utils
+      libc.include.string
+    COMPILE_OPTIONS
+      -fno-builtin-bzero
+    ${ARGN}
+  )
+endfunction()
+
+if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
+  add_bzero(bzero_x86_64_opt_sse2   COMPILE_OPTIONS -march=k8             REQUIRE SSE2)
+  add_bzero(bzero_x86_64_opt_sse4   COMPILE_OPTIONS -march=nehalem        REQUIRE SSE4_2)
+  add_bzero(bzero_x86_64_opt_avx2   COMPILE_OPTIONS -march=haswell        REQUIRE AVX2)
+  add_bzero(bzero_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512F)
+  add_bzero(bzero_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
+  add_bzero(bzero)
+else()
+  add_bzero(bzero_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
+  add_bzero(bzero)
+endif()
+
+# ------------------------------------------------------------------------------
+# memcmp
+# ------------------------------------------------------------------------------
+
+function(add_memcmp memcmp_name)
+  add_implementation(memcmp ${memcmp_name}
+    SRCS ${LIBC_MEMCMP_SRC}
+    HDRS ${LIBC_SOURCE_DIR}/src/string/memcmp.h
+    DEPENDS
+      .memory_utils.memory_utils
+      libc.include.string
+    COMPILE_OPTIONS
+      -fno-builtin-memcmp
+    ${ARGN}
+  )
+endfunction()
+
+if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
+  set(LIBC_MEMCMP_SRC ${LIBC_SOURCE_DIR}/src/string/memcmp.cpp)
+  add_memcmp(memcmp_x86_64_opt_sse2   COMPILE_OPTIONS -march=k8             REQUIRE SSE2)
+  add_memcmp(memcmp_x86_64_opt_sse4   COMPILE_OPTIONS -march=nehalem        REQUIRE SSE4_2)
+  add_memcmp(memcmp_x86_64_opt_avx2   COMPILE_OPTIONS -march=haswell        REQUIRE AVX2)
+  add_memcmp(memcmp_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512F)
+  add_memcmp(memcmp_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
+  add_memcmp(memcmp)
+elseif(${LIBC_TARGET_ARCHITECTURE_IS_AARCH64})
+  set(LIBC_MEMCMP_SRC ${LIBC_SOURCE_DIR}/src/string/aarch64/memcmp.cpp)
+  add_memcmp(memcmp)
+  add_memcmp(memcmp_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
+else()
+  set(LIBC_MEMCMP_SRC ${LIBC_SOURCE_DIR}/src/string/memcmp.cpp)
+  add_memcmp(memcmp_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
+  add_memcmp(memcmp)
+endif()
 
 # ------------------------------------------------------------------------------
 # memcpy
@@ -240,6 +325,27 @@ else()
 endif()
 
 # ------------------------------------------------------------------------------
+# memmove
+# ------------------------------------------------------------------------------
+
+function(add_memmove memmove_name)
+  add_implementation(memmove ${memmove_name}
+          SRCS ${MEMMOVE_SRC}
+          HDRS ${LIBC_SOURCE_DIR}/src/string/memmove.h
+          DEPENDS
+          .memory_utils.memory_utils
+          libc.src.__support.integer_operations
+          libc.src.string.memcpy
+          COMPILE_OPTIONS
+          -fno-builtin-memmove
+          ${ARGN}
+          )
+endfunction()
+
+set(MEMMOVE_SRC ${LIBC_SOURCE_DIR}/src/string/memmove.cpp)
+add_memmove(memmove)
+
+# ------------------------------------------------------------------------------
 # memset
 # ------------------------------------------------------------------------------
 
@@ -266,34 +372,4 @@ if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
 else()
   add_memset(memset_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_memset(memset)
-endif()
-
-# ------------------------------------------------------------------------------
-# bzero
-# ------------------------------------------------------------------------------
-
-function(add_bzero bzero_name)
-  add_implementation(bzero ${bzero_name}
-    SRCS ${LIBC_SOURCE_DIR}/src/string/bzero.cpp
-    HDRS ${LIBC_SOURCE_DIR}/src/string/bzero.h
-    DEPENDS
-      .memory_utils.memory_utils
-      libc.include.string
-    COMPILE_OPTIONS
-      -fno-builtin-memset
-      -fno-builtin-bzero
-    ${ARGN}
-  )
-endfunction()
-
-if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
-  add_bzero(bzero_x86_64_opt_sse2   COMPILE_OPTIONS -march=k8             REQUIRE SSE2)
-  add_bzero(bzero_x86_64_opt_sse4   COMPILE_OPTIONS -march=nehalem        REQUIRE SSE4_2)
-  add_bzero(bzero_x86_64_opt_avx2   COMPILE_OPTIONS -march=haswell        REQUIRE AVX2)
-  add_bzero(bzero_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512F)
-  add_bzero(bzero_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
-  add_bzero(bzero)
-else()
-  add_bzero(bzero_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
-  add_bzero(bzero)
 endif()

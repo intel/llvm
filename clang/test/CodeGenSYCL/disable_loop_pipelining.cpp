@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -29,8 +29,8 @@ int main() {
   return 0;
 }
 
-// CHECK: define dso_local spir_kernel void @"{{.*}}test_kernel1"() #0 {{.*}} !disable_loop_pipelining ![[NUM5:[0-9]+]]
-// CHECK: define dso_local spir_kernel void @"{{.*}}test_kernel2"() #0 {{.*}} ![[NUM4:[0-9]+]]
-// CHECK: define dso_local spir_kernel void @"{{.*}}test_kernel3"() #0 {{.*}} !disable_loop_pipelining ![[NUM5]]
+// CHECK: define dso_local spir_kernel void @{{.*}}test_kernel1() #0 {{.*}} !disable_loop_pipelining ![[NUM5:[0-9]+]]
+// CHECK: define dso_local spir_kernel void @{{.*}}test_kernel2() #0 {{.*}} ![[NUM4:[0-9]+]]
+// CHECK: define dso_local spir_kernel void @{{.*}}test_kernel3() #0 {{.*}} !disable_loop_pipelining ![[NUM5]]
 // CHECK: ![[NUM4]] = !{}
 // CHECK: ![[NUM5]] = !{i32 1}

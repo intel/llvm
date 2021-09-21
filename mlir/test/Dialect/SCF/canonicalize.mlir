@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -pass-pipeline='func(canonicalize)' -split-input-file | FileCheck %s
+// RUN: mlir-opt %s -pass-pipeline='builtin.func(canonicalize)' -split-input-file | FileCheck %s
 
 
 // -----
@@ -122,9 +122,9 @@ func @nested_parallel(%0: memref<?x?x?xf64>) -> memref<?x?x?xf64> {
 }
 
 // CHECK-LABEL:   func @nested_parallel(
-// CHECK:           [[C0:%.*]] = constant 0 : index
-// CHECK:           [[C1:%.*]] = constant 1 : index
-// CHECK:           [[C2:%.*]] = constant 2 : index
+// CHECK-DAG:       [[C0:%.*]] = constant 0 : index
+// CHECK-DAG:       [[C1:%.*]] = constant 1 : index
+// CHECK-DAG:       [[C2:%.*]] = constant 2 : index
 // CHECK:           [[B0:%.*]] = memref.dim {{.*}}, [[C0]]
 // CHECK:           [[B1:%.*]] = memref.dim {{.*}}, [[C1]]
 // CHECK:           [[B2:%.*]] = memref.dim {{.*}}, [[C2]]
@@ -150,8 +150,8 @@ func @one_unused(%cond: i1) -> (index) {
 }
 
 // CHECK-LABEL:   func @one_unused
-// CHECK:           [[C0:%.*]] = constant 1 : index
-// CHECK:           [[C3:%.*]] = constant 3 : index
+// CHECK-DAG:       [[C0:%.*]] = constant 1 : index
+// CHECK-DAG:       [[C3:%.*]] = constant 3 : index
 // CHECK:           [[V0:%.*]] = scf.if %{{.*}} -> (index) {
 // CHECK:             call @side_effect() : () -> ()
 // CHECK:             scf.yield [[C0]] : index
@@ -183,8 +183,8 @@ func @nested_unused(%cond1: i1, %cond2: i1) -> (index) {
 }
 
 // CHECK-LABEL:   func @nested_unused
-// CHECK:           [[C0:%.*]] = constant 1 : index
-// CHECK:           [[C3:%.*]] = constant 3 : index
+// CHECK-DAG:       [[C0:%.*]] = constant 1 : index
+// CHECK-DAG:       [[C3:%.*]] = constant 3 : index
 // CHECK:           [[V0:%.*]] = scf.if {{.*}} -> (index) {
 // CHECK:             [[V1:%.*]] = scf.if {{.*}} -> (index) {
 // CHECK:               call @side_effect() : () -> ()
@@ -250,6 +250,20 @@ func @empty_if2(%cond: i1) {
 // CHECK-NOT:       scf.if
 // CHECK:           return
 
+// ----
+
+func @empty_else(%cond: i1, %v : memref<i1>) {
+  scf.if %cond {
+    memref.store %cond, %v[] : memref<i1>
+  } else {
+  }
+  return
+}
+
+// CHECK-LABEL: func @empty_else
+// CHECK:         scf.if
+// CHECK-NOT:     else
+
 // -----
 
 func @to_select1(%cond: i1) -> index {
@@ -264,8 +278,8 @@ func @to_select1(%cond: i1) -> index {
 }
 
 // CHECK-LABEL:   func @to_select1
-// CHECK:           [[C0:%.*]] = constant 0 : index
-// CHECK:           [[C1:%.*]] = constant 1 : index
+// CHECK-DAG:       [[C0:%.*]] = constant 0 : index
+// CHECK-DAG:       [[C1:%.*]] = constant 1 : index
 // CHECK:           [[V0:%.*]] = select {{.*}}, [[C0]], [[C1]]
 // CHECK:           return [[V0]] : index
 
@@ -283,8 +297,8 @@ func @to_select_same_val(%cond: i1) -> (index, index) {
 }
 
 // CHECK-LABEL:   func @to_select_same_val
-// CHECK:           [[C0:%.*]] = constant 0 : index
-// CHECK:           [[C1:%.*]] = constant 1 : index
+// CHECK-DAG:       [[C0:%.*]] = constant 0 : index
+// CHECK-DAG:       [[C1:%.*]] = constant 1 : index
 // CHECK:           [[V0:%.*]] = select {{.*}}, [[C0]], [[C1]]
 // CHECK:           return [[V0]], [[C1]] : index, index
 
@@ -304,10 +318,10 @@ func @to_select2(%cond: i1) -> (index, index) {
 }
 
 // CHECK-LABEL:   func @to_select2
-// CHECK:           [[C0:%.*]] = constant 0 : index
-// CHECK:           [[C1:%.*]] = constant 1 : index
-// CHECK:           [[C2:%.*]] = constant 2 : index
-// CHECK:           [[C3:%.*]] = constant 3 : index
+// CHECK-DAG:       [[C0:%.*]] = constant 0 : index
+// CHECK-DAG:       [[C1:%.*]] = constant 1 : index
+// CHECK-DAG:       [[C2:%.*]] = constant 2 : index
+// CHECK-DAG:       [[C3:%.*]] = constant 3 : index
 // CHECK:           [[V0:%.*]] = select {{.*}}, [[C0]], [[C2]]
 // CHECK:           [[V1:%.*]] = select {{.*}}, [[C1]], [[C3]]
 // CHECK:           return [[V0]], [[V1]] : index
@@ -475,9 +489,9 @@ func @replace_single_iteration_loop_1() {
 // CHECK-LABEL: @replace_single_iteration_loop_2
 func @replace_single_iteration_loop_2() {
   // CHECK: %[[LB:.*]] = constant 5
-	%c5 = constant 5 : index
-	%c6 = constant 6 : index
-	%c11 = constant 11 : index
+  %c5 = constant 5 : index
+  %c6 = constant 6 : index
+  %c11 = constant 11 : index
   // CHECK: %[[INIT:.*]] = "test.init"
   %init = "test.init"() : () -> i32
   // CHECK-NOT: scf.for
@@ -645,14 +659,14 @@ func @matmul_on_tensors(%t0: tensor<32x1024xf32>, %t1: tensor<1024x1024xf32>) ->
     scf.yield %2 : tensor<?x?xf32>
   }
 //   CHECK-NOT: tensor.cast
-//       CHECK: %[[RES:.*]] = subtensor_insert %[[FOR_RES]] into %[[T1]][0, 0] [32, 1024] [1, 1] : tensor<32x1024xf32> into tensor<1024x1024xf32>
+//       CHECK: %[[RES:.*]] = tensor.insert_slice %[[FOR_RES]] into %[[T1]][0, 0] [32, 1024] [1, 1] : tensor<32x1024xf32> into tensor<1024x1024xf32>
 //       CHECK: return %[[RES]] : tensor<1024x1024xf32>
   %2 = tensor.cast %1 : tensor<?x?xf32> to tensor<32x1024xf32>
-  %res = subtensor_insert %2 into %t1[0, 0] [32, 1024] [1, 1] : tensor<32x1024xf32> into tensor<1024x1024xf32>
+  %res = tensor.insert_slice %2 into %t1[0, 0] [32, 1024] [1, 1] : tensor<32x1024xf32> into tensor<1024x1024xf32>
   return %res : tensor<1024x1024xf32>
 }
 
-
+// -----
 
 // CHECK-LABEL: @cond_prop
 func @cond_prop(%arg0 : i1) -> index {
@@ -693,6 +707,8 @@ func @cond_prop(%arg0 : i1) -> index {
 // CHECK-NEXT:  return %[[if]] : index
 // CHECK-NEXT:}
 
+// -----
+
 // CHECK-LABEL: @replace_if_with_cond1
 func @replace_if_with_cond1(%arg0 : i1) -> (i32, i1) {
   %true = constant true
@@ -714,6 +730,8 @@ func @replace_if_with_cond1(%arg0 : i1) -> (i32, i1) {
 // CHECK-NEXT:      scf.yield %[[sv2]] : i32
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return %[[if]], %arg0 : i32, i1
+
+// -----
 
 // CHECK-LABEL: @replace_if_with_cond2
 func @replace_if_with_cond2(%arg0 : i1) -> (i32, i1) {
@@ -739,6 +757,7 @@ func @replace_if_with_cond2(%arg0 : i1) -> (i32, i1) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %[[if]], %[[toret]] : i32, i1
 
+// -----
 
 // CHECK-LABEL: @replace_if_with_cond3
 func @replace_if_with_cond3(%arg0 : i1, %arg2: i64) -> (i32, i64) {
@@ -760,6 +779,7 @@ func @replace_if_with_cond3(%arg0 : i1, %arg2: i64) -> (i32, i64) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %[[if]], %arg1 : i32, i64
 
+// -----
 
 // CHECK-LABEL: @while_cond_true
 func @while_cond_true() {
@@ -883,3 +903,123 @@ func @combineIfs4(%arg0 : i1, %arg2: i64) {
 // CHECK-NEXT:       "test.firstCodeTrue"() : () -> ()
 // CHECK-NEXT:       "test.secondCodeTrue"() : () -> ()
 // CHECK-NEXT:     }
+
+// -----
+
+// CHECK-LABEL: func @propagate_into_execute_region
+func @propagate_into_execute_region() {
+  %cond = constant 0 : i1
+  affine.for %i = 0 to 100 {
+    "test.foo"() : () -> ()
+    %v = scf.execute_region -> i64 {
+      cond_br %cond, ^bb1, ^bb2
+
+    ^bb1:
+      %c1 = constant 1 : i64
+      br ^bb3(%c1 : i64)
+
+    ^bb2:
+      %c2 = constant 2 : i64
+      br ^bb3(%c2 : i64)
+
+    ^bb3(%x : i64):
+      scf.yield %x : i64
+    }
+    "test.bar"(%v) : (i64) -> ()
+    // CHECK:      %[[C2:.*]] = constant 2 : i64
+    // CHECK: "test.foo"
+    // CHECK-NEXT: "test.bar"(%[[C2]]) : (i64) -> ()
+  }
+  return
+}
+
+// -----
+
+// CHECK-LABEL: func @execute_region_elim
+func @execute_region_elim() {
+  affine.for %i = 0 to 100 {
+    "test.foo"() : () -> ()
+    %v = scf.execute_region -> i64 {
+      %x = "test.val"() : () -> i64
+      scf.yield %x : i64
+    }
+    "test.bar"(%v) : (i64) -> ()
+  }
+  return
+}
+
+// CHECK-NEXT:     affine.for %arg0 = 0 to 100 {
+// CHECK-NEXT:       "test.foo"() : () -> ()
+// CHECK-NEXT:       %[[VAL:.*]] = "test.val"() : () -> i64
+// CHECK-NEXT:       "test.bar"(%[[VAL]]) : (i64) -> ()
+// CHECK-NEXT:     }
+
+
+// -----
+
+// CHECK-LABEL: func @func_execute_region_elim
+func @func_execute_region_elim() {
+    "test.foo"() : () -> ()
+    %v = scf.execute_region -> i64 {
+      %c = "test.cmp"() : () -> i1
+      cond_br %c, ^bb2, ^bb3
+    ^bb2:
+      %x = "test.val1"() : () -> i64
+      br ^bb4(%x : i64)
+    ^bb3:
+      %y = "test.val2"() : () -> i64
+      br ^bb4(%y : i64)
+    ^bb4(%z : i64):
+      scf.yield %z : i64
+    }
+    "test.bar"(%v) : (i64) -> ()
+  return
+}
+
+// CHECK-NOT: execute_region
+// CHECK:     "test.foo"
+// CHECK:     %[[cmp:.+]] = "test.cmp"
+// CHECK:     cond_br %[[cmp]], ^[[bb1:.+]], ^[[bb2:.+]]
+// CHECK:   ^[[bb1]]:
+// CHECK:     %[[x:.+]] = "test.val1"
+// CHECK:     br ^[[bb3:.+]](%[[x]] : i64)
+// CHECK:   ^[[bb2]]:
+// CHECK:     %[[y:.+]] = "test.val2"
+// CHECK:     br ^[[bb3]](%[[y:.+]] : i64)
+// CHECK:   ^[[bb3]](%[[z:.+]]: i64):
+// CHECK:     "test.bar"(%[[z]])
+// CHECK:     return
+
+
+// -----
+
+// CHECK-LABEL: func @func_execute_region_elim_multi_yield
+func @func_execute_region_elim_multi_yield() {
+    "test.foo"() : () -> ()
+    %v = scf.execute_region -> i64 {
+      %c = "test.cmp"() : () -> i1
+      cond_br %c, ^bb2, ^bb3
+    ^bb2:
+      %x = "test.val1"() : () -> i64
+      scf.yield %x : i64
+    ^bb3:
+      %y = "test.val2"() : () -> i64
+      scf.yield %y : i64
+    }
+    "test.bar"(%v) : (i64) -> ()
+  return
+}
+
+// CHECK-NOT: execute_region
+// CHECK:     "test.foo"
+// CHECK:     %[[cmp:.+]] = "test.cmp"
+// CHECK:     cond_br %[[cmp]], ^[[bb1:.+]], ^[[bb2:.+]]
+// CHECK:   ^[[bb1]]:
+// CHECK:     %[[x:.+]] = "test.val1"
+// CHECK:     br ^[[bb3:.+]](%[[x]] : i64)
+// CHECK:   ^[[bb2]]:
+// CHECK:     %[[y:.+]] = "test.val2"
+// CHECK:     br ^[[bb3]](%[[y:.+]] : i64)
+// CHECK:   ^[[bb3]](%[[z:.+]]: i64):
+// CHECK:     "test.bar"(%[[z]])
+// CHECK:     return

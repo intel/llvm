@@ -1,5 +1,9 @@
 add_subdirectory(sycl-ls)
 
+if (SYCL_ENABLE_XPTI_TRACING)
+  add_subdirectory(pi-trace)
+endif()
+
 # TODO: move each tool in its own sub-directory
 add_executable(get_device_count_by_type get_device_count_by_type.cpp)
 add_dependencies(get_device_count_by_type
@@ -20,9 +24,24 @@ target_link_libraries(get_device_count_by_type
     LevelZeroLoader::Headers
     OpenCL-ICD
     ${LEVEL_ZERO_LIBRARY}
-    $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:cudadrv>
+    # The CUDA and HIP for NVIDA plugins need cudadrv
+    $<$<OR:$<BOOL:${SYCL_BUILD_PI_CUDA}>,$<AND:$<BOOL:${SYCL_BUILD_PI_HIP}>,$<STREQUAL:${SYCL_BUILD_PI_HIP_PLATFORM},NVIDIA>>>:cudadrv>
+    # The HIP for AMD plugin needs rocmdrv
+    $<$<AND:$<BOOL:${SYCL_BUILD_PI_HIP}>,$<STREQUAL:${SYCL_BUILD_PI_HIP_PLATFORM},AMD>>:rocmdrv>
+    # The HIP for NVIDIA plugin also needs cudart
+    $<$<AND:$<BOOL:${SYCL_BUILD_PI_HIP}>,$<STREQUAL:${SYCL_BUILD_PI_HIP_PLATFORM},NVIDIA>>:cudart>
 )
 target_compile_definitions(get_device_count_by_type
   PRIVATE
     $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>
+    $<$<BOOL:${SYCL_BUILD_PI_HIP}>:USE_PI_HIP>
+    # For HIP set defines depending on the platform
+    $<$<AND:$<BOOL:${SYCL_BUILD_PI_HIP}>,$<STREQUAL:${SYCL_BUILD_PI_HIP_PLATFORM},AMD>>:__HIP_PLATFORM_AMD__>
+    $<$<AND:$<BOOL:${SYCL_BUILD_PI_HIP}>,$<STREQUAL:${SYCL_BUILD_PI_HIP_PLATFORM},NVIDIA>>:__HIP_PLATFORM_NVIDIA__>
 )
+
+if(SYCL_BUILD_PI_HIP)
+  target_include_directories(get_device_count_by_type
+    PRIVATE
+    ${SYCL_BUILD_PI_HIP_INCLUDE_DIR})
+endif()

@@ -69,13 +69,16 @@ void checkHighlightings(llvm::StringRef Code,
                         std::vector<std::pair</*FileName*/ llvm::StringRef,
                                               /*FileContent*/ llvm::StringRef>>
                             AdditionalFiles = {},
-                        uint32_t ModifierMask = -1) {
+                        uint32_t ModifierMask = -1,
+                        std::vector<std::string> AdditionalArgs = {}) {
   Annotations Test(Code);
   TestTU TU;
   TU.Code = std::string(Test.code());
 
   TU.ExtraArgs.push_back("-std=c++20");
   TU.ExtraArgs.push_back("-xobjective-c++");
+  TU.ExtraArgs.insert(std::end(TU.ExtraArgs), std::begin(AdditionalArgs),
+                      std::end(AdditionalArgs));
 
   for (auto File : AdditionalFiles)
     TU.AdditionalFiles.insert({File.first, std::string(File.second)});
@@ -102,9 +105,9 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       struct {
       } $Variable_decl[[S]];
       void $Function_decl[[foo]](int $Parameter_decl[[A]], $Class[[AS]] $Parameter_decl[[As]]) {
-        $Primitive_deduced[[auto]] $LocalVariable_decl[[VeryLongVariableName]] = 12312;
+        $Primitive_deduced_defaultLibrary[[auto]] $LocalVariable_decl[[VeryLongVariableName]] = 12312;
         $Class[[AS]]     $LocalVariable_decl[[AA]];
-        $Primitive_deduced[[auto]] $LocalVariable_decl[[L]] = $LocalVariable[[AA]].$Field[[SomeMember]] + $Parameter[[A]];
+        $Primitive_deduced_defaultLibrary[[auto]] $LocalVariable_decl[[L]] = $LocalVariable[[AA]].$Field[[SomeMember]] + $Parameter[[A]];
         auto $LocalVariable_decl[[FN]] = [ $LocalVariable[[AA]]](int $Parameter_decl[[A]]) -> void {};
         $LocalVariable[[FN]](12312);
       }
@@ -320,8 +323,8 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       $Class_deduced[[decltype]](auto) $Variable_decl[[AF2]] = $Class[[Foo]]();
       $Class_deduced[[auto]] *$Variable_decl[[AFP]] = &$Variable[[AF]];
       $Enum_deduced[[auto]] &$Variable_decl[[AER]] = $Variable[[AE]];
-      $Primitive_deduced[[auto]] $Variable_decl[[Form]] = 10.2 + 2 * 4;
-      $Primitive_deduced[[decltype]]($Variable[[Form]]) $Variable_decl[[F]] = 10;
+      $Primitive_deduced_defaultLibrary[[auto]] $Variable_decl[[Form]] = 10.2 + 2 * 4;
+      $Primitive_deduced_defaultLibrary[[decltype]]($Variable[[Form]]) $Variable_decl[[F]] = 10;
       auto $Variable_decl[[Fun]] = []()->void{};
     )cpp",
       R"cpp(
@@ -639,9 +642,14 @@ sizeof...($TemplateParameter[[Elements]]);
     )cpp",
       R"cpp(
       class $Class_decl_abstract[[Abstract]] {
-        virtual void $Method_decl_abstract[[pure]]() = 0;
-        virtual void $Method_decl[[impl]]();
+      public:
+        virtual void $Method_decl_abstract_virtual[[pure]]() = 0;
+        virtual void $Method_decl_virtual[[impl]]();
       };
+      void $Function_decl[[foo]]($Class_abstract[[Abstract]]* $Parameter_decl[[A]]) {
+          $Parameter[[A]]->$Method_abstract_virtual[[pure]]();
+          $Parameter[[A]]->$Method_virtual[[impl]]();
+      }
       )cpp",
       R"cpp(
       <:[deprecated]:> int $Variable_decl_deprecated[[x]];
@@ -693,11 +701,16 @@ sizeof...($TemplateParameter[[Elements]]);
           int $Field_decl[[_someProperty]];
         }
         @property(nonatomic, assign) int $Field_decl[[someProperty]];
+        @property(readonly, class) $Class[[Foo]] *$Field_decl_readonly_static[[sharedInstance]];
         @end
         @implementation $Class_decl[[Foo]]
         @synthesize someProperty = _someProperty;
+        - (int)$Method_decl[[otherMethod]] {
+          return 0;
+        }
         - (int)$Method_decl[[doSomething]] {
-          self.$Field[[someProperty]] = self.$Field[[someProperty]] + 1;
+          $Class[[Foo]].$Field_static[[sharedInstance]].$Field[[someProperty]] = 1;
+          self.$Field[[someProperty]] = self.$Field[[someProperty]] + self.$Field[[otherMethod]] + 1;
           self->$Field[[_someProperty]] = $Field[[_someProperty]] + 1;
         }
         @end
@@ -715,6 +728,47 @@ sizeof...($TemplateParameter[[Elements]]);
             (void)$Field_dependentName[[member]];
           }
         };
+      )cpp",
+      // Modifier for variables passed as non-const references
+      R"cpp(
+        void $Function_decl[[fun]](int, const int,
+                                   int*, const int*,
+                                   int&, const int&,
+                                   int*&, const int*&, const int* const &,
+                                   int**, int**&, int** const &,
+                                   int = 123) {
+          int $LocalVariable_decl[[val]];
+          int* $LocalVariable_decl[[ptr]];
+          const int* $LocalVariable_decl_readonly[[constPtr]];
+          int** $LocalVariable_decl[[array]];
+          $Function[[fun]]($LocalVariable[[val]], $LocalVariable[[val]], 
+                           $LocalVariable[[ptr]], $LocalVariable_readonly[[constPtr]], 
+                           $LocalVariable_usedAsMutableReference[[val]], $LocalVariable[[val]], 
+
+                           $LocalVariable_usedAsMutableReference[[ptr]],
+                           $LocalVariable_readonly_usedAsMutableReference[[constPtr]],
+                           $LocalVariable_readonly[[constPtr]],
+
+                           $LocalVariable[[array]], $LocalVariable_usedAsMutableReference[[array]], 
+                           $LocalVariable[[array]]
+                           );
+        }
+        struct $Class_decl[[S]] {
+          $Class_decl[[S]](int&) {
+            $Class[[S]] $LocalVariable_decl[[s1]]($Field_usedAsMutableReference[[field]]);
+            $Class[[S]] $LocalVariable_decl[[s2]]($LocalVariable[[s1]].$Field_usedAsMutableReference[[field]]);
+
+            $Class[[S]] $LocalVariable_decl[[s3]]($StaticField_static_usedAsMutableReference[[staticField]]);
+            $Class[[S]] $LocalVariable_decl[[s4]]($Class[[S]]::$StaticField_static_usedAsMutableReference[[staticField]]);
+          }
+          int $Field_decl[[field]];
+          static int $StaticField_decl_static[[staticField]];
+        };
+        template <typename $TemplateParameter_decl[[X]]>
+        void $Function_decl[[foo]]($TemplateParameter[[X]]& $Parameter_decl[[x]]) {
+          // We do not support dependent types, so this one should *not* get the modifier.
+          $Function[[foo]]($Parameter[[x]]); 
+        }
       )cpp",
   };
   for (const auto &TestCase : TestCases)
@@ -746,6 +800,24 @@ sizeof...($TemplateParameter[[Elements]]);
     #define DEFINE_Y DEFINE(Y)
   )cpp"}},
                      ~ScopeModifierMask);
+
+  checkHighlightings(R"cpp(
+    #include "SYSObject.h"
+    @interface $Class_defaultLibrary[[SYSObject]] ($Namespace_decl[[UserCategory]])
+    @property(nonatomic, readonly) int $Field_decl_readonly[[user_property]];
+    @end
+    int $Function_decl[[somethingUsingSystemSymbols]]() {
+      $Class_defaultLibrary[[SYSObject]] *$LocalVariable_decl[[obj]] = [$Class_defaultLibrary[[SYSObject]] $StaticMethod_static_defaultLibrary[[new]]];
+      return $LocalVariable[[obj]].$Field_defaultLibrary[[value]] + $LocalVariable[[obj]].$Field_readonly[[user_property]];
+    }
+  )cpp",
+                     {{"SystemSDK/SYSObject.h", R"cpp(
+    @interface SYSObject
+    @property(nonatomic, assign) int value;
+    + (instancetype)new;
+    @end
+  )cpp"}},
+                     ~ScopeModifierMask, {"-isystemSystemSDK/"});
 }
 
 TEST(SemanticHighlighting, ScopeModifiers) {

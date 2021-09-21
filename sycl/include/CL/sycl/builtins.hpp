@@ -267,7 +267,7 @@ detail::enable_if_t<detail::is_sgenfloat<T>::value, T> ldexp(T x,
 template <typename T>
 detail::enable_if_t<detail::is_vgenfloat<T>::value, T> ldexp(T x,
                                                              int k) __NOEXC {
-  return __sycl_std::__invoke_ldexp<T>(x, vec<int, T::get_count()>(k));
+  return __sycl_std::__invoke_ldexp<T>(x, vec<int, T::size()>(k));
 }
 
 // vgenfloat ldexp (vgenfloat x, genint k)
@@ -724,6 +724,7 @@ detail::enable_if_t<detail::is_geninteger<T>::value, T> clz(T x) __NOEXC {
   return __sycl_std::__invoke_clz<T>(x);
 }
 
+namespace ext {
 namespace intel {
 // geninteger ctz (geninteger x)
 template <typename T>
@@ -732,6 +733,11 @@ ctz(T x) __NOEXC {
   return __sycl_std::__invoke_ctz<T>(x);
 }
 } // namespace intel
+} // namespace ext
+
+namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") intel {
+  using namespace ext::intel;
+}
 
 // geninteger mad_hi (geninteger a, geninteger b, geninteger c)
 template <typename T>
@@ -1630,6 +1636,10 @@ extern SYCL_EXTERNAL double atanh(double x);
 extern SYCL_EXTERNAL double frexp(double x, int *exp);
 extern SYCL_EXTERNAL double ldexp(double x, int exp);
 extern SYCL_EXTERNAL double hypot(double x, double y);
+
+extern SYCL_EXTERNAL void *memcpy(void *dest, const void *src, size_t n);
+extern SYCL_EXTERNAL void *memset(void *dest, int c, size_t n);
+extern SYCL_EXTERNAL int memcmp(const void *s1, const void *s2, size_t n);
 }
 #ifdef __GLIBC__
 extern "C" {

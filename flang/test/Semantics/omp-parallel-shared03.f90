@@ -1,4 +1,4 @@
-!RUN: %S/test_errors.sh %s %t %flang -fopenmp
+!RUN: %python %S/test_errors.py %s %flang -fopenmp
 ! OpenMP Version 4.5
 ! 2.15.3.2 parallel shared Clause
 program omp_parallel_shared

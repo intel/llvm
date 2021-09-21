@@ -15,10 +15,10 @@ define i64 @func() nounwind {
 ; X64-NEXT:    movl $2, %ecx
 ; X64-NEXT:    movl $3, %eax
 ; X64-NEXT:    imulq %rcx
-; X64-NEXT:    cmpq $1, %rdx
+; X64-NEXT:    cmpq $2, %rdx
 ; X64-NEXT:    movabsq $9223372036854775807, %rax # imm = 0x7FFFFFFFFFFFFFFF
 ; X64-NEXT:    movl $1, %ecx
-; X64-NEXT:    cmovgq %rax, %rcx
+; X64-NEXT:    cmovgeq %rax, %rcx
 ; X64-NEXT:    cmpq $-2, %rdx
 ; X64-NEXT:    movabsq $-9223372036854775808, %rax # imm = 0x8000000000000000
 ; X64-NEXT:    cmovgeq %rcx, %rax
@@ -32,13 +32,8 @@ define i64 @func2() nounwind {
 ; X64:       # %bb.0:
 ; X64-NEXT:    movl $3, %eax
 ; X64-NEXT:    imulq $2, %rax, %rcx
-; X64-NEXT:    xorl %edx, %edx
-; X64-NEXT:    testq %rcx, %rcx
-; X64-NEXT:    setns %dl
-; X64-NEXT:    movabsq $9223372036854775807, %rcx # imm = 0x7FFFFFFFFFFFFFFF
-; X64-NEXT:    addq %rdx, %rcx
-; X64-NEXT:    imulq $2, %rax, %rax
-; X64-NEXT:    cmovoq %rcx, %rax
+; X64-NEXT:    movabsq $9223372036854775807, %rax # imm = 0x7FFFFFFFFFFFFFFF
+; X64-NEXT:    cmovnoq %rcx, %rax
 ; X64-NEXT:    retq
   %tmp = call i64 @llvm.smul.fix.sat.i64(i64 3, i64 2, i32 0)
   ret i64 %tmp
@@ -51,9 +46,9 @@ define i64 @func3() nounwind {
 ; X64-NEXT:    movl $2, %edx
 ; X64-NEXT:    movq %rcx, %rax
 ; X64-NEXT:    imulq %rdx
-; X64-NEXT:    cmpq $1, %rdx
+; X64-NEXT:    cmpq $2, %rdx
 ; X64-NEXT:    movabsq $4611686018427387903, %rsi # imm = 0x3FFFFFFFFFFFFFFF
-; X64-NEXT:    cmovgq %rcx, %rsi
+; X64-NEXT:    cmovgeq %rcx, %rsi
 ; X64-NEXT:    cmpq $-2, %rdx
 ; X64-NEXT:    movabsq $-9223372036854775808, %rax # imm = 0x8000000000000000
 ; X64-NEXT:    cmovgeq %rsi, %rax

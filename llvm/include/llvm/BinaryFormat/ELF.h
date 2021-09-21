@@ -19,8 +19,10 @@
 #ifndef LLVM_BINARYFORMAT_ELF_H
 #define LLVM_BINARYFORMAT_ELF_H
 
+#include "llvm/ADT/StringRef.h"
 #include <cstdint>
 #include <cstring>
+#include <string>
 
 namespace llvm {
 namespace ELF {
@@ -737,15 +739,19 @@ enum : unsigned {
   EF_AMDGPU_MACH_AMDGCN_GFX602        = 0x03a,
   EF_AMDGPU_MACH_AMDGCN_GFX705        = 0x03b,
   EF_AMDGPU_MACH_AMDGCN_GFX805        = 0x03c,
-  EF_AMDGPU_MACH_AMDGCN_RESERVED_0X3D = 0x03d,
+  EF_AMDGPU_MACH_AMDGCN_GFX1035       = 0x03d,
   EF_AMDGPU_MACH_AMDGCN_GFX1034       = 0x03e,
   EF_AMDGPU_MACH_AMDGCN_GFX90A        = 0x03f,
   EF_AMDGPU_MACH_AMDGCN_RESERVED_0X40 = 0x040,
   EF_AMDGPU_MACH_AMDGCN_RESERVED_0X41 = 0x041,
+  EF_AMDGPU_MACH_AMDGCN_GFX1013       = 0x042,
+  EF_AMDGPU_MACH_AMDGCN_RESERVED_0X43 = 0x043,
+  EF_AMDGPU_MACH_AMDGCN_RESERVED_0X44 = 0x044,
+  EF_AMDGPU_MACH_AMDGCN_RESERVED_0X45 = 0x045,
 
   // First/last AMDGCN-based processors.
   EF_AMDGPU_MACH_AMDGCN_FIRST = EF_AMDGPU_MACH_AMDGCN_GFX600,
-  EF_AMDGPU_MACH_AMDGCN_LAST = EF_AMDGPU_MACH_AMDGCN_GFX90A,
+  EF_AMDGPU_MACH_AMDGCN_LAST = EF_AMDGPU_MACH_AMDGCN_RESERVED_0X45,
 
   // Indicates if the "xnack" target feature is enabled for all code contained
   // in the object.
@@ -925,17 +931,17 @@ enum : unsigned {
   // https://android.googlesource.com/platform/bionic/+/6f12bfece5dcc01325e0abba56a46b1bcf991c69/tools/relocation_packer/src/elf_file.cc#37
   SHT_ANDROID_REL = 0x60000001,
   SHT_ANDROID_RELA = 0x60000002,
-  SHT_LLVM_ODRTAB = 0x6fff4c00,             // LLVM ODR table.
-  SHT_LLVM_LINKER_OPTIONS = 0x6fff4c01,     // LLVM Linker Options.
-  SHT_LLVM_CALL_GRAPH_PROFILE = 0x6fff4c02, // LLVM Call Graph Profile.
-  SHT_LLVM_ADDRSIG = 0x6fff4c03, // List of address-significant symbols
-                                 // for safe ICF.
+  SHT_LLVM_ODRTAB = 0x6fff4c00,         // LLVM ODR table.
+  SHT_LLVM_LINKER_OPTIONS = 0x6fff4c01, // LLVM Linker Options.
+  SHT_LLVM_ADDRSIG = 0x6fff4c03,        // List of address-significant symbols
+                                        // for safe ICF.
   SHT_LLVM_DEPENDENT_LIBRARIES =
       0x6fff4c04,                    // LLVM Dependent Library Specifiers.
   SHT_LLVM_SYMPART = 0x6fff4c05,     // Symbol partition specification.
   SHT_LLVM_PART_EHDR = 0x6fff4c06,   // ELF header for loadable partition.
   SHT_LLVM_PART_PHDR = 0x6fff4c07,   // Phdrs for loadable partition.
   SHT_LLVM_BB_ADDR_MAP = 0x6fff4c08, // LLVM Basic Block Address Map.
+  SHT_LLVM_CALL_GRAPH_PROFILE = 0x6fff4c09, // LLVM Call Graph Profile.
   // Android's experimental support for SHT_RELR sections.
   // https://android.googlesource.com/platform/bionic/+/b7feec74547f84559a1467aca02708ff61346d2a/libc/include/elf.h#512
   SHT_ANDROID_RELR = 0x6fffff00,   // Relocation entries; only offsets.
@@ -1612,6 +1618,13 @@ enum {
   NT_AMDGPU_METADATA = 32
 };
 
+// LLVMOMPOFFLOAD specific notes.
+enum : unsigned {
+  NT_LLVM_OPENMP_OFFLOAD_VERSION = 1,
+  NT_LLVM_OPENMP_OFFLOAD_PRODUCER = 2,
+  NT_LLVM_OPENMP_OFFLOAD_PRODUCER_VERSION = 3
+};
+
 enum {
   GNU_ABI_TAG_LINUX = 0,
   GNU_ABI_TAG_HURD = 1,
@@ -1647,14 +1660,14 @@ struct Elf64_Chdr {
   Elf64_Xword ch_addralign;
 };
 
-// Node header for ELF32.
+// Note header for ELF32.
 struct Elf32_Nhdr {
   Elf32_Word n_namesz;
   Elf32_Word n_descsz;
   Elf32_Word n_type;
 };
 
-// Node header for ELF64.
+// Note header for ELF64.
 struct Elf64_Nhdr {
   Elf64_Word n_namesz;
   Elf64_Word n_descsz;
@@ -1669,6 +1682,12 @@ enum {
   ELFCOMPRESS_LOPROC = 0x70000000, // Start of processor-specific.
   ELFCOMPRESS_HIPROC = 0x7fffffff  // End of processor-specific.
 };
+
+/// Convert an architecture name into ELF's e_machine value.
+uint16_t convertArchNameToEMachine(StringRef Arch);
+
+/// Convert an ELF's e_machine value into an architecture name.
+StringRef convertEMachineToArchName(uint16_t EMachine);
 
 } // end namespace ELF
 } // end namespace llvm

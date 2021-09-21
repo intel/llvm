@@ -331,6 +331,13 @@ public:
 };
 
 //===----------------------------------------------------------------------===//
+// Small runtime support library for memref.copy lowering during codegen.
+//===----------------------------------------------------------------------===//
+extern "C" MLIR_CRUNNERUTILS_EXPORT void
+memrefCopy(int64_t elemSize, UnrankedMemRefType<char> *src,
+           UnrankedMemRefType<char> *dst);
+
+//===----------------------------------------------------------------------===//
 // Small runtime support library for vector.print lowering during codegen.
 //===----------------------------------------------------------------------===//
 extern "C" MLIR_CRUNNERUTILS_EXPORT void printI64(int64_t i);
@@ -347,15 +354,5 @@ extern "C" MLIR_CRUNNERUTILS_EXPORT void printNewline();
 //===----------------------------------------------------------------------===//
 extern "C" MLIR_CRUNNERUTILS_EXPORT void print_flops(double flops);
 extern "C" MLIR_CRUNNERUTILS_EXPORT double rtclock();
-
-//===----------------------------------------------------------------------===//
-// Small runtime support library for sparse tensors.
-//===----------------------------------------------------------------------===//
-extern "C" MLIR_CRUNNERUTILS_EXPORT void *
-openTensorC(char *filename, uint64_t *idata, uint64_t *perm);
-extern "C" MLIR_CRUNNERUTILS_EXPORT void
-readTensorItemC(void *tensor, uint64_t *idata, double *ddata);
-extern "C" MLIR_CRUNNERUTILS_EXPORT void closeTensor(void *tensor);
-extern "C" MLIR_CRUNNERUTILS_EXPORT char *getTensorFilename(uint64_t id);
 
 #endif // EXECUTIONENGINE_CRUNNERUTILS_H_

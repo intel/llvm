@@ -37,6 +37,13 @@ static cl::opt<bool>
     EnableIfConversion("enable-if-conversion", cl::init(true), cl::Hidden,
                        cl::desc("Enable if-conversion during vectorization."));
 
+namespace llvm {
+cl::opt<bool>
+    HintsAllowReordering("hints-allow-reordering", cl::init(true), cl::Hidden,
+                         cl::desc("Allow enabling loop hints to reorder "
+                                  "FP operations during vectorization."));
+}
+
 // TODO: Move size-based thresholds out of legality checking, make cost based
 // decisions instead of hard thresholds.
 static cl::opt<unsigned> VectorizeSCEVCheckThreshold(
@@ -209,6 +216,15 @@ const char *LoopVectorizeHints::vectorizeAnalysisPassName() const {
   if (getForce() == LoopVectorizeHints::FK_Undefined && getWidth().isZero())
     return LV_NAME;
   return OptimizationRemarkAnalysis::AlwaysPrint;
+}
+
+bool LoopVectorizeHints::allowReordering() const {
+  // Allow the vectorizer to change the order of operations if enabling
+  // loop hints are provided
+  ElementCount EC = getWidth();
+  return HintsAllowReordering &&
+         (getForce() == LoopVectorizeHints::FK_Enabled ||
+          EC.getKnownMinValue() > 1);
 }
 
 void LoopVectorizeHints::getHintsFromMetadata() {
@@ -403,7 +419,8 @@ static bool hasOutsideLoopUser(const Loop *TheLoop, Instruction *Inst,
   return false;
 }
 
-int LoopVectorizationLegality::isConsecutivePtr(Value *Ptr) const {
+int LoopVectorizationLegality::isConsecutivePtr(Type *AccessTy,
+                                                Value *Ptr) const {
   const ValueToValueMap &Strides =
       getSymbolicStrides() ? *getSymbolicStrides() : ValueToValueMap();
 
@@ -412,7 +429,8 @@ int LoopVectorizationLegality::isConsecutivePtr(Value *Ptr) const {
                     llvm::shouldOptimizeForSize(TheLoop->getHeader(), PSI, BFI,
                                                 PGSOQueryType::IRPass);
   bool CanAddPredicate = !OptForSize;
-  int Stride = getPtrStride(PSE, Ptr, TheLoop, Strides, CanAddPredicate, false);
+  int Stride = getPtrStride(PSE, AccessTy, Ptr, TheLoop, Strides,
+                            CanAddPredicate, false);
   if (Stride == 1 || Stride == -1)
     return Stride;
   return 0;
@@ -570,7 +588,7 @@ bool LoopVectorizationLegality::setupOuterLoopInductions() {
 
 /// Checks if a function is scalarizable according to the TLI, in
 /// the sense that it should be vectorized and then expanded in
-/// multiple scalarcalls. This is represented in the
+/// multiple scalar calls. This is represented in the
 /// TLI via mappings that do not specify a vector name, as in the
 /// following example:
 ///
@@ -869,6 +887,7 @@ bool LoopVectorizationLegality::canVectorizeMemory() {
                                         "loop not vectorized: ", *LAR);
     });
   }
+
   if (!LAI->canVectorizeMemory())
     return false;
 
@@ -878,10 +897,36 @@ bool LoopVectorizationLegality::canVectorizeMemory() {
         "CantVectorizeStoreToLoopInvariantAddress", ORE, TheLoop);
     return false;
   }
+
   Requirements->addRuntimePointerChecks(LAI->getNumRuntimePointerChecks());
   PSE.addPredicate(LAI->getPSE().getUnionPredicate());
-
   return true;
+}
+
+bool LoopVectorizationLegality::canVectorizeFPMath(
+    bool EnableStrictReductions) {
+
+  // First check if there is any ExactFP math or if we allow reassociations
+  if (!Requirements->getExactFPInst() || Hints->allowReordering())
+    return true;
+
+  // If the above is false, we have ExactFPMath & do not allow reordering.
+  // If the EnableStrictReductions flag is set, first check if we have any
+  // Exact FP induction vars, which we cannot vectorize.
+  if (!EnableStrictReductions ||
+      any_of(getInductionVars(), [&](auto &Induction) -> bool {
+        InductionDescriptor IndDesc = Induction.second;
+        return IndDesc.getExactFPMathInst();
+      }))
+    return false;
+
+  // We can now only vectorize if all reductions with Exact FP math also
+  // have the isOrdered flag set, which indicates that we can move the
+  // reduction operations in-loop.
+  return (all_of(getReductionVars(), [&](auto &Reduction) -> bool {
+    const RecurrenceDescriptor &RdxDesc = Reduction.second;
+    return !RdxDesc.hasExactFPMath() || RdxDesc.isOrdered();
+  }));
 }
 
 bool LoopVectorizationLegality::isInductionPhi(const Value *V) {
@@ -913,10 +958,7 @@ bool LoopVectorizationLegality::blockNeedsPredication(BasicBlock *BB) const {
 bool LoopVectorizationLegality::blockCanBePredicated(
     BasicBlock *BB, SmallPtrSetImpl<Value *> &SafePtrs,
     SmallPtrSetImpl<const Instruction *> &MaskedOp,
-    SmallPtrSetImpl<Instruction *> &ConditionalAssumes,
-    bool PreserveGuards) const {
-  const bool IsAnnotatedParallel = TheLoop->isAnnotatedParallel();
-
+    SmallPtrSetImpl<Instruction *> &ConditionalAssumes) const {
   for (Instruction &I : *BB) {
     // Check that we don't have a constant expression that can trap as operand.
     for (Value *Operand : I.operands()) {
@@ -944,11 +986,7 @@ bool LoopVectorizationLegality::blockCanBePredicated(
       if (!LI)
         return false;
       if (!SafePtrs.count(LI->getPointerOperand())) {
-        // !llvm.mem.parallel_loop_access implies if-conversion safety.
-        // Otherwise, record that the load needs (real or emulated) masking
-        // and let the cost model decide.
-        if (!IsAnnotatedParallel || PreserveGuards)
-          MaskedOp.insert(LI);
+        MaskedOp.insert(LI);
         continue;
       }
     }
@@ -1089,21 +1127,6 @@ bool LoopVectorizationLegality::canVectorizeLoopCFG(Loop *Lp,
       return false;
   }
 
-  // We currently must have a single "exit block" after the loop. Note that
-  // multiple "exiting blocks" inside the loop are allowed, provided they all
-  // reach the single exit block.
-  // TODO: This restriction can be relaxed in the near future, it's here solely
-  // to allow separation of changes for review. We need to generalize the phi
-  // update logic in a number of places.
-  if (!Lp->getUniqueExitBlock()) {
-    reportVectorizationFailure("The loop must have a unique exit block",
-        "loop control flow is not understood by vectorizer",
-        "CFGNotUnderstood", ORE, TheLoop);
-    if (DoExtraAnalysis)
-      Result = false;
-    else
-      return false;
-  }
   return Result;
 }
 
@@ -1264,8 +1287,7 @@ bool LoopVectorizationLegality::prepareToFoldTailByMasking() {
   // do not need predication such as the header block.
   for (BasicBlock *BB : TheLoop->blocks()) {
     if (!blockCanBePredicated(BB, SafePointers, TmpMaskedOp,
-                              TmpConditionalAssumes,
-                              /* MaskAllLoads= */ true)) {
+                              TmpConditionalAssumes)) {
       LLVM_DEBUG(dbgs() << "LV: Cannot fold tail by masking as requested.\n");
       return false;
     }

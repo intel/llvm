@@ -49,6 +49,16 @@ using namespace ento;
 
 void SValBuilder::anchor() {}
 
+SValBuilder::SValBuilder(llvm::BumpPtrAllocator &alloc, ASTContext &context,
+                         ProgramStateManager &stateMgr)
+    : Context(context), BasicVals(context, alloc),
+      SymMgr(context, BasicVals, alloc), MemMgr(context, alloc),
+      StateMgr(stateMgr),
+      AnOpts(
+          stateMgr.getOwningEngine().getAnalysisManager().getAnalyzerOptions()),
+      ArrayIndexTy(context.LongLongTy),
+      ArrayIndexWidth(context.getTypeSize(ArrayIndexTy)) {}
+
 DefinedOrUnknownSVal SValBuilder::makeZeroVal(QualType type) {
   if (Loc::isLocType(type))
     return makeNull();
@@ -192,12 +202,19 @@ SValBuilder::getConjuredHeapSymbolVal(const Expr *E,
                                       const LocationContext *LCtx,
                                       unsigned VisitCount) {
   QualType T = E->getType();
-  assert(Loc::isLocType(T));
-  assert(SymbolManager::canSymbolicate(T));
-  if (T->isNullPtrType())
-    return makeZeroVal(T);
+  return getConjuredHeapSymbolVal(E, LCtx, T, VisitCount);
+}
 
-  SymbolRef sym = SymMgr.conjureSymbol(E, LCtx, T, VisitCount);
+DefinedOrUnknownSVal
+SValBuilder::getConjuredHeapSymbolVal(const Expr *E,
+                                      const LocationContext *LCtx,
+                                      QualType type, unsigned VisitCount) {
+  assert(Loc::isLocType(type));
+  assert(SymbolManager::canSymbolicate(type));
+  if (type->isNullPtrType())
+    return makeZeroVal(type);
+
+  SymbolRef sym = SymMgr.conjureSymbol(E, LCtx, type, VisitCount);
   return loc::MemRegionVal(MemMgr.getSymbolicHeapRegion(sym));
 }
 
@@ -266,6 +283,13 @@ DefinedSVal SValBuilder::getBlockPointer(const BlockDecl *block,
   const BlockDataRegion *BD = MemMgr.getBlockDataRegion(BC, locContext,
                                                         blockCount);
   return loc::MemRegionVal(BD);
+}
+
+Optional<loc::MemRegionVal>
+SValBuilder::getCastedMemRegionVal(const MemRegion *R, QualType Ty) {
+  if (auto OptR = StateMgr.getStoreManager().castRegion(R, Ty))
+    return loc::MemRegionVal(*OptR);
+  return None;
 }
 
 /// Return a memory region for the 'this' object reference.
@@ -391,9 +415,7 @@ SVal SValBuilder::makeSymExprValNN(BinaryOperator::Opcode Op,
 
   // TODO: When the Max Complexity is reached, we should conjure a symbol
   // instead of generating an Unknown value and propagate the taint info to it.
-  const unsigned MaxComp = StateMgr.getOwningEngine()
-                               .getAnalysisManager()
-                               .options.MaxSymbolComplexity;
+  const unsigned MaxComp = AnOpts.MaxSymbolComplexity;
 
   if (symLHS && symRHS &&
       (symLHS->computeComplexity() + symRHS->computeComplexity()) <  MaxComp)
@@ -705,9 +727,19 @@ SVal SValBuilder::evalCastSubKind(loc::MemRegionVal V, QualType CastTy,
           // symbols to use, only content metadata.
           return nonloc::SymbolVal(SymMgr.getExtentSymbol(FTR));
 
-    if (const SymbolicRegion *SymR = R->getSymbolicBase())
-      return makeNonLoc(SymR->getSymbol(), BO_NE,
-                        BasicVals.getZeroWithPtrWidth(), CastTy);
+    if (const SymbolicRegion *SymR = R->getSymbolicBase()) {
+      SymbolRef Sym = SymR->getSymbol();
+      QualType Ty = Sym->getType();
+      // This change is needed for architectures with varying
+      // pointer widths. See the amdgcn opencl reproducer with
+      // this change as an example: solver-sym-simplification-ptr-bool.cl
+      // FIXME: Cleanup remainder of `getZeroWithPtrWidth ()`
+      //        and `getIntWithPtrWidth()` functions to prevent future
+      //        confusion
+      if (!Ty->isReferenceType())
+        return makeNonLoc(Sym, BO_NE, BasicVals.getZeroWithTypeSize(Ty),
+                          CastTy);
+    }
     // Non-symbolic memory regions are always true.
     return makeTruthVal(true, CastTy);
   }
@@ -753,16 +785,16 @@ SVal SValBuilder::evalCastSubKind(loc::MemRegionVal V, QualType CastTy,
         if (const auto *SR = dyn_cast<SymbolicRegion>(R)) {
           QualType SRTy = SR->getSymbol()->getType();
           if (!hasSameUnqualifiedPointeeType(SRTy, CastTy)) {
-            R = StateMgr.getStoreManager().castRegion(SR, CastTy);
-            return loc::MemRegionVal(R);
+            if (auto OptMemRegV = getCastedMemRegionVal(SR, CastTy))
+              return *OptMemRegV;
           }
         }
       }
       // Next fixes pointer dereference using type different from its initial
       // one. See PR37503 and PR49007 for details.
       if (const auto *ER = dyn_cast<ElementRegion>(R)) {
-        if ((R = StateMgr.getStoreManager().castRegion(ER, CastTy)))
-          return loc::MemRegionVal(R);
+        if (auto OptMemRegV = getCastedMemRegionVal(ER, CastTy))
+          return *OptMemRegV;
       }
 
       return V;
@@ -807,8 +839,8 @@ SVal SValBuilder::evalCastSubKind(loc::MemRegionVal V, QualType CastTy,
 
     // Get the result of casting a region to a different type.
     const MemRegion *R = V.getRegion();
-    if ((R = StateMgr.getStoreManager().castRegion(R, CastTy)))
-      return loc::MemRegionVal(R);
+    if (auto OptMemRegV = getCastedMemRegionVal(R, CastTy))
+      return *OptMemRegV;
   }
 
   // Pointer to whatever else.
@@ -873,8 +905,8 @@ SVal SValBuilder::evalCastSubKind(nonloc::LocAsInteger V, QualType CastTy,
   if (!IsUnknownOriginalType && Loc::isLocType(CastTy) &&
       OriginalTy->isIntegralOrEnumerationType()) {
     if (const MemRegion *R = L.getAsRegion())
-      if ((R = StateMgr.getStoreManager().castRegion(R, CastTy)))
-        return loc::MemRegionVal(R);
+      if (auto OptMemRegV = getCastedMemRegionVal(R, CastTy))
+        return *OptMemRegV;
     return L;
   }
 
@@ -890,8 +922,8 @@ SVal SValBuilder::evalCastSubKind(nonloc::LocAsInteger V, QualType CastTy,
       // Delegate to store manager to get the result of casting a region to a
       // different type. If the MemRegion* returned is NULL, this expression
       // Evaluates to UnknownVal.
-      if ((R = StateMgr.getStoreManager().castRegion(R, CastTy)))
-        return loc::MemRegionVal(R);
+      if (auto OptMemRegV = getCastedMemRegionVal(R, CastTy))
+        return *OptMemRegV;
     }
   } else {
     if (Loc::isLocType(CastTy)) {

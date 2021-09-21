@@ -1,16 +1,16 @@
 ; RUN: sycl-post-link -spec-const=rt --ir-output-only %s -S -o - \
-; RUN: | FileCheck %s --implicit-check-not __sycl_getCompositeSpecConstantValue
+; RUN: | FileCheck %s --implicit-check-not "call {{.*}} __sycl_getCompositeSpecConstantValue"
 ;
 ; This test is intended to check that sycl-post-link tool is capable of handling
 ; situations when the same composite specialization constants is used more than
 ; once
 ;
 ; CHECK-LABEL: @foo1
-; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"({{.*}})
+; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeA2_struct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec_Rstruct._ZTS3POD.POD"({{.*}})
 ; CHECK-LABEL: @_ZTS4Test
-; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"({{.*}})
+; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeA2_struct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec_Rstruct._ZTS3POD.POD"({{.*}})
 ; CHECK-LABEL: @foo2
-; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"({{.*}})
+; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeA2_struct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec_Rstruct._ZTS3POD.POD"({{.*}})
 
 ; CHECK: !sycl.specialization-constants = !{![[#MD0:]], ![[#MD1:]]
 ;
@@ -28,7 +28,7 @@
 ; CHECK-SAME: i32 [[#ID1 + 5]], i32 20, i32 4}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 %struct._ZTS3POD.POD = type { [2 x %struct._ZTS1A.A], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" }
 %struct._ZTS1A.A = type { i32, float }

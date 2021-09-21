@@ -161,6 +161,12 @@ struct RequireAnalysisPass<AnalysisT, LazyCallGraph::SCC, CGSCCAnalysisManager,
     (void)AM.template getResult<AnalysisT>(C, CG);
     return PreservedAnalyses::all();
   }
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName) {
+    auto ClassName = AnalysisT::name();
+    auto PassName = MapClassName2PassName(ClassName);
+    OS << "require<" << PassName << ">";
+  }
 };
 
 /// A proxy from a \c CGSCCAnalysisManager to a \c Module.
@@ -363,6 +369,13 @@ public:
   /// Runs the CGSCC pass across every SCC in the module.
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName) {
+    OS << "cgscc(";
+    Pass->printPipeline(OS, MapClassName2PassName);
+    OS << ")";
+  }
+
   static bool isRequired() { return true; }
 
 private:
@@ -373,12 +386,12 @@ private:
 /// templated adaptor.
 template <typename CGSCCPassT>
 ModuleToPostOrderCGSCCPassAdaptor
-createModuleToPostOrderCGSCCPassAdaptor(CGSCCPassT Pass) {
+createModuleToPostOrderCGSCCPassAdaptor(CGSCCPassT &&Pass) {
   using PassModelT = detail::PassModel<LazyCallGraph::SCC, CGSCCPassT,
                                        PreservedAnalyses, CGSCCAnalysisManager,
                                        LazyCallGraph &, CGSCCUpdateResult &>;
   return ModuleToPostOrderCGSCCPassAdaptor(
-      std::make_unique<PassModelT>(std::move(Pass)));
+      std::make_unique<PassModelT>(std::forward<CGSCCPassT>(Pass)));
 }
 
 /// A proxy from a \c FunctionAnalysisManager to an \c SCC.
@@ -481,6 +494,13 @@ public:
   PreservedAnalyses run(LazyCallGraph::SCC &C, CGSCCAnalysisManager &AM,
                         LazyCallGraph &CG, CGSCCUpdateResult &UR);
 
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName) {
+    OS << "function(";
+    Pass->printPipeline(OS, MapClassName2PassName);
+    OS << ")";
+  }
+
   static bool isRequired() { return true; }
 
 private:
@@ -491,12 +511,12 @@ private:
 /// templated adaptor.
 template <typename FunctionPassT>
 CGSCCToFunctionPassAdaptor
-createCGSCCToFunctionPassAdaptor(FunctionPassT Pass) {
+createCGSCCToFunctionPassAdaptor(FunctionPassT &&Pass) {
   using PassModelT =
       detail::PassModel<Function, FunctionPassT, PreservedAnalyses,
                         FunctionAnalysisManager>;
   return CGSCCToFunctionPassAdaptor(
-      std::make_unique<PassModelT>(std::move(Pass)));
+      std::make_unique<PassModelT>(std::forward<FunctionPassT>(Pass)));
 }
 
 /// A helper that repeats an SCC pass each time an indirect call is refined to
@@ -528,6 +548,13 @@ public:
   PreservedAnalyses run(LazyCallGraph::SCC &InitialC, CGSCCAnalysisManager &AM,
                         LazyCallGraph &CG, CGSCCUpdateResult &UR);
 
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName) {
+    OS << "devirt<" << MaxIterations << ">(";
+    Pass->printPipeline(OS, MapClassName2PassName);
+    OS << ")";
+  }
+
 private:
   std::unique_ptr<PassConceptT> Pass;
   int MaxIterations;
@@ -536,13 +563,14 @@ private:
 /// A function to deduce a function pass type and wrap it in the
 /// templated adaptor.
 template <typename CGSCCPassT>
-DevirtSCCRepeatedPass createDevirtSCCRepeatedPass(CGSCCPassT Pass,
+DevirtSCCRepeatedPass createDevirtSCCRepeatedPass(CGSCCPassT &&Pass,
                                                   int MaxIterations) {
   using PassModelT = detail::PassModel<LazyCallGraph::SCC, CGSCCPassT,
                                        PreservedAnalyses, CGSCCAnalysisManager,
                                        LazyCallGraph &, CGSCCUpdateResult &>;
-  return DevirtSCCRepeatedPass(std::make_unique<PassModelT>(std::move(Pass)),
-                               MaxIterations);
+  return DevirtSCCRepeatedPass(
+      std::make_unique<PassModelT>(std::forward<CGSCCPassT>(Pass)),
+      MaxIterations);
 }
 
 // Clear out the debug logging macro.

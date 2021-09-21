@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <CL/sycl/builtins.hpp>
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/host_util.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
@@ -158,9 +159,9 @@ __esimd_bfext(__SEIEED::vector_type_t<T0, SZ> src0,
               __SEIEED::vector_type_t<T0, SZ> src1,
               __SEIEED::vector_type_t<T0, SZ> src2);
 
-template <int SZ>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<uint32_t, SZ>
-__esimd_fbl(__SEIEED::vector_type_t<uint32_t, SZ> src0);
+template <typename T0, int SZ>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T0, SZ>
+__esimd_fbl(__SEIEED::vector_type_t<T0, SZ> src0);
 
 template <typename T0, int SZ>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<int, SZ>
@@ -316,7 +317,58 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_dp4(__SEIEED::vector_type_t<Ty, N> v1,
             __SEIEED::vector_type_t<Ty, N> v2);
 
-#ifndef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_DEVICE_ONLY__
+
+// lane-id for reusing scalar math functions.
+// Depending upon the SIMT mode(8/16/32), the return value is
+// in the range of 0-7, 0-15, or 0-31.
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION int __esimd_lane_id();
+
+// Wrapper for designating a scalar region of code that will be
+// vectorized by the backend compiler.
+#define __ESIMD_SIMT_BEGIN(N, lane)                                            \
+  [&]() SYCL_ESIMD_FUNCTION ESIMD_NOINLINE                                     \
+      [[intel::sycl_esimd_vectorize(N)]] {                                     \
+    int lane = __esimd_lane_id();
+#define __ESIMD_SIMT_END                                                       \
+  }                                                                            \
+  ();
+
+#define ESIMD_MATH_INTRINSIC_IMPL(type, func)                                  \
+  template <int SZ>                                                            \
+  SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<type, SZ>          \
+      ocl_##func(__SEIEED::vector_type_t<type, SZ> src0) {                     \
+    __SEIEED::vector_type_t<type, SZ> retv;                                    \
+    __ESIMD_SIMT_BEGIN(SZ, lane)                                               \
+    retv[lane] = sycl::func(src0[lane]);                                       \
+    __ESIMD_SIMT_END                                                           \
+    return retv;                                                               \
+  }
+
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace ext {
+namespace intel {
+namespace experimental {
+namespace esimd {
+namespace detail {
+ESIMD_MATH_INTRINSIC_IMPL(float, sin)
+ESIMD_MATH_INTRINSIC_IMPL(float, cos)
+ESIMD_MATH_INTRINSIC_IMPL(float, exp)
+ESIMD_MATH_INTRINSIC_IMPL(float, log)
+} // namespace detail
+} // namespace esimd
+} // namespace experimental
+} // namespace intel
+} // namespace ext
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
+
+#undef __ESIMD_SIMT_BEGIN
+#undef __ESIMD_SIMT_END
+#undef ESIMD_MATH_INTRINSIC_IMPL
+
+#else // __SYCL_DEVICE_ONLY__
 
 template <typename T>
 inline T extract(const uint32_t &width, const uint32_t &offset, uint32_t src,
@@ -833,12 +885,12 @@ __esimd_bfext(__SEIEED::vector_type_t<T0, SZ> width,
   return retv;
 };
 
-template <int SZ>
-inline __SEIEED::vector_type_t<uint32_t, SZ>
-__esimd_fbl(__SEIEED::vector_type_t<uint32_t, SZ> src0) {
+template <typename T0, int SZ>
+inline __SEIEED::vector_type_t<T0, SZ>
+__esimd_fbl(__SEIEED::vector_type_t<T0, SZ> src0) {
   int i;
-  uint32_t ret;
-  __SEIEED::vector_type_t<uint32_t, SZ> retv;
+  T0 ret;
+  __SEIEED::vector_type_t<T0, SZ> retv;
 
   for (i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
@@ -1277,6 +1329,6 @@ __esimd_reduced_smin(__SEIEED::vector_type_t<Ty, N> src1,
 
 #undef __SEIEEED
 
-#endif // #ifndef __SYCL_DEVICE_ONLY__
+#endif // #ifdef __SYCL_DEVICE_ONLY__
 
 #undef __SEIEED

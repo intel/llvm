@@ -145,7 +145,7 @@ bool GEPOperator::accumulateConstantOffset(
 
 bool GEPOperator::collectOffset(
     const DataLayout &DL, unsigned BitWidth,
-    SmallDenseMap<Value *, APInt, 8> &VariableOffsets,
+    MapVector<Value *, APInt> &VariableOffsets,
     APInt &ConstantOffset) const {
   assert(BitWidth == DL.getIndexSizeInBits(getPointerAddressSpace()) &&
          "The offset bit width does not match DL specification.");
@@ -192,7 +192,7 @@ bool GEPOperator::collectOffset(
       return false;
     // Insert an initial offset of 0 for V iff none exists already, then
     // increment the offset by IndexedSize.
-    VariableOffsets.try_emplace(V, BitWidth, 0);
+    VariableOffsets.insert({V, APInt(BitWidth, 0)});
     APInt IndexedSize =
         APInt(BitWidth, DL.getTypeAllocSize(GTI.getIndexedType()));
     VariableOffsets[V] += IndexedSize;

@@ -585,15 +585,30 @@ optimizeExtInstr(MachineInstr &MI, MachineBasicBlock &MBB,
         MRI->constrainRegClass(DstReg, DstRC);
       }
 
+      // SubReg defs are illegal in machine SSA phase,
+      // we should not generate SubReg defs.
+      //
+      // For example, for the instructions:
+      //
+      // %1:g8rc_and_g8rc_nox0 = EXTSW %0:g8rc
+      // %3:gprc_and_gprc_nor0 = COPY %0.sub_32:g8rc
+      //
+      // We should generate:
+      //
+      // %1:g8rc_and_g8rc_nox0 = EXTSW %0:g8rc
+      // %6:gprc_and_gprc_nor0 = COPY %1.sub_32:g8rc_and_g8rc_nox0
+      // %3:gprc_and_gprc_nor0 = COPY %6:gprc_and_gprc_nor0
+      //
+      if (UseSrcSubIdx)
+        RC = MRI->getRegClass(UseMI->getOperand(0).getReg());
+
       Register NewVR = MRI->createVirtualRegister(RC);
-      MachineInstr *Copy = BuildMI(*UseMBB, UseMI, UseMI->getDebugLoc(),
-                                   TII->get(TargetOpcode::COPY), NewVR)
+      BuildMI(*UseMBB, UseMI, UseMI->getDebugLoc(),
+              TII->get(TargetOpcode::COPY), NewVR)
         .addReg(DstReg, 0, SubIdx);
-      // SubIdx applies to both SrcReg and DstReg when UseSrcSubIdx is set.
-      if (UseSrcSubIdx) {
-        Copy->getOperand(0).setSubReg(SubIdx);
-        Copy->getOperand(0).setIsUndef();
-      }
+      if (UseSrcSubIdx)
+        UseMO->setSubReg(0);
+
       UseMO->setReg(NewVR);
       ++NumReuse;
       Changed = true;
@@ -611,7 +626,7 @@ bool PeepholeOptimizer::optimizeCmpInstr(MachineInstr &MI) {
   // If this instruction is a comparison against zero and isn't comparing a
   // physical register, we can try to optimize it.
   Register SrcReg, SrcReg2;
-  int CmpMask, CmpValue;
+  int64_t CmpMask, CmpValue;
   if (!TII->analyzeCompare(MI, SrcReg, SrcReg2, CmpMask, CmpValue) ||
       SrcReg.isPhysical() || SrcReg2.isPhysical())
     return false;

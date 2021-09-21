@@ -40,6 +40,12 @@ namespace scudo {
 //   // eg: Ptr = Base + (CompactPtr << Scale).
 //   typedef u32 PrimaryCompactPtrT;
 //   static const uptr PrimaryCompactPtrScale = SCUDO_MIN_ALIGNMENT_LOG;
+//   // Indicates support for offsetting the start of a region by
+//   // a random number of pages. Only used with primary64.
+//   static const bool PrimaryEnableRandomOffset = true;
+//   // Call map for user memory with at least this size. Only used with
+//   // primary64.
+//   static const uptr PrimaryMapSizeIncrement = 1UL << 18;
 //   // Defines the minimal & maximal release interval that can be set.
 //   static const s32 PrimaryMinReleaseToOsIntervalMs = INT32_MIN;
 //   static const s32 PrimaryMaxReleaseToOsIntervalMs = INT32_MAX;
@@ -54,13 +60,15 @@ namespace scudo {
 
 struct DefaultConfig {
   using SizeClassMap = DefaultSizeClassMap;
-  static const bool MaySupportMemoryTagging = false;
+  static const bool MaySupportMemoryTagging = true;
 
 #if SCUDO_CAN_USE_PRIMARY64
   typedef SizeClassAllocator64<DefaultConfig> Primary;
   static const uptr PrimaryRegionSizeLog = 32U;
   typedef uptr PrimaryCompactPtrT;
   static const uptr PrimaryCompactPtrScale = 0;
+  static const bool PrimaryEnableRandomOffset = true;
+  static const uptr PrimaryMapSizeIncrement = 1UL << 18;
 #else
   typedef SizeClassAllocator32<DefaultConfig> Primary;
   static const uptr PrimaryRegionSizeLog = 19U;
@@ -79,7 +87,6 @@ struct DefaultConfig {
 
   template <class A> using TSDRegistryT = TSDRegistryExT<A>; // Exclusive
 };
-
 struct AndroidConfig {
   using SizeClassMap = AndroidSizeClassMap;
   static const bool MaySupportMemoryTagging = true;
@@ -89,6 +96,8 @@ struct AndroidConfig {
   static const uptr PrimaryRegionSizeLog = 28U;
   typedef u32 PrimaryCompactPtrT;
   static const uptr PrimaryCompactPtrScale = SCUDO_MIN_ALIGNMENT_LOG;
+  static const bool PrimaryEnableRandomOffset = true;
+  static const uptr PrimaryMapSizeIncrement = 1UL << 18;
 #else
   typedef SizeClassAllocator32<AndroidConfig> Primary;
   static const uptr PrimaryRegionSizeLog = 18U;
@@ -118,6 +127,8 @@ struct AndroidSvelteConfig {
   static const uptr PrimaryRegionSizeLog = 27U;
   typedef u32 PrimaryCompactPtrT;
   static const uptr PrimaryCompactPtrScale = SCUDO_MIN_ALIGNMENT_LOG;
+  static const bool PrimaryEnableRandomOffset = true;
+  static const uptr PrimaryMapSizeIncrement = 1UL << 18;
 #else
   typedef SizeClassAllocator32<AndroidSvelteConfig> Primary;
   static const uptr PrimaryRegionSizeLog = 16U;
@@ -146,6 +157,8 @@ struct FuchsiaConfig {
   typedef SizeClassAllocator64<FuchsiaConfig> Primary;
   static const uptr PrimaryRegionSizeLog = 30U;
   typedef u32 PrimaryCompactPtrT;
+  static const bool PrimaryEnableRandomOffset = true;
+  static const uptr PrimaryMapSizeIncrement = 1UL << 18;
   static const uptr PrimaryCompactPtrScale = SCUDO_MIN_ALIGNMENT_LOG;
   static const s32 PrimaryMinReleaseToOsIntervalMs = INT32_MIN;
   static const s32 PrimaryMaxReleaseToOsIntervalMs = INT32_MAX;
@@ -154,12 +167,34 @@ struct FuchsiaConfig {
   template <class A>
   using TSDRegistryT = TSDRegistrySharedT<A, 8U, 4U>; // Shared, max 8 TSDs.
 };
+
+struct TrustyConfig {
+  using SizeClassMap = TrustySizeClassMap;
+  static const bool MaySupportMemoryTagging = false;
+
+  typedef SizeClassAllocator64<TrustyConfig> Primary;
+  // Some apps have 1 page of heap total so small regions are necessary.
+  static const uptr PrimaryRegionSizeLog = 10U;
+  typedef u32 PrimaryCompactPtrT;
+  static const bool PrimaryEnableRandomOffset = false;
+  // Trusty is extremely memory-constrained so minimally round up map calls.
+  static const uptr PrimaryMapSizeIncrement = 1UL << 4;
+  static const uptr PrimaryCompactPtrScale = SCUDO_MIN_ALIGNMENT_LOG;
+  static const s32 PrimaryMinReleaseToOsIntervalMs = INT32_MIN;
+  static const s32 PrimaryMaxReleaseToOsIntervalMs = INT32_MAX;
+
+  typedef MapAllocatorNoCache SecondaryCache;
+  template <class A>
+  using TSDRegistryT = TSDRegistrySharedT<A, 1U, 1U>; // Shared, max 1 TSD.
+};
 #endif
 
 #if SCUDO_ANDROID
 typedef AndroidConfig Config;
 #elif SCUDO_FUCHSIA
 typedef FuchsiaConfig Config;
+#elif SCUDO_TRUSTY
+typedef TrustyConfig Config;
 #else
 typedef DefaultConfig Config;
 #endif

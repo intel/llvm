@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "memtag.h"
 #include "scudo/interface.h"
 #include "tests/scudo_unit_test.h"
 
@@ -37,7 +38,7 @@ void *pvalloc(size_t size);
 
 static const size_t Size = 100U;
 
-TEST(ScudoWrappersCTest, Malloc) {
+TEST(ScudoWrappersCDeathTest, Malloc) {
   void *P = malloc(Size);
   EXPECT_NE(P, nullptr);
   EXPECT_LE(Size, malloc_usable_size(P));
@@ -153,7 +154,7 @@ TEST(ScudoWrappersCTest, AlignedAlloc) {
   EXPECT_EQ(errno, EINVAL);
 }
 
-TEST(ScudoWrappersCTest, Realloc) {
+TEST(ScudoWrappersCDeathTest, Realloc) {
   // realloc(nullptr, N) is malloc(N)
   void *P = realloc(nullptr, 0U);
   EXPECT_NE(P, nullptr);
@@ -277,6 +278,10 @@ static uintptr_t BoundaryP;
 static size_t Count;
 
 static void callback(uintptr_t Base, size_t Size, void *Arg) {
+  if (scudo::archSupportsMemoryTagging()) {
+    Base = scudo::untagPointer(Base);
+    BoundaryP = scudo::untagPointer(BoundaryP);
+  }
   if (Base == BoundaryP)
     Count++;
 }
@@ -328,7 +333,7 @@ TEST(ScudoWrappersCTest, MallocIterateBoundary) {
 
 // Fuchsia doesn't have alarm, fork or malloc_info.
 #if !SCUDO_FUCHSIA
-TEST(ScudoWrappersCTest, MallocDisableDeadlock) {
+TEST(ScudoWrappersCDeathTest, MallocDisableDeadlock) {
   // We expect heap operations within a disable/enable scope to deadlock.
   EXPECT_DEATH(
       {
@@ -363,10 +368,10 @@ TEST(ScudoWrappersCTest, MallocInfo) {
   free(P2);
 }
 
-TEST(ScudoWrappersCTest, Fork) {
+TEST(ScudoWrappersCDeathTest, Fork) {
   void *P;
   pid_t Pid = fork();
-  EXPECT_GE(Pid, 0);
+  EXPECT_GE(Pid, 0) << strerror(errno);
   if (Pid == 0) {
     P = malloc(Size);
     EXPECT_NE(P, nullptr);

@@ -410,6 +410,9 @@ def nzFPImmAsi64 : PatLeaf<(fpimm), [{
 // Get the Hi bits of a 64 bit immediate.
 def getFPAs64BitIntHi : SDNodeXForm<fpimm, [{
   APFloat APFloatOfN = N->getValueAPF();
+  bool Unused;
+  APFloatOfN.convert(APFloat::IEEEdouble(), APFloat::rmNearestTiesToEven,
+                     &Unused);
   uint32_t Hi = (uint32_t)((APFloatOfN.bitcastToAPInt().getZExtValue() &
                             0xFFFFFFFF00000000LL) >> 32);
   return CurDAG->getTargetConstant(Hi, SDLoc(N), MVT::i32);
@@ -418,6 +421,9 @@ def getFPAs64BitIntHi : SDNodeXForm<fpimm, [{
 // Get the Lo bits of a 64 bit immediate.
 def getFPAs64BitIntLo : SDNodeXForm<fpimm, [{
   APFloat APFloatOfN = N->getValueAPF();
+  bool Unused;
+  APFloatOfN.convert(APFloat::IEEEdouble(), APFloat::rmNearestTiesToEven,
+                     &Unused);
   uint32_t Lo = (uint32_t)(APFloatOfN.bitcastToAPInt().getZExtValue() &
                            0xFFFFFFFF);
   return CurDAG->getTargetConstant(Lo, SDLoc(N), MVT::i32);
@@ -634,6 +640,12 @@ def PPCRegG8RCAsmOperand : AsmOperandClass {
 }
 def g8rc : RegisterOperand<G8RC> {
   let ParserMatchClass = PPCRegG8RCAsmOperand;
+}
+def PPCRegG8pRCAsmOperand : AsmOperandClass {
+  let Name = "RegG8pRC"; let PredicateMethod = "isEvenRegNumber";
+}
+def g8prc : RegisterOperand<G8pRC> {
+  let ParserMatchClass = PPCRegG8pRCAsmOperand;
 }
 def PPCRegGPRCNoR0AsmOperand : AsmOperandClass {
   let Name = "RegGPRCNoR0"; let PredicateMethod = "isRegNumber";
@@ -1140,15 +1152,13 @@ def addr   : ComplexPattern<iPTR, 1, "SelectAddr",[], []>;
 /// This is just the offset part of iaddr, used for preinc.
 def iaddroff : ComplexPattern<iPTR, 1, "SelectAddrImmOffs", [], []>;
 
-// PC Relative Address
-def pcreladdr : ComplexPattern<iPTR, 1, "SelectAddrPCRel", [], []>;
-
 // Load and Store Instruction Selection addressing modes.
 def DForm  : ComplexPattern<iPTR, 2, "SelectDForm",    [], [SDNPWantParent]>;
 def DSForm : ComplexPattern<iPTR, 2, "SelectDSForm",   [], [SDNPWantParent]>;
 def DQForm : ComplexPattern<iPTR, 2, "SelectDQForm",   [], [SDNPWantParent]>;
 def XForm  : ComplexPattern<iPTR, 2, "SelectXForm",    [], [SDNPWantParent]>;
 def ForceXForm : ComplexPattern<iPTR, 2, "SelectForceXForm", [], [SDNPWantParent]>;
+def PCRelForm : ComplexPattern<iPTR, 2, "SelectPCRelForm", [], [SDNPWantParent]>;
 
 //===----------------------------------------------------------------------===//
 // PowerPC Instruction Predicate Definitions.
@@ -1164,12 +1174,14 @@ def IsE500  : Predicate<"Subtarget->isE500()">;
 def HasSPE  : Predicate<"Subtarget->hasSPE()">;
 def HasICBT : Predicate<"Subtarget->hasICBT()">;
 def HasPartwordAtomics : Predicate<"Subtarget->hasPartwordAtomics()">;
+def HasQuadwordAtomics : Predicate<"Subtarget->hasQuadwordAtomics()">;
 def NoNaNsFPMath
     : Predicate<"Subtarget->getTargetMachine().Options.NoNaNsFPMath">;
 def NaNsFPMath
     : Predicate<"!Subtarget->getTargetMachine().Options.NoNaNsFPMath">;
 def HasBPERMD : Predicate<"Subtarget->hasBPERMD()">;
 def HasExtDiv : Predicate<"Subtarget->hasExtDiv()">;
+def IsISA2_07 : Predicate<"Subtarget->isISA2_07()">;
 def IsISA3_0 : Predicate<"Subtarget->isISA3_0()">;
 def HasFPU : Predicate<"Subtarget->hasFPU()">;
 def PCRelativeMemops : Predicate<"Subtarget->hasPCRelativeMemops()">;
@@ -1635,7 +1647,7 @@ def RESTORE_CRBIT : PPCEmitTimePseudo<(outs crbitrc:$cond), (ins memri:$F),
                            "#RESTORE_CRBIT", []>;
 }
 
-let isTerminator = 1, isBarrier = 1, PPC970_Unit = 7 in {
+let isTerminator = 1, isBarrier = 1, PPC970_Unit = 7, hasSideEffects = 0 in {
   let isPredicable = 1, isReturn = 1, Uses = [LR, RM] in
     def BLR : XLForm_2_ext<19, 16, 20, 0, 0, (outs), (ins), "blr", IIC_BrB,
                            [(retflag)]>, Requires<[In32BitMode]>;
@@ -1676,7 +1688,8 @@ let Defs = [LR] in
   def MoveGOTtoLR : PPCEmitTimePseudo<(outs), (ins), "#MoveGOTtoLR", []>,
                     PPC970_Unit_BRU;
 
-let isBranch = 1, isTerminator = 1, hasCtrlDep = 1, PPC970_Unit = 7 in {
+let isBranch = 1, isTerminator = 1, hasCtrlDep = 1, PPC970_Unit = 7,
+    hasSideEffects = 0 in {
   let isBarrier = 1 in {
     let isPredicable = 1 in
       def B : IForm<18, 0, 0, (outs), (ins directbrtarget:$dst),
@@ -1768,7 +1781,8 @@ let isBranch = 1, isTerminator = 1, hasCtrlDep = 1, PPC970_Unit = 7 in {
 }
 
 // The unconditional BCL used by the SjLj setjmp code.
-let isCall = 1, hasCtrlDep = 1, isCodeGenOnly = 1, PPC970_Unit = 7 in {
+let isCall = 1, hasCtrlDep = 1, isCodeGenOnly = 1, PPC970_Unit = 7,
+    hasSideEffects = 0 in {
   let Defs = [LR], Uses = [RM] in {
     def BCLalways  : BForm_2<16, 20, 31, 0, 1, (outs), (ins condbrtarget:$dst),
                             "bcl 20, 31, $dst">;
@@ -1903,7 +1917,7 @@ let isCall = 1, PPC970_Unit = 7, isCodeGenOnly = 1,
 }
 
 
-let isCodeGenOnly = 1 in {
+let isCodeGenOnly = 1, hasSideEffects = 0 in {
 
 let isTerminator = 1, isBarrier = 1, PPC970_Unit = 7, isBranch = 1,
     isIndirectBranch = 1, isCall = 1, isReturn = 1, Uses = [CTR, RM]  in
@@ -2021,6 +2035,8 @@ def : Pat<(int_ppc_dcbtst xoaddr:$dst),
           (DCBTST 0, xoaddr:$dst)>;
 def : Pat<(int_ppc_dcbf xoaddr:$dst),
           (DCBF 0, xoaddr:$dst)>;
+def : Pat<(int_ppc_icbt xoaddr:$dst),
+          (ICBT 0, xoaddr:$dst)>;
 
 def : Pat<(prefetch xoaddr:$dst, (i32 0), imm, (i32 1)),
           (DCBT 0, xoaddr:$dst)>;   // data prefetch for loads
@@ -2221,6 +2237,10 @@ def TDI : DForm_base<2, (outs), (ins u5imm:$to, g8rc:$rA, s16imm:$imm),
                      "tdi $to, $rA, $imm", IIC_IntTrapD, []>;
 def TD : XForm_1<31, 68, (outs), (ins u5imm:$to, g8rc:$rA, g8rc:$rB),
                  "td $to, $rA, $rB", IIC_IntTrapD, []>;
+
+def POPCNTB : XForm_11<31, 122, (outs gprc:$rA), (ins gprc:$rS),
+                       "popcntb $rA, $rS", IIC_IntGeneral,
+                       [(set i32:$rA, (int_ppc_popcntb i32:$rS))]>;
 
 //===----------------------------------------------------------------------===//
 // PPC32 Load Instructions.
@@ -2542,11 +2562,19 @@ let isCodeGenOnly = 1 in {
 def EnforceIEIO : XForm_24_eieio<31, 854, (outs), (ins),
                                  "eieio", IIC_LdStLoad, []>;
 
+def PseudoEIEIO : PPCEmitTimePseudo<(outs), (ins), "#PPCEIEIO",
+                  [(int_ppc_eieio)]>;
+
 def : Pat<(int_ppc_sync),   (SYNC 0)>, Requires<[HasSYNC]>;
+def : Pat<(int_ppc_iospace_sync),   (SYNC 0)>, Requires<[HasSYNC]>;
 def : Pat<(int_ppc_lwsync), (SYNC 1)>, Requires<[HasSYNC]>;
+def : Pat<(int_ppc_iospace_lwsync), (SYNC 1)>, Requires<[HasSYNC]>;
 def : Pat<(int_ppc_sync),   (MSYNC)>, Requires<[HasOnlyMSYNC]>;
+def : Pat<(int_ppc_iospace_sync),   (MSYNC)>, Requires<[HasOnlyMSYNC]>;
 def : Pat<(int_ppc_lwsync), (MSYNC)>, Requires<[HasOnlyMSYNC]>;
-def : Pat<(int_ppc_eieio),  (EnforceIEIO)>;
+def : Pat<(int_ppc_iospace_lwsync), (MSYNC)>, Requires<[HasOnlyMSYNC]>;
+def : Pat<(int_ppc_eieio),  (PseudoEIEIO)>;
+def : Pat<(int_ppc_iospace_eieio),  (PseudoEIEIO)>;
 
 //===----------------------------------------------------------------------===//
 // PPC32 Arithmetic Instructions.
@@ -3067,17 +3095,22 @@ let Uses = [RM], mayRaiseFPException = 1 in {
 
 // When FM is 30/31, we are setting the 62/63 bit of FPSCR, the implicit-def
 // RM should be set.
+let hasSideEffects = 1, Defs = [RM] in {
 def MTFSB0 : XForm_43<63, 70, (outs), (ins u5imm:$FM),
-                      "mtfsb0 $FM", IIC_IntMTFSB0, []>,
+                      "mtfsb0 $FM", IIC_IntMTFSB0,
+                      [(int_ppc_mtfsb0 timm:$FM)]>,
              PPC970_DGroup_Single, PPC970_Unit_FPU;
 def MTFSB1 : XForm_43<63, 38, (outs), (ins u5imm:$FM),
-                      "mtfsb1 $FM", IIC_IntMTFSB0, []>,
+                      "mtfsb1 $FM", IIC_IntMTFSB0,
+                      [(int_ppc_mtfsb1 timm:$FM)]>,
              PPC970_DGroup_Single, PPC970_Unit_FPU;
+}
 
 let Defs = [RM] in {
   let isCodeGenOnly = 1 in
   def MTFSFb  : XFLForm<63, 711, (outs), (ins i32imm:$FM, f8rc:$rT),
-                        "mtfsf $FM, $rT", IIC_IntMTFSB0, []>,
+                        "mtfsf $FM, $rT", IIC_IntMTFSB0,
+                        [(int_ppc_mtfsf timm:$FM, f64:$rT)]>,
                 PPC970_DGroup_Single, PPC970_Unit_FPU;
 }
 let Uses = [RM] in {
@@ -3128,6 +3161,10 @@ def MODSW : XForm_8<31, 779, (outs gprc:$rT), (ins gprc:$rA, gprc:$rB),
 def MODUW : XForm_8<31, 267, (outs gprc:$rT), (ins gprc:$rA, gprc:$rB),
                         "moduw $rT, $rA, $rB", IIC_IntDivW,
                         [(set i32:$rT, (urem i32:$rA, i32:$rB))]>;
+let hasSideEffects = 1 in
+def ADDEX : Z23Form_RTAB5_CY2<31, 170, (outs gprc:$rT),
+                              (ins gprc:$rA, gprc:$rB, u2imm:$CY),
+                              "addex $rT, $rA, $rB, $CY", IIC_IntGeneral, []>;
 }
 
 let PPC970_Unit = 1, hasSideEffects = 0 in {  // FXU Operations.
@@ -3624,6 +3661,16 @@ def : Pat<(fcopysign f64:$frB, f32:$frA),
 def : Pat<(fcopysign f32:$frB, f64:$frA),
           (FCPSGNS (COPY_TO_REGCLASS $frA, F4RC), $frB)>;
 }
+
+// XL Compat intrinsics.
+def : Pat<(int_ppc_fmsub f64:$A, f64:$B, f64:$C), (FMSUB $A, $B, $C)>;
+def : Pat<(int_ppc_fmsubs f32:$A, f32:$B, f32:$C), (FMSUBS $A, $B, $C)>;
+def : Pat<(int_ppc_fnmsub f64:$A, f64:$B, f64:$C), (FNMSUB $A, $B, $C)>;
+def : Pat<(int_ppc_fnmsubs f32:$A, f32:$B, f32:$C), (FNMSUBS $A, $B, $C)>;
+def : Pat<(int_ppc_fnmadd f64:$A, f64:$B, f64:$C), (FNMADD $A, $B, $C)>;
+def : Pat<(int_ppc_fnmadds f32:$A, f32:$B, f32:$C), (FNMADDS $A, $B, $C)>;
+def : Pat<(int_ppc_fre f64:$A), (FRE $A)>;
+def : Pat<(int_ppc_fres f32:$A), (FRES $A)>;
 
 include "PPCInstrAltivec.td"
 include "PPCInstrSPE.td"
@@ -4372,6 +4419,10 @@ def : Pat<(i1 (not (trunc i32:$in))),
 def : Pat<(i1 (not (trunc i64:$in))),
            (ANDI_rec_1_EQ_BIT8 $in)>;
 
+def : Pat<(int_ppc_fsel f8rc:$FRA, f8rc:$FRC, f8rc:$FRB), (FSELD $FRA, $FRC, $FRB)>;
+def : Pat<(int_ppc_frsqrte f8rc:$frB), (FRSQRTE $frB)>;
+def : Pat<(int_ppc_frsqrtes f4rc:$frB), (FRSQRTES $frB)>;
+
 //===----------------------------------------------------------------------===//
 // PowerPC Instructions used for assembler/disassembler only
 //
@@ -4447,19 +4498,20 @@ def MTMSRD : XForm_mtmsr<31, 178, (outs), (ins gprc:$RS, u1imm:$L),
 def MCRFS : XLForm_3<63, 64, (outs crrc:$BF), (ins crrc:$BFA),
                      "mcrfs $BF, $BFA", IIC_BrMCR>;
 
-// If W is 0 and BF is 7, the 60:63 bits will be set, we should set the
-// implicit-def RM.
-def MTFSFI : XLForm_4<63, 134, (outs crrc:$BF), (ins i32imm:$U, i32imm:$W),
-                      "mtfsfi $BF, $U, $W", IIC_IntMFFS>;
-let Defs = [CR1] in
-def MTFSFI_rec : XLForm_4<63, 134, (outs crrc:$BF), (ins i32imm:$U, i32imm:$W),
-                       "mtfsfi. $BF, $U, $W", IIC_IntMFFS>, isRecordForm;
-
-def : InstAlias<"mtfsfi $BF, $U", (MTFSFI crrc:$BF, i32imm:$U, 0)>;
-def : InstAlias<"mtfsfi. $BF, $U", (MTFSFI_rec crrc:$BF, i32imm:$U, 0)>;
-
+// All MTFSF variants may change the rounding mode so conservatively set it
+// as an implicit def for all of them.
 let Predicates = [HasFPU] in {
 let Defs = [RM] in {
+let isCodeGenOnly = 1,
+    Pattern = [(int_ppc_mtfsfi timm:$BF, timm:$U)], W = 0 in
+def MTFSFIb : XLForm_4<63, 134, (outs), (ins u3imm:$BF, u4imm:$U),
+                       "mtfsfi $BF, $U", IIC_IntMFFS>;
+def MTFSFI : XLForm_4<63, 134, (outs), (ins u3imm:$BF, u4imm:$U, i32imm:$W),
+                      "mtfsfi $BF, $U, $W", IIC_IntMFFS>;
+let Defs = [CR1] in
+def MTFSFI_rec : XLForm_4<63, 134, (outs), (ins u3imm:$BF, u4imm:$U, u1imm:$W),
+                       "mtfsfi. $BF, $U, $W", IIC_IntMFFS>, isRecordForm;
+
 def MTFSF : XFLForm_1<63, 711, (outs),
                       (ins i32imm:$FLM, f8rc:$FRB, u1imm:$L, i32imm:$W),
                       "mtfsf $FLM, $FRB, $L, $W", IIC_IntMFFS, []>;
@@ -4469,6 +4521,8 @@ def MTFSF_rec : XFLForm_1<63, 711, (outs),
                        "mtfsf. $FLM, $FRB, $L, $W", IIC_IntMFFS, []>, isRecordForm;
 }
 
+def : InstAlias<"mtfsfi $BF, $U", (MTFSFI u3imm:$BF, u4imm:$U, 0)>;
+def : InstAlias<"mtfsfi. $BF, $U", (MTFSFI_rec u3imm:$BF, u4imm:$U, 0)>;
 def : InstAlias<"mtfsf $FLM, $FRB", (MTFSF i32imm:$FLM, f8rc:$FRB, 0, 0)>;
 def : InstAlias<"mtfsf. $FLM, $FRB", (MTFSF_rec i32imm:$FLM, f8rc:$FRB, 0, 0)>;
 }
@@ -5005,7 +5059,7 @@ def RLWNMbm_rec : PPCAsmPseudo<"rlwnm. $rA, $rS, $n, $b",
 
 // These generic branch instruction forms are used for the assembler parser only.
 // Defs and Uses are conservative, since we don't know the BO value.
-let PPC970_Unit = 7, isBranch = 1 in {
+let PPC970_Unit = 7, isBranch = 1, hasSideEffects = 0 in {
   let Defs = [CTR], Uses = [CTR, RM] in {
     def gBC : BForm_3<16, 0, 0, (outs),
                       (ins u5imm:$bo, crbitrc:$bi, condbrtarget:$dst),
@@ -5243,6 +5297,27 @@ def SETB : XForm_44<31, 128, (outs gprc:$RT), (ins crrc:$BFA),
                        "setb $RT, $BFA", IIC_IntGeneral>;
 } // IsISA3_0
 
+let Predicates = [IsISA3_0] in {
+def : Pat<(i32 (int_ppc_cmprb i32:$a, gprc:$b, gprc:$c)),
+          (i32 (SETB (CMPRB u1imm:$a, $b, $c)))>;
+}
+def : Pat<(i32 (int_ppc_mulhw gprc:$a, gprc:$b)),
+          (i32 (MULHW $a, $b))>;
+def : Pat<(i32 (int_ppc_mulhwu gprc:$a, gprc:$b)),
+          (i32 (MULHWU $a, $b))>;
+def : Pat<(i32 (int_ppc_cmpb gprc:$a, gprc:$b)),
+          (i32 (CMPB $a, $b))>;
+
+def : Pat<(int_ppc_load2r ForceXForm:$ptr),
+          (LHBRX ForceXForm:$ptr)>;
+def : Pat<(int_ppc_load4r ForceXForm:$ptr),
+          (LWBRX ForceXForm:$ptr)>;
+def : Pat<(int_ppc_store2r gprc:$a, ForceXForm:$ptr),
+          (STHBRX gprc:$a, ForceXForm:$ptr)>;
+def : Pat<(int_ppc_store4r gprc:$a, ForceXForm:$ptr),
+          (STWBRX gprc:$a, ForceXForm:$ptr)>;
+
+
 // Fast 32-bit reverse bits algorithm:
 // Step 1: 1-bit swap (swap odd 1-bit and even 1-bit):
 // n = ((n >> 1) & 0x55555555) | ((n << 1) & 0xAAAAAAAA);
@@ -5395,3 +5470,50 @@ def DWBytes3210 {
 // swap the high word and low word.
 def : Pat<(i64 (bitreverse i64:$A)),
   (OR8 (RLDICR DWBytes7654.DWord, 32, 31), DWBytes3210.DWord)>;
+
+def : Pat<(int_ppc_stwcx ForceXForm:$dst, gprc:$A),
+          (STWCX gprc:$A, ForceXForm:$dst)>;
+def : Pat<(int_ppc_stbcx ForceXForm:$dst, gprc:$A),
+          (STBCX gprc:$A, ForceXForm:$dst)>;
+def : Pat<(int_ppc_tw gprc:$A, gprc:$B, i32:$IMM),
+          (TW $IMM, $A, $B)>;
+def : Pat<(int_ppc_trap gprc:$A),
+          (TWI 24, $A, 0)>;
+
+def : Pat<(int_ppc_fcfid f64:$A),
+        (XSCVSXDDP $A)>;
+def : Pat<(int_ppc_fcfud f64:$A),
+        (XSCVUXDDP $A)>;
+def : Pat<(int_ppc_fctid f64:$A),
+        (FCTID $A)>;
+def : Pat<(int_ppc_fctidz f64:$A),
+        (XSCVDPSXDS $A)>;
+def : Pat<(int_ppc_fctiw f64:$A),
+        (FCTIW $A)>;
+def : Pat<(int_ppc_fctiwz f64:$A),
+        (XSCVDPSXWS $A)>;
+def : Pat<(int_ppc_fctudz f64:$A),
+        (XSCVDPUXDS $A)>;
+def : Pat<(int_ppc_fctuwz f64:$A),
+        (XSCVDPUXWS $A)>;
+
+def : Pat<(int_ppc_mfmsr), (MFMSR)>;
+def : Pat<(int_ppc_mftbu), (MFTB 269)>;
+def : Pat<(i32 (int_ppc_mfspr timm:$SPR)),
+          (MFSPR $SPR)>;
+def : Pat<(int_ppc_mtspr timm:$SPR, gprc:$RT),
+          (MTSPR $SPR, $RT)>;
+def : Pat<(int_ppc_mtmsr gprc:$RS),
+          (MTMSR $RS, 0)>;
+
+let Predicates = [IsISA2_07] in {
+  def : Pat<(int_ppc_sthcx ForceXForm:$dst, gprc:$A),
+          (STHCX gprc:$A, ForceXForm:$dst)>;
+}
+def : Pat<(int_ppc_dcbtstt ForceXForm:$dst),
+          (DCBTST 16, ForceXForm:$dst)>;
+def : Pat<(int_ppc_dcbtt ForceXForm:$dst),
+          (DCBT 16, ForceXForm:$dst)>;
+
+def : Pat<(int_ppc_stfiw ForceXForm:$dst, f64:$XT),
+          (STFIWX f64:$XT, ForceXForm:$dst)>;

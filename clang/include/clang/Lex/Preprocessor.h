@@ -15,6 +15,7 @@
 #define LLVM_CLANG_LEX_PREPROCESSOR_H
 
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticIDs.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
@@ -264,9 +265,11 @@ class Preprocessor {
   /// avoid tearing the Lexer and etc. down).
   bool IncrementalProcessing = false;
 
+public:
   /// The kind of translation unit we are processing.
-  TranslationUnitKind TUKind;
+  const TranslationUnitKind TUKind;
 
+private:
   /// The code-completion handler.
   CodeCompletionHandler *CodeComplete = nullptr;
 
@@ -781,9 +784,21 @@ private:
   /// deserializing from PCH, we don't need to deserialize identifier & macros
   /// just so that we can report that they are unused, we just warn using
   /// the SourceLocations of this set (that will be filled by the ASTReader).
-  /// We are using SmallPtrSet instead of a vector for faster removal.
-  using WarnUnusedMacroLocsTy = llvm::SmallPtrSet<SourceLocation, 32>;
+  using WarnUnusedMacroLocsTy = llvm::SmallDenseSet<SourceLocation, 32>;
   WarnUnusedMacroLocsTy WarnUnusedMacroLocs;
+
+  /// This is a pair of an optional message and source location used for pragmas
+  /// that annotate macros like pragma clang restrict_expansion and pragma clang
+  /// deprecated. This pair stores the optional message and the location of the
+  /// annotation pragma for use producing diagnostics and notes.
+  using MsgLocationPair = std::pair<std::string, SourceLocation>;
+
+  /// Deprecation messages for macros provided in #pragma clang deprecated.
+  llvm::DenseMap<const IdentifierInfo *, std::string> MacroDeprecationMsgs;
+
+  /// Usage warning for macros marked by #pragma clang restrict_expansion.
+  llvm::DenseMap<const IdentifierInfo *, MsgLocationPair>
+      RestrictExpansionMacroMsgs;
 
   /// A "freelist" of MacroArg objects that can be
   /// reused for quick allocation.
@@ -1952,7 +1967,8 @@ public:
   /// This either returns the EOF token and returns true, or
   /// pops a level off the include stack and returns false, at which point the
   /// client should call lex again.
-  bool HandleEndOfFile(Token &Result, bool isEndOfMacro = false);
+  bool HandleEndOfFile(Token &Result, SourceLocation Loc,
+                       bool isEndOfMacro = false);
 
   /// Callback invoked when the current TokenLexer hits the end of its
   /// token stream.
@@ -2357,16 +2373,19 @@ private:
                          bool ReadAnyTokensBeforeDirective);
   void HandleEndifDirective(Token &EndifToken);
   void HandleElseDirective(Token &Result, const Token &HashToken);
-  void HandleElifDirective(Token &ElifToken, const Token &HashToken);
+  void HandleElifFamilyDirective(Token &ElifToken, const Token &HashToken,
+                                 tok::PPKeywordKind Kind);
 
   // Pragmas.
   void HandlePragmaDirective(PragmaIntroducer Introducer);
+  void ResolvePragmaIncludeInstead(SourceLocation Location) const;
 
 public:
   void HandlePragmaOnce(Token &OnceTok);
-  void HandlePragmaMark();
+  void HandlePragmaMark(Token &MarkTok);
   void HandlePragmaPoison();
   void HandlePragmaSystemHeader(Token &SysHeaderTok);
+  void HandlePragmaIncludeInstead(Token &Tok);
   void HandlePragmaDependency(Token &DependencyTok);
   void HandlePragmaPushMacro(Token &Tok);
   void HandlePragmaPopMacro(Token &Tok);
@@ -2383,7 +2402,40 @@ public:
   /// warnings.
   void markMacroAsUsed(MacroInfo *MI);
 
+  void addMacroDeprecationMsg(const IdentifierInfo *II, std::string Msg) {
+    MacroDeprecationMsgs.insert(std::make_pair(II, Msg));
+  }
+
+  llvm::Optional<std::string> getMacroDeprecationMsg(const IdentifierInfo *II) {
+    auto MsgEntry = MacroDeprecationMsgs.find(II);
+    if (MsgEntry == MacroDeprecationMsgs.end())
+      return llvm::None;
+    return MsgEntry->second;
+  }
+
+  void addRestrictExpansionMsg(const IdentifierInfo *II, std::string Msg,
+                               SourceLocation AnnotationLoc) {
+    RestrictExpansionMacroMsgs.insert(
+        std::make_pair(II, std::make_pair(std::move(Msg), AnnotationLoc)));
+  }
+
+  MsgLocationPair getRestrictExpansionMsg(const IdentifierInfo *II) {
+    return RestrictExpansionMacroMsgs.find(II)->second;
+  }
+
+  void emitMacroExpansionWarnings(const Token &Identifier) {
+    if (Identifier.getIdentifierInfo()->isDeprecatedMacro())
+      emitMacroDeprecationWarning(Identifier);
+
+    if (Identifier.getIdentifierInfo()->isRestrictExpansion() &&
+        !SourceMgr.isInMainFile(Identifier.getLocation()))
+      emitMacroUnsafeHeaderWarning(Identifier);
+  }
+
 private:
+  void emitMacroDeprecationWarning(const Token &Identifier);
+  void emitMacroUnsafeHeaderWarning(const Token &Identifier);
+
   Optional<unsigned>
   getSkippedRangeForExcludedConditionalBlock(SourceLocation HashLoc);
 

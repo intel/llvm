@@ -611,7 +611,7 @@ ProfitableToMerge(MachineBasicBlock *MBB1, MachineBasicBlock *MBB2,
   // there are fallthroughs, and we don't know until after layout.
   if (AfterPlacement && FullBlockTail1 && FullBlockTail2) {
     auto BothFallThrough = [](MachineBasicBlock *MBB) {
-      if (MBB->succ_size() != 0 && !MBB->canFallThrough())
+      if (!MBB->succ_empty() && !MBB->canFallThrough())
         return false;
       MachineFunction::iterator I(MBB);
       MachineFunction *MF = MBB->getParent();
@@ -1307,16 +1307,6 @@ static void salvageDebugInfoFromEmptyBlock(const TargetInstrInfo *TII,
   for (MachineBasicBlock *PredBB : MBB.predecessors())
     if (PredBB->succ_size() == 1)
       copyDebugInfoToPredecessor(TII, MBB, *PredBB);
-
-  // For AutoFDO, if the block is removed, we won't be able to sample it. To
-  // avoid assigning a zero weight for BB, move all its pseudo probes into once
-  // of its predecessors or successors and mark them dangling. This should allow
-  // the counts inference a chance to get a more reasonable weight for the
-  // block.
-  if (!MBB.pred_empty())
-    MBB.moveAndDanglePseudoProbes(*MBB.pred_begin());
-  else if (!MBB.succ_empty())
-    MBB.moveAndDanglePseudoProbes(*MBB.succ_begin());
 }
 
 bool BranchFolder::OptimizeBlock(MachineBasicBlock *MBB) {

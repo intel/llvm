@@ -72,11 +72,15 @@ void InitializeShadowMemory() {
   InitializeShadowMemoryPlatform();
 }
 
-static void ProtectRange(uptr beg, uptr end) {
+static bool TryProtectRange(uptr beg, uptr end) {
   CHECK_LE(beg, end);
   if (beg == end)
-    return;
-  if (beg != (uptr)MmapFixedNoAccess(beg, end - beg)) {
+    return true;
+  return beg == (uptr)MmapFixedNoAccess(beg, end - beg);
+}
+
+static void ProtectRange(uptr beg, uptr end) {
+  if (!TryProtectRange(beg, end)) {
     Printf("FATAL: ThreadSanitizer can not protect [%zx,%zx]\n", beg, end);
     Printf("FATAL: Make sure you are not using unlimited stack\n");
     Die();
@@ -94,29 +98,39 @@ void CheckAndProtect() {
       continue;
     if (segment.start >= VdsoBeg())  // vdso
       break;
-    Printf("FATAL: ThreadSanitizer: unexpected memory mapping %p-%p\n",
+    Printf("FATAL: ThreadSanitizer: unexpected memory mapping 0x%zx-0x%zx\n",
            segment.start, segment.end);
     Die();
   }
 
-#if defined(__aarch64__) && defined(__APPLE__) && !HAS_48_BIT_ADDRESS_SPACE
+#    if defined(__aarch64__) && defined(__APPLE__) && SANITIZER_IOS
   ProtectRange(HeapMemEnd(), ShadowBeg());
   ProtectRange(ShadowEnd(), MetaShadowBeg());
   ProtectRange(MetaShadowEnd(), TraceMemBeg());
 #else
   ProtectRange(LoAppMemEnd(), ShadowBeg());
   ProtectRange(ShadowEnd(), MetaShadowBeg());
-#ifdef TSAN_MID_APP_RANGE
-  ProtectRange(MetaShadowEnd(), MidAppMemBeg());
-  ProtectRange(MidAppMemEnd(), TraceMemBeg());
-#else
-  ProtectRange(MetaShadowEnd(), TraceMemBeg());
-#endif
+  if (MidAppMemBeg()) {
+    ProtectRange(MetaShadowEnd(), MidAppMemBeg());
+    ProtectRange(MidAppMemEnd(), TraceMemBeg());
+  } else {
+    ProtectRange(MetaShadowEnd(), TraceMemBeg());
+  }
   // Memory for traces is mapped lazily in MapThreadTrace.
   // Protect the whole range for now, so that user does not map something here.
   ProtectRange(TraceMemBeg(), TraceMemEnd());
   ProtectRange(TraceMemEnd(), HeapMemBeg());
   ProtectRange(HeapEnd(), HiAppMemBeg());
+#endif
+
+#if defined(__s390x__)
+  // Protect the rest of the address space.
+  const uptr user_addr_max_l4 = 0x0020000000000000ull;
+  const uptr user_addr_max_l5 = 0xfffffffffffff000ull;
+  // All the maintained s390x kernels support at least 4-level page tables.
+  ProtectRange(HiAppMemEnd(), user_addr_max_l4);
+  // Older s390x kernels may not support 5-level page tables.
+  TryProtectRange(user_addr_max_l4, user_addr_max_l5);
 #endif
 }
 #endif

@@ -545,7 +545,8 @@ void LTOModule::addPotentialUndefinedSymbol(ModuleSymbolTable::Symbol Sym,
     name.c_str();
   }
 
-  auto IterBool = _undefines.insert(std::make_pair(name, NameAndAttributes()));
+  auto IterBool =
+      _undefines.insert(std::make_pair(name.str(), NameAndAttributes()));
 
   // we already have the symbol
   if (!IterBool.second)
@@ -582,7 +583,7 @@ void LTOModule::parseSymbols() {
         SymTab.printSymbolName(OS, Sym);
         Buffer.c_str();
       }
-      StringRef Name(Buffer);
+      StringRef Name = Buffer;
 
       if (IsUndefined)
         addAsmGlobalSymbolUndef(Name);
@@ -686,4 +687,17 @@ Expected<uint32_t> LTOModule::getMachOCPUType() const {
 
 Expected<uint32_t> LTOModule::getMachOCPUSubType() const {
   return MachO::getCPUSubType(Triple(Mod->getTargetTriple()));
+}
+
+bool LTOModule::hasCtorDtor() const {
+  for (auto Sym : SymTab.symbols()) {
+    if (auto *GV = Sym.dyn_cast<GlobalValue *>()) {
+      StringRef Name = GV->getName();
+      if (Name.consume_front("llvm.global_")) {
+        if (Name.equals("ctors") || Name.equals("dtors"))
+          return true;
+      }
+    }
+  }
+  return false;
 }

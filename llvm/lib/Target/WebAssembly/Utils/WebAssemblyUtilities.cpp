@@ -91,7 +91,7 @@ const MachineOperand &WebAssembly::getCalleeOp(const MachineInstr &MI) {
   case WebAssembly::CALL_INDIRECT_S:
   case WebAssembly::RET_CALL_INDIRECT:
   case WebAssembly::RET_CALL_INDIRECT_S:
-    return MI.getOperand(MI.getNumOperands() - 1);
+    return MI.getOperand(MI.getNumExplicitOperands() - 1);
   default:
     llvm_unreachable("Not a call instruction");
   }
@@ -109,6 +109,31 @@ MCSymbolWasm *WebAssembly::getOrCreateFunctionTableSymbol(
     Sym->setFunctionTable();
     // The default function table is synthesized by the linker.
     Sym->setUndefined();
+  }
+  // MVP object files can't have symtab entries for tables.
+  if (!(Subtarget && Subtarget->hasReferenceTypes()))
+    Sym->setOmitFromLinkingSection();
+  return Sym;
+}
+
+MCSymbolWasm *WebAssembly::getOrCreateFuncrefCallTableSymbol(
+    MCContext &Ctx, const WebAssemblySubtarget *Subtarget) {
+  StringRef Name = "__funcref_call_table";
+  MCSymbolWasm *Sym = cast_or_null<MCSymbolWasm>(Ctx.lookupSymbol(Name));
+  if (Sym) {
+    if (!Sym->isFunctionTable())
+      Ctx.reportError(SMLoc(), "symbol is not a wasm funcref table");
+  } else {
+    Sym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(Name));
+
+    // Setting Weak ensure only one table is left after linking when multiple
+    // modules define the table.
+    Sym->setWeak(true);
+
+    wasm::WasmLimits Limits = {0, 1, 1};
+    wasm::WasmTableType TableType = {wasm::WASM_TYPE_FUNCREF, Limits};
+    Sym->setType(wasm::WASM_SYMBOL_TYPE_TABLE);
+    Sym->setTableType(TableType);
   }
   // MVP object files can't have symtab entries for tables.
   if (!(Subtarget && Subtarget->hasReferenceTypes()))

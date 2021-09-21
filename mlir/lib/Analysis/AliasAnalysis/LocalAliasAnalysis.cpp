@@ -8,6 +8,7 @@
 
 #include "mlir/Analysis/AliasAnalysis/LocalAliasAnalysis.h"
 
+#include "mlir/IR/FunctionSupport.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
@@ -73,12 +74,14 @@ static void collectUnderlyingAddressValues(RegionBranchOpInterface branch,
   };
 
   // Check branches from the parent operation.
+  Optional<unsigned> regionIndex;
   if (region) {
+    // Determine the actual region number from the passed region.
+    regionIndex = region->getRegionNumber();
     if (Optional<unsigned> operandIndex =
             getOperandIndexIfPred(/*predIndex=*/llvm::None)) {
       collectUnderlyingAddressValues(
-          branch.getSuccessorEntryOperands(
-              region->getRegionNumber())[*operandIndex],
+          branch.getSuccessorEntryOperands(*regionIndex)[*operandIndex],
           maxDepth, visited, output);
     }
   }
@@ -88,8 +91,12 @@ static void collectUnderlyingAddressValues(RegionBranchOpInterface branch,
     if (Optional<unsigned> operandIndex = getOperandIndexIfPred(i)) {
       for (Block &block : op->getRegion(i)) {
         Operation *term = block.getTerminator();
-        if (term->hasTrait<OpTrait::ReturnLike>()) {
-          collectUnderlyingAddressValues(term->getOperand(*operandIndex),
+        // Try to determine possible region-branch successor operands for the
+        // current region.
+        auto successorOperands =
+            getRegionBranchSuccessorOperands(term, regionIndex);
+        if (successorOperands) {
+          collectUnderlyingAddressValues((*successorOperands)[*operandIndex],
                                          maxDepth, visited, output);
         } else if (term->getNumSuccessors()) {
           // Otherwise, if this terminator may exit the region we can't make
@@ -194,7 +201,7 @@ static void collectUnderlyingAddressValues(Value value,
 }
 
 //===----------------------------------------------------------------------===//
-// LocalAliasAnalysis
+// LocalAliasAnalysis: alias
 //===----------------------------------------------------------------------===//
 
 /// Given a value, try to get an allocation effect attached to it. If
@@ -231,7 +238,9 @@ getAllocEffectFor(Value value, Optional<MemoryEffects::EffectInstance> &effect,
 
   // TODO: Here we could look at the users to see if the resource is either
   // freed on all paths within the region, or is just not captured by anything.
-  allocScopeOp = nullptr;
+  // For now assume allocation scope to the function scope (we don't care if
+  // pointer escape outside function).
+  allocScopeOp = op->getParentWithTrait<OpTrait::FunctionLike>();
   return success();
 }
 
@@ -332,4 +341,57 @@ AliasResult LocalAliasAnalysis::alias(Value lhs, Value rhs) {
 
   // We should always have a valid result here.
   return *result;
+}
+
+//===----------------------------------------------------------------------===//
+// LocalAliasAnalysis: getModRef
+//===----------------------------------------------------------------------===//
+
+ModRefResult LocalAliasAnalysis::getModRef(Operation *op, Value location) {
+  // Check to see if this operation relies on nested side effects.
+  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+    // TODO: To check recursive operations we need to check all of the nested
+    // operations, which can result in a quadratic number of queries. We should
+    // introduce some caching of some kind to help alleviate this, especially as
+    // this caching could be used in other areas of the codebase (e.g. when
+    // checking `wouldOpBeTriviallyDead`).
+    return ModRefResult::getModAndRef();
+  }
+
+  // Otherwise, check to see if this operation has a memory effect interface.
+  MemoryEffectOpInterface interface = dyn_cast<MemoryEffectOpInterface>(op);
+  if (!interface)
+    return ModRefResult::getModAndRef();
+
+  // Build a ModRefResult by merging the behavior of the effects of this
+  // operation.
+  SmallVector<MemoryEffects::EffectInstance> effects;
+  interface.getEffects(effects);
+
+  ModRefResult result = ModRefResult::getNoModRef();
+  for (const MemoryEffects::EffectInstance &effect : effects) {
+    if (isa<MemoryEffects::Allocate, MemoryEffects::Free>(effect.getEffect()))
+      continue;
+
+    // Check for an alias between the effect and our memory location.
+    // TODO: Add support for checking an alias with a symbol reference.
+    AliasResult aliasResult = AliasResult::MayAlias;
+    if (Value effectValue = effect.getValue())
+      aliasResult = alias(effectValue, location);
+
+    // If we don't alias, ignore this effect.
+    if (aliasResult.isNo())
+      continue;
+
+    // Merge in the corresponding mod or ref for this effect.
+    if (isa<MemoryEffects::Read>(effect.getEffect())) {
+      result = result.merge(ModRefResult::getRef());
+    } else {
+      assert(isa<MemoryEffects::Write>(effect.getEffect()));
+      result = result.merge(ModRefResult::getMod());
+    }
+    if (result.isModAndRef())
+      break;
+  }
+  return result;
 }

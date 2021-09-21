@@ -12,6 +12,7 @@
 
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
+#include "mlir/Dialect/SCF/Transforms.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -108,16 +109,15 @@ static void fillFusionPatterns(MLIRContext *context,
 }
 
 namespace {
-template <LinalgTilingLoopType LoopType = LinalgTilingLoopType::ParallelLoops>
+template <LinalgTilingLoopType LoopType>
 struct TestLinalgFusionTransforms
     : public PassWrapper<TestLinalgFusionTransforms<LoopType>, FunctionPass> {
-  TestLinalgFusionTransforms() = default;
-  TestLinalgFusionTransforms(const TestLinalgFusionTransforms &pass) {}
-
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<AffineDialect, linalg::LinalgDialect, memref::MemRefDialect,
                     scf::SCFDialect, StandardOpsDialect>();
   }
+  TestLinalgFusionTransforms() = default;
+  TestLinalgFusionTransforms(const TestLinalgFusionTransforms &pass) {}
 
   void runOnFunction() override {
     MLIRContext *context = &this->getContext();
@@ -128,6 +128,39 @@ struct TestLinalgFusionTransforms
         LinalgDependenceGraph::buildDependenceGraph(alias, funcOp);
     fillFusionPatterns<LoopType>(context, dependenceGraph, fusionPatterns);
     (void)applyPatternsAndFoldGreedily(funcOp, std::move(fusionPatterns));
+  }
+};
+
+struct TestLinalgFusionTransformsParallelLoops
+    : public TestLinalgFusionTransforms<LinalgTilingLoopType::ParallelLoops> {
+  StringRef getArgument() const final {
+    return "test-linalg-fusion-transform-patterns";
+  }
+  StringRef getDescription() const final {
+    return "Test Linalg fusion transformation patterns by applying them "
+           "greedily.";
+  }
+};
+
+struct TestLinalgFusionTransformsLoops
+    : public TestLinalgFusionTransforms<LinalgTilingLoopType::Loops> {
+  StringRef getArgument() const final {
+    return "test-linalg-tensor-fusion-transform-patterns";
+  }
+  StringRef getDescription() const final {
+    return "Test Linalg on tensor fusion transformation "
+           "patterns by applying them greedily.";
+  }
+};
+
+struct TestLinalgFusionTransformsTiledLoops
+    : public TestLinalgFusionTransforms<LinalgTilingLoopType::TiledLoops> {
+  StringRef getArgument() const final {
+    return "test-linalg-tiled-loop-fusion-transform-patterns";
+  }
+  StringRef getDescription() const final {
+    return "Test Linalg on tensor fusion transformation "
+           "patterns by applying them greedily.";
   }
 };
 } // namespace
@@ -147,14 +180,14 @@ static LogicalResult fuseLinalgOpsGreedily(FuncOp f) {
   // Tile and Fuse for tensors inputs (TODO: all tensor operands).
   bool changed = false;
   for (LinalgOp linalgOp : llvm::reverse(linalgOps)) {
-    for (OpOperand &opOperand : linalgOp.getShapedOpOperands()) {
-      if (opOperand.get().getType().isa<MemRefType>()) {
+    for (OpOperand *opOperand : linalgOp.getInputAndOutputOperands()) {
+      if (opOperand->get().getType().isa<MemRefType>()) {
         // TODO: LinalgDependenceGraph should be able to update itself.
         // The current naive and expensive reconstruction of the graph should be
         // removed.
         linalg::Aliases aliases;
         linalg::LinalgDependenceGraph graph(aliases, linalgOps);
-        if (auto info = fuseProducerOfBuffer(b, opOperand, graph)) {
+        if (auto info = fuseProducerOfBuffer(b, *opOperand, graph)) {
           auto *originalOp = info->originalProducer.getOperation();
           eraseSet.insert(originalOp);
           auto *originalOpInLinalgOpsVector =
@@ -162,12 +195,11 @@ static LogicalResult fuseLinalgOpsGreedily(FuncOp f) {
           *originalOpInLinalgOpsVector = info->fusedProducer.getOperation();
           changed = true;
         }
-      } else {
-        assert(opOperand.get().getType().isa<RankedTensorType>());
+      } else if (opOperand->get().getType().isa<RankedTensorType>()) {
         // Tile and Fuse tensor input.
-        if (opOperand.getOperandNumber() >= linalgOp.getNumInputs())
+        if (opOperand->getOperandNumber() >= linalgOp.getNumInputs())
           continue;
-        if (auto info = fuseProducerOfTensor(b, opOperand)) {
+        if (auto info = fuseProducerOfTensor(b, *opOperand)) {
           auto *originalOp = info->originalProducer.getOperation();
           auto *originalOpInLinalgOpsVector =
               std::find(linalgOps.begin(), linalgOps.end(), originalOp);
@@ -196,13 +228,18 @@ struct TestLinalgGreedyFusion
     registry.insert<AffineDialect, linalg::LinalgDialect, memref::MemRefDialect,
                     scf::SCFDialect>();
   }
+  StringRef getArgument() const final { return "test-linalg-greedy-fusion"; }
+  StringRef getDescription() const final {
+    return "Test Linalg fusion by applying a greedy test transformation.";
+  }
   void runOnFunction() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns =
         linalg::getLinalgTilingCanonicalizationPatterns(context);
-    patterns.add<AffineMinSCFCanonicalizationPattern>(context);
+    patterns.add<ExtractSliceOfPadTensorSwapPattern>(context);
+    scf::populateSCFForLoopCanonicalizationPatterns(patterns);
     FrozenRewritePatternSet frozenPatterns(std::move(patterns));
-    while (succeeded(fuseLinalgOpsGreedily(getFunction()))) {
+    do {
       (void)applyPatternsAndFoldGreedily(getFunction(), frozenPatterns);
       PassManager pm(context);
       pm.addPass(createLoopInvariantCodeMotionPass());
@@ -211,7 +248,7 @@ struct TestLinalgGreedyFusion
       LogicalResult res = pm.run(getFunction()->getParentOfType<ModuleOp>());
       if (failed(res))
         this->signalPassFailure();
-    }
+    } while (succeeded(fuseLinalgOpsGreedily(getFunction())));
   }
 };
 
@@ -219,6 +256,10 @@ struct TestLinalgGreedyFusion
 /// testing.
 struct TestLinalgTileAndFuseSequencePass
     : public PassWrapper<TestLinalgTileAndFuseSequencePass, FunctionPass> {
+  StringRef getArgument() const final { return "test-linalg-tile-and-fuse"; }
+  StringRef getDescription() const final {
+    return "Test Linalg tiling and fusion of a sequence of Linalg operations.";
+  }
   TestLinalgTileAndFuseSequencePass() = default;
   TestLinalgTileAndFuseSequencePass(
       const TestLinalgTileAndFuseSequencePass &pass){};
@@ -262,39 +303,25 @@ struct TestLinalgTileAndFuseSequencePass
         op.erase();
   }
 };
+
 } // namespace
 
 namespace mlir {
 namespace test {
 void registerTestLinalgFusionTransforms() {
-  PassRegistration<TestLinalgFusionTransforms<>> testFusionTransformsPass(
-      "test-linalg-fusion-transform-patterns",
-      "Test Linalg fusion transformation patterns by applying them greedily.");
+  PassRegistration<TestLinalgFusionTransformsParallelLoops>();
 }
 void registerTestLinalgTensorFusionTransforms() {
-  PassRegistration<TestLinalgFusionTransforms<LinalgTilingLoopType::Loops>>
-      testTensorFusionTransformsPass(
-          "test-linalg-tensor-fusion-transform-patterns",
-          "Test Linalg on tensor fusion transformation "
-          "patterns by applying them greedily.");
+  PassRegistration<TestLinalgFusionTransformsLoops>();
 }
 void registerTestLinalgTiledLoopFusionTransforms() {
-  PassRegistration<TestLinalgFusionTransforms<LinalgTilingLoopType::TiledLoops>>
-      testTiledLoopFusionTransformsPass(
-          "test-linalg-tiled-loop-fusion-transform-patterns",
-          "Test Linalg on tensor fusion transformation "
-          "patterns by applying them greedily.");
+  PassRegistration<TestLinalgFusionTransformsTiledLoops>();
 }
 void registerTestLinalgGreedyFusion() {
-  PassRegistration<TestLinalgGreedyFusion> testFusionTransformsPass(
-      "test-linalg-greedy-fusion",
-      "Test Linalg fusion by applying a greedy test transformation.");
+  PassRegistration<TestLinalgGreedyFusion>();
 }
 void registerTestLinalgTileAndFuseSequencePass() {
-  PassRegistration<TestLinalgTileAndFuseSequencePass>
-      testTileAndFuseSequencePass(
-          "test-linalg-tile-and-fuse",
-          "Test Linalg tiling and fusion of a sequence of Linalg operations.");
+  PassRegistration<TestLinalgTileAndFuseSequencePass>();
 }
 
 } // namespace test

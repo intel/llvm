@@ -888,6 +888,114 @@ public:
   }
 };
 
+/// Representation of the 'full' clause of the '#pragma omp unroll' directive.
+///
+/// \code
+/// #pragma omp unroll full
+/// for (int i = 0; i < 64; ++i)
+/// \endcode
+class OMPFullClause final : public OMPClause {
+  friend class OMPClauseReader;
+
+  /// Build an empty clause.
+  explicit OMPFullClause() : OMPClause(llvm::omp::OMPC_full, {}, {}) {}
+
+public:
+  /// Build an AST node for a 'full' clause.
+  ///
+  /// \param C        Context of the AST.
+  /// \param StartLoc Starting location of the clause.
+  /// \param EndLoc   Ending location of the clause.
+  static OMPFullClause *Create(const ASTContext &C, SourceLocation StartLoc,
+                               SourceLocation EndLoc);
+
+  /// Build an empty 'full' AST node for deserialization.
+  ///
+  /// \param C Context of the AST.
+  static OMPFullClause *CreateEmpty(const ASTContext &C);
+
+  child_range children() { return {child_iterator(), child_iterator()}; }
+  const_child_range children() const {
+    return {const_child_iterator(), const_child_iterator()};
+  }
+
+  child_range used_children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+  const_child_range used_children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
+
+  static bool classof(const OMPClause *T) {
+    return T->getClauseKind() == llvm::omp::OMPC_full;
+  }
+};
+
+/// Representation of the 'partial' clause of the '#pragma omp unroll'
+/// directive.
+///
+/// \code
+/// #pragma omp unroll partial(4)
+/// for (int i = start; i < end; ++i)
+/// \endcode
+class OMPPartialClause final : public OMPClause {
+  friend class OMPClauseReader;
+
+  /// Location of '('.
+  SourceLocation LParenLoc;
+
+  /// Optional argument to the clause (unroll factor).
+  Stmt *Factor;
+
+  /// Build an empty clause.
+  explicit OMPPartialClause() : OMPClause(llvm::omp::OMPC_partial, {}, {}) {}
+
+  /// Set the unroll factor.
+  void setFactor(Expr *E) { Factor = E; }
+
+  /// Sets the location of '('.
+  void setLParenLoc(SourceLocation Loc) { LParenLoc = Loc; }
+
+public:
+  /// Build an AST node for a 'partial' clause.
+  ///
+  /// \param C         Context of the AST.
+  /// \param StartLoc  Location of the 'partial' identifier.
+  /// \param LParenLoc Location of '('.
+  /// \param EndLoc    Location of ')'.
+  /// \param Factor    Clause argument.
+  static OMPPartialClause *Create(const ASTContext &C, SourceLocation StartLoc,
+                                  SourceLocation LParenLoc,
+                                  SourceLocation EndLoc, Expr *Factor);
+
+  /// Build an empty 'partial' AST node for deserialization.
+  ///
+  /// \param C     Context of the AST.
+  static OMPPartialClause *CreateEmpty(const ASTContext &C);
+
+  /// Returns the location of '('.
+  SourceLocation getLParenLoc() const { return LParenLoc; }
+
+  /// Returns the argument of the clause or nullptr if not set.
+  Expr *getFactor() const { return cast_or_null<Expr>(Factor); }
+
+  child_range children() { return child_range(&Factor, &Factor + 1); }
+  const_child_range children() const {
+    return const_child_range(&Factor, &Factor + 1);
+  }
+
+  child_range used_children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+  const_child_range used_children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
+
+  static bool classof(const OMPClause *T) {
+    return T->getClauseKind() == llvm::omp::OMPC_partial;
+  }
+};
+
 /// This represents 'collapse' clause in the '#pragma omp ...'
 /// directive.
 ///
@@ -1897,13 +2005,13 @@ class OMPUpdateClause final
     return IsExtended ? 2 : 0;
   }
 
-  /// Sets the the location of '(' in clause for 'depobj' directive.
+  /// Sets the location of '(' in clause for 'depobj' directive.
   void setLParenLoc(SourceLocation Loc) {
     assert(IsExtended && "Expected extended clause.");
     *getTrailingObjects<SourceLocation>() = Loc;
   }
 
-  /// Sets the the location of '(' in clause for 'depobj' directive.
+  /// Sets the location of '(' in clause for 'depobj' directive.
   void setArgumentLoc(SourceLocation Loc) {
     assert(IsExtended && "Expected extended clause.");
     *std::next(getTrailingObjects<SourceLocation>(), 1) = Loc;
@@ -1977,13 +2085,13 @@ public:
     return const_child_range(const_child_iterator(), const_child_iterator());
   }
 
-  /// Gets the the location of '(' in clause for 'depobj' directive.
+  /// Gets the location of '(' in clause for 'depobj' directive.
   SourceLocation getLParenLoc() const {
     assert(IsExtended && "Expected extended clause.");
     return *getTrailingObjects<SourceLocation>();
   }
 
-  /// Gets the the location of argument in clause for 'depobj' directive.
+  /// Gets the location of argument in clause for 'depobj' directive.
   SourceLocation getArgumentLoc() const {
     assert(IsExtended && "Expected extended clause.");
     return *std::next(getTrailingObjects<SourceLocation>(), 1);
@@ -5498,7 +5606,8 @@ private:
   /// Map-type-modifiers for the 'map' clause.
   OpenMPMapModifierKind MapTypeModifiers[NumberOfOMPMapClauseModifiers] = {
       OMPC_MAP_MODIFIER_unknown, OMPC_MAP_MODIFIER_unknown,
-      OMPC_MAP_MODIFIER_unknown, OMPC_MAP_MODIFIER_unknown};
+      OMPC_MAP_MODIFIER_unknown, OMPC_MAP_MODIFIER_unknown,
+      OMPC_MAP_MODIFIER_unknown};
 
   /// Location of map-type-modifiers for the 'map' clause.
   SourceLocation MapTypeModifiersLoc[NumberOfOMPMapClauseModifiers];

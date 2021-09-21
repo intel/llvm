@@ -1,6 +1,10 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -I . -o %t.out
 // Group operations are not supported on host device. The test checks that
 // compilation succeeded.
+//
+// Missing __spirv_GroupIAdd, __spirv_GroupAll, __spirv_GroupBroadcast,
+// __spirv_GroupAny, __spirv_GroupSMin on AMD:
+// XFAIL: hip_amd
 
 // TODO: enable compile+runtime checks for operations defined in SPIR-V 1.3.
 // That requires either adding a switch to clang (-spirv-max-version=1.3) or
@@ -17,7 +21,7 @@
 #include <limits>
 #include <numeric>
 using namespace sycl;
-using namespace sycl::ONEAPI;
+using namespace sycl::ext::oneapi;
 
 template <class Predicate> class none_of_kernel;
 
@@ -76,13 +80,14 @@ int main() {
   std::iota(input.begin(), input.end(), 0);
   std::fill(output.begin(), output.end(), 0);
 
-  test<class KernelNamePlusV>(q, input, output, plus<>(), 0, GeZero());
-  test<class KernelNameMinimumV>(q, input, output, minimum<>(),
+  test<class KernelNamePlusV>(q, input, output, ext::oneapi::plus<>(), 0,
+                              GeZero());
+  test<class KernelNameMinimumV>(q, input, output, ext::oneapi::minimum<>(),
                                  std::numeric_limits<int>::max(), IsEven());
 
 #ifdef SPIRV_1_3
-  test<class KernelName_WonwuUVPUPOTKRKIBtT>(q, input, output,
-                                             multiplies<int>(), 1, LtZero());
+  test<class KernelName_WonwuUVPUPOTKRKIBtT>(
+      q, input, output, ext::oneapi::multiplies<int>(), 1, LtZero());
 #endif // SPIRV_1_3
 
   std::cout << "Test passed." << std::endl;

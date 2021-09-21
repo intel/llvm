@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -sycl-std=2017 -emit-llvm -o - %s | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -40,10 +40,10 @@ int main() {
   return 0;
 }
 
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1"() #0 {{.*}} !no_global_work_offset ![[NUM5:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2"() #0 {{.*}} !no_global_work_offset ![[NUM5]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3"() #0 {{.*}} ![[NUM4:[0-9]+]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4"() #0 {{.*}} !no_global_work_offset ![[NUM5]]
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name5"() #0 {{.*}} !no_global_work_offset ![[NUM5]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1() #0 {{.*}} !no_global_work_offset ![[NUM5:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name2() #0 {{.*}} !no_global_work_offset ![[NUM5]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name3() #0 {{.*}} ![[NUM4:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4() #0 {{.*}} !no_global_work_offset ![[NUM5]]
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name5() #0 {{.*}} !no_global_work_offset ![[NUM5]]
 // CHECK-NOT: ![[NUM4]]  = !{i32 0}
 // CHECK: ![[NUM5]] = !{}

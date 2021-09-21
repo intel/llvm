@@ -518,6 +518,11 @@ struct DevirtModule {
 
   MapVector<VTableSlot, VTableSlotInfo> CallSlots;
 
+  // Calls that have already been optimized. We may add a call to multiple
+  // VTableSlotInfos if vtable loads are coalesced and need to make sure not to
+  // optimize a call more than once.
+  SmallPtrSet<CallBase *, 8> OptimizedCalls;
+
   // This map keeps track of the number of "unsafe" uses of a loaded function
   // pointer. The key is the associated llvm.type.test intrinsic call generated
   // by this pass. An unsafe use is one that calls the loaded function pointer
@@ -1064,10 +1069,14 @@ void DevirtModule::applySingleImplDevirt(VTableSlotInfo &SlotInfo,
     return;
   auto Apply = [&](CallSiteInfo &CSInfo) {
     for (auto &&VCallSite : CSInfo.CallSites) {
+      if (!OptimizedCalls.insert(&VCallSite.CB).second)
+        continue;
+
       if (RemarksEnabled)
         VCallSite.emitRemark("single-impl",
                              TheFn->stripPointerCasts()->getName(), OREGetter);
       auto &CB = VCallSite.CB;
+      assert(!CB.getCalledFunction() && "devirtualizing direct call?");
       IRBuilder<> Builder(&CB);
       Value *Callee =
           Builder.CreateBitCast(TheFn, CB.getCalledOperand()->getType());
@@ -1279,7 +1288,7 @@ void DevirtModule::tryICallBranchFunnel(
                           M.getDataLayout().getProgramAddressSpace(),
                           "branch_funnel", &M);
   }
-  JT->addAttribute(1, Attribute::Nest);
+  JT->addParamAttr(0, Attribute::Nest);
 
   std::vector<Value *> JTArgs;
   JTArgs.push_back(JT->arg_begin());
@@ -1352,10 +1361,10 @@ void DevirtModule::applyICallBranchFunnel(VTableSlotInfo &SlotInfo,
           M.getContext(), ArrayRef<Attribute>{Attribute::get(
                               M.getContext(), Attribute::Nest)}));
       for (unsigned I = 0; I + 2 <  Attrs.getNumAttrSets(); ++I)
-        NewArgAttrs.push_back(Attrs.getParamAttributes(I));
+        NewArgAttrs.push_back(Attrs.getParamAttrs(I));
       NewCS->setAttributes(
-          AttributeList::get(M.getContext(), Attrs.getFnAttributes(),
-                             Attrs.getRetAttributes(), NewArgAttrs));
+          AttributeList::get(M.getContext(), Attrs.getFnAttrs(),
+                             Attrs.getRetAttrs(), NewArgAttrs));
 
       CB.replaceAllUsesWith(NewCS);
       CB.eraseFromParent();
@@ -1406,10 +1415,13 @@ bool DevirtModule::tryEvaluateFunctionsWithArgs(
 
 void DevirtModule::applyUniformRetValOpt(CallSiteInfo &CSInfo, StringRef FnName,
                                          uint64_t TheRetVal) {
-  for (auto Call : CSInfo.CallSites)
+  for (auto Call : CSInfo.CallSites) {
+    if (!OptimizedCalls.insert(&Call.CB).second)
+      continue;
     Call.replaceAndErase(
         "uniform-ret-val", FnName, RemarksEnabled, OREGetter,
         ConstantInt::get(cast<IntegerType>(Call.CB.getType()), TheRetVal));
+  }
   CSInfo.markDevirt();
 }
 
@@ -1515,6 +1527,8 @@ void DevirtModule::applyUniqueRetValOpt(CallSiteInfo &CSInfo, StringRef FnName,
                                         bool IsOne,
                                         Constant *UniqueMemberAddr) {
   for (auto &&Call : CSInfo.CallSites) {
+    if (!OptimizedCalls.insert(&Call.CB).second)
+      continue;
     IRBuilder<> B(&Call.CB);
     Value *Cmp =
         B.CreateICmp(IsOne ? ICmpInst::ICMP_EQ : ICmpInst::ICMP_NE, Call.VTable,
@@ -1583,6 +1597,8 @@ bool DevirtModule::tryUniqueRetValOpt(
 void DevirtModule::applyVirtualConstProp(CallSiteInfo &CSInfo, StringRef FnName,
                                          Constant *Byte, Constant *Bit) {
   for (auto Call : CSInfo.CallSites) {
+    if (!OptimizedCalls.insert(&Call.CB).second)
+      continue;
     auto *RetType = cast<IntegerType>(Call.CB.getType());
     IRBuilder<> B(&Call.CB);
     Value *Addr =

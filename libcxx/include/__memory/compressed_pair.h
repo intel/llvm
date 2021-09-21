@@ -11,6 +11,7 @@
 #define _LIBCPP___MEMORY_COMPRESSED_PAIR_H
 
 #include <__config>
+#include <__utility/forward.h>
 #include <tuple> // needed in c++03 for some constructors
 #include <type_traits>
 #include <utility>
@@ -18,9 +19,6 @@
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
 #endif
-
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -117,8 +115,8 @@ public:
     "The current implementation is NOT ABI-compatible with the previous "
     "implementation for this configuration");
 
-    typedef _LIBCPP_NODEBUG_TYPE __compressed_pair_elem<_T1, 0> _Base1;
-    typedef _LIBCPP_NODEBUG_TYPE __compressed_pair_elem<_T2, 1> _Base2;
+    typedef _LIBCPP_NODEBUG __compressed_pair_elem<_T1, 0> _Base1;
+    typedef _LIBCPP_NODEBUG __compressed_pair_elem<_T2, 1> _Base2;
 
     template <bool _Dummy = true,
       class = typename enable_if<
@@ -194,7 +192,5 @@ void swap(__compressed_pair<_T1, _T2>& __x, __compressed_pair<_T1, _T2>& __y)
 }
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___MEMORY_COMPRESSED_PAIR_H

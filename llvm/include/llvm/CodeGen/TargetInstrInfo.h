@@ -117,10 +117,11 @@ public:
                                          const MachineFunction &MF) const;
 
   /// Return true if the instruction is trivially rematerializable, meaning it
-  /// has no side effects and requires no operands that aren't always available.
-  /// This means the only allowed uses are constants and unallocatable physical
-  /// registers so that the instructions result is independent of the place
-  /// in the function.
+  /// has no side effects. Uses of constants and unallocatable physical
+  /// registers are always trivial to rematerialize so that the instructions
+  /// result is independent of the place in the function. Uses of virtual
+  /// registers are allowed but it is caller's responsility to ensure these
+  /// operands are valid at the point the instruction is beeing moved.
   bool isTriviallyReMaterializable(const MachineInstr &MI,
                                    AAResults *AA = nullptr) const {
     return MI.getOpcode() == TargetOpcode::IMPLICIT_DEF ||
@@ -129,13 +130,18 @@ public:
              isReallyTriviallyReMaterializableGeneric(MI, AA)));
   }
 
+  /// Given \p MO is a PhysReg use return if it can be ignored for the purpose
+  /// of instruction rematerialization.
+  virtual bool isIgnorableUse(const MachineOperand &MO) const {
+    return false;
+  }
+
 protected:
   /// For instructions with opcodes for which the M_REMATERIALIZABLE flag is
   /// set, this hook lets the target specify whether the instruction is actually
   /// trivially rematerializable, taking into consideration its operands. This
   /// predicate must return false if the instruction has any side effects other
-  /// than producing a value, or if it requres any address registers that are
-  /// not always available.
+  /// than producing a value.
   /// Requirements must be check as stated in isTriviallyReMaterializable() .
   virtual bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
                                                  AAResults *AA) const {
@@ -458,6 +464,13 @@ public:
   virtual bool findCommutedOpIndices(const MachineInstr &MI,
                                      unsigned &SrcOpIdx1,
                                      unsigned &SrcOpIdx2) const;
+
+  /// Returns true if the target has a preference on the operands order of
+  /// the given machine instruction. And specify if \p Commute is required to
+  /// get the desired operands order.
+  virtual bool hasCommutePreference(MachineInstr &MI, bool &Commute) const {
+    return false;
+  }
 
   /// A pair composed of a register and a sub-register index.
   /// Used to give some type checking when modeling Reg:SubReg.
@@ -1524,7 +1537,8 @@ public:
   /// compares against in CmpValue. Return true if the comparison instruction
   /// can be analyzed.
   virtual bool analyzeCompare(const MachineInstr &MI, Register &SrcReg,
-                              Register &SrcReg2, int &Mask, int &Value) const {
+                              Register &SrcReg2, int64_t &Mask,
+                              int64_t &Value) const {
     return false;
   }
 
@@ -1532,7 +1546,8 @@ public:
   /// into something more efficient. E.g., on ARM most instructions can set the
   /// flags register, obviating the need for a separate CMP.
   virtual bool optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
-                                    Register SrcReg2, int Mask, int Value,
+                                    Register SrcReg2, int64_t Mask,
+                                    int64_t Value,
                                     const MachineRegisterInfo *MRI) const {
     return false;
   }
@@ -1610,9 +1625,6 @@ public:
   /// Return the default expected latency for a def based on its opcode.
   unsigned defaultDefLatency(const MCSchedModel &SchedModel,
                              const MachineInstr &DefMI) const;
-
-  int computeDefOperandLatency(const InstrItineraryData *ItinData,
-                               const MachineInstr &DefMI) const;
 
   /// Return true if this opcode has high latency to its result.
   virtual bool isHighLatencyDef(int opc) const { return false; }
@@ -1973,6 +1985,11 @@ public:
   /// not provided.
   virtual unsigned getTailDuplicateSize(CodeGenOpt::Level OptLevel) const {
     return OptLevel >= CodeGenOpt::Aggressive ? 4 : 2;
+  }
+
+  /// Returns the callee operand from the given \p MI.
+  virtual const MachineOperand &getCalleeOperand(const MachineInstr &MI) const {
+    return MI.getOperand(0);
   }
 
 private:

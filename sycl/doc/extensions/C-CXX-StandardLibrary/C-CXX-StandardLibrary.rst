@@ -78,6 +78,9 @@ List of supported functions from C standard library:
   - casinf, casin         (from <complex.h>)
   - cacosf, cacos         (from <complex.h>)
   - catanf, catan         (from <complex.h>)
+  - memcpy                (from <string.h>)
+  - memset                (from <string.h>)
+  - memcmp                (from <string.h>)
 
 All functions are grouped into different device libraries based on
 functionalities. C and C++ standard library groups functions and
@@ -105,8 +108,7 @@ added to use `assert` or math functions:
 For Ahead-Of-Time compilation (AOT), the steps to use device libraries is
 same, no options need to be added to use `assert` or math functions:
 .. code:
-   clang++ -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice \
-       main.cpp -o main.o
+   clang++ -fsycl -fsycl-targets=spir64_x86_64 main.cpp -o main.o
 
 Example of usage
 ================

@@ -1,9 +1,8 @@
 //===-- gsymutil.cpp - GSYM dumping and creation utility for llvm ---------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -107,6 +106,10 @@ static opt<unsigned>
                     "to use when converting files to GSYM.\nDefaults to the "
                     "number of cores on the current machine."),
                cl::value_desc("n"), cat(ConversionOptions));
+
+static opt<bool>
+    Quiet("quiet", desc("Do not output warnings about the debug information"),
+          cat(ConversionOptions));
 
 static list<uint64_t> LookupAddresses("address",
                                       desc("Lookup an address in a GSYM file"),
@@ -281,7 +284,7 @@ static llvm::Error handleObjectFile(ObjectFile &Obj,
       NumThreads > 0 ? NumThreads : std::thread::hardware_concurrency();
   auto &OS = outs();
 
-  GsymCreator Gsym;
+  GsymCreator Gsym(Quiet);
 
   // See if we can figure out the base address for a given object file, and if
   // we can, then set the base address to use to this value. This will ease
@@ -334,7 +337,7 @@ static llvm::Error handleObjectFile(ObjectFile &Obj,
   // Save the GSYM file to disk.
   support::endianness Endian =
       Obj.makeTriple().isLittleEndian() ? support::little : support::big;
-  if (auto Err = Gsym.save(OutFile.c_str(), Endian))
+  if (auto Err = Gsym.save(OutFile, Endian))
     return Err;
 
   // Verify the DWARF if requested. This will ensure all the info in the DWARF
@@ -356,7 +359,7 @@ static llvm::Error handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
     Triple ObjTriple(Obj->makeTriple());
     auto ArchName = ObjTriple.getArchName();
     outs() << "Output file (" << ArchName << "): " << OutFile << "\n";
-    if (auto Err = handleObjectFile(*Obj, OutFile.c_str()))
+    if (auto Err = handleObjectFile(*Obj, OutFile))
       return Err;
   } else if (auto *Fat = dyn_cast<MachOUniversalBinary>(BinOrErr->get())) {
     // Iterate over all contained architectures and filter out any that were

@@ -42,9 +42,7 @@ using namespace lldb_private;
 
 LLDB_PLUGIN_DEFINE(ObjectContainerBSDArchive)
 
-ObjectContainerBSDArchive::Object::Object()
-    : ar_name(), modification_time(0), uid(0), gid(0), mode(0), size(0),
-      file_offset(0), file_size(0) {}
+ObjectContainerBSDArchive::Object::Object() : ar_name() {}
 
 void ObjectContainerBSDArchive::Object::Clear() {
   ar_name.Clear();
@@ -142,7 +140,7 @@ ObjectContainerBSDArchive::Archive::Archive(const lldb_private::ArchSpec &arch,
     : m_arch(arch), m_modification_time(time), m_file_offset(file_offset),
       m_objects(), m_data(data) {}
 
-ObjectContainerBSDArchive::Archive::~Archive() {}
+ObjectContainerBSDArchive::Archive::~Archive() = default;
 
 size_t ObjectContainerBSDArchive::Archive::ParseObjects() {
   DataExtractor &data = m_data;
@@ -375,7 +373,7 @@ void ObjectContainerBSDArchive::SetArchive(Archive::shared_ptr &archive_sp) {
   m_archive_sp = archive_sp;
 }
 
-ObjectContainerBSDArchive::~ObjectContainerBSDArchive() {}
+ObjectContainerBSDArchive::~ObjectContainerBSDArchive() = default;
 
 bool ObjectContainerBSDArchive::ParseHeader() {
   if (m_archive_sp.get() == nullptr) {
@@ -439,8 +437,6 @@ ObjectFileSP ObjectContainerBSDArchive::GetObjectFile(const FileSpec *file) {
 lldb_private::ConstString ObjectContainerBSDArchive::GetPluginName() {
   return GetPluginNameStatic();
 }
-
-uint32_t ObjectContainerBSDArchive::GetPluginVersion() { return 1; }
 
 size_t ObjectContainerBSDArchive::GetModuleSpecifications(
     const lldb_private::FileSpec &file, lldb::DataBufferSP &data_sp,

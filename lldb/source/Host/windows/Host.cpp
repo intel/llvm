@@ -8,7 +8,7 @@
 
 #include "lldb/Host/windows/AutoHandle.h"
 #include "lldb/Host/windows/windows.h"
-#include <stdio.h>
+#include <cstdio>
 
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Host.h"
@@ -35,7 +35,7 @@ bool GetTripleForProcess(const FileSpec &executable, llvm::Triple &triple) {
   // Open the PE File as a binary file, and parse just enough information to
   // determine the machine type.
   auto imageBinaryP = FileSystem::Instance().Open(
-      executable, File::eOpenOptionRead, lldb::eFilePermissionsUserRead);
+      executable, File::eOpenOptionReadOnly, lldb::eFilePermissionsUserRead);
   if (!imageBinaryP)
     return llvm::errorToBool(imageBinaryP.takeError());
   File &imageBinary = *imageBinaryP.get();

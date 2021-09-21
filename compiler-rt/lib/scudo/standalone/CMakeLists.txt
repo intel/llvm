@@ -11,7 +11,7 @@ list(APPEND SCUDO_CFLAGS
   -nostdinc++)
 
 # Remove -stdlib= which is unused when passing -nostdinc++.
-string(REGEX REPLACE "-stdlib=[a-zA-Z+]*" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+string(REGEX REPLACE "-stdlib=[a-zA-Z+]*" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
 append_list_if(COMPILER_RT_HAS_FVISIBILITY_HIDDEN_FLAG -fvisibility=hidden SCUDO_CFLAGS)
 
@@ -23,7 +23,7 @@ append_list_if(COMPILER_RT_HAS_WNO_PEDANTIC -Wno-pedantic SCUDO_CFLAGS)
 append_list_if(COMPILER_RT_HAS_FNO_LTO_FLAG -fno-lto SCUDO_CFLAGS)
 
 if(COMPILER_RT_DEBUG)
-  list(APPEND SCUDO_CFLAGS -O0)
+  list(APPEND SCUDO_CFLAGS -O0 -DSCUDO_DEBUG=1)
 else()
   list(APPEND SCUDO_CFLAGS -O3)
 endif()
@@ -52,6 +52,7 @@ set(SCUDO_HEADERS
   checksum.h
   chunk.h
   combined.h
+  common.h
   flags_parser.h
   flags.h
   fuchsia.h
@@ -61,6 +62,7 @@ set(SCUDO_HEADERS
   local_cache.h
   memtag.h
   mutex.h
+  options.h
   platform.h
   primary32.h
   primary64.h
@@ -69,6 +71,7 @@ set(SCUDO_HEADERS
   report.h
   secondary.h
   size_class_map.h
+  stack_depot.h
   stats.h
   string_utils.h
   tsd_exclusive.h
@@ -121,8 +124,11 @@ if (COMPILER_RT_HAS_GWP_ASAN)
        RTGwpAsan RTGwpAsanBacktraceLibc RTGwpAsanSegvHandler
        RTGwpAsanOptionsParser)
 
-  list(APPEND SCUDO_CFLAGS -DGWP_ASAN_HOOKS -fno-omit-frame-pointer
-                           -mno-omit-leaf-frame-pointer)
+  append_list_if(COMPILER_RT_HAS_OMIT_FRAME_POINTER_FLAG -fno-omit-frame-pointer
+                                                         -mno-omit-leaf-frame-pointer
+                 SCUDO_CFLAGS)
+  list(APPEND SCUDO_CFLAGS -DGWP_ASAN_HOOKS)
+
 endif()
 
 set(SCUDO_LINK_LIBS)

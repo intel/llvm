@@ -47,7 +47,7 @@ add_entrypoint_object(
   HDRS
     fmaf.h
   DEPENDS
-    libc.utils.FPUtil.fputil
+    libc.src.__support.FPUtil.fputil
   COMPILE_OPTIONS
     -O2
 )
@@ -59,7 +59,7 @@ add_entrypoint_object(
   HDRS
     fma.h
   DEPENDS
-    libc.utils.FPUtil.fputil
+    libc.src.__support.FPUtil.fputil
   COMPILE_OPTIONS
     -O2
 )
@@ -78,6 +78,8 @@ add_math_entrypoint_object(cosf)
 add_math_entrypoint_object(expf)
 
 add_math_entrypoint_object(exp2f)
+
+add_math_entrypoint_object(expm1f)
 
 add_math_entrypoint_object(fabs)
 add_math_entrypoint_object(fabsf)

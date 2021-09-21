@@ -8,27 +8,28 @@ template <unsigned ID> struct ethernet_pipe_id {
 };
 
 template <typename T, cl::sycl::access::address_space space>
-void lsu_body(cl::sycl::multi_ptr<T,space> input_ptr,cl::sycl::multi_ptr<T,space>  output_ptr) {
-        using PrefetchingLSU =
-            cl::sycl::INTEL::lsu<cl::sycl::INTEL::prefetch<true>,
-                                 cl::sycl::INTEL::statically_coalesce<false>>;
+void lsu_body(cl::sycl::multi_ptr<T, space> input_ptr,
+              cl::sycl::multi_ptr<T, space> output_ptr) {
+  using PrefetchingLSU =
+      cl::sycl::INTEL::lsu<cl::sycl::INTEL::prefetch<true>,
+                           cl::sycl::INTEL::statically_coalesce<false>>;
 
-        using BurstCoalescedLSU =
-            cl::sycl::INTEL::lsu<cl::sycl::INTEL::burst_coalesce<true>,
-                                 cl::sycl::INTEL::statically_coalesce<false>>;
+  using BurstCoalescedLSU =
+      cl::sycl::INTEL::lsu<cl::sycl::INTEL::burst_coalesce<true>,
+                           cl::sycl::INTEL::statically_coalesce<false>>;
 
-        using CachingLSU =
-            cl::sycl::INTEL::lsu<cl::sycl::INTEL::burst_coalesce<true>,
-                                 cl::sycl::INTEL::cache<1024>,
-                                 cl::sycl::INTEL::statically_coalesce<false>>;
+  using CachingLSU =
+      cl::sycl::INTEL::lsu<cl::sycl::INTEL::burst_coalesce<true>,
+                           cl::sycl::INTEL::cache<1024>,
+                           cl::sycl::INTEL::statically_coalesce<false>>;
 
-        using PipelinedLSU = cl::sycl::INTEL::lsu<>;
+  using PipelinedLSU = cl::sycl::INTEL::lsu<>;
 
-        int X = PrefetchingLSU::load(input_ptr); // int X = input_ptr[0]
-        int Y = CachingLSU::load(input_ptr + 1); // int Y = input_ptr[1]
+  int X = PrefetchingLSU::load(input_ptr); // int X = input_ptr[0]
+  int Y = CachingLSU::load(input_ptr + 1); // int Y = input_ptr[1]
 
-        BurstCoalescedLSU::store(output_ptr, X); // output_ptr[0] = X
-        PipelinedLSU::store(output_ptr + 1, Y);  // output_ptr[1] = Y
+  BurstCoalescedLSU::store(output_ptr, X); // output_ptr[0] = X
+  PipelinedLSU::store(output_ptr + 1, Y);  // output_ptr[1] = Y
 }
 
 using ethernet_read_pipe =
@@ -42,7 +43,8 @@ int main() {
   /* Check buffer_location property  */
   sycl::buffer<int, 1> Buf{sycl::range{1}};
   Queue.submit([&](sycl::handler &CGH) {
-    sycl::ONEAPI::accessor_property_list PL{sycl::INTEL::buffer_location<1>};
+    sycl::ext::oneapi::accessor_property_list PL{
+        sycl::INTEL::buffer_location<1>};
     sycl::accessor Acc(Buf, CGH, sycl::write_only, PL);
     CGH.single_task<class Test>([=]() { Acc[0] = 42; });
   });

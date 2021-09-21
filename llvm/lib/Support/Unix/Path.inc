@@ -125,7 +125,8 @@ const file_t kInvalidFile = -1;
 
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||     \
     defined(__minix) || defined(__FreeBSD_kernel__) || defined(__linux__) ||   \
-    defined(__CYGWIN__) || defined(__DragonFly__) || defined(_AIX) || defined(__GNU__)
+    defined(__CYGWIN__) || defined(__DragonFly__) || defined(_AIX) || defined(__GNU__) || \
+    (defined(__sun__) && defined(__svr4__))
 static int
 test_dir(char ret[PATH_MAX], const char *dir, const char *bin)
 {
@@ -209,8 +210,11 @@ std::string getMainExecutable(const char *argv0, void *MainAddr) {
   // to the file.
   char exe_path[PATH_MAX];
 #if __FreeBSD_version >= 1300057
-  if (elf_aux_info(AT_EXECPATH, exe_path, sizeof(exe_path)) == 0)
-    return exe_path;
+  if (elf_aux_info(AT_EXECPATH, exe_path, sizeof(exe_path)) == 0) {
+    char link_path[PATH_MAX];
+    if (realpath(exe_path, link_path))
+      return link_path;
+  }
 #else
   // elf_aux_info(AT_EXECPATH, ... is not available in all supported versions,
   // fall back to finding the ELF auxiliary vectors after the process's
@@ -219,9 +223,12 @@ std::string getMainExecutable(const char *argv0, void *MainAddr) {
   while (*p++ != 0)
     ;
   // Iterate through auxiliary vectors for AT_EXECPATH.
-  for (; *(uintptr_t *)p != AT_NULL; p++) {
-    if (*(uintptr_t *)p++ == AT_EXECPATH)
-      return *p;
+  for (Elf_Auxinfo *aux = (Elf_Auxinfo *)p; aux->a_type != AT_NULL; aux++) {
+    if (aux->a_type == AT_EXECPATH) {
+      char link_path[PATH_MAX];
+      if (realpath((char *)aux->a_un.a_ptr, link_path))
+        return link_path;
+    }
   }
 #endif
   // Fall back to argv[0] if auxiliary vectors are not available.
@@ -276,6 +283,20 @@ std::string getMainExecutable(const char *argv0, void *MainAddr) {
   }
   // Fall back to the classical detection.
   if (getprogpath(exe_path, argv0))
+    return exe_path;
+#elif defined(__sun__) && defined(__svr4__)
+  char exe_path[PATH_MAX];
+  const char *aPath = "/proc/self/execname";
+  if (sys::fs::exists(aPath)) {
+    int fd = open(aPath, O_RDONLY);
+    if (fd == -1)
+      return "";
+    if (read(fd, exe_path, sizeof(exe_path)) < 0)
+      return "";
+    return exe_path;
+  }
+  // Fall back to the classical detection.
+  if (getprogpath(exe_path, argv0) != NULL)
     return exe_path;
 #elif defined(__MVS__)
   int token = 0;

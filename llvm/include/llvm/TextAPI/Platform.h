@@ -9,8 +9,8 @@
 // Defines the Platforms supported by Tapi and helpers.
 //
 //===----------------------------------------------------------------------===//
-#ifndef LLVM_TEXTAPI_MACHO_PLATFORM_H
-#define LLVM_TEXTAPI_MACHO_PLATFORM_H
+#ifndef LLVM_TEXTAPI_PLATFORM_H
+#define LLVM_TEXTAPI_PLATFORM_H
 
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/BinaryFormat/MachO.h"
@@ -40,8 +40,10 @@ PlatformKind mapToPlatformKind(const Triple &Target);
 PlatformSet mapToPlatformSet(ArrayRef<Triple> Targets);
 StringRef getPlatformName(PlatformKind Platform);
 PlatformKind getPlatformFromName(StringRef Name);
+std::string getOSAndEnvironmentName(PlatformKind Platform,
+                                    std::string Version = "");
 
 } // end namespace MachO.
 } // end namespace llvm.
 
-#endif // LLVM_TEXTAPI_MACHO_PLATFORM_H
+#endif // LLVM_TEXTAPI_PLATFORM_H

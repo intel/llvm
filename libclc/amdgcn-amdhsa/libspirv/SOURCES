@@ -1,3 +1,15 @@
+atomic/loadstore_helpers.ll
+cl_khr_int64_extended_atomics/minmax_helpers.ll
+synchronization/barrier.cl
+math/cos.cl
+math/sin.cl
+math/sqrt.cl
+math/atan.cl
+math/cbrt.cl
 workitem/get_global_size.cl
 workitem/get_local_size.cl
 workitem/get_num_groups.cl
+workitem/get_max_sub_group_size.cl
+workitem/get_num_sub_groups.cl
+workitem/get_sub_group_id.cl
+workitem/get_sub_group_size.cl

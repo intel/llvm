@@ -45,7 +45,7 @@ class __SYCL_EXPORT buffer_impl final : public SYCLMemObjT {
 
 public:
   buffer_impl(size_t SizeInBytes, size_t, const property_list &Props,
-              unique_ptr_class<SYCLMemObjAllocator> Allocator)
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<sycl::property::buffer::use_host_ptr>())
@@ -56,7 +56,7 @@ public:
 
   buffer_impl(void *HostData, size_t SizeInBytes, size_t RequiredAlign,
               const property_list &Props,
-              unique_ptr_class<SYCLMemObjAllocator> Allocator)
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<
@@ -70,7 +70,7 @@ public:
 
   buffer_impl(const void *HostData, size_t SizeInBytes, size_t RequiredAlign,
               const property_list &Props,
-              unique_ptr_class<SYCLMemObjAllocator> Allocator)
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<
@@ -83,9 +83,9 @@ public:
   }
 
   template <typename T>
-  buffer_impl(const shared_ptr_class<T> &HostData, const size_t SizeInBytes,
+  buffer_impl(const std::shared_ptr<T> &HostData, const size_t SizeInBytes,
               size_t RequiredAlign, const property_list &Props,
-              unique_ptr_class<SYCLMemObjAllocator> Allocator)
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<
@@ -105,7 +105,7 @@ public:
   buffer_impl(EnableIfNotConstIterator<InputIterator> First, InputIterator Last,
               const size_t SizeInBytes, size_t RequiredAlign,
               const property_list &Props,
-              unique_ptr_class<SYCLMemObjAllocator> Allocator)
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<sycl::property::buffer::use_host_ptr>())
@@ -125,7 +125,7 @@ public:
   buffer_impl(EnableIfConstIterator<InputIterator> First, InputIterator Last,
               const size_t SizeInBytes, size_t RequiredAlign,
               const property_list &Props,
-              unique_ptr_class<SYCLMemObjAllocator> Allocator)
+              std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : BaseT(SizeInBytes, Props, std::move(Allocator)) {
 
     if (Props.has_property<sycl::property::buffer::use_host_ptr>())
@@ -139,7 +139,7 @@ public:
 
   buffer_impl(cl_mem MemObject, const context &SyclContext,
               const size_t SizeInBytes,
-              unique_ptr_class<SYCLMemObjAllocator> Allocator,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator,
               event AvailableEvent)
       : BaseT(MemObject, SyclContext, SizeInBytes, std::move(AvailableEvent),
               std::move(Allocator)) {}
@@ -147,7 +147,7 @@ public:
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr, RT::PiEvent &OutEventToWait) override;
 
-  MemObjType getType() const override { return MemObjType::BUFFER; }
+  MemObjType getType() const override { return MemObjType::Buffer; }
 
   ~buffer_impl() {
     try {

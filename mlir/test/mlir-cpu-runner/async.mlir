@@ -5,7 +5,9 @@
 // RUN:               -convert-linalg-to-loops                                 \
 // RUN:               -convert-scf-to-std                                      \
 // RUN:               -convert-linalg-to-llvm                                  \
+// RUN:               -convert-memref-to-llvm                                  \
 // RUN:               -convert-std-to-llvm                                     \
+// RUN:               -reconcile-unrealized-casts                              \
 // RUN: | mlir-cpu-runner                                                      \
 // RUN:     -e main -entry-point-result=void -O0                               \
 // RUN:     -shared-libs=%linalg_test_lib_dir/libmlir_c_runner_utils%shlibext  \
@@ -26,7 +28,7 @@ func @main() {
   %c4 = constant 4.0 : f32
 
   %A = memref.alloc() : memref<4xf32>
-  linalg.fill(%A, %c0) : memref<4xf32>, f32
+  linalg.fill(%c0, %A) : f32, memref<4xf32>
 
   // CHECK: [0, 0, 0, 0]
   %U = memref.cast %A :  memref<4xf32> to memref<*xf32>

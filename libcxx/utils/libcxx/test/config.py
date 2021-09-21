@@ -10,6 +10,7 @@ import copy
 import os
 import pkgutil
 import pipes
+import platform
 import re
 import shlex
 import shutil
@@ -21,6 +22,7 @@ import libcxx.util
 import libcxx.test.features
 import libcxx.test.newconfig
 import libcxx.test.params
+import lit
 
 def loadSiteConfig(lit_config, config, param_name, env_name):
     # We haven't loaded the site specific configuration (the user is
@@ -130,7 +132,6 @@ class Configuration(object):
         self.configure_link_flags()
         self.configure_env()
         self.configure_coverage()
-        self.configure_modules()
         self.configure_substitutions()
         self.configure_features()
 
@@ -231,11 +232,6 @@ class Configuration(object):
                 self.libcxx_obj_root = self.project_obj_root
 
     def configure_features(self):
-        additional_features = self.get_lit_conf('additional_features')
-        if additional_features:
-            for f in additional_features.split(','):
-                self.config.available_features.add(f.strip())
-
         if self.target_info.is_windows():
             if self.cxx_stdlib_under_test == 'libc++':
                 # LIBCXX-WINDOWS-FIXME is the feature name used to XFAIL the
@@ -271,10 +267,6 @@ class Configuration(object):
         self.configure_compile_flags_header_includes()
         self.target_info.add_cxx_compile_flags(self.cxx.compile_flags)
         self.target_info.add_cxx_flags(self.cxx.flags)
-        # Configure feature flags.
-        enable_32bit = self.get_lit_bool('enable_32bit', False)
-        if enable_32bit:
-            self.cxx.flags += ['-m32']
         # Use verbose output for better errors
         self.cxx.flags += ['-v']
         sysroot = self.get_lit_conf('sysroot')
@@ -293,12 +285,6 @@ class Configuration(object):
         # Add includes for support headers used in the tests.
         support_path = os.path.join(self.libcxx_src_root, 'test/support')
         self.cxx.compile_flags += ['-I' + support_path]
-
-        # On GCC, the libc++ headers cause errors due to throw() decorators
-        # on operator new clashing with those from the test suite, so we
-        # don't enable warnings in system headers on GCC.
-        if self.cxx.type != 'gcc':
-            self.cxx.compile_flags += ['-D_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER']
 
         # Add includes for the PSTL headers
         pstl_src_root = self.get_lit_conf('pstl_src_root')
@@ -468,39 +454,22 @@ class Configuration(object):
             self.cxx.flags += ['-g', '--coverage']
             self.cxx.compile_flags += ['-O0']
 
-    def configure_modules(self):
-        modules_flags = ['-fmodules', '-Xclang', '-fmodules-local-submodule-visibility']
-        supports_modules = self.cxx.hasCompileFlag(modules_flags)
-        enable_modules = self.get_lit_bool('enable_modules', default=False,
-                                                             env_var='LIBCXX_ENABLE_MODULES')
-        if enable_modules and not supports_modules:
-            self.lit_config.fatal(
-                '-fmodules is enabled but not supported by the compiler')
-        if not supports_modules:
-            return
-        module_cache = os.path.join(self.config.test_exec_root,
-                                   'modules.cache')
-        module_cache = os.path.realpath(module_cache)
-        if os.path.isdir(module_cache):
-            shutil.rmtree(module_cache)
-        os.makedirs(module_cache)
-        self.cxx.modules_flags += modules_flags + \
-            ['-fmodules-cache-path=' + module_cache]
-        if enable_modules:
-            self.config.available_features.add('-fmodules')
-            self.cxx.useModules()
+    def quote(self, s):
+        if platform.system() == 'Windows':
+            return lit.TestRunner.quote_windows_command([s])
+        return pipes.quote(s)
 
     def configure_substitutions(self):
         sub = self.config.substitutions
-        sub.append(('%{cxx}', pipes.quote(self.cxx.path)))
+        sub.append(('%{cxx}', self.quote(self.cxx.path)))
         flags = self.cxx.flags + (self.cxx.modules_flags if self.cxx.use_modules else [])
         compile_flags = self.cxx.compile_flags + (self.cxx.warning_flags if self.cxx.use_warnings else [])
-        sub.append(('%{flags}',         ' '.join(map(pipes.quote, flags))))
-        sub.append(('%{compile_flags}', ' '.join(map(pipes.quote, compile_flags))))
-        sub.append(('%{link_flags}',    ' '.join(map(pipes.quote, self.cxx.link_flags))))
+        sub.append(('%{flags}',         ' '.join(map(self.quote, flags))))
+        sub.append(('%{compile_flags}', ' '.join(map(self.quote, compile_flags))))
+        sub.append(('%{link_flags}',    ' '.join(map(self.quote, self.cxx.link_flags))))
 
         codesign_ident = self.get_lit_conf('llvm_codesign_identity', '')
-        env_vars = ' '.join('%s=%s' % (k, pipes.quote(v)) for (k, v) in self.exec_env.items())
+        env_vars = ' '.join('%s=%s' % (k, self.quote(v)) for (k, v) in self.exec_env.items())
         exec_args = [
             '--execdir %T',
             '--codesign_identity "{}"'.format(codesign_ident),

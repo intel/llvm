@@ -599,6 +599,16 @@ void kmp_topology_t::canonicalize() {
   _set_globals();
   _set_last_level_cache();
 
+#if KMP_MIC_SUPPORTED
+  // Manually Add L2 = Tile equivalence
+  if (__kmp_mic_type == mic3) {
+    if (get_level(KMP_HW_L2) != -1)
+      set_equivalent_type(KMP_HW_TILE, KMP_HW_L2);
+    else if (get_level(KMP_HW_TILE) != -1)
+      set_equivalent_type(KMP_HW_L2, KMP_HW_TILE);
+  }
+#endif
+
   // Perform post canonicalization checking
   KMP_ASSERT(depth > 0);
   for (int level = 0; level < depth; ++level) {
@@ -2376,7 +2386,10 @@ static bool __kmp_affinity_create_cpuinfo_map(int *line,
         unsigned val;
         if ((p == NULL) || (KMP_SSCANF(p + 1, "%u\n", &val) != 1))
           goto no_val;
-        KMP_ASSERT(nodeIdIndex + level <= maxIndex);
+        // validate the input before using level:
+        if (level > (unsigned)__kmp_xproc) { // level is too big
+          level = __kmp_xproc;
+        }
         if (threadInfo[num_avail][nodeIdIndex + level] != UINT_MAX)
           goto dup_field;
         threadInfo[num_avail][nodeIdIndex + level] = val;
@@ -2597,12 +2610,6 @@ restart_radix_check:
   __kmp_nThreadsPerCore = maxCt[threadIdIndex];
   nCoresPerPkg = maxCt[coreIdIndex];
   nPackages = totals[pkgIdIndex];
-
-  // Check to see if the machine topology is uniform
-  unsigned prod = totals[maxIndex];
-  for (index = threadIdIndex; index < maxIndex; index++) {
-    prod *= maxCt[index];
-  }
 
   // When affinity is off, this routine will still be called to set
   // __kmp_ncores, as well as __kmp_nThreadsPerCore, nCoresPerPkg, & nPackages.
@@ -4141,14 +4148,19 @@ int __kmp_aux_set_affinity(void **mask) {
 int __kmp_aux_get_affinity(void **mask) {
   int gtid;
   int retval;
+#if KMP_OS_WINDOWS || KMP_DEBUG
   kmp_info_t *th;
-
+#endif
   if (!KMP_AFFINITY_CAPABLE()) {
     return -1;
   }
 
   gtid = __kmp_entry_gtid();
+#if KMP_OS_WINDOWS || KMP_DEBUG
   th = __kmp_threads[gtid];
+#else
+  (void)gtid; // unused variable
+#endif
   KMP_DEBUG_ASSERT(th->th.th_affin_mask != NULL);
 
   KA_TRACE(

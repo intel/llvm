@@ -6,8 +6,10 @@
 // CHECK-NEXT: arm_neon
 // CHECK-NEXT: arm_sve
 // CHECK-NEXT: async
+// CHECK-NEXT: builtin
 // CHECK-NEXT: complex
 // CHECK-NEXT: dlti
+// CHECK-NEXT: emitc
 // CHECK-NEXT: gpu
 // CHECK-NEXT: linalg
 // CHECK-NEXT: llvm
@@ -20,7 +22,6 @@
 // CHECK-NEXT: quant
 // CHECK-NEXT: rocdl
 // CHECK-NEXT: scf
-// CHECK-NEXT: sdbm
 // CHECK-NEXT: shape
 // CHECK-NEXT: sparse_tensor
 // CHECK-NEXT: spv

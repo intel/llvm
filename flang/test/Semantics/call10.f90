@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %flang_fc1
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! Test 15.7 (C1583-C1590, C1592-C1599) constraints and restrictions
 ! for pure procedures.
 ! (C1591 is tested in call11.f90; C1594 in call12.f90.)
@@ -87,7 +87,7 @@ module m
     real, save :: v1
     !ERROR: A pure subprogram may not have a variable with the SAVE attribute
     real :: v2 = 0.
-    !TODO: once we have DATA: !ERROR: A pure subprogram may not have a variable with the SAVE attribute
+    !ERROR: A pure subprogram may not have a variable with the SAVE attribute
     real :: v3
     data v3/0./
     !ERROR: A pure subprogram may not have a variable with the SAVE attribute

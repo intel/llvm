@@ -1291,14 +1291,19 @@ class Base(unittest2.TestCase):
 
         return cpuinfo
 
+    def isAArch64(self):
+        """Returns true if the architecture is AArch64."""
+        arch = self.getArchitecture().lower()
+        return arch in ["aarch64", "arm64", "arm64e"]
+
     def isAArch64SVE(self):
-        return "sve" in self.getCPUInfo()
+        return self.isAArch64() and "sve" in self.getCPUInfo()
 
     def isAArch64MTE(self):
-        return "mte" in self.getCPUInfo()
+        return self.isAArch64() and "mte" in self.getCPUInfo()
 
     def isAArch64PAuth(self):
-        return "paca" in self.getCPUInfo()
+        return self.isAArch64() and "paca" in self.getCPUInfo()
 
     def getArchitecture(self):
         """Returns the architecture in effect the test suite is running with."""

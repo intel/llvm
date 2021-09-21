@@ -1469,8 +1469,8 @@ struct is_float_nan_pred {
 TEST_F(PatternMatchTest, ConstantPredicateType) {
 
   // Scalar integer
-  APInt U32Max = APInt::getAllOnesValue(32);
-  APInt U32Zero = APInt::getNullValue(32);
+  APInt U32Max = APInt::getAllOnes(32);
+  APInt U32Zero = APInt::getZero(32);
   APInt U32DeadBeef(32, 0xDEADBEEF);
 
   Type *U32Ty = Type::getInt32Ty(Ctx);
@@ -1634,6 +1634,26 @@ TEST_F(PatternMatchTest, InsertValue) {
       match(Ins1, m_InsertValue<1>(m_InsertValue<0>(m_Value(), m_Value()),
                                    m_SpecificInt(90))));
   EXPECT_FALSE(match(IRB.getInt64(99), m_InsertValue<0>(m_Value(), m_Value())));
+}
+
+TEST_F(PatternMatchTest, VScale) {
+  DataLayout DL = M->getDataLayout();
+
+  Type *VecTy = ScalableVectorType::get(IRB.getInt8Ty(), 1);
+  Type *VecPtrTy = VecTy->getPointerTo();
+  Value *NullPtrVec = Constant::getNullValue(VecPtrTy);
+  Value *GEP = IRB.CreateGEP(VecTy, NullPtrVec, IRB.getInt64(1));
+  Value *PtrToInt = IRB.CreatePtrToInt(GEP, DL.getIntPtrType(GEP->getType()));
+  EXPECT_TRUE(match(PtrToInt, m_VScale(DL)));
+
+  // Prior to this patch, this case would cause assertion failures when attempting to match m_VScale
+  Type *VecTy2 = ScalableVectorType::get(IRB.getInt8Ty(), 2);
+  Value *NullPtrVec2 = Constant::getNullValue(VecTy2->getPointerTo());
+  Value *BitCast = IRB.CreateBitCast(NullPtrVec2, VecPtrTy);
+  Value *GEP2 = IRB.CreateGEP(VecTy, BitCast, IRB.getInt64(1));
+  Value *PtrToInt2 =
+      IRB.CreatePtrToInt(GEP2, DL.getIntPtrType(GEP2->getType()));
+  EXPECT_FALSE(match(PtrToInt2, m_VScale(DL)));
 }
 
 template <typename T> struct MutableConstTest : PatternMatchTest { };

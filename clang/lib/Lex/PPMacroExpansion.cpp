@@ -471,6 +471,8 @@ bool Preprocessor::isNextPPTokenLParen() {
 /// expanded as a macro, handle it and return the next token as 'Identifier'.
 bool Preprocessor::HandleMacroExpandedIdentifier(Token &Identifier,
                                                  const MacroDefinition &M) {
+  emitMacroExpansionWarnings(Identifier);
+
   MacroInfo *MI = M.getMacroInfo();
 
   // If this is a macro expansion in the "#if !defined(x)" line for the file,
@@ -1430,7 +1432,7 @@ static bool isTargetVendor(const TargetInfo &TI, const IdentifierInfo *II) {
   StringRef VendorName = TI.getTriple().getVendorName();
   if (VendorName.empty())
     VendorName = "unknown";
-  return VendorName.equals_lower(II->getName());
+  return VendorName.equals_insensitive(II->getName());
 }
 
 /// Implements the __is_target_os builtin macro.
@@ -1451,15 +1453,6 @@ static bool isTargetEnvironment(const TargetInfo &TI,
   std::string EnvName = (llvm::Twine("---") + II->getName().lower()).str();
   llvm::Triple Env(EnvName);
   return TI.getTriple().getEnvironment() == Env.getEnvironment();
-}
-
-static void remapMacroPath(
-    SmallString<256> &Path,
-    const std::map<std::string, std::string, std::greater<std::string>>
-        &MacroPrefixMap) {
-  for (const auto &Entry : MacroPrefixMap)
-    if (llvm::sys::path::replace_path_prefix(Path, Entry.first, Entry.second))
-      break;
 }
 
 /// ExpandBuiltinMacro - If an identifier token is read that is to be expanded
@@ -1543,7 +1536,7 @@ void Preprocessor::ExpandBuiltinMacro(Token &Tok) {
       } else {
         FN += PLoc.getFilename();
       }
-      remapMacroPath(FN, PPOpts->MacroPrefixMap);
+      getLangOpts().remapPathPrefix(FN);
       Lexer::Stringify(FN);
       OS << '"' << FN << '"';
     }

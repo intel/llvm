@@ -7,6 +7,9 @@
 // On android %t is a wrapper python script so llvm-readelf will fail.
 // UNSUPPORTED: android
 
+/// Fast unwinder does not work with Thumb code
+// UNSUPPORTED: thumb
+
 /// No .eh_frame && -g => .debug_frame
 // SEC: .debug_frame
 
@@ -34,5 +37,5 @@ __attribute__((noinline)) void A<0>::RecursiveTemplateFunction(const T &) {
 
 int main() {
   // CHECK: {{vector<.*vector<.*vector<.*vector<.*vector<}}
-  A<10>().RecursiveTemplateFunction(0);
+  A<7>().RecursiveTemplateFunction(0);
 }

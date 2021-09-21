@@ -486,6 +486,9 @@ public:
     return CGF.EmitPseudoObjectRValue(E).getScalarVal();
   }
 
+  Value *VisitSYCLUniqueStableNameExpr(SYCLUniqueStableNameExpr *E);
+  Value *VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E);
+
   Value *VisitOpaqueValueExpr(OpaqueValueExpr *E) {
     if (E->isGLValue())
       return EmitLoadOfLValue(CGF.getOrCreateOpaqueLValueMapping(E),
@@ -1581,6 +1584,45 @@ Value *ScalarExprEmitter::VisitExpr(Expr *E) {
   return llvm::UndefValue::get(CGF.ConvertType(E->getType()));
 }
 
+Value *
+ScalarExprEmitter::VisitSYCLUniqueStableNameExpr(SYCLUniqueStableNameExpr *E) {
+  ASTContext &Context = CGF.getContext();
+  llvm::Optional<LangAS> GlobalAS =
+      Context.getTargetInfo().getConstantAddressSpace();
+  llvm::Constant *GlobalConstStr = Builder.CreateGlobalStringPtr(
+      E->ComputeName(Context), "__usn_str",
+      static_cast<unsigned>(GlobalAS.getValueOr(LangAS::Default)));
+
+  unsigned ExprAS = Context.getTargetAddressSpace(E->getType());
+
+  if (GlobalConstStr->getType()->getPointerAddressSpace() == ExprAS)
+    return GlobalConstStr;
+
+  llvm::Type *EltTy = GlobalConstStr->getType()->getPointerElementType();
+  llvm::PointerType *NewPtrTy = llvm::PointerType::get(EltTy, ExprAS);
+  return Builder.CreateAddrSpaceCast(GlobalConstStr, NewPtrTy, "usn_addr_cast");
+}
+
+Value *
+ScalarExprEmitter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
+  ASTContext &Context = CGF.getContext();
+  llvm::Optional<LangAS> GlobalAS =
+      Context.getTargetInfo().getConstantAddressSpace();
+  llvm::Constant *GlobalConstStr = Builder.CreateGlobalStringPtr(
+      E->ComputeName(Context), "__usid_str",
+      static_cast<unsigned>(GlobalAS.getValueOr(LangAS::Default)));
+
+  unsigned ExprAS = Context.getTargetAddressSpace(E->getType());
+
+  if (GlobalConstStr->getType()->getPointerAddressSpace() == ExprAS)
+    return GlobalConstStr;
+
+  llvm::Type *EltTy = GlobalConstStr->getType()->getPointerElementType();
+  llvm::PointerType *NewPtrTy = llvm::PointerType::get(EltTy, ExprAS);
+  return Builder.CreateAddrSpaceCast(GlobalConstStr, NewPtrTy,
+                                     "usid_addr_cast");
+}
+
 Value *ScalarExprEmitter::VisitShuffleVectorExpr(ShuffleVectorExpr *E) {
   // Vector Mask Case
   if (E->getNumSubExprs() == 2) {
@@ -1944,7 +1986,7 @@ bool CodeGenFunction::ShouldNullCheckClassCastValue(const CastExpr *CE) {
 
   if (const ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(CE)) {
     // And that glvalue casts are never null.
-    if (ICE->getValueKind() != VK_RValue)
+    if (ICE->isGLValue())
       return false;
   }
 
@@ -2042,11 +2084,25 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     // perform the bitcast.
     if (const auto *FixedSrc = dyn_cast<llvm::FixedVectorType>(SrcTy)) {
       if (const auto *ScalableDst = dyn_cast<llvm::ScalableVectorType>(DstTy)) {
+        // If we are casting a fixed i8 vector to a scalable 16 x i1 predicate
+        // vector, use a vector insert and bitcast the result.
+        bool NeedsBitCast = false;
+        auto PredType = llvm::ScalableVectorType::get(Builder.getInt1Ty(), 16);
+        llvm::Type *OrigType = DstTy;
+        if (ScalableDst == PredType &&
+            FixedSrc->getElementType() == Builder.getInt8Ty()) {
+          DstTy = llvm::ScalableVectorType::get(Builder.getInt8Ty(), 2);
+          ScalableDst = dyn_cast<llvm::ScalableVectorType>(DstTy);
+          NeedsBitCast = true;
+        }
         if (FixedSrc->getElementType() == ScalableDst->getElementType()) {
           llvm::Value *UndefVec = llvm::UndefValue::get(DstTy);
           llvm::Value *Zero = llvm::Constant::getNullValue(CGF.CGM.Int64Ty);
-          return Builder.CreateInsertVector(DstTy, UndefVec, Src, Zero,
-                                            "castScalableSve");
+          llvm::Value *Result = Builder.CreateInsertVector(
+              DstTy, UndefVec, Src, Zero, "castScalableSve");
+          if (NeedsBitCast)
+            Result = Builder.CreateBitCast(Result, OrigType);
+          return Result;
         }
       }
     }
@@ -2056,6 +2112,15 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     // perform the bitcast.
     if (const auto *ScalableSrc = dyn_cast<llvm::ScalableVectorType>(SrcTy)) {
       if (const auto *FixedDst = dyn_cast<llvm::FixedVectorType>(DstTy)) {
+        // If we are casting a scalable 16 x i1 predicate vector to a fixed i8
+        // vector, bitcast the source and use a vector extract.
+        auto PredType = llvm::ScalableVectorType::get(Builder.getInt1Ty(), 16);
+        if (ScalableSrc == PredType &&
+            FixedDst->getElementType() == Builder.getInt8Ty()) {
+          SrcTy = llvm::ScalableVectorType::get(Builder.getInt8Ty(), 2);
+          ScalableSrc = dyn_cast<llvm::ScalableVectorType>(SrcTy);
+          Src = Builder.CreateBitCast(Src, SrcTy);
+        }
         if (ScalableSrc->getElementType() == FixedDst->getElementType()) {
           llvm::Value *Zero = llvm::Constant::getNullValue(CGF.CGM.Int64Ty);
           return Builder.CreateExtractVector(DstTy, Src, Zero, "castFixedSve");
@@ -2066,32 +2131,18 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     // Perform VLAT <-> VLST bitcast through memory.
     // TODO: since the llvm.experimental.vector.{insert,extract} intrinsics
     //       require the element types of the vectors to be the same, we
-    //       need to keep this around for casting between predicates, or more
-    //       generally for bitcasts between VLAT <-> VLST where the element
-    //       types of the vectors are not the same, until we figure out a better
-    //       way of doing these casts.
+    //       need to keep this around for bitcasts between VLAT <-> VLST where
+    //       the element types of the vectors are not the same, until we figure
+    //       out a better way of doing these casts.
     if ((isa<llvm::FixedVectorType>(SrcTy) &&
          isa<llvm::ScalableVectorType>(DstTy)) ||
         (isa<llvm::ScalableVectorType>(SrcTy) &&
          isa<llvm::FixedVectorType>(DstTy))) {
-      if (const CallExpr *CE = dyn_cast<CallExpr>(E)) {
-        // Call expressions can't have a scalar return unless the return type
-        // is a reference type so an lvalue can't be emitted. Create a temp
-        // alloca to store the call, bitcast the address then load.
-        QualType RetTy = CE->getCallReturnType(CGF.getContext());
-        Address Addr =
-            CGF.CreateDefaultAlignTempAlloca(SrcTy, "saved-call-rvalue");
-        LValue LV = CGF.MakeAddrLValue(Addr, RetTy);
-        CGF.EmitStoreOfScalar(Src, LV);
-        Addr = Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(DestTy),
-                                            "castFixedSve");
-        LValue DestLV = CGF.MakeAddrLValue(Addr, DestTy);
-        DestLV.setTBAAInfo(TBAAAccessInfo::getMayAliasInfo());
-        return EmitLoadOfLValue(DestLV, CE->getExprLoc());
-      }
-
-      Address Addr = EmitLValue(E).getAddress(CGF);
-      Addr = Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(DestTy));
+      Address Addr = CGF.CreateDefaultAlignTempAlloca(SrcTy, "saved-value");
+      LValue LV = CGF.MakeAddrLValue(Addr, E->getType());
+      CGF.EmitStoreOfScalar(Src, LV);
+      Addr = Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(DestTy),
+                                          "castFixedSve");
       LValue DestLV = CGF.MakeAddrLValue(Addr, DestTy);
       DestLV.setTBAAInfo(TBAAAccessInfo::getMayAliasInfo());
       return EmitLoadOfLValue(DestLV, CE->getExprLoc());
@@ -2580,7 +2631,8 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
       llvm::Value *numElts = CGF.getVLASize(vla).NumElts;
       if (!isInc) numElts = Builder.CreateNSWNeg(numElts, "vla.negsize");
       if (CGF.getLangOpts().isSignedOverflowDefined())
-        value = Builder.CreateGEP(value, numElts, "vla.inc");
+        value = Builder.CreateGEP(value->getType()->getPointerElementType(),
+                                  value, numElts, "vla.inc");
       else
         value = CGF.EmitCheckedInBoundsGEP(
             value, numElts, /*SignedIndices=*/false, isSubtraction,
@@ -2592,7 +2644,7 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
 
       value = CGF.EmitCastToVoidPtr(value);
       if (CGF.getLangOpts().isSignedOverflowDefined())
-        value = Builder.CreateGEP(value, amt, "incdec.funcptr");
+        value = Builder.CreateGEP(CGF.Int8Ty, value, amt, "incdec.funcptr");
       else
         value = CGF.EmitCheckedInBoundsGEP(value, amt, /*SignedIndices=*/false,
                                            isSubtraction, E->getExprLoc(),
@@ -2603,7 +2655,8 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
     } else {
       llvm::Value *amt = Builder.getInt32(amount);
       if (CGF.getLangOpts().isSignedOverflowDefined())
-        value = Builder.CreateGEP(value, amt, "incdec.ptr");
+        value = Builder.CreateGEP(value->getType()->getPointerElementType(),
+                                  value, amt, "incdec.ptr");
       else
         value = CGF.EmitCheckedInBoundsGEP(value, amt, /*SignedIndices=*/false,
                                            isSubtraction, E->getExprLoc(),
@@ -2648,7 +2701,8 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
       amt = llvm::ConstantFP::get(VMContext,
                                   llvm::APFloat(static_cast<double>(amount)));
     else {
-      // Remaining types are Half, LongDouble or __float128. Convert from float.
+      // Remaining types are Half, LongDouble, __ibm128 or __float128. Convert
+      // from float.
       llvm::APFloat F(static_cast<float>(amount));
       bool ignored;
       const llvm::fltSemantics *FS;
@@ -2658,6 +2712,8 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
         FS = &CGF.getTarget().getFloat128Format();
       else if (value->getType()->isHalfTy())
         FS = &CGF.getTarget().getHalfFormat();
+      else if (value->getType()->isPPC_FP128Ty())
+        FS = &CGF.getTarget().getIbm128Format();
       else
         FS = &CGF.getTarget().getLongDoubleFormat();
       F.convert(*FS, llvm::APFloat::rmTowardZero, &ignored);
@@ -2712,7 +2768,7 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
       llvm::ConstantInt::get(CGF.SizeTy, size.getQuantity());
 
     if (CGF.getLangOpts().isSignedOverflowDefined())
-      value = Builder.CreateGEP(value, sizeValue, "incdec.objptr");
+      value = Builder.CreateGEP(CGF.Int8Ty, value, sizeValue, "incdec.objptr");
     else
       value = CGF.EmitCheckedInBoundsGEP(value, sizeValue,
                                          /*SignedIndices=*/false, isSubtraction,
@@ -3437,7 +3493,7 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
     index = CGF.Builder.CreateMul(index, objectSize);
 
     Value *result = CGF.Builder.CreateBitCast(pointer, CGF.VoidPtrTy);
-    result = CGF.Builder.CreateGEP(result, index, "add.ptr");
+    result = CGF.Builder.CreateGEP(CGF.Int8Ty, result, index, "add.ptr");
     return CGF.Builder.CreateBitCast(result, pointer->getType());
   }
 
@@ -3453,7 +3509,9 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
     // multiply.  We suppress this if overflow is not undefined behavior.
     if (CGF.getLangOpts().isSignedOverflowDefined()) {
       index = CGF.Builder.CreateMul(index, numElements, "vla.index");
-      pointer = CGF.Builder.CreateGEP(pointer, index, "add.ptr");
+      pointer = CGF.Builder.CreateGEP(
+          pointer->getType()->getPointerElementType(), pointer, index,
+          "add.ptr");
     } else {
       index = CGF.Builder.CreateNSWMul(index, numElements, "vla.index");
       pointer =
@@ -3468,12 +3526,13 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
   // future proof.
   if (elementType->isVoidType() || elementType->isFunctionType()) {
     Value *result = CGF.EmitCastToVoidPtr(pointer);
-    result = CGF.Builder.CreateGEP(result, index, "add.ptr");
+    result = CGF.Builder.CreateGEP(CGF.Int8Ty, result, index, "add.ptr");
     return CGF.Builder.CreateBitCast(result, pointer->getType());
   }
 
   if (CGF.getLangOpts().isSignedOverflowDefined())
-    return CGF.Builder.CreateGEP(pointer, index, "add.ptr");
+    return CGF.Builder.CreateGEP(
+        pointer->getType()->getPointerElementType(), pointer, index, "add.ptr");
 
   return CGF.EmitCheckedInBoundsGEP(pointer, index, isSigned, isSubtraction,
                                     op.E->getExprLoc(), "add.ptr");
@@ -4750,11 +4809,8 @@ Value *ScalarExprEmitter::VisitAsTypeExpr(AsTypeExpr *E) {
   // vector to get a vec4, then a bitcast if the target type is different.
   if (NumElementsSrc == 3 && NumElementsDst != 3) {
     Src = ConvertVec3AndVec4(Builder, CGF, Src, 4);
-
-    if (!CGF.CGM.getCodeGenOpts().PreserveVec3Type) {
-      Src = createCastsForTypeOfSameSize(Builder, CGF.CGM.getDataLayout(), Src,
-                                         DstTy);
-    }
+    Src = createCastsForTypeOfSameSize(Builder, CGF.CGM.getDataLayout(), Src,
+                                       DstTy);
 
     Src->setName("astype");
     return Src;
@@ -4833,7 +4889,7 @@ LValue CodeGenFunction::EmitObjCIsaExpr(const ObjCIsaExpr *E) {
 
   Expr *BaseExpr = E->getBase();
   Address Addr = Address::invalid();
-  if (BaseExpr->isRValue()) {
+  if (BaseExpr->isPRValue()) {
     Addr = Address(EmitScalarExpr(BaseExpr), getPointerAlign());
   } else {
     Addr = EmitLValue(BaseExpr).getAddress(*this);
@@ -4929,7 +4985,7 @@ static GEPOffsetAndOverflow EmitGEPOffsetInBytes(Value *BasePtr, Value *GEPVal,
 
   auto *GEP = cast<llvm::GEPOperator>(GEPVal);
   assert(GEP->getPointerOperand() == BasePtr &&
-         "BasePtr must be the the base of the GEP.");
+         "BasePtr must be the base of the GEP.");
   assert(GEP->isInBounds() && "Expected inbounds GEP");
 
   auto *IntPtrTy = DL.getIntPtrType(GEP->getPointerOperandType());
@@ -5005,13 +5061,13 @@ Value *
 CodeGenFunction::EmitCheckedInBoundsGEP(Value *Ptr, ArrayRef<Value *> IdxList,
                                         bool SignedIndices, bool IsSubtraction,
                                         SourceLocation Loc, const Twine &Name) {
-  Value *GEPVal = Builder.CreateInBoundsGEP(Ptr, IdxList, Name);
+  llvm::Type *PtrTy = Ptr->getType();
+  Value *GEPVal = Builder.CreateInBoundsGEP(
+      PtrTy->getPointerElementType(), Ptr, IdxList, Name);
 
   // If the pointer overflow sanitizer isn't enabled, do nothing.
   if (!SanOpts.has(SanitizerKind::PointerOverflow))
     return GEPVal;
-
-  llvm::Type *PtrTy = Ptr->getType();
 
   // Perform nullptr-and-offset check unless the nullptr is defined.
   bool PerformNullCheck = !NullPointerIsDefined(

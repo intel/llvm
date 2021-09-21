@@ -227,7 +227,7 @@ struct ByteCommand : BaseCommand {
 };
 
 struct InsertCommand {
-  OutputSection *os;
+  std::vector<StringRef> names;
   bool isAfter;
   StringRef where;
 };
@@ -247,11 +247,11 @@ class LinkerScript final {
   // not be used outside of the scope of a call to the above functions.
   struct AddressState {
     AddressState();
-    uint64_t threadBssOffset = 0;
     OutputSection *outSec = nullptr;
     MemoryRegion *memRegion = nullptr;
     MemoryRegion *lmaRegion = nullptr;
     uint64_t lmaOffset = 0;
+    uint64_t tbssAddr = 0;
   };
 
   llvm::DenseMap<StringRef, OutputSection *> nameToOutputSection;
@@ -342,6 +342,9 @@ public:
   // Used to implement INSERT [AFTER|BEFORE]. Contains output sections that need
   // to be reordered.
   std::vector<InsertCommand> insertCommands;
+
+  // OutputSections specified by OVERWRITE_SECTIONS.
+  std::vector<OutputSection *> overwriteSections;
 
   // Sections that will be warned/errored by --orphan-handling.
   std::vector<const InputSectionBase *> orphanSections;

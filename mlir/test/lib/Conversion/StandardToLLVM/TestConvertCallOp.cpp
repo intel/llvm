@@ -8,8 +8,8 @@
 
 #include "TestDialect.h"
 #include "TestTypes.h"
+#include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Pass/Pass.h"
@@ -37,6 +37,11 @@ class TestConvertCallOp
 public:
   void getDependentDialects(DialectRegistry &registry) const final {
     registry.insert<LLVM::LLVMDialect>();
+  }
+  StringRef getArgument() const final { return "test-convert-call-op"; }
+  StringRef getDescription() const final {
+    return "Tests conversion of `std.call` to `llvm.call` in "
+           "presence of custom types";
   }
 
   void runOnOperation() override {
@@ -68,11 +73,6 @@ public:
 
 namespace mlir {
 namespace test {
-void registerConvertCallOpPass() {
-  PassRegistration<TestConvertCallOp>(
-      "test-convert-call-op",
-      "Tests conversion of `std.call` to `llvm.call` in "
-      "presence of custom types");
-}
+void registerConvertCallOpPass() { PassRegistration<TestConvertCallOp>(); }
 } // namespace test
 } // namespace mlir

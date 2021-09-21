@@ -26,7 +26,8 @@ def ThunderXT8XModel : SchedMachineModel {
   let CompleteModel = 1;
 
   list<Predicate> UnsupportedFeatures = !listconcat(SVEUnsupported.F,
-                                                    PAUnsupported.F);
+                                                    PAUnsupported.F,
+                                                    SMEUnsupported.F);
   // FIXME: Remove when all errors have been fixed.
   let FullInstRWOverlapCheck = 0;
 }
@@ -191,6 +192,7 @@ def THXT8XWriteFSqrtDP : SchedWriteRes<[THXT8XUnitFPMDS]> {
 def : ReadAdvance<ReadExtrHi, 1>;
 def : ReadAdvance<ReadAdrBase, 2>;
 def : ReadAdvance<ReadVLD, 2>;
+def : ReadAdvance<ReadST, 2>;
 
 // FIXME: This needs more targeted benchmarking.
 // ALU - Most operands in the ALU pipes are not needed for two cycles. Shiftable

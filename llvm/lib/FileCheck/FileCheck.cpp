@@ -1034,7 +1034,8 @@ bool Pattern::parsePattern(StringRef PatternStr, StringRef Prefix,
       bool IsLegacyLineExpr = false;
       StringRef DefName;
       StringRef SubstStr;
-      std::string MatchRegexp;
+      StringRef MatchRegexp;
+      std::string WildcardRegexp;
       size_t SubstInsertIdx = RegExStr.size();
 
       // Parse string variable or legacy @LINE expression.
@@ -1078,7 +1079,7 @@ bool Pattern::parsePattern(StringRef PatternStr, StringRef Prefix,
             return true;
           }
           DefName = Name;
-          MatchRegexp = MatchStr.str();
+          MatchRegexp = MatchStr;
         } else {
           if (IsPseudo) {
             MatchStr = OrigMatchStr;
@@ -1117,7 +1118,8 @@ bool Pattern::parsePattern(StringRef PatternStr, StringRef Prefix,
           SubstStr = MatchStr;
         else {
           ExpressionFormat Format = ExpressionPointer->getFormat();
-          MatchRegexp = cantFail(Format.getWildcardRegex());
+          WildcardRegexp = cantFail(Format.getWildcardRegex());
+          MatchRegexp = WildcardRegexp;
         }
       }
 
@@ -1229,7 +1231,7 @@ Pattern::MatchResult Pattern::match(StringRef Buffer,
   // If this is a fixed string pattern, just match it now.
   if (!FixedStr.empty()) {
     size_t Pos =
-        IgnoreCase ? Buffer.find_lower(FixedStr) : Buffer.find(FixedStr);
+        IgnoreCase ? Buffer.find_insensitive(FixedStr) : Buffer.find(FixedStr);
     if (Pos == StringRef::npos)
       return make_error<NotFoundError>();
     return MatchResult(Pos, /*MatchLen=*/FixedStr.size(), Error::success());

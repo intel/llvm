@@ -63,7 +63,7 @@ class OptimizationRemarkEmitter;
 /// mapping from the extracted function arguments to overall function arguments.
 struct OutlinableRegion {
   /// Describes the region of code.
-  IRSimilarityCandidate *Candidate;
+  IRSimilarityCandidate *Candidate = nullptr;
 
   /// If this region is outlined, the front and back IRInstructionData could
   /// potentially become invalidated if the only new instruction is a call.
@@ -72,11 +72,11 @@ struct OutlinableRegion {
   IRInstructionData *NewBack = nullptr;
 
   /// The number of extracted inputs from the CodeExtractor.
-  unsigned NumExtractedInputs;
+  unsigned NumExtractedInputs = 0;
 
   /// The corresponding BasicBlock with the appropriate stores for this
   /// OutlinableRegion in the overall function.
-  unsigned OutputBlockNum;
+  unsigned OutputBlockNum = -1;
 
   /// Mapping the extracted argument number to the argument number in the
   /// overall function.  Since there will be inputs, such as elevated constants
@@ -85,6 +85,15 @@ struct OutlinableRegion {
   /// track of which extracted argument maps to which overall argument.
   DenseMap<unsigned, unsigned> ExtractedArgToAgg;
   DenseMap<unsigned, unsigned> AggArgToExtracted;
+
+  /// Marks whether we need to change the order of the arguments when mapping
+  /// the old extracted function call to the new aggregate outlined function
+  /// call.
+  bool ChangedArgOrder = false;
+
+  /// Marks whether this region ends in a branch, there is special handling
+  /// required for the following basic blocks in this case.
+  bool EndsInBranch = false;
 
   /// Mapping of the argument number in the deduplicated function
   /// to a given constant, which is used when creating the arguments to the call
@@ -147,6 +156,14 @@ struct OutlinableRegion {
   /// containing the called function.
   void reattachCandidate();
 
+  /// Find a corresponding value for \p V in similar OutlinableRegion \p Other.
+  ///
+  /// \param Other [in] - The OutlinableRegion to find the corresponding Value
+  /// in.
+  /// \param V [in] - The Value to look for in the other region.
+  /// \return The corresponding Value to \p V if it exists, otherwise nullptr.
+  Value *findCorrespondingValueIn(const OutlinableRegion &Other, Value *V);
+
   /// Get the size of the code removed from the region.
   ///
   /// \param [in] TTI - The TargetTransformInfo for the parent function.
@@ -175,6 +192,16 @@ private:
   /// \param [in] M - The module to outline from.
   /// \returns The number of Functions created.
   unsigned doOutline(Module &M);
+
+  /// Check whether an OutlinableRegion is incompatible with code already
+  /// outlined. OutlinableRegions are incomptaible when there are overlapping
+  /// instructions, or code that has not been recorded has been added to the
+  /// instructions.
+  ///
+  /// \param [in] Region - The OutlinableRegion to check for conflicts with
+  /// already outlined code.
+  /// \returns whether the region can safely be outlined.
+  bool isCompatibleWithAlreadyOutlinedCode(const OutlinableRegion &Region);
 
   /// Remove all the IRSimilarityCandidates from \p CandidateVec that have
   /// instructions contained in a previously outlined region and put the
@@ -301,8 +328,9 @@ private:
   struct InstructionAllowed : public InstVisitor<InstructionAllowed, bool> {
     InstructionAllowed() {}
 
-    // TODO: Determine a scheme to resolve when the label is similar enough.
-    bool visitBranchInst(BranchInst &BI) { return false; }
+    bool visitBranchInst(BranchInst &BI) { 
+      return EnableBranches;
+    }
     // TODO: Determine a scheme to resolve when the labels are similar enough.
     bool visitPHINode(PHINode &PN) { return false; }
     // TODO: Handle allocas.
@@ -341,6 +369,10 @@ private:
     // TODO: Handle interblock similarity.
     bool visitTerminator(Instruction &I) { return false; }
     bool visitInstruction(Instruction &I) { return true; }
+
+    // The flag variable that marks whether we should allow branch instructions
+    // to be outlined.
+    bool EnableBranches = false;
   };
 
   /// A InstVisitor used to exclude certain instructions from being outlined.

@@ -45,7 +45,7 @@ extern int target(ident_t *loc, DeviceTy &Device, void *HostPtr, int32_t ArgNum,
                   int IsTeamConstruct, AsyncInfoTy &AsyncInfo);
 
 extern void handleTargetOutcome(bool Success, ident_t *Loc);
-extern int checkDeviceAndCtors(int64_t &DeviceID, ident_t *Loc);
+extern bool checkDeviceAndCtors(int64_t &DeviceID, ident_t *Loc);
 extern void *targetAllocExplicit(size_t size, int device_num, int kind,
                                  const char *name);
 
@@ -91,7 +91,6 @@ extern "C" {
 #endif
 // functions that extract info from libomp; keep in sync
 int omp_get_default_device(void) __attribute__((weak));
-int32_t __kmpc_omp_taskwait(void *loc_ref, int32_t gtid) __attribute__((weak));
 int32_t __kmpc_global_thread_num(void *) __attribute__((weak));
 int __kmpc_get_target_offload(void) __attribute__((weak));
 #ifdef __cplusplus
@@ -112,17 +111,19 @@ static inline void dumpTargetPointerMappings(const ident_t *Loc,
   INFO(OMP_INFOTYPE_ALL, Device.DeviceID,
        "OpenMP Host-Device pointer mappings after block at %s:%d:%d:\n",
        Kernel.getFilename(), Kernel.getLine(), Kernel.getColumn());
-  INFO(OMP_INFOTYPE_ALL, Device.DeviceID, "%-18s %-18s %s %s %s\n", "Host Ptr",
-       "Target Ptr", "Size (B)", "RefCount", "Declaration");
+  INFO(OMP_INFOTYPE_ALL, Device.DeviceID, "%-18s %-18s %s %s %s %s\n",
+       "Host Ptr", "Target Ptr", "Size (B)", "DynRefCount", "HoldRefCount",
+       "Declaration");
   Device.DataMapMtx.lock();
   for (const auto &HostTargetMap : Device.HostDataToTargetMap) {
     SourceInfo Info(HostTargetMap.HstPtrName);
     INFO(OMP_INFOTYPE_ALL, Device.DeviceID,
-         DPxMOD " " DPxMOD " %-8" PRIuPTR " %-8" PRId64 " %s at %s:%d:%d\n",
+         DPxMOD " " DPxMOD " %-8" PRIuPTR " %-11s %-12s %s at %s:%d:%d\n",
          DPxPTR(HostTargetMap.HstPtrBegin), DPxPTR(HostTargetMap.TgtPtrBegin),
          HostTargetMap.HstPtrEnd - HostTargetMap.HstPtrBegin,
-         HostTargetMap.getRefCount(), Info.getName(), Info.getFilename(),
-         Info.getLine(), Info.getColumn());
+         HostTargetMap.dynRefCountToStr().c_str(),
+         HostTargetMap.holdRefCountToStr().c_str(), Info.getName(),
+         Info.getFilename(), Info.getLine(), Info.getColumn());
   }
   Device.DataMapMtx.unlock();
 }

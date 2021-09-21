@@ -52,6 +52,7 @@
 #include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/Utils/SizeOpts.h"
 #include <algorithm>
 #include <cassert>
@@ -211,6 +212,23 @@ void TargetLoweringBase::InitLibcalls(const Triple &TT) {
   }
 }
 
+/// GetFPLibCall - Helper to return the right libcall for the given floating
+/// point type, or UNKNOWN_LIBCALL if there is none.
+RTLIB::Libcall RTLIB::getFPLibCall(EVT VT,
+                                   RTLIB::Libcall Call_F32,
+                                   RTLIB::Libcall Call_F64,
+                                   RTLIB::Libcall Call_F80,
+                                   RTLIB::Libcall Call_F128,
+                                   RTLIB::Libcall Call_PPCF128) {
+  return
+    VT == MVT::f32 ? Call_F32 :
+    VT == MVT::f64 ? Call_F64 :
+    VT == MVT::f80 ? Call_F80 :
+    VT == MVT::f128 ? Call_F128 :
+    VT == MVT::ppcf128 ? Call_PPCF128 :
+    RTLIB::UNKNOWN_LIBCALL;
+}
+
 /// getFPEXT - Return the FPEXT_*_* value for the given types, or
 /// UNKNOWN_LIBCALL if there is none.
 RTLIB::Libcall RTLIB::getFPEXT(EVT OpVT, EVT RetVT) {
@@ -219,6 +237,8 @@ RTLIB::Libcall RTLIB::getFPEXT(EVT OpVT, EVT RetVT) {
       return FPEXT_F16_F32;
     if (RetVT == MVT::f64)
       return FPEXT_F16_F64;
+    if (RetVT == MVT::f80)
+      return FPEXT_F16_F80;
     if (RetVT == MVT::f128)
       return FPEXT_F16_F128;
   } else if (OpVT == MVT::f32) {
@@ -467,6 +487,11 @@ RTLIB::Libcall RTLIB::getUINTTOFP(EVT OpVT, EVT RetVT) {
       return UINTTOFP_I128_PPCF128;
   }
   return UNKNOWN_LIBCALL;
+}
+
+RTLIB::Libcall RTLIB::getPOWI(EVT RetVT) {
+  return getFPLibCall(RetVT, POWI_F32, POWI_F64, POWI_F80, POWI_F128,
+                      POWI_PPCF128);
 }
 
 RTLIB::Libcall RTLIB::getOUTLINE_ATOMIC(unsigned Opc, AtomicOrdering Order,
@@ -791,6 +816,10 @@ void TargetLoweringBase::initActions() {
     setOperationAction(ISD::SUBC, VT, Expand);
     setOperationAction(ISD::SUBE, VT, Expand);
 
+    // Absolute difference
+    setOperationAction(ISD::ABDS, VT, Expand);
+    setOperationAction(ISD::ABDU, VT, Expand);
+
     // These default to Expand so they will be expanded to CTLZ/CTTZ by default.
     setOperationAction(ISD::CTLZ_ZERO_UNDEF, VT, Expand);
     setOperationAction(ISD::CTTZ_ZERO_UNDEF, VT, Expand);
@@ -994,8 +1023,8 @@ TargetLoweringBase::getTypeConversion(LLVMContext &Context, EVT VT) const {
     // If type is to be expanded, split the vector.
     //  <4 x i140> -> <2 x i140>
     if (LK.first == TypeExpandInteger) {
-      if (VT.getVectorElementCount() == ElementCount::getScalable(1))
-        report_fatal_error("Cannot legalize this scalable vector");
+      if (VT.getVectorElementCount().isScalable())
+        return LegalizeKind(TypeScalarizeScalableVector, EltVT);
       return LegalizeKind(TypeSplitVector,
                           VT.getHalfNumVectorElementsVT(Context));
     }
@@ -1058,7 +1087,7 @@ TargetLoweringBase::getTypeConversion(LLVMContext &Context, EVT VT) const {
   }
 
   if (VT.getVectorElementCount() == ElementCount::getScalable(1))
-    report_fatal_error("Cannot legalize this vector");
+    return LegalizeKind(TypeScalarizeScalableVector, EltVT);
 
   // Vectors with illegal element types are expanded.
   EVT NVT = EVT::getVectorVT(Context, EltVT,
@@ -1257,11 +1286,11 @@ TargetLoweringBase::findRepresentativeClass(const TargetRegisterInfo *TRI,
 /// this allows us to compute derived properties we expose.
 void TargetLoweringBase::computeRegisterProperties(
     const TargetRegisterInfo *TRI) {
-  static_assert(MVT::LAST_VALUETYPE <= MVT::MAX_ALLOWED_VALUETYPE,
+  static_assert(MVT::VALUETYPE_SIZE <= MVT::MAX_ALLOWED_VALUETYPE,
                 "Too many value types for ValueTypeActions to hold!");
 
   // Everything defaults to needing one register.
-  for (unsigned i = 0; i != MVT::LAST_VALUETYPE; ++i) {
+  for (unsigned i = 0; i != MVT::VALUETYPE_SIZE; ++i) {
     NumRegistersForVT[i] = 1;
     RegisterTypeForVT[i] = TransformToType[i] = (MVT::SimpleValueType)i;
   }
@@ -1473,7 +1502,7 @@ void TargetLoweringBase::computeRegisterProperties(
   // not a sub-register class / subreg register class) legal register class for
   // a group of value types. For example, on i386, i8, i16, and i32
   // representative would be GR32; while on x86_64 it's GR64.
-  for (unsigned i = 0; i != MVT::LAST_VALUETYPE; ++i) {
+  for (unsigned i = 0; i != MVT::VALUETYPE_SIZE; ++i) {
     const TargetRegisterClass* RRC;
     uint8_t Cost;
     std::tie(RRC, Cost) = findRepresentativeClass(TRI, (MVT::SimpleValueType)i);
@@ -1530,7 +1559,7 @@ unsigned TargetLoweringBase::getVectorTypeBreakdown(LLVMContext &Context,
 
   // Scalable vectors cannot be scalarized, so handle the legalisation of the
   // types like done elsewhere in SelectionDAG.
-  if (VT.isScalableVector() && !isPowerOf2_32(EltCnt.getKnownMinValue())) {
+  if (EltCnt.isScalable()) {
     LegalizeKind LK;
     EVT PartVT = VT;
     do {
@@ -1539,16 +1568,14 @@ unsigned TargetLoweringBase::getVectorTypeBreakdown(LLVMContext &Context,
       PartVT = LK.second;
     } while (LK.first != TypeLegal);
 
-    NumIntermediates = VT.getVectorElementCount().getKnownMinValue() /
-                       PartVT.getVectorElementCount().getKnownMinValue();
+    if (!PartVT.isVector()) {
+      report_fatal_error(
+          "Don't know how to legalize this scalable vector type");
+    }
 
-    // FIXME: This code needs to be extended to handle more complex vector
-    // breakdowns, like nxv7i64 -> nxv8i64 -> 4 x nxv2i64. Currently the only
-    // supported cases are vectors that are broken down into equal parts
-    // such as nxv6i64 -> 3 x nxv2i64.
-    assert((PartVT.getVectorElementCount() * NumIntermediates) ==
-               VT.getVectorElementCount() &&
-           "Expected an integer multiple of PartVT");
+    NumIntermediates =
+        divideCeil(VT.getVectorElementCount().getKnownMinValue(),
+                   PartVT.getVectorElementCount().getKnownMinValue());
     IntermediateVT = PartVT;
     RegisterVT = getRegisterType(Context, IntermediateVT);
     return NumIntermediates;
@@ -1631,9 +1658,9 @@ void llvm::GetReturnInfo(CallingConv::ID CC, Type *ReturnType,
     EVT VT = ValueVTs[j];
     ISD::NodeType ExtendKind = ISD::ANY_EXTEND;
 
-    if (attr.hasAttribute(AttributeList::ReturnIndex, Attribute::SExt))
+    if (attr.hasRetAttr(Attribute::SExt))
       ExtendKind = ISD::SIGN_EXTEND;
-    else if (attr.hasAttribute(AttributeList::ReturnIndex, Attribute::ZExt))
+    else if (attr.hasRetAttr(Attribute::ZExt))
       ExtendKind = ISD::ZERO_EXTEND;
 
     // FIXME: C calling convention requires the return type to be promoted to
@@ -1653,13 +1680,13 @@ void llvm::GetReturnInfo(CallingConv::ID CC, Type *ReturnType,
 
     // 'inreg' on function refers to return value
     ISD::ArgFlagsTy Flags = ISD::ArgFlagsTy();
-    if (attr.hasAttribute(AttributeList::ReturnIndex, Attribute::InReg))
+    if (attr.hasRetAttr(Attribute::InReg))
       Flags.setInReg();
 
     // Propagate extension type if any
-    if (attr.hasAttribute(AttributeList::ReturnIndex, Attribute::SExt))
+    if (attr.hasRetAttr(Attribute::SExt))
       Flags.setSExt();
-    else if (attr.hasAttribute(AttributeList::ReturnIndex, Attribute::ZExt))
+    else if (attr.hasRetAttr(Attribute::ZExt))
       Flags.setZExt();
 
     for (unsigned i = 0; i < NumParts; ++i)
@@ -1684,7 +1711,7 @@ bool TargetLoweringBase::allowsMemoryAccessForAlignment(
   // For example, the ABI alignment may change based on software platform while
   // this function should only be affected by hardware implementation.
   Type *Ty = VT.getTypeForEVT(Context);
-  if (Alignment >= DL.getABITypeAlign(Ty)) {
+  if (VT.isZeroSized() || Alignment >= DL.getABITypeAlign(Ty)) {
     // Assume that an access that meets the ABI-specified alignment is fast.
     if (Fast != nullptr)
       *Fast = true;
@@ -1723,8 +1750,9 @@ bool TargetLoweringBase::allowsMemoryAccess(LLVMContext &Context,
                                             const DataLayout &DL, LLT Ty,
                                             const MachineMemOperand &MMO,
                                             bool *Fast) const {
-  return allowsMemoryAccess(Context, DL, getMVTForLLT(Ty), MMO.getAddrSpace(),
-                            MMO.getAlign(), MMO.getFlags(), Fast);
+  EVT VT = getApproximateEVTForLLT(Ty, DL, Context);
+  return allowsMemoryAccess(Context, DL, VT, MMO.getAddrSpace(), MMO.getAlign(),
+                            MMO.getFlags(), Fast);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1823,6 +1851,9 @@ TargetLoweringBase::getTypeLegalizationCost(const DataLayout &DL,
   while (true) {
     LegalizeKind LK = getTypeConversion(C, MTy);
 
+    if (LK.first == TypeScalarizeScalableVector)
+      return std::make_pair(InstructionCost::getInvalid(), MVT::getVT(Ty));
+
     if (LK.first == TypeLegal)
       return std::make_pair(Cost, MTy.getSimpleVT());
 
@@ -1838,8 +1869,9 @@ TargetLoweringBase::getTypeLegalizationCost(const DataLayout &DL,
   }
 }
 
-Value *TargetLoweringBase::getDefaultSafeStackPointerLocation(IRBuilder<> &IRB,
-                                                              bool UseTLS) const {
+Value *
+TargetLoweringBase::getDefaultSafeStackPointerLocation(IRBuilderBase &IRB,
+                                                       bool UseTLS) const {
   // compiler-rt provides a variable with a magic name.  Targets that do not
   // link with compiler-rt may also provide such a variable.
   Module *M = IRB.GetInsertBlock()->getParent()->getParent();
@@ -1870,7 +1902,8 @@ Value *TargetLoweringBase::getDefaultSafeStackPointerLocation(IRBuilder<> &IRB,
   return UnsafeStackPtr;
 }
 
-Value *TargetLoweringBase::getSafeStackPointerLocation(IRBuilder<> &IRB) const {
+Value *
+TargetLoweringBase::getSafeStackPointerLocation(IRBuilderBase &IRB) const {
   if (!TM.getTargetTriple().isAndroid())
     return getDefaultSafeStackPointerLocation(IRB, true);
 
@@ -1930,7 +1963,7 @@ bool TargetLoweringBase::isLegalAddressingMode(const DataLayout &DL,
 
 // For OpenBSD return its special guard variable. Otherwise return nullptr,
 // so that SelectionDAG handle SSP.
-Value *TargetLoweringBase::getIRStackGuard(IRBuilder<> &IRB) const {
+Value *TargetLoweringBase::getIRStackGuard(IRBuilderBase &IRB) const {
   if (getTargetMachine().getTargetTriple().isOSOpenBSD()) {
     Module &M = *IRB.GetInsertBlock()->getParent()->getParent();
     PointerType *PtrTy = Type::getInt8PtrTy(M.getContext());
@@ -1987,6 +2020,12 @@ void TargetLoweringBase::setMaximumJumpTableSize(unsigned Val) {
 
 bool TargetLoweringBase::isJumpTableRelative() const {
   return getTargetMachine().isPositionIndependent();
+}
+
+Align TargetLoweringBase::getPrefLoopAlignment(MachineLoop *ML) const {
+  if (TM.Options.LoopAlignment)
+    return Align(TM.Options.LoopAlignment);
+  return PrefLoopAlignment;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2230,6 +2269,24 @@ TargetLoweringBase::getAtomicMemOperandFlags(const Instruction &AI,
   // FIXME: Not preserving dereferenceable
   Flags |= getTargetMMOFlags(AI);
   return Flags;
+}
+
+Instruction *TargetLoweringBase::emitLeadingFence(IRBuilderBase &Builder,
+                                                  Instruction *Inst,
+                                                  AtomicOrdering Ord) const {
+  if (isReleaseOrStronger(Ord) && Inst->hasAtomicStore())
+    return Builder.CreateFence(Ord);
+  else
+    return nullptr;
+}
+
+Instruction *TargetLoweringBase::emitTrailingFence(IRBuilderBase &Builder,
+                                                   Instruction *Inst,
+                                                   AtomicOrdering Ord) const {
+  if (isAcquireOrStronger(Ord))
+    return Builder.CreateFence(Ord);
+  else
+    return nullptr;
 }
 
 //===----------------------------------------------------------------------===//

@@ -8,10 +8,11 @@
 
 #include "MPFRUtils.h"
 
+#include "src/__support/FPUtil/FPBits.h"
+#include "src/__support/FPUtil/TestHelpers.h"
 #include "utils/CPP/StringView.h"
-#include "utils/FPUtil/FPBits.h"
-#include "utils/FPUtil/TestHelpers.h"
 
+#include <cmath>
 #include <memory>
 #include <stdint.h>
 #include <string>
@@ -61,7 +62,7 @@ class MPFRNumber {
   mpfr_t value;
 
 public:
-  MPFRNumber() : mpfrPrecision(128) { mpfr_init2(value, mpfrPrecision); }
+  MPFRNumber() : mpfrPrecision(256) { mpfr_init2(value, mpfrPrecision); }
 
   // We use explicit EnableIf specializations to disallow implicit
   // conversions. Implicit conversions can potentially lead to loss of
@@ -139,6 +140,12 @@ public:
     return result;
   }
 
+  MPFRNumber expm1() const {
+    MPFRNumber result;
+    mpfr_expm1(result.value, value, MPFR_RNDN);
+    return result;
+  }
+
   MPFRNumber floor() const {
     MPFRNumber result;
     mpfr_floor(result.value, value);
@@ -192,6 +199,33 @@ public:
   MPFRNumber rint(mpfr_rnd_t rnd) const {
     MPFRNumber result;
     mpfr_rint(result.value, value, rnd);
+    return result;
+  }
+
+  MPFRNumber mod_2pi() const {
+    MPFRNumber result(0.0, 1280);
+    MPFRNumber _2pi(0.0, 1280);
+    mpfr_const_pi(_2pi.value, MPFR_RNDN);
+    mpfr_mul_si(_2pi.value, _2pi.value, 2, MPFR_RNDN);
+    mpfr_fmod(result.value, value, _2pi.value, MPFR_RNDN);
+    return result;
+  }
+
+  MPFRNumber mod_pi_over_2() const {
+    MPFRNumber result(0.0, 1280);
+    MPFRNumber pi_over_2(0.0, 1280);
+    mpfr_const_pi(pi_over_2.value, MPFR_RNDN);
+    mpfr_mul_d(pi_over_2.value, pi_over_2.value, 0.5, MPFR_RNDN);
+    mpfr_fmod(result.value, value, pi_over_2.value, MPFR_RNDN);
+    return result;
+  }
+
+  MPFRNumber mod_pi_over_4() const {
+    MPFRNumber result(0.0, 1280);
+    MPFRNumber pi_over_4(0.0, 1280);
+    mpfr_const_pi(pi_over_4.value, MPFR_RNDN);
+    mpfr_mul_d(pi_over_4.value, pi_over_4.value, 0.25, MPFR_RNDN);
+    mpfr_fmod(result.value, value, pi_over_4.value, MPFR_RNDN);
     return result;
   }
 
@@ -250,45 +284,67 @@ public:
   // Return the ULP (units-in-the-last-place) difference between the
   // stored MPFR and a floating point number.
   //
-  // We define:
-  //   ULP(mpfr_value, value) = abs(mpfr_value - value) / eps(value)
+  // We define ULP difference as follows:
+  //   If exponents of this value and the |input| are same, then:
+  //     ULP(this_value, input) = abs(this_value - input) / eps(input)
+  //   else:
+  //     max = max(abs(this_value), abs(input))
+  //     min = min(abs(this_value), abs(input))
+  //     maxExponent = exponent(max)
+  //     ULP(this_value, input) = (max - 2^maxExponent) / eps(max) +
+  //                              (2^maxExponent - min) / eps(min)
   //
   // Remarks:
-  // 1. ULP < 0.5 will imply that the value is correctly rounded.
+  // 1. A ULP of 0.0 will imply that the value is correctly rounded.
   // 2. We expect that this value and the value to be compared (the [input]
   //    argument) are reasonable close, and we will provide an upper bound
   //    of ULP value for testing.  Morever, most of the fractional parts of
   //    ULP value do not matter much, so using double as the return type
   //    should be good enough.
+  // 3. For close enough values (values which don't diff in their exponent by
+  //    not more than 1), a ULP difference of N indicates a bit distance
+  //    of N between this number and [input].
+  // 4. A values of +0.0 and -0.0 are treated as equal.
   template <typename T>
   cpp::EnableIfType<cpp::IsFloatingPointType<T>::Value, double> ulp(T input) {
-    fputil::FPBits<T> bits(input);
-    MPFRNumber mpfrInput(input);
+    T thisAsT = as<T>();
+    if (thisAsT == input)
+      return T(0.0);
 
-    // abs(value - input)
-    mpfr_sub(mpfrInput.value, value, mpfrInput.value, MPFR_RNDN);
-    mpfr_abs(mpfrInput.value, mpfrInput.value, MPFR_RNDN);
-
-    // get eps(input)
-    int epsExponent = bits.encoding.exponent - fputil::FPBits<T>::exponentBias -
-                      fputil::MantissaWidth<T>::value;
-    if (bits.encoding.exponent == 0) {
-      // correcting denormal exponent
-      ++epsExponent;
-    } else if ((bits.encoding.mantissa == 0) && (bits.encoding.exponent > 1) &&
-               mpfr_less_p(value, mpfrInput.value)) {
-      // when the input is exactly 2^n, distance (epsilon) between the input
-      // and the next floating point number is different from the distance to
-      // the previous floating point number.  So in that case, if the correct
-      // value from MPFR is smaller than the input, we use the smaller epsilon
-      --epsExponent;
+    int thisExponent = fputil::FPBits<T>(thisAsT).getExponent();
+    int inputExponent = fputil::FPBits<T>(input).getExponent();
+    if (thisAsT * input < 0 || thisExponent == inputExponent) {
+      MPFRNumber inputMPFR(input);
+      mpfr_sub(inputMPFR.value, value, inputMPFR.value, MPFR_RNDN);
+      mpfr_abs(inputMPFR.value, inputMPFR.value, MPFR_RNDN);
+      mpfr_mul_2si(inputMPFR.value, inputMPFR.value, -thisExponent, MPFR_RNDN);
+      return inputMPFR.as<double>();
     }
 
-    // Since eps(value) is of the form 2^e, instead of dividing such number,
-    // we multiply by its inverse 2^{-e}.
-    mpfr_mul_2si(mpfrInput.value, mpfrInput.value, -epsExponent, MPFR_RNDN);
+    // If the control reaches here, it means that this number and input are
+    // of the same sign but different exponent. In such a case, ULP error is
+    // calculated as sum of two parts.
+    thisAsT = std::abs(thisAsT);
+    input = std::abs(input);
+    T min = thisAsT > input ? input : thisAsT;
+    T max = thisAsT > input ? thisAsT : input;
+    int minExponent = fputil::FPBits<T>(min).getExponent();
+    int maxExponent = fputil::FPBits<T>(max).getExponent();
 
-    return mpfrInput.as<double>();
+    MPFRNumber minMPFR(min);
+    MPFRNumber maxMPFR(max);
+
+    MPFRNumber pivot(uint32_t(1));
+    mpfr_mul_2si(pivot.value, pivot.value, maxExponent, MPFR_RNDN);
+
+    mpfr_sub(minMPFR.value, pivot.value, minMPFR.value, MPFR_RNDN);
+    mpfr_mul_2si(minMPFR.value, minMPFR.value, -minExponent, MPFR_RNDN);
+
+    mpfr_sub(maxMPFR.value, maxMPFR.value, pivot.value, MPFR_RNDN);
+    mpfr_mul_2si(maxMPFR.value, maxMPFR.value, -maxExponent, MPFR_RNDN);
+
+    mpfr_add(minMPFR.value, minMPFR.value, maxMPFR.value, MPFR_RNDN);
+    return minMPFR.as<double>();
   }
 };
 
@@ -309,8 +365,16 @@ unaryOperation(Operation op, InputType input) {
     return mpfrInput.exp();
   case Operation::Exp2:
     return mpfrInput.exp2();
+  case Operation::Expm1:
+    return mpfrInput.expm1();
   case Operation::Floor:
     return mpfrInput.floor();
+  case Operation::Mod2PI:
+    return mpfrInput.mod_2pi();
+  case Operation::ModPIOver2:
+    return mpfrInput.mod_pi_over_2();
+  case Operation::ModPIOver4:
+    return mpfrInput.mod_pi_over_4();
   case Operation::Round:
     return mpfrInput.round();
   case Operation::Sin:

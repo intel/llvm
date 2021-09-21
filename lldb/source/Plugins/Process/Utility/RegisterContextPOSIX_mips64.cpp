@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cerrno>
+#include <cstdint>
 #include <cstring>
-#include <errno.h>
-#include <stdint.h>
 
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
@@ -58,7 +58,7 @@ RegisterContextPOSIX_mips64::RegisterContextPOSIX_mips64(
                                m_registers_count[msa_registers_count]));
 }
 
-RegisterContextPOSIX_mips64::~RegisterContextPOSIX_mips64() {}
+RegisterContextPOSIX_mips64::~RegisterContextPOSIX_mips64() = default;
 
 void RegisterContextPOSIX_mips64::Invalidate() {}
 

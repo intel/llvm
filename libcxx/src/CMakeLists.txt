@@ -12,7 +12,6 @@ set(LIBCXX_SOURCES
   condition_variable.cpp
   condition_variable_destructor.cpp
   exception.cpp
-  format.cpp
   functional.cpp
   future.cpp
   hash.cpp
@@ -72,6 +71,12 @@ if (LIBCXX_ENABLE_LOCALIZATION)
     regex.cpp
     strstream.cpp
     )
+endif()
+
+if(LIBCXX_ENABLE_INCOMPLETE_FEATURES)
+  list(APPEND LIBCXX_SOURCES
+    format.cpp
+  )
 endif()
 
 if(WIN32)
@@ -198,6 +203,7 @@ if (LIBCXX_ENABLE_SHARED)
       VERSION       "${LIBCXX_ABI_VERSION}.0"
       SOVERSION     "${LIBCXX_ABI_VERSION}"
       DEFINE_SYMBOL ""
+      POSITION_INDEPENDENT_CODE ON
   )
   cxx_add_common_build_flags(cxx_shared)
   cxx_set_common_defines(cxx_shared)
@@ -272,6 +278,7 @@ if (LIBCXX_ENABLE_STATIC)
       COMPILE_FLAGS "${LIBCXX_COMPILE_FLAGS}"
       LINK_FLAGS    "${LIBCXX_LINK_FLAGS}"
       OUTPUT_NAME   "c++"
+      POSITION_INDEPENDENT_CODE ON
   )
   cxx_add_common_build_flags(cxx_static)
   cxx_set_common_defines(cxx_static)
@@ -369,21 +376,21 @@ if (LIBCXX_INSTALL_SHARED_LIBRARY)
   install(TARGETS cxx_shared
     ARCHIVE DESTINATION ${LIBCXX_INSTALL_LIBRARY_DIR} COMPONENT cxx
     LIBRARY DESTINATION ${LIBCXX_INSTALL_LIBRARY_DIR} COMPONENT cxx
-    RUNTIME DESTINATION bin COMPONENT cxx)
+    RUNTIME DESTINATION ${LIBCXX_INSTALL_RUNTIME_DIR} COMPONENT cxx)
 endif()
 
 if (LIBCXX_INSTALL_STATIC_LIBRARY)
   install(TARGETS cxx_static
     ARCHIVE DESTINATION ${LIBCXX_INSTALL_LIBRARY_DIR} COMPONENT cxx
     LIBRARY DESTINATION ${LIBCXX_INSTALL_LIBRARY_DIR} COMPONENT cxx
-    RUNTIME DESTINATION bin COMPONENT cxx)
+    RUNTIME DESTINATION ${LIBCXX_INSTALL_RUNTIME_DIR} COMPONENT cxx)
 endif()
 
 if(LIBCXX_INSTALL_EXPERIMENTAL_LIBRARY)
   install(TARGETS cxx_experimental
     LIBRARY DESTINATION ${LIBCXX_INSTALL_LIBRARY_DIR} COMPONENT cxx
     ARCHIVE DESTINATION ${LIBCXX_INSTALL_LIBRARY_DIR} COMPONENT cxx
-    RUNTIME DESTINATION bin COMPONENT cxx)
+    RUNTIME DESTINATION ${LIBCXX_INSTALL_RUNTIME_DIR} COMPONENT cxx)
 endif()
 
 # NOTE: This install command must go after the cxx install command otherwise

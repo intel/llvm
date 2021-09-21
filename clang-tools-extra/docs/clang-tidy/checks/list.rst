@@ -59,6 +59,7 @@ Clang-Tidy Checks
    `bugprone-copy-constructor-init <bugprone-copy-constructor-init.html>`_, "Yes"
    `bugprone-dangling-handle <bugprone-dangling-handle.html>`_,
    `bugprone-dynamic-static-initializers <bugprone-dynamic-static-initializers.html>`_,
+   `bugprone-easily-swappable-parameters <bugprone-easily-swappable-parameters.html>`_,
    `bugprone-exception-escape <bugprone-exception-escape.html>`_,
    `bugprone-fold-init-type <bugprone-fold-init-type.html>`_,
    `bugprone-forward-declaration-namespace <bugprone-forward-declaration-namespace.html>`_,
@@ -92,6 +93,7 @@ Clang-Tidy Checks
    `bugprone-string-literal-with-embedded-nul <bugprone-string-literal-with-embedded-nul.html>`_,
    `bugprone-suspicious-enum-usage <bugprone-suspicious-enum-usage.html>`_,
    `bugprone-suspicious-include <bugprone-suspicious-include.html>`_,
+   `bugprone-suspicious-memory-comparison <bugprone-suspicious-memory-comparison.html>`_,
    `bugprone-suspicious-memset-usage <bugprone-suspicious-memset-usage.html>`_, "Yes"
    `bugprone-suspicious-missing-comma <bugprone-suspicious-missing-comma.html>`_,
    `bugprone-suspicious-semicolon <bugprone-suspicious-semicolon.html>`_, "Yes"
@@ -116,7 +118,9 @@ Clang-Tidy Checks
    `cert-err52-cpp <cert-err52-cpp.html>`_,
    `cert-err58-cpp <cert-err58-cpp.html>`_,
    `cert-err60-cpp <cert-err60-cpp.html>`_,
+   `cert-exp42-c <cert-exp42-c.html>`_,
    `cert-flp30-c <cert-flp30-c.html>`_,
+   `cert-flp37-c <cert-flp37-c.html>`_,
    `cert-mem57-cpp <cert-mem57-cpp.html>`_,
    `cert-msc50-cpp <cert-msc50-cpp.html>`_,
    `cert-msc51-cpp <cert-msc51-cpp.html>`_,
@@ -165,6 +169,7 @@ Clang-Tidy Checks
    `cppcoreguidelines-pro-type-vararg <cppcoreguidelines-pro-type-vararg.html>`_,
    `cppcoreguidelines-slicing <cppcoreguidelines-slicing.html>`_,
    `cppcoreguidelines-special-member-functions <cppcoreguidelines-special-member-functions.html>`_,
+   `cppcoreguidelines-virtual-class-destructor <cppcoreguidelines-virtual-class-destructor.html>`_, "Yes"
    `darwin-avoid-spinlock <darwin-avoid-spinlock.html>`_,
    `darwin-dispatch-once-nonstatic <darwin-dispatch-once-nonstatic.html>`_, "Yes"
    `fuchsia-default-arguments-calls <fuchsia-default-arguments-calls.html>`_,
@@ -287,6 +292,7 @@ Clang-Tidy Checks
    `readability-else-after-return <readability-else-after-return.html>`_, "Yes"
    `readability-function-cognitive-complexity <readability-function-cognitive-complexity.html>`_,
    `readability-function-size <readability-function-size.html>`_,
+   `readability-identifier-length <readability-identifier-length.html>`_,
    `readability-identifier-naming <readability-identifier-naming.html>`_, "Yes"
    `readability-implicit-bool-conversion <readability-implicit-bool-conversion.html>`_, "Yes"
    `readability-inconsistent-declaration-parameter-name <readability-inconsistent-declaration-parameter-name.html>`_, "Yes"
@@ -312,6 +318,7 @@ Clang-Tidy Checks
    `readability-static-accessed-through-instance <readability-static-accessed-through-instance.html>`_, "Yes"
    `readability-static-definition-in-anonymous-namespace <readability-static-definition-in-anonymous-namespace.html>`_, "Yes"
    `readability-string-compare <readability-string-compare.html>`_, "Yes"
+   `readability-suspicious-call-argument <readability-suspicious-call-argument.html>`_,
    `readability-uniqueptr-delete-release <readability-uniqueptr-delete-release.html>`_, "Yes"
    `readability-uppercase-literal-suffix <readability-uppercase-literal-suffix.html>`_, "Yes"
    `readability-use-anyofallof <readability-use-anyofallof.html>`_,

@@ -162,6 +162,13 @@ MLIR_CAPI_EXPORTED MlirLocation mlirLocationFileLineColGet(
 MLIR_CAPI_EXPORTED MlirLocation mlirLocationCallSiteGet(MlirLocation callee,
                                                         MlirLocation caller);
 
+/// Creates a name location owned by the given context. Providing null location
+/// for childLoc is allowed and if childLoc is null location, then the behavior
+/// is the same as having unknown child location.
+MLIR_CAPI_EXPORTED MlirLocation mlirLocationNameGet(MlirContext context,
+                                                    MlirStringRef name,
+                                                    MlirLocation childLoc);
+
 /// Creates a location with unknown position owned by the given context.
 MLIR_CAPI_EXPORTED MlirLocation mlirLocationUnknownGet(MlirContext context);
 
@@ -447,6 +454,10 @@ MLIR_CAPI_EXPORTED void mlirRegionDestroy(MlirRegion region);
 /// Checks whether a region is null.
 static inline bool mlirRegionIsNull(MlirRegion region) { return !region.ptr; }
 
+/// Checks whether two region handles point to the same region. This does not
+/// perform deep comparison.
+MLIR_CAPI_EXPORTED bool mlirRegionEqual(MlirRegion region, MlirRegion other);
+
 /// Gets the first block in the region.
 MLIR_CAPI_EXPORTED MlirBlock mlirRegionGetFirstBlock(MlirRegion region);
 
@@ -495,6 +506,9 @@ MLIR_CAPI_EXPORTED bool mlirBlockEqual(MlirBlock block, MlirBlock other);
 
 /// Returns the closest surrounding operation that contains this block.
 MLIR_CAPI_EXPORTED MlirOperation mlirBlockGetParentOperation(MlirBlock);
+
+/// Returns the region that contains this block.
+MLIR_CAPI_EXPORTED MlirRegion mlirBlockGetParentRegion(MlirBlock block);
 
 /// Returns the block immediately following the given block in its parent
 /// region.
@@ -557,7 +571,7 @@ mlirBlockPrint(MlirBlock block, MlirStringCallback callback, void *userData);
 static inline bool mlirValueIsNull(MlirValue value) { return !value.ptr; }
 
 /// Returns 1 if two values are equal, 0 otherwise.
-bool mlirValueEqual(MlirValue value1, MlirValue value2);
+MLIR_CAPI_EXPORTED bool mlirValueEqual(MlirValue value1, MlirValue value2);
 
 /// Returns 1 if the value is a block argument, 0 otherwise.
 MLIR_CAPI_EXPORTED bool mlirValueIsABlockArgument(MlirValue value);

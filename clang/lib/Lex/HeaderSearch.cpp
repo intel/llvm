@@ -91,7 +91,7 @@ void HeaderSearch::PrintStats() {
                << FileInfo.size() << " files tracked.\n";
   unsigned NumOnceOnlyFiles = 0, MaxNumIncludes = 0, NumSingleIncludedFiles = 0;
   for (unsigned i = 0, e = FileInfo.size(); i != e; ++i) {
-    NumOnceOnlyFiles += FileInfo[i].isImport;
+    NumOnceOnlyFiles += (FileInfo[i].isPragmaOnce || FileInfo[i].isImport);
     if (MaxNumIncludes < FileInfo[i].NumIncludes)
       MaxNumIncludes = FileInfo[i].NumIncludes;
     NumSingleIncludedFiles += FileInfo[i].NumIncludes == 1;
@@ -727,7 +727,7 @@ diagnoseFrameworkInclude(DiagnosticsEngine &Diags, SourceLocation IncludeLoc,
   if (!isAngled && !FoundByHeaderMap) {
     SmallString<128> NewInclude("<");
     if (IsIncludeeInFramework) {
-      NewInclude += StringRef(ToFramework).drop_back(10); // drop .framework
+      NewInclude += ToFramework.str().drop_back(10); // drop .framework
       NewInclude += "/";
     }
     NewInclude += IncludeFilename;
@@ -1325,7 +1325,7 @@ bool HeaderSearch::ShouldEnterIncludeFile(Preprocessor &PP,
   } else {
     // Otherwise, if this is a #include of a file that was previously #import'd
     // or if this is the second #include of a #pragma once file, ignore it.
-    if (FileInfo.isImport && !TryEnterImported())
+    if ((FileInfo.isPragmaOnce || FileInfo.isImport) && !TryEnterImported())
       return false;
   }
 
@@ -1834,7 +1834,7 @@ std::string HeaderSearch::suggestPathToFileForDiagnostics(
   };
 
   for (unsigned I = 0; I != SearchDirs.size(); ++I) {
-    // FIXME: Support this search within frameworks and header maps.
+    // FIXME: Support this search within frameworks.
     if (!SearchDirs[I].isNormalDir())
       continue;
 
@@ -1848,6 +1848,19 @@ std::string HeaderSearch::suggestPathToFileForDiagnostics(
   if (!BestPrefixLength && CheckDir(path::parent_path(MainFile)) && IsSystem)
     *IsSystem = false;
 
+  // Try resolving resulting filename via reverse search in header maps,
+  // key from header name is user prefered name for the include file.
+  StringRef Filename = File.drop_front(BestPrefixLength);
+  for (unsigned I = 0; I != SearchDirs.size(); ++I) {
+    if (!SearchDirs[I].isHeaderMap())
+      continue;
 
-  return path::convert_to_slash(File.drop_front(BestPrefixLength));
+    StringRef SpelledFilename =
+        SearchDirs[I].getHeaderMap()->reverseLookupFilename(Filename);
+    if (!SpelledFilename.empty()) {
+      Filename = SpelledFilename;
+      break;
+    }
+  }
+  return path::convert_to_slash(Filename);
 }

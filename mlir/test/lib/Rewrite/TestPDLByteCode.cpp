@@ -71,13 +71,19 @@ static void customRewriter(ArrayRef<PDLValue> args, ArrayAttr constantParams,
 namespace {
 struct TestPDLByteCodePass
     : public PassWrapper<TestPDLByteCodePass, OperationPass<ModuleOp>> {
+  StringRef getArgument() const final { return "test-pdl-bytecode-pass"; }
+  StringRef getDescription() const final {
+    return "Test PDL ByteCode functionality";
+  }
   void runOnOperation() final {
     ModuleOp module = getOperation();
 
     // The test cases are encompassed via two modules, one containing the
     // patterns and one containing the operations to rewrite.
-    ModuleOp patternModule = module.lookupSymbol<ModuleOp>("patterns");
-    ModuleOp irModule = module.lookupSymbol<ModuleOp>("ir");
+    ModuleOp patternModule = module.lookupSymbol<ModuleOp>(
+        StringAttr::get(module->getContext(), "patterns"));
+    ModuleOp irModule = module.lookupSymbol<ModuleOp>(
+        StringAttr::get(module->getContext(), "ir"));
     if (!patternModule || !irModule)
       return;
 
@@ -107,9 +113,6 @@ struct TestPDLByteCodePass
 
 namespace mlir {
 namespace test {
-void registerTestPDLByteCodePass() {
-  PassRegistration<TestPDLByteCodePass>("test-pdl-bytecode-pass",
-                                        "Test PDL ByteCode functionality");
-}
+void registerTestPDLByteCodePass() { PassRegistration<TestPDLByteCodePass>(); }
 } // namespace test
 } // namespace mlir

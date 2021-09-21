@@ -23,6 +23,9 @@ using namespace llvm;
 // Hazard Recoginizer Implementation
 //===----------------------------------------------------------------------===//
 
+static bool shouldRunLdsBranchVmemWARHazardFixup(const MachineFunction &MF,
+                                                 const GCNSubtarget &ST);
+
 GCNHazardRecognizer::GCNHazardRecognizer(const MachineFunction &MF) :
   IsHazardRecognizerMode(false),
   CurrCycleInstr(nullptr),
@@ -34,6 +37,7 @@ GCNHazardRecognizer::GCNHazardRecognizer(const MachineFunction &MF) :
   ClauseDefs(TRI.getNumRegUnits()) {
   MaxLookAhead = MF.getRegInfo().isPhysRegUsed(AMDGPU::AGPR0) ? 19 : 5;
   TSchedModel.init(&ST);
+  RunLdsBranchVmemWARHazardFixup = shouldRunLdsBranchVmemWARHazardFixup(MF, ST);
 }
 
 void GCNHazardRecognizer::Reset() {
@@ -345,20 +349,16 @@ void GCNHazardRecognizer::AdvanceCycle() {
     return;
   }
 
-  // Do not track non-instructions which do not affect the wait states.
-  // If included, these instructions can lead to buffer overflow such that
-  // detectable hazards are missed.
-  if (CurrCycleInstr->isMetaInstruction()) {
-    CurrCycleInstr = nullptr;
-    return;
-  }
-
   if (CurrCycleInstr->isBundle()) {
     processBundle();
     return;
   }
 
   unsigned NumWaitStates = TII.getNumWaitStates(*CurrCycleInstr);
+  if (!NumWaitStates) {
+    CurrCycleInstr = nullptr;
+    return;
+  }
 
   // Keep track of emitted instructions
   EmittedInstrs.push_front(CurrCycleInstr);
@@ -405,7 +405,7 @@ static int getWaitStatesSince(GCNHazardRecognizer::IsHazardFn IsHazard,
     if (IsHazard(*I))
       return WaitStates;
 
-    if (I->isInlineAsm() || I->isMetaInstruction())
+    if (I->isInlineAsm())
       continue;
 
     WaitStates += SIInstrInfo::getNumWaitStates(*I);
@@ -1074,9 +1074,32 @@ bool GCNHazardRecognizer::fixVcmpxExecWARHazard(MachineInstr *MI) {
   return true;
 }
 
-bool GCNHazardRecognizer::fixLdsBranchVmemWARHazard(MachineInstr *MI) {
+static bool shouldRunLdsBranchVmemWARHazardFixup(const MachineFunction &MF,
+                                                 const GCNSubtarget &ST) {
   if (!ST.hasLdsBranchVmemWARHazard())
     return false;
+
+  // Check if the necessary condition for the hazard is met: both LDS and VMEM
+  // instructions need to appear in the same function.
+  bool HasLds = false;
+  bool HasVmem = false;
+  for (auto &MBB : MF) {
+    for (auto &MI : MBB) {
+      HasLds |= SIInstrInfo::isDS(MI);
+      HasVmem |=
+          SIInstrInfo::isVMEM(MI) || SIInstrInfo::isSegmentSpecificFLAT(MI);
+      if (HasLds && HasVmem)
+        return true;
+    }
+  }
+  return false;
+}
+
+bool GCNHazardRecognizer::fixLdsBranchVmemWARHazard(MachineInstr *MI) {
+  if (!RunLdsBranchVmemWARHazardFixup)
+    return false;
+
+  assert(ST.hasLdsBranchVmemWARHazard());
 
   auto IsHazardInst = [](const MachineInstr &MI) {
     if (SIInstrInfo::isDS(MI))

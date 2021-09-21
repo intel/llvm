@@ -47,6 +47,7 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/Store.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/ImmutableList.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
@@ -72,26 +73,7 @@ QualType CallEvent::getResultType() const {
   const Expr *E = getOriginExpr();
   if (!E)
     return Ctx.VoidTy;
-  assert(E);
-
-  QualType ResultTy = E->getType();
-
-  // A function that returns a reference to 'int' will have a result type
-  // of simply 'int'. Check the origin expr's value kind to recover the
-  // proper type.
-  switch (E->getValueKind()) {
-  case VK_LValue:
-    ResultTy = Ctx.getLValueReferenceType(ResultTy);
-    break;
-  case VK_XValue:
-    ResultTy = Ctx.getRValueReferenceType(ResultTy);
-    break;
-  case VK_RValue:
-    // No adjustment is necessary.
-    break;
-  }
-
-  return ResultTy;
+  return Ctx.getReferenceQualifiedType(E);
 }
 
 static bool isCallback(QualType T) {
@@ -466,6 +448,42 @@ bool CallEvent::isVariadic(const Decl *D) {
   llvm_unreachable("unknown callable kind");
 }
 
+static bool isTransparentUnion(QualType T) {
+  const RecordType *UT = T->getAsUnionType();
+  return UT && UT->getDecl()->hasAttr<TransparentUnionAttr>();
+}
+
+// In some cases, symbolic cases should be transformed before we associate
+// them with parameters.  This function incapsulates such cases.
+static SVal processArgument(SVal Value, const Expr *ArgumentExpr,
+                            const ParmVarDecl *Parameter, SValBuilder &SVB) {
+  QualType ParamType = Parameter->getType();
+  QualType ArgumentType = ArgumentExpr->getType();
+
+  // Transparent unions allow users to easily convert values of union field
+  // types into union-typed objects.
+  //
+  // Also, more importantly, they allow users to define functions with different
+  // different parameter types, substituting types matching transparent union
+  // field types with the union type itself.
+  //
+  // Here, we check specifically for latter cases and prevent binding
+  // field-typed values to union-typed regions.
+  if (isTransparentUnion(ParamType) &&
+      // Let's check that we indeed trying to bind different types.
+      !isTransparentUnion(ArgumentType)) {
+    BasicValueFactory &BVF = SVB.getBasicValueFactory();
+
+    llvm::ImmutableList<SVal> CompoundSVals = BVF.getEmptySValList();
+    CompoundSVals = BVF.prependSVal(Value, CompoundSVals);
+
+    // Wrap it with compound value.
+    return SVB.makeCompoundVal(ParamType, CompoundSVals);
+  }
+
+  return Value;
+}
+
 static void addParameterValuesToBindings(const StackFrameContext *CalleeCtx,
                                          CallEvent::BindingsTy &Bindings,
                                          SValBuilder &SVB,
@@ -490,10 +508,12 @@ static void addParameterValuesToBindings(const StackFrameContext *CalleeCtx,
     // determined in compile-time but not represented as arg-expressions,
     // which makes getArgSVal() fail and return UnknownVal.
     SVal ArgVal = Call.getArgSVal(Idx);
+    const Expr *ArgExpr = Call.getArgExpr(Idx);
     if (!ArgVal.isUnknown()) {
       Loc ParamLoc = SVB.makeLoc(
           MRMgr.getParamVarRegion(Call.getOriginExpr(), Idx, CalleeCtx));
-      Bindings.push_back(std::make_pair(ParamLoc, ArgVal));
+      Bindings.push_back(
+          std::make_pair(ParamLoc, processArgument(ArgVal, ArgExpr, *I, SVB)));
     }
   }
 

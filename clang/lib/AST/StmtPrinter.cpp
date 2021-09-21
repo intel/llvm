@@ -47,6 +47,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
@@ -668,6 +669,11 @@ void StmtPrinter::VisitOMPTileDirective(OMPTileDirective *Node) {
   PrintOMPExecutableDirective(Node);
 }
 
+void StmtPrinter::VisitOMPUnrollDirective(OMPUnrollDirective *Node) {
+  Indent() << "#pragma omp unroll";
+  PrintOMPExecutableDirective(Node);
+}
+
 void StmtPrinter::VisitOMPForDirective(OMPForDirective *Node) {
   Indent() << "#pragma omp for";
   PrintOMPExecutableDirective(Node);
@@ -1081,6 +1087,19 @@ void StmtPrinter::VisitObjCSubscriptRefExpr(ObjCSubscriptRefExpr *Node) {
   OS << "]";
 }
 
+void StmtPrinter::VisitSYCLUniqueStableNameExpr(
+    SYCLUniqueStableNameExpr *Node) {
+  OS << "__builtin_sycl_unique_stable_name(";
+  Node->getTypeSourceInfo()->getType().print(OS, Policy);
+  OS << ")";
+}
+
+void StmtPrinter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *Node) {
+  OS << "__builtin_sycl_unique_stable_id(";
+  PrintExpr(Node->getExpr());
+  OS << ")";
+}
+
 void StmtPrinter::VisitPredefinedExpr(PredefinedExpr *Node) {
   OS << PredefinedExpr::getIdentKindName(Node->getIdentKind());
 }
@@ -1110,7 +1129,7 @@ void StmtPrinter::VisitIntegerLiteral(IntegerLiteral *Node) {
   if (Policy.ConstantsAsWritten && printExprAsWritten(OS, Node, Context))
     return;
   bool isSigned = Node->getType()->isSignedIntegerType();
-  OS << Node->getValue().toString(10, isSigned);
+  OS << toString(Node->getValue(), 10, isSigned);
 
   // Emit suffixes.  Integer literals are always a builtin integer type.
   switch (Node->getType()->castAs<BuiltinType>()->getKind()) {
@@ -1170,6 +1189,7 @@ static void PrintFloatingLiteral(raw_ostream &OS, FloatingLiteral *Node,
   switch (Node->getType()->castAs<BuiltinType>()->getKind()) {
   default: llvm_unreachable("Unexpected type for float literal!");
   case BuiltinType::Half:       break; // FIXME: suffix?
+  case BuiltinType::Ibm128:     break; // FIXME: No suffix for ibm128 literal
   case BuiltinType::Double:     break; // no suffix.
   case BuiltinType::Float16:    OS << "F16"; break;
   case BuiltinType::Float:      OS << 'F'; break;
@@ -1780,6 +1800,34 @@ void StmtPrinter::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *Node) {
   OS << ")";
 }
 
+void StmtPrinter::VisitSYCLBuiltinNumFieldsExpr(SYCLBuiltinNumFieldsExpr *E) {
+  OS << "__builtin_num_fields(";
+  E->getSourceType().print(OS, Policy);
+  OS << ")";
+}
+
+void StmtPrinter::VisitSYCLBuiltinFieldTypeExpr(SYCLBuiltinFieldTypeExpr *E) {
+  OS << "__builtin_field_type(";
+  E->getSourceType().print(OS, Policy);
+  OS << ", ";
+  PrintExpr(E->getIndex());
+  OS << ")";
+}
+
+void StmtPrinter::VisitSYCLBuiltinNumBasesExpr(SYCLBuiltinNumBasesExpr *E) {
+  OS << "__builtin_num_bases(";
+  E->getSourceType().print(OS, Policy);
+  OS << ")";
+}
+
+void StmtPrinter::VisitSYCLBuiltinBaseTypeExpr(SYCLBuiltinBaseTypeExpr *E) {
+  OS << "__builtin_base_type(";
+  E->getSourceType().print(OS, Policy);
+  OS << ", ";
+  PrintExpr(E->getIndex());
+  OS << ")";
+}
+
 void StmtPrinter::VisitCXXAddrspaceCastExpr(CXXAddrspaceCastExpr *Node) {
   VisitCXXNamedCastExpr(Node);
 }
@@ -1855,7 +1903,7 @@ void StmtPrinter::VisitUserDefinedLiteral(UserDefinedLiteral *Node) {
   case UserDefinedLiteral::LOK_Integer: {
     // Print integer literal without suffix.
     const auto *Int = cast<IntegerLiteral>(Node->getCookedLiteral());
-    OS << Int->getValue().toString(10, /*isSigned*/false);
+    OS << toString(Int->getValue(), 10, /*isSigned*/false);
     break;
   }
   case UserDefinedLiteral::LOK_Floating: {

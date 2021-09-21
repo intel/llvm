@@ -12,7 +12,7 @@
 ; that we can use gather instructions with the correct offsets, taking
 ; vscale into account.
 
-define void @widen_ptr_phi_unrolled(i32* noalias nocapture %a, i32* noalias nocapture %b, i32* nocapture readonly %c, i64 %n) {
+define void @widen_ptr_phi_unrolled(i32* noalias nocapture %a, i32* noalias nocapture %b, i32* nocapture readonly %c, i64 %n) #0 {
 ; CHECK-LABEL: @widen_ptr_phi_unrolled(
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[POINTER_PHI:%.*]] = phi i32* [ %c, %vector.ph ], [ %[[PTR_IND:.*]], %vector.body ]
@@ -20,13 +20,13 @@ define void @widen_ptr_phi_unrolled(i32* noalias nocapture %a, i32* noalias noca
 ; CHECK-NEXT:    [[TMP6:%.*]] = shl i64 [[TMP5]], 2
 ; CHECK-NEXT:    [[TMP7:%.*]] = shl i64 [[TMP5]], 4
 ; CHECK-NEXT:    [[TMP8:%.*]] = call <vscale x 4 x i64> @llvm.experimental.stepvector.nxv4i64()
-; CHECK-NEXT:    [[VECTOR_GEP:%.*]] = shl <vscale x 4 x i64> [[TMP8]], shufflevector (<vscale x 4 x i64> insertelement (<vscale x 4 x i64> undef, i64 1, i32 0), <vscale x 4 x i64> undef, <vscale x 4 x i32> zeroinitializer)
+; CHECK-NEXT:    [[VECTOR_GEP:%.*]] = shl <vscale x 4 x i64> [[TMP8]], shufflevector (<vscale x 4 x i64> insertelement (<vscale x 4 x i64> poison, i64 1, i32 0), <vscale x 4 x i64> poison, <vscale x 4 x i32> zeroinitializer)
 ; CHECK-NEXT:    [[TMP9:%.*]] = getelementptr i32, i32* [[POINTER_PHI]], <vscale x 4 x i64> [[VECTOR_GEP]]
 ; CHECK-NEXT:    [[DOTSPLATINSERT2:%.*]] = insertelement <vscale x 4 x i64> poison, i64 [[TMP6]], i32 0
 ; CHECK-NEXT:    [[DOTSPLAT3:%.*]] = shufflevector <vscale x 4 x i64> [[DOTSPLATINSERT2]], <vscale x 4 x i64> poison, <vscale x 4 x i32> zeroinitializer
 ; CHECK-NEXT:    [[TMP10:%.*]] = call <vscale x 4 x i64> @llvm.experimental.stepvector.nxv4i64()
 ; CHECK-NEXT:    [[TMP11:%.*]] = add <vscale x 4 x i64> [[DOTSPLAT3]], [[TMP10]]
-; CHECK-NEXT:    [[VECTOR_GEP4:%.*]] = shl <vscale x 4 x i64> [[TMP11]], shufflevector (<vscale x 4 x i64> insertelement (<vscale x 4 x i64> undef, i64 1, i32 0), <vscale x 4 x i64> undef, <vscale x 4 x i32> zeroinitializer)
+; CHECK-NEXT:    [[VECTOR_GEP4:%.*]] = shl <vscale x 4 x i64> [[TMP11]], shufflevector (<vscale x 4 x i64> insertelement (<vscale x 4 x i64> poison, i64 1, i32 0), <vscale x 4 x i64> poison, <vscale x 4 x i32> zeroinitializer)
 ; CHECK-NEXT:    [[TMP12:%.*]] = getelementptr i32, i32* [[POINTER_PHI]], <vscale x 4 x i64> [[VECTOR_GEP4]]
 ; CHECK-NEXT:    [[TMP13:%.*]] = getelementptr inbounds i32, <vscale x 4 x i32*> [[TMP9]], i64 1
 ; CHECK-NEXT:    [[TMP14:%.*]] = getelementptr inbounds i32, <vscale x 4 x i32*> [[TMP12]], i64 1
@@ -122,7 +122,7 @@ for.cond.cleanup:                                 ; preds = %for.body
 ; because it is stored to memory.
 ;
 
-define i32 @pointer_iv_mixed(i32* noalias %a, i32** noalias %b, i64 %n) {
+define i32 @pointer_iv_mixed(i32* noalias %a, i32** noalias %b, i64 %n) #0 {
 ; CHECK-LABEL: @pointer_iv_mixed(
 ; CHECK:     vector.body
 ; CHECK:       %[[IDX:.*]] = phi i64 [ 0, %vector.ph ], [ %{{.*}}, %vector.body ]
@@ -131,6 +131,7 @@ define i32 @pointer_iv_mixed(i32* noalias %a, i32** noalias %b, i64 %n) {
 ; CHECK-NEXT:  %[[TMP2:.*]] = shufflevector <vscale x 2 x i64> %[[TMP1]], <vscale x 2 x i64> poison, <vscale x 2 x i32> zeroinitializer
 ; CHECK-NEXT:  %[[VECIND1:.*]] = add <vscale x 2 x i64> %[[TMP2]], %[[STEPVEC]]
 ; CHECK-NEXT:  %[[APTRS1:.*]] = getelementptr i32, i32* %a, <vscale x 2 x i64> %[[VECIND1]]
+; CHECK-NEXT:  %[[GEPA1:.*]] = getelementptr i32, i32* %a, i64 %[[IDX]]
 ; CHECK-NEXT:  %[[VSCALE64:.*]] = call i64 @llvm.vscale.i64()
 ; CHECK-NEXT:  %[[VSCALE64X2:.*]] = shl i64 %[[VSCALE64]], 1
 ; CHECK-NEXT:  %[[TMP3:.*]] = insertelement <vscale x 2 x i64> poison, i64 %[[VSCALE64X2]], i32 0
@@ -139,6 +140,10 @@ define i32 @pointer_iv_mixed(i32* noalias %a, i32** noalias %b, i64 %n) {
 ; CHECK-NEXT:  %[[VECIND2:.*]] = add <vscale x 2 x i64> %[[TMP2]], %[[TMP5]]
 ; CHECK-NEXT:  %[[APTRS2:.*]] = getelementptr i32, i32* %a, <vscale x 2 x i64> %[[VECIND2]]
 ; CHECK-NEXT:  %[[GEPB1:.*]] = getelementptr i32*, i32** %b, i64 %[[IDX]]
+; The following checks that there is no extractelement after
+; vectorization when the stepvector has multiple uses, which demonstrates
+; the removal of a redundant fmov instruction in the generated asm code.
+; CHECK-NOT:   %[[EXTRACT:.*]] = extractelement <vscale x 2 x i32*> [[APTRS1]], i32 0
 ; CHECK:       %[[BPTR1:.*]] = bitcast i32** %[[GEPB1]] to <vscale x 2 x i32*>*
 ; CHECK-NEXT:  store <vscale x 2 x i32*> %[[APTRS1]], <vscale x 2 x i32*>* %[[BPTR1]], align 8
 ; CHECK:       %[[VSCALE32:.*]] = call i32 @llvm.vscale.i32()
@@ -170,7 +175,7 @@ for.end:
   ret i32 %tmp5
 }
 
-
+attributes #0 = { vscale_range(0, 16) }
 !0 = distinct !{!0, !1, !2, !3, !4, !5}
 !1 = !{!"llvm.loop.mustprogress"}
 !2 = !{!"llvm.loop.vectorize.width", i32 4}

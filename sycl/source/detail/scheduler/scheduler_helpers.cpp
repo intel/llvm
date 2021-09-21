@@ -35,7 +35,7 @@ void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {
 
   // Real size of full flush buffer is saved only in buffer_impl field of
   // FlushBuf object.
-  size_t FlushBufSize = getSyclObjImpl(StrBufs->FlushBuf)->get_count();
+  size_t FlushBufSize = getSyclObjImpl(StrBufs->FlushBuf)->size();
 
   auto Q = createSyclObjFromImpl<queue>(Queue);
   Q.submit([&](handler &cgh) {
@@ -43,7 +43,7 @@ void initStream(StreamImplPtr Stream, QueueImplPtr Queue) {
         StrBufs->FlushBuf.get_access<access::mode::discard_write,
                                      access::target::host_buffer>(
             cgh, range<1>(FlushBufSize), id<1>(0));
-    cgh.codeplay_host_task([=] {
+    cgh.host_task([=] {
       char *FlushBufPtr = FlushBufAcc.get_pointer();
       std::memset(FlushBufPtr, 0, FlushBufAcc.get_size());
     });

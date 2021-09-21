@@ -37,6 +37,62 @@ private:
   operator=(const ScriptInterpreterLocker &) = delete;
 };
 
+class ExecuteScriptOptions {
+public:
+  ExecuteScriptOptions() = default;
+
+  bool GetEnableIO() const { return m_enable_io; }
+
+  bool GetSetLLDBGlobals() const { return m_set_lldb_globals; }
+
+  // If this is true then any exceptions raised by the script will be
+  // cleared with PyErr_Clear().   If false then they will be left for
+  // the caller to clean up
+  bool GetMaskoutErrors() const { return m_maskout_errors; }
+
+  ExecuteScriptOptions &SetEnableIO(bool enable) {
+    m_enable_io = enable;
+    return *this;
+  }
+
+  ExecuteScriptOptions &SetSetLLDBGlobals(bool set) {
+    m_set_lldb_globals = set;
+    return *this;
+  }
+
+  ExecuteScriptOptions &SetMaskoutErrors(bool maskout) {
+    m_maskout_errors = maskout;
+    return *this;
+  }
+
+private:
+  bool m_enable_io = true;
+  bool m_set_lldb_globals = true;
+  bool m_maskout_errors = true;
+};
+
+class LoadScriptOptions {
+public:
+  LoadScriptOptions() = default;
+
+  bool GetInitSession() const { return m_init_session; }
+  bool GetSilent() const { return m_silent; }
+
+  LoadScriptOptions &SetInitSession(bool b) {
+    m_init_session = b;
+    return *this;
+  }
+
+  LoadScriptOptions &SetSilent(bool b) {
+    m_silent = b;
+    return *this;
+  }
+
+private:
+  bool m_init_session = false;
+  bool m_silent = false;
+};
+
 class ScriptInterpreterIORedirect {
 public:
   /// Create an IO redirect. If IO is enabled, this will redirects the output
@@ -88,44 +144,10 @@ public:
 
   ScriptInterpreter(
       Debugger &debugger, lldb::ScriptLanguage script_lang,
-      lldb::ScriptedProcessInterfaceUP scripted_process_interface_up = {});
+      lldb::ScriptedProcessInterfaceUP scripted_process_interface_up =
+          std::make_unique<ScriptedProcessInterface>());
 
   ~ScriptInterpreter() override = default;
-
-  struct ExecuteScriptOptions {
-  public:
-    ExecuteScriptOptions()
-        : m_enable_io(true), m_set_lldb_globals(true), m_maskout_errors(true) {}
-
-    bool GetEnableIO() const { return m_enable_io; }
-
-    bool GetSetLLDBGlobals() const { return m_set_lldb_globals; }
-
-    // If this is true then any exceptions raised by the script will be
-    // cleared with PyErr_Clear().   If false then they will be left for
-    // the caller to clean up
-    bool GetMaskoutErrors() const { return m_maskout_errors; }
-
-    ExecuteScriptOptions &SetEnableIO(bool enable) {
-      m_enable_io = enable;
-      return *this;
-    }
-
-    ExecuteScriptOptions &SetSetLLDBGlobals(bool set) {
-      m_set_lldb_globals = set;
-      return *this;
-    }
-
-    ExecuteScriptOptions &SetMaskoutErrors(bool maskout) {
-      m_maskout_errors = maskout;
-      return *this;
-    }
-
-  private:
-    bool m_enable_io;
-    bool m_set_lldb_globals;
-    bool m_maskout_errors;
-  };
 
   virtual bool Interrupt() { return false; }
 
@@ -339,18 +361,19 @@ public:
   }
 
   virtual void CollectDataForBreakpointCommandCallback(
-      std::vector<BreakpointOptions *> &options, CommandReturnObject &result);
+      std::vector<std::reference_wrapper<BreakpointOptions>> &options,
+      CommandReturnObject &result);
 
   virtual void
   CollectDataForWatchpointCommandCallback(WatchpointOptions *wp_options,
                                           CommandReturnObject &result);
 
   /// Set the specified text as the callback for the breakpoint.
-  Status
-  SetBreakpointCommandCallback(std::vector<BreakpointOptions *> &bp_options_vec,
-                               const char *callback_text);
+  Status SetBreakpointCommandCallback(
+      std::vector<std::reference_wrapper<BreakpointOptions>> &bp_options_vec,
+      const char *callback_text);
 
-  virtual Status SetBreakpointCommandCallback(BreakpointOptions *bp_options,
+  virtual Status SetBreakpointCommandCallback(BreakpointOptions &bp_options,
                                               const char *callback_text) {
     Status error;
     error.SetErrorString("unimplemented");
@@ -359,7 +382,7 @@ public:
 
   /// This one is for deserialization:
   virtual Status SetBreakpointCommandCallback(
-      BreakpointOptions *bp_options,
+      BreakpointOptions &bp_options,
       std::unique_ptr<BreakpointOptions::CommandData> &data_up) {
     Status error;
     error.SetErrorString("unimplemented");
@@ -367,15 +390,14 @@ public:
   }
 
   Status SetBreakpointCommandCallbackFunction(
-      std::vector<BreakpointOptions *> &bp_options_vec,
+      std::vector<std::reference_wrapper<BreakpointOptions>> &bp_options_vec,
       const char *function_name, StructuredData::ObjectSP extra_args_sp);
 
   /// Set a script function as the callback for the breakpoint.
   virtual Status
-  SetBreakpointCommandCallbackFunction(
-      BreakpointOptions *bp_options,
-      const char *function_name,
-      StructuredData::ObjectSP extra_args_sp) {
+  SetBreakpointCommandCallbackFunction(BreakpointOptions &bp_options,
+                                       const char *function_name,
+                                       StructuredData::ObjectSP extra_args_sp) {
     Status error;
     error.SetErrorString("unimplemented");
     return error;
@@ -510,7 +532,7 @@ public:
   virtual bool CheckObjectExists(const char *name) { return false; }
 
   virtual bool
-  LoadScriptingModule(const char *filename, bool init_session,
+  LoadScriptingModule(const char *filename, const LoadScriptOptions &options,
                       lldb_private::Status &error,
                       StructuredData::ObjectSP *module_sp = nullptr,
                       FileSpec extra_search_dir = {});

@@ -55,7 +55,7 @@ static bool ShrinkDemandedConstant(Instruction *I, unsigned OpNo,
 bool InstCombinerImpl::SimplifyDemandedInstructionBits(Instruction &Inst) {
   unsigned BitWidth = Inst.getType()->getScalarSizeInBits();
   KnownBits Known(BitWidth);
-  APInt DemandedMask(APInt::getAllOnesValue(BitWidth));
+  APInt DemandedMask(APInt::getAllOnes(BitWidth));
 
   Value *V = SimplifyDemandedUseBits(&Inst, DemandedMask, Known,
                                      0, &Inst);
@@ -743,7 +743,7 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
   }
   case Instruction::URem: {
     KnownBits Known2(BitWidth);
-    APInt AllOnes = APInt::getAllOnesValue(BitWidth);
+    APInt AllOnes = APInt::getAllOnes(BitWidth);
     if (SimplifyDemandedBits(I, 0, AllOnes, Known2, Depth + 1) ||
         SimplifyDemandedBits(I, 1, AllOnes, Known2, Depth + 1))
       return I;
@@ -827,6 +827,29 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
         Known.One = LHSKnown.One.shl(ShiftAmt) |
                     RHSKnown.One.lshr(BitWidth - ShiftAmt);
         KnownBitsComputed = true;
+        break;
+      }
+      case Intrinsic::umax: {
+        // UMax(A, C) == A if ...
+        // The lowest non-zero bit of DemandMask is higher than the highest
+        // non-zero bit of C.
+        const APInt *C;
+        unsigned CTZ = DemandedMask.countTrailingZeros();
+        if (match(II->getArgOperand(1), m_APInt(C)) &&
+            CTZ >= C->getActiveBits())
+          return II->getArgOperand(0);
+        break;
+      }
+      case Intrinsic::umin: {
+        // UMin(A, C) == A if ...
+        // The lowest non-zero bit of DemandMask is higher than the highest
+        // non-one bit of C.
+        // This comes from using DeMorgans on the above umax example.
+        const APInt *C;
+        unsigned CTZ = DemandedMask.countTrailingZeros();
+        if (match(II->getArgOperand(1), m_APInt(C)) &&
+            CTZ >= C->getBitWidth() - C->countLeadingOnes())
+          return II->getArgOperand(0);
         break;
       }
       default: {
@@ -1021,8 +1044,8 @@ Value *InstCombinerImpl::simplifyShrShlDemandedBits(
   Known.Zero.setLowBits(ShlAmt - 1);
   Known.Zero &= DemandedMask;
 
-  APInt BitMask1(APInt::getAllOnesValue(BitWidth));
-  APInt BitMask2(APInt::getAllOnesValue(BitWidth));
+  APInt BitMask1(APInt::getAllOnes(BitWidth));
+  APInt BitMask2(APInt::getAllOnes(BitWidth));
 
   bool isLshr = (Shr->getOpcode() == Instruction::LShr);
   BitMask1 = isLshr ? (BitMask1.lshr(ShrAmt) << ShlAmt) :
@@ -1088,7 +1111,7 @@ Value *InstCombinerImpl::SimplifyDemandedVectorElts(Value *V,
     return nullptr;
 
   unsigned VWidth = cast<FixedVectorType>(V->getType())->getNumElements();
-  APInt EltMask(APInt::getAllOnesValue(VWidth));
+  APInt EltMask(APInt::getAllOnes(VWidth));
   assert((DemandedElts & ~EltMask) == 0 && "Invalid DemandedElts!");
 
   if (match(V, m_Undef())) {
@@ -1262,7 +1285,7 @@ Value *InstCombinerImpl::SimplifyDemandedVectorElts(Value *V,
     if (all_of(Shuffle->getShuffleMask(), [](int Elt) { return Elt == 0; }) &&
         DemandedElts.isAllOnesValue()) {
       if (!match(I->getOperand(1), m_Undef())) {
-        I->setOperand(1, UndefValue::get(I->getOperand(1)->getType()));
+        I->setOperand(1, PoisonValue::get(I->getOperand(1)->getType()));
         MadeChange = true;
       }
       APInt LeftDemanded(OpWidth, 1);
@@ -1515,8 +1538,8 @@ Value *InstCombinerImpl::SimplifyDemandedVectorElts(Value *V,
       // Subtlety: If we load from a pointer, the pointer must be valid
       // regardless of whether the element is demanded.  Doing otherwise risks
       // segfaults which didn't exist in the original program.
-      APInt DemandedPtrs(APInt::getAllOnesValue(VWidth)),
-        DemandedPassThrough(DemandedElts);
+      APInt DemandedPtrs(APInt::getAllOnes(VWidth)),
+          DemandedPassThrough(DemandedElts);
       if (auto *CV = dyn_cast<ConstantVector>(II->getOperand(2)))
         for (unsigned i = 0; i < VWidth; i++) {
           Constant *CElt = CV->getAggregateElement(i);

@@ -154,7 +154,7 @@ public:
   SPIRVDecorate() : SPIRVDecorateGeneric(OC) {}
 
   llvm::Optional<ExtensionID> getRequiredExtension() const override {
-    switch (Dec) {
+    switch (static_cast<size_t>(Dec)) {
     case DecorationNoSignedWrap:
     case DecorationNoUnsignedWrap:
       return ExtensionID::SPV_KHR_no_integer_wrap_decoration;
@@ -190,8 +190,18 @@ public:
       return ExtensionID::SPV_INTEL_fpga_cluster_attributes;
     case DecorationFuseLoopsInFunctionINTEL:
       return ExtensionID::SPV_INTEL_loop_fuse;
-    case DecorationCallableFunctionINTEL:
+    case internal::DecorationCallableFunctionINTEL:
       return ExtensionID::SPV_INTEL_fast_composite;
+    case internal::DecorationMathOpDSPModeINTEL:
+      return ExtensionID::SPV_INTEL_fpga_dsp_control;
+    case internal::DecorationInitiationIntervalINTEL:
+      return ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes;
+    case internal::DecorationMaxConcurrencyINTEL:
+      return ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes;
+    case internal::DecorationPipelineEnableINTEL:
+      return ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes;
+    case internal::DecorationRuntimeAlignedINTEL:
+      return ExtensionID::SPV_INTEL_runtime_aligned;
     default:
       return {};
     }
@@ -308,7 +318,7 @@ public:
       : SPIRVDecorateGeneric(OC), MemberNumber(SPIRVWORD_MAX) {}
 
   llvm::Optional<ExtensionID> getRequiredExtension() const override {
-    switch (Dec) {
+    switch (static_cast<size_t>(Dec)) {
     case DecorationRegisterINTEL:
     case DecorationMemoryINTEL:
     case DecorationNumbanksINTEL:
@@ -331,6 +341,8 @@ public:
       return ExtensionID::SPV_INTEL_io_pipes;
     case DecorationBufferLocationINTEL:
       return ExtensionID::SPV_INTEL_fpga_buffer_location;
+    case internal::DecorationRuntimeAlignedINTEL:
+      return ExtensionID::SPV_INTEL_runtime_aligned;
     default:
       return {};
     }
@@ -488,7 +500,7 @@ public:
 };
 
 class SPIRVDecorateFuncParamDescAttr
-    : public SPIRVDecorateStrAttrBase<DecorationFuncParamDescINTEL> {
+    : public SPIRVDecorateStrAttrBase<internal::DecorationFuncParamDescINTEL> {
 public:
   //  Complete constructor for UserSemantic decoration
   SPIRVDecorateFuncParamDescAttr(SPIRVEntry *TheTarget,
@@ -675,6 +687,15 @@ public:
                       Independent){};
 };
 
+class SPIRVDecorateMathOpDSPModeINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVDecorateMathOpDSPModeINTEL
+  SPIRVDecorateMathOpDSPModeINTEL(SPIRVEntry *TheTarget, SPIRVWord Mode,
+                                  SPIRVWord Propagate)
+      : SPIRVDecorate(spv::internal::DecorationMathOpDSPModeINTEL, TheTarget,
+                      Mode, Propagate){};
+};
+
 class SPIRVDecorateAliasScopeINTEL : public SPIRVDecorateId {
 public:
   // Complete constructor for SPIRVDecorateAliasScopeINTEL
@@ -689,6 +710,30 @@ public:
   SPIRVDecorateNoAliasINTEL(SPIRVEntry *TheTarget, SPIRVId AliasList)
       : SPIRVDecorateId(spv::internal::DecorationNoAliasINTEL, TheTarget,
                         AliasList){};
+};
+
+class SPIRVDecorateInitiationIntervalINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVDecorateInitiationIntervalINTEL
+  SPIRVDecorateInitiationIntervalINTEL(SPIRVEntry *TheTarget, SPIRVWord Cycles)
+      : SPIRVDecorate(spv::internal::DecorationInitiationIntervalINTEL,
+                      TheTarget, Cycles){};
+};
+
+class SPIRVDecorateMaxConcurrencyINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVDecorateMaxConcurrencyINTEL
+  SPIRVDecorateMaxConcurrencyINTEL(SPIRVEntry *TheTarget, SPIRVWord Invocations)
+      : SPIRVDecorate(spv::internal::DecorationMaxConcurrencyINTEL, TheTarget,
+                      Invocations){};
+};
+
+class SPIRVDecoratePipelineEnableINTEL : public SPIRVDecorate {
+public:
+  // Complete constructor for SPIRVDecoratePipelineEnableINTEL
+  SPIRVDecoratePipelineEnableINTEL(SPIRVEntry *TheTarget, SPIRVWord Enable)
+      : SPIRVDecorate(spv::internal::DecorationPipelineEnableINTEL, TheTarget,
+                      Enable){};
 };
 
 } // namespace SPIRV

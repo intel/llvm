@@ -1,9 +1,8 @@
 //===------------- JITLink.cpp - Core Run-time JIT linker APIs ------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -264,7 +263,10 @@ void LinkGraph::dump(raw_ostream &OS) {
       OS << "  block " << formatv("{0:x16}", B->getAddress())
          << " size = " << formatv("{0:x8}", B->getSize())
          << ", align = " << B->getAlignment()
-         << ", alignment-offset = " << B->getAlignmentOffset() << "\n";
+         << ", alignment-offset = " << B->getAlignmentOffset();
+      if (B->isZeroFill())
+        OS << ", zero-fill";
+      OS << "\n";
 
       auto BlockSymsI = BlockSymbols.find(B);
       if (BlockSymsI != BlockSymbols.end()) {

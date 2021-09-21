@@ -32,7 +32,7 @@ struct isl_iterator
   using ElementT = list_element_type<ListT>;
 
   explicit isl_iterator(const ListT &List)
-      : List(&List), Position(std::max(List.size(), 0)) {}
+      : List(&List), Position(std::max(List.size().release(), 0)) {}
   isl_iterator(const ListT &List, int Position)
       : List(&List), Position(Position) {}
 
@@ -167,6 +167,19 @@ isl_size getNumScatterDims(const isl::union_map &Schedule);
 /// This is basically the range space of the schedule map, but harder to
 /// determine because it is an isl_union_map.
 isl::space getScatterSpace(const isl::union_map &Schedule);
+
+/// Construct an identity map for the given domain values.
+///
+/// @param USet           { Space[] }
+///                       The returned map's domain and range.
+/// @param RestrictDomain If true, the returned map only maps elements contained
+///                       in @p Set and no other. If false, it returns an
+///                       overapproximation with the identity maps of any space
+///                       in @p Set, not just the elements in it.
+///
+/// @return { Space[] -> Space[] }
+///         A map that maps each value of @p Set to itself.
+isl::map makeIdentityMap(const isl::set &Set, bool RestrictDomain);
 
 /// Construct an identity map for the given domain values.
 ///

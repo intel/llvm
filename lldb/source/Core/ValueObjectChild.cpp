@@ -21,8 +21,8 @@
 #include <memory>
 #include <vector>
 
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 
 using namespace lldb_private;
 
@@ -43,7 +43,7 @@ ValueObjectChild::ValueObjectChild(
   SetLanguageFlags(language_flags);
 }
 
-ValueObjectChild::~ValueObjectChild() {}
+ValueObjectChild::~ValueObjectChild() = default;
 
 lldb::ValueType ValueObjectChild::GetValueType() const {
   return m_parent->GetValueType();

@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -pass-pipeline='func(canonicalize)' -split-input-file -allow-unregistered-dialect | FileCheck %s
+// RUN: mlir-opt %s -pass-pipeline='builtin.func(canonicalize)' -split-input-file -allow-unregistered-dialect | FileCheck %s
 
 // -----
 
@@ -234,10 +234,10 @@ func @transpose_3D_sequence(%arg : vector<4x3x2xf32>) -> vector<4x3x2xf32> {
   // CHECK: [[T0:%.*]] = vector.transpose [[ARG]], [2, 1, 0]
   %0 = vector.transpose %arg, [1, 2, 0] : vector<4x3x2xf32> to vector<3x2x4xf32>
   %1 = vector.transpose %0, [1, 0, 2] : vector<3x2x4xf32> to vector<2x3x4xf32>
-  // CHECK-NOT: transpose
+  // CHECK: [[T1:%.*]] = vector.transpose %arg0, [2, 1, 0]
   %2 = vector.transpose %1, [2, 1, 0] : vector<2x3x4xf32> to vector<4x3x2xf32>
   %3 = vector.transpose %2, [2, 1, 0] : vector<4x3x2xf32> to vector<2x3x4xf32>
-  // CHECK: [[MUL:%.*]] = mulf [[T0]], [[T0]]
+  // CHECK: [[MUL:%.*]] = mulf [[T0]], [[T1]]
   %4 = mulf %1, %3 : vector<2x3x4xf32>
   // CHECK: [[T5:%.*]] = vector.transpose [[MUL]], [2, 1, 0]
   %5 = vector.transpose %4, [2, 1, 0] : vector<2x3x4xf32> to vector<4x3x2xf32>
@@ -607,6 +607,18 @@ func @broadcast_folding1() -> vector<4xi32> {
 func @broadcast_folding2() -> vector<4x16xi32> {
   %0 = constant 42 : i32
   %1 = vector.broadcast %0 : i32 to vector<16xi32>
+  %2 = vector.broadcast %1 : vector<16xi32> to vector<4x16xi32>
+  return %2 : vector<4x16xi32>
+}
+
+// -----
+
+// CHECK-LABEL: @fold_consecutive_broadcasts(
+//  CHECK-SAME:                              %[[ARG0:.*]]: i32
+//       CHECK: %[[RESULT:.*]] = vector.broadcast %[[ARG0]] : i32 to vector<4x16xi32>
+//       CHECK: return %[[RESULT]]
+func @fold_consecutive_broadcasts(%a : i32) -> vector<4x16xi32> {
+  %1 = vector.broadcast %a : i32 to vector<16xi32>
   %2 = vector.broadcast %1 : vector<16xi32> to vector<4x16xi32>
   return %2 : vector<4x16xi32>
 }

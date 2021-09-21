@@ -124,10 +124,6 @@ INSTANTIATE_TEST_SUITE_P(
         ARMCPUTestParams("invalid", "invalid", "invalid", ARM::AEK_NONE, ""),
         ARMCPUTestParams("generic", "invalid", "none", ARM::AEK_NONE, ""),
 
-        ARMCPUTestParams("arm2", "armv2", "none", ARM::AEK_NONE, "2"),
-        ARMCPUTestParams("arm3", "armv2a", "none", ARM::AEK_NONE, "2A"),
-        ARMCPUTestParams("arm6", "armv3", "none", ARM::AEK_NONE, "3"),
-        ARMCPUTestParams("arm7m", "armv3m", "none", ARM::AEK_NONE, "3M"),
         ARMCPUTestParams("arm8", "armv4", "none", ARM::AEK_NONE, "4"),
         ARMCPUTestParams("arm810", "armv4", "none", ARM::AEK_NONE, "4"),
         ARMCPUTestParams("strongarm", "armv4", "none", ARM::AEK_NONE, "4"),
@@ -143,7 +139,6 @@ INSTANTIATE_TEST_SUITE_P(
         ARMCPUTestParams("arm920", "armv4t", "none", ARM::AEK_NONE, "4T"),
         ARMCPUTestParams("arm920t", "armv4t", "none", ARM::AEK_NONE, "4T"),
         ARMCPUTestParams("arm922t", "armv4t", "none", ARM::AEK_NONE, "4T"),
-        ARMCPUTestParams("arm9312", "armv4t", "none", ARM::AEK_NONE, "4T"),
         ARMCPUTestParams("arm940t", "armv4t", "none", ARM::AEK_NONE, "4T"),
         ARMCPUTestParams("ep9312", "armv4t", "none", ARM::AEK_NONE, "4T"),
         ARMCPUTestParams("arm10tdmi", "armv5t", "none", ARM::AEK_NONE, "5T"),
@@ -167,8 +162,6 @@ INSTANTIATE_TEST_SUITE_P(
         ARMCPUTestParams("arm1136j-s", "armv6", "none",
                          ARM::AEK_NONE | ARM::AEK_DSP, "6"),
         ARMCPUTestParams("arm1136jf-s", "armv6", "vfpv2",
-                         ARM::AEK_NONE | ARM::AEK_DSP, "6"),
-        ARMCPUTestParams("arm1136jz-s", "armv6", "none",
                          ARM::AEK_NONE | ARM::AEK_DSP, "6"),
         ARMCPUTestParams("arm1176jz-s", "armv6kz", "none",
                          ARM::AEK_NONE | ARM::AEK_SEC | ARM::AEK_DSP, "6KZ"),
@@ -391,7 +384,7 @@ INSTANTIATE_TEST_SUITE_P(
                          ARM::AEK_HWDIVARM | ARM::AEK_HWDIVTHUMB | ARM::AEK_DSP,
                          "7-S")));
 
-static constexpr unsigned NumARMCPUArchs = 92;
+static constexpr unsigned NumARMCPUArchs = 86;
 
 TEST(TargetParserTest, testARMCPUArchList) {
   SmallVector<StringRef, NumARMCPUArchs> List;
@@ -423,17 +416,13 @@ bool testARMArch(StringRef Arch, StringRef DefaultCPU, StringRef SubArch,
 
 TEST(TargetParserTest, testARMArch) {
   EXPECT_TRUE(
-      testARMArch("armv2", "arm2", "v2",
-                          ARMBuildAttrs::CPUArch::Pre_v4));
+      testARMArch("armv2", "generic", "v2", ARMBuildAttrs::CPUArch::Pre_v4));
   EXPECT_TRUE(
-      testARMArch("armv2a", "arm3", "v2a",
-                          ARMBuildAttrs::CPUArch::Pre_v4));
+      testARMArch("armv2a", "generic", "v2a", ARMBuildAttrs::CPUArch::Pre_v4));
   EXPECT_TRUE(
-      testARMArch("armv3", "arm6", "v3",
-                          ARMBuildAttrs::CPUArch::Pre_v4));
+      testARMArch("armv3", "generic", "v3", ARMBuildAttrs::CPUArch::Pre_v4));
   EXPECT_TRUE(
-      testARMArch("armv3m", "arm7m", "v3m",
-                          ARMBuildAttrs::CPUArch::Pre_v4));
+      testARMArch("armv3m", "generic", "v3m", ARMBuildAttrs::CPUArch::Pre_v4));
   EXPECT_TRUE(
       testARMArch("armv4", "strongarm", "v4",
                           ARMBuildAttrs::CPUArch::v4));
@@ -538,10 +527,6 @@ bool testARMExtension(StringRef CPUName,ARM::ArchKind ArchKind, StringRef ArchEx
 }
 
 TEST(TargetParserTest, testARMExtension) {
-  EXPECT_FALSE(testARMExtension("arm2", ARM::ArchKind::INVALID, "thumb"));
-  EXPECT_FALSE(testARMExtension("arm3", ARM::ArchKind::INVALID, "thumb"));
-  EXPECT_FALSE(testARMExtension("arm6", ARM::ArchKind::INVALID, "thumb"));
-  EXPECT_FALSE(testARMExtension("arm7m", ARM::ArchKind::INVALID, "thumb"));
   EXPECT_FALSE(testARMExtension("strongarm", ARM::ArchKind::INVALID, "dsp"));
   EXPECT_FALSE(testARMExtension("arm7tdmi", ARM::ArchKind::INVALID, "dsp"));
   EXPECT_FALSE(testARMExtension("arm10tdmi",
@@ -550,8 +535,6 @@ TEST(TargetParserTest, testARMExtension) {
   EXPECT_FALSE(testARMExtension("arm926ej-s",
                                 ARM::ArchKind::INVALID, "simd"));
   EXPECT_FALSE(testARMExtension("arm1136jf-s",
-                                ARM::ArchKind::INVALID, "crypto"));
-  EXPECT_FALSE(testARMExtension("arm1176j-s",
                                 ARM::ArchKind::INVALID, "crypto"));
   EXPECT_FALSE(testARMExtension("arm1156t2-s",
                                 ARM::ArchKind::INVALID, "crypto"));
@@ -1377,7 +1360,9 @@ TEST(TargetParserTest, AArch64ExtensionFeatures) {
     AArch64::AEK_SVE,      AArch64::AEK_SVE2,
     AArch64::AEK_SVE2AES,  AArch64::AEK_SVE2SM4,
     AArch64::AEK_SVE2SHA3, AArch64::AEK_SVE2BITPERM,
-    AArch64::AEK_RCPC,     AArch64::AEK_FP16FML };
+    AArch64::AEK_RCPC,     AArch64::AEK_FP16FML,
+    AArch64::AEK_SME,      AArch64::AEK_SMEF64,
+    AArch64::AEK_SMEI64 };
 
   std::vector<StringRef> Features;
 
@@ -1409,6 +1394,9 @@ TEST(TargetParserTest, AArch64ExtensionFeatures) {
   EXPECT_TRUE(llvm::is_contained(Features, "+sve2-sm4"));
   EXPECT_TRUE(llvm::is_contained(Features, "+sve2-sha3"));
   EXPECT_TRUE(llvm::is_contained(Features, "+sve2-bitperm"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+sme"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+sme-f64"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+sme-i64"));
 }
 
 TEST(TargetParserTest, AArch64ArchFeatures) {
@@ -1454,6 +1442,9 @@ TEST(TargetParserTest, AArch64ArchExtFeature) {
                               {"i8mm", "noi8mm", "+i8mm", "-i8mm"},
                               {"f32mm", "nof32mm", "+f32mm", "-f32mm"},
                               {"f64mm", "nof64mm", "+f64mm", "-f64mm"},
+                              {"sme", "nosme", "+sme", "-sme"},
+                              {"sme-f64", "nosme-f64", "+sme-f64", "-sme-f64"},
+                              {"sme-i64", "nosme-i64", "+sme-i64", "-sme-i64"},
 };
 
   for (unsigned i = 0; i < array_lengthof(ArchExt); i++) {

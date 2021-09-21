@@ -20,6 +20,7 @@
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/GlobPattern.h"
+#include "llvm/Support/PrettyStackTrace.h"
 #include <atomic>
 #include <vector>
 
@@ -36,6 +37,10 @@ enum ELFKind {
   ELF64LEKind,
   ELF64BEKind
 };
+
+// For -Bno-symbolic, -Bsymbolic-non-weak-functions, -Bsymbolic-functions,
+// -Bsymbolic.
+enum class BsymbolicKind { None, NonWeakFunctions, Functions, All };
 
 // For --build-id.
 enum class BuildIdKind { None, Fast, Md5, Sha1, Hexstring, Uuid };
@@ -81,7 +86,8 @@ struct SymbolVersion {
 struct VersionDefinition {
   llvm::StringRef name;
   uint16_t id;
-  std::vector<SymbolVersion> patterns;
+  std::vector<SymbolVersion> nonLocalPatterns;
+  std::vector<SymbolVersion> localPatterns;
 };
 
 // This struct contains the global configuration for the linker.
@@ -143,10 +149,10 @@ struct Configuration {
   bool armHasMovtMovw = false;
   bool armJ1J2BranchEncoding = false;
   bool asNeeded = false;
-  bool bsymbolic = false;
-  bool bsymbolicFunctions = false;
+  BsymbolicKind bsymbolic = BsymbolicKind::None;
   bool callGraphProfileSort;
   bool checkSections;
+  bool checkDynamicRelocs;
   bool compressDebugSections;
   bool cref;
   std::vector<std::pair<llvm::GlobPattern, uint64_t>> deadRelocInNonAlloc;
@@ -172,6 +178,7 @@ struct Configuration {
   bool ignoreDataAddressEquality;
   bool ignoreFunctionAddressEquality;
   bool ltoCSProfileGenerate;
+  bool ltoPGOWarnMismatch;
   bool ltoDebugPassManager;
   bool ltoEmitAsm;
   bool ltoNewPassManager;
@@ -356,6 +363,12 @@ static inline void errorOrWarn(const Twine &msg) {
   else
     warn(msg);
 }
+
+static inline void internalLinkerError(StringRef loc, const Twine &msg) {
+  errorOrWarn(loc + "internal linker error: " + msg + "\n" +
+              llvm::getBugReportMsg());
+}
+
 } // namespace elf
 } // namespace lld
 

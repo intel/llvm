@@ -447,9 +447,8 @@ if config.android:
 
   # These are needed for tests to upload/download temp files, such as
   # suppression-files, to device.
-  config.substitutions.append( ('%device_rundir', "/data/local/tmp/Output") )
+  config.substitutions.append( ('%device_rundir/', "/data/local/tmp/Output/") )
   config.substitutions.append( ('%push_to_device', "%s -s '%s' push " % (adb, env['ANDROID_SERIAL']) ) )
-  config.substitutions.append( ('%pull_from_device', "%s -s '%s' pull " % (adb, env['ANDROID_SERIAL']) ) )
   config.substitutions.append( ('%adb_shell ', "%s -s '%s' shell " % (adb, env['ANDROID_SERIAL']) ) )
   config.substitutions.append( ('%device_rm', "%s -s '%s' shell 'rm ' " % (adb, env['ANDROID_SERIAL']) ) )
 
@@ -463,7 +462,7 @@ if config.android:
   except ValueError:
     lit_config.fatal("Failed to read ro.build.version.sdk (using '%s' as adb): got '%s'" % (adb, android_api_level_str))
   android_api_level = min(android_api_level, int(config.android_api_level))
-  for required in [26, 28, 30]:
+  for required in [26, 28, 29, 30]:
     if android_api_level >= required:
       config.available_features.add('android-%s' % required)
   # FIXME: Replace with appropriate version when availible.
@@ -476,9 +475,8 @@ if config.android:
   for file in config.android_files_to_push:
     subprocess.check_call([adb, "push", file, android_tmpdir], env=env)
 else:
-  config.substitutions.append( ('%device_rundir', "") )
+  config.substitutions.append( ('%device_rundir/', "") )
   config.substitutions.append( ('%push_to_device', "echo ") )
-  config.substitutions.append( ('%pull_from_device', "echo ") )
   config.substitutions.append( ('%adb_shell', "echo ") )
 
 if config.host_os == 'Linux':
@@ -622,7 +620,7 @@ for postfix in ["2", "1", ""]:
   config.substitutions.append( ("%xdynamiclib_filename" + postfix, 'lib%xdynamiclib_namespec{}.so'.format(postfix)) )
   config.substitutions.append( ("%xdynamiclib_namespec", '%basename_t.dynamic') )
 
-# Provide a substituion that can be used to tell Clang to use a static libstdc++.
+# Provide a substitution that can be used to tell Clang to use a static libstdc++.
 # The substitution expands to nothing on non Linux platforms.
 # FIXME: This should check the target OS, not the host OS.
 if config.host_os == 'Linux':
@@ -697,16 +695,16 @@ config.target_cflags = " " + " ".join(target_cflags + extra_cflags) + " "
 
 if config.host_os == 'Darwin':
   config.substitutions.append((
-    "%get_pid_from_output", 
+    "%get_pid_from_output",
     "{} {}/get_pid_from_output.py".format(
-      sh_quote(config.python_executable), 
+      sh_quote(config.python_executable),
       sh_quote(get_ios_commands_dir())
     ))
   )
   config.substitutions.append(
-    ("%print_crashreport_for_pid", 
+    ("%print_crashreport_for_pid",
     "{} {}/print_crashreport_for_pid.py".format(
-      sh_quote(config.python_executable), 
+      sh_quote(config.python_executable),
       sh_quote(get_ios_commands_dir())
     ))
   )

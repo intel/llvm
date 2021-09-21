@@ -14,6 +14,7 @@
 #define MLIR_TRANSFORMS_PASSES
 
 include "mlir/Pass/PassBase.td"
+include "mlir/Rewrite/PassUtil.td"
 
 def AffineLoopFusion : FunctionPass<"affine-loop-fusion"> {
   let summary = "Fuse affine loop nests";
@@ -364,9 +365,15 @@ def Canonicalizer : Pass<"canonicalize"> {
   let constructor = "mlir::createCanonicalizerPass()";
   let options = [
     Option<"topDownProcessingEnabled", "top-down", "bool",
-           /*default=*/"false",
+           /*default=*/"true",
+           "Seed the worklist in general top-down order">,
+    Option<"enableRegionSimplification", "region-simplify", "bool",
+           /*default=*/"true",
+           "Seed the worklist in general top-down order">,
+    Option<"maxIterations", "max-iterations", "unsigned",
+           /*default=*/"10",
            "Seed the worklist in general top-down order">
-  ];
+  ] # RewritePassUtils.options;
 }
 
 def CSE : Pass<"cse"> {
@@ -471,51 +478,6 @@ def LoopCoalescing : FunctionPass<"loop-coalescing"> {
 def LoopInvariantCodeMotion : Pass<"loop-invariant-code-motion"> {
   let summary = "Hoist loop invariant instructions outside of the loop";
   let constructor = "mlir::createLoopInvariantCodeMotionPass()";
-}
-
-def MemRefDataFlowOpt : FunctionPass<"memref-dataflow-opt"> {
-  let summary = "Perform store/load forwarding for memrefs";
-  let description = [{
-    This pass performs store to load forwarding for memref's to eliminate memory
-    accesses and potentially the entire memref if all its accesses are
-    forwarded.
-
-    Input
-
-    ```mlir
-    func @store_load_affine_apply() -> memref<10x10xf32> {
-      %cf7 = constant 7.0 : f32
-      %m = alloc() : memref<10x10xf32>
-      affine.for %i0 = 0 to 10 {
-        affine.for %i1 = 0 to 10 {
-          affine.store %cf7, %m[%i0, %i1] : memref<10x10xf32>
-          %v0 = affine.load %m[%i0, %i1] : memref<10x10xf32>
-          %v1 = addf %v0, %v0 : f32
-        }
-      }
-      return %m : memref<10x10xf32>
-    }
-    ```
-
-    Output
-
-    ```mlir
-    module {
-      func @store_load_affine_apply() -> memref<10x10xf32> {
-        %cst = constant 7.000000e+00 : f32
-        %0 = alloc() : memref<10x10xf32>
-        affine.for %arg0 = 0 to 10 {
-          affine.for %arg1 = 0 to 10 {
-            affine.store %cst, %0[%arg0, %arg1] : memref<10x10xf32>
-            %1 = addf %cst, %cst : f32
-          }
-        }
-        return %0 : memref<10x10xf32>
-      }
-    }
-    ```
-  }];
-  let constructor = "mlir::createMemRefDataFlowOptPass()";
 }
 
 def NormalizeMemRefs : Pass<"normalize-memrefs", "ModuleOp"> {
@@ -650,19 +612,9 @@ def ParallelLoopCollapsing : Pass<"parallel-loop-collapsing"> {
   ];
 }
 
-def PrintCFG : FunctionPass<"print-cfg-graph"> {
-  let summary = "Print CFG graph per-Region";
-  let constructor = "mlir::createPrintCFGGraphPass()";
-}
-
 def PrintOpStats : Pass<"print-op-stats"> {
   let summary = "Print statistics of operations";
   let constructor = "mlir::createPrintOpStatsPass()";
-}
-
-def PrintOp : Pass<"print-op-graph", "ModuleOp"> {
-  let summary = "Print op graph per-Region";
-  let constructor = "mlir::createPrintOpGraphPass()";
 }
 
 def SCCP : Pass<"sccp"> {
@@ -731,21 +683,34 @@ def SymbolDCE : Pass<"symbol-dce"> {
   let constructor = "mlir::createSymbolDCEPass()";
 }
 
-def ViewOpGraphPass : Pass<"view-op-graph", "ModuleOp"> {
-  let summary = "Print graphviz view of module";
+def ViewOpGraphPass : Pass<"view-op-graph"> {
+  let summary = "Print Graphviz visualization of an operation";
   let description = [{
-    This pass prints a graphviz per block of a module.
+    This pass prints a Graphviz graph of a module.
 
-    - Op are represented as nodes;
-    - Uses as edges;
+    - Operations are represented as nodes;
+    - Uses (data flow) as edges;
+    - Control flow as dashed edges;
+    - Regions/blocks as subgraphs.
+
+    By default, only data flow edges are printed.
+
+    Note: See https://www.graphviz.org/doc/info/lang.html for more information
+    about the Graphviz DOT language.
   }];
-  let constructor = "mlir::createPrintOpGraphPass()";
   let options = [
-    Option<"title", "title", "std::string",
-           /*default=*/"", "The prefix of the title of the graph">,
-    Option<"shortNames", "short-names", "bool", /*default=*/"false",
-           "Use short names">
+    Option<"maxLabelLen", "max-label-len", "unsigned",
+            /*default=*/"20", "Limit attribute/type length to number of chars">,
+    Option<"printAttrs", "print-attrs", "bool",
+           /*default=*/"true", "Print attributes of operations">,
+    Option<"printControlFlowEdges", "print-control-flow-edges", "bool",
+           /*default=*/"false", "Print control flow edges">,
+    Option<"printDataFlowEdges", "print-data-flow-edges", "bool",
+           /*default=*/"true", "Print data flow edges">,
+    Option<"printResultTypes", "print-result-types", "bool",
+            /*default=*/"true", "Print result types of operations">
   ];
+  let constructor = "mlir::createPrintOpGraphPass()";
 }
 
 #endif // MLIR_TRANSFORMS_PASSES

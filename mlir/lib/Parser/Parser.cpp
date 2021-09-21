@@ -18,6 +18,7 @@
 #include "mlir/Parser.h"
 #include "mlir/Parser/AsmParserState.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/bit.h"
 #include "llvm/Support/PrettyStackTrace.h"
@@ -166,13 +167,7 @@ namespace {
 /// operations.
 class OperationParser : public Parser {
 public:
-  OperationParser(ParserState &state, Operation *topLevelOp)
-      : Parser(state), opBuilder(topLevelOp->getRegion(0)),
-        topLevelOp(topLevelOp) {
-    // The top level operation starts a new name scope.
-    pushSSANameScope(/*isIsolated=*/true);
-  }
-
+  OperationParser(ParserState &state, ModuleOp topLevelOp);
   ~OperationParser();
 
   /// After parsing is finished, this function must be called to see if there
@@ -281,7 +276,10 @@ public:
                           bool isIsolatedNameScope = false);
 
   /// Parse a region body into 'region'.
-  ParseResult parseRegionBody(Region &region);
+  ParseResult
+  parseRegionBody(Region &region, llvm::SMLoc startLoc,
+                  ArrayRef<std::pair<SSAUseInfo, Type>> entryArguments,
+                  bool isIsolatedNameScope);
 
   //===--------------------------------------------------------------------===//
   // Block Parsing
@@ -402,6 +400,16 @@ private:
 };
 } // end anonymous namespace
 
+OperationParser::OperationParser(ParserState &state, ModuleOp topLevelOp)
+    : Parser(state), opBuilder(topLevelOp.getRegion()), topLevelOp(topLevelOp) {
+  // The top level operation starts a new name scope.
+  pushSSANameScope(/*isIsolated=*/true);
+
+  // If we are populating the parser state, prepare it for parsing.
+  if (state.asmState)
+    state.asmState->initialize(topLevelOp);
+}
+
 OperationParser::~OperationParser() {
   for (auto &fwd : forwardRefPlaceholders) {
     // Drop all uses of undefined forward declared reference and destroy
@@ -459,7 +467,17 @@ ParseResult OperationParser::finalize() {
   }
 
   // Pop the top level name scope.
-  return popSSANameScope();
+  if (failed(popSSANameScope()))
+    return failure();
+
+  // Verify that the parsed operations are valid.
+  if (failed(verify(topLevelOp)))
+    return failure();
+
+  // If we are populating the parser state, finalize the top-level operation.
+  if (state.asmState)
+    state.asmState->finalize(topLevelOp);
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -636,7 +654,7 @@ Value OperationParser::resolveSSAUse(SSAUseInfo useInfo, Type type) {
 
   // Otherwise, this is a forward reference.  Create a placeholder and remember
   // that we did so.
-  auto result = createForwardRefPlaceholder(useInfo.loc, type);
+  Value result = createForwardRefPlaceholder(useInfo.loc, type);
   entries[useInfo.number] = {result, useInfo.loc};
   return maybeRecordUse(result);
 }
@@ -713,7 +731,7 @@ Value OperationParser::createForwardRefPlaceholder(SMLoc loc, Type type) {
   // We create these placeholders as having an empty name, which we know
   // cannot be created through normal user input, allowing us to distinguish
   // them.
-  auto name = OperationName("placeholder", getContext());
+  auto name = OperationName("builtin.unrealized_conversion_cast", getContext());
   auto *op = Operation::create(
       getEncodedSourceLocation(loc), name, type, /*operands=*/{},
       /*attributes=*/llvm::None, /*successors=*/{}, /*numRegions=*/0);
@@ -809,7 +827,9 @@ ParseResult OperationParser::parseOperation() {
         asmResultGroups.emplace_back(resultIt, std::get<2>(record));
         resultIt += std::get<1>(record);
       }
-      state.asmState->addDefinition(op, nameTok.getLocRange(), asmResultGroups);
+      state.asmState->finalizeOperationDefinition(
+          op, nameTok.getLocRange(), /*endLoc=*/getToken().getLoc(),
+          asmResultGroups);
     }
 
     // Add definitions for each of the result groups.
@@ -824,7 +844,8 @@ ParseResult OperationParser::parseOperation() {
 
     // Add this operation to the assembly state if it was provided to populate.
   } else if (state.asmState) {
-    state.asmState->addDefinition(op, nameTok.getLocRange());
+    state.asmState->finalizeOperationDefinition(op, nameTok.getLocRange(),
+                                                /*endLoc=*/getToken().getLoc());
   }
 
   return success();
@@ -902,6 +923,10 @@ Operation *OperationParser::parseGenericOperation() {
       result.name = OperationName(name, getContext());
     }
   }
+
+  // If we are populating the parser state, start a new operation definition.
+  if (state.asmState)
+    state.asmState->startOperationDefinition(result.name);
 
   // Parse the operand list.
   SmallVector<SSAUseInfo, 8> operandInfos;
@@ -981,9 +1006,20 @@ Operation *OperationParser::parseGenericOperation() {
 
 Operation *OperationParser::parseGenericOperation(Block *insertBlock,
                                                   Block::iterator insertPt) {
+  Token nameToken = getToken();
+
   OpBuilder::InsertionGuard restoreInsertionPoint(opBuilder);
   opBuilder.setInsertionPoint(insertBlock, insertPt);
-  return parseGenericOperation();
+  Operation *op = parseGenericOperation();
+  if (!op)
+    return nullptr;
+
+  // If we are populating the parser asm state, finalize this operation
+  // definition.
+  if (state.asmState)
+    state.asmState->finalizeOperationDefinition(op, nameToken.getLocRange(),
+                                                /*endLoc=*/getToken().getLoc());
+  return op;
 }
 
 namespace {
@@ -1367,6 +1403,13 @@ public:
     result = getBuilder().getStringAttr(atToken.getSymbolReference());
     attrs.push_back(getBuilder().getNamedAttr(attrName, result));
     parser.consumeToken();
+
+    // If we are populating the assembly parser state, record this as a symbol
+    // reference.
+    if (parser.getState().asmState) {
+      parser.getState().asmState->addUses(SymbolRefAttr::get(result),
+                                          atToken.getLocRange());
+    }
     return success();
   }
 
@@ -1800,29 +1843,35 @@ private:
 Operation *
 OperationParser::parseCustomOperation(ArrayRef<ResultRecord> resultIDs) {
   llvm::SMLoc opLoc = getToken().getLoc();
-  StringRef opName = getTokenSpelling();
+  std::string opName = getTokenSpelling().str();
   auto *opDefinition = AbstractOperation::lookup(opName, getContext());
+  StringRef defaultDialect = getState().defaultDialectStack.back();
   Dialect *dialect = nullptr;
   if (opDefinition) {
     dialect = &opDefinition->dialect;
   } else {
-    if (opName.contains('.')) {
+    if (StringRef(opName).contains('.')) {
       // This op has a dialect, we try to check if we can register it in the
       // context on the fly.
-      StringRef dialectName = opName.split('.').first;
+      StringRef dialectName = StringRef(opName).split('.').first;
       dialect = getContext()->getLoadedDialect(dialectName);
       if (!dialect && (dialect = getContext()->getOrLoadDialect(dialectName)))
         opDefinition = AbstractOperation::lookup(opName, getContext());
     } else {
-      // If the operation name has no namespace prefix we treat it as a standard
-      // operation and prefix it with "std".
-      // TODO: Would it be better to just build a mapping of the registered
-      // operations in the standard dialect?
-      if (getContext()->getOrLoadDialect("std")) {
+      // If the operation name has no namespace prefix we lookup the current
+      // default dialect (set through OpAsmOpInterface).
+      opDefinition = AbstractOperation::lookup(
+          Twine(defaultDialect + "." + opName).str(), getContext());
+      if (!opDefinition && getContext()->getOrLoadDialect("std")) {
         opDefinition = AbstractOperation::lookup(Twine("std." + opName).str(),
                                                  getContext());
-        if (opDefinition)
-          opName = opDefinition->name.strref();
+      }
+      if (opDefinition) {
+        dialect = &opDefinition->dialect;
+        opName = opDefinition->name.str();
+      } else if (!defaultDialect.empty()) {
+        dialect = getContext()->getOrLoadDialect(defaultDialect);
+        opName = (defaultDialect + "." + opName).str();
       }
     }
   }
@@ -1830,13 +1879,17 @@ OperationParser::parseCustomOperation(ArrayRef<ResultRecord> resultIDs) {
   // This is the actual hook for the custom op parsing, usually implemented by
   // the op itself (`Op::parse()`). We retrieve it either from the
   // AbstractOperation or from the Dialect.
-  std::function<ParseResult(OpAsmParser &, OperationState &)> parseAssemblyFn;
+  function_ref<ParseResult(OpAsmParser &, OperationState &)> parseAssemblyFn;
   bool isIsolatedFromAbove = false;
 
+  defaultDialect = "";
   if (opDefinition) {
     parseAssemblyFn = opDefinition->getParseAssemblyFn();
     isIsolatedFromAbove =
         opDefinition->hasTrait<OpTrait::IsIsolatedFromAbove>();
+    auto *iface = opDefinition->getInterface<OpAsmOpInterface>();
+    if (iface && !iface->getDefaultDialect().empty())
+      defaultDialect = iface->getDefaultDialect();
   } else {
     Optional<Dialect::ParseOpHook> dialectHook;
     if (dialect)
@@ -1847,20 +1900,26 @@ OperationParser::parseCustomOperation(ArrayRef<ResultRecord> resultIDs) {
     }
     parseAssemblyFn = *dialectHook;
   }
+  getState().defaultDialectStack.push_back(defaultDialect);
+  auto restoreDefaultDialect = llvm::make_scope_exit(
+      [&]() { getState().defaultDialectStack.pop_back(); });
 
   consumeToken();
 
   // If the custom op parser crashes, produce some indication to help
   // debugging.
-  std::string opNameStr = opName.str();
   llvm::PrettyStackTraceFormat fmt("MLIR Parser: custom op parser '%s'",
-                                   opNameStr.c_str());
+                                   opName.c_str());
 
   // Get location information for the operation.
   auto srcLocation = getEncodedSourceLocation(opLoc);
+  OperationState opState(srcLocation, opName);
+
+  // If we are populating the parser state, start a new operation definition.
+  if (state.asmState)
+    state.asmState->startOperationDefinition(opState.name);
 
   // Have the op implementation take a crack and parsing this.
-  OperationState opState(srcLocation, opName);
   CleanupOpStateRegions guard{opState};
   CustomOpAsmParser opAsmParser(opLoc, resultIDs, parseAssemblyFn,
                                 isIsolatedFromAbove, opName, *this);
@@ -1931,10 +1990,6 @@ OperationParser::parseTrailingLocationSpecifier(OpOrArgument opOrArgument) {
 // Region Parsing
 //===----------------------------------------------------------------------===//
 
-/// Region.
-///
-///   region ::= '{' region-body
-///
 ParseResult OperationParser::parseRegion(
     Region &region,
     ArrayRef<std::pair<OperationParser::SSAUseInfo, Type>> entryArguments,
@@ -1944,9 +1999,29 @@ ParseResult OperationParser::parseRegion(
   if (parseToken(Token::l_brace, "expected '{' to begin a region"))
     return failure();
 
-  // Check for an empty region.
-  if (entryArguments.empty() && consumeIf(Token::r_brace))
-    return success();
+  // If we are populating the parser state, start a new region definition.
+  if (state.asmState)
+    state.asmState->startRegionDefinition();
+
+  // Parse the region body.
+  if ((!entryArguments.empty() || getToken().isNot(Token::r_brace)) &&
+      parseRegionBody(region, lBraceTok.getLoc(), entryArguments,
+                      isIsolatedNameScope)) {
+    return failure();
+  }
+  consumeToken(Token::r_brace);
+
+  // If we are populating the parser state, finalize this region.
+  if (state.asmState)
+    state.asmState->finalizeRegionDefinition();
+
+  return success();
+}
+
+ParseResult OperationParser::parseRegionBody(
+    Region &region, llvm::SMLoc startLoc,
+    ArrayRef<std::pair<OperationParser::SSAUseInfo, Type>> entryArguments,
+    bool isIsolatedNameScope) {
   auto currentPt = opBuilder.saveInsertionPoint();
 
   // Push a new named value scope.
@@ -1960,10 +2035,14 @@ ParseResult OperationParser::parseRegion(
   // now in the assembly state. Blocks with a name will be defined when the name
   // is parsed.
   if (state.asmState && getToken().isNot(Token::caret_identifier))
-    state.asmState->addDefinition(block, lBraceTok.getLoc());
+    state.asmState->addDefinition(block, startLoc);
 
   // Add arguments to the entry block.
   if (!entryArguments.empty()) {
+    // If we had named arguments, then don't allow a block name.
+    if (getToken().is(Token::caret_identifier))
+      return emitError("invalid block name in region with named arguments");
+
     for (auto &placeholderArgPair : entryArguments) {
       auto &argInfo = placeholderArgPair.first;
 
@@ -1985,10 +2064,6 @@ ParseResult OperationParser::parseRegion(
       if (addDefinition(argInfo, arg))
         return failure();
     }
-
-    // If we had named arguments, then don't allow a block name.
-    if (getToken().is(Token::caret_identifier))
-      return emitError("invalid block name in region with named arguments");
   }
 
   if (parseBlock(block))
@@ -2002,8 +2077,12 @@ ParseResult OperationParser::parseRegion(
 
   // Parse the rest of the region.
   region.push_back(owning_block.release());
-  if (parseRegionBody(region))
-    return failure();
+  while (getToken().isNot(Token::r_brace)) {
+    Block *newBlock = nullptr;
+    if (parseBlock(newBlock))
+      return failure();
+    region.push_back(newBlock);
+  }
 
   // Pop the SSA value scope for this region.
   if (popSSANameScope())
@@ -2011,21 +2090,6 @@ ParseResult OperationParser::parseRegion(
 
   // Reset the original insertion point.
   opBuilder.restoreInsertionPoint(currentPt);
-  return success();
-}
-
-/// Region.
-///
-///   region-body ::= block* '}'
-///
-ParseResult OperationParser::parseRegionBody(Region &region) {
-  // Parse the list of blocks.
-  while (!consumeIf(Token::r_brace)) {
-    Block *newBlock = nullptr;
-    if (parseBlock(newBlock))
-      return failure();
-    region.push_back(newBlock);
-  }
   return success();
 }
 
@@ -2266,7 +2330,7 @@ ParseResult TopLevelOperationParser::parseTypeAliasDef() {
 ParseResult TopLevelOperationParser::parse(Block *topLevelBlock,
                                            Location parserLoc) {
   // Create a top-level operation to contain the parsed state.
-  OwningOpRef<Operation *> topLevelOp(ModuleOp::create(parserLoc));
+  OwningOpRef<ModuleOp> topLevelOp(ModuleOp::create(parserLoc));
   OperationParser opParser(state, topLevelOp.get());
   while (true) {
     switch (getToken().getKind()) {
@@ -2281,13 +2345,9 @@ ParseResult TopLevelOperationParser::parse(Block *topLevelBlock,
       if (opParser.finalize())
         return failure();
 
-      // Verify that the parsed operations are valid.
-      if (failed(verify(topLevelOp.get())))
-        return failure();
-
       // Splice the blocks of the parsed operation over to the provided
       // top-level block.
-      auto &parsedOps = (*topLevelOp)->getRegion(0).front().getOperations();
+      auto &parsedOps = topLevelOp->getBody()->getOperations();
       auto &destOps = topLevelBlock->getOperations();
       destOps.splice(destOps.empty() ? destOps.end() : std::prev(destOps.end()),
                      parsedOps, parsedOps.begin(), parsedOps.end());

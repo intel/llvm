@@ -412,7 +412,7 @@ class RAGreedy : public MachineFunctionPass,
   ArrayRef<uint8_t> RegCosts;
 
 public:
-  RAGreedy();
+  RAGreedy(const RegClassFilterFunc F = allocateAllRegClasses);
 
   /// Return the pass name.
   StringRef getPassName() const override { return "Greedy Register Allocator"; }
@@ -421,7 +421,7 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const override;
   void releaseMemory() override;
   Spiller &spiller() override { return *SpillerInstance; }
-  void enqueue(LiveInterval *LI) override;
+  void enqueueImpl(LiveInterval *LI) override;
   LiveInterval *dequeue() override;
   MCRegister selectOrSplit(LiveInterval &,
                            SmallVectorImpl<Register> &) override;
@@ -636,7 +636,22 @@ FunctionPass* llvm::createGreedyRegisterAllocator() {
   return new RAGreedy();
 }
 
-RAGreedy::RAGreedy(): MachineFunctionPass(ID) {
+namespace llvm {
+FunctionPass* createGreedyRegisterAllocator(
+  std::function<bool(const TargetRegisterInfo &TRI,
+                     const TargetRegisterClass &RC)> Ftor);
+
+}
+
+FunctionPass* llvm::createGreedyRegisterAllocator(
+  std::function<bool(const TargetRegisterInfo &TRI,
+                     const TargetRegisterClass &RC)> Ftor) {
+  return new RAGreedy(Ftor);
+}
+
+RAGreedy::RAGreedy(RegClassFilterFunc F):
+  MachineFunctionPass(ID),
+  RegAllocBase(F) {
 }
 
 void RAGreedy::getAnalysisUsage(AnalysisUsage &AU) const {
@@ -693,7 +708,7 @@ void RAGreedy::LRE_WillShrinkVirtReg(Register VirtReg) {
   // Register is assigned, put it back on the queue for reassignment.
   LiveInterval &LI = LIS->getInterval(VirtReg);
   Matrix->unassign(LI);
-  enqueue(&LI);
+  RegAllocBase::enqueue(&LI);
 }
 
 void RAGreedy::LRE_DidCloneVirtReg(Register New, Register Old) {
@@ -716,7 +731,7 @@ void RAGreedy::releaseMemory() {
   GlobalCand.clear();
 }
 
-void RAGreedy::enqueue(LiveInterval *LI) { enqueue(Queue, LI); }
+void RAGreedy::enqueueImpl(LiveInterval *LI) { enqueue(Queue, LI); }
 
 void RAGreedy::enqueue(PQueue &CurQueue, LiveInterval *LI) {
   // Prioritize live ranges by size, assigning larger ranges first.
@@ -768,6 +783,8 @@ void RAGreedy::enqueue(PQueue &CurQueue, LiveInterval *LI) {
       // don't fit should be spilled (or split) ASAP so they don't create
       // interference.  Mark a bit to prioritize global above local ranges.
       Prio = (1u << 29) + Size;
+
+      Prio |= RC.AllocationPriority << 24;
     }
     // Mark a higher bit to prioritize global and local above RS_Split.
     Prio |= (1u << 31);
@@ -2443,12 +2460,12 @@ unsigned RAGreedy::tryLocalSplit(LiveInterval &VirtReg, AllocationOrder &Order,
   bool LiveAfter = BestAfter != NumGaps || BI.LiveOut;
   unsigned NewGaps = LiveBefore + BestAfter - BestBefore + LiveAfter;
   if (NewGaps >= NumGaps) {
-    LLVM_DEBUG(dbgs() << "Tagging non-progress ranges: ");
+    LLVM_DEBUG(dbgs() << "Tagging non-progress ranges:");
     assert(!ProgressRequired && "Didn't make progress when it was required.");
     for (unsigned I = 0, E = IntvMap.size(); I != E; ++I)
       if (IntvMap[I] == 1) {
         setStage(LIS->getInterval(LREdit.get(I)), RS_Split2);
-        LLVM_DEBUG(dbgs() << printReg(LREdit.get(I)));
+        LLVM_DEBUG(dbgs() << ' ' << printReg(LREdit.get(I)));
       }
     LLVM_DEBUG(dbgs() << '\n');
   }
@@ -2936,7 +2953,12 @@ void RAGreedy::tryHintRecoloring(LiveInterval &VirtReg) {
     if (Register::isPhysicalRegister(Reg))
       continue;
 
-    assert(VRM->hasPhys(Reg) && "We have unallocated variable!!");
+    // This may be a skipped class
+    if (!VRM->hasPhys(Reg)) {
+      assert(!ShouldAllocateClass(*TRI, *MRI->getRegClass(Reg)) &&
+             "We have an unallocated variable which should have been handled");
+      continue;
+    }
 
     // Get the live interval mapped with this virtual register to be able
     // to check for the interference with the new color.

@@ -52,20 +52,29 @@ STATISTIC(NumAggregateReconstructionsSimplified,
           "original aggregate");
 
 /// Return true if the value is cheaper to scalarize than it is to leave as a
-/// vector operation. IsConstantExtractIndex indicates whether we are extracting
-/// one known element from a vector constant.
+/// vector operation. If the extract index \p EI is a constant integer then
+/// some operations may be cheap to scalarize.
 ///
 /// FIXME: It's possible to create more instructions than previously existed.
-static bool cheapToScalarize(Value *V, bool IsConstantExtractIndex) {
+static bool cheapToScalarize(Value *V, Value *EI) {
+  ConstantInt *CEI = dyn_cast<ConstantInt>(EI);
+
   // If we can pick a scalar constant value out of a vector, that is free.
   if (auto *C = dyn_cast<Constant>(V))
-    return IsConstantExtractIndex || C->getSplatValue();
+    return CEI || C->getSplatValue();
+
+  if (CEI && match(V, m_Intrinsic<Intrinsic::experimental_stepvector>())) {
+    ElementCount EC = cast<VectorType>(V->getType())->getElementCount();
+    // Index needs to be lower than the minimum size of the vector, because
+    // for scalable vector, the vector size is known at run time.
+    return CEI->getValue().ult(EC.getKnownMinValue());
+  }
 
   // An insertelement to the same constant index as our extract will simplify
   // to the scalar inserted element. An insertelement to a different constant
   // index is irrelevant to our extract.
   if (match(V, m_InsertElt(m_Value(), m_Value(), m_ConstantInt())))
-    return IsConstantExtractIndex;
+    return CEI;
 
   if (match(V, m_OneUse(m_Load(m_Value()))))
     return true;
@@ -75,14 +84,12 @@ static bool cheapToScalarize(Value *V, bool IsConstantExtractIndex) {
 
   Value *V0, *V1;
   if (match(V, m_OneUse(m_BinOp(m_Value(V0), m_Value(V1)))))
-    if (cheapToScalarize(V0, IsConstantExtractIndex) ||
-        cheapToScalarize(V1, IsConstantExtractIndex))
+    if (cheapToScalarize(V0, EI) || cheapToScalarize(V1, EI))
       return true;
 
   CmpInst::Predicate UnusedPred;
   if (match(V, m_OneUse(m_Cmp(UnusedPred, m_Value(V0), m_Value(V1)))))
-    if (cheapToScalarize(V0, IsConstantExtractIndex) ||
-        cheapToScalarize(V1, IsConstantExtractIndex))
+    if (cheapToScalarize(V0, EI) || cheapToScalarize(V1, EI))
       return true;
 
   return false;
@@ -119,7 +126,8 @@ Instruction *InstCombinerImpl::scalarizePHI(ExtractElementInst &EI,
   // and that it is a binary operation which is cheap to scalarize.
   // otherwise return nullptr.
   if (!PHIUser->hasOneUse() || !(PHIUser->user_back() == PN) ||
-      !(isa<BinaryOperator>(PHIUser)) || !cheapToScalarize(PHIUser, true))
+      !(isa<BinaryOperator>(PHIUser)) ||
+      !cheapToScalarize(PHIUser, EI.getIndexOperand()))
     return nullptr;
 
   // Create a scalar PHI node that will replace the vector PHI node
@@ -274,7 +282,7 @@ static APInt findDemandedEltsBySingleUser(Value *V, Instruction *UserInstr) {
   unsigned VWidth = cast<FixedVectorType>(V->getType())->getNumElements();
 
   // Conservatively assume that all elements are needed.
-  APInt UsedElts(APInt::getAllOnesValue(VWidth));
+  APInt UsedElts(APInt::getAllOnes(VWidth));
 
   switch (UserInstr->getOpcode()) {
   case Instruction::ExtractElement: {
@@ -322,11 +330,11 @@ static APInt findDemandedEltsByAllUsers(Value *V) {
     if (Instruction *I = dyn_cast<Instruction>(U.getUser())) {
       UnionUsedElts |= findDemandedEltsBySingleUser(V, I);
     } else {
-      UnionUsedElts = APInt::getAllOnesValue(VWidth);
+      UnionUsedElts = APInt::getAllOnes(VWidth);
       break;
     }
 
-    if (UnionUsedElts.isAllOnesValue())
+    if (UnionUsedElts.isAllOnes())
       break;
   }
 
@@ -346,6 +354,25 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
   if (IndexC) {
     ElementCount EC = EI.getVectorOperandType()->getElementCount();
     unsigned NumElts = EC.getKnownMinValue();
+
+    if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(SrcVec)) {
+      Intrinsic::ID IID = II->getIntrinsicID();
+      // Index needs to be lower than the minimum size of the vector, because
+      // for scalable vector, the vector size is known at run time.
+      if (IID == Intrinsic::experimental_stepvector &&
+          IndexC->getValue().ult(NumElts)) {
+        Type *Ty = EI.getType();
+        unsigned BitWidth = Ty->getIntegerBitWidth();
+        Value *Idx;
+        // Return index when its value does not exceed the allowed limit
+        // for the element type of the vector, otherwise return undefined.
+        if (IndexC->getValue().getActiveBits() <= BitWidth)
+          Idx = ConstantInt::get(Ty, IndexC->getValue().zextOrTrunc(BitWidth));
+        else
+          Idx = UndefValue::get(Ty);
+        return replaceInstUsesWith(EI, Idx);
+      }
+    }
 
     // InstSimplify should handle cases where the index is invalid.
     // For fixed-length vector, it's invalid to extract out-of-range element.
@@ -369,7 +396,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
         // If the input vector has multiple uses, simplify it based on a union
         // of all elements used.
         APInt DemandedElts = findDemandedEltsByAllUsers(SrcVec);
-        if (!DemandedElts.isAllOnesValue()) {
+        if (!DemandedElts.isAllOnes()) {
           APInt UndefElts(NumElts, 0);
           if (Value *V = SimplifyDemandedVectorElts(
                   SrcVec, DemandedElts, UndefElts, 0 /* Depth */,
@@ -382,6 +409,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
         }
       }
     }
+
     if (Instruction *I = foldBitcastExtElt(EI, Builder, DL.isBigEndian()))
       return I;
 
@@ -395,7 +423,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
   // TODO come up with a n-ary matcher that subsumes both unary and
   // binary matchers.
   UnaryOperator *UO;
-  if (match(SrcVec, m_UnOp(UO)) && cheapToScalarize(SrcVec, IndexC)) {
+  if (match(SrcVec, m_UnOp(UO)) && cheapToScalarize(SrcVec, Index)) {
     // extelt (unop X), Index --> unop (extelt X, Index)
     Value *X = UO->getOperand(0);
     Value *E = Builder.CreateExtractElement(X, Index);
@@ -403,7 +431,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
   }
 
   BinaryOperator *BO;
-  if (match(SrcVec, m_BinOp(BO)) && cheapToScalarize(SrcVec, IndexC)) {
+  if (match(SrcVec, m_BinOp(BO)) && cheapToScalarize(SrcVec, Index)) {
     // extelt (binop X, Y), Index --> binop (extelt X, Index), (extelt Y, Index)
     Value *X = BO->getOperand(0), *Y = BO->getOperand(1);
     Value *E0 = Builder.CreateExtractElement(X, Index);
@@ -414,7 +442,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
   Value *X, *Y;
   CmpInst::Predicate Pred;
   if (match(SrcVec, m_Cmp(Pred, m_Value(X), m_Value(Y))) &&
-      cheapToScalarize(SrcVec, IndexC)) {
+      cheapToScalarize(SrcVec, Index)) {
     // extelt (cmp X, Y), Index --> cmp (extelt X, Index), (extelt Y, Index)
     Value *E0 = Builder.CreateExtractElement(X, Index);
     Value *E1 = Builder.CreateExtractElement(Y, Index);
@@ -430,6 +458,47 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
       // be the same value, extract from the pre-inserted value instead.
       if (isa<Constant>(IE->getOperand(2)) && IndexC)
         return replaceOperand(EI, 0, IE->getOperand(0));
+    } else if (auto *GEP = dyn_cast<GetElementPtrInst>(I)) {
+      auto *VecType = cast<VectorType>(GEP->getType());
+      ElementCount EC = VecType->getElementCount();
+      uint64_t IdxVal = IndexC ? IndexC->getZExtValue() : 0;
+      if (IndexC && IdxVal < EC.getKnownMinValue() && GEP->hasOneUse()) {
+        // Find out why we have a vector result - these are a few examples:
+        //  1. We have a scalar pointer and a vector of indices, or
+        //  2. We have a vector of pointers and a scalar index, or
+        //  3. We have a vector of pointers and a vector of indices, etc.
+        // Here we only consider combining when there is exactly one vector
+        // operand, since the optimization is less obviously a win due to
+        // needing more than one extractelements.
+
+        unsigned VectorOps =
+            llvm::count_if(GEP->operands(), [](const Value *V) {
+              return isa<VectorType>(V->getType());
+            });
+        if (VectorOps > 1)
+          return nullptr;
+        assert(VectorOps == 1 && "Expected exactly one vector GEP operand!");
+
+        Value *NewPtr = GEP->getPointerOperand();
+        if (isa<VectorType>(NewPtr->getType()))
+          NewPtr = Builder.CreateExtractElement(NewPtr, IndexC);
+
+        SmallVector<Value *> NewOps;
+        for (unsigned I = 1; I != GEP->getNumOperands(); ++I) {
+          Value *Op = GEP->getOperand(I);
+          if (isa<VectorType>(Op->getType()))
+            NewOps.push_back(Builder.CreateExtractElement(Op, IndexC));
+          else
+            NewOps.push_back(Op);
+        }
+
+        GetElementPtrInst *NewGEP = GetElementPtrInst::Create(
+            cast<PointerType>(NewPtr->getType())->getElementType(), NewPtr,
+            NewOps);
+        NewGEP->setIsInBounds(GEP->isInBounds());
+        return NewGEP;
+      }
+      return nullptr;
     } else if (auto *SVI = dyn_cast<ShuffleVectorInst>(I)) {
       // If this is extracting an element from a shufflevector, figure out where
       // it came from and extract from the appropriate input element instead.
@@ -554,9 +623,9 @@ static void replaceExtractElements(InsertElementInst *InsElt,
       NumExtElts >= NumInsElts)
     return;
 
-  // Create a shuffle mask to widen the extended-from vector using undefined
+  // Create a shuffle mask to widen the extended-from vector using poison
   // values. The mask selects all of the values of the original vector followed
-  // by as many undefined values as needed to create a vector of the same length
+  // by as many poison values as needed to create a vector of the same length
   // as the inserted-to vector.
   SmallVector<int, 16> ExtendMask;
   for (unsigned i = 0; i < NumExtElts; ++i)
@@ -591,7 +660,7 @@ static void replaceExtractElements(InsertElementInst *InsElt,
     return;
 
   auto *WideVec =
-      new ShuffleVectorInst(ExtVecOp, UndefValue::get(ExtVecType), ExtendMask);
+      new ShuffleVectorInst(ExtVecOp, PoisonValue::get(ExtVecType), ExtendMask);
 
   // Insert the new shuffle after the vector operand of the extract is defined
   // (as long as it's not a PHI) or at the start of the basic block of the
@@ -737,12 +806,12 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
 
   // Try to find a value of each element of an aggregate.
   // FIXME: deal with more complex, not one-dimensional, aggregate types
-  SmallVector<Optional<Value *>, 2> AggElts(NumAggElts, NotFound);
+  SmallVector<Optional<Instruction *>, 2> AggElts(NumAggElts, NotFound);
 
   // Do we know values for each element of the aggregate?
   auto KnowAllElts = [&AggElts]() {
     return all_of(AggElts,
-                  [](Optional<Value *> Elt) { return Elt != NotFound; });
+                  [](Optional<Instruction *> Elt) { return Elt != NotFound; });
   };
 
   int Depth = 0;
@@ -757,7 +826,11 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
        Depth < DepthLimit && CurrIVI && !KnowAllElts();
        CurrIVI = dyn_cast<InsertValueInst>(CurrIVI->getAggregateOperand()),
                        ++Depth) {
-    Value *InsertedValue = CurrIVI->getInsertedValueOperand();
+    auto *InsertedValue =
+        dyn_cast<Instruction>(CurrIVI->getInsertedValueOperand());
+    if (!InsertedValue)
+      return nullptr; // Inserted value must be produced by an instruction.
+
     ArrayRef<unsigned int> Indices = CurrIVI->getIndices();
 
     // Don't bother with more than single-level aggregates.
@@ -767,7 +840,7 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
     // Now, we may have already previously recorded the value for this element
     // of an aggregate. If we did, that means the CurrIVI will later be
     // overwritten with the already-recorded value. But if not, let's record it!
-    Optional<Value *> &Elt = AggElts[Indices.front()];
+    Optional<Instruction *> &Elt = AggElts[Indices.front()];
     Elt = Elt.getValueOr(InsertedValue);
 
     // FIXME: should we handle chain-terminating undef base operand?
@@ -811,15 +884,15 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
   // If found, return the source aggregate from which the extraction was.
   // If \p PredBB is provided, does PHI translation of an \p Elt first.
   auto FindSourceAggregate =
-      [&](Value *Elt, unsigned EltIdx, Optional<BasicBlock *> UseBB,
+      [&](Instruction *Elt, unsigned EltIdx, Optional<BasicBlock *> UseBB,
           Optional<BasicBlock *> PredBB) -> Optional<Value *> {
     // For now(?), only deal with, at most, a single level of PHI indirection.
     if (UseBB && PredBB)
-      Elt = Elt->DoPHITranslation(*UseBB, *PredBB);
+      Elt = dyn_cast<Instruction>(Elt->DoPHITranslation(*UseBB, *PredBB));
     // FIXME: deal with multiple levels of PHI indirection?
 
     // Did we find an extraction?
-    auto *EVI = dyn_cast<ExtractValueInst>(Elt);
+    auto *EVI = dyn_cast_or_null<ExtractValueInst>(Elt);
     if (!EVI)
       return NotFound;
 
@@ -848,7 +921,7 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
              "We don't store nullptr in SourceAggregate!");
       assert((Describe(SourceAggregate) == AggregateDescription::Found) ==
                  (I.index() != 0) &&
-             "SourceAggregate should be valid after the the first element,");
+             "SourceAggregate should be valid after the first element,");
 
       // For this element, is there a plausible source aggregate?
       // FIXME: we could special-case undef element, IFF we know that in the
@@ -907,13 +980,8 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
   // they all should be defined in the same basic block.
   BasicBlock *UseBB = nullptr;
 
-  for (const Optional<Value *> &Elt : AggElts) {
-    // If this element's value was not defined by an instruction, ignore it.
-    auto *I = dyn_cast<Instruction>(*Elt);
-    if (!I)
-      continue;
-    // Otherwise, in which basic block is this instruction located?
-    BasicBlock *BB = I->getParent();
+  for (const Optional<Instruction *> &I : AggElts) {
+    BasicBlock *BB = (*I)->getParent();
     // If it's the first instruction we've encountered, record the basic block.
     if (!UseBB) {
       UseBB = BB;
@@ -1050,7 +1118,7 @@ static bool isShuffleEquivalentToSelect(ShuffleVectorInst &Shuf) {
 
 /// Turn a chain of inserts that splats a value into an insert + shuffle:
 /// insertelt(insertelt(insertelt(insertelt X, %k, 0), %k, 1), %k, 2) ... ->
-/// shufflevector(insertelt(X, %k, 0), undef, zero)
+/// shufflevector(insertelt(X, %k, 0), poison, zero)
 static Instruction *foldInsSequenceIntoSplat(InsertElementInst &InsElt) {
   // We are interested in the last insert in a chain. So if this insert has a
   // single user and that user is an insert, bail.
@@ -1108,10 +1176,10 @@ static Instruction *foldInsSequenceIntoSplat(InsertElementInst &InsElt) {
 
   // Create the insert + shuffle.
   Type *Int32Ty = Type::getInt32Ty(InsElt.getContext());
-  UndefValue *UndefVec = UndefValue::get(VecTy);
+  PoisonValue *PoisonVec = PoisonValue::get(VecTy);
   Constant *Zero = ConstantInt::get(Int32Ty, 0);
   if (!cast<ConstantInt>(FirstIE->getOperand(2))->isZero())
-    FirstIE = InsertElementInst::Create(UndefVec, SplatVal, Zero, "", &InsElt);
+    FirstIE = InsertElementInst::Create(PoisonVec, SplatVal, Zero, "", &InsElt);
 
   // Splat from element 0, but replace absent elements with undef in the mask.
   SmallVector<int, 16> Mask(NumElements, 0);
@@ -1119,7 +1187,7 @@ static Instruction *foldInsSequenceIntoSplat(InsertElementInst &InsElt) {
     if (!ElementPresent[i])
       Mask[i] = -1;
 
-  return new ShuffleVectorInst(FirstIE, UndefVec, Mask);
+  return new ShuffleVectorInst(FirstIE, PoisonVec, Mask);
 }
 
 /// Try to fold an insert element into an existing splat shuffle by changing
@@ -1435,7 +1503,7 @@ Instruction *InstCombinerImpl::visitInsertElementInst(InsertElementInst &IE) {
   if (auto VecTy = dyn_cast<FixedVectorType>(VecOp->getType())) {
     unsigned VWidth = VecTy->getNumElements();
     APInt UndefElts(VWidth, 0);
-    APInt AllOnesEltMask(APInt::getAllOnesValue(VWidth));
+    APInt AllOnesEltMask(APInt::getAllOnes(VWidth));
     if (Value *V = SimplifyDemandedVectorElts(&IE, AllOnesEltMask, UndefElts)) {
       if (V != &IE)
         return replaceInstUsesWith(IE, V);
@@ -1640,7 +1708,7 @@ static Value *evaluateInDifferentElementOrder(Value *V, ArrayRef<int> Mask) {
     return ConstantAggregateZero::get(FixedVectorType::get(EltTy, Mask.size()));
 
   if (Constant *C = dyn_cast<Constant>(V))
-    return ConstantExpr::getShuffleVector(C, UndefValue::get(C->getType()),
+    return ConstantExpr::getShuffleVector(C, PoisonValue::get(C->getType()),
                                           Mask);
 
   Instruction *I = cast<Instruction>(V);
@@ -2384,7 +2452,7 @@ Instruction *InstCombinerImpl::visitShuffleVectorInst(ShuffleVectorInst &SVI) {
     return I;
 
   APInt UndefElts(VWidth, 0);
-  APInt AllOnesEltMask(APInt::getAllOnesValue(VWidth));
+  APInt AllOnesEltMask(APInt::getAllOnes(VWidth));
   if (Value *V = SimplifyDemandedVectorElts(&SVI, AllOnesEltMask, UndefElts)) {
     if (V != &SVI)
       return replaceInstUsesWith(SVI, V);

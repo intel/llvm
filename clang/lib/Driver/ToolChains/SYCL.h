@@ -151,10 +151,12 @@ public:
   void AddImpliedTargetArgs(const llvm::Triple &Triple,
                             const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs) const;
-  void TranslateBackendTargetArgs(const llvm::opt::ArgList &Args,
-      llvm::opt::ArgStringList &CmdArgs) const;
-  void TranslateLinkerTargetArgs(const llvm::opt::ArgList &Args,
-      llvm::opt::ArgStringList &CmdArgs) const;
+  void TranslateBackendTargetArgs(const llvm::Triple &Triple,
+                                  const llvm::opt::ArgList &Args,
+                                  llvm::opt::ArgStringList &CmdArgs) const;
+  void TranslateLinkerTargetArgs(const llvm::Triple &Triple,
+                                 const llvm::opt::ArgList &Args,
+                                 llvm::opt::ArgStringList &CmdArgs) const;
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override { return false; }

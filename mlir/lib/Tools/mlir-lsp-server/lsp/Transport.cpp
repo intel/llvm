@@ -204,6 +204,8 @@ llvm::Error JSONTransport::run(MessageHandler &handler) {
       if (llvm::Expected<llvm::json::Value> doc = llvm::json::parse(json)) {
         if (!handleMessage(std::move(*doc), handler))
           return llvm::Error::success();
+      } else {
+        Logger::error("JSON parse error: {0}", llvm::toString(doc.takeError()));
       }
     }
   }
@@ -296,7 +298,7 @@ LogicalResult JSONTransport::readStandardMessage(std::string &json) {
       return failure();
 
     // Content-Length is a mandatory header, and the only one we handle.
-    StringRef lineRef(line);
+    StringRef lineRef = line;
     if (lineRef.consume_front("Content-Length: ")) {
       llvm::getAsUnsignedInteger(lineRef.trim(), 0, contentLength);
     } else if (!lineRef.trim().empty()) {
@@ -336,7 +338,7 @@ LogicalResult JSONTransport::readDelimitedMessage(std::string &json) {
   json.clear();
   llvm::SmallString<128> line;
   while (succeeded(readLine(in, line))) {
-    StringRef lineRef = StringRef(line).trim();
+    StringRef lineRef = line.str().trim();
     if (lineRef.startswith("//")) {
       // Found a delimiter for the message.
       if (lineRef == "// -----")

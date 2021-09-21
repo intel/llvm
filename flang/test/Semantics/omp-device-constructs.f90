@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %flang -fopenmp
+! RUN: %python %S/test_errors.py %s %flang -fopenmp
 ! Check OpenMP clause validity for the following directives:
 !     2.10 Device constructs
 program main

@@ -32,18 +32,8 @@ namespace {
 struct SparsificationPass : public SparsificationBase<SparsificationPass> {
 
   SparsificationPass() = default;
-  SparsificationPass(const SparsificationPass &pass) {}
-
-  Option<int32_t> parallelization{
-      *this, "parallelization-strategy",
-      llvm::cl::desc("Set the parallelization strategy"), llvm::cl::init(0)};
-
-  Option<int32_t> vectorization{
-      *this, "vectorization-strategy",
-      llvm::cl::desc("Set the vectorization strategy"), llvm::cl::init(0)};
-
-  Option<int32_t> vectorLength{
-      *this, "vl", llvm::cl::desc("Set the vector length"), llvm::cl::init(1)};
+  SparsificationPass(const SparsificationPass &pass)
+      : SparsificationBase<SparsificationPass>() {}
 
   /// Returns parallelization strategy given on command line.
   SparseParallelizationStrategy parallelOption() {
@@ -78,7 +68,7 @@ struct SparsificationPass : public SparsificationBase<SparsificationPass> {
     RewritePatternSet patterns(ctx);
     // Translate strategy flags to strategy options.
     SparsificationOptions options(parallelOption(), vectorOption(),
-                                  vectorLength);
+                                  vectorLength, enableSIMDIndex32);
     // Apply rewriting.
     populateSparsificationPatterns(patterns, options);
     vector::populateVectorToVectorCanonicalizationPatterns(patterns);
@@ -107,7 +97,11 @@ struct SparseTensorConversionPass
     RewritePatternSet patterns(ctx);
     SparseTensorTypeConverter converter;
     ConversionTarget target(*ctx);
-    target.addIllegalOp<NewOp, ToPointersOp, ToIndicesOp, ToValuesOp>();
+    target.addIllegalOp<NewOp, ConvertOp, ToPointersOp, ToIndicesOp, ToValuesOp,
+                        ToTensorOp>();
+    // All dynamic rules below accept new function, call, return, and dimop
+    // operations as legal output of the rewriting provided that all sparse
+    // tensor types have been fully rewritten.
     target.addDynamicallyLegalOp<FuncOp>(
         [&](FuncOp op) { return converter.isSignatureLegal(op.getType()); });
     target.addDynamicallyLegalOp<CallOp>([&](CallOp op) {
@@ -115,8 +109,15 @@ struct SparseTensorConversionPass
     });
     target.addDynamicallyLegalOp<ReturnOp>(
         [&](ReturnOp op) { return converter.isLegal(op.getOperandTypes()); });
-    target.addLegalOp<ConstantOp>();
-    target.addLegalOp<tensor::CastOp>();
+    target.addDynamicallyLegalOp<tensor::DimOp>([&](tensor::DimOp op) {
+      return converter.isLegal(op.getOperandTypes());
+    });
+    // The following operations and dialects may be introduced by the
+    // rewriting rules, and are therefore marked as legal.
+    target.addLegalOp<ConstantOp, tensor::CastOp, tensor::ExtractOp>();
+    target.addLegalDialect<scf::SCFDialect, LLVM::LLVMDialect,
+                           memref::MemRefDialect>();
+    // Populate with rules and apply rewriting rules.
     populateFuncOpTypeConversionPattern(patterns, converter);
     populateCallOpTypeConversionPattern(patterns, converter);
     populateSparseTensorConversionPatterns(converter, patterns);

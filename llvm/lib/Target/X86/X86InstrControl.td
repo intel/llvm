@@ -206,7 +206,7 @@ let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1 in {
 }
 
 // Loop instructions
-let SchedRW = [WriteJump] in {
+let isBranch = 1, isTerminator = 1, SchedRW = [WriteJump] in {
 def LOOP   : Ii8PCRel<0xE2, RawFrm, (outs), (ins brtarget8:$dst), "loop\t$dst", []>;
 def LOOPE  : Ii8PCRel<0xE1, RawFrm, (outs), (ins brtarget8:$dst), "loope\t$dst", []>;
 def LOOPNE : Ii8PCRel<0xE0, RawFrm, (outs), (ins brtarget8:$dst), "loopne\t$dst", []>;
@@ -419,15 +419,15 @@ let isPseudo = 1, isCall = 1, isCodeGenOnly = 1,
     Uses = [RSP, SSP],
     SchedRW = [WriteJump] in {
   def CALL64m_RVMARKER :
-     PseudoI<(outs), (ins i32imm:$sel, i64mem:$dst), [(X86call_rvmarker timm:$sel, (loadi64 addr:$dst))]>,
+     PseudoI<(outs), (ins i64imm:$rvfunc, i64mem:$dst), [(X86call_rvmarker tglobaladdr:$rvfunc, (loadi64 addr:$dst))]>,
              Requires<[In64BitMode]>;
 
   def CALL64r_RVMARKER :
-    PseudoI<(outs), (ins i32imm:$sel, GR64:$dst), [(X86call_rvmarker timm:$sel, GR64:$dst)]>,
+    PseudoI<(outs), (ins i64imm:$rvfunc, GR64:$dst), [(X86call_rvmarker tglobaladdr:$rvfunc, GR64:$dst)]>,
             Requires<[In64BitMode]>;
 
   def CALL64pcrel32_RVMARKER :
-    PseudoI<(outs), (ins i32imm:$sel, i64i32imm_brtarget:$dst), []>,
+    PseudoI<(outs), (ins i64imm:$rvfunc, i64i32imm_brtarget:$dst), []>,
             Requires<[In64BitMode]>;
 }
 

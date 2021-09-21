@@ -28,7 +28,7 @@
 #include "ConfigFragment.h"
 #include "ConfigProvider.h"
 #include "Diagnostics.h"
-#include "Features.inc"
+#include "Feature.h"
 #include "TidyProvider.h"
 #include "support/Logger.h"
 #include "support/Path.h"
@@ -47,6 +47,7 @@
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/SourceMgr.h"
+#include <algorithm>
 #include <string>
 
 namespace clang {
@@ -270,7 +271,9 @@ struct FragmentCompiler {
         Add.push_back(std::move(*A));
       Out.Apply.push_back([Add(std::move(Add))](const Params &, Config &C) {
         C.CompileFlags.Edits.push_back([Add](std::vector<std::string> &Args) {
-          Args.insert(Args.end(), Add.begin(), Add.end());
+          // The point to insert at. Just append when `--` isn't present.
+          auto It = llvm::find(Args, "--");
+          Args.insert(It, Add.begin(), Add.end());
         });
       });
     }
@@ -376,7 +379,7 @@ struct FragmentCompiler {
     }
     Out.Apply.push_back([Spec(std::move(Spec))](const Params &P, Config &C) {
       if (Spec.Kind == Config::ExternalIndexSpec::None) {
-        C.Index.External.reset();
+        C.Index.External = Spec;
         return;
       }
       if (P.Path.empty() || !pathStartsWith(Spec.MountPoint, P.Path,

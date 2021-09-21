@@ -64,8 +64,7 @@ leavesAllocationScope(Region *parentRegion,
       // If there is at least one alias that leaves the parent region, we know
       // that this alias escapes the whole region and hence the associated
       // allocation leaves allocation scope.
-      if (use->hasTrait<OpTrait::ReturnLike>() &&
-          use->getParentRegion() == parentRegion)
+      if (isRegionReturnLike(use) && use->getParentRegion() == parentRegion)
         return true;
     }
   }
@@ -125,12 +124,19 @@ class BufferAllocationHoisting : public BufferPlacementTransformationBase {
 public:
   BufferAllocationHoisting(Operation *op)
       : BufferPlacementTransformationBase(op), dominators(op),
-        postDominators(op) {}
+        postDominators(op), scopeOp(op) {}
 
   /// Moves allocations upwards.
   void hoist() {
-    for (BufferPlacementAllocs::AllocEntry &entry : allocs) {
-      Value allocValue = std::get<0>(entry);
+    SmallVector<Value> allocsAndAllocas;
+    for (BufferPlacementAllocs::AllocEntry &entry : allocs)
+      allocsAndAllocas.push_back(std::get<0>(entry));
+    scopeOp->walk(
+        [&](memref::AllocaOp op) { allocsAndAllocas.push_back(op.memref()); });
+
+    for (auto allocValue : allocsAndAllocas) {
+      if (!StateT::shouldHoistOpType(allocValue.getDefiningOp()))
+        continue;
       Operation *definingOp = allocValue.getDefiningOp();
       assert(definingOp && "No defining op");
       auto operands = definingOp->getOperands();
@@ -187,7 +193,12 @@ private:
             dominators.properlyDominates(upperBound, currentBlock))) {
       // Try to find an immediate dominator and check whether the parent block
       // is above the immediate dominator (if any).
-      DominanceInfoNode *idom = dominators.getNode(currentBlock)->getIDom();
+      DominanceInfoNode *idom = nullptr;
+
+      // DominanceInfo doesn't support getNode queries for single-block regions.
+      if (!currentBlock->isEntryBlock())
+        idom = dominators.getNode(currentBlock)->getIDom();
+
       if (idom && dominators.properlyDominates(parentBlock, idom->getBlock())) {
         // If the current immediate dominator is below the placement block, move
         // to the immediate dominator block.
@@ -222,6 +233,10 @@ private:
 
   /// The map storing the final placement blocks of a given alloc value.
   llvm::DenseMap<Value, Block *> placementBlocks;
+
+  /// The operation that this transformation is working on. It is used to also
+  /// gather allocas.
+  Operation *scopeOp;
 };
 
 /// A state implementation compatible with the `BufferAllocationHoisting` class
@@ -247,6 +262,11 @@ struct BufferAllocationHoistingState : BufferAllocationHoistingStateBase {
   /// Returns true if the given operation does not represent a loop.
   bool isLegalPlacement(Operation *op) {
     return !BufferPlacementTransformationBase::isLoop(op);
+  }
+
+  /// Returns true if the given operation should be considered for hoisting.
+  static bool shouldHoistOpType(Operation *op) {
+    return llvm::isa<memref::AllocOp>(op);
   }
 
   /// Sets the current placement block to the given block.
@@ -279,6 +299,11 @@ struct BufferAllocationLoopHoistingState : BufferAllocationHoistingStateBase {
   bool isLegalPlacement(Operation *op) {
     return BufferPlacementTransformationBase::isLoop(op) &&
            !dominators->dominates(aliasDominatorBlock, op->getBlock());
+  }
+
+  /// Returns true if the given operation should be considered for hoisting.
+  static bool shouldHoistOpType(Operation *op) {
+    return llvm::isa<memref::AllocOp, memref::AllocaOp>(op);
   }
 
   /// Does not change the internal placement block, as we want to move

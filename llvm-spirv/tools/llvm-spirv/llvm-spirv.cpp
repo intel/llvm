@@ -104,7 +104,8 @@ static cl::opt<VersionNumber> MaxSPIRVVersion(
     cl::values(clEnumValN(VersionNumber::SPIRV_1_0, "1.0", "SPIR-V 1.0"),
                clEnumValN(VersionNumber::SPIRV_1_1, "1.1", "SPIR-V 1.1"),
                clEnumValN(VersionNumber::SPIRV_1_2, "1.2", "SPIR-V 1.2"),
-               clEnumValN(VersionNumber::SPIRV_1_3, "1.3", "SPIR-V 1.3")),
+               clEnumValN(VersionNumber::SPIRV_1_3, "1.3", "SPIR-V 1.3"),
+               clEnumValN(VersionNumber::SPIRV_1_4, "1.4", "SPIR-V 1.4")),
     cl::init(VersionNumber::MaximumVersion));
 
 static cl::list<std::string>
@@ -136,6 +137,12 @@ static cl::opt<SPIRV::BIsRepresentation> BIsRepresentation(
         clEnumValN(SPIRV::BIsRepresentation::SPIRVFriendlyIR, "SPV-IR",
                    "SPIR-V Friendly IR")),
     cl::init(SPIRV::BIsRepresentation::OpenCL12));
+
+static cl::opt<bool>
+    PreserveOCLKernelArgTypeMetadataThroughString(
+        "preserve-ocl-kernel-arg-type-metadata-through-string", cl::init(false),
+        cl::desc("Preserve OpenCL kernel_arg_type and kernel_arg_type_qual "
+                 "metadata through OpString"));
 
 using SPIRV::ExtensionID;
 
@@ -287,7 +294,7 @@ static int convertSPIRVToLLVM(const SPIRV::TranslatorOpts &Opts) {
   }
 
   std::error_code EC;
-  ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::F_None);
+  ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::OF_None);
   if (EC) {
     errs() << "Fails to open output file: " << EC.message();
     return -1;
@@ -364,7 +371,7 @@ static int regularizeLLVM(SPIRV::TranslatorOpts &Opts) {
   }
 
   std::error_code EC;
-  ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::F_None);
+  ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::OF_None);
   if (EC) {
     errs() << "Fails to open output file: " << EC.message();
     return -1;
@@ -626,6 +633,9 @@ int main(int Ac, char **Av) {
       Opts.setDebugInfoEIS(DebugEIS);
     }
   }
+
+  if (PreserveOCLKernelArgTypeMetadataThroughString.getNumOccurrences() != 0)
+    Opts.setPreserveOCLKernelArgTypeMetadataThroughString(true);
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
   if (ToText && (ToBinary || IsReverse || IsRegularization)) {

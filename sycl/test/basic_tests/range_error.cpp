@@ -1,11 +1,4 @@
-// RUN: %clangxx -fsycl -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning -fsyntax-only
-//==--------------- range_error.cpp - SYCL range error test ----------------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
+// RUN: %clangxx %s %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning
 #include <CL/sycl.hpp>
 #include <iostream>
 #include <cassert>
@@ -33,6 +26,8 @@ int main() {
   assert(three_dim_range.get(2) ==2);
   assert(three_dim_range[2] ==2);
   cout << "three_dim_range passed " << endl;
-  cl::sycl::range<1> one_dim_range_f1(64, 2, 4);//expected-error {{no matching constructor for initialization of 'cl::sycl::range<1>'}}
-  cl::sycl::range<2> two_dim_range_f1(64);//expected-error {{no matching constructor for initialization of 'cl::sycl::range<2>'}}
+  // expected-error@+1 {{no matching constructor for initialization of 'cl::sycl::range<1>'}}
+  cl::sycl::range<1> one_dim_range_f1(64, 2, 4);
+  // expected-error@+1 {{no matching constructor for initialization of 'cl::sycl::range<2>'}}
+  cl::sycl::range<2> two_dim_range_f1(64);
 }

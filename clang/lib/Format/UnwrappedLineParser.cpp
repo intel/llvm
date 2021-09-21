@@ -431,7 +431,7 @@ void UnwrappedLineParser::parseLevel(bool HasOpeningBrace) {
       }
       LLVM_FALLTHROUGH;
     default:
-      parseStructuralElement();
+      parseStructuralElement(/*IsTopLevel=*/true);
       break;
     }
   } while (!eof());
@@ -751,6 +751,8 @@ void UnwrappedLineParser::parsePPDirective() {
   case tok::pp_else:
     parsePPElse();
     break;
+  case tok::pp_elifdef:
+  case tok::pp_elifndef:
   case tok::pp_elif:
     parsePPElIf();
     break;
@@ -960,8 +962,8 @@ static bool mustBeJSIdent(const AdditionalKeywords &Keywords,
               Keywords.kw_function, Keywords.kw_import, Keywords.kw_is,
               Keywords.kw_let, Keywords.kw_var, tok::kw_const,
               Keywords.kw_abstract, Keywords.kw_extends, Keywords.kw_implements,
-              Keywords.kw_instanceof, Keywords.kw_interface, Keywords.kw_throws,
-              Keywords.kw_from));
+              Keywords.kw_instanceof, Keywords.kw_interface,
+              Keywords.kw_override, Keywords.kw_throws, Keywords.kw_from));
 }
 
 static bool mustBeJSIdentOrValue(const AdditionalKeywords &Keywords,
@@ -990,6 +992,51 @@ static bool isJSDeclOrStmt(const AdditionalKeywords &Keywords,
       Keywords.kw_async, Keywords.kw_function,
       // import/export
       Keywords.kw_import, tok::kw_export);
+}
+
+// Checks whether a token is a type in K&R C (aka C78).
+static bool isC78Type(const FormatToken &Tok) {
+  return Tok.isOneOf(tok::kw_char, tok::kw_short, tok::kw_int, tok::kw_long,
+                     tok::kw_unsigned, tok::kw_float, tok::kw_double,
+                     tok::identifier);
+}
+
+// This function checks whether a token starts the first parameter declaration
+// in a K&R C (aka C78) function definition, e.g.:
+//   int f(a, b)
+//   short a, b;
+//   {
+//      return a + b;
+//   }
+static bool isC78ParameterDecl(const FormatToken *Tok, const FormatToken *Next,
+                               const FormatToken *FuncName) {
+  assert(Tok);
+  assert(Next);
+  assert(FuncName);
+
+  if (FuncName->isNot(tok::identifier))
+    return false;
+
+  const FormatToken *Prev = FuncName->Previous;
+  if (!Prev || (Prev->isNot(tok::star) && !isC78Type(*Prev)))
+    return false;
+
+  if (!isC78Type(*Tok) &&
+      !Tok->isOneOf(tok::kw_register, tok::kw_struct, tok::kw_union))
+    return false;
+
+  if (Next->isNot(tok::star) && !Next->Tok.getIdentifierInfo())
+    return false;
+
+  Tok = Tok->Previous;
+  if (!Tok || Tok->isNot(tok::r_paren))
+    return false;
+
+  Tok = Tok->Previous;
+  if (!Tok || Tok->isNot(tok::identifier))
+    return false;
+
+  return Tok->Previous && Tok->Previous->isOneOf(tok::l_paren, tok::comma);
 }
 
 // readTokenWithJavaScriptASI reads the next token and terminates the current
@@ -1039,7 +1086,7 @@ void UnwrappedLineParser::readTokenWithJavaScriptASI() {
     return addUnwrappedLine();
 }
 
-void UnwrappedLineParser::parseStructuralElement() {
+void UnwrappedLineParser::parseStructuralElement(bool IsTopLevel) {
   assert(!FormatTok->is(tok::l_brace));
   if (Style.Language == FormatStyle::LK_TableGen &&
       FormatTok->is(tok::pp_include)) {
@@ -1339,9 +1386,20 @@ void UnwrappedLineParser::parseStructuralElement() {
     case tok::r_brace:
       addUnwrappedLine();
       return;
-    case tok::l_paren:
+    case tok::l_paren: {
       parseParens();
+      // Break the unwrapped line if a K&R C function definition has a parameter
+      // declaration.
+      if (!IsTopLevel || !Style.isCpp() || !Previous || FormatTok->is(tok::eof))
+        break;
+      const unsigned Position = Tokens->getPosition() + 1;
+      assert(Position < AllTokens.size());
+      if (isC78ParameterDecl(FormatTok, AllTokens[Position], Previous)) {
+        addUnwrappedLine();
+        return;
+      }
       break;
+    }
     case tok::kw_operator:
       nextToken();
       if (FormatTok->isBinaryOperator())
@@ -1480,8 +1538,8 @@ void UnwrappedLineParser::parseStructuralElement() {
     }
     case tok::equal:
       // Fat arrows (=>) have tok::TokenKind tok::equal but TokenType
-      // TT_FatArrow. The always start an expression or a child block if
-      // followed by a curly.
+      // TT_FatArrow. They always start an expression or a child block if
+      // followed by a curly brace.
       if (FormatTok->is(TT_FatArrow)) {
         nextToken();
         if (FormatTok->is(tok::l_brace)) {
@@ -1788,14 +1846,20 @@ bool UnwrappedLineParser::parseBracedList(bool ContinueOnSemicolons,
   bool HasError = false;
 
   // FIXME: Once we have an expression parser in the UnwrappedLineParser,
-  // replace this by using parseAssigmentExpression() inside.
+  // replace this by using parseAssignmentExpression() inside.
   do {
     if (Style.isCSharp()) {
+      // Fat arrows (=>) have tok::TokenKind tok::equal but TokenType
+      // TT_FatArrow. They always start an expression or a child block if
+      // followed by a curly brace.
       if (FormatTok->is(TT_FatArrow)) {
         nextToken();
-        // Fat arrows can be followed by simple expressions or by child blocks
-        // in curly braces.
         if (FormatTok->is(tok::l_brace)) {
+          // C# may break after => if the next character is a newline.
+          if (Style.isCSharp() && Style.BraceWrapping.AfterFunction == true) {
+            // calling `addUnwrappedLine()` here causes odd parsing errors.
+            FormatTok->MustBreakBefore = true;
+          }
           parseChildBlock();
           continue;
         }
@@ -1925,6 +1989,12 @@ void UnwrappedLineParser::parseParens() {
         parseBracedList();
       }
       break;
+    case tok::equal:
+      if (Style.isCSharp() && FormatTok->is(TT_FatArrow))
+        parseStructuralElement();
+      else
+        nextToken();
+      break;
     case tok::kw_class:
       if (Style.Language == FormatStyle::LK_JavaScript)
         parseRecord(/*ParseAsExpr=*/true);
@@ -2019,7 +2089,15 @@ void UnwrappedLineParser::parseIfThenElse() {
       parseBlock(/*MustBeDeclaration=*/false);
       addUnwrappedLine();
     } else if (FormatTok->Tok.is(tok::kw_if)) {
+      FormatToken *Previous = AllTokens[Tokens->getPosition() - 1];
+      bool PrecededByComment = Previous->is(tok::comment);
+      if (PrecededByComment) {
+        addUnwrappedLine();
+        ++Line->Level;
+      }
       parseIfThenElse();
+      if (PrecededByComment)
+        --Line->Level;
     } else {
       addUnwrappedLine();
       ++Line->Level;
@@ -2454,6 +2532,8 @@ bool UnwrappedLineParser::parseEnum() {
   if (FormatTok->Tok.is(tok::kw_enum))
     nextToken();
 
+  const FormatToken &InitialToken = *FormatTok;
+
   // In TypeScript, "enum" can also be used as property name, e.g. in interface
   // declarations. An "enum" keyword followed by a colon would be a syntax
   // error and thus assume it is just an identifier.
@@ -2500,7 +2580,8 @@ bool UnwrappedLineParser::parseEnum() {
     return true;
   }
 
-  if (!Style.AllowShortEnumsOnASingleLine)
+  if (!Style.AllowShortEnumsOnASingleLine &&
+      ShouldBreakBeforeBrace(Style, InitialToken))
     addUnwrappedLine();
   // Parse enum body.
   nextToken();

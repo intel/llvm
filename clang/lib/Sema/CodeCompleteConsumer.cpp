@@ -82,6 +82,7 @@ bool CodeCompletionContext::wantConstructorResults() const {
   case CCC_ObjCInterfaceName:
   case CCC_ObjCCategoryName:
   case CCC_IncludedFile:
+  case CCC_Attribute:
     return false;
   }
 
@@ -161,6 +162,8 @@ StringRef clang::getCompletionKindString(CodeCompletionContext::Kind Kind) {
     return "ObjCCategoryName";
   case CCKind::CCC_IncludedFile:
     return "IncludedFile";
+  case CCKind::CCC_Attribute:
+    return "Attribute";
   case CCKind::CCC_Recovery:
     return "Recovery";
   }
@@ -755,7 +758,7 @@ bool clang::operator<(const CodeCompletionResult &X,
   std::string XSaved, YSaved;
   StringRef XStr = X.getOrderedName(XSaved);
   StringRef YStr = Y.getOrderedName(YSaved);
-  int cmp = XStr.compare_lower(YStr);
+  int cmp = XStr.compare_insensitive(YStr);
   if (cmp)
     return cmp < 0;
 

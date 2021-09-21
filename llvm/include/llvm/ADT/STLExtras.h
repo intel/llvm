@@ -630,6 +630,14 @@ protected:
     return std::tuple<Iters...>(std::prev(std::get<Ns>(iterators))...);
   }
 
+  template <size_t... Ns>
+  bool test_all_equals(const zip_common &other,
+            std::index_sequence<Ns...>) const {
+    return all_of(std::initializer_list<bool>{std::get<Ns>(this->iterators) ==
+                                              std::get<Ns>(other.iterators)...},
+                  identity<bool>{});
+  }
+
 public:
   zip_common(Iters &&... ts) : iterators(std::forward<Iters>(ts)...) {}
 
@@ -649,6 +657,11 @@ public:
                   "All inner iterators must be at least bidirectional.");
     iterators = tup_dec(std::index_sequence_for<Iters...>{});
     return *reinterpret_cast<ZipType *>(this);
+  }
+
+  /// Return true if all the iterator are matching `other`'s iterators.
+  bool all_equals(zip_common &other) {
+    return test_all_equals(other, std::index_sequence_for<Iters...>{});
   }
 };
 
@@ -1260,7 +1273,7 @@ template <typename ContainerTy> auto make_second_range(ContainerTy &&c) {
 /// compares less than the first component of another std::pair.
 struct less_first {
   template <typename T> bool operator()(const T &lhs, const T &rhs) const {
-    return lhs.first < rhs.first;
+    return std::less<>()(lhs.first, rhs.first);
   }
 };
 
@@ -1268,7 +1281,7 @@ struct less_first {
 /// compares less than the second component of another std::pair.
 struct less_second {
   template <typename T> bool operator()(const T &lhs, const T &rhs) const {
-    return lhs.second < rhs.second;
+    return std::less<>()(lhs.second, rhs.second);
   }
 };
 
@@ -1298,6 +1311,58 @@ using is_one_of = disjunction<std::is_same<T, Ts>...>;
 ///  the given types in the variadic list.
 template <typename T, typename... Ts>
 using are_base_of = conjunction<std::is_base_of<T, Ts>...>;
+
+namespace detail {
+template <typename... Ts> struct Visitor;
+
+template <typename HeadT, typename... TailTs>
+struct Visitor<HeadT, TailTs...> : remove_cvref_t<HeadT>, Visitor<TailTs...> {
+  explicit constexpr Visitor(HeadT &&Head, TailTs &&...Tail)
+      : remove_cvref_t<HeadT>(std::forward<HeadT>(Head)),
+        Visitor<TailTs...>(std::forward<TailTs>(Tail)...) {}
+  using remove_cvref_t<HeadT>::operator();
+  using Visitor<TailTs...>::operator();
+};
+
+template <typename HeadT> struct Visitor<HeadT> : remove_cvref_t<HeadT> {
+  explicit constexpr Visitor(HeadT &&Head)
+      : remove_cvref_t<HeadT>(std::forward<HeadT>(Head)) {}
+  using remove_cvref_t<HeadT>::operator();
+};
+} // namespace detail
+
+/// Returns an opaquely-typed Callable object whose operator() overload set is
+/// the sum of the operator() overload sets of each CallableT in CallableTs.
+///
+/// The type of the returned object derives from each CallableT in CallableTs.
+/// The returned object is constructed by invoking the appropriate copy or move
+/// constructor of each CallableT, as selected by overload resolution on the
+/// corresponding argument to makeVisitor.
+///
+/// Example:
+///
+/// \code
+/// auto visitor = makeVisitor([](auto) { return "unhandled type"; },
+///                            [](int i) { return "int"; },
+///                            [](std::string s) { return "str"; });
+/// auto a = visitor(42);    // `a` is now "int".
+/// auto b = visitor("foo"); // `b` is now "str".
+/// auto c = visitor(3.14f); // `c` is now "unhandled type".
+/// \endcode
+///
+/// Example of making a visitor with a lambda which captures a move-only type:
+///
+/// \code
+/// std::unique_ptr<FooHandler> FH = /* ... */;
+/// auto visitor = makeVisitor(
+///     [FH{std::move(FH)}](Foo F) { return FH->handle(F); },
+///     [](int i) { return i; },
+///     [](std::string s) { return atoi(s); });
+/// \endcode
+template <typename... CallableTs>
+constexpr decltype(auto) makeVisitor(CallableTs &&...Callables) {
+  return detail::Visitor<CallableTs...>(std::forward<CallableTs>(Callables)...);
+}
 
 //===----------------------------------------------------------------------===//
 //     Extra additions for arrays
@@ -1636,6 +1701,13 @@ auto unique(Range &&R, Predicate P) {
   return std::unique(adl_begin(R), adl_end(R), P);
 }
 
+/// Wrapper function around std::equal to detect if pair-wise elements between
+/// two ranges are the same.
+template <typename L, typename R> bool equal(L &&LRange, R &&RRange) {
+  return std::equal(adl_begin(LRange), adl_end(LRange), adl_begin(RRange),
+                    adl_end(RRange));
+}
+
 /// Wrapper function around std::equal to detect if all elements
 /// in a container are same.
 template <typename R>
@@ -1925,6 +1997,45 @@ decltype(auto) apply_tuple(F &&f, Tuple &&t) {
 
   return detail::apply_tuple_impl(std::forward<F>(f), std::forward<Tuple>(t),
                                   Indices{});
+}
+
+namespace detail {
+
+template <typename Predicate, typename... Args>
+bool all_of_zip_predicate_first(Predicate &&P, Args &&...args) {
+  auto z = zip(args...);
+  auto it = z.begin();
+  auto end = z.end();
+  while (it != end) {
+    if (!apply_tuple([&](auto &&...args) { return P(args...); }, *it))
+      return false;
+    ++it;
+  }
+  return it.all_equals(end);
+}
+
+// Just an adaptor to switch the order of argument and have the predicate before
+// the zipped inputs.
+template <typename... ArgsThenPredicate, size_t... InputIndexes>
+bool all_of_zip_predicate_last(
+    std::tuple<ArgsThenPredicate...> argsThenPredicate,
+    std::index_sequence<InputIndexes...>) {
+  auto constexpr OutputIndex =
+      std::tuple_size<decltype(argsThenPredicate)>::value - 1;
+  return all_of_zip_predicate_first(std::get<OutputIndex>(argsThenPredicate),
+                             std::get<InputIndexes>(argsThenPredicate)...);
+}
+
+} // end namespace detail
+
+/// Compare two zipped ranges using the provided predicate (as last argument).
+/// Return true if all elements satisfy the predicate and false otherwise.
+//  Return false if the zipped iterator aren't all at end (size mismatch).
+template <typename... ArgsAndPredicate>
+bool all_of_zip(ArgsAndPredicate &&...argsAndPredicate) {
+  return detail::all_of_zip_predicate_last(
+      std::forward_as_tuple(argsAndPredicate...),
+      std::make_index_sequence<sizeof...(argsAndPredicate) - 1>{});
 }
 
 /// Return true if the sequence [Begin, End) has exactly N items. Runs in O(N)

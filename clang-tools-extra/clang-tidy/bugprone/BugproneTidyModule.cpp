@@ -18,6 +18,7 @@
 #include "CopyConstructorInitCheck.h"
 #include "DanglingHandleCheck.h"
 #include "DynamicStaticInitializersCheck.h"
+#include "EasilySwappableParametersCheck.h"
 #include "ExceptionEscapeCheck.h"
 #include "FoldInitTypeCheck.h"
 #include "ForwardDeclarationNamespaceCheck.h"
@@ -51,6 +52,7 @@
 #include "StringLiteralWithEmbeddedNulCheck.h"
 #include "SuspiciousEnumUsageCheck.h"
 #include "SuspiciousIncludeCheck.h"
+#include "SuspiciousMemoryComparisonCheck.h"
 #include "SuspiciousMemsetUsageCheck.h"
 #include "SuspiciousMissingCommaCheck.h"
 #include "SuspiciousSemicolonCheck.h"
@@ -91,6 +93,8 @@ public:
         "bugprone-dangling-handle");
     CheckFactories.registerCheck<DynamicStaticInitializersCheck>(
         "bugprone-dynamic-static-initializers");
+    CheckFactories.registerCheck<EasilySwappableParametersCheck>(
+        "bugprone-easily-swappable-parameters");
     CheckFactories.registerCheck<ExceptionEscapeCheck>(
         "bugprone-exception-escape");
     CheckFactories.registerCheck<FoldInitTypeCheck>(
@@ -157,6 +161,8 @@ public:
         "bugprone-suspicious-enum-usage");
     CheckFactories.registerCheck<SuspiciousIncludeCheck>(
         "bugprone-suspicious-include");
+    CheckFactories.registerCheck<SuspiciousMemoryComparisonCheck>(
+        "bugprone-suspicious-memory-comparison");
     CheckFactories.registerCheck<SuspiciousMemsetUsageCheck>(
         "bugprone-suspicious-memset-usage");
     CheckFactories.registerCheck<SuspiciousMissingCommaCheck>(

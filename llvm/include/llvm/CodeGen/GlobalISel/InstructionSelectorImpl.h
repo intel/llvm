@@ -390,7 +390,7 @@ bool InstructionSelector::executeMatchTable(
           return false;
 
       for (const auto &MMO : State.MIs[InsnID]->memoperands())
-        if (MMO->getOrdering() != Ordering)
+        if (MMO->getMergedOrdering() != Ordering)
           if (handleReject() == RejectAndGiveUp)
             return false;
       break;
@@ -408,7 +408,7 @@ bool InstructionSelector::executeMatchTable(
           return false;
 
       for (const auto &MMO : State.MIs[InsnID]->memoperands())
-        if (!isAtLeastOrStrongerThan(MMO->getOrdering(), Ordering))
+        if (!isAtLeastOrStrongerThan(MMO->getMergedOrdering(), Ordering))
           if (handleReject() == RejectAndGiveUp)
             return false;
       break;
@@ -426,7 +426,7 @@ bool InstructionSelector::executeMatchTable(
           return false;
 
       for (const auto &MMO : State.MIs[InsnID]->memoperands())
-        if (!isStrongerThan(Ordering, MMO->getOrdering()))
+        if (!isStrongerThan(Ordering, MMO->getMergedOrdering()))
           if (handleReject() == RejectAndGiveUp)
             return false;
       break;
@@ -595,7 +595,7 @@ bool InstructionSelector::executeMatchTable(
     case GIM_CheckPointerToAny: {
       int64_t InsnID = MatchTable[CurrentIdx++];
       int64_t OpIdx = MatchTable[CurrentIdx++];
-      int64_t SizeInBits = MatchTable[CurrentIdx++];
+      uint64_t SizeInBits = MatchTable[CurrentIdx++];
 
       DEBUG_WITH_TYPE(TgtInstructionSelector::getName(),
                       dbgs() << CurrentIdx << ": GIM_CheckPointerToAny(MIs["

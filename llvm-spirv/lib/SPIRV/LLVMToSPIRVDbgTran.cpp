@@ -343,6 +343,12 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgEntryImpl(const MDNode *MDN) {
     case dwarf::DW_TAG_imported_declaration:
       return transDbgImportedEntry(cast<DIImportedEntity>(DIEntry));
 
+    case dwarf::DW_TAG_module: {
+      if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_debug_module))
+        return transDbgModule(cast<DIModule>(DIEntry));
+      return getDebugInfoNone();
+    }
+
     default:
       return getDebugInfoNone();
     }
@@ -490,7 +496,10 @@ LLVMToSPIRVDbgTran::transDbgCompilationUnit(const DICompileUnit *CU) {
   Ops[SPIRVDebugInfoVersionIdx] = SPIRVDebug::DebugInfoVersion;
   Ops[DWARFVersionIdx] = M->getDwarfVersion();
   Ops[SourceIdx] = getSource(CU)->getId();
-  Ops[LanguageIdx] = CU->getSourceLanguage();
+  auto DwarfLang =
+      static_cast<llvm::dwarf::SourceLanguage>(CU->getSourceLanguage());
+  Ops[LanguageIdx] = convertDWARFSourceLangToSPIRV(DwarfLang);
+  BM->addModuleProcessed(SPIRVDebug::ProducerPrefix + CU->getProducer().str());
   // Cache CU in a member.
   SPIRVCU = static_cast<SPIRVExtInst *>(
       BM->addDebugInfo(SPIRVDebug::CompilationUnit, getVoidTy(), Ops));
@@ -812,9 +821,10 @@ LLVMToSPIRVDbgTran::transDbgGlobalVariable(const DIGlobalVariable *GV) {
   // Parent scope
   DIScope *Context = GV->getScope();
   SPIRVEntry *Parent = SPIRVCU;
-  // Global variable may be declared in scope of a namespace or it may be a
-  // static variable declared in scope of a function
-  if (Context && (isa<DINamespace>(Context) || isa<DISubprogram>(Context)))
+  // Global variable may be declared in scope of a namespace or imported module,
+  // it may also be a static variable declared in scope of a function.
+  if (Context && (isa<DINamespace>(Context) || isa<DISubprogram>(Context) ||
+                  isa<DIModule>(Context)))
     Parent = transDbgEntry(Context);
   Ops[ParentIdx] = Parent->getId();
 
@@ -1034,4 +1044,21 @@ LLVMToSPIRVDbgTran::transDbgImportedEntry(const DIImportedEntity *IE) {
   Ops[ColumnIdx] = 0; // This version of DIImportedEntity has no column number
   Ops[ParentIdx] = getScope(IE->getScope())->getId();
   return BM->addDebugInfo(SPIRVDebug::ImportedEntity, getVoidTy(), Ops);
+}
+
+SPIRVEntry *LLVMToSPIRVDbgTran::transDbgModule(const DIModule *Module) {
+  using namespace SPIRVDebug::Operand::ModuleINTEL;
+  SPIRVWordVec Ops(OperandCount);
+  Ops[NameIdx] = BM->getString(Module->getName().str())->getId();
+  Ops[SourceIdx] = getSource(Module->getFile())->getId();
+  Ops[LineIdx] = Module->getLineNo();
+  Ops[ParentIdx] = getScope(Module->getScope())->getId();
+  Ops[ConfigMacrosIdx] =
+      BM->getString(Module->getConfigurationMacros().str())->getId();
+  Ops[IncludePathIdx] = BM->getString(Module->getIncludePath().str())->getId();
+  Ops[ApiNotesIdx] = BM->getString(Module->getAPINotesFile().str())->getId();
+  Ops[IsDeclIdx] = Module->getIsDecl();
+  BM->addExtension(ExtensionID::SPV_INTEL_debug_module);
+  BM->addCapability(spv::CapabilityDebugInfoModuleINTEL);
+  return BM->addDebugInfo(SPIRVDebug::ModuleINTEL, getVoidTy(), Ops);
 }

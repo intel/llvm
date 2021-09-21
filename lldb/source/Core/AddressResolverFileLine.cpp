@@ -21,7 +21,7 @@
 #include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-types.h"
 
-#include <inttypes.h>
+#include <cinttypes>
 #include <vector>
 
 using namespace lldb;
@@ -32,7 +32,7 @@ AddressResolverFileLine::AddressResolverFileLine(
     SourceLocationSpec location_spec)
     : AddressResolver(), m_src_location_spec(location_spec) {}
 
-AddressResolverFileLine::~AddressResolverFileLine() {}
+AddressResolverFileLine::~AddressResolverFileLine() = default;
 
 Searcher::CallbackReturn
 AddressResolverFileLine::SearchCallback(SearchFilter &filter,

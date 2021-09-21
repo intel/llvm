@@ -58,7 +58,7 @@ public:
   /// that 0 is not a positive value.
   ///
   /// \returns true if this APSInt is positive.
-  bool isStrictlyPositive() const { return isNonNegative() && !isNullValue(); }
+  bool isStrictlyPositive() const { return isNonNegative() && !isZero(); }
 
   APSInt &operator=(APInt RHS) {
     // Retain our current sign.
@@ -81,11 +81,6 @@ public:
   /// Append this APSInt to the specified SmallString.
   void toString(SmallVectorImpl<char> &Str, unsigned Radix = 10) const {
     APInt::toString(Str, Radix, isSigned());
-  }
-  /// Converts an APInt to a std::string.  This is an inefficient
-  /// method; you should prefer passing in a SmallString instead.
-  std::string toString(unsigned Radix) const {
-    return APInt::toString(Radix, isSigned());
   }
   using APInt::toString;
 
@@ -347,6 +342,26 @@ inline raw_ostream &operator<<(raw_ostream &OS, const APSInt &I) {
   I.print(OS, I.isSigned());
   return OS;
 }
+
+/// Provide DenseMapInfo for APSInt, using the DenseMapInfo for APInt.
+template <> struct DenseMapInfo<APSInt> {
+  static inline APSInt getEmptyKey() {
+    return APSInt(DenseMapInfo<APInt>::getEmptyKey());
+  }
+
+  static inline APSInt getTombstoneKey() {
+    return APSInt(DenseMapInfo<APInt>::getTombstoneKey());
+  }
+
+  static unsigned getHashValue(const APSInt &Key) {
+    return DenseMapInfo<APInt>::getHashValue(Key);
+  }
+
+  static bool isEqual(const APSInt &LHS, const APSInt &RHS) {
+    return LHS.getBitWidth() == RHS.getBitWidth() &&
+           LHS.isUnsigned() == RHS.isUnsigned() && LHS == RHS;
+  }
+};
 
 } // end namespace llvm
 

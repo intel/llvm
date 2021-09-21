@@ -490,7 +490,7 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
         T, Ctx, std::move(MAB), std::move(OW), std::move(CE), *STI,
         Opts.RelaxAll, Opts.IncrementalLinkerCompatible,
         /*DWARFMustBeAtTheEnd*/ true));
-    Str.get()->InitSections(Opts.NoExecStack);
+    Str.get()->initSections(Opts.NoExecStack, *STI);
   }
 
   // When -fembed-bitcode is passed to clang_as, a 1-byte marker
@@ -585,7 +585,7 @@ int cc1as_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
     return 1;
 
   if (Asm.ShowHelp) {
-    getDriverOptTable().PrintHelp(
+    getDriverOptTable().printHelp(
         llvm::outs(), "clang -cc1as [options] file...",
         "Clang Integrated Assembler",
         /*Include=*/driver::options::CC1AsOption, /*Exclude=*/0,

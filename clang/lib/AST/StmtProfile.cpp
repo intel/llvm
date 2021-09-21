@@ -468,6 +468,13 @@ void OMPClauseProfiler::VisitOMPSizesClause(const OMPSizesClause *C) {
       Profiler->VisitExpr(E);
 }
 
+void OMPClauseProfiler::VisitOMPFullClause(const OMPFullClause *C) {}
+
+void OMPClauseProfiler::VisitOMPPartialClause(const OMPPartialClause *C) {
+  if (const Expr *Factor = C->getFactor())
+    Profiler->VisitExpr(Factor);
+}
+
 void OMPClauseProfiler::VisitOMPAllocatorClause(const OMPAllocatorClause *C) {
   if (C->getAllocator())
     Profiler->VisitStmt(C->getAllocator());
@@ -908,6 +915,10 @@ void StmtProfiler::VisitOMPTileDirective(const OMPTileDirective *S) {
   VisitOMPLoopBasedDirective(S);
 }
 
+void StmtProfiler::VisitOMPUnrollDirective(const OMPUnrollDirective *S) {
+  VisitOMPLoopBasedDirective(S);
+}
+
 void StmtProfiler::VisitOMPForDirective(const OMPForDirective *S) {
   VisitOMPLoopDirective(S);
 }
@@ -1188,6 +1199,17 @@ void StmtProfiler::VisitDeclRefExpr(const DeclRefExpr *S) {
     if (S->hasExplicitTemplateArgs())
       VisitTemplateArguments(S->getTemplateArgs(), S->getNumTemplateArgs());
   }
+}
+
+void StmtProfiler::VisitSYCLUniqueStableNameExpr(
+    const SYCLUniqueStableNameExpr *S) {
+  VisitExpr(S);
+  VisitType(S->getTypeSourceInfo()->getType());
+}
+
+void StmtProfiler::VisitSYCLUniqueStableIdExpr(
+    const SYCLUniqueStableIdExpr *S) {
+  VisitExpr(S);
 }
 
 void StmtProfiler::VisitPredefinedExpr(const PredefinedExpr *S) {
@@ -1812,6 +1834,28 @@ void StmtProfiler::VisitCXXConstCastExpr(const CXXConstCastExpr *S) {
 void StmtProfiler::VisitBuiltinBitCastExpr(const BuiltinBitCastExpr *S) {
   VisitExpr(S);
   VisitType(S->getTypeInfoAsWritten()->getType());
+}
+
+void StmtProfiler::VisitSYCLBuiltinNumFieldsExpr(
+    const SYCLBuiltinNumFieldsExpr *E) {
+  VisitType(E->getSourceType());
+}
+
+void StmtProfiler::VisitSYCLBuiltinFieldTypeExpr(
+    const SYCLBuiltinFieldTypeExpr *E) {
+  VisitType(E->getSourceType());
+  VisitExpr(E->getIndex());
+}
+
+void StmtProfiler::VisitSYCLBuiltinNumBasesExpr(
+    const SYCLBuiltinNumBasesExpr *E) {
+  VisitType(E->getSourceType());
+}
+
+void StmtProfiler::VisitSYCLBuiltinBaseTypeExpr(
+    const SYCLBuiltinBaseTypeExpr *E) {
+  VisitType(E->getSourceType());
+  VisitExpr(E->getIndex());
 }
 
 void StmtProfiler::VisitCXXAddrspaceCastExpr(const CXXAddrspaceCastExpr *S) {

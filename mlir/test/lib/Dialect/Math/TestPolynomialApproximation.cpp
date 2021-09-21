@@ -11,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Math/Transforms/Passes.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
@@ -25,8 +24,13 @@ struct TestMathPolynomialApproximationPass
     : public PassWrapper<TestMathPolynomialApproximationPass, FunctionPass> {
   void runOnFunction() override;
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry
-        .insert<vector::VectorDialect, math::MathDialect, LLVM::LLVMDialect>();
+    registry.insert<vector::VectorDialect, math::MathDialect>();
+  }
+  StringRef getArgument() const final {
+    return "test-math-polynomial-approximation";
+  }
+  StringRef getDescription() const final {
+    return "Test math polynomial approximations";
   }
 };
 } // end anonymous namespace
@@ -40,9 +44,7 @@ void TestMathPolynomialApproximationPass::runOnFunction() {
 namespace mlir {
 namespace test {
 void registerTestMathPolynomialApproximationPass() {
-  PassRegistration<TestMathPolynomialApproximationPass> pass(
-      "test-math-polynomial-approximation",
-      "Test math polynomial approximations");
+  PassRegistration<TestMathPolynomialApproximationPass>();
 }
 } // namespace test
 } // namespace mlir

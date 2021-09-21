@@ -12,8 +12,8 @@ func @f(%arg0: tensor<2x3x4xf32>) -> tensor<?xindex> {
 // Basic case.
 // CHECK-LABEL: func @f
 func @f() -> (!shape.shape, !shape.shape) {
-  // CHECK: shape.const_shape [2, 3] : !shape.shape
-  // CHECK: shape.const_shape [4, 5] : !shape.shape
+  // CHECK-DAG: shape.const_shape [2, 3] : !shape.shape
+  // CHECK-DAG: shape.const_shape [4, 5] : !shape.shape
   %c2 = constant 2 : index
   %0 = shape.const_shape [2, 3, 4, 5] : !shape.shape
   %head, %tail = "shape.split_at"(%0, %c2) : (!shape.shape, index) -> (!shape.shape, !shape.shape)
@@ -26,8 +26,8 @@ func @f() -> (!shape.shape, !shape.shape) {
 // Negative split point.
 // CHECK-LABEL: func @f
 func @f() -> (!shape.shape, !shape.shape) {
-  // CHECK: shape.const_shape [2, 3, 4] : !shape.shape
-  // CHECK: shape.const_shape [5] : !shape.shape
+  // CHECK-DAG: shape.const_shape [2, 3, 4] : !shape.shape
+  // CHECK-DAG: shape.const_shape [5] : !shape.shape
   %c-1 = constant -1 : index
   %0 = shape.const_shape [2, 3, 4, 5] : !shape.shape
   %head, %tail = "shape.split_at"(%0, %c-1) : (!shape.shape, index) -> (!shape.shape, !shape.shape)
@@ -475,6 +475,19 @@ func @assuming_all_to_cstr_eq(%a : !shape.shape, %b : tensor<?xindex>,
   %1 = shape.cstr_eq %b, %c : tensor<?xindex>, tensor<3xindex>
   %2 = shape.assuming_all %0, %1
   return %2 : !shape.witness
+}
+
+// -----
+// `assuming_all` with duplicate operands.
+// CHECK-LABEL: func @assuming_all_duplicate_operands
+// CHECK-SAME: (%[[ARG0:.*]]: tensor<?xindex>, %[[ARG1:.*]]: tensor<?xindex>)
+func @assuming_all_duplicate_operands(%arg0 : tensor<?xindex>,
+    %arg1 : tensor<?xindex>) -> !shape.witness {
+  // CHECK: %[[RES:.*]] = shape.cstr_broadcastable %[[ARG0]], %[[ARG1]]
+  // CHECK: return %[[RES]]
+  %0 = shape.cstr_broadcastable %arg0, %arg1 : tensor<?xindex>, tensor<?xindex>
+  %1 = shape.assuming_all %0, %0, %0
+  return %1 : !shape.witness
 }
 
 // -----

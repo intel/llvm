@@ -151,7 +151,7 @@ class fir_AllocatableOp<string mnemonic, Resource resource,
   }];
 
   let printer = [{
-    p << getOperationName() << ' ' << (*this)->getAttr(inType());
+    p << ' ' << (*this)->getAttr(inType());
     if (hasLenParams()) {
       // print the LEN parameters to a derived type in parens
       p << '(' << getLenParams() << " : " << getLenParams().getTypes() << ')';
@@ -341,7 +341,7 @@ def fir_LoadOp : fir_OneResultOp<"load"> {
   }];
 
   let printer = [{
-    p << getOperationName() << ' ';
+    p << ' ';
     p.printOperand(memref());
     p.printOptionalAttrDict((*this)->getAttrs(), {});
     p << " : " << memref().getType();
@@ -391,7 +391,7 @@ def fir_StoreOp : fir_Op<"store", []> {
   }];
 
   let printer = [{
-    p << getOperationName() << ' ';
+    p << ' ';
     p.printOperand(value());
     p << " to ";
     p.printOperand(memref());
@@ -652,7 +652,7 @@ class fir_IntegralSwitchTerminatorOp<string mnemonic,
   }];
 
   let printer = [{
-    p << getOperationName() << ' ';
+    p << ' ';
     p.printOperand(getSelector());
     p << " : " << getSelector().getType() << " [";
     auto cases = (*this)->getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
@@ -776,7 +776,7 @@ def fir_SelectCaseOp : fir_SwitchTerminatorOp<"select_case"> {
   let parser = "return parseSelectCase(parser, result);";
 
   let printer = [{
-    p << getOperationName() << ' ';
+    p << ' ';
     p.printOperand(getSelector());
     p << " : " << getSelector().getType() << " [";
     auto cases = (*this)->getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
@@ -892,7 +892,7 @@ def fir_SelectTypeOp : fir_SwitchTerminatorOp<"select_type"> {
   let parser = "return parseSelectType(parser, result);";
 
   let printer = [{
-    p << getOperationName() << ' ';
+    p << ' ';
     p.printOperand(getSelector());
     p << " : " << getSelector().getType() << " [";
     auto cases = (*this)->getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).getValue();
@@ -948,7 +948,7 @@ def fir_UnreachableOp : fir_Op<"unreachable", [Terminator]> {
 
   let parser = "return mlir::success();";
 
-  let printer = "p << getOperationName();";
+  let printer = "";
 }
 
 def fir_FirEndOp : fir_Op<"end", [Terminator]> {
@@ -1202,7 +1202,7 @@ def fir_EmboxProcOp : fir_Op<"emboxproc", [NoSideEffect]> {
   }];
 
   let printer = [{
-    p << getOperationName() << ' ' << (*this)->getAttr("funcname");
+    p << ' ' << (*this)->getAttr("funcname");
     auto h = host();
     if (h) {
       p << ", ";
@@ -1906,7 +1906,7 @@ def fir_FieldIndexOp : fir_OneResultOp<"field_index", [NoSideEffect]> {
   }];
 
   let printer = [{
-    p << getOperationName() << ' '
+    p << ' '
       << (*this)->getAttrOfType<mlir::StringAttr>(fieldAttrName()).getValue()
       << ", " << (*this)->getAttr(typeAttrName());
     if (getNumOperands()) {
@@ -2228,7 +2228,7 @@ def fir_LenParamIndexOp : fir_OneResultOp<"len_param_index", [NoSideEffect]> {
   }];
 
   let printer = [{
-    p << getOperationName() << ' '
+    p << ' '
       << (*this)->getAttrOfType<mlir::StringAttr>(fieldAttrName()).getValue()
       << ", " << (*this)->getAttr(typeAttrName());
   }];
@@ -2328,11 +2328,6 @@ def fir_DoLoopOp : region_Op<"do_loop",
   ];
 
   let extraClassDeclaration = [{
-    static constexpr llvm::StringRef unorderedAttrName() { return "unordered"; }
-    static constexpr llvm::StringRef finalValueAttrName() {
-      return "finalValue";
-    }
-
     mlir::Value getInductionVar() { return getBody()->getArgument(0); }
     mlir::OpBuilder getBodyBuilder() {
       return OpBuilder(getBody(), std::prev(getBody()->end()));
@@ -2367,8 +2362,7 @@ def fir_DoLoopOp : region_Op<"do_loop",
     mlir::Block *getBody() { return &region().front(); }
 
     void setUnordered() {
-      (*this)->setAttr(unorderedAttrName(),
-                              mlir::UnitAttr::get(getContext()));
+      unorderedAttr(mlir::UnitAttr::get(getContext()));
     }
 
     mlir::BlockArgument iterArgToBlockArg(mlir::Value iterArg);
@@ -2478,9 +2472,6 @@ def fir_IterWhileOp : region_Op<"iterate_while",
   ];
 
   let extraClassDeclaration = [{
-    static constexpr llvm::StringRef finalValueAttrName() {
-      return "finalValue";
-    }
     mlir::Block *getBody() { return &region().front(); }
     mlir::Value getIterateVar() { return getBody()->getArgument(1); }
     mlir::Value getInductionVar() { return getBody()->getArgument(0); }
@@ -2553,8 +2544,8 @@ def fir_CallOp : fir_Op<"call", [CallOpInterface]> {
         CArg<"mlir::ValueRange", "{}">:$operands),
     [{
       $_state.addOperands(operands);
-      $_state.addAttribute(calleeAttrName(),
-        $_builder.getSymbolRefAttr(callee));
+      $_state.addAttribute(calleeAttrName($_state.name),
+                           SymbolRefAttr::get(callee));
       $_state.addTypes(callee.getType().getResults());
     }]>,
     OpBuilder<(ins "mlir::SymbolRefAttr":$callee,
@@ -2562,26 +2553,24 @@ def fir_CallOp : fir_Op<"call", [CallOpInterface]> {
         CArg<"mlir::ValueRange", "{}">:$operands),
     [{
       $_state.addOperands(operands);
-      $_state.addAttribute(calleeAttrName(), callee);
+      $_state.addAttribute(calleeAttrName($_state.name), callee);
       $_state.addTypes(results);
     }]>,
     OpBuilder<(ins "llvm::StringRef":$callee,
         "llvm::ArrayRef<mlir::Type>":$results,
         CArg<"mlir::ValueRange", "{}">:$operands),
     [{
-      build($_builder, $_state, $_builder.getSymbolRefAttr(callee), results,
+      build($_builder, $_state,
+            SymbolRefAttr::get($_builder.getContext(), callee), results,
             operands);
     }]>];
 
   let extraClassDeclaration = [{
-    static constexpr StringRef calleeAttrName() { return "callee"; }
-
     mlir::FunctionType getFunctionType();
 
     /// Get the argument operands to the called function.
     operand_range getArgOperands() {
-      if (auto calling =
-          (*this)->getAttrOfType<SymbolRefAttr>(calleeAttrName()))
+      if (calleeAttr())
         return {arg_operand_begin(), arg_operand_end()};
       return {arg_operand_begin() + 1, arg_operand_end()};
     }
@@ -2591,8 +2580,7 @@ def fir_CallOp : fir_Op<"call", [CallOpInterface]> {
 
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() {
-      if (auto calling =
-          (*this)->getAttrOfType<SymbolRefAttr>(calleeAttrName()))
+      if (auto calling = calleeAttr())
         return calling;
       return getOperand(0);
     }
@@ -2627,11 +2615,10 @@ def fir_DispatchOp : fir_Op<"dispatch", []> {
     llvm::StringRef calleeName;
     if (failed(parser.parseOptionalKeyword(&calleeName))) {
       mlir::StringAttr calleeAttr;
-      if (parser.parseAttribute(calleeAttr, methodAttrName(),
-                                result.attributes))
+      if (parser.parseAttribute(calleeAttr, "method", result.attributes))
         return mlir::failure();
     } else {
-      result.addAttribute(methodAttrName(),
+      result.addAttribute(methodAttrName(result.name),
           parser.getBuilder().getStringAttr(calleeName));
     }
     if (parser.parseOperandList(operands,
@@ -2646,7 +2633,7 @@ def fir_DispatchOp : fir_Op<"dispatch", []> {
   }];
 
   let printer = [{
-    p << getOperationName() << ' ' << (*this)->getAttr(methodAttrName()) << '(';
+    p << ' ' << methodAttr() << '(';
     p.printOperand(object());
     if (!args().empty()) {
       p << ", ";
@@ -2668,7 +2655,6 @@ def fir_DispatchOp : fir_Op<"dispatch", []> {
     static constexpr llvm::StringRef passArgAttrName() {
       return "pass_arg_pos";
     }
-    static constexpr llvm::StringRef methodAttrName() { return "method"; }
     unsigned passArgPos();
   }];
 }
@@ -2725,7 +2711,7 @@ def fir_StringLitOp : fir_Op<"string_lit", [NoSideEffect]> {
   }];
 
   let printer = [{
-    p << getOperationName() << ' ' << getValue() << '(';
+    p << ' ' << getValue() << '(';
     p << getSize().cast<mlir::IntegerAttr>().getValue() << ") : ";
     p.printType(getType());
   }];
@@ -2859,7 +2845,7 @@ def fir_ConstcOp : fir_Op<"constc", [NoSideEffect]> {
   }];
 
   let printer = [{
-    p << getOperationName() << " (0x";
+    p << " (0x";
     auto f1 = (*this)->getAttr(realAttrName()).cast<mlir::FloatAttr>();
     auto i1 = f1.getValue().bitcastToAPInt();
     p.getStream().write_hex(i1.getZExtValue());
@@ -3047,7 +3033,7 @@ def fir_GenTypeDescOp : fir_OneResultOp<"gentypedesc", [NoSideEffect]> {
   }];
 
   let printer = [{
-    p << getOperationName() << ' ' << (*this)->getAttr("in_type");
+    p << ' ' << (*this)->getAttr("in_type");
     p.printOptionalAttrDict((*this)->getAttrs(), {"in_type"});
   }];
 
@@ -3137,14 +3123,13 @@ def fir_GlobalOp : fir_Op<"global", [IsolatedFromAbove, Symbol]> {
   let parser = "return parseGlobalOp(parser, result);";
 
   let printer = [{
-    p << getOperationName();
     if (linkName().hasValue())
       p << ' ' << linkName().getValue();
     p << ' ';
     p.printAttributeWithoutType((*this)->getAttr(symbolAttrName()));
     if (auto val = getValueOrNull())
       p << '(' << val << ')';
-    if ((*this)->getAttr(constantAttrName()))
+    if (constantAttr())
       p << " constant";
     p << " : ";
     p.printType(getType());
@@ -3177,14 +3162,11 @@ def fir_GlobalOp : fir_Op<"global", [IsolatedFromAbove, Symbol]> {
 
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef symbolAttrName() { return "symref"; }
-    static constexpr llvm::StringRef constantAttrName() { return "constant"; }
-    static constexpr llvm::StringRef initValAttrName() { return "initVal"; }
     static constexpr llvm::StringRef linkageAttrName() { return "linkName"; }
-    static constexpr llvm::StringRef typeAttrName() { return "type"; }
 
     /// The printable type of the global
     mlir::Type getType() {
-      return (*this)->getAttrOfType<TypeAttr>(typeAttrName()).getValue();
+      return typeAttr().getValue();
     }
 
     /// The semantic type of the global
@@ -3258,7 +3240,7 @@ def fir_GlobalLenOp : fir_Op<"global_len", []> {
   }];
 
   let printer = [{
-    p << getOperationName() << ' ' << (*this)->getAttr(lenParamAttrName())
+    p << ' ' << (*this)->getAttr(lenParamAttrName())
       << ", " << (*this)->getAttr(intAttrName());
   }];
 
@@ -3299,7 +3281,7 @@ def fir_DispatchTableOp : fir_Op<"dispatch_table",
 
     // Convert the parsed name attr into a string attr.
     result.attributes.set(mlir::SymbolTable::getSymbolAttrName(),
-      parser.getBuilder().getStringAttr(nameAttr.getRootReference()));
+      nameAttr.getRootReference());
 
     // Parse the optional table body.
     mlir::Region *body = result.addRegion();
@@ -3314,7 +3296,7 @@ def fir_DispatchTableOp : fir_Op<"dispatch_table",
   let printer = [{
     auto tableName = (*this)->getAttrOfType<StringAttr>(
       mlir::SymbolTable::getSymbolAttrName()).getValue();
-    p << getOperationName() << " @" << tableName;
+    p << " @" << tableName;
 
     Region &body = (*this)->getRegion(0);
     if (!body.empty())
@@ -3378,28 +3360,23 @@ def fir_DTEntryOp : fir_Op<"dt_entry", []> {
     // allow `methodName` or `"methodName"`
     if (failed(parser.parseOptionalKeyword(&methodName))) {
       mlir::StringAttr methodAttr;
-      if (parser.parseAttribute(methodAttr, methodAttrName(),
+      if (parser.parseAttribute(methodAttr, "method",
                                 result.attributes))
         return mlir::failure();
     } else {
-      result.addAttribute(methodAttrName(),
+      result.addAttribute(methodAttrName(result.name),
           parser.getBuilder().getStringAttr(methodName));
     }
     mlir::SymbolRefAttr calleeAttr;
     if (parser.parseComma() ||
-        parser.parseAttribute(calleeAttr, procAttrName(), result.attributes))
+        parser.parseAttribute(calleeAttr, "proc", result.attributes))
       return mlir::failure();
     return mlir::success();
   }];
 
   let printer = [{
-    p << getOperationName() << ' ' << (*this)->getAttr(methodAttrName()) << ", "
-      << (*this)->getAttr(procAttrName());
-  }];
-
-  let extraClassDeclaration = [{
-    static constexpr llvm::StringRef methodAttrName() { return "method"; }
-    static constexpr llvm::StringRef procAttrName() { return "proc"; }
+    p << ' ' << methodAttr() << ", "
+      << procAttr();
   }];
 }
 

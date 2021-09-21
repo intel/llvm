@@ -8,30 +8,28 @@
 
 #pragma once
 
-#include <CL/sycl/ONEAPI/sub_group.hpp>
 #include <CL/sycl/group.hpp>
+#include <sycl/ext/oneapi/sub_group.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-using ONEAPI::sub_group;
+using ext::oneapi::sub_group;
 // TODO move the entire sub_group class implementation to this file once
 // breaking changes are allowed.
 
-template <>
-inline void group_barrier<sub_group>(sub_group Group, memory_scope FenceScope) {
-  (void)Group;
-  (void)FenceScope;
+namespace ext {
+namespace oneapi {
+namespace experimental {
+inline sub_group this_sub_group() {
 #ifdef __SYCL_DEVICE_ONLY__
-  __spirv_ControlBarrier(__spv::Scope::Subgroup,
-                         detail::spirv::getScope(FenceScope),
-                         __spv::MemorySemanticsMask::AcquireRelease |
-                             __spv::MemorySemanticsMask::SubgroupMemory |
-                             __spv::MemorySemanticsMask::WorkgroupMemory |
-                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
+  return sub_group();
 #else
   throw runtime_error("Sub-groups are not supported on host device.",
                       PI_INVALID_DEVICE);
 #endif
 }
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

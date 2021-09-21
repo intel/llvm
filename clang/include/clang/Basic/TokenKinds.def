@@ -98,6 +98,8 @@ PPKEYWORD(if)
 PPKEYWORD(ifdef)
 PPKEYWORD(ifndef)
 PPKEYWORD(elif)
+PPKEYWORD(elifdef)
+PPKEYWORD(elifndef)
 PPKEYWORD(else)
 PPKEYWORD(endif)
 PPKEYWORD(defined)
@@ -437,6 +439,7 @@ TYPE_TRAIT_2(__builtin_types_compatible_p, TypeCompatible, KEYNOCXX)
 KEYWORD(__builtin_va_arg            , KEYALL)
 KEYWORD(__extension__               , KEYALL)
 KEYWORD(__float128                  , KEYALL)
+KEYWORD(__ibm128                    , KEYALL)
 KEYWORD(__imag                      , KEYALL)
 KEYWORD(__int128                    , KEYALL)
 KEYWORD(__label__                   , KEYALL)
@@ -505,6 +508,12 @@ TYPE_TRAIT_1(__is_union, IsUnion, KEYCXX)
 TYPE_TRAIT_1(__has_unique_object_representations,
              HasUniqueObjectRepresentations, KEYCXX)
 KEYWORD(__underlying_type           , KEYCXX)
+
+// SYCL Type Traits
+KEYWORD(__builtin_num_fields, KEYSYCL)
+KEYWORD(__builtin_field_type, KEYSYCL)
+KEYWORD(__builtin_num_bases, KEYSYCL)
+KEYWORD(__builtin_base_type, KEYSYCL)
 
 // Clang-only C++ Type Traits
 TYPE_TRAIT_2(__reference_binds_to_temporary, ReferenceBindsToTemporary, KEYCXX)
@@ -695,12 +704,13 @@ ALIAS("_declspec"        , __declspec , KEYMS)
 ALIAS("_pascal"      , __pascal   , KEYBORLAND)
 
 // Clang Extensions.
-KEYWORD(__builtin_convertvector     , KEYALL)
-ALIAS("__char16_t"   , char16_t     , KEYCXX)
-ALIAS("__char32_t"   , char32_t     , KEYCXX)
-KEYWORD(__builtin_bit_cast          , KEYALL)
-KEYWORD(__builtin_available         , KEYALL)
-KEYWORD(__builtin_unique_stable_name, KEYALL)
+KEYWORD(__builtin_convertvector          , KEYALL)
+ALIAS("__char16_t"   , char16_t          , KEYCXX)
+ALIAS("__char32_t"   , char32_t          , KEYCXX)
+KEYWORD(__builtin_bit_cast               , KEYALL)
+KEYWORD(__builtin_available              , KEYALL)
+KEYWORD(__builtin_sycl_unique_stable_name, KEYSYCL)
+KEYWORD(__builtin_sycl_unique_stable_id  , KEYSYCL)
 
 // Clang-specific keywords enabled only in testing.
 TESTING_KEYWORD(__unknown_anytype , KEYALL)
@@ -862,6 +872,13 @@ PRAGMA_ANNOTATION(pragma_ms_pragma)
 PRAGMA_ANNOTATION(pragma_opencl_extension)
 
 // Annotations for OpenMP pragma directives - #pragma omp ...
+// The parser produces this annotation token when it parses an [[omp::*]]
+// attribute. The tokens from the attribute argument list are replayed to the
+// token stream with this leading token (and a trailing pragma_openmp_end) so
+// that the parser can reuse the OpenMP parsing logic but still be able to
+// distinguish between a real pragma and a converted pragma. It is not marked
+// as a PRAGMA_ANNOTATION because it doesn't get generated from a #pragma.
+ANNOTATION(attr_openmp)
 // The lexer produces these so that they only take effect when the parser
 // handles #pragma omp ... directives.
 PRAGMA_ANNOTATION(pragma_openmp)

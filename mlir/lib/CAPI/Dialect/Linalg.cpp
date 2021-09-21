@@ -16,13 +16,8 @@ using namespace mlir::linalg;
 /// Apply the special region builder for the builtin named Linalg op.
 /// Assert that `op` is a builtin named Linalg op.
 void mlirLinalgFillBuiltinNamedOpRegion(MlirDialect linalgDialect,
-                                        MlirOperation mlirOp, intptr_t n,
-                                        MlirValue const *mlirCaptures) {
+                                        MlirOperation mlirOp) {
   Operation *op = unwrap(mlirOp);
-  SmallVector<Value> captures;
-  captures.reserve(n);
-  for (unsigned idx = 0; idx < n; ++idx)
-    captures.push_back(unwrap(mlirCaptures[idx]));
 
   LinalgDialect::RegionBuilderFunType fun =
       static_cast<LinalgDialect *>(unwrap(linalgDialect))
@@ -34,14 +29,14 @@ void mlirLinalgFillBuiltinNamedOpRegion(MlirDialect linalgDialect,
 
   SmallVector<Type, 8> argTypes;
   auto linalgOp = cast<LinalgOp>(op);
-  for (auto t : linalgOp.getShapedOperandTypes())
-    argTypes.push_back(getElementTypeOrSelf(t));
+  for (OpOperand *opOperand : linalgOp.getInputAndOutputOperands())
+    argTypes.push_back(getElementTypeOrSelf(opOperand->get().getType()));
 
   ImplicitLocOpBuilder b(op->getLoc(), op->getContext());
   Region &region = op->getRegion(0);
   Block *body = b.createBlock(&region, /*insertPt=*/{}, argTypes);
   b.setInsertionPointToStart(body);
-  fun(b, *body, captures);
+  fun(b, *body);
 }
 
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Linalg, linalg, LinalgDialect)

@@ -10,6 +10,7 @@
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
+#include "mlir/Dialect/SCF/Transforms.h"
 #include "mlir/Dialect/Vector/VectorTransforms.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
@@ -26,6 +27,10 @@ namespace {
 class TestConvVectorization
     : public PassWrapper<TestConvVectorization, OperationPass<ModuleOp>> {
 public:
+  StringRef getArgument() const final { return "test-conv-vectorization"; }
+  StringRef getDescription() const final {
+    return "Test vectorization of convolutions";
+  }
   TestConvVectorization() = default;
   TestConvVectorization(const TestConvVectorization &) {}
   explicit TestConvVectorization(ArrayRef<int64_t> tileSizesParam) {
@@ -66,7 +71,7 @@ void TestConvVectorization::runOnOperation() {
 
   RewritePatternSet stage2Patterns =
       linalg::getLinalgTilingCanonicalizationPatterns(context);
-  stage2Patterns.add<linalg::AffineMinSCFCanonicalizationPattern>(context);
+  scf::populateSCFForLoopCanonicalizationPatterns(stage2Patterns);
 
   auto stage3Transforms = [](Operation *op) {
     PassManager pm(op->getContext());
@@ -129,8 +134,7 @@ void TestConvVectorization::runOnOperation() {
 namespace mlir {
 namespace test {
 void registerTestConvVectorization() {
-  PassRegistration<TestConvVectorization> testTransformPatternsPass(
-      "test-conv-vectorization", "Test vectorization of convolutions");
+  PassRegistration<TestConvVectorization>();
 }
 } // namespace test
 } // namespace mlir

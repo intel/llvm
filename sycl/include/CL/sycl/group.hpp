@@ -14,6 +14,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/helpers.hpp>
+#include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/device_event.hpp>
 #include <CL/sycl/h_item.hpp>
 #include <CL/sycl/id.hpp>
@@ -97,6 +98,9 @@ public:
   using linear_id_type = size_t;
   static constexpr int dimensions = Dimensions;
 #endif // __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
+
+  static constexpr sycl::memory_scope fence_scope =
+      sycl::memory_scope::work_group;
 
   group() = delete;
 
@@ -424,7 +428,9 @@ template <int Dims> group<Dims> store_group(const group<Dims> *g) {
 }
 } // namespace detail
 
-template <int Dims> group<Dims> this_group() {
+template <int Dims>
+__SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_group() instead")
+group<Dims> this_group() {
 #ifdef __SYCL_DEVICE_ONLY__
   return detail::Builder::getElement(detail::declptr<group<Dims>>());
 #else
@@ -432,8 +438,18 @@ template <int Dims> group<Dims> this_group() {
 #endif
 }
 
-template <typename Group>
-void group_barrier(Group G, memory_scope FenceScope = Group::fence_scope);
-
+namespace ext {
+namespace oneapi {
+namespace experimental {
+template <int Dims> group<Dims> this_group() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sycl::detail::Builder::getElement(detail::declptr<group<Dims>>());
+#else
+  return sycl::detail::store_group<Dims>(nullptr);
+#endif
+}
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

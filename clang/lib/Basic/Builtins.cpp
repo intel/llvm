@@ -60,6 +60,8 @@ bool Builtin::Context::builtinIsSupported(const Builtin::Info &BuiltinInfo,
   bool BuiltinsUnsupported =
       (LangOpts.NoBuiltin || LangOpts.isNoBuiltinFunc(BuiltinInfo.Name)) &&
       strchr(BuiltinInfo.Attributes, 'f');
+  bool CorBuiltinsUnsupported =
+      !LangOpts.Coroutines && (BuiltinInfo.Langs & COR_LANG);
   bool MathBuiltinsUnsupported =
     LangOpts.NoMathBuiltin && BuiltinInfo.HeaderName &&
     llvm::StringRef(BuiltinInfo.HeaderName).equals("math.h");
@@ -70,7 +72,7 @@ bool Builtin::Context::builtinIsSupported(const Builtin::Info &BuiltinInfo,
   bool OclC1Unsupported = (LangOpts.OpenCLVersion / 100) != 1 &&
                           (BuiltinInfo.Langs & ALL_OCLC_LANGUAGES ) ==  OCLC1X_LANG;
   bool OclC2Unsupported =
-      (LangOpts.OpenCLVersion != 200 && !LangOpts.OpenCLCPlusPlus) &&
+      (LangOpts.getOpenCLCompatibleVersion() != 200) &&
       (BuiltinInfo.Langs & ALL_OCLC_LANGUAGES) == OCLC20_LANG;
   bool OclCUnsupported = !LangOpts.OpenCL &&
                          (BuiltinInfo.Langs & ALL_OCLC_LANGUAGES);
@@ -78,10 +80,11 @@ bool Builtin::Context::builtinIsSupported(const Builtin::Info &BuiltinInfo,
   bool CUDAUnsupported = !LangOpts.CUDA && BuiltinInfo.Langs == CUDA_LANG;
   bool CPlusPlusUnsupported =
       !LangOpts.CPlusPlus && BuiltinInfo.Langs == CXX_LANG;
-  return !BuiltinsUnsupported && !MathBuiltinsUnsupported && !OclCUnsupported &&
-         !OclC1Unsupported && !OclC2Unsupported && !OpenMPUnsupported &&
-         !GnuModeUnsupported && !MSModeUnsupported && !ObjCUnsupported &&
-         !CPlusPlusUnsupported && !CUDAUnsupported;
+  return !BuiltinsUnsupported && !CorBuiltinsUnsupported &&
+         !MathBuiltinsUnsupported && !OclCUnsupported && !OclC1Unsupported &&
+         !OclC2Unsupported && !OpenMPUnsupported && !GnuModeUnsupported &&
+         !MSModeUnsupported && !ObjCUnsupported && !CPlusPlusUnsupported &&
+         !CUDAUnsupported;
 }
 
 /// initializeBuiltins - Mark the identifiers for all the builtins with their

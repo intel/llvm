@@ -621,7 +621,7 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
       // one predecessor. Note that Exit could be an exit block for multiple
       // nested loops, causing both of the edges to now be critical and need to
       // be split.
-      SmallVector<BasicBlock *, 4> ExitPreds(pred_begin(Exit), pred_end(Exit));
+      SmallVector<BasicBlock *, 4> ExitPreds(predecessors(Exit));
       bool SplitLatchEdge = false;
       for (BasicBlock *ExitPred : ExitPreds) {
         // We only need to split loop exit edges.
@@ -637,6 +637,7 @@ bool LoopRotate::rotateLoop(Loop *L, bool SimplifiedLatch) {
       }
       assert(SplitLatchEdge &&
              "Despite splitting all preds, failed to split latch exit?");
+      (void)SplitLatchEdge;
     } else {
       // We can fold the conditional branch in the preheader, this makes things
       // simpler. The first step is to remove the extra edge to the Exit block.

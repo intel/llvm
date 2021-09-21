@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <CL/sycl/ONEAPI/accessor_property_list.hpp>
 #include <CL/sycl/detail/buffer_impl.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
+#include <sycl/ext/oneapi/accessor_property_list.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -63,7 +63,7 @@ public:
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
+        size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
 
@@ -71,7 +71,7 @@ public:
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
+        size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
   }
@@ -80,7 +80,7 @@ public:
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
@@ -89,7 +89,7 @@ public:
          AllocatorT allocator, const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
@@ -101,7 +101,7 @@ public:
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
@@ -112,50 +112,50 @@ public:
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
   }
 
-  buffer(const shared_ptr_class<T> &hostData,
+  buffer(const std::shared_ptr<T> &hostData,
          const range<dimensions> &bufferRange, AllocatorT allocator,
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
   }
 
-  buffer(const shared_ptr_class<T[]> &hostData,
+  buffer(const std::shared_ptr<T[]> &hostData,
          const range<dimensions> &bufferRange, AllocatorT allocator,
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
   }
 
-  buffer(const shared_ptr_class<T> &hostData,
+  buffer(const std::shared_ptr<T> &hostData,
          const range<dimensions> &bufferRange,
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
 
-  buffer(const shared_ptr_class<T[]> &hostData,
+  buffer(const std::shared_ptr<T[]> &hostData,
          const range<dimensions> &bufferRange,
          const property_list &propList = {})
       : Range(bufferRange) {
     impl = std::make_shared<detail::buffer_impl>(
-        hostData, get_count() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        hostData, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
         propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
@@ -167,8 +167,8 @@ public:
          const property_list &propList = {})
       : Range(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl>(
-        first, last, get_count() * sizeof(T),
-        detail::getNextPowerOfTwo(sizeof(T)), propList,
+        first, last, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
   }
@@ -180,8 +180,8 @@ public:
          const property_list &propList = {})
       : Range(range<1>(std::distance(first, last))) {
     impl = std::make_shared<detail::buffer_impl>(
-        first, last, get_count() * sizeof(T),
-        detail::getNextPowerOfTwo(sizeof(T)), propList,
+        first, last, size() * sizeof(T), detail::getNextPowerOfTwo(sizeof(T)),
+        propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
 
@@ -193,7 +193,7 @@ public:
          const property_list &propList = {})
       : Range(range<1>(container.size())) {
     impl = std::make_shared<detail::buffer_impl>(
-        container.data(), get_count() * sizeof(T),
+        container.data(), size() * sizeof(T),
         detail::getNextPowerOfTwo(sizeof(T)), propList,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(
             allocator));
@@ -259,9 +259,14 @@ public:
 
   range<dimensions> get_range() const { return Range; }
 
-  size_t get_count() const { return Range.size(); }
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  size_t get_count() const { return size(); }
+  size_t size() const noexcept { return Range.size(); }
 
-  size_t get_size() const { return get_count() * sizeof(T); }
+  __SYCL2020_DEPRECATED(
+      "get_size() is deprecated, please use byte_size() instead")
+  size_t get_size() const { return byte_size(); }
+  size_t byte_size() const noexcept { return size() * sizeof(T); }
 
   AllocatorT get_allocator() const {
     return impl->template get_allocator<AllocatorT>();
@@ -270,41 +275,41 @@ public:
   template <access::mode Mode,
             access::target Target = access::target::global_buffer>
   accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
-           ONEAPI::accessor_property_list<>>
+           ext::oneapi::accessor_property_list<>>
   get_access(handler &CommandGroupHandler) {
     return accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
-                    ONEAPI::accessor_property_list<>>(*this,
-                                                      CommandGroupHandler);
+                    ext::oneapi::accessor_property_list<>>(*this,
+                                                           CommandGroupHandler);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t, ONEAPI::accessor_property_list<>>
+           access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
   get_access() {
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
-                    ONEAPI::accessor_property_list<>>(*this);
+                    ext::oneapi::accessor_property_list<>>(*this);
   }
 
   template <access::mode mode,
             access::target target = access::target::global_buffer>
   accessor<T, dimensions, mode, target, access::placeholder::false_t,
-           ONEAPI::accessor_property_list<>>
+           ext::oneapi::accessor_property_list<>>
   get_access(handler &commandGroupHandler, range<dimensions> accessRange,
              id<dimensions> accessOffset = {}) {
     return accessor<T, dimensions, mode, target, access::placeholder::false_t,
-                    ONEAPI::accessor_property_list<>>(
+                    ext::oneapi::accessor_property_list<>>(
         *this, commandGroupHandler, accessRange, accessOffset);
   }
 
   template <access::mode mode>
   accessor<T, dimensions, mode, access::target::host_buffer,
-           access::placeholder::false_t, ONEAPI::accessor_property_list<>>
+           access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
   get_access(range<dimensions> accessRange, id<dimensions> accessOffset = {}) {
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
-                    ONEAPI::accessor_property_list<>>(*this, accessRange,
-                                                      accessOffset);
+                    ext::oneapi::accessor_property_list<>>(*this, accessRange,
+                                                           accessOffset);
   }
 
 #if __cplusplus > 201402L
@@ -341,7 +346,7 @@ public:
   template <typename ReinterpretT, int ReinterpretDim>
   buffer<ReinterpretT, ReinterpretDim, AllocatorT>
   reinterpret(range<ReinterpretDim> reinterpretRange) const {
-    if (sizeof(ReinterpretT) * reinterpretRange.size() != get_size())
+    if (sizeof(ReinterpretT) * reinterpretRange.size() != byte_size())
       throw cl::sycl::invalid_object_error(
           "Total size in bytes represented by the type and range of the "
           "reinterpreted SYCL buffer does not equal the total size in bytes "
@@ -367,7 +372,7 @@ public:
                                 (sizeof(ReinterpretT) != sizeof(T))),
       buffer<ReinterpretT, ReinterpretDim, AllocatorT>>::type
   reinterpret() const {
-    long sz = get_size(); // TODO: switch to byte_size() once implemented
+    long sz = byte_size();
     if (sz % sizeof(ReinterpretT) != 0)
       throw cl::sycl::invalid_object_error(
           "Total byte size of buffer is not evenly divisible by the size of "
@@ -387,7 +392,7 @@ public:
   }
 
 private:
-  shared_ptr_class<detail::buffer_impl> impl;
+  std::shared_ptr<detail::buffer_impl> impl;
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
   template <typename A, int dims, typename C, typename Enable>
@@ -402,7 +407,7 @@ private:
   bool IsSubBuffer = false;
 
   // Reinterpret contructor
-  buffer(shared_ptr_class<detail::buffer_impl> Impl,
+  buffer(std::shared_ptr<detail::buffer_impl> Impl,
          range<dimensions> reinterpretRange, size_t reinterpretOffset,
          bool isSubBuffer)
       : impl(Impl), Range(reinterpretRange), OffsetInBytes(reinterpretOffset),
@@ -462,24 +467,23 @@ private:
 #ifdef __cpp_deduction_guides
 template <class InputIterator, class AllocatorT>
 buffer(InputIterator, InputIterator, AllocatorT, const property_list & = {})
-    ->buffer<typename std::iterator_traits<InputIterator>::value_type, 1,
-             AllocatorT>;
+    -> buffer<typename std::iterator_traits<InputIterator>::value_type, 1,
+              AllocatorT>;
 template <class InputIterator>
 buffer(InputIterator, InputIterator, const property_list & = {})
-    ->buffer<typename std::iterator_traits<InputIterator>::value_type, 1>;
+    -> buffer<typename std::iterator_traits<InputIterator>::value_type, 1>;
 template <class Container, class AllocatorT>
 buffer(Container &, AllocatorT, const property_list & = {})
-    ->buffer<typename Container::value_type, 1, AllocatorT>;
+    -> buffer<typename Container::value_type, 1, AllocatorT>;
 template <class Container>
 buffer(Container &, const property_list & = {})
-    ->buffer<typename Container::value_type, 1>;
+    -> buffer<typename Container::value_type, 1>;
 template <class T, int dimensions, class AllocatorT>
 buffer(const T *, const range<dimensions> &, AllocatorT,
-       const property_list & = {})
-    ->buffer<T, dimensions, AllocatorT>;
+       const property_list & = {}) -> buffer<T, dimensions, AllocatorT>;
 template <class T, int dimensions>
 buffer(const T *, const range<dimensions> &, const property_list & = {})
-    ->buffer<T, dimensions>;
+    -> buffer<T, dimensions>;
 #endif // __cpp_deduction_guides
 
 } // namespace sycl

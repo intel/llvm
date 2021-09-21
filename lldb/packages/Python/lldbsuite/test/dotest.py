@@ -477,6 +477,7 @@ def setupSysPath():
     pluginPath = os.path.join(scriptPath, 'plugins')
     toolsLLDBVSCode = os.path.join(scriptPath, 'tools', 'lldb-vscode')
     toolsLLDBServerPath = os.path.join(scriptPath, 'tools', 'lldb-server')
+    intelpt = os.path.join(scriptPath, 'tools', 'intelpt')
 
     # Insert script dir, plugin dir and lldb-server dir to the sys.path.
     sys.path.insert(0, pluginPath)
@@ -484,8 +485,11 @@ def setupSysPath():
     # "import lldb_vscode_testcase" from the VSCode tests
     sys.path.insert(0, toolsLLDBVSCode)
     # Adding test/tools/lldb-server to the path makes it easy
-    sys.path.insert(0, toolsLLDBServerPath)
     # to "import lldbgdbserverutils" from the lldb-server tests
+    sys.path.insert(0, toolsLLDBServerPath)
+    # Adding test/tools/intelpt to the path makes it easy
+    # to "import intelpt_testcase" from the lldb-server tests
+    sys.path.insert(0, intelpt)
 
     # This is the root of the lldb git/svn checkout
     # When this changes over to a package instead of a standalone script, this
@@ -925,6 +929,7 @@ def run_suite():
             err = lldb.remote_platform.ConnectRemote(platform_connect_options)
             if err.Success():
                 print("Connected.")
+                lldb.selected_platform = lldb.remote_platform
             else:
                 print("error: failed to connect to remote platform using URL '%s': %s" % (
                     configuration.lldb_platform_url, err))
@@ -953,9 +958,6 @@ def run_suite():
     # Set up the working directory.
     # Note that it's not dotest's job to clean this directory.
     lldbutil.mkdir_p(configuration.test_build_dir)
-
-    from . import lldbplatformutil
-    target_platform = lldbplatformutil.getPlatform()
 
     checkLibcxxSupport()
     checkLibstdcxxSupport()

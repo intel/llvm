@@ -256,6 +256,72 @@ def ConvertMathToLibm : Pass<"convert-math-to-libm", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// MathToLLVM
+//===----------------------------------------------------------------------===//
+
+def ConvertMathToLLVM : FunctionPass<"convert-math-to-llvm"> {
+  let summary = "Convert Math dialect to LLVM dialect";
+  let description = [{
+    This pass converts supported Math ops to LLVM dialect intrinsics.
+  }];
+  let constructor = "mlir::createConvertMathToLLVMPass()";
+  let dependentDialects = ["LLVM::LLVMDialect"];
+}
+
+//===----------------------------------------------------------------------===//
+// MathToSPIRV
+//===----------------------------------------------------------------------===//
+
+def ConvertMathToSPIRV : Pass<"convert-math-to-spirv", "ModuleOp"> {
+  let summary = "Convert Math dialect to SPIR-V dialect";
+  let constructor = "mlir::createConvertMathToSPIRVPass()";
+  let dependentDialects = ["spirv::SPIRVDialect"];
+}
+
+//===----------------------------------------------------------------------===//
+// MemRefToLLVM
+//===----------------------------------------------------------------------===//
+
+def ConvertMemRefToLLVM : Pass<"convert-memref-to-llvm", "ModuleOp"> {
+  let summary = "Convert operations from the MemRef dialect to the LLVM "
+                "dialect";
+  let constructor = "mlir::createMemRefToLLVMPass()";
+  let dependentDialects = ["LLVM::LLVMDialect"];
+  let options = [
+    Option<"useAlignedAlloc", "use-aligned-alloc", "bool", /*default=*/"false",
+           "Use aligned_alloc in place of malloc for heap allocations">,
+    Option<"indexBitwidth", "index-bitwidth", "unsigned",
+           /*default=kDeriveIndexBitwidthFromDataLayout*/"0",
+           "Bitwidth of the index type, 0 to use size of machine word">,
+  ];
+}
+
+//===----------------------------------------------------------------------===//
+// MemRefToSPIRV
+//===----------------------------------------------------------------------===//
+
+def ConvertMemRefToSPIRV : Pass<"convert-memref-to-spirv", "ModuleOp"> {
+  let summary = "Convert MemRef dialect to SPIR-V dialect";
+  let constructor = "mlir::createConvertMemRefToSPIRVPass()";
+  let dependentDialects = ["spirv::SPIRVDialect"];
+  let options = [
+    Option<"boolNumBits", "bool-num-bits",
+           "int", /*default=*/"8",
+           "The number of bits to store a boolean value">
+  ];
+}
+
+//===----------------------------------------------------------------------===//
+// OpenACCToSCF
+//===----------------------------------------------------------------------===//
+
+def ConvertOpenACCToSCF : Pass<"convert-openacc-to-scf", "ModuleOp"> {
+  let summary = "Convert the OpenACC ops to OpenACC with SCF dialect";
+  let constructor = "mlir::createConvertOpenACCToSCFPass()";
+  let dependentDialects = ["scf::SCFDialect", "acc::OpenACCDialect"];
+}
+
+//===----------------------------------------------------------------------===//
 // OpenACCToLLVM
 //===----------------------------------------------------------------------===//
 
@@ -286,14 +352,39 @@ def ConvertPDLToPDLInterp : Pass<"convert-pdl-to-pdl-interp", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// ReconcileUnrealizedCasts
+//===----------------------------------------------------------------------===//
+
+def ReconcileUnrealizedCasts : Pass<"reconcile-unrealized-casts"> {
+  let summary = "Simplify and eliminate unrealized conversion casts";
+  let description = [{
+    Eliminate `unrealized_conversion_cast` operations, commonly introduced by
+    partial dialect conversions, that transitively convert a value to another
+    value of the same type, that is:
+
+    ```
+    %0 = "producer.op"() : () -> !type.A
+    %1 = unrealized_conversion_cast %0 : !type.A to !type.B
+    %2 = unrealized_conversion_cast %1 : !type.B to !type.A
+    "consumer.op"(%2) : (!type.A) -> ()
+    ```
+
+    Such situations appear when the consumer operation is converted by one pass
+    and the producer operation is converted by another pass, each of which
+    produces an unrealized cast. This pass can be used to clean up the IR.
+  }];
+  let constructor = "mlir::createReconcileUnrealizedCastsPass()";
+}
+
+//===----------------------------------------------------------------------===//
 // SCFToOpenMP
 //===----------------------------------------------------------------------===//
 
-def ConvertSCFToOpenMP : FunctionPass<"convert-scf-to-openmp"> {
+def ConvertSCFToOpenMP : Pass<"convert-scf-to-openmp", "ModuleOp"> {
   let summary = "Convert SCF parallel loop to OpenMP parallel + workshare "
                 "constructs.";
   let constructor = "mlir::createConvertSCFToOpenMPPass()";
-  let dependentDialects = ["omp::OpenMPDialect"];
+  let dependentDialects = ["omp::OpenMPDialect", "LLVM::LLVMDialect"];
 }
 
 //===----------------------------------------------------------------------===//
@@ -355,9 +446,9 @@ def ConvertShapeToStandard : Pass<"convert-shape-to-std", "ModuleOp"> {
                 "dialect";
   let constructor = "mlir::createConvertShapeToStandardPass()";
   let dependentDialects = [
-    "memref::MemRefDialect",
     "StandardOpsDialect",
-    "scf::SCFDialect"
+    "scf::SCFDialect",
+    "tensor::TensorDialect"
   ];
 }
 
@@ -424,8 +515,6 @@ def ConvertStandardToLLVM : Pass<"convert-std-to-llvm", "ModuleOp"> {
   let constructor = "mlir::createLowerToLLVMPass()";
   let dependentDialects = ["LLVM::LLVMDialect"];
   let options = [
-    Option<"useAlignedAlloc", "use-aligned-alloc", "bool", /*default=*/"false",
-           "Use aligned_alloc in place of malloc for heap allocations">,
     Option<"useBarePtrCallConv", "use-bare-ptr-memref-call-conv", "bool",
            /*default=*/"false",
            "Replace FuncOp's MemRef arguments with bare pointers to the MemRef "
@@ -494,13 +583,27 @@ def TosaToSCF : Pass<"tosa-to-scf"> {
 
 def TosaToStandard : Pass<"tosa-to-standard"> {
   let summary = "Lower TOSA to the Standard dialect";
-  let dependentDialects = ["StandardOpsDialect"];
+  let dependentDialects = ["StandardOpsDialect", "tensor::TensorDialect"];
   let description = [{
     Pass that converts TOSA operations to the equivalent operations using the
     operations in the Standard dialect.
   }];
 
   let constructor = "tosa::createTosaToStandard()";
+}
+
+//===----------------------------------------------------------------------===//
+// VectorToGPU
+//===----------------------------------------------------------------------===//
+
+def ConvertVectorToGPU : FunctionPass<"convert-vector-to-gpu"> {
+  let summary = "Lower the operations from the vector dialect into the GPU "
+                "dialect";
+  let constructor = "mlir::createConvertVectorToGPUPass()";
+  let dependentDialects = [
+    "memref::MemRefDialect",
+    "gpu::GPUDialect"
+  ];
 }
 
 //===----------------------------------------------------------------------===//
@@ -523,7 +626,9 @@ def ConvertVectorToSCF : FunctionPass<"convert-vector-to-scf"> {
            "Target vector rank to which transfer ops should be lowered">,
     Option<"lowerPermutationMaps", "lower-permutation-maps", "bool",
            /*default=*/"false", "Replace permutation maps with vector "
-           "transposes/broadcasts before lowering transfer ops">
+           "transposes/broadcasts before lowering transfer ops">,
+    Option<"lowerTensors", "lower-tensors", "bool", /*default=*/"false",
+           "Lower transfer ops that operate on tensors">
   ];
 }
 
@@ -594,5 +699,16 @@ def ConvertVectorToSPIRV : Pass<"convert-vector-to-spirv", "ModuleOp"> {
   let constructor = "mlir::createConvertVectorToSPIRVPass()";
   let dependentDialects = ["spirv::SPIRVDialect"];
 }
+
+//===----------------------------------------------------------------------===//
+// ArmNeon2dToIntr
+//===----------------------------------------------------------------------===//
+
+def ConvertArmNeon2dToIntr : Pass<"arm-neon-2d-to-intr", "FuncOp"> {
+  let summary = "Convert Arm NEON structured ops to intrinsics";
+  let constructor = "mlir::createConvertArmNeon2dToIntrPass()";
+  let dependentDialects = ["arm_neon::ArmNeonDialect", "vector::VectorDialect"];
+}
+
 
 #endif // MLIR_CONVERSION_PASSES

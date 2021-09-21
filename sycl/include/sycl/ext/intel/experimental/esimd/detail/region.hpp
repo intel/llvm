@@ -56,6 +56,10 @@ using region1d_t = region_base<false, T, 1, 0, Size, Stride>;
 template <typename T, int SizeY, int StrideY, int SizeX, int StrideX>
 using region2d_t = region_base<true, T, SizeY, StrideY, SizeX, StrideX>;
 
+// A region with a single element.
+template <typename T, int StrideY, int StrideX>
+using region1d_scalar_t = region_base<false, T, 1, StrideY, 1, StrideX>;
+
 // simd_view forward declaration.
 template <typename BaseTy, typename RegionTy> class simd_view;
 
@@ -69,7 +73,8 @@ template <typename BaseTy, typename RegionTy> class simd_view;
 // This is a recursive definition to capture the following rvalue region stack:
 //
 // simd<int 16> v;
-// v.format<int, 4, 4>().select<1, 0, 4, 1>(0, 0).format<short>() = 0;
+// v.bit_cast_view<int, 4, 4>().select<1, 0, 4, 1>(0, 0).bit_cast_view<short>()
+// = 0;
 //
 // The LHS will be represented as a rvalue
 //

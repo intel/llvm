@@ -308,8 +308,22 @@ struct SvelteSizeClassConfig {
 
 typedef FixedSizeClassMap<SvelteSizeClassConfig> SvelteSizeClassMap;
 
+// Trusty is configured to only have one region containing blocks of size
+// 2^7 bytes.
+struct TrustySizeClassConfig {
+  static const uptr NumBits = 1;
+  static const uptr MinSizeLog = 7;
+  static const uptr MidSizeLog = 7;
+  static const uptr MaxSizeLog = 7;
+  static const u32 MaxNumCachedHint = 8;
+  static const uptr MaxBytesCachedLog = 10;
+  static const uptr SizeDelta = 0;
+};
+
+typedef FixedSizeClassMap<TrustySizeClassConfig> TrustySizeClassMap;
+
 template <typename SCMap> inline void printMap() {
-  ScopedString Buffer(1024);
+  ScopedString Buffer;
   uptr PrevS = 0;
   uptr TotalCached = 0;
   for (uptr I = 0; I < SCMap::NumClasses; I++) {
@@ -321,8 +335,8 @@ template <typename SCMap> inline void printMap() {
     const uptr L = S ? getMostSignificantSetBitIndex(S) : 0;
     const uptr Cached = SCMap::getMaxCachedHint(S) * S;
     Buffer.append(
-        "C%02zu => S: %zu diff: +%zu %02zu%% L %zu Cached: %zu %zu; id %zu\n",
-        I, S, D, P, L, SCMap::getMaxCachedHint(S), Cached,
+        "C%02zu => S: %zu diff: +%zu %02zu%% L %zu Cached: %u %zu; id %zu\n", I,
+        S, D, P, L, SCMap::getMaxCachedHint(S), Cached,
         SCMap::getClassIdBySize(S));
     TotalCached += Cached;
     PrevS = S;

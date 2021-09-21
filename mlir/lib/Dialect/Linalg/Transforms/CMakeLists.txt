@@ -3,10 +3,11 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   CodegenStrategy.cpp
   ComprehensiveBufferize.cpp
   Detensorize.cpp
+  Distribution.cpp
   DropUnitDims.cpp
+  ElementwiseOpFusion.cpp
   ElementwiseToLinalg.cpp
   Fusion.cpp
-  FusionOnTensors.cpp
   Generalization.cpp
   Hoisting.cpp
   InlineScalarOperands.cpp

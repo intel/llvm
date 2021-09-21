@@ -126,12 +126,10 @@ SPIRVToLLVMDbgTran::transCompileUnit(const SPIRVExtInst *DebugInst) {
   using namespace SPIRVDebug::Operand::CompilationUnit;
   assert(Ops.size() == OperandCount && "Invalid number of operands");
   M->addModuleFlag(llvm::Module::Max, "Dwarf Version", Ops[DWARFVersionIdx]);
-  SPIRVExtInst *Source = BM->get<SPIRVExtInst>(Ops[SourceIdx]);
-  SPIRVId FileId = Source->getArguments()[SPIRVDebug::Operand::Source::FileIdx];
-  std::string File = getString(FileId);
-  unsigned SourceLang = Ops[LanguageIdx];
-  CU = Builder.createCompileUnit(SourceLang, getDIFile(File), "spirv", false,
-                                 "", 0);
+  unsigned SourceLang = convertSPIRVSourceLangToDWARF(Ops[LanguageIdx]);
+  auto Producer = findModuleProducer();
+  CU = Builder.createCompileUnit(SourceLang, getFile(Ops[SourceIdx]), Producer,
+                                 false, "", 0);
   return CU;
 }
 
@@ -224,7 +222,15 @@ SPIRVToLLVMDbgTran::transTypeVector(const SPIRVExtInst *DebugInst) {
   DIType *BaseTy =
       transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
   SPIRVWord Count = Ops[ComponentCountIdx];
-  uint64_t Size = getDerivedSizeInBits(BaseTy) * Count;
+  // FIXME: The current design of SPIR-V Debug Info doesn't provide a field
+  // for the derived memory size. Meanwhile, OpenCL/SYCL 3-element vectors
+  // occupy the same amount of memory as 4-element vectors, hence the simple
+  // elem_count * elem_size formula fails in this edge case.
+  // Once the specification is updated to reflect the whole memory block's
+  // size in SPIR-V, the calculations below must be replaced with a simple
+  // translation of the known size.
+  SPIRVWord SizeCount = (Count == 3) ? 4 : Count;
+  uint64_t Size = getDerivedSizeInBits(BaseTy) * SizeCount;
 
   SmallVector<llvm::Metadata *, 8> Subscripts;
   Subscripts.push_back(Builder.getOrCreateSubrange(0, Count));
@@ -777,6 +783,8 @@ DINode *SPIRVToLLVMDbgTran::transImportedEntry(const SPIRVExtInst *DebugInst) {
     if (!Entity)
       return Builder.createImportedModule(
           Scope, static_cast<DIImportedEntity *>(nullptr), File, Line);
+    if (DIModule *DM = dyn_cast<DIModule>(Entity))
+      return Builder.createImportedModule(Scope, DM, File, Line);
     if (DIImportedEntity *IE = dyn_cast<DIImportedEntity>(Entity))
       return Builder.createImportedModule(Scope, IE, File, Line);
     if (DINamespace *NS = dyn_cast<DINamespace>(Entity))
@@ -791,6 +799,23 @@ DINode *SPIRVToLLVMDbgTran::transImportedEntry(const SPIRVExtInst *DebugInst) {
     return Builder.createImportedDeclaration(Scope, Entity, File, Line, Name);
   }
   llvm_unreachable("Unexpected kind of imported entity!");
+}
+
+DINode *SPIRVToLLVMDbgTran::transModule(const SPIRVExtInst *DebugInst) {
+  using namespace SPIRVDebug::Operand::ModuleINTEL;
+  const SPIRVWordVec &Ops = DebugInst->getArguments();
+  assert(Ops.size() >= OperandCount && "Invalid number of operands");
+  DIScope *Scope = getScope(BM->getEntry(Ops[ParentIdx]));
+  unsigned Line = Ops[LineIdx];
+  DIFile *File = getFile(Ops[SourceIdx]);
+  StringRef Name = getString(Ops[NameIdx]);
+  StringRef ConfigMacros = getString(Ops[ConfigMacrosIdx]);
+  StringRef IncludePath = getString(Ops[IncludePathIdx]);
+  StringRef ApiNotes = getString(Ops[ApiNotesIdx]);
+  bool IsDecl = Ops[IsDeclIdx];
+
+  return Builder.createModule(Scope, Name, ConfigMacros, IncludePath, ApiNotes,
+                              File, Line, IsDecl);
 }
 
 MDNode *SPIRVToLLVMDbgTran::transExpression(const SPIRVExtInst *DebugInst) {
@@ -888,6 +913,9 @@ MDNode *SPIRVToLLVMDbgTran::transDebugInstImpl(const SPIRVExtInst *DebugInst) {
 
   case SPIRVDebug::ImportedEntity:
     return transImportedEntry(DebugInst);
+
+  case SPIRVDebug::ModuleINTEL:
+    return transModule(DebugInst);
 
   case SPIRVDebug::Operation: // To be translated with transExpression
   case SPIRVDebug::Source:    // To be used by other instructions
@@ -1006,8 +1034,11 @@ DIFile *SPIRVToLLVMDbgTran::getFile(const SPIRVId SourceId) {
          "DebugSource instruction is expected");
   SPIRVWordVec SourceArgs = Source->getArguments();
   assert(SourceArgs.size() == OperandCount && "Invalid number of operands");
-  StringRef Checksum(getString(SourceArgs[TextIdx]));
-  return getDIFile(getString(SourceArgs[FileIdx]), ParseChecksum(Checksum));
+  std::string ChecksumStr =
+      getDbgInst<SPIRVDebug::DebugInfoNone>(SourceArgs[TextIdx])
+          ? ""
+          : getString(SourceArgs[TextIdx]);
+  return getDIFile(getString(SourceArgs[FileIdx]), ParseChecksum(ChecksumStr));
 }
 
 SPIRVToLLVMDbgTran::SplitFileName::SplitFileName(const string &FileName) {
@@ -1019,6 +1050,16 @@ SPIRVToLLVMDbgTran::SplitFileName::SplitFileName(const string &FileName) {
     BaseName = FileName;
     Path = ".";
   }
+}
+
+std::string SPIRVToLLVMDbgTran::findModuleProducer() {
+  for (const auto &I : BM->getModuleProcessedVec()) {
+    if (I->getProcessStr().find(SPIRVDebug::ProducerPrefix) !=
+        std::string::npos) {
+      return I->getProcessStr().substr(SPIRVDebug::ProducerPrefix.size());
+    }
+  }
+  return "spirv";
 }
 
 Optional<DIFile::ChecksumInfo<StringRef>>

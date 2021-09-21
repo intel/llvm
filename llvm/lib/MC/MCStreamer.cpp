@@ -53,6 +53,8 @@ void MCTargetStreamer::emitLabel(MCSymbol *Symbol) {}
 
 void MCTargetStreamer::finish() {}
 
+void MCTargetStreamer::emitConstantPools() {}
+
 void MCTargetStreamer::changeSection(const MCSection *CurSection,
                                      MCSection *Section,
                                      const MCExpr *Subsection,
@@ -218,7 +220,7 @@ void MCStreamer::emitFill(uint64_t NumBytes, uint8_t FillValue) {
 }
 
 void llvm::MCStreamer::emitNops(int64_t NumBytes, int64_t ControlledNopLen,
-                                llvm::SMLoc) {}
+                                llvm::SMLoc, const MCSubtargetInfo& STI) {}
 
 /// The implementation in this class just redirects to emitFill.
 void MCStreamer::emitZeros(uint64_t NumBytes) { emitFill(NumBytes, 0); }
@@ -397,7 +399,7 @@ void MCStreamer::emitEHSymAttributes(const MCSymbol *Symbol,
                                      MCSymbol *EHSymbol) {
 }
 
-void MCStreamer::InitSections(bool NoExecStack) {
+void MCStreamer::initSections(bool NoExecStack, const MCSubtargetInfo &STI) {
   SwitchSection(getContext().getObjectFileInfo()->getTextSection());
 }
 
@@ -444,7 +446,8 @@ void MCStreamer::emitCFIStartProc(bool IsSimple, SMLoc Loc) {
   if (MAI) {
     for (const MCCFIInstruction& Inst : MAI->getInitialFrameState()) {
       if (Inst.getOperation() == MCCFIInstruction::OpDefCfa ||
-          Inst.getOperation() == MCCFIInstruction::OpDefCfaRegister) {
+          Inst.getOperation() == MCCFIInstruction::OpDefCfaRegister ||
+          Inst.getOperation() == MCCFIInstruction::OpLLVMDefAspaceCfa) {
         Frame.CurrentCfaRegister = Inst.getRegister();
       }
     }
@@ -510,6 +513,18 @@ void MCStreamer::emitCFIDefCfaRegister(int64_t Register) {
   MCSymbol *Label = emitCFILabel();
   MCCFIInstruction Instruction =
     MCCFIInstruction::createDefCfaRegister(Label, Register);
+  MCDwarfFrameInfo *CurFrame = getCurrentDwarfFrameInfo();
+  if (!CurFrame)
+    return;
+  CurFrame->Instructions.push_back(Instruction);
+  CurFrame->CurrentCfaRegister = static_cast<unsigned>(Register);
+}
+
+void MCStreamer::emitCFILLVMDefAspaceCfa(int64_t Register, int64_t Offset,
+                                         int64_t AddressSpace) {
+  MCSymbol *Label = emitCFILabel();
+  MCCFIInstruction Instruction = MCCFIInstruction::createLLVMDefAspaceCfa(
+      Label, Register, Offset, AddressSpace);
   MCDwarfFrameInfo *CurFrame = getCurrentDwarfFrameInfo();
   if (!CurFrame)
     return;
@@ -1134,6 +1149,9 @@ void MCStreamer::EndCOFFSymbolDef() {
   llvm_unreachable("this directive only supported on COFF targets");
 }
 void MCStreamer::emitFileDirective(StringRef Filename) {}
+void MCStreamer::emitFileDirective(StringRef Filename, StringRef CompilerVerion,
+                                   StringRef TimeStamp, StringRef Description) {
+}
 void MCStreamer::EmitCOFFSymbolStorageClass(int StorageClass) {
   llvm_unreachable("this directive only supported on COFF targets");
 }
@@ -1182,6 +1200,7 @@ void MCStreamer::emitValueToAlignment(unsigned ByteAlignment, int64_t Value,
                                       unsigned ValueSize,
                                       unsigned MaxBytesToEmit) {}
 void MCStreamer::emitCodeAlignment(unsigned ByteAlignment,
+                                   const MCSubtargetInfo *STI,
                                    unsigned MaxBytesToEmit) {}
 void MCStreamer::emitValueToOffset(const MCExpr *Offset, unsigned char Value,
                                    SMLoc Loc) {}

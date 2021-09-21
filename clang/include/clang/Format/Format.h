@@ -90,6 +90,35 @@ struct FormatStyle {
   /// brackets.
   BracketAlignmentStyle AlignAfterOpenBracket;
 
+  /// Different style for aligning array initializers.
+  enum ArrayInitializerAlignmentStyle {
+    /// Align array column and left justify the columns e.g.:
+    /// \code
+    ///   struct test demo[] =
+    ///   {
+    ///       {56, 23,    "hello"},
+    ///       {-1, 93463, "world"},
+    ///       {7,  5,     "!!"   }
+    ///   };
+    /// \endcode
+    AIAS_Left,
+    /// Align array column and right justify the columns e.g.:
+    /// \code
+    ///   struct test demo[] =
+    ///   {
+    ///       {56,    23, "hello"},
+    ///       {-1, 93463, "world"},
+    ///       { 7,     5,    "!!"}
+    ///   };
+    /// \endcode
+    AIAS_Right,
+    /// Don't align array initializer columns.
+    AIAS_None
+  };
+  /// if not ``None``, when using initialization for an array of structs
+  /// aligns the fields into columns.
+  ArrayInitializerAlignmentStyle AlignArrayOfStructures;
+
   /// Styles for alignment of consecutive tokens. Tokens can be assignment signs
   /// (see
   /// ``AlignConsecutiveAssignments``), bitfield member separators (see
@@ -476,20 +505,8 @@ struct FormatStyle {
   /// \endcode
   bool AllowAllArgumentsOnNextLine;
 
-  /// \brief If a constructor definition with a member initializer list doesn't
-  /// fit on a single line, allow putting all member initializers onto the next
-  /// line, if ```ConstructorInitializerAllOnOneLineOrOnePerLine``` is true.
-  /// Note that this parameter has no effect if
-  /// ```ConstructorInitializerAllOnOneLineOrOnePerLine``` is false.
-  /// \code
-  ///   true:
-  ///   MyClass::MyClass() :
-  ///       member0(0), member1(2) {}
-  ///
-  ///   false:
-  ///   MyClass::MyClass() :
-  ///       member0(0),
-  ///       member1(2) {}
+  /// This option is **deprecated**. See ``NextLine`` of
+  /// ``PackConstructorInitializers``.
   bool AllowAllConstructorInitializersOnNextLine;
 
   /// If the function declaration doesn't fit on a line,
@@ -515,8 +532,7 @@ struct FormatStyle {
   ///   enum { A, B } myEnum;
   ///
   ///   false:
-  ///   enum
-  ///   {
+  ///   enum {
   ///     A,
   ///     B
   ///   } myEnum;
@@ -1762,7 +1778,7 @@ struct FormatStyle {
     BCIS_AfterColon
   };
 
-  /// The constructor initializers style to use.
+  /// The break constructor initializers style to use.
   BreakConstructorInitializersStyle BreakConstructorInitializers;
 
   /// Break after each annotation on a field in Java files.
@@ -1829,7 +1845,14 @@ struct FormatStyle {
     ///        Base2
     ///    {};
     /// \endcode
-    BILS_AfterColon
+    BILS_AfterColon,
+    /// Break inheritance list only after the commas.
+    /// \code
+    ///    class Foo : Base1,
+    ///                Base2
+    ///    {};
+    /// \endcode
+    BILS_AfterComma,
   };
 
   /// The inheritance list style to use.
@@ -1858,25 +1881,9 @@ struct FormatStyle {
   /// \endcode
   bool CompactNamespaces;
 
-  // clang-format off
-  /// If the constructor initializers don't fit on a line, put each
-  /// initializer on its own line.
-  /// \code
-  ///   true:
-  ///   SomeClass::Constructor()
-  ///       : aaaaaaaa(aaaaaaaa), aaaaaaaa(aaaaaaaa), aaaaaaaa(aaaaaaaaaaaaaaaaaaaaaaaaa) {
-  ///     return 0;
-  ///   }
-  ///
-  ///   false:
-  ///   SomeClass::Constructor()
-  ///       : aaaaaaaa(aaaaaaaa), aaaaaaaa(aaaaaaaa),
-  ///         aaaaaaaa(aaaaaaaaaaaaaaaaaaaaaaaaa) {
-  ///     return 0;
-  ///   }
-  /// \endcode
+  /// This option is **deprecated**. See ``CurrentLine`` of
+  /// ``PackConstructorInitializers``.
   bool ConstructorInitializerAllOnOneLineOrOnePerLine;
-  // clang-format on
 
   /// The number of characters to use for indentation of constructor
   /// initializer lists as well as inheritance lists.
@@ -1973,7 +1980,9 @@ struct FormatStyle {
     ELAAMS_Always,
   };
 
-  /// Defines in which cases to put empty line after access modifiers.
+  /// Defines when to put an empty line after access modifiers.
+  /// ``EmptyLineBeforeAccessModifier`` configuration handles the number of
+  /// empty lines between two access modifiers.
   EmptyLineAfterAccessModifierStyle EmptyLineAfterAccessModifier;
 
   /// Different styles for empty line before access modifiers.
@@ -2050,6 +2059,52 @@ struct FormatStyle {
   /// not use this in config files, etc. Use at your own risk.
   bool ExperimentalAutoDetectBinPacking;
 
+  /// Different ways to try to fit all constructor initializers on a line.
+  enum PackConstructorInitializersStyle : unsigned char {
+    /// Always put each constructor initializer on its own line.
+    /// \code
+    ///    Constructor()
+    ///        : a(),
+    ///          b()
+    /// \endcode
+    PCIS_Never,
+    /// Bin-pack constructor initializers.
+    /// \code
+    ///    Constructor()
+    ///        : aaaaaaaaaaaaaaaaaaaa(), bbbbbbbbbbbbbbbbbbbb(),
+    ///          cccccccccccccccccccc()
+    /// \endcode
+    PCIS_BinPack,
+    /// Put all constructor initializers on the current line if they fit.
+    /// Otherwise, put each one on its own line.
+    /// \code
+    ///    Constructor() : a(), b()
+    ///
+    ///    Constructor()
+    ///        : aaaaaaaaaaaaaaaaaaaa(),
+    ///          bbbbbbbbbbbbbbbbbbbb(),
+    ///          ddddddddddddd()
+    /// \endcode
+    PCIS_CurrentLine,
+    /// Same as ``PCIS_CurrentLine`` except that if all constructor initializers
+    /// do not fit on the current line, try to fit them on the next line.
+    /// \code
+    ///    Constructor() : a(), b()
+    ///
+    ///    Constructor()
+    ///        : aaaaaaaaaaaaaaaaaaaa(), bbbbbbbbbbbbbbbbbbbb(), ddddddddddddd()
+    ///
+    ///    Constructor()
+    ///        : aaaaaaaaaaaaaaaaaaaa(),
+    ///          bbbbbbbbbbbbbbbbbbbb(),
+    ///          cccccccccccccccccccc()
+    /// \endcode
+    PCIS_NextLine,
+  };
+
+  /// The pack constructor initializers style to use.
+  PackConstructorInitializersStyle PackConstructorInitializers;
+
   /// If ``true``, clang-format adds missing namespace end comments for
   /// short namespaces and fixes invalid existing ones. Short ones are
   /// controlled by "ShortNamespaceLines".
@@ -2078,6 +2133,26 @@ struct FormatStyle {
   ///
   /// For example: BOOST_FOREACH.
   std::vector<std::string> ForEachMacros;
+
+  /// A vector of macros that should be interpreted as conditionals
+  /// instead of as function calls.
+  ///
+  /// These are expected to be macros of the form:
+  /// \code
+  ///   IF(...)
+  ///     <conditional-body>
+  ///   else IF(...)
+  ///     <conditional-body>
+  /// \endcode
+  ///
+  /// In the .clang-format configuration file, this can be configured like:
+  /// \code{.yaml}
+  ///   IfMacros: ['IF']
+  /// \endcode
+  ///
+  /// For example: `KJ_IF_MAYBE
+  /// <https://github.com/capnproto/capnproto/blob/master/kjdoc/tour.md#maybes>`_
+  std::vector<std::string> IfMacros;
 
   /// \brief A vector of macros that should be interpreted as type declarations
   /// instead of as function calls.
@@ -2435,6 +2510,8 @@ struct FormatStyle {
     LK_Java,
     /// Should be used for JavaScript.
     LK_JavaScript,
+    /// Should be used for JSON.
+    LK_Json,
     /// Should be used for Objective-C, Objective-C++.
     LK_ObjC,
     /// Should be used for Protocol Buffers
@@ -2448,9 +2525,42 @@ struct FormatStyle {
   };
   bool isCpp() const { return Language == LK_Cpp || Language == LK_ObjC; }
   bool isCSharp() const { return Language == LK_CSharp; }
+  bool isJson() const { return Language == LK_Json; }
 
   /// Language, this format style is targeted at.
   LanguageKind Language;
+
+  /// Indentation logic for lambda bodies.
+  enum LambdaBodyIndentationKind : unsigned char {
+    /// Align lambda body relative to the lambda signature. This is the default.
+    /// \code
+    ///    someMethod(
+    ///        [](SomeReallyLongLambdaSignatureArgument foo) {
+    ///          return;
+    ///        });
+    /// \endcode
+    LBI_Signature,
+    /// Align lambda body relative to the indentation level of the outer scope
+    /// the lambda signature resides in.
+    /// \code
+    ///    someMethod(
+    ///        [](SomeReallyLongLambdaSignatureArgument foo) {
+    ///      return;
+    ///    });
+    /// \endcode
+    LBI_OuterScope,
+  };
+
+  /// The indentation style of lambda bodies. ``Signature`` (the default)
+  /// causes the lambda body to be indented one additional level relative to
+  /// the indentation level of the signature. ``OuterScope`` forces the lambda
+  /// body to be indented one additional level relative to the parent scope
+  /// containing the lambda signature. For callback-heavy code, it may improve
+  /// readability to have the signature indented two levels and to use
+  /// ``OuterScope``. The KJ style guide requires ``OuterScope``.
+  /// `KJ style guide
+  /// <https://github.com/capnproto/capnproto/blob/master/kjdoc/style-guide.md>`_
+  LambdaBodyIndentationKind LambdaBodyIndentation;
 
   /// A regular expression matching macros that start a block.
   /// \code
@@ -2635,7 +2745,7 @@ struct FormatStyle {
   /// (counted relative to leading non-whitespace column).
   unsigned PenaltyIndentedWhitespace;
 
-  /// The ``&`` and ``*`` alignment style.
+  /// The ``&``, ``&&`` and ``*`` alignment style.
   enum PointerAlignmentStyle : unsigned char {
     /// Align pointer to the left.
     /// \code
@@ -2656,6 +2766,20 @@ struct FormatStyle {
 
   /// Pointer and reference alignment style.
   PointerAlignmentStyle PointerAlignment;
+
+  /// The number of columns to use for indentation of preprocessor statements.
+  /// When set to -1 (default) ``IndentWidth`` is used also for preprocessor
+  /// statements.
+  /// \code
+  ///    PPIndentWidth: 1
+  ///
+  ///    #ifdef __linux__
+  ///    # define FOO
+  ///    #else
+  ///    # define BAR
+  ///    #endif
+  /// \endcode
+  int PPIndentWidth;
 
   /// See documentation of ``RawStringFormats``.
   struct RawStringFormat {
@@ -2715,6 +2839,31 @@ struct FormatStyle {
   ///         CanonicalDelimiter: 'cc'
   /// \endcode
   std::vector<RawStringFormat> RawStringFormats;
+
+  /// \brief The ``&`` and ``&&`` alignment style.
+  enum ReferenceAlignmentStyle {
+    /// Align reference like ``PointerAlignment``.
+    RAS_Pointer,
+    /// Align reference to the left.
+    /// \code
+    ///   int& a;
+    /// \endcode
+    RAS_Left,
+    /// Align reference to the right.
+    /// \code
+    ///   int &a;
+    /// \endcode
+    RAS_Right,
+    /// Align reference in the middle.
+    /// \code
+    ///   int & a;
+    /// \endcode
+    RAS_Middle
+  };
+
+  /// \brief Reference alignment style (overrides ``PointerAlignment`` for
+  /// references).
+  ReferenceAlignmentStyle ReferenceAlignment;
 
   // clang-format off
   /// If ``true``, clang-format will attempt to re-flow comments.
@@ -2949,8 +3098,10 @@ struct FormatStyle {
     /// \endcode
     SBPO_ControlStatements,
     /// Same as ``SBPO_ControlStatements`` except this option doesn't apply to
-    /// ForEach macros. This is useful in projects where ForEach macros are
-    /// treated as function calls instead of control statements.
+    /// ForEach and If macros. This is useful in projects where ForEach/If
+    /// macros are treated as function calls instead of control statements.
+    /// ``SBPO_ControlStatementsExceptForEachMacros`` remains an alias for
+    /// backward compatibility.
     /// \code
     ///    void f() {
     ///      Q_FOREACH(...) {
@@ -2958,7 +3109,7 @@ struct FormatStyle {
     ///      }
     ///    }
     /// \endcode
-    SBPO_ControlStatementsExceptForEachMacros,
+    SBPO_ControlStatementsExceptControlMacros,
     /// Put a space before opening parentheses only if the parentheses are not
     /// empty i.e. '()'
     /// \code
@@ -3249,6 +3400,7 @@ struct FormatStyle {
   bool operator==(const FormatStyle &R) const {
     return AccessModifierOffset == R.AccessModifierOffset &&
            AlignAfterOpenBracket == R.AlignAfterOpenBracket &&
+           AlignArrayOfStructures == R.AlignArrayOfStructures &&
            AlignConsecutiveAssignments == R.AlignConsecutiveAssignments &&
            AlignConsecutiveBitFields == R.AlignConsecutiveBitFields &&
            AlignConsecutiveDeclarations == R.AlignConsecutiveDeclarations &&
@@ -3257,8 +3409,6 @@ struct FormatStyle {
            AlignOperands == R.AlignOperands &&
            AlignTrailingComments == R.AlignTrailingComments &&
            AllowAllArgumentsOnNextLine == R.AllowAllArgumentsOnNextLine &&
-           AllowAllConstructorInitializersOnNextLine ==
-               R.AllowAllConstructorInitializersOnNextLine &&
            AllowAllParametersOfDeclarationOnNextLine ==
                R.AllowAllParametersOfDeclarationOnNextLine &&
            AllowShortEnumsOnASingleLine == R.AllowShortEnumsOnASingleLine &&
@@ -3289,8 +3439,6 @@ struct FormatStyle {
            BreakStringLiterals == R.BreakStringLiterals &&
            ColumnLimit == R.ColumnLimit && CommentPragmas == R.CommentPragmas &&
            BreakInheritanceList == R.BreakInheritanceList &&
-           ConstructorInitializerAllOnOneLineOrOnePerLine ==
-               R.ConstructorInitializerAllOnOneLineOrOnePerLine &&
            ConstructorInitializerIndentWidth ==
                R.ConstructorInitializerIndentWidth &&
            ContinuationIndentWidth == R.ContinuationIndentWidth &&
@@ -3302,6 +3450,7 @@ struct FormatStyle {
            EmptyLineBeforeAccessModifier == R.EmptyLineBeforeAccessModifier &&
            ExperimentalAutoDetectBinPacking ==
                R.ExperimentalAutoDetectBinPacking &&
+           PackConstructorInitializers == R.PackConstructorInitializers &&
            FixNamespaceComments == R.FixNamespaceComments &&
            ForEachMacros == R.ForEachMacros &&
            IncludeStyle.IncludeBlocks == R.IncludeStyle.IncludeBlocks &&
@@ -3324,6 +3473,7 @@ struct FormatStyle {
            JavaScriptWrapImports == R.JavaScriptWrapImports &&
            KeepEmptyLinesAtTheStartOfBlocks ==
                R.KeepEmptyLinesAtTheStartOfBlocks &&
+           LambdaBodyIndentation == R.LambdaBodyIndentation &&
            MacroBlockBegin == R.MacroBlockBegin &&
            MacroBlockEnd == R.MacroBlockEnd &&
            MaxEmptyLinesToKeep == R.MaxEmptyLinesToKeep &&
@@ -3347,6 +3497,7 @@ struct FormatStyle {
                R.PenaltyBreakTemplateDeclaration &&
            PointerAlignment == R.PointerAlignment &&
            RawStringFormats == R.RawStringFormats &&
+           ReferenceAlignment == R.ReferenceAlignment &&
            ShortNamespaceLines == R.ShortNamespaceLines &&
            SortIncludes == R.SortIncludes &&
            SortJavaStaticImport == R.SortJavaStaticImport &&
@@ -3662,6 +3813,8 @@ inline StringRef getLanguageName(FormatStyle::LanguageKind Language) {
     return "Java";
   case FormatStyle::LK_JavaScript:
     return "JavaScript";
+  case FormatStyle::LK_Json:
+    return "Json";
   case FormatStyle::LK_Proto:
     return "Proto";
   case FormatStyle::LK_TableGen:

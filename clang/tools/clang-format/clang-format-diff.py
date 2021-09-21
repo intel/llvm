@@ -48,7 +48,7 @@ def main():
                       '(case sensitive, overrides -iregex)')
   parser.add_argument('-iregex', metavar='PATTERN', default=
                       r'.*\.(cpp|cc|c\+\+|cxx|c|cl|h|hh|hpp|hxx|m|mm|inc|js|ts'
-                      r'|proto|protodevel|java|cs)',
+                      r'|proto|protodevel|java|cs|json)',
                       help='custom pattern selecting file paths to reformat '
                       '(case insensitive, overridden by -regex)')
   parser.add_argument('-sort-includes', action='store_true', default=False,
@@ -58,6 +58,11 @@ def main():
   parser.add_argument('-style',
                       help='formatting style to apply (LLVM, GNU, Google, Chromium, '
                       'Microsoft, Mozilla, WebKit)')
+  parser.add_argument('-fallback-style',
+                      help='The name of the predefined style used as a'
+                      'fallback in case clang-format is invoked with'
+                      '-style=file, but can not find the .clang-format'
+                      'file to use.')
   parser.add_argument('-binary', default='clang-format',
                       help='location of binary to use for clang-format')
   args = parser.parse_args()
@@ -103,6 +108,8 @@ def main():
     command.extend(lines)
     if args.style:
       command.extend(['-style', args.style])
+    if args.fallback_style:
+      command.extend(['-fallback-style', args.fallback_style])
 
     try:
       p = subprocess.Popen(command,

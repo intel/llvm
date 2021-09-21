@@ -105,6 +105,7 @@ void writeOutput(Module *M, StringRef Message) {
 int main(int Argc, char **Argv) {
   InitLLVM X(Argc, Argv);
 
+  cl::HideUnrelatedOptions({&Options, &getColorCategory()});
   cl::ParseCommandLineOptions(Argc, Argv, "LLVM automatic testcase reducer.\n");
 
   if (PrintDeltaPasses) {
@@ -115,6 +116,10 @@ int main(int Argc, char **Argv) {
   LLVMContext Context;
   std::unique_ptr<Module> OriginalProgram =
       parseInputFile(InputFilename, Context);
+
+  if (!OriginalProgram) {
+    return 1;
+  }
 
   // Initialize test environment
   TestRunner Tester(TestFilename, TestArguments);

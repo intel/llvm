@@ -14,6 +14,7 @@
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Target/TargetMachine.h"
 
 /// \file LiveDebugValues.cpp
@@ -32,6 +33,24 @@
 #define DEBUG_TYPE "livedebugvalues"
 
 using namespace llvm;
+
+static cl::opt<bool>
+    ForceInstrRefLDV("force-instr-ref-livedebugvalues", cl::Hidden,
+                     cl::desc("Use instruction-ref based LiveDebugValues with "
+                              "normal DBG_VALUE inputs"),
+                     cl::init(false));
+
+// Options to prevent pathological compile-time behavior. If InputBBLimit and
+// InputDbgValueLimit are both exceeded, range extension is disabled.
+static cl::opt<unsigned> InputBBLimit(
+    "livedebugvalues-input-bb-limit",
+    cl::desc("Maximum input basic blocks before DBG_VALUE limit applies"),
+    cl::init(10000), cl::Hidden);
+static cl::opt<unsigned> InputDbgValueLimit(
+    "livedebugvalues-input-dbg-value-limit",
+    cl::desc(
+        "Maximum input DBG_VALUE insts supported by debug range extension"),
+    cl::init(50000), cl::Hidden);
 
 /// Generic LiveDebugValues pass. Calls through to VarLocBasedLDV or
 /// InstrRefBasedLDV to perform location propagation, via the LDVImpl
@@ -80,12 +99,10 @@ LiveDebugValues::LiveDebugValues() : MachineFunctionPass(ID) {
 bool LiveDebugValues::runOnMachineFunction(MachineFunction &MF) {
   if (!TheImpl) {
     TPC = getAnalysisIfAvailable<TargetPassConfig>();
+    bool InstrRefBased = MF.useDebugInstrRef();
 
-    bool InstrRefBased = false;
-    if (TPC) {
-      auto &TM = TPC->getTM<TargetMachine>();
-      InstrRefBased = TM.Options.ValueTrackingVariableLocations;
-    }
+    // Allow the user to force selection of InstrRef LDV.
+    InstrRefBased |= ForceInstrRefLDV;
 
     if (InstrRefBased)
       TheImpl = llvm::makeInstrRefBasedLiveDebugValues();
@@ -93,5 +110,5 @@ bool LiveDebugValues::runOnMachineFunction(MachineFunction &MF) {
       TheImpl = llvm::makeVarLocBasedLiveDebugValues();
   }
 
-  return TheImpl->ExtendRanges(MF, TPC);
+  return TheImpl->ExtendRanges(MF, TPC, InputBBLimit, InputDbgValueLimit);
 }

@@ -1,9 +1,8 @@
 //===- AArch64StackTagging.cpp - Stack tagging in IR --===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //===----------------------------------------------------------------------===//
@@ -42,6 +41,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -52,6 +52,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Instrumentation/AddressSanitizerCommon.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <cassert>
 #include <iterator>
@@ -238,7 +239,7 @@ public:
                       << ") zero\n");
     Value *Ptr = BasePtr;
     if (Offset)
-      Ptr = IRB.CreateConstGEP1_32(Ptr, Offset);
+      Ptr = IRB.CreateConstGEP1_32(IRB.getInt8Ty(), Ptr, Offset);
     IRB.CreateCall(SetTagZeroFn,
                    {Ptr, ConstantInt::get(IRB.getInt64Ty(), Size)});
   }
@@ -248,7 +249,7 @@ public:
                       << ") undef\n");
     Value *Ptr = BasePtr;
     if (Offset)
-      Ptr = IRB.CreateConstGEP1_32(Ptr, Offset);
+      Ptr = IRB.CreateConstGEP1_32(IRB.getInt8Ty(), Ptr, Offset);
     IRB.CreateCall(SetTagFn, {Ptr, ConstantInt::get(IRB.getInt64Ty(), Size)});
   }
 
@@ -257,7 +258,7 @@ public:
     LLVM_DEBUG(dbgs() << "    " << *A << "\n    " << *B << "\n");
     Value *Ptr = BasePtr;
     if (Offset)
-      Ptr = IRB.CreateConstGEP1_32(Ptr, Offset);
+      Ptr = IRB.CreateConstGEP1_32(IRB.getInt8Ty(), Ptr, Offset);
     IRB.CreateCall(StgpFn, {Ptr, A, B});
   }
 
@@ -519,24 +520,6 @@ void AArch64StackTagging::alignAndPadAlloca(AllocaInfo &Info) {
   Info.AI = NewAI;
 }
 
-// Helper function to check for post-dominance.
-static bool postDominates(const PostDominatorTree *PDT, const IntrinsicInst *A,
-                          const IntrinsicInst *B) {
-  const BasicBlock *ABB = A->getParent();
-  const BasicBlock *BBB = B->getParent();
-
-  if (ABB != BBB)
-    return PDT->dominates(ABB, BBB);
-
-  for (const Instruction &I : *ABB) {
-    if (&I == B)
-      return true;
-    if (&I == A)
-      return false;
-  }
-  llvm_unreachable("Corrupt instruction list");
-}
-
 // FIXME: check for MTE extension
 bool AArch64StackTagging::runOnFunction(Function &Fn) {
   if (!Fn.hasFnAttribute(Attribute::SanitizeMemTag))
@@ -565,7 +548,9 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
       if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(I)) {
         for (Value *V : DVI->location_ops())
           if (auto *AI = dyn_cast_or_null<AllocaInst>(V))
-            Allocas[AI].DbgVariableIntrinsics.push_back(DVI);
+            if (Allocas[AI].DbgVariableIntrinsics.empty() ||
+                Allocas[AI].DbgVariableIntrinsics.back() != DVI)
+              Allocas[AI].DbgVariableIntrinsics.push_back(DVI);
         continue;
       }
 
@@ -663,32 +648,12 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
           cast<ConstantInt>(Start->getArgOperand(0))->getZExtValue();
       Size = alignTo(Size, kTagGranuleSize);
       tagAlloca(AI, Start->getNextNode(), Start->getArgOperand(1), Size);
-      // We need to ensure that if we tag some object, we certainly untag it
-      // before the function exits.
-      if (PDT != nullptr && postDominates(PDT, End, Start)) {
-        untagAlloca(AI, End, Size);
-      } else {
-        SmallVector<Instruction *, 8> ReachableRetVec;
-        unsigned NumCoveredExits = 0;
-        for (auto &RI : RetVec) {
-          if (!isPotentiallyReachable(Start, RI, nullptr, DT))
-            continue;
-          ReachableRetVec.push_back(RI);
-          if (DT != nullptr && DT->dominates(End, RI))
-            ++NumCoveredExits;
-        }
-        // If there's a mix of covered and non-covered exits, just put the untag
-        // on exits, so we avoid the redundancy of untagging twice.
-        if (NumCoveredExits == ReachableRetVec.size()) {
-          untagAlloca(AI, End, Size);
-        } else {
-          for (auto &RI : ReachableRetVec)
-            untagAlloca(AI, RI, Size);
-          // We may have inserted untag outside of the lifetime interval.
-          // Remove the lifetime end call for this alloca.
-          End->eraseFromParent();
-        }
-      }
+
+      auto TagEnd = [&](Instruction *Node) { untagAlloca(AI, Node, Size); };
+      if (!DT || !PDT ||
+          !forAllReachableExits(*DT, *PDT, Start, Info.LifetimeEnd, RetVec,
+                                TagEnd))
+        End->eraseFromParent();
     } else {
       uint64_t Size = Info.AI->getAllocationSizeInBits(*DL).getValue() / 8;
       Value *Ptr = IRB.CreatePointerCast(TagPCall, IRB.getInt8PtrTy());

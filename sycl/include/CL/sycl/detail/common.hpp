@@ -10,14 +10,12 @@
 
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 
 #include <cstdint>
 #include <string>
-
-#define __SYCL_STRINGIFY_LINE_HELP(s) #s
-#define __SYCL_STRINGIFY_LINE(s) __SYCL_STRINGIFY_LINE_HELP(s)
 
 // Default signature enables the passing of user code location information to
 // public methods as a default argument. If the end-user wants to disable the
@@ -26,11 +24,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-// We define a sycl stream name and this will be used by the instrumentation
-// framework
-constexpr const char *SYCL_STREAM_NAME = "sycl";
-// Stream name being used for traces generated from the SYCL plugin layer
-constexpr const char *SYCL_PICALL_STREAM_NAME = "sycl.pi";
 // Data structure that captures the user code location information using the
 // builtin capabilities of the compiler
 struct code_location {
@@ -45,8 +38,10 @@ struct code_location {
     return code_location(fileName, funcName, lineNo, columnNo);
   }
 #else
+  // FIXME Having a nullptr for fileName here is a short-term solution to
+  // workaround leak of full paths in builds
   static constexpr code_location
-  current(const char *fileName = __builtin_FILE(),
+  current(const char *fileName = nullptr,
           const char *funcName = __builtin_FUNCTION(),
           unsigned long lineNo = __builtin_LINE(),
           unsigned long columnNo = 0) noexcept {
@@ -101,8 +96,8 @@ static inline std::string codeToString(cl_int code) {
 #define __SYCL_OCL_ERROR_REPORT                                                \
   "Native API failed. " /*__FILE__*/                                           \
   /* TODO: replace __FILE__ to report only relative path*/                     \
-  /* ":" __SYCL_STRINGIFY_LINE(__LINE__) ": " */                               \
-                               "Native API returns: "
+  /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
+                          "Native API returns: "
 
 #ifndef __SYCL_SUPPRESS_OCL_ERROR_REPORT
 #include <iostream>

@@ -91,6 +91,11 @@ static std::pair<unsigned, unsigned> unpackVScaleRangeArgs(uint64_t Value) {
 
 Attribute Attribute::get(LLVMContext &Context, Attribute::AttrKind Kind,
                          uint64_t Val) {
+  if (Val)
+    assert(Attribute::isIntAttrKind(Kind) && "Not an int attribute");
+  else
+    assert(Attribute::isEnumAttrKind(Kind) && "Not an enum attribute");
+
   LLVMContextImpl *pImpl = Context.pImpl;
   FoldingSetNodeID ID;
   ID.AddInteger(Kind);
@@ -138,6 +143,7 @@ Attribute Attribute::get(LLVMContext &Context, StringRef Kind, StringRef Val) {
 
 Attribute Attribute::get(LLVMContext &Context, Attribute::AttrKind Kind,
                          Type *Ty) {
+  assert(Attribute::isTypeAttrKind(Kind) && "Not a type attribute");
   LLVMContextImpl *pImpl = Context.pImpl;
   FoldingSetNodeID ID;
   ID.AddInteger(Kind);
@@ -234,15 +240,6 @@ StringRef Attribute::getNameFromAttrKind(Attribute::AttrKind AttrKind) {
   default:
     llvm_unreachable("invalid Kind");
   }
-}
-
-bool Attribute::doesAttrKindHaveArgument(Attribute::AttrKind AttrKind) {
-  return AttrKind == Attribute::Alignment ||
-         AttrKind == Attribute::StackAlignment ||
-         AttrKind == Attribute::Dereferenceable ||
-         AttrKind == Attribute::AllocSize ||
-         AttrKind == Attribute::DereferenceableOrNull ||
-         AttrKind == Attribute::VScaleRange;
 }
 
 bool Attribute::isExistingAttribute(StringRef Name) {
@@ -366,160 +363,13 @@ std::pair<unsigned, unsigned> Attribute::getVScaleRangeArgs() const {
 std::string Attribute::getAsString(bool InAttrGrp) const {
   if (!pImpl) return {};
 
-  if (hasAttribute(Attribute::SanitizeAddress))
-    return "sanitize_address";
-  if (hasAttribute(Attribute::SanitizeHWAddress))
-    return "sanitize_hwaddress";
-  if (hasAttribute(Attribute::SanitizeMemTag))
-    return "sanitize_memtag";
-  if (hasAttribute(Attribute::AlwaysInline))
-    return "alwaysinline";
-  if (hasAttribute(Attribute::ArgMemOnly))
-    return "argmemonly";
-  if (hasAttribute(Attribute::Builtin))
-    return "builtin";
-  if (hasAttribute(Attribute::Convergent))
-    return "convergent";
-  if (hasAttribute(Attribute::SwiftError))
-    return "swifterror";
-  if (hasAttribute(Attribute::SwiftSelf))
-    return "swiftself";
-  if (hasAttribute(Attribute::SwiftAsync))
-    return "swiftasync";
-  if (hasAttribute(Attribute::InaccessibleMemOnly))
-    return "inaccessiblememonly";
-  if (hasAttribute(Attribute::InaccessibleMemOrArgMemOnly))
-    return "inaccessiblemem_or_argmemonly";
-  if (hasAttribute(Attribute::InlineHint))
-    return "inlinehint";
-  if (hasAttribute(Attribute::InReg))
-    return "inreg";
-  if (hasAttribute(Attribute::JumpTable))
-    return "jumptable";
-  if (hasAttribute(Attribute::MinSize))
-    return "minsize";
-  if (hasAttribute(Attribute::Naked))
-    return "naked";
-  if (hasAttribute(Attribute::Nest))
-    return "nest";
-  if (hasAttribute(Attribute::NoAlias))
-    return "noalias";
-  if (hasAttribute(Attribute::NoBuiltin))
-    return "nobuiltin";
-  if (hasAttribute(Attribute::NoCallback))
-    return "nocallback";
-  if (hasAttribute(Attribute::NoCapture))
-    return "nocapture";
-  if (hasAttribute(Attribute::NoDuplicate))
-    return "noduplicate";
-  if (hasAttribute(Attribute::NoFree))
-    return "nofree";
-  if (hasAttribute(Attribute::NoImplicitFloat))
-    return "noimplicitfloat";
-  if (hasAttribute(Attribute::NoInline))
-    return "noinline";
-  if (hasAttribute(Attribute::NonLazyBind))
-    return "nonlazybind";
-  if (hasAttribute(Attribute::NoMerge))
-    return "nomerge";
-  if (hasAttribute(Attribute::NonNull))
-    return "nonnull";
-  if (hasAttribute(Attribute::NoRedZone))
-    return "noredzone";
-  if (hasAttribute(Attribute::NoReturn))
-    return "noreturn";
-  if (hasAttribute(Attribute::NoSync))
-    return "nosync";
-  if (hasAttribute(Attribute::NullPointerIsValid))
-    return "null_pointer_is_valid";
-  if (hasAttribute(Attribute::WillReturn))
-    return "willreturn";
-  if (hasAttribute(Attribute::NoCfCheck))
-    return "nocf_check";
-  if (hasAttribute(Attribute::NoRecurse))
-    return "norecurse";
-  if (hasAttribute(Attribute::NoProfile))
-    return "noprofile";
-  if (hasAttribute(Attribute::NoUnwind))
-    return "nounwind";
-  if (hasAttribute(Attribute::OptForFuzzing))
-    return "optforfuzzing";
-  if (hasAttribute(Attribute::OptimizeNone))
-    return "optnone";
-  if (hasAttribute(Attribute::OptimizeForSize))
-    return "optsize";
-  if (hasAttribute(Attribute::ReadNone))
-    return "readnone";
-  if (hasAttribute(Attribute::ReadOnly))
-    return "readonly";
-  if (hasAttribute(Attribute::WriteOnly))
-    return "writeonly";
-  if (hasAttribute(Attribute::Returned))
-    return "returned";
-  if (hasAttribute(Attribute::ReturnsTwice))
-    return "returns_twice";
-  if (hasAttribute(Attribute::SExt))
-    return "signext";
-  if (hasAttribute(Attribute::SpeculativeLoadHardening))
-    return "speculative_load_hardening";
-  if (hasAttribute(Attribute::Speculatable))
-    return "speculatable";
-  if (hasAttribute(Attribute::StackProtect))
-    return "ssp";
-  if (hasAttribute(Attribute::StackProtectReq))
-    return "sspreq";
-  if (hasAttribute(Attribute::StackProtectStrong))
-    return "sspstrong";
-  if (hasAttribute(Attribute::SafeStack))
-    return "safestack";
-  if (hasAttribute(Attribute::ShadowCallStack))
-    return "shadowcallstack";
-  if (hasAttribute(Attribute::StrictFP))
-    return "strictfp";
-  if (hasAttribute(Attribute::SanitizeThread))
-    return "sanitize_thread";
-  if (hasAttribute(Attribute::SanitizeMemory))
-    return "sanitize_memory";
-  if (hasAttribute(Attribute::UWTable))
-    return "uwtable";
-  if (hasAttribute(Attribute::ZExt))
-    return "zeroext";
-  if (hasAttribute(Attribute::Cold))
-    return "cold";
-  if (hasAttribute(Attribute::Hot))
-    return "hot";
-  if (hasAttribute(Attribute::ImmArg))
-    return "immarg";
-  if (hasAttribute(Attribute::NoUndef))
-    return "noundef";
-  if (hasAttribute(Attribute::MustProgress))
-    return "mustprogress";
+  if (isEnumAttribute())
+    return getNameFromAttrKind(getKindAsEnum()).str();
 
   if (isTypeAttribute()) {
-    std::string Result;
-    raw_string_ostream OS(Result);
-
-    switch (getKindAsEnum()) {
-    case Attribute::ByVal:
-      Result += "byval";
-      break;
-    case Attribute::StructRet:
-      Result += "sret";
-      break;
-    case Attribute::ByRef:
-      Result += "byref";
-      break;
-    case Attribute::Preallocated:
-      Result += "preallocated";
-      break;
-    case Attribute::InAlloca:
-      Result += "inalloca";
-      break;
-    default:
-      llvm_unreachable("unhandled type attribute");
-    }
-
+    std::string Result = getNameFromAttrKind(getKindAsEnum()).str();
     Result += '(';
+    raw_string_ostream OS(Result);
     getValueAsType()->print(OS, false, true);
     OS.flush();
     Result += ')';
@@ -635,6 +485,35 @@ void Attribute::Profile(FoldingSetNodeID &ID) const {
   ID.AddPointer(pImpl);
 }
 
+enum AttributeProperty {
+  FnAttr = (1 << 0),
+  ParamAttr = (1 << 1),
+  RetAttr = (1 << 2),
+};
+
+#define GET_ATTR_PROP_TABLE
+#include "llvm/IR/Attributes.inc"
+
+static bool hasAttributeProperty(Attribute::AttrKind Kind,
+                                 AttributeProperty Prop) {
+  unsigned Index = Kind - 1;
+  assert(Index < sizeof(AttrPropTable) / sizeof(AttrPropTable[0]) &&
+         "Invalid attribute kind");
+  return AttrPropTable[Index] & Prop;
+}
+
+bool Attribute::canUseAsFnAttr(AttrKind Kind) {
+  return hasAttributeProperty(Kind, AttributeProperty::FnAttr);
+}
+
+bool Attribute::canUseAsParamAttr(AttrKind Kind) {
+  return hasAttributeProperty(Kind, AttributeProperty::ParamAttr);
+}
+
+bool Attribute::canUseAsRetAttr(AttrKind Kind) {
+  return hasAttributeProperty(Kind, AttributeProperty::RetAttr);
+}
+
 //===----------------------------------------------------------------------===//
 // AttributeImpl Definition
 //===----------------------------------------------------------------------===//
@@ -682,41 +561,23 @@ Type *AttributeImpl::getValueAsType() const {
 bool AttributeImpl::operator<(const AttributeImpl &AI) const {
   if (this == &AI)
     return false;
+
   // This sorts the attributes with Attribute::AttrKinds coming first (sorted
   // relative to their enum value) and then strings.
-  if (isEnumAttribute()) {
-    if (AI.isEnumAttribute()) return getKindAsEnum() < AI.getKindAsEnum();
-    if (AI.isIntAttribute()) return true;
-    if (AI.isStringAttribute()) return true;
-    if (AI.isTypeAttribute()) return true;
-  }
-
-  if (isTypeAttribute()) {
-    if (AI.isEnumAttribute()) return false;
-    if (AI.isTypeAttribute()) {
-      assert(getKindAsEnum() != AI.getKindAsEnum() &&
-             "Comparison of types would be unstable");
+  if (!isStringAttribute()) {
+    if (AI.isStringAttribute())
+      return true;
+    if (getKindAsEnum() != AI.getKindAsEnum())
       return getKindAsEnum() < AI.getKindAsEnum();
-    }
-    if (AI.isIntAttribute()) return true;
-    if (AI.isStringAttribute()) return true;
+    assert(!AI.isEnumAttribute() && "Non-unique attribute");
+    assert(!AI.isTypeAttribute() && "Comparison of types would be unstable");
+    // TODO: Is this actually needed?
+    assert(AI.isIntAttribute() && "Only possibility left");
+    return getValueAsInt() < AI.getValueAsInt();
   }
 
-  if (isIntAttribute()) {
-    if (AI.isEnumAttribute()) return false;
-    if (AI.isTypeAttribute()) return false;
-    if (AI.isIntAttribute()) {
-      if (getKindAsEnum() == AI.getKindAsEnum())
-        return getValueAsInt() < AI.getValueAsInt();
-      return getKindAsEnum() < AI.getKindAsEnum();
-    }
-    if (AI.isStringAttribute()) return true;
-  }
-
-  assert(isStringAttribute());
-  if (AI.isEnumAttribute()) return false;
-  if (AI.isTypeAttribute()) return false;
-  if (AI.isIntAttribute()) return false;
+  if (!AI.isStringAttribute())
+    return false;
   if (getKindAsString() == AI.getKindAsString())
     return getValueAsString() < AI.getValueAsString();
   return getKindAsString() < AI.getKindAsString();
@@ -828,23 +689,27 @@ uint64_t AttributeSet::getDereferenceableOrNullBytes() const {
 }
 
 Type *AttributeSet::getByRefType() const {
-  return SetNode ? SetNode->getByRefType() : nullptr;
+  return SetNode ? SetNode->getAttributeType(Attribute::ByRef) : nullptr;
 }
 
 Type *AttributeSet::getByValType() const {
-  return SetNode ? SetNode->getByValType() : nullptr;
+  return SetNode ? SetNode->getAttributeType(Attribute::ByVal) : nullptr;
 }
 
 Type *AttributeSet::getStructRetType() const {
-  return SetNode ? SetNode->getStructRetType() : nullptr;
+  return SetNode ? SetNode->getAttributeType(Attribute::StructRet) : nullptr;
 }
 
 Type *AttributeSet::getPreallocatedType() const {
-  return SetNode ? SetNode->getPreallocatedType() : nullptr;
+  return SetNode ? SetNode->getAttributeType(Attribute::Preallocated) : nullptr;
 }
 
 Type *AttributeSet::getInAllocaType() const {
-  return SetNode ? SetNode->getInAllocaType() : nullptr;
+  return SetNode ? SetNode->getAttributeType(Attribute::InAlloca) : nullptr;
+}
+
+Type *AttributeSet::getElementType() const {
+  return SetNode ? SetNode->getAttributeType(Attribute::ElementType) : nullptr;
 }
 
 std::pair<unsigned, Optional<unsigned>> AttributeSet::getAllocSizeArgs() const {
@@ -947,23 +812,13 @@ AttributeSetNode *AttributeSetNode::get(LLVMContext &C, const AttrBuilder &B) {
     if (!B.contains(Kind))
       continue;
 
+    if (Attribute::isTypeAttrKind(Kind)) {
+      Attrs.push_back(Attribute::get(C, Kind, B.getTypeAttr(Kind)));
+      continue;
+    }
+
     Attribute Attr;
     switch (Kind) {
-    case Attribute::ByVal:
-      Attr = Attribute::getWithByValType(C, B.getByValType());
-      break;
-    case Attribute::StructRet:
-      Attr = Attribute::getWithStructRetType(C, B.getStructRetType());
-      break;
-    case Attribute::ByRef:
-      Attr = Attribute::getWithByRefType(C, B.getByRefType());
-      break;
-    case Attribute::Preallocated:
-      Attr = Attribute::getWithPreallocatedType(C, B.getPreallocatedType());
-      break;
-    case Attribute::InAlloca:
-      Attr = Attribute::getWithInAllocaType(C, B.getInAllocaType());
-      break;
     case Attribute::Alignment:
       assert(B.getAlignment() && "Alignment must be set");
       Attr = Attribute::getWithAlignment(C, *B.getAlignment());
@@ -1046,32 +901,8 @@ MaybeAlign AttributeSetNode::getStackAlignment() const {
   return None;
 }
 
-Type *AttributeSetNode::getByValType() const {
-  if (auto A = findEnumAttribute(Attribute::ByVal))
-    return A->getValueAsType();
-  return nullptr;
-}
-
-Type *AttributeSetNode::getStructRetType() const {
-  if (auto A = findEnumAttribute(Attribute::StructRet))
-    return A->getValueAsType();
-  return nullptr;
-}
-
-Type *AttributeSetNode::getByRefType() const {
-  if (auto A = findEnumAttribute(Attribute::ByRef))
-    return A->getValueAsType();
-  return nullptr;
-}
-
-Type *AttributeSetNode::getPreallocatedType() const {
-  if (auto A = findEnumAttribute(Attribute::Preallocated))
-    return A->getValueAsType();
-  return nullptr;
-}
-
-Type *AttributeSetNode::getInAllocaType() const {
-  if (auto A = findEnumAttribute(Attribute::InAlloca))
+Type *AttributeSetNode::getAttributeType(Attribute::AttrKind Kind) const {
+  if (auto A = findEnumAttribute(Kind))
     return A->getValueAsType();
   return nullptr;
 }
@@ -1378,33 +1209,36 @@ AttributeList AttributeList::get(LLVMContext &C,
   return getImpl(C, NewAttrSets);
 }
 
-AttributeList AttributeList::addAttribute(LLVMContext &C, unsigned Index,
-                                          Attribute::AttrKind Kind) const {
-  if (hasAttribute(Index, Kind)) return *this;
+AttributeList
+AttributeList::addAttributeAtIndex(LLVMContext &C, unsigned Index,
+                                   Attribute::AttrKind Kind) const {
+  if (hasAttributeAtIndex(Index, Kind))
+    return *this;
   AttributeSet Attrs = getAttributes(Index);
   // TODO: Insert at correct position and avoid sort.
   SmallVector<Attribute, 8> NewAttrs(Attrs.begin(), Attrs.end());
   NewAttrs.push_back(Attribute::get(C, Kind));
-  return setAttributes(C, Index, AttributeSet::get(C, NewAttrs));
+  return setAttributesAtIndex(C, Index, AttributeSet::get(C, NewAttrs));
 }
 
-AttributeList AttributeList::addAttribute(LLVMContext &C, unsigned Index,
-                                          StringRef Kind,
-                                          StringRef Value) const {
+AttributeList AttributeList::addAttributeAtIndex(LLVMContext &C, unsigned Index,
+                                                 StringRef Kind,
+                                                 StringRef Value) const {
   AttrBuilder B;
   B.addAttribute(Kind, Value);
-  return addAttributes(C, Index, B);
+  return addAttributesAtIndex(C, Index, B);
 }
 
-AttributeList AttributeList::addAttribute(LLVMContext &C, unsigned Index,
-                                          Attribute A) const {
+AttributeList AttributeList::addAttributeAtIndex(LLVMContext &C, unsigned Index,
+                                                 Attribute A) const {
   AttrBuilder B;
   B.addAttribute(A);
-  return addAttributes(C, Index, B);
+  return addAttributesAtIndex(C, Index, B);
 }
 
-AttributeList AttributeList::setAttributes(LLVMContext &C, unsigned Index,
-                                           AttributeSet Attrs) const {
+AttributeList AttributeList::setAttributesAtIndex(LLVMContext &C,
+                                                  unsigned Index,
+                                                  AttributeSet Attrs) const {
   Index = attrIdxToArrayIdx(Index);
   SmallVector<AttributeSet, 4> AttrSets(this->begin(), this->end());
   if (Index >= AttrSets.size())
@@ -1413,8 +1247,9 @@ AttributeList AttributeList::setAttributes(LLVMContext &C, unsigned Index,
   return AttributeList::getImpl(C, AttrSets);
 }
 
-AttributeList AttributeList::addAttributes(LLVMContext &C, unsigned Index,
-                                           const AttrBuilder &B) const {
+AttributeList AttributeList::addAttributesAtIndex(LLVMContext &C,
+                                                  unsigned Index,
+                                                  const AttrBuilder &B) const {
   if (!B.hasAttributes())
     return *this;
 
@@ -1432,7 +1267,7 @@ AttributeList AttributeList::addAttributes(LLVMContext &C, unsigned Index,
 
   AttrBuilder Merged(getAttributes(Index));
   Merged.merge(B);
-  return setAttributes(C, Index, AttributeSet::get(C, Merged));
+  return setAttributesAtIndex(C, Index, AttributeSet::get(C, Merged));
 }
 
 AttributeList AttributeList::addParamAttribute(LLVMContext &C,
@@ -1455,9 +1290,11 @@ AttributeList AttributeList::addParamAttribute(LLVMContext &C,
   return getImpl(C, AttrSets);
 }
 
-AttributeList AttributeList::removeAttribute(LLVMContext &C, unsigned Index,
-                                             Attribute::AttrKind Kind) const {
-  if (!hasAttribute(Index, Kind)) return *this;
+AttributeList
+AttributeList::removeAttributeAtIndex(LLVMContext &C, unsigned Index,
+                                      Attribute::AttrKind Kind) const {
+  if (!hasAttributeAtIndex(Index, Kind))
+    return *this;
 
   Index = attrIdxToArrayIdx(Index);
   SmallVector<AttributeSet, 4> AttrSets(this->begin(), this->end());
@@ -1468,9 +1305,11 @@ AttributeList AttributeList::removeAttribute(LLVMContext &C, unsigned Index,
   return getImpl(C, AttrSets);
 }
 
-AttributeList AttributeList::removeAttribute(LLVMContext &C, unsigned Index,
-                                             StringRef Kind) const {
-  if (!hasAttribute(Index, Kind)) return *this;
+AttributeList AttributeList::removeAttributeAtIndex(LLVMContext &C,
+                                                    unsigned Index,
+                                                    StringRef Kind) const {
+  if (!hasAttributeAtIndex(Index, Kind))
+    return *this;
 
   Index = attrIdxToArrayIdx(Index);
   SmallVector<AttributeSet, 4> AttrSets(this->begin(), this->end());
@@ -1482,18 +1321,19 @@ AttributeList AttributeList::removeAttribute(LLVMContext &C, unsigned Index,
 }
 
 AttributeList
-AttributeList::removeAttributes(LLVMContext &C, unsigned Index,
-                                const AttrBuilder &AttrsToRemove) const {
+AttributeList::removeAttributesAtIndex(LLVMContext &C, unsigned Index,
+                                       const AttrBuilder &AttrsToRemove) const {
   AttributeSet Attrs = getAttributes(Index);
   AttributeSet NewAttrs = Attrs.removeAttributes(C, AttrsToRemove);
   // If nothing was removed, return the original list.
   if (Attrs == NewAttrs)
     return *this;
-  return setAttributes(C, Index, NewAttrs);
+  return setAttributesAtIndex(C, Index, NewAttrs);
 }
 
-AttributeList AttributeList::removeAttributes(LLVMContext &C,
-                                              unsigned WithoutIndex) const {
+AttributeList
+AttributeList::removeAttributesAtIndex(LLVMContext &C,
+                                       unsigned WithoutIndex) const {
   if (!pImpl)
     return {};
   WithoutIndex = attrIdxToArrayIdx(WithoutIndex);
@@ -1504,90 +1344,73 @@ AttributeList AttributeList::removeAttributes(LLVMContext &C,
   return getImpl(C, AttrSets);
 }
 
-AttributeList
-AttributeList::removeParamUndefImplyingAttributes(LLVMContext &C,
-                                                  unsigned ArgNo) const {
-  AttrBuilder B;
-  B.addAttribute(Attribute::NoUndef);
-  B.addAttribute(Attribute::NonNull);
-  B.addDereferenceableAttr(1);
-  B.addDereferenceableOrNullAttr(1);
-  return removeParamAttributes(C, ArgNo, B);
-}
-
-AttributeList AttributeList::addDereferenceableAttr(LLVMContext &C,
-                                                    unsigned Index,
-                                                    uint64_t Bytes) const {
+AttributeList AttributeList::addDereferenceableRetAttr(LLVMContext &C,
+                                                       uint64_t Bytes) const {
   AttrBuilder B;
   B.addDereferenceableAttr(Bytes);
-  return addAttributes(C, Index, B);
+  return addRetAttributes(C, B);
+}
+
+AttributeList AttributeList::addDereferenceableParamAttr(LLVMContext &C,
+                                                         unsigned Index,
+                                                         uint64_t Bytes) const {
+  AttrBuilder B;
+  B.addDereferenceableAttr(Bytes);
+  return addParamAttributes(C, Index, B);
 }
 
 AttributeList
-AttributeList::addDereferenceableOrNullAttr(LLVMContext &C, unsigned Index,
-                                            uint64_t Bytes) const {
+AttributeList::addDereferenceableOrNullParamAttr(LLVMContext &C, unsigned Index,
+                                                 uint64_t Bytes) const {
   AttrBuilder B;
   B.addDereferenceableOrNullAttr(Bytes);
-  return addAttributes(C, Index, B);
+  return addParamAttributes(C, Index, B);
 }
 
 AttributeList
-AttributeList::addAllocSizeAttr(LLVMContext &C, unsigned Index,
-                                unsigned ElemSizeArg,
-                                const Optional<unsigned> &NumElemsArg) {
+AttributeList::addAllocSizeParamAttr(LLVMContext &C, unsigned Index,
+                                     unsigned ElemSizeArg,
+                                     const Optional<unsigned> &NumElemsArg) {
   AttrBuilder B;
   B.addAllocSizeAttr(ElemSizeArg, NumElemsArg);
-  return addAttributes(C, Index, B);
-}
-
-AttributeList AttributeList::addVScaleRangeAttr(LLVMContext &C, unsigned Index,
-                                                unsigned MinValue,
-                                                unsigned MaxValue) {
-  AttrBuilder B;
-  B.addVScaleRangeAttr(MinValue, MaxValue);
-  return addAttributes(C, Index, B);
+  return addParamAttributes(C, Index, B);
 }
 
 //===----------------------------------------------------------------------===//
 // AttributeList Accessor Methods
 //===----------------------------------------------------------------------===//
 
-AttributeSet AttributeList::getParamAttributes(unsigned ArgNo) const {
+AttributeSet AttributeList::getParamAttrs(unsigned ArgNo) const {
   return getAttributes(ArgNo + FirstArgIndex);
 }
 
-AttributeSet AttributeList::getRetAttributes() const {
+AttributeSet AttributeList::getRetAttrs() const {
   return getAttributes(ReturnIndex);
 }
 
-AttributeSet AttributeList::getFnAttributes() const {
+AttributeSet AttributeList::getFnAttrs() const {
   return getAttributes(FunctionIndex);
 }
 
-bool AttributeList::hasAttribute(unsigned Index,
-                                 Attribute::AttrKind Kind) const {
+bool AttributeList::hasAttributeAtIndex(unsigned Index,
+                                        Attribute::AttrKind Kind) const {
   return getAttributes(Index).hasAttribute(Kind);
 }
 
-bool AttributeList::hasAttribute(unsigned Index, StringRef Kind) const {
+bool AttributeList::hasAttributeAtIndex(unsigned Index, StringRef Kind) const {
   return getAttributes(Index).hasAttribute(Kind);
 }
 
-bool AttributeList::hasAttributes(unsigned Index) const {
+bool AttributeList::hasAttributesAtIndex(unsigned Index) const {
   return getAttributes(Index).hasAttributes();
 }
 
-bool AttributeList::hasFnAttribute(Attribute::AttrKind Kind) const {
+bool AttributeList::hasFnAttr(Attribute::AttrKind Kind) const {
   return pImpl && pImpl->hasFnAttribute(Kind);
 }
 
-bool AttributeList::hasFnAttribute(StringRef Kind) const {
-  return hasAttribute(AttributeList::FunctionIndex, Kind);
-}
-
-bool AttributeList::hasParamAttribute(unsigned ArgNo,
-                                      Attribute::AttrKind Kind) const {
-  return hasAttribute(ArgNo + FirstArgIndex, Kind);
+bool AttributeList::hasFnAttr(StringRef Kind) const {
+  return hasAttributeAtIndex(AttributeList::FunctionIndex, Kind);
 }
 
 bool AttributeList::hasAttrSomewhere(Attribute::AttrKind Attr,
@@ -1595,12 +1418,13 @@ bool AttributeList::hasAttrSomewhere(Attribute::AttrKind Attr,
   return pImpl && pImpl->hasAttrSomewhere(Attr, Index);
 }
 
-Attribute AttributeList::getAttribute(unsigned Index,
-                                      Attribute::AttrKind Kind) const {
+Attribute AttributeList::getAttributeAtIndex(unsigned Index,
+                                             Attribute::AttrKind Kind) const {
   return getAttributes(Index).getAttribute(Kind);
 }
 
-Attribute AttributeList::getAttribute(unsigned Index, StringRef Kind) const {
+Attribute AttributeList::getAttributeAtIndex(unsigned Index,
+                                             StringRef Kind) const {
   return getAttributes(Index).getAttribute(Kind);
 }
 
@@ -1636,26 +1460,33 @@ Type *AttributeList::getParamInAllocaType(unsigned Index) const {
   return getAttributes(Index + FirstArgIndex).getInAllocaType();
 }
 
-MaybeAlign AttributeList::getStackAlignment(unsigned Index) const {
-  return getAttributes(Index).getStackAlignment();
+Type *AttributeList::getParamElementType(unsigned Index) const {
+  return getAttributes(Index + FirstArgIndex).getElementType();
 }
 
-uint64_t AttributeList::getDereferenceableBytes(unsigned Index) const {
-  return getAttributes(Index).getDereferenceableBytes();
+MaybeAlign AttributeList::getFnStackAlignment() const {
+  return getFnAttrs().getStackAlignment();
 }
 
-uint64_t AttributeList::getDereferenceableOrNullBytes(unsigned Index) const {
-  return getAttributes(Index).getDereferenceableOrNullBytes();
+MaybeAlign AttributeList::getRetStackAlignment() const {
+  return getRetAttrs().getStackAlignment();
 }
 
-std::pair<unsigned, Optional<unsigned>>
-AttributeList::getAllocSizeArgs(unsigned Index) const {
-  return getAttributes(Index).getAllocSizeArgs();
+uint64_t AttributeList::getRetDereferenceableBytes() const {
+  return getRetAttrs().getDereferenceableBytes();
 }
 
-std::pair<unsigned, unsigned>
-AttributeList::getVScaleRangeArgs(unsigned Index) const {
-  return getAttributes(Index).getVScaleRangeArgs();
+uint64_t AttributeList::getParamDereferenceableBytes(unsigned Index) const {
+  return getParamAttrs(Index).getDereferenceableBytes();
+}
+
+uint64_t AttributeList::getRetDereferenceableOrNullBytes() const {
+  return getRetAttrs().getDereferenceableOrNullBytes();
+}
+
+uint64_t
+AttributeList::getParamDereferenceableOrNullBytes(unsigned Index) const {
+  return getParamAttrs(Index).getDereferenceableOrNullBytes();
 }
 
 std::string AttributeList::getAsString(unsigned Index, bool InAttrGrp) const {
@@ -1744,10 +1575,14 @@ void AttrBuilder::clear() {
   DerefBytes = DerefOrNullBytes = 0;
   AllocSizeArgs = 0;
   VScaleRangeArgs = 0;
-  ByValType = nullptr;
-  StructRetType = nullptr;
-  ByRefType = nullptr;
-  PreallocatedType = nullptr;
+  TypeAttrs = {};
+}
+
+Optional<unsigned>
+AttrBuilder::kindToTypeIndex(Attribute::AttrKind Kind) const {
+  if (Attribute::isTypeAttrKind(Kind))
+    return Kind - Attribute::FirstTypeAttr;
+  return None;
 }
 
 AttrBuilder &AttrBuilder::addAttribute(Attribute Attr) {
@@ -1759,18 +1594,12 @@ AttrBuilder &AttrBuilder::addAttribute(Attribute Attr) {
   Attribute::AttrKind Kind = Attr.getKindAsEnum();
   Attrs[Kind] = true;
 
-  if (Kind == Attribute::Alignment)
+  if (Optional<unsigned> TypeIndex = kindToTypeIndex(Kind))
+    TypeAttrs[*TypeIndex] = Attr.getValueAsType();
+  else if (Kind == Attribute::Alignment)
     Alignment = Attr.getAlignment();
   else if (Kind == Attribute::StackAlignment)
     StackAlignment = Attr.getStackAlignment();
-  else if (Kind == Attribute::ByVal)
-    ByValType = Attr.getValueAsType();
-  else if (Kind == Attribute::StructRet)
-    StructRetType = Attr.getValueAsType();
-  else if (Kind == Attribute::ByRef)
-    ByRefType = Attr.getValueAsType();
-  else if (Kind == Attribute::Preallocated)
-    PreallocatedType = Attr.getValueAsType();
   else if (Kind == Attribute::Dereferenceable)
     DerefBytes = Attr.getDereferenceableBytes();
   else if (Kind == Attribute::DereferenceableOrNull)
@@ -1779,8 +1608,6 @@ AttrBuilder &AttrBuilder::addAttribute(Attribute Attr) {
     AllocSizeArgs = Attr.getValueAsInt();
   else if (Kind == Attribute::VScaleRange)
     VScaleRangeArgs = Attr.getValueAsInt();
-  else if (Kind == Attribute::InAlloca)
-    InAllocaType = Attr.getValueAsType();
 
   return *this;
 }
@@ -1794,20 +1621,12 @@ AttrBuilder &AttrBuilder::removeAttribute(Attribute::AttrKind Val) {
   assert((unsigned)Val < Attribute::EndAttrKinds && "Attribute out of range!");
   Attrs[Val] = false;
 
-  if (Val == Attribute::Alignment)
+  if (Optional<unsigned> TypeIndex = kindToTypeIndex(Val))
+    TypeAttrs[*TypeIndex] = nullptr;
+  else if (Val == Attribute::Alignment)
     Alignment.reset();
   else if (Val == Attribute::StackAlignment)
     StackAlignment.reset();
-  else if (Val == Attribute::ByVal)
-    ByValType = nullptr;
-  else if (Val == Attribute::StructRet)
-    StructRetType = nullptr;
-  else if (Val == Attribute::ByRef)
-    ByRefType = nullptr;
-  else if (Val == Attribute::Preallocated)
-    PreallocatedType = nullptr;
-  else if (Val == Attribute::InAlloca)
-    InAllocaType = nullptr;
   else if (Val == Attribute::Dereferenceable)
     DerefBytes = 0;
   else if (Val == Attribute::DereferenceableOrNull)
@@ -1913,34 +1732,38 @@ AttrBuilder &AttrBuilder::addVScaleRangeAttrFromRawRepr(uint64_t RawArgs) {
   return *this;
 }
 
-AttrBuilder &AttrBuilder::addByValAttr(Type *Ty) {
-  Attrs[Attribute::ByVal] = true;
-  ByValType = Ty;
+Type *AttrBuilder::getTypeAttr(Attribute::AttrKind Kind) const {
+  Optional<unsigned> TypeIndex = kindToTypeIndex(Kind);
+  assert(TypeIndex && "Not a type attribute");
+  return TypeAttrs[*TypeIndex];
+}
+
+AttrBuilder &AttrBuilder::addTypeAttr(Attribute::AttrKind Kind, Type *Ty) {
+  Optional<unsigned> TypeIndex = kindToTypeIndex(Kind);
+  assert(TypeIndex && "Not a type attribute");
+  Attrs[Kind] = true;
+  TypeAttrs[*TypeIndex] = Ty;
   return *this;
+}
+
+AttrBuilder &AttrBuilder::addByValAttr(Type *Ty) {
+  return addTypeAttr(Attribute::ByVal, Ty);
 }
 
 AttrBuilder &AttrBuilder::addStructRetAttr(Type *Ty) {
-  Attrs[Attribute::StructRet] = true;
-  StructRetType = Ty;
-  return *this;
+  return addTypeAttr(Attribute::StructRet, Ty);
 }
 
 AttrBuilder &AttrBuilder::addByRefAttr(Type *Ty) {
-  Attrs[Attribute::ByRef] = true;
-  ByRefType = Ty;
-  return *this;
+  return addTypeAttr(Attribute::ByRef, Ty);
 }
 
 AttrBuilder &AttrBuilder::addPreallocatedAttr(Type *Ty) {
-  Attrs[Attribute::Preallocated] = true;
-  PreallocatedType = Ty;
-  return *this;
+  return addTypeAttr(Attribute::Preallocated, Ty);
 }
 
 AttrBuilder &AttrBuilder::addInAllocaAttr(Type *Ty) {
-  Attrs[Attribute::InAlloca] = true;
-  InAllocaType = Ty;
-  return *this;
+  return addTypeAttr(Attribute::InAlloca, Ty);
 }
 
 AttrBuilder &AttrBuilder::merge(const AttrBuilder &B) {
@@ -1960,23 +1783,12 @@ AttrBuilder &AttrBuilder::merge(const AttrBuilder &B) {
   if (!AllocSizeArgs)
     AllocSizeArgs = B.AllocSizeArgs;
 
-  if (!ByValType)
-    ByValType = B.ByValType;
-
-  if (!StructRetType)
-    StructRetType = B.StructRetType;
-
-  if (!ByRefType)
-    ByRefType = B.ByRefType;
-
-  if (!PreallocatedType)
-    PreallocatedType = B.PreallocatedType;
-
-  if (!InAllocaType)
-    InAllocaType = B.InAllocaType;
-
   if (!VScaleRangeArgs)
     VScaleRangeArgs = B.VScaleRangeArgs;
+
+  for (unsigned Index = 0; Index < Attribute::NumTypeAttrKinds; ++Index)
+    if (!TypeAttrs[Index])
+      TypeAttrs[Index] = B.TypeAttrs[Index];
 
   Attrs |= B.Attrs;
 
@@ -2003,23 +1815,12 @@ AttrBuilder &AttrBuilder::remove(const AttrBuilder &B) {
   if (B.AllocSizeArgs)
     AllocSizeArgs = 0;
 
-  if (B.ByValType)
-    ByValType = nullptr;
-
-  if (B.StructRetType)
-    StructRetType = nullptr;
-
-  if (B.ByRefType)
-    ByRefType = nullptr;
-
-  if (B.PreallocatedType)
-    PreallocatedType = nullptr;
-
-  if (B.InAllocaType)
-    InAllocaType = nullptr;
-
   if (B.VScaleRangeArgs)
     VScaleRangeArgs = 0;
+
+  for (unsigned Index = 0; Index < Attribute::NumTypeAttrKinds; ++Index)
+    if (B.TypeAttrs[Index])
+      TypeAttrs[Index] = nullptr;
 
   Attrs &= ~B.Attrs;
 
@@ -2079,10 +1880,7 @@ bool AttrBuilder::operator==(const AttrBuilder &B) const {
       return false;
 
   return Alignment == B.Alignment && StackAlignment == B.StackAlignment &&
-         DerefBytes == B.DerefBytes && ByValType == B.ByValType &&
-         StructRetType == B.StructRetType && ByRefType == B.ByRefType &&
-         PreallocatedType == B.PreallocatedType &&
-         InAllocaType == B.InAllocaType &&
+         DerefBytes == B.DerefBytes && TypeAttrs == B.TypeAttrs &&
          VScaleRangeArgs == B.VScaleRangeArgs;
 }
 
@@ -2105,23 +1903,32 @@ AttrBuilder AttributeFuncs::typeIncompatible(Type *Ty) {
         .addAttribute(Attribute::NoAlias)
         .addAttribute(Attribute::NoCapture)
         .addAttribute(Attribute::NonNull)
+        .addAttribute(Attribute::ReadNone)
+        .addAttribute(Attribute::ReadOnly)
+        .addAttribute(Attribute::SwiftError)
         .addAlignmentAttr(1)             // the int here is ignored
         .addDereferenceableAttr(1)       // the int here is ignored
         .addDereferenceableOrNullAttr(1) // the int here is ignored
-        .addAttribute(Attribute::ReadNone)
-        .addAttribute(Attribute::ReadOnly)
-        .addAttribute(Attribute::InAlloca)
         .addPreallocatedAttr(Ty)
         .addInAllocaAttr(Ty)
         .addByValAttr(Ty)
         .addStructRetAttr(Ty)
-        .addByRefAttr(Ty);
+        .addByRefAttr(Ty)
+        .addTypeAttr(Attribute::ElementType, Ty);
 
   // Some attributes can apply to all "values" but there are no `void` values.
   if (Ty->isVoidTy())
     Incompatible.addAttribute(Attribute::NoUndef);
 
   return Incompatible;
+}
+
+AttrBuilder AttributeFuncs::getUBImplyingAttributes() {
+  AttrBuilder B;
+  B.addAttribute(Attribute::NoUndef);
+  B.addDereferenceableAttr(1);
+  B.addDereferenceableOrNullAttr(1);
+  return B;
 }
 
 template<typename AttrClass>
@@ -2157,16 +1964,6 @@ static void setOR(Function &Caller, const Function &Callee) {
 /// If the inlined function had a higher stack protection level than the
 /// calling function, then bump up the caller's stack protection level.
 static void adjustCallerSSPLevel(Function &Caller, const Function &Callee) {
-#ifndef NDEBUG
-  if (!Callee.hasFnAttribute(Attribute::AlwaysInline)) {
-    assert(!(!Callee.hasStackProtectorFnAttr() &&
-             Caller.hasStackProtectorFnAttr()) &&
-           "stack protected caller but callee requested no stack protector");
-    assert(!(!Caller.hasStackProtectorFnAttr() &&
-             Callee.hasStackProtectorFnAttr()) &&
-           "stack protected callee but caller requested no stack protector");
-  }
-#endif
   // If upgrading the SSP attribute, clear out the old SSP Attributes first.
   // Having multiple SSP attributes doesn't actually hurt, but it adds useless
   // clutter to the IR.
@@ -2176,11 +1973,11 @@ static void adjustCallerSSPLevel(Function &Caller, const Function &Callee) {
       .addAttribute(Attribute::StackProtectReq);
 
   if (Callee.hasFnAttribute(Attribute::StackProtectReq)) {
-    Caller.removeAttributes(AttributeList::FunctionIndex, OldSSPAttr);
+    Caller.removeFnAttrs(OldSSPAttr);
     Caller.addFnAttr(Attribute::StackProtectReq);
   } else if (Callee.hasFnAttribute(Attribute::StackProtectStrong) &&
              !Caller.hasFnAttribute(Attribute::StackProtectReq)) {
-    Caller.removeAttributes(AttributeList::FunctionIndex, OldSSPAttr);
+    Caller.removeFnAttrs(OldSSPAttr);
     Caller.addFnAttr(Attribute::StackProtectStrong);
   } else if (Callee.hasFnAttribute(Attribute::StackProtect) &&
              !Caller.hasFnAttribute(Attribute::StackProtectReq) &&

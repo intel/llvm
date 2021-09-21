@@ -51,7 +51,7 @@ static inline bool isFnEntryBlock(Block *block) {
 spirv::Deserializer::Deserializer(ArrayRef<uint32_t> binary,
                                   MLIRContext *context)
     : binary(binary), context(context), unknownLoc(UnknownLoc::get(context)),
-      module(createModuleOp()), opBuilder(module->body()) {}
+      module(createModuleOp()), opBuilder(module->getRegion()) {}
 
 LogicalResult spirv::Deserializer::deserialize() {
   LLVM_DEBUG(llvm::dbgs() << "+++ starting deserialization +++\n");
@@ -575,7 +575,7 @@ spirv::Deserializer::processGlobalVariable(ArrayRef<uint32_t> operands) {
              << operands[wordIndex] << "used as initializer";
     }
     wordIndex++;
-    initializer = opBuilder.getSymbolRefAttr(initializerOp.getOperation());
+    initializer = SymbolRefAttr::get(initializerOp.getOperation());
   }
   if (wordIndex != operands.size()) {
     return emitError(unknownLoc,
@@ -1279,7 +1279,7 @@ spirv::Deserializer::processSpecConstantComposite(ArrayRef<uint32_t> operands) {
   elements.reserve(operands.size() - 2);
   for (unsigned i = 2, e = operands.size(); i < e; ++i) {
     auto elementInfo = getSpecConstant(operands[i]);
-    elements.push_back(opBuilder.getSymbolRefAttr(elementInfo));
+    elements.push_back(SymbolRefAttr::get(elementInfo));
   }
 
   auto op = opBuilder.create<spirv::SpecConstantCompositeOp>(

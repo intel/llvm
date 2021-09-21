@@ -78,16 +78,16 @@
 
 namespace scudo {
 
-typedef unsigned long uptr;
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-typedef unsigned long long u64;
-typedef signed long sptr;
-typedef signed char s8;
-typedef signed short s16;
-typedef signed int s32;
-typedef signed long long s64;
+typedef uintptr_t uptr;
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+typedef intptr_t sptr;
+typedef int8_t s8;
+typedef int16_t s16;
+typedef int32_t s32;
+typedef int64_t s64;
 
 // The following two functions have platform specific implementations.
 void outputRaw(const char *Buffer);
@@ -105,14 +105,11 @@ void NORETURN die();
 
 void NORETURN reportCheckFailed(const char *File, int Line,
                                 const char *Condition, u64 Value1, u64 Value2);
-
 #define CHECK_IMPL(C1, Op, C2)                                                 \
   do {                                                                         \
-    scudo::u64 V1 = (scudo::u64)(C1);                                          \
-    scudo::u64 V2 = (scudo::u64)(C2);                                          \
-    if (UNLIKELY(!(V1 Op V2))) {                                               \
-      scudo::reportCheckFailed(__FILE__, __LINE__,                             \
-                               "(" #C1 ") " #Op " (" #C2 ")", V1, V2);         \
+    if (UNLIKELY(!(C1 Op C2))) {                                               \
+      scudo::reportCheckFailed(__FILE__, __LINE__, #C1 " " #Op " " #C2,        \
+                               (scudo::u64)C1, (scudo::u64)C2);                \
       scudo::die();                                                            \
     }                                                                          \
   } while (false)

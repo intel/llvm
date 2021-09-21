@@ -167,7 +167,9 @@ void TypePrinter::spaceBeforePlaceHolder(raw_ostream &OS) {
 
 static SplitQualType splitAccordingToPolicy(QualType QT,
                                             const PrintingPolicy &Policy) {
-  if (Policy.PrintCanonicalTypes)
+  if ((!Policy.SkipCanonicalizationOfTemplateTypeParms ||
+       !QT->isTemplateTypeParmType()) &&
+      Policy.PrintCanonicalTypes)
     QT = QT.getCanonicalType();
   return QT.split();
 }
@@ -854,6 +856,8 @@ StringRef clang::getParameterABISpelling(ParameterABI ABI) {
     llvm_unreachable("asking for spelling of ordinary parameter ABI");
   case ParameterABI::SwiftContext:
     return "swift_context";
+  case ParameterABI::SwiftAsyncContext:
+    return "swift_async_context";
   case ParameterABI::SwiftErrorResult:
     return "swift_error_result";
   case ParameterABI::SwiftIndirectResult:
@@ -981,6 +985,9 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
       break;
     case CC_Swift:
       OS << " __attribute__((swiftcall))";
+      break;
+    case CC_SwiftAsync:
+      OS << "__attribute__((swiftasynccall))";
       break;
     case CC_PreserveMost:
       OS << " __attribute__((preserve_most))";
@@ -1454,15 +1461,14 @@ void TypePrinter::printTemplateId(const TemplateSpecializationType *T,
     T->getTemplateName().print(OS, Policy);
   }
 
-  const TemplateParameterList *TPL = TD ? TD->getTemplateParameters() : nullptr;
-  printTemplateArgumentList(OS, T->template_arguments(), Policy, TPL);
+  printTemplateArgumentList(OS, T->template_arguments(), Policy);
   spaceBeforePlaceHolder(OS);
 }
 
 void TypePrinter::printTemplateSpecializationBefore(
                                             const TemplateSpecializationType *T,
                                             raw_ostream &OS) {
-  printTemplateId(T, OS, false);
+  printTemplateId(T, OS, Policy.FullyQualifiedName);
 }
 
 void TypePrinter::printTemplateSpecializationAfter(
@@ -1722,6 +1728,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::StdCall: OS << "stdcall"; break;
   case attr::ThisCall: OS << "thiscall"; break;
   case attr::SwiftCall: OS << "swiftcall"; break;
+  case attr::SwiftAsyncCall: OS << "swiftasynccall"; break;
   case attr::VectorCall: OS << "vectorcall"; break;
   case attr::Pascal: OS << "pascal"; break;
   case attr::MSABI: OS << "ms_abi"; break;
@@ -2010,10 +2017,9 @@ static bool isSubstitutedDefaultArgument(ASTContext &Ctx, TemplateArgument Arg,
 }
 
 template <typename TA>
-static void printTo(raw_ostream &OS, ArrayRef<TA> Args,
-                    const PrintingPolicy &Policy, bool SkipBrackets,
-                    const TemplateParameterList *TPL, bool IsPack,
-                    unsigned ParmIndex) {
+static void
+printTo(raw_ostream &OS, ArrayRef<TA> Args, const PrintingPolicy &Policy,
+        const TemplateParameterList *TPL, bool IsPack, unsigned ParmIndex) {
   // Drop trailing template arguments that match default arguments.
   if (TPL && Policy.SuppressDefaultTemplateArgs &&
       !Policy.PrintCanonicalTypes && !Args.empty() && !IsPack &&
@@ -2030,7 +2036,7 @@ static void printTo(raw_ostream &OS, ArrayRef<TA> Args,
   }
 
   const char *Comma = Policy.MSVCFormatting ? "," : ", ";
-  if (!SkipBrackets)
+  if (!IsPack)
     OS << '<';
 
   bool NeedSpace = false;
@@ -2043,7 +2049,7 @@ static void printTo(raw_ostream &OS, ArrayRef<TA> Args,
     if (Argument.getKind() == TemplateArgument::Pack) {
       if (Argument.pack_size() && !FirstArg)
         OS << Comma;
-      printTo(ArgOS, Argument.getPackAsArray(), Policy, true, TPL,
+      printTo(ArgOS, Argument.getPackAsArray(), Policy, TPL,
               /*IsPack*/ true, ParmIndex);
     } else {
       if (!FirstArg)
@@ -2065,20 +2071,21 @@ static void printTo(raw_ostream &OS, ArrayRef<TA> Args,
 
     // If the last character of our string is '>', add another space to
     // keep the two '>''s separate tokens.
-    NeedSpace = Policy.SplitTemplateClosers && !ArgString.empty() &&
-                ArgString.back() == '>';
-    FirstArg = false;
+    if (!ArgString.empty()) {
+      NeedSpace = Policy.SplitTemplateClosers && ArgString.back() == '>';
+      FirstArg = false;
+    }
 
     // Use same template parameter for all elements of Pack
     if (!IsPack)
       ParmIndex++;
   }
 
-  if (NeedSpace)
-    OS << ' ';
-
-  if (!SkipBrackets)
+  if (!IsPack) {
+    if (NeedSpace)
+      OS << ' ';
     OS << '>';
+  }
 }
 
 void clang::printTemplateArgumentList(raw_ostream &OS,
@@ -2092,14 +2099,14 @@ void clang::printTemplateArgumentList(raw_ostream &OS,
                                       ArrayRef<TemplateArgument> Args,
                                       const PrintingPolicy &Policy,
                                       const TemplateParameterList *TPL) {
-  printTo(OS, Args, Policy, false, TPL, /*isPack*/ false, /*parmIndex*/ 0);
+  printTo(OS, Args, Policy, TPL, /*isPack*/ false, /*parmIndex*/ 0);
 }
 
 void clang::printTemplateArgumentList(raw_ostream &OS,
                                       ArrayRef<TemplateArgumentLoc> Args,
                                       const PrintingPolicy &Policy,
                                       const TemplateParameterList *TPL) {
-  printTo(OS, Args, Policy, false, TPL, /*isPack*/ false, /*parmIndex*/ 0);
+  printTo(OS, Args, Policy, TPL, /*isPack*/ false, /*parmIndex*/ 0);
 }
 
 std::string Qualifiers::getAsString() const {

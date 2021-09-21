@@ -107,10 +107,10 @@ static cl::opt<OpenMPBackend> PollyOmpBackend(
                clEnumValN(OpenMPBackend::LLVM, "LLVM", "LLVM OpenMP")),
     cl::Hidden, cl::init(OpenMPBackend::GNU), cl::cat(PollyCategory));
 
-isl::ast_expr IslNodeBuilder::getUpperBound(isl::ast_node For,
+isl::ast_expr IslNodeBuilder::getUpperBound(isl::ast_node_for For,
                                             ICmpInst::Predicate &Predicate) {
-  isl::ast_expr Cond = For.for_get_cond();
-  isl::ast_expr Iterator = For.for_get_iterator();
+  isl::ast_expr Cond = For.cond();
+  isl::ast_expr Iterator = For.iterator();
   assert(isl_ast_expr_get_type(Cond.get()) == isl_ast_expr_op &&
          "conditional expression is not an atomic upper bound");
 
@@ -163,16 +163,17 @@ static bool checkIslAstExprInt(__isl_take isl_ast_expr *Expr,
   return true;
 }
 
-int IslNodeBuilder::getNumberOfIterations(isl::ast_node For) {
+int IslNodeBuilder::getNumberOfIterations(isl::ast_node_for For) {
   assert(isl_ast_node_get_type(For.get()) == isl_ast_node_for);
-  isl::ast_node Body = For.for_get_body();
+  isl::ast_node Body = For.body();
 
   // First, check if we can actually handle this code.
   switch (isl_ast_node_get_type(Body.get())) {
   case isl_ast_node_user:
     break;
   case isl_ast_node_block: {
-    isl::ast_node_list List = Body.block_get_children();
+    isl::ast_node_block BodyBlock = Body.as<isl::ast_node_block>();
+    isl::ast_node_list List = BodyBlock.children();
     for (isl::ast_node Node : List) {
       isl_ast_node_type NodeType = isl_ast_node_get_type(Node.get());
       if (NodeType != isl_ast_node_user)
@@ -184,10 +185,10 @@ int IslNodeBuilder::getNumberOfIterations(isl::ast_node For) {
     return -1;
   }
 
-  isl::ast_expr Init = For.for_get_init();
+  isl::ast_expr Init = For.init();
   if (!checkIslAstExprInt(Init.release(), isl_val_is_zero))
     return -1;
-  isl::ast_expr Inc = For.for_get_inc();
+  isl::ast_expr Inc = For.inc();
   if (!checkIslAstExprInt(Inc.release(), isl_val_is_one))
     return -1;
   CmpInst::Predicate Predicate;
@@ -413,11 +414,12 @@ void IslNodeBuilder::createMark(__isl_take isl_ast_node *Node) {
   if (strcmp(isl_id_get_name(Id), "SIMD") == 0 &&
       isl_ast_node_get_type(Child) == isl_ast_node_for) {
     bool Vector = PollyVectorizerChoice == VECTORIZER_POLLY;
-    int VectorWidth = getNumberOfIterations(isl::manage_copy(Child));
+    int VectorWidth =
+        getNumberOfIterations(isl::manage_copy(Child).as<isl::ast_node_for>());
     if (Vector && 1 < VectorWidth && VectorWidth <= 16)
       createForVector(Child, VectorWidth);
     else
-      createForSequential(isl::manage(Child), true);
+      createForSequential(isl::manage(Child).as<isl::ast_node_for>(), true);
     isl_id_free(Id);
     return;
   }
@@ -518,18 +520,21 @@ void IslNodeBuilder::createForVector(__isl_take isl_ast_node *For,
 ///
 /// @param Node The band node to be modified.
 /// @return The modified schedule node.
-static bool IsLoopVectorizerDisabled(isl::ast_node Node) {
+static bool IsLoopVectorizerDisabled(isl::ast_node_for Node) {
   assert(isl_ast_node_get_type(Node.get()) == isl_ast_node_for);
-  auto Body = Node.for_get_body();
+  isl::ast_node Body = Node.body();
   if (isl_ast_node_get_type(Body.get()) != isl_ast_node_mark)
     return false;
-  auto Id = Body.mark_get_id();
+
+  isl::ast_node_mark BodyMark = Body.as<isl::ast_node_mark>();
+  auto Id = BodyMark.id();
   if (strcmp(Id.get_name().c_str(), "Loop Vectorizer Disabled") == 0)
     return true;
   return false;
 }
 
-void IslNodeBuilder::createForSequential(isl::ast_node For, bool MarkParallel) {
+void IslNodeBuilder::createForSequential(isl::ast_node_for For,
+                                         bool MarkParallel) {
   Value *ValueLB, *ValueUB, *ValueInc;
   Type *MaxType;
   BasicBlock *ExitBlock;
@@ -538,7 +543,7 @@ void IslNodeBuilder::createForSequential(isl::ast_node For, bool MarkParallel) {
 
   bool LoopVectorizerDisabled = IsLoopVectorizerDisabled(For);
 
-  isl::ast_node Body = For.for_get_body();
+  isl::ast_node Body = For.body();
 
   // isl_ast_node_for_is_degenerate(For)
   //
@@ -546,9 +551,9 @@ void IslNodeBuilder::createForSequential(isl::ast_node For, bool MarkParallel) {
   //       However, for now we just reuse the logic for normal loops, which will
   //       create a loop with a single iteration.
 
-  isl::ast_expr Init = For.for_get_init();
-  isl::ast_expr Inc = For.for_get_inc();
-  isl::ast_expr Iterator = For.for_get_iterator();
+  isl::ast_expr Init = For.init();
+  isl::ast_expr Inc = For.inc();
+  isl::ast_expr Iterator = For.iterator();
   isl::id IteratorID = Iterator.get_id();
   isl::ast_expr UB = getUpperBound(For, Predicate);
 
@@ -654,7 +659,8 @@ void IslNodeBuilder::createForParallel(__isl_take isl_ast_node *For) {
   Inc = isl_ast_node_for_get_inc(For);
   Iterator = isl_ast_node_for_get_iterator(For);
   IteratorID = isl_ast_expr_get_id(Iterator);
-  UB = getUpperBound(isl::manage_copy(For), Predicate).release();
+  UB = getUpperBound(isl::manage_copy(For).as<isl::ast_node_for>(), Predicate)
+           .release();
 
   ValueLB = ExprBuilder.create(Init);
   ValueUB = ExprBuilder.create(UB);
@@ -782,7 +788,8 @@ void IslNodeBuilder::createFor(__isl_take isl_ast_node *For) {
 
   if (Vector && IslAstInfo::isInnermostParallel(isl::manage_copy(For)) &&
       !IslAstInfo::isReductionParallel(isl::manage_copy(For))) {
-    int VectorWidth = getNumberOfIterations(isl::manage_copy(For));
+    int VectorWidth =
+        getNumberOfIterations(isl::manage_copy(For).as<isl::ast_node_for>());
     if (1 < VectorWidth && VectorWidth <= 16 && !hasPartialAccesses(For)) {
       createForVector(For, VectorWidth);
       return;
@@ -795,7 +802,7 @@ void IslNodeBuilder::createFor(__isl_take isl_ast_node *For) {
   }
   bool Parallel = (IslAstInfo::isParallel(isl::manage_copy(For)) &&
                    !IslAstInfo::isReductionParallel(isl::manage_copy(For)));
-  createForSequential(isl::manage(For), Parallel);
+  createForSequential(isl::manage(For).as<isl::ast_node_for>(), Parallel);
 }
 
 void IslNodeBuilder::createIf(__isl_take isl_ast_node *If) {
@@ -850,12 +857,12 @@ void IslNodeBuilder::createIf(__isl_take isl_ast_node *If) {
 __isl_give isl_id_to_ast_expr *
 IslNodeBuilder::createNewAccesses(ScopStmt *Stmt,
                                   __isl_keep isl_ast_node *Node) {
-  isl_id_to_ast_expr *NewAccesses =
-      isl_id_to_ast_expr_alloc(Stmt->getParent()->getIslCtx().get(), 0);
+  isl::id_to_ast_expr NewAccesses =
+      isl::id_to_ast_expr::alloc(Stmt->getParent()->getIslCtx(), 0);
 
-  auto *Build = IslAstInfo::getBuild(Node);
-  assert(Build && "Could not obtain isl_ast_build from user node");
-  Stmt->setAstBuild(isl::manage_copy(Build));
+  isl::ast_build Build = IslAstInfo::getBuild(isl::manage_copy(Node));
+  assert(!Build.is_null() && "Could not obtain isl_ast_build from user node");
+  Stmt->setAstBuild(Build);
 
   for (auto *MA : *Stmt) {
     if (!MA->hasNewAccessRelation()) {
@@ -876,13 +883,12 @@ IslNodeBuilder::createNewAccesses(ScopStmt *Stmt,
     assert(MA->isAffine() &&
            "Only affine memory accesses can be code generated");
 
-    auto Schedule = isl_ast_build_get_schedule(Build);
+    isl::union_map Schedule = Build.get_schedule();
 
 #ifndef NDEBUG
     if (MA->isRead()) {
       auto Dom = Stmt->getDomain().release();
-      auto SchedDom = isl_set_from_union_set(
-          isl_union_map_domain(isl_union_map_copy(Schedule)));
+      auto SchedDom = isl_set_from_union_set(Schedule.domain().release());
       auto AccDom = isl_map_domain(MA->getAccessRelation().release());
       Dom = isl_set_intersect_params(Dom,
                                      Stmt->getParent()->getContext().release());
@@ -898,25 +904,20 @@ IslNodeBuilder::createNewAccesses(ScopStmt *Stmt,
     }
 #endif
 
-    auto PWAccRel =
-        MA->applyScheduleToAccessRelation(isl::manage(Schedule)).release();
+    isl::pw_multi_aff PWAccRel = MA->applyScheduleToAccessRelation(Schedule);
 
     // isl cannot generate an index expression for access-nothing accesses.
-    isl::set AccDomain =
-        isl::manage(isl_pw_multi_aff_domain(isl_pw_multi_aff_copy(PWAccRel)));
+    isl::set AccDomain = PWAccRel.domain();
     isl::set Context = S.getContext();
     AccDomain = AccDomain.intersect_params(Context);
-    if (AccDomain.is_empty()) {
-      isl_pw_multi_aff_free(PWAccRel);
+    if (AccDomain.is_empty())
       continue;
-    }
 
-    auto AccessExpr = isl_ast_build_access_from_pw_multi_aff(Build, PWAccRel);
-    NewAccesses =
-        isl_id_to_ast_expr_set(NewAccesses, MA->getId().release(), AccessExpr);
+    isl::ast_expr AccessExpr = Build.access_from(PWAccRel);
+    NewAccesses = NewAccesses.set(MA->getId(), AccessExpr);
   }
 
-  return NewAccesses;
+  return NewAccesses.release();
 }
 
 void IslNodeBuilder::createSubstitutions(__isl_take isl_ast_expr *Expr,
@@ -1152,10 +1153,11 @@ static Value *buildFADOutermostDimensionLoad(Value *GlobalDescriptor,
                                              PollyIRBuilder &Builder,
                                              std::string ArrayName) {
   assert(GlobalDescriptor && "invalid global descriptor given");
+  Type *Ty = GlobalDescriptor->getType()->getPointerElementType();
 
   Value *endIdx[4] = {Builder.getInt64(0), Builder.getInt32(3),
                       Builder.getInt64(0), Builder.getInt32(2)};
-  Value *endPtr = Builder.CreateInBoundsGEP(GlobalDescriptor, endIdx,
+  Value *endPtr = Builder.CreateInBoundsGEP(Ty, GlobalDescriptor, endIdx,
                                             ArrayName + "_end_ptr");
   Type *type = cast<GEPOperator>(endPtr)->getResultElementType();
   assert(isa<IntegerType>(type) && "expected type of end to be integral");
@@ -1164,7 +1166,7 @@ static Value *buildFADOutermostDimensionLoad(Value *GlobalDescriptor,
 
   Value *beginIdx[4] = {Builder.getInt64(0), Builder.getInt32(3),
                         Builder.getInt64(0), Builder.getInt32(1)};
-  Value *beginPtr = Builder.CreateInBoundsGEP(GlobalDescriptor, beginIdx,
+  Value *beginPtr = Builder.CreateInBoundsGEP(Ty, GlobalDescriptor, beginIdx,
                                               ArrayName + "_begin_ptr");
   Value *begin = Builder.CreateLoad(type, beginPtr, ArrayName + "_begin");
 

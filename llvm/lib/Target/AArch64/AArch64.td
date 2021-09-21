@@ -309,10 +309,6 @@ def FeatureSEL2 : SubtargetFeature<
     "sel2", "HasSEL2", "true",
     "Enable v8.4-A Secure Exception Level 2 extension">;
 
-def FeaturePMU : SubtargetFeature<
-    "pmu", "HasPMU", "true",
-    "Enable v8.4-A PMU extension">;
-
 def FeatureTLB_RMI : SubtargetFeature<
     "tlb-rmi", "HasTLB_RMI", "true",
     "Enable v8.4-A TLB Range and Maintenance Instructions">;
@@ -426,6 +422,23 @@ def FeatureEnhancedCounterVirtualization :
       SubtargetFeature<"ecv", "HasEnhancedCounterVirtualization",
       "true", "Enable enhanced counter virtualization extension">;
 
+def FeatureRME : SubtargetFeature<"rme", "HasRME",
+    "true", "Enable Realm Management Extension">;
+
+// A subset of SVE(2) instructions are legal in Streaming SVE execution mode
+// defined by SME.
+def FeatureStreamingSVE : SubtargetFeature<"streaming-sve",
+                                           "HasStreamingSVE", "true",
+  "Enable subset of SVE(2) instructions for Streaming SVE execution mode">;
+def FeatureSME : SubtargetFeature<"sme", "HasSME", "true",
+  "Enable Scalable Matrix Extension (SME)", [FeatureStreamingSVE, FeatureBF16]>;
+
+def FeatureSMEF64 : SubtargetFeature<"sme-f64", "HasSMEF64", "true",
+  "Enable Scalable Matrix Extension (SME) F64F64 instructions", [FeatureSME]>;
+
+def FeatureSMEI64 : SubtargetFeature<"sme-i64", "HasSMEI64", "true",
+  "Enable Scalable Matrix Extension (SME) I16I64 instructions", [FeatureSME]>;
+
 //===----------------------------------------------------------------------===//
 // Architectures.
 //
@@ -445,7 +458,7 @@ def HasV8_3aOps : SubtargetFeature<"v8.3a", "HasV8_3aOps", "true",
 def HasV8_4aOps : SubtargetFeature<"v8.4a", "HasV8_4aOps", "true",
   "Support ARM v8.4a instructions", [HasV8_3aOps, FeatureDotProd,
   FeatureNV, FeatureMPAM, FeatureDIT,
-  FeatureTRACEV8_4, FeatureAM, FeatureSEL2, FeaturePMU, FeatureTLB_RMI,
+  FeatureTRACEV8_4, FeatureAM, FeatureSEL2, FeatureTLB_RMI,
   FeatureFlagM, FeatureRCPC_IMMO]>;
 
 def HasV8_5aOps : SubtargetFeature<
@@ -539,11 +552,15 @@ class AArch64Unsupported { list<Predicate> F; }
 
 def SVEUnsupported : AArch64Unsupported {
   let F = [HasSVE, HasSVE2, HasSVE2AES, HasSVE2SM4, HasSVE2SHA3,
-           HasSVE2BitPerm];
+           HasSVE2BitPerm, HasSVEorStreamingSVE, HasSVE2orStreamingSVE];
 }
 
 def PAUnsupported : AArch64Unsupported {
   let F = [HasPAuth];
+}
+
+def SMEUnsupported : AArch64Unsupported {
+  let F = [HasSME, HasSMEF64, HasSMEI64];
 }
 
 include "AArch64SchedA53.td"

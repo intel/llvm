@@ -85,7 +85,7 @@ namespace {
             (C.toCharUnitsFromBits(OrigBFI.Offset) / lvalue.getAlignment()) *
             lvalue.getAlignment();
         VoidPtrAddr = CGF.Builder.CreateConstGEP1_64(
-            VoidPtrAddr, OffsetInChars.getQuantity());
+            CGF.Int8Ty, VoidPtrAddr, OffsetInChars.getQuantity());
         auto Addr = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
             VoidPtrAddr,
             CGF.Builder.getIntNTy(AtomicSizeInBits)->getPointerTo(),
@@ -1730,11 +1730,6 @@ AtomicInfo::EmitAtomicCompareExchangeLibcall(llvm::Value *ExpectedAddr,
 std::pair<RValue, llvm::Value *> AtomicInfo::EmitAtomicCompareExchange(
     RValue Expected, RValue Desired, llvm::AtomicOrdering Success,
     llvm::AtomicOrdering Failure, bool IsWeak) {
-  if (isStrongerThan(Failure, Success))
-    // Don't assert on undefined behavior "failure argument shall be no stronger
-    // than the success argument".
-    Failure = llvm::AtomicCmpXchgInst::getStrongestFailureOrdering(Success);
-
   // Check whether we should use a library call.
   if (shouldUseLibcall()) {
     // Produce a source address.

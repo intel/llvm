@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_ASMPARSER_LLPARSER_H
-#define LLVM_LIB_ASMPARSER_LLPARSER_H
+#ifndef LLVM_ASMPARSER_LLPARSER_H
+#define LLVM_ASMPARSER_LLPARSER_H
 
 #include "LLLexer.h"
 #include "llvm/ADT/Optional.h"
@@ -93,21 +93,6 @@ namespace llvm {
     ModuleSummaryIndex *Index;
     SlotMapping *Slots;
 
-    // Instruction metadata resolution.  Each instruction can have a list of
-    // MDRef info associated with them.
-    //
-    // The simpler approach of just creating temporary MDNodes and then calling
-    // RAUW on them when the definition is processed doesn't work because some
-    // instruction metadata kinds, such as dbg, get stored in the IR in an
-    // "optimized" format which doesn't participate in the normal value use
-    // lists. This means that RAUW doesn't work, even on temporary MDNodes
-    // which otherwise support RAUW. Instead, we defer resolving MDNode
-    // references until the definitions have been processed.
-    struct MDRef {
-      SMLoc Loc;
-      unsigned MDKind, MDSlot;
-    };
-
     SmallVector<Instruction*, 64> InstsWithTBAATag;
 
     // Type resolution handling data structures.  The location is set when we
@@ -187,9 +172,8 @@ namespace llvm {
     /// getGlobalVal - Get a value with the specified name or ID, creating a
     /// forward reference record if needed.  This can return null if the value
     /// exists but does not have the right type.
-    GlobalValue *getGlobalVal(const std::string &N, Type *Ty, LocTy Loc,
-                              bool IsCall);
-    GlobalValue *getGlobalVal(unsigned ID, Type *Ty, LocTy Loc, bool IsCall);
+    GlobalValue *getGlobalVal(const std::string &N, Type *Ty, LocTy Loc);
+    GlobalValue *getGlobalVal(unsigned ID, Type *Ty, LocTy Loc);
 
     /// Get a Comdat with the specified name, creating a forward reference
     /// record if needed.
@@ -258,8 +242,15 @@ namespace llvm {
       return parseOptionalAddrSpace(
           AddrSpace, M->getDataLayout().getProgramAddressSpace());
     };
-    bool parseOptionalParamAttrs(AttrBuilder &B);
-    bool parseOptionalReturnAttrs(AttrBuilder &B);
+    bool parseEnumAttribute(Attribute::AttrKind Attr, AttrBuilder &B,
+                            bool InAttrGroup);
+    bool parseOptionalParamOrReturnAttrs(AttrBuilder &B, bool IsParam);
+    bool parseOptionalParamAttrs(AttrBuilder &B) {
+      return parseOptionalParamOrReturnAttrs(B, true);
+    }
+    bool parseOptionalReturnAttrs(AttrBuilder &B) {
+      return parseOptionalParamOrReturnAttrs(B, false);
+    }
     bool parseOptionalLinkage(unsigned &Res, bool &HasLinkage,
                               unsigned &Visibility, unsigned &DLLStorageClass,
                               bool &DSOLocal);
@@ -278,7 +269,6 @@ namespace llvm {
     bool parseOptionalCommaAlign(MaybeAlign &Alignment, bool &AteExtraComma);
     bool parseOptionalCommaAddrSpace(unsigned &AddrSpace, LocTy &Loc,
                                      bool &AteExtraComma);
-    bool parseOptionalCommaInAlloca(bool &IsInAlloca);
     bool parseAllocSizeArguments(unsigned &BaseSizeArg,
                                  Optional<unsigned> &HowManyArg);
     bool parseVScaleRangeArguments(unsigned &MinValue, unsigned &MaxValue);
@@ -301,7 +291,6 @@ namespace llvm {
     bool parseTargetDefinition();
     bool parseModuleAsm();
     bool parseSourceFileName();
-    bool parseDepLibs(); // FIXME: Remove in 4.0.
     bool parseUnnamedType();
     bool parseNamedType();
     bool parseDeclare();
@@ -329,10 +318,8 @@ namespace llvm {
     bool parseFnAttributeValuePairs(AttrBuilder &B,
                                     std::vector<unsigned> &FwdRefAttrGrps,
                                     bool inAttrGrp, LocTy &BuiltinLoc);
-    bool parseRequiredTypeAttr(Type *&Result, lltok::Kind AttrName);
-    bool parsePreallocated(Type *&Result);
-    bool parseInalloca(Type *&Result);
-    bool parseByRef(Type *&Result);
+    bool parseRequiredTypeAttr(AttrBuilder &B, lltok::Kind AttrToken,
+                               Attribute::AttrKind AttrKind);
 
     // Module Summary Index Parsing.
     bool skipModuleSummaryEntry();
@@ -435,8 +422,8 @@ namespace llvm {
       /// GetVal - Get a value with the specified name or ID, creating a
       /// forward reference record if needed.  This can return null if the value
       /// exists but does not have the right type.
-      Value *getVal(const std::string &Name, Type *Ty, LocTy Loc, bool IsCall);
-      Value *getVal(unsigned ID, Type *Ty, LocTy Loc, bool IsCall);
+      Value *getVal(const std::string &Name, Type *Ty, LocTy Loc);
+      Value *getVal(unsigned ID, Type *Ty, LocTy Loc);
 
       /// setInstName - After an instruction is parsed and inserted into its
       /// basic block, this installs its name.
@@ -458,10 +445,10 @@ namespace llvm {
     };
 
     bool convertValIDToValue(Type *Ty, ValID &ID, Value *&V,
-                             PerFunctionState *PFS, bool IsCall);
+                             PerFunctionState *PFS);
 
     Value *checkValidVariableType(LocTy Loc, const Twine &Name, Type *Ty,
-                                  Value *Val, bool IsCall);
+                                  Value *Val);
 
     bool parseConstantValue(Type *Ty, Constant *&C);
     bool parseValue(Type *Ty, Value *&V, PerFunctionState *PFS);
@@ -508,7 +495,8 @@ namespace llvm {
                             PerFunctionState &PFS);
 
     // Constant Parsing.
-    bool parseValID(ValID &ID, PerFunctionState *PFS = nullptr);
+    bool parseValID(ValID &ID, PerFunctionState *PFS,
+                    Type *ExpectedTy = nullptr);
     bool parseGlobalValue(Type *Ty, Constant *&C);
     bool parseGlobalTypeAndValue(Constant *&V);
     bool parseGlobalValueVector(SmallVectorImpl<Constant *> &Elts,

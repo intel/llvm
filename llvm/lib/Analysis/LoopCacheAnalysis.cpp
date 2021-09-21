@@ -30,6 +30,7 @@
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/Delinearization.h"
 #include "llvm/Analysis/DependenceAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
@@ -109,9 +110,7 @@ static const SCEV *computeTripCount(const Loop &L, ScalarEvolution &SE) {
   if (isa<SCEVCouldNotCompute>(BackedgeTakenCount) ||
       !isa<SCEVConstant>(BackedgeTakenCount))
     return nullptr;
-
-  return SE.getAddExpr(BackedgeTakenCount,
-                       SE.getOne(BackedgeTakenCount->getType()));
+  return SE.getTripCountFromExitCount(BackedgeTakenCount);
 }
 
 //===----------------------------------------------------------------------===//
@@ -292,8 +291,8 @@ CacheCostTy IndexedReference::computeRefCost(const Loop &L,
     const SCEV *Coeff = getLastCoefficient();
     const SCEV *ElemSize = Sizes.back();
     const SCEV *Stride = SE.getMulExpr(Coeff, ElemSize);
-    const SCEV *CacheLineSize = SE.getConstant(Stride->getType(), CLS);
     Type *WiderType = SE.getWiderType(Stride->getType(), TripCount->getType());
+    const SCEV *CacheLineSize = SE.getConstant(WiderType, CLS);
     if (SE.isKnownNegative(Stride))
       Stride = SE.getNegativeSCEV(Stride);
     Stride = SE.getNoopOrAnyExtend(Stride, WiderType);
@@ -346,8 +345,8 @@ bool IndexedReference::delinearize(const LoopInfo &LI) {
     LLVM_DEBUG(dbgs().indent(2) << "In Loop '" << L->getName()
                                 << "', AccessFn: " << *AccessFn << "\n");
 
-    SE.delinearize(AccessFn, Subscripts, Sizes,
-                   SE.getElementSize(&StoreOrLoadInst));
+    llvm::delinearize(SE, AccessFn, Subscripts, Sizes,
+                      SE.getElementSize(&StoreOrLoadInst));
 
     if (Subscripts.empty() || Sizes.empty() ||
         Subscripts.size() != Sizes.size()) {

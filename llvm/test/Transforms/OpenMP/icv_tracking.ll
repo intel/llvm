@@ -504,7 +504,7 @@ define void @test4_invoke(i1 %0) personality i8* bitcast (i32 (...)* @__gxx_pers
 ; CHECK-LABEL: define {{[^@]+}}@test4_invoke
 ; CHECK-SAME: (i1 [[TMP0:%.*]]) personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*)
 ; CHECK-NEXT:    call void @known_unique_icv(i1 [[TMP0]])
-; CHECK-NEXT:    [[TMP2:%.*]] = invoke i32 @maybe_throw(i1 [[TMP0]])
+; CHECK-NEXT:    [[TMP2:%.*]] = invoke i32 @maybe_throw(i1 zeroext [[TMP0]])
 ; CHECK-NEXT:    to label [[CONT:%.*]] unwind label [[EXC:%.*]]
 ; CHECK:       cont:
 ; CHECK-NEXT:    [[TMP3:%.*]] = icmp eq i1 [[TMP0]], false
@@ -521,7 +521,7 @@ define void @test4_invoke(i1 %0) personality i8* bitcast (i32 (...)* @__gxx_pers
 ; CHECK-NEXT:    ret void
 ;
   call void @known_unique_icv(i1 %0)
-  invoke i32 @maybe_throw(i1 %0)
+  invoke i32 @maybe_throw(i1 zeroext %0)
   to label %cont unwind label %exc
 
 cont:
@@ -675,5 +675,8 @@ define i32 @test6(i32 %0) {
 
 declare i32 @__gxx_personality_v0(...)
 
+!llvm.module.flags = !{!2}
+
 !0 = !{!1}
 !1 = !{i64 2, i64 -1, i64 -1, i1 true}
+!2 = !{i32 7, !"openmp", i32 50}

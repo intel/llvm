@@ -104,6 +104,7 @@ public:
     return localItem.get_range(dimension);
   }
 
+  __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
   id<dimensions> get_offset() const { return globalItem.get_offset(); }
 
   nd_range<dimensions> get_nd_range() const {
@@ -121,6 +122,7 @@ public:
   /// Executes a work-group mem-fence with memory ordering on the local address
   /// space, global address space or both based on the value of \p accessSpace.
   template <access::mode accessMode = access::mode::read_write>
+  __SYCL2020_DEPRECATED("use sycl::atomic_fence() free function instead")
   void mem_fence(
       typename detail::enable_if_t<accessMode == access::mode::read ||
                                        accessMode == access::mode::write ||
@@ -199,7 +201,9 @@ template <int Dims> nd_item<Dims> store_nd_item(const nd_item<Dims> *nd_i) {
 }
 } // namespace detail
 
-template <int Dims> nd_item<Dims> this_nd_item() {
+template <int Dims>
+__SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_nd_item() instead")
+nd_item<Dims> this_nd_item() {
 #ifdef __SYCL_DEVICE_ONLY__
   return detail::Builder::getElement(detail::declptr<nd_item<Dims>>());
 #else
@@ -207,5 +211,18 @@ template <int Dims> nd_item<Dims> this_nd_item() {
 #endif
 }
 
+namespace ext {
+namespace oneapi {
+namespace experimental {
+template <int Dims> nd_item<Dims> this_nd_item() {
+#ifdef __SYCL_DEVICE_ONLY__
+  return sycl::detail::Builder::getElement(detail::declptr<nd_item<Dims>>());
+#else
+  return sycl::detail::store_nd_item<Dims>(nullptr);
+#endif
+}
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

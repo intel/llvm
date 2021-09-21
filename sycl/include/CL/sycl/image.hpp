@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/sycl/ONEAPI/accessor_property_list.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
 #include <CL/sycl/detail/image_impl.hpp>
@@ -16,6 +15,10 @@
 #include <CL/sycl/stl.hpp>
 #include <CL/sycl/types.hpp>
 #include <cstddef>
+#include <sycl/ext/oneapi/accessor_property_list.hpp>
+
+// sRGB Extension Support
+#define SYCL_EXT_ONEAPI_SRGB 1
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -34,7 +37,8 @@ enum class image_channel_order : unsigned int {
   bgra = 10,
   intensity = 11,
   luminance = 12,
-  abgr = 13
+  abgr = 13,
+  ext_oneapi_srgba = 14 // OpenCL 2.0
 };
 
 enum class image_channel_type : unsigned int {
@@ -176,7 +180,7 @@ public:
         PropList);
   }
 
-  image(shared_ptr_class<void> &HostPointer, image_channel_order Order,
+  image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
@@ -185,7 +189,7 @@ public:
         PropList);
   }
 
-  image(shared_ptr_class<void> &HostPointer, image_channel_order Order,
+  image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         AllocatorT Allocator, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
@@ -197,7 +201,7 @@ public:
 
   /* Available only when: dimensions >1 */
   template <bool B = (Dimensions > 1)>
-  image(shared_ptr_class<void> &HostPointer, image_channel_order Order,
+  image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {}) {
@@ -209,7 +213,7 @@ public:
 
   /* Available only when: dimensions >1 */
   template <bool B = (Dimensions > 1)>
-  image(shared_ptr_class<void> &HostPointer, image_channel_order Order,
+  image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
         const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {}) {
@@ -265,7 +269,9 @@ public:
   size_t get_size() const { return impl->getSize(); }
 
   // Returns the total number of elements in the image
-  size_t get_count() const { return impl->get_count(); }
+  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
+  size_t get_count() const { return size(); }
+  size_t size() const noexcept { return impl->get_count(); }
 
   // Returns the allocator provided to the image
   AllocatorT get_allocator() const {
@@ -275,22 +281,22 @@ public:
   template <typename DataT, access::mode AccessMode>
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
            access::target::image, access::placeholder::false_t,
-           ONEAPI::accessor_property_list<>>
+           ext::oneapi::accessor_property_list<>>
   get_access(handler &commandGroupHandler) {
     return accessor<DataT, Dimensions, AccessMode, access::target::image,
                     access::placeholder::false_t,
-                    ONEAPI::accessor_property_list<>>(*this,
-                                                      commandGroupHandler);
+                    ext::oneapi::accessor_property_list<>>(*this,
+                                                           commandGroupHandler);
   }
 
   template <typename DataT, access::mode AccessMode>
   accessor<detail::EnableIfImgAccDataT<DataT>, Dimensions, AccessMode,
            access::target::host_image, access::placeholder::false_t,
-           ONEAPI::accessor_property_list<>>
+           ext::oneapi::accessor_property_list<>>
   get_access() {
     return accessor<DataT, Dimensions, AccessMode, access::target::host_image,
                     access::placeholder::false_t,
-                    ONEAPI::accessor_property_list<>>(*this);
+                    ext::oneapi::accessor_property_list<>>(*this);
   }
 
   template <typename Destination = std::nullptr_t>
@@ -301,7 +307,7 @@ public:
   void set_write_back(bool flag = true) { impl->set_write_back(flag); }
 
 private:
-  shared_ptr_class<detail::image_impl<Dimensions>> impl;
+  std::shared_ptr<detail::image_impl<Dimensions>> impl;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);

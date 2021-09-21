@@ -196,6 +196,7 @@ class TestProgramOutput(SetupConfigs):
         #include <cstdio>
         int main(int, char**) {
             std::printf("MACRO=%u\\n", MACRO);
+            return 0;
         }
         """
         compileFlagsIndex = findIndex(self.config.substitutions, lambda x: x[0] == '%{compile_flags}')
@@ -208,6 +209,19 @@ class TestProgramOutput(SetupConfigs):
         self.config.substitutions[compileFlagsIndex] = ('%{compile_flags}',  compileFlags + ' -DMACRO=2')
         output2 = dsl.programOutput(self.config, source)
         self.assertEqual(output2, "MACRO=2\n")
+
+    def test_program_stderr_is_not_conflated_with_stdout(self):
+        # Run a program that produces stdout output and stderr output too, making
+        # sure the stderr output does not pollute the stdout output.
+        source = """
+        #include <cstdio>
+        int main(int, char**) {
+            std::fprintf(stdout, "STDOUT-OUTPUT");
+            std::fprintf(stderr, "STDERR-OUTPUT");
+            return 0;
+        }
+        """
+        self.assertEqual(dsl.programOutput(self.config, source), "STDOUT-OUTPUT")
 
 
 class TestHasLocale(SetupConfigs):
@@ -434,6 +448,26 @@ class TestParameter(SetupConfigs):
         for a in param.getActions(self.config, self.litConfig.params):
             a.applyTo(self.config)
         self.assertIn('-fno-exceptions', self.config.available_features)
+
+    def test_list_parsed_from_comma_delimited_string_empty(self):
+        self.litConfig.params['additional_features'] = ""
+        param = dsl.Parameter(name='additional_features', type=list, help='', actions=lambda f: f)
+        self.assertEqual(param.getActions(self.config, self.litConfig.params), [])
+
+    def test_list_parsed_from_comma_delimited_string_1(self):
+        self.litConfig.params['additional_features'] = "feature1"
+        param = dsl.Parameter(name='additional_features', type=list, help='', actions=lambda f: f)
+        self.assertEqual(param.getActions(self.config, self.litConfig.params), ['feature1'])
+
+    def test_list_parsed_from_comma_delimited_string_2(self):
+        self.litConfig.params['additional_features'] = "feature1,feature2"
+        param = dsl.Parameter(name='additional_features', type=list, help='', actions=lambda f: f)
+        self.assertEqual(param.getActions(self.config, self.litConfig.params), ['feature1', 'feature2'])
+
+    def test_list_parsed_from_comma_delimited_string_3(self):
+        self.litConfig.params['additional_features'] = "feature1,feature2, feature3"
+        param = dsl.Parameter(name='additional_features', type=list, help='', actions=lambda f: f)
+        self.assertEqual(param.getActions(self.config, self.litConfig.params), ['feature1', 'feature2', 'feature3'])
 
 
 if __name__ == '__main__':

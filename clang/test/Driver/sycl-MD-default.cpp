@@ -5,7 +5,7 @@
 // RUN: %clangxx -### -fsycl -c -target x86_64-unknown-windows-msvc %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DEFAULT %s
 // CHK-DEFAULT-NOT: "-fsycl-is-device" {{.*}} "-D_MT" "-D_DLL"
-// CHK-DEFAULT: "-fsycl-is-host"{{.*}} "-D_MT" "-D_DLL" "--dependent-lib=msvcrt{{d*}}" {{.*}}
+// CHK-DEFAULT: "-fsycl-is-host"{{.*}} "-D_MT" "-D_DLL"
 
 // RUN: %clang_cl -### -fsycl -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DEFAULT-CL %s
