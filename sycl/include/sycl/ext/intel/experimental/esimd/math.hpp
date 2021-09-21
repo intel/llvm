@@ -63,7 +63,7 @@ namespace detail {
 template <typename T0, typename T1, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ>
 __esimd_abs_common_internal(simd<T1, SZ> src0, int flag = saturation_off) {
-  simd<T1, SZ> Result = simd<T0, SZ>{__esimd_abs<T1, SZ>(src0.data())};
+  simd<T1, SZ> Result = simd<T0, SZ>(__esimd_abs<T1, SZ>(src0.data()));
   if (flag != saturation_on)
     return Result;
 
