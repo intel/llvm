@@ -36,7 +36,6 @@ template <> struct KernelInfo<TestKernel> {
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-
 static sycl::unittest::PiImage generateDefaultImage() {
   using namespace sycl::unittest;
 
