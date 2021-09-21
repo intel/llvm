@@ -2682,7 +2682,7 @@ def fno_sycl_link_spirv : Flag<["-"], "fno-sycl-link-spirv">,
   "when discovered in user specified objects and archives.">;
 def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
   Flags<[CoreOption]>, Group<f_Group>,
-  HelpText<"Experimental feature. Controls the maximum parallelism of actions performed "
+  HelpText<"Experimental feature: Controls the maximum parallelism of actions performed "
   "on SYCL device code post-link, i.e. the generation of SPIR-V device images "
   "or AOT compilation of each device image.">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
