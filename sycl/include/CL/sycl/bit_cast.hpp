@@ -23,17 +23,18 @@ namespace detail {
 inline void memcpy(void *Dst, const void *Src, std::size_t Size);
 
 namespace half_impl {
-  class half;
+class half;
 }
 using half = cl::sycl::detail::half_impl::half;
 
 template <typename T>
 #ifdef __SYCL_DEVICE_ONLY__
-using lowering_half_type = typename std::conditional<
-    std::is_same<T, half>::value, _Float16, T>::type;
+using lowering_half_type =
+    typename std::conditional<std::is_same<T, half>::value, _Float16, T>::type;
 #else
-using lowering_half_type = typename std::conditional<
-    std::is_same<T, half>::value, std::uint16_t, T>::type;
+using lowering_half_type =
+    typename std::conditional<std::is_same<T, half>::value, std::uint16_t,
+                              T>::type;
 #endif
 }
 
