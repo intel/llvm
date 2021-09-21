@@ -194,3 +194,10 @@ void test_nested_simd_view_len1_bitcast() SYCL_ESIMD_FUNCTION {
   simd<double, 4> s2;
   ((s2[0].bit_cast_view<float>())[1].bit_cast_view<int>())[0] = 1;
 }
+
+void test_simd_view_len1_binop() SYCL_ESIMD_FUNCTION {
+  simd<int, 4> s = 0;
+  auto v1 = s[0];
+  auto v2 = s.select<2, 1>(0);
+  auto x = v1 * v2;
+}

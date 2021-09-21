@@ -919,11 +919,13 @@ pi_result cuda_piextGetDeviceFunctionPointer(pi_device device,
 
   CUfunction func;
   CUresult ret = cuModuleGetFunction(&func, program->get(), func_name);
-  *function_pointer_ret = (pi_uint64)func;
+  *function_pointer_ret = reinterpret_cast<pi_uint64>func;
   pi_result retError = PI_SUCCESS;
 
   if (ret != CUDA_SUCCESS && ret != CUDA_ERROR_NOT_FOUND)
     retError = PI_CHECK_ERROR(ret);
+  if (ret == CUDA_ERROR_NOT_FOUND)
+    *function_pointer_ret = 0;
 
   return retError;
 }
