@@ -622,7 +622,7 @@ static void replaceSwiftErrorOps(Function &F, coro::Shape &Shape,
 
     // If there are no arguments, this is a 'get' operation.
     Value *MappedResult;
-    if (Op->getNumArgOperands() == 0) {
+    if (Op->arg_empty()) {
       auto ValueTy = Op->getType();
       auto Slot = getSwiftErrorSlot(ValueTy);
       MappedResult = Builder.CreateLoad(ValueTy, Slot);
@@ -773,9 +773,8 @@ Value *CoroCloner::deriveNewFramePointer() {
     auto DbgLoc =
         cast<CoroSuspendAsyncInst>(VMap[ActiveSuspend])->getDebugLoc();
     // Calling i8* (i8*)
-    auto *CallerContext = Builder.CreateCall(
-        cast<FunctionType>(ProjectionFunc->getType()->getPointerElementType()),
-        ProjectionFunc, CalleeContext);
+    auto *CallerContext = Builder.CreateCall(ProjectionFunc->getFunctionType(),
+                                             ProjectionFunc, CalleeContext);
     CallerContext->setCallingConv(ProjectionFunc->getCallingConv());
     CallerContext->setDebugLoc(DbgLoc);
     // The frame is located after the async_context header.
@@ -1142,11 +1141,13 @@ static void updateCoroFrame(coro::Shape &Shape, Function *ResumeFn,
 static void postSplitCleanup(Function &F) {
   removeUnreachableBlocks(F);
 
+#ifndef NDEBUG
   // For now, we do a mandatory verification step because we don't
   // entirely trust this pass.  Note that we don't want to add a verifier
   // pass to FPM below because it will also verify all the global data.
   if (verifyFunction(F, &errs()))
     report_fatal_error("Broken function");
+#endif
 }
 
 // Assuming we arrived at the block NewBlock from Prev instruction, store
@@ -1545,8 +1546,7 @@ static void coerceArguments(IRBuilder<> &Builder, FunctionType *FnTy,
 CallInst *coro::createMustTailCall(DebugLoc Loc, Function *MustTailCallFn,
                                    ArrayRef<Value *> Arguments,
                                    IRBuilder<> &Builder) {
-  auto *FnTy =
-      cast<FunctionType>(MustTailCallFn->getType()->getPointerElementType());
+  auto *FnTy = MustTailCallFn->getFunctionType();
   // Coerce the arguments, llvm optimizations seem to ignore the types in
   // vaarg functions and throws away casts in optimized mode.
   SmallVector<Value *, 8> CallArgs;

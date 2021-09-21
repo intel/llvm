@@ -255,11 +255,23 @@ protected:
           rewriter.getNamedAttr(function_like_impl::getArgDictAttrName(),
                                 rewriter.getArrayAttr(newArgAttrs)));
     }
+    for (auto pair : llvm::enumerate(attributes)) {
+      if (pair.value().first == "llvm.linkage") {
+        attributes.erase(attributes.begin() + pair.index());
+        break;
+      }
+    }
 
     // Create an LLVM function, use external linkage by default until MLIR
     // functions have linkage.
+    LLVM::Linkage linkage = LLVM::Linkage::External;
+    if (funcOp->hasAttr("llvm.linkage")) {
+      linkage = funcOp->getAttr("llvm.linkage")
+                    .cast<mlir::LLVM::LinkageAttr>()
+                    .getLinkage();
+    }
     auto newFuncOp = rewriter.create<LLVM::LLVMFuncOp>(
-        funcOp.getLoc(), funcOp.getName(), llvmType, LLVM::Linkage::External,
+        funcOp.getLoc(), funcOp.getName(), llvmType, linkage,
         /*dsoLocal*/ false, attributes);
     rewriter.inlineRegionBefore(funcOp.getBody(), newFuncOp.getBody(),
                                 newFuncOp.end());
@@ -358,7 +370,8 @@ struct BarePtrFuncOpConversion : public FuncOpConversionBase {
       // MemRef descriptor instructions. We may want to have a utility in the
       // rewriter to properly handle this use case.
       Location loc = funcOp.getLoc();
-      auto placeholder = rewriter.create<LLVM::UndefOp>(loc, memrefTy);
+      auto placeholder = rewriter.create<LLVM::UndefOp>(
+          loc, getTypeConverter()->convertType(memrefTy));
       rewriter.replaceUsesOfBlockArgument(arg, placeholder);
 
       Value desc = MemRefDescriptor::fromStaticShape(
@@ -863,6 +876,8 @@ struct SplatOpLowering : public ConvertOpToLLVMPattern<SplatOp> {
     if (!resultType || resultType.getRank() != 1)
       return failure();
 
+    SplatOp::Adaptor adaptor(operands);
+
     // First insert it into an undef vector so we can shuffle it.
     auto vectorType = typeConverter->convertType(splatOp.getType());
     Value undef = rewriter.create<LLVM::UndefOp>(splatOp.getLoc(), vectorType);
@@ -872,7 +887,7 @@ struct SplatOpLowering : public ConvertOpToLLVMPattern<SplatOp> {
         rewriter.getZeroAttr(rewriter.getIntegerType(32)));
 
     auto v = rewriter.create<LLVM::InsertElementOp>(
-        splatOp.getLoc(), vectorType, undef, splatOp.getOperand(), zero);
+        splatOp.getLoc(), vectorType, undef, adaptor.input(), zero);
 
     int64_t width = splatOp.getType().cast<VectorType>().getDimSize(0);
     SmallVector<int32_t, 4> zeroValues(width, 0);
@@ -1174,7 +1189,6 @@ void mlir::populateStdToLLVMConversionPatterns(LLVMTypeConverter &converter,
       UnsignedRemIOpLowering,
       UnsignedShiftRightOpLowering,
       XOrOpLowering,
-      UnrealizedConversionCastOpLowering,
       ZeroExtendIOpLowering>(converter);
   // clang-format on
 }
@@ -1227,7 +1241,6 @@ struct LLVMLoweringPass : public ConvertStandardToLLVMBase<LLVMLoweringPass> {
     populateStdToLLVMConversionPatterns(typeConverter, patterns);
 
     LLVMConversionTarget target(getContext());
-    target.addIllegalOp<UnrealizedConversionCastOp>();
     if (failed(applyPartialConversion(m, target, std::move(patterns))))
       signalPassFailure();
 

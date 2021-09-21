@@ -64,7 +64,8 @@ struct _pi_platform {
 /// and implements the reference counting semantics since
 /// HIP objects are not refcounted.
 ///
-class _pi_device {
+struct _pi_device {
+private:
   using native_type = hipDevice_t;
 
   native_type cuDevice_;
@@ -246,7 +247,10 @@ struct _pi_mem {
 
       void *get_map_ptr() const noexcept { return mapPtr_; }
 
-      size_t get_map_offset(void *ptr) const noexcept { return mapOffset_; }
+      size_t get_map_offset(void *ptr) const noexcept {
+        (void)ptr;
+        return mapOffset_;
+      }
 
       /// Returns a pointer to data visible on the host that contains
       /// the data on the device associated with this allocation.
@@ -267,6 +271,7 @@ struct _pi_mem {
 
       /// Detach the allocation from the host memory.
       void unmap(void *ptr) noexcept {
+        (void)ptr;
         assert(mapPtr_ != nullptr);
 
         if (mapPtr_ != hostPtr_) {
@@ -319,6 +324,7 @@ struct _pi_mem {
   _pi_mem(pi_context ctxt, hipArray *array, hipSurfaceObject_t surf,
           pi_mem_type image_type, void *host_ptr)
       : context_{ctxt}, refCount_{1}, mem_type_{mem_type::surface} {
+    (void)host_ptr;
     mem_.surface_mem_.array_ = array;
     mem_.surface_mem_.imageType_ = image_type;
     mem_.surface_mem_.surfObj_ = surf;
@@ -395,7 +401,7 @@ typedef void (*pfn_notify)(pi_event event, pi_int32 eventCommandStatus,
                            void *userData);
 /// PI Event mapping to hipEvent_t
 ///
-class _pi_event {
+struct _pi_event {
 public:
   using native_type = hipEvent_t;
 
