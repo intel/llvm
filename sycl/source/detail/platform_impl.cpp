@@ -114,9 +114,11 @@ std::vector<platform> platform_impl::get_platforms() {
       for (const auto &PiPlatform : PiPlatforms) {
         platform Platform = detail::createSyclObjFromImpl<platform>(
             getOrMakePlatformImpl(PiPlatform, Plugins[I]));
-        std::lock_guard<std::mutex> Guard(*Plugins[I].getPluginMutex());
-        // insert PiPlatform into the Plugin
-        Plugins[I].getPlatformId(PiPlatform);
+        {
+          std::lock_guard<std::mutex> Guard(*Plugins[I].getPluginMutex());
+          // insert PiPlatform into the Plugin
+          Plugins[I].getPlatformId(PiPlatform);
+        }
         // Skip platforms which do not contain requested device types
         if (!Platform.get_devices(ForcedType).empty() &&
             !IsBannedPlatform(Platform))
