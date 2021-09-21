@@ -909,7 +909,7 @@ struct _pi_event : _pi_object {
   ze_event_pool_handle_t ZeHostVisibleEventPool = {nullptr};
   // Get the host-visible event or create one and enqueue its signal.
   pi_result getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent);
-  // Get the host-visible event ensuring that one was already created before.
+  // Return the host-visible event if one was already created before, or null.
   ze_event_handle_t getHostVisibleEvent() const;
 
   // Level Zero command list where the command signaling this event was appended
