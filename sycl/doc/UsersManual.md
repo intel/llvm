@@ -176,6 +176,15 @@ and not recommended to use in production environment.
     * auto - the compiler will use a heuristic to select the best way of
       splitting device code. This is default mode.
 
+**`-fsycl-max-parallel-link-jobs=<n>`**
+
+    Experimental feature. When specified, it informs the compiler
+    that it can simultaneously spawn up to `N` processes to perform
+    actions required to link DPC++ application. This option is
+    only useful in SYCL mode. It only takes effect if link action
+    needs to be executed, i.e. it won't have any effect in presence of
+    options like `-c` or `-E`. Default value of `N` is 1.
+
 **`-f[no-]sycl-device-lib=<lib1>[,<lib2>,...]`**
 
     Enables/disables linking of the device libraries. Supported libraries:
