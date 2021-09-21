@@ -600,7 +600,7 @@ SPIRVToLLVM::transValue(const std::vector<SPIRVValue *> &BV, Function *F,
 
 bool SPIRVToLLVM::isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const {
   auto OC = BI->getOpCode();
-  return isCmpOpCode(OC) && !(OC >= OpLessOrGreater && OC <= OpUnordered);
+  return isCmpOpCode(OC) && OC != OpLessOrGreater;
 }
 
 void SPIRVToLLVM::setName(llvm::Value *V, SPIRVValue *BV) {

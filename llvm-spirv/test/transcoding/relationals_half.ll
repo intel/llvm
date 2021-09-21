@@ -12,16 +12,16 @@
 ; CHECK-LLVM: call spir_func i32 @_Z8isnormalDh(
 ; CHECK-LLVM: call spir_func i32 @_Z7signbitDh(
 ; CHECK-LLVM: call spir_func i32 @_Z13islessgreaterDhDh(
-; CHECK-LLVM: call spir_func i32 @_Z9isorderedDhDh(
-; CHECK-LLVM: call spir_func i32 @_Z11isunorderedDhDh(
+; CHECK-LLVM: fcmp ord half
+; CHECK-LLVM: fcmp uno half
 
 ; CHECK-LLVM: call spir_func <2 x i16> @_Z8isfiniteDv2_Dh(
 ; CHECK-LLVM: call spir_func <2 x i16> @_Z5isnanDv2_Dh(
 ; CHECK-LLVM: call spir_func <2 x i16> @_Z5isinfDv2_Dh(
 ; CHECK-LLVM: call spir_func <2 x i16> @_Z8isnormalDv2_Dh(
 ; CHECK-LLVM: call spir_func <2 x i16> @_Z13islessgreaterDv2_DhS_(
-; CHECK-LLVM: call spir_func <2 x i16> @_Z9isorderedDv2_DhS_(
-; CHECK-LLVM: call spir_func <2 x i16> @_Z11isunorderedDv2_DhS_(
+; CHECK-LLVM: fcmp ord <2 x half>
+; CHECK-LLVM: fcmp uno <2 x half>
 
 ; CHECK-SPIRV: 2 TypeBool [[BoolTypeID:[0-9]+]]
 ; CHECK-SPIRV: 4 TypeVector [[BoolVectorTypeID:[0-9]+]] [[BoolTypeID]] 2
