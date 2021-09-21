@@ -248,6 +248,7 @@ public:
     event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
+    // TODO: Remove check on CUDA and HIP when they support fallback asserts
     if (!is_host() && get_backend() != backend::cuda &&
         get_backend() != backend::hip) {
       auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
@@ -290,6 +291,7 @@ public:
     event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
+    // TODO: Remove check on CUDA and HIP when they support fallback asserts
     if (get_backend() != backend::cuda && get_backend() != backend::hip) {
       auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
                              bool IsKernel, bool KernelUsesAssert, event &E) {
