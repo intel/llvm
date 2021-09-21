@@ -78,21 +78,24 @@ template <> struct BackendInput<backend::level_zero, context> {
   using type = struct {
     interop<backend::level_zero, context>::type NativeHandle;
     std::vector<device> DeviceList;
-    ext::oneapi::level_zero::ownership Ownership;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
   };
 };
 
 template <> struct BackendInput<backend::level_zero, queue> {
   using type = struct {
     interop<backend::level_zero, queue>::type NativeHandle;
-    ext::oneapi::level_zero::ownership Ownership;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
   };
 };
 
 template <> struct BackendInput<backend::level_zero, event> {
   using type = struct {
     interop<backend::level_zero, event>::type NativeHandle;
-    ext::oneapi::level_zero::ownership Ownership;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
   };
 };
 

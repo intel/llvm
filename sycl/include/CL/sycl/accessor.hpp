@@ -1560,12 +1560,17 @@ public:
   }
 
   template <int Dims = Dimensions>
-  operator typename detail::enable_if_t<
-      Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT, AS>>()
-      const {
-    const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return atomic<DataT, AS>(
-        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+  operator typename detail::enable_if_t<Dims == 0 &&
+#ifdef __ENABLE_USM_ADDR_SPACE__
+                                            AccessMode == access::mode::atomic,
+                                        atomic<DataT>>() const {
+#else
+                                            AccessMode == access::mode::atomic,
+                                        atomic<DataT, AS>>() const {
+#endif
+      const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
+  return atomic<DataT, AS>(
+      multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>

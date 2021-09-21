@@ -312,27 +312,22 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
   {
     MemObjRecord *Record = nullptr;
-    WriteLockT Lock(MGraphLock, std::defer_lock);
 
     {
-      acquireWriteLock(Lock);
+      // This only needs a shared mutex as it only involves enqueueing and
+      // awaiting for events
+      ReadLockT Lock(MGraphLock);
 
       Record = MGraphBuilder.getMemObjRecord(MemObj);
       if (!Record)
         // No operations were performed on the mem object
         return;
 
-      Lock.unlock();
-    }
-
-    {
-      // This only needs a shared mutex as it only involves enqueueing and
-      // awaiting for events
-      ReadLockT Lock(MGraphLock);
       waitForRecordToFinish(Record, Lock);
     }
 
     {
+      WriteLockT Lock(MGraphLock, std::defer_lock);
       acquireWriteLock(Lock);
       MGraphBuilder.decrementLeafCountersForRecord(Record);
       MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate);
