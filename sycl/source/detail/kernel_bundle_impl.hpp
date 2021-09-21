@@ -463,9 +463,7 @@ public:
     return SetInDevImg || MSpecConstValues.count(std::string{SpecName}) != 0;
   }
 
-  const device_image_plain *begin() const {
-    return MDeviceImages.data();
-  }
+  const device_image_plain *begin() const { return MDeviceImages.data(); }
 
   const device_image_plain *end() const {
     return MDeviceImages.data() + MDeviceImages.size();

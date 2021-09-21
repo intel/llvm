@@ -165,7 +165,7 @@ TEST(KernelBundle, EmptyKernelBundle) {
 
   auto EmptyKernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev}, {});
-  
+
   EXPECT_TRUE(EmptyKernelBundle.empty());
   EXPECT_EQ(std::distance(EmptyKernelBundle.begin(), EmptyKernelBundle.end()),
             0u);
@@ -211,7 +211,7 @@ TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
         ASSERT_EQ(e.code().value(),
                   static_cast<int>(sycl::errc::kernel_not_supported))
             << "sycl::exception code was not the expected "
-              "sycl::errc::kernel_not_supported.";
+               "sycl::errc::kernel_not_supported.";
         // Throw uniquely identifiable exception to distinguish between that
         // the sycl::exception originates from the correct level.
         throw UnqiueException{};
