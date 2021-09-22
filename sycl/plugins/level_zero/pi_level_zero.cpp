@@ -6210,6 +6210,32 @@ pi_result piEnqueueNativeKernel(pi_queue Queue, void (*UserFunc)(void *),
   return {};
 }
 
+// Function gets characters between delimeter's in str
+// then checks if they are equal to the sub_str.
+// returns true if there is at least one instance
+// returns false if there are no instances of the name
+bool is_in_separated_string(const std::string &str, char delimiter,
+                            std::string sub_str) {
+  size_t beg = 0;
+  size_t length = 0;
+  for (const auto &x : str) {
+    if (x == delimiter) {
+      if (str.substr(beg, length) == sub_str)
+        return true;
+
+      beg += length + 1;
+      length = 0;
+      continue;
+    }
+    length++;
+  }
+  if (length != 0)
+    if (str.substr(beg, length) == sub_str)
+      return true;
+
+  return false;
+}
+
 // TODO: Check if the function_pointer_ret type can be converted to void**.
 pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
                                         const char *FunctionName,
@@ -6232,6 +6258,35 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
     if (ZeResult != ZE_RESULT_ERROR_INVALID_FUNCTION_NAME)
       break;
     ModIt++;
+  }
+
+  // zeModuleGetFunctionPointer currently fails for all
+  // kernels regardless of if the kernel exist or not
+  // with ZE_RESULT_ERROR_INVALID_ARGUMENT
+  // TODO: remove when this is no longer the case
+  // If zeModuleGetFunctionPointer returns invalid argument,
+  // fallback to searching through kernel list and assign dummy pointer
+  if (ZeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
+    size_t Size;
+    pi_result ret_err = piProgramGetInfo(Program, PI_PROGRAM_INFO_KERNEL_NAMES,
+                                         0, nullptr, &Size);
+    if (ret_err != PI_SUCCESS) {
+      *FunctionPointerRet = 0;
+      return ret_err;
+    }
+
+    std::string ClResult(Size, ' ');
+    ret_err = piProgramGetInfo(Program, PI_PROGRAM_INFO_KERNEL_NAMES,
+                               ClResult.size(), &ClResult[0], nullptr);
+    if (ret_err != PI_SUCCESS) {
+      *FunctionPointerRet = 0;
+      return ret_err;
+    }
+
+    // Get rid of the null terminator and search for kernel_name
+    ClResult.pop_back();
+    *FunctionPointerRet = is_in_separated_string(ClResult, ';', FunctionName);
+    return PI_SUCCESS;
   }
 
   return mapError(ZeResult);
