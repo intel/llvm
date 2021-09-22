@@ -231,7 +231,7 @@ private:
   // Mutex to guard PiPlatforms and LastDeviceIds.
   // Note that this is a temporary solution until we implement the global
   // Device/Platform cache later.
-  std::shared_ptr<std::mutex> MPluginMutex;
+  std::mutex MPluginMutex;
   // vector of PiPlatforms that belong to this plugin
   std::vector<RT::PiPlatform> PiPlatforms;
   // represents the unique ids of the last device of each platform
