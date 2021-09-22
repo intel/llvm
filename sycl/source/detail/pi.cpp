@@ -326,14 +326,14 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
         PluginNames.emplace_back(CUDAPluginName, backend::cuda);
         CudaFound = true;
       }
-      if (!HIPFound && (Backend == backend::hip || Backend == backend::all)) {
-        PluginNames.emplace_back(HIPPluginName, backend::hip);
-        HIPFound = true;
-      }
       if (!EsimdCpuFound &&
           (Backend == backend::esimd_cpu || Backend == backend::all)) {
         PluginNames.emplace_back(ESIMDCPUPluginName, backend::esimd_cpu);
         EsimdCpuFound = true;
+      }
+      if (!HIPFound && (Backend == backend::hip || Backend == backend::all)) {
+        PluginNames.emplace_back(HIPPluginName, backend::hip);
+        HIPFound = true;
       }
     }
   }
@@ -438,6 +438,11 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
       // Use the CUDA plugin as the GlobalPlugin
       GlobalPlugin =
           std::make_shared<plugin>(PluginInformation, backend::cuda, Library);
+    } else if (InteropBE == backend::esimd_cpu &&
+               PluginNames[I].first.find("esimd_cpu") != std::string::npos) {
+      // Use the ESIMD_CPU plugin as the GlobalPlugin
+      GlobalPlugin = std::make_shared<plugin>(PluginInformation,
+                                              backend::esimd_cpu, Library);
     } else if (InteropBE == backend::hip &&
                PluginNames[I].first.find("hip") != std::string::npos) {
       // Use the HIP plugin as the GlobalPlugin
@@ -448,11 +453,6 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
       // Use the LEVEL_ZERO plugin as the GlobalPlugin
       GlobalPlugin = std::make_shared<plugin>(PluginInformation,
                                               backend::level_zero, Library);
-    } else if (InteropBE == backend::esimd_cpu &&
-               PluginNames[I].first.find("esimd_cpu") != std::string::npos) {
-      // Use the ESIMD_CPU plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(PluginInformation,
-                                              backend::esimd_cpu, Library);
     }
     Plugins->emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));
