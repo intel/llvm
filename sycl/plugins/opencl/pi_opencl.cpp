@@ -504,6 +504,32 @@ pi_result piextKernelCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
+// Function gets characters between delimeter's in str
+// then checks if they are equal to the sub_str.
+// returns true if there is at least one instance
+// returns false if there are no instances of the name
+bool is_in_separated_string(const std::string &str, char delimiter,
+                            std::string sub_str) {
+  size_t beg = 0;
+  size_t length = 0;
+  for (const auto &x : str) {
+    if (x == delimiter) {
+      if (str.substr(beg, length) == sub_str)
+        return true;
+
+      beg += length + 1;
+      length = 0;
+      continue;
+    }
+    length++;
+  }
+  if (length != 0)
+    if (str.substr(beg, length) == sub_str)
+      return true;
+
+  return false;
+}
+
 pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                                         const char *func_name,
                                         pi_uint64 *function_pointer_ret) {
@@ -516,29 +542,60 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
     return cast<pi_result>(ret_err);
   }
 
-  using FuncT =
-      cl_int(CL_API_CALL *)(cl_device_id, cl_program, const char *, cl_ulong *);
+  // Get device supported extensions
+  size_t extension_size;
+  clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS, 0, nullptr,
+                  &extension_size);
+  char *extensions = new char[extension_size];
+  clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS,
+                  extension_size, extensions, nullptr);
 
-  // TODO: add check that device supports corresponding extension
-  FuncT func_ptr =
-      reinterpret_cast<FuncT>(clGetExtensionFunctionAddressForPlatform(
-          cast<cl_platform_id>(platform), "clGetDeviceFunctionPointerINTEL"));
-  // TODO: once we have check that device supports corresponding extension,
-  // we can insert an assertion that func_ptr is not nullptr. For now, let's
-  // just return an error if failed to query such function
-  // assert(
-  //     func_ptr != nullptr &&
-  //     "Failed to get address of clGetDeviceFunctionPointerINTEL function");
+  // Check if clGetDeviceFunctionPointer is in list of extensions
+  if (is_in_separated_string(extensions, ' ',
+                             "clGetDeviceFunctionPointerINTEL")) {
+    delete[] extensions;
 
-  if (!func_ptr) {
-    if (function_pointer_ret)
+    using FuncT = cl_int(CL_API_CALL *)(cl_device_id, cl_program, const char *,
+                                        cl_ulong *);
+
+    FuncT func_ptr =
+        reinterpret_cast<FuncT>(clGetExtensionFunctionAddressForPlatform(
+            cast<cl_platform_id>(platform), "clGetDeviceFunctionPointerINTEL"));
+
+    assert(func_ptr != nullptr &&
+           "Failed to get address of clGetDeviceFunctionPointerINTEL function");
+
+    pi_result piret_err = cast<pi_result>(
+        func_ptr(cast<cl_device_id>(device), cast<cl_program>(program),
+                 func_name, function_pointer_ret));
+    return piret_err;
+  } else {
+    // Use backup method to return placeholder address of 1 or 0 depending on if
+    // the function can be found this is needed by program_impl's has_kernel
+    delete[] extensions;
+    size_t Size;
+    cl_int Res =
+        clGetProgramInfo(cast<cl_program>(program),
+                         PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size);
+    if (Res != CL_SUCCESS) {
       *function_pointer_ret = 0;
-    return PI_INVALID_DEVICE;
-  }
+      return cast<pi_result>(Res);
+    }
 
-  return cast<pi_result>(func_ptr(cast<cl_device_id>(device),
-                                  cast<cl_program>(program), func_name,
-                                  function_pointer_ret));
+    std::string ClResult(Size, ' ');
+    ret_err = clGetProgramInfo(cast<cl_program>(program),
+                               PI_PROGRAM_INFO_KERNEL_NAMES, ClResult.size(),
+                               &ClResult[0], nullptr);
+    if (Res != CL_SUCCESS) {
+      *function_pointer_ret = 0;
+      return cast<pi_result>(Res);
+    }
+
+    // Get rid of the null terminator and search for kernel_name
+    ClResult.pop_back();
+    *function_pointer_ret = is_in_separated_string(ClResult, ';', func_name);
+    return PI_SUCCESS;
+  }
 }
 
 pi_result piContextCreate(const pi_context_properties *properties,
