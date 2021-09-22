@@ -1,172 +1,311 @@
 # Implementation design for "device\_global"
 
 This document describes the implementation design for the DPC++ extension
-[SYCL\_EXT\_ONEAPI\_DEVICE\_GLOBAL][1], which allows applications to declare global
-variables in device code.
+SYCL\_EXT\_ONEAPI\_DEVICE\_GLOBAL, which allows applications to declare global
+variables in device code.  There are two API specifications for this feature,
+the [main specification][1] and a specification for [properties that are
+primarily used on FPGA][2].  This design document covers the APIs in both of
+those specifications.
 
 [1]: <https://github.com/intel/llvm/pull/4233>
+[2]: <https://gitlab.devtools.intel.com/SYCL/extensions/-/merge_requests/73>
 
 
 ## Requirements
 
-The extension specification document referenced above contains the full set of
+The extension specification documents referenced above contain the full set of
 requirements for this feature, but some requirements that are particularly
 relevant to the design are called out here.
 
 The first issue relates to the mechanism for integrating host and device code.
 Like specialization constants, device global variables are referenced in both
 host and device code, so they require some mechanism to correlate the variable
-instance in device code with the variable name in host code.  The API for
-reading a device global variable from device code, however, is different from
-the API for specialization constants.  Whereas specialization constants are
-read through a templated member function:
+instance in device code with the variable instance in host code.  The API for
+referencing a device global variable, however, is different from the API for
+specialization constants.  Whereas specialization constants are referenced
+through a templated member function:
 
 ```
 sycl::specialization_id<int> spec_var;
 
-void func(sycl::kernel_handler kh) {
-  int i = kh.get_specialization_constant<spec_var>();
+void func(sycl::queue q) {
+  q.submit([&](sycl::handler &cgh) {
+    cgh.set_specialization_constant<spec_var>(42);
+    cgh.single_task([=](sycl::kernel_handler kh) {
+      int i = kh.get_specialization_constant<spec_var>();
+    });
+  });
 }
 ```
 
-Device global variables are read directly:
+Device global variables, by contrast, are referenced by their address:
 
 ```
 sycl::ext::oneapi::device_global<int> dev_var;
 
-void func() {
-  int i = dev_var;
+void func(sycl::queue q) {
+  int val = 42;
+  q.copy(&val, dev_var).wait();      // The 'dev_var' parameter is by reference
+  q.submit([&](sycl::handler &cgh) {
+    cgh.single_task([=] {
+      int i = dev_var;
+    });
+  });
 }
 ```
 
-As we will see later, this difference has a ramification on the integration
-mechanism.
+This is a key difference because the compiler does not statically know which
+device global variable is being referenced; we only know the address at
+runtime.  As we will see later, this has a ramification on the integration
+headers and on the mechanism that connects instances of device global variables
+in host code with their corresponding instances in device code.
 
-The second issue relates to the semantics of device global variables relative
-to SPIR-V module scope global variables.  The semantics are similar, but not
-quite the same.  In particular, a device global variable must retain its value
-even if a module is recompiled (e.g. to change the value of a specialization
-constant), whereas a SPIR-V module scope variable would not retain its value
-in this case.  Therefore, device global variables cannot be implemented solely
-via SPIR-V module scope global variables.  Instead, the design uses a
-combination of SPIR-V module scope variables and also USM device allocated
-memory.
+Another issue relates to the `device_image_life` property which can be applied
+to a device global variable declaration.  The intent of this property is to
+allow a device global variable to be implemented directly on top of a SPIR-V
+module scope global variable.  When this property is **not** present, an
+instance of a device global variable is shared across all device images that
+are loaded onto a particular device.  This makes it easy for the user to reason
+about the scope of a variable because the user need not understand which device
+image contains each kernel.  However, this semantic makes the implementation
+less efficient, especially on FPGA targets.
+
+By contrast, the `device_image_life` property changes the semantic of a device
+global variable such that the user must understand which device image contains
+each kernel, which is difficult to reason about.  For example, changing the
+value of a specialization constant may cause a kernel to be recompiled into a
+separate device image on some targets.  As a result, a device global variable
+referenced in a kernel may actually have several disjoint instances if the
+kernel uses specialization constants.  This problem is more tractable on FPGA
+targets because specialization constants are not implemented via separate
+device images on those targets, however, there are other factors that FPGA
+users need to be aware of when using the `device_image_life` property.  These
+are documented more throughly in the extension specification.
+
+The important impact on the design, though, is that device global variables
+declared with the `device_image_life` property have an implementation that is
+quite different from device global variables that are not declared with this
+property.  The sections below describe both implementations.
 
 
 ## Design
 
 ### Changes to DPC++ headers
 
-The headers must be changed, of course, to declare the new `device_global`
-class, which is described in the [extension specification][1].  However,
-there is no special magic required in the headers beyond the declaration of
-this type.
+The headers, of course, include the declaration of the new `device_global`
+class, which is described in the [extension specification][1].  The declaration
+of this class uses partial specialization to define the class differently
+depending on whether is has the `device_image_life` property.  When the
+property is not present, the class has a member variable which is a pointer to
+the underlying type.  Member functions which return a reference to the value
+(e.g. `get`) return the value of this pointer:
+
+```
+template<typename T>
+class device_global {
+  T *usmptr;
+ public:
+  T& get() noexcept { return *usmptr; }
+  /* other member functions */
+};
+```
+
+However, when the property is present, it has a member variable which is the
+type itself, and member functions return the address of this value.
+
+```
+template<typename T>
+class device_global {
+  T val;
+ public:
+  T& get() noexcept { return &val; }
+  /* other member functions */
+};
+```
+
+In both cases the member variable (either `usmptr` or `val`) must be the first
+member variable in the class.  As we will see later, the runtime assumes that
+the address of the `device_global` variable itself is the same as the address
+of this member variable.
 
 ### New LLVM IR attributes
 
 As described below, the device compiler front-end decorates each
-`device_global` variable with two attributes which convey information to the
-`sycl-post-link` tool.
+`device_global` variable with the `sycl-unique-id` attribute, which provides a
+unique string identifier for each device global variable.
 
-The `sycl-unique-id` attribute contains a string which uniquely identifies the
-variable instance.  If the variable has external linkage, the string must be
-the same for all translation units that define the variable (e.g. if the
-variable is defined as `inline`).  If the variable has internal linkage, the
-string must not be shared by any other `device_global` variable, even in
-another translation unit.  (These rules for the identifying string are the
-same as the rules we have for `specialization_id` variables.)
-
-The `sycl-device-global-size` attribute contains the size in bytes of the
-underlying data type `T` of the `device_global` variable.  As with all
-attributes, the value is a string, so the size is represented as a string in
-decimal format.
+This string will also be used to name the variable in SPIR-V, so it's better
+for debuggability if the string matches the mangled name for variables with
+external linkage.  This is not possible, though, for variables with internal
+linkage because the mangled name is not unique in this case.  For these
+variables, we use the mangled name and append a unique suffix.
 
 Note that language rules ensure that `device_global` variables are always
 declared at namespace scope (i.e. a global variable), and LLVM IR [allows
-attributes to be attached to global variables][2].
+attributes to be attached to global variables][3].
 
-[2]: <https://llvm.org/docs/LangRef.html#global-attributes>
+[3]: <https://llvm.org/docs/LangRef.html#global-attributes>
 
 ### Changes to the DPC++ front-end
 
-The device compiler front-end must be changed in two ways: it must generate new
-content in the integration footer and it must add the `sycl-unique-id` and
-`sycl-device-global-size` attributes to the IR definition of of any
-`device_global` variable.  These two tasks are related because the integration
-footer contains the same string that is stored in the `sycl-unique-id`
-attribute.
+The device compiler front-end is changed in two ways: it generates new content
+in both the integration header and the integration footer, and it adds the
+`sycl-unique-id` attribute to the IR definition of any `device_global`
+variable.  These two tasks are related because the integration footer contains
+the same string that is stored in the `sycl-unique-id` attribute.
 
-**TODO**: See also the "Unresolved issues" section at the bottom of this
-document for another change that is needed in the front-end.
+**NOTE**: See also the "Unresolved issues" section at the bottom of this
+document for other changes that are needed in the front-end.
 
-#### New content in the integration footer
+#### New content in the integration header and footer
 
-New content in the integration footer provides a mapping from a host instance
-of a `device_global` variable to its unique ID string.  This is done through
-partial specialization of a template function in much the same way that we do
-for `specialization_id` variables.  To illustrate, consider a translation unit
-that defines two `device_global` variables:
+New content in the integration header and footer provides a mapping from the
+host address of each device global variable to the unique string for that
+variable.  To illustrate, consider a translation unit that defines two
+`device_global` variables:
 
 ```
 #include <sycl/sycl.hpp>
 
-sycl::device_global<int> Foo;
-static sycl::device_global<double[2]> Bar;
+static sycl::device_global<int> Foo;
+namespace inner {
+  sycl::device_global<double[2]> Bar;
+} // namespace inner
 
 // ...
 ```
 
-The corresponding integration footer looks like this:
+The corresponding integration header defines a namespace scope variable of
+class type whose sole purpose is to run its constructor before the
+application's `main()` function:
 
 ```
-inline namespace cl {
 namespace sycl::detail {
+namespace {
 
-template<>
-inline const char *get_device_global_symbolic_ID_impl<::Foo>() {
-  return /* unique string for "Foo" */;
-}
+class __sycl_device_global_registration {
+ public:
+  __sycl_device_global_registration() noexcept;
+};
+__sycl_device_global_registration __sycl_device_global_registerer;
 
-template<>
-inline const char *get_device_global_symbolic_ID_impl<::Bar>() {
-  return /* globally unique string because "Bar" has internal linkage */
-}
-
-}
-}
-
-#include <CL/sycl/detail/integration_post_footer.hpp>
+} // namepsace (unnamed)
+} // namespace sycl::detail
 ```
 
-As with the integration footer for `specialization_id` variables, the generated
-code is more complex when `device_global` variables are defined in an unnamed
-namespace.  See the [specialization constant][3] specification for details.
+The integration footer contains the definition of the constructor, which calls
+a function in the DPC++ runtime with the following information for each device
+global variable that is defined in the translation unit:
 
-[3]: <SpecializationConstants.md>
-
-The `<CL/sycl/detail/integration_post_footer.hpp>` file contains the definition
-of the wrapper function which calls the partial specializations.  This must be
-last in the translation unit to satisfy the C++ requirement that references to
-the template function must occur after all partial specializations are defined.
+* The (host) address of the variable.
+* The variable's string from the `sycl-unique-id` attribute.
+* The size (in bytes) of the underlying `T` type for the variable.
+* A boolean telling whether the variable is decorated with the
+  `device_image_life` property.
 
 ```
-inline namespace cl {
 namespace sycl::detail {
+namespace {
 
-template <auto &SpecName> const char *get_device_global_symbolic_ID() {
-  return get_device_global_symbolic_ID_impl<SpecName>();
+__sycl_device_global_registration::__sycl_device_global_registration() noexcept {
+  device_global_map::add(&::Foo,
+    /* mangled name of '::Foo' with unique suffix appended */,
+    /* size of underlying 'T' type */,
+    /* bool telling whether variable has 'device_image_life` property */);
+  device_global_map::add(&::inner::Bar,
+    /* mangled name of '::inner::Bar' */,
+    /* size of underlying 'T' type */,
+    /* bool telling whether variable has 'device_image_life` property */);
 }
 
-}
+} // namepsace (unnamed)
+} // namespace sycl::detail
+```
+
+Note that a SYCL application can legally call SYCL APIs even before `main()` by
+calling them from a global constructor.  However, the integration headers have
+been designed to ensure that the address of each device global variable is
+registered with the DPC++ runtime before the user's application could legally
+use the variable, even if that use occurs before `main()` executes.
+
+The user's application cannot legally use a device global variable until the
+variable's constructor has been called, otherwise the application would be
+using an unconstructed object which has undefined behavior by C++ rules.  Since
+all device globals must be defined at namespace scope, the C++ rules for the
+order of global constructors only guarantee that the device global will be
+constructed before subsequent global variables in the same translation unit.
+Therefore, a user application could reference a device global from another
+global constructor only if that global constructor is for an object defined
+*after* the device global in the same translation unit.  However, the
+integration header defines `__sycl_device_global_registerer` *before* all
+device globals in the user's translation unit.  Therefore, the address of all
+device global variables in the translation unit will be registered with the
+DPC++ runtime before any user code could legally use them.
+
+#### Handling shadowed device global variables
+
+The example above shows a simple case where the user's device global variables
+can all be uniquely referenced via fully qualified lookup (e.g.
+`::inner::Bar`).  However, it is possible for users to construct applications
+where this is not the case, for example:
+
+```
+sycl::device_global<int> FuBar;
+namespace {
+  sycl::device_global<int> FuBar;
 }
 ```
+
+In this example, the `FuBar` variable in the global namespace shadows a
+variable with the same name in the unnamed namespace.  The integration footer
+could reference the variable in the global namespace as `::FuBar`, but there is
+no way to reference the variable in the unnamed namespace using fully qualified
+lookup.
+
+Such programs are still legal, though.  The integration footer can support
+cases like this by defining a temporary variable that holds the address of the
+shadowed device global:
+
+```
+namespace {
+const void *__sycl_UNIQUE_STRING = &FuBar;  // References 'FuBar' in the
+                                            // unnamed namespace
+}
+
+namespace sycl::detail {
+namespace {
+
+__sycl_device_global_registration::__sycl_device_global_registration() noexcept {
+  device_global_map::add(&::FuBar,
+    /* mangled name of '::FuBar' */,
+    /* size of underlying 'T' type */,
+    /* bool telling whether variable has 'device_image_life` property */);
+  device_global_map::add(::__sycl_UNIQUE_STRING,
+    /* mangled name of '::(unnamed)::FuBar' with unique suffix appended */,
+    /* size of underlying 'T' type */,
+    /* bool telling whether variable has 'device_image_life` property */);
+}
+
+} // namepsace (unnamed)
+} // namespace sycl::detail
+```
+
+The `__sycl_UNIQUE_STRING` variable is defined in the same namespace as the
+second `FuBar` device global, so it can reference the variable through
+unqualified name lookup.  Furthermore, the name of the temporary variable
+(`__sycl_UNIQUE_STRING`) is globally unique, so it is guaranteed not to be
+shadowed by any other name in the translation unit.  This problem with variable
+shadowing is also a problem for the integration footer we use for
+specialization constants.  See the [specialization constant design document][4]
+for more details on this topic.
+
+[4]: <SpecializationConstants.md>
 
 #### Decorating the IR with new attributes
 
-The device compiler front-end also adds the new `sycl-unique-id` and
-`sycl-device-global-size` attribute to the IR definition of any `device_global`
-variables.  The `sycl-unique-id` attribute must contain the same string that is
-emitted in the integration footer.
+The device compiler front-end also adds the new `sycl-unique-id` attribute to
+the IR definition of any device global variables.  The value of this attribute
+is the same string that is emitted in the integration footer.
 
 ### Changes to the `sycl-post-link` tool
 
@@ -174,76 +313,70 @@ The `sycl-post-link` tool performs its normal algorithm to identify the set of
 kernels and device functions that are bundled together into each module.  Once
 it identifies the functions in each module, it scans those functions looking
 for references to global variables of type `device_global`.  The
-`sycl-post-link` tool then includes the following additional IR into each
-module:
+`sycl-post-link` tool then includes the IR definition of each of these
+`device_global` variables in the module.
 
-1. The IR definition of each `device_global` variable that is referenced by
-   that module.
+The [backend functions described below][5] that allow the host to copy to or
+from a device global require the variable to have "export" linkage in SPIR-V.
+Therefore, the `sycl-post-link` tool needs to make the following IR
+transformations for any `device_global` variable that has internal linkage:
 
-2. If the module references at least one `device_global` variable, the IR
-   definition of a synthesized kernel function that initializes each of those
-   `device_global` variables.  The following example shows the structure of
-   this kernel function, where `Foo` and `Bar` match the code example above:
+[5]: <#back-end-specific-function-to-copy-to--from-a-device-symbol>
 
-   ```
-   void __sycl_detail_UNIQUE_STRING(void *p1, void *p2) {
-     Foo.usmptr = p1;
-     Bar.usmptr = p2;
-   }
-   ```
+* The linkage is changed to be external.
+* The name of the variable is changed to be the string from the
+  `sycl-unique-id` attribute.
 
-   The kernel takes one argument for each `device_global` variable and assigns
-   the `usmptr` field of each of those variables to its corresponding argument.
-   Note that the name of the kernel must be some unique string.  Otherwise,
-   there is a danger that it will conflict with the name of another synthesized
-   initialization function if this module is online-linked with device code in
-   a shared library.  For example, the implementation can construct a name using
-   a GUID.
+**NOTE**: It seems likely that changing the name of internal linkage variables
+will be bad for debuggability of the code.  The user may attempt to print the
+value of a variable in the debugger, but the debugger won't know the variable
+by that name.  See the "Unresolved issues" section below for more discussion
+on this.
 
-The `sycl-post-link` tool also emits new property set information as described
-below.
+The `sycl-post-link` tool also adds the new "device-globals" property to the
+"SYCL/misc properties" set, as described below.
 
 ### New property in "SYCL/misc properties"
 
 If a device code module has one or more device global variables, a new property
-is added to the "SYCL/misc properties" set named "device-global-initializer".
-The value of this property has property type `PI_PROPERTY_TYPE_STRING`
-containing the name of the synthesized kernel that initializes the device
-global variables.
-
-### New "SYCL/device globals" property set
-
-Each device code module that references one or more device global variables
-must have an associated "SYCL/device globals" property set.  The name of each
-property in this set is the `sycl-unique-id` string of a `device_global`
-variable that is referenced in the module.  The value of each property has
-property type `PI_PROPERTY_TYPE_UINT32` which tells the size (in bytes) from
-the `sycl-device-global-size` attribute for the `device_global` variable.
-
-The order of the properties in this set is important.  The order matches the
-order of the parameters accepted by the `__sycl_detail_UNIQUE_STRING` kernel
-that is synthesized by the `sycl-post-link` tool.
+is added to the "SYCL/misc properties" set named "device-globals".  The value
+of this property has property type `PI_PROPERTY_TYPE_BYTE_ARRAY` and contains
+the `sycl-unique-id` strings for each device global variable that the module
+contains.  The value of the property is the concatenation of all these
+strings, where each string ends with a null character (`\0`).
 
 ### Changes to the DPC++ runtime
 
 Several changes are needed to the DPC++ runtime
 
-* The runtime must allocate a buffer from USM device memory for each
-  `device_global` variable for each device that accesses that variable.  As
-  noted in the requirements, the value of a device global variable must be
-  shared even across different device code modules that are loaded onto the
-  same device.  As a result, we can't store the value in a SPIR-V module
-  scope global variable, which isn't shared across different modules.  All
-  modules that access the same variable on a given device must share the same
-  USM buffer for that variable.
+* As noted in the requirements section, an instance of a device global variable
+  that does not have the `device_image_life` property is shared by all device
+  images on a device.  To satisfy this requirement, the device global variable
+  contains a pointer to a buffer allocated from USM device memory, and the
+  content of the variable is stored in this buffer.  All device images point to
+  the same buffer, so the variable's state is shared.  The runtime, therefore,
+  must allocate this USM buffer for each such device global variable.
 
-* We need to call the synthesized `__sycl_detail_UNIQUE_STRING` kernel for each
-  device code module to initialize the `device_global` variables.
+* As we noted above, the front-end generates new content in the integration
+  footer which calls the function `sycl::detail::device_global_map::add()`.
+  The runtime defines this function and maintains information about all the
+  device global variables in the application.  This information includes:
 
-* We need to implement the new `copy` and `memcpy` functions in the `queue` and
-  `handler` classes which copy to or from `device_global` variables.
+  - The host address of the variable.
+  - The string which uniquely identifies the variable.
+  - The size (in bytes) of the underlying `T` type for the variable.
+  - A boolean telling whether the variable is decorated with the
+    `device_image_life` property.
+  - The associated per-device USM buffer pointer, if this variable does not
+    have the `device_image_life` property.
 
-### Initializing the device global variables in device code
+  We refer to this information as the "device global database" below.
+
+* The runtime also implements the new `copy` and `memcpy` functions in the
+  `queue` and `handler` classes which copy to or from `device_global`
+  variables.
+
+#### Initializing the device global variables in device code
 
 When a DPC++ application submits a kernel, the runtime constructs a
 `pi_program` containing this kernel that is compiled for the target device, if
@@ -253,86 +386,87 @@ code modules that need to be online-linked together in order to construct the
 `pi_program`.
 
 After creating a `pi_program` and before invoking any kernel it contains, the
-runtime must do the following:
+runtime does the following:
 
-* Scan the entries in the "SYCL/device globals" property sets for each device
-  code module that contributes to the `pi_program` to get the full set of
-  device global variables used by the `pi_program`.  For each of the device
-  global variables, the runtime checks to see if a USM buffer has already been
-  created for that variable on this target device.  If not, the runtime
-  allocates the buffer from USM device memory, using the size from the
-  "SYCL/device globals" property set.  The runtime maintains a mapping from
-  the device global's unique string and this USM pointer.
+* Scan the strings in the "device-globals" properties of the
+  "SYCL/misc properties" sets of each device code module that contributes to
+  the `pi_program` to get the unique string associated with each device global
+  variable that is used by the `pi_program`.  For each of these strings, the
+  runtime uses the device global database to see if the variable was decorated
+  with `device_image_life`.  If it was not so decorated and if a USM buffer has
+  not already been created for the variable on this target device, the runtime
+  allocates the buffer from USM device memory using the size from the database.
+  The pointer to this buffer is saved in the database for future reuse.
 
-* Scan the "SYCL/misc properties" property set for "device-global-initializer"
-  properties.  Each such property names a kernel in the `pi_program` which the
-  runtime must call to initialize the device global variables it contains.  The
-  runtime uses the contents of the "SYCL/device globals" property set to
-  determine the number and order of USM device pointers to pass as arguments to
-  this kernel.  The runtime waits for these kernel calls to complete before
-  submitting any application kernels from this `pi_program`.
+* For each device global variable that is not decorated with
+  `device_image_life`, the runtime initializes the `usmptr` member in the
+  *device instance* of the variable by using a backend-specific function which
+  copies data from the host to a device variable.  It is a simple matter to use
+  this function to overwrite the `usmptr` member with the address of the USM
+  buffer.  The details of this device-specific function are described below.
 
-### Implementing the `copy` and `memcpy` functions in `queue` and `handler`
+#### Implementing the `copy` and `memcpy` functions in `queue` and `handler`
 
-Each of these functions is templated on a reference to a device global variable
-like so:
+Each of these functions accepts a (host) pointer to a device global variable as
+one of its parameters, and the runtime uses this pointer to find the associated
+information for this variable in the device global database.  The remaining
+behavior depends on whether the variable is decorated with `device_image_life`.
 
-```
-template<auto &DeviceGlobal>
-event queue::copyto(/*...*/) {/*...*/}
-```
+If the variable is not decorated with this property, the runtime uses the
+database to determine if a USM buffer has been allocated yet for this variable
+on this device.  If not, the runtime allocates the buffer using the size from
+the database.  Regardless, the runtime implements the `copy` / `memcpy` by
+copying to or from this USM buffer, using the normal mechanism for copying
+to / from a USM pointer.
 
-The implementation can use the template parameter to obtain the variable's
-unique string by calling the mapping function from the integration footer:
+The runtime avoids the future cost of looking up the variable in the database
+by caching the USM pointer in the host instance of the variable's `usmptr`
+member.
 
-```
-const char *name = detail::get_device_global_symbolic_ID<DeviceGlobal>();
-```
+If the variable is decorated with the `device_image_life` property, the runtime
+gets the unique string identifier for the variable from the database and uses
+a backend-specific function to copy to or from the variable with that
+identifier.  Again, the details of this function are described below.
 
-Once the runtime has this name, it is a simple matter to check if a USM buffer
-has already been allocated for this device global variable on this device.
-If it has not yet been allocated, this means that the application has not yet
-submitted any kernels to this device that come from a module that defines this
-device global variable.  In this case, the runtime must allocate a buffer from
-USM device memory using the size from the template parameter.  The runtime
-maintains a mapping from the unique string to this new USM pointer.
+In all cases, the runtime diagnoses invalid calls that write beyond the device
+global variable's size by using the size in the database.
 
-```
-size_t numBytes = sizeof(decltype(DeviceGlobal)::type);
-void *usmptr = malloc_device(numBytes, dev, ctxt);
-```
+#### Back-end specific function to copy to / from a device symbol
 
-The runtime can now copy to / from this USM buffer using any of the standard
-USM explicit copy functions in the `queue` or `handler` class.
-
-Note that the runtime can avoid the cost of subsequent lookups of this
-variable's unique string by caching the variable's USM pointer in the host
-instance of the `device_global` variable:
+As noted above, we need a backend-specific function copy to / from the device
+instance of a variable.  All backends provide this functionality, which is
+abstracted with these new PI interfaces:
 
 ```
-template<auto &DeviceGlobal>
-event queue::copyto(/*...*/) {
-  if (!DeviceGlobal.usmptr) {
-    const char *name = detail::get_device_global_symbolic_ID<DeviceGlobal>();
-    /* etc. */
-    DeviceGlobal.usmptr = usmptr;
-  }
-  /* copy to / from the USM pointer */
-}
+pi_result piextCopyToDeviceVariable(pi_device Device, const char *name,
+  const void *src, size_t count, size_t offset);
+
+pi_result piextCopyFromDeviceVariable(pi_device Device, const char *name,
+  void *dst, size_t count, size_t offset);
 ```
 
-### Accessing the device global from device code
+In both cases the `name` parameter is the same as the "unique string
+identifier" for the device global variable.
 
-Accessing the value of a `device_global` variable from device code is a simple
-matter of accessing the memory from the USM pointer, which is available in the
-variable's `usmptr` member.  For example, the implementation of
-`device_global::get()` might look like this:
+On the Level Zero backend, these PI interfaces are implemented by first calling
+[`zeModuleGetGlobalPointer()`][6] to get a device pointer for the variable and
+then calling [`zeCommandListAppendMemoryCopy()`][7] to copy to or from that
+pointer.
 
-```
-T& get() noexcept {
-  return *usmptr;
-}
-```
+[6]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zemodulegetglobalpointer>
+[7]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zecommandlistappendmemorycopy>
+
+On the OpenCL backend, these PI interfaces are implemented by first calling
+`clGetDeviceGlobalVariablePointerINTEL()` to get a device pointer for the
+variable.  This function is provided by the
+[`cl_intel_global_variable_pointers`][8] extension which is not yet
+productized.  Once we get a pointer, the PI layer calls
+`clEnqueueMemcpyINTEL()` to copy to or from that pointer.
+
+[8]: <https://gitlab.devtools.intel.com/OpenCL/opencl-extension-drafts/-/blob/master/cl_intel_global_variable_pointers.asciidoc>
+
+On the CUDA backend, these PI interfaces are implemented on top of
+`cudaMemcpyToSymbol()` and `cudaMemcpyFromSymbol()`.
 
 
 ## Unresolved issues
@@ -346,23 +480,42 @@ device global feature is an exception to this rule.  Device code, of course,
 can reference a `device_global` variable even if it is not declared `constexpr`
 or `const`.  We need some way to avoid the error diagnostic in this case.
 
-The [newly added][4] `sycl_global_var` attribute is almost what we need,
+The [newly added][9] `sycl_global_var` attribute is almost what we need,
 however that attribute is only allowed to decorate a variable declaration.
 This doesn't help us because we don't want to force users to add an attribute
 to each declaration of a `device_global` variable.  Instead, we want to
 decorate the class declaration of `device_global` with some attribute which
 allows any variables of that type to be accessible from device code.
 
-[4]: <https://github.com/intel/llvm/pull/3746>
+[9]: <https://github.com/intel/llvm/pull/3746>
 
 Since the `sycl_global_var` attribute is currently used only as an
-implementation detail for [device-side asserts][5], one options is to repurpose
+implementation detail for [device-side asserts][10], one option is to repurpose
 this attribute.  Rather than applying it to a variable declaration, we could
 allow it only on a type declaration.  The implementation of device-side asserts
 could be changed to use the attribute on a new type, rather than on a variable
 declaration.
 
-[5]: <https://github.com/intel/llvm/pull/3767>
+[10]: <https://github.com/intel/llvm/pull/3767>
+
+### Need to diagnose invalid declarations of `device_global` variables
+
+The device global extension specification places restrictions on where a
+`device_global` variable can be declared.  These restrictions are similar to
+ones we have already for variables of type `specialization_id`:
+
+* A `device_global` variable can be declared at namespace scope.
+* A `device_global` variable can be declared as a static member variable in
+  class scope, but only if the declaration has public visibility from namespace
+  scope.
+* No other declarations are allowed for a variable of type `device_global`.
+
+The device compiler front-end needs to emit a diagnostic if a `device_global`
+variable is declared in a way that violates these restrictions.  We do not have
+agreement yet, though, on how this should be done.  For example, should the
+front-end recognize these variable declarations by the name of their type, or
+should we decorate the type with some C++ attribute that helps the front-end
+recognize them?
 
 ### Need some way to force `device_global` variables into global address space
 
@@ -372,13 +525,13 @@ Unless we decorate these variables in some special way, the current behavior of
 the `llvm-spirv` tool is to generate these variables in the private address
 space, even though they are declared at module scope.
 
-The [existing OpenCL attribute][6] `[[clang::opencl_global]]` is almost what we
-need, but again this attribute can only be applied to a variable declaration.
-Instead, we want some attribute that can be applied to the type declaration of
-`class device_global`.  We could invent some new attribute with this semantic,
-but there is another problem.
+The [existing OpenCL attribute][11] `[[clang::opencl_global]]` is almost what
+we need, but again this attribute can only be applied to a variable
+declaration.  Instead, we want some attribute that can be applied to the type
+declaration of `class device_global`.  We could invent some new attribute with
+this semantic, but there is another problem.
 
-[6]: <https://clang.llvm.org/docs/AttributeReference.html#global-global-clang-opencl-global>
+[11]: <https://clang.llvm.org/docs/AttributeReference.html#global-global-clang-opencl-global>
 
 Applying `[[clang::opencl_global]]` to a variable of class type currently
 raises an error message saying there is no candidate "global" constructor for
@@ -404,3 +557,48 @@ compiler so that namespace scope variables are implicitly treated as though
 they are in the global address space (as opposed to the private address space
 as is currently the case).  This behavior would be consistent with the way the
 compiler works in OpenCL C 2.0 mode.
+
+### Need some way to propagate properties to SPIR-V
+
+The [specification of properties normally used on FPGA][2] includes three
+properties that must be propagated from DPC++ source code, through LLVM IR, and
+into SPIR-V where they are represented as SPIR-V decorations:
+
+* `copy_access`
+* `init_via`
+* `implement_in_csr`
+
+It's not clear how this should work.  One of the goals of the new property
+mechanism is to make it easy to propagate information like this through the
+compiler toolchain, so hopefully we can leverage some common infrastructure
+rather than hard-coding support for these three properties.  However, there is
+not yet a design document for the new properties mechanism, so it's not yet
+clear what this infrastructure will be.
+
+### Will changing the name of internal symbols be bad for debugging?
+
+The [backend functions for copying to / from a device symbol][5] currently
+require the symbol to have export linkage in SPIR-V.  (This is the case for the
+Level Zero and OpenCL functions.  We are not sure about the CUDA functions, but
+it seems likely they have the same limitation.)  However, the device global
+extension allows these variables to also have internal linkage, and this seems
+like a useful feature.  The current strategy is to convert internal linkage
+variables to external linkage at the IR level and also rename the symbol in a
+way that is globally unique.
+
+This should result in functionally correct code, but it seems likely to make
+debugging more difficult.  If the debugger uses the name from SPIR-V, this name
+will not match what the user expects.  We attempt to mitigate this somewhat by
+preserving the user's name and appending a unique suffix, but this seems like a
+weak mitigation.
+
+Do we think the debugging experience will be so bad that we should change the
+strategy?  The fundamental requirement is that we need some unique way to
+identify each device code variable when using these backend functions.
+Currently, we use the variable's mangled name, but this could be changed.
+An alternative solution would be to augment the SPIR-V with some new decoration
+that gives a unique name to each `OpVariable` that needs to be accessed from
+the host.  We could then use that name with the backend functions, and avoid
+renaming variables with internal linkage.  This would be more effort, though,
+because we would need a new SPIR-V extension, and we would need to change the
+implementation of the Level Zero and OpenCL backends.
