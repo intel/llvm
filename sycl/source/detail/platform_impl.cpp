@@ -97,7 +97,7 @@ std::vector<platform> platform_impl::get_platforms() {
   std::vector<platform> Platforms;
   std::vector<plugin> &Plugins = RT::initialize();
   info::device_type ForcedType = detail::get_forced_type();
-  for (unsigned int I = 0; I < Plugins.size(); I++) {
+  for (plugin &Plugin: Plugins.size()) {
     pi_uint32 NumPlatforms = 0;
     // Move to the next plugin if the plugin fails to initialize.
     // This way platforms from other plugins get a chance to be discovered.
