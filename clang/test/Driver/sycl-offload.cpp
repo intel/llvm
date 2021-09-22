@@ -39,7 +39,16 @@
 // RUN:   | FileCheck -check-prefix=CHECK_SHARED %s
 // RUN: %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fPIC %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK_SHARED %s
+// RUN: %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fPIE %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK_SHARED %s
 // CHECK_SHARED: llc{{.*}} "-relocation-model=pic"
+
+/// check for code-model settings for llc device wrap compilation
+// RUN: %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -mcmodel=large %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK_CODE_MODEL -DARG=large %s
+// RUN: %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -mcmodel=medium %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK_CODE_MODEL -DARG=medium %s
+// CHECK_CODE_MODEL: llc{{.*}} "--code-model=[[ARG]]"
 
 /// -S -emit-llvm should generate textual IR for device.
 // RUN: %clangxx -### -fsycl -S -emit-llvm %s 2>&1 \
