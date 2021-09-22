@@ -1130,7 +1130,8 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
   for (auto MD : MDs)
     NF->addMetadata(MD.first, *MD.second);
 
-  if(IsNVPTXKernel(F)) UpdateNVPTXMetadata(*(F->getParent()), F, NF);
+  if (IsNVPTXKernel(F))
+    UpdateNVPTXMetadata(*(F->getParent()), F, NF);
 
   // Now that the old function is dead, delete it.
   F->eraseFromParent();
