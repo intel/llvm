@@ -4660,6 +4660,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fsycl-allow-func-ptr");
     }
 
+    if (Triple.isSPIR())
+      CmdArgs.push_back("-fsycl-instrument-device-code");
+
     if (!SYCLStdArg) {
       // The user had not pass SYCL version, thus we'll employ no-sycl-strict
       // to allow address-space unqualified pointers in function params/return
@@ -6403,15 +6406,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Forward -cl options to -cc1
   RenderOpenCLOptions(Args, CmdArgs, InputType);
-
-  // Forward -fsycl-instrument-device-code option to cc1. This option can only
-  // be used with spir triple.
-  if (Arg *A = Args.getLastArg(options::OPT_fsycl_instrument_device_code)) {
-    if (!Triple.isSPIR())
-      D.Diag(diag::err_drv_unsupported_opt_for_target)
-          << A->getAsString(Args) << TripleStr;
-    CmdArgs.push_back("-fsycl-instrument-device-code");
-  }
 
   if (IsHIP) {
     if (Args.hasFlag(options::OPT_fhip_new_launch_api,

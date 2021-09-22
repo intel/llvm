@@ -435,7 +435,7 @@ CODEGENOPT(PassByValueIsNoAlias, 1, 0)
 CODEGENOPT(AAPCSBitfieldWidth, 1, 1)
 
 // Whether to instrument SPIR device code with ITT annotations
-CODEGENOPT(SPIRITTAnnotations, 1, 0)
+CODEGENOPT(SPIRITTAnnotations, 1, 1)
 
 /// Sets the IEEE bit in the expected default floating point mode register.
 /// Floating point opcodes that support exception flag gathering quiet and
