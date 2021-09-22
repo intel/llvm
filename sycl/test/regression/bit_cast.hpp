@@ -1,4 +1,3 @@
-// RUN: %clangxx -fsycl -fsycl-host-compiler=g++ -fsycl-host-compiler-options='-std=c++17' %s -o %t.out
 // The purpose of this test is to check that the following code can be
 // successfully compiled
 
