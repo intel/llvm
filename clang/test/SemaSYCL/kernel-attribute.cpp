@@ -47,9 +47,7 @@ template <typename T, typename A, int I>
 
 #else
 
-template <typename Func>
-void __attribute__((sycl_kernel)) // expected-warning {{'sycl_kernel' attribute ignored}}
-KernelImpl4(const Func &f, int i, double d) {
-  f(i, d);
-}
+// expected-no-diagnostics
+template <typename T, typename A>
+__attribute__((sycl_kernel)) void foo(T P);
 #endif
