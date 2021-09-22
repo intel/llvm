@@ -97,27 +97,27 @@ std::vector<platform> platform_impl::get_platforms() {
   std::vector<platform> Platforms;
   std::vector<plugin> &Plugins = RT::initialize();
   info::device_type ForcedType = detail::get_forced_type();
-  for (plugin &Plugin: Plugins.size()) {
+  for (plugin &Plugin : Plugins) {
     pi_uint32 NumPlatforms = 0;
     // Move to the next plugin if the plugin fails to initialize.
     // This way platforms from other plugins get a chance to be discovered.
-    if (Plugins[I].call_nocheck<PiApiKind::piPlatformsGet>(
+    if (Plugin.call_nocheck<PiApiKind::piPlatformsGet>(
             0, nullptr, &NumPlatforms) != PI_SUCCESS)
       continue;
 
     if (NumPlatforms) {
       std::vector<RT::PiPlatform> PiPlatforms(NumPlatforms);
-      if (Plugins[I].call_nocheck<PiApiKind::piPlatformsGet>(
+      if (Plugin.call_nocheck<PiApiKind::piPlatformsGet>(
               NumPlatforms, PiPlatforms.data(), nullptr) != PI_SUCCESS)
         return Platforms;
 
       for (const auto &PiPlatform : PiPlatforms) {
         platform Platform = detail::createSyclObjFromImpl<platform>(
-            getOrMakePlatformImpl(PiPlatform, Plugins[I]));
+            getOrMakePlatformImpl(PiPlatform, Plugin));
         {
-          std::lock_guard<std::mutex> Guard(*Plugins[I].getPluginMutex());
+          std::lock_guard<std::mutex> Guard(*Plugin.getPluginMutex());
           // insert PiPlatform into the Plugin
-          Plugins[I].getPlatformId(PiPlatform);
+          Plugin.getPlatformId(PiPlatform);
         }
         // Skip platforms which do not contain requested device types
         if (!Platform.get_devices(ForcedType).empty() &&
