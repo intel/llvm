@@ -180,6 +180,10 @@ set(SYCL_SOURCES
     "$<$<PLATFORM_ID:Windows>:abi_replacements_windows.cpp>"
 )
 
+if (SYCL_BUILD_PI_ESIMD_CPU)
+  list(APPEND SYCL_SOURCES "esimdcpu_device_interface.cpp")
+endif()
+
 if (MSVC)
   # MSVC provides two incompatible build variants for its CRT: release and debug
   # To avoid potential issues in user code we also need to provide two kinds
