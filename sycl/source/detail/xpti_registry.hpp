@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <mutex>
 #include <string>
 #include <unordered_set>
 
@@ -33,10 +34,7 @@ class XPTIRegistry {
 public:
   void initializeFrameworkOnce() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-    if (!MInitialized) {
-      xptiFrameworkInitialize();
-      MInitialized = true;
-    }
+    std::call_once(MInitialized, [] { xptiFrameworkInitialize(); });
 #endif
   }
 
@@ -65,7 +63,7 @@ public:
 
 private:
   std::unordered_set<std::string> MActiveStreams;
-  bool MInitialized = false;
+  std::once_flag MInitialized;
 };
 } // namespace detail
 } // namespace sycl
