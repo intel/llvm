@@ -107,11 +107,11 @@
 // RUN: %clang -### -fsycl-help %s > %t.help-out 2>&1
 // RUN: FileCheck %s -check-prefix SYCL_HELP_ORDER --input-file=%t.help-out
 // SYCL_HELP_ORDER: Emitting help information for ocloc
-// SYCL_HELP_ORDER: ocloc" "--help"
+// SYCL_HELP_ORDER: ocloc{{(\.exe)?}}" "--help"
 // SYCL_HELP_ORDER: Emitting help information for aoc
-// SYCL_HELP_ORDER: aoc" "-help" "-sycl"
+// SYCL_HELP_ORDER: aoc{{(\.exe)?}}" "-help" "-sycl"
 // SYCL_HELP_ORDER: Emitting help information for opencl-aot
-// SYCL_HELP_ORDER: opencl-aot" "--help"
+// SYCL_HELP_ORDER: opencl-aot{{(\.exe)?}}" "--help"
 
 // -fsycl-id-queries-fit-in-int
 // RUN: %clang -### -fsycl -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES
