@@ -8544,9 +8544,10 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (PICLevel > 0 || TCArgs.hasArg(options::OPT_shared)) {
       LlcArgs.push_back("-relocation-model=pic");
     }
-    if (IsPIE) {
-      LlcArgs.push_back("-enable-pie");
-    }
+    if (Arg *A = C.getArgs().getLastArg(options::OPT_mcmodel_EQ))
+      LlcArgs.push_back(
+          TCArgs.MakeArgString(Twine("--code-model=") + A->getValue()));
+
     SmallString<128> LlcPath(C.getDriver().Dir);
     llvm::sys::path::append(LlcPath, "llc");
     const char *Llc = C.getArgs().MakeArgString(LlcPath);
