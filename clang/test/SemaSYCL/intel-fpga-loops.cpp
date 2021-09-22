@@ -29,13 +29,11 @@ void foo() {
 // Test for deprecated spelling of Intel FPGA loop attributes
 void foo_deprecated() {
   int a[10];
-  // expected-warning@+2 {{attribute 'intelfpga::ivdep' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::ivdep' instead?}}
+  // expected-warning@+1 {{unknown attribute 'ivdep' ignored}}
   [[intelfpga::ivdep(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-warning@+2 {{attribute 'intelfpga::ii' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::initiation_interval' instead?}}
+  // expected-warning@+1 {{unknown attribute 'ii' ignored}}
   [[intelfpga::ii(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
@@ -44,28 +42,23 @@ void foo_deprecated() {
   [[intel::ii(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-warning@+2 {{attribute 'intelfpga::max_concurrency' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::max_concurrency' instead?}}
+  // expected-warning@+1 {{unknown attribute 'max_concurrency' ignored}}
   [[intelfpga::max_concurrency(4)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-warning@+2 {{attribute 'intelfpga::max_interleaving' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::max_interleaving' instead?}}
+  // expected-warning@+1 {{unknown attribute 'max_interleaving' ignored}}
   [[intelfpga::max_interleaving(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-warning@+2 {{attribute 'intelfpga::disable_loop_pipelining' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::disable_loop_pipelining' instead?}}
+  // expected-warning@+1 {{unknown attribute 'disable_loop_pipelining' ignored}}
   [[intelfpga::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-warning@+2 {{attribute 'intelfpga::loop_coalesce' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::loop_coalesce' instead?}}
+  // expected-warning@+1 {{unknown attribute 'loop_coalesce' ignored}}
   [[intelfpga::loop_coalesce(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-warning@+2 {{attribute 'intelfpga::speculated_iterations' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::speculated_iterations' instead?}}
+  // expected-warning@+1 {{unknown attribute 'speculated_iterations' ignored}}
   [[intelfpga::speculated_iterations(6)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
