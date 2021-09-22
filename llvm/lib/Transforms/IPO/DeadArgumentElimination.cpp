@@ -139,10 +139,8 @@ struct DAESYCL : public DAE {
 
 char DAESYCL::ID = 0;
 
-INITIALIZE_PASS(
-    DAESYCL, "deadargelim-sycl",
-    "Dead Argument Elimination for SYCL kernels", false,
-    false)
+INITIALIZE_PASS(DAESYCL, "deadargelim-sycl",
+                "Dead Argument Elimination for SYCL kernels", false, false)
 
 /// createDeadArgEliminationPass - This pass removes arguments from functions
 /// which are not used by the body of the function.
@@ -1184,15 +1182,14 @@ PreservedAnalyses DeadArgumentEliminationPass::run(Module &M,
   return PreservedAnalyses::none();
 }
 
-void DeadArgumentEliminationPass::UpdateNVPTXMetadata(Module &M,
-                                                      Function *F,
+void DeadArgumentEliminationPass::UpdateNVPTXMetadata(Module &M, Function *F,
                                                       Function *NF) {
 
   auto *NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
   if (!NvvmMetadata)
     return;
 
-  for (auto* MetadataNode : NvvmMetadata->operands()) {
+  for (auto *MetadataNode : NvvmMetadata->operands()) {
     const auto &FuncOperand = MetadataNode->getOperand(0);
     if (!FuncOperand)
       continue;

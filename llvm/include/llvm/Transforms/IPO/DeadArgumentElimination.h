@@ -21,9 +21,9 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/IR/Constants.h"
 #include <map>
 #include <set>
 #include <string>
@@ -148,12 +148,13 @@ private:
   void UpdateNVPTXMetadata(Module &M, Function *F, Function *NF);
   llvm::DenseSet<Function *> NVPTXKernelSet;
 
-  bool IsNVPTXKernel(const Function *F) {return NVPTXKernelSet.contains(F);};
+  bool IsNVPTXKernel(const Function *F) { return NVPTXKernelSet.contains(F); };
 
   void BuildNVPTXKernelSet(const Module &M) {
 
     auto *NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
-    if(!NvvmMetadata) return;
+    if (!NvvmMetadata)
+      return;
 
     for (auto *MetadataNode : NvvmMetadata->operands()) {
       if (MetadataNode->getNumOperands() != 3)
@@ -167,11 +168,12 @@ private:
         continue;
 
       // Get a pointer to the entry point function from the metadata.
-      if(const auto &FuncOperand = MetadataNode->getOperand(0)){
-        if(auto *FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand)){
-          if(auto *Func = dyn_cast<Function>(FuncConstant->getValue())){
-            if(auto *Val = mdconst::dyn_extract<ConstantInt>(MetadataNode->getOperand(2))){
-              if(Val->getValue() == 1){
+      if (const auto &FuncOperand = MetadataNode->getOperand(0)) {
+        if (auto *FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand)) {
+          if (auto *Func = dyn_cast<Function>(FuncConstant->getValue())) {
+            if (auto *Val = mdconst::dyn_extract<ConstantInt>(
+                    MetadataNode->getOperand(2))) {
+              if (Val->getValue() == 1) {
                 NVPTXKernelSet.insert(Func);
               }
             }

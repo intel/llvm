@@ -13,8 +13,8 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
-#include "SYCLKernelParamOptInfo.h"
 #include "SYCLDeviceLibReqMask.h"
+#include "SYCLKernelParamOptInfo.h"
 #include "SpecConstants.h"
 
 #include "llvm/ADT/SetVector.h"
