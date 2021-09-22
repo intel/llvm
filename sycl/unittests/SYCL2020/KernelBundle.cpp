@@ -220,9 +220,9 @@ TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
             << "Unexpected exception was thrown in kernel invocation function.";
       }
     });
-  } catch (const UnqiueException &e) {
+  } catch (const UnqiueException &) {
     // Expected path
-  } catch (const sycl::exception &e) {
+  } catch (const sycl::exception &) {
     FAIL() << "sycl::exception thrown at the wrong level.";
   } catch (...) {
     FAIL() << "Unexpected exception was thrown in submit.";
