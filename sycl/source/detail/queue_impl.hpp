@@ -509,7 +509,7 @@ private:
       return EventImpl;
     };
 
-    if (MHostQueue) {
+    if (MHostQueue || Type != CG::Kernel) {
       EventImplPtr EventImpl = MUploadDataFunctor(true);
       return detail::createSyclObjFromImpl<event>(EventImpl);
     }

@@ -191,7 +191,7 @@ void event_impl::wait(
     std::function<EventImplPtr(bool)> EmptyFunctor;
     EmptyFunctor.swap(MDoSubmitFunctor);
     EventImplPtr EventImpl = EmptyFunctor(true);
-    wait(EventImpl);
+    EventImpl->wait(EventImpl);
     return;
   }
 
