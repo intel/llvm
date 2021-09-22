@@ -250,6 +250,7 @@ enum class kernel_device_specific : cl_kernel_work_group_info {
   preferred_work_group_size_multiple =
       CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
   private_mem_size = CL_KERNEL_PRIVATE_MEM_SIZE,
+  num_regs = CL_KERNEL_NUM_REGS,
   max_sub_group_size = CL_KERNEL_MAX_SUB_GROUP_SIZE_FOR_NDRANGE,
   max_num_sub_groups = CL_KERNEL_MAX_NUM_SUB_GROUPS,
   compile_num_sub_groups = CL_KERNEL_COMPILE_NUM_SUB_GROUPS,

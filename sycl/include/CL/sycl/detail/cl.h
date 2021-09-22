@@ -16,3 +16,5 @@
 
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
+
+#define CL_KERNEL_NUM_REGS                  0x11BB
