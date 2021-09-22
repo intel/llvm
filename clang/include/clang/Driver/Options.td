@@ -2685,6 +2685,11 @@ def fsycl_footer_path_EQ : Joined<["-"], "fsycl-footer-path=">,
 def fno_sycl_link_spirv : Flag<["-"], "fno-sycl-link-spirv">,
   Flags<[CoreOption]>, HelpText<"Disable adding of the default (spir64) triple "
   "when discovered in user specified objects and archives.">;
+def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
+  Flags<[CoreOption]>, Group<f_Group>,
+  HelpText<"Experimental feature: Controls the maximum parallelism of actions performed "
+  "on SYCL device code post-link, i.e. the generation of SPIR-V device images "
+  "or AOT compilation of each device image.">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option]>, Group<Action_Group>;
 def ftabstop_EQ : Joined<["-"], "ftabstop=">, Group<f_Group>;
