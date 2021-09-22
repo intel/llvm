@@ -175,14 +175,11 @@ set(SYCL_SOURCES
     "sampler.cpp"
     "stream.cpp"
     "spirv_ops.cpp"
+    "esimdcpu_device_interface.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
     "$<$<PLATFORM_ID:Windows>:abi_replacements_windows.cpp>"
 )
-
-if (SYCL_BUILD_PI_ESIMD_CPU)
-  list(APPEND SYCL_SOURCES "esimdcpu_device_interface.cpp")
-endif()
 
 if (MSVC)
   # MSVC provides two incompatible build variants for its CRT: release and debug
