@@ -97,11 +97,21 @@
 // SYCL-HELP-BADARG: unsupported argument 'foo' to option 'fsycl-help='
 // SYCL-HELP-GEN: Emitting help information for ocloc
 // SYCL-HELP-GEN: Use triple of 'spir64_gen-unknown-unknown' to enable ahead of time compilation
-// SYCL-HELP-FPGA-OUT: "[[DIR]]{{[/\\]+}}aoc" "-help" "-sycl"
 // SYCL-HELP-FPGA: Emitting help information for aoc
 // SYCL-HELP-FPGA: Use triple of 'spir64_fpga-unknown-unknown' to enable ahead of time compilation
+// SYCL-HELP-FPGA-OUT: "[[DIR]]{{[/\\]+}}aoc" "-help" "-sycl"
 // SYCL-HELP-CPU: Emitting help information for opencl-aot
 // SYCL-HELP-CPU: Use triple of 'spir64_x86_64-unknown-unknown' to enable ahead of time compilation
+
+// -fsycl-help redirect to file should retain proper information ordering
+// RUN: %clang -### -fsycl-help %s > %t.help-out 2>&1
+// RUN: FileCheck %s -check-prefix SYCL_HELP_ORDER --input-file=%t.help-out
+// SYCL_HELP_ORDER: Emitting help information for ocloc
+// SYCL_HELP_ORDER: ocloc" "--help"
+// SYCL_HELP_ORDER: Emitting help information for aoc
+// SYCL_HELP_ORDER: aoc" "-help" "-sycl"
+// SYCL_HELP_ORDER: Emitting help information for opencl-aot
+// SYCL_HELP_ORDER: opencl-aot" "--help"
 
 // -fsycl-id-queries-fit-in-int
 // RUN: %clang -### -fsycl -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES
