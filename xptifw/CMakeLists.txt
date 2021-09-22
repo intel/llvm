@@ -19,7 +19,7 @@ if (XPTI_ENABLE_WERROR)
   if(MSVC)
     set(CMAKE_CXX_FLAGS "/WX ${CMAKE_CXX_FLAGS}")
   else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+    set(CMAKE_CXX_FLAGS "-Werror ${CMAKE_CXX_FLAGS}")
   endif()
 endif()
 

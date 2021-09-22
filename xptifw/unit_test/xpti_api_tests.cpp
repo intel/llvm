@@ -11,12 +11,11 @@
 #include <vector>
 
 static int func_callback_update = 0;
-static bool TPCB2Called = false;
-
+static int TPCB2Called = 0;
 class xptiApiTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    TPCB2Called = false;
+    TPCB2Called = 0;
     func_callback_update = 0;
   }
 
@@ -220,8 +219,8 @@ void trace_point_callback(uint16_t /*trace_type*/,
 void trace_point_callback2(uint16_t /*trace_type*/,
                            xpti::trace_event_data_t * /*parent*/,
                            xpti::trace_event_data_t * /*event*/,
-                           uint64_t /*instance*/, const void * /*user_data*/) {
-  TPCB2Called = true;
+                           uint64_t /*instance*/, const void *user_data) {
+  TPCB2Called = *static_cast<const int *>(user_data);
 }
 
 void fn_callback(uint16_t /*trace_type*/, xpti::trace_event_data_t * /*parent*/,
@@ -307,13 +306,12 @@ TEST_F(xptiApiTest, xptiNotifySubscribersGoodInput) {
 
   uint8_t StreamID = xptiRegisterStream("foo");
   xptiForceSetTraceEnabled(true);
-  int foo_return = 0;
+  int FooUserData = 42;
   auto Result = xptiRegisterCallback(StreamID, 1, trace_point_callback2);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
-  Result = xptiNotifySubscribers(StreamID, 1, nullptr, Event, 0,
-                                 (void *)(&foo_return));
+  Result = xptiNotifySubscribers(StreamID, 1, nullptr, Event, 0, &FooUserData);
   EXPECT_EQ(Result, xpti::result_t::XPTI_RESULT_SUCCESS);
-  EXPECT_TRUE(TPCB2Called);
+  EXPECT_EQ(TPCB2Called, FooUserData);
   int tmp = func_callback_update;
   Result = xptiRegisterCallback(
       StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::function_begin),
