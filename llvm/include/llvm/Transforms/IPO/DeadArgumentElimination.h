@@ -75,9 +75,9 @@ public:
   enum Liveness { Live, MaybeLive };
 
   DeadArgumentEliminationPass(bool ShouldHackArguments_ = false,
-                              bool CheckSpirKernels_ = false)
+                              bool CheckSYCLKernels_ = false)
       : ShouldHackArguments(ShouldHackArguments_),
-        CheckSpirKernels(CheckSpirKernels_) {}
+        CheckSYCLKernels(CheckSYCLKernels_) {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
@@ -124,9 +124,9 @@ public:
   /// (used only by bugpoint).
   bool ShouldHackArguments = false;
 
-  /// This allows to eliminate dead arguments in SPIR kernel functions with
-  /// external linkage in SYCL environment
-  bool CheckSpirKernels = false;
+  /// This allows to eliminate dead arguments in SYCL kernel functions with
+  /// external linkage
+  bool CheckSYCLKernels = false;
 
 private:
   Liveness MarkIfNotLive(RetOrArg Use, UseVector &MaybeLiveUses);
@@ -193,7 +193,7 @@ public:
 private:
   DeadArgumentEliminationPass Impl =
       DeadArgumentEliminationPass(/* ShouldHackArguemtns */ false,
-                                  /* CheckSpirKernels */ true);
+                                  /* CheckSYCLKernels */ true);
 };
 
 } // end namespace llvm
