@@ -71,8 +71,7 @@
 //
 // Overall this sounds stable enough. What could possibly go wrong?
 //
-// RUN: %CPU_RUN_PLACEHOLDER env SYCL_PI_TRACE=2 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGABRT SKIP_IF_NO_EXT=1 %t.out 2>%t.stderr.native >%t.stdout.native
-// RUN: FileCheck %s --input-file %t.stdout.native --check-prefixes=CHECK-NATIVE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED
+// RUN: %CPU_RUN_PLACEHOLDER env SYCL_PI_TRACE=2 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGABRT %t.out 2>%t.stderr.native
 // RUN: FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED
 //
 // Skip the test if the CPU RT doesn't support the extension yet:
