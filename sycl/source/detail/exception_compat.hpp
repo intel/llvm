@@ -88,7 +88,6 @@ DEFINE_CL_SYCL_EXCEPTION(feature_not_supported)
 //class feature_not_supported : public device_error {
   //using device_error::device_error;
 //};
-
 } // namespace sycl
 } // namespace cl
 

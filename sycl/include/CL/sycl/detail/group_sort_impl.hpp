@@ -15,8 +15,7 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS() {
 namespace detail {
 
 // ---- merge sort implementation
@@ -250,7 +249,7 @@ void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
 }
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()
 #endif
 #endif // __cplusplus >=201703L
