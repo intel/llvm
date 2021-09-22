@@ -598,11 +598,6 @@ SPIRVToLLVM::transValue(const std::vector<SPIRVValue *> &BV, Function *F,
   return V;
 }
 
-bool SPIRVToLLVM::isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const {
-  auto OC = BI->getOpCode();
-  return isCmpOpCode(OC) && OC != OpLessOrGreater;
-}
-
 void SPIRVToLLVM::setName(llvm::Value *V, SPIRVValue *BV) {
   auto Name = BV->getName();
   if (!Name.empty() && (!V->hasName() || Name != V->getName()))
@@ -1113,6 +1108,9 @@ Value *SPIRVToLLVM::transCmpInst(SPIRVValue *BV, BasicBlock *BB, Function *F) {
   if (BB) {
     Builder.SetInsertPoint(BB);
   }
+
+  if (OP == OpLessOrGreater)
+    OP = OpFOrdNotEqual;
 
   if (BT->isTypeVectorOrScalarInt() || BT->isTypeVectorOrScalarBool() ||
       BT->isTypePointer())
@@ -2491,7 +2489,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   default: {
     auto OC = BV->getOpCode();
-    if (isSPIRVCmpInstTransToLLVMInst(static_cast<SPIRVInstruction *>(BV)))
+    if (isCmpOpCode(OC))
       return mapValue(BV, transCmpInst(BV, BB, F));
 
     if (OCLSPIRVBuiltinMap::rfind(OC, nullptr))
