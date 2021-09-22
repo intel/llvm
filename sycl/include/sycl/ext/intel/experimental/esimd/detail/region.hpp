@@ -49,15 +49,16 @@ struct region_base {
 
 // A basic 1D region type.
 template <typename T, int Size, int Stride>
-using region1d_t = region_base<false, T, 1, 0, Size, Stride>;
+using region1d_t = region_base<false, T, 1, 1, Size, Stride>;
 
 // A basic 2D region type.
 template <typename T, int SizeY, int StrideY, int SizeX, int StrideX>
 using region2d_t = region_base<true, T, SizeY, StrideY, SizeX, StrideX>;
 
 // A region with a single element.
-template <typename T, int StrideY, int StrideX>
-using region1d_scalar_t = region_base<false, T, 1, StrideY, 1, StrideX>;
+template <typename T>
+using region1d_scalar_t =
+    region_base<false, T, 1 /*SizeY*/, 1 /*StrideY*/, 1, 1>;
 
 // simd_view forward declaration.
 template <typename BaseTy, typename RegionTy> class simd_view;
@@ -91,12 +92,20 @@ template <typename Ty, int Size, int Stride>
 struct shape_type<region1d_t<Ty, Size, Stride>> {
   using element_type = Ty;
   using type = region1d_t<Ty, Size, Stride>;
+  static inline constexpr int length = type::length;
+};
+
+template <typename Ty> struct shape_type<region1d_scalar_t<Ty>> {
+  using element_type = Ty;
+  using type = region1d_t<Ty, 1, 1>;
+  static inline constexpr int length = type::length;
 };
 
 template <typename Ty, int SizeY, int StrideY, int SizeX, int StrideX>
 struct shape_type<region2d_t<Ty, SizeY, StrideY, SizeX, StrideX>> {
   using element_type = Ty;
   using type = region2d_t<Ty, SizeY, StrideY, SizeX, StrideX>;
+  static inline constexpr int length = type::length;
 };
 
 // Forward the shape computation on the top region type.

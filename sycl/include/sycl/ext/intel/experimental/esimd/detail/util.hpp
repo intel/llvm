@@ -15,6 +15,10 @@
 
 #include <type_traits>
 
+#define __SEIEED __sycl_internal::__v1::ext::intel::experimental::esimd::detail
+#define __SEIEE __sycl_internal::__v1::ext::intel::experimental::esimd
+#define __SEIEEED __sycl_internal::__v1::ext::intel::experimental::esimd::emu::detail
+
 __SYCL_OPEN_NS() {
 namespace ext {
 namespace intel {

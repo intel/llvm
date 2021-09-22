@@ -14,8 +14,7 @@
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/marray.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_OPEN_NS() {
 namespace detail {
 class Builder;
 } // namespace detail
@@ -263,5 +262,5 @@ group_ballot(Group g, bool predicate) {
 
 } // namespace oneapi
 } // namespace ext
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_OPEN_NS()
+__SYCL_CLOSE_NS()

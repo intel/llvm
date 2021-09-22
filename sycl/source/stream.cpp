@@ -17,21 +17,28 @@ __SYCL_OPEN_NS() {
 static constexpr size_t MAX_STATEMENT_SIZE =
     (1 << (CHAR_BIT * detail::FLUSH_BUF_OFFSET_SIZE)) - 1;
 
-stream::stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH)
-    : impl(std::make_shared<detail::stream_impl>(BufferSize, MaxStatementSize,
-                                                 CGH)),
-      GlobalBuf(impl->accessGlobalBuf(CGH)),
-      GlobalOffset(impl->accessGlobalOffset(CGH)),
-      // Allocate the flush buffer, which contains space for each work item
-      GlobalFlushBuf(impl->accessGlobalFlushBuf(CGH)),
-      FlushBufferSize(MaxStatementSize + detail::FLUSH_BUF_OFFSET_SIZE) {
+// Checks the MaxStatementSize argument of the sycl::stream class. This is
+// called on MaxStatementSize as it is passed to the constructor of the
+// underlying stream_impl to make it throw before the stream buffers are
+// allocated, avoiding memory leaks.
+static size_t CheckMaxStatementSize(const size_t &MaxStatementSize) {
   if (MaxStatementSize > MAX_STATEMENT_SIZE) {
     throw sycl::invalid_parameter_error_compat(
         "Maximum statement size exceeds limit of " +
             std::to_string(MAX_STATEMENT_SIZE) + " bytes.",
         PI_INVALID_VALUE);
   }
+  return MaxStatementSize;
+}
 
+stream::stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH)
+    : impl(std::make_shared<detail::stream_impl>(
+          BufferSize, CheckMaxStatementSize(MaxStatementSize), CGH)),
+      GlobalBuf(impl->accessGlobalBuf(CGH)),
+      GlobalOffset(impl->accessGlobalOffset(CGH)),
+      // Allocate the flush buffer, which contains space for each work item
+      GlobalFlushBuf(impl->accessGlobalFlushBuf(CGH)),
+      FlushBufferSize(MaxStatementSize + detail::FLUSH_BUF_OFFSET_SIZE) {
   // Save stream implementation in the handler so that stream will be alive
   // during kernel execution
   CGH.addStream(impl);

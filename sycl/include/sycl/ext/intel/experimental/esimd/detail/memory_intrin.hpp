@@ -73,9 +73,6 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()
 
-#define __SEIEE sycl::ext::intel::experimental::esimd
-#define __SEIEED sycl::ext::intel::experimental::esimd::detail
-
 // flat_read does flat-address gather
 template <typename Ty, int N, int NumBlk = 0,
           __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
@@ -84,7 +81,7 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
     __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)>
     __esimd_flat_read(__SEIEED::vector_type_t<uint64_t, N> addrs,
                       int ElemsPerAddr = NumBlk,
-                      __SEIEED::vector_type_t<uint16_t, N> pred = 1);
+                      __SEIEED::simd_mask_storage_t<N> pred = 1);
 
 // flat_write does flat-address scatter
 template <typename Ty, int N, int NumBlk = 0,
@@ -94,7 +91,7 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void __esimd_flat_write(
     __SEIEED::vector_type_t<uint64_t, N> addrs,
     __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)>
         vals,
-    int ElemsPerAddr = NumBlk, __SEIEED::vector_type_t<uint16_t, N> pred = 1);
+    int ElemsPerAddr = NumBlk, __SEIEED::simd_mask_storage_t<N> pred = 1);
 
 // flat_block_read reads a block of data from one flat address
 template <typename Ty, int N, __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
@@ -126,7 +123,7 @@ template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask,
 __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
     SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
     __esimd_flat_read4(__SEIEED::vector_type_t<uint64_t, N> addrs,
-                       __SEIEED::vector_type_t<uint16_t, N> pred = 1);
+                       __SEIEED::simd_mask_storage_t<N> pred = 1);
 
 // flat_write does flat-address scatter
 template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask,
@@ -135,7 +132,7 @@ template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask,
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void __esimd_flat_write4(
     __SEIEED::vector_type_t<uint64_t, N> addrs,
     __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
-    __SEIEED::vector_type_t<uint16_t, N> pred = 1);
+    __SEIEED::simd_mask_storage_t<N> pred = 1);
 
 // Low-level surface-based gather. Collects elements located at given offsets in
 // a surface and returns them as a single \ref simd object. Element can be
@@ -204,7 +201,7 @@ template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
           __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
           __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
-__esimd_surf_write(__SEIEED::vector_type_t<uint16_t, N> pred, int16_t scale,
+__esimd_surf_write(__SEIEED::simd_mask_storage_t<N> pred, int16_t scale,
                    SurfIndAliasTy surf_ind, uint32_t global_offset,
                    __SEIEED::vector_type_t<uint32_t, N> elem_offsets,
                    __SEIEED::vector_type_t<Ty, N> vals)
@@ -228,7 +225,7 @@ template <__SEIEE::atomic_op Op, typename Ty, int N,
           __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_flat_atomic0(__SEIEED::vector_type_t<uint64_t, N> addrs,
-                     __SEIEED::vector_type_t<uint16_t, N> pred);
+                     __SEIEED::simd_mask_storage_t<N> pred);
 
 template <__SEIEE::atomic_op Op, typename Ty, int N,
           __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
@@ -236,7 +233,7 @@ template <__SEIEE::atomic_op Op, typename Ty, int N,
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_flat_atomic1(__SEIEED::vector_type_t<uint64_t, N> addrs,
                      __SEIEED::vector_type_t<Ty, N> src0,
-                     __SEIEED::vector_type_t<uint16_t, N> pred);
+                     __SEIEED::simd_mask_storage_t<N> pred);
 
 template <__SEIEE::atomic_op Op, typename Ty, int N,
           __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
@@ -245,7 +242,7 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_flat_atomic2(__SEIEED::vector_type_t<uint64_t, N> addrs,
                      __SEIEED::vector_type_t<Ty, N> src0,
                      __SEIEED::vector_type_t<Ty, N> src1,
-                     __SEIEED::vector_type_t<uint16_t, N> pred);
+                     __SEIEED::simd_mask_storage_t<N> pred);
 
 // esimd_barrier, generic group barrier
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void __esimd_barrier();
@@ -261,14 +258,14 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void __esimd_slm_fence(uint8_t cntl);
 template <typename Ty, int N>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_read(__SEIEED::vector_type_t<uint32_t, N> addrs,
-                 __SEIEED::vector_type_t<uint16_t, N> pred = 1);
+                 __SEIEED::simd_mask_storage_t<N> pred = 1);
 
 // slm_write does SLM scatter
 template <typename Ty, int N>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
 __esimd_slm_write(__SEIEED::vector_type_t<uint32_t, N> addrs,
                   __SEIEED::vector_type_t<Ty, N> vals,
-                  __SEIEED::vector_type_t<uint16_t, N> pred = 1);
+                  __SEIEED::simd_mask_storage_t<N> pred = 1);
 
 // slm_block_read reads a block of data from SLM
 template <typename Ty, int N>
@@ -285,33 +282,33 @@ template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
     __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
     __esimd_slm_read4(__SEIEED::vector_type_t<uint32_t, N> addrs,
-                      __SEIEED::vector_type_t<uint16_t, N> pred = 1);
+                      __SEIEED::simd_mask_storage_t<N> pred = 1);
 
 // slm_write4 does SLM scatter4
 template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void __esimd_slm_write4(
     __SEIEED::vector_type_t<uint32_t, N> addrs,
     __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
-    __SEIEED::vector_type_t<uint16_t, N> pred = 1);
+    __SEIEED::simd_mask_storage_t<N> pred = 1);
 
 // slm_atomic: SLM atomic
 template <__SEIEE::atomic_op Op, typename Ty, int N>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_atomic0(__SEIEED::vector_type_t<uint32_t, N> addrs,
-                    __SEIEED::vector_type_t<uint16_t, N> pred);
+                    __SEIEED::simd_mask_storage_t<N> pred);
 
 template <__SEIEE::atomic_op Op, typename Ty, int N>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_atomic1(__SEIEED::vector_type_t<uint32_t, N> addrs,
                     __SEIEED::vector_type_t<Ty, N> src0,
-                    __SEIEED::vector_type_t<uint16_t, N> pred);
+                    __SEIEED::simd_mask_storage_t<N> pred);
 
 template <__SEIEE::atomic_op Op, typename Ty, int N>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_atomic2(__SEIEED::vector_type_t<uint32_t, N> addrs,
                     __SEIEED::vector_type_t<Ty, N> src0,
                     __SEIEED::vector_type_t<Ty, N> src1,
-                    __SEIEED::vector_type_t<uint16_t, N> pred);
+                    __SEIEED::simd_mask_storage_t<N> pred);
 
 // Media block load
 //
@@ -417,9 +414,9 @@ template <typename Ty1, int N1, typename Ty2, int N2, typename Ty3, int N3,
           int N = 16>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty1, N1>
 __esimd_raw_sends_load(uint8_t modifier, uint8_t execSize,
-                       __SEIEED::vector_type_t<uint16_t, N> pred,
-                       uint8_t numSrc0, uint8_t numSrc1, uint8_t numDst,
-                       uint8_t sfid, uint32_t exDesc, uint32_t msgDesc,
+                       __SEIEED::simd_mask_storage_t<N> pred, uint8_t numSrc0,
+                       uint8_t numSrc1, uint8_t numDst, uint8_t sfid,
+                       uint32_t exDesc, uint32_t msgDesc,
                        __SEIEED::vector_type_t<Ty2, N2> msgSrc0,
                        __SEIEED::vector_type_t<Ty3, N3> msgSrc1,
                        __SEIEED::vector_type_t<Ty1, N1> msgDst);
@@ -453,9 +450,9 @@ __esimd_raw_sends_load(uint8_t modifier, uint8_t execSize,
 template <typename Ty1, int N1, typename Ty2, int N2, int N = 16>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty1, N1>
 __esimd_raw_send_load(uint8_t modifier, uint8_t execSize,
-                      __SEIEED::vector_type_t<uint16_t, N> pred,
-                      uint8_t numSrc0, uint8_t numDst, uint8_t sfid,
-                      uint32_t exDesc, uint32_t msgDesc,
+                      __SEIEED::simd_mask_storage_t<N> pred, uint8_t numSrc0,
+                      uint8_t numDst, uint8_t sfid, uint32_t exDesc,
+                      uint32_t msgDesc,
                       __SEIEED::vector_type_t<Ty2, N2> msgSrc0,
                       __SEIEED::vector_type_t<Ty1, N1> msgDst);
 
@@ -484,13 +481,11 @@ __esimd_raw_send_load(uint8_t modifier, uint8_t execSize,
 /// @param msgSrc1 the second source operand of send message.
 ///
 template <typename Ty1, int N1, typename Ty2, int N2, int N = 16>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
-__esimd_raw_sends_store(uint8_t modifier, uint8_t execSize,
-                        __SEIEED::vector_type_t<uint16_t, N> pred,
-                        uint8_t numSrc0, uint8_t numSrc1, uint8_t sfid,
-                        uint32_t exDesc, uint32_t msgDesc,
-                        __SEIEED::vector_type_t<Ty1, N1> msgSrc0,
-                        __SEIEED::vector_type_t<Ty2, N2> msgSrc1);
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void __esimd_raw_sends_store(
+    uint8_t modifier, uint8_t execSize, __SEIEED::simd_mask_storage_t<N> pred,
+    uint8_t numSrc0, uint8_t numSrc1, uint8_t sfid, uint32_t exDesc,
+    uint32_t msgDesc, __SEIEED::vector_type_t<Ty1, N1> msgSrc0,
+    __SEIEED::vector_type_t<Ty2, N2> msgSrc1);
 
 /// \brief Raw send store.
 ///
@@ -514,9 +509,8 @@ __esimd_raw_sends_store(uint8_t modifier, uint8_t execSize,
 template <typename Ty1, int N1, int N = 16>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
 __esimd_raw_send_store(uint8_t modifier, uint8_t execSize,
-                       __SEIEED::vector_type_t<uint16_t, N> pred,
-                       uint8_t numSrc0, uint8_t sfid, uint32_t exDesc,
-                       uint32_t msgDesc,
+                       __SEIEED::simd_mask_storage_t<N> pred, uint8_t numSrc0,
+                       uint8_t sfid, uint32_t exDesc, uint32_t msgDesc,
                        __SEIEED::vector_type_t<Ty1, N1> msgSrc0);
 #ifndef __SYCL_DEVICE_ONLY__
 
@@ -524,7 +518,7 @@ template <typename Ty, int N, int NumBlk, __SEIEE::CacheHint L1H,
           __SEIEE::CacheHint L3H>
 inline __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)>
 __esimd_flat_read(__SEIEED::vector_type_t<uint64_t, N> addrs, int ElemsPerAddr,
-                  __SEIEED::vector_type_t<uint16_t, N> pred) {
+                  __SEIEED::simd_mask_storage_t<N> pred) {
   auto NumBlkDecoded = __SEIEED::ElemsPerAddrDecoding(NumBlk);
   __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)> V;
   ElemsPerAddr = __SEIEED::ElemsPerAddrDecoding(ElemsPerAddr);
@@ -550,7 +544,7 @@ template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask,
           __SEIEE::CacheHint L1H, __SEIEE::CacheHint L3H>
 inline __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
 __esimd_flat_read4(__SEIEED::vector_type_t<uint64_t, N> addrs,
-                   __SEIEED::vector_type_t<uint16_t, N> pred) {
+                   __SEIEED::simd_mask_storage_t<N> pred) {
   __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V;
   unsigned int Next = 0;
 
@@ -600,7 +594,7 @@ inline void __esimd_flat_write(
     __SEIEED::vector_type_t<uint64_t, N> addrs,
     __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)>
         vals,
-    int ElemsPerAddr, __SEIEED::vector_type_t<uint16_t, N> pred) {
+    int ElemsPerAddr, __SEIEED::simd_mask_storage_t<N> pred) {
   auto NumBlkDecoded = __SEIEED::ElemsPerAddrDecoding(NumBlk);
   ElemsPerAddr = __SEIEED::ElemsPerAddrDecoding(ElemsPerAddr);
 
@@ -625,7 +619,7 @@ template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask,
 inline void __esimd_flat_write4(
     __SEIEED::vector_type_t<uint64_t, N> addrs,
     __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
-    __SEIEED::vector_type_t<uint16_t, N> pred) {
+    __SEIEED::simd_mask_storage_t<N> pred) {
   __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V;
   unsigned int Next = 0;
 
@@ -829,7 +823,7 @@ inline void __esimd_slm_fence(uint8_t cntl) {}
 template <typename Ty, int N>
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_read(__SEIEED::vector_type_t<uint32_t, N> addrs,
-                 __SEIEED::vector_type_t<uint16_t, N> pred) {
+                 __SEIEED::simd_mask_storage_t<N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
   return retv;
 }
@@ -838,7 +832,7 @@ __esimd_slm_read(__SEIEED::vector_type_t<uint32_t, N> addrs,
 template <typename Ty, int N>
 inline void __esimd_slm_write(__SEIEED::vector_type_t<uint32_t, N> addrs,
                               __SEIEED::vector_type_t<Ty, N> vals,
-                              __SEIEED::vector_type_t<uint16_t, N> pred) {}
+                              __SEIEED::simd_mask_storage_t<N> pred) {}
 
 // slm_block_read reads a block of data from SLM
 template <typename Ty, int N>
@@ -856,7 +850,7 @@ inline void __esimd_slm_block_write(uint32_t addr,
 template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
 inline __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
 __esimd_slm_read4(__SEIEED::vector_type_t<uint32_t, N> addrs,
-                  __SEIEED::vector_type_t<uint16_t, N> pred) {
+                  __SEIEED::simd_mask_storage_t<N> pred) {
   __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> retv;
   return retv;
 }
@@ -866,13 +860,13 @@ template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
 inline void __esimd_slm_write4(
     __SEIEED::vector_type_t<uint32_t, N> addrs,
     __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
-    __SEIEED::vector_type_t<uint16_t, N> pred) {}
+    __SEIEED::simd_mask_storage_t<N> pred) {}
 
 // slm_atomic: SLM atomic
 template <__SEIEE::atomic_op Op, typename Ty, int N>
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_atomic0(__SEIEED::vector_type_t<uint32_t, N> addrs,
-                    __SEIEED::vector_type_t<uint16_t, N> pred) {
+                    __SEIEED::simd_mask_storage_t<N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
   return retv;
 }
@@ -881,7 +875,7 @@ template <__SEIEE::atomic_op Op, typename Ty, int N>
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_atomic1(__SEIEED::vector_type_t<uint32_t, N> addrs,
                     __SEIEED::vector_type_t<Ty, N> src0,
-                    __SEIEED::vector_type_t<uint16_t, N> pred) {
+                    __SEIEED::simd_mask_storage_t<N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
   return retv;
 }
@@ -891,7 +885,7 @@ inline __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_atomic2(__SEIEED::vector_type_t<uint32_t, N> addrs,
                     __SEIEED::vector_type_t<Ty, N> src0,
                     __SEIEED::vector_type_t<Ty, N> src1,
-                    __SEIEED::vector_type_t<uint16_t, N> pred) {
+                    __SEIEED::simd_mask_storage_t<N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
   return retv;
 }
@@ -900,7 +894,7 @@ template <__SEIEE::atomic_op Op, typename Ty, int N, __SEIEE::CacheHint L1H,
           __SEIEE::CacheHint L3H>
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_flat_atomic0(__SEIEED::vector_type_t<uint64_t, N> addrs,
-                     __SEIEED::vector_type_t<uint16_t, N> pred) {
+                     __SEIEED::simd_mask_storage_t<N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
   return retv;
 }
@@ -910,7 +904,7 @@ template <__SEIEE::atomic_op Op, typename Ty, int N, __SEIEE::CacheHint L1H,
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_flat_atomic1(__SEIEED::vector_type_t<uint64_t, N> addrs,
                      __SEIEED::vector_type_t<Ty, N> src0,
-                     __SEIEED::vector_type_t<uint16_t, N> pred) {
+                     __SEIEED::simd_mask_storage_t<N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
   return retv;
 }
@@ -921,7 +915,7 @@ inline __SEIEED::vector_type_t<Ty, N>
 __esimd_flat_atomic2(__SEIEED::vector_type_t<uint64_t, N> addrs,
                      __SEIEED::vector_type_t<Ty, N> src0,
                      __SEIEED::vector_type_t<Ty, N> src1,
-                     __SEIEED::vector_type_t<uint16_t, N> pred) {
+                     __SEIEED::simd_mask_storage_t<N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
   return retv;
 }
@@ -985,14 +979,12 @@ inline uint32_t __esimd_get_value(AccessorTy acc) {
 ///
 template <typename Ty1, int N1, typename Ty2, int N2, typename Ty3, int N3,
           int N>
-inline __SEIEED::vector_type_t<Ty1, N1>
-__esimd_raw_sends_load(uint8_t modifier, uint8_t execSize,
-                       __SEIEED::vector_type_t<uint16_t, N> pred,
-                       uint8_t numSrc0, uint8_t numSrc1, uint8_t numDst,
-                       uint8_t sfid, uint32_t exDesc, uint32_t msgDesc,
-                       __SEIEED::vector_type_t<Ty2, N2> msgSrc0,
-                       __SEIEED::vector_type_t<Ty3, N3> msgSrc1,
-                       __SEIEED::vector_type_t<Ty1, N1> msgDst) {
+inline __SEIEED::vector_type_t<Ty1, N1> __esimd_raw_sends_load(
+    uint8_t modifier, uint8_t execSize, __SEIEED::simd_mask_storage_t<N> pred,
+    uint8_t numSrc0, uint8_t numSrc1, uint8_t numDst, uint8_t sfid,
+    uint32_t exDesc, uint32_t msgDesc, __SEIEED::vector_type_t<Ty2, N2> msgSrc0,
+    __SEIEED::vector_type_t<Ty3, N3> msgSrc1,
+    __SEIEED::vector_type_t<Ty1, N1> msgDst) {
   throw __sycl_ns::feature_not_supported();
   return 0;
 }
@@ -1024,13 +1016,11 @@ __esimd_raw_sends_load(uint8_t modifier, uint8_t execSize,
 /// Returns a simd vector of type Ty1 and size N1.
 ///
 template <typename Ty1, int N1, typename Ty2, int N2, int N>
-inline __SEIEED::vector_type_t<Ty1, N1>
-__esimd_raw_send_load(uint8_t modifier, uint8_t execSize,
-                      __SEIEED::vector_type_t<uint16_t, N> pred,
-                      uint8_t numSrc0, uint8_t numDst, uint8_t sfid,
-                      uint32_t exDesc, uint32_t msgDesc,
-                      __SEIEED::vector_type_t<Ty2, N2> msgSrc0,
-                      __SEIEED::vector_type_t<Ty1, N1> msgDst) {
+inline __SEIEED::vector_type_t<Ty1, N1> __esimd_raw_send_load(
+    uint8_t modifier, uint8_t execSize, __SEIEED::simd_mask_storage_t<N> pred,
+    uint8_t numSrc0, uint8_t numDst, uint8_t sfid, uint32_t exDesc,
+    uint32_t msgDesc, __SEIEED::vector_type_t<Ty2, N2> msgSrc0,
+    __SEIEED::vector_type_t<Ty1, N1> msgDst) {
   throw __sycl_ns::feature_not_supported();
   return 0;
 }
@@ -1061,7 +1051,7 @@ __esimd_raw_send_load(uint8_t modifier, uint8_t execSize,
 ///
 template <typename Ty1, int N1, typename Ty2, int N2, int N>
 inline void __esimd_raw_sends_store(uint8_t modifier, uint8_t execSize,
-                                    __SEIEED::vector_type_t<uint16_t, N> pred,
+                                    __SEIEED::simd_mask_storage_t<N> pred,
                                     uint8_t numSrc0, uint8_t numSrc1,
                                     uint8_t sfid, uint32_t exDesc,
                                     uint32_t msgDesc,
@@ -1091,7 +1081,7 @@ inline void __esimd_raw_sends_store(uint8_t modifier, uint8_t execSize,
 ///
 template <typename Ty1, int N1, int N>
 inline void __esimd_raw_send_store(uint8_t modifier, uint8_t execSize,
-                                   __SEIEED::vector_type_t<uint16_t, N> pred,
+                                   __SEIEED::simd_mask_storage_t<N> pred,
                                    uint8_t numSrc0, uint8_t sfid,
                                    uint32_t exDesc, uint32_t msgDesc,
                                    __SEIEED::vector_type_t<Ty1, N1> msgSrc0) {
@@ -1099,6 +1089,3 @@ inline void __esimd_raw_send_store(uint8_t modifier, uint8_t execSize,
 }
 
 #endif // __SYCL_DEVICE_ONLY__
-
-#undef __SEIEED
-#undef __SEIEE

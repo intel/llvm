@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
+// RUN: %clangxx -fsycl -fsyntax-only -fsycl-device-only -Xclang -verify %s
 
 #include <limits>
 #include <sycl/ext/intel/experimental/esimd.hpp>

@@ -2576,61 +2576,62 @@ pi_result cuda_piEnqueueKernelLaunch(
   size_t maxThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
   pi_uint32 local_size = kernel->get_local_size();
-
-  {
-    size_t *reqdThreadsPerBlock = kernel->reqdThreadsPerBlock_;
-    maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
-    command_queue->device_->get_max_work_item_sizes(sizeof(maxThreadsPerBlock),
-                                                    maxThreadsPerBlock);
-
-    if (providedLocalWorkGroupSize) {
-      auto isValid = [&](int dim) {
-        if (reqdThreadsPerBlock[dim] != 0 &&
-            local_work_size[dim] != reqdThreadsPerBlock[dim])
-          return PI_INVALID_WORK_GROUP_SIZE;
-
-        if (local_work_size[dim] > maxThreadsPerBlock[dim])
-          return PI_INVALID_WORK_ITEM_SIZE;
-        // Checks that local work sizes are a divisor of the global work sizes
-        // which includes that the local work sizes are neither larger than the
-        // global work sizes and not 0.
-        if (0u == local_work_size[dim])
-          return PI_INVALID_WORK_GROUP_SIZE;
-        if (0u != (global_work_size[dim] % local_work_size[dim]))
-          return PI_INVALID_WORK_GROUP_SIZE;
-        threadsPerBlock[dim] = static_cast<int>(local_work_size[dim]);
-        return PI_SUCCESS;
-      };
-
-      for (size_t dim = 0; dim < work_dim; dim++) {
-        auto err = isValid(dim);
-        if (err != PI_SUCCESS)
-          return err;
-      }
-    } else {
-      guessLocalWorkSize(threadsPerBlock, global_work_size, maxThreadsPerBlock,
-                         kernel, local_size);
-    }
-  }
-
-  if (maxWorkGroupSize <
-      size_t(threadsPerBlock[0] * threadsPerBlock[1] * threadsPerBlock[2])) {
-    return PI_INVALID_WORK_GROUP_SIZE;
-  }
-
-  int blocksPerGrid[3] = {1, 1, 1};
-
-  for (size_t i = 0; i < work_dim; i++) {
-    blocksPerGrid[i] =
-        static_cast<int>(global_work_size[i] + threadsPerBlock[i] - 1) /
-        threadsPerBlock[i];
-  }
-
   pi_result retError = PI_SUCCESS;
-  std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
+    // Set the active context here as guessLocalWorkSize needs an active context
     ScopedContext active(command_queue->get_context());
+    {
+      size_t *reqdThreadsPerBlock = kernel->reqdThreadsPerBlock_;
+      maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
+      command_queue->device_->get_max_work_item_sizes(
+          sizeof(maxThreadsPerBlock), maxThreadsPerBlock);
+
+      if (providedLocalWorkGroupSize) {
+        auto isValid = [&](int dim) {
+          if (reqdThreadsPerBlock[dim] != 0 &&
+              local_work_size[dim] != reqdThreadsPerBlock[dim])
+            return PI_INVALID_WORK_GROUP_SIZE;
+
+          if (local_work_size[dim] > maxThreadsPerBlock[dim])
+            return PI_INVALID_WORK_ITEM_SIZE;
+          // Checks that local work sizes are a divisor of the global work sizes
+          // which includes that the local work sizes are neither larger than
+          // the global work sizes and not 0.
+          if (0u == local_work_size[dim])
+            return PI_INVALID_WORK_GROUP_SIZE;
+          if (0u != (global_work_size[dim] % local_work_size[dim]))
+            return PI_INVALID_WORK_GROUP_SIZE;
+          threadsPerBlock[dim] = static_cast<int>(local_work_size[dim]);
+          return PI_SUCCESS;
+        };
+
+        for (size_t dim = 0; dim < work_dim; dim++) {
+          auto err = isValid(dim);
+          if (err != PI_SUCCESS)
+            return err;
+        }
+      } else {
+        guessLocalWorkSize(threadsPerBlock, global_work_size,
+                           maxThreadsPerBlock, kernel, local_size);
+      }
+    }
+
+    if (maxWorkGroupSize <
+        size_t(threadsPerBlock[0] * threadsPerBlock[1] * threadsPerBlock[2])) {
+      return PI_INVALID_WORK_GROUP_SIZE;
+    }
+
+    int blocksPerGrid[3] = {1, 1, 1};
+
+    for (size_t i = 0; i < work_dim; i++) {
+      blocksPerGrid[i] =
+          static_cast<int>(global_work_size[i] + threadsPerBlock[i] - 1) /
+          threadsPerBlock[i];
+    }
+
+    std::unique_ptr<_pi_event> retImplEv{nullptr};
+
     CUstream cuStream = command_queue->get();
     CUfunction cuFunc = kernel->get();
 
@@ -3172,7 +3173,7 @@ pi_result cuda_piextProgramGetNativeHandle(pi_program program,
 ///
 /// \return TBD
 pi_result cuda_piextProgramCreateWithNativeHandle(pi_native_handle, pi_context,
-                                                  pi_program *) {
+                                                  bool, pi_program *) {
   cl::sycl::detail::pi::die(
       "Creation of PI program from native handle not implemented");
   return {};
