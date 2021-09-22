@@ -124,8 +124,8 @@ public:
   /// (used only by bugpoint).
   bool ShouldHackArguments = false;
 
-  /// This allows to eliminate dead arguments in SYCL kernel functions with
-  /// external linkage
+  /// This allows to eliminate dead arguments in SYCL kernel wrapper functions
+  /// with external linkage
   bool CheckSYCLKernels = false;
 
 private:
