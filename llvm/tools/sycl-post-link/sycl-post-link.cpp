@@ -60,6 +60,9 @@ static constexpr char COL_SYM[] = "Symbols";
 static constexpr char COL_PROPS[] = "Properties";
 static constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
 
+// Identifying name for global scope
+static constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
+
 // InputFilename - The filename to read from.
 static cl::opt<std::string> InputFilename{
     cl::Positional, cl::desc("<input bitcode file>"), cl::init("-"),
@@ -168,6 +171,10 @@ static cl::opt<bool> EmitProgramMetadata{"emit-program-metadata",
                                          cl::desc("emit SYCL program metadata"),
                                          cl::cat(PostLinkCat)};
 
+static cl::opt<bool> EmitExportedSymbols{"emit-exported-symbols",
+                                         cl::desc("emit exported symbols"),
+                                         cl::cat(PostLinkCat)};
+
 struct ImagePropSaveInfo {
   bool NeedDeviceLibReqMask;
   bool DoSpecConst;
@@ -175,6 +182,7 @@ struct ImagePropSaveInfo {
   bool SpecConstsMet;
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
+  bool EmitExportedSymbols;
   bool IsEsimdKernel;
 };
 
@@ -278,7 +286,7 @@ static void collectKernelModuleMap(
       }
       case Scope_Global:
         // the map key is not significant here
-        ResKernelModuleMap["<GLOBAL>"].push_back(&F);
+        ResKernelModuleMap[GLOBAL_SCOPE_NAME].push_back(&F);
         break;
       }
     } else if (EntryScope == Scope_PerModule &&
@@ -417,16 +425,21 @@ static void collectSymbolsLists(
   }
 }
 
+struct ResultModule {
+  StringRef KernelModuleName;
+  std::unique_ptr<Module> ModulePtr;
+};
+
 // Input parameter KernelModuleMap is a map containing groups of kernels with
 // same values of the sycl-module-id attribute. For each group of kernels a
 // separate IR module will be produced.
-// ResModules is a vector of produced modules.
+// ResModules is a vector of pairs of kernel module names and produced modules.
 // The function splits input LLVM IR module M into smaller ones and stores them
 // to the ResModules vector.
 static void
 splitModule(Module &M,
             std::map<StringRef, std::vector<Function *>> &KernelModuleMap,
-            std::vector<std::unique_ptr<Module>> &ResModules) {
+            std::vector<ResultModule> &ResModules) {
   for (auto &It : KernelModuleMap) {
     // For each group of kernels collect all dependencies.
     SetVector<const GlobalValue *> GVs;
@@ -473,7 +486,7 @@ splitModule(Module &M,
     Passes.run(*MClone.get());
 
     // Save results.
-    ResModules.push_back(std::move(MClone));
+    ResModules.push_back({It.first, std::move(MClone)});
   }
 }
 
@@ -506,23 +519,23 @@ static void saveModule(Module &M, StringRef OutFilename) {
 
 // Saves specified collection of llvm IR modules to files.
 // Saves file list if user specified corresponding filename.
-static string_vector
-saveResultModules(std::vector<std::unique_ptr<Module>> &ResModules,
-                  StringRef Suffix) {
+static string_vector saveResultModules(std::vector<ResultModule> &ResModules,
+                                       StringRef Suffix) {
   string_vector Res;
 
   for (size_t I = 0; I < ResModules.size(); ++I) {
     std::error_code EC;
     StringRef FileExt = (OutputAssembly) ? ".ll" : ".bc";
     std::string CurOutFileName = makeResultFileName(FileExt, I, Suffix);
-    saveModule(*ResModules[I].get(), CurOutFileName);
+    saveModule(*ResModules[I].ModulePtr, CurOutFileName);
     Res.emplace_back(std::move(CurOutFileName));
   }
   return Res;
 }
 
 static string_vector saveDeviceImageProperty(
-    const std::vector<std::unique_ptr<Module>> &ResultModules,
+    const std::vector<ResultModule> &ResultModules,
+    const std::map<StringRef, std::vector<Function *>> &KernelModuleMap,
     const ImagePropSaveInfo &ImgPSInfo) {
   string_vector Res;
   legacy::PassManager GetSYCLDeviceLibReqMask;
@@ -532,7 +545,7 @@ static string_vector saveDeviceImageProperty(
   for (size_t I = 0; I < ResultModules.size(); ++I) {
     llvm::util::PropertySetRegistry PropSet;
     if (ImgPSInfo.NeedDeviceLibReqMask) {
-      GetSYCLDeviceLibReqMask.run(*ResultModules[I]);
+      GetSYCLDeviceLibReqMask.run(*ResultModules[I].ModulePtr);
       uint32_t MRMask = SDLReqMaskLegacyPass->getSYCLDeviceLibReqMask();
       std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
       PropSet.add(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK,
@@ -542,8 +555,8 @@ static string_vector saveDeviceImageProperty(
       if (ImgPSInfo.SpecConstsMet) {
         // extract spec constant maps per each module
         SpecIDMapTy TmpSpecIDMap;
-        SpecConstantsPass::collectSpecConstantMetadata(*ResultModules[I].get(),
-                                                       TmpSpecIDMap);
+        SpecConstantsPass::collectSpecConstantMetadata(
+            *ResultModules[I].ModulePtr, TmpSpecIDMap);
         PropSet.add(
             llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
             TmpSpecIDMap);
@@ -553,7 +566,7 @@ static string_vector saveDeviceImageProperty(
         if (!ImgPSInfo.SetSpecConstAtRT) {
           std::vector<char> DefaultValues;
           SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
-              *ResultModules[I].get(), DefaultValues);
+              *ResultModules[I].ModulePtr, DefaultValues);
           PropSet.add(llvm::util::PropertySetRegistry::
                           SYCL_SPEC_CONSTANTS_DEFAULT_VALUES,
                       "all", DefaultValues);
@@ -568,7 +581,8 @@ static string_vector saveDeviceImageProperty(
       // Register the payload analysis
       MAM.registerPass([&] { return SPIRKernelParamOptInfoAnalysis(); });
       SPIRKernelParamOptInfo PInfo =
-          MAM.getResult<SPIRKernelParamOptInfoAnalysis>(*ResultModules[I]);
+          MAM.getResult<SPIRKernelParamOptInfoAnalysis>(
+              *ResultModules[I].ModulePtr);
 
       // convert analysis results into properties and record them
       llvm::util::PropertySet &Props =
@@ -584,6 +598,19 @@ static string_vector saveDeviceImageProperty(
             NameInfoPair.first, llvm::util::PropertyValue(Data, DataBitSize)));
       }
     }
+    if (ImgPSInfo.EmitExportedSymbols) {
+      // For each result module, extract the exported functions
+      auto ModuleFunctionsIt =
+          KernelModuleMap.find(ResultModules[I].KernelModuleName);
+      if (ModuleFunctionsIt != KernelModuleMap.end()) {
+        for (auto &F : ModuleFunctionsIt->second) {
+          if (F->getCallingConv() == CallingConv::SPIR_FUNC) {
+            PropSet[llvm::util::PropertySetRegistry::SYCL_EXPORTED_SYMBOLS]
+                .insert({F->getName(), true});
+          }
+        }
+      }
+    }
 
     // Metadata names may be composite so we keep them alive until the
     // properties have been written.
@@ -593,7 +620,7 @@ static string_vector saveDeviceImageProperty(
           PropSet[llvm::util::PropertySetRegistry::SYCL_PROGRAM_METADATA];
 
       // Add reqd_work_group_size information to program metadata
-      for (const Function &Func : ResultModules[I]->functions()) {
+      for (const Function &Func : ResultModules[I].ModulePtr->functions()) {
         std::vector<uint32_t> KernelReqdWorkGroupSize =
             getKernelReqdWorkGroupSizeMetadata(Func);
         if (KernelReqdWorkGroupSize.empty())
@@ -609,7 +636,7 @@ static string_vector saveDeviceImageProperty(
     }
 
     {
-      Module *M = ResultModules[I].get();
+      Module *M = ResultModules[I].ModulePtr.get();
       bool HasIndirectlyCalledAssert = false;
       std::vector<llvm::Function *> Kernels;
       for (auto &F : M->functions()) {
@@ -748,7 +775,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     collectKernelModuleMap(*M, GlobalsSet, Scope);
   }
 
-  std::vector<std::unique_ptr<Module>> ResultModules;
+  std::vector<ResultModule> ResultModules;
   string_vector ResultSymbolsLists;
 
   bool SpecConstsMet = false;
@@ -758,7 +785,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     splitModule(*M, GlobalsSet, ResultModules);
   // post-link always produces a code result, even if it is unmodified input
   if (ResultModules.empty())
-    ResultModules.push_back(std::move(M));
+    ResultModules.push_back({GLOBAL_SCOPE_NAME, std::move(M)});
 
   if (DoSpecConst) {
     ModulePassManager RunSpecConst;
@@ -768,17 +795,17 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
     RunSpecConst.addPass(std::move(SCP));
 
-    for (auto &MPtr : ResultModules) {
+    for (auto &ResultModule : ResultModules) {
       // perform the spec constant intrinsics transformation on each resulting
       // module
-      PreservedAnalyses Res = RunSpecConst.run(*MPtr, MAM);
+      PreservedAnalyses Res = RunSpecConst.run(*ResultModule.ModulePtr, MAM);
       SpecConstsMet |= !Res.areAllPreserved();
     }
   }
 
   if (IROutputOnly) {
     // the result is the transformed input LLVMIR file rather than a file table
-    saveModule(*ResultModules.front(), OutputFilename);
+    saveModule(*ResultModules.front().ModulePtr, OutputFilename);
     return TblFiles;
   }
 
@@ -803,8 +830,9 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     ImagePropSaveInfo ImgPSInfo = {
         true,          DoSpecConst,         SetSpecConstAtRT,
         SpecConstsMet, EmitKernelParamInfo, EmitProgramMetadata,
-        IsEsimd};
-    string_vector Files = saveDeviceImageProperty(ResultModules, ImgPSInfo);
+        EmitExportedSymbols, IsEsimd};
+    string_vector Files =
+        saveDeviceImageProperty(ResultModules, GlobalsSet, ImgPSInfo);
     std::copy(Files.begin(), Files.end(),
               std::back_inserter(TblFiles[COL_PROPS]));
   }
@@ -859,11 +887,11 @@ static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
   // modules, hence the strings names below.
   std::map<StringRef, std::vector<Function *>> KernelModuleMap(
       {{"1-SYCL", SyclFunctions}, {"2-ESIMD", EsimdFunctions}});
-  std::vector<std::unique_ptr<Module>> ResultModules;
+  std::vector<ResultModule> ResultModules;
   splitModule(*M, KernelModuleMap, ResultModules);
   assert(ResultModules.size() == 2);
-  return std::make_pair(std::move(ResultModules[0]),
-                        std::move(ResultModules[1]));
+  return std::make_pair(std::move(ResultModules[0].ModulePtr),
+                        std::move(ResultModules[1].ModulePtr));
 }
 
 static TableFiles processInputModule(std::unique_ptr<Module> M) {
@@ -954,9 +982,10 @@ int main(int argc, char **argv) {
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
   bool DoParamInfo = EmitKernelParamInfo.getNumOccurrences() > 0;
   bool DoProgMetadata = EmitProgramMetadata.getNumOccurrences() > 0;
+  bool DoExportedSyms = EmitExportedSymbols.getNumOccurrences() > 0;
 
   if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
-      !DoProgMetadata && !DoSplitEsimd) {
+      !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
@@ -982,6 +1011,11 @@ int main(int argc, char **argv) {
   }
   if (IROutputOnly && DoProgMetadata) {
     errs() << "error: -" << EmitProgramMetadata.ArgStr << " can't be used with"
+           << " -" << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
+  if (IROutputOnly && DoExportedSyms) {
+    errs() << "error: -" << EmitExportedSymbols.ArgStr << " can't be used with"
            << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }

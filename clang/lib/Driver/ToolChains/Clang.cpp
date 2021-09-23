@@ -8941,6 +8941,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     // Symbol file and specialization constant info generation is mandatory -
     // add options unconditionally
     addArgs(CmdArgs, TCArgs, {"-symbols"});
+    addArgs(CmdArgs, TCArgs, {"-emit-exported-symbols"});
     addArgs(CmdArgs, TCArgs, {"-split-esimd"});
     addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
   }
