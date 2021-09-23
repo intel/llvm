@@ -81,9 +81,7 @@ public:
     return Id;
   }
 
-  range<dimensions> get_group_range() const {
-    return Group.get_group_range();
-  }
+  range<dimensions> get_group_range() const { return Group.get_group_range(); }
 
   size_t __SYCL_ALWAYS_INLINE get_group_range(int dimension) const {
     size_t Range = Group.get_group_range(dimension);
