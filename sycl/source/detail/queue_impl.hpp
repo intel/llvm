@@ -455,6 +455,27 @@ private:
     }
   }
 
+  void do_submit_for_host_task() {
+    if (MEventsSharedToSubmit.empty()) {
+      return;
+    }
+
+    std::queue<detail::EventImplPtr> EventImpls;
+    {
+      std::lock_guard<std::mutex> Lock(MMutexSubmit);
+      EventImpls.swap(MEventsSharedToSubmit);
+    }
+
+    while (!EventImpls.empty()) {
+      if (EventImpls.size() != 1) {
+        EventImpls.front()->doIfNotFinalized();
+      } else {
+        EventImpls.front()->CreateRealImpl();
+      }
+      EventImpls.pop();
+    }
+  }
+
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -474,8 +495,10 @@ private:
     // and require separate dependency management.
     const CG::CGTYPE Type = Handler->getType();
     if (MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
-                       Type == CG::CGTYPE::CodeplayInteropTask))
+                       Type == CG::CGTYPE::CodeplayInteropTask)) {
+      do_submit_for_host_task();
       Handler->depends_on(MLastEvent);
+    }
 
     SubmitPostProcessF PostProcessFunction =
         PostProcess ? (*PostProcess) : nullptr;

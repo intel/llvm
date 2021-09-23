@@ -293,7 +293,8 @@ void ChildProcess(int StdErrFD) {
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
   auto ExecBundle = sycl::build(KernelBundle);
   printf("Child process launching kernel\n");
-  Queue.submit([&](sycl::handler &H) {
+  sycl::event event;
+  event = Queue.submit([&](sycl::handler &H) {
     H.use_kernel_bundle(ExecBundle);
     H.single_task<TestKernel>([] {});
   });

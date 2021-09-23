@@ -261,7 +261,7 @@ static void performChecks() {
     CGH.use_kernel_bundle(ExecBundle);
     CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
   });
-
+  Queue.wait();
   EXPECT_EQ(KernelGetGroupInfoCalled, true);
   EXPECT_EQ(IncomingLocalSize[0], RequiredLocalSize[0]);
   EXPECT_EQ(IncomingLocalSize[1], RequiredLocalSize[1]);
