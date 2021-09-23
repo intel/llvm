@@ -1311,6 +1311,7 @@ static void foldExit(const Loop *L, BasicBlock *ExitingBB, bool IsTaken,
 
 static void replaceLoopPHINodesWithPreheaderValues(
     Loop *L, SmallVectorImpl<WeakTrackingVH> &DeadInsts) {
+  assert(L->isLoopSimplifyForm() && "Should only do it in simplify form!");
   auto *LoopPreheader = L->getLoopPreheader();
   auto *LoopHeader = L->getHeader();
   for (auto &PN : LoopHeader->phis()) {
@@ -1465,15 +1466,8 @@ bool IndVarSimplify::optimizeLoopExits(Loop *L, SCEVExpander &Rewriter) {
 
   bool Changed = false;
   bool SkipLastIter = false;
-  bool ExitsOnFirstIter = false;
   SmallSet<const SCEV*, 8> DominatingExitCounts;
   for (BasicBlock *ExitingBB : ExitingBlocks) {
-    if (ExitsOnFirstIter) {
-      // If proved that some earlier exit is taken
-      // on 1st iteration, then fold this one.
-      foldExit(L, ExitingBB, true, DeadInsts);
-      continue;
-    }
     const SCEV *ExitCount = SE->getExitCount(L, ExitingBB);
     if (isa<SCEVCouldNotCompute>(ExitCount)) {
       // Okay, we do not know the exit count here. Can we at least prove that it
@@ -1523,7 +1517,6 @@ bool IndVarSimplify::optimizeLoopExits(Loop *L, SCEVExpander &Rewriter) {
       foldExit(L, ExitingBB, true, DeadInsts);
       replaceLoopPHINodesWithPreheaderValues(L, DeadInsts);
       Changed = true;
-      ExitsOnFirstIter = true;
       continue;
     }
 

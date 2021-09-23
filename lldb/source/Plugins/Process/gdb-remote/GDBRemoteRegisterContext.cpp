@@ -90,7 +90,7 @@ const RegisterSet *GDBRemoteRegisterContext::GetRegisterSet(size_t reg_set) {
 bool GDBRemoteRegisterContext::ReadRegister(const RegisterInfo *reg_info,
                                             RegisterValue &value) {
   // Read the register
-  if (ReadRegisterBytes(reg_info, m_reg_data)) {
+  if (ReadRegisterBytes(reg_info)) {
     const uint32_t reg = reg_info->kinds[eRegisterKindLLDB];
     if (m_reg_valid[reg] == false)
       return false;
@@ -184,8 +184,7 @@ bool GDBRemoteRegisterContext::GetPrimordialRegister(
   return false;
 }
 
-bool GDBRemoteRegisterContext::ReadRegisterBytes(const RegisterInfo *reg_info,
-                                                 DataExtractor &data) {
+bool GDBRemoteRegisterContext::ReadRegisterBytes(const RegisterInfo *reg_info) {
   ExecutionContext exe_ctx(CalculateThread());
 
   Process *process = exe_ctx.GetProcessPtr();
@@ -279,22 +278,6 @@ bool GDBRemoteRegisterContext::ReadRegisterBytes(const RegisterInfo *reg_info,
       return false;
   }
 
-  if (&data != &m_reg_data) {
-    assert(m_reg_data.GetByteSize() >=
-           reg_info->byte_offset + reg_info->byte_size);
-    // If our register context and our register info disagree, which should
-    // never happen, don't read past the end of the buffer.
-    if (m_reg_data.GetByteSize() < reg_info->byte_offset + reg_info->byte_size)
-      return false;
-
-    // If we aren't extracting into our own buffer (which only happens when
-    // this function is called from ReadRegisterValue(uint32_t, Scalar&)) then
-    // we transfer bytes from our buffer into the data buffer that was passed
-    // in
-
-    data.SetByteOrder(m_reg_data.GetByteOrder());
-    data.SetData(m_reg_data, reg_info->byte_offset, reg_info->byte_size);
-  }
   return true;
 }
 
@@ -526,7 +509,7 @@ bool GDBRemoteRegisterContext::ReadAllRegisterValues(
       if (reg_info
               ->value_regs) // skip registers that are slices of real registers
         continue;
-      ReadRegisterBytes(reg_info, m_reg_data);
+      ReadRegisterBytes(reg_info);
       // ReadRegisterBytes saves the contents of the register in to the
       // m_reg_data buffer
     }
@@ -992,19 +975,12 @@ void GDBRemoteDynamicRegisterInfo::HardcodeARMRegisters(bool from_scratch) {
       }
     }
     for (i = 0; i < num_registers; ++i) {
-      ConstString name;
-      ConstString alt_name;
-      if (g_register_infos[i].name && g_register_infos[i].name[0])
-        name.SetCString(g_register_infos[i].name);
-      if (g_register_infos[i].alt_name && g_register_infos[i].alt_name[0])
-        alt_name.SetCString(g_register_infos[i].alt_name);
-
       if (i <= 15 || i == 25)
-        AddRegister(g_register_infos[i], name, alt_name, gpr_reg_set);
+        AddRegister(g_register_infos[i], gpr_reg_set);
       else if (i <= 24)
-        AddRegister(g_register_infos[i], name, alt_name, sfp_reg_set);
+        AddRegister(g_register_infos[i], sfp_reg_set);
       else
-        AddRegister(g_register_infos[i], name, alt_name, vfp_reg_set);
+        AddRegister(g_register_infos[i], vfp_reg_set);
     }
   } else {
     // Add composite registers to our primordial registers, then.
@@ -1040,8 +1016,6 @@ void GDBRemoteDynamicRegisterInfo::HardcodeARMRegisters(bool from_scratch) {
     // If "match" is true, then we can add extra registers.
     if (match) {
       for (i = 0; i < num_composites; ++i) {
-        ConstString name;
-        ConstString alt_name;
         const uint32_t first_primordial_reg =
             g_comp_register_infos[i].value_regs[0];
         const char *reg_name = g_register_infos[first_primordial_reg].name;
@@ -1054,9 +1028,7 @@ void GDBRemoteDynamicRegisterInfo::HardcodeARMRegisters(bool from_scratch) {
               // The name matches the existing primordial entry. Find and
               // assign the offset, and then add this composite register entry.
               g_comp_register_infos[i].byte_offset = reg_info->byte_offset;
-              name.SetCString(g_comp_register_infos[i].name);
-              AddRegister(g_comp_register_infos[i], name, alt_name,
-                          vfp_reg_set);
+              AddRegister(g_comp_register_infos[i], vfp_reg_set);
             }
           }
         }
