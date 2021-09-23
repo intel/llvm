@@ -21,7 +21,8 @@ enum class target {
   image = 2017,
   host_buffer = 2018,
   host_image = 2019,
-  image_array = 2020
+  image_array = 2020,
+  device = global_buffer,
 };
 
 enum class mode {

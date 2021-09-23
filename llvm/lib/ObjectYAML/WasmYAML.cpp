@@ -177,7 +177,7 @@ void MappingTraits<std::unique_ptr<WasmYAML::Section>>::mapping(
     } else {
       IO.mapRequired("Name", SectionName);
     }
-    if (SectionName == "dylink") {
+    if (SectionName == "dylink" || SectionName == "dylink.0") {
       if (!IO.outputting())
         Section.reset(new WasmYAML::DylinkSection());
       sectionMapping(IO, *cast<WasmYAML::DylinkSection>(Section.get()));
@@ -561,6 +561,7 @@ void ScalarBitSetTraits<WasmYAML::SymbolFlags>::bitset(
   BCaseMask(EXPORTED, EXPORTED);
   BCaseMask(EXPLICIT_NAME, EXPLICIT_NAME);
   BCaseMask(NO_STRIP, NO_STRIP);
+  BCaseMask(TLS, TLS);
 #undef BCaseMask
 }
 

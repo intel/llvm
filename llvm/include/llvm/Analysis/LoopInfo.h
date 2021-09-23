@@ -1213,6 +1213,13 @@ public:
 
 };
 
+/// Enable verification of loop info.
+///
+/// The flag enables checks which are expensive and are disabled by default
+/// unless the `EXPENSIVE_CHECKS` macro is defined.  The `-verify-loop-info`
+/// flag allows the checks to be enabled selectively without re-compilation.
+extern bool VerifyLoopInfo;
+
 // Allow clients to walk the list of nested loops...
 template <> struct GraphTraits<const Loop *> {
   typedef const Loop *NodeRef;
@@ -1304,6 +1311,10 @@ bool getBooleanLoopAttribute(const Loop *TheLoop, StringRef Name);
 /// Find named metadata for a loop with an integer value.
 llvm::Optional<int>
 getOptionalIntLoopAttribute(const Loop *TheLoop, StringRef Name);
+
+/// Find named metadata for a loop with an integer value. Return \p Default if
+/// not set.
+int getIntLoopAttribute(const Loop *TheLoop, StringRef Name, int Default = 0);
 
 /// Find string metadata for loop
 ///
