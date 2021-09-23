@@ -245,20 +245,13 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 // Determine local work sizes that result in uniform work groups.
 // The default threadsPerBlock only require handling the first work_dim
 // dimension.
-pi_result guessLocalWorkSize(int *threadsPerBlock,
-                             const size_t *global_work_size,
-                             const size_t maxThreadsPerBlock[3],
-                             pi_kernel kernel, pi_uint32 local_size) {
+void guessLocalWorkSize(int *threadsPerBlock, const size_t *global_work_size,
+                        const size_t maxThreadsPerBlock[3], pi_kernel kernel,
+                        pi_uint32 local_size) {
   assert(threadsPerBlock != nullptr);
   assert(global_work_size != nullptr);
   assert(kernel != nullptr);
   int recommendedBlockSize, minGrid;
-
-  try {
-    ScopedContext active(kernel->context_);
-  } catch (pi_result err) {
-    return err;
-  }
 
   PI_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
       &minGrid, &recommendedBlockSize, kernel->get(), NULL, local_size,
@@ -276,7 +269,6 @@ pi_result guessLocalWorkSize(int *threadsPerBlock,
   while (0u != (global_work_size[0] % threadsPerBlock[0])) {
     --threadsPerBlock[0];
   }
-  return PI_SUCCESS;
 }
 
 } // anonymous namespace
