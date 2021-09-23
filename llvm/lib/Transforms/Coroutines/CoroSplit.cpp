@@ -622,7 +622,7 @@ static void replaceSwiftErrorOps(Function &F, coro::Shape &Shape,
 
     // If there are no arguments, this is a 'get' operation.
     Value *MappedResult;
-    if (Op->getNumArgOperands() == 0) {
+    if (Op->arg_empty()) {
       auto ValueTy = Op->getType();
       auto Slot = getSwiftErrorSlot(ValueTy);
       MappedResult = Builder.CreateLoad(ValueTy, Slot);
@@ -738,8 +738,7 @@ void CoroCloner::replaceEntryBlock() {
   // entry needs to be moved to the new entry.
   Function *F = OldEntry->getParent();
   DominatorTree DT{*F};
-  for (auto IT = inst_begin(F), End = inst_end(F); IT != End;) {
-    Instruction &I = *IT++;
+  for (Instruction &I : llvm::make_early_inc_range(instructions(F))) {
     auto *Alloca = dyn_cast<AllocaInst>(&I);
     if (!Alloca || I.use_empty())
       continue;
@@ -773,9 +772,8 @@ Value *CoroCloner::deriveNewFramePointer() {
     auto DbgLoc =
         cast<CoroSuspendAsyncInst>(VMap[ActiveSuspend])->getDebugLoc();
     // Calling i8* (i8*)
-    auto *CallerContext = Builder.CreateCall(
-        cast<FunctionType>(ProjectionFunc->getType()->getPointerElementType()),
-        ProjectionFunc, CalleeContext);
+    auto *CallerContext = Builder.CreateCall(ProjectionFunc->getFunctionType(),
+                                             ProjectionFunc, CalleeContext);
     CallerContext->setCallingConv(ProjectionFunc->getCallingConv());
     CallerContext->setDebugLoc(DbgLoc);
     // The frame is located after the async_context header.
@@ -906,8 +904,7 @@ void CoroCloner::create() {
   case coro::ABI::Switch:
     // Bootstrap attributes by copying function attributes from the
     // original function.  This should include optimization settings and so on.
-    NewAttrs = NewAttrs.addAttributes(Context, AttributeList::FunctionIndex,
-                                      OrigAttrs.getFnAttributes());
+    NewAttrs = NewAttrs.addFnAttributes(Context, OrigAttrs.getFnAttrs());
 
     addFramePointerAttrs(NewAttrs, Context, 0,
                          Shape.FrameSize, Shape.FrameAlign);
@@ -929,9 +926,8 @@ void CoroCloner::create() {
     }
 
     // Transfer the original function's attributes.
-    auto FnAttrs = OrigF.getAttributes().getFnAttributes();
-    NewAttrs =
-        NewAttrs.addAttributes(Context, AttributeList::FunctionIndex, FnAttrs);
+    auto FnAttrs = OrigF.getAttributes().getFnAttrs();
+    NewAttrs = NewAttrs.addFnAttributes(Context, FnAttrs);
     break;
   }
   case coro::ABI::Retcon:
@@ -1144,11 +1140,13 @@ static void updateCoroFrame(coro::Shape &Shape, Function *ResumeFn,
 static void postSplitCleanup(Function &F) {
   removeUnreachableBlocks(F);
 
+#ifndef NDEBUG
   // For now, we do a mandatory verification step because we don't
   // entirely trust this pass.  Note that we don't want to add a verifier
   // pass to FPM below because it will also verify all the global data.
   if (verifyFunction(F, &errs()))
     report_fatal_error("Broken function");
+#endif
 }
 
 // Assuming we arrived at the block NewBlock from Prev instruction, store
@@ -1547,8 +1545,7 @@ static void coerceArguments(IRBuilder<> &Builder, FunctionType *FnTy,
 CallInst *coro::createMustTailCall(DebugLoc Loc, Function *MustTailCallFn,
                                    ArrayRef<Value *> Arguments,
                                    IRBuilder<> &Builder) {
-  auto *FnTy =
-      cast<FunctionType>(MustTailCallFn->getType()->getPointerElementType());
+  auto *FnTy = MustTailCallFn->getFunctionType();
   // Coerce the arguments, llvm optimizations seem to ignore the types in
   // vaarg functions and throws away casts in optimized mode.
   SmallVector<Value *, 8> CallArgs;
@@ -1568,8 +1565,8 @@ static void splitAsyncCoroutine(Function &F, coro::Shape &Shape,
   // Reset various things that the optimizer might have decided it
   // "knows" about the coroutine function due to not seeing a return.
   F.removeFnAttr(Attribute::NoReturn);
-  F.removeAttribute(AttributeList::ReturnIndex, Attribute::NoAlias);
-  F.removeAttribute(AttributeList::ReturnIndex, Attribute::NonNull);
+  F.removeRetAttr(Attribute::NoAlias);
+  F.removeRetAttr(Attribute::NonNull);
 
   auto &Context = F.getContext();
   auto *Int8PtrTy = Type::getInt8PtrTy(Context);
@@ -1667,8 +1664,8 @@ static void splitRetconCoroutine(Function &F, coro::Shape &Shape,
   // Reset various things that the optimizer might have decided it
   // "knows" about the coroutine function due to not seeing a return.
   F.removeFnAttr(Attribute::NoReturn);
-  F.removeAttribute(AttributeList::ReturnIndex, Attribute::NoAlias);
-  F.removeAttribute(AttributeList::ReturnIndex, Attribute::NonNull);
+  F.removeRetAttr(Attribute::NoAlias);
+  F.removeRetAttr(Attribute::NonNull);
 
   // Allocate the frame.
   auto *Id = cast<AnyCoroIdRetconInst>(Shape.CoroBegin->getId());

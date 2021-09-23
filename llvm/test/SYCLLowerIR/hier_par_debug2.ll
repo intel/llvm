@@ -24,7 +24,7 @@ bb:
 ; CHECK:    [[TMP2:%.*]] = addrspacecast %struct.snork addrspace(4)** [[TMP]] to %struct.snork addrspace(4)* addrspace(4)*
 ; CHECK:    call void @llvm.dbg.value(metadata %struct.snork addrspace(4)* addrspace(4)* [[TMP2]], [[META11:metadata !.*]], metadata !DIExpression())
   %tmp3 = alloca %struct.ham, align 4, !work_item_scope !0
-; CHECK:    [[TMP3:%.*]] = alloca %struct.ham, align 4, [[DBG24:!dbg !.*]], !work_item_scope !2
+; CHECK:    [[TMP3:%.*]] = alloca %struct.ham, align 4, [[DBG24:!dbg !.*]], !work_item_scope ![[#]]
 ; CHECK:    call void @llvm.dbg.value(metadata %struct.ham* [[TMP3]], [[META12:metadata !.*]], metadata !DIExpression())
   %tmp4 = addrspacecast %struct.ham* %tmp3 to %struct.ham addrspace(4)*
 ; CHECK:    [[TMP4:%.*]] = addrspacecast %struct.ham* [[TMP3]] to %struct.ham addrspace(4)*

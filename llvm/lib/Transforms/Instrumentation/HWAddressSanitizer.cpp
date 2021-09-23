@@ -17,6 +17,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/StackSafetyAnalysis.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -118,6 +119,12 @@ static cl::opt<bool>
     ClUseStackSafety("hwasan-use-stack-safety", cl::Hidden, cl::init(true),
                      cl::Hidden, cl::desc("Use Stack Safety analysis results"),
                      cl::Optional);
+
+static cl::opt<size_t> ClMaxLifetimes(
+    "hwasan-max-lifetimes-for-alloca", cl::Hidden, cl::init(3),
+    cl::ReallyHidden,
+    cl::desc("How many lifetime ends to handle for a single alloca."),
+    cl::Optional);
 
 static cl::opt<bool>
     ClUseAfterScope("hwasan-use-after-scope",
@@ -258,6 +265,8 @@ public:
 
   void setSSI(const StackSafetyGlobalInfo *S) { SSI = S; }
 
+  DenseMap<AllocaInst *, AllocaInst *> padInterestingAllocas(
+      const MapVector<AllocaInst *, AllocaInfo> &AllocasToInstrument);
   bool sanitizeFunction(Function &F,
                         llvm::function_ref<const DominatorTree &()> GetDT,
                         llvm::function_ref<const PostDominatorTree &()> GetPDT);
@@ -278,7 +287,7 @@ public:
                                  Instruction *InsertBefore);
   void instrumentMemIntrinsic(MemIntrinsic *MI);
   bool instrumentMemAccess(InterestingMemoryOperand &O);
-  bool ignoreAccess(Value *Ptr);
+  bool ignoreAccess(Instruction *Inst, Value *Ptr);
   void getInterestingMemoryOperands(
       Instruction *I, SmallVectorImpl<InterestingMemoryOperand> &Interesting);
 
@@ -286,6 +295,8 @@ public:
   void tagAlloca(IRBuilder<> &IRB, AllocaInst *AI, Value *Tag, size_t Size);
   Value *tagPointer(IRBuilder<> &IRB, Type *Ty, Value *PtrLong, Value *Tag);
   Value *untagPointer(IRBuilder<> &IRB, Value *PtrLong);
+  static bool isStandardLifetime(const AllocaInfo &AllocaInfo,
+                                 const DominatorTree &DT);
   bool instrumentStack(
       MapVector<AllocaInst *, AllocaInfo> &AllocasToInstrument,
       SmallVector<Instruction *, 4> &UnrecognizedLifetimes,
@@ -469,19 +480,14 @@ llvm::createHWAddressSanitizerLegacyPassPass(bool CompileKernel, bool Recover,
                                           DisableOptimization);
 }
 
-HWAddressSanitizerPass::HWAddressSanitizerPass(bool CompileKernel, bool Recover,
-                                               bool DisableOptimization)
-    : CompileKernel(CompileKernel), Recover(Recover),
-      DisableOptimization(DisableOptimization) {}
-
 PreservedAnalyses HWAddressSanitizerPass::run(Module &M,
                                               ModuleAnalysisManager &MAM) {
   const StackSafetyGlobalInfo *SSI = nullptr;
   auto TargetTriple = llvm::Triple(M.getTargetTriple());
-  if (shouldUseStackSafetyAnalysis(TargetTriple, DisableOptimization))
+  if (shouldUseStackSafetyAnalysis(TargetTriple, Options.DisableOptimization))
     SSI = &MAM.getResult<StackSafetyGlobalAnalysis>(M);
 
-  HWAddressSanitizer HWASan(M, CompileKernel, Recover, SSI);
+  HWAddressSanitizer HWASan(M, Options.CompileKernel, Options.Recover, SSI);
   bool Modified = false;
   auto &FAM = MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   for (Function &F : M) {
@@ -497,6 +503,17 @@ PreservedAnalyses HWAddressSanitizerPass::run(Module &M,
   if (Modified)
     return PreservedAnalyses::none();
   return PreservedAnalyses::all();
+}
+void HWAddressSanitizerPass::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  static_cast<PassInfoMixin<HWAddressSanitizerPass> *>(this)->printPipeline(
+      OS, MapClassName2PassName);
+  OS << "<";
+  if (Options.CompileKernel)
+    OS << "kernel;";
+  if (Options.Recover)
+    OS << "recover";
+  OS << ">";
 }
 
 void HWAddressSanitizer::createHwasanCtorComdat() {
@@ -762,7 +779,7 @@ Value *HWAddressSanitizer::getShadowNonTls(IRBuilder<> &IRB) {
   }
 }
 
-bool HWAddressSanitizer::ignoreAccess(Value *Ptr) {
+bool HWAddressSanitizer::ignoreAccess(Instruction *Inst, Value *Ptr) {
   // Do not instrument acesses from different address spaces; we cannot deal
   // with them.
   Type *PtrTy = cast<PointerType>(Ptr->getType()->getScalarType());
@@ -776,6 +793,12 @@ bool HWAddressSanitizer::ignoreAccess(Value *Ptr) {
   if (Ptr->isSwiftError())
     return true;
 
+  if (!InstrumentStack) {
+    if (findAllocaForValue(Ptr))
+      return true;
+  } else if (SSI && SSI->accessIsSafe(*Inst)) {
+    return true;
+  }
   return false;
 }
 
@@ -790,29 +813,29 @@ void HWAddressSanitizer::getInterestingMemoryOperands(
     return;
 
   if (LoadInst *LI = dyn_cast<LoadInst>(I)) {
-    if (!ClInstrumentReads || ignoreAccess(LI->getPointerOperand()))
+    if (!ClInstrumentReads || ignoreAccess(I, LI->getPointerOperand()))
       return;
     Interesting.emplace_back(I, LI->getPointerOperandIndex(), false,
                              LI->getType(), LI->getAlign());
   } else if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
-    if (!ClInstrumentWrites || ignoreAccess(SI->getPointerOperand()))
+    if (!ClInstrumentWrites || ignoreAccess(I, SI->getPointerOperand()))
       return;
     Interesting.emplace_back(I, SI->getPointerOperandIndex(), true,
                              SI->getValueOperand()->getType(), SI->getAlign());
   } else if (AtomicRMWInst *RMW = dyn_cast<AtomicRMWInst>(I)) {
-    if (!ClInstrumentAtomics || ignoreAccess(RMW->getPointerOperand()))
+    if (!ClInstrumentAtomics || ignoreAccess(I, RMW->getPointerOperand()))
       return;
     Interesting.emplace_back(I, RMW->getPointerOperandIndex(), true,
                              RMW->getValOperand()->getType(), None);
   } else if (AtomicCmpXchgInst *XCHG = dyn_cast<AtomicCmpXchgInst>(I)) {
-    if (!ClInstrumentAtomics || ignoreAccess(XCHG->getPointerOperand()))
+    if (!ClInstrumentAtomics || ignoreAccess(I, XCHG->getPointerOperand()))
       return;
     Interesting.emplace_back(I, XCHG->getPointerOperandIndex(), true,
                              XCHG->getCompareOperand()->getType(), None);
   } else if (auto CI = dyn_cast<CallInst>(I)) {
     for (unsigned ArgNo = 0; ArgNo < CI->getNumArgOperands(); ArgNo++) {
       if (!ClInstrumentByval || !CI->isByValArgument(ArgNo) ||
-          ignoreAccess(CI->getArgOperand(ArgNo)))
+          ignoreAccess(I, CI->getArgOperand(ArgNo)))
         continue;
       Type *Ty = CI->getParamByValType(ArgNo);
       Interesting.emplace_back(I, ArgNo, false, Ty, Align(1));
@@ -1280,6 +1303,35 @@ bool HWAddressSanitizer::instrumentLandingPads(
   return true;
 }
 
+static bool
+maybeReachableFromEachOther(const SmallVectorImpl<IntrinsicInst *> &Insts,
+                            const DominatorTree &DT) {
+  // If we have too many lifetime ends, give up, as the algorithm below is N^2.
+  if (Insts.size() > ClMaxLifetimes)
+    return true;
+  for (size_t I = 0; I < Insts.size(); ++I) {
+    for (size_t J = 0; J < Insts.size(); ++J) {
+      if (I == J)
+        continue;
+      if (isPotentiallyReachable(Insts[I], Insts[J], nullptr, &DT))
+        return true;
+    }
+  }
+  return false;
+}
+
+// static
+bool HWAddressSanitizer::isStandardLifetime(const AllocaInfo &AllocaInfo,
+                                            const DominatorTree &DT) {
+  // An alloca that has exactly one start and end in every possible execution.
+  // If it has multiple ends, they have to be unreachable from each other, so
+  // at most one of them is actually used for each execution of the function.
+  return AllocaInfo.LifetimeStart.size() == 1 &&
+         (AllocaInfo.LifetimeEnd.size() == 1 ||
+          (AllocaInfo.LifetimeEnd.size() > 0 &&
+           !maybeReachableFromEachOther(AllocaInfo.LifetimeEnd, DT)));
+}
+
 bool HWAddressSanitizer::instrumentStack(
     MapVector<AllocaInst *, AllocaInfo> &AllocasToInstrument,
     SmallVector<Instruction *, 4> &UnrecognizedLifetimes,
@@ -1325,12 +1377,10 @@ bool HWAddressSanitizer::instrumentStack(
 
     size_t Size = getAllocaSizeInBytes(*AI);
     size_t AlignedSize = alignTo(Size, Mapping.getObjectAlignment());
-    bool StandardLifetime = UnrecognizedLifetimes.empty() &&
-                            Info.LifetimeStart.size() == 1 &&
-                            Info.LifetimeEnd.size() == 1;
+    bool StandardLifetime =
+        UnrecognizedLifetimes.empty() && isStandardLifetime(Info, GetDT());
     if (DetectUseAfterScope && StandardLifetime) {
       IntrinsicInst *Start = Info.LifetimeStart[0];
-      IntrinsicInst *End = Info.LifetimeEnd[0];
       IRB.SetInsertPoint(Start->getNextNode());
       auto TagEnd = [&](Instruction *Node) {
         IRB.SetInsertPoint(Node);
@@ -1338,8 +1388,11 @@ bool HWAddressSanitizer::instrumentStack(
         tagAlloca(IRB, AI, UARTag, AlignedSize);
       };
       tagAlloca(IRB, AI, Tag, Size);
-      if (!forAllReachableExits(GetDT(), GetPDT(), Start, End, RetVec, TagEnd))
-        End->eraseFromParent();
+      if (!forAllReachableExits(GetDT(), GetPDT(), Start, Info.LifetimeEnd,
+                                RetVec, TagEnd)) {
+        for (auto *End : Info.LifetimeEnd)
+          End->eraseFromParent();
+      }
     } else {
       tagAlloca(IRB, AI, Tag, Size);
       for (auto *RI : RetVec) {
@@ -1376,6 +1429,39 @@ bool HWAddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
           !AI.isSwiftError()) &&
          // safe allocas are not interesting
          !(SSI && SSI->isSafe(AI));
+}
+
+DenseMap<AllocaInst *, AllocaInst *> HWAddressSanitizer::padInterestingAllocas(
+    const MapVector<AllocaInst *, AllocaInfo> &AllocasToInstrument) {
+  DenseMap<AllocaInst *, AllocaInst *> AllocaToPaddedAllocaMap;
+  for (auto &KV : AllocasToInstrument) {
+    AllocaInst *AI = KV.first;
+    uint64_t Size = getAllocaSizeInBytes(*AI);
+    uint64_t AlignedSize = alignTo(Size, Mapping.getObjectAlignment());
+    AI->setAlignment(
+        Align(std::max(AI->getAlignment(), Mapping.getObjectAlignment())));
+    if (Size != AlignedSize) {
+      Type *AllocatedType = AI->getAllocatedType();
+      if (AI->isArrayAllocation()) {
+        uint64_t ArraySize =
+            cast<ConstantInt>(AI->getArraySize())->getZExtValue();
+        AllocatedType = ArrayType::get(AllocatedType, ArraySize);
+      }
+      Type *TypeWithPadding = StructType::get(
+          AllocatedType, ArrayType::get(Int8Ty, AlignedSize - Size));
+      auto *NewAI = new AllocaInst(
+          TypeWithPadding, AI->getType()->getAddressSpace(), nullptr, "", AI);
+      NewAI->takeName(AI);
+      NewAI->setAlignment(AI->getAlign());
+      NewAI->setUsedWithInAlloca(AI->isUsedWithInAlloca());
+      NewAI->setSwiftError(AI->isSwiftError());
+      NewAI->copyMetadata(*AI);
+      auto *Bitcast = new BitCastInst(NewAI, AI->getType(), "", AI);
+      AI->replaceAllUsesWith(Bitcast);
+      AllocaToPaddedAllocaMap[AI] = NewAI;
+    }
+  }
+  return AllocaToPaddedAllocaMap;
 }
 
 bool HWAddressSanitizer::sanitizeFunction(
@@ -1481,34 +1567,8 @@ bool HWAddressSanitizer::sanitizeFunction(
   // Pad and align each of the allocas that we instrumented to stop small
   // uninteresting allocas from hiding in instrumented alloca's padding and so
   // that we have enough space to store real tags for short granules.
-  DenseMap<AllocaInst *, AllocaInst *> AllocaToPaddedAllocaMap;
-  for (auto &KV : AllocasToInstrument) {
-    AllocaInst *AI = KV.first;
-    uint64_t Size = getAllocaSizeInBytes(*AI);
-    uint64_t AlignedSize = alignTo(Size, Mapping.getObjectAlignment());
-    AI->setAlignment(
-        Align(std::max(AI->getAlignment(), Mapping.getObjectAlignment())));
-    if (Size != AlignedSize) {
-      Type *AllocatedType = AI->getAllocatedType();
-      if (AI->isArrayAllocation()) {
-        uint64_t ArraySize =
-            cast<ConstantInt>(AI->getArraySize())->getZExtValue();
-        AllocatedType = ArrayType::get(AllocatedType, ArraySize);
-      }
-      Type *TypeWithPadding = StructType::get(
-          AllocatedType, ArrayType::get(Int8Ty, AlignedSize - Size));
-      auto *NewAI = new AllocaInst(
-          TypeWithPadding, AI->getType()->getAddressSpace(), nullptr, "", AI);
-      NewAI->takeName(AI);
-      NewAI->setAlignment(AI->getAlign());
-      NewAI->setUsedWithInAlloca(AI->isUsedWithInAlloca());
-      NewAI->setSwiftError(AI->isSwiftError());
-      NewAI->copyMetadata(*AI);
-      auto *Bitcast = new BitCastInst(NewAI, AI->getType(), "", AI);
-      AI->replaceAllUsesWith(Bitcast);
-      AllocaToPaddedAllocaMap[AI] = NewAI;
-    }
-  }
+  DenseMap<AllocaInst *, AllocaInst *> AllocaToPaddedAllocaMap =
+      padInterestingAllocas(AllocasToInstrument);
 
   if (!AllocaToPaddedAllocaMap.empty()) {
     for (auto &BB : F) {

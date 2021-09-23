@@ -40,6 +40,7 @@
 // changes the API version from 3.5 to 4.6.
 // 5.7 Added new context and ownership arguments to
 //   piextEventCreateWithNativeHandle
+// 6.8 Added new ownership argument to piextProgramCreateWithNativeHandle.
 //
 #include "CL/cl.h"
 #define _PI_H_VERSION_MAJOR 5
@@ -691,6 +692,12 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
 #define __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN "amdgcn"
 
+/// Extension to denote native support of assert feature by an arbitrary device
+/// piDeviceGetInfo call should return this extension when the device supports
+/// native asserts if supported extensions' names are requested
+#define PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT                              \
+  "pi_ext_intel_devicelib_assert"
+
 /// Device binary image property set names recognized by the SYCL runtime.
 /// Name must be consistent with
 /// PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS defined in
@@ -708,6 +715,7 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA "SYCL/program metadata"
 /// PropertySetRegistry::SYCL_MISC_PROP defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP "SYCL/misc properties"
+#define __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED "SYCL/assert used"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
@@ -928,6 +936,9 @@ __SYCL_EXPORT pi_result piDevicesGet(pi_platform platform,
                                      pi_uint32 num_entries, pi_device *devices,
                                      pi_uint32 *num_devices);
 
+/// Returns requested info for provided native device
+/// Return PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT for
+/// PI_DEVICE_INFO_EXTENSIONS query when the device supports native asserts
 __SYCL_EXPORT pi_result piDeviceGetInfo(pi_device device,
                                         pi_device_info param_name,
                                         size_t param_value_size,
@@ -953,7 +964,7 @@ piextDeviceGetNativeHandle(pi_device device, pi_native_handle *nativeHandle);
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI device from.
-/// \param platform is the platform of the device.
+/// \param platform is the platform of the device (optional).
 /// \param device is the PI device created from the native handle.
 __SYCL_EXPORT pi_result piextDeviceCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_platform platform, pi_device *device);
@@ -1024,8 +1035,8 @@ piextContextGetNativeHandle(pi_context context, pi_native_handle *nativeHandle);
 /// \param devices is the list of devices in the context. Parameter is ignored
 ///        if devices can be queried from the context native handle for a
 ///        backend.
-/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
-///        the native handle, if it can.
+/// \param pluginOwnsNativeHandle Indicates whether the created PI object
+///        should take ownership of the native handle.
 /// \param context is the PI context created from the native handle.
 /// \return PI_SUCCESS if successfully created pi_context from the handle.
 ///         PI_OUT_OF_HOST_MEMORY if can't allocate memory for the pi_context
@@ -1034,7 +1045,7 @@ piextContextGetNativeHandle(pi_context context, pi_native_handle *nativeHandle);
 ///         native handle. PI_UNKNOWN_ERROR in case of another error.
 __SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_uint32 numDevices,
-    const pi_device *devices, bool ownNativeHandle, pi_context *context);
+    const pi_device *devices, bool pluginOwnsNativeHandle, pi_context *context);
 
 //
 // Queue
@@ -1068,11 +1079,11 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 /// \param nativeHandle is the native handle to create PI queue from.
 /// \param context is the PI context of the queue.
 /// \param queue is the PI queue created from the native handle.
-/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
-///        the native handle, if it can.
+/// \param pluginOwnsNativeHandle Indicates whether the created PI object
+///        should take ownership of the native handle.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, pi_queue *queue,
-    bool ownNativeHandle);
+    bool pluginOwnsNativeHandle);
 
 //
 // Memory
@@ -1210,9 +1221,12 @@ piextProgramGetNativeHandle(pi_program program, pi_native_handle *nativeHandle);
 ///
 /// \param nativeHandle is the native handle to create PI program from.
 /// \param context is the PI context of the program.
+/// \param pluginOwnsNativeHandle Indicates whether the created PI object
+///        should take ownership of the native handle.
 /// \param program is the PI program created from the native handle.
 __SYCL_EXPORT pi_result piextProgramCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, pi_program *program);
+    pi_native_handle nativeHandle, pi_context context,
+    bool pluginOwnsNativeHandle, pi_program *program);
 
 //
 // Kernel
@@ -1306,12 +1320,12 @@ __SYCL_EXPORT pi_result piKernelSetExecInfo(pi_kernel kernel,
 ///
 /// \param nativeHandle is the native handle to create PI kernel from.
 /// \param context is the PI context of the kernel.
-/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
-///        the native handle, if it can.
+/// \param pluginOwnsNativeHandle Indicates whether the created PI object
+///        should take ownership of the native handle.
 /// \param kernel is the PI kernel created from the native handle.
 __SYCL_EXPORT pi_result piextKernelCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
-    pi_kernel *kernel);
+    pi_native_handle nativeHandle, pi_context context,
+    bool pluginOwnsNativeHandle, pi_kernel *kernel);
 
 /// Gets the native handle of a PI kernel object.
 ///
@@ -1364,8 +1378,8 @@ piextEventGetNativeHandle(pi_event event, pi_native_handle *nativeHandle);
 ///
 /// \param nativeHandle is the native handle to create PI event from.
 /// \param context is the corresponding PI context
-/// \param ownNativeHandle tells if SYCL RT should assume the ownership of
-///        the native handle, if it can.
+/// \param pluginOwnsNativeHandle Indicates whether the created PI object
+///        should take ownership of the native handle.
 /// \param event is the PI event created from the native handle.
 __SYCL_EXPORT pi_result piextEventCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
@@ -1551,6 +1565,9 @@ typedef enum : pi_bitfield {
   PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL
 } _pi_usm_mem_properties;
 
+// Flag is used for piProgramUSMEnqueuePrefetch. PI_USM_MIGRATION_TBD0 is a
+// placeholder for future developments and should not change the behaviour of
+// piProgramUSMEnqueuePrefetch
 typedef enum : pi_bitfield {
   PI_USM_MIGRATION_TBD0 = (1 << 0)
 } _pi_usm_migration_flags;

@@ -319,11 +319,10 @@ void PreprocessMetadataBase::preprocessVectorComputeMetadata(Module *M,
     // RoundMode and FloatMode are always same for all types in VC
     // While Denorm could be different for double, float and half
     auto Attrs = F.getAttributes();
-    if (Attrs.hasFnAttribute(kVCMetadata::VCFloatControl)) {
+    if (Attrs.hasFnAttr(kVCMetadata::VCFloatControl)) {
       SPIRVWord Mode = 0;
       Attrs
-          .getAttribute(AttributeList::FunctionIndex,
-                        kVCMetadata::VCFloatControl)
+          .getFnAttr(kVCMetadata::VCFloatControl)
           .getValueAsString()
           .getAsInteger(0, Mode);
       spv::ExecutionMode ExecRoundMode =
@@ -342,9 +341,9 @@ void PreprocessMetadataBase::preprocessVectorComputeMetadata(Module *M,
                 .done();
           });
     }
-    if (Attrs.hasFnAttribute(kVCMetadata::VCSLMSize)) {
+    if (Attrs.hasFnAttr(kVCMetadata::VCSLMSize)) {
       SPIRVWord SLMSize = 0;
-      Attrs.getAttribute(AttributeList::FunctionIndex, kVCMetadata::VCSLMSize)
+      Attrs.getFnAttr(kVCMetadata::VCSLMSize)
           .getValueAsString()
           .getAsInteger(0, SLMSize);
       EM.addOp()
@@ -353,7 +352,7 @@ void PreprocessMetadataBase::preprocessVectorComputeMetadata(Module *M,
           .add(SLMSize)
           .done();
     }
-    if (Attrs.hasFnAttribute(kVCMetadata::VCFCEntry)) {
+    if (Attrs.hasFnAttr(kVCMetadata::VCFCEntry)) {
       EM.addOp()
           .add(&F)
           .add(spv::internal::ExecutionModeFastCompositeKernelINTEL)

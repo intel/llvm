@@ -999,6 +999,23 @@ createKernelArgMask(const pi::ByteArray &Bytes) {
   return Result;
 }
 
+void ProgramManager::cacheKernelUsesAssertInfo(OSModuleHandle M,
+                                               RTDeviceBinaryImage &Img) {
+  const pi::DeviceBinaryImage::PropertyRange &AssertUsedRange =
+      Img.getAssertUsed();
+  if (AssertUsedRange.isAvailable())
+    for (const auto &Prop : AssertUsedRange) {
+      KernelNameWithOSModule Key{Prop->Name, M};
+      m_KernelUsesAssert.insert(Key);
+    }
+}
+
+bool ProgramManager::kernelUsesAssert(OSModuleHandle M,
+                                      const std::string &KernelName) const {
+  KernelNameWithOSModule Key{KernelName, M};
+  return m_KernelUsesAssert.find(Key) != m_KernelUsesAssert.end();
+}
+
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
 
@@ -1032,6 +1049,9 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
                  "Kernel sets are not disjoint");
         auto &Imgs = m_DeviceImages[KSIdIt->second];
         assert(Imgs && "Device image vector should have been already created");
+
+        cacheKernelUsesAssertInfo(M, *Img);
+
         Imgs->push_back(std::move(Img));
         continue;
       }
@@ -1044,6 +1064,16 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           auto Result = KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
           (void)Result;
           assert(Result.second && "Kernel sets are not disjoint");
+
+          // Skip creating unique kernel ID if it is a service kernel.
+          // SYCL service kernels are identified by having
+          // __sycl_service_kernel__ in the mangled name, primarily as part of
+          // the namespace of the name type.
+          if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
+            m_ServiceKernels.insert(EntriesIt->name);
+            continue;
+          }
+
           // ... and create a unique kernel ID for the entry
           std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
               std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
@@ -1054,6 +1084,9 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
         }
       }
       m_DeviceImages[KSId].reset(new std::vector<RTDeviceBinaryImageUPtr>());
+
+      cacheKernelUsesAssertInfo(M, *Img);
+
       m_DeviceImages[KSId]->push_back(std::move(Img));
       continue;
     }
@@ -1066,6 +1099,9 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     auto &Imgs = m_DeviceImages[KSId];
     if (!Imgs)
       Imgs.reset(new std::vector<RTDeviceBinaryImageUPtr>());
+
+    cacheKernelUsesAssertInfo(M, *Img);
+
     Imgs->push_back(std::move(Img));
   }
 }
@@ -1190,11 +1226,13 @@ uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
 // TODO consider another approach with storing the masks in the integration
 // header instead.
 ProgramManager::KernelArgMask ProgramManager::getEliminatedKernelArgMask(
-    OSModuleHandle M, const ContextImplPtr &ContextImpl,
-    const DeviceImplPtr &DeviceImpl, pi::PiProgram NativePrg,
-    const std::string &KernelName, bool KnownProgram) {
+    OSModuleHandle M, pi::PiProgram NativePrg, const std::string &KernelName) {
   // If instructed to use a spv file, assume no eliminated arguments.
   if (m_UseSpvFile && M == OSUtil::ExeModuleHandle)
+    return {};
+
+  // Bail out if there are no eliminated kernel arg masks in our images
+  if (m_EliminatedKernelArgMasks.empty())
     return {};
 
   {
@@ -1208,35 +1246,15 @@ ProgramManager::KernelArgMask ProgramManager::getEliminatedKernelArgMask(
     }
   }
 
-  if (KnownProgram)
-    throw runtime_error("Program is not associated with a binary image",
-                        PI_INVALID_VALUE);
-
-  // If not sure whether the program was built with one of the images, try
-  // finding the binary.
-  // TODO this can backfire in some extreme edge cases where there's a kernel
-  // name collision between our binaries and user-created native programs.
-  KernelSetId KSId;
-  try {
-    KSId = getKernelSetId(M, KernelName);
-  } catch (sycl::runtime_error &e) {
-    // If the kernel name wasn't found, assume that the program wasn't created
-    // from one of our device binary images.
-    if (e.get_cl_code() == PI_INVALID_KERNEL_NAME)
-      return {};
-    std::rethrow_exception(std::current_exception());
+  // If the program was not cached iterate over all available images looking for
+  // the requested kernel
+  for (auto &Elem : m_EliminatedKernelArgMasks) {
+    auto ArgMask = Elem.second.find(KernelName);
+    if (ArgMask != Elem.second.end())
+      return ArgMask->second;
   }
 
-  auto Context = createSyclObjFromImpl<context>(ContextImpl);
-  auto Device = createSyclObjFromImpl<device>(DeviceImpl);
-  RTDeviceBinaryImage &Img = getDeviceImage(M, KSId, Context, Device);
-  {
-    std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
-    NativePrograms[NativePrg] = &Img;
-  }
-  auto MapIt = m_EliminatedKernelArgMasks.find(&Img);
-  if (MapIt != m_EliminatedKernelArgMasks.end())
-    return MapIt->second[KernelName];
+  // The kernel is not generated by DPCPP stack, so a mask doesn't exist for it
   return {};
 }
 
@@ -1280,7 +1298,10 @@ kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
   auto KernelID = m_KernelIDs.find(KernelName);
-  assert(KernelID != m_KernelIDs.end() && "Kernel ID missing");
+  if (KernelID == m_KernelIDs.end())
+    throw runtime_error("No kernel found with the specified name",
+                        PI_INVALID_KERNEL_NAME);
+
   return KernelID->second;
 }
 
@@ -1341,7 +1362,6 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
       if (!compatibleWithDevice(BinImage, Dev))
         continue;
 
-      // TODO: Cache kernel_ids
       std::vector<sycl::kernel_id> KernelIDs;
       // Collect kernel names for the image
       pi_device_binary DevBin =
@@ -1351,11 +1371,23 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
         for (_pi_offload_entry EntriesIt = DevBin->EntriesBegin;
              EntriesIt != DevBin->EntriesEnd; ++EntriesIt) {
           auto KernelID = m_KernelIDs.find(EntriesIt->name);
-          assert(KernelID != m_KernelIDs.end() &&
-                 "Kernel ID in device binary missing from cache");
+
+          if (KernelID == m_KernelIDs.end()) {
+            // Service kernels do not have kernel IDs
+            assert(m_ServiceKernels.find(EntriesIt->name) !=
+                       m_ServiceKernels.end() &&
+                   "Kernel ID in device binary missing from cache");
+            continue;
+          }
+
           KernelIDs.push_back(KernelID->second);
         }
       }
+
+      // If the image does not contain any non-service kernels we can skip it.
+      if (KernelIDs.empty())
+        continue;
+
       // device_image_impl expects kernel ids to be sorted for fast search
       std::sort(KernelIDs.begin(), KernelIDs.end(), LessByNameComp{});
 
@@ -1566,7 +1598,7 @@ ProgramManager::link(const std::vector<device_image_plain> &DeviceImages,
 
   if (Error != PI_SUCCESS) {
     if (LinkedProg) {
-      const string_class ErrorMsg = getProgramBuildLog(LinkedProg, ContextImpl);
+      const std::string ErrorMsg = getProgramBuildLog(LinkedProg, ContextImpl);
       throw sycl::exception(make_error_code(errc::build), ErrorMsg);
     }
     Plugin.reportPiError(Error, "link()");

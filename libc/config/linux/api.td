@@ -111,6 +111,21 @@ def AssertAPI : PublicAPI<"assert.h"> {
 def CTypeAPI : PublicAPI<"ctype.h"> {
 }
 
+def IMaxDivT : TypeDecl<"imaxdiv_t"> {
+  let Decl = [{
+    typedef struct {
+      intmax_t quot;
+      intmax_t rem;
+    } imaxdiv_t;
+  }];
+}
+
+def IntTypesAPI : PublicAPI<"inttypes.h"> {
+  let TypeDeclarations = [
+    IMaxDivT,
+  ];
+}
+
 def MathErrHandlingMacro : MacroDef<"math_errhandling"> {
   let Defn = [{
     #ifndef math_errhandling
@@ -239,7 +254,39 @@ def StdIOAPI : PublicAPI<"stdio.h"> {
   ];
 }
 
+def DivT : TypeDecl<"div_t"> {
+  let Decl = [{
+    typedef struct {
+      int quot;
+      int rem;
+    } div_t;
+  }];
+}
+
+def LDivT : TypeDecl<"ldiv_t"> {
+  let Decl = [{
+    typedef struct {
+      long quot;
+      long rem;
+    } ldiv_t;
+  }];
+}
+
+def LLDivT : TypeDecl<"lldiv_t"> {
+  let Decl = [{
+    typedef struct {
+      long long quot;
+      long long rem;
+    } lldiv_t;
+  }];
+}
+
 def StdlibAPI : PublicAPI<"stdlib.h"> {
+  let TypeDeclarations = [
+    DivT,
+    LDivT,
+    LLDivT,
+  ];
 }
 
 def TimeAPI : PublicAPI<"time.h"> {
@@ -344,6 +391,19 @@ def MtxT : TypeDecl<"mtx_t"> {
   }];
 }
 
+def CndT : TypeDecl<"cnd_t"> {
+  let Decl = [{
+    typedef struct {
+      void *__qfront;
+      void *__qback;
+      struct {
+        unsigned char __w[4];
+        int __t;
+      } __qmtx;
+    } cnd_t;
+  }];
+}
+
 def ThreadStartT : TypeDecl<"thrd_start_t"> {
   let Decl = "typedef int (*thrd_start_t)(void *);";
 }
@@ -363,6 +423,7 @@ def ThreadsAPI : PublicAPI<"threads.h"> {
     OnceFlag,
     CallOnceFuncT,
     MtxT,
+    CndT,
     ThreadStartT,
   ];
 

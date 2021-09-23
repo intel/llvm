@@ -349,29 +349,6 @@ bool DWARFUnitHeader::applyIndexEntry(const DWARFUnitIndex::Entry *Entry) {
   return true;
 }
 
-// Parse the rangelist table header, including the optional array of offsets
-// following it (DWARF v5 and later).
-template<typename ListTableType>
-static Expected<ListTableType>
-parseListTableHeader(DWARFDataExtractor &DA, uint64_t Offset,
-                        DwarfFormat Format) {
-  // We are expected to be called with Offset 0 or pointing just past the table
-  // header. Correct Offset in the latter case so that it points to the start
-  // of the header.
-  if (Offset > 0) {
-    uint64_t HeaderSize = DWARFListTableHeader::getHeaderSize(Format);
-    if (Offset < HeaderSize)
-      return createStringError(errc::invalid_argument, "did not detect a valid"
-                               " list table with base = 0x%" PRIx64 "\n",
-                               Offset);
-    Offset -= HeaderSize;
-  }
-  ListTableType Table;
-  if (Error E = Table.extractHeaderAndOffsets(DA, &Offset))
-    return std::move(E);
-  return Table;
-}
-
 Error DWARFUnit::extractRangeList(uint64_t RangeListOffset,
                                   DWARFDebugRangeList &RangeList) const {
   // Require that compile unit is extracted.
@@ -600,10 +577,14 @@ bool DWARFUnit::parseDWO() {
 }
 
 void DWARFUnit::clearDIEs(bool KeepCUDie) {
-  if (DieArray.size() > (unsigned)KeepCUDie) {
-    DieArray.resize((unsigned)KeepCUDie);
-    DieArray.shrink_to_fit();
-  }
+  // Do not use resize() + shrink_to_fit() to free memory occupied by dies.
+  // shrink_to_fit() is a *non-binding* request to reduce capacity() to size().
+  // It depends on the implementation whether the request is fulfilled.
+  // Create a new vector with a small capacity and assign it to the DieArray to
+  // have previous contents freed.
+  DieArray = (KeepCUDie && !DieArray.empty())
+                 ? std::vector<DWARFDebugInfoEntry>({DieArray[0]})
+                 : std::vector<DWARFDebugInfoEntry>();
 }
 
 Expected<DWARFAddressRangesVector>

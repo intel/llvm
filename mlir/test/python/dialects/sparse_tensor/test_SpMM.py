@@ -1,17 +1,19 @@
 # RUN: SUPPORT_LIB=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext %PYTHON %s | FileCheck %s
 
-import os
 import ctypes
-import mlir.all_passes_registration
 import numpy as np
+import os
 
+import mlir.all_passes_registration
+
+from mlir import ir
+from mlir import runtime as rt
+from mlir import execution_engine
+from mlir import passmanager
+
+from mlir.dialects import sparse_tensor as st
 from mlir.dialects import builtin
-from mlir.dialects.linalg.opdsl.lang import *
-from mlir.dialects.sparse_tensor import *
-from mlir.execution_engine import *
-from mlir.ir import *
-from mlir.passmanager import *
-from mlir.runtime import *
+from mlir.dialects.linalg.opdsl import lang as dsl
 
 
 def run(f):
@@ -20,28 +22,28 @@ def run(f):
   return f
 
 
-@linalg_structured_op
+@dsl.linalg_structured_op
 def matmul_dsl(
-    A=TensorDef(T, S.M, S.K),
-    B=TensorDef(T, S.K, S.N),
-    C=TensorDef(T, S.M, S.N, output=True)):
-  C[D.m, D.n] += A[D.m, D.k] * B[D.k, D.n]
+    A=dsl.TensorDef(dsl.T, dsl.S.M, dsl.S.K),
+    B=dsl.TensorDef(dsl.T, dsl.S.K, dsl.S.N),
+    C=dsl.TensorDef(dsl.T, dsl.S.M, dsl.S.N, output=True)):
+  C[dsl.D.m, dsl.D.n] += A[dsl.D.m, dsl.D.k] * B[dsl.D.k, dsl.D.n]
 
 
-def build_SpMM(attr: EncodingAttr):
+def build_SpMM(attr: st.EncodingAttr):
   """Build SpMM kernel.
 
   This method generates a linalg op with for matrix multiplication using
   just the Python API. Effectively, a generic linalg op is constructed
   that computes C(i,j) += A(i,k) * B(k,j) for annotated matrix A.
   """
-  module = Module.create()
+  module = ir.Module.create()
   f64 = ir.F64Type.get()
-  a = RankedTensorType.get([3, 4], f64, attr)
-  b = RankedTensorType.get([4, 2], f64)
-  c = RankedTensorType.get([3, 2], f64)
+  a = ir.RankedTensorType.get([3, 4], f64, attr)
+  b = ir.RankedTensorType.get([4, 2], f64)
+  c = ir.RankedTensorType.get([3, 2], f64)
   arguments = [a, b, c]
-  with InsertionPoint(module.body):
+  with ir.InsertionPoint(module.body):
 
     @builtin.FuncOp.from_py_func(*arguments)
     def spMxM(*args):
@@ -50,55 +52,60 @@ def build_SpMM(attr: EncodingAttr):
   return module
 
 
-def boilerplate(attr: EncodingAttr):
+def boilerplate(attr: st.EncodingAttr):
   """Returns boilerplate main method.
 
-  This method sets up a boilerplate main method that calls the generated
-  sparse kernel. For convenience, this part is purely done as string input.
+  This method sets up a boilerplate main method that takes three tensors
+  (a, b, c), converts the first tensor a into s sparse tensor, and then
+  calls the sparse kernel for matrix multiplication. For convenience,
+  this part is purely done as string input.
   """
   return f"""
-func @main(%c: tensor<3x2xf64>) -> tensor<3x2xf64>
+func @main(%ad: tensor<3x4xf64>, %b: tensor<4x2xf64>, %c: tensor<3x2xf64>) -> tensor<3x2xf64>
   attributes {{ llvm.emit_c_interface }} {{
-  %0 = constant dense<[ [ 1.1,  0.0,  0.0,  1.4 ],
-                        [ 0.0,  0.0,  0.0,  0.0 ],
-                        [ 0.0,  0.0,  3.3,  0.0 ]]> : tensor<3x4xf64>
-  %a = sparse_tensor.convert %0 : tensor<3x4xf64> to tensor<3x4xf64, {attr}>
-  %b = constant dense<[ [ 1.0,  2.0 ],
-                        [ 4.0,  3.0 ],
-                        [ 5.0,  6.0 ],
-                        [ 8.0,  7.0 ]]> : tensor<4x2xf64>
-  %1 = call @spMxM(%a, %b, %c) : (tensor<3x4xf64, {attr}>,
+  %a = sparse_tensor.convert %ad : tensor<3x4xf64> to tensor<3x4xf64, {attr}>
+  %0 = call @spMxM(%a, %b, %c) : (tensor<3x4xf64, {attr}>,
                                   tensor<4x2xf64>,
                                   tensor<3x2xf64>) -> tensor<3x2xf64>
-  return %1 : tensor<3x2xf64>
+  return %0 : tensor<3x2xf64>
 }}
 """
 
 
-def build_compile_and_run_SpMM(attr: EncodingAttr, support_lib: str, compiler):
+def build_compile_and_run_SpMM(attr: st.EncodingAttr, support_lib: str,
+                               compiler):
   # Build.
   module = build_SpMM(attr)
   func = str(module.operation.regions[0].blocks[0].operations[0].operation)
-  module = Module.parse(func + boilerplate(attr))
+  module = ir.Module.parse(func + boilerplate(attr))
+
   # Compile.
   compiler(module)
-  execution_engine = ExecutionEngine(
+  engine = execution_engine.ExecutionEngine(
       module, opt_level=0, shared_libs=[support_lib])
-  # Set up numpy input, invoke the kernel, and get numpy output.
+
+  # Set up numpy input and buffer for output.
+  a = np.array(
+      [[1.1, 0.0, 0.0, 1.4], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 3.3, 0.0]],
+      np.float64)
+  b = np.array([[1.0, 2.0], [4.0, 3.0], [5.0, 6.0], [8.0, 7.0]], np.float64)
+  c = np.zeros((3, 2), np.float64)
+  out = np.zeros((3, 2), np.float64)
+
+  mem_a = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(a)))
+  mem_b = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(b)))
+  mem_c = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(c)))
+  mem_out = ctypes.pointer(ctypes.pointer(rt.get_ranked_memref_descriptor(out)))
+
+  # Invoke the kernel and get numpy output.
   # Built-in bufferization uses in-out buffers.
   # TODO: replace with inplace comprehensive bufferization.
-  Cin = np.zeros((3, 2), np.double)
-  Cout = np.zeros((3, 2), np.double)
-  Cin_memref_ptr = ctypes.pointer(
-      ctypes.pointer(get_ranked_memref_descriptor(Cin)))
-  Cout_memref_ptr = ctypes.pointer(
-      ctypes.pointer(get_ranked_memref_descriptor(Cout)))
-  execution_engine.invoke('main', Cout_memref_ptr, Cin_memref_ptr)
-  Cresult = ranked_memref_to_numpy(Cout_memref_ptr[0])
+  engine.invoke('main', mem_out, mem_a, mem_b, mem_c)
 
   # Sanity check on computed result.
-  expected = [[12.3, 12.0], [0.0, 0.0], [16.5, 19.8]]
-  if np.allclose(Cresult, expected):
+  expected = np.matmul(a, b);
+  c = rt.ranked_memref_to_numpy(mem_out[0])
+  if np.allclose(c, expected):
     pass
   else:
     quit(f'FAILURE')
@@ -118,19 +125,23 @@ class SparseCompiler:
         f'builtin.func(tensor-bufferize,std-bufferize,finalizing-bufferize),'
         f'convert-vector-to-llvm{{reassociate-fp-reductions=1 enable-index-optimizations=1}},'
         f'convert-memref-to-llvm,'
-        f'convert-std-to-llvm')
+        f'convert-std-to-llvm,'
+        f'reconcile-unrealized-casts')
     self.pipeline = pipeline
 
-  def __call__(self, module: Module):
-    PassManager.parse(self.pipeline).run(module)
+  def __call__(self, module: ir.Module):
+    passmanager.PassManager.parse(self.pipeline).run(module)
 
 
 # CHECK-LABEL: TEST: testSpMM
 # CHECK: Passed 72 tests
 @run
 def testSpMM():
+  # Obtain path to runtime support library.
   support_lib = os.getenv('SUPPORT_LIB')
-  with Context() as ctx, Location.unknown():
+  assert os.path.exists(support_lib), f'{support_lib} does not exist'
+
+  with ir.Context() as ctx, ir.Location.unknown():
     count = 0
     # Fixed compiler optimization strategy.
     # TODO: explore state space here too
@@ -144,20 +155,20 @@ def testSpMM():
     # Exhaustive loop over various ways to annotate a kernel with
     # a *single* sparse tensor. Even this subset already gives
     # quite a large state space!
-    levels = [[DimLevelType.dense, DimLevelType.dense],
-              [DimLevelType.dense, DimLevelType.compressed],
-              [DimLevelType.compressed, DimLevelType.dense],
-              [DimLevelType.compressed, DimLevelType.compressed]]
+    levels = [[st.DimLevelType.dense, st.DimLevelType.dense],
+              [st.DimLevelType.dense, st.DimLevelType.compressed],
+              [st.DimLevelType.compressed, st.DimLevelType.dense],
+              [st.DimLevelType.compressed, st.DimLevelType.compressed]]
     orderings = [
-        AffineMap.get_permutation([0, 1]),
-        AffineMap.get_permutation([1, 0])
+        ir.AffineMap.get_permutation([0, 1]),
+        ir.AffineMap.get_permutation([1, 0])
     ]
     bitwidths = [0, 8, 32]
-    for levels in levels:
+    for level in levels:
       for ordering in orderings:
         for pwidth in bitwidths:
           for iwidth in bitwidths:
-            attr = EncodingAttr.get(levels, ordering, pwidth, iwidth)
+            attr = st.EncodingAttr.get(level, ordering, pwidth, iwidth)
             compiler = SparseCompiler(options=opt)
             build_compile_and_run_SpMM(attr, support_lib, compiler)
             count = count + 1

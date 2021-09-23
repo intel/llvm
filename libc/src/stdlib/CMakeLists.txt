@@ -1,24 +1,71 @@
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
-  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
-endif()
-
 add_entrypoint_object(
-  _Exit
-  ALIAS
+  atoi
+  SRCS
+    atoi.cpp
+  HDRS
+    atoi.h
   DEPENDS
-    .${LIBC_TARGET_OS}._Exit
+    libc.src.__support.str_conv_utils
 )
 
 add_entrypoint_object(
-  abort
+  atol
   SRCS
-    abort.cpp
+    atol.cpp
   HDRS
-    abort.h
+    atol.h
   DEPENDS
-    libc.include.stdlib
-    libc.src.signal.raise
-    ._Exit
+    libc.src.__support.str_conv_utils
+)
+
+add_entrypoint_object(
+  atoll
+  SRCS
+    atoll.cpp
+  HDRS
+    atoll.h
+  DEPENDS
+    libc.src.__support.str_conv_utils
+)
+
+add_entrypoint_object(
+  strtol
+  SRCS
+    strtol.cpp
+  HDRS
+    strtol.h
+  DEPENDS
+    libc.src.__support.str_conv_utils
+)
+
+add_entrypoint_object(
+  strtoll
+  SRCS
+    strtoll.cpp
+  HDRS
+    strtoll.h
+  DEPENDS
+    libc.src.__support.str_conv_utils
+)
+
+add_entrypoint_object(
+  strtoul
+  SRCS
+    strtoul.cpp
+  HDRS
+    strtoul.h
+  DEPENDS
+    libc.src.__support.str_conv_utils
+)
+
+add_entrypoint_object(
+  strtoull
+  SRCS
+    strtoull.cpp
+  HDRS
+    strtoull.h
+  DEPENDS
+    libc.src.__support.str_conv_utils
 )
 
 add_entrypoint_object(
@@ -52,11 +99,61 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
-  strtoll
+  div
   SRCS
-    strtoll.cpp
+    div.cpp
   HDRS
-    strtoll.h
+    div.h
   DEPENDS
-    libc.src.__support.str_conv_utils
+    libc.include.stdlib
+    libc.src.__support.integer_operations
+)
+
+add_entrypoint_object(
+  ldiv
+  SRCS
+    ldiv.cpp
+  HDRS
+    ldiv.h
+  DEPENDS
+    libc.include.stdlib
+    libc.src.__support.integer_operations
+)
+
+add_entrypoint_object(
+  lldiv
+  SRCS
+    lldiv.cpp
+  HDRS
+    lldiv.h
+  DEPENDS
+    libc.include.stdlib
+    libc.src.__support.integer_operations
+)
+
+if(NOT LLVM_LIBC_FULL_BUILD)
+  return()
+endif()
+
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
+endif()
+
+add_entrypoint_object(
+  _Exit
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}._Exit
+)
+
+add_entrypoint_object(
+  abort
+  SRCS
+    abort.cpp
+  HDRS
+    abort.h
+  DEPENDS
+    libc.include.stdlib
+    libc.src.signal.raise
+    ._Exit
 )

@@ -2701,7 +2701,8 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
       amt = llvm::ConstantFP::get(VMContext,
                                   llvm::APFloat(static_cast<double>(amount)));
     else {
-      // Remaining types are Half, LongDouble or __float128. Convert from float.
+      // Remaining types are Half, LongDouble, __ibm128 or __float128. Convert
+      // from float.
       llvm::APFloat F(static_cast<float>(amount));
       bool ignored;
       const llvm::fltSemantics *FS;
@@ -2711,6 +2712,8 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
         FS = &CGF.getTarget().getFloat128Format();
       else if (value->getType()->isHalfTy())
         FS = &CGF.getTarget().getHalfFormat();
+      else if (value->getType()->isPPC_FP128Ty())
+        FS = &CGF.getTarget().getIbm128Format();
       else
         FS = &CGF.getTarget().getLongDoubleFormat();
       F.convert(*FS, llvm::APFloat::rmTowardZero, &ignored);
@@ -4806,11 +4809,8 @@ Value *ScalarExprEmitter::VisitAsTypeExpr(AsTypeExpr *E) {
   // vector to get a vec4, then a bitcast if the target type is different.
   if (NumElementsSrc == 3 && NumElementsDst != 3) {
     Src = ConvertVec3AndVec4(Builder, CGF, Src, 4);
-
-    if (!CGF.CGM.getCodeGenOpts().PreserveVec3Type) {
-      Src = createCastsForTypeOfSameSize(Builder, CGF.CGM.getDataLayout(), Src,
-                                         DstTy);
-    }
+    Src = createCastsForTypeOfSameSize(Builder, CGF.CGM.getDataLayout(), Src,
+                                       DstTy);
 
     Src->setName("astype");
     return Src;
@@ -4985,7 +4985,7 @@ static GEPOffsetAndOverflow EmitGEPOffsetInBytes(Value *BasePtr, Value *GEPVal,
 
   auto *GEP = cast<llvm::GEPOperator>(GEPVal);
   assert(GEP->getPointerOperand() == BasePtr &&
-         "BasePtr must be the the base of the GEP.");
+         "BasePtr must be the base of the GEP.");
   assert(GEP->isInBounds() && "Expected inbounds GEP");
 
   auto *IntPtrTy = DL.getIntPtrType(GEP->getPointerOperandType());

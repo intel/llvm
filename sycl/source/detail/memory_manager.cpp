@@ -698,7 +698,7 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   } else {
     const detail::plugin &Plugin = Queue->getPlugin();
     Plugin.call<PiApiKind::piextUSMEnqueuePrefetch>(
-        Queue->getHandleRef(), Mem, Length, PI_USM_MIGRATION_TBD0,
+        Queue->getHandleRef(), Mem, Length, _pi_usm_migration_flags(0),
         DepEvents.size(), DepEvents.data(), &OutEvent);
   }
 }

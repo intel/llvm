@@ -459,7 +459,7 @@ checkTilingLegalityImpl(MutableArrayRef<mlir::AffineForOp> origLoops) {
 
   unsigned numOps = loadAndStoreOps.size();
   unsigned numLoops = origLoops.size();
-  FlatAffineConstraints dependenceConstraints;
+  FlatAffineValueConstraints dependenceConstraints;
   for (unsigned d = 1; d <= numLoops + 1; ++d) {
     for (unsigned i = 0; i < numOps; ++i) {
       Operation *srcOp = loadAndStoreOps[i];
@@ -596,7 +596,7 @@ void constructTiledLoopNest(MutableArrayRef<AffineForOp> origLoops,
 LogicalResult checkIfHyperRectangular(MutableArrayRef<AffineForOp> input,
                                       AffineForOp rootAffineForOp,
                                       unsigned width) {
-  FlatAffineConstraints cst;
+  FlatAffineValueConstraints cst;
   SmallVector<Operation *, 8> ops(input.begin(), input.end());
   (void)getIndexSet(ops, &cst);
   if (!cst.isHyperRectangular(0, width)) {
@@ -2045,7 +2045,7 @@ void mlir::coalesceLoops(MutableArrayRef<scf::ForOp> loops) {
 
   builder.setInsertionPointToStart(outermost.getBody());
 
-  // 3. Remap induction variables.  For each original loop, the value of the
+  // 3. Remap induction variables. For each original loop, the value of the
   // induction variable can be obtained by dividing the induction variable of
   // the linearized loop by the total number of iterations of the loops nested
   // in it modulo the number of iterations in this loop (remove the values
@@ -2075,6 +2075,120 @@ void mlir::coalesceLoops(MutableArrayRef<scf::ForOp> loops) {
       Block::iterator(second.getOperation()),
       innermost.getBody()->getOperations());
   second.erase();
+}
+
+LogicalResult mlir::coalesceLoops(MutableArrayRef<AffineForOp> loops) {
+  if (loops.size() < 2)
+    return success();
+
+  AffineForOp innermost = loops.back();
+  AffineForOp outermost = loops.front();
+  AffineBound ub = outermost.getUpperBound();
+  AffineMap origUbMap = ub.getMap();
+  Location loc = outermost.getLoc();
+  OpBuilder builder(outermost);
+  for (AffineForOp loop : loops) {
+    // We only work on normalized loops.
+    if (loop.getStep() != 1 || !loop.hasConstantLowerBound() ||
+        loop.getConstantLowerBound() != 0)
+      return failure();
+  }
+  SmallVector<Value, 4> upperBoundSymbols;
+  SmallVector<Value, 4> ubOperands(ub.getOperands().begin(),
+                                   ub.getOperands().end());
+
+  // 1. Store the upper bound of the outermost loop in a variable.
+  Value prev;
+  if (!llvm::hasSingleElement(origUbMap.getResults()))
+    prev = builder.create<AffineMinOp>(loc, origUbMap, ubOperands);
+  else
+    prev = builder.create<AffineApplyOp>(loc, origUbMap, ubOperands);
+  upperBoundSymbols.push_back(prev);
+
+  // 2. Emit code computing the upper bound of the coalesced loop as product of
+  // the number of iterations of all loops.
+  for (AffineForOp loop : loops.drop_front()) {
+    ub = loop.getUpperBound();
+    origUbMap = ub.getMap();
+    ubOperands = ub.getOperands();
+    Value upperBound;
+    // If upper bound map has more than one result, take their minimum.
+    if (!llvm::hasSingleElement(origUbMap.getResults()))
+      upperBound = builder.create<AffineMinOp>(loc, origUbMap, ubOperands);
+    else
+      upperBound = builder.create<AffineApplyOp>(loc, origUbMap, ubOperands);
+    upperBoundSymbols.push_back(upperBound);
+    SmallVector<Value, 4> operands;
+    operands.push_back(prev);
+    operands.push_back(upperBound);
+    // Maintain running product of loop upper bounds.
+    prev = builder.create<AffineApplyOp>(
+        loc,
+        AffineMap::get(/*numDims=*/1,
+                       /*numSymbols=*/1,
+                       builder.getAffineDimExpr(0) *
+                           builder.getAffineSymbolExpr(0)),
+        operands);
+  }
+  // Set upper bound of the coalesced loop.
+  AffineMap newUbMap = AffineMap::get(
+      /*numDims=*/0,
+      /*numSymbols=*/1, builder.getAffineSymbolExpr(0), builder.getContext());
+  outermost.setUpperBound(prev, newUbMap);
+
+  builder.setInsertionPointToStart(outermost.getBody());
+
+  // 3. Remap induction variables. For each original loop, the value of the
+  // induction variable can be obtained by dividing the induction variable of
+  // the linearized loop by the total number of iterations of the loops nested
+  // in it modulo the number of iterations in this loop (remove the values
+  // related to the outer loops):
+  //   iv_i = floordiv(iv_linear, product-of-loop-ranges-until-i) mod range_i.
+  // Compute these iteratively from the innermost loop by creating a "running
+  // quotient" of division by the range.
+  Value previous = outermost.getInductionVar();
+  for (unsigned idx = loops.size(); idx > 0; --idx) {
+    if (idx != loops.size()) {
+      SmallVector<Value, 4> operands;
+      operands.push_back(previous);
+      operands.push_back(upperBoundSymbols[idx]);
+      previous = builder.create<AffineApplyOp>(
+          loc,
+          AffineMap::get(
+              /*numDims=*/1, /*numSymbols=*/1,
+              builder.getAffineDimExpr(0).floorDiv(
+                  builder.getAffineSymbolExpr(0))),
+          operands);
+    }
+    // Modified value of the induction variables of the nested loops after
+    // coalescing.
+    Value inductionVariable;
+    if (idx == 1) {
+      inductionVariable = previous;
+    } else {
+      SmallVector<Value, 4> applyOperands;
+      applyOperands.push_back(previous);
+      applyOperands.push_back(upperBoundSymbols[idx - 1]);
+      inductionVariable = builder.create<AffineApplyOp>(
+          loc,
+          AffineMap::get(
+              /*numDims=*/1, /*numSymbols=*/1,
+              builder.getAffineDimExpr(0) % builder.getAffineSymbolExpr(0)),
+          applyOperands);
+    }
+    replaceAllUsesInRegionWith(loops[idx - 1].getInductionVar(),
+                               inductionVariable, loops.back().region());
+  }
+
+  // 4. Move the operations from the innermost just above the second-outermost
+  // loop, delete the extra terminator and the second-outermost loop.
+  AffineForOp secondOutermostLoop = loops[1];
+  innermost.getBody()->back().erase();
+  outermost.getBody()->getOperations().splice(
+      Block::iterator(secondOutermostLoop.getOperation()),
+      innermost.getBody()->getOperations());
+  secondOutermostLoop.erase();
+  return success();
 }
 
 void mlir::collapseParallelLoops(
@@ -2206,7 +2320,7 @@ findHighestBlockForPlacement(const MemRefRegion &region, Block &block,
                              Block::iterator *copyOutPlacementStart) {
   const auto *cst = region.getConstraints();
   SmallVector<Value, 4> symbols;
-  cst->getIdValues(cst->getNumDimIds(), cst->getNumDimAndSymbolIds(), &symbols);
+  cst->getValues(cst->getNumDimIds(), cst->getNumDimAndSymbolIds(), &symbols);
 
   SmallVector<AffineForOp, 4> enclosingFors;
   getLoopIVs(*block.begin(), &enclosingFors);
@@ -2440,12 +2554,12 @@ static LogicalResult generateCopy(
   for (unsigned i = 0; i < rank; ++i)
     region.getLowerAndUpperBound(i, lbMaps[i], ubMaps[i]);
 
-  const FlatAffineConstraints *cst = region.getConstraints();
+  const FlatAffineValueConstraints *cst = region.getConstraints();
   // 'regionSymbols' hold values that this memory region is symbolic/parametric
   // on; these typically include loop IVs surrounding the level at which the
   // copy generation is being done or other valid symbols in MLIR.
   SmallVector<Value, 8> regionSymbols;
-  cst->getIdValues(rank, cst->getNumIds(), &regionSymbols);
+  cst->getValues(rank, cst->getNumIds(), &regionSymbols);
 
   // Construct the index expressions for the fast memory buffer. The index
   // expression for a particular dimension of the fast buffer is obtained by
@@ -2689,14 +2803,14 @@ static bool getFullMemRefAsRegion(Operation *op, unsigned numParamLoopIVs,
   SmallVector<Value, 4> symbols;
   extractForInductionVars(ivs, &symbols);
   regionCst->reset(rank, numParamLoopIVs, 0);
-  regionCst->setIdValues(rank, rank + numParamLoopIVs, symbols);
+  regionCst->setValues(rank, rank + numParamLoopIVs, symbols);
 
   // Memref dim sizes provide the bounds.
   for (unsigned d = 0; d < rank; d++) {
     auto dimSize = memRefType.getDimSize(d);
     assert(dimSize > 0 && "filtered dynamic shapes above");
-    regionCst->addConstantLowerBound(d, 0);
-    regionCst->addConstantUpperBound(d, dimSize - 1);
+    regionCst->addBound(FlatAffineConstraints::LB, d, 0);
+    regionCst->addBound(FlatAffineConstraints::UB, d, dimSize - 1);
   }
   return true;
 }
@@ -3001,7 +3115,7 @@ static AffineIfOp createSeparationCondition(MutableArrayRef<AffineForOp> loops,
 
   auto *context = loops[0].getContext();
 
-  FlatAffineConstraints cst;
+  FlatAffineValueConstraints cst;
   SmallVector<Operation *, 8> ops;
   ops.reserve(loops.size());
   for (AffineForOp forOp : loops)
@@ -3068,7 +3182,7 @@ static AffineIfOp createSeparationCondition(MutableArrayRef<AffineForOp> loops,
     return nullptr;
 
   SmallVector<Value, 4> setOperands;
-  cst.getIdValues(0, cst.getNumDimAndSymbolIds(), &setOperands);
+  cst.getValues(0, cst.getNumDimAndSymbolIds(), &setOperands);
   canonicalizeSetAndOperands(&ifCondSet, &setOperands);
   return b.create<AffineIfOp>(loops[0].getLoc(), ifCondSet, setOperands,
                               /*withElseRegion=*/true);
@@ -3082,7 +3196,7 @@ createFullTiles(MutableArrayRef<AffineForOp> inputNest,
 
   // For each loop in the original nest identify a lower/upper bound pair such
   // that their difference is a constant.
-  FlatAffineConstraints cst;
+  FlatAffineValueConstraints cst;
   for (auto loop : inputNest) {
     // TODO: straightforward to generalize to a non-unit stride.
     if (loop.getStep() != 1) {

@@ -1336,7 +1336,7 @@ static unsigned setBufferOffsets(MachineIRBuilder &B,
   const LLT S32 = LLT::scalar(32);
   MachineRegisterInfo *MRI = B.getMRI();
 
-  if (Optional<int64_t> Imm = getConstantVRegSExtVal(CombinedOffset, *MRI)) {
+  if (Optional<int64_t> Imm = getIConstantVRegSExtVal(CombinedOffset, *MRI)) {
     uint32_t SOffset, ImmOffset;
     if (AMDGPU::splitMUBUFOffset(*Imm, SOffset, ImmOffset, &RBI.Subtarget,
                                  Alignment)) {
@@ -1569,7 +1569,7 @@ bool AMDGPURegisterBankInfo::applyMappingBFE(const OperandsMapper &OpdMapper,
 
     // A 64-bit bitfield extract uses the 32-bit bitfield extract instructions
     // if the width is a constant.
-    if (auto ConstWidth = getConstantVRegValWithLookThrough(WidthReg, MRI)) {
+    if (auto ConstWidth = getIConstantVRegValWithLookThrough(WidthReg, MRI)) {
       // Use the 32-bit bitfield extract instruction if the width is a constant.
       // Depending on the width size, use either the low or high 32-bits.
       auto Zero = B.buildConstant(S32, 0);
@@ -2538,9 +2538,9 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
     MachineIRBuilder B(MI, ApplyVALU);
     SmallVector<Register, 2> SrcRegs(OpdMapper.getVRegs(1));
     unsigned NewOpc = Opc == AMDGPU::G_CTLZ_ZERO_UNDEF
-                          ? AMDGPU::G_AMDGPU_FFBH_U32
-                          : Opc == AMDGPU::G_CTLZ_ZERO_UNDEF
-                                ? AMDGPU::G_AMDGPU_FFBL_B32
+                          ? (unsigned)AMDGPU::G_AMDGPU_FFBH_U32
+                          : Opc == AMDGPU::G_CTTZ_ZERO_UNDEF
+                                ? (unsigned)AMDGPU::G_AMDGPU_FFBL_B32
                                 : Opc;
     unsigned Idx = NewOpc == AMDGPU::G_AMDGPU_FFBH_U32;
     auto X = B.buildInstr(NewOpc, {S32}, {SrcRegs[Idx]});

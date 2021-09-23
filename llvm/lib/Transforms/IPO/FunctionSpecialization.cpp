@@ -22,12 +22,16 @@
 //   and thus control compile-times / code-size.
 //
 // Todos:
-// - Limit the times a recursive function get specialized when
-// `func-specialization-max-iters`
-//   increases linearly. See discussion in https://reviews.llvm.org/D106426 for
-//   details.
+// - Specializing recursive functions relies on running the transformation a
+//   number of times, which is controlled by option
+//   `func-specialization-max-iters`. Thus, increasing this value and the
+//   number of iterations, will linearly increase the number of times recursive
+//   functions get specialized, see also the discussion in
+//   https://reviews.llvm.org/D106426 for details. Perhaps there is a
+//   compile-time friendlier way to control/limit the number of specialisations
+//   for recursive functions.
 // - Don't transform the function if there is no function specialization
-// happens.
+//   happens.
 //
 //===----------------------------------------------------------------------===//
 
@@ -66,14 +70,27 @@ static cl::opt<unsigned> MaxConstantsThreshold(
              "specialization"),
     cl::init(3));
 
+static cl::opt<unsigned> SmallFunctionThreshold(
+    "func-specialization-size-threshold", cl::Hidden,
+    cl::desc("Don't specialize functions that have less than this theshold "
+             "number of instructions"),
+    cl::init(100));
+
 static cl::opt<unsigned>
     AvgLoopIterationCount("func-specialization-avg-iters-cost", cl::Hidden,
                           cl::desc("Average loop iteration count cost"),
                           cl::init(10));
 
+static cl::opt<bool> SpecializeOnAddresses(
+    "func-specialization-on-address", cl::init(false), cl::Hidden,
+    cl::desc("Enable function specialization on the address of global values"));
+
+// TODO: This needs checking to see the impact on compile-times, which is why
+// this is off by default for now.
 static cl::opt<bool> EnableSpecializationForLiteralConstant(
     "function-specialization-for-literal-constant", cl::init(false), cl::Hidden,
-    cl::desc("Make function specialization available for literal constant."));
+    cl::desc("Enable specialization of functions that take a literal constant "
+             "as an argument."));
 
 // Helper to check if \p LV is either a constant or a constant
 // range with a single element. This should cover exactly the same cases as the
@@ -195,15 +212,14 @@ static void constantArgPropagation(SmallVectorImpl<Function *> &WorkList,
 // interfere with the constantArgPropagation optimization.
 static void removeSSACopy(Function &F) {
   for (BasicBlock &BB : F) {
-    for (BasicBlock::iterator BI = BB.begin(), E = BB.end(); BI != E;) {
-      Instruction *Inst = &*BI++;
-      auto *II = dyn_cast<IntrinsicInst>(Inst);
+    for (Instruction &Inst : llvm::make_early_inc_range(BB)) {
+      auto *II = dyn_cast<IntrinsicInst>(&Inst);
       if (!II)
         continue;
       if (II->getIntrinsicID() != Intrinsic::ssa_copy)
         continue;
-      Inst->replaceAllUsesWith(II->getOperand(0));
-      Inst->eraseFromParent();
+      Inst.replaceAllUsesWith(II->getOperand(0));
+      Inst.eraseFromParent();
     }
   }
 }
@@ -326,9 +342,8 @@ private:
                           SmallVectorImpl<Function *> &Specializations) {
 
     // Do not specialize the cloned function again.
-    if (SpecializedFuncs.contains(F)) {
+    if (SpecializedFuncs.contains(F))
       return false;
-    }
 
     // If we're optimizing the function for size, we shouldn't specialize it.
     if (F->hasOptSize() ||
@@ -338,6 +353,10 @@ private:
     // Exit if the function is not executable. There's no point in specializing
     // a dead function.
     if (!Solver.isBlockExecutable(&F->getEntryBlock()))
+      return false;
+
+    // It wastes time to specialize a function which would get inlined finally.
+    if (F->hasFnAttribute(Attribute::AlwaysInline))
       return false;
 
     LLVM_DEBUG(dbgs() << "FnSpecialization: Try function: " << F->getName()
@@ -430,7 +449,11 @@ private:
 
     // If the code metrics reveal that we shouldn't duplicate the function, we
     // shouldn't specialize it. Set the specialization cost to Invalid.
-    if (Metrics.notDuplicatable) {
+    // Or if the lines of codes implies that this function is easy to get
+    // inlined so that we shouldn't specialize it.
+    if (Metrics.notDuplicatable ||
+        (!ForceFunctionSpecialization &&
+         Metrics.NumInsts < SmallFunctionThreshold)) {
       InstructionCost C{};
       C.setInvalid();
       return C;
@@ -639,6 +662,12 @@ private:
       if (!isa<CallInst>(U) && !isa<InvokeInst>(U))
         continue;
       auto &CS = *cast<CallBase>(U);
+      // If the call site has attribute minsize set, that callsite won't be
+      // specialized.
+      if (CS.hasFnAttr(Attribute::MinSize)) {
+        AllConstant = false;
+        continue;
+      }
 
       // If the parent of the call site will never be executed, we don't need
       // to worry about the passed value.
@@ -648,9 +677,14 @@ private:
       auto *V = CS.getArgOperand(A->getArgNo());
       // TrackValueOfGlobalVariable only tracks scalar global variables.
       if (auto *GV = dyn_cast<GlobalVariable>(V)) {
-        if (!GV->getValueType()->isSingleValueType()) {
+        // Check if we want to specialize on the address of non-constant
+        // global values.
+        if (!GV->isConstant())
+          if (!SpecializeOnAddresses)
+            return false;
+
+        if (!GV->getValueType()->isSingleValueType())
           return false;
-        }
       }
 
       if (isa<Constant>(V) && (Solver.getLatticeValueFor(V).isConstant() ||
@@ -670,6 +704,9 @@ private:
   /// This function modifies calls to function \p F whose argument at index \p
   /// ArgNo is equal to constant \p C. The calls are rewritten to call function
   /// \p Clone instead.
+  ///
+  /// Callsites that have been marked with the MinSize function attribute won't
+  /// be specialized and rewritten.
   void rewriteCallSites(Function *F, Function *Clone, Argument &Arg,
                         Constant *C) {
     unsigned ArgNo = Arg.getArgNo();
@@ -761,9 +798,9 @@ bool llvm::runFunctionSpecialization(
       for (BasicBlock &BB : *F) {
         if (!Solver.isBlockExecutable(&BB))
           continue;
+        // FIXME: The solver may make changes to the function here, so set
+        // Changed, even if later function specialization does not trigger.
         for (auto &I : make_early_inc_range(BB))
-          // FIXME: The solver may make changes to the function here, so set Changed, even if later
-          // function specialization does not trigger.
           Changed |= FS.tryToReplaceWithConstant(&I);
       }
     }
@@ -789,7 +826,7 @@ bool llvm::runFunctionSpecialization(
     // Run the solver for the specialized functions.
     RunSCCPSolver(CurrentSpecializations);
 
-    // Replace some unresolved constant arguments
+    // Replace some unresolved constant arguments.
     constantArgPropagation(FuncDecls, M, Solver);
 
     CurrentSpecializations.clear();

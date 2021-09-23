@@ -135,6 +135,7 @@ public:
 
   void Enter(const parser::OpenMPBlockConstruct &);
   void Leave(const parser::OpenMPBlockConstruct &);
+  void Leave(const parser::OmpBeginBlockDirective &);
   void Enter(const parser::OmpEndBlockDirective &);
   void Leave(const parser::OmpEndBlockDirective &);
 
@@ -151,6 +152,8 @@ public:
   void Leave(const parser::OpenMPDeclareTargetConstruct &);
   void Enter(const parser::OpenMPExecutableAllocate &);
   void Leave(const parser::OpenMPExecutableAllocate &);
+  void Enter(const parser::OpenMPThreadprivate &);
+  void Leave(const parser::OpenMPThreadprivate &);
 
   void Enter(const parser::OpenMPSimpleStandaloneConstruct &);
   void Leave(const parser::OpenMPSimpleStandaloneConstruct &);
@@ -226,6 +229,7 @@ private:
   void CheckCycleConstraints(const parser::OpenMPLoopConstruct &x);
   void CheckDistLinear(const parser::OpenMPLoopConstruct &x);
   void CheckSIMDNest(const parser::OpenMPConstruct &x);
+  void CheckTargetNest(const parser::OpenMPConstruct &x);
   void CheckCancellationNest(
       const parser::CharBlock &source, const parser::OmpCancelType::Type &type);
   std::int64_t GetOrdCollapseLevel(const parser::OpenMPLoopConstruct &x);
@@ -235,7 +239,9 @@ private:
       const parser::DefinedOperator::IntrinsicOperator &);
   void CheckReductionTypeList(const parser::OmpClause::Reduction &);
   void CheckMasterNesting(const parser::OpenMPBlockConstruct &x);
+  void ChecksOnOrderedAsBlock();
   void CheckBarrierNesting(const parser::OpenMPSimpleStandaloneConstruct &x);
+  void ChecksOnOrderedAsStandalone();
   void CheckReductionArraySection(const parser::OmpObjectList &ompObjectList);
   void CheckIntentInPointerAndDefinable(
       const parser::OmpObjectList &, const llvm::omp::Clause);
@@ -253,7 +259,12 @@ private:
   void ExitDirectiveNest(const int index) { directiveNest_[index]--; }
   int GetDirectiveNest(const int index) { return directiveNest_[index]; }
 
-  enum directiveNestType { SIMDNest, TargetBlockOnlyTeams, LastType };
+  enum directiveNestType {
+    SIMDNest,
+    TargetBlockOnlyTeams,
+    TargetNest,
+    LastType
+  };
   int directiveNest_[LastType + 1] = {0};
 };
 } // namespace Fortran::semantics

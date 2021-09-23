@@ -241,15 +241,11 @@ private:
   ///
   /// \param ICI The icmp of the (zext icmp) pair we are interested in.
   /// \parem CI The zext of the (zext icmp) pair we are interested in.
-  /// \param DoTransform Pass false to just test whether the given (zext icmp)
-  /// would be transformed. Pass true to actually perform the transformation.
   ///
   /// \return null if the transformation cannot be performed. If the
   /// transformation can be performed the new instruction that replaces the
-  /// (zext icmp) pair will be returned (if \p DoTransform is false the
-  /// unmodified \p ICI will be returned in this case).
-  Instruction *transformZExtICmp(ICmpInst *ICI, ZExtInst &CI,
-                                 bool DoTransform = true);
+  /// (zext icmp) pair will be returned.
+  Instruction *transformZExtICmp(ICmpInst *ICI, ZExtInst &CI);
 
   Instruction *transformSExtICmp(ICmpInst *ICI, Instruction &CI);
 
@@ -326,7 +322,7 @@ private:
   Instruction *narrowMathIfNoOverflow(BinaryOperator &I);
   Instruction *narrowFunnelShift(TruncInst &Trunc);
   Instruction *optimizeBitCastFromPhi(CastInst &CI, PHINode *PN);
-  Instruction *matchSAddSubSat(SelectInst &MinMax1);
+  Instruction *matchSAddSubSat(Instruction &MinMax1);
 
   void freelyInvertAllUsersOf(Value *V);
 
@@ -347,6 +343,8 @@ private:
   Value *foldAndOfICmps(ICmpInst *LHS, ICmpInst *RHS, BinaryOperator &And);
   Value *foldOrOfICmps(ICmpInst *LHS, ICmpInst *RHS, BinaryOperator &Or);
   Value *foldXorOfICmps(ICmpInst *LHS, ICmpInst *RHS, BinaryOperator &Xor);
+
+  Value *foldEqOfParts(ICmpInst *Cmp0, ICmpInst *Cmp1, bool IsAnd);
 
   /// Optimize (fcmp)&(fcmp) or (fcmp)|(fcmp).
   /// NOTE: Unlike most of instcombine, this returns a Value which should
@@ -659,7 +657,7 @@ public:
   Instruction *foldSignBitTest(ICmpInst &I);
   Instruction *foldICmpWithZero(ICmpInst &Cmp);
 
-  Value *foldUnsignedMultiplicationOverflowCheck(ICmpInst &Cmp);
+  Value *foldMultiplicationOverflowCheck(ICmpInst &Cmp);
 
   Instruction *foldICmpSelectConstant(ICmpInst &Cmp, SelectInst *Select,
                                       ConstantInt *C);

@@ -318,9 +318,8 @@ bool CallBase::isReturnNonNull() const {
   if (hasRetAttr(Attribute::NonNull))
     return true;
 
-  if (getDereferenceableBytes(AttributeList::ReturnIndex) > 0 &&
-           !NullPointerIsDefined(getCaller(),
-                                 getType()->getPointerAddressSpace()))
+  if (getRetDereferenceableBytes() > 0 &&
+      !NullPointerIsDefined(getCaller(), getType()->getPointerAddressSpace()))
     return true;
 
   return false;
@@ -329,11 +328,10 @@ bool CallBase::isReturnNonNull() const {
 Value *CallBase::getReturnedArgOperand() const {
   unsigned Index;
 
-  if (Attrs.hasAttrSomewhere(Attribute::Returned, &Index) && Index)
+  if (Attrs.hasAttrSomewhere(Attribute::Returned, &Index))
     return getArgOperand(Index - AttributeList::FirstArgIndex);
   if (const Function *F = getCalledFunction())
-    if (F->getAttributes().hasAttrSomewhere(Attribute::Returned, &Index) &&
-        Index)
+    if (F->getAttributes().hasAttrSomewhere(Attribute::Returned, &Index))
       return getArgOperand(Index - AttributeList::FirstArgIndex);
 
   return nullptr;
@@ -352,13 +350,13 @@ bool CallBase::paramHasAttr(unsigned ArgNo, Attribute::AttrKind Kind) const {
 
 bool CallBase::hasFnAttrOnCalledFunction(Attribute::AttrKind Kind) const {
   if (const Function *F = getCalledFunction())
-    return F->getAttributes().hasFnAttribute(Kind);
+    return F->getAttributes().hasFnAttr(Kind);
   return false;
 }
 
 bool CallBase::hasFnAttrOnCalledFunction(StringRef Kind) const {
   if (const Function *F = getCalledFunction())
-    return F->getAttributes().hasFnAttribute(Kind);
+    return F->getAttributes().hasFnAttr(Kind);
   return false;
 }
 
@@ -2273,9 +2271,9 @@ bool ShuffleVectorInst::isInsertSubvectorMask(ArrayRef<int> Mask,
     return false;
 
   // Determine which mask elements are attributed to which source.
-  APInt UndefElts = APInt::getNullValue(NumMaskElts);
-  APInt Src0Elts = APInt::getNullValue(NumMaskElts);
-  APInt Src1Elts = APInt::getNullValue(NumMaskElts);
+  APInt UndefElts = APInt::getZero(NumMaskElts);
+  APInt Src0Elts = APInt::getZero(NumMaskElts);
+  APInt Src1Elts = APInt::getZero(NumMaskElts);
   bool Src0Identity = true;
   bool Src1Identity = true;
 

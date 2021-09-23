@@ -221,9 +221,9 @@ bool DeadArgumentEliminationPass::DeleteDeadVarargs(Function &Fn) {
     if (!PAL.isEmpty()) {
       SmallVector<AttributeSet, 8> ArgAttrs;
       for (unsigned ArgNo = 0; ArgNo < NumArgs; ++ArgNo)
-        ArgAttrs.push_back(PAL.getParamAttributes(ArgNo));
-      PAL = AttributeList::get(Fn.getContext(), PAL.getFnAttributes(),
-                               PAL.getRetAttributes(), ArgAttrs);
+        ArgAttrs.push_back(PAL.getParamAttrs(ArgNo));
+      PAL = AttributeList::get(Fn.getContext(), PAL.getFnAttrs(),
+                               PAL.getRetAttrs(), ArgAttrs);
     }
 
     SmallVector<OperandBundleDef, 1> OpBundles;
@@ -576,9 +576,7 @@ void DeadArgumentEliminationPass::SurveyFunction(const Function &F) {
   // but we can do so for SPIR kernel function in SYCL environment.
   // DAE is not currently supported for ESIMD kernels.
   bool FuncIsSpirNonEsimdKernel =
-      CheckSpirKernels &&
-      StringRef(F.getParent()->getTargetTriple()).contains("sycldevice") &&
-      F.getCallingConv() == CallingConv::SPIR_KERNEL &&
+      CheckSpirKernels && F.getCallingConv() == CallingConv::SPIR_KERNEL &&
       !F.getMetadata("sycl_explicit_simd");
   bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSpirNonEsimdKernel;
   if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
@@ -804,7 +802,7 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
     if (LiveValues.erase(Arg)) {
       Params.push_back(I->getType());
       ArgAlive[ArgI] = true;
-      ArgAttrVec.push_back(PAL.getParamAttributes(ArgI));
+      ArgAttrVec.push_back(PAL.getParamAttrs(ArgI));
       HasLiveReturnedArg |= PAL.hasParamAttr(ArgI, Attribute::Returned);
     } else {
       ++NumArgumentsEliminated;
@@ -892,7 +890,7 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
   assert(NRetTy && "No new return type found?");
 
   // The existing function return attributes.
-  AttrBuilder RAttrs(PAL.getRetAttributes());
+  AttrBuilder RAttrs(PAL.getRetAttrs());
 
   // Remove any incompatible attributes, but only if we removed all return
   // values. Otherwise, ensure that we don't have any conflicting attributes
@@ -907,8 +905,8 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
   AttributeSet RetAttrs = AttributeSet::get(F->getContext(), RAttrs);
 
   // Strip allocsize attributes. They might refer to the deleted arguments.
-  AttributeSet FnAttrs = PAL.getFnAttributes().removeAttribute(
-      F->getContext(), Attribute::AllocSize);
+  AttributeSet FnAttrs =
+      PAL.getFnAttrs().removeAttribute(F->getContext(), Attribute::AllocSize);
 
   // Reconstruct the AttributesList based on the vector we constructed.
   assert(ArgAttrVec.size() == Params.size());
@@ -943,7 +941,7 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
 
     // Adjust the call return attributes in case the function was changed to
     // return void.
-    AttrBuilder RAttrs(CallPAL.getRetAttributes());
+    AttrBuilder RAttrs(CallPAL.getRetAttrs());
     RAttrs.remove(AttributeFuncs::typeIncompatible(NRetTy));
     AttributeSet RetAttrs = AttributeSet::get(F->getContext(), RAttrs);
 
@@ -957,7 +955,7 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
       if (ArgAlive[Pi]) {
         Args.push_back(*I);
         // Get original parameter attributes, but skip return attributes.
-        AttributeSet Attrs = CallPAL.getParamAttributes(Pi);
+        AttributeSet Attrs = CallPAL.getParamAttrs(Pi);
         if (NRetTy != RetTy && Attrs.hasAttribute(Attribute::Returned)) {
           // If the return type has changed, then get rid of 'returned' on the
           // call site. The alternative is to make all 'returned' attributes on
@@ -976,7 +974,7 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
     // Push any varargs arguments on the list. Don't forget their attributes.
     for (auto E = CB.arg_end(); I != E; ++I, ++Pi) {
       Args.push_back(*I);
-      ArgAttrVec.push_back(CallPAL.getParamAttributes(Pi));
+      ArgAttrVec.push_back(CallPAL.getParamAttrs(Pi));
     }
 
     // Reconstruct the AttributesList based on the vector we constructed.
@@ -984,7 +982,7 @@ bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
 
     // Again, be sure to remove any allocsize attributes, since their indices
     // may now be incorrect.
-    AttributeSet FnAttrs = CallPAL.getFnAttributes().removeAttribute(
+    AttributeSet FnAttrs = CallPAL.getFnAttrs().removeAttribute(
         F->getContext(), Attribute::AllocSize);
 
     AttributeList NewCallPAL = AttributeList::get(
@@ -1148,11 +1146,9 @@ PreservedAnalyses DeadArgumentEliminationPass::run(Module &M,
   // fused with the next loop, because deleting a function invalidates
   // information computed while surveying other functions.
   LLVM_DEBUG(dbgs() << "DeadArgumentEliminationPass - Deleting dead varargs\n");
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ) {
-    Function &F = *I++;
+  for (Function &F : llvm::make_early_inc_range(M))
     if (F.getFunctionType()->isVarArg())
       Changed |= DeleteDeadVarargs(F);
-  }
 
   // Second phase:loop through the module, determining which arguments are live.
   // We assume all arguments are dead unless proven otherwise (allowing us to
@@ -1163,13 +1159,10 @@ PreservedAnalyses DeadArgumentEliminationPass::run(Module &M,
     SurveyFunction(F);
 
   // Now, remove all dead arguments and return values from each function in
-  // turn.
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ) {
-    // Increment now, because the function will probably get removed (ie.
-    // replaced by a new one).
-    Function *F = &*I++;
-    Changed |= RemoveDeadStuffFromFunction(F);
-  }
+  // turn.  We use make_early_inc_range here because functions will probably get
+  // removed (i.e. replaced by new ones).
+  for (Function &F : llvm::make_early_inc_range(M))
+    Changed |= RemoveDeadStuffFromFunction(&F);
 
   // Finally, look for any unused parameters in functions with non-local
   // linkage and replace the passed in parameters with undef.

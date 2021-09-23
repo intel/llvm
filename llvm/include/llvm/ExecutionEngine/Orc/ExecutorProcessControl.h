@@ -51,53 +51,58 @@ public:
 
     virtual ~MemoryAccess();
 
-    virtual void writeUInt8s(ArrayRef<tpctypes::UInt8Write> Ws,
-                             WriteResultFn OnWriteComplete) = 0;
+    virtual void writeUInt8sAsync(ArrayRef<tpctypes::UInt8Write> Ws,
+                                  WriteResultFn OnWriteComplete) = 0;
 
-    virtual void writeUInt16s(ArrayRef<tpctypes::UInt16Write> Ws,
-                              WriteResultFn OnWriteComplete) = 0;
+    virtual void writeUInt16sAsync(ArrayRef<tpctypes::UInt16Write> Ws,
+                                   WriteResultFn OnWriteComplete) = 0;
 
-    virtual void writeUInt32s(ArrayRef<tpctypes::UInt32Write> Ws,
-                              WriteResultFn OnWriteComplete) = 0;
+    virtual void writeUInt32sAsync(ArrayRef<tpctypes::UInt32Write> Ws,
+                                   WriteResultFn OnWriteComplete) = 0;
 
-    virtual void writeUInt64s(ArrayRef<tpctypes::UInt64Write> Ws,
-                              WriteResultFn OnWriteComplete) = 0;
+    virtual void writeUInt64sAsync(ArrayRef<tpctypes::UInt64Write> Ws,
+                                   WriteResultFn OnWriteComplete) = 0;
 
-    virtual void writeBuffers(ArrayRef<tpctypes::BufferWrite> Ws,
-                              WriteResultFn OnWriteComplete) = 0;
+    virtual void writeBuffersAsync(ArrayRef<tpctypes::BufferWrite> Ws,
+                                   WriteResultFn OnWriteComplete) = 0;
 
     Error writeUInt8s(ArrayRef<tpctypes::UInt8Write> Ws) {
       std::promise<MSVCPError> ResultP;
       auto ResultF = ResultP.get_future();
-      writeUInt8s(Ws, [&](Error Err) { ResultP.set_value(std::move(Err)); });
+      writeUInt8sAsync(Ws,
+                       [&](Error Err) { ResultP.set_value(std::move(Err)); });
       return ResultF.get();
     }
 
     Error writeUInt16s(ArrayRef<tpctypes::UInt16Write> Ws) {
       std::promise<MSVCPError> ResultP;
       auto ResultF = ResultP.get_future();
-      writeUInt16s(Ws, [&](Error Err) { ResultP.set_value(std::move(Err)); });
+      writeUInt16sAsync(Ws,
+                        [&](Error Err) { ResultP.set_value(std::move(Err)); });
       return ResultF.get();
     }
 
     Error writeUInt32s(ArrayRef<tpctypes::UInt32Write> Ws) {
       std::promise<MSVCPError> ResultP;
       auto ResultF = ResultP.get_future();
-      writeUInt32s(Ws, [&](Error Err) { ResultP.set_value(std::move(Err)); });
+      writeUInt32sAsync(Ws,
+                        [&](Error Err) { ResultP.set_value(std::move(Err)); });
       return ResultF.get();
     }
 
     Error writeUInt64s(ArrayRef<tpctypes::UInt64Write> Ws) {
       std::promise<MSVCPError> ResultP;
       auto ResultF = ResultP.get_future();
-      writeUInt64s(Ws, [&](Error Err) { ResultP.set_value(std::move(Err)); });
+      writeUInt64sAsync(Ws,
+                        [&](Error Err) { ResultP.set_value(std::move(Err)); });
       return ResultF.get();
     }
 
     Error writeBuffers(ArrayRef<tpctypes::BufferWrite> Ws) {
       std::promise<MSVCPError> ResultP;
       auto ResultF = ResultP.get_future();
-      writeBuffers(Ws, [&](Error Err) { ResultP.set_value(std::move(Err)); });
+      writeBuffersAsync(Ws,
+                        [&](Error Err) { ResultP.set_value(std::move(Err)); });
       return ResultF.get();
     }
   };
@@ -153,6 +158,29 @@ public:
     return *MemMgr;
   }
 
+  /// Returns the bootstrap symbol map.
+  const StringMap<ExecutorAddress> &getBootstrapSymbolsMap() const {
+    return BootstrapSymbols;
+  }
+
+  /// For each (ExecutorAddress&, StringRef) pair, looks up the string in the
+  /// bootstrap symbols map and writes its address to the ExecutorAddress if
+  /// found. If any symbol is not found then the function returns an error.
+  Error getBootstrapSymbols(
+      ArrayRef<std::pair<ExecutorAddress &, StringRef>> Pairs) const {
+    for (auto &KV : Pairs) {
+      auto I = BootstrapSymbols.find(KV.second);
+      if (I == BootstrapSymbols.end())
+        return make_error<StringError>("Symbol \"" + KV.second +
+                                           "\" not found "
+                                           "in bootstrap symbols map",
+                                       inconvertibleErrorCode());
+
+      KV.first = I->second;
+    }
+    return Error::success();
+  }
+
   /// Load the dynamic library at the given path and return a handle to it.
   /// If LibraryPath is null this function will return the global handle for
   /// the target process.
@@ -163,8 +191,7 @@ public:
   /// The result of the lookup is a 2-dimentional array of target addresses
   /// that correspond to the lookup order. If a required symbol is not
   /// found then this method will return an error. If a weakly referenced
-  /// symbol is not found then it be assigned a '0' value in the result.
-  /// that correspond to the lookup order.
+  /// symbol is not found then it be assigned a '0' value.
   virtual Expected<std::vector<tpctypes::LookupResult>>
   lookupSymbols(ArrayRef<LookupRequest> Request) = 0;
 
@@ -185,6 +212,53 @@ public:
                                 JITTargetAddress WrapperFnAddr,
                                 ArrayRef<char> ArgBuffer) = 0;
 
+  /// Run a wrapper function in the executor. The wrapper function should be
+  /// callable as:
+  ///
+  /// \code{.cpp}
+  ///   CWrapperFunctionResult fn(uint8_t *Data, uint64_t Size);
+  /// \endcode{.cpp}
+  shared::WrapperFunctionResult callWrapper(JITTargetAddress WrapperFnAddr,
+                                            ArrayRef<char> ArgBuffer) {
+    std::promise<shared::WrapperFunctionResult> RP;
+    auto RF = RP.get_future();
+    callWrapperAsync(
+        [&](shared::WrapperFunctionResult R) { RP.set_value(std::move(R)); },
+        WrapperFnAddr, ArgBuffer);
+    return RF.get();
+  }
+
+  /// Run a wrapper function using SPS to serialize the arguments and
+  /// deserialize the results.
+  template <typename SPSSignature, typename SendResultT, typename... ArgTs>
+  void callSPSWrapperAsync(SendResultT &&SendResult,
+                           JITTargetAddress WrapperFnAddr,
+                           const ArgTs &...Args) {
+    shared::WrapperFunction<SPSSignature>::callAsync(
+        [this,
+         WrapperFnAddr](ExecutorProcessControl::SendResultFunction SendResult,
+                        const char *ArgData, size_t ArgSize) {
+          callWrapperAsync(std::move(SendResult), WrapperFnAddr,
+                           ArrayRef<char>(ArgData, ArgSize));
+        },
+        std::move(SendResult), Args...);
+  }
+
+  /// Run a wrapper function using SPS to serialize the arguments and
+  /// deserialize the results.
+  ///
+  /// If SPSSignature is a non-void function signature then the second argument
+  /// (the first in the Args list) should be a reference to a return value.
+  template <typename SPSSignature, typename... WrapperCallArgTs>
+  Error callSPSWrapper(JITTargetAddress WrapperFnAddr,
+                       WrapperCallArgTs &&...WrapperCallArgs) {
+    return shared::WrapperFunction<SPSSignature>::call(
+        [this, WrapperFnAddr](const char *ArgData, size_t ArgSize) {
+          return callWrapper(WrapperFnAddr, ArrayRef<char>(ArgData, ArgSize));
+        },
+        std::forward<WrapperCallArgTs>(WrapperCallArgs)...);
+  }
+
   /// Disconnect from the target process.
   ///
   /// This should be called after the JIT session is shut down.
@@ -201,6 +275,7 @@ protected:
   JITDispatchInfo JDI;
   MemoryAccess *MemAccess = nullptr;
   jitlink::JITLinkMemoryManager *MemMgr = nullptr;
+  StringMap<ExecutorAddress> BootstrapSymbols;
 };
 
 /// A ExecutorProcessControl instance that asserts if any of its methods are
@@ -273,20 +348,20 @@ public:
   Error disconnect() override;
 
 private:
-  void writeUInt8s(ArrayRef<tpctypes::UInt8Write> Ws,
-                   WriteResultFn OnWriteComplete) override;
+  void writeUInt8sAsync(ArrayRef<tpctypes::UInt8Write> Ws,
+                        WriteResultFn OnWriteComplete) override;
 
-  void writeUInt16s(ArrayRef<tpctypes::UInt16Write> Ws,
-                    WriteResultFn OnWriteComplete) override;
+  void writeUInt16sAsync(ArrayRef<tpctypes::UInt16Write> Ws,
+                         WriteResultFn OnWriteComplete) override;
 
-  void writeUInt32s(ArrayRef<tpctypes::UInt32Write> Ws,
-                    WriteResultFn OnWriteComplete) override;
+  void writeUInt32sAsync(ArrayRef<tpctypes::UInt32Write> Ws,
+                         WriteResultFn OnWriteComplete) override;
 
-  void writeUInt64s(ArrayRef<tpctypes::UInt64Write> Ws,
-                    WriteResultFn OnWriteComplete) override;
+  void writeUInt64sAsync(ArrayRef<tpctypes::UInt64Write> Ws,
+                         WriteResultFn OnWriteComplete) override;
 
-  void writeBuffers(ArrayRef<tpctypes::BufferWrite> Ws,
-                    WriteResultFn OnWriteComplete) override;
+  void writeBuffersAsync(ArrayRef<tpctypes::BufferWrite> Ws,
+                         WriteResultFn OnWriteComplete) override;
 
   static shared::detail::CWrapperFunctionResult
   jitDispatchViaWrapperFunctionManager(void *Ctx, const void *FnTag,

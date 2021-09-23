@@ -50,6 +50,42 @@ __spirv_JointMatrixMadINTEL(
     __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S> *C,
     __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
+template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
+          std::size_t N, __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
+          __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
+          __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *
+__spirv_JointMatrixUUMadINTEL(
+    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S> *A,
+    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S> *B,
+    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *C,
+    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
+
+template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
+          std::size_t N, __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
+          __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
+          __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *
+__spirv_JointMatrixUSMadINTEL(
+    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S> *A,
+    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S> *B,
+    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *C,
+    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
+
+template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
+          std::size_t N, __spv::MatrixLayout LA = __spv::MatrixLayout::RowMajor,
+          __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
+          __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *
+__spirv_JointMatrixSUMadINTEL(
+    __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S> *A,
+    __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S> *B,
+    __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *C,
+    __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
+
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
     "SPIR-V built-ins are not available. Please set -fdeclare-spirv-builtins flag."
@@ -596,6 +632,9 @@ __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
 
 extern SYCL_EXTERNAL uint16_t __spirv_ConvertFToBF16INTEL(float) noexcept;
 extern SYCL_EXTERNAL float __spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
+
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT __ocl_vec_t<uint32_t, 4>
+__spirv_GroupNonUniformBallot(uint32_t Execution, bool Predicate) noexcept;
 
 #else // if !__SYCL_DEVICE_ONLY__
 

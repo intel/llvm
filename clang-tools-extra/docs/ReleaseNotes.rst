@@ -72,13 +72,42 @@ The improvements are...
 New checks
 ^^^^^^^^^^
 
+- New :doc:`bugprone-suspicious-memory-comparison
+  <clang-tidy/checks/bugprone-suspicious-memory-comparison>` check.
+
+  Finds potentially incorrect calls to ``memcmp()`` based on properties of the
+  arguments.
+
+- New :doc:`cppcoreguidelines-virtual-class-destructor
+  <clang-tidy/checks/cppcoreguidelines-virtual-class-destructor>` check.
+
+  Finds virtual classes whose destructor is neither public and virtual nor
+  protected and non-virtual.
+
 - New :doc:`readability-identifier-length
   <clang-tidy/checks/readability-identifier-length>` check.
 
-  Reports identifiers whose names are too short. Currently checks local variables and function parameters only.
+  Reports identifiers whose names are too short. Currently checks local
+  variables and function parameters only.
+
+
+- New :doc:`readability-data-pointer <clang-tidy/checks/readability-data-pointer>` check.
+
+  Finds cases where code could use ``data()`` rather than the address of the
+  element at index 0 in a container.
 
 New check aliases
 ^^^^^^^^^^^^^^^^^
+
+- New alias :doc:`cert-exp42-c
+  <clang-tidy/checks/cert-exp42-c>` to
+  :doc:`bugprone-suspicious-memory-comparison
+  <clang-tidy/checks/bugprone-suspicious-memory-comparison>` was added.
+
+- New alias :doc:`cert-flp37-c
+  <clang-tidy/checks/cert-flp37-c>` to
+  :doc:`bugprone-suspicious-memory-comparison
+  <clang-tidy/checks/bugprone-suspicious-memory-comparison>` was added.
 
 Changes in existing checks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^

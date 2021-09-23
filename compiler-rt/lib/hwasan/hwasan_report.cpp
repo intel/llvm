@@ -351,14 +351,16 @@ static void ShowHeapOrGlobalCandidate(uptr untagged_addr, tag_t *candidate,
       uptr size = GetGlobalSizeFromDescriptor(mem);
       if (size == 0)
         // We couldn't find the size of the global from the descriptors.
-        Printf("%p is located to the %s of a global variable in (%s+0x%x)\n",
-               untagged_addr, candidate == left ? "right" : "left", module_name,
-               module_address);
+        Printf(
+            "%p is located to the %s of a global variable in "
+            "\n    #0 0x%x (%s+0x%x)\n",
+            untagged_addr, candidate == left ? "right" : "left", mem,
+            module_name, module_address);
       else
         Printf(
             "%p is located to the %s of a %zd-byte global variable in "
-            "(%s+0x%x)\n",
-            untagged_addr, candidate == left ? "right" : "left", size,
+            "\n    #0 0x%x (%s+0x%x)\n",
+            untagged_addr, candidate == left ? "right" : "left", size, mem,
             module_name, module_address);
     }
     Printf("%s", d.Default());
@@ -604,6 +606,15 @@ void ReportInvalidFree(StackTrace *stack, uptr tagged_addr) {
 void ReportTailOverwritten(StackTrace *stack, uptr tagged_addr, uptr orig_size,
                            const u8 *expected) {
   uptr tail_size = kShadowAlignment - (orig_size % kShadowAlignment);
+  u8 actual_expected[kShadowAlignment];
+  internal_memcpy(actual_expected, expected, tail_size);
+  tag_t ptr_tag = GetTagFromPointer(tagged_addr);
+  // Short granule is stashed in the last byte of the magic string. To avoid
+  // confusion, make the expected magic string contain the short granule tag.
+  if (orig_size % kShadowAlignment != 0) {
+    actual_expected[tail_size - 1] = ptr_tag;
+  }
+
   ScopedReport R(flags()->halt_on_error);
   Decorator d;
   uptr untagged_addr = UntagAddr(tagged_addr);
@@ -640,14 +651,13 @@ void ReportTailOverwritten(StackTrace *stack, uptr tagged_addr, uptr orig_size,
   s.append("Expected:      ");
   for (uptr i = 0; i < kShadowAlignment - tail_size; i++)
     s.append(".. ");
-  for (uptr i = 0; i < tail_size; i++)
-    s.append("%02x ", expected[i]);
+  for (uptr i = 0; i < tail_size; i++) s.append("%02x ", actual_expected[i]);
   s.append("\n");
   s.append("               ");
   for (uptr i = 0; i < kShadowAlignment - tail_size; i++)
     s.append("   ");
   for (uptr i = 0; i < tail_size; i++)
-    s.append("%s ", expected[i] != tail[i] ? "^^" : "  ");
+    s.append("%s ", actual_expected[i] != tail[i] ? "^^" : "  ");
 
   s.append("\nThis error occurs when a buffer overflow overwrites memory\n"
     "to the right of a heap object, but within the %zd-byte granule, e.g.\n"
@@ -673,11 +683,11 @@ void ReportTagMismatch(StackTrace *stack, uptr tagged_addr, uptr access_size,
       GetCurrentThread()->stack_allocations());
 
   Decorator d;
-  Printf("%s", d.Error());
   uptr untagged_addr = UntagAddr(tagged_addr);
   // TODO: when possible, try to print heap-use-after-free, etc.
   const char *bug_type = "tag-mismatch";
   uptr pc = GetTopPc(stack);
+  Printf("%s", d.Error());
   Report("ERROR: %s: %s on address %p at pc %p\n", SanitizerToolName, bug_type,
          untagged_addr, pc);
 

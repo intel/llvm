@@ -196,6 +196,9 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
   case Stmt::SEHTryStmtClass:
     EmitSEHTryStmt(cast<SEHTryStmt>(*S));
     break;
+  case Stmt::OMPMetaDirectiveClass:
+    EmitOMPMetaDirective(cast<OMPMetaDirective>(*S));
+    break;
   case Stmt::OMPCanonicalLoopClass:
     EmitOMPCanonicalLoop(cast<OMPCanonicalLoop>(S));
     break;
@@ -1518,6 +1521,12 @@ void CodeGenFunction::EmitCaseStmt(const CaseStmt &S,
     NextCase = dyn_cast<CaseStmt>(CurCase->getSubStmt());
   }
 
+  // Generate a stop point for debug info if the case statement is
+  // followed by a default statement. A fallthrough case before a
+  // default case gets its own branch target.
+  if (CurCase->getSubStmt()->getStmtClass() == Stmt::DefaultStmtClass)
+    EmitStopPoint(CurCase);
+
   // Normal default recursion for non-cases.
   EmitStmt(CurCase->getSubStmt());
 }
@@ -2188,20 +2197,16 @@ static void UpdateAsmCallInst(llvm::CallBase &Result, bool HasSideEffect,
                               CodeGenFunction &CGF,
                               std::vector<llvm::Value *> &RegResults) {
   if (!HasUnwindClobber)
-    Result.addAttribute(llvm::AttributeList::FunctionIndex,
-                        llvm::Attribute::NoUnwind);
+    Result.addFnAttr(llvm::Attribute::NoUnwind);
 
   if (NoMerge)
-    Result.addAttribute(llvm::AttributeList::FunctionIndex,
-                        llvm::Attribute::NoMerge);
+    Result.addFnAttr(llvm::Attribute::NoMerge);
   // Attach readnone and readonly attributes.
   if (!HasSideEffect) {
     if (ReadNone)
-      Result.addAttribute(llvm::AttributeList::FunctionIndex,
-                          llvm::Attribute::ReadNone);
+      Result.addFnAttr(llvm::Attribute::ReadNone);
     else if (ReadOnly)
-      Result.addAttribute(llvm::AttributeList::FunctionIndex,
-                          llvm::Attribute::ReadOnly);
+      Result.addFnAttr(llvm::Attribute::ReadOnly);
   }
 
   // Slap the source location of the inline asm into a !srcloc metadata on the
@@ -2223,8 +2228,7 @@ static void UpdateAsmCallInst(llvm::CallBase &Result, bool HasSideEffect,
     // convergent (meaning, they may call an intrinsically convergent op, such
     // as bar.sync, and so can't have certain optimizations applied around
     // them).
-    Result.addAttribute(llvm::AttributeList::FunctionIndex,
-                        llvm::Attribute::Convergent);
+    Result.addFnAttr(llvm::Attribute::Convergent);
   // Extract all of the register value results from the asm.
   if (ResultRegTypes.size() == 1) {
     RegResults.push_back(&Result);

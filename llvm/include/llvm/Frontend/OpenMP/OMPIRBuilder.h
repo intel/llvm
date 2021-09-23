@@ -475,6 +475,48 @@ public:
   tileLoops(DebugLoc DL, ArrayRef<CanonicalLoopInfo *> Loops,
             ArrayRef<Value *> TileSizes);
 
+  /// Fully unroll a loop.
+  ///
+  /// Instead of unrolling the loop immediately (and duplicating its body
+  /// instructions), it is deferred to LLVM's LoopUnrollPass by adding loop
+  /// metadata.
+  ///
+  /// \param DL   Debug location for instructions added by unrolling.
+  /// \param Loop The loop to unroll. The loop will be invalidated.
+  void unrollLoopFull(DebugLoc DL, CanonicalLoopInfo *Loop);
+
+  /// Fully or partially unroll a loop. How the loop is unrolled is determined
+  /// using LLVM's LoopUnrollPass.
+  ///
+  /// \param DL   Debug location for instructions added by unrolling.
+  /// \param Loop The loop to unroll. The loop will be invalidated.
+  void unrollLoopHeuristic(DebugLoc DL, CanonicalLoopInfo *Loop);
+
+  /// Partially unroll a loop.
+  ///
+  /// The CanonicalLoopInfo of the unrolled loop for use with chained
+  /// loop-associated directive can be requested using \p UnrolledCLI. Not
+  /// needing the CanonicalLoopInfo allows more efficient code generation by
+  /// deferring the actual unrolling to the LoopUnrollPass using loop metadata.
+  /// A loop-associated directive applied to the unrolled loop needs to know the
+  /// new trip count which means that if using a heuristically determined unroll
+  /// factor (\p Factor == 0), that factor must be computed immediately. We are
+  /// using the same logic as the LoopUnrollPass to derived the unroll factor,
+  /// but which assumes that some canonicalization has taken place (e.g.
+  /// Mem2Reg, LICM, GVN, Inlining, etc.). That is, the heuristic will perform
+  /// better when the unrolled loop's CanonicalLoopInfo is not needed.
+  ///
+  /// \param DL          Debug location for instructions added by unrolling.
+  /// \param Loop        The loop to unroll. The loop will be invalidated.
+  /// \param Factor      The factor to unroll the loop by. A factor of 0
+  ///                    indicates that a heuristic should be used to determine
+  ///                    the unroll-factor.
+  /// \param UnrolledCLI If non-null, receives the CanonicalLoopInfo of the
+  ///                    partially unrolled loop. Otherwise, uses loop metadata
+  ///                    to defer unrolling to the LoopUnrollPass.
+  void unrollLoopPartial(DebugLoc DL, CanonicalLoopInfo *Loop, int32_t Factor,
+                         CanonicalLoopInfo **UnrolledCLI);
+
   /// Generator for '#omp flush'
   ///
   /// \param Loc The location where the flush directive was encountered
@@ -592,20 +634,7 @@ public:
   ///                           reduction variables.
   /// \param AllocaIP           An insertion point suitable for allocas usable
   ///                           in reductions.
-  /// \param Variables          A list of variables in which the reduction
-  ///                           results will be stored (values of pointer type).
-  /// \param PrivateVariables   A list of variables in which the partial
-  ///                           reduction results are stored (values of pointer
-  ///                           type). Coindexed with Variables. Privatization
-  ///                           must be handled separately from this call.
-  /// \param ReductionGen       A list of generators for non-atomic reduction
-  ///                           bodies. Each takes a pair of partially reduced
-  ///                           values and sets a new one.
-  /// \param AtomicReductionGen A list of generators for atomic reduction
-  ///                           bodies, empty if the reduction cannot be
-  ///                           performed with atomics. Each takes a pair of
-  ///                           _pointers_ to paritally reduced values and
-  ///                           atomically stores the result into the first.
+  /// \param ReductionInfos     A list of info on each reduction variable.
   /// \param IsNoWait           A flag set if the reduction is marked as nowait.
   InsertPointTy createReductions(const LocationDescription &Loc,
                                  InsertPointTy AllocaIP,
@@ -654,8 +683,9 @@ public:
                           omp::IdentFlag Flags = omp::IdentFlag(0),
                           unsigned Reserve2Flags = 0);
 
-  // Get the type corresponding to __kmpc_impl_lanemask_t from the deviceRTL
-  Type *getLanemaskType();
+  /// Create a global value containing the \p DebugLevel to control debuggin in
+  /// the module.
+  GlobalValue *createDebugKind(unsigned DebugLevel);
 
   /// Generate control flow and cleanup for cancellation.
   ///
@@ -781,11 +811,11 @@ public:
   /// \param Loc The source location description.
   /// \param MapperFunc Function to be called.
   /// \param SrcLocInfo Source location information global.
-  /// \param MaptypesArgs
-  /// \param MapnamesArg
+  /// \param MaptypesArg The argument types.
+  /// \param MapnamesArg The argument names.
   /// \param MapperAllocas The AllocaInst used for the call.
   /// \param DeviceID Device ID for the call.
-  /// \param TotalNbOperand Number of operand in the call.
+  /// \param NumOperands Number of operands in the call.
   void emitMapperCall(const LocationDescription &Loc, Function *MapperFunc,
                       Value *SrcLocInfo, Value *MaptypesArg, Value *MapnamesArg,
                       struct MapperAllocas &MapperAllocas, int64_t DeviceID,
@@ -835,7 +865,7 @@ public:
   /// \param BodyGenCB Callback that will generate the region code.
   /// \param FiniCB Callback to finialize variable copies.
   ///
-  /// \returns The insertion position *after* the master.
+  /// \returns The insertion position *after* the masked.
   InsertPointTy createMasked(const LocationDescription &Loc,
                              BodyGenCallbackTy BodyGenCB,
                              FinalizeCallbackTy FiniCB, Value *Filter);
@@ -848,11 +878,40 @@ public:
   /// \param CriticalName name of the lock used by the critical directive
   /// \param HintInst Hint Instruction for hint clause associated with critical
   ///
-  /// \returns The insertion position *after* the master.
+  /// \returns The insertion position *after* the critical.
   InsertPointTy createCritical(const LocationDescription &Loc,
                                BodyGenCallbackTy BodyGenCB,
                                FinalizeCallbackTy FiniCB,
                                StringRef CriticalName, Value *HintInst);
+
+  /// Generator for '#omp ordered depend (source | sink)'
+  ///
+  /// \param Loc The insert and source location description.
+  /// \param AllocaIP The insertion point to be used for alloca instructions.
+  /// \param NumLoops The number of loops in depend clause.
+  /// \param StoreValues The value will be stored in vector address.
+  /// \param Name The name of alloca instruction.
+  /// \param IsDependSource If true, depend source; otherwise, depend sink.
+  ///
+  /// \return The insertion position *after* the ordered.
+  InsertPointTy createOrderedDepend(const LocationDescription &Loc,
+                                    InsertPointTy AllocaIP, unsigned NumLoops,
+                                    ArrayRef<llvm::Value *> StoreValues,
+                                    const Twine &Name, bool IsDependSource);
+
+  /// Generator for '#omp ordered [threads | simd]'
+  ///
+  /// \param Loc The insert and source location description.
+  /// \param BodyGenCB Callback that will generate the region code.
+  /// \param FiniCB Callback to finalize variable copies.
+  /// \param IsThreads If true, with threads clause or without clause;
+  /// otherwise, with simd clause;
+  ///
+  /// \returns The insertion position *after* the ordered.
+  InsertPointTy createOrderedThreadsSimd(const LocationDescription &Loc,
+                                         BodyGenCallbackTy BodyGenCB,
+                                         FinalizeCallbackTy FiniCB,
+                                         bool IsThreads);
 
   /// Generator for '#omp sections'
   ///

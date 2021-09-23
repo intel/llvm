@@ -2390,6 +2390,24 @@ StrengthenNoWrapFlags(ScalarEvolution *SE, SCEVTypes Type,
     }
   }
 
+  // <0,+,nonnegative><nw> is also nuw
+  // TODO: Add corresponding nsw case
+  if (Type == scAddRecExpr && ScalarEvolution::hasFlags(Flags, SCEV::FlagNW) &&
+      !ScalarEvolution::hasFlags(Flags, SCEV::FlagNUW) && Ops.size() == 2 &&
+      Ops[0]->isZero() && IsKnownNonNegative(Ops[1]))
+    Flags = ScalarEvolution::setFlags(Flags, SCEV::FlagNUW);
+
+  // both (udiv X, Y) * Y and Y * (udiv X, Y) are always NUW
+  if (Type == scMulExpr && !ScalarEvolution::hasFlags(Flags, SCEV::FlagNUW) &&
+      Ops.size() == 2) {
+    if (auto *UDiv = dyn_cast<SCEVUDivExpr>(Ops[0]))
+      if (UDiv->getOperand(1) == Ops[1])
+        Flags = ScalarEvolution::setFlags(Flags, SCEV::FlagNUW);
+    if (auto *UDiv = dyn_cast<SCEVUDivExpr>(Ops[1]))
+      if (UDiv->getOperand(1) == Ops[0])
+        Flags = ScalarEvolution::setFlags(Flags, SCEV::FlagNUW);
+  }
+
   return Flags;
 }
 
@@ -2449,7 +2467,7 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
   if (Depth > MaxArithDepth || hasHugeExpression(Ops))
     return getOrCreateAddExpr(Ops, ComputeFlags(Ops));
 
-  if (SCEV *S = std::get<0>(findExistingSCEVInCache(scAddExpr, Ops))) {
+  if (SCEV *S = findExistingSCEVInCache(scAddExpr, Ops)) {
     // Don't strengthen flags if we have no new information.
     SCEVAddExpr *Add = static_cast<SCEVAddExpr *>(S);
     if (Add->getNoWrapFlags(OrigFlags) != OrigFlags)
@@ -2562,8 +2580,7 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
       APInt ConstAdd = C1 + C2;
       auto AddFlags = AddExpr->getNoWrapFlags();
       // Adding a smaller constant is NUW if the original AddExpr was NUW.
-      if (ScalarEvolution::maskFlags(AddFlags, SCEV::FlagNUW) ==
-              SCEV::FlagNUW &&
+      if (ScalarEvolution::hasFlags(AddFlags, SCEV::FlagNUW) &&
           ConstAdd.ule(C1)) {
         PreservedFlags =
             ScalarEvolution::setFlags(PreservedFlags, SCEV::FlagNUW);
@@ -2571,8 +2588,7 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
 
       // Adding a constant with the same sign and small magnitude is NSW, if the
       // original AddExpr was NSW.
-      if (ScalarEvolution::maskFlags(AddFlags, SCEV::FlagNSW) ==
-              SCEV::FlagNSW &&
+      if (ScalarEvolution::hasFlags(AddFlags, SCEV::FlagNSW) &&
           C1.isSignBitSet() == ConstAdd.isSignBitSet() &&
           ConstAdd.abs().ule(C1.abs())) {
         PreservedFlags =
@@ -2580,8 +2596,7 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
       }
 
       if (PreservedFlags != SCEV::FlagAnyWrap) {
-        SmallVector<const SCEV *, 4> NewOps(AddExpr->op_begin(),
-                                            AddExpr->op_end());
+        SmallVector<const SCEV *, 4> NewOps(AddExpr->operands());
         NewOps[0] = getConstant(ConstAdd);
         return getAddExpr(NewOps, PreservedFlags);
       }
@@ -3022,7 +3037,7 @@ const SCEV *ScalarEvolution::getMulExpr(SmallVectorImpl<const SCEV *> &Ops,
   if (Depth > MaxArithDepth || hasHugeExpression(Ops))
     return getOrCreateMulExpr(Ops, ComputeFlags(Ops));
 
-  if (SCEV *S = std::get<0>(findExistingSCEVInCache(scMulExpr, Ops))) {
+  if (SCEV *S = findExistingSCEVInCache(scMulExpr, Ops)) {
     // Don't strengthen flags if we have no new information.
     SCEVMulExpr *Mul = static_cast<SCEVMulExpr *>(S);
     if (Mul->getNoWrapFlags(OrigFlags) != OrigFlags)
@@ -3653,16 +3668,14 @@ ScalarEvolution::getGEPExpr(GEPOperator *GEP,
   return GEPExpr;
 }
 
-std::tuple<SCEV *, FoldingSetNodeID, void *>
-ScalarEvolution::findExistingSCEVInCache(SCEVTypes SCEVType,
-                                         ArrayRef<const SCEV *> Ops) {
+SCEV *ScalarEvolution::findExistingSCEVInCache(SCEVTypes SCEVType,
+                                               ArrayRef<const SCEV *> Ops) {
   FoldingSetNodeID ID;
-  void *IP = nullptr;
   ID.AddInteger(SCEVType);
   for (unsigned i = 0, e = Ops.size(); i != e; ++i)
     ID.AddPointer(Ops[i]);
-  return std::tuple<SCEV *, FoldingSetNodeID, void *>(
-      UniqueSCEVs.FindNodeOrInsertPos(ID, IP), std::move(ID), IP);
+  void *IP = nullptr;
+  return UniqueSCEVs.FindNodeOrInsertPos(ID, IP);
 }
 
 const SCEV *ScalarEvolution::getAbsExpr(const SCEV *Op, bool IsNSW) {
@@ -3692,7 +3705,7 @@ const SCEV *ScalarEvolution::getMinMaxExpr(SCEVTypes Kind,
   GroupByComplexity(Ops, &LI, DT);
 
   // Check if we have created the same expression before.
-  if (const SCEV *S = std::get<0>(findExistingSCEVInCache(Kind, Ops))) {
+  if (const SCEV *S = findExistingSCEVInCache(Kind, Ops)) {
     return S;
   }
 
@@ -3790,10 +3803,12 @@ const SCEV *ScalarEvolution::getMinMaxExpr(SCEVTypes Kind,
 
   // Okay, it looks like we really DO need an expr.  Check to see if we
   // already have one, otherwise create a new one.
-  const SCEV *ExistingSCEV;
   FoldingSetNodeID ID;
-  void *IP;
-  std::tie(ExistingSCEV, ID, IP) = findExistingSCEVInCache(Kind, Ops);
+  ID.AddInteger(Kind);
+  for (unsigned i = 0, e = Ops.size(); i != e; ++i)
+    ID.AddPointer(Ops[i]);
+  void *IP = nullptr;
+  const SCEV *ExistingSCEV = UniqueSCEVs.FindNodeOrInsertPos(ID, IP);
   if (ExistingSCEV)
     return ExistingSCEV;
   const SCEV **O = SCEVAllocator.Allocate<const SCEV *>(Ops.size());
@@ -4123,6 +4138,8 @@ static const SCEV *MatchNotExpr(const SCEV *Expr) {
 
 /// Return a SCEV corresponding to ~V = -1-V
 const SCEV *ScalarEvolution::getNotSCEV(const SCEV *V) {
+  assert(!V->getType()->isPointerTy() && "Can't negate pointer");
+
   if (const SCEVConstant *VC = dyn_cast<SCEVConstant>(V))
     return getConstant(
                 cast<ConstantInt>(ConstantExpr::getNot(VC->getValue())));
@@ -4149,17 +4166,16 @@ const SCEV *ScalarEvolution::getNotSCEV(const SCEV *V) {
   return getMinusSCEV(getMinusOne(Ty), V);
 }
 
-/// Compute an expression equivalent to S - getPointerBase(S).
-static const SCEV *removePointerBase(ScalarEvolution *SE, const SCEV *P) {
+const SCEV *ScalarEvolution::removePointerBase(const SCEV *P) {
   assert(P->getType()->isPointerTy());
 
   if (auto *AddRec = dyn_cast<SCEVAddRecExpr>(P)) {
     // The base of an AddRec is the first operand.
     SmallVector<const SCEV *> Ops{AddRec->operands()};
-    Ops[0] = removePointerBase(SE, Ops[0]);
+    Ops[0] = removePointerBase(Ops[0]);
     // Don't try to transfer nowrap flags for now. We could in some cases
     // (for example, if pointer operand of the AddRec is a SCEVUnknown).
-    return SE->getAddRecExpr(Ops, AddRec->getLoop(), SCEV::FlagAnyWrap);
+    return getAddRecExpr(Ops, AddRec->getLoop(), SCEV::FlagAnyWrap);
   }
   if (auto *Add = dyn_cast<SCEVAddExpr>(P)) {
     // The base of an Add is the pointer operand.
@@ -4167,21 +4183,17 @@ static const SCEV *removePointerBase(ScalarEvolution *SE, const SCEV *P) {
     const SCEV **PtrOp = nullptr;
     for (const SCEV *&AddOp : Ops) {
       if (AddOp->getType()->isPointerTy()) {
-        // If we find an Add with multiple pointer operands, treat it as a
-        // pointer base to be consistent with getPointerBase.  Eventually
-        // we should be able to assert this is impossible.
-        if (PtrOp)
-          return SE->getZero(P->getType());
+        assert(!PtrOp && "Cannot have multiple pointer ops");
         PtrOp = &AddOp;
       }
     }
-    *PtrOp = removePointerBase(SE, *PtrOp);
+    *PtrOp = removePointerBase(*PtrOp);
     // Don't try to transfer nowrap flags for now. We could in some cases
     // (for example, if the pointer operand of the Add is a SCEVUnknown).
-    return SE->getAddExpr(Ops);
+    return getAddExpr(Ops);
   }
   // Any other expression must be a pointer base.
-  return SE->getZero(P->getType());
+  return getZero(P->getType());
 }
 
 const SCEV *ScalarEvolution::getMinusSCEV(const SCEV *LHS, const SCEV *RHS,
@@ -4198,8 +4210,8 @@ const SCEV *ScalarEvolution::getMinusSCEV(const SCEV *LHS, const SCEV *RHS,
     if (!LHS->getType()->isPointerTy() ||
         getPointerBase(LHS) != getPointerBase(RHS))
       return getCouldNotCompute();
-    LHS = removePointerBase(this, LHS);
-    RHS = removePointerBase(this, RHS);
+    LHS = removePointerBase(LHS);
+    RHS = removePointerBase(RHS);
   }
 
   // We represent LHS - RHS as LHS + (-1)*RHS. This transformation
@@ -4207,7 +4219,7 @@ const SCEV *ScalarEvolution::getMinusSCEV(const SCEV *LHS, const SCEV *RHS,
   auto AddFlags = SCEV::FlagAnyWrap;
   const bool RHSIsNotMinSigned =
       !getSignedRangeMin(RHS).isMinSignedValue();
-  if (maskFlags(Flags, SCEV::FlagNSW) == SCEV::FlagNSW) {
+  if (hasFlags(Flags, SCEV::FlagNSW)) {
     // Let M be the minimum representable signed value. Then (-1)*RHS
     // signed-wraps if and only if RHS is M. That can happen even for
     // a NSW subtraction because e.g. (-1)*M signed-wraps even though
@@ -4362,14 +4374,11 @@ const SCEV *ScalarEvolution::getPointerBase(const SCEV *V) {
       const SCEV *PtrOp = nullptr;
       for (const SCEV *AddOp : Add->operands()) {
         if (AddOp->getType()->isPointerTy()) {
-          // Cannot find the base of an expression with multiple pointer ops.
-          if (PtrOp)
-            return V;
+          assert(!PtrOp && "Cannot have multiple pointer ops");
           PtrOp = AddOp;
         }
       }
-      if (!PtrOp) // All operands were non-pointer.
-        return V;
+      assert(PtrOp && "Must have pointer op");
       V = PtrOp;
     } else // Not something we can look further into.
       return V;
@@ -7638,6 +7647,12 @@ ScalarEvolution::ExitLimit::ExitLimit(
     const SCEV *E, const SCEV *M, bool MaxOrZero,
     ArrayRef<const SmallPtrSetImpl<const SCEVPredicate *> *> PredSetList)
     : ExactNotTaken(E), MaxNotTaken(M), MaxOrZero(MaxOrZero) {
+  // If we prove the max count is zero, so is the symbolic bound.  This happens
+  // in practice due to differences in a) how context sensitive we've chosen
+  // to be and b) how we reason about bounds impied by UB.
+  if (MaxNotTaken->isZero())
+    ExactNotTaken = MaxNotTaken;
+
   assert((isa<SCEVCouldNotCompute>(ExactNotTaken) ||
           !isa<SCEVCouldNotCompute>(MaxNotTaken)) &&
          "Exact is not allowed to be less precise than Max");
@@ -10670,22 +10685,29 @@ bool ScalarEvolution::isImpliedCondBalancedTypes(
     if (!isa<SCEVConstant>(FoundRHS) && !isa<SCEVAddRecExpr>(FoundLHS))
       return isImpliedCondOperands(Pred, LHS, RHS, FoundRHS, FoundLHS, Context);
 
-    // Don't try to getNotSCEV pointers.
-    if (LHS->getType()->isPointerTy() || FoundLHS->getType()->isPointerTy())
-      return false;
+    // There's no clear preference between forms 3. and 4., try both.  Avoid
+    // forming getNotSCEV of pointer values as the resulting subtract is
+    // not legal.
+    if (!LHS->getType()->isPointerTy() && !RHS->getType()->isPointerTy() &&
+        isImpliedCondOperands(FoundPred, getNotSCEV(LHS), getNotSCEV(RHS),
+                              FoundLHS, FoundRHS, Context))
+      return true;
 
-    // There's no clear preference between forms 3. and 4., try both.
-    return isImpliedCondOperands(FoundPred, getNotSCEV(LHS), getNotSCEV(RHS),
-                                 FoundLHS, FoundRHS, Context) ||
-           isImpliedCondOperands(Pred, LHS, RHS, getNotSCEV(FoundLHS),
-                                 getNotSCEV(FoundRHS), Context);
+    if (!FoundLHS->getType()->isPointerTy() &&
+        !FoundRHS->getType()->isPointerTy() &&
+        isImpliedCondOperands(Pred, LHS, RHS, getNotSCEV(FoundLHS),
+                              getNotSCEV(FoundRHS), Context))
+      return true;
+
+    return false;
   }
 
   // Unsigned comparison is the same as signed comparison when both the operands
-  // are non-negative.
+  // are non-negative or negative.
   if (CmpInst::isUnsigned(FoundPred) &&
       CmpInst::getSignedPredicate(FoundPred) == Pred &&
-      isKnownNonNegative(FoundLHS) && isKnownNonNegative(FoundRHS))
+      ((isKnownNonNegative(FoundLHS) && isKnownNonNegative(FoundRHS)) ||
+       (isKnownNegative(FoundLHS) && isKnownNegative(FoundRHS))))
     return isImpliedCondOperands(Pred, LHS, RHS, FoundLHS, FoundRHS, Context);
 
   // Check if we can make progress by sharpening ranges.
@@ -11537,6 +11559,12 @@ const SCEV *ScalarEvolution::computeMaxBECountForLT(const SCEV *Start,
   if (IsSigned && BitWidth == 1)
     return getZero(Stride->getType());
 
+  // This code has only been closely audited for negative strides in the
+  // unsigned comparison case, it may be correct for signed comparison, but
+  // that needs to be established.
+  assert((!IsSigned || !isKnownNonPositive(Stride)) &&
+         "Stride is expected strictly positive for signed case!");
+
   // Calculate the maximum backedge count based on the range of values
   // permitted by Start, End, and Stride.
   APInt MinStart =
@@ -11578,6 +11606,62 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
 
   const SCEVAddRecExpr *IV = dyn_cast<SCEVAddRecExpr>(LHS);
   bool PredicatedIV = false;
+
+  auto canAssumeNoSelfWrap = [&](const SCEVAddRecExpr *AR) {
+    // Can we prove this loop *must* be UB if overflow of IV occurs?
+    // Reasoning goes as follows:
+    // * Suppose the IV did self wrap.
+    // * If Stride evenly divides the iteration space, then once wrap
+    //   occurs, the loop must revisit the same values.
+    // * We know that RHS is invariant, and that none of those values
+    //   caused this exit to be taken previously.  Thus, this exit is
+    //   dynamically dead.
+    // * If this is the sole exit, then a dead exit implies the loop
+    //   must be infinite if there are no abnormal exits.
+    // * If the loop were infinite, then it must either not be mustprogress
+    //   or have side effects. Otherwise, it must be UB.
+    // * It can't (by assumption), be UB so we have contradicted our
+    //   premise and can conclude the IV did not in fact self-wrap.
+    if (!isLoopInvariant(RHS, L))
+      return false;
+
+    auto *StrideC = dyn_cast<SCEVConstant>(AR->getStepRecurrence(*this));
+    if (!StrideC || !StrideC->getAPInt().isPowerOf2())
+      return false;
+
+    if (!ControlsExit || !loopHasNoAbnormalExits(L))
+      return false;
+
+    return loopIsFiniteByAssumption(L);
+  };
+
+  if (!IV) {
+    if (auto *ZExt = dyn_cast<SCEVZeroExtendExpr>(LHS)) {
+      const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(ZExt->getOperand());
+      if (AR && AR->getLoop() == L && AR->isAffine()) {
+        auto Flags = AR->getNoWrapFlags();
+        if (!hasFlags(Flags, SCEV::FlagNW) && canAssumeNoSelfWrap(AR)) {
+          Flags = setFlags(Flags, SCEV::FlagNW);
+
+          SmallVector<const SCEV*> Operands{AR->operands()};
+          Flags = StrengthenNoWrapFlags(this, scAddRecExpr, Operands, Flags);
+
+          setNoWrapFlags(const_cast<SCEVAddRecExpr *>(AR), Flags);
+        }
+        if (AR->hasNoUnsignedWrap()) {
+          // Emulate what getZeroExtendExpr would have done during construction
+          // if we'd been able to infer the fact just above at that time.
+          const SCEV *Step = AR->getStepRecurrence(*this);
+          Type *Ty = ZExt->getType();
+          auto *S = getAddRecExpr(
+            getExtendAddRecStart<SCEVZeroExtendExpr>(AR, Ty, this, 0),
+            getZeroExtendExpr(Step, Ty, 0), L, AR->getNoWrapFlags());
+          IV = dyn_cast<SCEVAddRecExpr>(S);
+        }
+      }
+    }
+  }
+
 
   if (!IV && AllowPredicates) {
     // Try to make this an AddRec using runtime tests, in the first X
@@ -11629,32 +11713,29 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
     //
     // a) IV is either nuw or nsw depending upon signedness (indicated by the
     //    NoWrap flag).
-    // b) loop is single exit with no side effects.
-    //
+    // b) the loop is guaranteed to be finite (e.g. is mustprogress and has
+    //    no side effects within the loop)
+    // c) loop has a single static exit (with no abnormal exits)
     //
     // Precondition a) implies that if the stride is negative, this is a single
     // trip loop. The backedge taken count formula reduces to zero in this case.
     //
-    // Precondition b) implies that if rhs is invariant in L, then unknown
-    // stride being zero means the backedge can't be taken without UB.
+    // Precondition b) and c) combine to imply that if rhs is invariant in L,
+    // then a zero stride means the backedge can't be taken without executing
+    // undefined behavior.
     //
     // The positive stride case is the same as isKnownPositive(Stride) returning
     // true (original behavior of the function).
     //
-    // We want to make sure that the stride is truly unknown as there are edge
-    // cases where ScalarEvolution propagates no wrap flags to the
-    // post-increment/decrement IV even though the increment/decrement operation
-    // itself is wrapping. The computed backedge taken count may be wrong in
-    // such cases. This is prevented by checking that the stride is not known to
-    // be either positive or non-positive. For example, no wrap flags are
-    // propagated to the post-increment IV of this loop with a trip count of 2 -
-    //
-    // unsigned char i;
-    // for(i=127; i<128; i+=129)
-    //   A[i] = i;
-    //
-    if (PredicatedIV || !NoWrap || isKnownNonPositive(Stride) ||
-        !loopIsFiniteByAssumption(L))
+    if (PredicatedIV || !NoWrap || !loopIsFiniteByAssumption(L) ||
+        !loopHasNoAbnormalExits(L))
+      return getCouldNotCompute();
+
+    // This bailout is protecting the logic in computeMaxBECountForLT which
+    // has not yet been sufficiently auditted or tested with negative strides.
+    // We used to filter out all known-non-positive cases here, we're in the
+    // process of being less restrictive bit by bit.
+    if (IsSigned && isKnownNonPositive(Stride))
       return getCouldNotCompute();
 
     if (!isKnownNonZero(Stride)) {
@@ -11690,37 +11771,12 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
     }
   } else if (!Stride->isOne() && !NoWrap) {
     auto isUBOnWrap = [&]() {
-      // Can we prove this loop *must* be UB if overflow of IV occurs?
-      // Reasoning goes as follows:
-      // * Suppose the IV did self wrap.
-      // * If Stride evenly divides the iteration space, then once wrap
-      //   occurs, the loop must revisit the same values.
-      // * We know that RHS is invariant, and that none of those values
-      //   caused this exit to be taken previously.  Thus, this exit is
-      //   dynamically dead.
-      // * If this is the sole exit, then a dead exit implies the loop
-      //   must be infinite if there are no abnormal exits.
-      // * If the loop were infinite, then it must either not be mustprogress
-      //   or have side effects. Otherwise, it must be UB.
-      // * It can't (by assumption), be UB so we have contradicted our
-      //   premise and can conclude the IV did not in fact self-wrap.
       // From no-self-wrap, we need to then prove no-(un)signed-wrap.  This
       // follows trivially from the fact that every (un)signed-wrapped, but
       // not self-wrapped value must be LT than the last value before
       // (un)signed wrap.  Since we know that last value didn't exit, nor
       // will any smaller one.
-
-      if (!isLoopInvariant(RHS, L))
-        return false;
-
-      auto *StrideC = dyn_cast<SCEVConstant>(Stride);
-      if (!StrideC || !StrideC->getAPInt().isPowerOf2())
-        return false;
-
-      if (!ControlsExit || !loopHasNoAbnormalExits(L))
-        return false;
-
-      return loopIsFiniteByAssumption(L);
+      return canAssumeNoSelfWrap(IV);
     };
 
     // Avoid proven overflow cases: this will ensure that the backedge taken
@@ -11743,7 +11799,9 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
   const SCEV *Start = IV->getStart();
 
   // Preserve pointer-typed Start/RHS to pass to isLoopEntryGuardedByCond.
-  // Use integer-typed versions for actual computation.
+  // If we convert to integers, isLoopEntryGuardedByCond will miss some cases.
+  // Use integer-typed versions for actual computation; we can't subtract
+  // pointers in general.
   const SCEV *OrigStart = Start;
   const SCEV *OrigRHS = RHS;
   if (Start->getType()->isPointerTy()) {
@@ -11774,10 +11832,10 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
   // is End and so the result is as above, and if not max(End,Start) is Start
   // so we get a backedge count of zero.
   const SCEV *BECount = nullptr;
-  auto *StartMinusStride = getMinusSCEV(OrigStart, Stride);
+  auto *OrigStartMinusStride = getMinusSCEV(OrigStart, Stride);
   // Can we prove (max(RHS,Start) > Start - Stride?
-  if (isLoopEntryGuardedByCond(L, Cond, StartMinusStride, Start) &&
-      isLoopEntryGuardedByCond(L, Cond, StartMinusStride, RHS)) {
+  if (isLoopEntryGuardedByCond(L, Cond, OrigStartMinusStride, OrigStart) &&
+      isLoopEntryGuardedByCond(L, Cond, OrigStartMinusStride, OrigRHS)) {
     // In this case, we can use a refined formula for computing backedge taken
     // count.  The general formula remains:
     //   "End-Start /uceiling Stride" where "End = max(RHS,Start)"
@@ -11798,10 +11856,8 @@ ScalarEvolution::howManyLessThans(const SCEV *LHS, const SCEV *RHS,
     //   Our preconditions trivially imply no overflow in that form.
     const SCEV *MinusOne = getMinusOne(Stride->getType());
     const SCEV *Numerator =
-        getMinusSCEV(getAddExpr(RHS, MinusOne), StartMinusStride);
-    if (!isa<SCEVCouldNotCompute>(Numerator)) {
-      BECount = getUDivExpr(Numerator, Stride);
-    }
+        getMinusSCEV(getAddExpr(RHS, MinusOne), getMinusSCEV(Start, Stride));
+    BECount = getUDivExpr(Numerator, Stride);
   }
 
   const SCEV *BECountIfBackedgeTaken = nullptr;
@@ -12152,237 +12208,6 @@ static inline bool containsUndefs(const SCEV *S) {
   });
 }
 
-namespace {
-
-// Collect all steps of SCEV expressions.
-struct SCEVCollectStrides {
-  ScalarEvolution &SE;
-  SmallVectorImpl<const SCEV *> &Strides;
-
-  SCEVCollectStrides(ScalarEvolution &SE, SmallVectorImpl<const SCEV *> &S)
-      : SE(SE), Strides(S) {}
-
-  bool follow(const SCEV *S) {
-    if (const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(S))
-      Strides.push_back(AR->getStepRecurrence(SE));
-    return true;
-  }
-
-  bool isDone() const { return false; }
-};
-
-// Collect all SCEVUnknown and SCEVMulExpr expressions.
-struct SCEVCollectTerms {
-  SmallVectorImpl<const SCEV *> &Terms;
-
-  SCEVCollectTerms(SmallVectorImpl<const SCEV *> &T) : Terms(T) {}
-
-  bool follow(const SCEV *S) {
-    if (isa<SCEVUnknown>(S) || isa<SCEVMulExpr>(S) ||
-        isa<SCEVSignExtendExpr>(S)) {
-      if (!containsUndefs(S))
-        Terms.push_back(S);
-
-      // Stop recursion: once we collected a term, do not walk its operands.
-      return false;
-    }
-
-    // Keep looking.
-    return true;
-  }
-
-  bool isDone() const { return false; }
-};
-
-// Check if a SCEV contains an AddRecExpr.
-struct SCEVHasAddRec {
-  bool &ContainsAddRec;
-
-  SCEVHasAddRec(bool &ContainsAddRec) : ContainsAddRec(ContainsAddRec) {
-    ContainsAddRec = false;
-  }
-
-  bool follow(const SCEV *S) {
-    if (isa<SCEVAddRecExpr>(S)) {
-      ContainsAddRec = true;
-
-      // Stop recursion: once we collected a term, do not walk its operands.
-      return false;
-    }
-
-    // Keep looking.
-    return true;
-  }
-
-  bool isDone() const { return false; }
-};
-
-// Find factors that are multiplied with an expression that (possibly as a
-// subexpression) contains an AddRecExpr. In the expression:
-//
-//  8 * (100 +  %p * %q * (%a + {0, +, 1}_loop))
-//
-// "%p * %q" are factors multiplied by the expression "(%a + {0, +, 1}_loop)"
-// that contains the AddRec {0, +, 1}_loop. %p * %q are likely to be array size
-// parameters as they form a product with an induction variable.
-//
-// This collector expects all array size parameters to be in the same MulExpr.
-// It might be necessary to later add support for collecting parameters that are
-// spread over different nested MulExpr.
-struct SCEVCollectAddRecMultiplies {
-  SmallVectorImpl<const SCEV *> &Terms;
-  ScalarEvolution &SE;
-
-  SCEVCollectAddRecMultiplies(SmallVectorImpl<const SCEV *> &T, ScalarEvolution &SE)
-      : Terms(T), SE(SE) {}
-
-  bool follow(const SCEV *S) {
-    if (auto *Mul = dyn_cast<SCEVMulExpr>(S)) {
-      bool HasAddRec = false;
-      SmallVector<const SCEV *, 0> Operands;
-      for (auto Op : Mul->operands()) {
-        const SCEVUnknown *Unknown = dyn_cast<SCEVUnknown>(Op);
-        if (Unknown && !isa<CallInst>(Unknown->getValue())) {
-          Operands.push_back(Op);
-        } else if (Unknown) {
-          HasAddRec = true;
-        } else {
-          bool ContainsAddRec = false;
-          SCEVHasAddRec ContiansAddRec(ContainsAddRec);
-          visitAll(Op, ContiansAddRec);
-          HasAddRec |= ContainsAddRec;
-        }
-      }
-      if (Operands.size() == 0)
-        return true;
-
-      if (!HasAddRec)
-        return false;
-
-      Terms.push_back(SE.getMulExpr(Operands));
-      // Stop recursion: once we collected a term, do not walk its operands.
-      return false;
-    }
-
-    // Keep looking.
-    return true;
-  }
-
-  bool isDone() const { return false; }
-};
-
-} // end anonymous namespace
-
-/// Find parametric terms in this SCEVAddRecExpr. We first for parameters in
-/// two places:
-///   1) The strides of AddRec expressions.
-///   2) Unknowns that are multiplied with AddRec expressions.
-void ScalarEvolution::collectParametricTerms(const SCEV *Expr,
-    SmallVectorImpl<const SCEV *> &Terms) {
-  SmallVector<const SCEV *, 4> Strides;
-  SCEVCollectStrides StrideCollector(*this, Strides);
-  visitAll(Expr, StrideCollector);
-
-  LLVM_DEBUG({
-    dbgs() << "Strides:\n";
-    for (const SCEV *S : Strides)
-      dbgs() << *S << "\n";
-  });
-
-  for (const SCEV *S : Strides) {
-    SCEVCollectTerms TermCollector(Terms);
-    visitAll(S, TermCollector);
-  }
-
-  LLVM_DEBUG({
-    dbgs() << "Terms:\n";
-    for (const SCEV *T : Terms)
-      dbgs() << *T << "\n";
-  });
-
-  SCEVCollectAddRecMultiplies MulCollector(Terms, *this);
-  visitAll(Expr, MulCollector);
-}
-
-static bool findArrayDimensionsRec(ScalarEvolution &SE,
-                                   SmallVectorImpl<const SCEV *> &Terms,
-                                   SmallVectorImpl<const SCEV *> &Sizes) {
-  int Last = Terms.size() - 1;
-  const SCEV *Step = Terms[Last];
-
-  // End of recursion.
-  if (Last == 0) {
-    if (const SCEVMulExpr *M = dyn_cast<SCEVMulExpr>(Step)) {
-      SmallVector<const SCEV *, 2> Qs;
-      for (const SCEV *Op : M->operands())
-        if (!isa<SCEVConstant>(Op))
-          Qs.push_back(Op);
-
-      Step = SE.getMulExpr(Qs);
-    }
-
-    Sizes.push_back(Step);
-    return true;
-  }
-
-  for (const SCEV *&Term : Terms) {
-    // Normalize the terms before the next call to findArrayDimensionsRec.
-    const SCEV *Q, *R;
-    SCEVDivision::divide(SE, Term, Step, &Q, &R);
-
-    // Bail out when GCD does not evenly divide one of the terms.
-    if (!R->isZero())
-      return false;
-
-    Term = Q;
-  }
-
-  // Remove all SCEVConstants.
-  erase_if(Terms, [](const SCEV *E) { return isa<SCEVConstant>(E); });
-
-  if (Terms.size() > 0)
-    if (!findArrayDimensionsRec(SE, Terms, Sizes))
-      return false;
-
-  Sizes.push_back(Step);
-  return true;
-}
-
-// Returns true when one of the SCEVs of Terms contains a SCEVUnknown parameter.
-static inline bool containsParameters(SmallVectorImpl<const SCEV *> &Terms) {
-  for (const SCEV *T : Terms)
-    if (SCEVExprContains(T, [](const SCEV *S) { return isa<SCEVUnknown>(S); }))
-      return true;
-
-  return false;
-}
-
-// Return the number of product terms in S.
-static inline int numberOfTerms(const SCEV *S) {
-  if (const SCEVMulExpr *Expr = dyn_cast<SCEVMulExpr>(S))
-    return Expr->getNumOperands();
-  return 1;
-}
-
-static const SCEV *removeConstantFactors(ScalarEvolution &SE, const SCEV *T) {
-  if (isa<SCEVConstant>(T))
-    return nullptr;
-
-  if (isa<SCEVUnknown>(T))
-    return T;
-
-  if (const SCEVMulExpr *M = dyn_cast<SCEVMulExpr>(T)) {
-    SmallVector<const SCEV *, 2> Factors;
-    for (const SCEV *Op : M->operands())
-      if (!isa<SCEVConstant>(Op))
-        Factors.push_back(Op);
-
-    return SE.getMulExpr(Factors);
-  }
-
-  return T;
-}
-
 /// Return the size of an element read or written by Inst.
 const SCEV *ScalarEvolution::getElementSize(Instruction *Inst) {
   Type *Ty;
@@ -12395,248 +12220,6 @@ const SCEV *ScalarEvolution::getElementSize(Instruction *Inst) {
 
   Type *ETy = getEffectiveSCEVType(PointerType::getUnqual(Ty));
   return getSizeOfExpr(ETy, Ty);
-}
-
-void ScalarEvolution::findArrayDimensions(SmallVectorImpl<const SCEV *> &Terms,
-                                          SmallVectorImpl<const SCEV *> &Sizes,
-                                          const SCEV *ElementSize) {
-  if (Terms.size() < 1 || !ElementSize)
-    return;
-
-  // Early return when Terms do not contain parameters: we do not delinearize
-  // non parametric SCEVs.
-  if (!containsParameters(Terms))
-    return;
-
-  LLVM_DEBUG({
-    dbgs() << "Terms:\n";
-    for (const SCEV *T : Terms)
-      dbgs() << *T << "\n";
-  });
-
-  // Remove duplicates.
-  array_pod_sort(Terms.begin(), Terms.end());
-  Terms.erase(std::unique(Terms.begin(), Terms.end()), Terms.end());
-
-  // Put larger terms first.
-  llvm::sort(Terms, [](const SCEV *LHS, const SCEV *RHS) {
-    return numberOfTerms(LHS) > numberOfTerms(RHS);
-  });
-
-  // Try to divide all terms by the element size. If term is not divisible by
-  // element size, proceed with the original term.
-  for (const SCEV *&Term : Terms) {
-    const SCEV *Q, *R;
-    SCEVDivision::divide(*this, Term, ElementSize, &Q, &R);
-    if (!Q->isZero())
-      Term = Q;
-  }
-
-  SmallVector<const SCEV *, 4> NewTerms;
-
-  // Remove constant factors.
-  for (const SCEV *T : Terms)
-    if (const SCEV *NewT = removeConstantFactors(*this, T))
-      NewTerms.push_back(NewT);
-
-  LLVM_DEBUG({
-    dbgs() << "Terms after sorting:\n";
-    for (const SCEV *T : NewTerms)
-      dbgs() << *T << "\n";
-  });
-
-  if (NewTerms.empty() || !findArrayDimensionsRec(*this, NewTerms, Sizes)) {
-    Sizes.clear();
-    return;
-  }
-
-  // The last element to be pushed into Sizes is the size of an element.
-  Sizes.push_back(ElementSize);
-
-  LLVM_DEBUG({
-    dbgs() << "Sizes:\n";
-    for (const SCEV *S : Sizes)
-      dbgs() << *S << "\n";
-  });
-}
-
-void ScalarEvolution::computeAccessFunctions(
-    const SCEV *Expr, SmallVectorImpl<const SCEV *> &Subscripts,
-    SmallVectorImpl<const SCEV *> &Sizes) {
-  // Early exit in case this SCEV is not an affine multivariate function.
-  if (Sizes.empty())
-    return;
-
-  if (auto *AR = dyn_cast<SCEVAddRecExpr>(Expr))
-    if (!AR->isAffine())
-      return;
-
-  const SCEV *Res = Expr;
-  int Last = Sizes.size() - 1;
-  for (int i = Last; i >= 0; i--) {
-    const SCEV *Q, *R;
-    SCEVDivision::divide(*this, Res, Sizes[i], &Q, &R);
-
-    LLVM_DEBUG({
-      dbgs() << "Res: " << *Res << "\n";
-      dbgs() << "Sizes[i]: " << *Sizes[i] << "\n";
-      dbgs() << "Res divided by Sizes[i]:\n";
-      dbgs() << "Quotient: " << *Q << "\n";
-      dbgs() << "Remainder: " << *R << "\n";
-    });
-
-    Res = Q;
-
-    // Do not record the last subscript corresponding to the size of elements in
-    // the array.
-    if (i == Last) {
-
-      // Bail out if the remainder is too complex.
-      if (isa<SCEVAddRecExpr>(R)) {
-        Subscripts.clear();
-        Sizes.clear();
-        return;
-      }
-
-      continue;
-    }
-
-    // Record the access function for the current subscript.
-    Subscripts.push_back(R);
-  }
-
-  // Also push in last position the remainder of the last division: it will be
-  // the access function of the innermost dimension.
-  Subscripts.push_back(Res);
-
-  std::reverse(Subscripts.begin(), Subscripts.end());
-
-  LLVM_DEBUG({
-    dbgs() << "Subscripts:\n";
-    for (const SCEV *S : Subscripts)
-      dbgs() << *S << "\n";
-  });
-}
-
-/// Splits the SCEV into two vectors of SCEVs representing the subscripts and
-/// sizes of an array access. Returns the remainder of the delinearization that
-/// is the offset start of the array.  The SCEV->delinearize algorithm computes
-/// the multiples of SCEV coefficients: that is a pattern matching of sub
-/// expressions in the stride and base of a SCEV corresponding to the
-/// computation of a GCD (greatest common divisor) of base and stride.  When
-/// SCEV->delinearize fails, it returns the SCEV unchanged.
-///
-/// For example: when analyzing the memory access A[i][j][k] in this loop nest
-///
-///  void foo(long n, long m, long o, double A[n][m][o]) {
-///
-///    for (long i = 0; i < n; i++)
-///      for (long j = 0; j < m; j++)
-///        for (long k = 0; k < o; k++)
-///          A[i][j][k] = 1.0;
-///  }
-///
-/// the delinearization input is the following AddRec SCEV:
-///
-///  AddRec: {{{%A,+,(8 * %m * %o)}<%for.i>,+,(8 * %o)}<%for.j>,+,8}<%for.k>
-///
-/// From this SCEV, we are able to say that the base offset of the access is %A
-/// because it appears as an offset that does not divide any of the strides in
-/// the loops:
-///
-///  CHECK: Base offset: %A
-///
-/// and then SCEV->delinearize determines the size of some of the dimensions of
-/// the array as these are the multiples by which the strides are happening:
-///
-///  CHECK: ArrayDecl[UnknownSize][%m][%o] with elements of sizeof(double) bytes.
-///
-/// Note that the outermost dimension remains of UnknownSize because there are
-/// no strides that would help identifying the size of the last dimension: when
-/// the array has been statically allocated, one could compute the size of that
-/// dimension by dividing the overall size of the array by the size of the known
-/// dimensions: %m * %o * 8.
-///
-/// Finally delinearize provides the access functions for the array reference
-/// that does correspond to A[i][j][k] of the above C testcase:
-///
-///  CHECK: ArrayRef[{0,+,1}<%for.i>][{0,+,1}<%for.j>][{0,+,1}<%for.k>]
-///
-/// The testcases are checking the output of a function pass:
-/// DelinearizationPass that walks through all loads and stores of a function
-/// asking for the SCEV of the memory access with respect to all enclosing
-/// loops, calling SCEV->delinearize on that and printing the results.
-void ScalarEvolution::delinearize(const SCEV *Expr,
-                                 SmallVectorImpl<const SCEV *> &Subscripts,
-                                 SmallVectorImpl<const SCEV *> &Sizes,
-                                 const SCEV *ElementSize) {
-  // First step: collect parametric terms.
-  SmallVector<const SCEV *, 4> Terms;
-  collectParametricTerms(Expr, Terms);
-
-  if (Terms.empty())
-    return;
-
-  // Second step: find subscript sizes.
-  findArrayDimensions(Terms, Sizes, ElementSize);
-
-  if (Sizes.empty())
-    return;
-
-  // Third step: compute the access functions for each subscript.
-  computeAccessFunctions(Expr, Subscripts, Sizes);
-
-  if (Subscripts.empty())
-    return;
-
-  LLVM_DEBUG({
-    dbgs() << "succeeded to delinearize " << *Expr << "\n";
-    dbgs() << "ArrayDecl[UnknownSize]";
-    for (const SCEV *S : Sizes)
-      dbgs() << "[" << *S << "]";
-
-    dbgs() << "\nArrayRef";
-    for (const SCEV *S : Subscripts)
-      dbgs() << "[" << *S << "]";
-    dbgs() << "\n";
-  });
-}
-
-bool ScalarEvolution::getIndexExpressionsFromGEP(
-    const GetElementPtrInst *GEP, SmallVectorImpl<const SCEV *> &Subscripts,
-    SmallVectorImpl<int> &Sizes) {
-  assert(Subscripts.empty() && Sizes.empty() &&
-         "Expected output lists to be empty on entry to this function.");
-  assert(GEP && "getIndexExpressionsFromGEP called with a null GEP");
-  Type *Ty = nullptr;
-  bool DroppedFirstDim = false;
-  for (unsigned i = 1; i < GEP->getNumOperands(); i++) {
-    const SCEV *Expr = getSCEV(GEP->getOperand(i));
-    if (i == 1) {
-      Ty = GEP->getSourceElementType();
-      if (auto *Const = dyn_cast<SCEVConstant>(Expr))
-        if (Const->getValue()->isZero()) {
-          DroppedFirstDim = true;
-          continue;
-        }
-      Subscripts.push_back(Expr);
-      continue;
-    }
-
-    auto *ArrayTy = dyn_cast<ArrayType>(Ty);
-    if (!ArrayTy) {
-      Subscripts.clear();
-      Sizes.clear();
-      return false;
-    }
-
-    Subscripts.push_back(Expr);
-    if (!(DroppedFirstDim && i == 2))
-      Sizes.push_back(ArrayTy->getNumElements());
-
-    Ty = ArrayTy->getElementType();
-  }
-  return !Subscripts.empty();
 }
 
 //===----------------------------------------------------------------------===//
@@ -13924,6 +13507,11 @@ public:
 const SCEV *ScalarEvolution::applyLoopGuards(const SCEV *Expr, const Loop *L) {
   auto CollectCondition = [&](ICmpInst::Predicate Predicate, const SCEV *LHS,
                               const SCEV *RHS, ValueToSCEVMapTy &RewriteMap) {
+    // WARNING: It is generally unsound to apply any wrap flags to the proposed
+    // replacement SCEV which isn't directly implied by the structure of that
+    // SCEV.  In particular, using contextual facts to imply flags is *NOT*
+    // legal.  See the scoping rules for flags in the header to understand why.
+
     // If we have LHS == 0, check if LHS is computing a property of some unknown
     // SCEV %v which we can rewrite %v to express explicitly.
     const SCEVConstant *RHSC = dyn_cast<SCEVConstant>(RHS);
@@ -13936,10 +13524,7 @@ const SCEV *ScalarEvolution::applyLoopGuards(const SCEV *Expr, const Loop *L) {
       if (matchURem(LHS, URemLHS, URemRHS)) {
         if (const SCEVUnknown *LHSUnknown = dyn_cast<SCEVUnknown>(URemLHS)) {
           Value *V = LHSUnknown->getValue();
-          auto Multiple =
-              getMulExpr(getUDivExpr(URemLHS, URemRHS), URemRHS,
-                         (SCEV::NoWrapFlags)(SCEV::FlagNUW | SCEV::FlagNSW));
-          RewriteMap[V] = Multiple;
+          RewriteMap[V] = getMulExpr(getUDivExpr(URemLHS, URemRHS), URemRHS);
           return;
         }
       }
@@ -13972,7 +13557,7 @@ const SCEV *ScalarEvolution::applyLoopGuards(const SCEV *Expr, const Loop *L) {
       if (ExactRegion.isWrappedSet() || ExactRegion.isFullSet())
         return false;
       auto I = RewriteMap.find(LHSUnknown->getValue());
-      const SCEV *RewrittenLHS = I != RewriteMap.end() ? I->second : LHS;
+      const SCEV *RewrittenLHS = I != RewriteMap.end() ? I->second : LHSUnknown;
       RewriteMap[LHSUnknown->getValue()] = getUMaxExpr(
           getConstant(ExactRegion.getUnsignedMin()),
           getUMinExpr(RewrittenLHS, getConstant(ExactRegion.getUnsignedMax())));

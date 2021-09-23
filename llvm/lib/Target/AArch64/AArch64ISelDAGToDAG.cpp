@@ -167,7 +167,7 @@ public:
     case ISD::SPLAT_VECTOR: {
       auto Opnd0 = N->getOperand(0);
       if (auto CN = dyn_cast<ConstantSDNode>(Opnd0))
-        if (CN->isNullValue())
+        if (CN->isZero())
           return true;
       if (auto CN = dyn_cast<ConstantFPSDNode>(Opnd0))
         if (CN->isZero())
@@ -187,7 +187,7 @@ public:
     case ISD::SPLAT_VECTOR: {
       auto Opnd0 = N->getOperand(0);
       if (auto CN = dyn_cast<ConstantSDNode>(Opnd0))
-        if (CN->isNullValue())
+        if (CN->isZero())
           return true;
       if (auto CN = dyn_cast<ConstantFPSDNode>(Opnd0))
         if (CN->isZero())
@@ -2965,8 +2965,8 @@ static int getIntOperandFromRegisterString(StringRef RegString) {
 // form described in getIntOperandsFromRegsterString) or is a named register
 // known by the MRS SysReg mapper.
 bool AArch64DAGToDAGISel::tryReadRegister(SDNode *N) {
-  const MDNodeSDNode *MD = dyn_cast<MDNodeSDNode>(N->getOperand(1));
-  const MDString *RegString = dyn_cast<MDString>(MD->getMD()->getOperand(0));
+  const auto *MD = cast<MDNodeSDNode>(N->getOperand(1));
+  const auto *RegString = cast<MDString>(MD->getMD()->getOperand(0));
   SDLoc DL(N);
 
   int Reg = getIntOperandFromRegisterString(RegString->getString());
@@ -3011,8 +3011,8 @@ bool AArch64DAGToDAGISel::tryReadRegister(SDNode *N) {
 // form described in getIntOperandsFromRegsterString) or is a named register
 // known by the MSR SysReg mapper.
 bool AArch64DAGToDAGISel::tryWriteRegister(SDNode *N) {
-  const MDNodeSDNode *MD = dyn_cast<MDNodeSDNode>(N->getOperand(1));
-  const MDString *RegString = dyn_cast<MDString>(MD->getMD()->getOperand(0));
+  const auto *MD = cast<MDNodeSDNode>(N->getOperand(1));
+  const auto *RegString = cast<MDString>(MD->getMD()->getOperand(0));
   SDLoc DL(N);
 
   int Reg = getIntOperandFromRegisterString(RegString->getString());
@@ -3520,7 +3520,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     // Materialize zero constants as copies from WZR/XZR.  This allows
     // the coalescer to propagate these into other instructions.
     ConstantSDNode *ConstNode = cast<ConstantSDNode>(Node);
-    if (ConstNode->isNullValue()) {
+    if (ConstNode->isZero()) {
       if (VT == MVT::i32) {
         SDValue New = CurDAG->getCopyFromReg(
             CurDAG->getEntryNode(), SDLoc(Node), AArch64::WZR, MVT::i32);

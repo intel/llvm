@@ -589,7 +589,9 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         assert(opOperand->getOwner() == this->getOperation());
-        return getIndexingMaps()[opOperand->getOperandNumber()];
+        auto indexingMaps =
+          $_op.indexing_maps().template getAsValueRange<AffineMapAttr>();
+        return *(indexingMaps.begin() + opOperand->getOperandNumber());
       }]
     >,
     InterfaceMethod<
@@ -689,13 +691,11 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         return this->getOperation()->getNumResults() == 0 &&
-          llvm::all_of(getInputOperands(), [&](OpOperand *opOperand) {
-            return isScalar(opOperand) ||
-              opOperand->get().getType().template isa<MemRefType>();
-          }) &&
-          llvm::all_of(getOutputOperands(), [](OpOperand *opOperand) {
-            return opOperand->get().getType().template isa<MemRefType>();
-          });
+          llvm::all_of(this->getOperation()->getOpOperands(),
+            [&](OpOperand &opOperand) {
+              return isScalar(&opOperand) ||
+                     opOperand.get().getType().template isa<MemRefType>();
+            });
       }]
     >,
     InterfaceMethod<
@@ -707,13 +707,10 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return
-          llvm::all_of(getInputOperands(), [&](OpOperand *opOperand) {
-            return isScalar(opOperand) ||
-              opOperand->get().getType().template isa<RankedTensorType>();
-          }) &&
-          llvm::all_of(getOutputOperands(), [](OpOperand *opOperand) {
-            return opOperand->get().getType().template isa<RankedTensorType>();
+        return llvm::all_of(this->getOperation()->getOpOperands(),
+          [&](OpOperand &opOperand) {
+            return isScalar(&opOperand) ||
+                   opOperand.get().getType().template isa<RankedTensorType>();
           });
       }]
     >,
@@ -890,6 +887,27 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
           $_op->getAttrs());
         for (Region &r : $_op->getRegions())
           r.cloneInto(state.addRegion(), bvm);
+        return b.createOperation(state);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Clone the current operation with the given location, operands
+        and BlockAndValueMapping but leave the regions empty. This is
+        used to abstract away the optional underlying region creation.
+        This does not change the balance between input, output_buffer
+        and init_tensors operands.
+      }],
+      /*retTy=*/"Operation *",
+      /*methodName=*/"cloneWithoutRegions",
+      (ins "OpBuilder &":$b, "Location":$loc, "TypeRange":$resultTypes,
+           "ValueRange":$operands),
+      [{
+        OperationState state(
+          loc, ConcreteOp::getOperationName(), operands, resultTypes,
+          $_op->getAttrs());
+        for (size_t cnt = 0, e = $_op->getNumRegions(); cnt < e; ++cnt)
+          state.addRegion();
         return b.createOperation(state);
       }]
     >,

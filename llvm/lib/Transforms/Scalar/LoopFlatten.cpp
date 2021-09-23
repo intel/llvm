@@ -27,6 +27,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Scalar/LoopFlatten.h"
+
+#include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
@@ -49,10 +51,12 @@
 #include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 #include "llvm/Transforms/Utils/SimplifyIndVar.h"
 
-#define DEBUG_TYPE "loop-flatten"
-
 using namespace llvm;
 using namespace llvm::PatternMatch;
+
+#define DEBUG_TYPE "loop-flatten"
+
+STATISTIC(NumFlattened, "Number of loops flattened");
 
 static cl::opt<unsigned> RepeatedInstructionThreshold(
     "loop-flatten-cost-threshold", cl::Hidden, cl::init(2),
@@ -89,6 +93,11 @@ struct FlattenInfo {
 
   // Whether this holds the flatten info before or after widening.
   bool Widened = false;
+
+  // Holds the old/narrow induction phis, i.e. the Phis before IV widening has
+  // been applied. This bookkeeping is used so we can skip some checks on these
+  // phi nodes.
+  SmallPtrSet<PHINode *, 2> OldInductionPHIs;
 
   FlattenInfo(Loop *OL, Loop *IL) : OuterLoop(OL), InnerLoop(IL) {};
 };
@@ -259,6 +268,8 @@ static bool checkPHIs(FlattenInfo &FI, const TargetTransformInfo *TTI) {
     // them specially when doing the transformation.
     if (&InnerPHI == FI.InnerInductionPHI)
       continue;
+    if (FI.Widened && FI.OldInductionPHIs.count(&InnerPHI))
+      continue;
 
     // Each inner loop PHI node must have two incoming values/blocks - one
     // from the pre-header, and one from the latch.
@@ -304,6 +315,8 @@ static bool checkPHIs(FlattenInfo &FI, const TargetTransformInfo *TTI) {
   }
 
   for (PHINode &OuterPHI : FI.OuterLoop->getHeader()->phis()) {
+    if (FI.Widened && FI.OldInductionPHIs.count(&OuterPHI))
+      continue;
     if (!SafeOuterPHIs.count(&OuterPHI)) {
       LLVM_DEBUG(dbgs() << "found unsafe PHI in outer loop: "; OuterPHI.dump());
       return false;
@@ -394,8 +407,8 @@ static bool checkIVUsers(FlattenInfo &FI) {
     if (U == FI.InnerIncrement)
       continue;
 
-    // After widening the IVs, a trunc instruction might have been introduced, so
-    // look through truncs.
+    // After widening the IVs, a trunc instruction might have been introduced,
+    // so look through truncs.
     if (isa<TruncInst>(U)) {
       if (!U->hasOneUse())
         return false;
@@ -411,8 +424,8 @@ static bool checkIVUsers(FlattenInfo &FI) {
 
     LLVM_DEBUG(dbgs() << "Found use of inner induction variable: "; U->dump());
 
-    Value *MatchedMul;
-    Value *MatchedItCount;
+    Value *MatchedMul = nullptr;
+    Value *MatchedItCount = nullptr;
     bool IsAdd = match(U, m_c_Add(m_Specific(FI.InnerInductionPHI),
                                   m_Value(MatchedMul))) &&
                  match(MatchedMul, m_c_Mul(m_Specific(FI.OuterInductionPHI),
@@ -420,11 +433,23 @@ static bool checkIVUsers(FlattenInfo &FI) {
 
     // Matches the same pattern as above, except it also looks for truncs
     // on the phi, which can be the result of widening the induction variables.
-    bool IsAddTrunc = match(U, m_c_Add(m_Trunc(m_Specific(FI.InnerInductionPHI)),
-                                       m_Value(MatchedMul))) &&
-                      match(MatchedMul,
-                            m_c_Mul(m_Trunc(m_Specific(FI.OuterInductionPHI)),
-                            m_Value(MatchedItCount)));
+    bool IsAddTrunc =
+        match(U, m_c_Add(m_Trunc(m_Specific(FI.InnerInductionPHI)),
+                         m_Value(MatchedMul))) &&
+        match(MatchedMul, m_c_Mul(m_Trunc(m_Specific(FI.OuterInductionPHI)),
+                                  m_Value(MatchedItCount)));
+
+    if (!MatchedItCount)
+      return false;
+    // Look through extends if the IV has been widened.
+    if (FI.Widened &&
+        (isa<SExtInst>(MatchedItCount) || isa<ZExtInst>(MatchedItCount))) {
+      assert(MatchedItCount->getType() == FI.InnerInductionPHI->getType() &&
+             "Unexpected type mismatch in types after widening");
+      MatchedItCount = isa<SExtInst>(MatchedItCount)
+                           ? dyn_cast<SExtInst>(MatchedItCount)->getOperand(0)
+                           : dyn_cast<ZExtInst>(MatchedItCount)->getOperand(0);
+    }
 
     if ((IsAdd || IsAddTrunc) && MatchedItCount == InnerTripCount) {
       LLVM_DEBUG(dbgs() << "Use is optimisable\n");
@@ -496,17 +521,27 @@ static OverflowResult checkOverflow(FlattenInfo &FI, DominatorTree *DT,
   for (Value *V : FI.LinearIVUses) {
     for (Value *U : V->users()) {
       if (auto *GEP = dyn_cast<GetElementPtrInst>(U)) {
-        // The IV is used as the operand of a GEP, and the IV is at least as
-        // wide as the address space of the GEP. In this case, the GEP would
-        // wrap around the address space before the IV increment wraps, which
-        // would be UB.
-        if (GEP->isInBounds() &&
-            V->getType()->getIntegerBitWidth() >=
-                DL.getPointerTypeSizeInBits(GEP->getType())) {
-          LLVM_DEBUG(
-              dbgs() << "use of linear IV would be UB if overflow occurred: ";
-              GEP->dump());
-          return OverflowResult::NeverOverflows;
+        for (Value *GEPUser : U->users()) {
+          Instruction *GEPUserInst = dyn_cast<Instruction>(GEPUser);
+          if (!isa<LoadInst>(GEPUserInst) &&
+              !(isa<StoreInst>(GEPUserInst) &&
+                GEP == GEPUserInst->getOperand(1)))
+            continue;
+          if (!isGuaranteedToExecuteForEveryIteration(GEPUserInst,
+                                                      FI.InnerLoop))
+            continue;
+          // The IV is used as the operand of a GEP which dominates the loop
+          // latch, and the IV is at least as wide as the address space of the
+          // GEP. In this case, the GEP would wrap around the address space
+          // before the IV increment wraps, which would be UB.
+          if (GEP->isInBounds() &&
+              V->getType()->getIntegerBitWidth() >=
+                  DL.getPointerTypeSizeInBits(GEP->getType())) {
+            LLVM_DEBUG(
+                dbgs() << "use of linear IV would be UB if overflow occurred: ";
+                GEP->dump());
+            return OverflowResult::NeverOverflows;
+          }
         }
       }
     }
@@ -620,6 +655,10 @@ static bool DoFlattenLoopPair(FlattenInfo &FI, DominatorTree *DT, LoopInfo *LI,
   SE->forgetLoop(FI.OuterLoop);
   SE->forgetLoop(FI.InnerLoop);
   LI->erase(FI.InnerLoop);
+
+  // Increment statistic value.
+  NumFlattened++;
+
   return true;
 }
 
@@ -650,14 +689,11 @@ static bool CanWidenIV(FlattenInfo &FI, DominatorTree *DT, LoopInfo *LI,
   }
 
   SCEVExpander Rewriter(*SE, DL, "loopflatten");
-  SmallVector<WideIVInfo, 2> WideIVs;
   SmallVector<WeakTrackingVH, 4> DeadInsts;
-  WideIVs.push_back( {FI.InnerInductionPHI, MaxLegalType, false });
-  WideIVs.push_back( {FI.OuterInductionPHI, MaxLegalType, false });
   unsigned ElimExt = 0;
   unsigned Widened = 0;
 
-  for (const auto &WideIV : WideIVs) {
+  auto CreateWideIV = [&] (WideIVInfo WideIV, bool &Deleted) -> bool {
     PHINode *WidePhi = createWideIV(WideIV, LI, SE, Rewriter, DT, DeadInsts,
                                     ElimExt, Widened, true /* HasGuards */,
                                     true /* UsePostIncrementRanges */);
@@ -665,11 +701,28 @@ static bool CanWidenIV(FlattenInfo &FI, DominatorTree *DT, LoopInfo *LI,
       return false;
     LLVM_DEBUG(dbgs() << "Created wide phi: "; WidePhi->dump());
     LLVM_DEBUG(dbgs() << "Deleting old phi: "; WideIV.NarrowIV->dump());
-    RecursivelyDeleteDeadPHINode(WideIV.NarrowIV);
-  }
-  // After widening, rediscover all the loop components.
+    Deleted = RecursivelyDeleteDeadPHINode(WideIV.NarrowIV);
+    return true;
+  };
+
+  bool Deleted;
+  if (!CreateWideIV({FI.InnerInductionPHI, MaxLegalType, false }, Deleted))
+    return false;
+  // If the inner Phi node cannot be trivially deleted, we need to at least
+  // bring it in a consistent state.
+  if (!Deleted)
+    FI.InnerInductionPHI->removeIncomingValue(FI.InnerLoop->getLoopLatch());
+  if (!CreateWideIV({FI.OuterInductionPHI, MaxLegalType, false }, Deleted))
+    return false;
+
   assert(Widened && "Widened IV expected");
   FI.Widened = true;
+
+  // Save the old/narrow induction phis, which we need to ignore in CheckPHIs.
+  FI.OldInductionPHIs.insert(FI.InnerInductionPHI);
+  FI.OldInductionPHIs.insert(FI.OuterInductionPHI);
+
+  // After widening, rediscover all the loop components.
   return CanFlattenLoopPair(FI, DT, LI, SE, AC, TTI);
 }
 

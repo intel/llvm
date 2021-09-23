@@ -699,7 +699,7 @@ static Constant *stripAndComputeConstantOffsets(const DataLayout &DL, Value *&V,
   assert(V->getType()->isPtrOrPtrVectorTy());
 
   Type *IntIdxTy = DL.getIndexType(V->getType())->getScalarType();
-  APInt Offset = APInt::getNullValue(IntIdxTy->getIntegerBitWidth());
+  APInt Offset = APInt::getZero(IntIdxTy->getIntegerBitWidth());
 
   V = V->stripAndAccumulateConstantOffsets(DL, Offset, AllowNonInbounds);
   // As that strip may trace through `addrspacecast`, need to sext or trunc
@@ -1765,7 +1765,7 @@ static Value *simplifyAndOrOfICmpsWithLimitConst(ICmpInst *Cmp0, ICmpInst *Cmp1,
   if (match(Cmp0->getOperand(1), m_APInt(C)))
     MinMaxC = HasNotOp ? ~*C : *C;
   else if (isa<ConstantPointerNull>(Cmp0->getOperand(1)))
-    MinMaxC = APInt::getNullValue(8);
+    MinMaxC = APInt::getZero(8);
   else
     return nullptr;
 
@@ -2275,6 +2275,23 @@ static Value *SimplifyOrInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
                          m_Value(B))) &&
       match(Op0, m_Not(m_c_Or(m_Specific(A), m_Specific(B)))))
     return NotA;
+
+  // Rotated -1 is still -1:
+  // (-1 << X) | (-1 >> (C - X)) --> -1
+  // (-1 >> X) | (-1 << (C - X)) --> -1
+  // ...with C <= bitwidth (and commuted variants).
+  Value *X, *Y;
+  if ((match(Op0, m_Shl(m_AllOnes(), m_Value(X))) &&
+       match(Op1, m_LShr(m_AllOnes(), m_Value(Y)))) ||
+      (match(Op1, m_Shl(m_AllOnes(), m_Value(X))) &&
+       match(Op0, m_LShr(m_AllOnes(), m_Value(Y))))) {
+    const APInt *C;
+    if ((match(X, m_Sub(m_APInt(C), m_Specific(Y))) ||
+         match(Y, m_Sub(m_APInt(C), m_Specific(X)))) &&
+        C->ule(X->getType()->getScalarSizeInBits())) {
+      return ConstantInt::getAllOnesValue(X->getType());
+    }
+  }
 
   if (Value *V = simplifyAndOrOfCmps(Q, Op0, Op1, false))
     return V;
@@ -3655,7 +3672,7 @@ static Value *SimplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
         Constant *NewLHS = ConstantExpr::getGetElementPtr(
             GLHS->getSourceElementType(), Null, IndicesLHS);
 
-        SmallVector<Value *, 4> IndicesRHS(GRHS->idx_begin(), GRHS->idx_end());
+        SmallVector<Value *, 4> IndicesRHS(GRHS->indices());
         Constant *NewRHS = ConstantExpr::getGetElementPtr(
             GLHS->getSourceElementType(), Null, IndicesRHS);
         Constant *NewICmp = ConstantExpr::getICmp(Pred, NewLHS, NewRHS);
@@ -5855,6 +5872,15 @@ static Value *simplifyIntrinsic(CallBase *Call, const SimplifyQuery &Q) {
       if (ShAmtC->urem(BitWidth).isNullValue())
         return Call->getArgOperand(IID == Intrinsic::fshl ? 0 : 1);
     }
+
+    // Rotating zero by anything is zero.
+    if (match(Op0, m_Zero()) && match(Op1, m_Zero()))
+      return ConstantInt::getNullValue(F->getReturnType());
+
+    // Rotating -1 by anything is -1.
+    if (match(Op0, m_AllOnes()) && match(Op1, m_AllOnes()))
+      return ConstantInt::getAllOnesValue(F->getReturnType());
+
     return nullptr;
   }
   case Intrinsic::experimental_constrained_fma: {

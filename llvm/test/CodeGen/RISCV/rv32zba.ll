@@ -739,3 +739,124 @@ define i32 @mul4104(i32 %a) {
   %c = mul i32 %a, 4104
   ret i32 %c
 }
+
+define i32 @add4104(i32 %a) {
+; RV32I-LABEL: add4104:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, 1
+; RV32I-NEXT:    addi a1, a1, 8
+; RV32I-NEXT:    add a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32B-LABEL: add4104:
+; RV32B:       # %bb.0:
+; RV32B-NEXT:    addi a1, zero, 1026
+; RV32B-NEXT:    sh2add a0, a1, a0
+; RV32B-NEXT:    ret
+;
+; RV32ZBA-LABEL: add4104:
+; RV32ZBA:       # %bb.0:
+; RV32ZBA-NEXT:    addi a1, zero, 1026
+; RV32ZBA-NEXT:    sh2add a0, a1, a0
+; RV32ZBA-NEXT:    ret
+  %c = add i32 %a, 4104
+  ret i32 %c
+}
+
+define i32 @add8208(i32 %a) {
+; RV32I-LABEL: add8208:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    lui a1, 2
+; RV32I-NEXT:    addi a1, a1, 16
+; RV32I-NEXT:    add a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32B-LABEL: add8208:
+; RV32B:       # %bb.0:
+; RV32B-NEXT:    addi a1, zero, 1026
+; RV32B-NEXT:    sh3add a0, a1, a0
+; RV32B-NEXT:    ret
+;
+; RV32ZBA-LABEL: add8208:
+; RV32ZBA:       # %bb.0:
+; RV32ZBA-NEXT:    addi a1, zero, 1026
+; RV32ZBA-NEXT:    sh3add a0, a1, a0
+; RV32ZBA-NEXT:    ret
+  %c = add i32 %a, 8208
+  ret i32 %c
+}
+
+define i32 @addshl_5_6(i32 %a, i32 %b) {
+; RV32I-LABEL: addshl_5_6:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    slli a0, a0, 5
+; RV32I-NEXT:    slli a1, a1, 6
+; RV32I-NEXT:    add a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32B-LABEL: addshl_5_6:
+; RV32B:       # %bb.0:
+; RV32B-NEXT:    sh1add a0, a1, a0
+; RV32B-NEXT:    slli a0, a0, 5
+; RV32B-NEXT:    ret
+;
+; RV32ZBA-LABEL: addshl_5_6:
+; RV32ZBA:       # %bb.0:
+; RV32ZBA-NEXT:    sh1add a0, a1, a0
+; RV32ZBA-NEXT:    slli a0, a0, 5
+; RV32ZBA-NEXT:    ret
+  %c = shl i32 %a, 5
+  %d = shl i32 %b, 6
+  %e = add i32 %c, %d
+  ret i32 %e
+}
+
+define i32 @addshl_5_7(i32 %a, i32 %b) {
+; RV32I-LABEL: addshl_5_7:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    slli a0, a0, 5
+; RV32I-NEXT:    slli a1, a1, 7
+; RV32I-NEXT:    add a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32B-LABEL: addshl_5_7:
+; RV32B:       # %bb.0:
+; RV32B-NEXT:    sh2add a0, a1, a0
+; RV32B-NEXT:    slli a0, a0, 5
+; RV32B-NEXT:    ret
+;
+; RV32ZBA-LABEL: addshl_5_7:
+; RV32ZBA:       # %bb.0:
+; RV32ZBA-NEXT:    sh2add a0, a1, a0
+; RV32ZBA-NEXT:    slli a0, a0, 5
+; RV32ZBA-NEXT:    ret
+  %c = shl i32 %a, 5
+  %d = shl i32 %b, 7
+  %e = add i32 %c, %d
+  ret i32 %e
+}
+
+define i32 @addshl_5_8(i32 %a, i32 %b) {
+; RV32I-LABEL: addshl_5_8:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    slli a0, a0, 5
+; RV32I-NEXT:    slli a1, a1, 8
+; RV32I-NEXT:    add a0, a0, a1
+; RV32I-NEXT:    ret
+;
+; RV32B-LABEL: addshl_5_8:
+; RV32B:       # %bb.0:
+; RV32B-NEXT:    sh3add a0, a1, a0
+; RV32B-NEXT:    slli a0, a0, 5
+; RV32B-NEXT:    ret
+;
+; RV32ZBA-LABEL: addshl_5_8:
+; RV32ZBA:       # %bb.0:
+; RV32ZBA-NEXT:    sh3add a0, a1, a0
+; RV32ZBA-NEXT:    slli a0, a0, 5
+; RV32ZBA-NEXT:    ret
+  %c = shl i32 %a, 5
+  %d = shl i32 %b, 8
+  %e = add i32 %c, %d
+  ret i32 %e
+}

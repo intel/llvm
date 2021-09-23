@@ -39,7 +39,6 @@ __OMP_TYPE(Int32Ptr)
 __OMP_TYPE(Int64Ptr)
 
 OMP_TYPE(SizeTy, M.getDataLayout().getIntPtrType(Ctx))
-OMP_TYPE(LanemaskTy, getLanemaskType())
 
 #define __OMP_PTR_TYPE(NAME, BASE) OMP_TYPE(NAME, BASE->getPointerTo())
 
@@ -443,8 +442,8 @@ __OMP_RTL(__kmpc_parallel_level, false, Int8, )
 __OMP_RTL(__kmpc_is_spmd_exec_mode, false, Int8, )
 __OMP_RTL(__kmpc_barrier_simple_spmd, false, Void, IdentPtr, Int32)
 
-__OMP_RTL(__kmpc_warp_active_thread_mask, false, LanemaskTy,)
-__OMP_RTL(__kmpc_syncwarp, false, Void, LanemaskTy)
+__OMP_RTL(__kmpc_warp_active_thread_mask, false, Int64,)
+__OMP_RTL(__kmpc_syncwarp, false, Void, Int64)
 
 __OMP_RTL(__kmpc_is_generic_main_thread_id, false, Int8, Int32)
 
@@ -539,6 +538,11 @@ __OMP_ATTRS_SET(ReadOnlyPtrAttrs,
                     ? AttributeSet(EnumAttr(ReadOnly), EnumAttr(NoFree),
                                    EnumAttr(NoCapture))
                     : AttributeSet())
+
+__OMP_ATTRS_SET(DeviceAllocAttrs,
+                OptimisticAttributes
+                    ? AttributeSet(EnumAttr(NoUnwind), EnumAttr(NoSync))
+                    : AttributeSet(EnumAttr(NoUnwind), EnumAttr(NoSync)))
 
 #if 0
 __OMP_ATTRS_SET(WriteOnlyPtrAttrs,
@@ -859,9 +863,9 @@ __OMP_RTL_ATTRS(__kmpc_doacross_wait, BarrierAttrs, AttributeSet(),
 __OMP_RTL_ATTRS(__kmpc_doacross_fini, BarrierAttrs, AttributeSet(),
                 ParamAttrs(ReadOnlyPtrAttrs))
 
-__OMP_RTL_ATTRS(__kmpc_alloc_shared, DefaultAttrs, ReturnPtrAttrs,
+__OMP_RTL_ATTRS(__kmpc_alloc_shared, DeviceAllocAttrs, ReturnPtrAttrs,
                 ParamAttrs())
-__OMP_RTL_ATTRS(__kmpc_free_shared, AllocAttrs, AttributeSet(),
+__OMP_RTL_ATTRS(__kmpc_free_shared, DeviceAllocAttrs, AttributeSet(),
                 ParamAttrs(NoCaptureAttrs))
 
 __OMP_RTL_ATTRS(__kmpc_alloc, DefaultAttrs, ReturnPtrAttrs, ParamAttrs())

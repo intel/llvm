@@ -458,9 +458,9 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
   AllocaCommandBase *SrcAllocaCmd =
       findAllocaForReq(Record, Req, Record->MCurContext);
 
-  std::unique_ptr<MemCpyCommandHost> MemCpyCmdUniquePtr(new MemCpyCommandHost(
+  auto MemCpyCmdUniquePtr = std::make_unique<MemCpyCommandHost>(
       *SrcAllocaCmd->getRequirement(), SrcAllocaCmd, *Req, &Req->MData,
-      SrcAllocaCmd->getQueue(), std::move(HostQueue)));
+      SrcAllocaCmd->getQueue(), std::move(HostQueue));
 
   if (!MemCpyCmdUniquePtr)
     throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
@@ -891,8 +891,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
   const CG::CGTYPE CGType = CommandGroup->getType();
 
-  std::unique_ptr<ExecCGCommand> NewCmd(
-      new ExecCGCommand(std::move(CommandGroup), Queue));
+  auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue);
   if (!NewCmd)
     throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
 
@@ -1050,18 +1049,18 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     AllocaCmd->MUsers.clear();
   }
 
-  // Linked alloca's share dependencies. Unchain from deps linked alloca's.
-  // Any cmd of the alloca - linked_alloca may be used later on.
+  // Make sure the Linked Allocas are marked visited by the previous walk.
+  // Remove allocation commands from the users of their dependencies.
   for (AllocaCommandBase *AllocaCmd : AllocaCommands) {
     AllocaCommandBase *LinkedCmd = AllocaCmd->MLinkedAllocaCmd;
 
     if (LinkedCmd) {
       assert(LinkedCmd->MMarks.MVisited);
-
-      for (DepDesc &Dep : AllocaCmd->MDeps)
-        if (Dep.MDepCommand)
-          Dep.MDepCommand->MUsers.erase(AllocaCmd);
     }
+
+    for (DepDesc &Dep : AllocaCmd->MDeps)
+      if (Dep.MDepCommand)
+        Dep.MDepCommand->MUsers.erase(AllocaCmd);
   }
 
   // Traverse the graph using BFS
@@ -1205,7 +1204,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
   // construct Host Task type command manually and make it depend on DepEvent
   ExecCGCommand *ConnectCmd = nullptr;
 
-  {
+  try {
     std::unique_ptr<detail::HostTask> HT(new detail::HostTask);
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
         std::move(HT), /* Queue = */ {}, /* Context = */ {}, /* Args = */ {},
@@ -1215,10 +1214,9 @@ Command *Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
         /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
-  }
-
-  if (!ConnectCmd)
+  } catch (const std::bad_alloc &) {
     throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+  }
 
   if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand()))
     DepCmd->addUser(ConnectCmd);

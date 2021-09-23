@@ -1448,8 +1448,8 @@ llvm::Value *CGOpenMPRuntime::emitUpdateLocation(CodeGenFunction &CGF,
     const char *FileName = PLoc.getFilename();
     unsigned Line = PLoc.getLine();
     unsigned Column = PLoc.getColumn();
-    SrcLocStr = OMPBuilder.getOrCreateSrcLocStr(FunctionName.c_str(), FileName,
-                                                Line, Column);
+    SrcLocStr =
+        OMPBuilder.getOrCreateSrcLocStr(FunctionName, FileName, Line, Column);
   }
   unsigned Reserved2Flags = getDefaultLocationReserved2Flags();
   return OMPBuilder.getOrCreateIdent(SrcLocStr, llvm::omp::IdentFlag(Flags),
@@ -6740,6 +6740,7 @@ const Expr *CGOpenMPRuntime::getNumTeamsExprForTargetDirective(
   case OMPD_parallel_master_taskloop:
   case OMPD_parallel_master_taskloop_simd:
   case OMPD_requires:
+  case OMPD_metadirective:
   case OMPD_unknown:
     break;
   default:
@@ -7214,6 +7215,7 @@ llvm::Value *CGOpenMPRuntime::emitNumThreadsForTargetDirective(
   case OMPD_parallel_master_taskloop:
   case OMPD_parallel_master_taskloop_simd:
   case OMPD_requires:
+  case OMPD_metadirective:
   case OMPD_unknown:
     break;
   default:
@@ -7269,6 +7271,14 @@ public:
     /// 0x800 is reserved for compatibility with XLC.
     /// Produce a runtime error if the data is not already allocated.
     OMP_MAP_PRESENT = 0x1000,
+    // Increment and decrement a separate reference counter so that the data
+    // cannot be unmapped within the associated region.  Thus, this flag is
+    // intended to be used on 'target' and 'target data' directives because they
+    // are inherently structured.  It is not intended to be used on 'target
+    // enter data' and 'target exit data' directives because they are inherently
+    // dynamic.
+    // This is an OpenMP extension for the sake of OpenACC support.
+    OMP_MAP_OMPX_HOLD = 0x2000,
     /// Signal that the runtime library should use args as an array of
     /// descriptor_dim pointers and use args_size as dims. Used when we have
     /// non-contiguous list items in target update directive
@@ -7570,6 +7580,9 @@ private:
         llvm::find(MotionModifiers, OMPC_MOTION_MODIFIER_present) !=
             MotionModifiers.end())
       Bits |= OMP_MAP_PRESENT;
+    if (llvm::find(MapModifiers, OMPC_MAP_MODIFIER_ompx_hold) !=
+        MapModifiers.end())
+      Bits |= OMP_MAP_OMPX_HOLD;
     if (IsNonContiguous)
       Bits |= OMP_MAP_NON_CONTIG;
     return Bits;
@@ -8923,6 +8936,20 @@ public:
       CombinedInfo.Types.back() |= OMP_MAP_PRESENT;
     // Remove TARGET_PARAM flag from the first element
     (*CurTypes.begin()) &= ~OMP_MAP_TARGET_PARAM;
+    // If any element has the ompx_hold modifier, then make sure the runtime
+    // uses the hold reference count for the struct as a whole so that it won't
+    // be unmapped by an extra dynamic reference count decrement.  Add it to all
+    // elements as well so the runtime knows which reference count to check
+    // when determining whether it's time for device-to-host transfers of
+    // individual elements.
+    if (CurTypes.end() !=
+        llvm::find_if(CurTypes, [](OpenMPOffloadMappingFlags Type) {
+          return Type & OMP_MAP_OMPX_HOLD;
+        })) {
+      CombinedInfo.Types.back() |= OMP_MAP_OMPX_HOLD;
+      for (auto &M : CurTypes)
+        M |= OMP_MAP_OMPX_HOLD;
+    }
 
     // All other current entries will be MEMBER_OF the combined entry
     // (except for PTR_AND_OBJ entries which do not have a placeholder value
@@ -9435,34 +9462,50 @@ static void emitNonContiguousDescriptor(
   }
 }
 
+// Try to extract the base declaration from a `this->x` expression if possible.
+static ValueDecl *getDeclFromThisExpr(const Expr *E) {
+  if (!E)
+    return nullptr;
+
+  if (const auto *OASE = dyn_cast<OMPArraySectionExpr>(E->IgnoreParenCasts()))
+    if (const MemberExpr *ME =
+            dyn_cast<MemberExpr>(OASE->getBase()->IgnoreParenImpCasts()))
+      return ME->getMemberDecl();
+  return nullptr;
+}
+
 /// Emit a string constant containing the names of the values mapped to the
 /// offloading runtime library.
 llvm::Constant *
 emitMappingInformation(CodeGenFunction &CGF, llvm::OpenMPIRBuilder &OMPBuilder,
                        MappableExprsHandler::MappingExprInfo &MapExprs) {
-  llvm::Constant *SrcLocStr;
-  if (!MapExprs.getMapDecl()) {
-    SrcLocStr = OMPBuilder.getOrCreateDefaultSrcLocStr();
-  } else {
-    std::string ExprName = "";
-    if (MapExprs.getMapExpr()) {
-      PrintingPolicy P(CGF.getContext().getLangOpts());
-      llvm::raw_string_ostream OS(ExprName);
-      MapExprs.getMapExpr()->printPretty(OS, nullptr, P);
-      OS.flush();
-    } else {
-      ExprName = MapExprs.getMapDecl()->getNameAsString();
-    }
 
-    SourceLocation Loc = MapExprs.getMapDecl()->getLocation();
-    PresumedLoc PLoc = CGF.getContext().getSourceManager().getPresumedLoc(Loc);
-    const char *FileName = PLoc.getFilename();
-    unsigned Line = PLoc.getLine();
-    unsigned Column = PLoc.getColumn();
-    SrcLocStr = OMPBuilder.getOrCreateSrcLocStr(FileName, ExprName.c_str(),
-                                                Line, Column);
+  if (!MapExprs.getMapDecl() && !MapExprs.getMapExpr())
+    return OMPBuilder.getOrCreateDefaultSrcLocStr();
+
+  SourceLocation Loc;
+  if (!MapExprs.getMapDecl() && MapExprs.getMapExpr()) {
+    if (const ValueDecl *VD = getDeclFromThisExpr(MapExprs.getMapExpr()))
+      Loc = VD->getLocation();
+    else
+      Loc = MapExprs.getMapExpr()->getExprLoc();
+  } else {
+    Loc = MapExprs.getMapDecl()->getLocation();
   }
-  return SrcLocStr;
+
+  std::string ExprName = "";
+  if (MapExprs.getMapExpr()) {
+    PrintingPolicy P(CGF.getContext().getLangOpts());
+    llvm::raw_string_ostream OS(ExprName);
+    MapExprs.getMapExpr()->printPretty(OS, nullptr, P);
+    OS.flush();
+  } else {
+    ExprName = MapExprs.getMapDecl()->getNameAsString();
+  }
+
+  PresumedLoc PLoc = CGF.getContext().getSourceManager().getPresumedLoc(Loc);
+  return OMPBuilder.getOrCreateSrcLocStr(PLoc.getFilename(), ExprName.c_str(),
+                                         PLoc.getLine(), PLoc.getColumn());
 }
 
 /// Emit the arrays used to pass the captures and map information to the
@@ -9810,6 +9853,7 @@ getNestedDistributeDirective(ASTContext &Ctx, const OMPExecutableDirective &D) {
     case OMPD_parallel_master_taskloop:
     case OMPD_parallel_master_taskloop_simd:
     case OMPD_requires:
+    case OMPD_metadirective:
     case OMPD_unknown:
     default:
       llvm_unreachable("Unexpected directive.");
@@ -10660,6 +10704,7 @@ void CGOpenMPRuntime::scanForTargetRegionsFunctions(const Stmt *S,
     case OMPD_parallel_master_taskloop:
     case OMPD_parallel_master_taskloop_simd:
     case OMPD_requires:
+    case OMPD_metadirective:
     case OMPD_unknown:
     default:
       llvm_unreachable("Unknown target directive for OpenMP device codegen.");
@@ -11341,6 +11386,7 @@ void CGOpenMPRuntime::emitTargetDataStandAloneCall(
     case OMPD_target_parallel_for:
     case OMPD_target_parallel_for_simd:
     case OMPD_requires:
+    case OMPD_metadirective:
     case OMPD_unknown:
     default:
       llvm_unreachable("Unexpected standalone target data directive.");

@@ -144,8 +144,7 @@ private:
       Stack.push_back(SIToUnfold);
 
     while (!Stack.empty()) {
-      SelectInstToUnfold SIToUnfold = Stack.back();
-      Stack.pop_back();
+      SelectInstToUnfold SIToUnfold = Stack.pop_back_val();
 
       std::vector<SelectInstToUnfold> NewSIsToUnfold;
       std::vector<BasicBlock *> NewBBs;
@@ -531,7 +530,7 @@ private:
       return false;
 
     if (isa<PHINode>(SIUse) &&
-        SIBB->getSingleSuccessor() != dyn_cast<Instruction>(SIUse)->getParent())
+        SIBB->getSingleSuccessor() != cast<Instruction>(SIUse)->getParent())
       return false;
 
     // If select will not be sunk during unfolding, and it is in the same basic
@@ -662,8 +661,7 @@ private:
     SmallSet<Value *, 16> SeenValues;
 
     while (!Stack.empty()) {
-      PHINode *CurPhi = Stack.back();
-      Stack.pop_back();
+      PHINode *CurPhi = Stack.pop_back_val();
 
       Res[CurPhi->getParent()] = CurPhi;
       SeenValues.insert(CurPhi);

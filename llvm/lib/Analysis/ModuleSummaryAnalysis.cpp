@@ -279,7 +279,7 @@ static void computeFunctionSummary(
     }
 
     for (const Instruction &I : BB) {
-      if (isa<DbgInfoIntrinsic>(I))
+      if (I.isDebugOrPseudoInst())
         continue;
       ++NumInsts;
       // Regular LTO module doesn't participate in ThinLTO import,
@@ -479,7 +479,7 @@ static void computeFunctionSummary(
       F.hasFnAttribute(Attribute::NoRecurse), F.returnDoesNotAlias(),
       // FIXME: refactor this to use the same code that inliner is using.
       // Don't try to import functions with noinline attribute.
-      F.getAttributes().hasFnAttribute(Attribute::NoInline),
+      F.getAttributes().hasFnAttr(Attribute::NoInline),
       F.hasFnAttribute(Attribute::AlwaysInline)};
   std::vector<FunctionSummary::ParamAccess> ParamAccesses;
   if (auto *SSI = GetSSICallback(F))

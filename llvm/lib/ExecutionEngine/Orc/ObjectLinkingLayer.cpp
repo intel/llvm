@@ -64,9 +64,9 @@ private:
       LGI.SymbolFlags[ES.intern(Sym->getName())] = Flags;
     }
 
-    if (G.getTargetTriple().isOSBinFormatMachO())
-      if (hasMachOInitSection(G))
-        LGI.InitSymbol = makeInitSymbol(ES, G);
+    if ((G.getTargetTriple().isOSBinFormatMachO() && hasMachOInitSection(G)) ||
+        (G.getTargetTriple().isOSBinFormatELF() && hasELFInitSection(G)))
+      LGI.InitSymbol = makeInitSymbol(ES, G);
 
     return LGI;
   }
@@ -78,6 +78,13 @@ private:
           Sec.getName() == "__TEXT,__swift5_protos" ||
           Sec.getName() == "__TEXT,__swift5_proto" ||
           Sec.getName() == "__DATA,__mod_init_func")
+        return true;
+    return false;
+  }
+
+  static bool hasELFInitSection(LinkGraph &G) {
+    for (auto &Sec : G.sections())
+      if (Sec.getName() == ".init_array")
         return true;
     return false;
   }
@@ -543,8 +550,7 @@ private:
 
     // Propagate block-level dependencies through the block-dependence graph.
     while (!WorkList.empty()) {
-      auto *B = WorkList.back();
-      WorkList.pop_back();
+      auto *B = WorkList.pop_back_val();
 
       auto &BI = BlockInfos[B];
       assert(BI.DependenciesChanged &&

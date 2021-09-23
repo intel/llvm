@@ -1303,8 +1303,8 @@ def err_omp_decl_in_declare_simd_variant : Error<
 def err_omp_unknown_map_type : Error<
   "incorrect map type, expected one of 'to', 'from', 'tofrom', 'alloc', 'release', or 'delete'">;
 def err_omp_unknown_map_type_modifier : Error<
-  "incorrect map type modifier, expected 'always', 'close', "
-  "%select{or 'mapper'|'mapper', or 'present'}0">;
+  "incorrect map type modifier, expected one of: 'always', 'close', 'mapper'"
+  "%select{|, 'present'}0%select{|, 'ompx_hold'}1">;
 def err_omp_map_type_missing : Error<
   "missing map type">;
 def err_omp_map_type_modifier_missing : Error<
@@ -1436,6 +1436,9 @@ def warn_omp51_compat_attributes : Warning<
   "specifying OpenMP directives with [[]] is incompatible with OpenMP "
   "standards before OpenMP 5.1">,
   InGroup<OpenMPPre51Compat>, DefaultIgnore;
+def err_omp_expected_colon : Error<"missing ':' in %0">;
+def err_omp_expected_context_selector
+    : Error<"expected valid context selector in %0">;
 
 // Pragma loop support.
 def err_pragma_loop_missing_argument : Error<

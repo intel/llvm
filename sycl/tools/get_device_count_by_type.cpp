@@ -20,9 +20,9 @@
 #include <cuda.h>
 #endif // USE_PI_CUDA
 
-#ifdef USE_PI_ROCM
+#ifdef USE_PI_HIP
 #include <hip/hip_runtime.h>
-#endif // USE_PI_ROCM
+#endif // USE_PI_HIP
 
 #include <algorithm>
 #include <cstdlib>
@@ -36,7 +36,7 @@ static const std::string help =
     "   Help\n"
     "   Example: ./get_device_count_by_type cpu opencl\n"
     "   Supported device types: cpu/gpu/accelerator/default/all\n"
-    "   Supported backends: PI_CUDA/PI_ROCM/PI_OPENCL/PI_LEVEL_ZERO \n"
+    "   Supported backends: PI_CUDA/PI_HIP/PI_OPENCL/PI_LEVEL_ZERO \n"
     "   Output format: <number_of_devices>:<additional_Information>";
 
 // Return the string with all characters translated to lower case.
@@ -228,10 +228,10 @@ static bool queryCUDA(cl_device_type deviceType, cl_uint &deviceCount,
 #endif
 }
 
-static bool queryROCm(cl_device_type deviceType, cl_uint &deviceCount,
-                      std::string &msg) {
+static bool queryHIP(cl_device_type deviceType, cl_uint &deviceCount,
+                     std::string &msg) {
   deviceCount = 0u;
-#ifdef USE_PI_ROCM
+#ifdef USE_PI_HIP
   switch (deviceType) {
   case CL_DEVICE_TYPE_DEFAULT: // Fall through.
   case CL_DEVICE_TYPE_ALL:     // Fall through.
@@ -239,18 +239,18 @@ static bool queryROCm(cl_device_type deviceType, cl_uint &deviceCount,
     int count = 0;
     hipError_t err = hipGetDeviceCount(&count);
     if (err != hipSuccess || count < 0) {
-      msg = "ERROR: ROCm error querying device count";
+      msg = "ERROR: HIP error querying device count";
       return false;
     }
     if (count < 1) {
-      msg = "ERROR: ROCm no device found";
+      msg = "ERROR: HIP no device found";
       return false;
     }
     deviceCount = static_cast<cl_uint>(count);
 #if defined(__HIP_PLATFORM_AMD__)
-    msg = "rocm-amd ";
+    msg = "hip-amd ";
 #elif defined(__HIP_PLATFORM_NVIDIA__)
-    msg = "rocm-nvidia ";
+    msg = "hip-nvidia ";
 #else
 #error("Must define one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
@@ -258,13 +258,13 @@ static bool queryROCm(cl_device_type deviceType, cl_uint &deviceCount,
     return true;
   } break;
   default:
-    msg = "WARNING: ROCm unsupported device type ";
+    msg = "WARNING: HIP unsupported device type ";
     msg += deviceTypeToString(deviceType);
     return true;
   }
 #else
   (void)deviceType;
-  msg = "ERROR: ROCm not supported";
+  msg = "ERROR: HIP not supported";
   deviceCount = 0u;
 
   return false;
@@ -311,8 +311,8 @@ int main(int argc, char *argv[]) {
     querySuccess = queryLevelZero(deviceType, deviceCount, msg);
   } else if (backend == "cuda" || backend == "pi_cuda") {
     querySuccess = queryCUDA(deviceType, deviceCount, msg);
-  } else if (backend == "rocm" || backend == "pi_rocm") {
-    querySuccess = queryROCm(deviceType, deviceCount, msg);
+  } else if (backend == "hip" || backend == "pi_hip") {
+    querySuccess = queryHIP(deviceType, deviceCount, msg);
   } else {
     msg = "ERROR: Unknown backend " + backend + "\n" + help + "\n";
   }

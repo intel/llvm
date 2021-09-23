@@ -140,8 +140,8 @@ bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
 
     if (Function *Fn = dyn_cast<Function>(V)) {
       AttributeList AS = Fn->getAttributes();
-      AttrBuilder FnAttrs(AS.getFnAttributes());
-      AS = AS.removeAttributes(Context, AttributeList::FunctionIndex);
+      AttrBuilder FnAttrs(AS.getFnAttrs());
+      AS = AS.removeFnAttributes(Context);
 
       FnAttrs.merge(B);
 
@@ -152,32 +152,28 @@ bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
         FnAttrs.removeAttribute(Attribute::Alignment);
       }
 
-      AS = AS.addAttributes(Context, AttributeList::FunctionIndex,
-                            AttributeSet::get(Context, FnAttrs));
+      AS = AS.addFnAttributes(Context, AttributeSet::get(Context, FnAttrs));
       Fn->setAttributes(AS);
     } else if (CallInst *CI = dyn_cast<CallInst>(V)) {
       AttributeList AS = CI->getAttributes();
-      AttrBuilder FnAttrs(AS.getFnAttributes());
-      AS = AS.removeAttributes(Context, AttributeList::FunctionIndex);
+      AttrBuilder FnAttrs(AS.getFnAttrs());
+      AS = AS.removeFnAttributes(Context);
       FnAttrs.merge(B);
-      AS = AS.addAttributes(Context, AttributeList::FunctionIndex,
-                            AttributeSet::get(Context, FnAttrs));
+      AS = AS.addFnAttributes(Context, AttributeSet::get(Context, FnAttrs));
       CI->setAttributes(AS);
     } else if (InvokeInst *II = dyn_cast<InvokeInst>(V)) {
       AttributeList AS = II->getAttributes();
-      AttrBuilder FnAttrs(AS.getFnAttributes());
-      AS = AS.removeAttributes(Context, AttributeList::FunctionIndex);
+      AttrBuilder FnAttrs(AS.getFnAttrs());
+      AS = AS.removeFnAttributes(Context);
       FnAttrs.merge(B);
-      AS = AS.addAttributes(Context, AttributeList::FunctionIndex,
-                            AttributeSet::get(Context, FnAttrs));
+      AS = AS.addFnAttributes(Context, AttributeSet::get(Context, FnAttrs));
       II->setAttributes(AS);
     } else if (CallBrInst *CBI = dyn_cast<CallBrInst>(V)) {
       AttributeList AS = CBI->getAttributes();
-      AttrBuilder FnAttrs(AS.getFnAttributes());
-      AS = AS.removeAttributes(Context, AttributeList::FunctionIndex);
+      AttrBuilder FnAttrs(AS.getFnAttrs());
+      AS = AS.removeFnAttributes(Context);
       FnAttrs.merge(B);
-      AS = AS.addAttributes(Context, AttributeList::FunctionIndex,
-                            AttributeSet::get(Context, FnAttrs));
+      AS = AS.addFnAttributes(Context, AttributeSet::get(Context, FnAttrs));
       CBI->setAttributes(AS);
     } else if (auto *GV = dyn_cast<GlobalVariable>(V)) {
       AttrBuilder Attrs(GV->getAttributes());
@@ -1408,13 +1404,9 @@ static inline GlobalValue *createGlobalFwdRef(Module *M, PointerType *PTy) {
 }
 
 Value *LLParser::checkValidVariableType(LocTy Loc, const Twine &Name, Type *Ty,
-                                        Value *Val, bool IsCall) {
+                                        Value *Val) {
   Type *ValTy = Val->getType();
   if (ValTy == Ty)
-    return Val;
-  // For calls, we also allow opaque pointers.
-  if (IsCall && ValTy == PointerType::get(Ty->getContext(),
-                                          Ty->getPointerAddressSpace()))
     return Val;
   if (Ty->isLabelTy())
     error(Loc, "'" + Name + "' is not a basic block");
@@ -1429,7 +1421,7 @@ Value *LLParser::checkValidVariableType(LocTy Loc, const Twine &Name, Type *Ty,
 /// forward reference record if needed.  This can return null if the value
 /// exists but does not have the right type.
 GlobalValue *LLParser::getGlobalVal(const std::string &Name, Type *Ty,
-                                    LocTy Loc, bool IsCall) {
+                                    LocTy Loc) {
   PointerType *PTy = dyn_cast<PointerType>(Ty);
   if (!PTy) {
     error(Loc, "global variable reference must have pointer type");
@@ -1451,7 +1443,7 @@ GlobalValue *LLParser::getGlobalVal(const std::string &Name, Type *Ty,
   // If we have the value in the symbol table or fwd-ref table, return it.
   if (Val)
     return cast_or_null<GlobalValue>(
-        checkValidVariableType(Loc, "@" + Name, Ty, Val, IsCall));
+        checkValidVariableType(Loc, "@" + Name, Ty, Val));
 
   // Otherwise, create a new forward reference for this value and remember it.
   GlobalValue *FwdVal = createGlobalFwdRef(M, PTy);
@@ -1459,8 +1451,7 @@ GlobalValue *LLParser::getGlobalVal(const std::string &Name, Type *Ty,
   return FwdVal;
 }
 
-GlobalValue *LLParser::getGlobalVal(unsigned ID, Type *Ty, LocTy Loc,
-                                    bool IsCall) {
+GlobalValue *LLParser::getGlobalVal(unsigned ID, Type *Ty, LocTy Loc) {
   PointerType *PTy = dyn_cast<PointerType>(Ty);
   if (!PTy) {
     error(Loc, "global variable reference must have pointer type");
@@ -1480,7 +1471,7 @@ GlobalValue *LLParser::getGlobalVal(unsigned ID, Type *Ty, LocTy Loc,
   // If we have the value in the symbol table or fwd-ref table, return it.
   if (Val)
     return cast_or_null<GlobalValue>(
-        checkValidVariableType(Loc, "@" + Twine(ID), Ty, Val, IsCall));
+        checkValidVariableType(Loc, "@" + Twine(ID), Ty, Val));
 
   // Otherwise, create a new forward reference for this value and remember it.
   GlobalValue *FwdVal = createGlobalFwdRef(M, PTy);
@@ -2221,6 +2212,26 @@ bool LLParser::parseType(Type *&Result, const Twine &Msg, bool AllowVoid) {
     // Type ::= 'float' | 'void' (etc)
     Result = Lex.getTyVal();
     Lex.Lex();
+
+    // Handle "ptr" opaque pointer type.
+    //
+    // Type ::= ptr ('addrspace' '(' uint32 ')')?
+    if (Result->isOpaquePointerTy()) {
+      unsigned AddrSpace;
+      if (parseOptionalAddrSpace(AddrSpace))
+        return true;
+      Result = PointerType::get(getContext(), AddrSpace);
+
+      // Give a nice error for 'ptr*'.
+      if (Lex.getKind() == lltok::star)
+        return tokError("ptr* is invalid - use ptr instead");
+
+      // Fall through to parsing the type suffixes only if this 'ptr' is a
+      // function return. Otherwise, return success, implicitly rejecting other
+      // suffixes.
+      if (Lex.getKind() != lltok::lparen)
+        return false;
+    }
     break;
   case lltok::lbrace:
     // Type ::= StructType
@@ -2272,26 +2283,6 @@ bool LLParser::parseType(Type *&Result, const Twine &Msg, bool AllowVoid) {
     Lex.Lex();
     break;
   }
-  }
-
-  // Handle (explicit) opaque pointer types (not --force-opaque-pointers).
-  //
-  // Type ::= ptr ('addrspace' '(' uint32 ')')?
-  if (Result->isOpaquePointerTy()) {
-    unsigned AddrSpace;
-    if (parseOptionalAddrSpace(AddrSpace))
-      return true;
-    Result = PointerType::get(getContext(), AddrSpace);
-
-    // Give a nice error for 'ptr*'.
-    if (Lex.getKind() == lltok::star)
-      return tokError("ptr* is invalid - use ptr instead");
-
-    // Fall through to parsing the type suffixes only if this 'ptr' is a
-    // function return. Otherwise, return success, implicitly rejecting other
-    // suffixes.
-    if (Lex.getKind() != lltok::lparen)
-      return false;
   }
 
   // parse the type suffixes.
@@ -2798,7 +2789,7 @@ bool LLParser::PerFunctionState::finishFunction() {
 /// forward reference record if needed.  This can return null if the value
 /// exists but does not have the right type.
 Value *LLParser::PerFunctionState::getVal(const std::string &Name, Type *Ty,
-                                          LocTy Loc, bool IsCall) {
+                                          LocTy Loc) {
   // Look this name up in the normal function symbol table.
   Value *Val = F.getValueSymbolTable()->lookup(Name);
 
@@ -2812,7 +2803,7 @@ Value *LLParser::PerFunctionState::getVal(const std::string &Name, Type *Ty,
 
   // If we have the value in the symbol table or fwd-ref table, return it.
   if (Val)
-    return P.checkValidVariableType(Loc, "%" + Name, Ty, Val, IsCall);
+    return P.checkValidVariableType(Loc, "%" + Name, Ty, Val);
 
   // Don't make placeholders with invalid type.
   if (!Ty->isFirstClassType()) {
@@ -2832,8 +2823,7 @@ Value *LLParser::PerFunctionState::getVal(const std::string &Name, Type *Ty,
   return FwdVal;
 }
 
-Value *LLParser::PerFunctionState::getVal(unsigned ID, Type *Ty, LocTy Loc,
-                                          bool IsCall) {
+Value *LLParser::PerFunctionState::getVal(unsigned ID, Type *Ty, LocTy Loc) {
   // Look this name up in the normal function symbol table.
   Value *Val = ID < NumberedVals.size() ? NumberedVals[ID] : nullptr;
 
@@ -2847,7 +2837,7 @@ Value *LLParser::PerFunctionState::getVal(unsigned ID, Type *Ty, LocTy Loc,
 
   // If we have the value in the symbol table or fwd-ref table, return it.
   if (Val)
-    return P.checkValidVariableType(Loc, "%" + Twine(ID), Ty, Val, IsCall);
+    return P.checkValidVariableType(Loc, "%" + Twine(ID), Ty, Val);
 
   if (!Ty->isFirstClassType()) {
     P.error(Loc, "invalid use of a non-first-class type");
@@ -2934,12 +2924,12 @@ bool LLParser::PerFunctionState::setInstName(int NameID,
 BasicBlock *LLParser::PerFunctionState::getBB(const std::string &Name,
                                               LocTy Loc) {
   return dyn_cast_or_null<BasicBlock>(
-      getVal(Name, Type::getLabelTy(F.getContext()), Loc, /*IsCall=*/false));
+      getVal(Name, Type::getLabelTy(F.getContext()), Loc));
 }
 
 BasicBlock *LLParser::PerFunctionState::getBB(unsigned ID, LocTy Loc) {
   return dyn_cast_or_null<BasicBlock>(
-      getVal(ID, Type::getLabelTy(F.getContext()), Loc, /*IsCall=*/false));
+      getVal(ID, Type::getLabelTy(F.getContext()), Loc));
 }
 
 /// defineBB - Define the specified basic block, which is either named or
@@ -3652,7 +3642,7 @@ bool LLParser::parseGlobalValue(Type *Ty, Constant *&C) {
   ValID ID;
   Value *V = nullptr;
   bool Parsed = parseValID(ID, /*PFS=*/nullptr, Ty) ||
-                convertValIDToValue(Ty, ID, V, nullptr, /*IsCall=*/false);
+                convertValIDToValue(Ty, ID, V, nullptr);
   if (V && !(C = dyn_cast<Constant>(V)))
     return error(ID.Loc, "global values must be constants");
   return Parsed;
@@ -3876,10 +3866,6 @@ struct MDField : public MDFieldImpl<Metadata *> {
   MDField(bool AllowNull = true) : ImplTy(nullptr), AllowNull(AllowNull) {}
 };
 
-struct MDConstant : public MDFieldImpl<ConstantAsMetadata *> {
-  MDConstant() : ImplTy(nullptr) {}
-};
-
 struct MDStringField : public MDFieldImpl<MDString *> {
   bool AllowEmpty;
   MDStringField(bool AllowEmpty = true)
@@ -3910,22 +3896,6 @@ struct MDSignedOrMDField : MDEitherFieldImpl<MDSignedField, MDField> {
   }
   Metadata *getMDFieldValue() const {
     assert(isMDField() && "Wrong field type");
-    return B.Val;
-  }
-};
-
-struct MDSignedOrUnsignedField
-    : MDEitherFieldImpl<MDSignedField, MDUnsignedField> {
-  MDSignedOrUnsignedField() : ImplTy(MDSignedField(0), MDUnsignedField(0)) {}
-
-  bool isMDSignedField() const { return WhatIs == IsTypeA; }
-  bool isMDUnsignedField() const { return WhatIs == IsTypeB; }
-  int64_t getMDSignedValue() const {
-    assert(isMDSignedField() && "Wrong field type");
-    return A.Val;
-  }
-  uint64_t getMDUnsignedValue() const {
-    assert(isMDUnsignedField() && "Wrong field type");
     return B.Val;
   }
 };
@@ -4578,7 +4548,8 @@ bool LLParser::parseDIDerivedType(MDNode *&Result, bool IsDistinct) {
   OPTIONAL(offset, MDUnsignedField, (0, UINT64_MAX));                          \
   OPTIONAL(flags, DIFlagField, );                                              \
   OPTIONAL(extraData, MDField, );                                              \
-  OPTIONAL(dwarfAddressSpace, MDUnsignedField, (UINT32_MAX, UINT32_MAX));
+  OPTIONAL(dwarfAddressSpace, MDUnsignedField, (UINT32_MAX, UINT32_MAX));      \
+  OPTIONAL(annotations, MDField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
@@ -4590,7 +4561,7 @@ bool LLParser::parseDIDerivedType(MDNode *&Result, bool IsDistinct) {
                            (Context, tag.Val, name.Val, file.Val, line.Val,
                             scope.Val, baseType.Val, size.Val, align.Val,
                             offset.Val, DWARFAddressSpace, flags.Val,
-                            extraData.Val));
+                            extraData.Val, annotations.Val));
   return false;
 }
 
@@ -4615,7 +4586,8 @@ bool LLParser::parseDICompositeType(MDNode *&Result, bool IsDistinct) {
   OPTIONAL(dataLocation, MDField, );                                           \
   OPTIONAL(associated, MDField, );                                             \
   OPTIONAL(allocated, MDField, );                                              \
-  OPTIONAL(rank, MDSignedOrMDField, );
+  OPTIONAL(rank, MDSignedOrMDField, );                                         \
+  OPTIONAL(annotations, MDField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
@@ -4633,7 +4605,7 @@ bool LLParser::parseDICompositeType(MDNode *&Result, bool IsDistinct) {
             scope.Val, baseType.Val, size.Val, align.Val, offset.Val, flags.Val,
             elements.Val, runtimeLang.Val, vtableHolder.Val, templateParams.Val,
             discriminator.Val, dataLocation.Val, associated.Val, allocated.Val,
-            Rank)) {
+            Rank, annotations.Val)) {
       Result = CT;
       return false;
     }
@@ -4645,8 +4617,8 @@ bool LLParser::parseDICompositeType(MDNode *&Result, bool IsDistinct) {
       (Context, tag.Val, name.Val, file.Val, line.Val, scope.Val, baseType.Val,
        size.Val, align.Val, offset.Val, flags.Val, elements.Val,
        runtimeLang.Val, vtableHolder.Val, templateParams.Val, identifier.Val,
-       discriminator.Val, dataLocation.Val, associated.Val, allocated.Val,
-       Rank));
+       discriminator.Val, dataLocation.Val, associated.Val, allocated.Val, Rank,
+       annotations.Val));
   return false;
 }
 
@@ -4746,7 +4718,8 @@ bool LLParser::parseDICompileUnit(MDNode *&Result, bool IsDistinct) {
 ///                     virtuality: DW_VIRTUALTIY_pure_virtual,
 ///                     virtualIndex: 10, thisAdjustment: 4, flags: 11,
 ///                     spFlags: 10, isOptimized: false, templateParams: !4,
-///                     declaration: !5, retainedNodes: !6, thrownTypes: !7)
+///                     declaration: !5, retainedNodes: !6, thrownTypes: !7,
+///                     annotations: !8)
 bool LLParser::parseDISubprogram(MDNode *&Result, bool IsDistinct) {
   auto Loc = Lex.getLoc();
 #define VISIT_MD_FIELDS(OPTIONAL, REQUIRED)                                    \
@@ -4770,7 +4743,8 @@ bool LLParser::parseDISubprogram(MDNode *&Result, bool IsDistinct) {
   OPTIONAL(templateParams, MDField, );                                         \
   OPTIONAL(declaration, MDField, );                                            \
   OPTIONAL(retainedNodes, MDField, );                                          \
-  OPTIONAL(thrownTypes, MDField, );
+  OPTIONAL(thrownTypes, MDField, );                                            \
+  OPTIONAL(annotations, MDField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
@@ -4789,7 +4763,7 @@ bool LLParser::parseDISubprogram(MDNode *&Result, bool IsDistinct) {
       (Context, scope.Val, name.Val, linkageName.Val, file.Val, line.Val,
        type.Val, scopeLine.Val, containingType.Val, virtualIndex.Val,
        thisAdjustment.Val, flags.Val, SPFlags, unit.Val, templateParams.Val,
-       declaration.Val, retainedNodes.Val, thrownTypes.Val));
+       declaration.Val, retainedNodes.Val, thrownTypes.Val, annotations.Val));
   return false;
 }
 
@@ -4966,7 +4940,8 @@ bool LLParser::parseDIGlobalVariable(MDNode *&Result, bool IsDistinct) {
   OPTIONAL(isDefinition, MDBoolField, (true));                                 \
   OPTIONAL(templateParams, MDField, );                                         \
   OPTIONAL(declaration, MDField, );                                            \
-  OPTIONAL(align, MDUnsignedField, (0, UINT32_MAX));
+  OPTIONAL(align, MDUnsignedField, (0, UINT32_MAX));                           \
+  OPTIONAL(annotations, MDField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
@@ -4974,7 +4949,8 @@ bool LLParser::parseDIGlobalVariable(MDNode *&Result, bool IsDistinct) {
       GET_OR_DISTINCT(DIGlobalVariable,
                       (Context, scope.Val, name.Val, linkageName.Val, file.Val,
                        line.Val, type.Val, isLocal.Val, isDefinition.Val,
-                       declaration.Val, templateParams.Val, align.Val));
+                       declaration.Val, templateParams.Val, align.Val,
+                       annotations.Val));
   return false;
 }
 
@@ -4994,13 +4970,15 @@ bool LLParser::parseDILocalVariable(MDNode *&Result, bool IsDistinct) {
   OPTIONAL(line, LineField, );                                                 \
   OPTIONAL(type, MDField, );                                                   \
   OPTIONAL(flags, DIFlagField, );                                              \
-  OPTIONAL(align, MDUnsignedField, (0, UINT32_MAX));
+  OPTIONAL(align, MDUnsignedField, (0, UINT32_MAX));                           \
+  OPTIONAL(annotations, MDField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
   Result = GET_OR_DISTINCT(DILocalVariable,
                            (Context, scope.Val, name.Val, file.Val, line.Val,
-                            type.Val, arg.Val, flags.Val, align.Val));
+                            type.Val, arg.Val, flags.Val, align.Val,
+                            annotations.Val));
   return false;
 }
 
@@ -5136,7 +5114,7 @@ bool LLParser::parseDIObjCProperty(MDNode *&Result, bool IsDistinct) {
 
 /// parseDIImportedEntity:
 ///   ::= !DIImportedEntity(tag: DW_TAG_imported_module, scope: !0, entity: !1,
-///                         line: 7, name: "foo")
+///                         line: 7, name: "foo", elements: !2)
 bool LLParser::parseDIImportedEntity(MDNode *&Result, bool IsDistinct) {
 #define VISIT_MD_FIELDS(OPTIONAL, REQUIRED)                                    \
   REQUIRED(tag, DwarfTagField, );                                              \
@@ -5144,13 +5122,14 @@ bool LLParser::parseDIImportedEntity(MDNode *&Result, bool IsDistinct) {
   OPTIONAL(entity, MDField, );                                                 \
   OPTIONAL(file, MDField, );                                                   \
   OPTIONAL(line, LineField, );                                                 \
-  OPTIONAL(name, MDStringField, );
+  OPTIONAL(name, MDStringField, );                                             \
+  OPTIONAL(elements, MDField, );
   PARSE_MD_FIELDS();
 #undef VISIT_MD_FIELDS
 
-  Result = GET_OR_DISTINCT(
-      DIImportedEntity,
-      (Context, tag.Val, scope.Val, entity.Val, file.Val, line.Val, name.Val));
+  Result = GET_OR_DISTINCT(DIImportedEntity,
+                           (Context, tag.Val, scope.Val, entity.Val, file.Val,
+                            line.Val, name.Val, elements.Val));
   return false;
 }
 
@@ -5254,7 +5233,7 @@ bool LLParser::parseMetadata(Metadata *&MD, PerFunctionState *PFS) {
 //===----------------------------------------------------------------------===//
 
 bool LLParser::convertValIDToValue(Type *Ty, ValID &ID, Value *&V,
-                                   PerFunctionState *PFS, bool IsCall) {
+                                   PerFunctionState *PFS) {
   if (Ty->isFunctionTy())
     return error(ID.Loc, "functions are not values, refer to them as pointers");
 
@@ -5262,12 +5241,12 @@ bool LLParser::convertValIDToValue(Type *Ty, ValID &ID, Value *&V,
   case ValID::t_LocalID:
     if (!PFS)
       return error(ID.Loc, "invalid use of function-local name");
-    V = PFS->getVal(ID.UIntVal, Ty, ID.Loc, IsCall);
+    V = PFS->getVal(ID.UIntVal, Ty, ID.Loc);
     return V == nullptr;
   case ValID::t_LocalName:
     if (!PFS)
       return error(ID.Loc, "invalid use of function-local name");
-    V = PFS->getVal(ID.StrVal, Ty, ID.Loc, IsCall);
+    V = PFS->getVal(ID.StrVal, Ty, ID.Loc);
     return V == nullptr;
   case ValID::t_InlineAsm: {
     if (!ID.FTy || !InlineAsm::Verify(ID.FTy, ID.StrVal2))
@@ -5278,10 +5257,10 @@ bool LLParser::convertValIDToValue(Type *Ty, ValID &ID, Value *&V,
     return false;
   }
   case ValID::t_GlobalName:
-    V = getGlobalVal(ID.StrVal, Ty, ID.Loc, IsCall);
+    V = getGlobalVal(ID.StrVal, Ty, ID.Loc);
     return V == nullptr;
   case ValID::t_GlobalID:
-    V = getGlobalVal(ID.UIntVal, Ty, ID.Loc, IsCall);
+    V = getGlobalVal(ID.UIntVal, Ty, ID.Loc);
     return V == nullptr;
   case ValID::t_APSInt:
     if (!Ty->isIntegerTy())
@@ -5405,7 +5384,7 @@ bool LLParser::parseConstantValue(Type *Ty, Constant *&C) {
   case ValID::t_ConstantStruct:
   case ValID::t_PackedConstantStruct: {
     Value *V;
-    if (convertValIDToValue(Ty, ID, V, /*PFS=*/nullptr, /*IsCall=*/false))
+    if (convertValIDToValue(Ty, ID, V, /*PFS=*/nullptr))
       return true;
     assert(isa<Constant>(V) && "Expected a constant value");
     C = cast<Constant>(V);
@@ -5423,7 +5402,7 @@ bool LLParser::parseValue(Type *Ty, Value *&V, PerFunctionState *PFS) {
   V = nullptr;
   ValID ID;
   return parseValID(ID, PFS, Ty) ||
-         convertValIDToValue(Ty, ID, V, PFS, /*IsCall=*/false);
+         convertValIDToValue(Ty, ID, V, PFS);
 }
 
 bool LLParser::parseTypeAndValue(Value *&V, PerFunctionState *PFS) {
@@ -5571,7 +5550,7 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine) {
       AttributeList::get(Context, AttributeSet::get(Context, FuncAttrs),
                          AttributeSet::get(Context, RetAttrs), Attrs);
 
-  if (PAL.hasAttribute(1, Attribute::StructRet) && !RetType->isVoidTy())
+  if (PAL.hasParamAttr(0, Attribute::StructRet) && !RetType->isVoidTy())
     return error(RetTypeLoc, "functions with 'sret' argument must return void");
 
   FunctionType *FT = FunctionType::get(RetType, ParamTypeList, IsVarArg);
@@ -5718,7 +5697,7 @@ bool LLParser::PerFunctionState::resolveForwardRefBlockAddresses() {
 
     Value *ResolvedVal = BlockAddress::get(&F, BB);
     ResolvedVal = P.checkValidVariableType(BBID.Loc, BBID.StrVal, GV->getType(),
-                                           ResolvedVal, false);
+                                           ResolvedVal);
     if (!ResolvedVal)
       return true;
     GV->replaceAllUsesWith(ResolvedVal);
@@ -6287,7 +6266,7 @@ bool LLParser::parseInvoke(Instruction *&Inst, PerFunctionState &PFS) {
   // Look up the callee.
   Value *Callee;
   if (convertValIDToValue(PointerType::get(Ty, InvokeAddrSpace), CalleeID,
-                          Callee, &PFS, /*IsCall=*/true))
+                          Callee, &PFS))
     return true;
 
   // Set up the Attribute for the function.
@@ -6612,8 +6591,7 @@ bool LLParser::parseCallBr(Instruction *&Inst, PerFunctionState &PFS) {
 
   // Look up the callee.
   Value *Callee;
-  if (convertValIDToValue(PointerType::getUnqual(Ty), CalleeID, Callee, &PFS,
-                          /*IsCall=*/true))
+  if (convertValIDToValue(PointerType::getUnqual(Ty), CalleeID, Callee, &PFS))
     return true;
 
   // Set up the Attribute for the function.
@@ -7019,7 +6997,7 @@ bool LLParser::parseCall(Instruction *&Inst, PerFunctionState &PFS,
   // Look up the callee.
   Value *Callee;
   if (convertValIDToValue(PointerType::get(Ty, CallAddrSpace), CalleeID, Callee,
-                          &PFS, /*IsCall=*/true))
+                          &PFS))
     return true;
 
   // Set up the Attribute for the function.

@@ -6005,6 +6005,15 @@ static void ReferenceDllExportedMembers(Sema &S, CXXRecordDecl *Class) {
       if (TSK == TSK_ImplicitInstantiation && !ClassAttr->isInherited())
         continue;
 
+      // If this is an MS ABI dllexport default constructor, instantiate any
+      // default arguments.
+      if (S.Context.getTargetInfo().getCXXABI().isMicrosoft()) {
+        auto *CD = dyn_cast<CXXConstructorDecl>(MD);
+        if (CD && CD->isDefaultConstructor() && TSK == TSK_Undeclared) {
+          S.InstantiateDefaultCtorDefaultArgs(CD);
+        }
+      }
+
       S.MarkFunctionReferenced(Class->getLocation(), MD);
 
       // The function will be passed to the consumer when its definition is
@@ -7795,9 +7804,21 @@ private:
            DCK == DefaultedComparisonKind::Relational) &&
           !Best->RewriteKind) {
         if (Diagnose == ExplainDeleted) {
-          S.Diag(Best->Function->getLocation(),
-                 diag::note_defaulted_comparison_not_rewritten_callee)
-              << FD;
+          if (Best->Function) {
+            S.Diag(Best->Function->getLocation(),
+                   diag::note_defaulted_comparison_not_rewritten_callee)
+                << FD;
+          } else {
+            assert(Best->Conversions.size() == 2 &&
+                   Best->Conversions[0].isUserDefined() &&
+                   "non-user-defined conversion from class to built-in "
+                   "comparison");
+            S.Diag(Best->Conversions[0]
+                       .UserDefined.FoundConversionFunction.getDecl()
+                       ->getLocation(),
+                   diag::note_defaulted_comparison_not_rewritten_conversion)
+                << FD;
+          }
         }
         return Result::deleted();
       }
@@ -7953,7 +7974,7 @@ private:
 
       if (Diagnose == ExplainDeleted) {
         S.Diag(Subobj.Loc, diag::note_defaulted_comparison_no_viable_function)
-            << FD << Subobj.Kind << Subobj.Decl;
+            << FD << (OO == OO_ExclaimEqual) << Subobj.Kind << Subobj.Decl;
 
         // For a three-way comparison, list both the candidates for the
         // original operator and the candidates for the synthesized operator.
@@ -16836,10 +16857,7 @@ NamedDecl *Sema::ActOnFriendFunctionDecl(Scope *S, Declarator &D,
     while (DC->isRecord())
       DC = DC->getParent();
 
-    DeclContext *LookupDC = DC;
-    while (LookupDC->isTransparentContext())
-      LookupDC = LookupDC->getParent();
-
+    DeclContext *LookupDC = DC->getNonTransparentContext();
     while (true) {
       LookupQualifiedName(Previous, LookupDC);
 

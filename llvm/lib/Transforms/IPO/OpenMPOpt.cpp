@@ -33,6 +33,8 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/IPO.h"
@@ -91,6 +93,21 @@ static cl::opt<bool> DisableOpenMPOptStateMachineRewrite(
     "openmp-opt-disable-state-machine-rewrite", cl::ZeroOrMore,
     cl::desc("Disable OpenMP optimizations that replace the state machine."),
     cl::Hidden, cl::init(false));
+
+static cl::opt<bool> PrintModuleAfterOptimizations(
+    "openmp-opt-print-module", cl::ZeroOrMore,
+    cl::desc("Print the current module after OpenMP optimizations."),
+    cl::Hidden, cl::init(false));
+
+static cl::opt<bool> AlwaysInlineDeviceFunctions(
+    "openmp-opt-inline-device", cl::ZeroOrMore,
+    cl::desc("Inline all applicible functions on the device."), cl::Hidden,
+    cl::init(false));
+
+static cl::opt<bool>
+    EnableVerboseRemarks("openmp-opt-verbose-remarks", cl::ZeroOrMore,
+                         cl::desc("Enables more verbose remarks."), cl::Hidden,
+                         cl::init(false));
 
 STATISTIC(NumOpenMPRuntimeCallsDeduplicated,
           "Number of OpenMP runtime calls deduplicated");
@@ -589,6 +606,12 @@ struct KernelInfoState : AbstractState {
     return true;
   }
 
+  /// Returns true if this kernel contains any OpenMP parallel regions.
+  bool mayContainParallelRegion() {
+    return !ReachedKnownParallelRegions.empty() ||
+           !ReachedUnknownParallelRegions.empty();
+  }
+
   /// Return empty set as the best state of potential values.
   static KernelInfoState getBestState() { return KernelInfoState(true); }
 
@@ -1063,7 +1086,7 @@ private:
         // Forward parameter attributes from the callback to the callee.
         for (unsigned U = CallbackFirstArgOperand, E = CI->getNumArgOperands();
              U < E; ++U)
-          for (const Attribute &A : CI->getAttributes().getParamAttributes(U))
+          for (const Attribute &A : CI->getAttributes().getParamAttrs(U))
             NewCI->addParamAttr(
                 U - (CallbackFirstArgOperand - CallbackCalleeOperand), A);
 
@@ -1632,7 +1655,7 @@ private:
     // valid at the new location. For now we just pick a global one, either
     // existing and used by one of the calls, or created from scratch.
     if (CallBase *CI = dyn_cast<CallBase>(ReplVal)) {
-      if (CI->getNumArgOperands() > 0 &&
+      if (!CI->arg_empty() &&
           CI->getArgOperand(0)->getType() == OMPInfoCache.OMPBuilder.IdentPtr) {
         Value *Ident = getCombinedIdentFromCallUsesIn(RFI, F,
                                                       /* GlobalOnly */ true);
@@ -2020,7 +2043,8 @@ bool OpenMPOpt::rewriteDeviceCodeStateMachine() {
         UndefValue::get(Int8Ty), F->getName() + ".ID");
 
     for (Use *U : ToBeReplacedStateMachineUses)
-      U->set(ConstantExpr::getBitCast(ID, U->get()->getType()));
+      U->set(ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+          ID, U->get()->getType()));
 
     ++NumOpenMPParallelRegionsReplacedInGPUStateMachine;
 
@@ -2532,9 +2556,8 @@ ChangeStatus AAExecutionDomainFunction::updateImpl(Attributor &A) {
   auto &OMPInfoCache = static_cast<OMPInformationCache &>(A.getInfoCache());
   auto &RFI = OMPInfoCache.RFIs[OMPRTL___kmpc_target_init];
 
-  // Check if the edge into the successor block compares the __kmpc_target_init
-  // result with -1. If we are in non-SPMD-mode that signals only the main
-  // thread will execute the edge.
+  // Check if the edge into the successor block contains a condition that only
+  // lets the main thread execute it.
   auto IsInitialThreadOnly = [&](BranchInst *Edge, BasicBlock *SuccessorBB) {
     if (!Edge || !Edge->isConditional())
       return false;
@@ -2549,7 +2572,7 @@ ChangeStatus AAExecutionDomainFunction::updateImpl(Attributor &A) {
     if (!C)
       return false;
 
-    // Match:  -1 == __kmpc_target_init (for non-SPMD kernels only!)
+    // Match: -1 == __kmpc_target_init (for non-SPMD kernels only!)
     if (C->isAllOnesValue()) {
       auto *CB = dyn_cast<CallBase>(Cmp->getOperand(0));
       CB = CB ? OpenMPOpt::getCallIfRegularCall(*CB, &RFI) : nullptr;
@@ -2559,6 +2582,18 @@ ChangeStatus AAExecutionDomainFunction::updateImpl(Attributor &A) {
       auto *IsSPMDModeCI =
           dyn_cast<ConstantInt>(CB->getOperand(InitIsSPMDArgNo));
       return IsSPMDModeCI && IsSPMDModeCI->isZero();
+    }
+
+    if (C->isZero()) {
+      // Match: 0 == llvm.nvvm.read.ptx.sreg.tid.x()
+      if (auto *II = dyn_cast<IntrinsicInst>(Cmp->getOperand(0)))
+        if (II->getIntrinsicID() == Intrinsic::nvvm_read_ptx_sreg_tid_x)
+          return true;
+
+      // Match: 0 == llvm.amdgcn.workitem.id.x()
+      if (auto *II = dyn_cast<IntrinsicInst>(Cmp->getOperand(0)))
+        if (II->getIntrinsicID() == Intrinsic::amdgcn_workitem_id_x)
+          return true;
     }
 
     return false;
@@ -2707,9 +2742,8 @@ struct AAHeapToSharedFunction : public AAHeapToShared {
 
       ConstantInt *AllocSize = dyn_cast<ConstantInt>(CB->getArgOperand(0));
 
-      LLVM_DEBUG(dbgs() << TAG << "Replace globalization call in "
-                        << CB->getCaller()->getName() << " with "
-                        << AllocSize->getZExtValue()
+      LLVM_DEBUG(dbgs() << TAG << "Replace globalization call " << *CB
+                        << " with " << AllocSize->getZExtValue()
                         << " bytes of shared memory\n");
 
       // Create a new shared memory buffer of the same size as the allocation
@@ -2873,8 +2907,11 @@ struct AAKernelInfoFunction : AAKernelInfo {
         },
         Fn);
 
-    assert((KernelInitCB && KernelDeinitCB) &&
-           "Kernel without __kmpc_target_init or __kmpc_target_deinit!");
+    // Ignore kernels without initializers such as global constructors.
+    if (!KernelInitCB || !KernelDeinitCB) {
+      indicateOptimisticFixpoint();
+      return;
+    }
 
     // For kernels we might need to initialize/finalize the IsSPMD state and
     // we need to register a simplification callback so that the Attributor
@@ -2991,7 +3028,7 @@ struct AAKernelInfoFunction : AAKernelInfo {
 
     // If we can we change the execution mode to SPMD-mode otherwise we build a
     // custom state machine.
-    if (!changeToSPMDMode(A))
+    if (!mayContainParallelRegion() || !changeToSPMDMode(A))
       buildCustomStateMachine(A);
 
     return ChangeStatus::CHANGED;
@@ -3170,6 +3207,34 @@ struct AAKernelInfoFunction : AAKernelInfo {
             ->setDebugLoc(DL);
     };
 
+    auto &AllocSharedRFI = OMPInfoCache.RFIs[OMPRTL___kmpc_alloc_shared];
+    SmallPtrSet<BasicBlock *, 8> Visited;
+    for (Instruction *GuardedI : SPMDCompatibilityTracker) {
+      BasicBlock *BB = GuardedI->getParent();
+      if (!Visited.insert(BB).second)
+        continue;
+
+      SmallVector<std::pair<Instruction *, Instruction *>> Reorders;
+      Instruction *LastEffect = nullptr;
+      BasicBlock::reverse_iterator IP = BB->rbegin(), IPEnd = BB->rend();
+      while (++IP != IPEnd) {
+        if (!IP->mayHaveSideEffects() && !IP->mayReadFromMemory())
+          continue;
+        Instruction *I = &*IP;
+        if (OpenMPOpt::getCallIfRegularCall(*I, &AllocSharedRFI))
+          continue;
+        if (!I->user_empty() || !SPMDCompatibilityTracker.contains(I)) {
+          LastEffect = nullptr;
+          continue;
+        }
+        if (LastEffect)
+          Reorders.push_back({I, LastEffect});
+        LastEffect = &*IP;
+      }
+      for (auto &Reorder : Reorders)
+        Reorder.first->moveBefore(Reorder.second);
+    }
+
     SmallVector<std::pair<Instruction *, Instruction *>, 4> GuardedRegions;
 
     for (Instruction *GuardedI : SPMDCompatibilityTracker) {
@@ -3296,8 +3361,7 @@ struct AAKernelInfoFunction : AAKernelInfo {
     // happen if there simply are no parallel regions. In the resulting kernel
     // all worker threads will simply exit right away, leaving the main thread
     // to do the work alone.
-    if (ReachedKnownParallelRegions.empty() &&
-        ReachedUnknownParallelRegions.empty()) {
+    if (!mayContainParallelRegion()) {
       ++NumOpenMPTargetRegionKernelsWithoutStateMachine;
 
       auto Remark = [&](OptimizationRemark OR) {
@@ -3405,10 +3469,14 @@ struct AAKernelInfoFunction : AAKernelInfo {
     IsWorker->setDebugLoc(DLoc);
     BranchInst::Create(StateMachineBeginBB, UserCodeEntryBB, IsWorker, InitBB);
 
+    Module &M = *Kernel->getParent();
+
     // Create local storage for the work function pointer.
+    const DataLayout &DL = M.getDataLayout();
     Type *VoidPtrTy = Type::getInt8PtrTy(Ctx);
-    AllocaInst *WorkFnAI = new AllocaInst(VoidPtrTy, 0, "worker.work_fn.addr",
-                                          &Kernel->getEntryBlock().front());
+    Instruction *WorkFnAI =
+        new AllocaInst(VoidPtrTy, DL.getAllocaAddrSpace(), nullptr,
+                       "worker.work_fn.addr", &Kernel->getEntryBlock().front());
     WorkFnAI->setDebugLoc(DLoc);
 
     auto &OMPInfoCache = static_cast<OMPInformationCache &>(A.getInfoCache());
@@ -3421,12 +3489,22 @@ struct AAKernelInfoFunction : AAKernelInfo {
     Value *Ident = KernelInitCB->getArgOperand(0);
     Value *GTid = KernelInitCB;
 
-    Module &M = *Kernel->getParent();
     FunctionCallee BarrierFn =
         OMPInfoCache.OMPBuilder.getOrCreateRuntimeFunction(
             M, OMPRTL___kmpc_barrier_simple_spmd);
     CallInst::Create(BarrierFn, {Ident, GTid}, "", StateMachineBeginBB)
         ->setDebugLoc(DLoc);
+
+    if (WorkFnAI->getType()->getPointerAddressSpace() !=
+        (unsigned int)AddressSpace::Generic) {
+      WorkFnAI = new AddrSpaceCastInst(
+          WorkFnAI,
+          PointerType::getWithSamePointeeType(
+              cast<PointerType>(WorkFnAI->getType()),
+              (unsigned int)AddressSpace::Generic),
+          WorkFnAI->getName() + ".generic", StateMachineBeginBB);
+      WorkFnAI->setDebugLoc(DLoc);
+    }
 
     FunctionCallee KernelParallelFn =
         OMPInfoCache.OMPBuilder.getOrCreateRuntimeFunction(
@@ -3693,13 +3771,15 @@ struct AAKernelInfoCallSite : AAKernelInfo {
     Function *Callee = getAssociatedFunction();
 
     // Helper to lookup an assumption string.
-    auto HasAssumption = [](Function *Fn, StringRef AssumptionStr) {
-      return Fn && hasAssumption(*Fn, AssumptionStr);
+    auto HasAssumption = [](CallBase &CB, StringRef AssumptionStr) {
+      return hasAssumption(CB, AssumptionStr);
     };
 
     // Check for SPMD-mode assumptions.
-    if (HasAssumption(Callee, "ompx_spmd_amenable"))
+    if (HasAssumption(CB, "ompx_spmd_amenable")) {
       SPMDCompatibilityTracker.indicateOptimisticFixpoint();
+      indicateOptimisticFixpoint();
+    }
 
     // First weed out calls we do not care about, that is readonly/readnone
     // calls, intrinsics, and "no_openmp" calls. Neither of these can reach a
@@ -3721,8 +3801,8 @@ struct AAKernelInfoCallSite : AAKernelInfo {
 
         // Unknown callees might contain parallel regions, except if they have
         // an appropriate assumption attached.
-        if (!(HasAssumption(Callee, "omp_no_openmp") ||
-              HasAssumption(Callee, "omp_no_parallelism")))
+        if (!(HasAssumption(CB, "omp_no_openmp") ||
+              HasAssumption(CB, "omp_no_parallelism")))
           ReachedUnknownParallelRegions.insert(&CB);
 
         // If SPMDCompatibilityTracker is not fixed, we need to give up on the
@@ -3987,11 +4067,25 @@ struct AAFoldRuntimeCallCallSiteReturned : AAFoldRuntimeCall {
     ChangeStatus Changed = ChangeStatus::UNCHANGED;
 
     if (SimplifiedValue.hasValue() && SimplifiedValue.getValue()) {
-      Instruction &CB = *getCtxI();
-      A.changeValueAfterManifest(CB, **SimplifiedValue);
-      A.deleteAfterManifest(CB);
+      Instruction &I = *getCtxI();
+      A.changeValueAfterManifest(I, **SimplifiedValue);
+      A.deleteAfterManifest(I);
 
-      LLVM_DEBUG(dbgs() << TAG << "Folding runtime call: " << CB << " with "
+      CallBase *CB = dyn_cast<CallBase>(&I);
+      auto Remark = [&](OptimizationRemark OR) {
+        if (auto *C = dyn_cast<ConstantInt>(*SimplifiedValue))
+          return OR << "Replacing OpenMP runtime call "
+                    << CB->getCalledFunction()->getName() << " with "
+                    << ore::NV("FoldedValue", C->getZExtValue()) << ".";
+        else
+          return OR << "Replacing OpenMP runtime call "
+                    << CB->getCalledFunction()->getName() << ".";
+      };
+
+      if (CB && EnableVerboseRemarks)
+        A.emitRemark<OptimizationRemark>(CB, "OMP180", Remark);
+
+      LLVM_DEBUG(dbgs() << TAG << "Replacing runtime call: " << I << " with "
                         << **SimplifiedValue << "\n");
 
       Changed = ChangeStatus::CHANGED;
@@ -4224,7 +4318,6 @@ void OpenMPOpt::registerAAs(bool IsModulePass) {
           IRPosition::function(*Kernel), /* QueryingAA */ nullptr,
           DepClassTy::NONE, /* ForceUpdate */ false,
           /* UpdateAfterInit */ false);
-
 
     registerFoldRuntimeCall(OMPRTL___kmpc_is_generic_main_thread_id);
     registerFoldRuntimeCall(OMPRTL___kmpc_is_spmd_exec_mode);
@@ -4473,6 +4566,17 @@ PreservedAnalyses OpenMPOptPass::run(Module &M, ModuleAnalysisManager &AM) {
 
   OpenMPOpt OMPOpt(SCC, CGUpdater, OREGetter, InfoCache, A);
   bool Changed = OMPOpt.run(true);
+
+  // Optionally inline device functions for potentially better performance.
+  if (AlwaysInlineDeviceFunctions && isOpenMPDevice(M))
+    for (Function &F : M)
+      if (!F.isDeclaration() && !Kernels.contains(&F) &&
+          !F.hasFnAttribute(Attribute::NoInline))
+        F.addFnAttr(Attribute::AlwaysInline);
+
+  if (PrintModuleAfterOptimizations)
+    LLVM_DEBUG(dbgs() << TAG << "Module after OpenMPOpt Module Pass:\n" << M);
+
   if (Changed)
     return PreservedAnalyses::none();
 
@@ -4525,6 +4629,10 @@ PreservedAnalyses OpenMPOptCGSCCPass::run(LazyCallGraph::SCC &C,
 
   OpenMPOpt OMPOpt(SCC, CGUpdater, OREGetter, InfoCache, A);
   bool Changed = OMPOpt.run(false);
+
+  if (PrintModuleAfterOptimizations)
+    LLVM_DEBUG(dbgs() << TAG << "Module after OpenMPOpt CGSCC Pass:\n" << M);
+
   if (Changed)
     return PreservedAnalyses::none();
 
@@ -4590,7 +4698,12 @@ struct OpenMPOptCGSCCLegacyPass : public CallGraphSCCPass {
                  MaxFixpointIterations, OREGetter, DEBUG_TYPE);
 
     OpenMPOpt OMPOpt(SCC, CGUpdater, OREGetter, InfoCache, A);
-    return OMPOpt.run(false);
+    bool Result = OMPOpt.run(false);
+
+    if (PrintModuleAfterOptimizations)
+      LLVM_DEBUG(dbgs() << TAG << "Module after OpenMPOpt CGSCC Pass:\n" << M);
+
+    return Result;
   }
 
   bool doFinalization(CallGraph &CG) override { return CGUpdater.finalize(); }

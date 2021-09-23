@@ -2594,7 +2594,7 @@ void ExecutionSession::OL_completeLookup(
       }
     }
 
-    LLVM_DEBUG(dbgs() << "Stripping unmatched weakly-refererced symbols\n");
+    LLVM_DEBUG(dbgs() << "Stripping unmatched weakly-referenced symbols\n");
     IPLS->LookupSet.forEachWithRemoval(
         [&](const SymbolStringPtr &Name, SymbolLookupFlags SymLookupFlags) {
           if (SymLookupFlags == SymbolLookupFlags::WeaklyReferencedSymbol) {
@@ -2911,6 +2911,7 @@ void ExecutionSession::dumpDispatchInfo(Task &T) {
   runSessionLocked([&]() {
     dbgs() << "Dispatching: ";
     T.printDescription(dbgs());
+    dbgs() << "\n";
   });
 }
 #endif // NDEBUG

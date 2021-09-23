@@ -591,7 +591,7 @@ struct IRPosition {
 
     LLVMContext &Ctx = getAnchorValue().getContext();
     for (Attribute::AttrKind AK : AKs)
-      AttrList = AttrList.removeAttribute(Ctx, getAttrIdx(), AK);
+      AttrList = AttrList.removeAttributeAtIndex(Ctx, getAttrIdx(), AK);
 
     if (CB)
       CB->setAttributes(AttrList);
@@ -1150,8 +1150,6 @@ struct Attributor {
   /// \param Allowed If not null, a set limiting the attribute opportunities.
   /// \param DeleteFns Whether to delete functions.
   /// \param RewriteSignatures Whether to rewrite function signatures.
-  /// \param MaxFixedPointIterations Maximum number of iterations to run until
-  ///                                fixpoint.
   Attributor(SetVector<Function *> &Functions, InformationCache &InfoCache,
              CallGraphUpdater &CGUpdater,
              DenseSet<const char *> *Allowed = nullptr, bool DeleteFns = true,
@@ -1169,8 +1167,9 @@ struct Attributor {
   /// \param CGUpdater Helper to update an underlying call graph.
   /// \param Allowed If not null, a set limiting the attribute opportunities.
   /// \param DeleteFns Whether to delete functions
-  /// \param MaxFixedPointIterations Maximum number of iterations to run until
-  ///                                fixpoint.
+  /// \param RewriteSignatures Whether to rewrite function signatures.
+  /// \param MaxFixpointIterations Maximum number of iterations to run until
+  ///                              fixpoint.
   /// \param OREGetter A callback function that returns an ORE object from a
   ///                  Function pointer.
   /// \param PassName  The name of the pass emitting remarks.
@@ -3940,19 +3939,19 @@ struct AAValueConstantRange
   static AAValueConstantRange &createForPosition(const IRPosition &IRP,
                                                  Attributor &A);
 
-  /// Return an assumed range for the assocaited value a program point \p CtxI.
+  /// Return an assumed range for the associated value a program point \p CtxI.
   /// If \p I is nullptr, simply return an assumed range.
   virtual ConstantRange
   getAssumedConstantRange(Attributor &A,
                           const Instruction *CtxI = nullptr) const = 0;
 
-  /// Return a known range for the assocaited value at a program point \p CtxI.
+  /// Return a known range for the associated value at a program point \p CtxI.
   /// If \p I is nullptr, simply return a known range.
   virtual ConstantRange
   getKnownConstantRange(Attributor &A,
                         const Instruction *CtxI = nullptr) const = 0;
 
-  /// Return an assumed constant for the assocaited value a program point \p
+  /// Return an assumed constant for the associated value a program point \p
   /// CtxI.
   Optional<ConstantInt *>
   getAssumedConstantInt(Attributor &A,
@@ -4454,6 +4453,9 @@ struct AAFunctionReachability
 
   /// If the function represented by this possition can reach \p Fn.
   virtual bool canReach(Attributor &A, Function *Fn) const = 0;
+
+  /// Can \p CB reach \p Fn
+  virtual bool canReach(Attributor &A, CallBase &CB, Function *Fn) const = 0;
 
   /// Create an abstract attribute view for the position \p IRP.
   static AAFunctionReachability &createForPosition(const IRPosition &IRP,
