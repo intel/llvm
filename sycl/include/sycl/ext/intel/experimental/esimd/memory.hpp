@@ -736,10 +736,10 @@ ESIMD_INLINE ESIMD_NODEBUG
 /// SLM scatter4.
 template <typename T, int n, rgba_channel_mask Mask>
 __SYCL_DEPRECATED("use slm_scatter_rgba.")
-ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
-    (n == 8 || n == 16 || n == 32) && (sizeof(T) == 4),
-    void> slm_store4(simd<T, n * get_num_channels_enabled(Mask)> vals,
-                     simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
+ESIMD_INLINE ESIMD_NODEBUG std::
+    enable_if_t<(n == 8 || n == 16 || n == 32) && (sizeof(T) == 4)> slm_store4(
+        simd<T, n * get_num_channels_enabled(Mask)> vals,
+        simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
   slm_scatter_rgba<T, n, Mask>(vals, offsets, pred);
 }
 
