@@ -4341,6 +4341,7 @@ class OffloadingActionBuilder final {
       StringRef LibSuffix = isMSVCEnv ? ".obj" : ".o";
       SmallVector<DeviceLibOptInfo, 5> sycl_device_wrapper_libs = {
           {"libsycl-crt", "libc"},
+          {"libsycl-itt-user-wrappers", "libc"},
           {"libsycl-itt-compiler-wrappers", "libc"},
           {"libsycl-itt-stubs", "libc"},
           {"libsycl-complex", "libm-fp32"},
