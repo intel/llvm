@@ -556,9 +556,10 @@ private:
           unsigned Base = Loc.SpillLocation.SpillBase;
           auto *TRI = MF.getSubtarget().getRegisterInfo();
           if (MI.isNonListDebugValue()) {
-            DIExpr =
-                TRI->prependOffsetExpression(DIExpr, DIExpression::ApplyOffset,
-                                             Loc.SpillLocation.SpillOffset);
+            auto Deref = Indirect ? DIExpression::DerefAfter : 0;
+            DIExpr = TRI->prependOffsetExpression(
+                DIExpr, DIExpression::ApplyOffset | Deref,
+                Loc.SpillLocation.SpillOffset);
             Indirect = true;
           } else {
             SmallVector<uint64_t, 4> Ops;
@@ -626,7 +627,7 @@ private:
     /// add each of them to \p Regs and return true.
     bool getDescribingRegs(SmallVectorImpl<uint32_t> &Regs) const {
       bool AnyRegs = false;
-      for (auto Loc : Locs)
+      for (const auto &Loc : Locs)
         if (Loc.Kind == MachineLocKind::RegisterKind) {
           Regs.push_back(Loc.Value.RegNo);
           AnyRegs = true;

@@ -18,7 +18,15 @@ jobs:
        with:
          path: src
      - name: Install Ubuntu deps
-       run: sudo apt install -y ninja-build
+       run: sudo apt install -y ninja-build ccache
+     - name: Setup Cache
+       uses: actions/cache@v2
+       id: cache
+       with:
+         path: ${{ github.workspace }}/cache
+         key: build-${{ runner.os }}-${{ matrix.config }}-${{ github.sha }}
+         restore-keys: |
+           build-${{ runner.os }}-${{ matrix.config }}-
      - name: Configure
        run: |
          CONFIG=${{ matrix.config }}
@@ -42,7 +50,10 @@ jobs:
          mkdir -p $GITHUB_WORKSPACE/build
          cd $GITHUB_WORKSPACE/build
          python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
-         -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release --ci-defaults $ARGS
+         -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
+         --ci-defaults $ARGS --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
+         --cmake-opt="-DLLVM_CCACHE_DIR=$GITHUB_WORKSPACE/cache" \
+         --cmake-opt="-DLLVM_CCACHE_MAXSIZE=2G"
      - name: Compile
        run: |
          python3 $GITHUB_WORKSPACE/src/buildbot/compile.py -w  $GITHUB_WORKSPACE \

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Scalar/LoopBoundSplit.h"
+#include "llvm/ADT/Sequence.h"
 #include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -264,6 +265,15 @@ static BranchInst *findSplitCandidate(const Loop &L, ScalarEvolution &SE,
         SplitCandidateCond.BoundSCEV->getType())
       continue;
 
+    // After transformation, we assume the split condition of the pre-loop is
+    // always true. In order to guarantee it, we need to check the start value
+    // of the split cond AddRec satisfies the split condition.
+    const SCEV *SplitAddRecStartSCEV =
+        cast<SCEVAddRecExpr>(SplitCandidateCond.AddRecSCEV)->getStart();
+    if (!SE.isKnownPredicate(SplitCandidateCond.Pred, SplitAddRecStartSCEV,
+                             SplitCandidateCond.BoundSCEV))
+      continue;
+
     SplitCandidateCond.BI = BI;
     return BI;
   }
@@ -397,6 +407,20 @@ static bool splitLoopBound(Loop &L, DominatorTree &DT, LoopInfo &LI,
     ExitingCond.BI->setSuccessor(0, PostLoopPreHeader);
   else
     ExitingCond.BI->setSuccessor(1, PostLoopPreHeader);
+
+  // Update phi node in exit block of post-loop.
+  for (PHINode &PN : PostLoop->getExitBlock()->phis()) {
+    for (auto i : seq<int>(0, PN.getNumOperands())) {
+      // Check incoming block is pre-loop's exiting block.
+      if (PN.getIncomingBlock(i) == L.getExitingBlock()) {
+        // Replace pre-loop's exiting block by post-loop's preheader.
+        PN.setIncomingBlock(i, PostLoopPreHeader);
+        // Add a new incoming value with post-loop's exiting block.
+        PN.addIncoming(VMap[PN.getIncomingValue(i)],
+                       PostLoop->getExitingBlock());
+      }
+    }
+  }
 
   // Update dominator tree.
   DT.changeImmediateDominator(PostLoopPreHeader, L.getExitingBlock());
