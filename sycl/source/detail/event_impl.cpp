@@ -36,6 +36,10 @@ extern xpti::trace_event_data_t *GSYCLGraphEvent;
 bool event_impl::is_host() const { return MHostEvent || !MOpenCLInterop; }
 
 cl_event event_impl::get() const {
+  CreateRealImpl();
+  if (MRealImpl)
+    return MRealImpl->get();
+
   if (!MOpenCLInterop) {
     throw invalid_object_error(
         "This instance of event doesn't support OpenCL interoperability.",
@@ -187,11 +191,9 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 
 void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
-  if (MDoSubmitFunctor) {
-    std::function<EventImplPtr(bool)> EmptyFunctor;
-    EmptyFunctor.swap(MDoSubmitFunctor);
-    EventImplPtr EventImpl = EmptyFunctor(true);
-    EventImpl->wait(EventImpl);
+  CreateRealImpl();
+  if (MRealImpl) {
+    MRealImpl->wait(MRealImpl);
     return;
   }
 
@@ -218,6 +220,12 @@ void event_impl::wait(
 
 void event_impl::wait_and_throw(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) {
+  CreateRealImpl();
+  if (MRealImpl) {
+    MRealImpl->wait_and_throw(MRealImpl);
+    return;
+  }
+
   Command *Cmd = static_cast<Command *>(Self->getCommand());
   QueueImplPtr submittedQueue = nullptr;
   if (Cmd)
@@ -244,6 +252,12 @@ void event_impl::cleanupCommand(
 template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
+  CreateRealImpl();
+  if (MRealImpl) {
+    return MRealImpl
+        ->get_profiling_info<info::event_profiling::command_submit>();
+  }
+
   if (!MHostEvent) {
     if (MEvent)
       return get_event_profiling_info<
@@ -262,6 +276,12 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
 template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_start>() const {
+  CreateRealImpl();
+  if (MRealImpl) {
+    return MRealImpl
+        ->get_profiling_info<info::event_profiling::command_start>();
+  }
+
   if (!MHostEvent) {
     if (MEvent)
       return get_event_profiling_info<
@@ -280,6 +300,11 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() const {
 template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_end>() const {
+  CreateRealImpl();
+  if (MRealImpl) {
+    return MRealImpl->get_profiling_info<info::event_profiling::command_end>();
+  }
+
   if (!MHostEvent) {
     if (MEvent)
       return get_event_profiling_info<info::event_profiling::command_end>::get(
@@ -295,6 +320,11 @@ event_impl::get_profiling_info<info::event_profiling::command_end>() const {
 }
 
 template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
+  CreateRealImpl();
+  if (MRealImpl) {
+    return MRealImpl->get_info<info::event::reference_count>();
+  }
+
   if (!MHostEvent && MEvent) {
     return get_event_info<info::event::reference_count>::get(
         this->getHandleRef(), this->getPlugin());
@@ -305,6 +335,11 @@ template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
 template <>
 info::event_command_status
 event_impl::get_info<info::event::command_execution_status>() const {
+  CreateRealImpl();
+  if (MRealImpl) {
+    return MRealImpl->get_info<info::event::command_execution_status>();
+  }
+
   if (!MHostEvent && MEvent) {
     return get_event_info<info::event::command_execution_status>::get(
         this->getHandleRef(), this->getPlugin());
@@ -325,6 +360,10 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
 pi_native_handle event_impl::getNative() const {
+  CreateRealImpl();
+  if (MRealImpl)
+    return MRealImpl->getNative();
+
   auto Plugin = getPlugin();
   if (Plugin.getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piEventRetain>(getHandleRef());
