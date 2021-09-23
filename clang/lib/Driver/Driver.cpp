@@ -5649,13 +5649,18 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     // ignored since we are adding offload-static-libs as normal libraries to
     // the host link command.
     if (hasOffloadSections(C, LA, Args)) {
-      unbundleStaticLib(types::TY_Archive, LA);
       // Pass along the static libraries to check if we need to add them for
       // unbundling for FPGA AOT static lib usage.  Uses FPGA aoco type to
       // differentiate if aoco unbundling is needed.  Unbundling of aoco is not
       // needed for emulation, as these are treated as regular archives.
       if (!C.getDriver().isFPGAEmulationMode())
         unbundleStaticLib(types::TY_FPGA_AOCO, LA);
+      // Do not unbundle any AOCO archive as a regular archive when we are
+      // in FPGA Hardware/Simulation mode.
+      if (!C.getDriver().isFPGAEmulationMode() &&
+          hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCO))
+        continue;
+      unbundleStaticLib(types::TY_Archive, LA);
     }
   }
 
