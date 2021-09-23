@@ -60,3 +60,13 @@ bool test_esimd_dp4() __attribute__((sycl_device)) {
   return (ret[0] == ret[1] && ret[1] == ret[2] && ret[2] == ret[3]) &&
          (ret[0] == 14.0f && ret[4] == 126.0f);
 }
+
+bool test_esimd_trunc() __attribute__((sycl_device)) {
+  simd<float, 16> va(1.4f);
+  simd<float, 16> vr = esimd_trunc(va);
+
+  float sa = 2.8f;
+  float sr = esimd_trunc(sa);
+
+  return (vr[0] == 1.f) && (sr == 2.f);
+}
