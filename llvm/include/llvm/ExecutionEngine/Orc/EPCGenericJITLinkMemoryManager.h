@@ -27,7 +27,8 @@ namespace orc {
 class EPCGenericJITLinkMemoryManager : public jitlink::JITLinkMemoryManager {
 public:
   /// Function addresses for memory access.
-  struct FuncAddrs {
+  struct SymbolAddrs {
+    ExecutorAddress Allocator;
     ExecutorAddress Reserve;
     ExecutorAddress Finalize;
     ExecutorAddress Deallocate;
@@ -35,13 +36,8 @@ public:
 
   /// Create an EPCGenericJITLinkMemoryManager instance from a given set of
   /// function addrs.
-  EPCGenericJITLinkMemoryManager(ExecutorProcessControl &EPC, FuncAddrs FAs)
-      : EPC(EPC), FAs(FAs) {}
-
-  /// Create using the standard memory access function names from the ORC
-  /// runtime.
-  static Expected<std::unique_ptr<EPCGenericJITLinkMemoryManager>>
-  CreateUsingOrcRTFuncs(ExecutionSession &ES, JITDylib &OrcRuntimeJD);
+  EPCGenericJITLinkMemoryManager(ExecutorProcessControl &EPC, SymbolAddrs SAs)
+      : EPC(EPC), SAs(SAs) {}
 
   Expected<std::unique_ptr<Allocation>>
   allocate(const jitlink::JITLinkDylib *JD,
@@ -51,7 +47,7 @@ private:
   class Alloc;
 
   ExecutorProcessControl &EPC;
-  FuncAddrs FAs;
+  SymbolAddrs SAs;
 };
 
 } // end namespace orc

@@ -122,6 +122,24 @@ static SPIRVMemoryModelKind getMemoryModel(Module &M) {
   return SPIRVMemoryModelKind::MemoryModelMax;
 }
 
+static void translateSEVDecoration(Attribute Sev, SPIRVValue *Val) {
+  assert(Sev.isStringAttribute() &&
+         Sev.getKindAsString() == kVCMetadata::VCSingleElementVector);
+
+  auto *Ty = Val->getType();
+  assert((Ty->isTypeBool() || Ty->isTypeFloat() || Ty->isTypeInt() ||
+          Ty->isTypePointer()) &&
+         "This decoration is valid only for Scalar or Pointer types");
+
+  if (Ty->isTypePointer()) {
+    SPIRVWord IndirectLevelsOnElement = 0;
+    Sev.getValueAsString().getAsInteger(0, IndirectLevelsOnElement);
+    Val->addDecorate(DecorationSingleElementVectorINTEL,
+                     IndirectLevelsOnElement);
+  } else
+    Val->addDecorate(DecorationSingleElementVectorINTEL);
+}
+
 LLVMToSPIRVBase::LLVMToSPIRVBase(SPIRVModule *SMod)
     : M(nullptr), Ctx(nullptr), BM(SMod), SrcLang(0), SrcLangVer(0) {
   DbgTran = std::make_unique<LLVMToSPIRVDbgTran>(nullptr, SMod, this);
@@ -725,14 +743,11 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
     BF->addDecorate(DecorationSIMTCallINTEL, SIMTMode);
   }
 
-  if (Attrs.hasRetAttr(kVCMetadata::VCSingleElementVector)) {
-    auto *RT = BF->getType();
-    (void)RT;
-    assert((RT->isTypeBool() || RT->isTypeFloat() || RT->isTypeInt() ||
-            RT->isTypePointer()) &&
-           "This decoration is valid only for Scalar or Pointer types");
-    BF->addDecorate(DecorationSingleElementVectorINTEL);
-  }
+  if (Attrs.hasRetAttr(kVCMetadata::VCSingleElementVector))
+    translateSEVDecoration(
+        Attrs.getAttributeAtIndex(AttributeList::ReturnIndex,
+                                  kVCMetadata::VCSingleElementVector),
+        BF);
 
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
@@ -745,14 +760,9 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
           .getAsInteger(0, Kind);
       BA->addDecorate(DecorationFuncParamIOKindINTEL, Kind);
     }
-    if (Attrs.hasParamAttr(ArgNo, kVCMetadata::VCSingleElementVector)) {
-      auto *AT = BA->getType();
-      (void)AT;
-      assert((AT->isTypeBool() || AT->isTypeFloat() || AT->isTypeInt() ||
-              AT->isTypePointer()) &&
-             "This decoration is valid only for Scalar or Pointer types");
-      BA->addDecorate(DecorationSingleElementVectorINTEL);
-    }
+    if (Attrs.hasParamAttr(ArgNo, kVCMetadata::VCSingleElementVector))
+      translateSEVDecoration(
+          Attrs.getParamAttr(ArgNo, kVCMetadata::VCSingleElementVector), BA);
     if (Attrs.hasParamAttr(ArgNo, kVCMetadata::VCArgumentKind)) {
       SPIRVWord Kind;
       Attrs.getParamAttr(ArgNo, kVCMetadata::VCArgumentKind)
@@ -1534,6 +1544,10 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       }
       if (GV->hasAttribute(kVCMetadata::VCVolatile))
         BVar->addDecorate(DecorationVolatile);
+
+      if (GV->hasAttribute(kVCMetadata::VCSingleElementVector))
+        translateSEVDecoration(
+            GV->getAttribute(kVCMetadata::VCSingleElementVector), BVar);
     }
 
     mapValue(V, BVar);
@@ -2328,6 +2342,11 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
   RegexIterT DecorationsIt(AnnotatedCode.begin(), AnnotatedCode.end(),
                            DecorationRegex);
   RegexIterT DecorationsEnd;
+  // If we didn't find any FPGA specific annotations then add a UserSemantic
+  // decoration
+  if (DecorationsIt == DecorationsEnd)
+    Decorates.MemoryAttributesVec.emplace_back(DecorationUserSemantic,
+                                               AnnotatedCode.str());
   for (; DecorationsIt != DecorationsEnd; ++DecorationsIt) {
     // Drop the braces surrounding the actual decoration
     const StringRef AnnotatedDecoration = AnnotatedCode.substr(
@@ -2375,7 +2394,7 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
                   .Case("force_pow2_depth", DecorationForcePow2DepthINTEL)
                   .Default(DecorationUserSemantic);
         if (Dec == DecorationUserSemantic)
-          Annotation = AnnotatedDecoration;
+          Annotation = AnnotatedCode;
         else
           Annotation = ValueStr;
       }
@@ -4128,19 +4147,27 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // Literal S Literal I Literal rI Literal Q Literal O
 
     Type *ResTy = CI->getType();
-    SPIRVValue *Input =
-        transValue(CI->getOperand(0) /* A - integer input of any width */, BB);
 
-    std::vector<Value *> Operands = {
-        CI->getOperand(1) /* S - bool value, indicator of signedness */,
-        CI->getOperand(2) /* I - location of the fixed-point of the input */,
-        CI->getOperand(3) /* rI - location of the fixed-point of the result*/,
-        CI->getOperand(4) /* Quantization mode */,
-        CI->getOperand(5) /* Overflow mode */};
-    std::vector<SPIRVWord> Literals;
-    for (auto *O : Operands) {
-      Literals.push_back(cast<llvm::ConstantInt>(O)->getZExtValue());
+    auto OpItr = CI->value_op_begin();
+    auto OpEnd = OpItr + CI->getNumArgOperands();
+
+    // If the return type of an instruction is wider than 64-bit, then this
+    // instruction will return via 'sret' argument added into the arguments
+    // list. Here we reverse this, removing 'sret' argument and restoring
+    // the original return type.
+    if (CI->hasStructRetAttr()) {
+      assert(ResTy->isVoidTy() && "Return type is not void");
+      ResTy = cast<PointerType>(OpItr->getType())->getElementType();
+      OpItr++;
     }
+
+    SPIRVValue *Input =
+        transValue(*OpItr++ /* A - integer input of any width */, BB);
+
+    std::vector<SPIRVWord> Literals;
+    std::transform(OpItr, OpEnd, std::back_inserter(Literals), [](auto *O) {
+      return cast<llvm::ConstantInt>(O)->getZExtValue();
+    });
 
     return BM->addFixedPointIntelInst(OC, transType(ResTy), Input, Literals,
                                       BB);
@@ -4208,6 +4235,16 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     auto OpItr = CI->value_op_begin();
     auto OpEnd = OpItr + CI->getNumArgOperands();
 
+    // If the return type of an instruction is wider than 64-bit, then this
+    // instruction will return via 'sret' argument added into the arguments
+    // list. Here we reverse this, removing 'sret' argument and restoring
+    // the original return type.
+    if (CI->hasStructRetAttr()) {
+      assert(ResTy->isVoidTy() && "Return type is not void");
+      ResTy = cast<PointerType>(OpItr->getType())->getElementType();
+      OpItr++;
+    }
+
     SPIRVValue *InA = transValue(*OpItr++ /* A - input */, BB);
 
     std::vector<SPIRVWord> Literals;
@@ -4265,6 +4302,16 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
 
     auto OpItr = CI->value_op_begin();
     auto OpEnd = OpItr + CI->getNumArgOperands();
+
+    // If the return type of an instruction is wider than 64-bit, then this
+    // instruction will return via 'sret' argument added into the arguments
+    // list. Here we reverse this, removing 'sret' argument and restoring
+    // the original return type.
+    if (CI->hasStructRetAttr()) {
+      assert(ResTy->isVoidTy() && "Return type is not void");
+      ResTy = cast<PointerType>(OpItr->getType())->getElementType();
+      OpItr++;
+    }
 
     SPIRVValue *InA = transValue(*OpItr++ /* A - input */, BB);
 

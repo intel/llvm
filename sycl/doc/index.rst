@@ -39,4 +39,5 @@ Developing oneAPI DPC++ Compiler
    MultiTileCardWithLevelZero
    OptionalDeviceFeatures
    SYCLInstrumentationUsingXPTI
+   ITTAnnotations
 
