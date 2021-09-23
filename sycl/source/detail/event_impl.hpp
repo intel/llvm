@@ -200,6 +200,14 @@ private:
   void instrumentationEpilog(void *TelementryEvent, const std::string &Name,
                              int32_t StreamID, uint64_t IId) const;
 
+  void CreateRealImpl() const {
+    if (MDoSubmitFunctor) {
+      std::function<EventImplPtr(bool)> EmptyFunctor;
+      EmptyFunctor.swap(MDoSubmitFunctor);
+      MRealImpl = EmptyFunctor(true);
+    }
+  }
+
   RT::PiEvent MEvent = nullptr;
   ContextImplPtr MContext;
   bool MOpenCLInterop = false;
@@ -216,6 +224,7 @@ private:
 
   mutable std::function<EventImplPtr(bool)> MDoSubmitFunctor;
   size_t FunctorCallsCount = 0;
+  mutable EventImplPtr MRealImpl = nullptr;
 };
 
 } // namespace detail
