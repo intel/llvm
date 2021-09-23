@@ -121,12 +121,15 @@
 #endif // compiler switch
 #endif // __SYCL_UNROLL
 
-#if !defined(SYCL_DISABLE_CPP_VERSION_CHECK_MESSAGE) && __cplusplus < 201703L
+#if !defined(SYCL_DISABLE_CPP_VERSION_CHECK_WARNING) && __cplusplus < 201703L
 
 #if defined(_MSC_VER) && !defined(__clang__)
 __SYCL_WARNING("DPCPP does not support C++ version earlier than C++17. Some "
                "features might not be available.")
 #else
+// This is the only way to emit a warning from system headers using clang, it
+// cannot be wrapped by a macro(__pragma warning doesn't work in system
+// headers). The solution is borrowed from libcxx.
 #warning: DPCPP does not support C++ version earlier than C++17. Some features might not be available.
 #endif
 

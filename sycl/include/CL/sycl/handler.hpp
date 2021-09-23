@@ -1028,8 +1028,7 @@ private:
   // Wrappers for kernel_single_task(...)
 
   template <typename KernelName, typename KernelType>
-  detail::enable_if_t<
-      detail::KernelLambdaHasKernelHandlerArgT<KernelType>::value>
+  std::enable_if_t<detail::KernelLambdaHasKernelHandlerArgT<KernelType>::value>
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_single_task_wrapper(KernelType KernelFunc) {
 #else
@@ -1043,8 +1042,7 @@ private:
   }
 
   template <typename KernelName, typename KernelType>
-  detail::enable_if_t<
-      !detail::KernelLambdaHasKernelHandlerArgT<KernelType>::value>
+  std::enable_if_t<!detail::KernelLambdaHasKernelHandlerArgT<KernelType>::value>
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_single_task_wrapper(KernelType KernelFunc) {
 #else
@@ -1059,7 +1057,7 @@ private:
   // Wrappers for kernel_parallel_for(...)
 
   template <typename KernelName, typename ElementType, typename KernelType>
-  detail::enable_if_t<
+  std::enable_if_t<
       detail::KernelLambdaHasKernelHandlerArgT<KernelType, ElementType>::value>
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for_wrapper(KernelType KernelFunc) {
@@ -1074,7 +1072,7 @@ private:
   }
 
   template <typename KernelName, typename ElementType, typename KernelType>
-  detail::enable_if_t<
+  std::enable_if_t<
       !detail::KernelLambdaHasKernelHandlerArgT<KernelType, ElementType>::value>
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for_wrapper(KernelType KernelFunc) {
@@ -1090,7 +1088,7 @@ private:
   // Wrappers for kernel_parallel_for_work_group(...)
 
   template <typename KernelName, typename ElementType, typename KernelType>
-  detail::enable_if_t<
+  std::enable_if_t<
       detail::KernelLambdaHasKernelHandlerArgT<KernelType, ElementType>::value>
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for_work_group_wrapper(KernelType KernelFunc) {
@@ -1105,7 +1103,7 @@ private:
   }
 
   template <typename KernelName, typename ElementType, typename KernelType>
-  detail::enable_if_t<
+  std::enable_if_t<
       !detail::KernelLambdaHasKernelHandlerArgT<KernelType, ElementType>::value>
 #ifdef __SYCL_NONCONST_FUNCTOR__
   kernel_parallel_for_work_group_wrapper(KernelType KernelFunc) {
@@ -2518,7 +2516,7 @@ private:
 
   template <typename WrapperT, typename TransformedArgType, int Dims,
             typename KernelType,
-            detail::enable_if_t<detail::KernelLambdaHasKernelHandlerArgT<
+            std::enable_if_t<detail::KernelLambdaHasKernelHandlerArgT<
                 KernelType, TransformedArgType>::value> * = nullptr>
   auto getRangeRoundedKernelLambda(KernelType KernelFunc,
                                    range<Dims> NumWorkItems) {
@@ -2529,7 +2527,7 @@ private:
 
   template <typename WrapperT, typename TransformedArgType, int Dims,
             typename KernelType,
-            detail::enable_if_t<!detail::KernelLambdaHasKernelHandlerArgT<
+            std::enable_if_t<!detail::KernelLambdaHasKernelHandlerArgT<
                 KernelType, TransformedArgType>::value> * = nullptr>
   auto getRangeRoundedKernelLambda(KernelType KernelFunc,
                                    range<Dims> NumWorkItems) {
