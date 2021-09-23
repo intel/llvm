@@ -82,12 +82,11 @@ public:
   }
 
   range<dimensions> get_group_range() const {
-    return Group.get_global_range() / Group.get_local_range();
+    return Group.get_group_range();
   }
 
   size_t __SYCL_ALWAYS_INLINE get_group_range(int dimension) const {
-    size_t Range =
-        Group.get_global_range(dimension) / Group.get_local_range(dimension);
+    size_t Range = Group.get_group_range(dimension);
     __SYCL_ASSUME_INT(Range);
     return Range;
   }
