@@ -74,12 +74,17 @@ set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/lib/${CMAKE_BUILD_TYPE})
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
-if (LLVM_BINARY_DIR)
-  file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/include/xpti
-       DESTINATION ${LLVM_BINARY_DIR}/include)
-endif()
-
 add_subdirectory(src)
+
+if (LLVM_BINARY_DIR)
+  add_custom_target(xpti-headers ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/xpti
+      ${LLVM_BINARY_DIR}/include/xpti
+    COMMENT "Copying XPTI headers..."
+  )
+  add_dependencies(xpti xpti-headers)
+endif()
 
 include(GNUInstallDirs)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/xpti
