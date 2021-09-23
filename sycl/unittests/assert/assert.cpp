@@ -293,11 +293,12 @@ void ChildProcess(int StdErrFD) {
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
   auto ExecBundle = sycl::build(KernelBundle);
   printf("Child process launching kernel\n");
-  sycl::event event;
-  event = Queue.submit([&](sycl::handler &H) {
-    H.use_kernel_bundle(ExecBundle);
-    H.single_task<TestKernel>([] {});
-  });
+  Queue
+      .submit([&](sycl::handler &H) {
+        H.use_kernel_bundle(ExecBundle);
+        H.single_task<TestKernel>([] {});
+      })
+      .wait();
   printf("Child process waiting on the queue\n");
   Queue.wait();
   printf("Child process done waiting on the queue. That's unexpected\n");
