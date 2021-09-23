@@ -592,7 +592,7 @@ public:
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 3>>
   range<3> get_range() const {
     cl_int3 Range = getRangeInternal();
-    return range<3>(Range[0], Range[1], Range[3]);
+    return range<3>(Range[0], Range[1], Range[2]);
   }
 
 #else
