@@ -271,9 +271,9 @@ protected:
 
   constexpr static bool IsHostBuf = AccessTarget == access::target::host_buffer;
 
-  // TODO: SYCL 2020 replaces the four target enum values with 2 (device and
-  // host_task).
-  // sort this out
+  // TODO: SYCL 2020 deprecates four of the target enum values
+  // and replaces them with 2 (device and host_task). May want
+  // to change these constexpr.
   constexpr static bool IsGlobalBuf =
       AccessTarget == access::target::global_buffer;
 
