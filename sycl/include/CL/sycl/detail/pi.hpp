@@ -369,6 +369,7 @@ public:
     return AssertUsed;
   }
   const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
+  const PropertyRange &getExportedSymbols() const { return ExportedSymbols; }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -381,6 +382,7 @@ protected:
   DeviceBinaryImage::PropertyRange DeviceLibReqMask;
   DeviceBinaryImage::PropertyRange KernelParamOptInfo;
   DeviceBinaryImage::PropertyRange ProgramMetadata;
+  DeviceBinaryImage::PropertyRange ExportedSymbols;
 };
 
 /// Tries to determine the device binary image foramat. Returns
