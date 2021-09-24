@@ -156,7 +156,14 @@ public:
   /// otherwise.
   bool containsPoint(ArrayRef<int64_t> point) const;
 
-  /// Clones this object.
+  /// Find pairs of inequalities identified by their position indices, using
+  /// which an explicit representation for each local variable can be computed
+  /// The pairs are stored as indices of upperbound, lowerbound
+  /// inequalities. If no such pair can be found, it is stored as llvm::None.
+  void getLocalReprLbUbPairs(
+      std::vector<llvm::Optional<std::pair<unsigned, unsigned>>> &repr) const;
+
+  // Clones this object.
   std::unique_ptr<FlatAffineConstraints> clone() const;
 
   /// Returns the value at the specified equality row and column.
@@ -243,19 +250,23 @@ public:
   /// Swap the posA^th identifier with the posB^th identifier.
   virtual void swapId(unsigned posA, unsigned posB);
 
-  /// Add identifiers of the specified kind - specified positions are relative
-  /// to the kind of identifier. The coefficient column corresponding to the
-  /// added identifier is initialized to zero.
-  void addDimId(unsigned pos);
-  void addSymbolId(unsigned pos);
-  void addLocalId(unsigned pos);
-  virtual unsigned addId(IdKind kind, unsigned pos);
-  /// Add identifiers of the specified kind at the end of the table. Return the
-  /// position of the column. The coefficient column corresponding to the
-  /// added identifier is initialized to zero.
-  unsigned addDimId();
-  unsigned addSymbolId();
-  unsigned addLocalId();
+  /// Insert `num` identifiers of the specified kind at position `pos`.
+  /// Positions are relative to the kind of identifier. The coefficient columns
+  /// corresponding to the added identifiers are initialized to zero. Return the
+  /// absolute column position (i.e., not relative to the kind of identifier)
+  /// of the first added identifier.
+  unsigned insertDimId(unsigned pos, unsigned num = 1);
+  unsigned insertSymbolId(unsigned pos, unsigned num = 1);
+  unsigned insertLocalId(unsigned pos, unsigned num = 1);
+  virtual unsigned insertId(IdKind kind, unsigned pos, unsigned num = 1);
+
+  /// Append `num` identifiers of the specified kind after the last identifier.
+  /// of that kind. Return the position of the first appended column. The
+  /// coefficient columns corresponding to the added identifiers are initialized
+  /// to zero.
+  unsigned appendDimId(unsigned num = 1);
+  unsigned appendSymbolId(unsigned num = 1);
+  unsigned appendLocalId(unsigned num = 1);
 
   /// Composes an affine map whose dimensions and symbols match one to one with
   /// the dimensions and symbols of this FlatAffineConstraints. The results of
@@ -271,11 +282,21 @@ public:
   void projectOut(unsigned pos, unsigned num);
   inline void projectOut(unsigned pos) { return projectOut(pos, 1); }
 
+  /// Removes identifiers of the specified kind with the specified pos (or
+  /// within the specified range) from the system. The specified location is
+  /// relative to the first identifier of the specified kind.
+  void removeId(IdKind kind, unsigned pos);
+  void removeIdRange(IdKind kind, unsigned idStart, unsigned idLimit);
+
   /// Removes the specified identifier from the system.
   void removeId(unsigned pos);
 
   void removeEquality(unsigned pos);
   void removeInequality(unsigned pos);
+
+  /// Remove the (in)equalities at positions [start, end).
+  void removeEqualityRange(unsigned start, unsigned end);
+  void removeInequalityRange(unsigned start, unsigned end);
 
   /// Sets the `values.size()` identifiers starting at `po`s to the specified
   /// values and removes them.
@@ -412,6 +433,12 @@ public:
   void dump() const;
 
 protected:
+  /// Return the index at which the specified kind of id starts.
+  unsigned getIdKindOffset(IdKind kind) const;
+
+  /// Assert that `value` is at most the number of ids of the specified kind.
+  void assertAtMostNumIdKind(unsigned value, IdKind kind) const;
+
   /// Returns false if the fields corresponding to various identifier counts, or
   /// equality/inequality buffer sizes aren't consistent; true otherwise. This
   /// is meant to be used within an assert internally.
@@ -655,22 +682,31 @@ public:
   /// Swap the posA^th identifier with the posB^th identifier.
   void swapId(unsigned posA, unsigned posB) override;
 
-  /// Add identifiers of the specified kind - specified positions are relative
-  /// to the kind of identifier. The coefficient column corresponding to the
-  /// added identifier is initialized to zero. `val` is the Value corresponding
-  /// to the identifier that can optionally be provided.
-  void addDimId(unsigned pos, Value val);
-  using FlatAffineConstraints::addDimId;
-  void addSymbolId(unsigned pos, Value val);
-  using FlatAffineConstraints::addSymbolId;
-  unsigned addId(IdKind kind, unsigned pos) override;
-  unsigned addId(IdKind kind, unsigned pos, Value val);
-  /// Add identifiers of the specified kind at the end of the table. Return the
-  /// position of the column. The coefficient column corresponding to the
-  /// added identifier is initialized to zero. `val` is the Value corresponding
-  /// to the identifier that can optionally be provided.
-  unsigned addDimId(Value val);
-  unsigned addSymbolId(Value val);
+  /// Insert identifiers of the specified kind at position `pos`. Positions are
+  /// relative to the kind of identifier. The coefficient columns corresponding
+  /// to the added identifiers are initialized to zero. `vals` are the Values
+  /// corresponding to the identifiers. Return the absolute column position
+  /// (i.e., not relative to the kind of identifier) of the first added
+  /// identifier.
+  ///
+  /// Note: Empty Values are allowed in `vals`.
+  unsigned insertDimId(unsigned pos, ValueRange vals);
+  using FlatAffineConstraints::insertDimId;
+  unsigned insertSymbolId(unsigned pos, ValueRange vals);
+  using FlatAffineConstraints::insertSymbolId;
+  unsigned insertId(IdKind kind, unsigned pos, unsigned num = 1) override;
+  unsigned insertId(IdKind kind, unsigned pos, ValueRange vals);
+
+  /// Append identifiers of the specified kind after the last identifier of that
+  /// kind. The coefficient columns corresponding to the added identifiers are
+  /// initialized to zero. `vals` are the Values corresponding to the
+  /// identifiers. Return the position of the first added column.
+  ///
+  /// Note: Empty Values are allowed in `vals`.
+  unsigned appendDimId(ValueRange vals);
+  using FlatAffineConstraints::appendDimId;
+  unsigned appendSymbolId(ValueRange vals);
+  using FlatAffineConstraints::appendSymbolId;
 
   /// Add the specified values as a dim or symbol id depending on its nature, if
   /// it already doesn't exist in the system. `val` has to be either a terminal
@@ -731,9 +767,9 @@ public:
   /// by any of `other`'s identifiers that didn't appear in `this`. Local
   /// identifiers of each system are by design separate/local and are placed
   /// one after other (`this`'s followed by `other`'s).
-  //  Eg: Input: `this`  has (%i %j) [%M %N]
-  //             `other` has (%k, %j) [%P, %N, %M]
-  //      Output: both `this`, `other` have (%i, %j, %k) [%M, %N, %P]
+  //  E.g.: Input: `this`  has (%i, %j) [%M, %N]
+  //               `other` has (%k, %j) [%P, %N, %M]
+  //        Output: both `this`, `other` have (%i, %j, %k) [%M, %N, %P]
   //
   void mergeAndAlignIdsWithOther(unsigned offset,
                                  FlatAffineValueConstraints *other);

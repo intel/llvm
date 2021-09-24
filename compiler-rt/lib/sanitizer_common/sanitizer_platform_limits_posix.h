@@ -715,6 +715,13 @@ struct __sanitizer_protoent {
   int p_proto;
 };
 
+struct __sanitizer_netent {
+  char *n_name;
+  char **n_aliases;
+  int n_addrtype;
+  u32 n_net;
+};
+
 struct __sanitizer_addrinfo {
   int ai_flags;
   int ai_family;
@@ -775,6 +782,10 @@ extern int glob_altdirfunc;
 #endif  // !SANITIZER_ANDROID
 
 extern unsigned path_max;
+
+#  if !SANITIZER_ANDROID
+extern const int wordexp_wrde_dooffs;
+#  endif  // !SANITIZER_ANDROID
 
 struct __sanitizer_wordexp_t {
   uptr we_wordc;

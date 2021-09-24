@@ -310,7 +310,23 @@ enabled sub-projects. Nearly all of these variable names begin with
 **LLVM_BUILD_INSTRUMENTED_COVERAGE**:BOOL
   If enabled, `source-based code coverage
   <https://clang.llvm.org/docs/SourceBasedCodeCoverage.html>`_ instrumentation
-  is enabled while building llvm.
+  is enabled while building llvm. If CMake can locate the code coverage
+  scripts and the llvm-cov and llvm-profdata tools that pair to your compiler,
+  the build will also generate the `generate-coverage-report` target to generate
+  the code coverage report for LLVM, and the `clear-profile-data` utility target
+  to delete captured profile data. See documentation for
+  *LLVM_CODE_COVERAGE_TARGETS* and *LLVM_COVERAGE_SOURCE_DIRS* for more
+  information on configuring code coverage reports.
+
+**LLVM_CODE_COVERAGE_TARGETS**:STRING
+  If set to a semicolon separated list of targets, those targets will be used
+  to drive the code coverage reports. If unset, the target list will be
+  constructed using the LLVM build's CMake export list.
+
+**LLVM_COVERAGE_SOURCE_DIRS**:STRING
+  If set to a semicolon separated list of directories, the coverage reports
+  will limit code coverage summaries to just the listed directories. If unset,
+  coverage reports will include all sources identified by the tooling.
 
 **LLVM_BUILD_LLVM_DYLIB**:BOOL
   If enabled, the target for building the libLLVM shared library is added.
@@ -323,12 +339,12 @@ enabled sub-projects. Nearly all of these variable names begin with
   This option is not available on Windows.
 
 **LLVM_BUILD_TESTS**:BOOL
-  Build LLVM unit tests. Defaults to OFF. Targets for building each unit test
-  are generated in any case. You can build a specific unit test using the
-  targets defined under *unittests*, such as ADTTests, IRTests, SupportTests,
-  etc. (Search for ``add_llvm_unittest`` in the subdirectories of *unittests*
-  for a complete list of unit tests.) It is possible to build all unit tests
-  with the target *UnitTests*.
+  Include LLVM unit tests in the 'all' build target. Defaults to OFF. Targets
+  for building each unit test are generated in any case. You can build a
+  specific unit test using the targets defined under *unittests*, such as
+  ADTTests, IRTests, SupportTests, etc. (Search for ``add_llvm_unittest`` in
+  the subdirectories of *unittests* for a complete list of unit tests.) It is
+  possible to build all unit tests with the target *UnitTests*.
 
 **LLVM_BUILD_TOOLS**:BOOL
   Build LLVM tools. Defaults to ON. Targets for building each tool are generated
@@ -476,6 +492,18 @@ enabled sub-projects. Nearly all of these variable names begin with
   using the same source checkout.
   The full list is:
   ``clang;clang-tools-extra;compiler-rt;cross-project-tests;libc;libclc;libcxx;libcxxabi;libunwind;lld;lldb;openmp;parallel-libs;polly;pstl``
+
+**LLVM_ENABLE_RUNTIMES**:STRING
+  Build libc++, libc++abi or other projects using that a just-built compiler.
+  This is the correct way to build libc++ when putting together a toolchain.
+  It will build the builtins separately from the other runtimes to preserve
+  correct dependency ordering.
+  Note: the list should not have duplicates with `LLVM_ENABLE_PROJECTS`.
+  The full list is:
+  ``compiler-rt;libc;libcxx;libcxxabi;libunwind;openmp``
+  To enable all of them, use:
+  ``LLVM_ENABLE_RUNTIMES=all``
+
 
 **LLVM_ENABLE_RTTI**:BOOL
   Build LLVM with run-time type information. Defaults to OFF.

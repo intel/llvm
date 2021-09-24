@@ -8,12 +8,12 @@
 using namespace sycl::ext::intel::experimental::esimd;
 
 bool test_esimd_mask() __attribute__((sycl_device)) {
-  simd<ushort, 16> a(0);
+  simd_mask<16> a(0);
   a.select<4, 1>(4) = 1;
   a.select<4, 1>(12) = 1;
   unsigned int b = esimd_pack_mask(a);
 
-  simd<ushort, 16> c = esimd_unpack_mask<16>(b);
+  simd_mask<16> c = esimd_unpack_mask<16>(b);
 
   unsigned int d = esimd_pack_mask(c);
 

@@ -15,6 +15,7 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/Location.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Verifier.h"
@@ -129,6 +130,23 @@ MlirLocation mlirLocationFileLineColGet(MlirContext context,
 
 MlirLocation mlirLocationCallSiteGet(MlirLocation callee, MlirLocation caller) {
   return wrap(Location(CallSiteLoc::get(unwrap(callee), unwrap(caller))));
+}
+
+MlirLocation mlirLocationFusedGet(MlirContext ctx, intptr_t nLocations,
+                                  MlirLocation const *locations,
+                                  MlirAttribute metadata) {
+  SmallVector<Location, 4> locs;
+  ArrayRef<Location> unwrappedLocs = unwrapList(nLocations, locations, locs);
+  return wrap(FusedLoc::get(unwrappedLocs, unwrap(metadata), unwrap(ctx)));
+}
+
+MlirLocation mlirLocationNameGet(MlirContext context, MlirStringRef name,
+                                 MlirLocation childLoc) {
+  if (mlirLocationIsNull(childLoc))
+    return wrap(
+        Location(NameLoc::get(Identifier::get(unwrap(name), unwrap(context)))));
+  return wrap(Location(NameLoc::get(
+      Identifier::get(unwrap(name), unwrap(context)), unwrap(childLoc))));
 }
 
 MlirLocation mlirLocationUnknownGet(MlirContext context) {
@@ -427,6 +445,10 @@ bool mlirOperationVerify(MlirOperation op) {
 
 MlirRegion mlirRegionCreate() { return wrap(new Region); }
 
+bool mlirRegionEqual(MlirRegion region, MlirRegion other) {
+  return unwrap(region) == unwrap(other);
+}
+
 MlirBlock mlirRegionGetFirstBlock(MlirRegion region) {
   Region *cppRegion = unwrap(region);
   if (cppRegion->empty())
@@ -490,6 +512,10 @@ bool mlirBlockEqual(MlirBlock block, MlirBlock other) {
 
 MlirOperation mlirBlockGetParentOperation(MlirBlock block) {
   return wrap(unwrap(block)->getParentOp());
+}
+
+MlirRegion mlirBlockGetParentRegion(MlirBlock block) {
+  return wrap(unwrap(block)->getParent());
 }
 
 MlirBlock mlirBlockGetNextInRegion(MlirBlock block) {

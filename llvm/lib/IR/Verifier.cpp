@@ -461,6 +461,8 @@ private:
   void visitDereferenceableMetadata(Instruction &I, MDNode *MD);
   void visitProfMetadata(Instruction &I, MDNode *MD);
   void visitAnnotationMetadata(MDNode *Annotation);
+  void visitAliasScopeMetadata(const MDNode *MD);
+  void visitAliasScopeListMetadata(const MDNode *MD);
 
   template <class Ty> bool isValidMetadataArray(const MDTuple &N);
 #define HANDLE_SPECIALIZED_MDNODE_LEAF(CLASS) void visit##CLASS(const CLASS &N);
@@ -568,6 +570,9 @@ private:
   /// Module-level verification that all @llvm.experimental.deoptimize
   /// declarations share the same calling convention.
   void verifyDeoptimizeCallingConvs();
+
+  void verifyAttachedCallBundle(const CallBase &Call,
+                                const OperandBundleUse &BU);
 
   /// Verify all-or-nothing property of DIFile source attribute within a CU.
   void verifySourceDebugInfo(const DICompileUnit &U, const DIFile &F);
@@ -2521,7 +2526,8 @@ void Verifier::visitFunction(const Function &F) {
   // uses.
   if (F.isIntrinsic() && F.getParent()->isMaterialized()) {
     const User *U;
-    if (F.hasAddressTaken(&U))
+    if (F.hasAddressTaken(&U, false, true, false,
+                          /*IgnoreARCAttachedCall=*/true))
       Assert(false, "Invalid user of intrinsic instruction!", U);
   }
 
@@ -3264,16 +3270,9 @@ void Verifier::visitCallBase(CallBase &Call) {
       Assert(!FoundAttachedCallBundle,
              "Multiple \"clang.arc.attachedcall\" operand bundles", Call);
       FoundAttachedCallBundle = true;
+      verifyAttachedCallBundle(Call, BU);
     }
   }
-
-  if (FoundAttachedCallBundle)
-    Assert((FTy->getReturnType()->isPointerTy() ||
-            (Call.doesNotReturn() && FTy->getReturnType()->isVoidTy())),
-           "a call with operand bundle \"clang.arc.attachedcall\" must call a "
-           "function returning a pointer or a non-returning function that has "
-           "a void return type",
-           Call);
 
   // Verify that each inlinable callsite of a debug-info-bearing function in a
   // debug-info-bearing function has a debug location attached to it. Failure to
@@ -4346,6 +4345,38 @@ void Verifier::visitAnnotationMetadata(MDNode *Annotation) {
     Assert(isa<MDString>(Op.get()), "operands must be strings");
 }
 
+void Verifier::visitAliasScopeMetadata(const MDNode *MD) {
+  unsigned NumOps = MD->getNumOperands();
+  Assert(NumOps >= 2 && NumOps <= 3, "scope must have two or three operands",
+         MD);
+  Assert(MD->getOperand(0).get() == MD || isa<MDString>(MD->getOperand(0)),
+         "first scope operand must be self-referential or string", MD);
+  if (NumOps == 3)
+    Assert(isa<MDString>(MD->getOperand(2)),
+           "third scope operand must be string (if used)", MD);
+
+  MDNode *Domain = dyn_cast<MDNode>(MD->getOperand(1));
+  Assert(Domain != nullptr, "second scope operand must be MDNode", MD);
+
+  unsigned NumDomainOps = Domain->getNumOperands();
+  Assert(NumDomainOps >= 1 && NumDomainOps <= 2,
+         "domain must have one or two operands", Domain);
+  Assert(Domain->getOperand(0).get() == Domain ||
+             isa<MDString>(Domain->getOperand(0)),
+         "first domain operand must be self-referential or string", Domain);
+  if (NumDomainOps == 2)
+    Assert(isa<MDString>(Domain->getOperand(1)),
+           "second domain operand must be string (if used)", Domain);
+}
+
+void Verifier::visitAliasScopeListMetadata(const MDNode *MD) {
+  for (const MDOperand &Op : MD->operands()) {
+    const MDNode *OpMD = dyn_cast<MDNode>(Op);
+    Assert(OpMD != nullptr, "scope list must consist of MDNodes", MD);
+    visitAliasScopeMetadata(OpMD);
+  }
+}
+
 /// verifyInstruction - Verify that an instruction is well formed.
 ///
 void Verifier::visitInstruction(Instruction &I) {
@@ -4402,10 +4433,21 @@ void Verifier::visitInstruction(Instruction &I) {
     }
 
     if (Function *F = dyn_cast<Function>(I.getOperand(i))) {
+      // This code checks whether the function is used as the operand of a
+      // clang_arc_attachedcall operand bundle.
+      auto IsAttachedCallOperand = [](Function *F, const CallBase *CBI,
+                                      int Idx) {
+        return CBI && CBI->isOperandBundleOfType(
+                          LLVMContext::OB_clang_arc_attachedcall, Idx);
+      };
+
       // Check to make sure that the "address of" an intrinsic function is never
-      // taken.
-      Assert(!F->isIntrinsic() ||
-                 (CBI && &CBI->getCalledOperandUse() == &I.getOperandUse(i)),
+      // taken. Ignore cases where the address of the intrinsic function is used
+      // as the argument of operand bundle "clang.arc.attachedcall" as those
+      // cases are handled in verifyAttachedCallBundle.
+      Assert((!F->isIntrinsic() ||
+              (CBI && &CBI->getCalledOperandUse() == &I.getOperandUse(i)) ||
+              IsAttachedCallOperand(F, CBI, i)),
              "Cannot take the address of an intrinsic!", &I);
       Assert(
           !F->isIntrinsic() || isa<CallInst>(I) ||
@@ -4419,9 +4461,10 @@ void Verifier::visitInstruction(Instruction &I) {
               F->getIntrinsicID() == Intrinsic::experimental_patchpoint_void ||
               F->getIntrinsicID() == Intrinsic::experimental_patchpoint_i64 ||
               F->getIntrinsicID() == Intrinsic::experimental_gc_statepoint ||
-              F->getIntrinsicID() == Intrinsic::wasm_rethrow,
+              F->getIntrinsicID() == Intrinsic::wasm_rethrow ||
+              IsAttachedCallOperand(F, CBI, i),
           "Cannot invoke an intrinsic other than donothing, patchpoint, "
-          "statepoint, coro_resume or coro_destroy",
+          "statepoint, coro_resume, coro_destroy or clang.arc.attachedcall",
           &I);
       Assert(F->getParent() == &M, "Referencing function in another module!",
              &I, &M, F, F->getParent());
@@ -4470,6 +4513,11 @@ void Verifier::visitInstruction(Instruction &I) {
     visitRangeMetadata(I, Range, I.getType());
   }
 
+  if (I.hasMetadata(LLVMContext::MD_invariant_group)) {
+    Assert(isa<LoadInst>(I) || isa<StoreInst>(I),
+           "invariant.group metadata is only for loads and stores", &I);
+  }
+
   if (I.getMetadata(LLVMContext::MD_nonnull)) {
     Assert(I.getType()->isPointerTy(), "nonnull applies only to pointer types",
            &I);
@@ -4487,6 +4535,11 @@ void Verifier::visitInstruction(Instruction &I) {
 
   if (MDNode *TBAA = I.getMetadata(LLVMContext::MD_tbaa))
     TBAAVerifyHelper.visitTBAAMetadata(I, TBAA);
+
+  if (MDNode *MD = I.getMetadata(LLVMContext::MD_noalias))
+    visitAliasScopeListMetadata(MD);
+  if (MDNode *MD = I.getMetadata(LLVMContext::MD_alias_scope))
+    visitAliasScopeListMetadata(MD);
 
   if (MDNode *AlignMD = I.getMetadata(LLVMContext::MD_align)) {
     Assert(I.getType()->isPointerTy(), "align applies only to pointer types",
@@ -5642,6 +5695,41 @@ void Verifier::verifyDeoptimizeCallingConvs() {
   }
 }
 
+void Verifier::verifyAttachedCallBundle(const CallBase &Call,
+                                        const OperandBundleUse &BU) {
+  FunctionType *FTy = Call.getFunctionType();
+
+  Assert((FTy->getReturnType()->isPointerTy() ||
+          (Call.doesNotReturn() && FTy->getReturnType()->isVoidTy())),
+         "a call with operand bundle \"clang.arc.attachedcall\" must call a "
+         "function returning a pointer or a non-returning function that has a "
+         "void return type",
+         Call);
+
+  Assert((BU.Inputs.empty() ||
+          (BU.Inputs.size() == 1 && isa<Function>(BU.Inputs.front()))),
+         "operand bundle \"clang.arc.attachedcall\" can take either no "
+         "arguments or one function as an argument",
+         Call);
+
+  if (BU.Inputs.empty())
+    return;
+
+  auto *Fn = cast<Function>(BU.Inputs.front());
+  Intrinsic::ID IID = Fn->getIntrinsicID();
+
+  if (IID) {
+    Assert((IID == Intrinsic::objc_retainAutoreleasedReturnValue ||
+            IID == Intrinsic::objc_unsafeClaimAutoreleasedReturnValue),
+           "invalid function argument", Call);
+  } else {
+    StringRef FnName = Fn->getName();
+    Assert((FnName == "objc_retainAutoreleasedReturnValue" ||
+            FnName == "objc_unsafeClaimAutoreleasedReturnValue"),
+           "invalid function argument", Call);
+  }
+}
+
 void Verifier::verifySourceDebugInfo(const DICompileUnit &U, const DIFile &F) {
   bool HasSource = F.getSource().hasValue();
   if (!HasSourceDebugInfo.count(&U))
@@ -5670,6 +5758,7 @@ void Verifier::verifyNoAliasScopeDecl() {
            II);
     Assert(ScopeListMD->getNumOperands() == 1,
            "!id.scope.list must point to a list with a single scope", II);
+    visitAliasScopeListMetadata(ScopeListMD);
   }
 
   // Only check the domination rule when requested. Once all passes have been

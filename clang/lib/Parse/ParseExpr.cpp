@@ -893,7 +893,6 @@ class CastExpressionIdValidator final : public CorrectionCandidateCallback {
 /// [Clang] unary-type-trait:
 ///                   '__is_aggregate'
 ///                   '__trivially_copyable'
-///                   '__builtin_sycl_mark_kernel_name'
 ///
 ///       binary-type-trait:
 /// [GNU]             '__is_base_of'
@@ -1525,6 +1524,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw___bf16:
   case tok::kw__Float16:
   case tok::kw___float128:
+  case tok::kw___ibm128:
   case tok::kw_void:
   case tok::kw_typename:
   case tok::kw_typeof:

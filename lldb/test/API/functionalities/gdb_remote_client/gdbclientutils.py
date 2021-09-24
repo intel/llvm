@@ -109,6 +109,8 @@ class MockGDBServerResponder:
             return self.vCont(packet)
         if packet[0] == "A":
             return self.A(packet)
+        if packet[0] == "D":
+            return self.D(packet)
         if packet[0] == "g":
             return self.readRegisters()
         if packet[0] == "G":
@@ -145,7 +147,12 @@ class MockGDBServerResponder:
         if packet == "s":
             return self.haltReason()
         if packet[0] == "H":
-            return self.selectThread(packet[1], int(packet[2:], 16))
+            tid = packet[2:]
+            if "." in tid:
+                assert tid.startswith("p")
+                # TODO: do we want to do anything with PID?
+                tid = tid.split(".", 1)[1]
+            return self.selectThread(packet[1], int(tid, 16))
         if packet[0:6] == "qXfer:":
             obj, read, annex, location = packet[6:].split(":")
             offset, length = [int(x, 16) for x in location.split(',')]
@@ -183,6 +190,14 @@ class MockGDBServerResponder:
             return self.qPathComplete()
         if packet.startswith("vFile:"):
             return self.vFile(packet)
+        if packet.startswith("vRun;"):
+            return self.vRun(packet)
+        if packet.startswith("qLaunchSuccess"):
+            return self.qLaunchSuccess()
+        if packet.startswith("QEnvironment:"):
+            return self.QEnvironment(packet)
+        if packet.startswith("QEnvironmentHexEncoded:"):
+            return self.QEnvironmentHexEncoded(packet)
 
         return self.other(packet)
 
@@ -215,6 +230,9 @@ class MockGDBServerResponder:
 
     def A(self, packet):
         return ""
+
+    def D(self, packet):
+        return "OK"
 
     def readRegisters(self):
         return "00000000" * self.registerCount
@@ -292,6 +310,18 @@ class MockGDBServerResponder:
 
     def vFile(self, packet):
         return ""
+
+    def vRun(self, packet):
+        return ""
+
+    def qLaunchSuccess(self):
+        return ""
+
+    def QEnvironment(self, packet):
+        return "OK"
+
+    def QEnvironmentHexEncoded(self, packet):
+        return "OK"
 
     """
     Raised when we receive a packet for which there is no default action.
@@ -556,3 +586,23 @@ class GDBRemoteTestBase(TestBase):
         if i < len(packets):
             self.fail(u"Did not receive: %s\nLast 10 packets:\n\t%s" %
                     (packets[i], u'\n\t'.join(log)))
+
+
+class GDBPlatformClientTestBase(GDBRemoteTestBase):
+    """
+    Base class for platform server clients.
+
+    This class extends GDBRemoteTestBase by automatically connecting
+    via "platform connect" in the setUp() method.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.runCmd("platform select remote-gdb-server")
+        self.runCmd("platform connect connect://" +
+                    self.server.get_connect_address())
+        self.assertTrue(self.dbg.GetSelectedPlatform().IsConnected())
+
+    def tearDown(self):
+        self.dbg.GetSelectedPlatform().DisconnectRemote()
+        super().tearDown()

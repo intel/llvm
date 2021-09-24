@@ -18,6 +18,7 @@
 
 #include "RISCVSubtarget.h"
 #include "RISCVTargetMachine.h"
+#include "llvm/Analysis/IVDescriptors.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/BasicTTIImpl.h"
 #include "llvm/IR/Function.h"
@@ -72,29 +73,15 @@ public:
     llvm_unreachable("Unsupported register kind");
   }
 
+  unsigned getMinVectorRegisterBitWidth() const {
+    return ST->hasStdExtV() ? ST->getMinRVVVectorSizeInBits() : 0;
+  }
+
   InstructionCost getGatherScatterOpCost(unsigned Opcode, Type *DataTy,
                                          const Value *Ptr, bool VariableMask,
                                          Align Alignment,
                                          TTI::TargetCostKind CostKind,
                                          const Instruction *I);
-
-  bool isLegalElementTypeForRVV(Type *ScalarTy) const {
-    if (ScalarTy->isPointerTy())
-      return true;
-
-    if (ScalarTy->isIntegerTy(8) || ScalarTy->isIntegerTy(16) ||
-        ScalarTy->isIntegerTy(32) || ScalarTy->isIntegerTy(64))
-      return true;
-
-    if (ScalarTy->isHalfTy())
-      return ST->hasStdExtZfh();
-    if (ScalarTy->isFloatTy())
-      return ST->hasStdExtF();
-    if (ScalarTy->isDoubleTy())
-      return ST->hasStdExtD();
-
-    return false;
-  }
 
   bool isLegalMaskedLoadStore(Type *DataType, Align Alignment) {
     if (!ST->hasStdExtV())
@@ -104,11 +91,17 @@ public:
     if (isa<FixedVectorType>(DataType) && ST->getMinRVVVectorSizeInBits() == 0)
       return false;
 
+    // Don't allow elements larger than the ELEN.
+    // FIXME: How to limit for scalable vectors?
+    if (isa<FixedVectorType>(DataType) &&
+        DataType->getScalarSizeInBits() > ST->getMaxELENForFixedLengthVectors())
+      return false;
+
     if (Alignment <
         DL.getTypeStoreSize(DataType->getScalarType()).getFixedSize())
       return false;
 
-    return isLegalElementTypeForRVV(DataType->getScalarType());
+    return TLI->isLegalElementTypeForRVV(DataType->getScalarType());
   }
 
   bool isLegalMaskedLoad(Type *DataType, Align Alignment) {
@@ -126,11 +119,17 @@ public:
     if (isa<FixedVectorType>(DataType) && ST->getMinRVVVectorSizeInBits() == 0)
       return false;
 
+    // Don't allow elements larger than the ELEN.
+    // FIXME: How to limit for scalable vectors?
+    if (isa<FixedVectorType>(DataType) &&
+        DataType->getScalarSizeInBits() > ST->getMaxELENForFixedLengthVectors())
+      return false;
+
     if (Alignment <
         DL.getTypeStoreSize(DataType->getScalarType()).getFixedSize())
       return false;
 
-    return isLegalElementTypeForRVV(DataType->getScalarType());
+    return TLI->isLegalElementTypeForRVV(DataType->getScalarType());
   }
 
   bool isLegalMaskedGather(Type *DataType, Align Alignment) {
@@ -157,7 +156,7 @@ public:
       return true;
 
     Type *Ty = RdxDesc.getRecurrenceType();
-    if (!isLegalElementTypeForRVV(Ty))
+    if (!TLI->isLegalElementTypeForRVV(Ty))
       return false;
 
     switch (RdxDesc.getRecurrenceKind()) {

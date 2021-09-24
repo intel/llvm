@@ -21,38 +21,38 @@ int main() {
   {
     std::cout << "move constructor" << std::endl;
     context Context(deviceA);
-    size_t hash = hash_class<context>()(Context);
+    size_t hash = std::hash<context>()(Context);
     context MovedContext(std::move(Context));
-    assert(hash == hash_class<context>()(MovedContext));
+    assert(hash == std::hash<context>()(MovedContext));
     assert(deviceA.is_host() == MovedContext.is_host());
   }
   {
     std::cout << "move assignment operator" << std::endl;
     context Context(deviceA);
-    size_t hash = hash_class<context>()(Context);
+    size_t hash = std::hash<context>()(Context);
     context WillMovedContext(deviceB);
     WillMovedContext = std::move(Context);
-    assert(hash == hash_class<context>()(WillMovedContext));
+    assert(hash == std::hash<context>()(WillMovedContext));
     assert(deviceA.is_host() == WillMovedContext.is_host());
   }
   {
     std::cout << "copy constructor" << std::endl;
     context Context(deviceA);
-    size_t hash = hash_class<context>()(Context);
+    size_t hash = std::hash<context>()(Context);
     context ContextCopy(Context);
-    assert(hash == hash_class<context>()(Context));
-    assert(hash == hash_class<context>()(ContextCopy));
+    assert(hash == std::hash<context>()(Context));
+    assert(hash == std::hash<context>()(ContextCopy));
     assert(Context == ContextCopy);
     assert(Context.is_host() == ContextCopy.is_host());
   }
   {
     std::cout << "copy assignment operator" << std::endl;
     context Context(deviceA);
-    size_t hash = hash_class<context>()(Context);
+    size_t hash = std::hash<context>()(Context);
     context WillContextCopy(deviceB);
     WillContextCopy = Context;
-    assert(hash == hash_class<context>()(Context));
-    assert(hash == hash_class<context>()(WillContextCopy));
+    assert(hash == std::hash<context>()(Context));
+    assert(hash == std::hash<context>()(WillContextCopy));
     assert(Context == WillContextCopy);
     assert(Context.is_host() == WillContextCopy.is_host());
   }

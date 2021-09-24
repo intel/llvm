@@ -1967,16 +1967,12 @@ bool DWARFASTParserClang::CompleteRecordType(const DWARFDIE &die,
       TypeSystemClang::StartTagDeclarationDefinition(clang_type);
     }
 
-    int tag_decl_kind = -1;
     AccessType default_accessibility = eAccessNone;
     if (tag == DW_TAG_structure_type) {
-      tag_decl_kind = clang::TTK_Struct;
       default_accessibility = eAccessPublic;
     } else if (tag == DW_TAG_union_type) {
-      tag_decl_kind = clang::TTK_Union;
       default_accessibility = eAccessPublic;
     } else if (tag == DW_TAG_class_type) {
-      tag_decl_kind = clang::TTK_Class;
       default_accessibility = eAccessPrivate;
     }
 
@@ -3141,7 +3137,6 @@ clang::Decl *DWARFASTParserClang::GetClangDeclForDIE(const DWARFDIE &die) {
   if (DWARFDIE spec_die = die.GetReferencedDIE(DW_AT_specification)) {
     clang::Decl *decl = GetClangDeclForDIE(spec_die);
     m_die_to_decl[die.GetDIE()] = decl;
-    m_decl_to_die[decl].insert(die.GetDIE());
     return decl;
   }
 
@@ -3149,7 +3144,6 @@ clang::Decl *DWARFASTParserClang::GetClangDeclForDIE(const DWARFDIE &die) {
           die.GetReferencedDIE(DW_AT_abstract_origin)) {
     clang::Decl *decl = GetClangDeclForDIE(abstract_origin_die);
     m_die_to_decl[die.GetDIE()] = decl;
-    m_decl_to_die[decl].insert(die.GetDIE());
     return decl;
   }
 
@@ -3214,7 +3208,6 @@ clang::Decl *DWARFASTParserClang::GetClangDeclForDIE(const DWARFDIE &die) {
   }
 
   m_die_to_decl[die.GetDIE()] = decl;
-  m_decl_to_die[decl].insert(die.GetDIE());
 
   return decl;
 }

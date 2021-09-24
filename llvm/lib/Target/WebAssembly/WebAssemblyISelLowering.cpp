@@ -303,6 +303,7 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
       setLoadExtAction(Ext, MVT::v4i32, MVT::v4i16, Legal);
       setLoadExtAction(Ext, MVT::v2i64, MVT::v2i32, Legal);
     }
+    setLoadExtAction(ISD::EXTLOAD, MVT::v2f64, MVT::v2f32, Legal);
   }
 
   // Don't do anything clever with build_pairs
@@ -1538,7 +1539,6 @@ WebAssemblyTargetLowering::LowerGlobalTLSAddress(SDValue Op,
                                                  SelectionDAG &DAG) const {
   SDLoc DL(Op);
   const auto *GA = cast<GlobalAddressSDNode>(Op);
-  MVT PtrVT = getPointerTy(DAG.getDataLayout());
 
   MachineFunction &MF = DAG.getMachineFunction();
   if (!MF.getSubtarget<WebAssemblySubtarget>().hasBulkMemory())
@@ -1560,20 +1560,43 @@ WebAssemblyTargetLowering::LowerGlobalTLSAddress(SDValue Op,
                        false);
   }
 
-  auto GlobalGet = PtrVT == MVT::i64 ? WebAssembly::GLOBAL_GET_I64
-                                     : WebAssembly::GLOBAL_GET_I32;
-  const char *BaseName = MF.createExternalSymbolName("__tls_base");
+  auto model = GV->getThreadLocalMode();
 
-  SDValue BaseAddr(
-      DAG.getMachineNode(GlobalGet, DL, PtrVT,
-                         DAG.getTargetExternalSymbol(BaseName, PtrVT)),
-      0);
+  // Unsupported TLS modes
+  assert(model != GlobalValue::NotThreadLocal);
+  assert(model != GlobalValue::InitialExecTLSModel);
 
-  SDValue TLSOffset = DAG.getTargetGlobalAddress(
-      GV, DL, PtrVT, GA->getOffset(), WebAssemblyII::MO_TLS_BASE_REL);
-  SDValue SymAddr = DAG.getNode(WebAssemblyISD::Wrapper, DL, PtrVT, TLSOffset);
+  if (model == GlobalValue::LocalExecTLSModel ||
+      model == GlobalValue::LocalDynamicTLSModel ||
+      (model == GlobalValue::GeneralDynamicTLSModel &&
+       getTargetMachine().shouldAssumeDSOLocal(*GV->getParent(), GV))) {
+    // For DSO-local TLS variables we use offset from __tls_base
 
-  return DAG.getNode(ISD::ADD, DL, PtrVT, BaseAddr, SymAddr);
+    MVT PtrVT = getPointerTy(DAG.getDataLayout());
+    auto GlobalGet = PtrVT == MVT::i64 ? WebAssembly::GLOBAL_GET_I64
+                                       : WebAssembly::GLOBAL_GET_I32;
+    const char *BaseName = MF.createExternalSymbolName("__tls_base");
+
+    SDValue BaseAddr(
+        DAG.getMachineNode(GlobalGet, DL, PtrVT,
+                           DAG.getTargetExternalSymbol(BaseName, PtrVT)),
+        0);
+
+    SDValue TLSOffset = DAG.getTargetGlobalAddress(
+        GV, DL, PtrVT, GA->getOffset(), WebAssemblyII::MO_TLS_BASE_REL);
+    SDValue SymOffset =
+        DAG.getNode(WebAssemblyISD::WrapperREL, DL, PtrVT, TLSOffset);
+
+    return DAG.getNode(ISD::ADD, DL, PtrVT, BaseAddr, SymOffset);
+  }
+
+  assert(model == GlobalValue::GeneralDynamicTLSModel);
+
+  EVT VT = Op.getValueType();
+  return DAG.getNode(WebAssemblyISD::Wrapper, DL, VT,
+                     DAG.getTargetGlobalAddress(GA->getGlobal(), DL, VT,
+                                                GA->getOffset(),
+                                                WebAssemblyII::MO_GOT_TLS));
 }
 
 SDValue WebAssemblyTargetLowering::LowerGlobalAddress(SDValue Op,
@@ -1606,14 +1629,13 @@ SDValue WebAssemblyTargetLowering::LowerGlobalAddress(SDValue Op,
                       DAG.getTargetExternalSymbol(BaseName, PtrVT));
 
       SDValue SymAddr = DAG.getNode(
-          WebAssemblyISD::WrapperPIC, DL, VT,
+          WebAssemblyISD::WrapperREL, DL, VT,
           DAG.getTargetGlobalAddress(GA->getGlobal(), DL, VT, GA->getOffset(),
                                      OperandFlags));
 
       return DAG.getNode(ISD::ADD, DL, VT, BaseAddr, SymAddr);
-    } else {
-      OperandFlags = WebAssemblyII::MO_GOT;
     }
+    OperandFlags = WebAssemblyII::MO_GOT;
   }
 
   return DAG.getNode(WebAssemblyISD::Wrapper, DL, VT,
@@ -2046,7 +2068,23 @@ SDValue WebAssemblyTargetLowering::LowerBUILD_VECTOR(SDValue Op,
     SmallVector<SDValue, 16> ConstLanes;
     for (const SDValue &Lane : Op->op_values()) {
       if (IsConstant(Lane)) {
-        ConstLanes.push_back(Lane);
+        // Values may need to be fixed so that they will sign extend to be
+        // within the expected range during ISel. Check whether the value is in
+        // bounds based on the lane bit width and if it is out of bounds, lop
+        // off the extra bits and subtract 2^n to reflect giving the high bit
+        // value -2^(n-1) rather than +2^(n-1). Skip the i64 case because it
+        // cannot possibly be out of range.
+        auto *Const = dyn_cast<ConstantSDNode>(Lane.getNode());
+        int64_t Val = Const ? Const->getSExtValue() : 0;
+        uint64_t LaneBits = 128 / Lanes;
+        assert((LaneBits == 64 || Val >= -(1ll << (LaneBits - 1))) &&
+               "Unexpected out of bounds negative value");
+        if (Const && LaneBits != 64 && Val > (1ll << (LaneBits - 1)) - 1) {
+          auto NewVal = ((uint64_t)Val % (1ll << LaneBits)) - (1ll << LaneBits);
+          ConstLanes.push_back(DAG.getConstant(NewVal, SDLoc(Lane), LaneT));
+        } else {
+          ConstLanes.push_back(Lane);
+        }
       } else if (LaneT.isFloatingPoint()) {
         ConstLanes.push_back(DAG.getConstantFP(0, DL, LaneT));
       } else {

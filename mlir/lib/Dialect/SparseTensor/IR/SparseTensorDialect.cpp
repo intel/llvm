@@ -223,13 +223,17 @@ static LogicalResult verify(ConvertOp op) {
         if (shape1[d] != shape2[d])
           return op.emitError()
                  << "unexpected conversion mismatch in dimension " << d;
-        if (shape1[d] == MemRefType::kDynamicSize)
-          return op.emitError("unexpected dynamic size");
       }
       return success();
     }
   }
   return op.emitError("unexpected type in convert");
+}
+
+OpFoldResult ConvertOp::fold(ArrayRef<Attribute> operands) {
+  if (getType() == source().getType())
+    return source();
+  return {};
 }
 
 static LogicalResult verify(ToPointersOp op) {

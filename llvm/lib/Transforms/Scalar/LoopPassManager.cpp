@@ -44,6 +44,18 @@ PassManager<Loop, LoopAnalysisManager, LoopStandardAnalysisResults &,
   return PA;
 }
 
+void PassManager<Loop, LoopAnalysisManager, LoopStandardAnalysisResults &,
+                 LPMUpdater &>::printPipeline(raw_ostream &OS,
+                                              function_ref<StringRef(StringRef)>
+                                                  MapClassName2PassName) {
+  for (unsigned Idx = 0, Size = LoopPasses.size(); Idx != Size; ++Idx) {
+    auto *P = LoopPasses[Idx].get();
+    P->printPipeline(OS, MapClassName2PassName);
+    if (Idx + 1 < Size)
+      OS << ",";
+  }
+}
+
 // Run both loop passes and loop-nest passes on top-level loop \p L.
 PreservedAnalyses
 LoopPassManager::runWithLoopNestPasses(Loop &L, LoopAnalysisManager &AM,
@@ -112,12 +124,6 @@ LoopPassManager::runWithLoopNestPasses(Loop &L, LoopAnalysisManager &AM,
     // notify the updater, otherwise U.ParentL might gets outdated and triggers
     // assertion failures in addSiblingLoops and addChildLoops.
     U.setParentLoop(L.getParentLoop());
-
-    // FIXME: Historically, the pass managers all called the LLVM context's
-    // yield function here. We don't have a generic way to acquire the
-    // context and it isn't yet clear what the right pattern is for yielding
-    // in the new pass manager so it is currently omitted.
-    // ...getContext().yield();
   }
   return PA;
 }
@@ -161,17 +167,17 @@ LoopPassManager::runWithoutLoopNestPasses(Loop &L, LoopAnalysisManager &AM,
     // notify the updater, otherwise U.ParentL might gets outdated and triggers
     // assertion failures in addSiblingLoops and addChildLoops.
     U.setParentLoop(L.getParentLoop());
-
-    // FIXME: Historically, the pass managers all called the LLVM context's
-    // yield function here. We don't have a generic way to acquire the
-    // context and it isn't yet clear what the right pattern is for yielding
-    // in the new pass manager so it is currently omitted.
-    // ...getContext().yield();
   }
   return PA;
 }
 } // namespace llvm
 
+void FunctionToLoopPassAdaptor::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  OS << (UseMemorySSA ? "loop-mssa(" : "loop(");
+  Pass->printPipeline(OS, MapClassName2PassName);
+  OS << ")";
+}
 PreservedAnalyses FunctionToLoopPassAdaptor::run(Function &F,
                                                  FunctionAnalysisManager &AM) {
   // Before we even compute any loop analyses, first run a miniature function

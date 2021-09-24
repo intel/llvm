@@ -1200,13 +1200,20 @@ bool LoopIdiomRecognize::processLoopStridedStore(
                     << "\n");
 
   ORE.emit([&]() {
-    return OptimizationRemark(DEBUG_TYPE, "ProcessLoopStridedStore",
-                              NewCall->getDebugLoc(), Preheader)
-           << "Transformed loop-strided store in "
-           << ore::NV("Function", TheStore->getFunction())
-           << " function into a call to "
-           << ore::NV("NewFunction", NewCall->getCalledFunction())
-           << "() intrinsic";
+    OptimizationRemark R(DEBUG_TYPE, "ProcessLoopStridedStore",
+                         NewCall->getDebugLoc(), Preheader);
+    R << "Transformed loop-strided store in "
+      << ore::NV("Function", TheStore->getFunction())
+      << " function into a call to "
+      << ore::NV("NewFunction", NewCall->getCalledFunction())
+      << "() intrinsic";
+    if (!Stores.empty())
+      R << ore::setExtraArgs();
+    for (auto *I : Stores) {
+      R << ore::NV("FromBlock", I->getParent()->getName())
+        << ore::NV("ToBlock", Preheader->getName());
+    }
+    return R;
   });
 
   // Okay, the memset has been formed.  Zap the original store and anything that
@@ -1318,6 +1325,11 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
       mayLoopAccessLocation(StoreBasePtr, ModRefInfo::ModRef, CurLoop, BECount,
                             StoreSizeSCEV, *AA, IgnoredInsts);
   if (UseMemMove) {
+    // For memmove case it's not enough to guarantee that loop doesn't access
+    // TheStore and TheLoad. Additionally we need to make sure that TheStore is
+    // the only user of TheLoad.
+    if (!TheLoad->hasOneUse())
+      return Changed;
     IgnoredInsts.insert(TheLoad);
     if (mayLoopAccessLocation(StoreBasePtr, ModRefInfo::ModRef, CurLoop,
                               BECount, StoreSizeSCEV, *AA, IgnoredInsts)) {
@@ -1447,7 +1459,10 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
            << ore::NV("NewFunction", NewCall->getCalledFunction())
            << "() intrinsic from " << ore::NV("Inst", InstRemark)
            << " instruction in " << ore::NV("Function", TheStore->getFunction())
-           << " function";
+           << " function"
+           << ore::setExtraArgs()
+           << ore::NV("FromBlock", TheStore->getParent()->getName())
+           << ore::NV("ToBlock", Preheader->getName());
   });
 
   // Okay, a new call to memcpy/memmove has been formed.  Zap the original store

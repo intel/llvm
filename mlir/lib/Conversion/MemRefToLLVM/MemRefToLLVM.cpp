@@ -305,7 +305,7 @@ struct DeallocOpLowering : public ConvertOpToLLVMPattern<memref::DeallocOp> {
         op.getLoc(), getVoidPtrType(),
         memref.allocatedPtr(rewriter, op.getLoc()));
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(
-        op, TypeRange(), rewriter.getSymbolRefAttr(freeFunc), casted);
+        op, TypeRange(), SymbolRefAttr::get(freeFunc), casted);
     return success();
   }
 };
@@ -434,7 +434,7 @@ struct GlobalMemrefOpLowering
   LogicalResult
   matchAndRewrite(memref::GlobalOp global, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    MemRefType type = global.type().cast<MemRefType>();
+    MemRefType type = global.type();
     if (!isConvertibleAndHasIdentityMaps(type))
       return failure();
 

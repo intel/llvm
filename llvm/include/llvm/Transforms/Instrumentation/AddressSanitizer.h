@@ -115,6 +115,8 @@ public:
   explicit AddressSanitizerPass(AddressSanitizerOptions Options)
       : Options(Options){};
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName);
   static bool isRequired() { return true; }
 
 private:
@@ -134,6 +136,8 @@ public:
       bool UseOdrIndicator = false,
       AsanDtorKind DestructorKind = AsanDtorKind::Global);
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName);
   static bool isRequired() { return true; }
 
 private:
@@ -154,6 +158,16 @@ ModulePass *createModuleAddressSanitizerLegacyPassPass(
     bool CompileKernel = false, bool Recover = false, bool UseGlobalsGC = true,
     bool UseOdrIndicator = true,
     AsanDtorKind DestructorKind = AsanDtorKind::Global);
+
+struct ASanAccessInfo {
+  const int32_t Packed;
+  const uint8_t AccessSizeIndex;
+  const bool IsWrite;
+  const bool CompileKernel;
+
+  explicit ASanAccessInfo(int32_t Packed);
+  ASanAccessInfo(bool IsWrite, bool CompileKernel, uint8_t AccessSizeIndex);
+};
 
 } // namespace llvm
 

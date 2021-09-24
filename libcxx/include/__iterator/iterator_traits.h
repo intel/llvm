@@ -20,9 +20,6 @@
 #pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if !defined(_LIBCPP_HAS_NO_RANGES)
@@ -79,7 +76,7 @@ struct __iter_concept_category_test {
 };
 struct __iter_concept_random_fallback {
   template <class _Iter>
-  using _Apply = _EnableIf<
+  using _Apply = __enable_if_t<
                           __is_primary_template<iterator_traits<_Iter> >::value,
                           random_access_iterator_tag
                         >;
@@ -494,7 +491,5 @@ using __iter_to_alloc_type = pair<
 #endif // _LIBCPP_STD_VER >= 17
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___ITERATOR_ITERATOR_TRAITS_H

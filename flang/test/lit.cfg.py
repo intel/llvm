@@ -77,14 +77,17 @@ tools = [
 # we don't have one, we can just disable the test.
 if config.cc:
     libruntime = os.path.join(config.flang_lib_dir, 'libFortranRuntime.a')
-    includes = os.path.join(config.flang_src_dir, 'runtime')
+    libdecimal = os.path.join(config.flang_lib_dir, 'libFortranDecimal.a')
+    include = os.path.join(config.flang_src_dir, 'include')
 
-    if os.path.isfile(libruntime) and os.path.isdir(includes):
+    if os.path.isfile(libruntime) and os.path.isfile(libdecimal) and os.path.isdir(include):
         config.available_features.add('c-compiler')
         tools.append(ToolSubst('%cc', command=config.cc, unresolved='fatal'))
         tools.append(ToolSubst('%libruntime', command=libruntime,
             unresolved='fatal'))
-        tools.append(ToolSubst('%runtimeincludes', command=includes,
+        tools.append(ToolSubst('%libdecimal', command=libdecimal,
+            unresolved='fatal'))
+        tools.append(ToolSubst('%include', command=include,
             unresolved='fatal'))
 
 if config.flang_standalone_build:

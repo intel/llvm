@@ -206,8 +206,8 @@ PreservedAnalyses ThreadSanitizerPass::run(Function &F,
   return PreservedAnalyses::all();
 }
 
-PreservedAnalyses ThreadSanitizerPass::run(Module &M,
-                                           ModuleAnalysisManager &MAM) {
+PreservedAnalyses ModuleThreadSanitizerPass::run(Module &M,
+                                                 ModuleAnalysisManager &MAM) {
   insertModuleCtor(M);
   return PreservedAnalyses::none();
 }
@@ -562,6 +562,12 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
   // all.
   if (F.hasFnAttribute(Attribute::Naked))
     return false;
+
+  // __attribute__(disable_sanitizer_instrumentation) prevents all kinds of
+  // instrumentation.
+  if (F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+    return false;
+
   initialize(*F.getParent());
   SmallVector<InstructionInfo, 8> AllLoadsAndStores;
   SmallVector<Instruction*, 8> LocalLoadsAndStores;

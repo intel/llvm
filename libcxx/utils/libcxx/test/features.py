@@ -89,11 +89,7 @@ DEFAULT_FEATURES = [
 # `libcpp-xxx-yyy-zzz`. When a macro is defined to a specific value
 # (e.g. `_LIBCPP_ABI_VERSION=2`), the feature is `libcpp-xxx-yyy-zzz=<value>`.
 macros = {
-  '_LIBCPP_HAS_NO_GLOBAL_FILESYSTEM_NAMESPACE': 'libcpp-has-no-global-filesystem-namespace',
   '_LIBCPP_HAS_NO_MONOTONIC_CLOCK': 'libcpp-has-no-monotonic-clock',
-  '_LIBCPP_HAS_NO_STDIN': 'libcpp-has-no-stdin',
-  '_LIBCPP_HAS_NO_STDOUT': 'libcpp-has-no-stdout',
-  '_LIBCPP_HAS_NO_THREAD_UNSAFE_C_FUNCTIONS': 'libcpp-has-no-thread-unsafe-c-functions',
   '_LIBCPP_HAS_NO_THREADS': 'libcpp-has-no-threads',
   '_LIBCPP_HAS_THREAD_API_EXTERNAL': 'libcpp-has-thread-api-external',
   '_LIBCPP_HAS_THREAD_API_PTHREAD': 'libcpp-has-thread-api-pthread',
@@ -105,6 +101,7 @@ macros = {
   '_LIBCPP_HAS_NO_LOCALIZATION': 'libcpp-has-no-localization',
   '_LIBCPP_HAS_NO_INCOMPLETE_FORMAT': 'libcpp-has-no-incomplete-format',
   '_LIBCPP_HAS_NO_INCOMPLETE_RANGES': 'libcpp-has-no-incomplete-ranges',
+  '_LIBCPP_HAS_NO_UNICODE': 'libcpp-has-no-unicode',
 }
 for macro, feature in macros.items():
   DEFAULT_FEATURES += [
@@ -153,6 +150,14 @@ DEFAULT_FEATURES += [
   Feature(name='freebsd', when=lambda cfg: '__FreeBSD__' in compilerMacros(cfg))
 ]
 
+# Add features representing the build host platform name.
+# The build host could differ from the target platform for cross-compilation.
+DEFAULT_FEATURES += [
+  Feature(name='buildhost={}'.format(sys.platform.lower().strip())),
+  # sys.platform can be represented by "sub-system" on Windows host, such as 'win32', 'cygwin', 'mingw' & etc.
+  # Here is a consolidated feature for the build host plaform name on Windows.
+  Feature(name='buildhost=windows', when=lambda cfg: platform.system().lower().startswith('windows'))
+]
 
 # Detect whether GDB is on the system, and if so add a substitution to access it.
 DEFAULT_FEATURES += [

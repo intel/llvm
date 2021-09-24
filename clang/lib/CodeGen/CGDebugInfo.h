@@ -184,6 +184,8 @@ class CGDebugInfo {
   llvm::DIType *CreateType(const AutoType *Ty);
   llvm::DIType *CreateType(const ExtIntType *Ty);
   llvm::DIType *CreateQualifiedType(QualType Ty, llvm::DIFile *Fg);
+  llvm::DIType *CreateQualifiedType(const FunctionProtoType *Ty,
+                                    llvm::DIFile *Fg);
   llvm::DIType *CreateType(const TypedefType *Ty, llvm::DIFile *Fg);
   llvm::DIType *CreateType(const TemplateSpecializationType *Ty,
                            llvm::DIFile *Fg);
@@ -277,9 +279,12 @@ class CGDebugInfo {
       llvm::DenseSet<CanonicalDeclPtr<const CXXRecordDecl>> &SeenTypes,
       llvm::DINode::DIFlags StartingFlags);
 
+  struct TemplateArgs {
+    const TemplateParameterList *TList;
+    llvm::ArrayRef<TemplateArgument> Args;
+  };
   /// A helper function to collect template parameters.
-  llvm::DINodeArray CollectTemplateParams(const TemplateParameterList *TPList,
-                                          ArrayRef<TemplateArgument> TAList,
+  llvm::DINodeArray CollectTemplateParams(Optional<TemplateArgs> Args,
                                           llvm::DIFile *Unit);
   /// A helper function to collect debug info for function template
   /// parameters.
@@ -291,11 +296,14 @@ class CGDebugInfo {
   llvm::DINodeArray CollectVarTemplateParams(const VarDecl *VD,
                                              llvm::DIFile *Unit);
 
+  Optional<TemplateArgs> GetTemplateArgs(const VarDecl *) const;
+  Optional<TemplateArgs> GetTemplateArgs(const RecordDecl *) const;
+  Optional<TemplateArgs> GetTemplateArgs(const FunctionDecl *) const;
+
   /// A helper function to collect debug info for template
   /// parameters.
-  llvm::DINodeArray
-  CollectCXXTemplateParams(const ClassTemplateSpecializationDecl *TS,
-                           llvm::DIFile *F);
+  llvm::DINodeArray CollectCXXTemplateParams(const RecordDecl *TS,
+                                             llvm::DIFile *F);
 
   /// A helper function to collect debug info for btf_tag annotations.
   llvm::DINodeArray CollectBTFTagAnnotations(const Decl *D);

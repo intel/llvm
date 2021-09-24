@@ -14,6 +14,7 @@ namespace sycl {
 
 // TODO: Move these feature-test macros to compiler driver.
 #define SYCL_EXT_INTEL_DEVICE_INFO 2
+#define SYCL_EXT_ONEAPI_SUB_GROUP_MASK 1
 #define SYCL_EXT_ONEAPI_LOCAL_MEMORY 1
 // As for SYCL_EXT_ONEAPI_MATRIX:
 // 1- provides AOT initial implementation for AMX for the experimental matrix
@@ -24,6 +25,10 @@ namespace sycl {
 #define SYCL_EXT_ONEAPI_MATRIX 2
 #endif
 #define SYCL_EXT_INTEL_BF16_CONVERSION 1
+#define SYCL_EXT_ONEAPI_ENQUEUE_BARRIER 1
+#define SYCL_EXT_INTEL_MEM_CHANNEL_PROPERTY 1
+#define SYCL_EXT_INTEL_USM_ADDRESS_SPACES 1
+#define SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO 1
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

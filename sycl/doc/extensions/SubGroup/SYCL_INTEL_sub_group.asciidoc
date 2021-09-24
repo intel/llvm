@@ -108,8 +108,8 @@ The device descriptors below are added to the +info::device+ enumeration class:
 |Return a sub-group size supported by this device that is guaranteed to support all core language features for the device.
 
 |+info::device::sub_group_sizes+
-|+vector_class<size_t>+
-|Returns a vector_class of +size_t+ containing the set of sub-group sizes supported by the device.  Each sub-group size is a power of 2 in the range [1, 2^31^].  Not all sub-group sizes are guaranteed to be compatible with all core language features; any incompatibilities are implementation-defined.
+|+std::vector<size_t>+
+|Returns a std::vector of +size_t+ containing the set of sub-group sizes supported by the device.  Each sub-group size is a power of 2 in the range [1, 2^31^].  Not all sub-group sizes are guaranteed to be compatible with all core language features; any incompatibilities are implementation-defined.
 |===
 
 An additional query is added to the +kernel+ class, enabling an input value to be passed to `get_info`.  The original `get_info` query from the SYCL_INTEL_device_specific_kernel_queries extension should be used for queries that do not specify an input type.

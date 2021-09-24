@@ -1892,13 +1892,14 @@ private:
           DISPFlags SPFlags, DICompileUnit *Unit,
           DITemplateParameterArray TemplateParams, DISubprogram *Declaration,
           DINodeArray RetainedNodes, DITypeArray ThrownTypes,
-          StorageType Storage, bool ShouldCreate = true) {
+          DINodeArray Annotations, StorageType Storage,
+          bool ShouldCreate = true) {
     return getImpl(Context, Scope, getCanonicalMDString(Context, Name),
                    getCanonicalMDString(Context, LinkageName), File, Line, Type,
                    ScopeLine, ContainingType, VirtualIndex, ThisAdjustment,
                    Flags, SPFlags, Unit, TemplateParams.get(), Declaration,
-                   RetainedNodes.get(), ThrownTypes.get(), Storage,
-                   ShouldCreate);
+                   RetainedNodes.get(), ThrownTypes.get(), Annotations.get(),
+                   Storage, ShouldCreate);
   }
   static DISubprogram *getImpl(LLVMContext &Context, Metadata *Scope,
                                MDString *Name, MDString *LinkageName,
@@ -1908,7 +1909,8 @@ private:
                                DIFlags Flags, DISPFlags SPFlags, Metadata *Unit,
                                Metadata *TemplateParams, Metadata *Declaration,
                                Metadata *RetainedNodes, Metadata *ThrownTypes,
-                               StorageType Storage, bool ShouldCreate = true);
+                               Metadata *Annotations, StorageType Storage,
+                               bool ShouldCreate = true);
 
   TempDISubprogram cloneImpl() const {
     return getTemporary(getContext(), getScope(), getName(), getLinkageName(),
@@ -1916,7 +1918,7 @@ private:
                         getContainingType(), getVirtualIndex(),
                         getThisAdjustment(), getFlags(), getSPFlags(),
                         getUnit(), getTemplateParams(), getDeclaration(),
-                        getRetainedNodes(), getThrownTypes());
+                        getRetainedNodes(), getThrownTypes(), getAnnotations());
   }
 
 public:
@@ -1928,10 +1930,10 @@ public:
        DIFlags Flags, DISPFlags SPFlags, DICompileUnit *Unit,
        DITemplateParameterArray TemplateParams = nullptr,
        DISubprogram *Declaration = nullptr, DINodeArray RetainedNodes = nullptr,
-       DITypeArray ThrownTypes = nullptr),
+       DITypeArray ThrownTypes = nullptr, DINodeArray Annotations = nullptr),
       (Scope, Name, LinkageName, File, Line, Type, ScopeLine, ContainingType,
        VirtualIndex, ThisAdjustment, Flags, SPFlags, Unit, TemplateParams,
-       Declaration, RetainedNodes, ThrownTypes))
+       Declaration, RetainedNodes, ThrownTypes, Annotations))
 
   DEFINE_MDNODE_GET(
       DISubprogram,
@@ -1940,10 +1942,11 @@ public:
        Metadata *ContainingType, unsigned VirtualIndex, int ThisAdjustment,
        DIFlags Flags, DISPFlags SPFlags, Metadata *Unit,
        Metadata *TemplateParams = nullptr, Metadata *Declaration = nullptr,
-       Metadata *RetainedNodes = nullptr, Metadata *ThrownTypes = nullptr),
+       Metadata *RetainedNodes = nullptr, Metadata *ThrownTypes = nullptr,
+       Metadata *Annotations = nullptr),
       (Scope, Name, LinkageName, File, Line, Type, ScopeLine, ContainingType,
        VirtualIndex, ThisAdjustment, Flags, SPFlags, Unit, TemplateParams,
-       Declaration, RetainedNodes, ThrownTypes))
+       Declaration, RetainedNodes, ThrownTypes, Annotations))
 
   TempDISubprogram clone() const { return cloneImpl(); }
 
@@ -2046,6 +2049,9 @@ public:
   DITypeArray getThrownTypes() const {
     return cast_or_null<MDTuple>(getRawThrownTypes());
   }
+  DINodeArray getAnnotations() const {
+    return cast_or_null<MDTuple>(getRawAnnotations());
+  }
 
   Metadata *getRawScope() const { return getOperand(1); }
   MDString *getRawName() const { return getOperandAs<MDString>(2); }
@@ -2062,6 +2068,9 @@ public:
   }
   Metadata *getRawThrownTypes() const {
     return getNumOperands() > 10 ? getOperandAs<Metadata>(10) : nullptr;
+  }
+  Metadata *getRawAnnotations() const {
+    return getNumOperands() > 11 ? getOperandAs<Metadata>(11) : nullptr;
   }
 
   void replaceRawLinkageName(MDString *LinkageName) {
@@ -2953,25 +2962,28 @@ class DIGlobalVariable : public DIVariable {
           StringRef LinkageName, DIFile *File, unsigned Line, DIType *Type,
           bool IsLocalToUnit, bool IsDefinition,
           DIDerivedType *StaticDataMemberDeclaration, MDTuple *TemplateParams,
-          uint32_t AlignInBits, StorageType Storage, bool ShouldCreate = true) {
+          uint32_t AlignInBits, DINodeArray Annotations, StorageType Storage,
+          bool ShouldCreate = true) {
     return getImpl(Context, Scope, getCanonicalMDString(Context, Name),
                    getCanonicalMDString(Context, LinkageName), File, Line, Type,
                    IsLocalToUnit, IsDefinition, StaticDataMemberDeclaration,
-                   cast_or_null<Metadata>(TemplateParams), AlignInBits, Storage,
-                   ShouldCreate);
+                   cast_or_null<Metadata>(TemplateParams), AlignInBits,
+                   Annotations.get(), Storage, ShouldCreate);
   }
   static DIGlobalVariable *
   getImpl(LLVMContext &Context, Metadata *Scope, MDString *Name,
           MDString *LinkageName, Metadata *File, unsigned Line, Metadata *Type,
           bool IsLocalToUnit, bool IsDefinition,
           Metadata *StaticDataMemberDeclaration, Metadata *TemplateParams,
-          uint32_t AlignInBits, StorageType Storage, bool ShouldCreate = true);
+          uint32_t AlignInBits, Metadata *Annotations, StorageType Storage,
+          bool ShouldCreate = true);
 
   TempDIGlobalVariable cloneImpl() const {
     return getTemporary(getContext(), getScope(), getName(), getLinkageName(),
                         getFile(), getLine(), getType(), isLocalToUnit(),
                         isDefinition(), getStaticDataMemberDeclaration(),
-                        getTemplateParams(), getAlignInBits());
+                        getTemplateParams(), getAlignInBits(),
+                        getAnnotations());
   }
 
 public:
@@ -2980,19 +2992,21 @@ public:
                      DIFile *File, unsigned Line, DIType *Type,
                      bool IsLocalToUnit, bool IsDefinition,
                      DIDerivedType *StaticDataMemberDeclaration,
-                     MDTuple *TemplateParams, uint32_t AlignInBits),
+                     MDTuple *TemplateParams, uint32_t AlignInBits,
+                     DINodeArray Annotations),
                     (Scope, Name, LinkageName, File, Line, Type, IsLocalToUnit,
                      IsDefinition, StaticDataMemberDeclaration, TemplateParams,
-                     AlignInBits))
+                     AlignInBits, Annotations))
   DEFINE_MDNODE_GET(DIGlobalVariable,
                     (Metadata * Scope, MDString *Name, MDString *LinkageName,
                      Metadata *File, unsigned Line, Metadata *Type,
                      bool IsLocalToUnit, bool IsDefinition,
                      Metadata *StaticDataMemberDeclaration,
-                     Metadata *TemplateParams, uint32_t AlignInBits),
+                     Metadata *TemplateParams, uint32_t AlignInBits,
+                     Metadata *Annotations),
                     (Scope, Name, LinkageName, File, Line, Type, IsLocalToUnit,
                      IsDefinition, StaticDataMemberDeclaration, TemplateParams,
-                     AlignInBits))
+                     AlignInBits, Annotations))
 
   TempDIGlobalVariable clone() const { return cloneImpl(); }
 
@@ -3003,11 +3017,15 @@ public:
   DIDerivedType *getStaticDataMemberDeclaration() const {
     return cast_or_null<DIDerivedType>(getRawStaticDataMemberDeclaration());
   }
+  DINodeArray getAnnotations() const {
+    return cast_or_null<MDTuple>(getRawAnnotations());
+  }
 
   MDString *getRawLinkageName() const { return getOperandAs<MDString>(5); }
   Metadata *getRawStaticDataMemberDeclaration() const { return getOperand(6); }
   Metadata *getRawTemplateParams() const { return getOperand(7); }
   MDTuple *getTemplateParams() const { return getOperandAs<MDTuple>(7); }
+  Metadata *getRawAnnotations() const { return getOperand(8); }
 
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == DIGlobalVariableKind;
@@ -3095,34 +3113,37 @@ class DILocalVariable : public DIVariable {
   static DILocalVariable *getImpl(LLVMContext &Context, DIScope *Scope,
                                   StringRef Name, DIFile *File, unsigned Line,
                                   DIType *Type, unsigned Arg, DIFlags Flags,
-                                  uint32_t AlignInBits, StorageType Storage,
-                                  bool ShouldCreate = true) {
+                                  uint32_t AlignInBits, DINodeArray Annotations,
+                                  StorageType Storage, bool ShouldCreate = true) {
     return getImpl(Context, Scope, getCanonicalMDString(Context, Name), File,
-                   Line, Type, Arg, Flags, AlignInBits, Storage, ShouldCreate);
+                   Line, Type, Arg, Flags, AlignInBits, Annotations.get(), Storage,
+                   ShouldCreate);
   }
   static DILocalVariable *getImpl(LLVMContext &Context, Metadata *Scope,
                                   MDString *Name, Metadata *File, unsigned Line,
                                   Metadata *Type, unsigned Arg, DIFlags Flags,
-                                  uint32_t AlignInBits, StorageType Storage,
-                                  bool ShouldCreate = true);
+                                  uint32_t AlignInBits, Metadata *Annotations,
+                                  StorageType Storage, bool ShouldCreate = true);
 
   TempDILocalVariable cloneImpl() const {
     return getTemporary(getContext(), getScope(), getName(), getFile(),
                         getLine(), getType(), getArg(), getFlags(),
-                        getAlignInBits());
+                        getAlignInBits(), getAnnotations());
   }
 
 public:
   DEFINE_MDNODE_GET(DILocalVariable,
                     (DILocalScope * Scope, StringRef Name, DIFile *File,
                      unsigned Line, DIType *Type, unsigned Arg, DIFlags Flags,
-                     uint32_t AlignInBits),
-                    (Scope, Name, File, Line, Type, Arg, Flags, AlignInBits))
+                     uint32_t AlignInBits, DINodeArray Annotations),
+                    (Scope, Name, File, Line, Type, Arg, Flags, AlignInBits,
+                     Annotations))
   DEFINE_MDNODE_GET(DILocalVariable,
                     (Metadata * Scope, MDString *Name, Metadata *File,
                      unsigned Line, Metadata *Type, unsigned Arg,
-                     DIFlags Flags, uint32_t AlignInBits),
-                    (Scope, Name, File, Line, Type, Arg, Flags, AlignInBits))
+                     DIFlags Flags, uint32_t AlignInBits, Metadata *Annotations),
+                    (Scope, Name, File, Line, Type, Arg, Flags, AlignInBits,
+                     Annotations))
 
   TempDILocalVariable clone() const { return cloneImpl(); }
 
@@ -3136,6 +3157,11 @@ public:
   bool isParameter() const { return Arg; }
   unsigned getArg() const { return Arg; }
   DIFlags getFlags() const { return Flags; }
+
+  DINodeArray getAnnotations() const {
+    return cast_or_null<MDTuple>(getRawAnnotations());
+  }
+  Metadata *getRawAnnotations() const { return getOperand(4); }
 
   bool isArtificial() const { return getFlags() & FlagArtificial; }
   bool isObjectPointer() const { return getFlags() & FlagObjectPointer; }
@@ -3321,31 +3347,33 @@ class DIImportedEntity : public DINode {
   static DIImportedEntity *getImpl(LLVMContext &Context, unsigned Tag,
                                    DIScope *Scope, DINode *Entity, DIFile *File,
                                    unsigned Line, StringRef Name,
-                                   StorageType Storage,
+                                   DINodeArray Elements, StorageType Storage,
                                    bool ShouldCreate = true) {
     return getImpl(Context, Tag, Scope, Entity, File, Line,
-                   getCanonicalMDString(Context, Name), Storage, ShouldCreate);
+                   getCanonicalMDString(Context, Name), Elements.get(), Storage,
+                   ShouldCreate);
   }
-  static DIImportedEntity *getImpl(LLVMContext &Context, unsigned Tag,
-                                   Metadata *Scope, Metadata *Entity,
-                                   Metadata *File, unsigned Line,
-                                   MDString *Name, StorageType Storage,
-                                   bool ShouldCreate = true);
+  static DIImportedEntity *
+  getImpl(LLVMContext &Context, unsigned Tag, Metadata *Scope, Metadata *Entity,
+          Metadata *File, unsigned Line, MDString *Name, Metadata *Elements,
+          StorageType Storage, bool ShouldCreate = true);
 
   TempDIImportedEntity cloneImpl() const {
     return getTemporary(getContext(), getTag(), getScope(), getEntity(),
-                        getFile(), getLine(), getName());
+                        getFile(), getLine(), getName(), getElements());
   }
 
 public:
   DEFINE_MDNODE_GET(DIImportedEntity,
                     (unsigned Tag, DIScope *Scope, DINode *Entity, DIFile *File,
-                     unsigned Line, StringRef Name = ""),
-                    (Tag, Scope, Entity, File, Line, Name))
+                     unsigned Line, StringRef Name = "",
+                     DINodeArray Elements = nullptr),
+                    (Tag, Scope, Entity, File, Line, Name, Elements))
   DEFINE_MDNODE_GET(DIImportedEntity,
                     (unsigned Tag, Metadata *Scope, Metadata *Entity,
-                     Metadata *File, unsigned Line, MDString *Name),
-                    (Tag, Scope, Entity, File, Line, Name))
+                     Metadata *File, unsigned Line, MDString *Name,
+                     Metadata *Elements = nullptr),
+                    (Tag, Scope, Entity, File, Line, Name, Elements))
 
   TempDIImportedEntity clone() const { return cloneImpl(); }
 
@@ -3354,11 +3382,15 @@ public:
   DINode *getEntity() const { return cast_or_null<DINode>(getRawEntity()); }
   StringRef getName() const { return getStringOperand(2); }
   DIFile *getFile() const { return cast_or_null<DIFile>(getRawFile()); }
+  DINodeArray getElements() const {
+    return cast_or_null<MDTuple>(getRawElements());
+  }
 
   Metadata *getRawScope() const { return getOperand(0); }
   Metadata *getRawEntity() const { return getOperand(1); }
   MDString *getRawName() const { return getOperandAs<MDString>(2); }
   Metadata *getRawFile() const { return getOperand(3); }
+  Metadata *getRawElements() const { return getOperand(4); }
 
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == DIImportedEntityKind;

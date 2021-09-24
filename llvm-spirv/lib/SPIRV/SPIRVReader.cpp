@@ -220,6 +220,30 @@ Value *SPIRVToLLVM::getTranslatedValue(SPIRVValue *BV) {
   return nullptr;
 }
 
+static llvm::Optional<llvm::Attribute>
+translateSEVMetadata(SPIRVValue *BV, llvm::LLVMContext &Context) {
+  llvm::Optional<llvm::Attribute> RetAttr;
+
+  if (!BV->hasDecorate(DecorationSingleElementVectorINTEL))
+    return RetAttr;
+
+  auto VecDecorateSEV = BV->getDecorations(DecorationSingleElementVectorINTEL);
+  assert(VecDecorateSEV.size() == 1 &&
+         "Entry must have no more than one SingleElementVectorINTEL "
+         "decoration");
+  auto *DecorateSEV = VecDecorateSEV.back();
+  auto LiteralCount = DecorateSEV->getLiteralCount();
+  assert(LiteralCount <= 1 && "SingleElementVectorINTEL decoration must "
+                              "have no more than one literal");
+
+  SPIRVWord IndirectLevelsOnElement =
+      (LiteralCount == 1) ? DecorateSEV->getLiteral(0) : 0;
+
+  RetAttr = Attribute::get(Context, kVCMetadata::VCSingleElementVector,
+                           std::to_string(IndirectLevelsOnElement));
+  return RetAttr;
+}
+
 IntrinsicInst *SPIRVToLLVM::getLifetimeStartIntrinsic(Instruction *I) {
   auto II = dyn_cast<IntrinsicInst>(I);
   if (II && II->getIntrinsicID() == Intrinsic::lifetime_start)
@@ -441,6 +465,23 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool IsClassMember) {
     return mapType(T,
                    getOrCreateOpaquePtrType(M, transVCTypeName(PST),
                                             SPIRAddressSpace::SPIRAS_Global));
+  }
+
+  case internal::OpTypeJointMatrixINTEL: {
+    auto *MT = static_cast<SPIRVTypeJointMatrixINTEL *>(T);
+    auto R = static_cast<SPIRVConstant *>(MT->getRows())->getZExtIntValue();
+    auto C = static_cast<SPIRVConstant *>(MT->getColumns())->getZExtIntValue();
+    std::stringstream SS;
+    SS << kSPIRVTypeName::PostfixDelim;
+    SS << transTypeToOCLTypeName(MT->getCompType());
+    auto L = static_cast<SPIRVConstant *>(MT->getLayout())->getZExtIntValue();
+    auto S = static_cast<SPIRVConstant *>(MT->getScope())->getZExtIntValue();
+    SS << kSPIRVTypeName::PostfixDelim << R << kSPIRVTypeName::PostfixDelim << C
+       << kSPIRVTypeName::PostfixDelim << L << kSPIRVTypeName::PostfixDelim
+       << S;
+    std::string Name =
+        getSPIRVTypeName(kSPIRVTypeName::JointMatrixINTEL, SS.str());
+    return mapType(T, getOrCreateOpaquePtrType(M, Name));
   }
 
   default: {
@@ -1460,6 +1501,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       Initializer = UndefValue::get(Ty);
     } else
       AddrSpace = SPIRSPIRVAddrSpaceMap::rmap(BS);
+    // Force SPIRV BuiltIn variable's name to be __spirv_BuiltInXXXX.
+    // No matter what BV's linkage name is.
+    SPIRVBuiltinVariableKind BVKind;
+    if (BVar->isBuiltin(&BVKind))
+      BV->setName(prefixSPIRVName(SPIRVBuiltInNameMap::map(BVKind)));
     auto LVar = new GlobalVariable(*M, Ty, IsConst, LinkageTy,
                                    /*Initializer=*/nullptr, BV->getName(), 0,
                                    GlobalVariable::NotThreadLocal, AddrSpace);
@@ -1488,24 +1534,13 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         LVar->addAttribute(kVCMetadata::VCByteOffset, utostr(Offset));
       if (BVar->hasDecorate(DecorationVolatile))
         LVar->addAttribute(kVCMetadata::VCVolatile);
+      auto SEVAttr = translateSEVMetadata(BVar, LVar->getContext());
+      if (SEVAttr)
+        LVar->addAttribute(SEVAttr.getValue().getKindAsString(),
+                           SEVAttr.getValue().getValueAsString());
     }
 
     return Res;
-  }
-
-  case OpVariableLengthArrayINTEL: {
-    auto *VLA = static_cast<SPIRVVariableLengthArrayINTEL *>(BV);
-    llvm::Type *Ty = transType(BV->getType()->getPointerElementType());
-    llvm::Value *ArrSize = transValue(VLA->getOperand(0), F, BB, false);
-    return mapValue(
-        BV, new AllocaInst(Ty, SPIRAS_Private, ArrSize, BV->getName(), BB));
-  }
-  case OpRestoreMemoryINTEL: {
-    auto *Restore = static_cast<SPIRVRestoreMemoryINTEL *>(BV);
-    llvm::Value *Ptr = transValue(Restore->getOperand(0), F, BB, false);
-    Function *StackRestore =
-        Intrinsic::getDeclaration(M, Intrinsic::stackrestore);
-    return mapValue(BV, CallInst::Create(StackRestore, {Ptr}, "", BB));
   }
 
   case OpFunctionParameter: {
@@ -1557,10 +1592,27 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   // Translation of instructions
   int OpCode = BV->getOpCode();
   switch (OpCode) {
+  case OpVariableLengthArrayINTEL: {
+    auto *VLA = static_cast<SPIRVVariableLengthArrayINTEL *>(BV);
+    llvm::Type *Ty = transType(BV->getType()->getPointerElementType());
+    llvm::Value *ArrSize = transValue(VLA->getOperand(0), F, BB);
+    return mapValue(
+        BV, new AllocaInst(Ty, SPIRAS_Private, ArrSize, BV->getName(), BB));
+  }
+
+  case OpRestoreMemoryINTEL: {
+    auto *Restore = static_cast<SPIRVRestoreMemoryINTEL *>(BV);
+    llvm::Value *Ptr = transValue(Restore->getOperand(0), F, BB);
+    Function *StackRestore =
+        Intrinsic::getDeclaration(M, Intrinsic::stackrestore);
+    return mapValue(BV, CallInst::Create(StackRestore, {Ptr}, "", BB));
+  }
+
   case OpSaveMemoryINTEL: {
     Function *StackSave = Intrinsic::getDeclaration(M, Intrinsic::stacksave);
     return mapValue(BV, CallInst::Create(StackSave, "", BB));
   }
+
   case OpBranch: {
     auto *BR = static_cast<SPIRVBranch *>(BV);
     auto *BI = BranchInst::Create(
@@ -3011,7 +3063,8 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
     if (isFuncNoUnwind())
       Func->addFnAttr(Attribute::NoUnwind);
     auto OC = BI->getOpCode();
-    if (isGroupOpCode(OC) || isIntelSubgroupOpCode(OC))
+    if (isGroupOpCode(OC) || isIntelSubgroupOpCode(OC) ||
+        OC == OpControlBarrier)
       Func->addFnAttr(Attribute::Convergent);
   }
   auto Call =
@@ -3098,7 +3151,7 @@ Instruction *SPIRVToLLVM::transSPIRVBuiltinFromInst(SPIRVInstruction *BI,
   bool AddRetTypePostfix = false;
   if (OC == OpImageQuerySizeLod || OC == OpImageQuerySize ||
       OC == OpImageRead || OC == OpSubgroupImageBlockReadINTEL ||
-      OC == OpSubgroupBlockReadINTEL)
+      OC == OpSubgroupBlockReadINTEL || OC == internal::OpJointMatrixLoadINTEL)
     AddRetTypePostfix = true;
 
   bool IsRetSigned = false;
@@ -3376,7 +3429,15 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     SmallString<256> AnnotStr;
     generateIntelFPGAAnnotation(BV, AnnotStr);
     if (!AnnotStr.empty()) {
-      auto *GS = Builder.CreateGlobalStringPtr(AnnotStr);
+      Constant *GS = nullptr;
+      std::string StringAnnotStr = AnnotStr.c_str();
+      auto AnnotItr = AnnotationsMap.find(StringAnnotStr);
+      if (AnnotItr != AnnotationsMap.end()) {
+        GS = AnnotItr->second;
+      } else {
+        GS = Builder.CreateGlobalStringPtr(AnnotStr);
+        AnnotationsMap.emplace(std::move(StringAnnotStr), GS);
+      }
 
       Value *BaseInst =
           AL ? Builder.CreateBitCast(V, Int8PtrTyPrivate, V->getName()) : Inst;
@@ -3393,7 +3454,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
           isStaticMemoryAttribute
               ? llvm::Intrinsic::getDeclaration(M, Intrinsic::var_annotation)
               : llvm::Intrinsic::getDeclaration(M, Intrinsic::ptr_annotation,
-                                                AllocatedTy);
+                                                BaseInst->getType());
 
       llvm::Value *Args[] = {BaseInst,
                              Builder.CreateBitCast(GS, Int8PtrTyPrivate),
@@ -3853,9 +3914,10 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
   if (BF->hasDecorate(DecorationSIMTCallINTEL, 0, &SIMTMode))
     F->addFnAttr(kVCMetadata::VCSIMTCall, std::to_string(SIMTMode));
 
-  auto SEVAttr = Attribute::get(*Context, kVCMetadata::VCSingleElementVector);
-  if (BF->hasDecorate(DecorationSingleElementVectorINTEL))
-    F->addAttribute(AttributeList::ReturnIndex, SEVAttr);
+  auto SEVAttr = translateSEVMetadata(BF, F->getContext());
+
+  if (SEVAttr)
+    F->addAttributeAtIndex(AttributeList::ReturnIndex, SEVAttr.getValue());
 
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
@@ -3865,22 +3927,23 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
     if (BA->hasDecorate(DecorationFuncParamIOKindINTEL, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentIOKind,
                                       std::to_string(Kind));
-      F->addAttribute(ArgNo + 1, Attr);
+      F->addParamAttr(ArgNo, Attr);
     }
     if (BA->hasDecorate(internal::DecorationFuncParamKindINTEL, 0, &Kind)) {
       Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentKind,
                                       std::to_string(Kind));
-      F->addAttribute(ArgNo + 1, Attr);
+      F->addParamAttr(ArgNo, Attr);
     }
-    if (BA->hasDecorate(DecorationSingleElementVectorINTEL))
-      F->addAttribute(ArgNo + 1, SEVAttr);
+    SEVAttr = translateSEVMetadata(BA, F->getContext());
+    if (SEVAttr)
+      F->addParamAttr(ArgNo, SEVAttr.getValue());
     if (BA->hasDecorate(internal::DecorationFuncParamDescINTEL)) {
       auto Desc =
           BA->getDecorationStringLiteral(internal::DecorationFuncParamDescINTEL)
               .front();
       Attribute Attr =
           Attribute::get(*Context, kVCMetadata::VCArgumentDesc, Desc);
-      F->addAttribute(ArgNo + 1, Attr);
+      F->addParamAttr(ArgNo, Attr);
     }
   }
 
@@ -3981,14 +4044,14 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
   if (IsVCFloatControl) {
     Attribute Attr = Attribute::get(*Context, kVCMetadata::VCFloatControl,
                                     std::to_string(FloatControl));
-    F->addAttribute(AttributeList::FunctionIndex, Attr);
+    F->addFnAttr(Attr);
   }
 
   if (auto EM = BF->getExecutionMode(ExecutionModeSharedLocalMemorySizeINTEL)) {
     unsigned int SLMSize = EM->getLiterals()[0];
     Attribute Attr = Attribute::get(*Context, kVCMetadata::VCSLMSize,
                                     std::to_string(SLMSize));
-    F->addAttribute(AttributeList::FunctionIndex, Attr);
+    F->addFnAttr(Attr);
   }
 
   return true;

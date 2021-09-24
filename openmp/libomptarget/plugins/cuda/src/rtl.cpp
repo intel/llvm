@@ -101,6 +101,9 @@ struct KernelTy {
 /// file later.
 struct omptarget_device_environmentTy {
   int32_t debug_level;
+  uint32_t num_devices;
+  uint32_t device_num;
+  uint64_t dynamic_shared_size;
 };
 
 namespace {
@@ -122,6 +125,62 @@ int memcpyDtoD(const void *SrcPtr, void *DstPtr, int64_t Size,
     DP("Error when copying data from device to device. Pointers: src "
        "= " DPxMOD ", dst = " DPxMOD ", size = %" PRId64 "\n",
        DPxPTR(SrcPtr), DPxPTR(DstPtr), Size);
+    CUDA_ERR_STRING(Err);
+    return OFFLOAD_FAIL;
+  }
+
+  return OFFLOAD_SUCCESS;
+}
+
+int createEvent(void **P) {
+  CUevent Event = nullptr;
+
+  CUresult Err = cuEventCreate(&Event, CU_EVENT_DEFAULT);
+  if (Err != CUDA_SUCCESS) {
+    DP("Error when creating event event = " DPxMOD "\n", DPxPTR(Event));
+    CUDA_ERR_STRING(Err);
+    return OFFLOAD_FAIL;
+  }
+
+  *P = Event;
+
+  return OFFLOAD_SUCCESS;
+}
+
+int recordEvent(void *EventPtr, __tgt_async_info *AsyncInfo) {
+  CUstream Stream = reinterpret_cast<CUstream>(AsyncInfo->Queue);
+  CUevent Event = reinterpret_cast<CUevent>(EventPtr);
+
+  CUresult Err = cuEventRecord(Event, Stream);
+  if (Err != CUDA_SUCCESS) {
+    DP("Error when recording event. stream = " DPxMOD ", event = " DPxMOD "\n",
+       DPxPTR(Stream), DPxPTR(Event));
+    CUDA_ERR_STRING(Err);
+    return OFFLOAD_FAIL;
+  }
+
+  return OFFLOAD_SUCCESS;
+}
+
+int syncEvent(void *EventPtr) {
+  CUevent Event = reinterpret_cast<CUevent>(EventPtr);
+
+  CUresult Err = cuEventSynchronize(Event);
+  if (Err != CUDA_SUCCESS) {
+    DP("Error when syncing event = " DPxMOD "\n", DPxPTR(Event));
+    CUDA_ERR_STRING(Err);
+    return OFFLOAD_FAIL;
+  }
+
+  return OFFLOAD_SUCCESS;
+}
+
+int destroyEvent(void *EventPtr) {
+  CUevent Event = reinterpret_cast<CUevent>(EventPtr);
+
+  CUresult Err = cuEventDestroy(Event);
+  if (Err != CUDA_SUCCESS) {
+    DP("Error when destroying event = " DPxMOD "\n", DPxPTR(Event));
     CUDA_ERR_STRING(Err);
     return OFFLOAD_FAIL;
   }
@@ -288,6 +347,8 @@ class DeviceRTLTy {
   int EnvTeamThreadLimit;
   // OpenMP requires flags
   int64_t RequiresFlags;
+  // Amount of dynamic shared memory to use at launch.
+  uint64_t DynamicMemorySize;
 
   static constexpr const int HardTeamLimit = 1U << 16U; // 64k
   static constexpr const int HardThreadLimit = 1024;
@@ -441,7 +502,8 @@ public:
 
   DeviceRTLTy()
       : NumberOfDevices(0), EnvNumTeams(-1), EnvTeamLimit(-1),
-        EnvTeamThreadLimit(-1), RequiresFlags(OMP_REQ_UNDEFINED) {
+        EnvTeamThreadLimit(-1), RequiresFlags(OMP_REQ_UNDEFINED),
+        DynamicMemorySize(0) {
 
     DP("Start initializing CUDA\n");
 
@@ -481,6 +543,11 @@ public:
       // OMP_NUM_TEAMS has been set
       EnvNumTeams = std::stoi(EnvStr);
       DP("Parsed OMP_NUM_TEAMS=%d\n", EnvNumTeams);
+    }
+    if (const char *EnvStr = getenv("LIBOMPTARGET_SHARED_MEMORY_SIZE")) {
+      // LIBOMPTARGET_SHARED_MEMORY_SIZE has been set
+      DynamicMemorySize = std::stoi(EnvStr);
+      DP("Parsed LIBOMPTARGET_SHARED_MEMORY_SIZE", DynamicMemorySize);
     }
 
     StreamManager =
@@ -843,7 +910,10 @@ public:
 
     // send device environment data to the device
     {
-      omptarget_device_environmentTy DeviceEnv{0};
+      // TODO: The device ID used here is not the real device ID used by OpenMP.
+      omptarget_device_environmentTy DeviceEnv{
+          0, static_cast<uint32_t>(NumberOfDevices),
+          static_cast<uint32_t>(DeviceId), DynamicMemorySize};
 
 #ifdef OMPTARGET_DEBUG
       if (const char *EnvStr = getenv("LIBOMPTARGET_DEVICE_RTL_DEBUG"))
@@ -1129,7 +1199,7 @@ public:
     Err = cuLaunchKernel(KernelInfo->Func, CudaBlocksPerGrid, /* gridDimY */ 1,
                          /* gridDimZ */ 1, CudaThreadsPerBlock,
                          /* blockDimY */ 1, /* blockDimZ */ 1,
-                         /* sharedMemBytes */ 0, Stream, &Args[0], nullptr);
+                         DynamicMemorySize, Stream, &Args[0], nullptr);
     if (!checkResult(Err, "Error returned from cuLaunchKernel\n"))
       return OFFLOAD_FAIL;
 
@@ -1331,6 +1401,25 @@ public:
             &TmpInt2, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, Device),
         "Error returned from cuDeviceGetAttribute\n");
     printf("    Compute Capabilities: \t\t%d%d \n", TmpInt, TmpInt2);
+  }
+
+  int waitEvent(const int DeviceId, __tgt_async_info *AsyncInfo,
+                void *EventPtr) const {
+    CUstream Stream = getStream(DeviceId, AsyncInfo);
+    CUevent Event = reinterpret_cast<CUevent>(EventPtr);
+
+    // We don't use CU_EVENT_WAIT_DEFAULT here as it is only available from
+    // specific CUDA version, and defined as 0x0. In previous version, per CUDA
+    // API document, that argument has to be 0x0.
+    CUresult Err = cuStreamWaitEvent(Stream, Event, 0);
+    if (Err != CUDA_SUCCESS) {
+      DP("Error when waiting event. stream = " DPxMOD ", event = " DPxMOD "\n",
+         DPxPTR(Stream), DPxPTR(Event));
+      CUDA_ERR_STRING(Err);
+      return OFFLOAD_FAIL;
+    }
+
+    return OFFLOAD_SUCCESS;
   }
 };
 
@@ -1535,6 +1624,41 @@ void __tgt_rtl_set_info_flag(uint32_t NewInfoLevel) {
 void __tgt_rtl_print_device_info(int32_t device_id) {
   assert(DeviceRTL.isValidDeviceId(device_id) && "device_id is invalid");
   DeviceRTL.printDeviceInfo(device_id);
+}
+
+int32_t __tgt_rtl_create_event(int32_t device_id, void **event) {
+  assert(event && "event is nullptr");
+  return createEvent(event);
+}
+
+int32_t __tgt_rtl_record_event(int32_t device_id, void *event_ptr,
+                               __tgt_async_info *async_info_ptr) {
+  assert(async_info_ptr && "async_info_ptr is nullptr");
+  assert(async_info_ptr->Queue && "async_info_ptr->Queue is nullptr");
+  assert(event_ptr && "event_ptr is nullptr");
+
+  return recordEvent(event_ptr, async_info_ptr);
+}
+
+int32_t __tgt_rtl_wait_event(int32_t device_id, void *event_ptr,
+                             __tgt_async_info *async_info_ptr) {
+  assert(DeviceRTL.isValidDeviceId(device_id) && "device_id is invalid");
+  assert(async_info_ptr && "async_info_ptr is nullptr");
+  assert(event_ptr && "event is nullptr");
+
+  return DeviceRTL.waitEvent(device_id, async_info_ptr, event_ptr);
+}
+
+int32_t __tgt_rtl_sync_event(int32_t device_id, void *event_ptr) {
+  assert(event_ptr && "event is nullptr");
+
+  return syncEvent(event_ptr);
+}
+
+int32_t __tgt_rtl_destroy_event(int32_t device_id, void *event_ptr) {
+  assert(event_ptr && "event is nullptr");
+
+  return destroyEvent(event_ptr);
 }
 
 #ifdef __cplusplus

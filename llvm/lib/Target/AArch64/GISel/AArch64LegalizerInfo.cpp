@@ -16,6 +16,7 @@
 #include "AArch64Subtarget.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
+#include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/MachineInstr.h"
@@ -35,6 +36,7 @@ using namespace llvm;
 using namespace LegalizeActions;
 using namespace LegalizeMutations;
 using namespace LegalityPredicates;
+using namespace MIPatternMatch;
 
 AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
     : ST(&ST) {
@@ -110,8 +112,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
   getActionDefinitionsBuilder(G_BSWAP)
       .legalFor({s32, s64, v4s32, v2s32, v2s64})
       .widenScalarToNextPow2(0)
-      .clampScalar(0, s32, s64)
-      .customIf(typeIs(0, v2s16)); // custom lower as G_REV32 + G_LSHR
+      .clampScalar(0, s32, s64);
 
   getActionDefinitionsBuilder({G_ADD, G_SUB, G_MUL, G_AND, G_OR, G_XOR})
       .legalFor({s32, s64, v2s32, v4s32, v4s16, v8s16, v16s8, v8s8})
@@ -194,7 +195,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .widenScalarToNextPow2(0);
 
   getActionDefinitionsBuilder({G_FADD, G_FSUB, G_FMUL, G_FDIV, G_FNEG})
-      .legalFor({s32, s64, v2s64, v4s32, v2s32})
+      .legalFor({MinFPScalar, s32, s64, v2s64, v4s32, v2s32})
+      .clampScalar(0, MinFPScalar, s64)
       .clampNumElements(0, v2s32, v4s32)
       .clampNumElements(0, v2s64, v2s64);
 
@@ -278,6 +280,10 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
   };
 
   getActionDefinitionsBuilder(G_LOAD)
+      .customIf([=](const LegalityQuery &Query) {
+        return Query.Types[0] == s128 &&
+               Query.MMODescrs[0].Ordering != AtomicOrdering::NotAtomic;
+      })
       .legalForTypesWithMemDesc({{s8, p0, s8, 8},
                                  {s16, p0, s16, 8},
                                  {s32, p0, s32, 8},
@@ -316,6 +322,10 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .scalarizeIf(typeIs(0, v2s16), 0);
 
   getActionDefinitionsBuilder(G_STORE)
+      .customIf([=](const LegalityQuery &Query) {
+        return Query.Types[0] == s128 &&
+               Query.MMODescrs[0].Ordering != AtomicOrdering::NotAtomic;
+      })
       .legalForTypesWithMemDesc({{s8, p0, s8, 8},
                                  {s16, p0, s8, 8}, // truncstorei8 from s16
                                  {s32, p0, s8, 8}, // truncstorei8 from s32
@@ -487,6 +497,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
 
   getActionDefinitionsBuilder(G_PTRTOINT)
       .legalForCartesianProduct({s1, s8, s16, s32, s64}, {p0})
+      .legalFor({{v2s64, v2p0}})
       .maxScalar(0, s64)
       .widenScalarToNextPow2(0, /*Min*/ 8);
 
@@ -575,7 +586,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
         const LLT &VecTy = Query.Types[1];
         return VecTy == v2s16 || VecTy == v4s16 || VecTy == v8s16 ||
                VecTy == v4s32 || VecTy == v2s64 || VecTy == v2s32 ||
-               VecTy == v16s8 || VecTy == v2s32 || VecTy == v2p0;
+               VecTy == v8s8 || VecTy == v16s8 || VecTy == v2s32 ||
+               VecTy == v2p0;
       })
       .minScalarOrEltIf(
           [=](const LegalityQuery &Query) {
@@ -757,9 +769,6 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
   // TODO: Vector types.
   getActionDefinitionsBuilder({G_SADDSAT, G_SSUBSAT}).lowerIf(isScalar(0));
 
-  getActionDefinitionsBuilder(G_ISNAN).lowerIf(
-      any(isVector(1), typeInSet(1, {s16, s32, s64})));
-
   // TODO: Vector types.
   getActionDefinitionsBuilder({G_FMAXNUM, G_FMINNUM})
       .legalFor({MinFPScalar, s32, s64})
@@ -767,7 +776,9 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .minScalar(0, MinFPScalar);
 
   // TODO: Libcall support for s128.
-  getActionDefinitionsBuilder(G_LROUND).legalFor({{s64, s32}, {s64, s64}});
+  // TODO: s16 should be legal with full FP16 support.
+  getActionDefinitionsBuilder({G_LROUND, G_LLROUND})
+      .legalFor({{s64, s32}, {s64, s64}});
 
   getLegacyLegalizerInfo().computeTables();
   verify(*ST.getInstrInfo());
@@ -787,8 +798,6 @@ bool AArch64LegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
   case TargetOpcode::G_LOAD:
   case TargetOpcode::G_STORE:
     return legalizeLoadStore(MI, MRI, MIRBuilder, Observer);
-  case TargetOpcode::G_BSWAP:
-    return legalizeBSwap(MI, MRI, MIRBuilder);
   case TargetOpcode::G_SHL:
   case TargetOpcode::G_ASHR:
   case TargetOpcode::G_LSHR:
@@ -934,18 +943,9 @@ bool AArch64LegalizerInfo::legalizeSmallCMGlobalValue(
   return true;
 }
 
-static unsigned findIntrinsicID(MachineInstr &I) {
-  auto IntrinOp = find_if(I.operands(), [&](const MachineOperand &Op) {
-    return Op.isIntrinsicID();
-  });
-  if (IntrinOp == I.operands_end())
-    return 0;
-  return IntrinOp->getIntrinsicID();
-}
-
 bool AArch64LegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
                                              MachineInstr &MI) const {
-  switch (findIntrinsicID(MI)) {
+  switch (MI.getIntrinsicID()) {
   case Intrinsic::vacopy: {
     unsigned PtrSize = ST->isTargetILP32() ? 4 : 8;
     unsigned VaListSize =
@@ -988,7 +988,7 @@ bool AArch64LegalizerInfo::legalizeShlAshrLshr(
   // If the shift amount is a G_CONSTANT, promote it to a 64 bit type so the
   // imported patterns can select it later. Either way, it will be legal.
   Register AmtReg = MI.getOperand(2).getReg();
-  auto VRegAndVal = getConstantVRegValWithLookThrough(AmtReg, MRI);
+  auto VRegAndVal = getIConstantVRegValWithLookThrough(AmtReg, MRI);
   if (!VRegAndVal)
     return true;
   // Check the shift amount is in range for an immediate form.
@@ -1000,6 +1000,20 @@ bool AArch64LegalizerInfo::legalizeShlAshrLshr(
   MI.getOperand(2).setReg(ExtCst.getReg(0));
   Observer.changedInstr(MI);
   return true;
+}
+
+static void matchLDPSTPAddrMode(Register Root, Register &Base, int &Offset,
+                                MachineRegisterInfo &MRI) {
+  Base = Root;
+  Offset = 0;
+
+  Register NewBase;
+  int64_t NewOffset;
+  if (mi_match(Root, MRI, m_GPtrAdd(m_Reg(NewBase), m_ICst(NewOffset))) &&
+      isShiftedInt<7, 3>(NewOffset)) {
+    Base = NewBase;
+    Offset = NewOffset;
+  }
 }
 
 // FIXME: This should be removed and replaced with the generic bitcast legalize
@@ -1021,6 +1035,36 @@ bool AArch64LegalizerInfo::legalizeLoadStore(
   Register ValReg = MI.getOperand(0).getReg();
   const LLT ValTy = MRI.getType(ValReg);
 
+  if (ValTy == LLT::scalar(128)) {
+    assert((*MI.memoperands_begin())->getSuccessOrdering() ==
+               AtomicOrdering::Monotonic ||
+           (*MI.memoperands_begin())->getSuccessOrdering() ==
+               AtomicOrdering::Unordered);
+    assert(ST->hasLSE2() && "ldp/stp not single copy atomic without +lse2");
+    LLT s64 = LLT::scalar(64);
+    MachineInstrBuilder NewI;
+    if (MI.getOpcode() == TargetOpcode::G_LOAD) {
+      NewI = MIRBuilder.buildInstr(AArch64::LDPXi, {s64, s64}, {});
+      MIRBuilder.buildMerge(ValReg, {NewI->getOperand(0), NewI->getOperand(1)});
+    } else {
+      auto Split = MIRBuilder.buildUnmerge(s64, MI.getOperand(0));
+      NewI = MIRBuilder.buildInstr(
+          AArch64::STPXi, {}, {Split->getOperand(0), Split->getOperand(1)});
+    }
+    Register Base;
+    int Offset;
+    matchLDPSTPAddrMode(MI.getOperand(1).getReg(), Base, Offset, MRI);
+    NewI.addUse(Base);
+    NewI.addImm(Offset / 8);
+
+    NewI.cloneMemRefs(MI);
+    constrainSelectedInstRegOperands(*NewI, *ST->getInstrInfo(),
+                                     *MRI.getTargetRegisterInfo(),
+                                     *ST->getRegBankInfo());
+    MI.eraseFromParent();
+    return true;
+  }
+
   if (!ValTy.isVector() || !ValTy.getElementType().isPointer() ||
       ValTy.getElementType().getAddressSpace() != 0) {
     LLVM_DEBUG(dbgs() << "Tried to do custom legalization on wrong load/store");
@@ -1039,46 +1083,6 @@ bool AArch64LegalizerInfo::legalizeLoadStore(
     auto NewLoad = MIRBuilder.buildLoad(NewTy, MI.getOperand(1), MMO);
     MIRBuilder.buildBitcast(ValReg, NewLoad);
   }
-  MI.eraseFromParent();
-  return true;
-}
-
-bool AArch64LegalizerInfo::legalizeBSwap(MachineInstr &MI,
-                                         MachineRegisterInfo &MRI,
-                                         MachineIRBuilder &MIRBuilder) const {
-  assert(MI.getOpcode() == TargetOpcode::G_BSWAP);
-
-  // The <2 x half> case needs special lowering because there isn't an
-  // instruction that does that directly. Instead, we widen to <8 x i8>
-  // and emit a G_REV32 followed by a G_LSHR knowing that instruction selection
-  // will later match them as:
-  //
-  //   rev32.8b v0, v0
-  //   ushr.2s v0, v0, #16
-  //
-  // We could emit those here directly, but it seems better to keep things as
-  // generic as possible through legalization, and avoid committing layering
-  // violations by legalizing & selecting here at the same time.
-
-  Register ValReg = MI.getOperand(1).getReg();
-  assert(LLT::fixed_vector(2, 16) == MRI.getType(ValReg));
-  const LLT v2s32 = LLT::fixed_vector(2, 32);
-  const LLT v8s8 = LLT::fixed_vector(8, 8);
-  const LLT s32 = LLT::scalar(32);
-
-  auto Undef = MIRBuilder.buildUndef(v8s8);
-  auto Insert =
-      MIRBuilder
-          .buildInstr(TargetOpcode::INSERT_SUBREG, {v8s8}, {Undef, ValReg})
-          .addImm(AArch64::ssub);
-  auto Rev32 = MIRBuilder.buildInstr(AArch64::G_REV32, {v8s8}, {Insert});
-  auto Bitcast = MIRBuilder.buildBitcast(v2s32, Rev32);
-  auto Amt = MIRBuilder.buildConstant(v2s32, 16);
-  auto UShr =
-      MIRBuilder.buildInstr(TargetOpcode::G_LSHR, {v2s32}, {Bitcast, Amt});
-  auto Zero = MIRBuilder.buildConstant(s32, 0);
-  auto Extract = MIRBuilder.buildExtractVectorElement(s32, UShr, Zero);
-  MIRBuilder.buildBitcast({MI.getOperand(0).getReg()}, Extract);
   MI.eraseFromParent();
   return true;
 }
@@ -1135,8 +1139,8 @@ bool AArch64LegalizerInfo::legalizeBitfieldExtract(
     MachineInstr &MI, MachineRegisterInfo &MRI, LegalizerHelper &Helper) const {
   // Only legal if we can select immediate forms.
   // TODO: Lower this otherwise.
-  return getConstantVRegValWithLookThrough(MI.getOperand(2).getReg(), MRI) &&
-         getConstantVRegValWithLookThrough(MI.getOperand(3).getReg(), MRI);
+  return getIConstantVRegValWithLookThrough(MI.getOperand(2).getReg(), MRI) &&
+         getIConstantVRegValWithLookThrough(MI.getOperand(3).getReg(), MRI);
 }
 
 bool AArch64LegalizerInfo::legalizeCTPOP(MachineInstr &MI,

@@ -1,6 +1,80 @@
 add_libc_testsuite(libc_stdlib_unittests)
 
 add_libc_unittest(
+  atoi_test
+  SUITE
+    libc_stdlib_unittests
+  SRCS
+    atoi_test.cpp
+  DEPENDS
+    libc.src.stdlib.atoi
+)
+
+add_libc_unittest(
+  atol_test
+  SUITE
+    libc_stdlib_unittests
+  SRCS
+    atol_test.cpp
+  DEPENDS
+    libc.src.stdlib.atol
+)
+
+add_libc_unittest(
+  atoll_test
+  SUITE
+    libc_stdlib_unittests
+  SRCS
+    atoll_test.cpp
+  DEPENDS
+    libc.src.stdlib.atoll
+)
+
+add_libc_unittest(
+  strtol_test
+  SUITE
+    libc_stdlib_unittests
+  SRCS
+    strtol_test.cpp
+  DEPENDS
+    libc.src.stdlib.strtol
+)
+
+add_libc_unittest(
+  strtoll_test
+  SUITE
+    libc_stdlib_unittests
+  SRCS
+    strtoll_test.cpp
+  DEPENDS
+    libc.src.stdlib.strtoll
+)
+
+add_libc_unittest(
+  strtoul_test
+  SUITE
+    libc_stdlib_unittests
+  SRCS
+    strtoul_test.cpp
+  DEPENDS
+    libc.src.stdlib.strtoul
+)
+
+add_libc_unittest(
+  strtoull_test
+  SUITE
+    libc_stdlib_unittests
+  SRCS
+    strtoull_test.cpp
+  DEPENDS
+    libc.src.stdlib.strtoull
+)
+
+if(NOT LLVM_LIBC_FULL_BUILD)
+  return()
+endif()
+
+add_libc_unittest(
   _Exit_test
   SUITE
     libc_stdlib_unittests
@@ -56,41 +130,40 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
-  strtol_test
+  div_test
   SUITE
     libc_stdlib_unittests
   SRCS
-    strtol_test.cpp
+    div_test.cpp
+  HDRS
+    DivTest.h
   DEPENDS
-    libc.src.stdlib.strtol
+    libc.include.stdlib
+    libc.src.stdlib.div
 )
 
 add_libc_unittest(
-  strtoll_test
+  ldiv_test
   SUITE
     libc_stdlib_unittests
   SRCS
-    strtoll_test.cpp
+    ldiv_test.cpp
+  HDRS
+    DivTest.h
   DEPENDS
-    libc.src.stdlib.strtoll
+    libc.include.stdlib
+    libc.src.stdlib.ldiv
 )
 
 add_libc_unittest(
-  strtoul_test
+  lldiv_test
   SUITE
     libc_stdlib_unittests
   SRCS
-    strtoul_test.cpp
+    lldiv_test.cpp
+  HDRS
+    DivTest.h
   DEPENDS
-    libc.src.stdlib.strtoul
-)
-
-add_libc_unittest(
-  strtoull_test
-  SUITE
-    libc_stdlib_unittests
-  SRCS
-    strtoull_test.cpp
-  DEPENDS
-    libc.src.stdlib.strtoull
+    libc.include.stdlib
+    libc.src.stdlib.lldiv
 )

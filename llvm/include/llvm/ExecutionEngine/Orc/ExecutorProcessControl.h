@@ -158,6 +158,29 @@ public:
     return *MemMgr;
   }
 
+  /// Returns the bootstrap symbol map.
+  const StringMap<ExecutorAddress> &getBootstrapSymbolsMap() const {
+    return BootstrapSymbols;
+  }
+
+  /// For each (ExecutorAddress&, StringRef) pair, looks up the string in the
+  /// bootstrap symbols map and writes its address to the ExecutorAddress if
+  /// found. If any symbol is not found then the function returns an error.
+  Error getBootstrapSymbols(
+      ArrayRef<std::pair<ExecutorAddress &, StringRef>> Pairs) const {
+    for (auto &KV : Pairs) {
+      auto I = BootstrapSymbols.find(KV.second);
+      if (I == BootstrapSymbols.end())
+        return make_error<StringError>("Symbol \"" + KV.second +
+                                           "\" not found "
+                                           "in bootstrap symbols map",
+                                       inconvertibleErrorCode());
+
+      KV.first = I->second;
+    }
+    return Error::success();
+  }
+
   /// Load the dynamic library at the given path and return a handle to it.
   /// If LibraryPath is null this function will return the global handle for
   /// the target process.
@@ -189,6 +212,22 @@ public:
                                 JITTargetAddress WrapperFnAddr,
                                 ArrayRef<char> ArgBuffer) = 0;
 
+  /// Run a wrapper function in the executor. The wrapper function should be
+  /// callable as:
+  ///
+  /// \code{.cpp}
+  ///   CWrapperFunctionResult fn(uint8_t *Data, uint64_t Size);
+  /// \endcode{.cpp}
+  shared::WrapperFunctionResult callWrapper(JITTargetAddress WrapperFnAddr,
+                                            ArrayRef<char> ArgBuffer) {
+    std::promise<shared::WrapperFunctionResult> RP;
+    auto RF = RP.get_future();
+    callWrapperAsync(
+        [&](shared::WrapperFunctionResult R) { RP.set_value(std::move(R)); },
+        WrapperFnAddr, ArgBuffer);
+    return RF.get();
+  }
+
   /// Run a wrapper function using SPS to serialize the arguments and
   /// deserialize the results.
   template <typename SPSSignature, typename SendResultT, typename... ArgTs>
@@ -203,6 +242,21 @@ public:
                            ArrayRef<char>(ArgData, ArgSize));
         },
         std::move(SendResult), Args...);
+  }
+
+  /// Run a wrapper function using SPS to serialize the arguments and
+  /// deserialize the results.
+  ///
+  /// If SPSSignature is a non-void function signature then the second argument
+  /// (the first in the Args list) should be a reference to a return value.
+  template <typename SPSSignature, typename... WrapperCallArgTs>
+  Error callSPSWrapper(JITTargetAddress WrapperFnAddr,
+                       WrapperCallArgTs &&...WrapperCallArgs) {
+    return shared::WrapperFunction<SPSSignature>::call(
+        [this, WrapperFnAddr](const char *ArgData, size_t ArgSize) {
+          return callWrapper(WrapperFnAddr, ArrayRef<char>(ArgData, ArgSize));
+        },
+        std::forward<WrapperCallArgTs>(WrapperCallArgs)...);
   }
 
   /// Disconnect from the target process.
@@ -221,6 +275,7 @@ protected:
   JITDispatchInfo JDI;
   MemoryAccess *MemAccess = nullptr;
   jitlink::JITLinkMemoryManager *MemMgr = nullptr;
+  StringMap<ExecutorAddress> BootstrapSymbols;
 };
 
 /// A ExecutorProcessControl instance that asserts if any of its methods are

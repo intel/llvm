@@ -351,7 +351,8 @@ extern "C" {
     std::cerr << "Warning : Not Implemented : " << __FUNCTION__                \
               << " - File : " << __FILE__;                                     \
     std::cerr << " / Line : " << __LINE__ << std::endl;                        \
-  }
+  }                                                                            \
+  return PI_SUCCESS;
 
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
@@ -507,6 +508,11 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(size_t{8192});
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY:
     return ReturnValue(pi_bool{1});
+  case PI_DEVICE_INFO_EXTENSIONS:
+    // TODO : Populate return string accordingly - e.g. cl_khr_fp16,
+    // cl_khr_fp64, cl_khr_int64_base_atomics,
+    // cl_khr_int64_extended_atomics
+    return ReturnValue("");
 
 #define UNSUPPORTED_INFO(info)                                                 \
   case info:                                                                   \
@@ -517,7 +523,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     break;
 
     UNSUPPORTED_INFO(PI_DEVICE_INFO_VENDOR_ID)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_EXTENSIONS)
     UNSUPPORTED_INFO(PI_DEVICE_INFO_COMPILER_AVAILABLE)
     UNSUPPORTED_INFO(PI_DEVICE_INFO_LINKER_AVAILABLE)
     UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_COMPUTE_UNITS)
@@ -684,6 +689,12 @@ pi_result piContextRelease(pi_context Context) {
 
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
+  if (Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+    // TODO : Support Out-of-order Queue
+    *Queue = nullptr;
+    return PI_INVALID_QUEUE_PROPERTIES;
+  }
+
   cm_support::CmQueue *CmQueue;
 
   int Result = Context->Device->CmDevicePtr->CreateQueue(CmQueue);
@@ -729,7 +740,10 @@ pi_result piQueueRelease(pi_queue Queue) {
 }
 
 pi_result piQueueFinish(pi_queue) {
-  DIE_NO_IMPLEMENTATION;
+  // No-op as enqueued commands with ESIMD_CPU plugin are blocking
+  // ones that do not return until their completion - kernel execution
+  // and memory read.
+  CONTINUE_NO_IMPLEMENTATION;
 }
 
 pi_result piextQueueGetNativeHandle(pi_queue, pi_native_handle *) {
@@ -746,7 +760,8 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             const pi_mem_properties *properties) {
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     if (PrintPiTrace) {
-      std::cerr << "Invalid memory attribute for piMemBufferCreate";
+      std::cerr << "Invalid memory attribute for piMemBufferCreate"
+                << std::endl;
     }
     return PI_INVALID_OPERATION;
   }
@@ -871,7 +886,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                            pi_mem *RetImage) {
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     if (PrintPiTrace) {
-      std::cerr << "Invalid memory attribute for piMemImageCreate";
+      std::cerr << "Invalid memory attribute for piMemImageCreate" << std::endl;
     }
     return PI_INVALID_OPERATION;
   }
@@ -1004,19 +1019,15 @@ pi_result piProgramGetBuildInfo(pi_program, pi_device, cl_program_build_info,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piProgramRetain(pi_program) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piProgramRetain(pi_program) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piProgramRelease(pi_program) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piProgramRelease(pi_program) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piextProgramGetNativeHandle(pi_program, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextProgramCreateWithNativeHandle(pi_native_handle, pi_context,
+pi_result piextProgramCreateWithNativeHandle(pi_native_handle, pi_context, bool,
                                              pi_program *) {
   DIE_NO_IMPLEMENTATION;
 }
@@ -1053,17 +1064,11 @@ pi_result piKernelGetSubGroupInfo(pi_kernel, pi_device,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piKernelRetain(pi_kernel) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piKernelRetain(pi_kernel) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piKernelRelease(pi_kernel) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piKernelRelease(pi_kernel) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piEventCreate(pi_context, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piEventCreate(pi_context, pi_event *) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piEventGetInfo(pi_event, pi_event_info, size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
@@ -1102,9 +1107,7 @@ pi_result piEventSetCallback(pi_event, pi_int32,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEventSetStatus(pi_event, pi_int32) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piEventSetStatus(pi_event, pi_int32) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piEventRetain(pi_event Event) {
   if (Event == nullptr) {
@@ -1155,13 +1158,9 @@ pi_result piSamplerGetInfo(pi_sampler, pi_sampler_info, size_t, void *,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piSamplerRetain(pi_sampler) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piSamplerRetain(pi_sampler) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piSamplerRelease(pi_sampler) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piSamplerRelease(pi_sampler) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piEnqueueEventsWait(pi_queue, pi_uint32, const pi_event *,
                               pi_event *) {
@@ -1190,6 +1189,12 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
 
   _pi_buffer *buf = static_cast<_pi_buffer *>(Src);
 
+  std::unique_ptr<_pi_event> RetEv{nullptr};
+  if (Event) {
+    RetEv = std::unique_ptr<_pi_event>(new _pi_event());
+    RetEv->IsDummyEvent = true;
+  }
+
   int Status =
       buf->CmBufferPtr->ReadSurface(reinterpret_cast<unsigned char *>(Dst),
                                     nullptr, // event
@@ -1200,18 +1205,7 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   }
 
   if (Event) {
-    try {
-      *Event = new _pi_event();
-    } catch (const std::bad_alloc &) {
-      return PI_OUT_OF_HOST_MEMORY;
-    } catch (...) {
-      return PI_ERROR_UNKNOWN;
-    }
-
-    // At this point, CM already completed buffer-read (ReadSurface)
-    // operation. Therefore, 'event' corresponding to this operation
-    // is marked as dummy one and ignored during events-waiting.
-    (*Event)->IsDummyEvent = true;
+    *Event = RetEv.release();
   }
 
   return PI_SUCCESS;
@@ -1286,6 +1280,14 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
     assert(false && "ESIMD_CPU does not support Blocking Read");
   }
   _pi_image *PiImg = static_cast<_pi_image *>(Image);
+
+  std::unique_ptr<_pi_event> RetEv{nullptr};
+
+  if (Event) {
+    RetEv = std::unique_ptr<_pi_event>(new _pi_event());
+    RetEv->IsDummyEvent = true;
+  }
+
   int Status =
       PiImg->CmSurfacePtr->ReadSurface(reinterpret_cast<unsigned char *>(Ptr),
                                        nullptr, // event
@@ -1295,18 +1297,7 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
   }
 
   if (Event) {
-    try {
-      *Event = new _pi_event();
-    } catch (const std::bad_alloc &) {
-      return PI_OUT_OF_HOST_MEMORY;
-    } catch (...) {
-      return PI_ERROR_UNKNOWN;
-    }
-
-    // At this point, CM already completed image-read (ReadSurface)
-    // operation. Therefore, 'event' corresponding to this operation
-    // is marked as dummy one and ignored during events-waiting.
-    (*Event)->IsDummyEvent = true;
+    *Event = RetEv.release();
   }
   return PI_SUCCESS;
 }
@@ -1360,25 +1351,39 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     }
   }
 
+  std::unique_ptr<_pi_event> RetEv{nullptr};
+
+  if (Event) {
+    RetEv = std::unique_ptr<_pi_event>(new _pi_event());
+    RetEv->IsDummyEvent = true;
+  }
+
   switch (WorkDim) {
   case 1:
     InvokeImpl<1>::invoke(Kernel, GlobalWorkOffset, GlobalWorkSize,
                           LocalWorkSize);
-    return PI_SUCCESS;
+    break;
 
   case 2:
     InvokeImpl<2>::invoke(Kernel, GlobalWorkOffset, GlobalWorkSize,
                           LocalWorkSize);
-    return PI_SUCCESS;
+    break;
 
   case 3:
     InvokeImpl<3>::invoke(Kernel, GlobalWorkOffset, GlobalWorkSize,
                           LocalWorkSize);
-    return PI_SUCCESS;
+    break;
 
   default:
     DIE_NO_IMPLEMENTATION;
+    break;
   }
+
+  if (Event) {
+    *Event = RetEv.release();
+  }
+
+  return PI_SUCCESS;
 }
 
 pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context, bool,
@@ -1497,9 +1502,19 @@ pi_result piextProgramSetSpecializationConstant(pi_program, pi_uint32, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *, pi_uint32,
-                                  pi_uint32 *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
+                                  pi_uint32 RawImgSize, pi_uint32 *ImgInd) {
+  /// TODO : Support multiple images and enable selection algorithm
+  /// for the images
+  if (RawImgSize != 1) {
+    if (PrintPiTrace) {
+      std::cerr << "Only single device binary image is supported in ESIMD_CPU"
+                << std::endl;
+    }
+    return PI_INVALID_VALUE;
+  }
+  *ImgInd = 0;
+  return PI_SUCCESS;
 }
 
 pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,

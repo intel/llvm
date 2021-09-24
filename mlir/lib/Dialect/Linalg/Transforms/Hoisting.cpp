@@ -394,6 +394,13 @@ void mlir::linalg::hoistRedundantVectorTransfers(FuncOp func) {
   bool changed = true;
   while (changed) {
     changed = false;
+    // First move loop invariant ops outside of their loop. This needs to be
+    // done before as we cannot move ops without interputing the function walk.
+    func.walk([&](LoopLikeOpInterface loopLike) {
+      if (failed(moveLoopInvariantCode(loopLike)))
+        llvm_unreachable(
+            "Unexpected failure to move invariant code out of loop");
+    });
 
     func.walk([&](vector::TransferReadOp transferRead) {
       if (!transferRead.getShapedType().isa<MemRefType>())
@@ -406,11 +413,6 @@ void mlir::linalg::hoistRedundantVectorTransfers(FuncOp func) {
                         << "\n");
       if (!loop)
         return WalkResult::advance();
-
-      if (failed(moveLoopInvariantCode(
-              cast<LoopLikeOpInterface>(loop.getOperation()))))
-        llvm_unreachable(
-            "Unexpected failure to move invariant code out of loop");
 
       LLVM_DEBUG(DBGS() << "Candidate read: " << *transferRead.getOperation()
                         << "\n");
@@ -455,7 +457,7 @@ void mlir::linalg::hoistRedundantVectorTransfers(FuncOp func) {
       if (!dom.properlyDominates(transferRead.getOperation(), transferWrite))
         return WalkResult::advance();
       for (auto &use : transferRead.source().getUses()) {
-        if (!dom.properlyDominates(loop, use.getOwner()))
+        if (!loop->isAncestor(use.getOwner()))
           continue;
         if (use.getOwner() == transferRead.getOperation() ||
             use.getOwner() == transferWrite.getOperation())
@@ -559,14 +561,11 @@ static FlatAffineValueConstraints
 initLoopIvsAndBounds(ArrayRef<Operation *> loops) {
   FlatAffineValueConstraints constraints;
   for (Operation *op : loops)
-    constraints.addDimId(constraints.getNumDimIds(),
-                         cast<scf::ForOp>(op).getInductionVar());
+    constraints.appendDimId(cast<scf::ForOp>(op).getInductionVar());
   for (Operation *op : loops)
-    constraints.addDimId(constraints.getNumDimIds(),
-                         cast<scf::ForOp>(op).lowerBound());
+    constraints.appendDimId(cast<scf::ForOp>(op).lowerBound());
   for (Operation *op : loops)
-    constraints.addDimId(constraints.getNumDimIds(),
-                         cast<scf::ForOp>(op).upperBound());
+    constraints.appendDimId(cast<scf::ForOp>(op).upperBound());
   unsigned numLoops = loops.size();
   for (unsigned ivIdx = 0, e = numLoops; ivIdx < e; ++ivIdx) {
     // iv - lb >= 0
@@ -628,7 +627,7 @@ foldUpperBoundsIntoConstraintsSet(FlatAffineValueConstraints &constraints,
           constraints.findId(v, &pos);
           return pos >= constraints.getNumDimIds();
         }
-        constraints.addDimId(constraints.getNumDimIds(), v);
+        constraints.appendDimId(v);
         return false;
       };
 
