@@ -185,7 +185,7 @@ if config.hip_platform not in supported_hip_platforms:
 
 if config.sycl_be == "hip" and config.hip_platform == "AMD":
     config.available_features.add('hip_amd')
-    arch_flag = '-Xsycl-target-backend=amdgcn-amd-amdhsa-sycldevice --offload-arch=' + config.amd_arch
+    arch_flag = '-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=' + config.amd_arch
 elif config.sycl_be == "hip" and config.hip_platform == "NVIDIA":
     config.available_features.add('hip_nvidia')
     arch_flag = ""
@@ -308,11 +308,11 @@ config.substitutions.append( ('%ACC_RUN_PLACEHOLDER',  acc_run_substitute) )
 config.substitutions.append( ('%ACC_CHECK_PLACEHOLDER',  acc_check_substitute) )
 
 if config.sycl_be == 'cuda' or (config.sycl_be == 'hip' and config.hip_platform == 'NVIDIA'):
-    config.substitutions.append( ('%sycl_triple',  "nvptx64-nvidia-cuda-sycldevice" ) )
+    config.substitutions.append( ('%sycl_triple',  "nvptx64-nvidia-cuda" ) )
 elif config.sycl_be == 'hip' and config.hip_platform == 'AMD':
-    config.substitutions.append( ('%sycl_triple',  "amdgcn-amd-amdhsa-sycldevice" ) )
+    config.substitutions.append( ('%sycl_triple',  "amdgcn-amd-amdhsa" ) )
 else:
-    config.substitutions.append( ('%sycl_triple',  "spir64-unknown-unknown-sycldevice" ) )
+    config.substitutions.append( ('%sycl_triple',  "spir64" ) )
 
 if find_executable('sycl-ls'):
     config.available_features.add('sycl-ls')

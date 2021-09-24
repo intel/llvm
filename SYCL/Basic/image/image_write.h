@@ -6,8 +6,6 @@
  * the OpenCL 1.2 specification, Section 8. Image Addressing and Filtering
  *
  * https://www.khronos.org/registry/OpenCL/specs/opencl-1.2.pdf#page=329
- *
- * Confirmed to pass with -fsycl-targets=spir64-unknown-linux-sycldevice
  */
 
 #include <CL/sycl.hpp>

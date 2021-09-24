@@ -8,5 +8,5 @@
 
 // REQUIRES: aoc, accelerator
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice %S/Inputs/aot.cpp -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga %S/Inputs/aot.cpp -o %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
