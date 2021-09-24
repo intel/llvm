@@ -3,8 +3,8 @@
 // RUN: env SYCL_DEVICE_FILTER=opencl sycl-ls --verbose >%t.opencl.out
 // RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM --input-file %t.opencl.out
 
-// CHECK-GPU-BUILTIN: gpu_selector(){{.*}}GPU : {{.*}}OpenCL
-// CHECK-GPU-CUSTOM: custom_selector(gpu){{.*}}GPU : {{.*}}OpenCL
+// CHECK-GPU-BUILTIN: gpu_selector(){{.*}}gpu, {{.*}}OpenCL
+// CHECK-GPU-CUSTOM: custom_selector(gpu){{.*}}gpu, {{.*}}OpenCL
 
 //==-- sycl-ls-gpu-opencl.cpp - SYCL test for selected OpenCL GPU device --===//
 //

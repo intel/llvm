@@ -3,8 +3,8 @@
 // RUN: env SYCL_DEVICE_FILTER=cuda sycl-ls --verbose >%t.cuda.out
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-CUDA,CHECK-CUSTOM-GPU-CUDA --input-file %t.cuda.out
 
-// CHECK-BUILTIN-GPU-CUDA: gpu_selector(){{.*}}GPU :{{.*}}CUDA
-// CHECK-CUSTOM-GPU-CUDA: custom_selector(gpu){{.*}}GPU :{{.*}}CUDA
+// CHECK-BUILTIN-GPU-CUDA: gpu_selector(){{.*}}gpu, {{.*}}CUDA
+// CHECK-CUSTOM-GPU-CUDA: custom_selector(gpu){{.*}}gpu, {{.*}}CUDA
 
 //==---- sycl-ls-gpu-cuda.cpp - SYCL test for discovered/selected devices --==//
 //

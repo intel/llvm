@@ -3,8 +3,8 @@
 // RUN: env --unset=SYCL_DEVICE_FILTER sycl-ls --verbose >%t.default.out
 // RUN: FileCheck %s --check-prefixes=CHECK-GPU-BUILTIN,CHECK-GPU-CUSTOM --input-file %t.default.out
 
-// CHECK-GPU-BUILTIN: gpu_selector(){{.*}}GPU : {{.*}}Level-Zero
-// CHECK-GPU-CUSTOM: custom_selector(gpu){{.*}}GPU : {{.*}}Level-Zero
+// CHECK-GPU-BUILTIN: gpu_selector(){{.*}}gpu, {{.*}}Level-Zero
+// CHECK-GPU-CUSTOM: custom_selector(gpu){{.*}}gpu, {{.*}}Level-Zero
 
 //==------------------ sycl-ls-gpu-default-level-zero.cpp ------------------==//
 //

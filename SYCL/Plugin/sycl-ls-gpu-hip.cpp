@@ -3,8 +3,8 @@
 // RUN: env SYCL_DEVICE_FILTER=hip sycl-ls --verbose >%t.hip.out
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-HIP,CHECK-CUSTOM-GPU-HIP --input-file %t.hip.out
 
-// CHECK-BUILTIN-GPU-HIP: gpu_selector(){{.*}}GPU :{{.*}}HIP
-// CHECK-CUSTOM-GPU-HIP: custom_selector(gpu){{.*}}GPU :{{.*}}HIP
+// CHECK-BUILTIN-GPU-HIP: gpu_selector(){{.*}}gpu, {{.*}}HIP
+// CHECK-CUSTOM-GPU-HIP: custom_selector(gpu){{.*}}gpu, {{.*}}HIP
 
 //==---- sycl-ls-gpu-hip.cpp - SYCL test for discovered/selected devices --==//
 //

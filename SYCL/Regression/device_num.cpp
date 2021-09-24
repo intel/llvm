@@ -82,14 +82,12 @@ int main() {
       printDeviceType(d);
       assert(targetDevice == d &&
              "The selected device is not the target device specified.");
-    }
-    // HOST device is always available regardless of SYCL_DEVICE_FILTER
-    {
+    } else if (targetDevice.is_host()) {
       host_selector hs;
       device d = hs.select_device();
       std::cout << "host_selector selected ";
       printDeviceType(d);
-      assert(d.is_host() && "The selected device is not a host device.");
+      assert(targetDevice == d && "The selected device is not a host device.");
     }
   }
   return 0;

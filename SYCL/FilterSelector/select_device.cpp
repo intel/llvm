@@ -4,7 +4,7 @@
 // RUN: env SYCL_DEVICE_FILTER=level_zero:gpu %t.out
 // RUN: env SYCL_DEVICE_FILTER=opencl:gpu %t.out
 // RUN: env SYCL_DEVICE_FILTER=cpu,level_zero:gpu %t.out
-// RUN: env SYCL_DEVICE_FILTER=opencl:acc:0 %t.out
+// RUN: env SYCL_DEVICE_FILTER=opencl:acc %t.out
 //
 // Checks if only specified device types can be acquired from select_device
 // when SYCL_DEVICE_FILTER is set

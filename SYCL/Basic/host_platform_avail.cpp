@@ -2,7 +2,7 @@
 // RUN: %HOST_RUN_PLACEHOLDER %t1.out
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
+// RUN: env SYCL_DEVICE_FILTER=acc,host %t1.out
 
 //==------ host_platform_avail.cpp - Host Platform Availability test -------==//
 //
