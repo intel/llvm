@@ -1914,14 +1914,15 @@ ESIMD_INLINE RT esimd_ceil(const float &src0, const uint flags = 0) {
   return esimd_rndu<RT, 1U>(src0, flags);
 }
 
-template <int SZ>
-ESIMD_INLINE simd<float, SZ> esimd_trunc(const simd<float, SZ> &src0,
-                                         const uint flag = 0) {
-  return esimd_rndz<float, SZ>(src0, flag);
+template <typename RT, int SZ>
+ESIMD_NODEBUG ESIMD_INLINE simd<RT, SZ> esimd_trunc(const simd<float, SZ> &src0,
+                                                    const uint flag = 0) {
+  return esimd_rndz<RT, SZ>(src0, flag);
 }
 
-ESIMD_INLINE float esimd_trunc(float src0, const uint flag = 0) {
-  return esimd_rndz<float>(src0, flag);
+template <typename RT>
+ESIMD_NODEBUG ESIMD_INLINE RT esimd_trunc(float src0, const uint flag = 0) {
+  return esimd_rndz<RT, 1U>(src0, flag)[0];
 }
 
 /* esimd_atan2_fast - a fast atan2 implementation */

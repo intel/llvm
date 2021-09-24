@@ -62,11 +62,13 @@ bool test_esimd_dp4() __attribute__((sycl_device)) {
 }
 
 bool test_esimd_trunc() __attribute__((sycl_device)) {
-  simd<float, 16> va(1.4f);
-  simd<float, 16> vr = esimd_trunc(va);
+  simd<float, 16> vfa(1.4f);
+  simd<float, 16> vfr = esimd_trunc<float, 16>(vfa);
+  simd<short, 16> vsr = esimd_trunc<short, 16>(vfa);
 
-  float sa = 2.8f;
-  float sr = esimd_trunc(sa);
+  float sfa = 2.8f;
+  float sfr = esimd_trunc<float>(sfa);
+  short ssr = esimd_trunc<short>(sfa);
 
-  return (vr[0] == 1.f) && (sr == 2.f);
+  return (vfr[0] == 1.f) && (vsr[0] == 1) && (sfr == 2.f) && (ssr == 2);
 }
