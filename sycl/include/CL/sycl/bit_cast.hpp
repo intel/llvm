@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <cstdint>
 #include <type_traits>
 
 #if __cpp_lib_bit_cast
@@ -21,21 +20,6 @@ namespace sycl {
 // forward decl
 namespace detail {
 inline void memcpy(void *Dst, const void *Src, std::size_t Size);
-
-namespace half_impl {
-class half;
-}
-using half = cl::sycl::detail::half_impl::half;
-
-template <typename T>
-#ifdef __SYCL_DEVICE_ONLY__
-using lowering_half_type =
-    typename std::conditional<std::is_same<T, half>::value, _Float16, T>::type;
-#else
-using lowering_half_type =
-    typename std::conditional<std::is_same<T, half>::value, std::uint16_t,
-                              T>::type;
-#endif
 }
 
 template <typename To, typename From>
@@ -57,8 +41,7 @@ constexpr
 #if __has_builtin(__builtin_bit_cast)
   return __builtin_bit_cast(To, from);
 #else  // __has_builtin(__builtin_bit_cast)
-  static_assert(std::is_trivially_default_constructible<
-                    typename sycl::detail::lowering_half_type<To>>::value,
+  static_assert(std::is_trivially_default_constructible<To>::value,
                 "To must be trivially default constructible");
   To to;
   sycl::detail::memcpy(&to, &from, sizeof(To));
