@@ -305,11 +305,9 @@ template <int NumElements> struct half_vec {
   alignas(detail::vector_alignment<StorageT, NumElements>::value)
       StorageT s[NumElements];
 
-  __SYCL_CONSTEXPR_HALF half_vec() : s{0.0f} {
-    initialize_data();
-  }
+  __SYCL_CONSTEXPR_HALF half_vec() : s{0.0f} { initialize_data(); }
   constexpr void initialize_data() {
-    for (size_t i = 0; i < NumElements; ++i){
+    for (size_t i = 0; i < NumElements; ++i) {
       s[i] = StorageT(0.0f);
     }
   }

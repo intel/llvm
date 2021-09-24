@@ -49,7 +49,7 @@ private:
       conjunction<TypeChecker<ArgTN, DataT>...>::value>::type;
 
   constexpr void initialize_data(const Type &Arg) {
-    for (size_t i = 0; i < NumElements; ++i){
+    for (size_t i = 0; i < NumElements; ++i) {
       MData[i] = Arg;
     }
   }
