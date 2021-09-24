@@ -1,4 +1,4 @@
-// REQUIRES: gpu, level_zero, TEMPORARILY_DISABLED
+// REQUIRES: gpu, level_zero
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
 
