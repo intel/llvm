@@ -59,3 +59,4 @@
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 #include <sycl/ext/oneapi/reduction.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
+#include <sycl/ext/oneapi/sub_group_mask.hpp>

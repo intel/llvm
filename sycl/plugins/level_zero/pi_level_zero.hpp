@@ -536,12 +536,14 @@ struct _pi_context : _pi_object {
                                     bool AllowBatching = false);
 
   // Get index of the free slot in the available pool. If there is no available
-  // pool then create new one.
-  pi_result getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &);
+  // pool then create new one. The HostVisible parameter tells if we need a
+  // slot for a host-visible event.
+  pi_result getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &,
+                                           bool HostVisible = false);
 
   // If event is destroyed then decrement number of events living in the pool
   // and destroy the pool if there are no unreleased events.
-  pi_result decrementUnreleasedEventsInPool(pi_event Event);
+  pi_result decrementUnreleasedEventsInPool(ze_event_pool_handle_t &ZePool);
 
   // Store USM allocator context(internal allocator structures)
   // for USM shared and device allocations. There is 1 allocator context
@@ -561,11 +563,17 @@ struct _pi_context : _pi_object {
 private:
   // Following member variables are used to manage assignment of events
   // to event pools.
-  // TODO: These variables may be moved to pi_device and pi_platform
-  // if appropriate.
+  //
+  // TODO: Create pi_event_pool class to encapsulate working with pools.
+  // This will avoid needing the use of maps below, and cleanup the
+  // pi_context overall.
+  //
 
   // Event pool to which events are being added to.
-  ze_event_pool_handle_t ZeEventPool;
+  ze_event_pool_handle_t ZeEventPool = {nullptr};
+  // Event pool to which host-visible events are added to.
+  ze_event_pool_handle_t ZeHostVisibleEventPool = {nullptr};
+
   // This map will be used to determine if a pool is full or not
   // by storing number of empty slots available in the pool.
   std::unordered_map<ze_event_pool_handle_t, pi_uint32>
@@ -890,6 +898,19 @@ struct _pi_event : _pi_object {
 
   // Level Zero event pool handle.
   ze_event_pool_handle_t ZeEventPool;
+
+  // In case we use device-only events/pools these are their host-visible
+  // counterparts. The idea is that two Level-Zero events co-exist:
+  // - one is always created with device-scope and used for GPU book-keeping.
+  // - the other host-visible proxy event is created on demand when we need
+  //   to query/wait on a device-scope event from the host.
+  //
+  ze_event_handle_t ZeHostVisibleEvent = {nullptr};
+  ze_event_pool_handle_t ZeHostVisibleEventPool = {nullptr};
+  // Get the host-visible event or create one and enqueue its signal.
+  pi_result getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent);
+  // Get the host-visible event ensuring that one was already created before.
+  ze_event_handle_t getHostVisibleEvent() const;
 
   // Level Zero command list where the command signaling this event was appended
   // to. This is currently used to remember/destroy the command list after all
