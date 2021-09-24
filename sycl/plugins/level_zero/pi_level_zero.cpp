@@ -824,10 +824,11 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   CommandList->second.InUse = false;
 
   // Finally release/cleanup all the events in this command list.
+  // Note, we don't need to synchronize the events since the fence
+  // synchronized above already does that.
   auto &EventList = CommandList->second.EventList;
   for (auto &Event : EventList) {
     if (!Event->CleanedUp) {
-      ZE_CALL(zeHostSynchronize, (Event->ZeEvent));
       Event->cleanup(this);
     }
     Event->ZeCommandList = nullptr;
@@ -1349,10 +1350,10 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         PI_ASSERT(EventList[I] != nullptr, PI_INVALID_VALUE);
         auto ZeEvent = EventList[I]->ZeEvent;
 
-        // Avoid polling of the device-scope events.
-        // TODO: be more fine-grain and check individual events.
-        if (FilterEventWaitList && ZeAllHostVisibleEvents) {
-          auto Res = ZE_CALL_NOCHECK(zeEventQueryStatus, (ZeEvent));
+        // Poll of the host-visible events.
+        auto ZeEventHostVisible = EventList[I]->getHostVisibleEvent();
+        if (FilterEventWaitList && ZeEventHostVisible) {
+          auto Res = ZE_CALL_NOCHECK(zeEventQueryStatus, (ZeEventHostVisible));
           if (Res == ZE_RESULT_SUCCESS) {
             // Event has already completed, don't put it into the list
             continue;
@@ -3657,8 +3658,9 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
           if (res != PI_SUCCESS) {
             return res;
           }
-          Input = new _pi_program(Input->Context, ZeModule, _pi_program::Object,
-                                  Input->HasImports);
+          Input =
+              new _pi_program(Input->Context, ZeModule, true /*own ZeModule*/,
+                              _pi_program::Object, Input->HasImports);
           Input->HasImportsAndIsLinked = true;
         }
       } else {
@@ -3913,6 +3915,7 @@ pi_result piextProgramGetNativeHandle(pi_program Program,
 
 pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
                                              pi_context Context,
+                                             bool ownNativeHandle,
                                              pi_program *Program) {
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
@@ -3925,7 +3928,8 @@ pi_result piextProgramCreateWithNativeHandle(pi_native_handle NativeHandle,
   // executable (state Object).
 
   try {
-    *Program = new _pi_program(Context, ZeModule, _pi_program::Exe);
+    *Program =
+        new _pi_program(Context, ZeModule, ownNativeHandle, _pi_program::Exe);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3942,7 +3946,7 @@ _pi_program::~_pi_program() {
     ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (ZeBuildLog));
   }
 
-  if (ZeModule) {
+  if (ZeModule && OwnZeModule) {
     ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
   }
 }
@@ -4507,7 +4511,7 @@ ze_event_handle_t _pi_event::getHostVisibleEvent() const {
   } else if (ZeHostVisibleEvent) {
     return ZeHostVisibleEvent;
   } else {
-    die("The host-visible proxy event missing");
+    return nullptr;
   }
 }
 
@@ -4642,17 +4646,19 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
       }
     }
 
-    // Make sure that we query the host-visible event.
-    ze_event_handle_t ZeHostVisibleEvent;
-    if (auto Res = Event->getOrCreateHostVisibleEvent(ZeHostVisibleEvent))
-      return Res;
-
-    ze_result_t ZeResult;
-    ZeResult = ZE_CALL_NOCHECK(zeEventQueryStatus, (ZeHostVisibleEvent));
-    if (ZeResult == ZE_RESULT_SUCCESS) {
-      return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet,
-                     pi_int32{CL_COMPLETE}); // Untie from OpenCL
+    // Make sure that we query a host-visible event only.
+    // If one wasn't yet created then don't create it here as well, and
+    // just conservatively return that event is not yet completed.
+    auto ZeHostVisibleEvent = Event->getHostVisibleEvent();
+    if (ZeHostVisibleEvent) {
+      ze_result_t ZeResult;
+      ZeResult = ZE_CALL_NOCHECK(zeEventQueryStatus, (ZeHostVisibleEvent));
+      if (ZeResult == ZE_RESULT_SUCCESS) {
+        return getInfo(ParamValueSize, ParamValue, ParamValueSizeRet,
+                       pi_int32{CL_COMPLETE}); // Untie from OpenCL
+      }
     }
+
     // TODO: We don't know if the status is queued, submitted or running.
     //       For now return "running", as others are unlikely to be of
     //       interest.
@@ -4883,6 +4889,9 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
 
   for (uint32_t I = 0; I < NumEvents; I++) {
     ze_event_handle_t ZeEvent = EventList[I]->getHostVisibleEvent();
+    if (!ZeEvent)
+      die("The host-visible proxy event missing");
+
     zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
     ZE_CALL(zeHostSynchronize, (ZeEvent));
 

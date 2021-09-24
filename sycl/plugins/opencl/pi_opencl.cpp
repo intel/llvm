@@ -444,7 +444,7 @@ pi_result piProgramCreate(pi_context context, const void *il, size_t length,
 }
 
 pi_result piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                             pi_context,
+                                             pi_context, bool,
                                              pi_program *piProgram) {
   assert(piProgram != nullptr);
   *piProgram = reinterpret_cast<pi_program>(nativeHandle);

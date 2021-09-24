@@ -6364,6 +6364,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   RenderSCPOptions(TC, Args, CmdArgs);
   RenderTrivialAutoVarInitOptions(D, TC, Args, CmdArgs);
 
+  Args.AddLastArg(CmdArgs, options::OPT_fswift_async_fp_EQ);
+
   // Translate -mstackrealign
   if (Args.hasFlag(options::OPT_mstackrealign, options::OPT_mno_stackrealign,
                    false))
@@ -8205,7 +8207,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     Triples += '-';
     Triples += CurTC->getTriple().normalize();
     if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_OpenMP ||
-         CurKind == Action::OFK_Cuda) &&
+         CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
         CurDep->getOffloadingArch()) {
       Triples += '-';
       Triples += CurDep->getOffloadingArch();
@@ -8363,7 +8365,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     Triples += Dep.DependentToolChain->getTriple().normalize();
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_OpenMP ||
-         Dep.DependentOffloadKind == Action::OFK_Cuda) &&
+         Dep.DependentOffloadKind == Action::OFK_Cuda ||
+         Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
       Triples += '-';
       Triples += Dep.DependentBoundArch;
@@ -8544,9 +8547,10 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (PICLevel > 0 || TCArgs.hasArg(options::OPT_shared)) {
       LlcArgs.push_back("-relocation-model=pic");
     }
-    if (IsPIE) {
-      LlcArgs.push_back("-enable-pie");
-    }
+    if (Arg *A = C.getArgs().getLastArg(options::OPT_mcmodel_EQ))
+      LlcArgs.push_back(
+          TCArgs.MakeArgString(Twine("--code-model=") + A->getValue()));
+
     SmallString<128> LlcPath(C.getDriver().Dir);
     llvm::sys::path::append(LlcPath, "llc");
     const char *Llc = C.getArgs().MakeArgString(LlcPath);
@@ -8651,13 +8655,7 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
-      // If OffloadArch is present it can only appear as the 6th hyphen
-      // separated field of Bundle Entry ID. So, pad required number of
-      // hyphens in Triple.
-      // e.g. if NormalizedTriple is nvptx64-nvidia-cuda, 2 more - to
-      // generate nvptx64-nvidia-cuda--
-      for (int i = 4 - StringRef(NormalizedTriple).count("-"); i > 0; i--)
-        Targets += '-';
+      Targets += '-';
       Targets += Dep.DependentBoundArch;
     }
   }
@@ -8718,11 +8716,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back(Output.getFilename());
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     TranslatorArgs.push_back("-spirv-max-version=1.4");
-    // TODO: align debug info for FPGA H/W when its SPIR-V consumer is ready
-    if (C.getDriver().isFPGAEmulationMode())
-      TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
-    else
-      TranslatorArgs.push_back("-spirv-debug-info-version=legacy");
+    TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
     // Prevent crash in the translator if input IR contains DIExpression
     // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
     TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
@@ -8798,6 +8792,11 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         TCArgs.MakeArgString("--out-file-list=" + OutputFileName));
     ForeachArgs.push_back(
         TCArgs.MakeArgString("--out-replace=" + OutputFileName));
+    StringRef ParallelJobs =
+        TCArgs.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
+    if (!ParallelJobs.empty())
+      ForeachArgs.push_back(TCArgs.MakeArgString("--jobs=" + ParallelJobs));
+
     ForeachArgs.push_back(TCArgs.MakeArgString("--"));
     ForeachArgs.push_back(TCArgs.MakeArgString(Cmd->getExecutable()));
 
