@@ -215,6 +215,53 @@ TEST(QueueWait, QueueWaitTest) {
 
     eC.wait();
   }
+  
+  // Test for multiple queues
+  {
+  const int N = 2;
+  sycl::queue Q1(sycl::default_selector{});
+  sycl::queue Q2(sycl::default_selector{});
+
+  int *shared_array1a = sycl::malloc_shared<int>(N, Q1);
+  int *shared_array2a = sycl::malloc_shared<int>(N, Q2);
+  int *shared_array1b = sycl::malloc_shared<int>(N, Q1);
+  int *shared_array2b = sycl::malloc_shared<int>(N, Q2);
+  
+    for (int i=0; i<N; i++){
+    shared_array1a[i] = 0;
+    shared_array2a[i] = 0;   
+    shared_array1b[i] = 0;
+    shared_array2b[i] = 0; 
+    }
+  
+  sycl::event eA = Q1.submit([&](sycl::handler &h) {
+    h.parallel_for<class depends_on>(N, [=](sycl::id<1> i) { 
+      shared_array1a[i]=i+110;
+      shared_array1b[i]=i+120;
+      }); // Task A
+  });
+  eA.wait();
+
+  sycl::event eB = Q2.submit([&](sycl::handler &h) {
+    h.depends_on(eA);
+    h.parallel_for<class depends_on>(N, [=](sycl::id<1> i) {
+      shared_array2a[i]=i+210;
+	    shared_array2b[i]=i+220;
+       }); // Task B 
+  });
+  eB.wait();
+
+  assert(shared_array1a[0] == 110);
+  assert(shared_array1b[0] == 120);
+  assert(shared_array1a[1] == 111);
+  assert(shared_array1b[1] == 121);
+
+  assert(shared_array2a[0] == 210);
+  assert(shared_array2b[0] == 220);
+  assert(shared_array2a[1] == 211);
+  assert(shared_array2b[1] == 221);
+  }
+
   // Test behaviour for emulating an OOO queue with multiple in-order ones.
   TestContext = {};
   TestContext.SupportOOO = false;
