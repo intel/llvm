@@ -52,10 +52,10 @@
 #include <CL/sycl/types.hpp>
 #include <CL/sycl/usm.hpp>
 #include <CL/sycl/version.hpp>
+#include <sycl/ext/oneapi/__function_pointer.hpp>
 #include <sycl/ext/oneapi/atomic.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
-#include <sycl/ext/oneapi/function_pointer.hpp>
 #include <sycl/ext/oneapi/group_algorithm.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 #include <sycl/ext/oneapi/reduction.hpp>
