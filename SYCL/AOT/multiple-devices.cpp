@@ -12,7 +12,7 @@
 
 // 1-command compilation case
 // Targeting CPU, GPU, FPGA
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice,spir64_gen-unknown-unknown-sycldevice,spir64_fpga-unknown-unknown-sycldevice -Xsycl-target-backend=spir64_gen-unknown-unknown-sycldevice "-device *" %S/Inputs/aot.cpp -o %t_all.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen,spir64_fpga -Xsycl-target-backend=spir64_gen "-device *" %S/Inputs/aot.cpp -o %t_all.out
 // RUN: %HOST_RUN_PLACEHOLDER %t_all.out
 // RUN: %CPU_RUN_PLACEHOLDER %t_all.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_all.out
@@ -26,7 +26,7 @@
 // Produce object file, spirv, device images to combine these differently
 // at link-time, thus testing various AOT-compiled images configurations
 // RUN: %clangxx -fsycl %S/Inputs/aot.cpp -c -o %t.o
-// RUN: %clangxx -fsycl -fsycl-link-targets=spir64-unknown-unknown-sycldevice %t.o -o %t.spv
+// RUN: %clangxx -fsycl -fsycl-link-targets=spir64 %t.o -o %t.spv
 // AOT-compile device binary images
 // Neither of AOT tools can compile several files, hence, here is this
 // workaround
