@@ -7,6 +7,9 @@
 #include <CL/sycl.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
+// CHK-DEVICE: define dso_local spir_func void @_Z4accdN{{.*}}8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})
+SYCL_EXTERNAL void accd(sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::device>) {} 
+
 // CHK-DEVICE: define dso_local spir_func void @_Z3accN{{.*}}8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})
 SYCL_EXTERNAL void acc(sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer>) {} 
 

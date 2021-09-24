@@ -218,7 +218,7 @@ class AccessorPrivateProxy;
 
 template <typename DataT, int Dimensions = 1,
           access::mode AccessMode = access::mode::read_write,
-          access::target AccessTarget = access::target::global_buffer,
+          access::target AccessTarget = access::target::device,
           access::placeholder IsPlaceholder = access::placeholder::false_t,
           typename PropertyListT = ext::oneapi::accessor_property_list<>>
 class accessor;
@@ -270,6 +270,9 @@ protected:
 
   constexpr static bool IsHostBuf = AccessTarget == access::target::host_buffer;
 
+  // TODO: SYCL 2020 deprecates four of the target enum values
+  // and replaces them with 2 (device and host_task). May want
+  // to change these constexpr.
   constexpr static bool IsGlobalBuf =
       AccessTarget == access::target::global_buffer;
 
@@ -591,7 +594,7 @@ public:
   template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 3>>
   range<3> get_range() const {
     cl_int3 Range = getRangeInternal();
-    return range<3>(Range[0], Range[1], Range[3]);
+    return range<3>(Range[0], Range[1], Range[2]);
   }
 
 #else
@@ -1604,9 +1607,9 @@ public:
     return getQualifiedPtr() + LinearIndex;
   }
 
-  template <access::target AccessTarget_ = AccessTarget,
-            typename = detail::enable_if_t<AccessTarget_ ==
-                                           access::target::global_buffer>>
+  template <
+      access::target AccessTarget_ = AccessTarget,
+      typename = detail::enable_if_t<AccessTarget_ == access::target::device>>
   global_ptr<DataT> get_pointer() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return global_ptr<DataT>(getQualifiedPtr() + LinearIndex);
@@ -1637,21 +1640,21 @@ private:
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 accessor(buffer<DataT, Dimensions, AllocatorT>)
-    -> accessor<DataT, Dimensions, access::mode::read_write,
-                target::global_buffer, access::placeholder::true_t>;
+    -> accessor<DataT, Dimensions, access::mode::read_write, target::device,
+                access::placeholder::true_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT,
           typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>,
          const ext::oneapi::accessor_property_list<PropsT...> &)
-    -> accessor<DataT, Dimensions, access::mode::read_write,
-                target::global_buffer, access::placeholder::true_t,
+    -> accessor<DataT, Dimensions, access::mode::read_write, target::device,
+                access::placeholder::true_t,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>(),
-                detail::deduceAccessTarget<Type1, Type1>(target::global_buffer),
+                detail::deduceAccessTarget<Type1, Type1>(target::device),
                 access::placeholder::true_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
@@ -1659,7 +1662,7 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>(),
-                detail::deduceAccessTarget<Type1, Type1>(target::global_buffer),
+                detail::deduceAccessTarget<Type1, Type1>(target::device),
                 access::placeholder::true_t,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 
@@ -1667,7 +1670,7 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>(),
-                detail::deduceAccessTarget<Type1, Type2>(target::global_buffer),
+                detail::deduceAccessTarget<Type1, Type2>(target::device),
                 access::placeholder::true_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
@@ -1675,7 +1678,7 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>(),
-                detail::deduceAccessTarget<Type1, Type2>(target::global_buffer),
+                detail::deduceAccessTarget<Type1, Type2>(target::device),
                 access::placeholder::true_t,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 
@@ -1683,7 +1686,7 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>(),
-                detail::deduceAccessTarget<Type2, Type3>(target::global_buffer),
+                detail::deduceAccessTarget<Type2, Type3>(target::device),
                 access::placeholder::true_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
@@ -1691,7 +1694,7 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>(),
-                detail::deduceAccessTarget<Type2, Type3>(target::global_buffer),
+                detail::deduceAccessTarget<Type2, Type3>(target::device),
                 access::placeholder::true_t,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 
@@ -1699,7 +1702,7 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3, typename Type4>
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>(),
-                detail::deduceAccessTarget<Type3, Type4>(target::global_buffer),
+                detail::deduceAccessTarget<Type3, Type4>(target::device),
                 access::placeholder::true_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
@@ -1707,27 +1710,27 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
 accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>(),
-                detail::deduceAccessTarget<Type3, Type4>(target::global_buffer),
+                detail::deduceAccessTarget<Type3, Type4>(target::device),
                 access::placeholder::true_t,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler)
-    -> accessor<DataT, Dimensions, access::mode::read_write,
-                target::global_buffer, access::placeholder::false_t>;
+    -> accessor<DataT, Dimensions, access::mode::read_write, target::device,
+                access::placeholder::false_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT,
           typename... PropsT>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
          const ext::oneapi::accessor_property_list<PropsT...> &)
-    -> accessor<DataT, Dimensions, access::mode::read_write,
-                target::global_buffer, access::placeholder::false_t,
+    -> accessor<DataT, Dimensions, access::mode::read_write, target::device,
+                access::placeholder::false_t,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>(),
-                detail::deduceAccessTarget<Type1, Type1>(target::global_buffer),
+                detail::deduceAccessTarget<Type1, Type1>(target::device),
                 access::placeholder::false_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
@@ -1735,7 +1738,7 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type1>(),
-                detail::deduceAccessTarget<Type1, Type1>(target::global_buffer),
+                detail::deduceAccessTarget<Type1, Type1>(target::device),
                 access::placeholder::false_t,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 
@@ -1743,7 +1746,7 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>(),
-                detail::deduceAccessTarget<Type1, Type2>(target::global_buffer),
+                detail::deduceAccessTarget<Type1, Type2>(target::device),
                 access::placeholder::false_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
@@ -1751,7 +1754,7 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type1, Type2>(),
-                detail::deduceAccessTarget<Type1, Type2>(target::global_buffer),
+                detail::deduceAccessTarget<Type1, Type2>(target::device),
                 access::placeholder::false_t,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 
@@ -1759,7 +1762,7 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
           typename Type2, typename Type3>
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>(),
-                detail::deduceAccessTarget<Type2, Type3>(target::global_buffer),
+                detail::deduceAccessTarget<Type2, Type3>(target::device),
                 access::placeholder::false_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
@@ -1767,7 +1770,7 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
          const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type2, Type3>(),
-                detail::deduceAccessTarget<Type2, Type3>(target::global_buffer),
+                detail::deduceAccessTarget<Type2, Type3>(target::device),
                 access::placeholder::false_t,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 
@@ -1776,7 +1779,7 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
          Type4)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>(),
-                detail::deduceAccessTarget<Type3, Type4>(target::global_buffer),
+                detail::deduceAccessTarget<Type3, Type4>(target::device),
                 access::placeholder::false_t>;
 
 template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
@@ -1784,7 +1787,7 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
 accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
          Type4, const ext::oneapi::accessor_property_list<PropsT...> &)
     -> accessor<DataT, Dimensions, detail::deduceAccessMode<Type3, Type4>(),
-                detail::deduceAccessTarget<Type3, Type4>(target::global_buffer),
+                detail::deduceAccessTarget<Type3, Type4>(target::device),
                 access::placeholder::false_t,
                 ext::oneapi::accessor_property_list<PropsT...>>;
 #endif

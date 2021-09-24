@@ -3871,21 +3871,19 @@ struct CSEDenseMapInfo {
 static void cse(BasicBlock *BB) {
   // Perform simple cse.
   SmallDenseMap<Instruction *, Instruction *, 4, CSEDenseMapInfo> CSEMap;
-  for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E;) {
-    Instruction *In = &*I++;
-
-    if (!CSEDenseMapInfo::canHandle(In))
+  for (Instruction &In : llvm::make_early_inc_range(*BB)) {
+    if (!CSEDenseMapInfo::canHandle(&In))
       continue;
 
     // Check if we can replace this instruction with any of the
     // visited instructions.
-    if (Instruction *V = CSEMap.lookup(In)) {
-      In->replaceAllUsesWith(V);
-      In->eraseFromParent();
+    if (Instruction *V = CSEMap.lookup(&In)) {
+      In.replaceAllUsesWith(V);
+      In.eraseFromParent();
       continue;
     }
 
-    CSEMap[In] = In;
+    CSEMap[&In] = &In;
   }
 }
 
@@ -10583,4 +10581,15 @@ PreservedAnalyses LoopVectorizePass::run(Function &F,
     if (!Result.MadeCFGChange)
       PA.preserveSet<CFGAnalyses>();
     return PA;
+}
+
+void LoopVectorizePass::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  static_cast<PassInfoMixin<LoopVectorizePass> *>(this)->printPipeline(
+      OS, MapClassName2PassName);
+
+  OS << "<";
+  OS << (InterleaveOnlyWhenForced ? "" : "no-") << "interleave-forced-only;";
+  OS << (VectorizeOnlyWhenForced ? "" : "no-") << "vectorize-forced-only;";
+  OS << ">";
 }

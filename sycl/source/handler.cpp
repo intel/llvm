@@ -341,7 +341,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     // The first 11 bits of Size encodes the accessor target.
     const access::target AccTarget = static_cast<access::target>(Size & 0x7ff);
     switch (AccTarget) {
-    case access::target::global_buffer:
+    case access::target::device:
     case access::target::constant_buffer: {
       detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
       addArgsForGlobalAccessor(AccImpl, Index, IndexShift, Size,
@@ -468,7 +468,7 @@ void handler::extractArgsAndReqsFromLambda(
       // The first 11 bits of Size encodes the accessor target.
       const access::target AccTarget =
           static_cast<access::target>(Size & 0x7ff);
-      if ((AccTarget == access::target::global_buffer ||
+      if ((AccTarget == access::target::device ||
            AccTarget == access::target::constant_buffer) ||
           (AccTarget == access::target::image ||
            AccTarget == access::target::image_array)) {

@@ -89,10 +89,10 @@ auto packCallArguments(ArgsT &&... Args) {
 class plugin {
 public:
   plugin() = delete;
-
   plugin(RT::PiPlugin Plugin, backend UseBackend, void *LibraryHandle)
       : MPlugin(Plugin), MBackend(UseBackend), MLibraryHandle(LibraryHandle),
-        TracingMutex(std::make_shared<std::mutex>()) {}
+        TracingMutex(std::make_shared<std::mutex>()),
+        MPluginMutex(std::make_shared<std::mutex>()) {}
 
   plugin &operator=(const plugin &) = default;
   plugin(const plugin &) = default;
@@ -184,11 +184,59 @@ public:
   void *getLibraryHandle() { return MLibraryHandle; }
   int unload() { return RT::unloadPlugin(MLibraryHandle); }
 
+  // return the index of PiPlatforms.
+  // If not found, add it and return its index.
+  // The function is expected to be called in a thread safe manner.
+  int getPlatformId(RT::PiPlatform Platform) {
+    auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
+    if (It != PiPlatforms.end())
+      return It - PiPlatforms.begin();
+
+    PiPlatforms.push_back(Platform);
+    LastDeviceIds.push_back(0);
+    return PiPlatforms.size() - 1;
+  }
+
+  // Device ids are consecutive across platforms within a plugin.
+  // We need to return the same starting index for the given platform.
+  // So, instead of returing the last device id of the given platform,
+  // return the last device id of the predecessor platform.
+  // The function is expected to be called in a thread safe manner.
+  int getStartingDeviceId(RT::PiPlatform Platform) {
+    int PlatformId = getPlatformId(Platform);
+    if (PlatformId == 0)
+      return 0;
+    return LastDeviceIds[PlatformId - 1];
+  }
+
+  // set the id of the last device for the given platform
+  // The function is expected to be called in a thread safe manner.
+  void setLastDeviceId(RT::PiPlatform Platform, int Id) {
+    int PlatformId = getPlatformId(Platform);
+    LastDeviceIds[PlatformId] = Id;
+  }
+
+  bool containsPiPlatform(RT::PiPlatform Platform) {
+    auto It = std::find(PiPlatforms.begin(), PiPlatforms.end(), Platform);
+    return It != PiPlatforms.end();
+  }
+
+  std::shared_ptr<std::mutex> getPluginMutex() { return MPluginMutex; }
+
 private:
   RT::PiPlugin MPlugin;
   backend MBackend;
   void *MLibraryHandle; // the handle returned from dlopen
   std::shared_ptr<std::mutex> TracingMutex;
+  // Mutex to guard PiPlatforms and LastDeviceIds.
+  // Note that this is a temporary solution until we implement the global
+  // Device/Platform cache later.
+  std::shared_ptr<std::mutex> MPluginMutex;
+  // vector of PiPlatforms that belong to this plugin
+  std::vector<RT::PiPlatform> PiPlatforms;
+  // represents the unique ids of the last device of each platform
+  // index of this vector corresponds to the index in PiPlatforms vector.
+  std::vector<int> LastDeviceIds;
 }; // class plugin
 } // namespace detail
 } // __SYCL_OPEN_NS()

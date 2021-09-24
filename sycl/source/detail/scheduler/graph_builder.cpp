@@ -1028,18 +1028,18 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     AllocaCmd->MUsers.clear();
   }
 
-  // Linked alloca's share dependencies. Unchain from deps linked alloca's.
-  // Any cmd of the alloca - linked_alloca may be used later on.
+  // Make sure the Linked Allocas are marked visited by the previous walk.
+  // Remove allocation commands from the users of their dependencies.
   for (AllocaCommandBase *AllocaCmd : AllocaCommands) {
     AllocaCommandBase *LinkedCmd = AllocaCmd->MLinkedAllocaCmd;
 
     if (LinkedCmd) {
       assert(LinkedCmd->MMarks.MVisited);
-
-      for (DepDesc &Dep : AllocaCmd->MDeps)
-        if (Dep.MDepCommand)
-          Dep.MDepCommand->MUsers.erase(AllocaCmd);
     }
+
+    for (DepDesc &Dep : AllocaCmd->MDeps)
+      if (Dep.MDepCommand)
+        Dep.MDepCommand->MUsers.erase(AllocaCmd);
   }
 
   // Traverse the graph using BFS
