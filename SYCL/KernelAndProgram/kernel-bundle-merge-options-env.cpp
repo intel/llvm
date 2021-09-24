@@ -2,7 +2,7 @@
 // RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT=1 -fsycl %s -o %t.out %debug_option
 // RUN: %GPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 SYCL_PROGRAM_COMPILE_OPTIONS=-DENV_COMPILE_OPTS SYCL_PROGRAM_LINK_OPTIONS=-DENV_LINK_OPTS %t.out %GPU_CHECK_PLACEHOLDER
 // REQUIRES: gpu
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || hip
 #include "kernel-bundle-merge-options.hpp"
 
 // CHECK: piProgramBuild
