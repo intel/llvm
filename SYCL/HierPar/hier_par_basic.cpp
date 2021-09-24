@@ -11,6 +11,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+//
+// Linking issues on AMD
+// XFAIL: hip_amd
 
 // This test checks hierarchical parallelism invocation APIs, but without any
 // data or code with side-effects between the work group and work item scopes.

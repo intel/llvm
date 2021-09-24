@@ -4,6 +4,10 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+//
+// Missing __spirv_SubgroupShuffleXorINTEL, __spirv_SubgroupLocalInvocationId,
+// __spirv_SubgroupShuffleINTEL, __spirv_SubgroupShuffleXorINTEL  on AMD
+// XFAIL: hip_amd
 
 #include "helper.hpp"
 #include <CL/sycl.hpp>

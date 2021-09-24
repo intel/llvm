@@ -1,6 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+//
+// Failling on HIP AMD
+// XFAIL: hip_amd
 
 // TODO: accelerator may not suport atomics required by the current
 // implementation. Enable testing when implementation is fixed.

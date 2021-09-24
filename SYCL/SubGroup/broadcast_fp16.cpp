@@ -1,5 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
+//
+// Missing __spirv_GroupBroadcast on AMD
+// XFAIL: hip_amd
 
 //==---- broadcast_fp16.cpp - SYCL sub_group broadcast test ----*- C++ -*---==//
 //

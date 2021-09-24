@@ -1,4 +1,4 @@
-// XFAIL: cuda
+// XFAIL: cuda || hip
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DGPU %s -o %t_gpu.out
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out

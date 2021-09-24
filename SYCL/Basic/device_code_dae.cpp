@@ -1,7 +1,7 @@
 // NOTE A temporary test before this compilation flow is enabled by default in
 // driver
-// UNSUPPORTED: cuda
-// CUDA does not support SPIR-V.
+// UNSUPPORTED: cuda || hip
+// CUDA and HIP don't support SPIR-V.
 // RUN: %clangxx -fsycl-device-only -Xclang -fenable-sycl-dae -Xclang -fsycl-int-header=int_header.h %s -c -o device_code.bc -Wno-sycl-strict
 // RUN: %clangxx %cxx_std_optionc++17 %include_option int_header.h %debug_option -c %s -o host_code.o %sycl_options -Wno-sycl-strict
 // FIXME Added explicit offline linking step here until online-linking support

@@ -6,6 +6,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 SYCL_PROGRAM_COMPILE_OPTIONS="-cl-opt-disable" %t.out %CPU_CHECK_PLACEHOLDER --check-prefix=CHECK-IS-OPT-DISABLE
 // RUN: %GPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 SYCL_PROGRAM_COMPILE_OPTIONS="-cl-opt-disable" %t.out %GPU_CHECK_PLACEHOLDER --check-prefix=CHECK-IS-OPT-DISABLE
 // RUN: %ACC_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 SYCL_PROGRAM_COMPILE_OPTIONS="-cl-opt-disable" %t.out %ACCPU_CHECK_PLACEHOLDER --check-prefix=CHECK-IS-OPT-DISABLE
+//
+// Hits an assertion on AMD with multiple GPUs available
+// XFAIL: hip_amd
 
 #include <CL/sycl.hpp>
 #include <iostream>

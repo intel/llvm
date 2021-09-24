@@ -3,6 +3,12 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+//
+// Missing  __spirv_GenericCastToPtrExplicit_ToLocal,
+// __spirv_SubgroupLocalInvocationId, __spirv_GenericCastToPtrExplicit_ToGlobal,
+// __spirv_SubgroupBlockReadINTEL, __assert_fail,
+// __spirv_SubgroupBlockWriteINTEL on AMD
+// XFAIL: hip_amd
 
 #include "helper.hpp"
 #include <CL/sycl.hpp>

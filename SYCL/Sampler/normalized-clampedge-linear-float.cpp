@@ -2,7 +2,7 @@
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
-// XFAIL: cuda
+// XFAIL: cuda || hip
 
 // CUDA works with image_channel_type::fp32, but not with any 8-bit per channel
 // type (such as unorm_int8)

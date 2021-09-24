@@ -1,5 +1,5 @@
-// UNSUPPORTED: cuda
-// CUDA does not support SPIR-V.
+// UNSUPPORTED: cuda || hip
+// CUDA and HIP don't support SPIR-V.
 //
 // FIXME Disabled fallback assert as it'll require either online linking or
 // explicit offline linking step here

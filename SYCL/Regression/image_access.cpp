@@ -4,7 +4,7 @@
 // RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 // No execution of FPGA because it does not support images
 //
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || hip
 // CUDA cannot support OpenCL spec conform images.
 
 //==-------------- image_access.cpp - SYCL image accessors test  -----------==//

@@ -3,7 +3,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-// XFAIL: cuda
+// XFAIL: cuda || hip
 
 //==--- kernel-and-program.cpp - SYCL kernel/program test ------------------==//
 //

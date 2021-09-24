@@ -3,6 +3,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+//
+// Missing __spirv_SubgroupLocalInvocationId on AMD
+// XFAIL: hip_amd
 
 //==---------- barrier.cpp - SYCL sub_group barrier test -------*- C++ -*---==//
 //

@@ -7,7 +7,7 @@
 
 // The test is using all available BEs but CUDA machine in CI does not have
 // functional OpenCL RT
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || hip
 
 #include <CL/sycl.hpp>
 #include <iostream>

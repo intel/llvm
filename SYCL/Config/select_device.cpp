@@ -38,7 +38,7 @@
 //
 // REQUIRES: gpu
 //
-// XFAIL: cuda
+// XFAIL: cuda || hip
 //
 // TODO: Update this test when SYCL_DEVICE_FILTER support in enabled.
 

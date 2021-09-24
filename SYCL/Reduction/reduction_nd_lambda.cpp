@@ -3,6 +3,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+//
+// Inconsistently fails on HIP AMD
+// UNSUPPORTED: hip_amd
 
 // This test performs basic checks of parallel_for(nd_range, reduction, lambda)
 

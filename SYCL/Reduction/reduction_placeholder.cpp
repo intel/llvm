@@ -2,6 +2,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+//
+// Missing __spirv_GroupIAdd, __spirv_GroupFMin on AMD
+// XFAIL: hip_amd
 
 // RUNx: %HOST_RUN_PLACEHOLDER %t.out
 // TODO: Enable the test for HOST when it supports ext::oneapi::reduce() and

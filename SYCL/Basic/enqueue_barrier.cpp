@@ -5,7 +5,7 @@
 
 // The test is failing sporadically on Windows OpenCL RTs
 // Disabling on windows until fixed
-// UNSUPPORTED: cuda || windows
+// UNSUPPORTED: cuda || windows || hip
 
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/fpga_device_selector.hpp>

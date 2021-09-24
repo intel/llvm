@@ -4,6 +4,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
+// Test failing with hip on AMD
+// XFAIL: hip_amd
 //==---------- subbuffer.cpp --- sub-buffer basic test ---------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

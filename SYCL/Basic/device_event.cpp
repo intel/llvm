@@ -4,6 +4,9 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.run
 // TODO: nd_item::barrier() is not implemented on HOST
 // RUNx: %HOST_RUN_PLACEHOLDER %t.run
+//
+// Crashes on AMD
+// XFAIL: hip_amd
 
 //==--------device_event.cpp - SYCL class device_event test ----------------==//
 //

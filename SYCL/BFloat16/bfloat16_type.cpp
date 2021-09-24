@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // TODO currently the feature isn't supported on most of the devices
 //      need to enable the test when the aspect and device_if feature are

@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || hip
 // REQUIRES: gpu,linux
 // RUN: %clangxx -fsycl -DTO_PASS %s -o %t.out.pass
 // RUN: %GPU_RUN_PLACEHOLDER %t.out.pass

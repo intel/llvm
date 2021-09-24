@@ -1,4 +1,4 @@
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || hip
 
 // RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-device-code-split=per_kernel %s -o %t_per_kernel.out
 // RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-device-code-split=per_source %s -o %t_per_source.out

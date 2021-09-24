@@ -1,5 +1,5 @@
-// UNSUPPORTED: cuda
-// CUDA compilation and runtime do not yet support sub-groups.
+// UNSUPPORTED: cuda || hip
+// CUDA and HIP compilation and runtime do not yet support sub-groups.
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
