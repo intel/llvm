@@ -78,27 +78,34 @@ template <> struct BackendInput<backend::level_zero, context> {
   using type = struct {
     interop<backend::level_zero, context>::type NativeHandle;
     std::vector<device> DeviceList;
-    ext::oneapi::level_zero::ownership Ownership;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
   };
 };
 
 template <> struct BackendInput<backend::level_zero, queue> {
   using type = struct {
     interop<backend::level_zero, queue>::type NativeHandle;
-    ext::oneapi::level_zero::ownership Ownership;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
   };
 };
 
 template <> struct BackendInput<backend::level_zero, event> {
   using type = struct {
     interop<backend::level_zero, event>::type NativeHandle;
-    ext::oneapi::level_zero::ownership Ownership;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
   };
 };
 
 template <bundle_state State>
 struct BackendInput<backend::level_zero, kernel_bundle<State>> {
-  using type = ze_module_handle_t;
+  using type = struct {
+    ze_module_handle_t NativeHandle;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
+  };
 };
 
 template <bundle_state State>
@@ -244,6 +251,24 @@ event make_event<backend::level_zero>(
       TargetContext,
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
+}
+
+// Specialization of sycl::make_kernel_bundle for Level-Zero backend.
+template <>
+kernel_bundle<bundle_state::executable>
+make_kernel_bundle<backend::ext_oneapi_level_zero, bundle_state::executable>(
+    const backend_input_t<backend::ext_oneapi_level_zero,
+                          kernel_bundle<bundle_state::executable>>
+        &BackendObject,
+    const context &TargetContext) {
+  std::shared_ptr<detail::kernel_bundle_impl> KBImpl =
+      detail::make_kernel_bundle(
+          detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+          TargetContext,
+          BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
+          bundle_state::executable, backend::ext_oneapi_level_zero);
+  return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::executable>>(
+      KBImpl);
 }
 
 // TODO: remove this specialization when generic is changed to call

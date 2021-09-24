@@ -25,23 +25,22 @@ namespace detail {
 /// It is an internal class implementing basic functionality of simd_view.
 ///
 /// \ingroup sycl_esimd
-template <typename BaseTy, typename RegionTy, typename Derived>
-class simd_view_impl {
+template <typename BaseTy, typename RegionTy> class simd_view_impl {
+  using Derived = simd_view<BaseTy, RegionTy>;
+  template <typename, int, class, class> friend class simd_obj_impl;
   template <typename, int> friend class simd;
-  template <typename, typename, typename> friend class simd_view_impl;
+  template <typename, typename> friend class simd_view_impl;
+  template <typename, int> friend class simd_mask_impl;
 
 public:
-  static_assert(!detail::is_simd_view_v<BaseTy>::value);
+  static_assert(is_simd_obj_impl_derivative_v<BaseTy>);
   // Deduce the corresponding value type from its region type.
   using ShapeTy = typename shape_type<RegionTy>::type;
   static constexpr int length = ShapeTy::Size_x * ShapeTy::Size_y;
 
-  /// The simd type if reading the object.
-  using value_type = simd<typename ShapeTy::element_type, length>;
-
-  /// The underlying builtin value type
-  using vector_type =
-      detail::vector_type_t<typename ShapeTy::element_type, length>;
+  using base_type = BaseTy;
+  template <typename ElT, int N>
+  using get_simd_t = construct_a_simd_type_t<base_type, ElT, N>;
 
   /// The region type of this class.
   using region_type = RegionTy;
@@ -50,43 +49,42 @@ public:
   /// type of the base object type.
   using element_type = typename ShapeTy::element_type;
 
-  /// @{
-  /// Constructors.
+  /// The simd type if reading the object.
+  using value_type = get_simd_t<element_type, length>;
+
+  /// The underlying builtin vector type backing the value read from the object.
+  using vector_type = vector_type_t<element_type, length>;
 
 private:
   Derived &cast_this_to_derived() { return reinterpret_cast<Derived &>(*this); }
 
 protected:
+  /// @{
+  /// Constructors.
   simd_view_impl(BaseTy &Base, RegionTy Region)
       : M_base(Base), M_region(Region) {}
   simd_view_impl(BaseTy &&Base, RegionTy Region)
       : M_base(Base), M_region(Region) {}
-
+  /// @}
 public:
   // Default copy and move constructors.
   simd_view_impl(const simd_view_impl &Other) = default;
   simd_view_impl(simd_view_impl &&Other) = default;
-  /// @}
 
-  /// Conversion to simd type.
-  template <typename ToTy> operator simd<ToTy, length>() const {
-    if constexpr (std::is_same<element_type, ToTy>::value)
+  /// Implicit conversion to simd type.
+  template <typename ToTy, class T = BaseTy,
+            class = std::enable_if_t<is_simd_type_v<T>>>
+  inline operator simd<ToTy, length>() const {
+    if constexpr (std::is_same_v<element_type, ToTy>)
       return read();
     else
       return convert<ToTy, element_type, length>(read());
   }
 
-  /// @{
-  /// Assignment operators.
-  simd_view_impl &operator=(const simd_view_impl &Other) {
-    return write(Other.read());
-  }
-  simd_view_impl &operator=(const value_type &Val) { return write(Val); }
-  /// @}
-
-  /// Move assignment operator.
-  simd_view_impl &operator=(simd_view_impl &&Other) {
-    return write(Other.read());
+  /// Implicit conversion to simd_mask_impl type, if element type is compatible.
+  template <class T = BaseTy, class = std::enable_if_t<is_simd_mask_type_v<T>>>
+  inline operator simd_mask_type<length>() const {
+    return read();
   }
 
   /// @{
@@ -97,9 +95,11 @@ public:
   static constexpr int getStrideX() { return ShapeTy::Stride_x; }
   static constexpr int getSizeY() { return ShapeTy::Size_y; }
   static constexpr int getStrideY() { return ShapeTy::Stride_y; }
+
   constexpr uint16_t getOffsetX() const {
     return getTopRegion(M_region).M_offset_x;
   }
+
   constexpr uint16_t getOffsetY() const {
     return getTopRegion(M_region).M_offset_y;
   }
@@ -109,8 +109,10 @@ public:
   value_type read() const {
     using BT = typename BaseTy::element_type;
     constexpr int BN = BaseTy::length;
-    return detail::readRegion<BT, BN>(M_base.data(), M_region);
+    return value_type{readRegion<BT, BN>(M_base.data(), M_region)};
   }
+
+  typename value_type::vector_type data() const { return read().data(); }
 
   /// Write to this object.
   Derived &write(const value_type &Val) {
@@ -120,12 +122,12 @@ public:
 
   /// @{
   /// Whole region update with predicates.
-  void merge(const value_type &Val, const mask_type_t<length> &Mask) {
+  void merge(const value_type &Val, const simd_mask_type<length> &Mask) {
     merge(Val, read(), Mask);
   }
 
   void merge(const value_type &Val1, value_type Val2,
-             const mask_type_t<length> &Mask) {
+             const simd_mask_type<length> &Mask) {
     Val2.merge(Val1, Mask);
     write(Val2.read());
   }
@@ -200,84 +202,139 @@ public:
     TopRegionTy TopReg(OffsetY, OffsetX);
     return RetTy{this->M_base, std::make_pair(TopReg, M_region)};
   }
-
-#define DEF_BINOP(BINOP, OPASSIGN)                                             \
-  ESIMD_INLINE friend auto operator BINOP(const Derived &X,                    \
-                                          const Derived &Y) {                  \
-    return (X BINOP Y.read());                                                 \
-  }                                                                            \
-  Derived &operator OPASSIGN(const value_type &RHS) {                          \
-    using ComputeTy = detail::compute_type_t<value_type>;                      \
-    auto V0 = detail::convert<typename ComputeTy::vector_type>(read().data()); \
-    auto V1 = detail::convert<typename ComputeTy::vector_type>(RHS.data());    \
-    auto V2 = V0 BINOP V1;                                                     \
-    auto V3 = detail::convert<vector_type>(V2);                                \
-    write(V3);                                                                 \
+#define __ESIMD_DEF_SIMD_VIEW_IMPL_OPASSIGN(BINOP, OPASSIGN, COND)             \
+                                                                               \
+  /* OPASSIGN simd_obj_impl */                                                 \
+  template <class T1, int N1, class SimdT1, class T = element_type,            \
+            class SimdT = BaseTy,                                              \
+            class =                                                            \
+                std::enable_if_t<(is_simd_type_v<SimdT> ==                     \
+                                  is_simd_type_v<SimdT1>)&&(N1 == length) &&   \
+                                 COND>>                                        \
+  Derived &operator OPASSIGN(const simd_obj_impl<T1, N1, SimdT1> &RHS) {       \
+    auto Res = read() BINOP RHS;                                               \
+    write(Res);                                                                \
     return cast_this_to_derived();                                             \
   }                                                                            \
-  Derived &operator OPASSIGN(const Derived &RHS) {                             \
-    return (*this OPASSIGN RHS.read());                                        \
-  }
-
-  DEF_BINOP(+, +=)
-  DEF_BINOP(-, -=)
-  DEF_BINOP(*, *=)
-  DEF_BINOP(/, /=)
-  DEF_BINOP(%, %=)
-
-#undef DEF_BINOP
-
-#define DEF_BITWISE_OP(BITWISE_OP, OPASSIGN)                                   \
-  ESIMD_INLINE friend auto operator BITWISE_OP(const Derived &X,               \
-                                               const Derived &Y) {             \
-    return (X BITWISE_OP Y.read());                                            \
-  }                                                                            \
-  Derived &operator OPASSIGN(const value_type &RHS) {                          \
-    static_assert(std::is_integral<element_type>(), "not integeral type");     \
-    auto V2 = read().data() BITWISE_OP RHS.data();                             \
-    auto V3 = detail::convert<vector_type>(V2);                                \
-    write(V3);                                                                 \
+                                                                               \
+  /* OPASSIGN simd_view_impl */                                                \
+  template <class SimdT1, class RegionT1,                                      \
+            class T1 = typename __SEIEE::shape_type<RegionT1>::element_type,   \
+            class T = element_type, class SimdT = BaseTy,                      \
+            class = std::enable_if_t<                                          \
+                (is_simd_type_v<SimdT> == is_simd_type_v<SimdT1>)&&(           \
+                    length == __SEIEE::shape_type<RegionT1>::length) &&        \
+                COND>>                                                         \
+  Derived &operator OPASSIGN(const simd_view_impl<SimdT1, RegionT1> &RHS) {    \
+    *this OPASSIGN RHS.read();                                                 \
     return cast_this_to_derived();                                             \
   }                                                                            \
-  Derived &operator OPASSIGN(const Derived &RHS) {                             \
-    return (*this OPASSIGN RHS.read());                                        \
+                                                                               \
+  /* OPASSIGN scalar */                                                        \
+  template <class T1, class T = element_type, class SimdT = BaseTy,            \
+            class = std::enable_if_t<COND>>                                    \
+  Derived &operator OPASSIGN(T1 RHS) {                                         \
+    auto Res = read() BINOP RHS;                                               \
+    write(Res);                                                                \
+    return cast_this_to_derived();                                             \
   }
-  DEF_BITWISE_OP(&, &=)
-  DEF_BITWISE_OP(|, |=)
-  DEF_BITWISE_OP(^, ^=)
-  DEF_BITWISE_OP(>>, >>=)
-  DEF_BITWISE_OP(<<, <<=)
 
-#undef DEF_BITWISE_OP
+#define __ESIMD_BITWISE_OP_FILTER std::is_integral_v<T> &&std::is_integral_v<T1>
+  __ESIMD_DEF_SIMD_VIEW_IMPL_OPASSIGN(^, ^=, __ESIMD_BITWISE_OP_FILTER)
+  __ESIMD_DEF_SIMD_VIEW_IMPL_OPASSIGN(|, |=, __ESIMD_BITWISE_OP_FILTER)
+  __ESIMD_DEF_SIMD_VIEW_IMPL_OPASSIGN(&, &=, __ESIMD_BITWISE_OP_FILTER)
+  __ESIMD_DEF_SIMD_VIEW_IMPL_OPASSIGN(%, %=, __ESIMD_BITWISE_OP_FILTER)
+#undef __ESIMD_BITWISE_OP_FILTER
 
-#define DEF_UNARY_OP(UNARY_OP)                                                 \
+#define __ESIMD_SHIFT_OP_FILTER                                                \
+  std::is_integral_v<T> &&std::is_integral_v<T1> &&is_simd_type_v<SimdT>
+
+  __ESIMD_DEF_SIMD_VIEW_IMPL_OPASSIGN(<<, <<=, __ESIMD_SHIFT_OP_FILTER)
+  __ESIMD_DEF_SIMD_VIEW_IMPL_OPASSIGN(>>, >>=, __ESIMD_SHIFT_OP_FILTER)
+#undef __ESIMD_SHIFT_OP_FILTER
+
+#define __ESIMD_ARITH_OP_FILTER                                                \
+  is_vectorizable_v<T> &&is_vectorizable_v<T1> &&is_simd_type_v<SimdT>
+
+  __ESIMD_DEF_SIMD_VIEW_IMPL_OPASSIGN(+, +=, __ESIMD_ARITH_OP_FILTER)
+  __ESIMD_DEF_SIMD_VIEW_IMPL_OPASSIGN(-, -=, __ESIMD_ARITH_OP_FILTER)
+  __ESIMD_DEF_SIMD_VIEW_IMPL_OPASSIGN(*, *=, __ESIMD_ARITH_OP_FILTER)
+  __ESIMD_DEF_SIMD_VIEW_IMPL_OPASSIGN(/, /=, __ESIMD_ARITH_OP_FILTER)
+
+#undef __ESIMD_ARITH_OP_FILTER
+#undef __ESIMD_DEF_SIMD_VIEW_IMPL_OPASSIGN
+
+#define __ESIMD_DEF_UNARY_OP(UNARY_OP, COND)                                   \
+  template <class T = element_type, class SimdT = BaseTy,                      \
+            class = std::enable_if_t<COND>>                                    \
   auto operator UNARY_OP() {                                                   \
     auto V = UNARY_OP(read().data());                                          \
-    return simd<element_type, length>(V);                                      \
+    return get_simd_t<element_type, length>(V);                                \
   }
-  DEF_UNARY_OP(~)
-  DEF_UNARY_OP(+)
-  DEF_UNARY_OP(-)
+  __ESIMD_DEF_UNARY_OP(~, std::is_integral_v<T> &&is_simd_type_v<SimdT>)
+  __ESIMD_DEF_UNARY_OP(+, is_simd_type_v<SimdT>)
+  __ESIMD_DEF_UNARY_OP(-, is_simd_type_v<SimdT>)
 
-#undef DEF_UNARY_OP
+#undef __ESIMD_DEF_UNARY_OP
 
-  // negation operator
-  auto operator!() { return cast_this_to_derived() == 0; }
+  /// Unary logical negeation operator. Applies only to integer element types.
+  template <class T = element_type,
+            class = std::enable_if_t<std::is_integral_v<T>>>
+  auto operator!() {
+    using MaskVecT = typename simd_mask_type<length>::vector_type;
+    auto V = read().data() == 0;
+    return simd_mask_type<length>{__builtin_convertvector(V, MaskVecT) &
+                                  MaskVecT(1)};
+  }
+
+  /// @{
+  /// Assignment operators.
+  simd_view_impl &operator=(const simd_view_impl &Other) {
+    return write(Other.read());
+  }
+
+  Derived &operator=(const Derived &Other) { return write(Other.read()); }
+
+  Derived &operator=(const value_type &Val) { return write(Val); }
+
+  /// Move assignment operator.
+  Derived &operator=(Derived &&Other) { return write(Other.read()); }
+  simd_view_impl &operator=(simd_view_impl &&Other) {
+    return write(Other.read());
+  }
+
+  template <class T, int N, class SimdT,
+            class = std::enable_if_t<(is_simd_type_v<SimdT> ==
+                                      is_simd_type_v<BaseTy>)&&(length ==
+                                                                SimdT::length)>>
+  Derived &operator=(const simd_obj_impl<T, N, SimdT> &Other) {
+    return write(convert<element_type>(reinterpret_cast<const SimdT &>(Other)));
+  }
+
+  template <class T1, class = std::enable_if_t<detail::is_vectorizable_v<T1>>>
+  Derived &operator=(T1 RHS) {
+    return write(value_type((element_type)RHS));
+  }
+
+  /// @}
 
   // Operator ++, --
   Derived &operator++() {
     *this += 1;
     return cast_this_to_derived();
   }
+
   value_type operator++(int) {
     value_type Ret(read());
     operator++();
     return Ret;
   }
+
   Derived &operator--() {
     *this -= 1;
     return cast_this_to_derived();
   }
+
   value_type operator--(int) {
     value_type Ret(read());
     operator--();
@@ -289,7 +346,7 @@ public:
   template <typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is2D()>>
   auto row(int i) {
-    return select<1, 0, getSizeX(), 1>(i, 0)
+    return select<1, 1, getSizeX(), 1>(i, 0)
         .template bit_cast_view<element_type>();
   }
 
@@ -298,7 +355,7 @@ public:
   template <typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is2D()>>
   auto column(int i) {
-    return select<getSizeY(), 1, 1, 0>(0, i);
+    return select<getSizeY(), 1, 1, 1>(0, i);
   }
 
   /// Read a single element from a 1D region, by value only.
@@ -322,7 +379,7 @@ public:
   template <typename T = Derived,
             typename = sycl::detail::enable_if_t<T::is1D()>>
   auto operator[](int i) {
-    return select<1, 0>(i);
+    return select<1, 1>(i);
   }
 
   /// Return a writeable view of a single element.
@@ -330,16 +387,16 @@ public:
             typename = sycl::detail::enable_if_t<T::is1D()>>
   __SYCL_DEPRECATED("use operator[] form.")
   auto operator()(int i) {
-    return select<1, 0>(i);
+    return select<1, 1>(i);
   }
 
   /// \name Replicate
-  /// Replicate simd instance given a simd_view
+  /// Replicate simd instance given a simd_view_impl
   /// @{
   ///
 
   /// \tparam Rep is number of times region has to be replicated.
-  template <int Rep> simd<element_type, Rep> replicate() {
+  template <int Rep> get_simd_t<element_type, Rep> replicate() {
     return read().replicate<Rep>(0);
   }
 
@@ -348,7 +405,7 @@ public:
   /// \param OffsetX is column offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int W>
-  simd<element_type, Rep * W> replicate(uint16_t OffsetX) {
+  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
     return replicate<Rep, 0, W>(0, OffsetX);
   }
 
@@ -358,7 +415,8 @@ public:
   /// \param OffsetY is row offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int W>
-  simd<element_type, Rep * W> replicate(uint16_t OffsetY, uint16_t OffsetX) {
+  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
+                                              uint16_t OffsetX) {
     return replicate<Rep, 0, W>(OffsetY, OffsetX);
   }
 
@@ -368,7 +426,7 @@ public:
   /// \param OffsetX is column offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W>
-  simd<element_type, Rep * W> replicate(uint16_t OffsetX) {
+  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
     return replicate<Rep, VS, W, 1>(0, OffsetX);
   }
 
@@ -379,7 +437,8 @@ public:
   /// \param OffsetY is row offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W>
-  simd<element_type, Rep * W> replicate(uint16_t OffsetY, uint16_t OffsetX) {
+  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
+                                              uint16_t OffsetX) {
     return replicate<Rep, VS, W, 1>(OffsetY, OffsetX);
   }
 
@@ -390,7 +449,7 @@ public:
   /// \param OffsetX is column offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W, int HS>
-  simd<element_type, Rep * W> replicate(uint16_t OffsetX) {
+  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetX) {
     return read().template replicate<Rep, VS, W, HS>(OffsetX);
   }
 
@@ -402,29 +461,28 @@ public:
   /// \param OffsetY is row offset in number of elements in src region.
   /// \return replicated simd instance.
   template <int Rep, int VS, int W, int HS>
-  simd<element_type, Rep * W> replicate(uint16_t OffsetY, uint16_t OffsetX) {
+  get_simd_t<element_type, Rep * W> replicate(uint16_t OffsetY,
+                                              uint16_t OffsetX) {
     constexpr int RowSize = is2D() ? getSizeX() : 0;
     return read().template replicate<Rep, VS, W, HS>(OffsetY * RowSize +
                                                      OffsetX);
   }
   /// @}
 
-  /// Any operation.
+  /// 'any' operation.
   ///
   /// \return 1 if any element is set, 0 otherwise.
-  template <
-      typename T1 = element_type, typename T2 = BaseTy,
-      typename = sycl::detail::enable_if_t<std::is_integral<T1>::value, T2>>
+  template <typename T1 = element_type, typename T2 = BaseTy,
+            typename = std::enable_if_t<std::is_integral<T1>::value, T2>>
   uint16_t any() {
     return read().any();
   }
 
-  /// All operation.
+  /// 'all' operation.
   ///
   /// \return 1 if all elements are set, 0 otherwise.
-  template <
-      typename T1 = element_type, typename T2 = BaseTy,
-      typename = sycl::detail::enable_if_t<std::is_integral<T1>::value, T2>>
+  template <typename T1 = element_type, typename T2 = BaseTy,
+            typename = std::enable_if_t<std::is_integral<T1>::value, T2>>
   uint16_t all() {
     return read().all();
   }

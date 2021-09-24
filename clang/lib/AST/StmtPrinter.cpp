@@ -654,6 +654,11 @@ void StmtPrinter::PrintOMPExecutableDirective(OMPExecutableDirective *S,
     PrintStmt(S->getRawStmt());
 }
 
+void StmtPrinter::VisitOMPMetaDirective(OMPMetaDirective *Node) {
+  Indent() << "#pragma omp metadirective";
+  PrintOMPExecutableDirective(Node);
+}
+
 void StmtPrinter::VisitOMPParallelDirective(OMPParallelDirective *Node) {
   Indent() << "#pragma omp parallel";
   PrintOMPExecutableDirective(Node);
@@ -1189,6 +1194,7 @@ static void PrintFloatingLiteral(raw_ostream &OS, FloatingLiteral *Node,
   switch (Node->getType()->castAs<BuiltinType>()->getKind()) {
   default: llvm_unreachable("Unexpected type for float literal!");
   case BuiltinType::Half:       break; // FIXME: suffix?
+  case BuiltinType::Ibm128:     break; // FIXME: No suffix for ibm128 literal
   case BuiltinType::Double:     break; // no suffix.
   case BuiltinType::Float16:    OS << "F16"; break;
   case BuiltinType::Float:      OS << 'F'; break;

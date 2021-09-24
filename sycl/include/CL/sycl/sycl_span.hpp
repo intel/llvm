@@ -227,7 +227,7 @@ public:
   _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(pointer __f, pointer __l)
       : __data{__f} {
     (void)__l;
-    _SYCL_SPAN_ASSERT(_Extent == distance(__f, __l),
+    _SYCL_SPAN_ASSERT(_Extent == std::distance(__f, __l),
                       "size mismatch in span's constructor (ptr, ptr)");
   }
 
@@ -428,7 +428,7 @@ public:
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span(pointer __ptr, size_type __count)
       : __data{__ptr}, __size{__count} {}
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span(pointer __f, pointer __l)
-      : __data{__f}, __size{static_cast<size_t>(distance(__f, __l))} {}
+      : __data{__f}, __size{static_cast<size_t>(std::distance(__f, __l))} {}
 
   template <size_t _Sz>
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span(

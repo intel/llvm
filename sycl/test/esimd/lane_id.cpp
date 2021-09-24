@@ -26,7 +26,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<int, 16> foo(int x) {
   SIMT_BEGIN(16, lane)
   //CHECK: define internal spir_func void @_ZZ3fooiENKUlvE_clEv({{.*}}) {{.*}} #[[ATTR:[0-9]+]]
   //CHECK: %{{[0-9a-zA-Z_.]+}} = tail call spir_func i32 @_Z15__esimd_lane_idv()
-  v.select<1, 0>(lane) = x++;
+  v.select<1, 1>(lane) = x++;
   SIMT_END
   return v;
 }
