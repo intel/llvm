@@ -15,28 +15,31 @@ int main() {
     });
   });
   (void)event;
+
+  // explicitly instantiate a few more class pointers to check if there are some
+  // issues with them:
+
+  buffer<vec<int, 3>, 2> *p1;
+  (void) p1;
+  accessor<int, 1> *p2;
+  (void) p2;
+  accessor<vec<float, 2>, 2, access_mode::read> *p3;
+  (void) p3;
+  marray<double, 7> *p4;
+  (void) p4;
+  marray<short, 3> *p5;
+  (void) p5;
+  kernel_bundle<bundle_state::input> *p6;
+  (void) p6;
+  kernel_bundle<bundle_state::object> *p7;
+  (void) p7;
+  kernel_bundle<bundle_state::executable> *p8;
+  (void) p8;
+  device_image<bundle_state::input> *p9;
+  (void) p9;
+  device_image<bundle_state::object> *p10;
+  (void) p10;
+  device_image<bundle_state::executable> *p11;
+  (void) p11;
   return 0;
-}
-
-// explicitly instantiate a few more classes to check if there are some issues
-// with them:
-
-namespace sycl {
-
-template class buffer<vec<int, 3>, 2>;
-
-template class accessor<int, 1>;
-template class accessor<vec<float, 2>, 2, access_mode::read>;
-
-template class marray<double, 7>;
-template class marray<short, 3>;
-
-template class kernel_bundle<bundle_state::input>;
-template class kernel_bundle<bundle_state::object>;
-template class kernel_bundle<bundle_state::executable>;
-
-template class device_image<bundle_state::input>;
-template class device_image<bundle_state::object>;
-template class device_image<bundle_state::executable>;
-
 }

@@ -77,25 +77,25 @@ int main() {
 
   // Check deprecated
   // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
+  // expected-warning@+1 {{'get_native<__sycl_internal::__v1::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
   ZeDriver = Platform.get_native<backend::ext_oneapi_level_zero>();
   // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
+  // expected-warning@+1 {{'get_native<__sycl_internal::__v1::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
   ZeDevice = Device.get_native<backend::ext_oneapi_level_zero>();
   // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
+  // expected-warning@+1 {{'get_native<__sycl_internal::__v1::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
   ZeContext = Context.get_native<backend::ext_oneapi_level_zero>();
   // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
+  // expected-warning@+1 {{'get_native<__sycl_internal::__v1::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
   ZeQueue = Queue.get_native<backend::ext_oneapi_level_zero>();
   // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
+  // expected-warning@+1 {{'get_native<__sycl_internal::__v1::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
   ZeEvent = Event.get_native<backend::ext_oneapi_level_zero>();
   // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
+  // expected-warning@+1 {{'get_native<__sycl_internal::__v1::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
   ZeProgram = Program.get_native<backend::ext_oneapi_level_zero>();
   // expected-warning@+3 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+2 {{'get_native<sycl::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
+  // expected-warning@+2 {{'get_native<__sycl_internal::__v1::backend::ext_oneapi_level_zero>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
   /*ZeKernelBundle*/ (
       void)KernelBundle.get_native<backend::ext_oneapi_level_zero>();
 
@@ -142,22 +142,22 @@ int main() {
           Context);
 
   // Check deprecated
-  // expected-warning@+1 {{'make<sycl::platform, nullptr>' is deprecated: Use SYCL 2020 sycl::make_platform free function}}
+  // expected-warning@+1 {{'make<__sycl_internal::__v1::platform, nullptr>' is deprecated: Use SYCL 2020 sycl::make_platform free function}}
   auto P = ext::oneapi::level_zero::make<platform>(ZeDriver);
-  // expected-warning@+1 {{'make<sycl::device, nullptr>' is deprecated: Use SYCL 2020 sycl::make_device free function}}
+  // expected-warning@+1 {{'make<__sycl_internal::__v1::device, nullptr>' is deprecated: Use SYCL 2020 sycl::make_device free function}}
   auto D = ext::oneapi::level_zero::make<device>(P, ZeDevice);
-  // expected-warning@+1 {{'make<sycl::context, nullptr>' is deprecated: Use SYCL 2020 sycl::make_context free function}}
+  // expected-warning@+1 {{'make<__sycl_internal::__v1::context, nullptr>' is deprecated: Use SYCL 2020 sycl::make_context free function}}
   auto C = ext::oneapi::level_zero::make<context>(
       std::vector<device>(1, D), ZeContext,
       ext::oneapi::level_zero::ownership::keep);
-  // expected-warning@+1 {{'make<sycl::queue, nullptr>' is deprecated: Use SYCL 2020 sycl::make_queue free function}}
+  // expected-warning@+1 {{'make<__sycl_internal::__v1::queue, nullptr>' is deprecated: Use SYCL 2020 sycl::make_queue free function}}
   auto Q = ext::oneapi::level_zero::make<queue>(
       Context, ZeQueue, ext::oneapi::level_zero::ownership::keep);
-  // expected-warning@+1 {{'make<sycl::event, nullptr>' is deprecated: Use SYCL 2020 sycl::make_event free function}}
+  // expected-warning@+1 {{'make<__sycl_internal::__v1::event, nullptr>' is deprecated: Use SYCL 2020 sycl::make_event free function}}
   auto E = ext::oneapi::level_zero::make<event>(
       Context, ZeEvent, ext::oneapi::level_zero::ownership::keep);
   // expected-warning@+2 {{'program' is deprecated: program class is deprecated, use kernel_bundle instead}}
-  // expected-warning@+1 {{'make<sycl::program, nullptr>' is deprecated: Use SYCL 2020 sycl::make_kernel_bundle free function}}
+  // expected-warning@+1 {{'make<__sycl_internal::__v1::program, nullptr>' is deprecated: Use SYCL 2020 sycl::make_kernel_bundle free function}}
   auto PR = ext::oneapi::level_zero::make<program>(Context, ZeProgram);
 
   return 0;

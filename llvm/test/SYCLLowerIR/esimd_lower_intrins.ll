@@ -167,7 +167,7 @@ define dso_local spir_func void  @FUNC_29() {
 
 define dso_local spir_kernel void  @FUNC_30() {
 ; CHECK: define dso_local spir_kernel void  @FUNC_30()
-  call spir_func void @_ZN2cl4sycl3ext5intel12experimental5esimd8slm_initEj(i32 1023)
+  call spir_func void @_ZN15__sycl_internal4__v13ext5intel12experimental5esimd8slm_initEj(i32 1023)
   ret void
 ; CHECK-NEXT: ret void
 }
@@ -408,7 +408,7 @@ declare dso_local spir_func <32 x i32> @_Z24__esimd_media_block_loadIiLi4ELi8E14
 declare dso_local spir_func void @_Z25__esimd_media_block_storeIiLi4ELi8E14ocl_image2d_woEvjT2_jjjjN2cm3gen13__vector_typeIT_XmlT0_T1_EE4typeE(i32 %0, %opencl.image2d_wo_t addrspace(1)* %1, i32 %2, i32 %3, i32 %4, i32 %5, <32 x i32> %6)
 declare dso_local spir_func <32 x i32> @_Z13__esimd_vloadIiLi32EEN2cm3gen13__vector_typeIT_XT0_EE4typeEPKS5_(<32 x i32> addrspace(4)* %0)
 declare dso_local spir_func void @_Z14__esimd_vstoreIfLi16EEvPN2cm3gen13__vector_typeIT_XT0_EE4typeES5_(<16 x float> addrspace(4)* %0, <16 x float> %1)
-declare dso_local spir_func void @_ZN2cl4sycl3ext5intel12experimental5esimd8slm_initEj(i32)
+declare dso_local spir_func void @_ZN15__sycl_internal4__v13ext5intel12experimental5esimd8slm_initEj(i32)
 declare dso_local spir_func <16 x i32> @_Z14__esimd_uudp4aIjjjjLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
 declare dso_local spir_func <16 x i32> @_Z14__esimd_usdp4aIjiiiLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)
 declare dso_local spir_func <16 x i32> @_Z14__esimd_sudp4aIijjjLi16EEN2cl4sycl3ext5intel3gpu11vector_typeIT_XT3_EE4typeENS4_IT0_XT3_EE4typeENS4_IT1_XT3_EE4typeENS4_IT2_XT3_EE4typeE(<16 x i32> %0, <16 x i32> %1, <16 x i32> %2)

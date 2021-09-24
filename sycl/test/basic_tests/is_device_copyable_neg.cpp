@@ -76,7 +76,7 @@ void test() {
 // CHECK: static_assert failed due to requirement 'is_device_copyable<B, void>
 // CHECK: is_device_copyable_neg.cpp:60:5: note: in instantiation of function
 
-// CHECK: static_assert failed due to requirement 'is_device_copyable<sycl::marray<B, 2>, void>
+// CHECK: static_assert failed due to requirement 'is_device_copyable<{{.*}}::marray<B, 2>, void>
 // CHECK: is_device_copyable_neg.cpp:60:5: note: in instantiation of function
 
 // CHECK: static_assert failed due to requirement 'is_device_copyable<C, void>

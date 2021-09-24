@@ -5,12 +5,12 @@
 //
 // Check the address space of the pointer in accessor class.
 //
-// CHECK: %struct{{.*}}AccWrapper = type { %"class{{.*}}cl::sycl::accessor" }
-// CHECK: %"class{{.*}}cl::sycl::accessor" = type { %"class{{.*}}AccessorImplDevice", %[[UNION:.*]] }
+// CHECK: %struct{{.*}}AccWrapper = type { %"class{{.*}}::accessor" }
+// CHECK: %"class{{.*}}::accessor" = type { %"class{{.*}}AccessorImplDevice", %[[UNION:.*]] }
 // CHECK-DISABLE: %[[UNION]] = type { i32 addrspace(1)* }
 // CHECK-ENABLE: %[[UNION]] = type { i32 addrspace(5)* }
-// CHECK: %struct{{.*}}AccWrapper = type { %"class{{.*}}cl::sycl::accessor" }
-// CHECK-NEXT: %"class{{.*}}cl::sycl::accessor" = type { %"class{{.*}}LocalAccessorBaseDevice", i32 addrspace(3)* }
+// CHECK: %struct{{.*}}AccWrapper = type { %"class{{.*}}::accessor" }
+// CHECK-NEXT: %"class{{.*}}::accessor" = type { %"class{{.*}}LocalAccessorBaseDevice", i32 addrspace(3)* }
 //
 // Check that kernel arguments doesn't have generic address space.
 //

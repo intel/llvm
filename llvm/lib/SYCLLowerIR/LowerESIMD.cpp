@@ -1351,15 +1351,15 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
     auto GTy = dyn_cast<StructType>(PTy->getPointerElementType());
     // TODO FIXME relying on type name in LLVM IR is fragile, needs rework
     if (!GTy ||
-        !GTy->getName().endswith("sycl::ext::intel::experimental::esimd::simd"))
+        !GTy->getName().endswith(
+            "__sycl_internal::__v1::ext::intel::experimental::esimd::simd"))
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
     if (GTy = dyn_cast<StructType>(VTy)) {
-      assert(
-          GTy &&
-          GTy->getName().endswith(
-              "sycl::ext::intel::experimental::esimd::detail::simd_obj_impl"));
+      assert(GTy && GTy->getName().endswith(
+                        "__sycl_internal::__v1::ext::intel::experimental::"
+                        "esimd::detail::simd_obj_impl"));
       VTy = GTy->getContainedType(0);
     }
     assert(VTy->isVectorTy());
@@ -1442,7 +1442,8 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
       // TODO FIXME slm_init should be made top-level __esimd_slm_init
-      if (Name.startswith("N2cl4sycl3ext5intel12experimental5esimd8slm_init")) {
+      if (Name.startswith("N15__sycl_internal4__"
+                          "v13ext5intel12experimental5esimd8slm_init")) {
         // tag the kernel with meta-data SLMSize, and remove this builtin
         translateSLMInit(*CI);
         ESIMDToErases.push_back(CI);

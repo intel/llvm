@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -c -fsycl-device-only -S -emit-llvm %s -o - | FileCheck %s
 
-// CHECK: define {{.*}}spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E15kernel_function{{.*}} !kernel_arg_buffer_location ![[MDBL:[0-9]+]]
+// CHECK: define {{.*}}spir_kernel void @_ZTSZZ4mainENKUlRN{{.*}}7handlerEE_clES2_E15kernel_function{{.*}} !kernel_arg_buffer_location ![[MDBL:[0-9]+]]
 // CHECK: ![[MDBL]] = !{i32 3, i32 -1, i32 -1, i32 -1, i32 -1, i32 -1, i32 2, i32 -1, i32 -1, i32 -1, i32 2, i32 -1, i32 -1, i32 -1, i32 -1}
 
 #include <CL/sycl.hpp>

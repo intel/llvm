@@ -11,10 +11,10 @@ int main() {
         sycl::nd_range<1>(sycl::range<1>(1), sycl::range<1>(1)),
         [=](sycl::nd_item<1> Item) {
           sycl::multi_ptr<int, sycl::access::address_space::local_space> GlmA =
-              // expected-warning@+1 {{'group_local_memory<int, sycl::group<1>, int>' is deprecated: use sycl::ext::oneapi::group_local_memory instead}}
+              // expected-warning@+1 {{'group_local_memory<int, __sycl_internal::__v1::group<1>, int>' is deprecated: use sycl::ext::oneapi::group_local_memory instead}}
               sycl::group_local_memory<int>(Item.get_group(), 1);
           sycl::multi_ptr<int, sycl::access::address_space::local_space> GlmB =
-              // expected-warning@+1 {{'group_local_memory_for_overwrite<int, sycl::group<1>>' is deprecated: use sycl::ext::oneapi::group_local_memory_for_overwrite instead}}
+              // expected-warning@+1 {{'group_local_memory_for_overwrite<int, __sycl_internal::__v1::group<1>>' is deprecated: use sycl::ext::oneapi::group_local_memory_for_overwrite instead}}
               sycl::group_local_memory_for_overwrite<int>(Item.get_group());
         });
   });

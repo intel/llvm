@@ -119,7 +119,7 @@ int main() {
         sycl::nd_range<1>{sycl::range{10}, sycl::range{10}, sycl::range{1}},
         [](sycl::nd_item<1> it) {
           // expected-warning@+2{{'mem_fence' is deprecated: use sycl::atomic_fence() free function instead}}
-          // expected-warning@+1{{'mem_fence<sycl::access::mode::read_write>' is deprecated: use sycl::atomic_fence() free function instead}}
+          // expected-warning@+1{{'mem_fence<__sycl_internal::__v1::access::mode::read_write>' is deprecated: use sycl::atomic_fence() free function instead}}
           it.mem_fence();
         });
   });
@@ -161,7 +161,7 @@ int main() {
   (void)LevelZeroBackend;
 
   sycl::half Val = 1.0f;
-  // expected-warning@+1{{'bit_cast<unsigned short, sycl::detail::half_impl::half>' is deprecated: use 'sycl::bit_cast' instead}}
+  // expected-warning@+1{{'bit_cast<unsigned short, __sycl_internal::__v1::detail::half_impl::half>' is deprecated: use 'sycl::bit_cast' instead}}
   auto BitCastRes = sycl::detail::bit_cast<unsigned short>(Val);
   (void)BitCastRes;
 

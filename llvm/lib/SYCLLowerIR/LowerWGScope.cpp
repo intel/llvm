@@ -791,9 +791,9 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
          I = I->getNextNode()) {
       auto *AllocaI = dyn_cast<AllocaInst>(I);
       // Allocas marked with "work_item_scope" are those originating from
-      // cl::sycl::private_memory<T> variables, which must be in private memory.
-      // No shadows/materialization is needed for them because they can be
-      // updated only within PFWIs
+      // __sycl_internal::__v1::private_memory<T> variables, which must be in
+      // private memory. No shadows/materialization is needed for them because
+      // they can be updated only within PFWIs
       if (AllocaI && !AllocaI->getMetadata(WI_SCOPE_MD))
         Allocas.insert(AllocaI);
     }
