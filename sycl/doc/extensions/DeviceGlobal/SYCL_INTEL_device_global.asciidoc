@@ -210,6 +210,9 @@ namespace sycl::ext::oneapi {
 
 template <typename T, typename PropertyListT = property_list<>>
 class device_global {
+  using subscript_return_t =
+    std::remove_reference_t<decltype(std::declval<T>()[std::ptrdiff_t{}])>;
+
 public:
   using element_type = std::remove_extent_t<T>; 
   
@@ -231,9 +234,12 @@ public:
   device_global &operator=(const device_global &&) = delete;
 
   template <access::decorated IsDecorated>
-  multi_ptr<T, access::address_space::global_space, IsDecorated> get_multi_ptr() noexcept;
+  multi_ptr<T, access::address_space::global_space, IsDecorated>
+    get_multi_ptr() noexcept;
+
   template <access::decorated IsDecorated>
-  multi_ptr<const T, access::address_space::global_space, IsDecorated> get_multi_ptr() const noexcept;
+  multi_ptr<const T, access::address_space::global_space, IsDecorated>
+    get_multi_ptr() const noexcept;
 
   // Access the underlying data
   operator T&() noexcept;
@@ -246,7 +252,6 @@ public:
   device_global& operator=(const T&) noexcept;
 
   // Available if the operator[] is valid for objects of type T
-  using subscript_return_t = std::remove_reference_t<decltype(std::declval<T>()[std::ptrdiff_t{}])>;
   subscript_return_t& operator[]( std::ptrdiff_t idx ) noexcept;
   const subscript_return_t& operator[]( std::ptrdiff_t idx ) const noexcept;
 
@@ -266,7 +271,7 @@ public:
   // The return type is an unspecified internal class used to represent 
   // instances of propertyT
   template<typename propertyT>
-  static constexpr auto get_property();
+  static constexpr /*unspecified*/ get_property();
 };
 
 } // namespace sycl::ext::oneapi
@@ -294,9 +299,12 @@ a|
 [source,c++]
 ----
 template <access::decorated IsDecorated>
-multi_ptr<T, access::address_space::global_space, IsDecorated> get_multi_ptr() noexcept;
+multi_ptr<T, access::address_space::global_space, IsDecorated>
+  get_multi_ptr() noexcept;
+
 template <access::decorated IsDecorated>
-multi_ptr<T, access::address_space::global_space, IsDecorated> get_multi_ptr() const noexcept;
+multi_ptr<T, access::address_space::global_space, IsDecorated>
+  get_multi_ptr() const noexcept;
 
 ----
 |
@@ -402,7 +410,7 @@ following point in Section 5.4 "Language restrictions for device functions".  Th
 of type `device_global` in which case it can be odr-used inside a device function without being
 `const`/`constexpr` or zero-/constant-initialized.
 ** Amongst other things, this restriction makes it illegal for a device function to access a
-global variable that isn’t `const` or `constexpr` unless the variable is of type `device_global`.
+global variable that isn't `const` or `constexpr` unless the variable is of type `device_global`.
 
 
 === Add new copy and memcpy members to the queue class
