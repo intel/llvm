@@ -259,7 +259,8 @@ public:
   // Initialize underlying data
   constexpr explicit half_v2(uint16_t x) : Buf(x) {}
 
-  template <typename T> friend struct __sycl_internal::__v1::detail::builtins_helper;
+  template <typename T>
+  friend struct __sycl_internal::__v1::detail::builtins_helper;
 
 private:
   uint16_t Buf;
@@ -394,7 +395,8 @@ public:
   }
 
   template <typename Key> friend struct std::hash;
-  template <typename T> friend struct __sycl_internal::__v1::detail::builtins_helper;
+  template <typename T>
+  friend struct __sycl_internal::__v1::detail::builtins_helper;
 
 private:
   StorageT Data;

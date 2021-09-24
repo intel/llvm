@@ -8,7 +8,7 @@
 
 #pragma once
 
-__SYCL_OPEN_NS(){
+__SYCL_OPEN_NS() {
 namespace detail {
 namespace __sycl_service_kernel__ {
 

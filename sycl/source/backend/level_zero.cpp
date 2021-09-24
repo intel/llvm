@@ -21,7 +21,8 @@ using namespace __sycl_ns::detail;
 //----------------------------------------------------------------------------
 // Implementation of level_zero::make<platform>
 __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
-  return __sycl_internal::__v1::detail::make_platform(NativeHandle, backend::level_zero);
+  return __sycl_internal::__v1::detail::make_platform(NativeHandle,
+                                                      backend::level_zero);
 }
 
 //----------------------------------------------------------------------------

@@ -6,7 +6,7 @@
 #include <sycl/ext/intel/experimental/esimd.hpp>
 
 using namespace sycl::ext::intel::experimental::esimd;
-using namespace cl::sycl;
+using namespace __sycl_ns;
 
 void caller() SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, 1);

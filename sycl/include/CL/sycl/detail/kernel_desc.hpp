@@ -136,5 +136,5 @@ template <class KernelNameType> struct KernelInfo {
 #endif //__SYCL_UNNAMED_LAMBDA__
 
 } // namespace detail
-} // __SYCL_OPEN_NS()
+} // __SYCL_INT_HEADER_OPEN_NS()
 __SYCL_INT_HEADER_CLOSE_NS()

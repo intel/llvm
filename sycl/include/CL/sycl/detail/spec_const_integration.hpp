@@ -23,5 +23,5 @@ template <auto &SpecName> const char *get_spec_constant_symbolic_ID() {
 #endif
 
 } // namespace detail
-} // __SYCL_OPEN_NS()
+} // __SYCL_INT_HEADER_OPEN_NS()
 __SYCL_INT_HEADER_CLOSE_NS()
