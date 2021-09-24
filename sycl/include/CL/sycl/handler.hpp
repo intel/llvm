@@ -450,6 +450,8 @@ private:
   /// \return a SYCL event object representing the command group
   event finalize();
 
+  void finalize_without_event();
+
   /// Saves streams associated with this handler.
   ///
   /// Streams are then forwarded to command group and flushed in the scheduler.

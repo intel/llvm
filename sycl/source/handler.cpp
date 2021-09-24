@@ -20,6 +20,7 @@
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -96,6 +97,30 @@ void handler::setHandlerKernelBundle(
       NewKernelBundleImpPtr};
 
   ExendedMembersVec->push_back(EMember);
+}
+
+void handler::finalize_without_event() {
+  if (!MQueue->is_event_required()) {
+    // TODO remove this check when level_zero supports the option - avoidance
+    // the event creation, and queue::wait() uses piQueueFinish for level_zero
+    if (!MIsHost && MQueue->getPlugin().getBackend() == backend::level_zero) {
+      throw runtime_error("level_zero is not supported until it supports the "
+                          "option to prevent event creation.",
+                          PI_INVALID_OPERATION);
+    }
+
+    auto ret_val = enqueueImpKernel(MNDRDesc, MArgs, MKernelName,
+                                    MOSModuleHandle, MQueue, MHostKernel);
+
+    if (CL_SUCCESS != ret_val)
+      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+
+    return;
+  } else {
+    throw runtime_error(
+        "Queue doesn't support OOO or unsupported enable_profiling case",
+        PI_INVALID_OPERATION);
+  }
 }
 
 event handler::finalize() {

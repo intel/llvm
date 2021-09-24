@@ -132,6 +132,11 @@ event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
   return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc);
 }
 
+void queue::submit_impl_without_event(std::function<void(handler &)> CGH,
+                                      const detail::code_location &CodeLoc) {
+  impl->submit_without_event(CGH, impl, CodeLoc);
+}
+
 event queue::submit_impl_and_postprocess(
     std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
     const SubmitPostProcessF &PostProcess) {

@@ -503,6 +503,12 @@ private:
   void **MDstPtr = nullptr;
 };
 
+cl_int enqueueImpKernel(NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
+                        std::string &KernelName,
+                        detail::OSModuleHandle &OSModuleHandle,
+                        QueueImplPtr &Queue,
+                        std::unique_ptr<HostKernelBase> &HostKernel);
+
 /// The exec CG command enqueues execution of kernel or explicit memory
 /// operation.
 class ExecCGCommand : public Command {
