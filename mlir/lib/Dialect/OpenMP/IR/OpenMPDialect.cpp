@@ -142,8 +142,6 @@ static LogicalResult verifyParallelOp(ParallelOp op) {
 }
 
 static void printParallelOp(OpAsmPrinter &p, ParallelOp op) {
-  p << "omp.parallel";
-
   if (auto ifCond = op.if_expr_var())
     p << " if(" << ifCond << " : " << ifCond.getType() << ")";
 
@@ -703,9 +701,8 @@ static ParseResult parseWsLoopOp(OpAsmParser &parser, OperationState &result) {
 
 static void printWsLoopOp(OpAsmPrinter &p, WsLoopOp op) {
   auto args = op.getRegion().front().getArguments();
-  p << op.getOperationName() << " (" << args << ") : " << args[0].getType()
-    << " = (" << op.lowerBound() << ") to (" << op.upperBound() << ") step ("
-    << op.step() << ")";
+  p << " (" << args << ") : " << args[0].getType() << " = (" << op.lowerBound()
+    << ") to (" << op.upperBound() << ") step (" << op.step() << ")";
 
   // Print private, firstprivate, shared and copyin parameters
   auto printDataVars = [&p](StringRef name, OperandRange vars) {
@@ -968,6 +965,25 @@ static LogicalResult verifyWsLoopOp(WsLoopOp op) {
              << "expected accumulator (" << varType
              << ") to be the same type as reduction declaration ("
              << decl.getAccumulatorType() << ")";
+    }
+  }
+
+  return success();
+}
+
+static LogicalResult verifyCriticalOp(CriticalOp op) {
+  if (!op.name().hasValue() && op.hint().hasValue() &&
+      (op.hint().getValue() != SyncHintKind::none))
+    return op.emitOpError() << "must specify a name unless the effect is as if "
+                               "hint(none) is specified";
+
+  if (op.nameAttr()) {
+    auto symbolRef = op.nameAttr().cast<SymbolRefAttr>();
+    auto decl =
+        SymbolTable::lookupNearestSymbolFrom<CriticalDeclareOp>(op, symbolRef);
+    if (!decl) {
+      return op.emitOpError() << "expected symbol reference " << symbolRef
+                              << " to point to a critical declaration";
     }
   }
 

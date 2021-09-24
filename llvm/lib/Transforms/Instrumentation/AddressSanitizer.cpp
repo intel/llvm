@@ -178,6 +178,14 @@ static const size_t kNumberOfAccessSizes = 5;
 
 static const unsigned kAllocaRzSize = 32;
 
+// ASanAccessInfo implementation constants.
+constexpr size_t kCompileKernelShift = 0;
+constexpr size_t kCompileKernelMask = 0x1;
+constexpr size_t kAccessSizeIndexShift = 1;
+constexpr size_t kAccessSizeIndexMask = 0xf;
+constexpr size_t kIsWriteShift = 5;
+constexpr size_t kIsWriteMask = 0x1;
+
 // Command-line flags.
 
 static cl::opt<bool> ClEnableKasan(
@@ -348,6 +356,10 @@ static cl::opt<uint64_t>
 static cl::opt<bool> ClOpt("asan-opt", cl::desc("Optimize instrumentation"),
                            cl::Hidden, cl::init(true));
 
+static cl::opt<bool> ClOptimizeCallbacks("asan-optimize-callbacks",
+                                         cl::desc("Optimize callbacks"),
+                                         cl::Hidden, cl::init(false));
+
 static cl::opt<bool> ClOptSameTemp(
     "asan-opt-same-temp", cl::desc("Instrument the same temp just once"),
     cl::Hidden, cl::init(true));
@@ -442,7 +454,7 @@ struct ShadowMapping {
 
 } // end anonymous namespace
 
-static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
+static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
                                       bool IsKasan) {
   bool IsAndroid = TargetTriple.isAndroid();
   bool IsIOS = TargetTriple.isiOS() || TargetTriple.isWatchOS();
@@ -559,6 +571,32 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
   return Mapping;
 }
 
+namespace llvm {
+void getAddressSanitizerParams(const Triple &TargetTriple, int LongSize,
+                               bool IsKasan, uint64_t *ShadowBase,
+                               int *MappingScale, bool *OrShadowOffset) {
+  auto Mapping = getShadowMapping(TargetTriple, LongSize, IsKasan);
+  *ShadowBase = Mapping.Offset;
+  *MappingScale = Mapping.Scale;
+  *OrShadowOffset = Mapping.OrShadowOffset;
+}
+
+ASanAccessInfo::ASanAccessInfo(int32_t Packed)
+    : Packed(Packed),
+      AccessSizeIndex((Packed >> kAccessSizeIndexShift) & kAccessSizeIndexMask),
+      IsWrite((Packed >> kIsWriteShift) & kIsWriteMask),
+      CompileKernel((Packed >> kCompileKernelShift) & kCompileKernelMask) {}
+
+ASanAccessInfo::ASanAccessInfo(bool IsWrite, bool CompileKernel,
+                               uint8_t AccessSizeIndex)
+    : Packed((IsWrite << kIsWriteShift) +
+             (CompileKernel << kCompileKernelShift) +
+             (AccessSizeIndex << kAccessSizeIndexShift)),
+      AccessSizeIndex(AccessSizeIndex), IsWrite(IsWrite),
+      CompileKernel(CompileKernel) {}
+
+} // namespace llvm
+
 static uint64_t getRedzoneSizeForScale(int MappingScale) {
   // Redzone used for stack and globals is at least 32 bytes.
   // For scales 6 and 7, the redzone has to be 64 and 128 bytes respectively.
@@ -623,6 +661,8 @@ struct AddressSanitizer {
     C = &(M.getContext());
     LongSize = M.getDataLayout().getPointerSizeInBits();
     IntptrTy = Type::getIntNTy(*C, LongSize);
+    Int8PtrTy = Type::getInt8PtrTy(*C);
+    Int32Ty = Type::getInt32Ty(*C);
     TargetTriple = Triple(M.getTargetTriple());
 
     Mapping = getShadowMapping(TargetTriple, LongSize, this->CompileKernel);
@@ -713,6 +753,8 @@ private:
   bool UseAfterScope;
   AsanDetectStackUseAfterReturnMode UseAfterReturn;
   Type *IntptrTy;
+  Type *Int8PtrTy;
+  Type *Int32Ty;
   ShadowMapping Mapping;
   FunctionCallee AsanHandleNoReturnFunc;
   FunctionCallee AsanPtrCmpFunction, AsanPtrSubFunction;
@@ -932,7 +974,6 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
   SmallVector<AllocaInst *, 16> AllocaVec;
   SmallVector<AllocaInst *, 16> StaticAllocasToMoveUp;
   SmallVector<Instruction *, 8> RetVec;
-  unsigned StackAlignment;
 
   FunctionCallee AsanStackMallocFunc[kMaxAsanStackMallocSizeClass + 1],
       AsanStackFreeFunc[kMaxAsanStackMallocSizeClass + 1];
@@ -964,7 +1005,6 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
       : F(F), ASan(ASan), DIB(*F.getParent(), /*AllowUnresolved*/ false),
         C(ASan.C), IntptrTy(ASan.IntptrTy),
         IntptrPtrTy(PointerType::get(IntptrTy, 0)), Mapping(ASan.Mapping),
-        StackAlignment(1 << Mapping.Scale),
         PoisonStack(ClStack &&
                     !Triple(F.getParent()->getTargetTriple()).isAMDGPU()) {}
 
@@ -1088,7 +1128,6 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
       return;
     }
 
-    StackAlignment = std::max(StackAlignment, AI.getAlignment());
     if (!AI.isStaticAlloca())
       DynamicAllocaVec.push_back(&AI);
     else
@@ -1215,20 +1254,14 @@ GlobalsMetadata ASanGlobalsMetadataAnalysis::run(Module &M,
   return GlobalsMetadata(M);
 }
 
-AddressSanitizerPass::AddressSanitizerPass(
-    bool CompileKernel, bool Recover, bool UseAfterScope,
-    AsanDetectStackUseAfterReturnMode UseAfterReturn)
-    : CompileKernel(CompileKernel), Recover(Recover),
-      UseAfterScope(UseAfterScope), UseAfterReturn(UseAfterReturn) {}
-
 PreservedAnalyses AddressSanitizerPass::run(Function &F,
                                             AnalysisManager<Function> &AM) {
   auto &MAMProxy = AM.getResult<ModuleAnalysisManagerFunctionProxy>(F);
   Module &M = *F.getParent();
   if (auto *R = MAMProxy.getCachedResult<ASanGlobalsMetadataAnalysis>(M)) {
     const TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
-    AddressSanitizer Sanitizer(M, R, CompileKernel, Recover, UseAfterScope,
-                               UseAfterReturn);
+    AddressSanitizer Sanitizer(M, R, Options.CompileKernel, Options.Recover,
+                               Options.UseAfterScope, Options.UseAfterReturn);
     if (Sanitizer.instrumentFunction(F, TLI))
       return PreservedAnalyses::none();
     return PreservedAnalyses::all();
@@ -1238,6 +1271,26 @@ PreservedAnalyses AddressSanitizerPass::run(Function &F,
       "The ASanGlobalsMetadataAnalysis is required to run before "
       "AddressSanitizer can run");
   return PreservedAnalyses::all();
+}
+
+void AddressSanitizerPass::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  static_cast<PassInfoMixin<AddressSanitizerPass> *>(this)->printPipeline(
+      OS, MapClassName2PassName);
+  OS << "<";
+  if (Options.CompileKernel)
+    OS << "kernel";
+  OS << ">";
+}
+
+void ModuleAddressSanitizerPass::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  static_cast<PassInfoMixin<ModuleAddressSanitizerPass> *>(this)->printPipeline(
+      OS, MapClassName2PassName);
+  OS << "<";
+  if (CompileKernel)
+    OS << "kernel";
+  OS << ">";
 }
 
 ModuleAddressSanitizerPass::ModuleAddressSanitizerPass(
@@ -1741,9 +1794,20 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
   }
 
   IRBuilder<> IRB(InsertBefore);
-  Value *AddrLong = IRB.CreatePointerCast(Addr, IntptrTy);
   size_t AccessSizeIndex = TypeSizeToSizeIndex(TypeSize);
+  const ASanAccessInfo AccessInfo(IsWrite, CompileKernel, AccessSizeIndex);
 
+  if (UseCalls && ClOptimizeCallbacks) {
+    const ASanAccessInfo AccessInfo(IsWrite, CompileKernel, AccessSizeIndex);
+    Module *M = IRB.GetInsertBlock()->getParent()->getParent();
+    IRB.CreateCall(
+        Intrinsic::getDeclaration(M, Intrinsic::asan_check_memaccess),
+        {IRB.CreatePointerCast(Addr, Int8PtrTy),
+         ConstantInt::get(Int32Ty, AccessInfo.Packed)});
+    return;
+  }
+
+  Value *AddrLong = IRB.CreatePointerCast(Addr, IntptrTy);
   if (UseCalls) {
     if (Exp == 0)
       IRB.CreateCall(AsanMemoryAccessCallback[IsWrite][0][AccessSizeIndex],
@@ -1919,7 +1983,7 @@ bool ModuleAddressSanitizer::shouldInstrumentGlobal(GlobalVariable *G) const {
     switch (C->getSelectionKind()) {
     case Comdat::Any:
     case Comdat::ExactMatch:
-    case Comdat::NoDuplicates:
+    case Comdat::NoDeduplicate:
       break;
     case Comdat::Largest:
     case Comdat::SameSize:
@@ -2106,7 +2170,7 @@ void ModuleAddressSanitizer::SetComdatForGlobalMetadata(
     // linkage to internal linkage so that a symbol table entry is emitted. This
     // is necessary in order to create the comdat group.
     if (TargetTriple.isOSBinFormatCOFF()) {
-      C->setSelectionKind(Comdat::NoDuplicates);
+      C->setSelectionKind(Comdat::NoDeduplicate);
       if (G->hasPrivateLinkage())
         G->setLinkage(GlobalValue::InternalLinkage);
     }
@@ -2136,8 +2200,9 @@ Instruction *ModuleAddressSanitizer::CreateAsanModuleDtor(Module &M) {
   AsanDtorFunction = Function::createWithDefaultAttr(
       FunctionType::get(Type::getVoidTy(*C), false),
       GlobalValue::InternalLinkage, 0, kAsanModuleDtorName, &M);
-  AsanDtorFunction->addAttribute(AttributeList::FunctionIndex,
-                                 Attribute::NoUnwind);
+  AsanDtorFunction->addFnAttr(Attribute::NoUnwind);
+  // Ensure Dtor cannot be discarded, even if in a comdat.
+  appendToUsed(M, {AsanDtorFunction});
   BasicBlock *AsanDtorBB = BasicBlock::Create(*C, "", AsanDtorFunction);
 
   return ReturnInst::Create(*C, AsanDtorBB);

@@ -51,7 +51,15 @@ bool SPIRVToOCL20Legacy::runOnModule(Module &Module) {
 bool SPIRVToOCL20Base::runSPIRVToOCL(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
+
+  // Lower builtin variables to builtin calls first.
+  lowerBuiltinVariablesToCalls(M);
+  translateOpaqueTypes();
+
   visit(*M);
+
+  postProcessBuiltinsReturningStruct(M);
+  postProcessBuiltinsWithArrayArguments(M);
 
   eraseUselessFunctions(&Module);
 
@@ -89,8 +97,6 @@ void SPIRVToOCL20Base::visitCallSPIRVMemoryBarrier(CallInst *CI) {
 
 void SPIRVToOCL20Base::visitCallSPIRVControlBarrier(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  Attrs = Attrs.addAttribute(CI->getContext(), AttributeList::FunctionIndex,
-                             Attribute::Convergent);
   mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {

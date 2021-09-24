@@ -147,21 +147,6 @@ public:
   int SendLaunchEventDataPacket(const char *data,
                                 bool *was_supported = nullptr);
 
-  /// Sends a "vAttach:PID" where PID is in hex.
-  ///
-  /// \param[in] pid
-  ///     A process ID for the remote gdb server to attach to.
-  ///
-  /// \param[out] response
-  ///     The response received from the gdb server. If the return
-  ///     value is zero, \a response will contain a stop reply
-  ///     packet.
-  ///
-  /// \return
-  ///     Zero if the attach was successful, or an error indicating
-  ///     an error code.
-  int SendAttach(lldb::pid_t pid, StringExtractorGDBRemote &response);
-
   /// Sends a GDB remote protocol 'I' packet that delivers stdin
   /// data to the remote process.
   ///
@@ -235,7 +220,7 @@ public:
 
   bool DeallocateMemory(lldb::addr_t addr);
 
-  Status Detach(bool keep_stopped);
+  Status Detach(bool keep_stopped, lldb::pid_t pid = LLDB_INVALID_PROCESS_ID);
 
   Status GetMemoryRegionInfo(lldb::addr_t addr, MemoryRegionInfo &range_info);
 
@@ -391,6 +376,12 @@ public:
 
   bool CloseFile(lldb::user_id_t fd, Status &error);
 
+  llvm::Optional<GDBRemoteFStatData> FStat(lldb::user_id_t fd);
+
+  // NB: this is just a convenience wrapper over open() + fstat().  It does not
+  // work if the file cannot be opened.
+  llvm::Optional<GDBRemoteFStatData> Stat(const FileSpec &file_spec);
+
   lldb::user_id_t GetFileSize(const FileSpec &file_spec);
 
   void AutoCompleteDiskFileOrDirectory(CompletionRequest &request,
@@ -468,6 +459,9 @@ public:
   lldb::DataBufferSP ReadMemoryTags(lldb::addr_t addr, size_t len,
                                     int32_t type);
 
+  Status WriteMemoryTags(lldb::addr_t addr, size_t len, int32_t type,
+                         const std::vector<uint8_t> &tags);
+
   /// Use qOffsets to query the offset used when relocating the target
   /// executable. If successful, the returned structure will contain at least
   /// one value in the offsets field.
@@ -544,6 +538,8 @@ public:
   SendTraceGetBinaryData(const TraceGetBinaryDataRequest &request,
                          std::chrono::seconds interrupt_timeout);
 
+  bool GetSaveCoreSupported() const;
+
 protected:
   LazyBool m_supports_not_sending_acks = eLazyBoolCalculate;
   LazyBool m_supports_thread_suffix = eLazyBoolCalculate;
@@ -582,6 +578,7 @@ protected:
   LazyBool m_supports_error_string_reply = eLazyBoolCalculate;
   LazyBool m_supports_multiprocess = eLazyBoolCalculate;
   LazyBool m_supports_memory_tagging = eLazyBoolCalculate;
+  LazyBool m_supports_qSaveCore = eLazyBoolCalculate;
 
   bool m_supports_qProcessInfoPID : 1, m_supports_qfProcessInfo : 1,
       m_supports_qUserName : 1, m_supports_qGroupName : 1,
@@ -590,7 +587,9 @@ protected:
       m_supports_QEnvironment : 1, m_supports_QEnvironmentHexEncoded : 1,
       m_supports_qSymbol : 1, m_qSymbol_requests_done : 1,
       m_supports_qModuleInfo : 1, m_supports_jThreadsInfo : 1,
-      m_supports_jModulesInfo : 1;
+      m_supports_jModulesInfo : 1, m_supports_vFileSize : 1,
+      m_supports_vFileMode : 1, m_supports_vFileExists : 1,
+      m_supports_vRun : 1;
 
   /// Current gdb remote protocol process identifier for all other operations
   lldb::pid_t m_curr_pid = LLDB_INVALID_PROCESS_ID;

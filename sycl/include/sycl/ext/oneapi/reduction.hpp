@@ -183,7 +183,7 @@ private:
 /// using those operations, which are based on functionality provided by
 /// sycl::atomic class.
 ///
-/// For example, it is known that 0 is identity for ext::oneapi::plus operations
+/// For example, it is known that 0 is identity for sycl::plus operations
 /// accepting native scalar types to which scalar 0 is convertible.
 /// Also, for int32/64 types the atomic_combine() is lowered to
 /// sycl::atomic::fetch_add().
@@ -317,8 +317,7 @@ public:
         .fetch_and(MValue);
   }
 
-  /// Atomic MIN operation: *ReduVarPtr = ext::oneapi::minimum(*ReduVarPtr,
-  /// MValue);
+  /// Atomic MIN operation: *ReduVarPtr = sycl::minimum(*ReduVarPtr, MValue);
   template <access::address_space Space = access::address_space::global_space,
             typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
@@ -332,8 +331,7 @@ public:
         .fetch_min(MValue);
   }
 
-  /// Atomic MAX operation: *ReduVarPtr = ext::oneapi::maximum(*ReduVarPtr,
-  /// MValue);
+  /// Atomic MAX operation: *ReduVarPtr = sycl::maximum(*ReduVarPtr, MValue);
   template <access::address_space Space = access::address_space::global_space,
             typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
@@ -378,12 +376,11 @@ public:
   using result_type = T;
   using binary_operation = BinaryOperation;
   using rw_accessor_type =
-      accessor<T, Dims, access::mode::read_write, access::target::global_buffer,
+      accessor<T, Dims, access::mode::read_write, access::target::device,
                IsPlaceholder, ext::oneapi::accessor_property_list<>>;
   using dw_accessor_type =
-      accessor<T, Dims, access::mode::discard_write,
-               access::target::global_buffer, IsPlaceholder,
-               ext::oneapi::accessor_property_list<>>;
+      accessor<T, Dims, access::mode::discard_write, access::target::device,
+               IsPlaceholder, ext::oneapi::accessor_property_list<>>;
   static constexpr int accessor_dim = Dims;
   static constexpr int buffer_dim = (Dims == 0) ? 1 : Dims;
 
@@ -627,9 +624,9 @@ public:
   void associateWithHandler(handler &CGH) {
 #ifndef __SYCL_DEVICE_ONLY__
     if (MRWAcc)
-      CGH.associateWithHandler(MRWAcc.get(), access::target::global_buffer);
+      CGH.associateWithHandler(MRWAcc.get(), access::target::device);
     else if (MDWAcc)
-      CGH.associateWithHandler(MDWAcc.get(), access::target::global_buffer);
+      CGH.associateWithHandler(MDWAcc.get(), access::target::device);
 #else
     (void)CGH;
 #endif
@@ -716,7 +713,7 @@ public:
     return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
   }
 
-  accessor<int, 1, access::mode::read_write, access::target::global_buffer,
+  accessor<int, 1, access::mode::read_write, access::target::device,
            access::placeholder::false_t>
   getReadWriteAccessorToInitializedGroupsCounter(handler &CGH) {
     auto CounterMem = std::make_shared<int>(0);
@@ -2011,7 +2008,7 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>) {
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
 detail::reduction_impl<T, BinaryOperation, Dims, false, IsPH>
-reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
+reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
           const T &Identity, BinaryOperation BOp) {
   return {Acc, Identity, BOp};
 }
@@ -2024,7 +2021,7 @@ template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
 std::enable_if_t<detail::IsKnownIdentityOp<T, BinaryOperation>::value,
                  detail::reduction_impl<T, BinaryOperation, Dims, false, IsPH>>
-reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
+reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
           BinaryOperation) {
   return {Acc};
 }
@@ -2034,7 +2031,7 @@ reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
 /// the computed reduction must be stored \param VarPtr, identity value
 /// \param Identity, and the binary operation used in the reduction.
 template <typename T, class BinaryOperation>
-detail::reduction_impl<T, BinaryOperation, 0, true>
+detail::reduction_impl<T, BinaryOperation, 1, true>
 reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
   return {VarPtr, Identity, BOp};
 }
@@ -2046,7 +2043,7 @@ reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
 /// The identity value is not passed to this version as it is statically known.
 template <typename T, class BinaryOperation>
 std::enable_if_t<detail::IsKnownIdentityOp<T, BinaryOperation>::value,
-                 detail::reduction_impl<T, BinaryOperation, 0, true>>
+                 detail::reduction_impl<T, BinaryOperation, 1, true>>
 reduction(T *VarPtr, BinaryOperation) {
   return {VarPtr};
 }
@@ -2075,7 +2072,7 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
   namespace detail {
   using cl::sycl::detail::queue_impl;
-  __SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
+  __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                         size_t LocalMemBytesPerWorkItem);
   __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
                                          size_t &NWorkGroups);

@@ -24,6 +24,7 @@
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/IR/DiagnosticInfo.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
 
 #define DEBUG_TYPE "amdgpu-isel"
 
@@ -140,7 +141,7 @@ bool AMDGPUInstructionSelector::selectCOPY(MachineInstr &I) const {
         = TRI.getConstrainedRegClassForOperand(Src, *MRI);
 
       Optional<ValueAndVReg> ConstVal =
-          getConstantVRegValWithLookThrough(SrcReg, *MRI, true, true);
+          getIConstantVRegValWithLookThrough(SrcReg, *MRI, true);
       if (ConstVal) {
         unsigned MovOpc =
             STI.isWave64() ? AMDGPU::S_MOV_B64 : AMDGPU::S_MOV_B32;
@@ -608,11 +609,10 @@ bool AMDGPUInstructionSelector::selectG_BUILD_VECTOR_TRUNC(
   const DebugLoc &DL = MI.getDebugLoc();
   MachineBasicBlock *BB = MI.getParent();
 
-  auto ConstSrc1 =
-      getConstantVRegValWithLookThrough(Src1, *MRI, true, true, true);
+  auto ConstSrc1 = getAnyConstantVRegValWithLookThrough(Src1, *MRI, true, true);
   if (ConstSrc1) {
     auto ConstSrc0 =
-        getConstantVRegValWithLookThrough(Src0, *MRI, true, true, true);
+        getAnyConstantVRegValWithLookThrough(Src0, *MRI, true, true);
     if (ConstSrc0) {
       const int64_t K0 = ConstSrc0->Value.getSExtValue();
       const int64_t K1 = ConstSrc1->Value.getSExtValue();
@@ -844,7 +844,7 @@ bool AMDGPUInstructionSelector::selectWritelane(MachineInstr &MI) const {
   auto MIB = BuildMI(*MBB, &MI, DL, TII.get(AMDGPU::V_WRITELANE_B32), VDst);
 
   Optional<ValueAndVReg> ConstSelect =
-    getConstantVRegValWithLookThrough(LaneSelect, *MRI, true, true);
+      getIConstantVRegValWithLookThrough(LaneSelect, *MRI);
   if (ConstSelect) {
     // The selector has to be an inline immediate, so we can use whatever for
     // the other operands.
@@ -853,7 +853,7 @@ bool AMDGPUInstructionSelector::selectWritelane(MachineInstr &MI) const {
                maskTrailingOnes<uint64_t>(STI.getWavefrontSizeLog2()));
   } else {
     Optional<ValueAndVReg> ConstVal =
-      getConstantVRegValWithLookThrough(Val, *MRI, true, true);
+        getIConstantVRegValWithLookThrough(Val, *MRI);
 
     // If the value written is an inline immediate, we can get away without a
     // copy to m0.
@@ -1130,7 +1130,7 @@ bool AMDGPUInstructionSelector::selectBallot(MachineInstr &I) const {
     return false;
 
   Optional<ValueAndVReg> Arg =
-      getConstantVRegValWithLookThrough(I.getOperand(2).getReg(), *MRI, true);
+      getIConstantVRegValWithLookThrough(I.getOperand(2).getReg(), *MRI);
 
   if (Arg.hasValue()) {
     const int64_t Value = Arg.getValue().Value.getSExtValue();
@@ -2465,6 +2465,27 @@ bool AMDGPUInstructionSelector::selectG_AMDGPU_ATOMIC_CMPXCHG(
   return constrainSelectedInstRegOperands(*MIB, TII, TRI, RBI);
 }
 
+static bool isVCmpResult(Register Reg, MachineRegisterInfo &MRI) {
+  if (Reg.isPhysical())
+    return false;
+
+  MachineInstr &MI = *MRI.getUniqueVRegDef(Reg);
+  const unsigned Opcode = MI.getOpcode();
+
+  if (Opcode == AMDGPU::COPY)
+    return isVCmpResult(MI.getOperand(1).getReg(), MRI);
+
+  if (Opcode == AMDGPU::G_AND || Opcode == AMDGPU::G_OR ||
+      Opcode == AMDGPU::G_XOR)
+    return isVCmpResult(MI.getOperand(1).getReg(), MRI) &&
+           isVCmpResult(MI.getOperand(2).getReg(), MRI);
+
+  if (Opcode == TargetOpcode::G_INTRINSIC)
+    return MI.getIntrinsicID() == Intrinsic::amdgcn_class;
+
+  return Opcode == AMDGPU::G_ICMP || Opcode == AMDGPU::G_FCMP;
+}
+
 bool AMDGPUInstructionSelector::selectG_BRCOND(MachineInstr &I) const {
   MachineBasicBlock *BB = I.getParent();
   MachineOperand &CondOp = I.getOperand(0);
@@ -2488,11 +2509,22 @@ bool AMDGPUInstructionSelector::selectG_BRCOND(MachineInstr &I) const {
     BrOpcode = AMDGPU::S_CBRANCH_SCC1;
     ConstrainRC = &AMDGPU::SReg_32RegClass;
   } else {
-    // FIXME: Do we have to insert an and with exec here, like in SelectionDAG?
-    // We sort of know that a VCC producer based on the register bank, that ands
-    // inactive lanes with 0. What if there was a logical operation with vcc
-    // producers in different blocks/with different exec masks?
     // FIXME: Should scc->vcc copies and with exec?
+
+    // Unless the value of CondReg is a result of a V_CMP* instruction then we
+    // need to insert an and with exec.
+    if (!isVCmpResult(CondReg, *MRI)) {
+      const bool Is64 = STI.isWave64();
+      const unsigned Opcode = Is64 ? AMDGPU::S_AND_B64 : AMDGPU::S_AND_B32;
+      const Register Exec = Is64 ? AMDGPU::EXEC : AMDGPU::EXEC_LO;
+
+      Register TmpReg = MRI->createVirtualRegister(TRI.getBoolRC());
+      BuildMI(*BB, &I, DL, TII.get(Opcode), TmpReg)
+          .addReg(CondReg)
+          .addReg(Exec);
+      CondReg = TmpReg;
+    }
+
     CondPhysReg = TRI.getVCC();
     BrOpcode = AMDGPU::S_CBRANCH_VCCNZ;
     ConstrainRC = TRI.getBoolRC();
@@ -3977,8 +4009,8 @@ AMDGPUInstructionSelector::getPtrBaseWithConstantOffset(
     return {Root, 0};
 
   MachineOperand &RHS = RootI->getOperand(2);
-  Optional<ValueAndVReg> MaybeOffset
-    = getConstantVRegValWithLookThrough(RHS.getReg(), MRI, true);
+  Optional<ValueAndVReg> MaybeOffset =
+      getIConstantVRegValWithLookThrough(RHS.getReg(), MRI);
   if (!MaybeOffset)
     return {Root, 0};
   return {RootI->getOperand(1).getReg(), MaybeOffset->Value.getSExtValue()};
@@ -4306,8 +4338,8 @@ AMDGPUInstructionSelector::selectMUBUFOffsetAtomic(MachineOperand &Root) const {
 /// Get an immediate that must be 32-bits, and treated as zero extended.
 static Optional<uint64_t> getConstantZext32Val(Register Reg,
                                                const MachineRegisterInfo &MRI) {
-  // getConstantVRegVal sexts any values, so see if that matters.
-  Optional<int64_t> OffsetVal = getConstantVRegSExtVal(Reg, MRI);
+  // getIConstantVRegVal sexts any values, so see if that matters.
+  Optional<int64_t> OffsetVal = getIConstantVRegSExtVal(Reg, MRI);
   if (!OffsetVal || !isInt<32>(*OffsetVal))
     return None;
   return Lo_32(*OffsetVal);

@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Driver/ToolChain.h"
-#include "InputInfo.h"
 #include "ToolChains/Arch/ARM.h"
 #include "ToolChains/Clang.h"
 #include "ToolChains/Flang.h"
@@ -18,6 +17,7 @@
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Job.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
@@ -687,6 +687,8 @@ std::string ToolChain::GetLinkerPath(bool *LinkerIsLLD,
 
 std::string ToolChain::GetStaticLibToolPath() const {
   // TODO: Add support for static lib archiving on Windows
+  if (Triple.isOSDarwin())
+    return GetProgramPath("libtool");
   return GetProgramPath("llvm-ar");
 }
 
@@ -1174,8 +1176,9 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
     // at all, target and host share a toolchain.
     if (A->getOption().matches(options::OPT_m_Group)) {
       // AMD GPU is a special case, as -mcpu is required for the device
-      // compilation.
-      if (SameTripleAsHost || getTriple().getArch() == llvm::Triple::amdgcn)
+      // compilation, except for SYCL which uses --offload-arch.
+      if (SameTripleAsHost || (getTriple().getArch() == llvm::Triple::amdgcn &&
+                               DeviceOffloadKind != Action::OFK_SYCL))
         DAL->append(A);
       else
         Modified = true;

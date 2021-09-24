@@ -70,7 +70,7 @@ func @affine_apply_wrong_result_count() {
 
 func @unknown_custom_op() {
 ^bb0:
-  %i = crazyThing() {value = 0} : () -> index  // expected-error {{custom op 'crazyThing' is unknown}}
+  %i = test.crazyThing() {value = 0} : () -> index  // expected-error {{custom op 'test.crazyThing' is unknown}}
   return
 }
 
@@ -159,7 +159,7 @@ func @func_with_ops(f32) {
 
 func @func_with_ops(f32) {
 ^bb0(%a : f32):
-  %sf = addf(%a, %a) : f32  // expected-error {{expected ':'}}
+  %sf = addf(%a, %a) : f32  // expected-error {{'std.addf' expected function type}}
 }
 
 // -----
@@ -815,7 +815,7 @@ func @trunci_cast_to_same_width(%arg0 : i16) {
 
 func @return_not_in_function() {
   "foo.region"() ({
-    // expected-error@+1 {{'std.return' op expects parent op 'func'}}
+    // expected-error@+1 {{'std.return' op expects parent op 'builtin.func'}}
     return
   }): () -> ()
   return

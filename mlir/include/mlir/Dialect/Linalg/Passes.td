@@ -37,7 +37,10 @@ def LinalgComprehensiveModuleBufferize :
   let options = [
     Option<"testAnalysisOnly", "test-analysis-only", "bool",
             /*default=*/"false",
-           "Only runs inplaceability analysis (for testing purposes only)">
+           "Only runs inplaceability analysis (for testing purposes only)">,
+    Option<"allowReturnMemref", "allow-return-memref", "bool",
+            /*default=*/"false",
+           "Allows the return of memrefs (for testing purposes only)">
   ];
   let constructor = "mlir::createLinalgComprehensiveModuleBufferizePass()";
 }
@@ -56,9 +59,9 @@ def LinalgFoldUnitExtentDims : FunctionPass<"linalg-fold-unit-extent-dims"> {
   ];
 }
 
-def LinalgFusionOfTensorOps : Pass<"linalg-fusion-for-tensor-ops"> {
-  let summary = "Fuse operations on RankedTensorType in linalg dialect";
-  let constructor = "mlir::createLinalgFusionOfTensorOpsPass()";
+def LinalgElementwiseOpFusion : Pass<"linalg-fuse-elementwise-ops"> {
+  let summary = "Fuse elementwise operations on tensors";
+  let constructor = "mlir::createLinalgElementwiseOpFusionPass()";
   let options = [
     Option<"allowFoldingUnitDimReshapes", "allow-folding-unit-dim-reshapes",
            "bool", /*default=*/"false",
@@ -238,6 +241,20 @@ def LinalgDetensorize : FunctionPass<"linalg-detensorize"> {
     control flow inside a function. All blocks except for the entry block are
     detensored by converting their arguments whenever possible.
   }];
+}
+
+def LinalgTileAndFuseTensorOps
+    : FunctionPass<"linalg-tile-and-fuse-tensor-ops"> {
+  let summary = "Tile a LinalgOp and fuse its producers.";
+  let constructor = "mlir::createLinalgTileAndFuseTensorOpsPass()";
+  let options = [
+    ListOption<"tileSizes", "tile-sizes", "int64_t", "Tile sizes",
+           "llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated">,
+    ListOption<"tileInterchange", "tile-interchange", "int64_t",
+           "Tile loop interchange",
+           "llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated">,
+  ];
+  let dependentDialects = ["linalg::LinalgDialect", "scf::SCFDialect"];
 }
 
 #endif // MLIR_DIALECT_LINALG_PASSES

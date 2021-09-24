@@ -82,11 +82,19 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
   auto MangledName = F->getName();
   StringRef DemangledName;
   Op OC = OpNop;
+  SPIRVBuiltinVariableKind BuiltinKind = SPIRVBuiltinVariableKind::BuiltInMax;
   if (!oclIsBuiltin(MangledName, DemangledName) ||
-      (OC = getSPIRVFuncOC(DemangledName)) == OpNop)
+      ((OC = getSPIRVFuncOC(DemangledName)) == OpNop &&
+       !getSPIRVBuiltin(DemangledName.str(), BuiltinKind)))
     return;
   LLVM_DEBUG(dbgs() << "DemangledName = " << DemangledName.str() << '\n'
-                    << "OpCode = " << OC << '\n');
+                    << "OpCode = " << OC << '\n'
+                    << "BuiltinKind = " << BuiltinKind << '\n');
+
+  if (BuiltinKind != SPIRVBuiltinVariableKind::BuiltInMax) {
+    visitCallSPIRVBuiltin(&CI, BuiltinKind);
+    return;
+  }
 
   if (OC == OpImageQuerySize || OC == OpImageQuerySizeLod) {
     visitCallSPRIVImageQuerySize(&CI);
@@ -115,6 +123,22 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     visitCallSPIRVImageMediaBlockBuiltin(&CI, OC);
     return;
   }
+  if (isIntelSubgroupOpCode(OC)) {
+    visitCallSPIRVSubgroupINTELBuiltIn(&CI, OC);
+    return;
+  }
+  if (isSubgroupAvcINTELEvaluateOpcode(OC)) {
+    visitCallSPIRVAvcINTELEvaluateBuiltIn(&CI, OC);
+    return;
+  }
+  if (isSubgroupAvcINTELInstructionOpCode(OC)) {
+    visitCallSPIRVAvcINTELInstructionBuiltin(&CI, OC);
+    return;
+  }
+  if (OC == OpBuildNDRange) {
+    visitCallBuildNDRangeBuiltIn(&CI, OC, DemangledName);
+    return;
+  }
   if (OC == OpGenericCastToPtrExplicit) {
     visitCallGenericCastToPtrExplicitBuiltIn(&CI, OC);
     return;
@@ -137,6 +161,14 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
   }
   if (OC == OpImageWrite) {
     visitCallSPIRVImageWriteBuiltIn(&CI, OC);
+    return;
+  }
+  if (OC == OpImageRead) {
+    visitCallSPIRVImageReadBuiltIn(&CI, OC);
+    return;
+  }
+  if (OC == OpImageQueryOrder || OC == OpImageQueryFormat) {
+    visitCallSPIRVImageQueryBuiltIn(&CI, OC);
     return;
   }
   if (OCLSPIRVBuiltinMap::rfind(OC))
@@ -548,6 +580,34 @@ void SPIRVToOCLBase::visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC) {
       },
       &Attrs);
 }
+void SPIRVToOCLBase::visitCallBuildNDRangeBuiltIn(CallInst *CI, Op OC,
+                                                  StringRef DemangledName) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *Call, std::vector<Value *> &Args) {
+        assert(Args.size() == 3);
+        // OpenCL built-in has another order of parameters.
+        auto *GlobalWorkSize = Args[0];
+        auto *LocalWorkSize = Args[1];
+        auto *GlobalWorkOffset = Args[2];
+        Args[0] = GlobalWorkOffset;
+        Args[1] = GlobalWorkSize;
+        Args[2] = LocalWorkSize;
+        // __spirv_BuildNDRange_nD, drop __spirv_
+        StringRef S = DemangledName;
+        S = S.drop_front(strlen(kSPIRVName::Prefix));
+        SmallVector<StringRef, 8> Split;
+        // BuildNDRange_nD
+        S.split(Split, kSPIRVPostfix::Divider,
+                /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+        assert(Split.size() >= 2 && "Invalid SPIRV function name");
+        // Cut _nD and add it to function name.
+        return std::string(kOCLBuiltinName::NDRangePrefix) +
+               Split[1].substr(0, 3).str();
+      },
+      &Attrs);
+}
 
 void SPIRVToOCLBase::visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI,
                                                               Op OC) {
@@ -723,12 +783,183 @@ void SPIRVToOCLBase::visitCallSPIRVImageWriteBuiltIn(CallInst *CI, Op OC) {
       &Attrs);
 }
 
+void SPIRVToOCLBase::visitCallSPIRVImageReadBuiltIn(CallInst *CI, Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        // Drop "Image operands" argument
+        if (Args.size() > 2)
+          Args.erase(Args.begin() + 2);
+
+        llvm::Type *T = CI->getType();
+        return std::string(kOCLBuiltinName::ReadImage) + getTypeSuffix(T);
+      },
+      &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVImageQueryBuiltIn(CallInst *CI, Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  CI = mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        return OCLSPIRVBuiltinMap::rmap(OC);
+      },
+      &Attrs);
+  unsigned int Offset = 0;
+  if (OC == OpImageQueryFormat)
+    Offset = OCLImageChannelDataTypeOffset;
+  else if (OC == OpImageQueryOrder)
+    Offset = OCLImageChannelOrderOffset;
+  else
+    llvm_unreachable("Unsupported opcode");
+
+  auto *Sub =
+      BinaryOperator::CreateSub(CI, getInt32(M, Offset), "", CI->getNextNode());
+  for (auto &Use : CI->uses()) {
+    if (Use.getUser() == Sub)
+      continue;
+    Use.set(Sub);
+  }
+}
+
+void SPIRVToOCLBase::visitCallSPIRVSubgroupINTELBuiltIn(CallInst *CI, Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        std::stringstream Name;
+        Type *DataTy = nullptr;
+        switch (OC) {
+        case OpSubgroupBlockReadINTEL:
+        case OpSubgroupImageBlockReadINTEL:
+          Name << "intel_sub_group_block_read";
+          DataTy = CI->getType();
+          break;
+        case OpSubgroupBlockWriteINTEL:
+          Name << "intel_sub_group_block_write";
+          DataTy = CI->getOperand(1)->getType();
+          break;
+        case OpSubgroupImageBlockWriteINTEL:
+          Name << "intel_sub_group_block_write";
+          DataTy = CI->getOperand(2)->getType();
+          break;
+        default:
+          return OCLSPIRVBuiltinMap::rmap(OC);
+        }
+        assert(DataTy && "Intel subgroup block builtins should have data type");
+        unsigned VectorNumElements = 1;
+        if (FixedVectorType *VT = dyn_cast<FixedVectorType>(DataTy))
+          VectorNumElements = VT->getNumElements();
+        unsigned ElementBitSize = DataTy->getScalarSizeInBits();
+        Name << getIntelSubgroupBlockDataPostfix(ElementBitSize,
+                                                 VectorNumElements);
+        return Name.str();
+      },
+      &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVAvcINTELEvaluateBuiltIn(CallInst *CI,
+                                                           Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        // There are three types of AVC Intel Evaluate opcodes:
+        // 1. With multi reference images - does not use OpVmeImageINTEL opcode
+        // for reference images
+        // 2. With dual reference images - uses two OpVmeImageINTEL opcodes for
+        // reference image
+        // 3. With single reference image - uses one OpVmeImageINTEL opcode for
+        // reference image
+        int NumImages = std::count_if(Args.begin(), Args.end(), [](Value *Arg) {
+          if (auto *PT = dyn_cast<PointerType>(Arg->getType())) {
+            if (auto *ST = dyn_cast<StructType>(PT->getElementType())) {
+              if (ST->getName().startswith("spirv.VmeImageINTEL"))
+                return true;
+            }
+          }
+          return false;
+        });
+        auto EraseVmeImageCall = [](CallInst *CI) {
+          if (CI->hasOneUse()) {
+            CI->replaceAllUsesWith(UndefValue::get(CI->getType()));
+            CI->dropAllReferences();
+            CI->eraseFromParent();
+          }
+        };
+        if (NumImages) {
+          CallInst *SrcImage = cast<CallInst>(Args[0]);
+          if (NumImages == 1) {
+            // Multi reference opcode - remove src image OpVmeImageINTEL opcode
+            // and replace it with corresponding OpImage and OpSampler arguments
+            size_t SamplerPos = Args.size() - 1;
+            Args.erase(Args.begin(), Args.begin() + 1);
+            Args.insert(Args.begin(), SrcImage->getOperand(0));
+            Args.insert(Args.begin() + SamplerPos, SrcImage->getOperand(1));
+            EraseVmeImageCall(SrcImage);
+          } else {
+            CallInst *FwdRefImage = cast<CallInst>(Args[1]);
+            CallInst *BwdRefImage =
+                NumImages == 3 ? cast<CallInst>(Args[2]) : nullptr;
+            // Single reference opcode - remove src and ref image
+            // OpVmeImageINTEL opcodes and replace them with src and ref OpImage
+            // opcodes and OpSampler
+            Args.erase(Args.begin(), Args.begin() + NumImages);
+            // insert source OpImage and OpSampler
+            auto SrcOps = SrcImage->args();
+            Args.insert(Args.begin(), SrcOps.begin(), SrcOps.end());
+            // insert reference OpImage
+            Args.insert(Args.begin() + 1, FwdRefImage->getOperand(0));
+            EraseVmeImageCall(SrcImage);
+            EraseVmeImageCall(FwdRefImage);
+            if (BwdRefImage) {
+              // Dual reference opcode - insert second reference OpImage
+              // argument
+              Args.insert(Args.begin() + 2, BwdRefImage->getOperand(0));
+              EraseVmeImageCall(BwdRefImage);
+            }
+          }
+        } else
+          llvm_unreachable("invalid avc instruction");
+
+        return OCLSPIRVSubgroupAVCIntelBuiltinMap::rmap(OC);
+      },
+      &Attrs);
+}
+
 void SPIRVToOCLBase::visitCallSPIRVBuiltin(CallInst *CI, Op OC) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
         return OCLSPIRVBuiltinMap::rmap(OC);
+      },
+      &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVBuiltin(CallInst *CI,
+                                           SPIRVBuiltinVariableKind Kind) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        return SPIRSPIRVBuiltinVariableMap::rmap(Kind);
+      },
+      &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVAvcINTELInstructionBuiltin(CallInst *CI,
+                                                              Op OC) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        return OCLSPIRVSubgroupAVCIntelBuiltinMap::rmap(OC);
       },
       &Attrs);
 }
@@ -751,6 +982,8 @@ void SPIRVToOCLBase::visitCallSPIRVVLoadn(CallInst *CI, OCLExtOpKind Kind) {
         std::string Name = OCLExtOpMap::map(Kind);
         if (ConstantInt *C = dyn_cast<ConstantInt>(Args.back())) {
           uint64_t NumComponents = C->getZExtValue();
+          assert(NumComponents > 1 &&
+                 "vloada_halfn instruction is not for scalar types");
           std::stringstream SS;
           SS << NumComponents;
           Name.replace(Name.find("n"), 1, SS.str());
@@ -830,6 +1063,52 @@ std::string SPIRVToOCLBase::getGroupBuiltinPrefix(CallInst *CI) {
     llvm_unreachable("Invalid execution scope");
   }
   return Prefix;
+}
+
+std::string
+SPIRVToOCLBase::getOCLImageOpaqueType(SmallVector<std::string, 8> &Postfixes) {
+  SmallVector<int, 7> Ops;
+  for (unsigned I = 1; I < 8; ++I)
+    Ops.push_back(atoi(Postfixes[I].c_str()));
+  SPIRVTypeImageDescriptor Desc(static_cast<SPIRVImageDimKind>(Ops[0]), Ops[1],
+                                Ops[2], Ops[3], Ops[4], Ops[5]);
+
+  std::string OCLStructName =
+      std::string(kSPR2TypeName::OCLPrefix) + rmap<std::string>(Desc);
+
+  SPIRVAccessQualifierKind Acc = static_cast<SPIRVAccessQualifierKind>(Ops[6]);
+  insertImageNameAccessQualifier(Acc, OCLStructName);
+  return OCLStructName;
+}
+
+void SPIRVToOCLBase::translateOpaqueTypes() {
+  for (auto *S : M->getIdentifiedStructTypes()) {
+    StringRef STName = S->getStructName();
+    bool IsSPIRVOpaque =
+        S->isOpaque() && STName.startswith(kSPIRVTypeName::PrefixAndDelim);
+
+    if (!IsSPIRVOpaque)
+      continue;
+
+    SmallVector<std::string, 8> Postfixes;
+    std::string DecodedST = decodeSPIRVTypeName(STName, Postfixes);
+
+    if (!SPIRVOpaqueTypeOpCodeMap::find(DecodedST))
+      continue;
+
+    Op OP = SPIRVOpaqueTypeOpCodeMap::map(DecodedST);
+    std::string OCLOpaqueName;
+    if (OP == OpTypeImage)
+      OCLOpaqueName = getOCLImageOpaqueType(Postfixes);
+    else if (isSubgroupAvcINTELTypeOpCode(OP))
+      OCLOpaqueName = OCLSubgroupINTELTypeOpCodeMap::rmap(OP);
+    else if (isOpaqueGenericTypeOpCode(OP))
+      OCLOpaqueName = OCLOpaqueTypeOpCodeMap::rmap(OP);
+    else
+      continue;
+
+    S->setName(OCLOpaqueName);
+  }
 }
 
 } // namespace SPIRV

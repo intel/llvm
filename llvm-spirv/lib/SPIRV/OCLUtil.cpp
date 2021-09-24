@@ -971,6 +971,7 @@ public:
   OCLBuiltinFuncMangleInfo(Function *F) : F(F) {}
   OCLBuiltinFuncMangleInfo(ArrayRef<Type *> ArgTypes)
       : ArgTypes(ArgTypes.vec()) {}
+  Type *getArgTy(unsigned I) { return F->getFunctionType()->getParamType(I); }
   void init(StringRef UniqName) override {
     // Make a local copy as we will modify the string in init function
     std::string TempStorage = UniqName.str();
@@ -1260,9 +1261,9 @@ public:
     } else if (NameRef.startswith("intel_sub_group_block_write")) {
       // distinguish write to image and other data types as position
       // of uint argument is different though name is the same.
-      assert(ArgTypes.size() && "lack of necessary information");
-      if (ArgTypes[0]->isPointerTy() &&
-          ArgTypes[0]->getPointerElementType()->isIntegerTy()) {
+      auto *Arg0Ty = getArgTy(0);
+      if (Arg0Ty->isPointerTy() &&
+          Arg0Ty->getPointerElementType()->isIntegerTy()) {
         addUnsignedArg(0);
         addUnsignedArg(1);
       } else {
@@ -1271,9 +1272,9 @@ public:
     } else if (NameRef.startswith("intel_sub_group_block_read")) {
       // distinguish read from image and other data types as position
       // of uint argument is different though name is the same.
-      assert(ArgTypes.size() && "lack of necessary information");
-      if (ArgTypes[0]->isPointerTy() &&
-          ArgTypes[0]->getPointerElementType()->isIntegerTy()) {
+      auto *Arg0Ty = getArgTy(0);
+      if (Arg0Ty->isPointerTy() &&
+          Arg0Ty->getPointerElementType()->isIntegerTy()) {
         setArgAttr(0, SPIR::ATTR_CONST);
         addUnsignedArg(0);
       }
@@ -1304,6 +1305,8 @@ public:
   // Auxiliarry information, it is expected that it is relevant at the moment
   // the init method is called.
   Function *F;                  // SPIRV decorated function
+  // TODO: ArgTypes argument should get removed once all SPV-IR related issues
+  // are resolved
   std::vector<Type *> ArgTypes; // Arguments of OCL builtin
 };
 
@@ -1506,6 +1509,15 @@ std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
         "Incorrect vector length for intel_subgroup_block builtins");
   }
   return OSS.str();
+}
+
+void insertImageNameAccessQualifier(SPIRVAccessQualifierKind Acc,
+                                    std::string &Name) {
+  std::string QName = rmap<std::string>(Acc);
+  // transform: read_only -> ro, write_only -> wo, read_write -> rw
+  QName = QName.substr(0, 1) + QName.substr(QName.find("_") + 1, 1) + "_";
+  assert(!Name.empty() && "image name should not be empty");
+  Name.insert(Name.size() - 1, QName);
 }
 } // namespace OCLUtil
 

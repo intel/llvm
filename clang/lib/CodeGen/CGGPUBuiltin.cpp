@@ -118,8 +118,19 @@ CodeGenFunction::EmitNVPTXDevicePrintfCallExpr(const CallExpr *E,
 
   // Invoke vprintf and return.
   llvm::Function* VprintfFunc = GetVprintfDeclaration(CGM.getModule());
-  return RValue::get(Builder.CreateCall(
-      VprintfFunc, {Args[0].getRValue(*this).getScalarVal(), BufferPtr}));
+  auto FormatSpecifier = Args[0].getRValue(*this).getScalarVal();
+  // Check if the format specifier is in the constant address space, vprintf is
+  // oblivious to address spaces, so it would have to be casted away.
+  if (Args[0]
+          .getRValue(*this)
+          .getScalarVal()
+          ->getType()
+          ->getPointerAddressSpace() == 4)
+    FormatSpecifier = Builder.CreateAddrSpaceCast(
+        FormatSpecifier, llvm::Type::getInt8PtrTy(Ctx));
+
+  return RValue::get(
+      Builder.CreateCall(VprintfFunc, {FormatSpecifier, BufferPtr}));
 }
 
 RValue

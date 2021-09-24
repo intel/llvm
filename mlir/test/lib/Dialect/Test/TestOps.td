@@ -24,7 +24,7 @@ include "TestInterfaces.td"
 
 def Test_Dialect : Dialect {
   let name = "test";
-  let cppNamespace = "::mlir::test";
+  let cppNamespace = "::test";
   let hasCanonicalizer = 1;
   let hasConstantMaterializer = 1;
   let hasOperationAttrVerify = 1;
@@ -38,16 +38,18 @@ def Test_Dialect : Dialect {
     void registerAttributes();
     void registerTypes();
 
-    Attribute parseAttribute(DialectAsmParser &parser,
-                             Type type) const override;
-    void printAttribute(Attribute attr,
-                        DialectAsmPrinter &printer) const override;
+    ::mlir::Attribute parseAttribute(::mlir::DialectAsmParser &parser,
+                                     ::mlir::Type type) const override;
+    void printAttribute(::mlir::Attribute attr,
+                        ::mlir::DialectAsmPrinter &printer) const override;
 
     // Provides a custom printing/parsing for some operations.
-    Optional<ParseOpHook>
-      getParseOperationHook(StringRef opName) const override;
-    LogicalResult printOperation(Operation *op,
-                                 OpAsmPrinter &printer) const override;
+    ::llvm::Optional<ParseOpHook>
+      getParseOperationHook(::llvm::StringRef opName) const override;
+    ::llvm::unique_function<void(::mlir::Operation *,
+                                 ::mlir::OpAsmPrinter &printer)>
+     getOperationPrinter(::mlir::Operation *op) const override;
+
   private:
     // Storage for a custom fallback interface.
     void *fallbackEffectOpInterfaces;
@@ -117,8 +119,8 @@ def MultiTensorRankOf : TEST_Op<"multi_tensor_rank_of"> {
 }
 
 def TEST_TestType : DialectType<Test_Dialect,
-    CPred<"$_self.isa<::mlir::test::TestType>()">, "test">,
-    BuildableType<"$_builder.getType<::mlir::test::TestType>()">;
+    CPred<"$_self.isa<::test::TestType>()">, "test">,
+    BuildableType<"$_builder.getType<::test::TestType>()">;
 
 //===----------------------------------------------------------------------===//
 // Test Symbols
@@ -372,8 +374,8 @@ def ConversionCallOp : TEST_Op<"conversion_call_op",
     operand_range getArgOperands() { return inputs(); }
 
     /// Return the callee of this operation.
-    CallInterfaceCallable getCallableForCallee() {
-      return (*this)->getAttrOfType<SymbolRefAttr>("callee");
+    ::mlir::CallInterfaceCallable getCallableForCallee() {
+      return (*this)->getAttrOfType<::mlir::SymbolRefAttr>("callee");
     }
   }];
 }
@@ -384,9 +386,9 @@ def FunctionalRegionOp : TEST_Op<"functional_region_op",
   let results = (outs FunctionType);
 
   let extraClassDeclaration = [{
-    Region *getCallableRegion() { return &body(); }
-    ArrayRef<Type> getCallableResults() {
-      return getType().cast<FunctionType>().getResults();
+    ::mlir::Region *getCallableRegion() { return &body(); }
+    ::llvm::ArrayRef<::mlir::Type> getCallableResults() {
+      return getType().cast<::mlir::FunctionType>().getResults();
     }
   }];
 }
@@ -565,7 +567,7 @@ def OpWithInferTypeInterfaceOp : TEST_Op<"op_with_infer_type_if", [
 }
 
 def OpWithShapedTypeInferTypeInterfaceOp : TEST_Op<"op_with_shaped_type_infer_type_if",
-      InferTensorTypeWithReify.traits> {
+      [InferTensorTypeWithReify]> {
   let arguments = (ins AnyTensor, AnyTensor);
   let results = (outs AnyTensor);
 }
@@ -579,16 +581,7 @@ def OpWithResultShapeInterfaceOp : TEST_Op<"op_with_result_shape_interface",
 
 def OpWithResultShapePerDimInterfaceOp :
     TEST_Op<"op_with_result_shape_per_dim_interface",
-        [DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-             ["reifyReturnTypeShapesPerResultDim"]>]> {
-  let arguments = (ins AnyRankedTensor:$operand1, AnyRankedTensor:$operand2);
-  let results = (outs AnyRankedTensor:$result1, AnyRankedTensor:$result2);
-}
-
-def OpWithResultShapeAndPerDimInterfaceOp :
-    TEST_Op<"op_with_result_shape_and_per_dim_interface",
-        [DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-             ["reifyReturnTypeShapes", "reifyReturnTypeShapesPerResultDim"]>]> {
+        [DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface>]> {
   let arguments = (ins AnyRankedTensor:$operand1, AnyRankedTensor:$operand2);
   let results = (outs AnyRankedTensor:$result1, AnyRankedTensor:$result2);
 }
@@ -633,13 +626,51 @@ def AttrSizedResultOp : TEST_Op<"attr_sized_results",
 // pretty printed value name.
 def StringAttrPrettyNameOp
  : TEST_Op<"string_attr_pretty_name",
-           [DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+           [DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
   let arguments = (ins StrArrayAttr:$names);
   let results = (outs Variadic<I32>:$r);
 
   let printer = [{ return ::print(p, *this); }];
   let parser = [{ return ::parse$cppClass(parser, result); }];
 }
+
+// This is used to test the OpAsmOpInterface::getDefaultDialect() feature:
+// operations nested in a region under this op will drop the "test." dialect
+// prefix.
+def DefaultDialectOp : TEST_Op<"default_dialect", [OpAsmOpInterface]> {
+ let regions = (region AnyRegion:$body);
+  let extraClassDeclaration = [{
+    static ::llvm::StringRef getDefaultDialect() {
+      return "test";
+    }
+    void getAsmResultNames(::llvm::function_ref<void(::mlir::Value, ::llvm::StringRef)> setNameFn) {}
+  }];
+  let assemblyFormat = "regions attr-dict-with-keyword";
+}
+
+// This operation requires its return type to have the trait 'TestTypeTrait'.
+def ResultTypeWithTraitOp : TEST_Op<"result_type_with_trait", []> {
+  let results = (outs AnyType);
+
+  let verifier = [{
+    if((*this)->getResultTypes()[0].hasTrait<TypeTrait::TestTypeTrait>())
+      return success();
+    return this->emitError("result type should have trait 'TestTypeTrait'");
+  }];
+}
+
+// This operation requires its "attr" attribute to have the
+// trait 'TestAttrTrait'.
+def AttrWithTraitOp : TEST_Op<"attr_with_trait", []> {
+  let arguments = (ins AnyAttr:$attr);
+
+  let verifier = [{
+    if (this->attr().hasTrait<AttributeTrait::TestAttrTrait>())
+      return success();
+    return this->emitError("'attr' attribute should have trait 'TestAttrTrait'");
+  }];
+}
+
 
 //===----------------------------------------------------------------------===//
 // Test Locations
@@ -725,6 +756,13 @@ def TestEqualArgsPattern : Pat<(OpN $a, $a), (OpO $a)>;
 def TestNestedOpEqualArgsPattern :
   Pat<(OpN $b, (OpP $a, $b, $c, $d, $e, $f)), (replaceWithValue $b)>;
 
+// Test when equality is enforced on same op and same operand but at different
+// depth. We only bound one of the $x to the second operand of outer OpN and
+// left another be the default value (which is the value of first operand of
+// outer OpN). As a result, it ended up comparing wrong values in some cases.
+def TestNestedSameOpAndSameArgEqualityPattern :
+  Pat<(OpN (OpN $_, $x), $x), (replaceWithValue $x)>;
+
 // Test multiple equal arguments check enforced.
 def TestMultipleEqualArgsPattern :
   Pat<(OpP $a, $b, $a, $a, $b, $c), (OpN $c, $b)>;
@@ -750,7 +788,7 @@ def OpFuncRef : TEST_Op<"op_funcref"> {
   let description = [{
     The "test.op_funcref" is a test op with a reference to a function symbol.
   }];
-  let builders = [OpBuilder<(ins "FuncOp":$function)>];
+  let builders = [OpBuilder<(ins "::mlir::FuncOp":$function)>];
 }
 
 // Pattern add the argument plus a increasing static number hidden in
@@ -859,7 +897,7 @@ def OpNativeCodeCall3 : TEST_Op<"native_code_call3"> {
 // Test that NativeCodeCall is not ignored if it is not used to directly
 // replace the matched root op.
 def : Pattern<(OpNativeCodeCall3 $input),
-              [(NativeCodeCall<"createOpI($_builder, $_loc, $0)"> $input),
+              [(NativeCodeCallVoid<"createOpI($_builder, $_loc, $0)"> $input),
                (OpK)]>;
 
 def OpNativeCodeCall4 : TEST_Op<"native_code_call4"> {
@@ -876,6 +914,19 @@ def BindNativeCodeCallResult : NativeCodeCall<"bindNativeCodeCallResult($0)">;
 def : Pat<(OpNativeCodeCall4 (GetFirstI32Result $ret)),
           (OpNativeCodeCall5 (BindNativeCodeCallResult:$native $ret), $native)>;
 
+def OpNativeCodeCall6 : TEST_Op<"native_code_call6"> {
+  let arguments = (ins I32:$input1, I32:$input2);
+  let results = (outs I32:$output1, I32:$output2);
+}
+def OpNativeCodeCall7 : TEST_Op<"native_code_call7"> {
+  let arguments = (ins I32:$input);
+  let results = (outs I32);
+}
+def BindMultipleNativeCodeCallResult : NativeCodeCall<"bindMultipleNativeCodeCallResult($0, $1)", 2>;
+def : Pattern<(OpNativeCodeCall6 $arg1, $arg2),
+              [(OpNativeCodeCall7 (BindMultipleNativeCodeCallResult:$native__0 $arg1, $arg2)),
+               (OpNativeCodeCall7 $native__1)]>;
+
 // Test AllAttrConstraintsOf.
 def OpAllAttrConstraint1 : TEST_Op<"all_attr_constraint_of1"> {
   let arguments = (ins I64ArrayAttr:$attr);
@@ -887,10 +938,10 @@ def OpAllAttrConstraint2 : TEST_Op<"all_attr_constraint_of2"> {
 }
 def Constraint0 : AttrConstraint<
     CPred<"$_self.cast<ArrayAttr>()[0]."
-          "cast<IntegerAttr>().getInt() == 0">,
+          "cast<::mlir::IntegerAttr>().getInt() == 0">,
     "[0] == 0">;
 def Constraint1 : AttrConstraint<
-    CPred<"$_self.cast<ArrayAttr>()[1].cast<IntegerAttr>().getInt() == 1">,
+    CPred<"$_self.cast<ArrayAttr>()[1].cast<::mlir::IntegerAttr>().getInt() == 1">,
     "[1] == 1">;
 def : Pat<(OpAllAttrConstraint1
             AllAttrConstraintsOf<[Constraint0, Constraint1]>:$attr),
@@ -906,7 +957,7 @@ def TestOpConstant : TEST_Op<"constant", [ConstantLike, NoSideEffect]> {
   let arguments = (ins AnyAttr:$value);
   let results = (outs AnyType);
   let extraClassDeclaration = [{
-    Attribute getValue() { return (*this)->getAttr("value"); }
+    ::mlir::Attribute getValue() { return (*this)->getAttr("value"); }
   }];
 
   let hasFolder = 1;
@@ -1035,7 +1086,7 @@ def OpSymbolBindingNoResult : TEST_Op<"symbol_binding_no_result", []> {
 
 // Test that we can bind to an op without results and reference it later.
 def : Pat<(OpSymbolBindingNoResult:$op $operand),
-          (NativeCodeCall<"handleNoResultOp($_builder, $0)"> $op)>;
+          (NativeCodeCallVoid<"handleNoResultOp($_builder, $0)"> $op)>;
 
 //===----------------------------------------------------------------------===//
 // Test Patterns (Attributes)
@@ -1257,7 +1308,7 @@ def MixedVResultOp3 : TEST_Op<"mixed_variadic_out3",
   // We will use this op in a nested result pattern, where we cannot deduce the
   // result type. So need to provide a builder not requiring result types.
   let builders = [
-    OpBuilder<(ins "IntegerAttr":$count),
+    OpBuilder<(ins "::mlir::IntegerAttr":$count),
     [{
       auto i32Type = $_builder.getIntegerType(32);
       $_state.addTypes(i32Type); // $output1
@@ -1291,6 +1342,64 @@ def : Pat<(TestLocationSrcOp:$res1
             (location "fused", $res2, $res3))>;
 
 //===----------------------------------------------------------------------===//
+// Test Patterns (Type Builders)
+
+def SourceOp : TEST_Op<"source_op"> {
+  let arguments = (ins AnyInteger:$arg, AnyI32Attr:$tag);
+  let results = (outs AnyInteger);
+}
+
+// An op without return type deduction.
+def OpX : TEST_Op<"op_x"> {
+  let arguments = (ins AnyInteger:$input);
+  let results = (outs AnyInteger);
+}
+
+// Test that ops without built-in type deduction can be created in the
+// replacement DAG with an explicitly specified type.
+def : Pat<(SourceOp $val, ConstantAttr<I32Attr, "11">:$attr),
+          (OpX (OpX $val, (returnType "$_builder.getI32Type()")))>;
+// Test NativeCodeCall type builder can accept arguments.
+def SameTypeAs : NativeCodeCall<"$0.getType()">;
+
+def : Pat<(SourceOp $val, ConstantAttr<I32Attr, "22">:$attr),
+          (OpX (OpX $val, (returnType (SameTypeAs $val))))>;
+
+// Test multiple return types.
+def MakeI64Type : NativeCodeCall<"$_builder.getI64Type()">;
+def MakeI32Type : NativeCodeCall<"$_builder.getI32Type()">;
+
+def OneToTwo : TEST_Op<"one_to_two"> {
+  let arguments = (ins AnyInteger);
+  let results = (outs AnyInteger, AnyInteger);
+}
+
+def TwoToOne : TEST_Op<"two_to_one"> {
+  let arguments = (ins AnyInteger, AnyInteger);
+  let results = (outs AnyInteger);
+}
+
+def : Pat<(SourceOp $val, ConstantAttr<I32Attr, "33">:$attr),
+          (TwoToOne (OpX (OneToTwo:$res__0 $val, (returnType (MakeI64Type), (MakeI32Type))), (returnType (MakeI32Type))),
+                    (OpX $res__1, (returnType (MakeI64Type))))>;
+
+// Test copy value return type.
+def : Pat<(SourceOp $val, ConstantAttr<I32Attr, "44">:$attr),
+          (OpX (OpX $val, (returnType $val)))>;
+
+// Test create multiple return types with different methods.
+def : Pat<(SourceOp $val, ConstantAttr<I32Attr, "55">:$attr),
+          (TwoToOne (OneToTwo:$res__0 $val, (returnType $val, "$_builder.getI64Type()")), $res__1)>;
+
+//===----------------------------------------------------------------------===//
+// Test Patterns (Trailing Directives)
+
+// Test that we can specify both `location` and `returnType` directives.
+def : Pat<(SourceOp $val, ConstantAttr<I32Attr, "66">:$attr),
+          (TwoToOne (OpX $val, (returnType $val), (location "loc1")),
+                    (OpX $val, (location "loc2"), (returnType $val)))>;
+
+//===----------------------------------------------------------------------===//
 // Test Legalization
 //===----------------------------------------------------------------------===//
 
@@ -1306,9 +1415,12 @@ def ILLegalOpC : TEST_Op<"illegal_op_c">, Results<(outs I32)>;
 def ILLegalOpD : TEST_Op<"illegal_op_d">, Results<(outs I32)>;
 def ILLegalOpE : TEST_Op<"illegal_op_e">, Results<(outs I32)>;
 def ILLegalOpF : TEST_Op<"illegal_op_f">, Results<(outs I32)>;
+def ILLegalOpG : TEST_Op<"illegal_op_g">, Results<(outs I32)>;
 def LegalOpA : TEST_Op<"legal_op_a">,
   Arguments<(ins Test_LegalizerEnum:$status)>, Results<(outs I32)>;
 def LegalOpB : TEST_Op<"legal_op_b">, Results<(outs I32)>;
+def LegalOpC : TEST_Op<"legal_op_c">,
+  Arguments<(ins I32)>, Results<(outs I32)>;
 
 // Check that the conversion infrastructure can properly undo the creation of
 // operations where an operation was created before its parent, in this case,
@@ -1650,6 +1762,14 @@ def FormatVariadicOperand : TEST_Op<"format_variadic_operand"> {
   let arguments = (ins Variadic<I64>:$operand);
   let assemblyFormat = [{ $operand `:` type($operand) attr-dict}];
 }
+def FormatVariadicOfVariadicOperand
+   : TEST_Op<"format_variadic_of_variadic_operand"> {
+  let arguments = (ins
+    VariadicOfVariadic<I64, "operand_segments">:$operand,
+    I32ElementsAttr:$operand_segments
+  );
+  let assemblyFormat = [{ $operand `:` type($operand) attr-dict}];
+}
 
 def FormatMultipleVariadicOperands :
     TEST_Op<"format_multiple_variadic_operands", [AttrSizedOperandSegments]> {
@@ -1925,8 +2045,8 @@ def CopyOp : TEST_Op<"copy", [CopyOpInterface]> {
      attr-dict
   }];
   let extraClassDeclaration = [{
-    Value getSource() { return source(); }
-    Value getTarget() { return target(); }
+    ::mlir::Value getSource() { return source(); }
+    ::mlir::Value getTarget() { return target(); }
   }];
 }
 
@@ -2016,16 +2136,16 @@ def RegionIfOp : TEST_Op<"region_if",
                         AnyRegion:$elseRegion,
                         AnyRegion:$joinRegion);
   let extraClassDeclaration = [{
-    Block::BlockArgListType getThenArgs() {
+    ::mlir::Block::BlockArgListType getThenArgs() {
       return getBody(0)->getArguments();
     }
-    Block::BlockArgListType getElseArgs() {
+    ::mlir::Block::BlockArgListType getElseArgs() {
       return getBody(1)->getArguments();
     }
-    Block::BlockArgListType getJoinArgs() {
+    ::mlir::Block::BlockArgListType getJoinArgs() {
       return getBody(2)->getArguments();
     }
-    OperandRange getSuccessorEntryOperands(unsigned index);
+    ::mlir::OperandRange getSuccessorEntryOperands(unsigned index);
   }];
 }
 
@@ -2078,12 +2198,12 @@ def TableGenBuildOp5 : TEST_Op<"tblgen_build_5",
   let results = (outs AnyType:$result);
 
   let extraClassDeclaration = [{
-    static LogicalResult inferReturnTypes(MLIRContext *,
-          Optional<Location> location, ValueRange operands,
-          DictionaryAttr attributes, RegionRange regions,
-          SmallVectorImpl<Type> &inferredReturnTypes) {
+    static ::mlir::LogicalResult inferReturnTypes(::mlir::MLIRContext *,
+          ::llvm::Optional<::mlir::Location> location, ::mlir::ValueRange operands,
+          ::mlir::DictionaryAttr attributes, ::mlir::RegionRange regions,
+          ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {
       inferredReturnTypes.assign({operands[0].getType()});
-      return success();
+      return ::mlir::success();
     }
    }];
 }

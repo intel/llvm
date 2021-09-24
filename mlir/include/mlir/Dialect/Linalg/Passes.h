@@ -20,7 +20,7 @@ std::unique_ptr<OperationPass<FuncOp>> createConvertElementwiseToLinalgPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createLinalgFoldUnitExtentDimsPass();
 
-std::unique_ptr<Pass> createLinalgFusionOfTensorOpsPass();
+std::unique_ptr<Pass> createLinalgElementwiseOpFusionPass();
 std::unique_ptr<Pass> createFoldReshapeOpsByLinearizationPass();
 
 std::unique_ptr<OperationPass<FuncOp>>
@@ -76,6 +76,9 @@ std::unique_ptr<OperationPass<FuncOp>> createLinalgGeneralizationPass();
 /// Create a pass to convert Linalg operations to equivalent operations that
 /// work on primitive types, if possible.
 std::unique_ptr<Pass> createLinalgDetensorizePass();
+
+/// Create a pass to tile a LinalgOp and fuse its producers.
+std::unique_ptr<OperationPass<FuncOp>> createLinalgTileAndFuseTensorOpsPass();
 
 //===----------------------------------------------------------------------===//
 // Registration

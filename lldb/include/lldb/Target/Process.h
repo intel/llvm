@@ -99,6 +99,7 @@ public:
   bool GetOSPluginReportsAllThreads() const;
   void SetOSPluginReportsAllThreads(bool does_report);
   bool GetSteppingRunsAllThreads() const;
+  FollowForkMode GetFollowForkMode() const;
 
 protected:
   Process *m_process; // Can be nullptr for global ProcessProperties
@@ -536,13 +537,13 @@ public:
 
   uint32_t GetAddressByteSize() const;
 
+  /// Returns the pid of the process or LLDB_INVALID_PROCESS_ID if there is
+  /// no known pid.
+  lldb::pid_t GetID() const { return m_pid; }
+
   /// Sets the stored pid.
   ///
   /// This does not change the pid of underlying process.
-  lldb::pid_t GetID() const { return m_pid; }
-
-  /// Returns the pid of the process or LLDB_INVALID_PROCESS_ID if there is
-  /// no known pid.
   void SetID(lldb::pid_t new_pid) { m_pid = new_pid; }
 
   uint32_t GetUniqueID() const { return m_process_unique_id; }
@@ -685,6 +686,16 @@ public:
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "Not implemented");
   }
+
+  /// Save core dump into the specified file.
+  ///
+  /// \param[in] outfile
+  ///     Path to store core dump in.
+  ///
+  /// \return
+  ///     true if saved successfully, false if saving the core dump
+  ///     is not supported by the plugin, error otherwise.
+  virtual llvm::Expected<bool> SaveCore(llvm::StringRef outfile);
 
 protected:
   virtual JITLoaderList &GetJITLoaders();
@@ -980,6 +991,15 @@ public:
   /// Subclasses of Process should implement this function if they need to do
   /// anything after a process exec's itself.
   virtual void DoDidExec() {}
+
+  /// Called after a reported fork.
+  virtual void DidFork(lldb::pid_t child_pid, lldb::tid_t child_tid) {}
+
+  /// Called after a reported vfork.
+  virtual void DidVFork(lldb::pid_t child_pid, lldb::tid_t child_tid) {}
+
+  /// Called after reported vfork completion.
+  virtual void DidVForkDone() {}
 
   /// Called before launching to a process.
   ///
@@ -1736,6 +1756,29 @@ public:
   ///     failure to read or unpack them.
   llvm::Expected<std::vector<lldb::addr_t>> ReadMemoryTags(lldb::addr_t addr,
                                                            size_t len);
+
+  /// Write memory tags for a range of memory.
+  /// (calls DoWriteMemoryTags to do the target specific work)
+  ///
+  /// \param[in] addr
+  ///     The address to start writing tags from. It is assumed that this
+  ///     address is granule aligned.
+  ///
+  /// \param[in] len
+  ///     The size of the range to write tags for. It is assumed that this
+  ///     is some multiple of the granule size. This len can be different
+  ///     from (number of tags * granule size) in the case where you want
+  ///     lldb-server to repeat tags across the range.
+  ///
+  /// \param[in] tags
+  ///     Allocation tags to be written. Since lldb-server can repeat tags for a
+  ///     range, the number of tags doesn't have to match the number of granules
+  ///     in the range. (though most of the time it will)
+  ///
+  /// \return
+  ///     A Status telling you if the write succeeded or not.
+  Status WriteMemoryTags(lldb::addr_t addr, size_t len,
+                         const std::vector<lldb::addr_t> &tags);
 
   /// Resolve dynamically loaded indirect functions.
   ///
@@ -2602,8 +2645,6 @@ protected:
   virtual size_t DoReadMemory(lldb::addr_t vm_addr, void *buf, size_t size,
                               Status &error) = 0;
 
-  void SetState(lldb::EventSP &event_sp);
-
   lldb::StateType GetPrivateState();
 
   /// The "private" side of resuming a process.  This doesn't alter the state
@@ -2779,6 +2820,30 @@ protected:
                                    GetPluginName().GetCString());
   }
 
+  /// Does the final operation to write memory tags. E.g. sending a GDB packet.
+  /// It assumes that WriteMemoryTags has checked that memory tagging is enabled
+  /// and has packed the tag data.
+  ///
+  /// \param[in] addr
+  ///    Start of address range to write memory tags for.
+  ///
+  /// \param[in] len
+  ///    Length of the memory range to write tags for (in bytes).
+  ///
+  /// \param[in] type
+  ///    Type of tags to read (get this from a MemoryTagManager)
+  ///
+  /// \param[in] tags
+  ///    Packed tags to be written.
+  ///
+  /// \return
+  ///     Status telling you whether the write succeeded.
+  virtual Status DoWriteMemoryTags(lldb::addr_t addr, size_t len, int32_t type,
+                                   const std::vector<uint8_t> &tags) {
+    return Status("%s does not support writing memory tags",
+                  GetPluginName().GetCString());
+  }
+
   // Type definitions
   typedef std::map<lldb::LanguageType, lldb::LanguageRuntimeSP>
       LanguageRuntimeCollection;
@@ -2899,7 +2964,8 @@ protected:
   std::atomic<bool> m_finalizing;
 
   /// Mask for code an data addresses. The default value (0) means no mask is
-  /// set.
+  /// set.  The bits set to 1 indicate bits that are NOT significant for
+  /// addressing.
   /// @{
   lldb::addr_t m_code_address_mask = 0;
   lldb::addr_t m_data_address_mask = 0;

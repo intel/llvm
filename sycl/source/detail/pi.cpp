@@ -21,6 +21,7 @@
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
+#include <detail/xpti_registry.hpp>
 
 #include <bitset>
 #include <cstdarg>
@@ -77,7 +78,7 @@ getPluginOpaqueData<cl::sycl::backend::esimd_cpu>(void *);
 
 namespace pi {
 
-static void initializePlugins(std::vector<plugin> *Plugins);
+static void initializePlugins(std::vector<plugin> &Plugins);
 
 bool XPTIInitDone = false;
 
@@ -288,21 +289,21 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
   const char *CUDAPluginName = SYCLConfig<SYCL_OVERRIDE_PI_CUDA>::get()
                                    ? SYCLConfig<SYCL_OVERRIDE_PI_CUDA>::get()
                                    : __SYCL_CUDA_PLUGIN_NAME;
-  const char *ROCMPluginName = SYCLConfig<SYCL_OVERRIDE_PI_ROCM>::get()
-                                   ? SYCLConfig<SYCL_OVERRIDE_PI_ROCM>::get()
-                                   : __SYCL_ROCM_PLUGIN_NAME;
+  const char *HIPPluginName = SYCLConfig<SYCL_OVERRIDE_PI_HIP>::get()
+                                  ? SYCLConfig<SYCL_OVERRIDE_PI_HIP>::get()
+                                  : __SYCL_HIP_PLUGIN_NAME;
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
   if (!FilterList) {
     PluginNames.emplace_back(OpenCLPluginName, backend::opencl);
     PluginNames.emplace_back(L0PluginName, backend::level_zero);
     PluginNames.emplace_back(CUDAPluginName, backend::cuda);
-    PluginNames.emplace_back(ROCMPluginName, backend::rocm);
+    PluginNames.emplace_back(HIPPluginName, backend::hip);
   } else {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
     bool LevelZeroFound = false;
     bool CudaFound = false;
-    bool RocmFound = false;
+    bool HIPFound = false;
     for (const device_filter &Filter : Filters) {
       backend Backend = Filter.Backend;
       if (!OpenCLFound &&
@@ -319,9 +320,9 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
         PluginNames.emplace_back(CUDAPluginName, backend::cuda);
         CudaFound = true;
       }
-      if (!RocmFound && (Backend == backend::rocm || Backend == backend::all)) {
-        PluginNames.emplace_back(ROCMPluginName, backend::rocm);
-        RocmFound = true;
+      if (!HIPFound && (Backend == backend::hip || Backend == backend::all)) {
+        PluginNames.emplace_back(HIPPluginName, backend::hip);
+        HIPFound = true;
       }
     }
   }
@@ -368,17 +369,17 @@ bool trace(TraceLevel Level) {
 }
 
 // Initializes all available Plugins.
-const std::vector<plugin> &initialize() {
+std::vector<plugin> &initialize() {
   static std::once_flag PluginsInitDone;
-
-  std::call_once(PluginsInitDone, []() {
-    initializePlugins(&GlobalHandler::instance().getPlugins());
+  // std::call_once is blocking all other threads if a thread is already
+  // creating a vector of plugins. So, no additional lock is needed.
+  std::call_once(PluginsInitDone, [&]() {
+    initializePlugins(GlobalHandler::instance().getPlugins());
   });
-
   return GlobalHandler::instance().getPlugins();
 }
 
-static void initializePlugins(std::vector<plugin> *Plugins) {
+static void initializePlugins(std::vector<plugin> &Plugins) {
   std::vector<std::pair<std::string, backend>> PluginNames = findPlugins();
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
@@ -426,18 +427,18 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
       // Use the CUDA plugin as the GlobalPlugin
       GlobalPlugin =
           std::make_shared<plugin>(PluginInformation, backend::cuda, Library);
-    } else if (InteropBE == backend::rocm &&
-               PluginNames[I].first.find("rocm") != std::string::npos) {
-      // Use the ROCM plugin as the GlobalPlugin
+    } else if (InteropBE == backend::hip &&
+               PluginNames[I].first.find("hip") != std::string::npos) {
+      // Use the HIP plugin as the GlobalPlugin
       GlobalPlugin =
-          std::make_shared<plugin>(PluginInformation, backend::rocm, Library);
+          std::make_shared<plugin>(PluginInformation, backend::hip, Library);
     } else if (InteropBE == backend::level_zero &&
                PluginNames[I].first.find("level_zero") != std::string::npos) {
       // Use the LEVEL_ZERO plugin as the GlobalPlugin
       GlobalPlugin = std::make_shared<plugin>(PluginInformation,
                                               backend::level_zero, Library);
     }
-    Plugins->emplace_back(
+    Plugins.emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))
       std::cerr << "SYCL_PI_TRACE[basic]: "
@@ -461,12 +462,8 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
   uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
   //  Let all tool plugins know that a stream by the name of 'sycl' has been
   //  initialized and will be generating the trace stream.
-  //
-  //                                           +--- Minor version #
-  //            Major version # ------+        |   Version string
-  //                                  |        |       |
-  //                                  v        v       v
-  xptiInitialize(SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  GlobalHandler::instance().getXPTIRegistry().initializeStream(
+      SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   // Create a tracepoint to indicate the graph creation
   xpti::payload_t GraphPayload("application_graph");
   uint64_t GraphInstanceNo;
@@ -481,14 +478,16 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
   }
 
   // Let subscribers know a new stream is being initialized
-  xptiInitialize(SYCL_PICALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  GlobalHandler::instance().getXPTIRegistry().initializeStream(
+      SYCL_PICALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   xpti::payload_t PIPayload("Plugin Interface Layer");
   uint64_t PiInstanceNo;
   GPICallEvent =
       xptiMakeEvent("PI Layer", &PIPayload, xpti::trace_algorithm_event,
                     xpti_at::active, &PiInstanceNo);
 
-  xptiInitialize(SYCL_PIDEBUGCALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  GlobalHandler::instance().getXPTIRegistry().initializeStream(
+      SYCL_PIDEBUGCALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   xpti::payload_t PIArgPayload(
       "Plugin Interface Layer (with function arguments)");
   uint64_t PiArgInstanceNo;

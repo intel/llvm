@@ -8,13 +8,17 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
+// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // std::views::all;
 
 #include <ranges>
 
 #include <cassert>
+#include <concepts>
+#include <type_traits>
+#include <utility>
+
 #include "test_macros.h"
 #include "test_iterators.h"
 
@@ -27,10 +31,10 @@ struct View : std::ranges::view_base {
   constexpr explicit View(int start) : start_(start) {}
   View(View&&) noexcept(IsNoexcept) = default;
   View& operator=(View&&) noexcept(IsNoexcept) = default;
-  constexpr friend int* begin(View& view) { return globalBuff + view.start_; }
-  constexpr friend int* begin(View const& view) { return globalBuff + view.start_; }
-  constexpr friend int* end(View&) { return globalBuff + 8; }
-  constexpr friend int* end(View const&) { return globalBuff + 8; }
+  friend constexpr int* begin(View& view) { return globalBuff + view.start_; }
+  friend constexpr int* begin(View const& view) { return globalBuff + view.start_; }
+  friend constexpr int* end(View&) { return globalBuff + 8; }
+  friend constexpr int* end(View const&) { return globalBuff + 8; }
 };
 static_assert(std::ranges::view<View<true>>);
 static_assert(std::ranges::view<View<false>>);
@@ -42,10 +46,10 @@ struct CopyableView : std::ranges::view_base {
   CopyableView(CopyableView const&) noexcept(IsNoexcept) = default;
   CopyableView& operator=(CopyableView const&) noexcept(IsNoexcept) = default;
   constexpr explicit CopyableView(int start) noexcept : start_(start) {}
-  constexpr friend int* begin(CopyableView& view) { return globalBuff + view.start_; }
-  constexpr friend int* begin(CopyableView const& view) { return globalBuff + view.start_; }
-  constexpr friend int* end(CopyableView&) { return globalBuff + 8; }
-  constexpr friend int* end(CopyableView const&) { return globalBuff + 8; }
+  friend constexpr int* begin(CopyableView& view) { return globalBuff + view.start_; }
+  friend constexpr int* begin(CopyableView const& view) { return globalBuff + view.start_; }
+  friend constexpr int* end(CopyableView&) { return globalBuff + 8; }
+  friend constexpr int* end(CopyableView const&) { return globalBuff + 8; }
 };
 static_assert(std::ranges::view<CopyableView<true>>);
 static_assert(std::ranges::view<CopyableView<false>>);
@@ -53,19 +57,19 @@ static_assert(std::ranges::view<CopyableView<false>>);
 struct Range {
   int start_;
   constexpr explicit Range(int start) noexcept : start_(start) {}
-  constexpr friend int* begin(Range const& range) { return globalBuff + range.start_; }
-  constexpr friend int* begin(Range& range) { return globalBuff + range.start_; }
-  constexpr friend int* end(Range const&) { return globalBuff + 8; }
-  constexpr friend int* end(Range&) { return globalBuff + 8; }
+  friend constexpr int* begin(Range const& range) { return globalBuff + range.start_; }
+  friend constexpr int* begin(Range& range) { return globalBuff + range.start_; }
+  friend constexpr int* end(Range const&) { return globalBuff + 8; }
+  friend constexpr int* end(Range&) { return globalBuff + 8; }
 };
 
 struct BorrowableRange {
   int start_;
   constexpr explicit BorrowableRange(int start) noexcept : start_(start) {}
-  constexpr friend int* begin(BorrowableRange const& range) { return globalBuff + range.start_; }
-  constexpr friend int* begin(BorrowableRange& range) { return globalBuff + range.start_; }
-  constexpr friend int* end(BorrowableRange const&) { return globalBuff + 8; }
-  constexpr friend int* end(BorrowableRange&) { return globalBuff + 8; }
+  friend constexpr int* begin(BorrowableRange const& range) { return globalBuff + range.start_; }
+  friend constexpr int* begin(BorrowableRange& range) { return globalBuff + range.start_; }
+  friend constexpr int* end(BorrowableRange const&) { return globalBuff + 8; }
+  friend constexpr int* end(BorrowableRange&) { return globalBuff + 8; }
 };
 template<>
 inline constexpr bool std::ranges::enable_borrowed_range<BorrowableRange> = true;
@@ -82,6 +86,11 @@ struct RandomAccessRange {
 };
 template<>
 inline constexpr bool std::ranges::enable_borrowed_range<RandomAccessRange> = true;
+
+template <class View, class T>
+concept CanBePiped = requires (View&& view, T&& t) {
+  { std::forward<View>(view) | std::forward<T>(t) };
+};
 
 constexpr bool test() {
   {
@@ -140,6 +149,53 @@ constexpr bool test() {
                      std::ranges::subrange<random_access_iterator<int*>, RandomAccessRange::sentinel>);
     assert(std::ranges::begin(subrange).base() == globalBuff);
     assert(std::ranges::end(subrange) == std::ranges::begin(subrange) + 8);
+  }
+
+  // Check SFINAE friendliness of the call operator
+  {
+    static_assert(!std::is_invocable_v<decltype(std::views::all)>);
+    static_assert(!std::is_invocable_v<decltype(std::views::all), RandomAccessRange, RandomAccessRange>);
+  }
+
+  // Test that std::views::all is a range adaptor
+  {
+    // Test `v | views::all`
+    {
+      Range range(0);
+      auto result = range | std::views::all;
+      ASSERT_SAME_TYPE(decltype(result), std::ranges::ref_view<Range>);
+      assert(&result.base() == &range);
+    }
+
+    // Test `adaptor | views::all`
+    {
+      Range range(0);
+      auto f = [](int i) { return i; };
+      auto const partial = std::views::transform(f) | std::views::all;
+      using Result = std::ranges::transform_view<std::ranges::ref_view<Range>, decltype(f)>;
+      std::same_as<Result> auto result = partial(range);
+      assert(&result.base().base() == &range);
+    }
+
+    // Test `views::all | adaptor`
+    {
+      Range range(0);
+      auto f = [](int i) { return i; };
+      auto const partial = std::views::all | std::views::transform(f);
+      using Result = std::ranges::transform_view<std::ranges::ref_view<Range>, decltype(f)>;
+      std::same_as<Result> auto result = partial(range);
+      assert(&result.base().base() == &range);
+    }
+
+    {
+      struct NotAView { };
+      static_assert( CanBePiped<Range&,    decltype(std::views::all)>);
+      static_assert(!CanBePiped<NotAView,  decltype(std::views::all)>);
+    }
+  }
+
+  {
+    static_assert(std::same_as<decltype(std::views::all), decltype(std::ranges::views::all)>);
   }
 
   return true;

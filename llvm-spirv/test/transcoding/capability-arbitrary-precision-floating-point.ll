@@ -466,10 +466,11 @@
 ; CHECK-SPIRV: 4 TypeInt [[Ty_54:[0-9]+]] 54 0
 ; CHECK-SPIRV: 4 TypeInt [[Ty_56:[0-9]+]] 56 0
 ; CHECK-SPIRV: 4 TypeInt [[Ty_12:[0-9]+]] 12 0
+; CHECK-SPIRV: 4 TypeInt [[Ty_66:[0-9]+]] 66 0
 ; CHECK-SPIRV: 2 TypeBool [[Ty_Bool:[0-9]+]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-linux-sycldevice"
+target triple = "spir64-unknown-linux"
 
 %"class._ZTSZ4mainE3$_0.anon" = type { i8 }
 
@@ -534,6 +535,8 @@ define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%"class._ZTSZ4mainE3$_0.an
   call spir_func void @_Z12ap_float_powILi8ELi8ELi9ELi9ELi10ELi10EEvv()
   call spir_func void @_Z13ap_float_powrILi18ELi35ELi19ELi35ELi20ELi35EEvv()
   call spir_func void @_Z13ap_float_pownILi4ELi7ELi10ELi5ELi9EEvv()
+  call spir_func void @_Z15ap_float_sincosILi8ELi18ELi10ELi20EEvv_()
+  call spir_func void @_Z14ap_float_atan2ILi7ELi16ELi7ELi17ELi8ELi18EEvv_()
   ret void
 }
 
@@ -1562,6 +1565,60 @@ define linkonce_odr dso_local spir_func void @_Z13ap_float_pownILi4ELi7ELi10ELi5
   ret void
 }
 
+; Function Attrs: norecurse nounwind
+define linkonce_odr dso_local spir_func void @_Z15ap_float_sincosILi8ELi18ELi10ELi20EEvv_() #3 {
+  %1 = alloca i34, align 8
+  %2 = addrspacecast i34* %1 to i34 addrspace(4)*
+  %3 = alloca i66, align 8
+  %4 = addrspacecast i66* %3 to i66 addrspace(4)*
+  %5 = bitcast i34* %1 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %5)
+  %6 = bitcast i66* %3 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 16, i8* %6)
+  %7 = load i34, i34 addrspace(4)* %2, align 8
+  call spir_func void @_Z33__spirv_ArbitraryFloatSinCosINTELILi34ELi66EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(i66 addrspace(4)* sret(i66) align 8 %4, i34 %7, i32 18, i32 20, i32 0, i32 2, i32 1) #5
+; CHECK-SPIRV: 6 Load [[Ty_34]] [[SinCos_AId:[0-9]+]]
+; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinCosINTEL [[Ty_66]] [[#]] [[SinCos_AId]] 18 20 0 2 1
+; CHECK-LLVM: call i66 @intel_arbitrary_float_sincos.i66.i34(i34 %[[#]], i32 18, i32 20, i32 0, i32 2, i32 1)
+  %8 = load i66, i66 addrspace(4)* %4, align 8
+  store i66 %8, i66 addrspace(4)* %4, align 8
+  %9 = bitcast i34* %1 to i8*
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %9)
+  %10 = bitcast i66* %3 to i8*
+  call void @llvm.lifetime.end.p0i8(i64 16, i8* %10)
+  ret void
+}
+
+; Function Attrs: norecurse nounwind
+define linkonce_odr dso_local spir_func void @_Z14ap_float_atan2ILi7ELi16ELi7ELi17ELi8ELi18EEvv_() #3 {
+  %1 = alloca i24, align 4
+  %2 = alloca i25, align 4
+  %3 = alloca i66, align 8
+  %4 = addrspacecast i66* %3 to i66 addrspace(4)*
+  %5 = bitcast i24* %1 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %5) #5
+  %6 = bitcast i25* %2 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* %6) #5
+  %7 = bitcast i66* %3 to i8*
+  call void @llvm.lifetime.start.p0i8(i64 16, i8* %7) #5
+  %8 = load i24, i24* %1, align 4, !tbaa !91
+  %9 = load i25, i25* %2, align 4, !tbaa !13
+  call spir_func void @_Z32__spirv_ArbitraryFloatATan2INTELILi24ELi25ELi66EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i66 addrspace(4)* sret(i66) align 8 %4, i24 signext %8, i32 16, i25 signext %9, i32 17, i32 18, i32 0, i32 2, i32 1) #5
+; CHECK-SPIRV: 6 Load [[Ty_24]] [[ATan2_AId:[0-9]+]]
+; CHECK-SPIRV-NEXT: 6 Load [[Ty_25]] [[ATan2_BId:[0-9]+]]
+; CHECK-SPIRV-NEXT: 11 ArbitraryFloatATan2INTEL [[Ty_66]] [[#]] [[ATan2_AId]] 16 [[ATan2_BId]] 17 18 0 2 1
+; CHECK-LLVM: call i66 @intel_arbitrary_float_atan2.i66.i24.i25(i24 %[[#]], i32 16, i25 %[[#]], i32 17, i32 18, i32 0, i32 2, i32 1)
+  %10 = load i66, i66 addrspace(4)* %4, align 8
+  store i66 %10, i66 addrspace(4)* %4, align 8
+  %11 = bitcast i66* %3 to i8*
+  call void @llvm.lifetime.end.p0i8(i64 16, i8* %11) #5
+  %12 = bitcast i25* %2 to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %12) #5
+  %13 = bitcast i24* %1 to i8*
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* %13) #5
+  ret void
+}
+
 ; Function Attrs: nounwind
 declare dso_local spir_func i40 @_Z31__spirv_ArbitraryFloatCastINTELILi40ELi40EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEiiiiii(i40, i32, i32, i32, i32, i32) #4
 
@@ -1687,6 +1744,12 @@ declare dso_local spir_func i56 @_Z31__spirv_ArbitraryFloatPowRINTELILi54ELi55EL
 
 ; Function Attrs: nounwind
 declare dso_local spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi12ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i12 signext, i32, i10 signext, i32, i32, i32, i32) #4
+
+; Function Attrs: nounwind
+declare dso_local spir_func void @_Z33__spirv_ArbitraryFloatSinCosINTELILi34ELi66EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(i66 addrspace(4)* sret(i66) align 8, i34, i32, i32, i32, i32, i32) #4
+
+; Function Attrs: nounwind
+declare dso_local spir_func void @_Z32__spirv_ArbitraryFloatATan2INTELILi24ELi25ELi66EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i66 addrspace(4)* sret(i66) align 8, i24 signext, i32, i25 signext, i32, i32, i32, i32, i32) #4
 
 attributes #0 = { norecurse "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn }

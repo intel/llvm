@@ -19,6 +19,7 @@
 // global device environment
 ////////////////////////////////////////////////////////////////////////////////
 
+PLUGIN_ACCESSIBLE
 omptarget_device_environmentTy omptarget_device_environment;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +51,7 @@ omptarget_nvptx_ThreadPrivateContext *
 // communicate with the workers.  Since it is in shared memory, there is one
 // copy of these variables for each kernel, instance, and team.
 ////////////////////////////////////////////////////////////////////////////////
-volatile omptarget_nvptx_WorkFn SHARED(omptarget_nvptx_workFn);
+omptarget_nvptx_WorkFn SHARED(omptarget_nvptx_workFn);
 
 ////////////////////////////////////////////////////////////////////////////////
 // OpenMP kernel execution parameters

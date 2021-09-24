@@ -15,6 +15,7 @@
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/RangeMap.h"
+#include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/UUID.h"
 
 // This class needs to be hidden as eventually belongs in a plugin that
@@ -83,6 +84,8 @@ public:
 
   bool IsDynamicLoader() const;
 
+  bool IsSharedCacheBinary() const;
+
   uint32_t GetAddressByteSize() const override;
 
   lldb_private::AddressClass GetAddressClass(lldb::addr_t file_addr) override;
@@ -113,6 +116,8 @@ public:
 
   std::string GetIdentifierString() override;
 
+  lldb::addr_t GetAddressMask() override;
+
   bool GetCorefileMainBinaryInfo(lldb::addr_t &address,
                                  lldb_private::UUID &uuid,
                                  ObjectFile::BinaryType &type) override;
@@ -142,8 +147,6 @@ public:
 
   // PluginInterface protocol
   lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
 
 protected:
   static lldb_private::UUID
@@ -223,6 +226,15 @@ protected:
     bool currently_executing;
     std::vector<std::tuple<lldb_private::ConstString, lldb::addr_t>>
         segment_load_addresses;
+  };
+
+  struct LCNoteEntry {
+    LCNoteEntry(uint32_t addr_byte_size, lldb::ByteOrder byte_order)
+        : payload(lldb_private::Stream::eBinary, addr_byte_size, byte_order) {}
+
+    std::string name;
+    lldb::addr_t payload_file_offset = 0;
+    lldb_private::StreamString payload;
   };
 
   struct MachOCorefileAllImageInfos {

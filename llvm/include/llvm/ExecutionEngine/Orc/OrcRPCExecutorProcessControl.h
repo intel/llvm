@@ -13,6 +13,7 @@
 #ifndef LLVM_EXECUTIONENGINE_ORC_ORCRPCEXECUTORPROCESSCONTROL_H
 #define LLVM_EXECUTIONENGINE_ORC_ORCRPCEXECUTORPROCESSCONTROL_H
 
+#include "llvm/ExecutionEngine/Orc/Core.h"
 #include "llvm/ExecutionEngine/Orc/ExecutorProcessControl.h"
 #include "llvm/ExecutionEngine/Orc/Shared/RPCUtils.h"
 #include "llvm/ExecutionEngine/Orc/Shared/RawByteChannel.h"
@@ -79,7 +80,7 @@ public:
         auto &HA = KV.second;
         auto &TA = TargetAllocs[KV.first];
         BufferWrites.push_back({TA.Address, StringRef(HA.Mem.get(), HA.Size)});
-        FMR.push_back({orcrpctpc::toWireProtectionFlags(
+        FMR.push_back({tpctypes::toWireProtectionFlags(
                            static_cast<sys::Memory::ProtectionFlags>(KV.first)),
                        TA.Address, TA.AllocatedSize});
       }
@@ -91,9 +92,7 @@ public:
           auto Prot = FMRI->Prot;
           ++FMRI;
           dbgs() << "  Writing " << formatv("{0:x16}", B.Buffer.size())
-                 << " bytes to " << ((Prot & orcrpctpc::WPF_Read) ? 'R' : '-')
-                 << ((Prot & orcrpctpc::WPF_Write) ? 'W' : '-')
-                 << ((Prot & orcrpctpc::WPF_Exec) ? 'X' : '-')
+                 << " bytes to " << tpctypes::getWireProtectionFlagsStr(Prot)
                  << " segment: local " << (const void *)B.Buffer.data()
                  << " -> target " << formatv("{0:x16}", B.Address) << "\n";
         }
@@ -131,7 +130,7 @@ public:
     Error deallocate() override {
       orcrpctpc::ReleaseOrFinalizeMemRequest RMR;
       for (auto &KV : TargetAllocs)
-        RMR.push_back({orcrpctpc::toWireProtectionFlags(
+        RMR.push_back({tpctypes::toWireProtectionFlags(
                            static_cast<sys::Memory::ProtectionFlags>(KV.first)),
                        KV.second.Address, KV.second.AllocatedSize});
       TargetAllocs.clear();
@@ -157,7 +156,7 @@ public:
       assert(KV.second.getContentSize() <= std::numeric_limits<size_t>::max() &&
              "Content size is out-of-range for host");
 
-      RMR.push_back({orcrpctpc::toWireProtectionFlags(
+      RMR.push_back({tpctypes::toWireProtectionFlags(
                          static_cast<sys::Memory::ProtectionFlags>(KV.first)),
                      KV.second.getContentSize() + KV.second.getZeroFillSize(),
                      KV.second.getAlignment()});
@@ -195,7 +194,7 @@ public:
 
     TargetAllocMap TargetAllocs;
     for (auto &E : *TmpTargetAllocs)
-      TargetAllocs[orcrpctpc::fromWireProtectionFlags(E.Prot)] = {
+      TargetAllocs[tpctypes::fromWireProtectionFlags(E.Prot)] = {
           E.Address, E.AllocatedSize};
 
     DEBUG_WITH_TYPE("orc", {
@@ -230,28 +229,28 @@ class OrcRPCEPCMemoryAccess : public ExecutorProcessControl::MemoryAccess {
 public:
   OrcRPCEPCMemoryAccess(OrcRPCEPCImplT &Parent) : Parent(Parent) {}
 
-  void writeUInt8s(ArrayRef<tpctypes::UInt8Write> Ws,
-                   WriteResultFn OnWriteComplete) override {
+  void writeUInt8sAsync(ArrayRef<tpctypes::UInt8Write> Ws,
+                        WriteResultFn OnWriteComplete) override {
     writeViaRPC<orcrpctpc::WriteUInt8s>(Ws, std::move(OnWriteComplete));
   }
 
-  void writeUInt16s(ArrayRef<tpctypes::UInt16Write> Ws,
-                    WriteResultFn OnWriteComplete) override {
+  void writeUInt16sAsync(ArrayRef<tpctypes::UInt16Write> Ws,
+                         WriteResultFn OnWriteComplete) override {
     writeViaRPC<orcrpctpc::WriteUInt16s>(Ws, std::move(OnWriteComplete));
   }
 
-  void writeUInt32s(ArrayRef<tpctypes::UInt32Write> Ws,
-                    WriteResultFn OnWriteComplete) override {
+  void writeUInt32sAsync(ArrayRef<tpctypes::UInt32Write> Ws,
+                         WriteResultFn OnWriteComplete) override {
     writeViaRPC<orcrpctpc::WriteUInt32s>(Ws, std::move(OnWriteComplete));
   }
 
-  void writeUInt64s(ArrayRef<tpctypes::UInt64Write> Ws,
-                    WriteResultFn OnWriteComplete) override {
+  void writeUInt64sAsync(ArrayRef<tpctypes::UInt64Write> Ws,
+                         WriteResultFn OnWriteComplete) override {
     writeViaRPC<orcrpctpc::WriteUInt64s>(Ws, std::move(OnWriteComplete));
   }
 
-  void writeBuffers(ArrayRef<tpctypes::BufferWrite> Ws,
-                    WriteResultFn OnWriteComplete) override {
+  void writeBuffersAsync(ArrayRef<tpctypes::BufferWrite> Ws,
+                         WriteResultFn OnWriteComplete) override {
     writeViaRPC<orcrpctpc::WriteBuffers>(Ws, std::move(OnWriteComplete));
   }
 
@@ -358,9 +357,9 @@ public:
     return Result;
   }
 
-  void runWrapperAsync(SendResultFunction OnComplete,
-                       JITTargetAddress WrapperFnAddr,
-                       ArrayRef<char> ArgBuffer) override {
+  void callWrapperAsync(SendResultFunction OnComplete,
+                        JITTargetAddress WrapperFnAddr,
+                        ArrayRef<char> ArgBuffer) override {
     DEBUG_WITH_TYPE("orc", {
       dbgs() << "Running as wrapper function "
              << formatv("{0:x16}", WrapperFnAddr) << " with "
@@ -402,7 +401,7 @@ protected:
   Error initializeORCRPCEPCBase() {
     if (auto EPI = EP.template callB<orcrpctpc::GetExecutorProcessInfo>()) {
       this->TargetTriple = Triple(EPI->Triple);
-      this->PageSize = PageSize;
+      this->PageSize = EPI->PageSize;
       this->JDI = {ExecutorAddress(EPI->DispatchFuncAddr),
                    ExecutorAddress(EPI->DispatchCtxAddr)};
       return Error::success();
@@ -415,7 +414,7 @@ private:
       std::function<Error(Expected<shared::WrapperFunctionResult>)> SendResult,
       JITTargetAddress FunctionTag, std::vector<uint8_t> ArgBuffer) {
 
-    runJITSideWrapperFunction(
+    getExecutionSession().runJITDispatchHandler(
         [this, SendResult = std::move(SendResult)](
             Expected<shared::WrapperFunctionResult> R) {
           if (auto Err = SendResult(std::move(R)))

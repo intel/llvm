@@ -886,7 +886,8 @@ static void InsertBuiltinDeclarationsFromTable(
     for (const auto &FTy : FunctionList) {
       NewBuiltin = FunctionDecl::Create(
           Context, Parent, Loc, Loc, II, FTy, /*TInfo=*/nullptr, SC_Extern,
-          false, FTy->isFunctionProtoType());
+          S.getCurFPFeatures().isFPConstrained(), false,
+          FTy->isFunctionProtoType());
       NewBuiltin->setImplicit();
 
       // Create Decl objects for each parameter, adding them to the

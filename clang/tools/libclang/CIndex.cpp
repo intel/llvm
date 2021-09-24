@@ -1988,7 +1988,8 @@ public:
     return static_cast<const FieldDecl *>(data[0]);
   }
   SourceLocation getLoc() const {
-    return SourceLocation::getFromRawEncoding((unsigned)(uintptr_t)data[1]);
+    return SourceLocation::getFromRawEncoding(
+        (SourceLocation::UIntTy)(uintptr_t)data[1]);
   }
 };
 class EnqueueVisitor : public ConstStmtVisitor<EnqueueVisitor, void> {
@@ -5586,6 +5587,8 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
     return cxstring::createRef("ModuleImport");
   case CXCursor_OMPCanonicalLoop:
     return cxstring::createRef("OMPCanonicalLoop");
+  case CXCursor_OMPMetaDirective:
+    return cxstring::createRef("OMPMetaDirective");
   case CXCursor_OMPParallelDirective:
     return cxstring::createRef("OMPParallelDirective");
   case CXCursor_OMPSimdDirective:

@@ -74,6 +74,8 @@ llvm::FloatABI::ABIType getFloatABIForCalls();
 
 llvm::FPOpFusion::FPOpFusionMode getFuseFPOps();
 
+SwiftAsyncFramePointerMode getSwiftAsyncFramePointer();
+
 bool getDontPlaceZerosInBSS();
 
 bool getEnableGuaranteedTailCallOpt();
@@ -137,6 +139,8 @@ bool getForceDwarfFrameSection();
 bool getXRayOmitFunctionIndex();
 
 bool getDebugStrictDwarf();
+
+unsigned getAlignLoops();
 
 /// Create this object with static storage to register codegen-related command
 /// line options.

@@ -80,7 +80,6 @@ CodeGenFunction::CodeGenFunction(CodeGenModule &cgm, bool suppressNewContext)
   EHStack.setCGF(this);
 
   SetFastMathFlags(CurFPFeatures);
-  SetFPModel();
 }
 
 CodeGenFunction::~CodeGenFunction() {
@@ -109,17 +108,6 @@ clang::ToConstrainedExceptMD(LangOptions::FPExceptionModeKind Kind) {
   case LangOptions::FPE_Strict:  return llvm::fp::ebStrict;
   }
   llvm_unreachable("Unsupported FP Exception Behavior");
-}
-
-void CodeGenFunction::SetFPModel() {
-  llvm::RoundingMode RM = getLangOpts().getFPRoundingMode();
-  auto fpExceptionBehavior = ToConstrainedExceptMD(
-                               getLangOpts().getFPExceptionMode());
-
-  Builder.setDefaultConstrainedRounding(RM);
-  Builder.setDefaultConstrainedExcept(fpExceptionBehavior);
-  Builder.setIsFPConstrained(fpExceptionBehavior != llvm::fp::ebIgnore ||
-                             RM != llvm::RoundingMode::NearestTiesToEven);
 }
 
 void CodeGenFunction::SetFastMathFlags(FPOptions FPFeatures) {
@@ -395,6 +383,9 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
                        "__cyg_profile_func_exit");
   }
 
+  if (ShouldSkipSanitizerInstrumentation())
+    CurFn->addFnAttr(llvm::Attribute::DisableSanitizerInstrumentation);
+
   // Emit debug descriptor for function end.
   if (CGDebugInfo *DI = getDebugInfo())
     DI->EmitFunctionEnd(Builder, CurFn);
@@ -498,11 +489,13 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
   //    function.
   CurFn->addFnAttr("min-legal-vector-width", llvm::utostr(LargestVectorWidth));
 
-  // Add vscale attribute if appropriate.
-  if (getLangOpts().ArmSveVectorBits) {
-    unsigned VScale = getLangOpts().ArmSveVectorBits / 128;
-    CurFn->addFnAttr(llvm::Attribute::getWithVScaleRangeArgs(getLLVMContext(),
-                                                             VScale, VScale));
+  // Add vscale_range attribute if appropriate.
+  Optional<std::pair<unsigned, unsigned>> VScaleRange =
+      getContext().getTargetInfo().getVScaleRange(getLangOpts());
+  if (VScaleRange) {
+    CurFn->addFnAttr(llvm::Attribute::getWithVScaleRangeArgs(
+        getLLVMContext(), VScaleRange.getValue().first,
+        VScaleRange.getValue().second));
   }
 
   // If we generated an unreachable return block, delete it now.
@@ -529,6 +522,12 @@ bool CodeGenFunction::ShouldInstrumentFunction() {
   if (!CurFuncDecl || CurFuncDecl->hasAttr<NoInstrumentFunctionAttr>())
     return false;
   return true;
+}
+
+bool CodeGenFunction::ShouldSkipSanitizerInstrumentation() {
+  if (!CurFuncDecl)
+    return false;
+  return CurFuncDecl->hasAttr<DisableSanitizerInstrumentationAttr>();
 }
 
 /// ShouldXRayInstrument - Return true if the current function should be
@@ -858,9 +857,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
 
   DidCallStackSave = false;
   CurCodeDecl = D;
-  if (const auto *FD = dyn_cast_or_null<FunctionDecl>(D))
-    if (FD->usesSEHTry())
-      CurSEHParent = FD;
+  const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
+  if (FD && FD->usesSEHTry())
+    CurSEHParent = FD;
   CurFuncDecl = (D ? D->getNonClosureContext() : nullptr);
   FnRetTy = RetTy;
   CurFn = Fn;
@@ -951,10 +950,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   // are not aware of how to move the extra UBSan instructions across the split
   // coroutine boundaries.
   if (D && SanOpts.has(SanitizerKind::Null))
-    if (const auto *FD = dyn_cast<FunctionDecl>(D))
-      if (FD->getBody() &&
-          FD->getBody()->getStmtClass() == Stmt::CoroutineBodyStmtClass)
-        SanOpts.Mask &= ~SanitizerKind::Null;
+    if (FD && FD->getBody() &&
+        FD->getBody()->getStmtClass() == Stmt::CoroutineBodyStmtClass)
+      SanOpts.Mask &= ~SanitizerKind::Null;
 
   // Apply xray attributes to the function (as a string, for now)
   bool AlwaysXRayAttr = false;
@@ -1069,36 +1067,30 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
                     llvm::MDNode::get(getLLVMContext(), AttrMDArgs));
   }
 
-  if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
+  if (FD && (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice)) {
     // Add metadata for a kernel function.
-    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
-      EmitOpenCLKernelMetadata(FD, Fn);
+    EmitOpenCLKernelMetadata(FD, Fn);
 
-      if (getLangOpts().SYCLIsDevice)
-        CGM.getSYCLRuntime().actOnFunctionStart(*FD, *Fn);
-    }
+    if (getLangOpts().SYCLIsDevice)
+      CGM.getSYCLRuntime().actOnFunctionStart(*FD, *Fn);
   }
 
   // If we are checking function types, emit a function type signature as
   // prologue data.
-  if (getLangOpts().CPlusPlus && SanOpts.has(SanitizerKind::Function)) {
-    if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
-      if (llvm::Constant *PrologueSig = getPrologueSignature(CGM, FD)) {
-        // Remove any (C++17) exception specifications, to allow calling e.g. a
-        // noexcept function through a non-noexcept pointer.
-        auto ProtoTy =
-          getContext().getFunctionTypeWithExceptionSpec(FD->getType(),
-                                                        EST_None);
-        llvm::Constant *FTRTTIConst =
-            CGM.GetAddrOfRTTIDescriptor(ProtoTy, /*ForEH=*/true);
-        llvm::Constant *FTRTTIConstEncoded =
-            EncodeAddrForUseInPrologue(Fn, FTRTTIConst);
-        llvm::Constant *PrologueStructElems[] = {PrologueSig,
-                                                 FTRTTIConstEncoded};
-        llvm::Constant *PrologueStructConst =
-            llvm::ConstantStruct::getAnon(PrologueStructElems, /*Packed=*/true);
-        Fn->setPrologueData(PrologueStructConst);
-      }
+  if (FD && getLangOpts().CPlusPlus && SanOpts.has(SanitizerKind::Function)) {
+    if (llvm::Constant *PrologueSig = getPrologueSignature(CGM, FD)) {
+      // Remove any (C++17) exception specifications, to allow calling e.g. a
+      // noexcept function through a non-noexcept pointer.
+      auto ProtoTy = getContext().getFunctionTypeWithExceptionSpec(
+          FD->getType(), EST_None);
+      llvm::Constant *FTRTTIConst =
+          CGM.GetAddrOfRTTIDescriptor(ProtoTy, /*ForEH=*/true);
+      llvm::Constant *FTRTTIConstEncoded =
+          EncodeAddrForUseInPrologue(Fn, FTRTTIConst);
+      llvm::Constant *PrologueStructElems[] = {PrologueSig, FTRTTIConstEncoded};
+      llvm::Constant *PrologueStructConst =
+          llvm::ConstantStruct::getAnon(PrologueStructElems, /*Packed=*/true);
+      Fn->setPrologueData(PrologueStructConst);
     }
   }
 
@@ -1125,25 +1117,28 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   //     kernels cannot include RTTI information, exception classes,
   //     recursive code, virtual functions or make use of C++ libraries that
   //     are not compiled for the device.
-  if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
-    if ((getLangOpts().CPlusPlus && FD->isMain()) || getLangOpts().OpenCL ||
-        getLangOpts().SYCLIsDevice ||
-        (getLangOpts().CUDA && FD->hasAttr<CUDAGlobalAttr>()))
-      Fn->addFnAttr(llvm::Attribute::NoRecurse);
-  }
+  if (FD && ((getLangOpts().CPlusPlus && FD->isMain()) ||
+             getLangOpts().OpenCL || getLangOpts().SYCLIsDevice ||
+             (getLangOpts().CUDA && FD->hasAttr<CUDAGlobalAttr>())))
+    Fn->addFnAttr(llvm::Attribute::NoRecurse);
 
-  if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D)) {
-    Builder.setIsFPConstrained(FD->hasAttr<StrictFPAttr>());
-    if (FD->hasAttr<StrictFPAttr>())
-      Fn->addFnAttr(llvm::Attribute::StrictFP);
+  llvm::RoundingMode RM = getLangOpts().getFPRoundingMode();
+  llvm::fp::ExceptionBehavior FPExceptionBehavior =
+      ToConstrainedExceptMD(getLangOpts().getFPExceptionMode());
+  Builder.setDefaultConstrainedRounding(RM);
+  Builder.setDefaultConstrainedExcept(FPExceptionBehavior);
+  if ((FD && (FD->UsesFPIntrin() || FD->hasAttr<StrictFPAttr>())) ||
+      (!FD && (FPExceptionBehavior != llvm::fp::ebIgnore ||
+               RM != llvm::RoundingMode::NearestTiesToEven))) {
+    Builder.setIsFPConstrained(true);
+    Fn->addFnAttr(llvm::Attribute::StrictFP);
   }
 
   // If a custom alignment is used, force realigning to this alignment on
   // any main function which certainly will need it.
-  if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))
-    if ((FD->isMain() || FD->isMSVCRTEntryPoint()) &&
-        CGM.getCodeGenOpts().StackAlignment)
-      Fn->addFnAttr("stackrealign");
+  if (FD && ((FD->isMain() || FD->isMSVCRTEntryPoint()) &&
+             CGM.getCodeGenOpts().StackAlignment))
+    Fn->addFnAttr("stackrealign");
 
   if (getLangOpts().SYCLIsDevice)
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))
@@ -1175,7 +1170,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     // such as 'this' and 'vtt', show up in the debug info. Preserve the calling
     // convention.
     CallingConv CC = CallingConv::CC_C;
-    if (auto *FD = dyn_cast_or_null<FunctionDecl>(D))
+    if (FD)
       if (const auto *SrcFnTy = FD->getType()->getAs<FunctionType>())
         CC = SrcFnTy->getCallConv();
     SmallVector<QualType, 16> ArgTypes;
@@ -1235,7 +1230,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     Fn->addFnAttr("packed-stack");
   }
 
-  if (CGM.getCodeGenOpts().WarnStackSize != UINT_MAX)
+  if (CGM.getCodeGenOpts().WarnStackSize != UINT_MAX &&
+      !CGM.getDiags().isIgnored(diag::warn_fe_backend_frame_larger_than, Loc))
     Fn->addFnAttr("warn-stack-size",
                   std::to_string(CGM.getCodeGenOpts().WarnStackSize));
 
@@ -2620,6 +2616,10 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
   assert(D->hasAttr<AnnotateAttr>() && "no annotate attribute");
   llvm::Value *V = Addr.getPointer();
   llvm::Type *VTy = V->getType();
+  auto *PTy = dyn_cast<llvm::PointerType>(VTy);
+  unsigned AS = PTy ? PTy->getAddressSpace() : 0;
+  llvm::PointerType *IntrinTy =
+      llvm::PointerType::getWithSamePointeeType(CGM.Int8PtrTy, AS);
 
   // llvm.ptr.annotation intrinsic accepts a pointer to integer of any width -
   // don't perform bitcasts if value is integer
@@ -2632,11 +2632,11 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
     return Address(V, Addr.getAlignment());
   }
 
-  llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
-                                    CGM.Int8PtrTy);
+  llvm::Function *F =
+      CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation, IntrinTy);
 
   for (const auto *I : D->specific_attrs<AnnotateAttr>()) {
-    V = Builder.CreateBitCast(V, CGM.Int8PtrTy);
+    V = Builder.CreateBitCast(V, IntrinTy);
     V = EmitAnnotationCall(F, V, I->getAnnotation(), D->getLocation(), I);
     V = Builder.CreateBitCast(V, VTy);
   }

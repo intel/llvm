@@ -183,6 +183,8 @@ DIE *DwarfCompileUnit::getOrCreateGlobalVariableDIE(
   else
     addGlobalName(GV->getName(), *VariableDIE, DeclContext);
 
+  addAnnotation(*VariableDIE, GV->getAnnotations());
+
   if (uint32_t AlignInBytes = GV->getAlignInBytes())
     addUInt(*VariableDIE, dwarf::DW_AT_alignment, dwarf::DW_FORM_udata,
             AlignInBytes);
@@ -1103,9 +1105,10 @@ void DwarfCompileUnit::constructAbstractSubprogramScopeDIE(
   // shouldn't be found by lookup.
   AbsDef = &ContextCU->createAndAddDIE(dwarf::DW_TAG_subprogram, *ContextDIE, nullptr);
   ContextCU->applySubprogramAttributesToDefinition(SP, *AbsDef);
-
-  if (!ContextCU->includeMinimalInlineScopes())
-    ContextCU->addUInt(*AbsDef, dwarf::DW_AT_inline, None, dwarf::DW_INL_inlined);
+  ContextCU->addSInt(*AbsDef, dwarf::DW_AT_inline,
+                     DD->getDwarfVersion() <= 4 ? Optional<dwarf::Form>()
+                                                : dwarf::DW_FORM_implicit_const,
+                     dwarf::DW_INL_inlined);
   if (DIE *ObjectPointer = ContextCU->createAndAddScopeChildren(Scope, *AbsDef))
     ContextCU->addDIEEntry(*AbsDef, dwarf::DW_AT_object_pointer, *ObjectPointer);
 }
@@ -1162,7 +1165,7 @@ DwarfCompileUnit::getDwarf5OrGNULocationAtom(dwarf::LocationAtom Loc) const {
 }
 
 DIE &DwarfCompileUnit::constructCallSiteEntryDIE(DIE &ScopeDIE,
-                                                 DIE *CalleeDIE,
+                                                 const DISubprogram *CalleeSP,
                                                  bool IsTail,
                                                  const MCSymbol *PCAddr,
                                                  const MCSymbol *CallAddr,
@@ -1176,7 +1179,8 @@ DIE &DwarfCompileUnit::constructCallSiteEntryDIE(DIE &ScopeDIE,
     addAddress(CallSiteDIE, getDwarf5OrGNUAttr(dwarf::DW_AT_call_target),
                MachineLocation(CallReg));
   } else {
-    assert(CalleeDIE && "No DIE for call site entry origin");
+    DIE *CalleeDIE = getOrCreateSubprogramDIE(CalleeSP);
+    assert(CalleeDIE && "Could not create DIE for call site entry origin");
     addDIEEntry(CallSiteDIE, getDwarf5OrGNUAttr(dwarf::DW_AT_call_origin),
                 *CalleeDIE);
   }
@@ -1264,6 +1268,16 @@ DIE *DwarfCompileUnit::constructImportedEntityDIE(
   StringRef Name = Module->getName();
   if (!Name.empty())
     addString(*IMDie, dwarf::DW_AT_name, Name);
+
+  // This is for imported module with renamed entities (such as variables and
+  // subprograms).
+  DINodeArray Elements = Module->getElements();
+  for (const auto *Element : Elements) {
+    if (!Element)
+      continue;
+    IMDie->addChild(
+        constructImportedEntityDIE(cast<DIImportedEntity>(Element)));
+  }
 
   return IMDie;
 }
@@ -1479,10 +1493,12 @@ void DwarfCompileUnit::applyVariableAttributes(const DbgVariable &Var,
   if (!Name.empty())
     addString(VariableDie, dwarf::DW_AT_name, Name);
   const auto *DIVar = Var.getVariable();
-  if (DIVar)
+  if (DIVar) {
     if (uint32_t AlignInBytes = DIVar->getAlignInBytes())
       addUInt(VariableDie, dwarf::DW_AT_alignment, dwarf::DW_FORM_udata,
               AlignInBytes);
+    addAnnotation(VariableDie, DIVar->getAnnotations());
+  }
 
   addSourceLine(VariableDie, DIVar);
   addType(VariableDie, Var.getType());

@@ -18,7 +18,6 @@
 #include "lld/Common/Reproduce.h"
 #include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
@@ -187,17 +186,17 @@ static void searchedDylib(const Twine &path, bool found) {
 Optional<std::string> macho::resolveDylibPath(StringRef dylibPath) {
   // TODO: if a tbd and dylib are both present, we should check to make sure
   // they are consistent.
-  bool dylibExists = fs::exists(dylibPath);
-  searchedDylib(dylibPath, dylibExists);
-  if (dylibExists)
-    return std::string(dylibPath);
-
   SmallString<261> tbdPath = dylibPath;
   path::replace_extension(tbdPath, ".tbd");
   bool tbdExists = fs::exists(tbdPath);
   searchedDylib(tbdPath, tbdExists);
   if (tbdExists)
     return std::string(tbdPath);
+
+  bool dylibExists = fs::exists(dylibPath);
+  searchedDylib(dylibPath, dylibExists);
+  if (dylibExists)
+    return std::string(dylibPath);
   return {};
 }
 
@@ -275,29 +274,6 @@ StringRef macho::rerootPath(StringRef path) {
     return *rerootedPath;
 
   return path;
-}
-
-Optional<InputFile *> macho::loadArchiveMember(MemoryBufferRef mb,
-                                               uint32_t modTime,
-                                               StringRef archiveName,
-                                               bool objCOnly) {
-  if (config->zeroModTime)
-    modTime = 0;
-
-  switch (identify_magic(mb.getBuffer())) {
-  case file_magic::macho_object:
-    if (!objCOnly || hasObjCSection(mb))
-      return make<ObjFile>(mb, modTime, archiveName);
-    return None;
-  case file_magic::bitcode:
-    if (!objCOnly || check(isBitcodeContainingObjCCategory(mb)))
-      return make<BitcodeFile>(mb);
-    return None;
-  default:
-    error(archiveName + ": archive member " + mb.getBufferIdentifier() +
-          " has unhandled file type");
-    return None;
-  }
 }
 
 uint32_t macho::getModTime(StringRef path) {

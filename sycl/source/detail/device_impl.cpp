@@ -17,7 +17,9 @@ namespace sycl {
 namespace detail {
 
 device_impl::device_impl()
-    : MIsHostDevice(true), MPlatform(platform_impl::getHostPlatformImpl()) {}
+    : MIsHostDevice(true), MPlatform(platform_impl::getHostPlatformImpl()),
+      // assert is natively supported by host
+      MIsAssertFailSupported(true) {}
 
 device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          const plugin &Plugin)
@@ -70,6 +72,9 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
     Platform = platform_impl::getPlatformFromPiDevice(MDevice, Plugin);
   }
   MPlatform = Platform;
+
+  MIsAssertFailSupported =
+      has_extension(PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT);
 }
 
 device_impl::~device_impl() {
@@ -317,6 +322,8 @@ bool device_impl::has(aspect Aspect) const {
     return false;
   case aspect::ext_oneapi_srgb:
     return get_info<info::device::ext_oneapi_srgb>();
+  case aspect::ext_oneapi_native_assert:
+    return isAssertFailSupported();
 
   default:
     throw runtime_error("This device aspect has not been implemented yet.",
@@ -329,6 +336,10 @@ std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {
       std::make_shared<device_impl>();
 
   return HostImpl;
+}
+
+bool device_impl::isAssertFailSupported() const {
+  return MIsAssertFailSupported;
 }
 
 } // namespace detail

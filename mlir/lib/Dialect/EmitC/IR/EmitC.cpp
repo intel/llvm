@@ -9,6 +9,7 @@
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
@@ -123,7 +124,7 @@ OpFoldResult emitc::ConstantOp::fold(ArrayRef<Attribute> operands) {
 static void print(OpAsmPrinter &p, IncludeOp &op) {
   bool standardInclude = op.is_standard_include();
 
-  p << IncludeOp::getOperationName() << " ";
+  p << " ";
   if (standardInclude)
     p << "<";
   p << "\"" << op.include() << "\"";
@@ -169,7 +170,7 @@ Attribute emitc::OpaqueAttr::parse(MLIRContext *context,
                                    DialectAsmParser &parser, Type type) {
   if (parser.parseLess())
     return Attribute();
-  StringRef value;
+  std::string value;
   llvm::SMLoc loc = parser.getCurrentLocation();
   if (parser.parseOptionalString(&value)) {
     parser.emitError(loc) << "expected string";
@@ -201,7 +202,9 @@ void EmitCDialect::printAttribute(Attribute attr, DialectAsmPrinter &os) const {
 }
 
 void emitc::OpaqueAttr::print(DialectAsmPrinter &printer) const {
-  printer << "opaque<\"" << getValue() << "\">";
+  printer << "opaque<\"";
+  llvm::printEscapedString(getValue(), printer.getStream());
+  printer << "\">";
 }
 
 //===----------------------------------------------------------------------===//
@@ -214,7 +217,7 @@ void emitc::OpaqueAttr::print(DialectAsmPrinter &printer) const {
 Type emitc::OpaqueType::parse(MLIRContext *context, DialectAsmParser &parser) {
   if (parser.parseLess())
     return Type();
-  StringRef value;
+  std::string value;
   llvm::SMLoc loc = parser.getCurrentLocation();
   if (parser.parseOptionalString(&value) || value.empty()) {
     parser.emitError(loc) << "expected non empty string";
@@ -245,5 +248,7 @@ void EmitCDialect::printType(Type type, DialectAsmPrinter &os) const {
 }
 
 void emitc::OpaqueType::print(DialectAsmPrinter &printer) const {
-  printer << "opaque<\"" << getValue() << "\">";
+  printer << "opaque<\"";
+  llvm::printEscapedString(getValue(), printer.getStream());
+  printer << "\">";
 }

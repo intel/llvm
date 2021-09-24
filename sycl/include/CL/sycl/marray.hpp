@@ -49,9 +49,9 @@ private:
       conjunction<TypeChecker<ArgTN, DataT>...>::value>::type;
 
 public:
-  marray() : MData{} {}
+  constexpr marray() : MData{} {}
 
-  explicit marray(const Type &Arg) {
+  explicit constexpr marray(const Type &Arg) {
     for (std::size_t I = 0; I < NumElements; ++I) {
       MData[I] = Arg;
     }
@@ -60,15 +60,15 @@ public:
   template <
       typename... ArgTN, typename = EnableIfSuitableTypes<ArgTN...>,
       typename = typename std::enable_if<sizeof...(ArgTN) == NumElements>::type>
-  marray(const ArgTN &... Args) : MData{Args...} {}
+  constexpr marray(const ArgTN &... Args) : MData{Args...} {}
 
-  marray(const marray<Type, NumElements> &Rhs) {
+  constexpr marray(const marray<Type, NumElements> &Rhs) {
     for (std::size_t I = 0; I < NumElements; ++I) {
       MData[I] = Rhs.MData[I];
     }
   }
 
-  marray(marray<Type, NumElements> &&Rhs) {
+  constexpr marray(marray<Type, NumElements> &&Rhs) {
     for (std::size_t I = 0; I < NumElements; ++I) {
       MData[I] = Rhs.MData[I];
     }
@@ -149,9 +149,9 @@ public:
   }
 
 #define __SYCL_BINOP_INTEGRAL(BINOP, OPASSIGN)                                 \
-  template <typename T = DataT>                                                \
-  friend typename std::enable_if<std::is_integral<T>::value, marray>           \
-  operator BINOP(const marray &Lhs, const marray &Rhs) {                       \
+  template <typename T = DataT,                                                \
+            typename = std::enable_if<std::is_integral<T>::value, marray>>     \
+  friend marray operator BINOP(const marray &Lhs, const marray &Rhs) {         \
     marray Ret;                                                                \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
       Ret[I] = Lhs[I] BINOP Rhs[I];                                            \
@@ -166,9 +166,9 @@ public:
   operator BINOP(const marray &Lhs, const T &Rhs) {                            \
     return Lhs BINOP marray(static_cast<DataT>(Rhs));                          \
   }                                                                            \
-  template <typename T = DataT>                                                \
-  friend typename std::enable_if<std::is_integral<T>::value, marray>           \
-      &operator OPASSIGN(marray &Lhs, const marray &Rhs) {                     \
+  template <typename T = DataT,                                                \
+            typename = std::enable_if<std::is_integral<T>::value, marray>>     \
+  friend marray &operator OPASSIGN(marray &Lhs, const marray &Rhs) {           \
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
   }                                                                            \

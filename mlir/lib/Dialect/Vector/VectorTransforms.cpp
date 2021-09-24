@@ -342,17 +342,6 @@ private:
   vector::UnrollVectorOptions options;
 };
 
-template <typename T>
-SmallVector<T> permute(AffineMap map, llvm::ArrayRef<T> source) {
-  SmallVector<T> result;
-  result.reserve(map.getNumResults());
-  for (unsigned i : llvm::seq(unsigned(0), map.getNumResults())) {
-    unsigned dim = map.getDimPosition(i);
-    result.push_back(source[dim]);
-  }
-  return result;
-}
-
 struct UnrollContractionPattern
     : public OpRewritePattern<vector::ContractionOp> {
   struct OffsetMapInfo {
@@ -402,8 +391,8 @@ struct UnrollContractionPattern
       auto extractOperand = [&](unsigned index, Value operand,
                                 AffineMap permutationMap,
                                 ArrayRef<int64_t> operandOffets) {
-        SmallVector<int64_t> operandShape =
-            permute(permutationMap, ArrayRef<int64_t>(*targetShape));
+        SmallVector<int64_t> operandShape = applyPermutationMap(
+            permutationMap, ArrayRef<int64_t>(*targetShape));
         SmallVector<int64_t, 4> operandStrides(operandOffets.size(), 1);
         slicesOperands[index] = rewriter.create<vector::ExtractStridedSliceOp>(
             loc, operand, operandOffets, operandShape, operandStrides);
@@ -412,7 +401,7 @@ struct UnrollContractionPattern
       // Extract the new lhs operand.
       AffineMap lhsPermutationMap = contractOp.getIndexingMaps()[0];
       SmallVector<int64_t> lhsOffets =
-          permute(lhsPermutationMap, ArrayRef<int64_t>(offsets));
+          applyPermutationMap(lhsPermutationMap, ArrayRef<int64_t>(offsets));
       extractOperand(0, contractOp.lhs(), lhsPermutationMap, lhsOffets);
       // If there is a mask associated to lhs, extract it as well.
       if (slicesOperands.size() > 3)
@@ -421,7 +410,7 @@ struct UnrollContractionPattern
       // Extract the new rhs operand.
       AffineMap rhsPermutationMap = contractOp.getIndexingMaps()[1];
       SmallVector<int64_t> rhsOffets =
-          permute(rhsPermutationMap, ArrayRef<int64_t>(offsets));
+          applyPermutationMap(rhsPermutationMap, ArrayRef<int64_t>(offsets));
       extractOperand(1, contractOp.rhs(), rhsPermutationMap, rhsOffets);
       // If there is a mask associated to rhs, extract it as well.
       if (slicesOperands.size() > 4)
@@ -429,7 +418,7 @@ struct UnrollContractionPattern
 
       AffineMap accPermutationMap = contractOp.getIndexingMaps()[2];
       SmallVector<int64_t> accOffets =
-          permute(accPermutationMap, ArrayRef<int64_t>(offsets));
+          applyPermutationMap(accPermutationMap, ArrayRef<int64_t>(offsets));
       // If a version of the accumulator has already been computed, use it
       // otherwise extract the first version from the original operand.
       auto accIt = accCache.find(accOffets);
@@ -439,13 +428,13 @@ struct UnrollContractionPattern
         extractOperand(2, contractOp.acc(), accPermutationMap, accOffets);
 
       SmallVector<int64_t> dstShape =
-          permute(dstAffineMap, ArrayRef<int64_t>(*targetShape));
+          applyPermutationMap(dstAffineMap, ArrayRef<int64_t>(*targetShape));
       auto targetType = VectorType::get(dstShape, dstVecType.getElementType());
       Operation *newOp = cloneOpWithOperandsAndTypes(
           rewriter, loc, contractOp, slicesOperands, targetType);
 
       SmallVector<int64_t> dstOffets =
-          permute(dstAffineMap, ArrayRef<int64_t>(offsets));
+          applyPermutationMap(dstAffineMap, ArrayRef<int64_t>(offsets));
       // Save the accumulated value untill all the loops are unrolled since
       // reduction loop keep updating the accumulator.
       accCache[dstOffets] = newOp->getResult(0);
@@ -1335,15 +1324,14 @@ LogicalResult ContractionOpToOuterProductOpLowering::matchAndRewrite(
   VectorType lhsType = op.getLhsType();
   Value lhs = op.lhs(), rhs = op.rhs(), res = op.acc();
 
-  // Set up the parallel/reduction structure in right form.
-  AffineExpr m, n, k;
-  bindDims(rewriter.getContext(), m, n, k);
-
   //
   // Two outer parallel, one inner reduction (matmat flavor).
   //
   UnrolledOuterProductEmitter e(rewriter, op);
   if (e.iters({Par(), Par(), Red()})) {
+    // Set up the parallel/reduction structure in right form.
+    AffineExpr m, n, k;
+    bindDims(rewriter.getContext(), m, n, k);
     // Classical row-major matmul:  Just permute the lhs.
     if (e.layout({{m, k}, {k, n}, {m, n}}))
       return e.outer_prod(e.t(lhs), rhs, res, lhsType.getDimSize(1));
@@ -1378,17 +1366,42 @@ LogicalResult ContractionOpToOuterProductOpLowering::matchAndRewrite(
   // One outer parallel, one inner reduction (matvec flavor)
   //
   if (e.iters({Par(), Red()})) {
+    AffineExpr m, k;
+    bindDims(rewriter.getContext(), m, k);
+
     // Case mat-vec: transpose.
-    if (e.layout({{m, n}, {n}, {m}}))
+    if (e.layout({{m, k}, {k}, {m}}))
       return e.outer_prod(e.t(lhs), rhs, res, lhsType.getDimSize(1));
     // Case mat-trans-vec: ready to go.
-    if (e.layout({{n, m}, {n}, {m}}))
+    if (e.layout({{k, m}, {k}, {m}}))
       return e.outer_prod(lhs, rhs, res, lhsType.getDimSize(0));
     // Case vec-mat: swap and transpose.
-    if (e.layout({{n}, {m, n}, {m}}))
+    if (e.layout({{k}, {m, k}, {m}}))
       return e.outer_prod(e.t(rhs), lhs, res, lhsType.getDimSize(0));
     // Case vec-mat-trans: swap and ready to go.
-    if (e.layout({{n}, {n, m}, {m}}))
+    if (e.layout({{k}, {k, m}, {m}}))
+      return e.outer_prod(rhs, lhs, res, lhsType.getDimSize(0));
+    return failure();
+  }
+
+  //
+  // One outer reduction, one inner parallel (tmatvec flavor)
+  //
+  if (e.iters({Red(), Par()})) {
+    AffineExpr k, m;
+    bindDims(rewriter.getContext(), k, m);
+
+    // Case mat-vec: transpose.
+    if (e.layout({{m, k}, {k}, {m}}))
+      return e.outer_prod(e.t(lhs), rhs, res, lhsType.getDimSize(1));
+    // Case mat-trans-vec: ready to go.
+    if (e.layout({{k, m}, {k}, {m}}))
+      return e.outer_prod(lhs, rhs, res, lhsType.getDimSize(0));
+    // Case vec-mat: swap and transpose.
+    if (e.layout({{k}, {m, k}, {m}}))
+      return e.outer_prod(e.t(rhs), lhs, res, lhsType.getDimSize(0));
+    // Case vec-mat-trans: swap and ready to go.
+    if (e.layout({{k}, {k, m}, {m}}))
       return e.outer_prod(rhs, lhs, res, lhsType.getDimSize(0));
     return failure();
   }
@@ -2815,6 +2828,18 @@ struct TransferOpReduceRank : public OpRewritePattern<vector::TransferReadOp> {
     // with broadasting. Otherwise we first want to permute the map.
     if (!newMap.isMinorIdentityWithBroadcasting())
       return failure();
+
+    // TODO: support zero-dimension vectors natively.  See:
+    // https://llvm.discourse.group/t/should-we-have-0-d-vectors/3097.
+    // In the meantime, lower these to a scalar load when they pop up.
+    if (reducedShapeRank == 0) {
+      Value newRead = rewriter.create<memref::LoadOp>(
+          op.getLoc(), originalVecType.getElementType(), op.source(),
+          op.indices());
+      rewriter.replaceOpWithNewOp<vector::BroadcastOp>(op, originalVecType,
+                                                       newRead);
+      return success();
+    }
     SmallVector<int64_t> newShape = llvm::to_vector<4>(
         originalVecType.getShape().take_back(reducedShapeRank));
     // Vector rank cannot be zero. Handled by TransferReadToVectorLoadLowering.
@@ -3465,11 +3490,17 @@ private:
   const bool enableIndexOptimizations;
 };
 
-// Converts vector.multi_reduction into inner-most reduction form by inserting
-// vector.transpose
-struct InnerDimReductionConversion
+// Converts vector.multi_reduction into inner-most/outer-most reduction form
+// by using vector.tranpose
+class InnerOuterDimReductionConversion
     : public OpRewritePattern<vector::MultiDimReductionOp> {
+public:
   using OpRewritePattern<vector::MultiDimReductionOp>::OpRewritePattern;
+
+  explicit InnerOuterDimReductionConversion(MLIRContext *context,
+                                            bool useInnerDimsForReduction)
+      : mlir::OpRewritePattern<vector::MultiDimReductionOp>(context),
+        useInnerDimsForReduction(useInnerDimsForReduction) {}
 
   LogicalResult matchAndRewrite(vector::MultiDimReductionOp multiReductionOp,
                                 PatternRewriter &rewriter) const override {
@@ -3491,92 +3522,203 @@ struct InnerDimReductionConversion
         parallelDims.push_back(i);
     }
 
-    // Add transpose only if inner-most dimensions are not reductions
-    if (parallelDims ==
-        llvm::to_vector<4>(llvm::seq<int64_t>(0, parallelDims.size())))
+    // Add transpose only if inner-most/outer-most dimensions are not parallel
+    if (useInnerDimsForReduction &&
+        (parallelDims ==
+         llvm::to_vector<4>(llvm::seq<int64_t>(0, parallelDims.size()))))
+      return failure();
+
+    if (!useInnerDimsForReduction &&
+        (parallelDims !=
+         llvm::to_vector<4>(llvm::seq<int64_t>(0, parallelDims.size()))))
       return failure();
 
     SmallVector<int64_t, 4> indices;
-    indices.append(parallelDims.begin(), parallelDims.end());
-    indices.append(reductionDims.begin(), reductionDims.end());
+    if (useInnerDimsForReduction) {
+      indices.append(parallelDims.begin(), parallelDims.end());
+      indices.append(reductionDims.begin(), reductionDims.end());
+    } else {
+      indices.append(reductionDims.begin(), reductionDims.end());
+      indices.append(parallelDims.begin(), parallelDims.end());
+    }
     auto transposeOp = rewriter.create<vector::TransposeOp>(loc, src, indices);
     SmallVector<bool> reductionMask(srcRank, false);
     for (int i = 0; i < reductionSize; ++i) {
-      reductionMask[srcRank - i - 1] = true;
+      if (useInnerDimsForReduction)
+        reductionMask[srcRank - i - 1] = true;
+      else
+        reductionMask[i] = true;
     }
     rewriter.replaceOpWithNewOp<vector::MultiDimReductionOp>(
         multiReductionOp, transposeOp.result(), reductionMask,
         multiReductionOp.kind());
     return success();
   }
+
+private:
+  const bool useInnerDimsForReduction;
 };
 
 // Reduces the rank of vector.mult_reduction nd -> 2d given all reduction
-// dimensions are inner most.
-struct ReduceMultiDimReductionRank
+// dimensions are either inner most or outer most.
+class ReduceMultiDimReductionRank
+    : public OpRewritePattern<vector::MultiDimReductionOp> {
+public:
+  using OpRewritePattern<vector::MultiDimReductionOp>::OpRewritePattern;
+
+  explicit ReduceMultiDimReductionRank(MLIRContext *context,
+                                       bool useInnerDimsForReduction)
+      : mlir::OpRewritePattern<vector::MultiDimReductionOp>(context),
+        useInnerDimsForReduction(useInnerDimsForReduction) {}
+
+  LogicalResult matchAndRewrite(vector::MultiDimReductionOp multiReductionOp,
+                                PatternRewriter &rewriter) const override {
+    auto srcRank = multiReductionOp.getSourceVectorType().getRank();
+    auto srcShape = multiReductionOp.getSourceVectorType().getShape();
+    auto loc = multiReductionOp.getLoc();
+    if (srcRank == 2)
+      return failure();
+
+    // Separate reduction and parallel dims
+    auto reductionDimsRange =
+        multiReductionOp.reduction_dims().getAsValueRange<IntegerAttr>();
+    auto reductionDims = llvm::to_vector<4>(llvm::map_range(
+        reductionDimsRange, [](APInt a) { return a.getZExtValue(); }));
+    llvm::SmallDenseSet<int64_t> reductionDimsSet(reductionDims.begin(),
+                                                  reductionDims.end());
+    SmallVector<int64_t, 4> parallelDims, parallelShapes;
+    int canonicalReductionDim = 1;
+    int canonicalParallelDim = 1;
+    for (int64_t i = 0; i < srcRank; i++) {
+      if (!reductionDimsSet.contains(i)) {
+        parallelDims.push_back(i);
+        parallelShapes.push_back(srcShape[i]);
+        canonicalParallelDim *= srcShape[i];
+      } else {
+        canonicalReductionDim *= srcShape[i];
+      }
+    }
+
+    // Fail if reduction dims are not either inner-most or outer-most
+    if (useInnerDimsForReduction &&
+        (parallelDims !=
+         llvm::to_vector<4>(llvm::seq<int64_t>(0, parallelDims.size()))))
+      return failure();
+
+    if (!useInnerDimsForReduction &&
+        (parallelDims ==
+         llvm::to_vector<4>(llvm::seq<int64_t>(0, parallelDims.size()))))
+      return failure();
+
+    // Creates shape cast for the inputs n_d -> 2d
+    int64_t outerDim =
+        useInnerDimsForReduction ? canonicalParallelDim : canonicalReductionDim;
+    int64_t innerDim =
+        useInnerDimsForReduction ? canonicalReductionDim : canonicalParallelDim;
+
+    auto castedType = VectorType::get(
+        ArrayRef<int64_t>{outerDim, innerDim},
+        multiReductionOp.getSourceVectorType().getElementType());
+    auto castedOp = rewriter.create<vector::ShapeCastOp>(
+        loc, castedType, multiReductionOp.source());
+
+    // Creates the canonical form of 2d vector.multi_reduction with inner/outer
+    // most dim as reduction.
+    SmallVector<bool, 2> mask{!useInnerDimsForReduction,
+                              useInnerDimsForReduction};
+    auto newOp = rewriter.create<vector::MultiDimReductionOp>(
+        loc, castedOp.result(), mask, multiReductionOp.kind());
+
+    // Creates shape cast for the output 2d -> nd
+    VectorType outputCastedType = VectorType::get(
+        parallelShapes,
+        multiReductionOp.getSourceVectorType().getElementType());
+    Value castedOutputOp = rewriter.create<vector::ShapeCastOp>(
+        loc, outputCastedType, newOp.dest());
+
+    rewriter.replaceOp(multiReductionOp, castedOutputOp);
+    return success();
+  }
+
+private:
+  const bool useInnerDimsForReduction;
+};
+
+// Unrolls vector.multi_reduction with outermost reductions
+// and combines results
+struct UnrollOuterMultiReduction
     : public OpRewritePattern<vector::MultiDimReductionOp> {
   using OpRewritePattern<vector::MultiDimReductionOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(vector::MultiDimReductionOp multiReductionOp,
                                 PatternRewriter &rewriter) const override {
     auto srcRank = multiReductionOp.getSourceVectorType().getRank();
-    auto srcShape = multiReductionOp.getSourceVectorType().getShape();
-    if (srcRank == 2)
+    if (srcRank != 2)
+      return failure();
+
+    if (multiReductionOp.getReductionMask()[1] ||
+        !multiReductionOp.getReductionMask()[0])
       return failure();
 
     auto loc = multiReductionOp.getLoc();
-    auto reductionDims = llvm::to_vector<4>(
-        llvm::map_range(multiReductionOp.reduction_dims().cast<ArrayAttr>(),
-                        [](Attribute attr) -> int64_t {
-                          return attr.cast<IntegerAttr>().getInt();
-                        }));
-    llvm::sort(reductionDims);
+    ArrayRef<int64_t> srcShape =
+        multiReductionOp.getSourceVectorType().getShape();
 
-    // Fails if not inner most reduction.
-    int64_t reductionSize = reductionDims.size();
-    bool innerMostReduction = true;
-    for (int i = 0; i < reductionSize; ++i) {
-      if (reductionDims[reductionSize - i - 1] != srcRank - i - 1) {
-        innerMostReduction = false;
-      }
-    }
-    if (!innerMostReduction)
+    Type elementType = multiReductionOp.getDestVectorType().getElementType();
+    if (!elementType.isIntOrIndexOrFloat())
       return failure();
 
-    // Extracts 2d rank reduction shape.
-    int innerDims = 1;
-    int outterDims = 1;
-    SmallVector<int64_t> innerDimsShape;
-    for (int i = 0; i < srcRank; ++i) {
-      if (i < (srcRank - reductionSize)) {
-        innerDims *= srcShape[i];
-        innerDimsShape.push_back(srcShape[i]);
-      } else {
-        outterDims *= srcShape[i];
+    Value condition;
+    Value result =
+        rewriter.create<vector::ExtractOp>(loc, multiReductionOp.source(), 0)
+            .getResult();
+    for (int64_t i = 1; i < srcShape[0]; i++) {
+      auto operand =
+          rewriter.create<vector::ExtractOp>(loc, multiReductionOp.source(), i);
+      switch (multiReductionOp.kind()) {
+      case vector::CombiningKind::ADD:
+        if (elementType.isIntOrIndex())
+          result = rewriter.create<AddIOp>(loc, operand, result);
+        else
+          result = rewriter.create<AddFOp>(loc, operand, result);
+        break;
+      case vector::CombiningKind::MUL:
+        if (elementType.isIntOrIndex())
+          result = rewriter.create<MulIOp>(loc, operand, result);
+        else
+          result = rewriter.create<MulFOp>(loc, operand, result);
+        break;
+      case vector::CombiningKind::MIN:
+        if (elementType.isIntOrIndex())
+          condition =
+              rewriter.create<CmpIOp>(loc, CmpIPredicate::slt, operand, result);
+        else
+          condition =
+              rewriter.create<CmpFOp>(loc, CmpFPredicate::OLT, operand, result);
+        result = rewriter.create<SelectOp>(loc, condition, operand, result);
+        break;
+      case vector::CombiningKind::MAX:
+        if (elementType.isIntOrIndex())
+          condition =
+              rewriter.create<CmpIOp>(loc, CmpIPredicate::sge, operand, result);
+        else
+          condition =
+              rewriter.create<CmpFOp>(loc, CmpFPredicate::OGE, operand, result);
+        result = rewriter.create<SelectOp>(loc, condition, operand, result);
+        break;
+      case vector::CombiningKind::AND:
+        result = rewriter.create<AndOp>(loc, operand, result);
+        break;
+      case vector::CombiningKind::OR:
+        result = rewriter.create<OrOp>(loc, operand, result);
+        break;
+      case vector::CombiningKind::XOR:
+        result = rewriter.create<XOrOp>(loc, operand, result);
+        break;
       }
     }
 
-    // Creates shape cast for the inputs n_d -> 2d
-    auto castedType = VectorType::get(
-        {innerDims, outterDims},
-        multiReductionOp.getSourceVectorType().getElementType());
-    auto castedOp = rewriter.create<vector::ShapeCastOp>(
-        loc, castedType, multiReductionOp.source());
-
-    // Creates the canonical form of 2d vector.multi_reduction with inner most
-    // dim as reduction.
-    auto newOp = rewriter.create<vector::MultiDimReductionOp>(
-        loc, castedOp.result(), ArrayRef<bool>{false, true},
-        multiReductionOp.kind());
-
-    // Creates shape cast for the output 2d -> nd
-    auto outputCastedType = VectorType::get(
-        innerDimsShape,
-        multiReductionOp.getSourceVectorType().getElementType());
-    Value castedOutputOp = rewriter.create<vector::ShapeCastOp>(
-        loc, outputCastedType, newOp.dest());
-
-    rewriter.replaceOp(multiReductionOp, castedOutputOp);
+    rewriter.replaceOp(multiReductionOp, result);
     return success();
   }
 };
@@ -3722,9 +3864,13 @@ void mlir::vector::populateVectorTransferLoweringPatterns(
 }
 
 void mlir::vector::populateVectorMultiReductionLoweringPatterns(
-    RewritePatternSet &patterns) {
-  patterns.add<InnerDimReductionConversion, ReduceMultiDimReductionRank,
-               TwoDimMultiReductionToReduction>(patterns.getContext());
+    RewritePatternSet &patterns, bool useInnerDimsForReduction) {
+  patterns.add<InnerOuterDimReductionConversion, ReduceMultiDimReductionRank>(
+      patterns.getContext(), useInnerDimsForReduction);
+  if (useInnerDimsForReduction)
+    patterns.add<TwoDimMultiReductionToReduction>(patterns.getContext());
+  else
+    patterns.add<UnrollOuterMultiReduction>(patterns.getContext());
 }
 
 void mlir::vector::populateVectorUnrollPatterns(

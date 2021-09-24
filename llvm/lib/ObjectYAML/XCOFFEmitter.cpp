@@ -18,8 +18,9 @@
 #include "llvm/ObjectYAML/ObjectYAML.h"
 #include "llvm/ObjectYAML/yaml2obj.h"
 #include "llvm/Support/EndianStream.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
@@ -33,7 +34,7 @@ class XCOFFWriter {
 public:
   XCOFFWriter(XCOFFYAML::Object &Obj, raw_ostream &OS, yaml::ErrorHandler EH)
       : Obj(Obj), W(OS, support::big), ErrHandler(EH),
-        Strings(StringTableBuilder::XCOFF) {
+        StrTblBuilder(StringTableBuilder::XCOFF) {
     Is64Bit = Obj.Header.Magic == (llvm::yaml::Hex16)XCOFF::XCOFF64;
   }
   bool writeXCOFF();
@@ -43,18 +44,20 @@ private:
   bool initFileHeader(uint64_t CurrentOffset);
   bool initSectionHeader(uint64_t &CurrentOffset);
   bool initRelocations(uint64_t &CurrentOffset);
+  bool initStringTable();
   bool assignAddressesAndIndices();
   void writeFileHeader();
   void writeSectionHeader();
   bool writeSectionData();
   bool writeRelocations();
   bool writeSymbols();
+  void writeStringTable();
 
   XCOFFYAML::Object &Obj;
   bool Is64Bit = false;
   support::endian::Writer W;
   yaml::ErrorHandler ErrHandler;
-  StringTableBuilder Strings;
+  StringTableBuilder StrTblBuilder;
   uint64_t StartOffset;
   // Map the section name to its corrresponding section index.
   DenseMap<StringRef, int16_t> SectionIndexMap = {
@@ -75,7 +78,8 @@ static void writeName(StringRef StrName, support::endian::Writer W) {
 }
 
 bool XCOFFWriter::nameShouldBeInStringTable(StringRef SymbolName) {
-  return SymbolName.size() > XCOFF::NameSize;
+  // For XCOFF64: The symbol name is always in the string table.
+  return (SymbolName.size() > XCOFF::NameSize) || Is64Bit;
 }
 
 bool XCOFFWriter::initRelocations(uint64_t &CurrentOffset) {
@@ -83,8 +87,9 @@ bool XCOFFWriter::initRelocations(uint64_t &CurrentOffset) {
     if (!InitSections[I].Relocations.empty()) {
       InitSections[I].NumberOfRelocations = InitSections[I].Relocations.size();
       InitSections[I].FileOffsetToRelocations = CurrentOffset;
-      CurrentOffset += InitSections[I].NumberOfRelocations *
-                       XCOFF::RelocationSerializationSize32;
+      uint64_t RelSize = Is64Bit ? XCOFF::RelocationSerializationSize64
+                                 : XCOFF::RelocationSerializationSize32;
+      CurrentOffset += InitSections[I].NumberOfRelocations * RelSize;
       if (CurrentOffset > MaxRawDataSize) {
         ErrHandler("maximum object size of" + Twine(MaxRawDataSize) +
                    "exceeded when writing relocation data");
@@ -138,20 +143,79 @@ bool XCOFFWriter::initSectionHeader(uint64_t &CurrentOffset) {
   return initRelocations(CurrentOffset);
 }
 
+bool XCOFFWriter::initStringTable() {
+  if (Obj.StrTbl.RawContent) {
+    size_t RawSize = Obj.StrTbl.RawContent->binary_size();
+    if (Obj.StrTbl.Strings || Obj.StrTbl.Length) {
+      ErrHandler(
+          "can't specify Strings or Length when RawContent is specified");
+      return false;
+    }
+    if (Obj.StrTbl.ContentSize && *Obj.StrTbl.ContentSize < RawSize) {
+      ErrHandler("specified ContentSize (" + Twine(*Obj.StrTbl.ContentSize) +
+                 ") is less than the RawContent data size (" + Twine(RawSize) +
+                 ")");
+      return false;
+    }
+    return true;
+  }
+  if (Obj.StrTbl.ContentSize && *Obj.StrTbl.ContentSize <= 3) {
+    ErrHandler("ContentSize shouldn't be less than 4 without RawContent");
+    return false;
+  }
+
+  // Build the string table.
+  StrTblBuilder.clear();
+
+  if (Obj.StrTbl.Strings) {
+    // All specified strings should be added to the string table.
+    for (StringRef StringEnt : *Obj.StrTbl.Strings)
+      StrTblBuilder.add(StringEnt);
+
+    size_t StrTblIdx = 0;
+    size_t NumOfStrings = Obj.StrTbl.Strings->size();
+    for (XCOFFYAML::Symbol &YamlSym : Obj.Symbols) {
+      if (nameShouldBeInStringTable(YamlSym.SymbolName)) {
+        if (StrTblIdx < NumOfStrings) {
+          // Overwrite the symbol name with the specified string.
+          YamlSym.SymbolName = (*Obj.StrTbl.Strings)[StrTblIdx];
+          ++StrTblIdx;
+        } else
+          // Names that are not overwritten are still stored in the string
+          // table.
+          StrTblBuilder.add(YamlSym.SymbolName);
+      }
+    }
+  } else {
+    for (XCOFFYAML::Symbol &YamlSym : Obj.Symbols) {
+      if (nameShouldBeInStringTable(YamlSym.SymbolName))
+        StrTblBuilder.add(YamlSym.SymbolName);
+    }
+  }
+
+  StrTblBuilder.finalize();
+
+  size_t StrTblSize = StrTblBuilder.getSize();
+  if (Obj.StrTbl.ContentSize && *Obj.StrTbl.ContentSize < StrTblSize) {
+    ErrHandler("specified ContentSize (" + Twine(*Obj.StrTbl.ContentSize) +
+               ") is less than the size of the data that would otherwise be "
+               "written (" +
+               Twine(StrTblSize) + ")");
+    return false;
+  }
+
+  return true;
+}
+
 bool XCOFFWriter::initFileHeader(uint64_t CurrentOffset) {
   // The default format of the object file is XCOFF32.
   InitFileHdr.Magic = XCOFF::XCOFF32;
   InitFileHdr.NumberOfSections = Obj.Sections.size();
   InitFileHdr.NumberOfSymTableEntries = Obj.Symbols.size();
 
-  for (const XCOFFYAML::Symbol &YamlSym : Obj.Symbols) {
+  for (const XCOFFYAML::Symbol &YamlSym : Obj.Symbols)
     // Add the number of auxiliary symbols to the total number.
     InitFileHdr.NumberOfSymTableEntries += YamlSym.NumberOfAuxEntries;
-    if (nameShouldBeInStringTable(YamlSym.SymbolName))
-      Strings.add(YamlSym.SymbolName);
-  }
-  // Finalize the string table.
-  Strings.finalize();
 
   // Calculate SymbolTableOffset for the file header.
   if (InitFileHdr.NumberOfSymTableEntries) {
@@ -169,16 +233,23 @@ bool XCOFFWriter::initFileHeader(uint64_t CurrentOffset) {
 }
 
 bool XCOFFWriter::assignAddressesAndIndices() {
-  Strings.clear();
-  uint64_t CurrentOffset =
-      XCOFF::FileHeaderSize32 /* TODO: + auxiliaryHeaderSize() */ +
-      InitSections.size() * XCOFF::SectionHeaderSize32;
+  uint64_t FileHdrSize =
+      Is64Bit ? XCOFF::FileHeaderSize64 : XCOFF::FileHeaderSize32;
+  uint64_t SecHdrSize =
+      Is64Bit ? XCOFF::SectionHeaderSize64 : XCOFF::SectionHeaderSize32;
+  uint64_t CurrentOffset = FileHdrSize /* TODO: + auxiliaryHeaderSize() */ +
+                           InitSections.size() * SecHdrSize;
 
   // Calculate section header info.
   if (!initSectionHeader(CurrentOffset))
     return false;
+
   // Calculate file header info.
-  return initFileHeader(CurrentOffset);
+  if (!initFileHeader(CurrentOffset))
+    return false;
+
+  // Initialize the string table.
+  return initStringTable();
 }
 
 void XCOFFWriter::writeFileHeader() {
@@ -186,14 +257,25 @@ void XCOFFWriter::writeFileHeader() {
   W.write<uint16_t>(Obj.Header.NumberOfSections ? Obj.Header.NumberOfSections
                                                 : InitFileHdr.NumberOfSections);
   W.write<int32_t>(Obj.Header.TimeStamp);
-  W.write<uint32_t>(Obj.Header.SymbolTableOffset
-                        ? Obj.Header.SymbolTableOffset
-                        : InitFileHdr.SymbolTableOffset);
-  W.write<int32_t>(Obj.Header.NumberOfSymTableEntries
-                       ? Obj.Header.NumberOfSymTableEntries
-                       : InitFileHdr.NumberOfSymTableEntries);
-  W.write<uint16_t>(Obj.Header.AuxHeaderSize);
-  W.write<uint16_t>(Obj.Header.Flags);
+  if (Is64Bit) {
+    W.write<uint64_t>(Obj.Header.SymbolTableOffset
+                          ? Obj.Header.SymbolTableOffset
+                          : InitFileHdr.SymbolTableOffset);
+    W.write<uint16_t>(Obj.Header.AuxHeaderSize);
+    W.write<uint16_t>(Obj.Header.Flags);
+    W.write<int32_t>(Obj.Header.NumberOfSymTableEntries
+                         ? Obj.Header.NumberOfSymTableEntries
+                         : InitFileHdr.NumberOfSymTableEntries);
+  } else {
+    W.write<uint32_t>(Obj.Header.SymbolTableOffset
+                          ? Obj.Header.SymbolTableOffset
+                          : InitFileHdr.SymbolTableOffset);
+    W.write<int32_t>(Obj.Header.NumberOfSymTableEntries
+                         ? Obj.Header.NumberOfSymTableEntries
+                         : InitFileHdr.NumberOfSymTableEntries);
+    W.write<uint16_t>(Obj.Header.AuxHeaderSize);
+    W.write<uint16_t>(Obj.Header.Flags);
+  }
 }
 
 void XCOFFWriter::writeSectionHeader() {
@@ -202,22 +284,40 @@ void XCOFFWriter::writeSectionHeader() {
     XCOFFYAML::Section DerivedSec = InitSections[I];
     writeName(YamlSec.SectionName, W);
     // Virtual address is the same as physical address.
-    uint32_t SectionAddress =
+    uint64_t SectionAddress =
         YamlSec.Address ? YamlSec.Address : DerivedSec.Address;
-    W.write<uint32_t>(SectionAddress); // Physical address
-    W.write<uint32_t>(SectionAddress); // Virtual address
-    W.write<uint32_t>(YamlSec.Size ? YamlSec.Size : DerivedSec.Size);
-    W.write<uint32_t>(YamlSec.FileOffsetToData ? YamlSec.FileOffsetToData
-                                               : DerivedSec.FileOffsetToData);
-    W.write<uint32_t>(YamlSec.FileOffsetToRelocations
-                          ? YamlSec.FileOffsetToRelocations
-                          : DerivedSec.FileOffsetToRelocations);
-    W.write<uint32_t>(YamlSec.FileOffsetToLineNumbers);
-    W.write<uint16_t>(YamlSec.NumberOfRelocations
-                          ? YamlSec.NumberOfRelocations
-                          : DerivedSec.NumberOfRelocations);
-    W.write<uint16_t>(YamlSec.NumberOfLineNumbers);
-    W.write<int32_t>(YamlSec.Flags);
+    if (Is64Bit) {
+      W.write<uint64_t>(SectionAddress); // Physical address
+      W.write<uint64_t>(SectionAddress); // Virtual address
+      W.write<uint64_t>(YamlSec.Size ? YamlSec.Size : DerivedSec.Size);
+      W.write<uint64_t>(YamlSec.FileOffsetToData ? YamlSec.FileOffsetToData
+                                                 : DerivedSec.FileOffsetToData);
+      W.write<uint64_t>(YamlSec.FileOffsetToRelocations
+                            ? YamlSec.FileOffsetToRelocations
+                            : DerivedSec.FileOffsetToRelocations);
+      W.write<uint64_t>(YamlSec.FileOffsetToLineNumbers);
+      W.write<uint32_t>(YamlSec.NumberOfRelocations
+                            ? YamlSec.NumberOfRelocations
+                            : DerivedSec.NumberOfRelocations);
+      W.write<uint32_t>(YamlSec.NumberOfLineNumbers);
+      W.write<int32_t>(YamlSec.Flags);
+      W.OS.write_zeros(4);
+    } else {
+      W.write<uint32_t>(SectionAddress); // Physical address
+      W.write<uint32_t>(SectionAddress); // Virtual address
+      W.write<uint32_t>(YamlSec.Size ? YamlSec.Size : DerivedSec.Size);
+      W.write<uint32_t>(YamlSec.FileOffsetToData ? YamlSec.FileOffsetToData
+                                                 : DerivedSec.FileOffsetToData);
+      W.write<uint32_t>(YamlSec.FileOffsetToRelocations
+                            ? YamlSec.FileOffsetToRelocations
+                            : DerivedSec.FileOffsetToRelocations);
+      W.write<uint32_t>(YamlSec.FileOffsetToLineNumbers);
+      W.write<uint16_t>(YamlSec.NumberOfRelocations
+                            ? YamlSec.NumberOfRelocations
+                            : DerivedSec.NumberOfRelocations);
+      W.write<uint16_t>(YamlSec.NumberOfLineNumbers);
+      W.write<int32_t>(YamlSec.Flags);
+    }
   }
 }
 
@@ -232,8 +332,7 @@ bool XCOFFWriter::writeSectionData() {
         ErrHandler("redundant data was written before section data");
         return false;
       }
-      if (PaddingSize > 0)
-        W.OS.write_zeros(PaddingSize);
+      W.OS.write_zeros(PaddingSize);
       YamlSec.SectionData.writeAsBinary(W.OS);
     }
   }
@@ -250,10 +349,12 @@ bool XCOFFWriter::writeRelocations() {
         ErrHandler("redundant data was written before relocations");
         return false;
       }
-      if (PaddingSize > 0)
-        W.OS.write_zeros(PaddingSize);
+      W.OS.write_zeros(PaddingSize);
       for (const XCOFFYAML::Relocation &YamlRel : YamlSec.Relocations) {
-        W.write<uint32_t>(YamlRel.VirtualAddress);
+        if (Is64Bit)
+          W.write<uint64_t>(YamlRel.VirtualAddress);
+        else
+          W.write<uint32_t>(YamlRel.VirtualAddress);
         W.write<uint32_t>(YamlRel.SymbolIndex);
         W.write<uint8_t>(YamlRel.Info);
         W.write<uint8_t>(YamlRel.Type);
@@ -270,20 +371,39 @@ bool XCOFFWriter::writeSymbols() {
     ErrHandler("redundant data was written before symbols");
     return false;
   }
-  if (PaddingSize > 0)
-    W.OS.write_zeros(PaddingSize);
+  W.OS.write_zeros(PaddingSize);
   for (const XCOFFYAML::Symbol &YamlSym : Obj.Symbols) {
-    if (nameShouldBeInStringTable(YamlSym.SymbolName)) {
-      // For XCOFF32: A value of 0 indicates that the symbol name is in the
-      // string table.
-      W.write<int32_t>(0);
-      W.write<uint32_t>(Strings.getOffset(YamlSym.SymbolName));
+    if (Is64Bit) {
+      W.write<uint64_t>(YamlSym.Value);
+      W.write<uint32_t>(StrTblBuilder.getOffset(YamlSym.SymbolName));
     } else {
-      writeName(YamlSym.SymbolName, W);
+      if (nameShouldBeInStringTable(YamlSym.SymbolName)) {
+        // For XCOFF32: A value of 0 indicates that the symbol name is in the
+        // string table.
+        W.write<int32_t>(0);
+        W.write<uint32_t>(StrTblBuilder.getOffset(YamlSym.SymbolName));
+      } else {
+        writeName(YamlSym.SymbolName, W);
+      }
+      W.write<uint32_t>(YamlSym.Value);
     }
-    W.write<uint32_t>(YamlSym.Value);
-    W.write<int16_t>(
-        YamlSym.SectionName.size() ? SectionIndexMap[YamlSym.SectionName] : 0);
+    if (YamlSym.SectionName) {
+      if (!SectionIndexMap.count(*YamlSym.SectionName)) {
+        ErrHandler("the SectionName " + *YamlSym.SectionName +
+                   " specified in the symbol does not exist");
+        return false;
+      }
+      if (YamlSym.SectionIndex &&
+          SectionIndexMap[*YamlSym.SectionName] != *YamlSym.SectionIndex) {
+        ErrHandler("the SectionName " + *YamlSym.SectionName +
+                   " and the SectionIndex (" + Twine(*YamlSym.SectionIndex) +
+                   ") refer to different sections");
+        return false;
+      }
+      W.write<int16_t>(SectionIndexMap[*YamlSym.SectionName]);
+    } else {
+      W.write<int16_t>(YamlSym.SectionIndex ? *YamlSym.SectionIndex : 0);
+    }
     W.write<uint16_t>(YamlSym.Type);
     W.write<uint8_t>(YamlSym.StorageClass);
     W.write<uint8_t>(YamlSym.NumberOfAuxEntries);
@@ -295,17 +415,55 @@ bool XCOFFWriter::writeSymbols() {
       // length of each auxiliary entry is the same as a symbol table entry (18
       // bytes). The format and quantity of auxiliary entries depend on the
       // storage class (n_sclass) and type (n_type) of the symbol table entry.
-      W.OS.write_zeros(18);
+      W.OS.write_zeros(XCOFF::SymbolTableEntrySize);
     }
   }
   return true;
 }
 
-bool XCOFFWriter::writeXCOFF() {
-  if (Is64Bit) {
-    ErrHandler("only XCOFF32 is currently supported");
-    return false;
+void XCOFFWriter::writeStringTable() {
+  if (Obj.StrTbl.RawContent) {
+    Obj.StrTbl.RawContent->writeAsBinary(W.OS);
+    if (Obj.StrTbl.ContentSize) {
+      assert(*Obj.StrTbl.ContentSize >= Obj.StrTbl.RawContent->binary_size() &&
+             "Specified ContentSize is less than the RawContent size.");
+      W.OS.write_zeros(*Obj.StrTbl.ContentSize -
+                       Obj.StrTbl.RawContent->binary_size());
+    }
+    return;
   }
+
+  size_t StrTblBuilderSize = StrTblBuilder.getSize();
+  // If neither Length nor ContentSize is specified, write the StrTblBuilder
+  // directly, which contains the auto-generated Length value.
+  if (!Obj.StrTbl.Length && !Obj.StrTbl.ContentSize) {
+    if (StrTblBuilderSize <= 4)
+      return;
+    StrTblBuilder.write(W.OS);
+    return;
+  }
+
+  // Serialize the string table's content to a temporary buffer.
+  std::unique_ptr<WritableMemoryBuffer> Buf =
+      WritableMemoryBuffer::getNewMemBuffer(StrTblBuilderSize);
+  uint8_t *Ptr = reinterpret_cast<uint8_t *>(Buf->getBufferStart());
+  StrTblBuilder.write(Ptr);
+  // Replace the first 4 bytes, which contain the auto-generated Length value,
+  // with the specified value.
+  memset(Ptr, 0, 4);
+  support::endian::write32be(Ptr, Obj.StrTbl.Length ? *Obj.StrTbl.Length
+                                                    : *Obj.StrTbl.ContentSize);
+  // Copy the buffer content to the actual output stream.
+  W.OS.write(Buf->getBufferStart(), Buf->getBufferSize());
+  // Add zeros as padding after strings.
+  if (Obj.StrTbl.ContentSize) {
+    assert(*Obj.StrTbl.ContentSize >= StrTblBuilderSize &&
+           "Specified ContentSize is less than the StringTableBuilder size.");
+    W.OS.write_zeros(*Obj.StrTbl.ContentSize - StrTblBuilderSize);
+  }
+}
+
+bool XCOFFWriter::writeXCOFF() {
   if (!assignAddressesAndIndices())
     return false;
   StartOffset = W.OS.tell();
@@ -317,12 +475,9 @@ bool XCOFFWriter::writeXCOFF() {
     if (!writeRelocations())
       return false;
   }
-  if (!Obj.Symbols.empty()) {
-    if (!writeSymbols())
-      return false;
-    // Write the string table.
-    Strings.write(W.OS);
-  }
+  if (!Obj.Symbols.empty() && !writeSymbols())
+    return false;
+  writeStringTable();
   return true;
 }
 

@@ -1494,7 +1494,7 @@ void PPCLinuxAsmPrinter::emitInstruction(const MachineInstr *MI) {
     //
     // Update compiler-rt/lib/xray/xray_powerpc64.cc accordingly when number
     // of instructions change.
-    OutStreamer->emitCodeAlignment(8);
+    OutStreamer->emitCodeAlignment(8, &getSubtargetInfo());
     MCSymbol *BeginOfSled = OutContext.createTempSymbol();
     OutStreamer->emitLabel(BeginOfSled);
     EmitToStreamer(*OutStreamer, RetInst);
@@ -2023,9 +2023,10 @@ void PPCAIXAsmPrinter::emitTracebackTable() {
   // Set the 4th byte of the mandatory field.
   FirstHalfOfMandatoryField |= TracebackTable::IsFunctionNamePresentMask;
 
-  static_assert(XCOFF::AllocRegNo == 31, "Unexpected register usage!");
-  if (MRI.isPhysRegUsed(Subtarget->isPPC64() ? PPC::X31 : PPC::R31,
-                        /* SkipRegMaskTest */ true))
+  const PPCRegisterInfo *RegInfo =
+      static_cast<const PPCRegisterInfo *>(Subtarget->getRegisterInfo());
+  Register FrameReg = RegInfo->getFrameRegister(*MF);
+  if (FrameReg == (Subtarget->isPPC64() ? PPC::X31 : PPC::R31))
     FirstHalfOfMandatoryField |= TracebackTable::IsAllocaUsedMask;
 
   const SmallVectorImpl<Register> &MustSaveCRs = FI->getMustSaveCRs();
@@ -2574,6 +2575,18 @@ void PPCAIXAsmPrinter::emitInstruction(const MachineInstr *MI) {
     if (MI->getOperand(0).isSymbol())
       report_fatal_error("Tail call for extern symbol not yet supported.");
     break;
+  case PPC::DST:
+  case PPC::DST64:
+  case PPC::DSTT:
+  case PPC::DSTT64:
+  case PPC::DSTST:
+  case PPC::DSTST64:
+  case PPC::DSTSTT:
+  case PPC::DSTSTT64:
+    EmitToStreamer(
+        *OutStreamer,
+        MCInstBuilder(PPC::ORI).addReg(PPC::R0).addReg(PPC::R0).addImm(0));
+    return;
   }
   return PPCAsmPrinter::emitInstruction(MI);
 }

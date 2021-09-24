@@ -165,9 +165,9 @@ tools.extend([
     'llvm-link', 'llvm-lto', 'llvm-lto2', 'llvm-mc', 'llvm-mca',
     'llvm-modextract', 'llvm-nm', 'llvm-objcopy', 'llvm-objdump', 'llvm-otool',
     'llvm-pdbutil', 'llvm-profdata', 'llvm-profgen', 'llvm-ranlib', 'llvm-rc', 'llvm-readelf',
-    'llvm-readobj', 'llvm-rtdyld', 'llvm-sim', 'llvm-size', 'llvm-split', 'llvm-strings',
-    'llvm-strip', 'llvm-tblgen', 'llvm-tapi-diff', 'llvm-undname', 'llvm-windres',
-    'llvm-c-test', 'llvm-cxxfilt',
+    'llvm-readobj', 'llvm-rtdyld', 'llvm-sim', 'llvm-size', 'llvm-split',
+    'llvm-stress', 'llvm-strings', 'llvm-strip', 'llvm-tblgen', 'llvm-tapi-diff',
+    'llvm-undname', 'llvm-windres', 'llvm-c-test', 'llvm-cxxfilt',
     'llvm-xray', 'yaml2obj', 'obj2yaml', 'yaml-bench', 'verify-uselistorder',
     'bugpoint', 'llc', 'llvm-symbolizer', 'opt', 'sancov', 'sanstats'])
 
@@ -239,6 +239,14 @@ else:
 # Static libraries are not built if BUILD_SHARED_LIBS is ON.
 if not config.build_shared_libs and not config.link_llvm_dylib:
     config.available_features.add('static-libs')
+
+if config.link_llvm_dylib:
+    config.available_features.add('llvm-dylib')
+    config.substitutions.append(
+        ('%llvmdylib',
+         '{}/libLLVM-{}{}'.format(config.llvm_shlib_dir,
+                                  config.llvm_dylib_version,
+                                  config.llvm_shlib_ext)))
 
 if config.have_tf_aot:
     config.available_features.add("have_tf_aot")
@@ -370,8 +378,8 @@ if 'darwin' == sys.platform:
         if 'hw.optional.fma: 1' in result:
             config.available_features.add('fma3')
 
-# .debug_frame is not emitted for targeting Windows x64.
-if not re.match(r'^x86_64.*-(windows-gnu|windows-msvc)', config.target_triple):
+# .debug_frame is not emitted for targeting Windows x64 or arm64.
+if not re.match(r'^(x86_64|arm64).*-(windows-gnu|windows-msvc)', config.target_triple):
     config.available_features.add('debug_frame')
 
 if config.have_libxar:

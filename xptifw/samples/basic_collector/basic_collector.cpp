@@ -125,7 +125,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
   uint32_t CPU = GThreadIDEnum.enumID(TID);
   std::string Name;
 
-  if (Payload->name_sid != xpti::invalid_id) {
+  if (Payload->name_sid() != xpti::invalid_id) {
     Name = truncate(Payload->name);
   } else {
     Name = "<unknown>";
@@ -144,7 +144,7 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
            xptiLookupString(Item.second));
   }
 
-  if (Payload->source_file_sid != xpti::invalid_id && Payload->line_no > 0) {
+  if (Payload->source_file_sid() != xpti::invalid_id && Payload->line_no > 0) {
     printf("---[Source file:line no] %s:%d\n", Payload->source_file,
            Payload->line_no);
   }

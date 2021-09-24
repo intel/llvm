@@ -1933,10 +1933,10 @@ public:
       OpenMPMapClauseKind MapType, bool IsMapTypeImplicit,
       SourceLocation MapLoc, SourceLocation ColonLoc, ArrayRef<Expr *> VarList,
       const OMPVarListLocTy &Locs, ArrayRef<Expr *> UnresolvedMappers) {
-    return getSema().ActOnOpenMPMapClause(MapTypeModifiers, MapTypeModifiersLoc,
-                                          MapperIdScopeSpec, MapperId, MapType,
-                                          IsMapTypeImplicit, MapLoc, ColonLoc,
-                                          VarList, Locs, UnresolvedMappers);
+    return getSema().ActOnOpenMPMapClause(
+        MapTypeModifiers, MapTypeModifiersLoc, MapperIdScopeSpec, MapperId,
+        MapType, IsMapTypeImplicit, MapLoc, ColonLoc, VarList, Locs,
+        /*NoDiagnose=*/false, UnresolvedMappers);
   }
 
   /// Build a new OpenMP 'allocate' clause.
@@ -5975,7 +5975,7 @@ bool TreeTransform<Derived>::TransformExceptionSpec(
 
     ExceptionSpecificationType EST = ESI.Type;
     NoexceptExpr =
-        getSema().ActOnNoexceptSpec(Loc, NoexceptExpr.get(), EST);
+        getSema().ActOnNoexceptSpec(NoexceptExpr.get(), EST);
     if (NoexceptExpr.isInvalid())
       return true;
 
@@ -6608,7 +6608,7 @@ QualType TreeTransform<Derived>::TransformAutoType(TypeLocBuilder &TLB,
   NewTL.setFoundDecl(TL.getFoundDecl());
   NewTL.setLAngleLoc(TL.getLAngleLoc());
   NewTL.setRAngleLoc(TL.getRAngleLoc());
-  for (unsigned I = 0; I < TL.getNumArgs(); ++I)
+  for (unsigned I = 0; I < NewTL.getNumArgs(); ++I)
     NewTL.setArgLocInfo(I, NewTemplateArgs.arguments()[I].getLocInfo());
 
   return Result;
@@ -8535,6 +8535,15 @@ StmtResult TreeTransform<Derived>::TransformOMPExecutableDirective(
   return getDerived().RebuildOMPExecutableDirective(
       D->getDirectiveKind(), DirName, CancelRegion, TClauses,
       AssociatedStmt.get(), D->getBeginLoc(), D->getEndLoc());
+}
+
+template <typename Derived>
+StmtResult
+TreeTransform<Derived>::TransformOMPMetaDirective(OMPMetaDirective *D) {
+  // TODO: Fix This
+  SemaRef.Diag(D->getBeginLoc(), diag::err_omp_instantiation_not_supported)
+      << getOpenMPDirectiveName(D->getDirectiveKind());
+  return StmtError();
 }
 
 template <typename Derived>

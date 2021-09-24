@@ -24,7 +24,8 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // -----
 
 def SPV_AddressOfOp : SPV_Op<"mlir.addressof",
-    [DeclareOpInterfaceMethods<OpAsmOpInterface>, InFunctionScope, NoSideEffect]> {
+    [DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+     InFunctionScope, NoSideEffect]> {
   let summary = "Get the address of a global variable.";
 
   let description = [{
@@ -70,7 +71,9 @@ def SPV_AddressOfOp : SPV_Op<"mlir.addressof",
 // -----
 
 def SPV_ConstantOp : SPV_Op<"Constant",
-    [ConstantLike, DeclareOpInterfaceMethods<OpAsmOpInterface>, NoSideEffect]> {
+    [ConstantLike,
+     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
+     NoSideEffect]> {
   let summary = "The op that declares a SPIR-V normal constant";
 
   let description = [{
@@ -467,8 +470,9 @@ def SPV_ModuleOp : SPV_Op<"module",
   let builders = [
     OpBuilder<(ins CArg<"Optional<StringRef>", "llvm::None">:$name)>,
     OpBuilder<(ins "spirv::AddressingModel":$addressing_model,
-      "spirv::MemoryModel":$memory_model,
-      CArg<"Optional<StringRef>", "llvm::None">:$name)>
+                   "spirv::MemoryModel":$memory_model,
+                   CArg<"Optional<spirv::VerCapExtAttr>", "llvm::None">:$vce_triple,
+                   CArg<"Optional<StringRef>", "llvm::None">:$name)>
   ];
 
   // We need to ensure the block inside the region is properly terminated;

@@ -11,8 +11,8 @@
 
 #include "Cuda.h"
 #include "ROCm.h"
+#include "clang/Basic/DarwinSDKInfo.h"
 #include "clang/Basic/LangOptions.h"
-#include "clang/Driver/DarwinSDKInfo.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
 #include "clang/Driver/XRayArgs.h"
@@ -78,6 +78,20 @@ public:
                     const char *LinkingOutput) const override;
 };
 
+class LLVM_LIBRARY_VISIBILITY StaticLibTool : public MachOTool {
+public:
+  StaticLibTool(const ToolChain &TC)
+      : MachOTool("darwin::StaticLibTool", "static-lib-linker", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  bool isLinkJob() const override { return true; }
+
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
 class LLVM_LIBRARY_VISIBILITY Lipo : public MachOTool {
 public:
   Lipo(const ToolChain &TC) : MachOTool("darwin::Lipo", "lipo", TC) {}
@@ -125,6 +139,7 @@ class LLVM_LIBRARY_VISIBILITY MachO : public ToolChain {
 protected:
   Tool *buildAssembler() const override;
   Tool *buildLinker() const override;
+  Tool *buildStaticLibTool() const override;
   Tool *getTool(Action::ActionClass AC) const override;
 
 private:
@@ -184,9 +199,6 @@ public:
 
     /// Emit rpaths for @executable_path as well as the resource directory.
     RLO_AddRPath = 1 << 2,
-
-    /// Link the library in before any others.
-    RLO_FirstLink = 1 << 3,
   };
 
   /// Add a runtime library to the list of items to link.
@@ -284,13 +296,16 @@ public:
   enum DarwinEnvironmentKind {
     NativeEnvironment,
     Simulator,
+    MacCatalyst,
   };
 
   mutable DarwinPlatformKind TargetPlatform;
   mutable DarwinEnvironmentKind TargetEnvironment;
 
-  /// The OS version we are targeting.
+  /// The native OS version we are targeting.
   mutable VersionTuple TargetVersion;
+  /// The OS version we are targeting as specified in the triple.
+  mutable VersionTuple OSTargetVersion;
 
   /// The information about the darwin SDK that was used.
   mutable Optional<DarwinSDKInfo> SDKInfo;
@@ -337,12 +352,14 @@ protected:
   // FIXME: Eliminate these ...Target functions and derive separate tool chains
   // for these targets and put version in constructor.
   void setTarget(DarwinPlatformKind Platform, DarwinEnvironmentKind Environment,
-                 unsigned Major, unsigned Minor, unsigned Micro) const {
+                 unsigned Major, unsigned Minor, unsigned Micro,
+                 VersionTuple NativeTargetVersion) const {
     // FIXME: For now, allow reinitialization as long as values don't
     // change. This will go away when we move away from argument translation.
     if (TargetInitialized && TargetPlatform == Platform &&
         TargetEnvironment == Environment &&
-        TargetVersion == VersionTuple(Major, Minor, Micro))
+        (Environment == MacCatalyst ? OSTargetVersion : TargetVersion) ==
+            VersionTuple(Major, Minor, Micro))
       return;
 
     assert(!TargetInitialized && "Target already initialized!");
@@ -352,6 +369,11 @@ protected:
     TargetVersion = VersionTuple(Major, Minor, Micro);
     if (Environment == Simulator)
       const_cast<Darwin *>(this)->setTripleEnvironment(llvm::Triple::Simulator);
+    else if (Environment == MacCatalyst) {
+      const_cast<Darwin *>(this)->setTripleEnvironment(llvm::Triple::MacABI);
+      TargetVersion = NativeTargetVersion;
+      OSTargetVersion = VersionTuple(Major, Minor, Micro);
+    }
   }
 
 public:
@@ -402,6 +424,10 @@ public:
     return TargetPlatform == WatchOS;
   }
 
+  bool isTargetMacCatalyst() const {
+    return TargetPlatform == IPhoneOS && TargetEnvironment == MacCatalyst;
+  }
+
   bool isTargetMacOS() const {
     assert(TargetInitialized && "Target not initialized!");
     return TargetPlatform == MacOS;
@@ -409,8 +435,7 @@ public:
 
   bool isTargetMacOSBased() const {
     assert(TargetInitialized && "Target not initialized!");
-    // FIXME (Alex L): Add remaining MacCatalyst suppport.
-    return TargetPlatform == MacOS;
+    return TargetPlatform == MacOS || isTargetMacCatalyst();
   }
 
   bool isTargetAppleSiliconMac() const {
@@ -420,9 +445,13 @@ public:
 
   bool isTargetInitialized() const { return TargetInitialized; }
 
-  VersionTuple getTargetVersion() const {
+  /// The version of the OS that's used by the OS specified in the target
+  /// triple. It might be different from the actual target OS on which the
+  /// program will run, e.g. MacCatalyst code runs on a macOS target, but its
+  /// target triple is iOS.
+  VersionTuple getTripleTargetVersion() const {
     assert(TargetInitialized && "Target not initialized!");
-    return TargetVersion;
+    return isTargetMacCatalyst() ? OSTargetVersion : TargetVersion;
   }
 
   bool isIPhoneOSVersionLT(unsigned V0, unsigned V1 = 0,
@@ -436,7 +465,8 @@ public:
   /// supported macOS version, the deployment target version is compared to the
   /// specifed version instead.
   bool isMacosxVersionLT(unsigned V0, unsigned V1 = 0, unsigned V2 = 0) const {
-    assert(isTargetMacOS() && getTriple().isMacOSX() &&
+    assert(isTargetMacOSBased() &&
+           (getTriple().isMacOSX() || getTriple().isMacCatalystEnvironment()) &&
            "Unexpected call for non OS X target!");
     // The effective triple might not be initialized yet, so construct a
     // pseudo-effective triple to get the minimum supported OS version.
@@ -490,7 +520,7 @@ public:
     // This is only used with the non-fragile ABI and non-legacy dispatch.
 
     // Mixed dispatch is used everywhere except OS X before 10.6.
-    return !(isTargetMacOS() && isMacosxVersionLT(10, 6));
+    return !(isTargetMacOSBased() && isMacosxVersionLT(10, 6));
   }
 
   LangOptions::StackProtectorMode
@@ -499,9 +529,9 @@ public:
     // and for everything in 10.6 and beyond
     if (isTargetIOSBased() || isTargetWatchOSBased())
       return LangOptions::SSPOn;
-    else if (isTargetMacOS() && !isMacosxVersionLT(10, 6))
+    else if (isTargetMacOSBased() && !isMacosxVersionLT(10, 6))
       return LangOptions::SSPOn;
-    else if (isTargetMacOS() && !isMacosxVersionLT(10, 5) && !KernelOrKext)
+    else if (isTargetMacOSBased() && !isMacosxVersionLT(10, 5) && !KernelOrKext)
       return LangOptions::SSPOn;
 
     return LangOptions::SSPOff;

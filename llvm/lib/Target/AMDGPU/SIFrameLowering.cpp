@@ -959,8 +959,11 @@ void SIFrameLowering::emitPrologue(MachineFunction &MF,
                      FuncInfo->FramePointerSaveIndex)) &&
          "Needed to save FP but didn't save it anywhere");
 
+  // If we allow spilling to AGPRs we may have saved FP but then spill
+  // everything into AGPRs instead of the stack.
   assert((HasFP || (!FuncInfo->SGPRForFPSaveRestoreCopy &&
-                    !FuncInfo->FramePointerSaveIndex)) &&
+                    !FuncInfo->FramePointerSaveIndex) ||
+                   EnableSpillVGPRToAGPR) &&
          "Saved FP but didn't need it");
 
   assert((!HasBP || (FuncInfo->SGPRForBPSaveRestoreCopy ||
@@ -1301,10 +1304,13 @@ void SIFrameLowering::determineCalleeSavesSGPR(MachineFunction &MF,
   // If clearing VGPRs changed the mask, we will have some CSR VGPR spills.
   const bool HaveAnyCSRVGPR = SavedRegs != AllSavedRegs;
 
-  // We have to anticipate introducing CSR VGPR spills if we don't have any
-  // stack objects already, since we require an FP if there is a call and stack.
+  // We have to anticipate introducing CSR VGPR spills or spill of caller
+  // save VGPR reserved for SGPR spills as we now always create stack entry
+  // for it, if we don't have any stack objects already, since we require
+  // an FP if there is a call and stack.
   MachineFrameInfo &FrameInfo = MF.getFrameInfo();
-  const bool WillHaveFP = FrameInfo.hasCalls() && HaveAnyCSRVGPR;
+  const bool WillHaveFP =
+      FrameInfo.hasCalls() && (HaveAnyCSRVGPR || MFI->VGPRReservedForSGPRSpill);
 
   // FP will be specially managed like SP.
   if (WillHaveFP || hasFP(MF))

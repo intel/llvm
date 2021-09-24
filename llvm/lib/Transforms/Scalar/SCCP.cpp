@@ -490,15 +490,14 @@ bool llvm::runIPSCCP(
         AttrBuilder AttributesToRemove;
         AttributesToRemove.addAttribute(Attribute::ArgMemOnly);
         AttributesToRemove.addAttribute(Attribute::InaccessibleMemOrArgMemOnly);
-        F.removeAttributes(AttributeList::FunctionIndex, AttributesToRemove);
+        F.removeFnAttrs(AttributesToRemove);
 
         for (User *U : F.users()) {
           auto *CB = dyn_cast<CallBase>(U);
           if (!CB || CB->getCalledFunction() != &F)
             continue;
 
-          CB->removeAttributes(AttributeList::FunctionIndex,
-                               AttributesToRemove);
+          CB->removeFnAttrs(AttributesToRemove);
         }
       }
     }
@@ -526,13 +525,11 @@ bool llvm::runIPSCCP(
     // nodes in executable blocks we found values for. The function's entry
     // block is not part of BlocksToErase, so we have to handle it separately.
     for (BasicBlock *BB : BlocksToErase) {
-      NumInstRemoved +=
-          changeToUnreachable(BB->getFirstNonPHI(), /*UseLLVMTrap=*/false,
-                              /*PreserveLCSSA=*/false, &DTU);
+      NumInstRemoved += changeToUnreachable(BB->getFirstNonPHI(),
+                                            /*PreserveLCSSA=*/false, &DTU);
     }
     if (!Solver.isBlockExecutable(&F.front()))
       NumInstRemoved += changeToUnreachable(F.front().getFirstNonPHI(),
-                                            /*UseLLVMTrap=*/false,
                                             /*PreserveLCSSA=*/false, &DTU);
 
     for (BasicBlock &BB : F)
@@ -542,14 +539,13 @@ bool llvm::runIPSCCP(
       DTU.deleteBB(DeadBB);
 
     for (BasicBlock &BB : F) {
-      for (BasicBlock::iterator BI = BB.begin(), E = BB.end(); BI != E;) {
-        Instruction *Inst = &*BI++;
-        if (Solver.getPredicateInfoFor(Inst)) {
-          if (auto *II = dyn_cast<IntrinsicInst>(Inst)) {
+      for (Instruction &Inst : llvm::make_early_inc_range(BB)) {
+        if (Solver.getPredicateInfoFor(&Inst)) {
+          if (auto *II = dyn_cast<IntrinsicInst>(&Inst)) {
             if (II->getIntrinsicID() == Intrinsic::ssa_copy) {
               Value *Op = II->getOperand(0);
-              Inst->replaceAllUsesWith(Op);
-              Inst->eraseFromParent();
+              Inst.replaceAllUsesWith(Op);
+              Inst.eraseFromParent();
             }
           }
         }

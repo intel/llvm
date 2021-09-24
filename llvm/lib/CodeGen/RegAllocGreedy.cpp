@@ -762,7 +762,7 @@ void RAGreedy::enqueue(PQueue &CurQueue, LiveInterval *LI) {
     bool ReverseLocal = TRI->reverseLocalAssignment();
     const TargetRegisterClass &RC = *MRI->getRegClass(Reg);
     bool ForceGlobal = !ReverseLocal &&
-      (Size / SlotIndex::InstrDist) > (2 * RC.getNumRegs());
+      (Size / SlotIndex::InstrDist) > (2 * RCI.getNumAllocatableRegs(&RC));
 
     if (ExtraRegInfo[Reg].Stage == RS_Assign && !ForceGlobal && !LI->empty() &&
         LIS->intervalIsInOneMBB(*LI)) {
@@ -783,6 +783,8 @@ void RAGreedy::enqueue(PQueue &CurQueue, LiveInterval *LI) {
       // don't fit should be spilled (or split) ASAP so they don't create
       // interference.  Mark a bit to prioritize global above local ranges.
       Prio = (1u << 29) + Size;
+
+      Prio |= RC.AllocationPriority << 24;
     }
     // Mark a higher bit to prioritize global and local above RS_Split.
     Prio |= (1u << 31);
@@ -2458,12 +2460,12 @@ unsigned RAGreedy::tryLocalSplit(LiveInterval &VirtReg, AllocationOrder &Order,
   bool LiveAfter = BestAfter != NumGaps || BI.LiveOut;
   unsigned NewGaps = LiveBefore + BestAfter - BestBefore + LiveAfter;
   if (NewGaps >= NumGaps) {
-    LLVM_DEBUG(dbgs() << "Tagging non-progress ranges: ");
+    LLVM_DEBUG(dbgs() << "Tagging non-progress ranges:");
     assert(!ProgressRequired && "Didn't make progress when it was required.");
     for (unsigned I = 0, E = IntvMap.size(); I != E; ++I)
       if (IntvMap[I] == 1) {
         setStage(LIS->getInterval(LREdit.get(I)), RS_Split2);
-        LLVM_DEBUG(dbgs() << printReg(LREdit.get(I)));
+        LLVM_DEBUG(dbgs() << ' ' << printReg(LREdit.get(I)));
       }
     LLVM_DEBUG(dbgs() << '\n');
   }
@@ -2501,17 +2503,6 @@ unsigned RAGreedy::trySplit(LiveInterval &VirtReg, AllocationOrder &Order,
                      TimerGroupDescription, TimePassesIsEnabled);
 
   SA->analyze(&VirtReg);
-
-  // FIXME: SplitAnalysis may repair broken live ranges coming from the
-  // coalescer. That may cause the range to become allocatable which means that
-  // tryRegionSplit won't be making progress. This check should be replaced with
-  // an assertion when the coalescer is fixed.
-  if (SA->didRepairRange()) {
-    // VirtReg has changed, so all cached queries are invalid.
-    Matrix->invalidateVirtRegs();
-    if (Register PhysReg = tryAssign(VirtReg, Order, NewVRegs, FixedRegisters))
-      return PhysReg;
-  }
 
   // First try to split around a region spanning multiple blocks. RS_Split2
   // ranges already made dubious progress with region splitting, so they go

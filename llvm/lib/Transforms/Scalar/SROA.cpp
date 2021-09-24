@@ -122,7 +122,7 @@ namespace {
 class IRBuilderPrefixedInserter final : public IRBuilderDefaultInserter {
   std::string Prefix;
 
-  const Twine getNameWithPrefix(const Twine &Name) const {
+  Twine getNameWithPrefix(const Twine &Name) const {
     return Name.isTriviallyEmpty() ? Name : Prefix + Name;
   }
 
@@ -1275,8 +1275,7 @@ static void speculatePHINodeLoads(PHINode &PN) {
 
   // Get the AA tags and alignment to use from one of the loads. It does not
   // matter which one we get and if any differ.
-  AAMDNodes AATags;
-  SomeLoad->getAAMetadata(AATags);
+  AAMDNodes AATags = SomeLoad->getAAMetadata();
   Align Alignment = SomeLoad->getAlign();
 
   // Rewrite all loads of the PN to use the new PHI.
@@ -1330,14 +1329,21 @@ static void speculatePHINodeLoads(PHINode &PN) {
 ///   %V = select i1 %cond, i32 %V1, i32 %V2
 ///
 /// We can do this to a select if its only uses are loads and if the operand
-/// to the select can be loaded unconditionally.
+/// to the select can be loaded unconditionally. If found an intervening bitcast
+/// with a single use of the load, allow the promotion.
 static bool isSafeSelectToSpeculate(SelectInst &SI) {
   Value *TValue = SI.getTrueValue();
   Value *FValue = SI.getFalseValue();
   const DataLayout &DL = SI.getModule()->getDataLayout();
 
   for (User *U : SI.users()) {
-    LoadInst *LI = dyn_cast<LoadInst>(U);
+    LoadInst *LI;
+    BitCastInst *BC = dyn_cast<BitCastInst>(U);
+    if (BC && BC->hasOneUse())
+      LI = dyn_cast<LoadInst>(*BC->user_begin());
+    else
+      LI = dyn_cast<LoadInst>(U);
+
     if (!LI || !LI->isSimple())
       return false;
 
@@ -1363,13 +1369,27 @@ static void speculateSelectInstLoads(SelectInst &SI) {
   Value *FV = SI.getFalseValue();
   // Replace the loads of the select with a select of two loads.
   while (!SI.use_empty()) {
-    LoadInst *LI = cast<LoadInst>(SI.user_back());
+    LoadInst *LI;
+    BitCastInst *BC = dyn_cast<BitCastInst>(SI.user_back());
+    if (BC) {
+      assert(BC->hasOneUse() && "Bitcast should have a single use.");
+      LI = cast<LoadInst>(BC->user_back());
+    } else {
+      LI = cast<LoadInst>(SI.user_back());
+    }
+
     assert(LI->isSimple() && "We only speculate simple loads");
 
     IRB.SetInsertPoint(LI);
-    LoadInst *TL = IRB.CreateLoad(LI->getType(), TV,
+    Value *NewTV =
+        BC ? IRB.CreateBitCast(TV, BC->getType(), TV->getName() + ".sroa.cast")
+           : TV;
+    Value *NewFV =
+        BC ? IRB.CreateBitCast(FV, BC->getType(), FV->getName() + ".sroa.cast")
+           : FV;
+    LoadInst *TL = IRB.CreateLoad(LI->getType(), NewTV,
                                   LI->getName() + ".sroa.speculate.load.true");
-    LoadInst *FL = IRB.CreateLoad(LI->getType(), FV,
+    LoadInst *FL = IRB.CreateLoad(LI->getType(), NewFV,
                                   LI->getName() + ".sroa.speculate.load.false");
     NumLoadsSpeculated += 2;
 
@@ -1377,8 +1397,7 @@ static void speculateSelectInstLoads(SelectInst &SI) {
     TL->setAlignment(LI->getAlign());
     FL->setAlignment(LI->getAlign());
 
-    AAMDNodes Tags;
-    LI->getAAMetadata(Tags);
+    AAMDNodes Tags = LI->getAAMetadata();
     if (Tags) {
       TL->setAAMetadata(Tags);
       FL->setAAMetadata(Tags);
@@ -1390,6 +1409,8 @@ static void speculateSelectInstLoads(SelectInst &SI) {
     LLVM_DEBUG(dbgs() << "          speculated to: " << *V << "\n");
     LI->replaceAllUsesWith(V);
     LI->eraseFromParent();
+    if (BC)
+      BC->eraseFromParent();
   }
   SI.eraseFromParent();
 }
@@ -1588,6 +1609,15 @@ static Value *getNaturalGEPWithOffset(IRBuilderTy &IRB, const DataLayout &DL,
 static Value *getAdjustedPtr(IRBuilderTy &IRB, const DataLayout &DL, Value *Ptr,
                              APInt Offset, Type *PointerTy,
                              const Twine &NamePrefix) {
+  // Create i8 GEP for opaque pointers.
+  if (Ptr->getType()->isOpaquePointerTy()) {
+    if (Offset != 0)
+      Ptr = IRB.CreateInBoundsGEP(IRB.getInt8Ty(), Ptr, IRB.getInt(Offset),
+                                  NamePrefix + "sroa_idx");
+    return IRB.CreatePointerBitCastOrAddrSpaceCast(Ptr, PointerTy,
+                                                   NamePrefix + "sroa_cast");
+  }
+
   // Even though we don't look through PHI nodes, we could be called on an
   // instruction in an unreachable block, which may be on a cycle.
   SmallPtrSet<Value *, 4> Visited;
@@ -1851,13 +1881,13 @@ static bool isVectorPromotionViableForSlice(Partition &P, const Slice &S,
   } else if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(U->getUser())) {
     if (!II->isLifetimeStartOrEnd() && !II->isDroppable())
       return false;
-  } else if (U->get()->getType()->getPointerElementType()->isStructTy()) {
-    // Disable vector promotion when there are loads or stores of an FCA.
-    return false;
   } else if (LoadInst *LI = dyn_cast<LoadInst>(U->getUser())) {
     if (LI->isVolatile())
       return false;
     Type *LTy = LI->getType();
+    // Disable vector promotion when there are loads or stores of an FCA.
+    if (LTy->isStructTy())
+      return false;
     if (P.beginOffset() > S.beginOffset() || P.endOffset() < S.endOffset()) {
       assert(LTy->isIntegerTy());
       LTy = SplitIntTy;
@@ -1868,6 +1898,9 @@ static bool isVectorPromotionViableForSlice(Partition &P, const Slice &S,
     if (SI->isVolatile())
       return false;
     Type *STy = SI->getValueOperand()->getType();
+    // Disable vector promotion when there are loads or stores of an FCA.
+    if (STy->isStructTy())
+      return false;
     if (P.beginOffset() > S.beginOffset() || P.endOffset() < S.endOffset()) {
       assert(STy->isIntegerTy());
       STy = SplitIntTy;
@@ -2510,8 +2543,7 @@ private:
     Value *OldOp = LI.getOperand(0);
     assert(OldOp == OldPtr);
 
-    AAMDNodes AATags;
-    LI.getAAMetadata(AATags);
+    AAMDNodes AATags = LI.getAAMetadata();
 
     unsigned AS = LI.getPointerAddressSpace();
 
@@ -2675,9 +2707,7 @@ private:
     Value *OldOp = SI.getOperand(1);
     assert(OldOp == OldPtr);
 
-    AAMDNodes AATags;
-    SI.getAAMetadata(AATags);
-
+    AAMDNodes AATags = SI.getAAMetadata();
     Value *V = SI.getValueOperand();
 
     // Strip all inbounds GEPs and pointer casts to try to dig out any root
@@ -2743,7 +2773,9 @@ private:
     deleteIfTriviallyDead(OldOp);
 
     LLVM_DEBUG(dbgs() << "          to: " << *NewSI << "\n");
-    return NewSI->getPointerOperand() == &NewAI && !SI.isVolatile();
+    return NewSI->getPointerOperand() == &NewAI &&
+           NewSI->getValueOperand()->getType() == NewAllocaTy &&
+           !SI.isVolatile();
   }
 
   /// Compute an integer value from splatting an i8 across the given
@@ -2784,12 +2816,11 @@ private:
     LLVM_DEBUG(dbgs() << "    original: " << II << "\n");
     assert(II.getRawDest() == OldPtr);
 
-    AAMDNodes AATags;
-    II.getAAMetadata(AATags);
+    AAMDNodes AATags = II.getAAMetadata();
 
     // If the memset has a variable size, it cannot be split, just adjust the
     // pointer to the new alloca.
-    if (!isa<Constant>(II.getLength())) {
+    if (!isa<ConstantInt>(II.getLength())) {
       assert(!IsSplit);
       assert(NewBeginOffset == BeginOffset);
       II.setDest(getNewAllocaSlicePtr(IRB, OldPtr->getType()));
@@ -2811,10 +2842,11 @@ private:
       if (BeginOffset > NewAllocaBeginOffset ||
           EndOffset < NewAllocaEndOffset)
         return false;
+      // Length must be in range for FixedVectorType.
       auto *C = cast<ConstantInt>(II.getLength());
-      if (C->getBitWidth() > 64)
+      const uint64_t Len = C->getLimitedValue();
+      if (Len > std::numeric_limits<unsigned>::max())
         return false;
-      const auto Len = C->getZExtValue();
       auto *Int8Ty = IntegerType::getInt8Ty(NewAI.getContext());
       auto *SrcTy = FixedVectorType::get(Int8Ty, Len);
       return canConvertValue(DL, SrcTy, AllocaTy) &&
@@ -2912,8 +2944,7 @@ private:
 
     LLVM_DEBUG(dbgs() << "    original: " << II << "\n");
 
-    AAMDNodes AATags;
-    II.getAAMetadata(AATags);
+    AAMDNodes AATags = II.getAAMetadata();
 
     bool IsDest = &II.getRawDestUse() == OldUse;
     assert((IsDest && II.getRawDest() == OldPtr) ||
@@ -3420,9 +3451,7 @@ private:
 
     // We have an aggregate being loaded, split it apart.
     LLVM_DEBUG(dbgs() << "    original: " << LI << "\n");
-    AAMDNodes AATags;
-    LI.getAAMetadata(AATags);
-    LoadOpSplitter Splitter(&LI, *U, LI.getType(), AATags,
+    LoadOpSplitter Splitter(&LI, *U, LI.getType(), LI.getAAMetadata(),
                             getAdjustedAlignment(&LI, 0), DL);
     Value *V = UndefValue::get(LI.getType());
     Splitter.emitSplitOps(LI.getType(), V, LI.getName() + ".fca");
@@ -3473,9 +3502,7 @@ private:
 
     // We have an aggregate being stored, split it apart.
     LLVM_DEBUG(dbgs() << "    original: " << SI << "\n");
-    AAMDNodes AATags;
-    SI.getAAMetadata(AATags);
-    StoreOpSplitter Splitter(&SI, *U, V->getType(), AATags,
+    StoreOpSplitter Splitter(&SI, *U, V->getType(), SI.getAAMetadata(),
                              getAdjustedAlignment(&SI, 0), DL);
     Splitter.emitSplitOps(V->getType(), V, V->getName() + ".fca");
     Visited.erase(&SI);

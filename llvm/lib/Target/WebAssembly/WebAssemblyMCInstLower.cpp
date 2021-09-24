@@ -38,8 +38,8 @@ cl::opt<bool>
                                " instruction output for test purposes only."),
                       cl::init(false));
 
-extern cl::opt<bool> EnableEmException;
-extern cl::opt<bool> EnableEmSjLj;
+extern cl::opt<bool> WasmEnableEmEH;
+extern cl::opt<bool> WasmEnableEmSjLj;
 
 static void removeRegisterOperands(const MachineInstr *MI, MCInst &OutMI);
 
@@ -82,7 +82,7 @@ WebAssemblyMCInstLower::GetGlobalAddressSymbol(const MachineOperand &MO) const {
 
   bool InvokeDetected = false;
   auto *WasmSym = Printer.getMCSymbolForFunction(
-      F, EnableEmException || EnableEmSjLj, Signature.get(), InvokeDetected);
+      F, WasmEnableEmEH || WasmEnableEmSjLj, Signature.get(), InvokeDetected);
   WasmSym->setSignature(Signature.get());
   Printer.addSignature(std::move(Signature));
   WasmSym->setType(wasm::WASM_SYMBOL_TYPE_FUNCTION);
@@ -101,6 +101,9 @@ MCOperand WebAssemblyMCInstLower::lowerSymbolOperand(const MachineOperand &MO,
 
   switch (TargetFlags) {
     case WebAssemblyII::MO_NO_FLAG:
+      break;
+    case WebAssemblyII::MO_GOT_TLS:
+      Kind = MCSymbolRefExpr::VK_WASM_GOT_TLS;
       break;
     case WebAssemblyII::MO_GOT:
       Kind = MCSymbolRefExpr::VK_GOT;
@@ -167,6 +170,10 @@ static wasm::ValType getType(const TargetRegisterClass *RC) {
     return wasm::ValType::F64;
   if (RC == &WebAssembly::V128RegClass)
     return wasm::ValType::V128;
+  if (RC == &WebAssembly::EXTERNREFRegClass)
+    return wasm::ValType::EXTERNREF;
+  if (RC == &WebAssembly::FUNCREFRegClass)
+    return wasm::ValType::FUNCREF;
   llvm_unreachable("Unexpected register class");
 }
 

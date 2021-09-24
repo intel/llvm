@@ -26,7 +26,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // depending on the specific Linalg op.
 class LinalgStructuredBase_Op<string mnemonic, list<OpTrait> props>
   : Op<Linalg_Dialect, mnemonic, !listconcat(props, [
-       LinalgStructuredInterface, InferShapedTypeOpInterface])> {
+       LinalgStructuredInterface, ReifyRankedShapedTypeOpInterface])> {
   code structuredOpsBaseDecls = [{
     // Return whether the op accesses the iteration indices.
     bool hasIndexSemantics() {
@@ -36,9 +36,9 @@ class LinalgStructuredBase_Op<string mnemonic, list<OpTrait> props>
       return !op->getRegion(0).front().getOps<IndexOp>().empty();
     }
 
-    LogicalResult reifyReturnTypeShapesPerResultDim(OpBuilder &b,
-        SmallVectorImpl<SmallVector<Value>> &reifiedReturnShapes) {
-      return cast<LinalgOp>(getOperation()).reifyReturnTypeShapesPerResultDim(b,
+    LogicalResult reifyResultShapes(OpBuilder &b,
+        ReifiedRankedShapedTypeDims &reifiedReturnShapes) {
+      return cast<LinalgOp>(getOperation()).reifyResultShapes(b,
           reifiedReturnShapes);
     }
   }];
@@ -168,6 +168,7 @@ def CopyOp : LinalgStructured_Op<"copy", [CopyOpInterface]> {
       custom<CopyOpRegion>($region, ref(type($input)), ref(type($input)))
   }];
 
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
   let skipDefaultBuilders = 1;
 }
@@ -619,18 +620,22 @@ def GenericOp : LinalgStructuredBase_Op<"generic", [
       "ValueRange":$outputs, "ArrayRef<AffineMap>":$indexingMaps,
       "ArrayRef<StringRef>":$iteratorTypes, "StringRef":$doc,
       "StringRef":$libraryCall,
-      CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">)>,
+      CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
     OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
       "ArrayRef<AffineMap>":$indexingMaps, "ArrayRef<StringRef>":$iteratorTypes,
       "StringRef":$doc, "StringRef":$libraryCall,
-      CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">)>,
+      CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
     OpBuilder<(ins "TypeRange":$resultTensorTypes, "ValueRange":$inputs,
       "ValueRange":$outputs, "ArrayRef<AffineMap>":$indexingMaps,
       "ArrayRef<StringRef>":$iteratorTypes,
-      CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">)>,
+      CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
     OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputBuffers,
       "ArrayRef<AffineMap>":$indexingMaps, "ArrayRef<StringRef>":$iteratorTypes,
-      CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">)>
+      CArg<"function_ref<void(OpBuilder &, Location, ValueRange)>", "nullptr">,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>
   ];
 
   let extraClassDeclaration = structuredOpsBaseDecls # [{
@@ -657,6 +662,7 @@ def GenericOp : LinalgStructuredBase_Op<"generic", [
 
   let verifier = [{ return ::verify(*this); }];
 
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 

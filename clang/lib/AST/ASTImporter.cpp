@@ -383,6 +383,8 @@ namespace clang {
     ExpectedType VisitTemplateTypeParmType(const TemplateTypeParmType *T);
     ExpectedType VisitSubstTemplateTypeParmType(
         const SubstTemplateTypeParmType *T);
+    ExpectedType
+    VisitSubstTemplateTypeParmPackType(const SubstTemplateTypeParmPackType *T);
     ExpectedType VisitTemplateSpecializationType(
         const TemplateSpecializationType *T);
     ExpectedType VisitElaboratedType(const ElaboratedType *T);
@@ -1492,6 +1494,22 @@ ExpectedType ASTNodeImporter::VisitSubstTemplateTypeParmType(
         Replaced, (*ToReplacementTypeOrErr).getCanonicalType());
 }
 
+ExpectedType ASTNodeImporter::VisitSubstTemplateTypeParmPackType(
+    const SubstTemplateTypeParmPackType *T) {
+  ExpectedType ReplacedOrErr = import(QualType(T->getReplacedParameter(), 0));
+  if (!ReplacedOrErr)
+    return ReplacedOrErr.takeError();
+  const TemplateTypeParmType *Replaced =
+      cast<TemplateTypeParmType>(ReplacedOrErr->getTypePtr());
+
+  Expected<TemplateArgument> ToArgumentPack = import(T->getArgumentPack());
+  if (!ToArgumentPack)
+    return ToArgumentPack.takeError();
+
+  return Importer.getToContext().getSubstTemplateTypeParmPackType(
+      Replaced, *ToArgumentPack);
+}
+
 ExpectedType ASTNodeImporter::VisitTemplateSpecializationType(
                                        const TemplateSpecializationType *T) {
   auto ToTemplateOrErr = import(T->getTemplateName());
@@ -2308,17 +2326,17 @@ ExpectedDecl ASTNodeImporter::VisitBindingDecl(BindingDecl *D) {
   if (ToND)
     return ToND;
 
+  BindingDecl *ToD;
+  if (GetImportedOrCreateDecl(ToD, D, Importer.getToContext(), DC, Loc,
+                              Name.getAsIdentifierInfo()))
+    return ToD;
+
   Error Err = Error::success();
   QualType ToType = importChecked(Err, D->getType());
   Expr *ToBinding = importChecked(Err, D->getBinding());
   ValueDecl *ToDecomposedDecl = importChecked(Err, D->getDecomposedDecl());
   if (Err)
     return std::move(Err);
-
-  BindingDecl *ToD;
-  if (GetImportedOrCreateDecl(ToD, D, Importer.getToContext(), DC, Loc,
-                              Name.getAsIdentifierInfo()))
-    return ToD;
 
   ToD->setBinding(ToType, ToBinding);
   ToD->setDecomposedDecl(ToDecomposedDecl);
@@ -3467,8 +3485,8 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
       return std::move(Err);
     if (GetImportedOrCreateDecl<CXXConstructorDecl>(
             ToFunction, D, Importer.getToContext(), cast<CXXRecordDecl>(DC),
-            ToInnerLocStart, NameInfo, T, TInfo, ESpec, D->isInlineSpecified(),
-            D->isImplicit(), D->getConstexprKind(),
+            ToInnerLocStart, NameInfo, T, TInfo, ESpec, D->UsesFPIntrin(),
+            D->isInlineSpecified(), D->isImplicit(), D->getConstexprKind(),
             InheritedConstructor(), // FIXME: Properly import inherited
                                     // constructor info
             TrailingRequiresClause))
@@ -3483,9 +3501,10 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
       return std::move(Err);
 
     if (GetImportedOrCreateDecl<CXXDestructorDecl>(
-        ToFunction, D, Importer.getToContext(), cast<CXXRecordDecl>(DC),
-        ToInnerLocStart, NameInfo, T, TInfo, D->isInlineSpecified(),
-        D->isImplicit(), D->getConstexprKind(), TrailingRequiresClause))
+            ToFunction, D, Importer.getToContext(), cast<CXXRecordDecl>(DC),
+            ToInnerLocStart, NameInfo, T, TInfo, D->UsesFPIntrin(),
+            D->isInlineSpecified(), D->isImplicit(), D->getConstexprKind(),
+            TrailingRequiresClause))
       return ToFunction;
 
     CXXDestructorDecl *ToDtor = cast<CXXDestructorDecl>(ToFunction);
@@ -3499,15 +3518,16 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
       return std::move(Err);
     if (GetImportedOrCreateDecl<CXXConversionDecl>(
             ToFunction, D, Importer.getToContext(), cast<CXXRecordDecl>(DC),
-            ToInnerLocStart, NameInfo, T, TInfo, D->isInlineSpecified(), ESpec,
-            D->getConstexprKind(), SourceLocation(), TrailingRequiresClause))
+            ToInnerLocStart, NameInfo, T, TInfo, D->UsesFPIntrin(),
+            D->isInlineSpecified(), ESpec, D->getConstexprKind(),
+            SourceLocation(), TrailingRequiresClause))
       return ToFunction;
   } else if (auto *Method = dyn_cast<CXXMethodDecl>(D)) {
     if (GetImportedOrCreateDecl<CXXMethodDecl>(
             ToFunction, D, Importer.getToContext(), cast<CXXRecordDecl>(DC),
             ToInnerLocStart, NameInfo, T, TInfo, Method->getStorageClass(),
-            Method->isInlineSpecified(), D->getConstexprKind(),
-            SourceLocation(), TrailingRequiresClause))
+            Method->UsesFPIntrin(), Method->isInlineSpecified(),
+            D->getConstexprKind(), SourceLocation(), TrailingRequiresClause))
       return ToFunction;
   } else if (auto *Guide = dyn_cast<CXXDeductionGuideDecl>(D)) {
     ExplicitSpecifier ESpec =
@@ -3525,9 +3545,9 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   } else {
     if (GetImportedOrCreateDecl(
             ToFunction, D, Importer.getToContext(), DC, ToInnerLocStart,
-            NameInfo, T, TInfo, D->getStorageClass(), D->isInlineSpecified(),
-            D->hasWrittenPrototype(), D->getConstexprKind(),
-            TrailingRequiresClause))
+            NameInfo, T, TInfo, D->getStorageClass(), D->UsesFPIntrin(),
+            D->isInlineSpecified(), D->hasWrittenPrototype(),
+            D->getConstexprKind(), TrailingRequiresClause))
       return ToFunction;
   }
 
@@ -4104,14 +4124,26 @@ ExpectedDecl ASTNodeImporter::VisitVarDecl(VarDecl *D) {
   if (Err)
     return std::move(Err);
 
-  // Create the imported variable.
   VarDecl *ToVar;
-  if (GetImportedOrCreateDecl(ToVar, D, Importer.getToContext(), DC,
-                              ToInnerLocStart, Loc,
-                              Name.getAsIdentifierInfo(),
-                              ToType, ToTypeSourceInfo,
-                              D->getStorageClass()))
-    return ToVar;
+  if (auto *FromDecomp = dyn_cast<DecompositionDecl>(D)) {
+    SmallVector<BindingDecl *> Bindings(FromDecomp->bindings().size());
+    if (Error Err =
+            ImportArrayChecked(FromDecomp->bindings(), Bindings.begin()))
+      return std::move(Err);
+    DecompositionDecl *ToDecomp;
+    if (GetImportedOrCreateDecl(
+            ToDecomp, FromDecomp, Importer.getToContext(), DC, ToInnerLocStart,
+            Loc, ToType, ToTypeSourceInfo, D->getStorageClass(), Bindings))
+      return ToDecomp;
+    ToVar = ToDecomp;
+  } else {
+    // Create the imported variable.
+    if (GetImportedOrCreateDecl(ToVar, D, Importer.getToContext(), DC,
+                                ToInnerLocStart, Loc,
+                                Name.getAsIdentifierInfo(), ToType,
+                                ToTypeSourceInfo, D->getStorageClass()))
+      return ToVar;
+  }
 
   ToVar->setTSCSpec(D->getTSCSpec());
   ToVar->setQualifierInfo(ToQualifierLoc);

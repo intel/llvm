@@ -498,14 +498,21 @@ void WasmObjectWriter::recordRelocation(MCAssembler &Asm,
   // be negative and don't wrap.
   FixedValue = 0;
 
-  unsigned Type = TargetObjectWriter->getRelocType(Target, Fixup, IsLocRel);
+  unsigned Type =
+      TargetObjectWriter->getRelocType(Target, Fixup, FixupSection, IsLocRel);
 
   // Absolute offset within a section or a function.
   // Currently only supported for for metadata sections.
   // See: test/MC/WebAssembly/blockaddress.ll
-  if (Type == wasm::R_WASM_FUNCTION_OFFSET_I32 ||
-      Type == wasm::R_WASM_FUNCTION_OFFSET_I64 ||
-      Type == wasm::R_WASM_SECTION_OFFSET_I32) {
+  if ((Type == wasm::R_WASM_FUNCTION_OFFSET_I32 ||
+       Type == wasm::R_WASM_FUNCTION_OFFSET_I64 ||
+       Type == wasm::R_WASM_SECTION_OFFSET_I32) &&
+      SymA->isDefined()) {
+    // SymA can be a temp data symbol that represents a function (in which case
+    // it needs to be replaced by the section symbol), [XXX and it apparently
+    // later gets changed again to a func symbol?] or it can be a real
+    // function symbol, in which case it can be left as-is.
+
     if (!FixupSection.getKind().isMetadata())
       report_fatal_error("relocations for function or section offsets are "
                          "only supported in metadata sections");
@@ -558,8 +565,14 @@ void WasmObjectWriter::recordRelocation(MCAssembler &Asm,
     SymA->setUsedInReloc();
   }
 
-  if (RefA->getKind() == MCSymbolRefExpr::VK_GOT)
+  switch (RefA->getKind()) {
+  case MCSymbolRefExpr::VK_GOT:
+  case MCSymbolRefExpr::VK_WASM_GOT_TLS:
     SymA->setUsedInGOT();
+    break;
+  default:
+    break;
+  }
 
   WasmRelocationEntry Rec(FixupOffset, SymA, C, Type, &FixupSection);
   LLVM_DEBUG(dbgs() << "WasmReloc: " << Rec << "\n");
@@ -620,6 +633,8 @@ WasmObjectWriter::getProvisionalValue(const WasmRelocationEntry &RelEntry,
   case wasm::R_WASM_FUNCTION_OFFSET_I32:
   case wasm::R_WASM_FUNCTION_OFFSET_I64:
   case wasm::R_WASM_SECTION_OFFSET_I32: {
+    if (!RelEntry.Symbol->isDefined())
+      return 0;
     const auto &Section =
         static_cast<const MCSectionWasm &>(RelEntry.Symbol->getSection());
     return Section.getSectionOffset() + RelEntry.Addend;
@@ -633,6 +648,7 @@ WasmObjectWriter::getProvisionalValue(const WasmRelocationEntry &RelEntry,
   case wasm::R_WASM_MEMORY_ADDR_I32:
   case wasm::R_WASM_MEMORY_ADDR_I64:
   case wasm::R_WASM_MEMORY_ADDR_TLS_SLEB:
+  case wasm::R_WASM_MEMORY_ADDR_TLS_SLEB64:
   case wasm::R_WASM_MEMORY_ADDR_LOCREL_I32: {
     // Provisional value is address of the global plus the offset
     // For undefined symbols, use zero
@@ -748,6 +764,7 @@ void WasmObjectWriter::applyRelocations(
     case wasm::R_WASM_TABLE_INDEX_REL_SLEB64:
     case wasm::R_WASM_MEMORY_ADDR_SLEB64:
     case wasm::R_WASM_MEMORY_ADDR_REL_SLEB64:
+    case wasm::R_WASM_MEMORY_ADDR_TLS_SLEB64:
       writePatchableSLEB<10>(Stream, Value, Offset);
       break;
     default:
@@ -1633,7 +1650,8 @@ uint64_t WasmObjectWriter::writeOneObject(MCAssembler &Asm,
         LLVM_DEBUG(dbgs() << " -> table index: "
                           << WasmIndices.find(&WS)->second << "\n");
       } else if (WS.isTag()) {
-        // C++ exception symbol (__cpp_exception)
+        // C++ exception symbol (__cpp_exception) or longjmp symbol
+        // (__c_longjmp)
         unsigned Index;
         if (WS.isDefined()) {
           Index = NumTagImports + Tags.size();
@@ -1736,6 +1754,8 @@ uint64_t WasmObjectWriter::writeOneObject(MCAssembler &Asm,
       Flags |= wasm::WASM_SYMBOL_EXPLICIT_NAME;
     if (WS.hasExportName())
       Flags |= wasm::WASM_SYMBOL_EXPORTED;
+    if (WS.isTLS())
+      Flags |= wasm::WASM_SYMBOL_TLS;
 
     wasm::WasmSymbolInfo Info;
     Info.Name = WS.getName();

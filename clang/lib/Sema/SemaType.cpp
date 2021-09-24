@@ -1374,8 +1374,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
         // value being declared, poison it as invalid so we don't get chains of
         // errors.
         declarator.setInvalidType(true);
-      } else if ((S.getLangOpts().OpenCLVersion >= 200 ||
-                  S.getLangOpts().OpenCLCPlusPlus ||
+      } else if ((S.getLangOpts().getOpenCLCompatibleVersion() >= 200 ||
                   S.getLangOpts().SYCLIsDevice) &&
                  DS.isTypeSpecPipe()) {
         S.Diag(DeclLoc, diag::err_missing_actual_pipe_type)
@@ -1534,18 +1533,20 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     break;
   case DeclSpec::TST_float:   Result = Context.FloatTy; break;
   case DeclSpec::TST_double:
-    if (S.getLangOpts().OpenCL) {
-      if (!S.getOpenCLOptions().isSupported("cl_khr_fp64", S.getLangOpts()))
-        S.Diag(DS.getTypeSpecTypeLoc(),
-               diag::err_opencl_double_requires_extension)
-            << (S.getLangOpts().OpenCLVersion >= 300);
-      else if (!S.getOpenCLOptions().isAvailableOption("cl_khr_fp64", S.getLangOpts()))
-        S.Diag(DS.getTypeSpecTypeLoc(), diag::ext_opencl_double_without_pragma);
-    }
     if (DS.getTypeSpecWidth() == TypeSpecifierWidth::Long)
       Result = Context.LongDoubleTy;
     else
       Result = Context.DoubleTy;
+    if (S.getLangOpts().OpenCL) {
+      if (!S.getOpenCLOptions().isSupported("cl_khr_fp64", S.getLangOpts()))
+        S.Diag(DS.getTypeSpecTypeLoc(), diag::err_opencl_requires_extension)
+            << 0 << Result
+            << (S.getLangOpts().getOpenCLCompatibleVersion() == 300
+                    ? "cl_khr_fp64 and __opencl_c_fp64"
+                    : "cl_khr_fp64");
+      else if (!S.getOpenCLOptions().isAvailableOption("cl_khr_fp64", S.getLangOpts()))
+        S.Diag(DS.getTypeSpecTypeLoc(), diag::ext_opencl_double_without_pragma);
+    }
     break;
   case DeclSpec::TST_float128:
     if (!S.Context.getTargetInfo().hasFloat128Type() &&
@@ -1554,6 +1555,13 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
         << "__float128";
     Result = Context.Float128Ty;
+    break;
+  case DeclSpec::TST_ibm128:
+    if (!S.Context.getTargetInfo().hasIbm128Type() &&
+        !S.getLangOpts().SYCLIsDevice &&
+        !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice))
+      S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported) << "__ibm128";
+    Result = Context.Ibm128Ty;
     break;
   case DeclSpec::TST_bool:
     Result = Context.BoolTy; // _Bool or bool
@@ -1733,21 +1741,29 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
 
   if (S.getLangOpts().OpenCL) {
     const auto &OpenCLOptions = S.getOpenCLOptions();
-    StringRef OptName;
+    bool IsOpenCLC30Compatible =
+        S.getLangOpts().getOpenCLCompatibleVersion() == 300;
     // OpenCL C v3.0 s6.3.3 - OpenCL image types require __opencl_c_images
-    // support
+    // support.
+    // OpenCL C v3.0 s6.2.1 - OpenCL 3d image write types requires support
+    // for OpenCL C 2.0, or OpenCL C 3.0 or newer and the
+    // __opencl_c_3d_image_writes feature. OpenCL C v3.0 API s4.2 - For devices
+    // that support OpenCL 3.0, cl_khr_3d_image_writes must be returned when and
+    // only when the optional feature is supported
     if ((Result->isImageType() || Result->isSamplerT()) &&
-        (S.getLangOpts().OpenCLVersion >= 300 &&
-         !OpenCLOptions.isSupported("__opencl_c_images", S.getLangOpts())))
-      OptName = "__opencl_c_images";
-    else if (Result->isOCLImage3dWOType() &&
-             !OpenCLOptions.isSupported("cl_khr_3d_image_writes",
-                                        S.getLangOpts()))
-      OptName = "cl_khr_3d_image_writes";
-
-    if (!OptName.empty()) {
+        (IsOpenCLC30Compatible &&
+         !OpenCLOptions.isSupported("__opencl_c_images", S.getLangOpts()))) {
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_opencl_requires_extension)
-          << 0 << Result << OptName;
+          << 0 << Result << "__opencl_c_images";
+      declarator.setInvalidType();
+    } else if (Result->isOCLImage3dWOType() &&
+               !OpenCLOptions.isSupported("cl_khr_3d_image_writes",
+                                          S.getLangOpts())) {
+      S.Diag(DS.getTypeSpecTypeLoc(), diag::err_opencl_requires_extension)
+          << 0 << Result
+          << (IsOpenCLC30Compatible
+                  ? "cl_khr_3d_image_writes and __opencl_c_3d_image_writes"
+                  : "cl_khr_3d_image_writes");
       declarator.setInvalidType();
     }
   }
@@ -4256,8 +4272,8 @@ static void fixItNullability(Sema &S, DiagBuilderT &Diag,
       InsertionText = InsertionText.drop_back().drop_front();
     else
       InsertionText = InsertionText.drop_front();
-  } else if (!isIdentifierBody(NextChar[0], /*allow dollar*/true) &&
-             !isIdentifierBody(NextChar[-1], /*allow dollar*/true)) {
+  } else if (!isAsciiIdentifierContinue(NextChar[0], /*allow dollar*/ true) &&
+             !isAsciiIdentifierContinue(NextChar[-1], /*allow dollar*/ true)) {
     InsertionText = InsertionText.drop_back().drop_front();
   }
 
@@ -5106,7 +5122,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
                 "__cl_clang_variadic_functions", S.getLangOpts()) &&
             !(D.getIdentifier() &&
               ((D.getIdentifier()->getName() == "printf" &&
-                (LangOpts.OpenCLCPlusPlus || LangOpts.OpenCLVersion >= 120)) ||
+                LangOpts.getOpenCLCompatibleVersion() >= 120) ||
                D.getIdentifier()->getName().startswith("__")))) {
           S.Diag(D.getIdentifierLoc(), diag::err_opencl_variadic_function);
           D.setInvalidType(true);
@@ -8383,10 +8399,6 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
           attr.getMacroExpansionLoc());
     }
   }
-
-  if (!state.getSema().getLangOpts().OpenCL ||
-      type.getAddressSpace() != LangAS::Default)
-    return;
 }
 
 void Sema::completeExprArrayBound(Expr *E) {
@@ -8980,29 +8992,6 @@ QualType Sema::BuildTypeofExprType(Expr *E, SourceLocation Loc) {
   return Context.getTypeOfExprType(E);
 }
 
-/// getDecltypeForParenthesizedExpr - Given an expr, will return the type for
-/// that expression, as in [dcl.type.simple]p4 but without taking id-expressions
-/// and class member access into account.
-QualType Sema::getDecltypeForParenthesizedExpr(Expr *E) {
-  // C++11 [dcl.type.simple]p4:
-  //   [...]
-  QualType T = E->getType();
-  switch (E->getValueKind()) {
-  //     - otherwise, if e is an xvalue, decltype(e) is T&&, where T is the
-  //       type of e;
-  case VK_XValue:
-    return Context.getRValueReferenceType(T);
-  //     - otherwise, if e is an lvalue, decltype(e) is T&, where T is the
-  //       type of e;
-  case VK_LValue:
-    return Context.getLValueReferenceType(T);
-  //  - otherwise, decltype(e) is the type of e.
-  case VK_PRValue:
-    return T;
-  }
-  llvm_unreachable("Unknown value kind");
-}
-
 /// getDecltypeForExpr - Given an expr, will return the decltype for
 /// that expression, according to the rules in C++11
 /// [dcl.type.simple]p4 and C++11 [expr.lambda.prim]p18.
@@ -9072,7 +9061,7 @@ static QualType getDecltypeForExpr(Sema &S, Expr *E) {
     }
   }
 
-  return S.getDecltypeForParenthesizedExpr(E);
+  return S.Context.getReferenceQualifiedType(E);
 }
 
 QualType Sema::BuildDecltypeType(Expr *E, SourceLocation Loc,

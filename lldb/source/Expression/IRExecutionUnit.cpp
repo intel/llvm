@@ -698,29 +698,17 @@ static ConstString FindBestAlternateMangledName(ConstString demangled,
     return ConstString();
 }
 
-struct IRExecutionUnit::SearchSpec {
-  ConstString name;
-  lldb::FunctionNameType mask;
-
-  SearchSpec(ConstString n,
-             lldb::FunctionNameType m = lldb::eFunctionNameTypeFull)
-      : name(n), mask(m) {}
-};
-
-void IRExecutionUnit::CollectCandidateCNames(
-    std::vector<IRExecutionUnit::SearchSpec> &C_specs,
-    ConstString name) {
+void IRExecutionUnit::CollectCandidateCNames(std::vector<ConstString> &C_names,
+                                             ConstString name) {
   if (m_strip_underscore && name.AsCString()[0] == '_')
-    C_specs.insert(C_specs.begin(), ConstString(&name.AsCString()[1]));
-  C_specs.push_back(SearchSpec(name));
+    C_names.insert(C_names.begin(), ConstString(&name.AsCString()[1]));
+  C_names.push_back(name);
 }
 
 void IRExecutionUnit::CollectCandidateCPlusPlusNames(
-    std::vector<IRExecutionUnit::SearchSpec> &CPP_specs,
-    const std::vector<SearchSpec> &C_specs, const SymbolContext &sc) {
-  for (const SearchSpec &C_spec : C_specs) {
-    ConstString name = C_spec.name;
-
+    std::vector<ConstString> &CPP_names,
+    const std::vector<ConstString> &C_names, const SymbolContext &sc) {
+  for (const ConstString &name : C_names) {
     if (CPlusPlusLanguage::IsCPPMangledName(name.GetCString())) {
       Mangled mangled(name);
       ConstString demangled = mangled.GetDemangledName();
@@ -730,26 +718,26 @@ void IRExecutionUnit::CollectCandidateCPlusPlusNames(
             FindBestAlternateMangledName(demangled, sc);
 
         if (best_alternate_mangled_name) {
-          CPP_specs.push_back(best_alternate_mangled_name);
+          CPP_names.push_back(best_alternate_mangled_name);
         }
       }
     }
 
-    std::set<ConstString> alternates;
-    CPlusPlusLanguage::FindAlternateFunctionManglings(name, alternates);
-    CPP_specs.insert(CPP_specs.end(), alternates.begin(), alternates.end());
+    if (auto *cpp_lang = Language::FindPlugin(lldb::eLanguageTypeC_plus_plus)) {
+      std::vector<ConstString> alternates =
+          cpp_lang->GenerateAlternateFunctionManglings(name);
+      CPP_names.insert(CPP_names.end(), alternates.begin(), alternates.end());
+    }
   }
 }
 
 void IRExecutionUnit::CollectFallbackNames(
-    std::vector<SearchSpec> &fallback_specs,
-    const std::vector<SearchSpec> &C_specs) {
+    std::vector<ConstString> &fallback_names,
+    const std::vector<ConstString> &C_names) {
   // As a last-ditch fallback, try the base name for C++ names.  It's terrible,
   // but the DWARF doesn't always encode "extern C" correctly.
 
-  for (const SearchSpec &C_spec : C_specs) {
-    ConstString name = C_spec.name;
-
+  for (const ConstString &name : C_names) {
     if (!CPlusPlusLanguage::IsCPPMangledName(name.GetCString()))
       continue;
 
@@ -763,146 +751,140 @@ void IRExecutionUnit::CollectFallbackNames(
     if (!lparen_loc)
       continue;
 
-    llvm::StringRef base_name(demangled_cstr,
-                              lparen_loc - demangled_cstr);
-    fallback_specs.push_back(ConstString(base_name));
+    llvm::StringRef base_name(demangled_cstr, lparen_loc - demangled_cstr);
+    fallback_names.push_back(ConstString(base_name));
   }
 }
 
-lldb::addr_t IRExecutionUnit::FindInSymbols(
-    const std::vector<IRExecutionUnit::SearchSpec> &specs,
-    const lldb_private::SymbolContext &sc,
-    bool &symbol_was_missing_weak) {
-  symbol_was_missing_weak = false;
-  Target *target = sc.target_sp.get();
+class LoadAddressResolver {
+public:
+  LoadAddressResolver(Target *target, bool &symbol_was_missing_weak)
+      : m_target(target), m_symbol_was_missing_weak(symbol_was_missing_weak) {}
 
-  if (!target) {
-    // we shouldn't be doing any symbol lookup at all without a target
-    return LLDB_INVALID_ADDRESS;
-  }
-
-  for (const SearchSpec &spec : specs) {
-    SymbolContextList sc_list;
-
-    lldb::addr_t best_internal_load_address = LLDB_INVALID_ADDRESS;
-
-    std::function<bool(lldb::addr_t &, SymbolContextList &,
-                       const lldb_private::SymbolContext &)>
-        get_external_load_address = [&best_internal_load_address, target,
-                                     &symbol_was_missing_weak](
-            lldb::addr_t &load_address, SymbolContextList &sc_list,
-            const lldb_private::SymbolContext &sc) -> lldb::addr_t {
-      load_address = LLDB_INVALID_ADDRESS;
-
-      if (sc_list.GetSize() == 0)
-        return false;
-
-      // missing_weak_symbol will be true only if we found only weak undefined 
-      // references to this symbol.
-      symbol_was_missing_weak = true;      
-      for (auto candidate_sc : sc_list.SymbolContexts()) {        
-        // Only symbols can be weak undefined:
-        if (!candidate_sc.symbol)
-          symbol_was_missing_weak = false;
-        else if (candidate_sc.symbol->GetType() != lldb::eSymbolTypeUndefined
-                  || !candidate_sc.symbol->IsWeak())
-          symbol_was_missing_weak = false;
-        
-        const bool is_external =
-            (candidate_sc.function) ||
-            (candidate_sc.symbol && candidate_sc.symbol->IsExternal());
-        if (candidate_sc.symbol) {
-          load_address = candidate_sc.symbol->ResolveCallableAddress(*target);
-
-          if (load_address == LLDB_INVALID_ADDRESS) {
-            if (target->GetProcessSP())
-              load_address =
-                  candidate_sc.symbol->GetAddress().GetLoadAddress(target);
-            else
-              load_address = candidate_sc.symbol->GetAddress().GetFileAddress();
-          }
-        }
-
-        if (load_address == LLDB_INVALID_ADDRESS && candidate_sc.function) {
-          if (target->GetProcessSP())
-            load_address = candidate_sc.function->GetAddressRange()
-                               .GetBaseAddress()
-                               .GetLoadAddress(target);
-          else
-            load_address = candidate_sc.function->GetAddressRange()
-                               .GetBaseAddress()
-                               .GetFileAddress();
-        }
-
-        if (load_address != LLDB_INVALID_ADDRESS) {
-          if (is_external) {
-            return true;
-          } else if (best_internal_load_address == LLDB_INVALID_ADDRESS) {
-            best_internal_load_address = load_address;
-            load_address = LLDB_INVALID_ADDRESS;
-          }
-        }
-      }
-
-      // You test the address of a weak symbol against NULL to see if it is
-      // present.  So we should return 0 for a missing weak symbol.
-      if (symbol_was_missing_weak) {
-        load_address = 0;
-        return true;
-      }
-      
-      return false;
-    };
-
-    if (sc.module_sp) {
-      sc.module_sp->FindFunctions(spec.name, CompilerDeclContext(), spec.mask,
-                                  true,  // include_symbols
-                                  false, // include_inlines
-                                  sc_list);
-    }
+  llvm::Optional<lldb::addr_t> Resolve(SymbolContextList &sc_list) {
+    if (sc_list.IsEmpty())
+      return llvm::None;
 
     lldb::addr_t load_address = LLDB_INVALID_ADDRESS;
 
-    if (get_external_load_address(load_address, sc_list, sc)) {
-      return load_address;
-    } else {
-      sc_list.Clear();
+    // Missing_weak_symbol will be true only if we found only weak undefined
+    // references to this symbol.
+    m_symbol_was_missing_weak = true;
+
+    for (auto candidate_sc : sc_list.SymbolContexts()) {
+      // Only symbols can be weak undefined.
+      if (!candidate_sc.symbol ||
+          candidate_sc.symbol->GetType() != lldb::eSymbolTypeUndefined ||
+          !candidate_sc.symbol->IsWeak())
+        m_symbol_was_missing_weak = false;
+
+      // First try the symbol.
+      if (candidate_sc.symbol) {
+        load_address = candidate_sc.symbol->ResolveCallableAddress(*m_target);
+        if (load_address == LLDB_INVALID_ADDRESS) {
+          Address addr = candidate_sc.symbol->GetAddress();
+          load_address = m_target->GetProcessSP()
+                             ? addr.GetLoadAddress(m_target)
+                             : addr.GetFileAddress();
+        }
+      }
+
+      // If that didn't work, try the function.
+      if (load_address == LLDB_INVALID_ADDRESS && candidate_sc.function) {
+        Address addr =
+            candidate_sc.function->GetAddressRange().GetBaseAddress();
+        load_address = m_target->GetProcessSP() ? addr.GetLoadAddress(m_target)
+                                                : addr.GetFileAddress();
+      }
+
+      // We found a load address.
+      if (load_address != LLDB_INVALID_ADDRESS) {
+        // If the load address is external, we're done.
+        const bool is_external =
+            (candidate_sc.function) ||
+            (candidate_sc.symbol && candidate_sc.symbol->IsExternal());
+        if (is_external)
+          return load_address;
+
+        // Otherwise, remember the best internal load address.
+        if (m_best_internal_load_address == LLDB_INVALID_ADDRESS)
+          m_best_internal_load_address = load_address;
+      }
     }
 
-    if (sc_list.GetSize() == 0 && sc.target_sp) {
-      sc.target_sp->GetImages().FindFunctions(spec.name, spec.mask,
-                                              true,  // include_symbols
-                                              false, // include_inlines
-                                              sc_list);
+    // You test the address of a weak symbol against NULL to see if it is
+    // present. So we should return 0 for a missing weak symbol.
+    if (m_symbol_was_missing_weak)
+      return 0;
+
+    return llvm::None;
+  }
+
+  lldb::addr_t GetBestInternalLoadAddress() const {
+    return m_best_internal_load_address;
+  }
+
+private:
+  Target *m_target;
+  bool &m_symbol_was_missing_weak;
+  lldb::addr_t m_best_internal_load_address = LLDB_INVALID_ADDRESS;
+};
+
+lldb::addr_t
+IRExecutionUnit::FindInSymbols(const std::vector<ConstString> &names,
+                               const lldb_private::SymbolContext &sc,
+                               bool &symbol_was_missing_weak) {
+  symbol_was_missing_weak = false;
+
+  Target *target = sc.target_sp.get();
+  if (!target) {
+    // We shouldn't be doing any symbol lookup at all without a target.
+    return LLDB_INVALID_ADDRESS;
+  }
+
+  LoadAddressResolver resolver(target, symbol_was_missing_weak);
+
+  ModuleFunctionSearchOptions function_options;
+  function_options.include_symbols = true;
+  function_options.include_inlines = false;
+
+  for (const ConstString &name : names) {
+    if (sc.module_sp) {
+      SymbolContextList sc_list;
+      sc.module_sp->FindFunctions(name, CompilerDeclContext(),
+                                  lldb::eFunctionNameTypeFull, function_options,
+                                  sc_list);
+      if (auto load_addr = resolver.Resolve(sc_list))
+        return *load_addr;
     }
 
-    if (get_external_load_address(load_address, sc_list, sc)) {
-      return load_address;
-    } else {
-      sc_list.Clear();
+    if (sc.target_sp) {
+      SymbolContextList sc_list;
+      sc.target_sp->GetImages().FindFunctions(name, lldb::eFunctionNameTypeFull,
+                                              function_options, sc_list);
+      if (auto load_addr = resolver.Resolve(sc_list))
+        return *load_addr;
     }
 
-    if (sc_list.GetSize() == 0 && sc.target_sp) {
+    if (sc.target_sp) {
+      SymbolContextList sc_list;
       sc.target_sp->GetImages().FindSymbolsWithNameAndType(
-          spec.name, lldb::eSymbolTypeAny, sc_list);
+          name, lldb::eSymbolTypeAny, sc_list);
+      if (auto load_addr = resolver.Resolve(sc_list))
+        return *load_addr;
     }
 
-    if (get_external_load_address(load_address, sc_list, sc)) {
-      return load_address;
-    }
-    // if there are any searches we try after this, add an sc_list.Clear() in
-    // an "else" clause here
-
-    if (best_internal_load_address != LLDB_INVALID_ADDRESS) {
+    lldb::addr_t best_internal_load_address =
+        resolver.GetBestInternalLoadAddress();
+    if (best_internal_load_address != LLDB_INVALID_ADDRESS)
       return best_internal_load_address;
-    }
   }
 
   return LLDB_INVALID_ADDRESS;
 }
 
 lldb::addr_t
-IRExecutionUnit::FindInRuntimes(const std::vector<SearchSpec> &specs,
+IRExecutionUnit::FindInRuntimes(const std::vector<ConstString> &names,
                                 const lldb_private::SymbolContext &sc) {
   lldb::TargetSP target_sp = sc.target_sp;
 
@@ -916,9 +898,9 @@ IRExecutionUnit::FindInRuntimes(const std::vector<SearchSpec> &specs,
     return LLDB_INVALID_ADDRESS;
   }
 
-  for (const SearchSpec &spec : specs) {
+  for (const ConstString &name : names) {
     for (LanguageRuntime *runtime : process_sp->GetLanguageRuntimes()) {
-      lldb::addr_t symbol_load_addr = runtime->LookupRuntimeSymbol(spec.name);
+      lldb::addr_t symbol_load_addr = runtime->LookupRuntimeSymbol(name);
 
       if (symbol_load_addr != LLDB_INVALID_ADDRESS)
         return symbol_load_addr;
@@ -929,12 +911,12 @@ IRExecutionUnit::FindInRuntimes(const std::vector<SearchSpec> &specs,
 }
 
 lldb::addr_t IRExecutionUnit::FindInUserDefinedSymbols(
-    const std::vector<SearchSpec> &specs,
+    const std::vector<ConstString> &names,
     const lldb_private::SymbolContext &sc) {
   lldb::TargetSP target_sp = sc.target_sp;
 
-  for (const SearchSpec &spec : specs) {
-    lldb::addr_t symbol_load_addr = target_sp->GetPersistentSymbol(spec.name);
+  for (const ConstString &name : names) {
+    lldb::addr_t symbol_load_addr = target_sp->GetPersistentSymbol(name);
 
     if (symbol_load_addr != LLDB_INVALID_ADDRESS)
       return symbol_load_addr;
@@ -943,18 +925,18 @@ lldb::addr_t IRExecutionUnit::FindInUserDefinedSymbols(
   return LLDB_INVALID_ADDRESS;
 }
 
-lldb::addr_t
-IRExecutionUnit::FindSymbol(lldb_private::ConstString name, bool &missing_weak) {
-  std::vector<SearchSpec> candidate_C_names;
-  std::vector<SearchSpec> candidate_CPlusPlus_names;
+lldb::addr_t IRExecutionUnit::FindSymbol(lldb_private::ConstString name,
+                                         bool &missing_weak) {
+  std::vector<ConstString> candidate_C_names;
+  std::vector<ConstString> candidate_CPlusPlus_names;
 
   CollectCandidateCNames(candidate_C_names, name);
-  
+
   lldb::addr_t ret = FindInSymbols(candidate_C_names, m_sym_ctx, missing_weak);
   if (ret != LLDB_INVALID_ADDRESS)
     return ret;
-  
-  // If we find the symbol in runtimes or user defined symbols it can't be 
+
+  // If we find the symbol in runtimes or user defined symbols it can't be
   // a missing weak symbol.
   missing_weak = false;
   ret = FindInRuntimes(candidate_C_names, m_sym_ctx);
@@ -971,7 +953,7 @@ IRExecutionUnit::FindSymbol(lldb_private::ConstString name, bool &missing_weak) 
   if (ret != LLDB_INVALID_ADDRESS)
     return ret;
 
-  std::vector<SearchSpec> candidate_fallback_names;
+  std::vector<ConstString> candidate_fallback_names;
 
   CollectFallbackNames(candidate_fallback_names, candidate_C_names);
   ret = FindInSymbols(candidate_fallback_names, m_sym_ctx, missing_weak);

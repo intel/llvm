@@ -1142,11 +1142,10 @@ static QualType adjustCVQualifiersForCXXThisWithinLambda(
     }
   }
 
-  // 2) We've run out of ScopeInfos but check if CurDC is a lambda (which can
-  // happen during instantiation of its nested generic lambda call operator)
-  if (isLambdaCallOperator(CurDC)) {
-    assert(CurLSI && "While computing 'this' capture-type for a generic "
-                     "lambda, we must have a corresponding LambdaScopeInfo");
+  // 2) We've run out of ScopeInfos but check 1. if CurDC is a lambda (which
+  //    can happen during instantiation of its nested generic lambda call
+  //    operator); 2. if we're in a lambda scope (lambda body).
+  if (CurLSI && isLambdaCallOperator(CurDC)) {
     assert(isGenericLambdaCallOperatorSpecialization(CurLSI->CallOperator) &&
            "While computing 'this' capture-type for a generic lambda, when we "
            "run out of enclosing LSI's, yet the enclosing DC is a "
@@ -1459,7 +1458,8 @@ Sema::BuildCXXTypeConstructExpr(TypeSourceInfo *TInfo,
          "List initialization must have initializer list as expression.");
   SourceRange FullRange = SourceRange(TyBeginLoc, RParenOrBraceLoc);
 
-  InitializedEntity Entity = InitializedEntity::InitializeTemporary(TInfo);
+  InitializedEntity Entity =
+      InitializedEntity::InitializeTemporary(Context, TInfo);
   InitializationKind Kind =
       Exprs.size()
           ? ListInitialization
@@ -2253,8 +2253,7 @@ Sema::BuildCXXNew(SourceRange Range, bool UseGlobal,
     }
 
     IntegerLiteral AllocationSizeLiteral(
-        Context,
-        AllocationSize.getValueOr(llvm::APInt::getNullValue(SizeTyWidth)),
+        Context, AllocationSize.getValueOr(llvm::APInt::getZero(SizeTyWidth)),
         SizeTy, SourceLocation());
     // Otherwise, if we failed to constant-fold the allocation size, we'll
     // just give up and pass-in something opaque, that isn't a null pointer.
@@ -2603,10 +2602,9 @@ bool Sema::FindAllocationFunctions(SourceLocation StartLoc, SourceRange Range,
   // FIXME: Should the Sema create the expression and embed it in the syntax
   // tree? Or should the consumer just recalculate the value?
   // FIXME: Using a dummy value will interact poorly with attribute enable_if.
-  IntegerLiteral Size(Context, llvm::APInt::getNullValue(
-                      Context.getTargetInfo().getPointerWidth(0)),
-                      Context.getSizeType(),
-                      SourceLocation());
+  IntegerLiteral Size(
+      Context, llvm::APInt::getZero(Context.getTargetInfo().getPointerWidth(0)),
+      Context.getSizeType(), SourceLocation());
   AllocArgs.push_back(&Size);
 
   QualType AlignValT = Context.VoidTy;
@@ -3058,6 +3056,9 @@ void Sema::DeclareGlobalAllocationFunction(DeclarationName Name,
       EPI.ExceptionSpec.Type = EST_Dynamic;
       EPI.ExceptionSpec.Exceptions = llvm::makeArrayRef(BadAllocType);
     }
+    if (getLangOpts().NewInfallible) {
+      EPI.ExceptionSpec.Type = EST_DynamicNone;
+    }
   } else {
     EPI.ExceptionSpec =
         getLangOpts().CPlusPlus11 ? EST_BasicNoexcept : EST_DynamicNone;
@@ -3066,11 +3067,16 @@ void Sema::DeclareGlobalAllocationFunction(DeclarationName Name,
   auto CreateAllocationFunctionDecl = [&](Attr *ExtraAttr) {
     QualType FnType = Context.getFunctionType(Return, Params, EPI);
     FunctionDecl *Alloc = FunctionDecl::Create(
-        Context, GlobalCtx, SourceLocation(), SourceLocation(), Name,
-        FnType, /*TInfo=*/nullptr, SC_None, false, true);
+        Context, GlobalCtx, SourceLocation(), SourceLocation(), Name, FnType,
+        /*TInfo=*/nullptr, SC_None, getCurFPFeatures().isFPConstrained(), false,
+        true);
     Alloc->setImplicit();
     // Global allocation functions should always be visible.
     Alloc->setVisibleDespiteOwningModule();
+
+    if (HasBadAllocExceptionSpec && getLangOpts().NewInfallible)
+      Alloc->addAttr(
+          ReturnsNonNullAttr::CreateImplicit(Context, Alloc->getLocation()));
 
     Alloc->addAttr(VisibilityAttr::CreateImplicit(
         Context, LangOpts.GlobalAllocationFunctionVisibilityHidden
@@ -4777,10 +4783,6 @@ static bool CheckUnaryTypeTraitTypeCompleteness(Sema &S, TypeTrait UTT,
 
     return !S.RequireCompleteType(
         Loc, ArgTy, diag::err_incomplete_type_used_in_type_trait_expr);
-
-  // Only the type name matters, not the completeness, so always return true.
-  case UTT_SYCLMarkKernelName:
-    return true;
   }
 }
 
@@ -5217,9 +5219,6 @@ static bool EvaluateUnaryTypeTrait(Sema &Self, TypeTrait UTT,
     return !T->isIncompleteType();
   case UTT_HasUniqueObjectRepresentations:
     return C.hasUniqueObjectRepresentations(T);
-  case UTT_SYCLMarkKernelName:
-    Self.MarkSYCLKernel(KeyLoc, T, /*IsInstantiation*/ false);
-    return true;
   }
 }
 
@@ -5301,7 +5300,8 @@ static bool evaluateTypeTrait(Sema &S, TypeTrait Kind, SourceLocation KWLoc,
         S, Sema::ExpressionEvaluationContext::Unevaluated);
     Sema::SFINAETrap SFINAE(S, /*AccessCheckingSFINAE=*/true);
     Sema::ContextRAII TUContext(S, S.Context.getTranslationUnitDecl());
-    InitializedEntity To(InitializedEntity::InitializeTemporary(Args[0]));
+    InitializedEntity To(
+        InitializedEntity::InitializeTemporary(S.Context, Args[0]));
     InitializationKind InitKind(InitializationKind::CreateDirect(KWLoc, KWLoc,
                                                                  RParenLoc));
     InitializationSequence Init(S, To, InitKind, ArgExprs);
@@ -5907,10 +5907,8 @@ static bool TryClassUnification(Sema &Self, Expr *From, Expr *To,
   //   -- If E2 is an xvalue: E1 can be converted to match E2 if E1 can be
   //      implicitly converted to the type "rvalue reference to R2", subject to
   //      the constraint that the reference must bind directly.
-  if (To->isLValue() || To->isXValue()) {
-    QualType T = To->isLValue() ? Self.Context.getLValueReferenceType(ToType)
-                                : Self.Context.getRValueReferenceType(ToType);
-
+  if (To->isGLValue()) {
+    QualType T = Self.Context.getReferenceQualifiedType(To);
     InitializedEntity Entity = InitializedEntity::InitializeTemporary(T);
 
     InitializationSequence InitSeq(Self, Entity, Kind, From);
@@ -6913,7 +6911,7 @@ ExprResult Sema::MaybeBindToTemporary(Expr *E) {
   assert(!isa<CXXBindTemporaryExpr>(E) && "Double-bound temporary?");
 
   // If the result is a glvalue, we shouldn't bind it.
-  if (!E->isPRValue())
+  if (E->isGLValue())
     return E;
 
   // In ARC, calls that return a retainable type can return retained,
@@ -8759,7 +8757,7 @@ Sema::BuildExprRequirement(
     TemplateParameterList *TPL =
         ReturnTypeRequirement.getTypeConstraintTemplateParameterList();
     QualType MatchedType =
-        getDecltypeForParenthesizedExpr(E).getCanonicalType();
+        Context.getReferenceQualifiedType(E).getCanonicalType();
     llvm::SmallVector<TemplateArgument, 1> Args;
     Args.push_back(TemplateArgument(MatchedType));
     TemplateArgumentList TAL(TemplateArgumentList::OnStack, Args);

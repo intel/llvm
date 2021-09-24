@@ -81,15 +81,23 @@ void DAGTypeLegalizer::PromoteIntegerResult(SDNode *N, unsigned ResNo) {
   case ISD::STRICT_FSETCCS:
   case ISD::SETCC:       Res = PromoteIntRes_SETCC(N); break;
   case ISD::SMIN:
-  case ISD::SMAX:        Res = PromoteIntRes_SExtIntBinOp(N); break;
+  case ISD::SMAX:
+    Res = PromoteIntRes_SExtIntBinOp(N, /*IsVP*/ false);
+    break;
   case ISD::UMIN:
   case ISD::UMAX:        Res = PromoteIntRes_UMINUMAX(N); break;
 
-  case ISD::SHL:         Res = PromoteIntRes_SHL(N); break;
+  case ISD::SHL:
+    Res = PromoteIntRes_SHL(N, /*IsVP*/ false);
+    break;
   case ISD::SIGN_EXTEND_INREG:
                          Res = PromoteIntRes_SIGN_EXTEND_INREG(N); break;
-  case ISD::SRA:         Res = PromoteIntRes_SRA(N); break;
-  case ISD::SRL:         Res = PromoteIntRes_SRL(N); break;
+  case ISD::SRA:
+    Res = PromoteIntRes_SRA(N, /*IsVP*/ false);
+    break;
+  case ISD::SRL:
+    Res = PromoteIntRes_SRL(N, /*IsVP*/ false);
+    break;
   case ISD::TRUNCATE:    Res = PromoteIntRes_TRUNCATE(N); break;
   case ISD::UNDEF:       Res = PromoteIntRes_UNDEF(N); break;
   case ISD::VAARG:       Res = PromoteIntRes_VAARG(N); break;
@@ -144,13 +152,19 @@ void DAGTypeLegalizer::PromoteIntegerResult(SDNode *N, unsigned ResNo) {
   case ISD::XOR:
   case ISD::ADD:
   case ISD::SUB:
-  case ISD::MUL:         Res = PromoteIntRes_SimpleIntBinOp(N); break;
+  case ISD::MUL:
+    Res = PromoteIntRes_SimpleIntBinOp(N, /*IsVP*/ false);
+    break;
 
   case ISD::SDIV:
-  case ISD::SREM:        Res = PromoteIntRes_SExtIntBinOp(N); break;
+  case ISD::SREM:
+    Res = PromoteIntRes_SExtIntBinOp(N, /*IsVP*/ false);
+    break;
 
   case ISD::UDIV:
-  case ISD::UREM:        Res = PromoteIntRes_ZExtIntBinOp(N); break;
+  case ISD::UREM:
+    Res = PromoteIntRes_ZExtIntBinOp(N, /*IsVP*/ false);
+    break;
 
   case ISD::SADDO:
   case ISD::SSUBO:       Res = PromoteIntRes_SADDSUBO(N, ResNo); break;
@@ -232,6 +246,32 @@ void DAGTypeLegalizer::PromoteIntegerResult(SDNode *N, unsigned ResNo) {
   case ISD::FSHL:
   case ISD::FSHR:
     Res = PromoteIntRes_FunnelShift(N);
+    break;
+
+  case ISD::VP_AND:
+  case ISD::VP_OR:
+  case ISD::VP_XOR:
+  case ISD::VP_ADD:
+  case ISD::VP_SUB:
+  case ISD::VP_MUL:
+    Res = PromoteIntRes_SimpleIntBinOp(N, /*IsVP*/ true);
+    break;
+  case ISD::VP_SDIV:
+  case ISD::VP_SREM:
+    Res = PromoteIntRes_SExtIntBinOp(N, /*IsVP*/ true);
+    break;
+  case ISD::VP_UDIV:
+  case ISD::VP_UREM:
+    Res = PromoteIntRes_ZExtIntBinOp(N, /*IsVP*/ true);
+    break;
+  case ISD::VP_SHL:
+    Res = PromoteIntRes_SHL(N, /*IsVP*/ true);
+    break;
+  case ISD::VP_ASHR:
+    Res = PromoteIntRes_SRA(N, /*IsVP*/ true);
+    break;
+  case ISD::VP_LSHR:
+    Res = PromoteIntRes_SRL(N, /*IsVP*/ true);
     break;
   }
 
@@ -792,7 +832,7 @@ SDValue DAGTypeLegalizer::PromoteIntRes_ADDSUBSHLSAT(SDNode *N) {
   unsigned NewBits = PromotedType.getScalarSizeInBits();
 
   if (Opcode == ISD::UADDSAT) {
-    APInt MaxVal = APInt::getAllOnesValue(OldBits).zext(NewBits);
+    APInt MaxVal = APInt::getAllOnes(OldBits).zext(NewBits);
     SDValue SatMax = DAG.getConstant(MaxVal, dl, PromotedType);
     SDValue Add =
         DAG.getNode(ISD::ADD, dl, PromotedType, Op1Promoted, Op2Promoted);
@@ -806,7 +846,7 @@ SDValue DAGTypeLegalizer::PromoteIntRes_ADDSUBSHLSAT(SDNode *N) {
 
   // Shift cannot use a min/max expansion, we can't detect overflow if all of
   // the bits have been shifted out.
-  if (IsShift || TLI.isOperationLegalOrCustom(Opcode, PromotedType)) {
+  if (IsShift || TLI.isOperationLegal(Opcode, PromotedType)) {
     unsigned ShiftOp;
     switch (Opcode) {
     case ISD::SADDSAT:
@@ -1103,12 +1143,15 @@ SDValue DAGTypeLegalizer::PromoteIntRes_SETCC(SDNode *N) {
   return DAG.getSExtOrTrunc(SetCC, dl, NVT);
 }
 
-SDValue DAGTypeLegalizer::PromoteIntRes_SHL(SDNode *N) {
+SDValue DAGTypeLegalizer::PromoteIntRes_SHL(SDNode *N, bool IsVP) {
   SDValue LHS = GetPromotedInteger(N->getOperand(0));
   SDValue RHS = N->getOperand(1);
   if (getTypeAction(RHS.getValueType()) == TargetLowering::TypePromoteInteger)
     RHS = ZExtPromotedInteger(RHS);
-  return DAG.getNode(ISD::SHL, SDLoc(N), LHS.getValueType(), LHS, RHS);
+  if (!IsVP)
+    return DAG.getNode(N->getOpcode(), SDLoc(N), LHS.getValueType(), LHS, RHS);
+  return DAG.getNode(N->getOpcode(), SDLoc(N), LHS.getValueType(), LHS, RHS,
+                     N->getOperand(2), N->getOperand(3));
 }
 
 SDValue DAGTypeLegalizer::PromoteIntRes_SIGN_EXTEND_INREG(SDNode *N) {
@@ -1117,30 +1160,36 @@ SDValue DAGTypeLegalizer::PromoteIntRes_SIGN_EXTEND_INREG(SDNode *N) {
                      Op.getValueType(), Op, N->getOperand(1));
 }
 
-SDValue DAGTypeLegalizer::PromoteIntRes_SimpleIntBinOp(SDNode *N) {
+SDValue DAGTypeLegalizer::PromoteIntRes_SimpleIntBinOp(SDNode *N, bool IsVP) {
   // The input may have strange things in the top bits of the registers, but
   // these operations don't care.  They may have weird bits going out, but
   // that too is okay if they are integer operations.
   SDValue LHS = GetPromotedInteger(N->getOperand(0));
   SDValue RHS = GetPromotedInteger(N->getOperand(1));
-  return DAG.getNode(N->getOpcode(), SDLoc(N),
-                     LHS.getValueType(), LHS, RHS);
+  if (!IsVP)
+    return DAG.getNode(N->getOpcode(), SDLoc(N), LHS.getValueType(), LHS, RHS);
+  return DAG.getNode(N->getOpcode(), SDLoc(N), LHS.getValueType(), LHS, RHS,
+                     N->getOperand(2), N->getOperand(3));
 }
 
-SDValue DAGTypeLegalizer::PromoteIntRes_SExtIntBinOp(SDNode *N) {
+SDValue DAGTypeLegalizer::PromoteIntRes_SExtIntBinOp(SDNode *N, bool IsVP) {
   // Sign extend the input.
   SDValue LHS = SExtPromotedInteger(N->getOperand(0));
   SDValue RHS = SExtPromotedInteger(N->getOperand(1));
-  return DAG.getNode(N->getOpcode(), SDLoc(N),
-                     LHS.getValueType(), LHS, RHS);
+  if (!IsVP)
+    return DAG.getNode(N->getOpcode(), SDLoc(N), LHS.getValueType(), LHS, RHS);
+  return DAG.getNode(N->getOpcode(), SDLoc(N), LHS.getValueType(), LHS, RHS,
+                     N->getOperand(2), N->getOperand(3));
 }
 
-SDValue DAGTypeLegalizer::PromoteIntRes_ZExtIntBinOp(SDNode *N) {
+SDValue DAGTypeLegalizer::PromoteIntRes_ZExtIntBinOp(SDNode *N, bool IsVP) {
   // Zero extend the input.
   SDValue LHS = ZExtPromotedInteger(N->getOperand(0));
   SDValue RHS = ZExtPromotedInteger(N->getOperand(1));
-  return DAG.getNode(N->getOpcode(), SDLoc(N),
-                     LHS.getValueType(), LHS, RHS);
+  if (!IsVP)
+    return DAG.getNode(N->getOpcode(), SDLoc(N), LHS.getValueType(), LHS, RHS);
+  return DAG.getNode(N->getOpcode(), SDLoc(N), LHS.getValueType(), LHS, RHS,
+                     N->getOperand(2), N->getOperand(3));
 }
 
 SDValue DAGTypeLegalizer::PromoteIntRes_UMINUMAX(SDNode *N) {
@@ -1152,22 +1201,28 @@ SDValue DAGTypeLegalizer::PromoteIntRes_UMINUMAX(SDNode *N) {
                      LHS.getValueType(), LHS, RHS);
 }
 
-SDValue DAGTypeLegalizer::PromoteIntRes_SRA(SDNode *N) {
+SDValue DAGTypeLegalizer::PromoteIntRes_SRA(SDNode *N, bool IsVP) {
   // The input value must be properly sign extended.
   SDValue LHS = SExtPromotedInteger(N->getOperand(0));
   SDValue RHS = N->getOperand(1);
   if (getTypeAction(RHS.getValueType()) == TargetLowering::TypePromoteInteger)
     RHS = ZExtPromotedInteger(RHS);
-  return DAG.getNode(ISD::SRA, SDLoc(N), LHS.getValueType(), LHS, RHS);
+  if (!IsVP)
+    return DAG.getNode(N->getOpcode(), SDLoc(N), LHS.getValueType(), LHS, RHS);
+  return DAG.getNode(N->getOpcode(), SDLoc(N), LHS.getValueType(), LHS, RHS,
+                     N->getOperand(2), N->getOperand(3));
 }
 
-SDValue DAGTypeLegalizer::PromoteIntRes_SRL(SDNode *N) {
+SDValue DAGTypeLegalizer::PromoteIntRes_SRL(SDNode *N, bool IsVP) {
   // The input value must be properly zero extended.
   SDValue LHS = ZExtPromotedInteger(N->getOperand(0));
   SDValue RHS = N->getOperand(1);
   if (getTypeAction(RHS.getValueType()) == TargetLowering::TypePromoteInteger)
     RHS = ZExtPromotedInteger(RHS);
-  return DAG.getNode(ISD::SRL, SDLoc(N), LHS.getValueType(), LHS, RHS);
+  if (!IsVP)
+    return DAG.getNode(N->getOpcode(), SDLoc(N), LHS.getValueType(), LHS, RHS);
+  return DAG.getNode(N->getOpcode(), SDLoc(N), LHS.getValueType(), LHS, RHS,
+                     N->getOperand(2), N->getOperand(3));
 }
 
 SDValue DAGTypeLegalizer::PromoteIntRes_Rotate(SDNode *N) {
@@ -1832,29 +1887,25 @@ SDValue DAGTypeLegalizer::PromoteIntOp_STORE(StoreSDNode *N, unsigned OpNo){
 
 SDValue DAGTypeLegalizer::PromoteIntOp_MSTORE(MaskedStoreSDNode *N,
                                               unsigned OpNo) {
-
   SDValue DataOp = N->getValue();
-  EVT DataVT = DataOp.getValueType();
   SDValue Mask = N->getMask();
-  SDLoc dl(N);
 
-  bool TruncateStore = false;
   if (OpNo == 4) {
+    // The Mask. Update in place.
+    EVT DataVT = DataOp.getValueType();
     Mask = PromoteTargetBoolean(Mask, DataVT);
-    // Update in place.
     SmallVector<SDValue, 4> NewOps(N->op_begin(), N->op_end());
     NewOps[4] = Mask;
     return SDValue(DAG.UpdateNodeOperands(N, NewOps), 0);
-  } else { // Data operand
-    assert(OpNo == 1 && "Unexpected operand for promotion");
-    DataOp = GetPromotedInteger(DataOp);
-    TruncateStore = true;
   }
 
-  return DAG.getMaskedStore(N->getChain(), dl, DataOp, N->getBasePtr(),
+  assert(OpNo == 1 && "Unexpected operand for promotion");
+  DataOp = GetPromotedInteger(DataOp);
+
+  return DAG.getMaskedStore(N->getChain(), SDLoc(N), DataOp, N->getBasePtr(),
                             N->getOffset(), Mask, N->getMemoryVT(),
                             N->getMemOperand(), N->getAddressingMode(),
-                            TruncateStore, N->isCompressingStore());
+                            /*IsTruncating*/ true, N->isCompressingStore());
 }
 
 SDValue DAGTypeLegalizer::PromoteIntOp_MLOAD(MaskedLoadSDNode *N,
@@ -3087,6 +3138,9 @@ void DAGTypeLegalizer::ExpandIntRes_FP_TO_SINT(SDNode *N, SDValue &Lo,
     EVT NFPVT = TLI.getTypeToTransformTo(*DAG.getContext(), Op.getValueType());
     Op = GetSoftPromotedHalf(Op);
     Op = DAG.getNode(ISD::FP16_TO_FP, dl, NFPVT, Op);
+    Op = DAG.getNode(ISD::FP_TO_SINT, dl, VT, Op);
+    SplitInteger(Op, Lo, Hi);
+    return;
   }
 
   RTLIB::Libcall LC = RTLIB::getFPTOSINT(Op.getValueType(), VT);
@@ -3116,6 +3170,9 @@ void DAGTypeLegalizer::ExpandIntRes_FP_TO_UINT(SDNode *N, SDValue &Lo,
     EVT NFPVT = TLI.getTypeToTransformTo(*DAG.getContext(), Op.getValueType());
     Op = GetSoftPromotedHalf(Op);
     Op = DAG.getNode(ISD::FP16_TO_FP, dl, NFPVT, Op);
+    Op = DAG.getNode(ISD::FP_TO_UINT, dl, VT, Op);
+    SplitInteger(Op, Lo, Hi);
+    return;
   }
 
   RTLIB::Libcall LC = RTLIB::getFPTOUINT(Op.getValueType(), VT);
@@ -3464,8 +3521,11 @@ void DAGTypeLegalizer::ExpandIntRes_MULFIX(SDNode *N, SDValue &Lo,
         SDValue SatMin = DAG.getConstant(MinVal, dl, VT);
         SDValue SatMax = DAG.getConstant(MaxVal, dl, VT);
         SDValue Zero = DAG.getConstant(0, dl, VT);
-        SDValue ProdNeg = DAG.getSetCC(dl, BoolVT, Product, Zero, ISD::SETLT);
-        Result = DAG.getSelect(dl, VT, ProdNeg, SatMax, SatMin);
+        // Xor the inputs, if resulting sign bit is 0 the product will be
+        // positive, else negative.
+        SDValue Xor = DAG.getNode(ISD::XOR, dl, VT, LHS, RHS);
+        SDValue ProdNeg = DAG.getSetCC(dl, BoolVT, Xor, Zero, ISD::SETLT);
+        Result = DAG.getSelect(dl, VT, ProdNeg, SatMin, SatMax);
         Result = DAG.getSelect(dl, VT, Overflow, Result, Product);
       } else {
         // For unsigned multiplication, we only need to check the max since we
@@ -3638,7 +3698,7 @@ void DAGTypeLegalizer::ExpandIntRes_MULFIX(SDNode *N, SDValue &Lo,
 
   // Saturate to signed maximum.
   APInt MaxHi = APInt::getSignedMaxValue(NVTSize);
-  APInt MaxLo = APInt::getAllOnesValue(NVTSize);
+  APInt MaxLo = APInt::getAllOnes(NVTSize);
   Hi = DAG.getSelect(dl, NVT, SatMax, DAG.getConstant(MaxHi, dl, NVT), Hi);
   Lo = DAG.getSelect(dl, NVT, SatMax, DAG.getConstant(MaxLo, dl, NVT), Lo);
   // Saturate to signed minimum.
@@ -4035,7 +4095,25 @@ void DAGTypeLegalizer::ExpandIntRes_XMULO(SDNode *N,
     LC = RTLIB::MULO_I64;
   else if (VT == MVT::i128)
     LC = RTLIB::MULO_I128;
-  assert(LC != RTLIB::UNKNOWN_LIBCALL && "Unsupported XMULO!");
+
+  if (LC == RTLIB::UNKNOWN_LIBCALL || !TLI.getLibcallName(LC)) {
+    // FIXME: This is not an optimal expansion, but better than crashing.
+    EVT WideVT =
+        EVT::getIntegerVT(*DAG.getContext(), VT.getScalarSizeInBits() * 2);
+    SDValue LHS = DAG.getNode(ISD::SIGN_EXTEND, dl, WideVT, N->getOperand(0));
+    SDValue RHS = DAG.getNode(ISD::SIGN_EXTEND, dl, WideVT, N->getOperand(1));
+    SDValue Mul = DAG.getNode(ISD::MUL, dl, WideVT, LHS, RHS);
+    SDValue MulLo, MulHi;
+    SplitInteger(Mul, MulLo, MulHi);
+    SDValue SRA =
+        DAG.getNode(ISD::SRA, dl, VT, MulLo,
+                    DAG.getConstant(VT.getScalarSizeInBits() - 1, dl, VT));
+    SDValue Overflow =
+        DAG.getSetCC(dl, N->getValueType(1), MulHi, SRA, ISD::SETNE);
+    SplitInteger(MulLo, Lo, Hi);
+    ReplaceValueWith(SDValue(N, 1), Overflow);
+    return;
+  }
 
   SDValue Temp = DAG.CreateStackTemporary(PtrVT);
   // Temporary for the overflow value, default it to zero.
@@ -4297,7 +4375,7 @@ void DAGTypeLegalizer::IntegerExpandSetCCOperands(SDValue &NewLHS,
   if (CCCode == ISD::SETEQ || CCCode == ISD::SETNE) {
     if (RHSLo == RHSHi) {
       if (ConstantSDNode *RHSCST = dyn_cast<ConstantSDNode>(RHSLo)) {
-        if (RHSCST->isAllOnesValue()) {
+        if (RHSCST->isAllOnes()) {
           // Equality comparison to -1.
           NewLHS = DAG.getNode(ISD::AND, dl,
                                LHSLo.getValueType(), LHSLo, LHSHi);
@@ -4317,8 +4395,8 @@ void DAGTypeLegalizer::IntegerExpandSetCCOperands(SDValue &NewLHS,
   // If this is a comparison of the sign bit, just look at the top part.
   // X > -1,  x < 0
   if (ConstantSDNode *CST = dyn_cast<ConstantSDNode>(NewRHS))
-    if ((CCCode == ISD::SETLT && CST->isNullValue()) ||     // X < 0
-        (CCCode == ISD::SETGT && CST->isAllOnesValue())) {  // X > -1
+    if ((CCCode == ISD::SETLT && CST->isZero()) ||    // X < 0
+        (CCCode == ISD::SETGT && CST->isAllOnes())) { // X > -1
       NewLHS = LHSHi;
       NewRHS = RHSHi;
       return;
@@ -4369,9 +4447,11 @@ void DAGTypeLegalizer::IntegerExpandSetCCOperands(SDValue &NewLHS,
   bool EqAllowed = (CCCode == ISD::SETLE || CCCode == ISD::SETGE ||
                     CCCode == ISD::SETUGE || CCCode == ISD::SETULE);
 
-  if ((EqAllowed && (HiCmpC && HiCmpC->isNullValue())) ||
-      (!EqAllowed && ((HiCmpC && (HiCmpC->getAPIntValue() == 1)) ||
-                      (LoCmpC && LoCmpC->isNullValue())))) {
+  // FIXME: Is the HiCmpC->isOne() here correct for
+  // ZeroOrNegativeOneBooleanContent.
+  if ((EqAllowed && (HiCmpC && HiCmpC->isZero())) ||
+      (!EqAllowed &&
+       ((HiCmpC && HiCmpC->isOne()) || (LoCmpC && LoCmpC->isZero())))) {
     // For LE / GE, if high part is known false, ignore the low part.
     // For LT / GT: if low part is known false, return the high part.
     //              if high part is known true, ignore the low part.
@@ -4706,6 +4786,30 @@ SDValue DAGTypeLegalizer::PromoteIntRes_EXTRACT_SUBVECTOR(SDNode *N) {
     SDValue InOp0 = N->getOperand(0);
     EVT InVT = InOp0.getValueType();
 
+    // Try and extract from a smaller type so that it eventually falls
+    // into the promotion code below.
+    if (getTypeAction(InVT) == TargetLowering::TypeSplitVector ||
+        getTypeAction(InVT) == TargetLowering::TypeLegal) {
+      EVT NInVT = InVT.getHalfNumVectorElementsVT(*DAG.getContext());
+      unsigned NElts = NInVT.getVectorMinNumElements();
+      uint64_t IdxVal = cast<ConstantSDNode>(BaseIdx)->getZExtValue();
+
+      SDValue Step1 = DAG.getNode(ISD::EXTRACT_SUBVECTOR, dl, NInVT, InOp0,
+                                  DAG.getConstant(alignDown(IdxVal, NElts), dl,
+                                                  BaseIdx.getValueType()));
+      SDValue Step2 = DAG.getNode(
+          ISD::EXTRACT_SUBVECTOR, dl, OutVT, Step1,
+          DAG.getConstant(IdxVal % NElts, dl, BaseIdx.getValueType()));
+      return DAG.getNode(ISD::ANY_EXTEND, dl, NOutVT, Step2);
+    }
+
+    // Try and extract from a widened type.
+    if (getTypeAction(InVT) == TargetLowering::TypeWidenVector) {
+      SDValue Ops[] = {GetWidenedVector(InOp0), BaseIdx};
+      SDValue Ext = DAG.getNode(ISD::EXTRACT_SUBVECTOR, SDLoc(N), OutVT, Ops);
+      return DAG.getNode(ISD::ANY_EXTEND, dl, NOutVT, Ext);
+    }
+
     // Promote operands and see if this is handled by target lowering,
     // Otherwise, use the BUILD_VECTOR approach below
     if (getTypeAction(InVT) == TargetLowering::TypePromoteInteger) {
@@ -4861,11 +4965,9 @@ SDValue DAGTypeLegalizer::PromoteIntRes_STEP_VECTOR(SDNode *N) {
   EVT OutVT = N->getValueType(0);
   EVT NOutVT = TLI.getTypeToTransformTo(*DAG.getContext(), OutVT);
   assert(NOutVT.isVector() && "Type must be promoted to a vector type");
-  EVT NOutElemVT = TLI.getTypeToTransformTo(*DAG.getContext(),
-                                            NOutVT.getVectorElementType());
   APInt StepVal = cast<ConstantSDNode>(N->getOperand(0))->getAPIntValue();
-  SDValue Step = DAG.getConstant(StepVal.getSExtValue(), dl, NOutElemVT);
-  return DAG.getStepVector(dl, NOutVT, Step);
+  return DAG.getStepVector(dl, NOutVT,
+                           StepVal.sext(NOutVT.getScalarSizeInBits()));
 }
 
 SDValue DAGTypeLegalizer::PromoteIntRes_CONCAT_VECTORS(SDNode *N) {

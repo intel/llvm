@@ -175,9 +175,9 @@ struct SimplifyDeadAlloc : public OpRewritePattern<T> {
   LogicalResult matchAndRewrite(T alloc,
                                 PatternRewriter &rewriter) const override {
     if (llvm::any_of(alloc->getUsers(), [&](Operation *op) {
-        if (auto storeOp = dyn_cast<StoreOp>(op))
-          return storeOp.value() == alloc;
-        return !isa<DeallocOp>(op);
+          if (auto storeOp = dyn_cast<StoreOp>(op))
+            return storeOp.value() == alloc;
+          return !isa<DeallocOp>(op);
         }))
       return failure();
 
@@ -208,7 +208,7 @@ void AllocaOp::getCanonicalizationPatterns(RewritePatternSet &results,
 static void print(OpAsmPrinter &p, AllocaScopeOp &op) {
   bool printBlockTerminators = false;
 
-  p << AllocaScopeOp::getOperationName() << " ";
+  p << " ";
   if (!op.results().empty()) {
     p << " -> (" << op.getResultTypes() << ")";
     printBlockTerminators = true;
@@ -319,12 +319,54 @@ struct TensorLoadToMemRef : public OpRewritePattern<BufferCastOp> {
     // types. `BufferCastOp::fold` handles the same type case.
     if (!tensorLoad || tensorLoad.memref().getType() == bufferCast.getType())
       return failure();
-    // If types are not cast-compatible, bail.
+    // If types are definitely not cast-compatible, bail.
     if (!CastOp::areCastCompatible(tensorLoad.memref().getType(),
                                    bufferCast.getType()))
       return failure();
-    rewriter.replaceOpWithNewOp<CastOp>(bufferCast, bufferCast.getType(),
-                                        tensorLoad.memref());
+
+    // We already know that the types are potentially cast-compatible. However
+    // in case the affine maps are different, we may need to use a copy if we go
+    // from dynamic to static offset or stride (the canonicalization cannot know
+    // at this point that it is really cast compatible).
+    auto isGuaranteedCastCompatible = [](MemRefType source, MemRefType target) {
+      int64_t sourceOffset, targetOffset;
+      SmallVector<int64_t, 4> sourceStrides, targetStrides;
+      if (failed(getStridesAndOffset(source, sourceStrides, sourceOffset)) ||
+          failed(getStridesAndOffset(target, targetStrides, targetOffset)))
+        return false;
+      auto dynamicToStatic = [](int64_t a, int64_t b) {
+        return a == MemRefType::getDynamicStrideOrOffset() &&
+               b != MemRefType::getDynamicStrideOrOffset();
+      };
+      if (dynamicToStatic(sourceOffset, targetOffset))
+        return false;
+      for (auto it : zip(sourceStrides, targetStrides))
+        if (dynamicToStatic(std::get<0>(it), std::get<1>(it)))
+          return false;
+      return true;
+    };
+
+    auto tensorLoadType = tensorLoad.memref().getType().dyn_cast<MemRefType>();
+    auto bufferCastType = bufferCast.getType().dyn_cast<MemRefType>();
+    if (tensorLoadType && bufferCastType &&
+        !isGuaranteedCastCompatible(tensorLoadType, bufferCastType)) {
+      MemRefType resultType = bufferCastType;
+      auto loc = bufferCast.getLoc();
+      SmallVector<Value, 4> dynamicOperands;
+      for (int i = 0; i < resultType.getRank(); ++i) {
+        if (resultType.getShape()[i] != ShapedType::kDynamicSize)
+          continue;
+        auto index = rewriter.createOrFold<ConstantIndexOp>(loc, i);
+        Value size = rewriter.create<tensor::DimOp>(loc, tensorLoad, index);
+        dynamicOperands.push_back(size);
+      }
+      auto copy =
+          rewriter.create<memref::AllocOp>(loc, resultType, dynamicOperands);
+      rewriter.create<CopyOp>(loc, tensorLoad.memref(), copy);
+      rewriter.replaceOp(bufferCast, {copy});
+    } else
+      rewriter.replaceOpWithNewOp<CastOp>(bufferCast, bufferCast.getType(),
+                                          tensorLoad.memref());
     return success();
   }
 };
@@ -519,8 +561,8 @@ void CloneOp::getEffects(
 }
 
 namespace {
-/// Fold Dealloc operations that are deallocating an AllocOp that is only used
-/// by other Dealloc operations.
+/// Merge the clone and its source (by converting the clone to a cast) when
+/// possible.
 struct SimplifyClones : public OpRewritePattern<CloneOp> {
   using OpRewritePattern<CloneOp>::OpRewritePattern;
 
@@ -536,8 +578,16 @@ struct SimplifyClones : public OpRewritePattern<CloneOp> {
     // This only finds dealloc operations for the immediate value. It should
     // also consider aliases. That would also make the safety check below
     // redundant.
-    Operation *cloneDeallocOp = findDealloc(cloneOp.output());
-    Operation *sourceDeallocOp = findDealloc(source);
+    llvm::Optional<Operation *> maybeCloneDeallocOp =
+        findDealloc(cloneOp.output());
+    // Skip if either of them has > 1 deallocate operations.
+    if (!maybeCloneDeallocOp.hasValue())
+      return failure();
+    llvm::Optional<Operation *> maybeSourceDeallocOp = findDealloc(source);
+    if (!maybeSourceDeallocOp.hasValue())
+      return failure();
+    Operation *cloneDeallocOp = *maybeCloneDeallocOp;
+    Operation *sourceDeallocOp = *maybeSourceDeallocOp;
 
     // If both are deallocated in the same block, their in-block lifetimes
     // might not fully overlap, so we cannot decide which one to drop.
@@ -755,10 +805,9 @@ void DmaStartOp::build(OpBuilder &builder, OperationState &result,
 }
 
 void DmaStartOp::print(OpAsmPrinter &p) {
-  p << getOperationName() << " " << getSrcMemRef() << '[' << getSrcIndices()
-    << "], " << getDstMemRef() << '[' << getDstIndices() << "], "
-    << getNumElements() << ", " << getTagMemRef() << '[' << getTagIndices()
-    << ']';
+  p << " " << getSrcMemRef() << '[' << getSrcIndices() << "], "
+    << getDstMemRef() << '[' << getDstIndices() << "], " << getNumElements()
+    << ", " << getTagMemRef() << '[' << getTagIndices() << ']';
   if (isStrided())
     p << ", " << getStride() << ", " << getNumElementsPerStride();
 
@@ -920,8 +969,8 @@ void DmaWaitOp::build(OpBuilder &builder, OperationState &result,
 }
 
 void DmaWaitOp::print(OpAsmPrinter &p) {
-  p << getOperationName() << " " << getTagMemRef() << '[' << getTagIndices()
-    << "], " << getNumElements();
+  p << " " << getTagMemRef() << '[' << getTagIndices() << "], "
+    << getNumElements();
   p.printOptionalAttrDict((*this)->getAttrs());
   p << " : " << getTagMemRef().getType();
 }
@@ -1127,7 +1176,7 @@ void LoadOp::getCanonicalizationPatterns(RewritePatternSet &results,
 //===----------------------------------------------------------------------===//
 
 static void print(OpAsmPrinter &p, PrefetchOp op) {
-  p << PrefetchOp::getOperationName() << " " << op.memref() << '[';
+  p << " " << op.memref() << '[';
   p.printOperands(op.indices());
   p << ']' << ", " << (op.isWrite() ? "write" : "read");
   p << ", locality<" << op.localityHint();
@@ -1308,16 +1357,16 @@ SmallVector<AffineMap, 4> CollapseShapeOp::getReassociationMaps() {
   return getSymbolLessAffineMaps(getReassociationExprs());
 }
 SmallVector<ReassociationExprs, 4> CollapseShapeOp::getReassociationExprs() {
-  OpBuilder b(this->getContext());
-  return convertReassociationIndicesToExprs(b, getReassociationIndices());
+  return convertReassociationIndicesToExprs(getContext(),
+                                            getReassociationIndices());
 }
 
 SmallVector<AffineMap, 4> ExpandShapeOp::getReassociationMaps() {
   return getSymbolLessAffineMaps(getReassociationExprs());
 }
 SmallVector<ReassociationExprs, 4> ExpandShapeOp::getReassociationExprs() {
-  OpBuilder b(this->getContext());
-  return convertReassociationIndicesToExprs(b, getReassociationIndices());
+  return convertReassociationIndicesToExprs(getContext(),
+                                            getReassociationIndices());
 }
 
 static void print(OpAsmPrinter &p, ExpandShapeOp op) {
@@ -1419,8 +1468,8 @@ void ExpandShapeOp::build(OpBuilder &b, OperationState &result, Value src,
                           ArrayRef<NamedAttribute> attrs) {
   auto memRefType = src.getType().cast<MemRefType>();
   auto resultType = computeReshapeCollapsedType(
-      memRefType, getSymbolLessAffineMaps(
-                      convertReassociationIndicesToExprs(b, reassociation)));
+      memRefType, getSymbolLessAffineMaps(convertReassociationIndicesToExprs(
+                      b.getContext(), reassociation)));
   build(b, result, resultType, src, attrs);
   result.addAttribute(getReassociationAttrName(),
                       getReassociationIndicesAttribute(b, reassociation));
@@ -1431,8 +1480,8 @@ void CollapseShapeOp::build(OpBuilder &b, OperationState &result, Value src,
                             ArrayRef<NamedAttribute> attrs) {
   auto memRefType = src.getType().cast<MemRefType>();
   auto resultType = computeReshapeCollapsedType(
-      memRefType, getSymbolLessAffineMaps(
-                      convertReassociationIndicesToExprs(b, reassociation)));
+      memRefType, getSymbolLessAffineMaps(convertReassociationIndicesToExprs(
+                      b.getContext(), reassociation)));
   build(b, result, resultType, src, attrs);
   result.addAttribute(getReassociationAttrName(),
                       getReassociationIndicesAttribute(b, reassociation));
@@ -1467,10 +1516,41 @@ static LogicalResult verify(CollapseShapeOp op) {
   return verifyReshapeOp(op, op.getSrcType(), op.getResultType());
 }
 
+struct CollapseShapeOpMemRefCastFolder
+    : public OpRewritePattern<CollapseShapeOp> {
+public:
+  using OpRewritePattern<CollapseShapeOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(CollapseShapeOp op,
+                                PatternRewriter &rewriter) const override {
+    auto cast = op.getOperand().getDefiningOp<CastOp>();
+    if (!cast)
+      return failure();
+
+    if (!CastOp::canFoldIntoConsumerOp(cast))
+      return failure();
+
+    Type newResultType = computeReshapeCollapsedType(
+        cast.getOperand().getType().cast<MemRefType>(),
+        op.getReassociationMaps());
+
+    if (newResultType == op.getResultType()) {
+      rewriter.updateRootInPlace(
+          op, [&]() { op.srcMutable().assign(cast.source()); });
+    } else {
+      Value newOp = rewriter.create<CollapseShapeOp>(
+          op->getLoc(), cast.source(), op.getReassociationIndices());
+      rewriter.replaceOpWithNewOp<CastOp>(op, op.getType(), newOp);
+    }
+    return success();
+  }
+};
+
 void CollapseShapeOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                   MLIRContext *context) {
   results.add<CollapseReshapeOps<CollapseShapeOp>,
-              CollapseMixedReshapeOps<CollapseShapeOp, ExpandShapeOp>>(context);
+              CollapseMixedReshapeOps<CollapseShapeOp, ExpandShapeOp>,
+              CollapseShapeOpMemRefCastFolder>(context);
 }
 OpFoldResult ExpandShapeOp::fold(ArrayRef<Attribute> operands) {
   if (succeeded(foldMemRefCast(*this)))
@@ -1478,8 +1558,6 @@ OpFoldResult ExpandShapeOp::fold(ArrayRef<Attribute> operands) {
   return foldReshapeOp<ExpandShapeOp, CollapseShapeOp>(*this, operands);
 }
 OpFoldResult CollapseShapeOp::fold(ArrayRef<Attribute> operands) {
-  if (succeeded(foldMemRefCast(*this)))
-    return getResult();
   return foldReshapeOp<CollapseShapeOp, ExpandShapeOp>(*this, operands);
 }
 
@@ -2163,7 +2241,7 @@ void TransposeOp::build(OpBuilder &b, OperationState &result, Value in,
 
 // transpose $in $permutation attr-dict : type($in) `to` type(results)
 static void print(OpAsmPrinter &p, TransposeOp op) {
-  p << "memref.transpose " << op.in() << " " << op.permutation();
+  p << " " << op.in() << " " << op.permutation();
   p.printOptionalAttrDict(op->getAttrs(),
                           {TransposeOp::getPermutationAttrName()});
   p << " : " << op.in().getType() << " to " << op.getType();
@@ -2240,7 +2318,7 @@ static ParseResult parseViewOp(OpAsmParser &parser, OperationState &result) {
 }
 
 static void print(OpAsmPrinter &p, ViewOp op) {
-  p << op.getOperationName() << ' ' << op.getOperand(0) << '[';
+  p << ' ' << op.getOperand(0) << '[';
   p.printOperand(op.byte_shift());
   p << "][" << op.sizes() << ']';
   p.printOptionalAttrDict(op->getAttrs());

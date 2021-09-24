@@ -91,11 +91,14 @@ class SourceLocation {
   friend class SourceManager;
   friend struct llvm::FoldingSetTrait<SourceLocation>;
 
-  unsigned ID = 0;
+public:
+  using UIntTy = uint32_t;
+  using IntTy = int32_t;
 
-  enum : unsigned {
-    MacroIDBit = 1U << 31
-  };
+private:
+  UIntTy ID = 0;
+
+  enum : UIntTy { MacroIDBit = 1ULL << (8 * sizeof(UIntTy) - 1) };
 
 public:
   bool isFileID() const  { return (ID & MacroIDBit) == 0; }
@@ -111,18 +114,16 @@ public:
 
 private:
   /// Return the offset into the manager's global input view.
-  unsigned getOffset() const {
-    return ID & ~MacroIDBit;
-  }
+  UIntTy getOffset() const { return ID & ~MacroIDBit; }
 
-  static SourceLocation getFileLoc(unsigned ID) {
+  static SourceLocation getFileLoc(UIntTy ID) {
     assert((ID & MacroIDBit) == 0 && "Ran out of source locations!");
     SourceLocation L;
     L.ID = ID;
     return L;
   }
 
-  static SourceLocation getMacroLoc(unsigned ID) {
+  static SourceLocation getMacroLoc(UIntTy ID) {
     assert((ID & MacroIDBit) == 0 && "Ran out of source locations!");
     SourceLocation L;
     L.ID = MacroIDBit | ID;
@@ -132,7 +133,7 @@ private:
 public:
   /// Return a source location with the specified offset from this
   /// SourceLocation.
-  SourceLocation getLocWithOffset(int Offset) const {
+  SourceLocation getLocWithOffset(IntTy Offset) const {
     assert(((getOffset()+Offset) & MacroIDBit) == 0 && "offset overflow");
     SourceLocation L;
     L.ID = ID+Offset;
@@ -144,13 +145,13 @@ public:
   ///
   /// This should only be passed to SourceLocation::getFromRawEncoding, it
   /// should not be inspected directly.
-  unsigned getRawEncoding() const { return ID; }
+  UIntTy getRawEncoding() const { return ID; }
 
   /// Turn a raw encoding of a SourceLocation object into
   /// a real SourceLocation.
   ///
   /// \see getRawEncoding.
-  static SourceLocation getFromRawEncoding(unsigned Encoding) {
+  static SourceLocation getFromRawEncoding(UIntTy Encoding) {
     SourceLocation X;
     X.ID = Encoding;
     return X;
@@ -170,7 +171,7 @@ public:
   /// Turn a pointer encoding of a SourceLocation object back
   /// into a real SourceLocation.
   static SourceLocation getFromPtrEncoding(const void *Encoding) {
-    return getFromRawEncoding((unsigned)(uintptr_t)Encoding);
+    return getFromRawEncoding((SourceLocation::UIntTy)(uintptr_t)Encoding);
   }
 
   static bool isPairOfFileLocations(SourceLocation Start, SourceLocation End) {
@@ -362,6 +363,10 @@ class FileEntry;
 /// A SourceLocation and its associated SourceManager.
 ///
 /// This is useful for argument passing to functions that expect both objects.
+///
+/// This class does not guarantee the presence of either the SourceManager or
+/// a valid SourceLocation. Clients should use `isValid()` and `hasManager()`
+/// before calling the member functions.
 class FullSourceLoc : public SourceLocation {
   const SourceManager *SrcMgr = nullptr;
 
@@ -372,13 +377,10 @@ public:
   explicit FullSourceLoc(SourceLocation Loc, const SourceManager &SM)
       : SourceLocation(Loc), SrcMgr(&SM) {}
 
-  bool hasManager() const {
-      bool hasSrcMgr =  SrcMgr != nullptr;
-      assert(hasSrcMgr == isValid() && "FullSourceLoc has location but no manager");
-      return hasSrcMgr;
-  }
+  /// Checks whether the SourceManager is present.
+  bool hasManager() const { return SrcMgr != nullptr; }
 
-  /// \pre This FullSourceLoc has an associated SourceManager.
+  /// \pre hasManager()
   const SourceManager &getManager() const {
     assert(SrcMgr && "SourceManager is NULL.");
     return *SrcMgr;
@@ -488,11 +490,13 @@ namespace llvm {
   /// DenseMapInfo<unsigned> which uses SourceLocation::ID is used as a key.
   template <> struct DenseMapInfo<clang::SourceLocation> {
     static clang::SourceLocation getEmptyKey() {
-      return clang::SourceLocation::getFromRawEncoding(~0U);
+      constexpr clang::SourceLocation::UIntTy Zero = 0;
+      return clang::SourceLocation::getFromRawEncoding(~Zero);
     }
 
     static clang::SourceLocation getTombstoneKey() {
-      return clang::SourceLocation::getFromRawEncoding(~0U - 1);
+      constexpr clang::SourceLocation::UIntTy Zero = 0;
+      return clang::SourceLocation::getFromRawEncoding(~Zero - 1);
     }
 
     static unsigned getHashValue(clang::SourceLocation Loc) {

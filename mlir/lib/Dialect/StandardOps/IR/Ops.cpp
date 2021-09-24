@@ -23,10 +23,12 @@
 #include "mlir/IR/Value.h"
 #include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/InliningUtils.h"
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
+#include <numeric>
 
 #include "mlir/Dialect/StandardOps/IR/OpsDialect.cpp.inc"
 
@@ -103,9 +105,7 @@ static void printStandardUnaryOp(Operation *op, OpAsmPrinter &p) {
   assert(op->getNumOperands() == 1 && "unary op should have one operand");
   assert(op->getNumResults() == 1 && "unary op should have one result");
 
-  int stdDotLen = StandardOpsDialect::getDialectNamespace().size() + 1;
-  p << op->getName().getStringRef().drop_front(stdDotLen) << ' '
-    << op->getOperand(0);
+  p << ' ' << op->getOperand(0);
   p.printOptionalAttrDict(op->getAttrs());
   p << " : " << op->getOperand(0).getType();
 }
@@ -125,9 +125,7 @@ static void printStandardBinaryOp(Operation *op, OpAsmPrinter &p) {
     return;
   }
 
-  int stdDotLen = StandardOpsDialect::getDialectNamespace().size() + 1;
-  p << op->getName().getStringRef().drop_front(stdDotLen) << ' '
-    << op->getOperand(0) << ", " << op->getOperand(1);
+  p << ' ' << op->getOperand(0) << ", " << op->getOperand(1);
   p.printOptionalAttrDict(op->getAttrs());
 
   // Now we can output only one type for all operands and the result.
@@ -150,9 +148,7 @@ static void printStandardTernaryOp(Operation *op, OpAsmPrinter &p) {
     return;
   }
 
-  int stdDotLen = StandardOpsDialect::getDialectNamespace().size() + 1;
-  p << op->getName().getStringRef().drop_front(stdDotLen) << ' '
-    << op->getOperand(0) << ", " << op->getOperand(1) << ", "
+  p << ' ' << op->getOperand(0) << ", " << op->getOperand(1) << ", "
     << op->getOperand(2);
   p.printOptionalAttrDict(op->getAttrs());
 
@@ -163,10 +159,8 @@ static void printStandardTernaryOp(Operation *op, OpAsmPrinter &p) {
 /// A custom cast operation printer that omits the "std." prefix from the
 /// operation names.
 static void printStandardCastOp(Operation *op, OpAsmPrinter &p) {
-  int stdDotLen = StandardOpsDialect::getDialectNamespace().size() + 1;
-  p << op->getName().getStringRef().drop_front(stdDotLen) << ' '
-    << op->getOperand(0) << " : " << op->getOperand(0).getType() << " to "
-    << op->getResult(0).getType();
+  p << ' ' << op->getOperand(0) << " : " << op->getOperand(0).getType()
+    << " to " << op->getResult(0).getType();
 }
 
 void StandardOpsDialect::initialize() {
@@ -294,8 +288,7 @@ OpFoldResult AndOp::fold(ArrayRef<Attribute> operands) {
     return rhs();
   /// and(x, allOnes) -> x
   APInt intValue;
-  if (matchPattern(rhs(), m_ConstantInt(&intValue)) &&
-      intValue.isAllOnesValue())
+  if (matchPattern(rhs(), m_ConstantInt(&intValue)) && intValue.isAllOnes())
     return lhs();
   /// and(x,x) -> x
   if (lhs() == rhs())
@@ -357,9 +350,32 @@ static LogicalResult verify(AtomicRMWOp op) {
 Attribute mlir::getIdentityValueAttr(AtomicRMWKind kind, Type resultType,
                                      OpBuilder &builder, Location loc) {
   switch (kind) {
+  case AtomicRMWKind::maxf:
+    return builder.getFloatAttr(
+        resultType,
+        APFloat::getInf(resultType.cast<FloatType>().getFloatSemantics(),
+                        /*Negative=*/true));
   case AtomicRMWKind::addf:
   case AtomicRMWKind::addi:
+  case AtomicRMWKind::maxu:
     return builder.getZeroAttr(resultType);
+  case AtomicRMWKind::maxs:
+    return builder.getIntegerAttr(
+        resultType,
+        APInt::getSignedMinValue(resultType.cast<IntegerType>().getWidth()));
+  case AtomicRMWKind::minf:
+    return builder.getFloatAttr(
+        resultType,
+        APFloat::getInf(resultType.cast<FloatType>().getFloatSemantics(),
+                        /*Negative=*/false));
+  case AtomicRMWKind::mins:
+    return builder.getIntegerAttr(
+        resultType,
+        APInt::getSignedMaxValue(resultType.cast<IntegerType>().getWidth()));
+  case AtomicRMWKind::minu:
+    return builder.getIntegerAttr(
+        resultType,
+        APInt::getMaxValue(resultType.cast<IntegerType>().getWidth()));
   case AtomicRMWKind::muli:
     return builder.getIntegerAttr(resultType, 1);
   case AtomicRMWKind::mulf:
@@ -392,6 +408,30 @@ Value mlir::getReductionOp(AtomicRMWKind op, OpBuilder &builder, Location loc,
     return builder.create<MulFOp>(loc, lhs, rhs);
   case AtomicRMWKind::muli:
     return builder.create<MulIOp>(loc, lhs, rhs);
+  case AtomicRMWKind::maxf:
+    return builder.create<SelectOp>(
+        loc, builder.create<CmpFOp>(loc, CmpFPredicate::OGT, lhs, rhs), lhs,
+        rhs);
+  case AtomicRMWKind::minf:
+    return builder.create<SelectOp>(
+        loc, builder.create<CmpFOp>(loc, CmpFPredicate::OLT, lhs, rhs), lhs,
+        rhs);
+  case AtomicRMWKind::maxs:
+    return builder.create<SelectOp>(
+        loc, builder.create<CmpIOp>(loc, CmpIPredicate::sgt, lhs, rhs), lhs,
+        rhs);
+  case AtomicRMWKind::mins:
+    return builder.create<SelectOp>(
+        loc, builder.create<CmpIOp>(loc, CmpIPredicate::slt, lhs, rhs), lhs,
+        rhs);
+  case AtomicRMWKind::maxu:
+    return builder.create<SelectOp>(
+        loc, builder.create<CmpIOp>(loc, CmpIPredicate::ugt, lhs, rhs), lhs,
+        rhs);
+  case AtomicRMWKind::minu:
+    return builder.create<SelectOp>(
+        loc, builder.create<CmpIOp>(loc, CmpIPredicate::ult, lhs, rhs), lhs,
+        rhs);
   // TODO: Add remaining reduction operations.
   default:
     (void)emitOptionalError(loc, "Reduction operation type not supported");
@@ -463,7 +503,7 @@ static ParseResult parseGenericAtomicRMWOp(OpAsmParser &parser,
 }
 
 static void print(OpAsmPrinter &p, GenericAtomicRMWOp op) {
-  p << op.getOperationName() << ' ' << op.memref() << "[" << op.indices()
+  p << ' ' << op.memref() << "[" << op.indices()
     << "] : " << op.memref().getType();
   p.printRegion(op.body());
   p.printOptionalAttrDict(op->getAttrs());
@@ -480,6 +520,54 @@ static LogicalResult verify(AtomicYieldOp op) {
     return op.emitOpError() << "types mismatch between yield op: " << resultType
                             << " and its parent: " << parentType;
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// BitcastOp
+//===----------------------------------------------------------------------===//
+
+bool BitcastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  assert(inputs.size() == 1 && outputs.size() == 1 &&
+         "bitcast op expects one operand and result");
+  Type a = inputs.front(), b = outputs.front();
+  if (a.isSignlessIntOrFloat() && b.isSignlessIntOrFloat())
+    return a.getIntOrFloatBitWidth() == b.getIntOrFloatBitWidth();
+  return areVectorCastSimpleCompatible(a, b, areCastCompatible);
+}
+
+OpFoldResult BitcastOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.size() == 1 && "bitcastop expects 1 operand");
+
+  // Bitcast of bitcast
+  auto *sourceOp = getOperand().getDefiningOp();
+  if (auto sourceBitcast = dyn_cast_or_null<BitcastOp>(sourceOp)) {
+    setOperand(sourceBitcast.getOperand());
+    return getResult();
+  }
+
+  auto operand = operands[0];
+  if (!operand)
+    return {};
+
+  Type resType = getResult().getType();
+
+  if (auto denseAttr = operand.dyn_cast<DenseElementsAttr>())
+    return denseAttr.bitcast(resType.cast<ShapedType>().getElementType());
+
+  APInt bits;
+  if (auto floatAttr = operand.dyn_cast<FloatAttr>())
+    bits = floatAttr.getValue().bitcastToAPInt();
+  else if (auto intAttr = operand.dyn_cast<IntegerAttr>())
+    bits = intAttr.getValue();
+  else
+    return {};
+
+  if (resType.isa<IntegerType>())
+    return IntegerAttr::get(resType, bits);
+  if (auto resFloatType = resType.dyn_cast<FloatType>())
+    return FloatAttr::get(resType,
+                          APFloat(resFloatType.getFloatSemantics(), bits));
+  return {};
 }
 
 //===----------------------------------------------------------------------===//
@@ -622,8 +710,12 @@ LogicalResult CallOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
     return emitOpError("incorrect number of results for callee");
 
   for (unsigned i = 0, e = fnType.getNumResults(); i != e; ++i)
-    if (getResult(i).getType() != fnType.getResult(i))
-      return emitOpError("result type mismatch");
+    if (getResult(i).getType() != fnType.getResult(i)) {
+      auto diag = emitOpError("result type mismatch at index ") << i;
+      diag.attachNote() << "      op result types: " << getResultTypes();
+      diag.attachNote() << "function result types: " << fnType.getResults();
+      return diag;
+    }
 
   return success();
 }
@@ -1079,7 +1171,7 @@ Block *CondBranchOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 static void print(OpAsmPrinter &p, ConstantOp &op) {
-  p << "constant ";
+  p << " ";
   p.printOptionalAttrDict(op->getAttrs(), /*elidedAttrs=*/{"value"});
 
   if (op->getAttrs().size() > 1)
@@ -1353,6 +1445,27 @@ bool FPTruncOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   return areVectorCastSimpleCompatible(a, b, areCastCompatible);
 }
 
+/// Perform safe const propagation for fptrunc, i.e. only propagate
+/// if FP value can be represented without precision loss or rounding.
+OpFoldResult FPTruncOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.size() == 1 && "unary operation takes one operand");
+
+  auto constOperand = operands.front();
+  if (!constOperand || !constOperand.isa<FloatAttr>())
+    return {};
+
+  // Convert to target type via 'double'.
+  double sourceValue =
+      constOperand.dyn_cast<FloatAttr>().getValue().convertToDouble();
+  auto targetAttr = FloatAttr::get(getType(), sourceValue);
+
+  // Propagate if constant's value does not change after truncation.
+  if (sourceValue == targetAttr.getValue().convertToDouble())
+    return targetAttr;
+
+  return {};
+}
+
 //===----------------------------------------------------------------------===//
 // IndexCastOp
 //===----------------------------------------------------------------------===//
@@ -1566,7 +1679,7 @@ OpFoldResult SelectOp::fold(ArrayRef<Attribute> operands) {
 }
 
 static void print(OpAsmPrinter &p, SelectOp op) {
-  p << "select " << op.getOperands();
+  p << " " << op.getOperands();
   p.printOptionalAttrDict(op->getAttrs());
   p << " : ";
   if (ShapedType condType = op.getCondition().getType().dyn_cast<ShapedType>())
@@ -1707,7 +1820,7 @@ OpFoldResult SignedFloorDivIOp::fold(ArrayRef<Attribute> operands) {
       return a;
     }
     unsigned bits = a.getBitWidth();
-    APInt zero = APInt::getNullValue(bits);
+    APInt zero = APInt::getZero(bits);
     if (a.sge(zero) && b.sgt(zero)) {
       // Both positive (or a is zero), return a / b.
       return a.sdiv_ov(b, overflowOrDiv0);
@@ -1757,7 +1870,7 @@ OpFoldResult SignedCeilDivIOp::fold(ArrayRef<Attribute> operands) {
       return a;
     }
     unsigned bits = a.getBitWidth();
-    APInt zero = APInt::getNullValue(bits);
+    APInt zero = APInt::getZero(bits);
     if (a.sgt(zero) && b.sgt(zero)) {
       // Both positive, return ceil(a, b).
       return signedCeilNonnegInputs(a, b, overflowOrDiv0);
@@ -2056,21 +2169,8 @@ void SwitchOp::build(OpBuilder &builder, OperationState &result, Value value,
                      DenseIntElementsAttr caseValues,
                      BlockRange caseDestinations,
                      ArrayRef<ValueRange> caseOperands) {
-  SmallVector<Value> flattenedCaseOperands;
-  SmallVector<int32_t> caseOperandOffsets;
-  int32_t offset = 0;
-  for (ValueRange operands : caseOperands) {
-    flattenedCaseOperands.append(operands.begin(), operands.end());
-    caseOperandOffsets.push_back(offset);
-    offset += operands.size();
-  }
-  DenseIntElementsAttr caseOperandOffsetsAttr;
-  if (!caseOperandOffsets.empty())
-    caseOperandOffsetsAttr = builder.getI32VectorAttr(caseOperandOffsets);
-
-  build(builder, result, value, defaultOperands, flattenedCaseOperands,
-        caseValues, caseOperandOffsetsAttr, defaultDestination,
-        caseDestinations);
+  build(builder, result, value, defaultOperands, caseOperands, caseValues,
+        defaultDestination, caseDestinations);
 }
 
 void SwitchOp::build(OpBuilder &builder, OperationState &result, Value value,
@@ -2089,16 +2189,14 @@ void SwitchOp::build(OpBuilder &builder, OperationState &result, Value value,
 
 /// <cases> ::= `default` `:` bb-id (`(` ssa-use-and-type-list `)`)?
 ///             ( `,` integer `:` bb-id (`(` ssa-use-and-type-list `)`)? )*
-static ParseResult
-parseSwitchOpCases(OpAsmParser &parser, Type &flagType,
-                   Block *&defaultDestination,
-                   SmallVectorImpl<OpAsmParser::OperandType> &defaultOperands,
-                   SmallVectorImpl<Type> &defaultOperandTypes,
-                   DenseIntElementsAttr &caseValues,
-                   SmallVectorImpl<Block *> &caseDestinations,
-                   SmallVectorImpl<OpAsmParser::OperandType> &caseOperands,
-                   SmallVectorImpl<Type> &caseOperandTypes,
-                   DenseIntElementsAttr &caseOperandOffsets) {
+static ParseResult parseSwitchOpCases(
+    OpAsmParser &parser, Type &flagType, Block *&defaultDestination,
+    SmallVectorImpl<OpAsmParser::OperandType> &defaultOperands,
+    SmallVectorImpl<Type> &defaultOperandTypes,
+    DenseIntElementsAttr &caseValues,
+    SmallVectorImpl<Block *> &caseDestinations,
+    SmallVectorImpl<SmallVector<OpAsmParser::OperandType>> &caseOperands,
+    SmallVectorImpl<SmallVector<Type>> &caseOperandTypes) {
   if (failed(parser.parseKeyword("default")) || failed(parser.parseColon()) ||
       failed(parser.parseSuccessor(defaultDestination)))
     return failure();
@@ -2110,9 +2208,7 @@ parseSwitchOpCases(OpAsmParser &parser, Type &flagType,
   }
 
   SmallVector<APInt> values;
-  SmallVector<int32_t> offsets;
   unsigned bitWidth = flagType.getIntOrFloatBitWidth();
-  int64_t offset = 0;
   while (succeeded(parser.parseOptionalComma())) {
     int64_t value = 0;
     if (failed(parser.parseInteger(value)))
@@ -2121,30 +2217,26 @@ parseSwitchOpCases(OpAsmParser &parser, Type &flagType,
 
     Block *destination;
     SmallVector<OpAsmParser::OperandType> operands;
+    SmallVector<Type> operandTypes;
     if (failed(parser.parseColon()) ||
         failed(parser.parseSuccessor(destination)))
       return failure();
     if (succeeded(parser.parseOptionalLParen())) {
       if (failed(parser.parseRegionArgumentList(operands)) ||
-          failed(parser.parseColonTypeList(caseOperandTypes)) ||
+          failed(parser.parseColonTypeList(operandTypes)) ||
           failed(parser.parseRParen()))
         return failure();
     }
     caseDestinations.push_back(destination);
-    caseOperands.append(operands.begin(), operands.end());
-    offsets.push_back(offset);
-    offset += operands.size();
+    caseOperands.emplace_back(operands);
+    caseOperandTypes.emplace_back(operandTypes);
   }
 
-  if (values.empty())
-    return success();
-
-  Builder &builder = parser.getBuilder();
-  ShapedType caseValueType =
-      VectorType::get(static_cast<int64_t>(values.size()), flagType);
-  caseValues = DenseIntElementsAttr::get(caseValueType, values);
-  caseOperandOffsets = builder.getI32VectorAttr(offsets);
-
+  if (!values.empty()) {
+    ShapedType caseValueType =
+        VectorType::get(static_cast<int64_t>(values.size()), flagType);
+    caseValues = DenseIntElementsAttr::get(caseValueType, values);
+  }
   return success();
 }
 
@@ -2152,8 +2244,7 @@ static void printSwitchOpCases(
     OpAsmPrinter &p, SwitchOp op, Type flagType, Block *defaultDestination,
     OperandRange defaultOperands, TypeRange defaultOperandTypes,
     DenseIntElementsAttr caseValues, SuccessorRange caseDestinations,
-    OperandRange caseOperands, TypeRange caseOperandTypes,
-    ElementsAttr caseOperandOffsets) {
+    OperandRangeRange caseOperands, TypeRangeRange caseOperandTypes) {
   p << "  default: ";
   p.printSuccessorAndUseList(defaultDestination, defaultOperands);
 
@@ -2166,7 +2257,7 @@ static void printSwitchOpCases(
     p << "  ";
     p << caseValues.getValue<APInt>(i).getLimitedValue();
     p << ": ";
-    p.printSuccessorAndUseList(caseDestinations[i], op.getCaseOperands(i));
+    p.printSuccessorAndUseList(caseDestinations[i], caseOperands[i]);
   }
   p.printNewline();
 }
@@ -2192,28 +2283,6 @@ static LogicalResult verify(SwitchOp op) {
                                "case destinations ("
                             << caseDestinations.size() << ")";
   return success();
-}
-
-OperandRange SwitchOp::getCaseOperands(unsigned index) {
-  return getCaseOperandsMutable(index);
-}
-
-MutableOperandRange SwitchOp::getCaseOperandsMutable(unsigned index) {
-  MutableOperandRange caseOperands = caseOperandsMutable();
-  if (!case_operand_offsets()) {
-    assert(caseOperands.size() == 0 &&
-           "non-empty case operands must have offsets");
-    return caseOperands;
-  }
-
-  ElementsAttr offsets = case_operand_offsets().getValue();
-  assert(index < offsets.size() && "invalid case operand offset index");
-
-  int64_t begin = offsets.getValue(index).cast<IntegerAttr>().getInt();
-  int64_t end = index + 1 == offsets.size()
-                    ? caseOperands.size()
-                    : offsets.getValue(index + 1).cast<IntegerAttr>().getInt();
-  return caseOperandsMutable().slice(begin, end - begin);
 }
 
 Optional<MutableOperandRange>

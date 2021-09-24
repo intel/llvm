@@ -3,7 +3,7 @@
 // RUN:   --convert-vector-to-scf --convert-scf-to-std \
 // RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
 // RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm | \
+// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/mttkrp_b.tns" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -72,7 +72,7 @@ module {
     // Read the sparse B input from a file.
     %fileName = call @getTensorFilename(%c0) : (index) -> (!Filename)
     %b = sparse_tensor.new %fileName
-          : !llvm.ptr<i8> to tensor<?x?x?xf64, #SparseMatrix>
+          : !Filename to tensor<?x?x?xf64, #SparseMatrix>
 
     // Initialize dense C and D inputs and dense output A.
     %cdata = memref.alloc(%c3, %c5) : memref<?x?xf64>

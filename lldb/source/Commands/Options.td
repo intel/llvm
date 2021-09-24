@@ -73,7 +73,7 @@ let Command = "breakpoint modify" in {
     "index matches this argument.">;
   def breakpoint_modify_thread_id : Option<"thread-id", "t">, Group<1>,
     Arg<"ThreadID">, Desc<"The breakpoint stops only for the thread whose TID "
-    "matches this argument.">;
+    "matches this argument.  The token 'current' resolves to the current thread's ID.">;
   def breakpoint_modify_thread_name : Option<"thread-name", "T">, Group<1>,
     Arg<"ThreadName">, Desc<"The breakpoint stops only for the thread whose "
     "thread name matches this argument.">;
@@ -151,10 +151,10 @@ let Command = "breakpoint set" in {
   def breakpoint_set_selector : Option<"selector", "S">, Group<5>,
     Arg<"Selector">, Required,
     Desc<"Set the breakpoint by ObjC selector name. Can be repeated multiple "
-    "times tomake one breakpoint for multiple Selectors.">;
+    "times to make one breakpoint for multiple Selectors.">;
   def breakpoint_set_method : Option<"method", "M">, Group<6>, Arg<"Method">,
     Required, Desc<"Set the breakpoint by C++ method names.  Can be repeated "
-    "multiple times tomake one breakpoint for multiple methods.">;
+    "multiple times to make one breakpoint for multiple methods.">;
   def breakpoint_set_func_regex : Option<"func-regex", "r">, Group<7>,
     Arg<"RegularExpression">, Required, Desc<"Set the breakpoint by function "
     "name, evaluating a regular-expression to find the function name(s).">;
@@ -404,6 +404,13 @@ let Command = "frame recognizer add" in {
     Desc<"Give the name of a Python class to use for this frame recognizer.">;
   def frame_recognizer_regex : Option<"regex", "x">,
     Desc<"Function name and module name are actually regular expressions.">;
+  def frame_recognizer_first_instruction_only : Option<"first-instruction-only", "f">, Arg<"Boolean">,
+    Desc<"If true, only apply this recognizer to frames whose PC currently points to the "
+    "first instruction of the specified function. If false, the recognizer "
+    "will always be applied, regardless of the current position within the specified function. The "
+    "implementor should keep in mind that some features, e.g. accessing function argument "
+    "values via $arg<N>, are not guaranteed to work reliably in this case, so extra care must "
+    "be taken to make the recognizer operate correctly. Defaults to true.">;
 }
 
 let Command = "history" in {
@@ -502,6 +509,14 @@ let Command = "memory write" in {
     Required, Desc<"Write memory using the contents of a file.">;
   def memory_write_offset : Option<"offset", "o">, Group<1>, Arg<"Offset">,
     Desc<"Start writing bytes from an offset within the input file.">;
+}
+
+let Command = "memory tag write" in {
+  def memory_write_end_addr : Option<"end-addr", "e">, Group<1>,
+  Arg<"AddressOrExpression">, Desc<
+    "Set tags for start address to end-addr, repeating tags as needed"
+    " to cover the range. (instead of calculating the range from the"
+    " number of tags given)">;
 }
 
 let Command = "register read" in {
@@ -734,6 +749,17 @@ let Command = "process save_core" in {
   def process_save_core_style : Option<"style", "s">, Group<1>,
     EnumArg<"SaveCoreStyle", "SaveCoreStyles()">, Desc<"Request a specific style "
     "of corefile to be saved.">;
+  def process_save_core_plugin_name : Option<"plugin-name", "p">,
+    OptionalArg<"Plugin">, Desc<"Specify a plugin name to create the core file."
+    "This allows core files to be saved in different formats.">;
+}
+
+let Command = "process trace save" in {
+  def process_trace_save_directory: Option<"directory", "d">,
+    Group<1>,
+    Arg<"Value">, Required,
+    Desc<"The directory where the trace will be saved."
+        "It will be created if it does not exist.">;
 }
 
 let Command = "script import" in {
@@ -1065,6 +1091,14 @@ let Command = "thread trace dump instructions" in {
   def thread_trace_dump_instructions_raw : Option<"raw", "r">,
     Group<1>,
     Desc<"Dump only instruction address without disassembly nor symbol information.">;
+  def thread_trace_dump_instructions_show_tsc : Option<"tsc", "t">,
+    Group<1>,
+    Desc<"For each instruction, print the corresponding timestamp counter if available.">;
+}
+
+let Command = "thread trace dump info" in {
+  def thread_trace_dump_info_verbose : Option<"verbose", "v">, Group<1>,
+    Desc<"show verbose thread trace dump info">;
 }
 
 let Command = "type summary add" in {

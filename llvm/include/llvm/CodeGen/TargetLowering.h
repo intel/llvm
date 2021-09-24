@@ -30,6 +30,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/DAGCombine.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
+#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
@@ -349,7 +350,7 @@ public:
   /// Return the in-memory pointer type for the given address space, defaults to
   /// the pointer type from the data layout.  FIXME: The default needs to be
   /// removed once all the code is updated.
-  MVT getPointerMemTy(const DataLayout &DL, uint32_t AS = 0) const {
+  virtual MVT getPointerMemTy(const DataLayout &DL, uint32_t AS = 0) const {
     return MVT::getIntegerVT(DL.getPointerSizeInBits(AS));
   }
 
@@ -591,7 +592,7 @@ public:
 
   /// Returns if it's reasonable to merge stores to MemVT size.
   virtual bool canMergeStoresTo(unsigned AS, EVT MemVT,
-                                const SelectionDAG &DAG) const {
+                                const MachineFunction &MF) const {
     return true;
   }
 
@@ -1396,6 +1397,11 @@ public:
     return NVT;
   }
 
+  virtual EVT getAsmOperandValueType(const DataLayout &DL, Type *Ty,
+                                     bool AllowUnknown = false) const {
+    return getValueType(DL, Ty, AllowUnknown);
+  }
+
   /// Return the EVT corresponding to this LLVM type.  This is fixed by the LLVM
   /// operations except for the pointer size.  If AllowUnknown is true, this
   /// will return MVT::Other for types with no EVT counterpart (e.g. structs),
@@ -1763,9 +1769,7 @@ public:
   Align getPrefFunctionAlignment() const { return PrefFunctionAlignment; }
 
   /// Return the preferred loop alignment.
-  virtual Align getPrefLoopAlignment(MachineLoop *ML = nullptr) const {
-    return PrefLoopAlignment;
-  }
+  virtual Align getPrefLoopAlignment(MachineLoop *ML = nullptr) const;
 
   /// Should loops be aligned even when the function is marked OptSize (but not
   /// MinSize).
@@ -2075,6 +2079,20 @@ public:
   virtual bool decomposeMulByConstant(LLVMContext &Context,
                                       EVT VT, SDValue C) const {
     return false;
+  }
+
+  /// Return true if it may be profitable to transform
+  /// (mul (add x, c1), c2) -> (add (mul x, c2), c1*c2).
+  /// This may not be true if c1 and c2 can be represented as immediates but
+  /// c1*c2 cannot, for example.
+  /// The target should check if c1, c2 and c1*c2 can be represented as
+  /// immediates, or have to be materialized into registers. If it is not sure
+  /// about some cases, a default true can be returned to let the DAGCombiner
+  /// decide.
+  /// AddNode is (add x, c1), and ConstNode is c2.
+  virtual bool isMulAddWithConstProfitable(const SDValue &AddNode,
+                                           const SDValue &ConstNode) const {
+    return true;
   }
 
   /// Return true if it is more correct/profitable to use strict FP_TO_INT
@@ -2506,8 +2524,11 @@ public:
     return false;
   }
 
-  virtual bool isTruncateFree(EVT FromVT, EVT ToVT) const {
-    return false;
+  virtual bool isTruncateFree(EVT FromVT, EVT ToVT) const { return false; }
+  virtual bool isTruncateFree(LLT FromTy, LLT ToTy, const DataLayout &DL,
+                              LLVMContext &Ctx) const {
+    return isTruncateFree(getApproximateEVTForLLT(FromTy, DL, Ctx),
+                          getApproximateEVTForLLT(ToTy, DL, Ctx));
   }
 
   virtual bool isProfitableToHoist(Instruction *I) const { return true; }
@@ -2583,8 +2604,11 @@ public:
     return false;
   }
 
-  virtual bool isZExtFree(EVT FromTy, EVT ToTy) const {
-    return false;
+  virtual bool isZExtFree(EVT FromTy, EVT ToTy) const { return false; }
+  virtual bool isZExtFree(LLT FromTy, LLT ToTy, const DataLayout &DL,
+                          LLVMContext &Ctx) const {
+    return isZExtFree(getApproximateEVTForLLT(FromTy, DL, Ctx),
+                      getApproximateEVTForLLT(ToTy, DL, Ctx));
   }
 
   /// Return true if sign-extension from FromTy to ToTy is cheaper than
@@ -3490,6 +3514,13 @@ public:
   virtual SDValue SimplifyMultipleUseDemandedBitsForTargetNode(
       SDValue Op, const APInt &DemandedBits, const APInt &DemandedElts,
       SelectionDAG &DAG, unsigned Depth) const;
+
+  /// Return true if this function can prove that \p Op is never poison
+  /// and, if \p PoisonOnly is false, does not have undef bits. The DemandedElts
+  /// argument limits the check to the requested vector elements.
+  virtual bool isGuaranteedNotToBeUndefOrPoisonForTargetNode(
+      SDValue Op, const APInt &DemandedElts, const SelectionDAG &DAG,
+      bool PoisonOnly, unsigned Depth) const;
 
   /// Tries to build a legal vector shuffle using the provided parameters
   /// or equivalent variations. The Mask argument maybe be modified as the

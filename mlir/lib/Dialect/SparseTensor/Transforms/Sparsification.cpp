@@ -6,45 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements lowering sparse tensor types to actual sparse code.
+// This file implements converting sparse tensor types to actual sparse code.
 //
-// The concept of letting a compiler generate sparse code automatically was
-// pioneered for dense linear algebra code in Fortran by [Bik96] in MT1 and
-// formalized to tensor algebra by [Kjolstad17,20] for the Sparse Tensor
-// Algebra Compiler (TACO). The implementation in this file closely follows
-// the "sparse iteration theory" that forms the foundation of TACO. A rewriting
-// rule is applied to each tensor expression in linalg (MLIR's tensor index
-// notation) where the sparsity of tensors is indicated with annotation using
-// a per-dimension specification of sparse/dense storage together with a
-// specification of the order on the dimensions. Subsequently, a topologically
-// sorted iteration graph, reflecting the required order on indices with respect
-// to the dimensions of each tensor, is constructed to ensure that all tensors
-// are visited in natural index order. Next, iteration lattices are constructed
-// for the tensor expression for every index in topological order. Each
-// iteration lattice point consists of a conjunction of tensor indices together
-// with a tensor (sub)expression that needs to be evaluated for that
-// conjunction. Within the lattice, iteration points are ordered according to
-// the way indices are exhausted. As such these iteration lattices drive actual
-// sparse code generation, which consists of a tedious but relatively
-// straightforward one-to-one mapping from iteration lattices to combinations
-// of for-loops, while-loops, and if-statements.
-//
-// [Bik96] Aart J.C. Bik. Compiler Support for Sparse Matrix Computations.
-// PhD thesis, Leiden University, May 1996 (aartbik.com/sparse.php).
-// [Kjolstad17] Fredrik Berg Kjolstad, Shoaib Ashraf Kamil, Stephen Chou,
-// David Lugato, and Saman Amarasinghe. The Tensor Algebra Compiler.
-// Proceedings of the ACM on Programming Languages, October 2017.
-// [Kjolstad20] Fredrik Berg Kjolstad. Sparse Tensor Algebra Compilation.
-// PhD thesis, MIT, February, 2020 (tensor-compiler.org).
-//
-// Implementation detail: We use llvm::SmallVector for vectors with
-// variable lengths and std::vector for vectors with fixed lengths.
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/Transforms.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/SparseTensor/Transforms/Passes.h"
 #include "mlir/Dialect/SparseTensor/Utils/Merger.h"
@@ -58,6 +29,9 @@ using namespace mlir;
 using namespace mlir::sparse_tensor;
 
 namespace {
+
+// Iteration graph sorting.
+enum SortMask { kSparseOnly = 0x0, kIncludeDense = 0x1, kIncludeUndef = 0x2 };
 
 // Code generation.
 struct CodeGen {
@@ -125,21 +99,53 @@ static Dim toDim(SparseTensorEncodingAttr &enc, unsigned d) {
   return Dim::kDense;
 }
 
+/// Helper method to inspect affine expressions. Rejects cases where the
+/// same index is used in more than one dimension of a tensor. Also rejects
+/// affine expressions that are not a direct index for annotated tensors.
+/// TODO: accept more affine cases for sparse tensors
+static bool findAffine(Merger &merger, unsigned tensor, AffineExpr a, Dim dim,
+                       bool isDense) {
+  switch (a.getKind()) {
+  case AffineExprKind::DimId: {
+    unsigned idx = a.cast<AffineDimExpr>().getPosition();
+    if (!merger.isDim(tensor, idx, Dim::kUndef))
+      return false; // used more than once
+    merger.setDim(tensor, idx, dim);
+    return true;
+  }
+  case AffineExprKind::Add:
+  case AffineExprKind::Mul: {
+    if (!isDense)
+      return false;
+    auto binOp = a.cast<AffineBinaryOpExpr>();
+    return findAffine(merger, tensor, binOp.getLHS(), dim, isDense) &&
+           findAffine(merger, tensor, binOp.getRHS(), dim, isDense);
+  }
+  case AffineExprKind::Constant:
+    return isDense;
+  default:
+    return false;
+  }
+}
+
 /// Helper method to inspect sparse encodings in the tensor types.
 /// Fills the per-dimension sparsity information for all tensors.
+/// Returns true if the sparse annotations and affine subscript
+/// expressions of all tensors are admissable. Returns false if
+/// no annotations are found or inadmissable constructs occur.
 static bool findSparseAnnotations(Merger &merger, linalg::GenericOp op) {
   bool annotated = false;
   for (OpOperand *t : op.getInputAndOutputOperands()) {
     auto map = op.getTiedIndexingMap(t);
-    if (!map.isProjectedPermutation())
-      return false;
     auto enc = getSparseTensorEncoding(t->get().getType());
     if (enc)
       annotated = true;
     assert(map.getNumResults() == op.getRank(t));
     for (unsigned d = 0, rank = map.getNumResults(); d < rank; d++) {
-      unsigned idx = map.getDimPosition(perm(enc, d));
-      merger.setDim(t->getOperandNumber(), idx, toDim(enc, d));
+      unsigned tensor = t->getOperandNumber();
+      AffineExpr a = map.getResult(perm(enc, d));
+      if (!findAffine(merger, tensor, a, toDim(enc, d), !enc))
+        return false; // inadmissable affine expression
     }
   }
   return annotated;
@@ -163,6 +169,32 @@ static bool topSortDFS(unsigned i, std::vector<unsigned> &visit,
   return true;
 }
 
+/// Helper method to add all constraints from the indices in one affine
+/// expression before all indices in the other affine expression. For
+/// example i0+i1 < i2+i3+1 yields i0<i2, i0<i3, i1<i2, and i1<i3.
+static void addAffineOrderings(std::vector<std::vector<bool>> &adjM,
+                               AffineExpr a, AffineExpr b, unsigned fidx) {
+  switch (a.getKind()) {
+  case AffineExprKind::DimId: {
+    unsigned idx = a.cast<AffineDimExpr>().getPosition();
+    if (b)
+      addAffineOrderings(adjM, b, AffineExpr(), idx);
+    else
+      adjM[fidx][idx] = true;
+    break;
+  }
+  case AffineExprKind::Add:
+  case AffineExprKind::Mul: {
+    auto binOp = a.cast<AffineBinaryOpExpr>();
+    addAffineOrderings(adjM, binOp.getLHS(), b, fidx);
+    addAffineOrderings(adjM, binOp.getRHS(), b, fidx);
+    break;
+  }
+  default:
+    break;
+  }
+}
+
 /// Computes a topologically sorted iteration graph for the linalg operation.
 /// Ensures all tensors are visited in natural index order. This is essential
 /// for sparse storage formats since these only support access along fixed
@@ -170,7 +202,7 @@ static bool topSortDFS(unsigned i, std::vector<unsigned> &visit,
 /// order yields innermost unit-stride access with better spatial locality.
 static bool computeIterationGraph(Merger &merger, linalg::GenericOp op,
                                   std::vector<unsigned> &topSort,
-                                  bool sparseOnly) {
+                                  unsigned mask) {
   // Set up an n x n from/to adjacency matrix of the iteration graph
   // for the implicit loop indices i_0 .. i_n-1.
   unsigned n = op.getNumLoops();
@@ -181,17 +213,27 @@ static bool computeIterationGraph(Merger &merger, linalg::GenericOp op,
     auto map = op.getTiedIndexingMap(t);
     auto enc = getSparseTensorEncoding(t->get().getType());
     assert(map.getNumDims() == n);
-    // Skip dense tensor constraints when sparse only is requested.
-    if (sparseOnly && !enc)
+    // Skip dense tensor constraints when not requested.
+    if (!(mask & SortMask::kIncludeDense) && !enc)
       continue;
     // Each tensor expression and optional dimension ordering (row-major
     // by default) puts an ordering constraint on the loop indices. For
     // example, the tensor expresion A_ijk forces the ordering i < j < k
     // on the loop indices if no explicit dimension ordering is given.
     for (unsigned d = 1, rank = map.getNumResults(); d < rank; d++) {
-      unsigned f = map.getDimPosition(perm(enc, d - 1));
-      unsigned t = map.getDimPosition(perm(enc, d));
-      adjM[f][t] = true;
+      AffineExpr f = map.getResult(perm(enc, d - 1));
+      AffineExpr t = map.getResult(perm(enc, d));
+      addAffineOrderings(adjM, f, t, 0);
+    }
+    // Push unrelated loops into sparse iteration space, so these
+    // will be skipped more often.
+    if (mask & SortMask::kIncludeUndef) {
+      unsigned tensor = t->getOperandNumber();
+      for (unsigned i = 0; i < n; i++)
+        if (merger.isDim(tensor, i, Dim::kSparse))
+          for (unsigned j = 0; j < n; j++)
+            if (merger.isDim(tensor, j, Dim::kUndef))
+              adjM[i][j] = true;
     }
   }
 
@@ -217,7 +259,7 @@ static bool isAdmissableTensorExp(Merger &merger, linalg::GenericOp op,
   unsigned tensor = lhs->getOperandNumber();
   auto enc = getSparseTensorEncoding(lhs->get().getType());
   // An non-annotated output tensor is assumed dense, and becomes a random
-  // access n-dim memref. Admissable since inserstions cannot occur.
+  // access n-dim memref. Admissable since insertions cannot occur.
   if (!enc)
     return true;
   // An all-dense annotated "sparse" output tensor becomes a linearized random
@@ -298,7 +340,10 @@ static bool genBuffers(Merger &merger, CodeGen &codegen,
     // Scan all dimensions of current tensor.
     args.clear();
     for (unsigned d = 0, rank = map.getNumResults(); d < rank; d++) {
-      unsigned idx = map.getDimPosition(perm(enc, d));
+      AffineExpr a = map.getResult(perm(enc, d));
+      if (a.getKind() != AffineExprKind::DimId)
+        continue; // compound
+      unsigned idx = a.cast<AffineDimExpr>().getPosition();
       // Handle sparse storage schemes.
       if (merger.isDim(tensor, idx, Dim::kSparse)) {
         auto dynShape = {ShapedType::kDynamicSize};
@@ -313,14 +358,12 @@ static bool genBuffers(Merger &merger, CodeGen &codegen,
         codegen.indices[tensor][idx] =
             rewriter.create<ToIndicesOp>(loc, indTp, t->get(), dim);
       }
-      // Find lower and upper bound in current dimension.
-      Value up;
-      if (shape[d] == MemRefType::kDynamicSize) {
-        up = rewriter.create<tensor::DimOp>(loc, t->get(), d);
+      // Find upper bound in current dimension.
+      unsigned p = perm(enc, d);
+      Value up = linalg::createOrFoldDimOp(rewriter, loc, t->get(), p);
+      if (shape[p] == MemRefType::kDynamicSize)
         args.push_back(up);
-      } else {
-        up = rewriter.create<ConstantIndexOp>(loc, shape[d]);
-      }
+      assert(codegen.highs[tensor][idx] == nullptr);
       codegen.sizes[idx] = codegen.highs[tensor][idx] = up;
     }
     // Perform the required bufferization. Dense inputs materialize
@@ -381,7 +424,13 @@ static Value genVectorMask(CodeGen &codegen, PatternRewriter &rewriter,
   // during vector execution. Here we rely on subsequent loop optimizations to
   // avoid executing the mask in all iterations, for example, by splitting the
   // loop into an unconditional vector loop and a scalar cleanup loop.
-  Value end = rewriter.create<SubIOp>(loc, hi, iv);
+  auto minMap = AffineMap::get(
+      /*dimCount=*/2, /*symbolCount=*/1,
+      {rewriter.getAffineSymbolExpr(0),
+       rewriter.getAffineDimExpr(0) - rewriter.getAffineDimExpr(1)},
+      rewriter.getContext());
+  Value end =
+      rewriter.createOrFold<AffineMinOp>(loc, minMap, ValueRange{hi, iv, step});
   return rewriter.create<vector::CreateMaskOp>(loc, mtp, end);
 }
 
@@ -426,6 +475,61 @@ static Value genVectorInvariantValue(CodeGen &codegen,
   return rewriter.create<vector::BroadcastOp>(val.getLoc(), vtp, val);
 }
 
+/// Generates an affine expression.
+//
+// TODO: generalize for sparse tensor subscripts
+//
+static Value genAffine(CodeGen &codegen, PatternRewriter &rewriter,
+                       AffineExpr a, Location loc) {
+  switch (a.getKind()) {
+  case AffineExprKind::DimId: {
+    unsigned idx = a.cast<AffineDimExpr>().getPosition();
+    return codegen.loops[idx]; // universal dense index
+  }
+  case AffineExprKind::Add: {
+    auto binOp = a.cast<AffineBinaryOpExpr>();
+    return rewriter.create<AddIOp>(
+        loc, genAffine(codegen, rewriter, binOp.getLHS(), loc),
+        genAffine(codegen, rewriter, binOp.getRHS(), loc));
+  }
+  case AffineExprKind::Mul: {
+    auto binOp = a.cast<AffineBinaryOpExpr>();
+    return rewriter.create<MulIOp>(
+        loc, genAffine(codegen, rewriter, binOp.getLHS(), loc),
+        genAffine(codegen, rewriter, binOp.getRHS(), loc));
+  }
+  case AffineExprKind::Constant: {
+    int64_t c = a.cast<AffineConstantExpr>().getValue();
+    return rewriter.create<ConstantIndexOp>(loc, c);
+  }
+  default:
+    llvm_unreachable("unexpected affine subscript");
+  }
+}
+
+/// Generates subscript for load/store on a dense or sparse tensor.
+static Value genSubscript(CodeGen &codegen, PatternRewriter &rewriter,
+                          linalg::GenericOp op, OpOperand *t,
+                          SmallVector<Value, 4> &args) {
+  unsigned tensor = t->getOperandNumber();
+  auto map = op.getTiedIndexingMap(t);
+  auto enc = getSparseTensorEncoding(t->get().getType());
+  unsigned rank = map.getNumResults();
+  if (enc) {
+    // Note that currently, all sparse subscripts are simple.
+    // TODO: accept affine too?
+    unsigned idx = map.getDimPosition(perm(enc, rank - 1));
+    assert(codegen.pidxs[tensor][idx] != nullptr);
+    args.push_back(codegen.pidxs[tensor][idx]); // position index
+  } else {
+    for (unsigned d = 0; d < rank; d++) {
+      AffineExpr a = map.getResult(perm(enc, d));
+      args.push_back(genAffine(codegen, rewriter, a, op.getLoc()));
+    }
+  }
+  return codegen.buffers[tensor];
+}
+
 /// Generates a load on a dense or sparse tensor.
 static Value genTensorLoad(Merger &merger, CodeGen &codegen,
                            PatternRewriter &rewriter, linalg::GenericOp op,
@@ -440,62 +544,32 @@ static Value genTensorLoad(Merger &merger, CodeGen &codegen,
   // Actual load.
   SmallVector<Value, 4> args;
   OpOperand *t = op.getInputAndOutputOperands()[merger.exp(exp).tensor];
-  unsigned tensor = t->getOperandNumber();
-  auto map = op.getTiedIndexingMap(t);
-  auto enc = getSparseTensorEncoding(t->get().getType());
-  unsigned rank = map.getNumResults();
-  if (enc) {
-    unsigned idx = map.getDimPosition(perm(enc, rank - 1));
-    assert(codegen.pidxs[tensor][idx] != nullptr);
-    args.push_back(codegen.pidxs[tensor][idx]); // position index
-  } else {
-    for (unsigned d = 0; d < rank; d++) {
-      unsigned idx = map.getDimPosition(d);
-      args.push_back(codegen.loops[idx]); // universal dense index
-    }
-  }
-  Location loc = op.getLoc();
-  Value ptr = codegen.buffers[tensor];
+  Value ptr = genSubscript(codegen, rewriter, op, t, args);
   if (codegen.curVecLength > 1)
     return genVectorLoad(codegen, rewriter, ptr, args);
-  return rewriter.create<memref::LoadOp>(loc, ptr, args);
+  return rewriter.create<memref::LoadOp>(op.getLoc(), ptr, args);
 }
 
 /// Generates a store on a dense or sparse tensor.
 static void genTensorStore(Merger &merger, CodeGen &codegen,
                            PatternRewriter &rewriter, linalg::GenericOp op,
-                           OpOperand *t, Value rhs) {
-  Location loc = op.getLoc();
+                           Value rhs) {
   // Test if this is a scalarized reduction.
-  OpOperand *lhs = op.getOutputOperand(0);
-  if (lhs == t && codegen.redVal) {
+  if (codegen.redVal) {
     if (codegen.curVecLength > 1)
-      rhs = rewriter.create<SelectOp>(loc, codegen.curVecMask, rhs,
+      rhs = rewriter.create<SelectOp>(op.getLoc(), codegen.curVecMask, rhs,
                                       codegen.redVal);
     codegen.redVal = rhs;
     return;
   }
   // Actual store.
   SmallVector<Value, 4> args;
-  unsigned tensor = t->getOperandNumber();
-  auto map = op.getTiedIndexingMap(t);
-  auto enc = getSparseTensorEncoding(t->get().getType());
-  unsigned rank = map.getNumResults();
-  if (enc) {
-    unsigned idx = map.getDimPosition(perm(enc, rank - 1));
-    assert(codegen.pidxs[tensor][idx] != nullptr);
-    args.push_back(codegen.pidxs[tensor][idx]); // position index
-  } else {
-    for (unsigned d = 0; d < rank; d++) {
-      unsigned idx = map.getDimPosition(d);
-      args.push_back(codegen.loops[idx]); // universal dense index
-    }
-  }
-  Value ptr = codegen.buffers[tensor];
+  OpOperand *t = op.getOutputOperand(0);
+  Value ptr = genSubscript(codegen, rewriter, op, t, args);
   if (codegen.curVecLength > 1)
     genVectorStore(codegen, rewriter, rhs, ptr, args);
   else
-    rewriter.create<memref::StoreOp>(loc, rhs, ptr, args);
+    rewriter.create<memref::StoreOp>(op.getLoc(), rhs, ptr, args);
 }
 
 /// Generates a pointer/index load from the sparse storage scheme. Narrower
@@ -587,7 +661,6 @@ static void genReductionEnd(Merger &merger, CodeGen &codegen,
     return;
   assert(codegen.curVecLength == 1);
   codegen.redVal = merger.exp(codegen.redExp).val = Value(); // end chain
-  OpOperand *lhs = op.getOutputOperand(0);
   if (auto vtp = red.getType().dyn_cast<VectorType>()) {
     // TODO: assumes + reductions for now
     StringAttr kind = rewriter.getStringAttr("add");
@@ -602,7 +675,7 @@ static void genReductionEnd(Merger &merger, CodeGen &codegen,
                                                  kind, red, ld);
     }
   }
-  genTensorStore(merger, codegen, rewriter, op, lhs, red);
+  genTensorStore(merger, codegen, rewriter, op, red);
 }
 
 /// Recursively generates tensor expression.
@@ -628,6 +701,27 @@ static Value genExp(Merger &merger, CodeGen &codegen, PatternRewriter &rewriter,
   return merger.buildExp(rewriter, loc, exp, v0, v1);
 }
 
+/// Determines if affine expression is invariant.
+static bool isInvariantAffine(const CodeGen &codegen, AffineExpr a,
+                              unsigned ldx, bool &atLevel) {
+  switch (a.getKind()) {
+  case AffineExprKind::DimId: {
+    unsigned idx = a.cast<AffineDimExpr>().getPosition();
+    if (idx == ldx)
+      atLevel = true;
+    return codegen.loops[idx] != nullptr; // no longer in play?
+  }
+  case AffineExprKind::Add:
+  case AffineExprKind::Mul: {
+    auto binOp = a.cast<AffineBinaryOpExpr>();
+    return isInvariantAffine(codegen, binOp.getLHS(), ldx, atLevel) &&
+           isInvariantAffine(codegen, binOp.getRHS(), ldx, atLevel);
+  }
+  default:
+    return true;
+  }
+}
+
 /// Hoists loop invariant tensor loads for which indices have been exhausted.
 static void genInvariants(Merger &merger, CodeGen &codegen,
                           PatternRewriter &rewriter, linalg::GenericOp op,
@@ -641,11 +735,9 @@ static void genInvariants(Merger &merger, CodeGen &codegen,
     auto map = op.getTiedIndexingMap(t);
     auto enc = getSparseTensorEncoding(t->get().getType());
     for (unsigned d = 0, rank = map.getNumResults(); d < rank; d++) {
-      unsigned idx = map.getDimPosition(perm(enc, d));
-      if (!codegen.loops[idx])
+      AffineExpr a = map.getResult(perm(enc, d));
+      if (!isInvariantAffine(codegen, a, ldx, atLevel))
         return; // still in play
-      else if (idx == ldx)
-        atLevel = true;
     }
     // All exhausted at this level (atLevel denotes exactly at this level).
     OpOperand *lhs = op.getOutputOperand(0);
@@ -748,12 +840,16 @@ static bool isParallelFor(CodeGen &codegen, bool isOuter, bool isReduction,
 /// For now, we reject vectorization of such cases.
 /// TODO: implement strided load/stores on dense arrays
 static bool denseUnitStrides(Merger &merger, linalg::GenericOp op,
-                             unsigned idx) {
+                             unsigned ldx) {
   for (OpOperand *t : op.getInputAndOutputOperands()) {
     if (!getSparseTensorEncoding(t->get().getType())) {
       auto map = op.getTiedIndexingMap(t);
       for (unsigned d = 0, rank = map.getNumResults(); d < rank; d++) {
-        if (map.getDimPosition(d) == idx && d != rank - 1)
+        AffineExpr a = map.getResult(d);
+        if (a.getKind() != AffineExprKind::DimId)
+          return false; // very conservative
+        unsigned idx = a.cast<AffineDimExpr>().getPosition();
+        if (idx == ldx && d != rank - 1)
           return false;
       }
     }
@@ -770,7 +866,7 @@ static Operation *genFor(Merger &merger, CodeGen &codegen,
   unsigned tensor = merger.tensor(fb);
   assert(idx == merger.index(fb));
   auto iteratorTypes = op.iterator_types().getValue();
-  bool isReduction = linalg::isReductionIteratorType(iteratorTypes[idx]);
+  bool isReduction = isReductionIterator(iteratorTypes[idx]);
   bool isSparse = merger.isDim(fb, Dim::kSparse);
   bool isVector = isVectorFor(codegen, isInner, isSparse) &&
                   denseUnitStrides(merger, op, idx);
@@ -1016,9 +1112,8 @@ static void genStmt(Merger &merger, CodeGen &codegen, PatternRewriter &rewriter,
                     unsigned exp, unsigned at) {
   // At each leaf, assign remaining tensor (sub)expression to output tensor.
   if (at == topSort.size()) {
-    OpOperand *lhs = op.getOutputOperand(0);
     Value rhs = genExp(merger, codegen, rewriter, op, exp);
-    genTensorStore(merger, codegen, rewriter, op, lhs, rhs);
+    genTensorStore(merger, codegen, rewriter, op, rhs);
     return;
   }
   assert(codegen.curVecLength == 1);
@@ -1119,7 +1214,10 @@ static void genResult(Merger &merger, CodeGen &codegen,
     // (even though lowering should never need this eventually).
     SmallVector<Value, 4> args;
     for (unsigned d = 0, rank = map.getNumResults(); d < rank; d++) {
-      unsigned idx = map.getDimPosition(perm(enc, d));
+      AffineExpr a = map.getResult(perm(enc, d));
+      if (a.getKind() != AffineExprKind::DimId)
+        continue; // compound
+      unsigned idx = a.cast<AffineDimExpr>().getPosition();
       if (merger.isDim(tensor, idx, Dim::kSparse)) {
         args.push_back(codegen.pointers[tensor][idx]);
         args.push_back(codegen.indices[tensor][idx]);
@@ -1159,8 +1257,12 @@ public:
     // This assumes that higher-level passes have already put the
     // tensors in each tensor expression in a feasible order.
     std::vector<unsigned> topSort;
-    if (!computeIterationGraph(merger, op, topSort, /*sparseOnly=*/false) &&
-        !computeIterationGraph(merger, op, topSort, /*sparseOnly=*/true))
+    if (!computeIterationGraph(merger, op, topSort,
+                               SortMask::kIncludeUndef |
+                                   SortMask::kIncludeDense) &&
+        !computeIterationGraph(merger, op, topSort, SortMask::kIncludeUndef) &&
+        !computeIterationGraph(merger, op, topSort, SortMask::kIncludeDense) &&
+        !computeIterationGraph(merger, op, topSort, SortMask::kSparseOnly))
       return failure();
 
     // Builds the tensor expression for the Linalg operation in SSA form.

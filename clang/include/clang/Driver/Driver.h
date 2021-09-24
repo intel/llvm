@@ -380,12 +380,6 @@ public:
   /// to determine if an error occurred.
   Compilation *BuildCompilation(ArrayRef<const char *> Args);
 
-  /// @name Driver Steps
-  /// @{
-
-  /// ParseDriverMode - Look for and handle the driver mode option in Args.
-  void ParseDriverMode(StringRef ProgramName, ArrayRef<const char *> Args);
-
   /// ParseArgStrings - Parse the given list of strings into an
   /// ArgList.
   llvm::opt::InputArgList ParseArgStrings(ArrayRef<const char *> Args,
@@ -596,9 +590,9 @@ private:
   /// \returns true, if error occurred while reading.
   bool readConfigFile(StringRef FileName);
 
-  /// Set the driver mode (cl, gcc, etc) from an option string of the form
-  /// --driver-mode=<mode>.
-  void setDriverModeFromOption(StringRef Opt);
+  /// Set the driver mode (cl, gcc, etc) from the value of the `--driver-mode`
+  /// option.
+  void setDriverMode(StringRef DriverModeValue);
 
   /// Parse the \p Args list for LTO options and record the type of LTO
   /// compilation based on which -f(no-)?lto(=.*)? option occurs last.
@@ -775,6 +769,16 @@ bool isStaticArchiveFile(const StringRef &FileName);
 
 /// \return True if the argument combination will end up generating remarks.
 bool willEmitRemarks(const llvm::opt::ArgList &Args);
+
+/// Returns the driver mode option's value, i.e. `X` in `--driver-mode=X`. If \p
+/// Args doesn't mention one explicitly, tries to deduce from `ProgName`.
+/// Returns empty on failure.
+/// Common values are "gcc", "g++", "cpp", "cl" and "flang". Returned value need
+/// not be one of these.
+llvm::StringRef getDriverMode(StringRef ProgName, ArrayRef<const char *> Args);
+
+/// Checks whether the value produced by getDriverMode is for CL mode.
+bool IsClangCL(StringRef DriverMode);
 
 } // end namespace driver
 } // end namespace clang

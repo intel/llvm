@@ -70,19 +70,20 @@ mlir::createLoopFusionPass(unsigned fastMemorySpace,
 namespace {
 
 // LoopNestStateCollector walks loop nests and collects load and store
-// operations, and whether or not an IfInst was encountered in the loop nest.
+// operations, and whether or not a region holding op other than ForOp and IfOp
+// was encountered in the loop nest.
 struct LoopNestStateCollector {
   SmallVector<AffineForOp, 4> forOps;
   SmallVector<Operation *, 4> loadOpInsts;
   SmallVector<Operation *, 4> storeOpInsts;
-  bool hasNonForRegion = false;
+  bool hasNonAffineRegionOp = false;
 
   void collect(Operation *opToWalk) {
     opToWalk->walk([&](Operation *op) {
       if (isa<AffineForOp>(op))
         forOps.push_back(cast<AffineForOp>(op));
-      else if (op->getNumRegions() != 0)
-        hasNonForRegion = true;
+      else if (op->getNumRegions() != 0 && !isa<AffineIfOp>(op))
+        hasNonAffineRegionOp = true;
       else if (isa<AffineReadOpInterface>(op))
         loadOpInsts.push_back(op);
       else if (isa<AffineWriteOpInterface>(op))
@@ -744,9 +745,9 @@ bool MemRefDependenceGraph::init(FuncOp f) {
       // all loads and store accesses it contains.
       LoopNestStateCollector collector;
       collector.collect(&op);
-      // Return false if a non 'affine.for' region was found (not currently
-      // supported).
-      if (collector.hasNonForRegion)
+      // Return false if a region holding op other than 'affine.for' and
+      // 'affine.if' was found (not currently supported).
+      if (collector.hasNonAffineRegionOp)
         return false;
       Node node(nextNodeId++, &op);
       for (auto *opInst : collector.loadOpInsts) {
@@ -915,12 +916,12 @@ static Value createPrivateMemRef(AffineForOp forOp, Operation *srcStoreOpInst,
   assert(numElements.hasValue() &&
          "non-constant number of elts in local buffer");
 
-  const FlatAffineConstraints *cst = region.getConstraints();
+  const FlatAffineValueConstraints *cst = region.getConstraints();
   // 'outerIVs' holds the values that this memory region is symbolic/parametric
   // on; this would correspond to loop IVs surrounding the level at which the
   // slice is being materialized.
   SmallVector<Value, 8> outerIVs;
-  cst->getIdValues(rank, cst->getNumIds(), &outerIVs);
+  cst->getValues(rank, cst->getNumIds(), &outerIVs);
 
   // Build 'rank' AffineExprs from MemRefRegion 'lbs'
   SmallVector<AffineExpr, 4> offsets;

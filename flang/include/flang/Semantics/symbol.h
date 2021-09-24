@@ -76,6 +76,8 @@ public:
   bool isFunction() const { return result_ != nullptr; }
   bool isInterface() const { return isInterface_; }
   void set_isInterface(bool value = true) { isInterface_ = value; }
+  bool isDummy() const { return isDummy_; }
+  void set_isDummy(bool value = true) { isDummy_ = value; }
   Scope *entryScope() { return entryScope_; }
   const Scope *entryScope() const { return entryScope_; }
   void set_entryScope(Scope &scope) { entryScope_ = &scope; }
@@ -95,6 +97,7 @@ public:
 
 private:
   bool isInterface_{false}; // true if this represents an interface-body
+  bool isDummy_{false}; // true when interface of dummy procedure
   std::vector<Symbol *> dummyArgs_; // nullptr -> alternate return indicator
   Symbol *result_{nullptr};
   Scope *entryScope_{nullptr}; // if ENTRY, points to subprogram's scope
@@ -494,6 +497,7 @@ public:
       LocalityShared, // named in SHARED locality-spec
       InDataStmt, // initialized in a DATA statement
       InNamelist, // flag is set if the symbol is in Namelist statement
+      CompilerCreated,
       // OpenACC data-sharing attribute
       AccPrivate, AccFirstPrivate, AccShared,
       // OpenACC data-mapping attribute
@@ -507,7 +511,7 @@ public:
       // OpenMP data-copying attribute
       OmpCopyIn, OmpCopyPrivate,
       // OpenMP miscellaneous flags
-      OmpCommonBlock, OmpReduction, OmpAligned, OmpAllocate,
+      OmpCommonBlock, OmpReduction, OmpAligned, OmpNontemporal, OmpAllocate,
       OmpDeclarativeAllocateDirective, OmpExecutableAllocateDirective,
       OmpDeclareSimd, OmpDeclareTarget, OmpThreadprivate, OmpDeclareReduction,
       OmpFlushed, OmpCriticalLock, OmpIfSpecified, OmpNone, OmpPreDetermined);
@@ -776,7 +780,7 @@ struct SymbolAddressCompare {
   }
 };
 
-// Symbol comparison is based on the order of cooked source
+// Symbol comparison is usually based on the order of cooked source
 // stream creation and, when both are from the same cooked source,
 // their positions in that cooked source stream.
 // Don't use this comparator or OrderedSymbolSet to hold
@@ -788,12 +792,17 @@ struct SymbolSourcePositionCompare {
   bool operator()(const MutableSymbolRef &, const MutableSymbolRef &) const;
 };
 
+struct SymbolOffsetCompare {
+  bool operator()(const SymbolRef &, const SymbolRef &) const;
+  bool operator()(const MutableSymbolRef &, const MutableSymbolRef &) const;
+};
+
 using UnorderedSymbolSet = std::set<SymbolRef, SymbolAddressCompare>;
-using OrderedSymbolSet = std::set<SymbolRef, SymbolSourcePositionCompare>;
+using SourceOrderedSymbolSet = std::set<SymbolRef, SymbolSourcePositionCompare>;
 
 template <typename A>
-OrderedSymbolSet OrderBySourcePosition(const A &container) {
-  OrderedSymbolSet result;
+SourceOrderedSymbolSet OrderBySourcePosition(const A &container) {
+  SourceOrderedSymbolSet result;
   for (SymbolRef x : container) {
     result.emplace(x);
   }

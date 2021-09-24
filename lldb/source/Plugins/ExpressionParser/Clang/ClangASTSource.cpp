@@ -974,8 +974,9 @@ void ClangASTSource::FindObjCMethodDecls(NameSearchContext &context) {
            interface_decl->getName(), selector_name);
   SymbolContextList sc_list;
 
-  const bool include_symbols = false;
-  const bool include_inlines = false;
+  ModuleFunctionSearchOptions function_options;
+  function_options.include_symbols = false;
+  function_options.include_inlines = false;
 
   std::string interface_name = interface_decl->getNameAsString();
 
@@ -986,9 +987,9 @@ void ClangASTSource::FindObjCMethodDecls(NameSearchContext &context) {
     ConstString instance_method_name(ms.GetString());
 
     sc_list.Clear();
-    m_target->GetImages().FindFunctions(
-        instance_method_name, lldb::eFunctionNameTypeFull, include_symbols,
-        include_inlines, sc_list);
+    m_target->GetImages().FindFunctions(instance_method_name,
+                                        lldb::eFunctionNameTypeFull,
+                                        function_options, sc_list);
 
     if (sc_list.GetSize())
       break;
@@ -999,9 +1000,9 @@ void ClangASTSource::FindObjCMethodDecls(NameSearchContext &context) {
     ConstString class_method_name(ms.GetString());
 
     sc_list.Clear();
-    m_target->GetImages().FindFunctions(
-        class_method_name, lldb::eFunctionNameTypeFull, include_symbols,
-        include_inlines, sc_list);
+    m_target->GetImages().FindFunctions(class_method_name,
+                                        lldb::eFunctionNameTypeFull,
+                                        function_options, sc_list);
 
     if (sc_list.GetSize())
       break;
@@ -1012,9 +1013,9 @@ void ClangASTSource::FindObjCMethodDecls(NameSearchContext &context) {
 
     SymbolContextList candidate_sc_list;
 
-    m_target->GetImages().FindFunctions(
-        selector_name, lldb::eFunctionNameTypeSelector, include_symbols,
-        include_inlines, candidate_sc_list);
+    m_target->GetImages().FindFunctions(selector_name,
+                                        lldb::eFunctionNameTypeSelector,
+                                        function_options, candidate_sc_list);
 
     for (uint32_t ci = 0, ce = candidate_sc_list.GetSize(); ci != ce; ++ci) {
       SymbolContext candidate_sc;
@@ -1494,7 +1495,7 @@ bool ClangASTSource::layoutRecordType(const RecordDecl *record, uint64_t &size,
 
   LLDB_LOG(log,
            "LayoutRecordType on (ASTContext*){0} '{1}' for (RecordDecl*)"
-           "{3} [name = '{4}']",
+           "{2} [name = '{3}']",
            m_ast_context, m_clang_ast_context->getDisplayName(), record,
            record->getName());
 
@@ -1570,8 +1571,10 @@ bool ClangASTSource::layoutRecordType(const RecordDecl *record, uint64_t &size,
                                     fe = record->field_end();
          fi != fe; ++fi) {
       LLDB_LOG(log,
-               "LRT     (FieldDecl*){0}, Name = '{1}', Offset = {2} bits",
-               *fi, fi->getName(), field_offsets[*fi]);
+               "LRT     (FieldDecl*){0}, Name = '{1}', Type = '{2}', Offset = "
+               "{3} bits",
+               *fi, fi->getName(), fi->getType().getAsString(),
+               field_offsets[*fi]);
     }
     DeclFromParser<const CXXRecordDecl> parser_cxx_record =
         DynCast<const CXXRecordDecl>(parser_record);

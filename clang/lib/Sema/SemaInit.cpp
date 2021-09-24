@@ -2899,7 +2899,7 @@ InitListChecker::CheckDesignatedInitializer(const InitializedEntity &Entity,
     // We're modifying a string literal init; we have to decompose the string
     // so we can modify the individual characters.
     ASTContext &Context = SemaRef.Context;
-    Expr *SubExpr = StructuredList->getInit(0)->IgnoreParens();
+    Expr *SubExpr = StructuredList->getInit(0)->IgnoreParenImpCasts();
 
     // Compute the character type
     QualType CharTy = AT->getElementType();
@@ -5833,7 +5833,7 @@ void InitializationSequence::InitializeFrom(Sema &S,
                                          Entity.getType()) &&
         canPerformArrayCopy(Entity)) {
       // If source is a prvalue, use it directly.
-      if (Initializer->getValueKind() == VK_PRValue) {
+      if (Initializer->isPRValue()) {
         AddArrayInitStep(DestType, /*IsGNUExtension*/false);
         return;
       }

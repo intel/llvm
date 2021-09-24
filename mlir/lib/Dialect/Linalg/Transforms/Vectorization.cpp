@@ -191,7 +191,6 @@ getKindForOp(Operation *reductionOp) {
 static Value reduceIfNeeded(OpBuilder &b, VectorType targetVectorType,
                             Value value, OpOperand *outputOperand) {
   auto linalgOp = cast<LinalgOp>(outputOperand->getOwner());
-  assert(targetVectorType.getShape() == linalgOp.getShape(outputOperand));
   auto vecType = value.getType().dyn_cast<VectorType>();
   if (!vecType || vecType.getShape() == targetVectorType.getShape())
     return value;
@@ -211,7 +210,7 @@ static Value reduceIfNeeded(OpBuilder &b, VectorType targetVectorType,
   unsigned idx = 0;
   SmallVector<bool> reductionMask(linalgOp.iterator_types().size(), false);
   for (auto attr : linalgOp.iterator_types()) {
-    if (isReductionIteratorType(attr))
+    if (isReductionIterator(attr))
       reductionMask[idx] = true;
     ++idx;
   }
@@ -245,6 +244,9 @@ static Value buildVectorWrite(OpBuilder &b, Value value,
     auto linalgOp = cast<LinalgOp>(outputOperand->getOwner());
     AffineMap map =
         reindexIndexingMap(linalgOp.getTiedIndexingMap(outputOperand));
+    SmallVector<int64_t> transposeShape =
+        applyPermutationMap(inversePermutation(map), vectorType.getShape());
+    vectorType = VectorType::get(transposeShape, vectorType.getElementType());
     SmallVector<Value> indices(linalgOp.getRank(outputOperand),
                                b.create<ConstantIndexOp>(loc, 0));
     value = broadcastIfNeeded(b, value, vectorType.getShape());
@@ -569,9 +571,16 @@ static LogicalResult vectorizeContraction(OpBuilder &b, LinalgOp linalgOp,
       return VectorizationResult{VectorizationStatus::Failure, nullptr};
     ArrayRef<int64_t> outShape =
         linalgOp.getShape(linalgOp.getOutputOperand(0));
-    auto vType = outShape.empty()
-                     ? op->getResult(0).getType()
-                     : VectorType::get(outShape, op->getResult(0).getType());
+    Type vType;
+    if (outShape.empty()) {
+      vType = op->getResult(0).getType();
+    } else {
+      SmallVector<int64_t> resultShape = applyPermutationMap(
+          inversePermutation(reindexIndexingMap(
+              linalgOp.getTiedIndexingMap(linalgOp.getOutputOperand(0)))),
+          outShape);
+      vType = VectorType::get(resultShape, op->getResult(0).getType());
+    }
     auto zero = b.create<ConstantOp>(loc, vType, b.getZeroAttr(vType));
     // Indexing maps at the time of vector.transfer_read are adjusted to order
     // vector dimensions in the same order as the canonical linalg op iteration
@@ -606,7 +615,7 @@ static bool allIndexingsAreProjectedPermutation(LinalgOp op) {
 // TODO: probably need some extra checks for reduction followed by consumer
 // ops that may not commute (e.g. linear reduction + non-linear instructions).
 static LogicalResult reductionPreconditions(LinalgOp op) {
-  if (llvm::none_of(op.iterator_types(), isReductionIteratorType))
+  if (llvm::none_of(op.iterator_types(), isReductionIterator))
     return failure();
   for (OpOperand *opOperand : op.getOutputOperands()) {
     Operation *reductionOp = getSingleBinaryOpAssumedReduction(opOperand);
@@ -741,6 +750,13 @@ struct GenericPadTensorOpVectorizationPattern
     auto read = rewriter.create<vector::TransferReadOp>(
         padOp.getLoc(), vecType, padOp.source(), readIndices, padValue,
         readInBounds);
+
+    // If `dest` is a FillOp and the TransferWriteOp would overwrite the entire
+    // tensor, write directly to the FillOp's operand.
+    if (llvm::equal(vecShape, resultType.getShape())
+        && llvm::all_of(writeInBounds, [](bool b) { return b; }))
+      if (auto fill = dest.getDefiningOp<FillOp>())
+        dest = fill.output();
 
     // Generate TransferWriteOp.
     auto writeIndices = ofrToIndexValues(
@@ -1118,7 +1134,7 @@ LogicalResult ConvOpVectorization<ConvOp, N>::matchAndRewrite(
   return success();
 }
 
-using ConvOpConst = ConvOpVectorization<ConvWOp, 1>;
+using ConvOpConst = ConvOpVectorization<Conv1DOp, 1>;
 
 /// Inserts tiling, promotion and vectorization pattern for ConvOp
 /// conversion into corresponding pattern lists.
@@ -1156,43 +1172,22 @@ void mlir::linalg::populateConvVectorizationPatterns(
   RewritePatternSet tiling(context);
   RewritePatternSet promotion(context);
   RewritePatternSet vectorization(context);
-  populateVectorizationPatterns<ConvWOp, 1>(tiling, promotion, vectorization,
-                                            tileSizes);
-
-  populateVectorizationPatterns<ConvNWCOp, 3>(tiling, promotion, vectorization,
-                                              tileSizes);
-  populateVectorizationPatterns<ConvInputNWCFilterWCFOp, 3>(
-      tiling, promotion, vectorization, tileSizes);
-
-  populateVectorizationPatterns<ConvNCWOp, 3>(tiling, promotion, vectorization,
-                                              tileSizes);
-  populateVectorizationPatterns<ConvInputNCWFilterWCFOp, 3>(
-      tiling, promotion, vectorization, tileSizes);
-
-  populateVectorizationPatterns<ConvHWOp, 2>(tiling, promotion, vectorization,
+  populateVectorizationPatterns<Conv1DOp, 1>(tiling, promotion, vectorization,
                                              tileSizes);
 
-  populateVectorizationPatterns<ConvNHWCOp, 4>(tiling, promotion, vectorization,
-                                               tileSizes);
-  populateVectorizationPatterns<ConvInputNHWCFilterHWCFOp, 4>(
-      tiling, promotion, vectorization, tileSizes);
+  populateVectorizationPatterns<Conv2DOp, 2>(tiling, promotion, vectorization,
+                                             tileSizes);
 
-  populateVectorizationPatterns<ConvNCHWOp, 4>(tiling, promotion, vectorization,
-                                               tileSizes);
-  populateVectorizationPatterns<ConvInputNCHWFilterHWCFOp, 4>(
-      tiling, promotion, vectorization, tileSizes);
+  populateVectorizationPatterns<Conv3DOp, 3>(tiling, promotion, vectorization,
+                                             tileSizes);
 
-  populateVectorizationPatterns<ConvDHWOp, 3>(tiling, promotion, vectorization,
-                                              tileSizes);
+  populateVectorizationPatterns<Conv1DNwcWcfOp, 3>(tiling, promotion,
+                                                   vectorization, tileSizes);
 
-  populateVectorizationPatterns<ConvNDHWCOp, 5>(tiling, promotion,
-                                                vectorization, tileSizes);
-  populateVectorizationPatterns<ConvInputNDHWCFilterDHWCFOp, 5>(
-      tiling, promotion, vectorization, tileSizes);
+  populateVectorizationPatterns<Conv2DNhwcHwcfOp, 4>(tiling, promotion,
+                                                     vectorization, tileSizes);
 
-  populateVectorizationPatterns<ConvNCDHWOp, 5>(tiling, promotion,
-                                                vectorization, tileSizes);
-  populateVectorizationPatterns<ConvInputNCDHWFilterDHWCFOp, 5>(
+  populateVectorizationPatterns<Conv3DNdhwcDhwcfOp, 5>(
       tiling, promotion, vectorization, tileSizes);
 
   patterns.push_back(std::move(tiling));

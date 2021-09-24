@@ -1986,7 +1986,7 @@ bool CodeGenFunction::ShouldNullCheckClassCastValue(const CastExpr *CE) {
 
   if (const ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(CE)) {
     // And that glvalue casts are never null.
-    if (ICE->getValueKind() != VK_PRValue)
+    if (ICE->isGLValue())
       return false;
   }
 
@@ -2084,11 +2084,25 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     // perform the bitcast.
     if (const auto *FixedSrc = dyn_cast<llvm::FixedVectorType>(SrcTy)) {
       if (const auto *ScalableDst = dyn_cast<llvm::ScalableVectorType>(DstTy)) {
+        // If we are casting a fixed i8 vector to a scalable 16 x i1 predicate
+        // vector, use a vector insert and bitcast the result.
+        bool NeedsBitCast = false;
+        auto PredType = llvm::ScalableVectorType::get(Builder.getInt1Ty(), 16);
+        llvm::Type *OrigType = DstTy;
+        if (ScalableDst == PredType &&
+            FixedSrc->getElementType() == Builder.getInt8Ty()) {
+          DstTy = llvm::ScalableVectorType::get(Builder.getInt8Ty(), 2);
+          ScalableDst = dyn_cast<llvm::ScalableVectorType>(DstTy);
+          NeedsBitCast = true;
+        }
         if (FixedSrc->getElementType() == ScalableDst->getElementType()) {
           llvm::Value *UndefVec = llvm::UndefValue::get(DstTy);
           llvm::Value *Zero = llvm::Constant::getNullValue(CGF.CGM.Int64Ty);
-          return Builder.CreateInsertVector(DstTy, UndefVec, Src, Zero,
-                                            "castScalableSve");
+          llvm::Value *Result = Builder.CreateInsertVector(
+              DstTy, UndefVec, Src, Zero, "castScalableSve");
+          if (NeedsBitCast)
+            Result = Builder.CreateBitCast(Result, OrigType);
+          return Result;
         }
       }
     }
@@ -2098,6 +2112,15 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     // perform the bitcast.
     if (const auto *ScalableSrc = dyn_cast<llvm::ScalableVectorType>(SrcTy)) {
       if (const auto *FixedDst = dyn_cast<llvm::FixedVectorType>(DstTy)) {
+        // If we are casting a scalable 16 x i1 predicate vector to a fixed i8
+        // vector, bitcast the source and use a vector extract.
+        auto PredType = llvm::ScalableVectorType::get(Builder.getInt1Ty(), 16);
+        if (ScalableSrc == PredType &&
+            FixedDst->getElementType() == Builder.getInt8Ty()) {
+          SrcTy = llvm::ScalableVectorType::get(Builder.getInt8Ty(), 2);
+          ScalableSrc = dyn_cast<llvm::ScalableVectorType>(SrcTy);
+          Src = Builder.CreateBitCast(Src, SrcTy);
+        }
         if (ScalableSrc->getElementType() == FixedDst->getElementType()) {
           llvm::Value *Zero = llvm::Constant::getNullValue(CGF.CGM.Int64Ty);
           return Builder.CreateExtractVector(DstTy, Src, Zero, "castFixedSve");
@@ -2108,10 +2131,9 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     // Perform VLAT <-> VLST bitcast through memory.
     // TODO: since the llvm.experimental.vector.{insert,extract} intrinsics
     //       require the element types of the vectors to be the same, we
-    //       need to keep this around for casting between predicates, or more
-    //       generally for bitcasts between VLAT <-> VLST where the element
-    //       types of the vectors are not the same, until we figure out a better
-    //       way of doing these casts.
+    //       need to keep this around for bitcasts between VLAT <-> VLST where
+    //       the element types of the vectors are not the same, until we figure
+    //       out a better way of doing these casts.
     if ((isa<llvm::FixedVectorType>(SrcTy) &&
          isa<llvm::ScalableVectorType>(DstTy)) ||
         (isa<llvm::ScalableVectorType>(SrcTy) &&
@@ -2679,7 +2701,8 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
       amt = llvm::ConstantFP::get(VMContext,
                                   llvm::APFloat(static_cast<double>(amount)));
     else {
-      // Remaining types are Half, LongDouble or __float128. Convert from float.
+      // Remaining types are Half, LongDouble, __ibm128 or __float128. Convert
+      // from float.
       llvm::APFloat F(static_cast<float>(amount));
       bool ignored;
       const llvm::fltSemantics *FS;
@@ -2689,6 +2712,8 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
         FS = &CGF.getTarget().getFloat128Format();
       else if (value->getType()->isHalfTy())
         FS = &CGF.getTarget().getHalfFormat();
+      else if (value->getType()->isPPC_FP128Ty())
+        FS = &CGF.getTarget().getIbm128Format();
       else
         FS = &CGF.getTarget().getLongDoubleFormat();
       F.convert(*FS, llvm::APFloat::rmTowardZero, &ignored);
@@ -4784,11 +4809,8 @@ Value *ScalarExprEmitter::VisitAsTypeExpr(AsTypeExpr *E) {
   // vector to get a vec4, then a bitcast if the target type is different.
   if (NumElementsSrc == 3 && NumElementsDst != 3) {
     Src = ConvertVec3AndVec4(Builder, CGF, Src, 4);
-
-    if (!CGF.CGM.getCodeGenOpts().PreserveVec3Type) {
-      Src = createCastsForTypeOfSameSize(Builder, CGF.CGM.getDataLayout(), Src,
-                                         DstTy);
-    }
+    Src = createCastsForTypeOfSameSize(Builder, CGF.CGM.getDataLayout(), Src,
+                                       DstTy);
 
     Src->setName("astype");
     return Src;
@@ -4963,7 +4985,7 @@ static GEPOffsetAndOverflow EmitGEPOffsetInBytes(Value *BasePtr, Value *GEPVal,
 
   auto *GEP = cast<llvm::GEPOperator>(GEPVal);
   assert(GEP->getPointerOperand() == BasePtr &&
-         "BasePtr must be the the base of the GEP.");
+         "BasePtr must be the base of the GEP.");
   assert(GEP->isInBounds() && "Expected inbounds GEP");
 
   auto *IntPtrTy = DL.getIntPtrType(GEP->getPointerOperandType());

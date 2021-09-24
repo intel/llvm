@@ -462,11 +462,11 @@ define void @test_srem_vec(<3 x i33>* %X) nounwind {
 ; RV64-NEXT:    and a3, a3, a4
 ; RV64-NEXT:    srli a3, a3, 32
 ; RV64-NEXT:    sb a3, 12(s0)
-; RV64-NEXT:    slli a1, a1, 2
+; RV64-NEXT:    slliw a1, a1, 2
 ; RV64-NEXT:    srli a3, s4, 31
 ; RV64-NEXT:    and a2, a2, a3
 ; RV64-NEXT:    srli a4, a2, 31
-; RV64-NEXT:    sub a1, a4, a1
+; RV64-NEXT:    subw a1, a4, a1
 ; RV64-NEXT:    sw a1, 8(s0)
 ; RV64-NEXT:    and a0, a0, a3
 ; RV64-NEXT:    slli a1, a2, 33
@@ -649,11 +649,11 @@ define void @test_srem_vec(<3 x i33>* %X) nounwind {
 ; RV64M-NEXT:    and a4, a4, a5
 ; RV64M-NEXT:    srli a4, a4, 32
 ; RV64M-NEXT:    sb a4, 12(a0)
-; RV64M-NEXT:    slli a2, a2, 2
+; RV64M-NEXT:    slliw a2, a2, 2
 ; RV64M-NEXT:    srli a4, a6, 31
 ; RV64M-NEXT:    and a1, a1, a4
 ; RV64M-NEXT:    srli a5, a1, 31
-; RV64M-NEXT:    sub a2, a5, a2
+; RV64M-NEXT:    subw a2, a5, a2
 ; RV64M-NEXT:    sw a2, 8(a0)
 ; RV64M-NEXT:    slli a1, a1, 33
 ; RV64M-NEXT:    and a2, a3, a4
@@ -727,7 +727,7 @@ define void @test_srem_vec(<3 x i33>* %X) nounwind {
 ; RV32MV-NEXT:    vmsne.vv v0, v26, v30
 ; RV32MV-NEXT:    vmv.v.i v26, 0
 ; RV32MV-NEXT:    vmerge.vim v26, v26, -1, v0
-; RV32MV-NEXT:    vsetvli zero, zero, e32, m2, ta, mu
+; RV32MV-NEXT:    vsetivli zero, 0, e32, m2, ta, mu
 ; RV32MV-NEXT:    vmv.x.s a0, v26
 ; RV32MV-NEXT:    sw a0, 0(s1)
 ; RV32MV-NEXT:    vsetivli zero, 1, e32, m2, ta, mu

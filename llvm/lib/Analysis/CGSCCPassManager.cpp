@@ -119,12 +119,6 @@ PassManager<LazyCallGraph::SCC, CGSCCAnalysisManager, LazyCallGraph &,
     // Finally, we intersect the final preserved analyses to compute the
     // aggregate preserved set for this pass manager.
     PA.intersect(std::move(PassPA));
-
-    // FIXME: Historically, the pass managers all called the LLVM context's
-    // yield function here. We don't have a generic way to acquire the
-    // context and it isn't yet clear what the right pattern is for yielding
-    // in the new pass manager so it is currently omitted.
-    // ...getContext().yield();
   }
 
   // Before we mark all of *this* SCC's analyses as preserved below, intersect
@@ -432,8 +426,13 @@ PreservedAnalyses DevirtSCCRepeatedPass::run(LazyCallGraph::SCC &InitialC,
       break;
     }
 
-    // Check that we didn't miss any update scenario.
-    assert(!UR.InvalidatedSCCs.count(C) && "Processing an invalid SCC!");
+    // If the CGSCC pass wasn't able to provide a valid updated SCC, the
+    // current SCC may simply need to be skipped if invalid.
+    if (UR.InvalidatedSCCs.count(C)) {
+      LLVM_DEBUG(dbgs() << "Skipping invalidated root or island SCC!\n");
+      break;
+    }
+
     assert(C->begin() != C->end() && "Cannot have an empty SCC!");
 
     // Check whether any of the handles were devirtualized.

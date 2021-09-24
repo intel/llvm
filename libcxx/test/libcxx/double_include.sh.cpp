@@ -14,11 +14,6 @@
 // RUN: %{cxx} -o %t.exe %t.first.o %t.second.o %{flags} %{link_flags}
 // RUN: %{run}
 
-// GCC 5 pretends it supports C++17 features, but some features like static_assert
-// without a message are not actually supported. This causes some headers to fail
-// when included.
-// UNSUPPORTED: gcc-5 && c++17
-
 // Prevent <ext/hash_map> from generating deprecated warnings for this test.
 #if defined(__DEPRECATED)
 #    undef __DEPRECATED
@@ -91,7 +86,9 @@
 #    include <filesystem>
 #endif
 #include <float.h>
-#include <format>
+#ifndef _LIBCPP_HAS_NO_INCOMPLETE_FORMAT
+#    include <format>
+#endif
 #include <forward_list>
 #ifndef _LIBCPP_HAS_NO_LOCALIZATION
 #    include <fstream>
@@ -143,7 +140,9 @@
 #endif
 #include <queue>
 #include <random>
-#include <ranges>
+#ifndef _LIBCPP_HAS_NO_INCOMPLETE_RANGES
+#    include <ranges>
+#endif
 #include <ratio>
 #ifndef _LIBCPP_HAS_NO_LOCALIZATION
 #    include <regex>

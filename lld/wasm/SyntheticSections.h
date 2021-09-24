@@ -74,7 +74,7 @@ protected:
 // https://github.com/WebAssembly/tool-conventions/blob/master/DynamicLinking.md
 class DylinkSection : public SyntheticSection {
 public:
-  DylinkSection() : SyntheticSection(llvm::wasm::WASM_SEC_CUSTOM, "dylink") {}
+  DylinkSection() : SyntheticSection(llvm::wasm::WASM_SEC_CUSTOM, "dylink.0") {}
   bool isNeeded() const override { return config->isPic; }
   void writeBody() override;
 
@@ -95,6 +95,70 @@ protected:
   std::vector<const WasmSignature *> types;
   llvm::DenseMap<WasmSignature, int32_t> typeIndices;
 };
+
+/**
+ * A key for some kind of imported entity of type `T`.
+ *
+ * Used when de-duplicating imports.
+ */
+template <typename T> struct ImportKey {
+public:
+  enum class State { Plain, Empty, Tombstone };
+
+public:
+  T type;
+  llvm::Optional<StringRef> importModule;
+  llvm::Optional<StringRef> importName;
+  State state;
+
+public:
+  ImportKey(T type) : type(type), state(State::Plain) {}
+  ImportKey(T type, State state) : type(type), state(state) {}
+  ImportKey(T type, llvm::Optional<StringRef> importModule,
+            llvm::Optional<StringRef> importName)
+      : type(type), importModule(importModule), importName(importName),
+        state(State::Plain) {}
+};
+
+template <typename T>
+inline bool operator==(const ImportKey<T> &lhs, const ImportKey<T> &rhs) {
+  return lhs.state == rhs.state && lhs.importModule == rhs.importModule &&
+         lhs.importName == rhs.importName && lhs.type == rhs.type;
+}
+
+} // namespace wasm
+} // namespace lld
+
+// `ImportKey<T>` can be used as a key in a `DenseMap` if `T` can be used as a
+// key in a `DenseMap`.
+namespace llvm {
+template <typename T> struct DenseMapInfo<lld::wasm::ImportKey<T>> {
+  static lld::wasm::ImportKey<T> getEmptyKey() {
+    typename lld::wasm::ImportKey<T> key(llvm::DenseMapInfo<T>::getEmptyKey());
+    key.state = lld::wasm::ImportKey<T>::State::Empty;
+    return key;
+  }
+  static lld::wasm::ImportKey<T> getTombstoneKey() {
+    typename lld::wasm::ImportKey<T> key(llvm::DenseMapInfo<T>::getEmptyKey());
+    key.state = lld::wasm::ImportKey<T>::State::Tombstone;
+    return key;
+  }
+  static unsigned getHashValue(const lld::wasm::ImportKey<T> &key) {
+    uintptr_t hash = hash_value(key.importModule);
+    hash = hash_combine(hash, key.importName);
+    hash = hash_combine(hash, llvm::DenseMapInfo<T>::getHashValue(key.type));
+    hash = hash_combine(hash, key.state);
+    return hash;
+  }
+  static bool isEqual(const lld::wasm::ImportKey<T> &lhs,
+                      const lld::wasm::ImportKey<T> &rhs) {
+    return lhs == rhs;
+  }
+};
+} // end namespace llvm
+
+namespace lld {
+namespace wasm {
 
 class ImportSection : public SyntheticSection {
 public:
@@ -131,6 +195,9 @@ protected:
   unsigned numImportedFunctions = 0;
   unsigned numImportedTags = 0;
   unsigned numImportedTables = 0;
+  llvm::DenseMap<ImportKey<WasmGlobalType>, uint32_t> importedGlobals;
+  llvm::DenseMap<ImportKey<WasmSignature>, uint32_t> importedFunctions;
+  llvm::DenseMap<ImportKey<WasmTableType>, uint32_t> importedTables;
 };
 
 class FunctionSection : public SyntheticSection {
@@ -220,9 +287,9 @@ public:
   // transform a `global.get` to an `i32.const`.
   void addInternalGOTEntry(Symbol *sym);
   bool needsRelocations() { return internalGotSymbols.size(); }
-  void generateRelocationCode(raw_ostream &os) const;
+  void generateRelocationCode(raw_ostream &os, bool TLS) const;
 
-  std::vector<const DefinedData *> dataAddressGlobals;
+  std::vector<DefinedData *> dataAddressGlobals;
   std::vector<InputGlobal *> inputGlobals;
   std::vector<Symbol *> internalGotSymbols;
 
@@ -297,9 +364,7 @@ public:
   NameSection(ArrayRef<OutputSegment *> segments)
       : SyntheticSection(llvm::wasm::WASM_SEC_CUSTOM, "name"),
         segments(segments) {}
-  bool isNeeded() const override {
-    return !config->stripDebug && !config->stripAll && numNames() > 0;
-  }
+  bool isNeeded() const override { return !config->stripAll && numNames() > 0; }
   void writeBody() override;
   unsigned numNames() const { return numNamedGlobals() + numNamedFunctions(); }
   unsigned numNamedGlobals() const;

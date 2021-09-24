@@ -19,7 +19,7 @@ void testA() {
     h.single_task<class KernelA>([=]() __attribute__((sycl_explicit_simd)){});
   });
 }
-// CHECK-LABEL: template <> struct KernelInfo<class KernelA> {
+// CHECK-LABEL: template <> struct KernelInfo<KernelA> {
 // CHECK:   static constexpr bool isESIMD() { return 1; }
 
 // --  ESIMD Functor object kernel.
@@ -46,7 +46,7 @@ void testNA() {
     h.single_task<class KernelNA>([=]() {});
   });
 }
-// CHECK-LABEL: template <> struct KernelInfo<class KernelNA> {
+// CHECK-LABEL: template <> struct KernelInfo<KernelNA> {
 // CHECK:   static constexpr bool isESIMD() { return 0; }
 
 // --  Non-ESIMD Functor object kernel.

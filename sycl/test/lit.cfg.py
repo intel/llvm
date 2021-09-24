@@ -27,7 +27,7 @@ config.test_format = lit.formats.ShTest()
 config.suffixes = ['.c', '.cpp', '.dump'] #add .spv. Currently not clear what to do with those
 
 # feature tests are considered not so lightweight, so, they are excluded by default
-config.excludes = ['Inputs', 'feature-tests', 'on-device']
+config.excludes = ['Inputs', 'feature-tests']
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
@@ -96,12 +96,21 @@ config.substitutions.append( ('%RUN_ON_HOST', "env SYCL_DEVICE_FILTER=host ") )
 
 # Every SYCL implementation provides a host implementation.
 config.available_features.add('host')
-triple=lit_config.params.get('SYCL_TRIPLE', 'spir64-unknown-unknown-sycldevice')
+triple=lit_config.params.get('SYCL_TRIPLE', 'spir64-unknown-unknown')
 lit_config.note("Triple: {}".format(triple))
 config.substitutions.append( ('%sycl_triple',  triple ) )
 
-if triple == 'nvptx64-nvidia-cuda-sycldevice':
+if triple == 'nvptx64-nvidia-cuda':
     config.available_features.add('cuda')
+
+if triple == 'amdgcn-amd-amdhsa':
+    config.available_features.add('hip_amd')
+    # For AMD the specific GPU has to be specified with --offload-arch
+    if not re.match('.*--offload-arch.*', config.sycl_clang_extra_flags):
+        raise Exception("Error: missing --offload-arch flag when trying to "  \
+                        "run lit tests for AMD GPU, please add "              \
+                        "`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` to " \
+                        "the CMake variable SYCL_CLANG_EXTRA_FLAGS")
 
 # Set timeout for test = 10 mins
 try:

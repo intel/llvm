@@ -453,9 +453,9 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
   AllocaCommandBase *SrcAllocaCmd =
       findAllocaForReq(Record, Req, Record->MCurContext);
 
-  std::unique_ptr<MemCpyCommandHost> MemCpyCmdUniquePtr(new MemCpyCommandHost(
+  auto MemCpyCmdUniquePtr = std::make_unique<MemCpyCommandHost>(
       *SrcAllocaCmd->getRequirement(), SrcAllocaCmd, *Req, &Req->MData,
-      SrcAllocaCmd->getQueue(), std::move(HostQueue)));
+      SrcAllocaCmd->getQueue(), std::move(HostQueue));
 
   if (!MemCpyCmdUniquePtr)
     throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
@@ -516,7 +516,7 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 }
 
 Command *Scheduler::GraphBuilder::addCGUpdateHost(
-    std::unique_ptr<detail::CommandGroup> CommandGroup, QueueImplPtr HostQueue,
+    std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr HostQueue,
     std::vector<Command *> &ToEnqueue) {
 
   auto UpdateHost = static_cast<CGUpdateHost *>(CommandGroup.get());
@@ -677,12 +677,12 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       // unnecessary copy on devices with unified host memory support.
       const bool HostUnifiedMemory =
           checkHostUnifiedMemory(Queue->getContextImplPtr());
-      const bool InitFromUserData =
-          Record->MAllocaCommands.empty() && HostUnifiedMemory;
-      AllocaCommandBase *LinkedAllocaCmd = nullptr;
       // TODO casting is required here to get the necessary information
       // without breaking ABI, replace with the next major version.
       auto *MemObj = static_cast<SYCLMemObjT *>(Req->MSYCLMemObj);
+      const bool InitFromUserData = Record->MAllocaCommands.empty() &&
+                                    (HostUnifiedMemory || MemObj->isInterop());
+      AllocaCommandBase *LinkedAllocaCmd = nullptr;
 
       // For the first allocation on a device without host unified memory we
       // might need to also create a host alloca right away in order to perform
@@ -849,7 +849,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
 }
 
 static bool isInteropHostTask(const std::unique_ptr<ExecCGCommand> &Cmd) {
-  if (Cmd->getCG().getType() != CommandGroup::CGType::CodeplayHostTask)
+  if (Cmd->getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     return false;
 
   const detail::CGHostTask &HT =
@@ -878,15 +878,15 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
   }
 }
 
-Command *Scheduler::GraphBuilder::addCG(
-    std::unique_ptr<detail::CommandGroup> CommandGroup, QueueImplPtr Queue,
-    std::vector<Command *> &ToEnqueue) {
+Command *
+Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
+                               QueueImplPtr Queue,
+                               std::vector<Command *> &ToEnqueue) {
   std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
-  const CommandGroup::CGType CGType = CommandGroup->getType();
+  const CG::CGTYPE CGType = CommandGroup->getType();
 
-  std::unique_ptr<ExecCGCommand> NewCmd(
-      new ExecCGCommand(std::move(CommandGroup), Queue));
+  auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue);
   if (!NewCmd)
     throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
 
@@ -977,7 +977,7 @@ Command *Scheduler::GraphBuilder::addCG(
       ToEnqueue.push_back(ConnCmd);
   }
 
-  if (CGType == CommandGroup::CGType::CodeplayHostTask)
+  if (CGType == CG::CGTYPE::CodeplayHostTask)
     NewCmd->MEmptyCmd =
         addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements, Queue,
                     Command::BlockReason::HostTask, ToEnqueue);
@@ -1027,18 +1027,18 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     AllocaCmd->MUsers.clear();
   }
 
-  // Linked alloca's share dependencies. Unchain from deps linked alloca's.
-  // Any cmd of the alloca - linked_alloca may be used later on.
+  // Make sure the Linked Allocas are marked visited by the previous walk.
+  // Remove allocation commands from the users of their dependencies.
   for (AllocaCommandBase *AllocaCmd : AllocaCommands) {
     AllocaCommandBase *LinkedCmd = AllocaCmd->MLinkedAllocaCmd;
 
     if (LinkedCmd) {
       assert(LinkedCmd->MMarks.MVisited);
-
-      for (DepDesc &Dep : AllocaCmd->MDeps)
-        if (Dep.MDepCommand)
-          Dep.MDepCommand->MUsers.erase(AllocaCmd);
     }
+
+    for (DepDesc &Dep : AllocaCmd->MDeps)
+      if (Dep.MDepCommand)
+        Dep.MDepCommand->MUsers.erase(AllocaCmd);
   }
 
   // Traverse the graph using BFS
@@ -1182,20 +1182,19 @@ Command *Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
   // construct Host Task type command manually and make it depend on DepEvent
   ExecCGCommand *ConnectCmd = nullptr;
 
-  {
+  try {
     std::unique_ptr<detail::HostTask> HT(new detail::HostTask);
-    std::unique_ptr<detail::CommandGroup> ConnectCG(new detail::CGHostTask(
+    std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
         std::move(HT), /* Queue = */ {}, /* Context = */ {}, /* Args = */ {},
         /* ArgsStorage = */ {}, /* AccStorage = */ {},
         /* SharedPtrStorage = */ {}, /* Requirements = */ {},
-        /* DepEvents = */ {DepEvent}, CommandGroup::CodeplayHostTask,
+        /* DepEvents = */ {DepEvent}, CG::CodeplayHostTask,
         /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(
         std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
-  }
-
-  if (!ConnectCmd)
+  } catch (const std::bad_alloc &) {
     throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+  }
 
   if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand()))
     DepCmd->addUser(ConnectCmd);

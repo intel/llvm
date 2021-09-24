@@ -596,6 +596,7 @@ targets pending ABI standardization:
 * 64-bit ARM (AArch64)
 * AMDGPU
 * SPIR
+* X86 (Only available under feature AVX512-FP16)
 
 ``_Float16`` will be supported on more targets as they define ABIs for it.
 
@@ -1961,6 +1962,30 @@ between the host and device is known to be compatible.
     global OnlySL *d,
   );
 
+Remove address space builtin function
+-------------------------------------
+
+``__remove_address_space`` allows to derive types in C++ for OpenCL
+that have address space qualifiers removed. This utility only affects
+address space qualifiers, therefore, other type qualifiers such as
+``const`` or ``volatile`` remain unchanged.
+
+**Example of Use**:
+
+.. code-block:: c++
+
+  template<typename T>
+  void foo(T *par){
+    T var1; // error - local function variable with global address space
+    __private T var2; // error - conflicting address space qualifiers
+    __private __remove_address_space<T>::type var3; // var3 is __private int
+  }
+
+  void bar(){
+    __global int* ptr;
+    foo(ptr);
+  }
+
 Legacy 1.x atomics with generic address space
 ---------------------------------------------
 
@@ -2496,12 +2521,9 @@ it in an instantiation which changes its value.
 In order to produce the unique name, the current implementation of the bultin
 uses Itanium mangling even if the host compilation uses a different name
 mangling scheme at runtime. The mangler marks all the lambdas required to name
-the SYCL kernel and emits a stable local ordering of the respective lambdas,
-starting from ``10000``. The initial value of ``10000`` serves as an obvious
-differentiator from ordinary lambda mangling numbers but does not serve any
-other purpose and may change in the future. The resulting pattern is
-demanglable. When non-lambda types are passed to the builtin, the mangler emits
-their usual pattern without any special treatment.
+the SYCL kernel and emits a stable local ordering of the respective lambdas.
+The resulting pattern is demanglable. When non-lambda types are passed to the
+builtin, the mangler emits their usual pattern without any special treatment.
 
 **Syntax**:
 
@@ -2530,30 +2552,6 @@ internal linkage.
 
   // Computes a unique stable name for a given variable.
   constexpr bool  __builtin_sycl_unique_stable_id( expr );
-
-``__builtin_sycl_mark_kernel_name``
------------------------------------
-
-``__builtin_sycl_mark_kernel_name`` is a builtin that can be used with
-``__builtin_sycl_unique_stable_name`` to make sure a kernel is properly 'marked'
-as a kernel without having to instantiate a sycl_kernel function. Typically,
-``__builtin_sycl_unique_stable_name`` can only be called in a constant expression
-context after any kernels that would change the output have been instantiated.
-This is necessary, as changing the answer to the constant expression after
-evaluation isn't permitted.  However, in some cases it can be useful to query the
-result of ``__builtin_unique_stable_name`` after we know that the name is a kernel
-name, but before we are able to instantiate the kernel itself (such as when trying
-to decide between two signatures at compile time). In these cases,
-``__builtin_sycl_mark_kernel_name`` can be used to mark the type as a kernel name,
-ensuring that ``__builtin_unique_stable_name`` gives the correct result despite the
-kernel not yet being instantiated.
-
-**Syntax**:
-
-.. code-block:: c++
-
-  // Marks a type as the name of a sycl kernel.
-  constexpr bool  __builtin_sycl_mark_kernel_name( type-id );
 
 Multiprecision Arithmetic Builtins
 ----------------------------------
@@ -3589,12 +3587,14 @@ A ``#pragma clang fp`` pragma may contain any number of options:
 
 The ``#pragma float_control`` pragma allows precise floating-point
 semantics and floating-point exception behavior to be specified
-for a section of the source code. This pragma can only appear at file scope or
-at the start of a compound statement (excluding comments). When using within a
-compound statement, the pragma is active within the scope of the compound
-statement.  This pragma is modeled after a Microsoft pragma with the
-same spelling and syntax.  For pragmas specified at file scope, a stack
-is supported so that the ``pragma float_control`` settings can be pushed or popped.
+for a section of the source code. This pragma can only appear at file or
+namespace scope, within a language linkage specification or at the start of a
+compound statement (excluding comments). When used within a compound statement,
+the pragma is active within the scope of the compound statement.  This pragma
+is modeled after a Microsoft pragma with the same spelling and syntax.  For
+pragmas specified at file or namespace scope, or within a language linkage
+specification, a stack is supported so that the ``pragma float_control``
+settings can be pushed or popped.
 
 When ``pragma float_control(precise, on)`` is enabled, the section of code
 governed by the pragma uses precise floating point semantics, effectively
@@ -3908,6 +3908,59 @@ Since the size of ``buffer`` can't be known at compile time, Clang will fold
 ``__builtin_object_size(buffer, 0)`` into ``-1``. However, if this was written
 as ``__builtin_dynamic_object_size(buffer, 0)``, Clang will fold it into
 ``size``, providing some extra runtime safety.
+
+Deprecating Macros
+==================
+
+Clang supports the pragma ``#pragma clang deprecated``, which can be used to
+provide deprecation warnings for macro uses. For example:
+
+.. code-block:: c
+
+   #define MIN(x, y) x < y ? x : y
+   #pragma clang deprecated(MIN, "use std::min instead")
+
+   void min(int a, int b) {
+     return MIN(a, b); // warning: MIN is deprecated: use std::min instead
+   }
+
+``#pragma clang deprecated`` should be preferred for this purpose over
+``#pragma GCC warning`` because the warning can be controlled with
+``-Wdeprecated``.
+
+Restricted Expansion Macros
+===========================
+
+Clang supports the pragma ``#pragma clang restrict_expansion``, which can be
+used restrict macro expansion in headers. This can be valuable when providing
+headers with ABI stability requirements. Any expansion of the annotated macro
+processed by the preprocessor after the ``#pragma`` annotation will log a
+warning. Redefining the macro or undefining the macro will not be diagnosed, nor
+will expansion of the macro within the main source file. For example:
+
+.. code-block:: c
+
+   #define TARGET_ARM 1
+   #pragma clang restrict_expansion(TARGET_ARM, "<reason>")
+
+   /// Foo.h
+   struct Foo {
+   #if TARGET_ARM // warning: TARGET_ARM is marked unsafe in headers: <reason>
+     uint32_t X;
+   #else
+     uint64_t X;
+   #endif
+   };
+
+   /// main.c
+   #include "foo.h"
+   #if TARGET_ARM // No warning in main source file
+   X_TYPE uint32_t
+   #else
+   X_TYPE uint64_t
+   #endif
+
+This warning is controlled by ``-Wpedantic-macros``.
 
 Extended Integer Types
 ======================

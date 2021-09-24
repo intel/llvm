@@ -95,6 +95,7 @@ Target::Target(Debugger &debugger, const ArchSpec &target_arch,
       m_watchpoint_list(), m_process_sp(), m_search_filter_sp(),
       m_image_search_paths(ImageSearchPathsChanged, this),
       m_source_manager_up(), m_stop_hooks(), m_stop_hook_next_id(0),
+      m_latest_stop_hook_id(0),
       m_valid(true), m_suppress_stop_hooks(false),
       m_is_dummy_target(is_dummy_target),
       m_frame_recognizer_manager_up(
@@ -181,6 +182,7 @@ void Target::CleanupProcess() {
   DisableAllWatchpoints(false);
   ClearAllWatchpointHitCounts();
   ClearAllWatchpointHistoricValues();
+  m_latest_stop_hook_id = 0;
 }
 
 void Target::DeleteCurrentProcess() {
@@ -1020,7 +1022,7 @@ Status Target::SerializeBreakpointsToFile(const FileSpec &file,
   }
 
   StreamFile out_file(path.c_str(),
-                      File::eOpenOptionTruncate | File::eOpenOptionWrite |
+                      File::eOpenOptionTruncate | File::eOpenOptionWriteOnly |
                           File::eOpenOptionCanCreate |
                           File::eOpenOptionCloseOnExec,
                       lldb::eFilePermissionsFileDefault);
@@ -1159,9 +1161,7 @@ bool Target::RemoveAllWatchpoints(bool end_to_end) {
   if (!ProcessIsValid())
     return false;
 
-  size_t num_watchpoints = m_watchpoint_list.GetSize();
-  for (size_t i = 0; i < num_watchpoints; ++i) {
-    WatchpointSP wp_sp = m_watchpoint_list.GetByIndex(i);
+  for (WatchpointSP wp_sp : m_watchpoint_list.Watchpoints()) {
     if (!wp_sp)
       return false;
 
@@ -1190,9 +1190,7 @@ bool Target::DisableAllWatchpoints(bool end_to_end) {
   if (!ProcessIsValid())
     return false;
 
-  size_t num_watchpoints = m_watchpoint_list.GetSize();
-  for (size_t i = 0; i < num_watchpoints; ++i) {
-    WatchpointSP wp_sp = m_watchpoint_list.GetByIndex(i);
+  for (WatchpointSP wp_sp : m_watchpoint_list.Watchpoints()) {
     if (!wp_sp)
       return false;
 
@@ -1219,9 +1217,7 @@ bool Target::EnableAllWatchpoints(bool end_to_end) {
   if (!ProcessIsValid())
     return false;
 
-  size_t num_watchpoints = m_watchpoint_list.GetSize();
-  for (size_t i = 0; i < num_watchpoints; ++i) {
-    WatchpointSP wp_sp = m_watchpoint_list.GetByIndex(i);
+  for (WatchpointSP wp_sp : m_watchpoint_list.Watchpoints()) {
     if (!wp_sp)
       return false;
 
@@ -1237,9 +1233,7 @@ bool Target::ClearAllWatchpointHitCounts() {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_WATCHPOINTS));
   LLDB_LOGF(log, "Target::%s\n", __FUNCTION__);
 
-  size_t num_watchpoints = m_watchpoint_list.GetSize();
-  for (size_t i = 0; i < num_watchpoints; ++i) {
-    WatchpointSP wp_sp = m_watchpoint_list.GetByIndex(i);
+  for (WatchpointSP wp_sp : m_watchpoint_list.Watchpoints()) {
     if (!wp_sp)
       return false;
 
@@ -1253,9 +1247,7 @@ bool Target::ClearAllWatchpointHistoricValues() {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_WATCHPOINTS));
   LLDB_LOGF(log, "Target::%s\n", __FUNCTION__);
 
-  size_t num_watchpoints = m_watchpoint_list.GetSize();
-  for (size_t i = 0; i < num_watchpoints; ++i) {
-    WatchpointSP wp_sp = m_watchpoint_list.GetByIndex(i);
+  for (WatchpointSP wp_sp : m_watchpoint_list.Watchpoints()) {
     if (!wp_sp)
       return false;
 
@@ -1273,9 +1265,7 @@ bool Target::IgnoreAllWatchpoints(uint32_t ignore_count) {
   if (!ProcessIsValid())
     return false;
 
-  size_t num_watchpoints = m_watchpoint_list.GetSize();
-  for (size_t i = 0; i < num_watchpoints; ++i) {
-    WatchpointSP wp_sp = m_watchpoint_list.GetByIndex(i);
+  for (WatchpointSP wp_sp : m_watchpoint_list.Watchpoints()) {
     if (!wp_sp)
       return false;
 
@@ -2621,12 +2611,6 @@ bool Target::RunStopHooks() {
   if (m_process_sp->GetState() != eStateStopped)
     return false;
 
-  // <rdar://problem/12027563> make sure we check that we are not stopped
-  // because of us running a user expression since in that case we do not want
-  // to run the stop-hooks
-  if (m_process_sp->GetModIDRef().IsLastResumeForUserExpression())
-    return false;
-
   if (m_stop_hooks.empty())
     return false;
 
@@ -2640,6 +2624,18 @@ bool Target::RunStopHooks() {
   }
   if (!any_active_hooks)
     return false;
+
+  // <rdar://problem/12027563> make sure we check that we are not stopped
+  // because of us running a user expression since in that case we do not want
+  // to run the stop-hooks.  Note, you can't just check whether the last stop
+  // was for a User Expression, because breakpoint commands get run before
+  // stop hooks, and one of them might have run an expression.  You have
+  // to ensure you run the stop hooks once per natural stop.
+  uint32_t last_natural_stop = m_process_sp->GetModIDRef().GetLastNaturalStopID();
+  if (last_natural_stop != 0 && m_latest_stop_hook_id == last_natural_stop)
+    return false;
+
+  m_latest_stop_hook_id = last_natural_stop;
 
   std::vector<ExecutionContext> exc_ctx_with_reasons;
 
@@ -2986,7 +2982,7 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
   // If we're not already connected to the process, and if we have a platform
   // that can launch a process for debugging, go ahead and do that here.
   if (state != eStateConnected && platform_sp &&
-      platform_sp->CanDebugProcess()) {
+      platform_sp->CanDebugProcess() && !launch_info.IsScriptedProcess()) {
     LLDB_LOGF(log, "Target::%s asking the platform to debug the process",
               __FUNCTION__);
 
@@ -2997,7 +2993,7 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
     DeleteCurrentProcess();
 
     m_process_sp =
-        GetPlatform()->DebugProcess(launch_info, debugger, this, error);
+        GetPlatform()->DebugProcess(launch_info, debugger, *this, error);
 
   } else {
     LLDB_LOGF(log,
@@ -3987,6 +3983,45 @@ Environment TargetProperties::ComputeEnvironment() const {
 
 Environment TargetProperties::GetEnvironment() const {
   return ComputeEnvironment();
+}
+
+Environment TargetProperties::GetInheritedEnvironment() const {
+  Environment environment;
+
+  if (m_target == nullptr)
+    return environment;
+
+  if (!m_collection_sp->GetPropertyAtIndexAsBoolean(
+          nullptr, ePropertyInheritEnv,
+          g_target_properties[ePropertyInheritEnv].default_uint_value != 0))
+    return environment;
+
+  PlatformSP platform_sp = m_target->GetPlatform();
+  if (platform_sp == nullptr)
+    return environment;
+
+  Environment platform_environment = platform_sp->GetEnvironment();
+  for (const auto &KV : platform_environment)
+    environment[KV.first()] = KV.second;
+
+  Args property_unset_environment;
+  m_collection_sp->GetPropertyAtIndexAsArgs(nullptr, ePropertyUnsetEnvVars,
+                                            property_unset_environment);
+  for (const auto &var : property_unset_environment)
+    environment.erase(var.ref());
+
+  return environment;
+}
+
+Environment TargetProperties::GetTargetEnvironment() const {
+  Args property_environment;
+  m_collection_sp->GetPropertyAtIndexAsArgs(nullptr, ePropertyEnvVars,
+                                            property_environment);
+  Environment environment;
+  for (const auto &KV : Environment(property_environment))
+    environment[KV.first()] = KV.second;
+
+  return environment;
 }
 
 void TargetProperties::SetEnvironment(Environment env) {

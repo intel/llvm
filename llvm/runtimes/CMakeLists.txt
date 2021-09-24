@@ -232,6 +232,7 @@ function(runtime_default_target)
                                       -DLLVM_DEFAULT_TARGET_TRIPLE=${TARGET_TRIPLE}
                                       -DLLVM_ENABLE_PROJECTS_USED=${LLVM_ENABLE_PROJECTS_USED}
                                       -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=${LLVM_ENABLE_PER_TARGET_RUNTIME_DIR_default}
+                                      -DLLVM_BUILD_TOOLS=${LLVM_BUILD_TOOLS}
                                       -DCMAKE_C_COMPILER_WORKS=ON
                                       -DCMAKE_CXX_COMPILER_WORKS=ON
                                       -DCMAKE_ASM_COMPILER_WORKS=ON
@@ -349,15 +350,24 @@ if(runtimes)
   # Create a runtimes target that uses this file as its top-level CMake file.
   # The runtimes target is a configuration of all the runtime libraries
   # together in a single CMake invocaiton.
+  set(extra_deps "")
+  if("openmp" IN_LIST LLVM_ENABLE_RUNTIMES)
+    if(TARGET opt)
+      list(APPEND extra_deps opt)
+    endif()
+    if(TARGET llvm-link)
+      list(APPEND extra_deps llvm-link)
+    endif()
+  endif()
   if(NOT LLVM_RUNTIME_TARGETS)
     runtime_default_target(
-      DEPENDS ${deps}
+      DEPENDS ${deps} ${extra_deps}
       PREFIXES ${prefixes})
     set(test_targets check-runtimes)
   else()
     if("default" IN_LIST LLVM_RUNTIME_TARGETS)
       runtime_default_target(
-        DEPENDS ${deps}
+        DEPENDS ${deps} ${extra_deps}
         PREFIXES ${prefixes})
       list(REMOVE_ITEM LLVM_RUNTIME_TARGETS "default")
     else()

@@ -852,10 +852,9 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
       CanBeNull = true;
     }
   } else if (const auto *Call = dyn_cast<CallBase>(this)) {
-    DerefBytes = Call->getDereferenceableBytes(AttributeList::ReturnIndex);
+    DerefBytes = Call->getRetDereferenceableBytes();
     if (DerefBytes == 0) {
-      DerefBytes =
-          Call->getDereferenceableOrNullBytes(AttributeList::ReturnIndex);
+      DerefBytes = Call->getRetDereferenceableOrNullBytes();
       CanBeNull = true;
     }
   } else if (const LoadInst *LI = dyn_cast<LoadInst>(this)) {
@@ -1014,8 +1013,7 @@ bool Value::isTransitiveUsedByMetadataOnly() const {
   llvm::SmallPtrSet<const User *, 32> Visited;
   WorkList.insert(WorkList.begin(), user_begin(), user_end());
   while (!WorkList.empty()) {
-    const User *U = WorkList.back();
-    WorkList.pop_back();
+    const User *U = WorkList.pop_back_val();
     Visited.insert(U);
     // If it is transitively used by a global value or a non-constant value,
     // it's obviously not only used by metadata.
