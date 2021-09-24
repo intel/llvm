@@ -219,8 +219,12 @@ TEST(QueueWait, QueueWaitTest) {
   // Test for multiple queues
   {
     const int N = 2;
-    sycl::queue Q1(sycl::default_selector{});
-    sycl::queue Q2(sycl::default_selector{});
+    sycl::device D1{sycl::default_selector()};
+    sycl::device D2{sycl::default_selector()};
+    sycl::context C1{D1};
+    sycl::context C2{D2};
+    sycl::queue Q1(C1, D1);
+    sycl::queue Q2(C2, D2);
 
     int *shared_array1a = sycl::malloc_shared<int>(N, Q1);
     int *shared_array2a = sycl::malloc_shared<int>(N, Q2);
