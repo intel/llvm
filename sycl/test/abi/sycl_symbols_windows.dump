@@ -1833,6 +1833,7 @@
 ?fill@MemoryManager@detail@sycl@cl@@SAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KPEBDIV?$range@$02@34@5V?$id@$02@34@IV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@AEAPEAU_pi_event@@@Z
 ?fill_usm@MemoryManager@detail@sycl@cl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KHV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@AEAPEAU_pi_event@@@Z
 ?finalize@handler@sycl@cl@@AEAA?AVevent@23@XZ
+?getESIMDDeviceInterface@detail@sycl@cl@@YAPEAUESIMDDeviceInterface@123@XZ
 ?find_device_intersection@detail@sycl@cl@@YA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@AEBV?$vector@V?$kernel_bundle@$00@sycl@cl@@V?$allocator@V?$kernel_bundle@$00@sycl@cl@@@std@@@5@@Z
 ?floor@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z
 ?floor@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z
