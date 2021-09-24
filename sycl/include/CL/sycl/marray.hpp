@@ -51,9 +51,13 @@ private:
 public:
   constexpr marray() : MData{} {}
 
-  explicit constexpr marray(const Type &Arg) {
-    for (std::size_t I = 0; I < NumElements; ++I) {
-      MData[I] = Arg;
+  explicit constexpr marray(const Type &Arg) : MData{Arg} {
+    call(Arg);
+  }
+
+  constexpr void call (const Type &Arg) {
+    for (size_t i = 0; i < NumElements; ++i){
+      MData[i] = Arg;
     }
   }
 
