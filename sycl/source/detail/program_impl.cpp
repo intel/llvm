@@ -218,7 +218,7 @@ cl_program program_impl::get() const {
   getPlugin().call<PiApiKind::piProgramRetain>(MProgram);
   return pi::cast<cl_program>(MProgram);
 }
-
+// test
 void program_impl::compile_with_kernel_name(std::string KernelName,
                                             std::string CompileOptions,
                                             OSModuleHandle M) {
