@@ -163,7 +163,7 @@ public:
     if (MDoSubmitFunctor) {
       std::function<EventImplPtr(bool)> EmptyFunctor;
       EmptyFunctor.swap(MDoSubmitFunctor);
-      EmptyFunctor(false);
+      MRealImpl = EmptyFunctor(false);
     }
   }
 
