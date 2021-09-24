@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <cstdint>
 #include <type_traits>
 
 #if __cpp_lib_bit_cast
