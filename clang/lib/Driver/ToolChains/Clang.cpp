@@ -6364,6 +6364,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   RenderSCPOptions(TC, Args, CmdArgs);
   RenderTrivialAutoVarInitOptions(D, TC, Args, CmdArgs);
 
+  Args.AddLastArg(CmdArgs, options::OPT_fswift_async_fp_EQ);
+
   // Translate -mstackrealign
   if (Args.hasFlag(options::OPT_mstackrealign, options::OPT_mno_stackrealign,
                    false))
@@ -8205,7 +8207,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     Triples += '-';
     Triples += CurTC->getTriple().normalize();
     if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_OpenMP ||
-         CurKind == Action::OFK_Cuda) &&
+         CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
         CurDep->getOffloadingArch()) {
       Triples += '-';
       Triples += CurDep->getOffloadingArch();
@@ -8363,7 +8365,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     Triples += Dep.DependentToolChain->getTriple().normalize();
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_OpenMP ||
-         Dep.DependentOffloadKind == Action::OFK_Cuda) &&
+         Dep.DependentOffloadKind == Action::OFK_Cuda ||
+         Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
       Triples += '-';
       Triples += Dep.DependentBoundArch;
@@ -8652,13 +8655,7 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
-      // If OffloadArch is present it can only appear as the 6th hyphen
-      // separated field of Bundle Entry ID. So, pad required number of
-      // hyphens in Triple.
-      // e.g. if NormalizedTriple is nvptx64-nvidia-cuda, 2 more - to
-      // generate nvptx64-nvidia-cuda--
-      for (int i = 4 - StringRef(NormalizedTriple).count("-"); i > 0; i--)
-        Targets += '-';
+      Targets += '-';
       Targets += Dep.DependentBoundArch;
     }
   }
