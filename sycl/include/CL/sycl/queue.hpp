@@ -1143,7 +1143,7 @@ private:
 
   /// A template-free version of submit.
   void submit_impl_without_event(std::function<void(handler &)> CGH,
-                                const detail::code_location &CodeLoc);
+                                 const detail::code_location &CodeLoc);
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
   /// specifies global size only.

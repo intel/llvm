@@ -1874,8 +1874,8 @@ cl_int enqueueImpKernel(NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
   RT::PiProgram Program = nullptr;
 
   std::tie(Kernel, KernelMutex, Program) =
-    detail::ProgramManager::getInstance().getOrCreateKernel(
-      OSModuleHandle, ContextImpl, DeviceImpl, KernelName, nullptr);
+      detail::ProgramManager::getInstance().getOrCreateKernel(
+          OSModuleHandle, ContextImpl, DeviceImpl, KernelName, nullptr);
 
   pi_result Error = PI_SUCCESS;
   const ProgramManager::KernelArgMask &EliminatedArgMask =
