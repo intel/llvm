@@ -249,7 +249,7 @@ void program_impl::compile_with_source(std::string KernelSource,
 void program_impl::build_with_kernel_name(std::string KernelName,
                                           std::string BuildOptions,
                                           OSModuleHandle Module) {
-  static KernelCached = false;
+  static bool KernelCached = false;
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
   MProgramModuleHandle = Module;
