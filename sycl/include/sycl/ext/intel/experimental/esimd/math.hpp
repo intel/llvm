@@ -1914,12 +1914,27 @@ ESIMD_INLINE RT esimd_ceil(const float &src0, const uint flags = 0) {
   return esimd_rndu<RT, 1U>(src0, flags);
 }
 
+/// Round to integral value using the round to zero rounding mode (vector
+/// version).
+/// \tparam RT element type of the return vector.
+/// \tparam SZ size of the input and returned vectors.
+/// @param src0 the input vector.
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
+/// @return vector of rounded values.
 template <typename RT, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<RT, SZ> esimd_trunc(const simd<float, SZ> &src0,
                                                     const uint flag = 0) {
   return esimd_rndz<RT, SZ>(src0, flag);
 }
 
+/// Round to integral value using the round to zero rounding mode (scalar
+/// version).
+/// \tparam RT type of the return value.
+/// @param src0 the input operand.
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
+/// @return rounded value.
 template <typename RT>
 ESIMD_NODEBUG ESIMD_INLINE RT esimd_trunc(float src0, const uint flag = 0) {
   return esimd_rndz<RT, 1U>(src0, flag)[0];
