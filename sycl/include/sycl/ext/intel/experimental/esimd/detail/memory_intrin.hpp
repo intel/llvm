@@ -46,8 +46,8 @@ public:
 };
 
 template <int ElemsPerAddr,
-          typename = sycl::detail::enable_if_t<
-              (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)>>
+          typename = std::enable_if_t<(ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
+                                       ElemsPerAddr == 4)>>
 constexpr unsigned int ElemsPerAddrEncoding() {
   // encoding requires log2 of ElemsPerAddr
   if constexpr (ElemsPerAddr == 1)

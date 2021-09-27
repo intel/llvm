@@ -72,11 +72,12 @@ namespace esimd {
 /// \ingroup sycl_esimd
 template <typename T, int n, int ElemsPerAddr = 1,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
-    ((n == 8 || n == 16 || n == 32) &&
-     (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)),
-    simd<T, n * ElemsPerAddr>>
-gather(T *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
+ESIMD_INLINE ESIMD_NODEBUG
+    typename std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
+                               (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
+                                ElemsPerAddr == 4)),
+                              simd<T, n * ElemsPerAddr>>
+    gather(T *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
 
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
@@ -121,12 +122,13 @@ gather(T *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
 /// \ingroup sycl_esimd
 template <typename T, int n, int ElemsPerAddr = 1,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
-    ((n == 8 || n == 16 || n == 32) &&
-     (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)),
-    void>
-scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
-        simd_mask<n> pred = 1) {
+ESIMD_INLINE ESIMD_NODEBUG
+    typename std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
+                               (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
+                                ElemsPerAddr == 4)),
+                              void>
+    scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
+            simd_mask<n> pred = 1) {
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
@@ -245,10 +247,10 @@ ESIMD_INLINE ESIMD_NODEBUG
 template <typename T, int N, typename AccessorTy,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 ESIMD_INLINE ESIMD_NODEBUG
-    typename sycl::detail::enable_if_t<(sizeof(T) <= 4) &&
-                                           (N == 1 || N == 8 || N == 16) &&
-                                           !std::is_pointer<AccessorTy>::value,
-                                       simd<T, N>>
+    typename std::enable_if_t<(sizeof(T) <= 4) &&
+                                  (N == 1 || N == 8 || N == 16) &&
+                                  !std::is_pointer<AccessorTy>::value,
+                              simd<T, N>>
     gather(AccessorTy acc, simd<uint32_t, N> offsets,
            uint32_t glob_offset = 0) {
 
@@ -264,9 +266,8 @@ ESIMD_INLINE ESIMD_NODEBUG
   if constexpr (sizeof(T) < 4) {
     static_assert(std::is_integral<T>::value,
                   "only integral 1- & 2-byte types are supported");
-    using PromoT =
-        typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
-                                             uint32_t>;
+    using PromoT = typename std::conditional_t<std::is_signed<T>::value,
+                                               int32_t, uint32_t>;
 #if defined(__SYCL_DEVICE_ONLY__)
     const auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
     const simd<PromoT, N> promo_vals =
@@ -312,10 +313,10 @@ ESIMD_INLINE ESIMD_NODEBUG
 template <typename T, int N, typename AccessorTy,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 ESIMD_INLINE ESIMD_NODEBUG
-    typename sycl::detail::enable_if_t<(sizeof(T) <= 4) &&
-                                           (N == 1 || N == 8 || N == 16) &&
-                                           !std::is_pointer<AccessorTy>::value,
-                                       void>
+    typename std::enable_if_t<(sizeof(T) <= 4) &&
+                                  (N == 1 || N == 8 || N == 16) &&
+                                  !std::is_pointer<AccessorTy>::value,
+                              void>
     scatter(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
             uint32_t glob_offset = 0, simd_mask<N> pred = simd_mask<N>(1)) {
 
@@ -331,9 +332,8 @@ ESIMD_INLINE ESIMD_NODEBUG
   if constexpr (sizeof(T) < 4) {
     static_assert(std::is_integral<T>::value,
                   "only integral 1- & 2-byte types are supported");
-    using PromoT =
-        typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
-                                             uint32_t>;
+    using PromoT = typename std::conditional_t<std::is_signed<T>::value,
+                                               int32_t, uint32_t>;
     const simd<PromoT, N> promo_vals = convert<PromoT>(vals);
 #if defined(__SYCL_DEVICE_ONLY__)
     const auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
@@ -387,10 +387,10 @@ ESIMD_INLINE ESIMD_NODEBUG void scalar_store(AccessorTy acc, uint32_t offset,
 /// \ingroup sycl_esimd
 template <typename T, int N, rgba_channel_mask Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
-    (N == 16 || N == 32) && (sizeof(T) == 4),
-    simd<T, N * get_num_channels_enabled(Mask)>>
-gather_rgba(T *p, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
+ESIMD_INLINE ESIMD_NODEBUG
+    typename std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4),
+                              simd<T, N * get_num_channels_enabled(Mask)>>
+    gather_rgba(T *p, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
 
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
@@ -404,7 +404,7 @@ gather_rgba(T *p, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
 template <typename T, int n, rgba_channel_mask Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 __SYCL_DEPRECATED("use gather_rgba.")
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+ESIMD_INLINE ESIMD_NODEBUG typename std::enable_if_t<
     (n == 16 || n == 32) && (sizeof(T) == 4),
     simd<T, n * get_num_channels_enabled(Mask)>> gather4(T *p,
                                                          simd<uint32_t, n>
@@ -428,8 +428,7 @@ ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
 template <typename T, int N, rgba_channel_mask Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 ESIMD_INLINE ESIMD_NODEBUG
-    typename sycl::detail::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4),
-                                       void>
+    typename std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4), void>
     scatter_rgba(T *p, simd<T, N * get_num_channels_enabled(Mask)> vals,
                  simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
@@ -444,7 +443,7 @@ ESIMD_INLINE ESIMD_NODEBUG
 template <typename T, int n, rgba_channel_mask Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 __SYCL_DEPRECATED("use scatter_rgba.")
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+ESIMD_INLINE ESIMD_NODEBUG typename std::enable_if_t<
     (n == 16 || n == 32) && (sizeof(T) == 4),
     void> scatter4(T *p, simd<T, n * get_num_channels_enabled(Mask)> vals,
                    simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
@@ -555,8 +554,7 @@ constexpr bool check_atomic() {
 template <atomic_op Op, typename T, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
-                                       simd<T, n>>
+    typename std::enable_if_t<detail::check_atomic<Op, T, n, 0>(), simd<T, n>>
     flat_atomic(T *p, simd<unsigned, n> offset, simd_mask<n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
   simd<uintptr_t, n> offset_i1 = convert<uintptr_t>(offset);
@@ -569,8 +567,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 template <atomic_op Op, typename T, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
-                                       simd<T, n>>
+    typename std::enable_if_t<detail::check_atomic<Op, T, n, 1>(), simd<T, n>>
     flat_atomic(T *p, simd<unsigned, n> offset, simd<T, n> src0,
                 simd_mask<n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
@@ -585,8 +582,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 template <atomic_op Op, typename T, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 2>(),
-                                       simd<T, n>>
+    typename std::enable_if_t<detail::check_atomic<Op, T, n, 2>(), simd<T, n>>
     flat_atomic(T *p, simd<unsigned, n> offset, simd<T, n> src0,
                 simd<T, n> src1, simd_mask<n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
@@ -780,8 +776,7 @@ ESIMD_INLINE ESIMD_NODEBUG void slm_block_store(uint32_t offset,
 /// SLM atomic, zero source operand: inc and dec.
 template <atomic_op Op, typename T, int n>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
-                                       simd<T, n>>
+    typename std::enable_if_t<detail::check_atomic<Op, T, n, 0>(), simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd_mask<n> pred) {
   return __esimd_slm_atomic0<Op, T, n>(offsets.data(), pred.data());
 }
@@ -789,8 +784,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// SLM atomic, one source operand, add/sub/min/max etc.
 template <atomic_op Op, typename T, int n>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
-                                       simd<T, n>>
+    typename std::enable_if_t<detail::check_atomic<Op, T, n, 1>(), simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0, simd_mask<n> pred) {
   return __esimd_slm_atomic1<Op, T, n>(offsets.data(), src0.data(),
                                        pred.data());
@@ -799,8 +793,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// SLM atomic, two source operands.
 template <atomic_op Op, typename T, int n>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 2>(),
-                                       simd<T, n>>
+    typename std::enable_if_t<detail::check_atomic<Op, T, n, 2>(), simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0, simd<T, n> src1,
                simd_mask<n> pred) {
   return __esimd_slm_atomic2<Op, T, n>(offsets.data(), src0.data(), src1.data(),

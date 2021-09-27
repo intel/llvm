@@ -10,6 +10,7 @@
 #include <CL/sycl/functional.hpp>
 
 #include <functional>
+#include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -41,17 +42,17 @@ struct GroupOpFP {};
 template <typename T, typename = void> struct GroupOpTag;
 
 template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sigeninteger<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sigeninteger<T>::value>> {
   using type = GroupOpISigned;
 };
 
 template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sugeninteger<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sugeninteger<T>::value>> {
   using type = GroupOpIUnsigned;
 };
 
 template <typename T>
-struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sgenfloat<T>::value>> {
   using type = GroupOpFP;
 };
 
@@ -60,13 +61,13 @@ struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
   static T calc(GroupTag, T x, BinaryOperation) {                              \
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
-    using OCLT =                                                               \
-        conditional_t<std::is_same<ConvertedT, cl_char>() ||                   \
-                          std::is_same<ConvertedT, cl_short>(),                \
-                      cl_int,                                                  \
-                      conditional_t<std::is_same<ConvertedT, cl_uchar>() ||    \
-                                        std::is_same<ConvertedT, cl_ushort>(), \
-                                    cl_uint, ConvertedT>>;                     \
+    using OCLT = std::conditional_t<                                           \
+        std::is_same<ConvertedT, cl_char>() ||                                 \
+            std::is_same<ConvertedT, cl_short>(),                              \
+        cl_int,                                                                \
+        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
+                               std::is_same<ConvertedT, cl_ushort>(),          \
+                           cl_uint, ConvertedT>>;                              \
     OCLT Arg = x;                                                              \
     OCLT Ret =                                                                 \
         __spirv_Group##SPIRVOperation(S, static_cast<unsigned int>(O), Arg);   \

@@ -37,16 +37,15 @@ using device_func_ptr_holder_t = cl_ulong;
 
 /// \brief this function performs a cast from device_func_ptr_holder_t type
 /// to the provided function pointer type.
-template <
-    class FuncType,
-    typename FuncPtrType = typename detail::add_pointer_t<FuncType>,
-    typename detail::enable_if_t<std::is_function<FuncType>::value, int> = 0>
+template <class FuncType,
+          typename FuncPtrType = typename std::add_pointer_t<FuncType>,
+          typename std::enable_if_t<std::is_function<FuncType>::value, int> = 0>
 inline FuncPtrType to_device_func_ptr(device_func_ptr_holder_t FptrHolder) {
   return reinterpret_cast<FuncPtrType>(FptrHolder);
 }
 
 template <class FuncType>
-using enable_if_is_function_pointer_t = typename detail::enable_if_t<
+using enable_if_is_function_pointer_t = typename std::enable_if_t<
     std::is_pointer<FuncType>::value &&
         std::is_function<typename std::remove_pointer<FuncType>::type>::value,
     int>;

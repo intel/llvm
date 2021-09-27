@@ -47,20 +47,20 @@ class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
   // TODO: Align these checks with the SYCL specification when the behaviour
   // with void * is clarified.
   template <typename T>
-  using EnableIfOutputPointerT = enable_if_t<
+  using EnableIfOutputPointerT = std::enable_if_t<
       /*is_output_iterator<T>::value &&*/ std::is_pointer<T>::value>;
 
   template <typename T>
-  using EnableIfOutputIteratorT = enable_if_t<
+  using EnableIfOutputIteratorT = std::enable_if_t<
       /*is_output_iterator<T>::value &&*/ !std::is_pointer<T>::value>;
 
   template <typename T>
   using EnableIfDefaultAllocator =
-      enable_if_t<std::is_same<T, sycl_memory_object_allocator>::value>;
+      std::enable_if_t<std::is_same<T, sycl_memory_object_allocator>::value>;
 
   template <typename T>
   using EnableIfNonDefaultAllocator =
-      enable_if_t<!std::is_same<T, sycl_memory_object_allocator>::value>;
+      std::enable_if_t<!std::is_same<T, sycl_memory_object_allocator>::value>;
 
 public:
   SYCLMemObjT(const size_t SizeInBytes, const property_list &Props,
@@ -136,7 +136,7 @@ public:
 
   template <template <typename T> class PtrT, typename T>
   __SYCL_DLL_LOCAL
-      enable_if_t<std::is_convertible<PtrT<T>, std::weak_ptr<T>>::value>
+      std::enable_if_t<std::is_convertible<PtrT<T>, std::weak_ptr<T>>::value>
       set_final_data(PtrT<T> FinalData) {
     std::weak_ptr<T> TempFinalData(FinalData);
     set_final_data(TempFinalData);
@@ -270,9 +270,9 @@ public:
     // We need to cast MUserPtr to pointer to the iteration type to get correct
     // offset in std::copy when it will increment destination pointer.
     using IteratorValueType = iterator_value_type_t<InputIterator>;
-    using IteratorNonConstValueType = remove_const_t<IteratorValueType>;
+    using IteratorNonConstValueType = std::remove_const_t<IteratorValueType>;
     using IteratorPointerToNonConstValueType =
-        add_pointer_t<IteratorNonConstValueType>;
+        std::add_pointer_t<IteratorNonConstValueType>;
     std::copy(First, Last,
               static_cast<IteratorPointerToNonConstValueType>(MUserPtr));
   }

@@ -92,7 +92,7 @@ struct sub_group_mask {
   }
 
   template <typename Type,
-            typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
+            typename = std::enable_if_t<std::is_integral<Type>::value>>
   void insert_bits(Type bits, id<1> pos = 0) {
     size_t insert_size = sizeof(Type) * CHAR_BIT;
     uint32_t insert_data = (uint32_t)bits;
@@ -111,7 +111,7 @@ struct sub_group_mask {
   bit id    |7   ..    0|15   ..   8|23   ..  16|31  ..   24|
   */
   template <typename Type, size_t Size,
-            typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
+            typename = std::enable_if_t<std::is_integral<Type>::value>>
   void insert_bits(const marray<Type, Size> &bits, id<1> pos = 0) {
     size_t cur_pos = pos.get(0);
     for (auto elem : bits) {
@@ -123,7 +123,7 @@ struct sub_group_mask {
   }
 
   template <typename Type,
-            typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
+            typename = std::enable_if_t<std::is_integral<Type>::value>>
   void extract_bits(Type &bits, id<1> pos = 0) {
     uint32_t Res = Bits;
     if (pos.get(0) < size()) {
@@ -141,7 +141,7 @@ struct sub_group_mask {
   }
 
   template <typename Type, size_t Size,
-            typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
+            typename = std::enable_if_t<std::is_integral<Type>::value>>
   void extract_bits(marray<Type, Size> &bits, id<1> pos = 0) {
     size_t cur_pos = pos.get(0);
     for (auto &elem : bits) {
@@ -210,8 +210,8 @@ struct sub_group_mask {
       : Bits(rhs.Bits), bits_num(rhs.bits_num) {}
 
   template <typename Group>
-  friend detail::enable_if_t<
-      std::is_same<std::decay_t<Group>, sub_group>::value, sub_group_mask>
+  friend std::enable_if_t<std::is_same<std::decay_t<Group>, sub_group>::value,
+                          sub_group_mask>
   group_ballot(Group g, bool predicate);
 
   friend sub_group_mask operator&(const sub_group_mask &lhs,
@@ -245,8 +245,8 @@ private:
 };
 
 template <typename Group>
-detail::enable_if_t<std::is_same<std::decay_t<Group>, sub_group>::value,
-                    sub_group_mask>
+std::enable_if_t<std::is_same<std::decay_t<Group>, sub_group>::value,
+                 sub_group_mask>
 group_ballot(Group g, bool predicate) {
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__

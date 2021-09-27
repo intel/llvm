@@ -17,25 +17,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-// Type traits identical to those in std in newer versions. Can be removed when
-// SYCL requires a newer version of the C++ standard.
-// C++14
-template <bool B, class T = void>
-using enable_if_t = typename std::enable_if<B, T>::type;
-
-template <bool B, class T, class F>
-using conditional_t = typename std::conditional<B, T, F>::type;
-
-template <typename T>
-using remove_const_t = typename std::remove_const<T>::type;
-
-template <typename T> using remove_cv_t = typename std::remove_cv<T>::type;
-
-template <typename T>
-using remove_reference_t = typename std::remove_reference<T>::type;
-
-template <typename T> using add_pointer_t = typename std::add_pointer<T>::type;
-
 // C++17
 template <bool V> using bool_constant = std::integral_constant<bool, V>;
 

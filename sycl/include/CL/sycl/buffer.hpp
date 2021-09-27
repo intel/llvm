@@ -33,8 +33,8 @@ template <int dimensions> class range;
 /// \ingroup sycl_api
 template <typename T, int dimensions = 1,
           typename AllocatorT = cl::sycl::buffer_allocator,
-          typename = typename detail::enable_if_t<(dimensions > 0) &&
-                                                  (dimensions <= 3)>>
+          typename =
+              typename std::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
 class buffer {
 public:
   using value_type = T;
@@ -42,21 +42,21 @@ public:
   using const_reference = const value_type &;
   using allocator_type = AllocatorT;
   template <int dims>
-  using EnableIfOneDimension = typename detail::enable_if_t<1 == dims>;
+  using EnableIfOneDimension = typename std::enable_if_t<1 == dims>;
   // using same requirement for contiguous container as std::span
   template <class Container>
   using EnableIfContiguous =
-      detail::void_t<detail::enable_if_t<std::is_convertible<
-                         detail::remove_pointer_t<decltype(
-                             std::declval<Container>().data())> (*)[],
+      detail::void_t<std::enable_if_t<std::is_convertible<
+                         detail::remove_pointer_t<
+                             decltype(std::declval<Container>().data())> (*)[],
                          const T (*)[]>::value>,
                      decltype(std::declval<Container>().size())>;
   template <class It>
-  using EnableIfItInputIterator = detail::enable_if_t<
+  using EnableIfItInputIterator = std::enable_if_t<
       std::is_convertible<typename std::iterator_traits<It>::iterator_category,
                           std::input_iterator_tag>::value>;
   template <typename ItA, typename ItB>
-  using EnableIfSameNonConstIterators = typename detail::enable_if_t<
+  using EnableIfSameNonConstIterators = typename std::enable_if_t<
       std::is_same<ItA, ItB>::value && !std::is_const<ItA>::value, ItA>;
 
   buffer(const range<dimensions> &bufferRange,

@@ -151,7 +151,7 @@ __SYCL_EXPORT event make_event(const context &Context,
                                bool keep_ownership = false);
 
 // Construction of SYCL platform.
-template <typename T, typename detail::enable_if_t<
+template <typename T, typename std::enable_if_t<
                           std::is_same<T, platform>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_platform free function")
 T make(typename interop<backend::level_zero, T>::type Interop) {
@@ -159,8 +159,8 @@ T make(typename interop<backend::level_zero, T>::type Interop) {
 }
 
 // Construction of SYCL device.
-template <typename T, typename detail::enable_if_t<
-                          std::is_same<T, device>::value> * = nullptr>
+template <typename T,
+          typename std::enable_if_t<std::is_same<T, device>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_device free function")
 T make(const platform &Platform,
        typename interop<backend::level_zero, T>::type Interop) {
@@ -187,8 +187,8 @@ T make(const std::vector<device> &DeviceList,
 }
 
 // Construction of SYCL program.
-template <typename T, typename detail::enable_if_t<
-                          std::is_same<T, program>::value> * = nullptr>
+template <typename T, typename std::enable_if_t<std::is_same<T, program>::value>
+                          * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_kernel_bundle free function")
 T make(const context &Context,
        typename interop<backend::level_zero, T>::type Interop) {
@@ -196,8 +196,8 @@ T make(const context &Context,
 }
 
 // Construction of SYCL queue.
-template <typename T, typename detail::enable_if_t<
-                          std::is_same<T, queue>::value> * = nullptr>
+template <typename T,
+          typename std::enable_if_t<std::is_same<T, queue>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
 T make(const context &Context,
        typename interop<backend::level_zero, T>::type Interop,
@@ -207,8 +207,8 @@ T make(const context &Context,
 }
 
 // Construction of SYCL event.
-template <typename T, typename detail::enable_if_t<
-                          std::is_same<T, event>::value> * = nullptr>
+template <typename T,
+          typename std::enable_if_t<std::is_same<T, event>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_event free function")
 T make(const context &Context,
        typename interop<backend::level_zero, T>::type Interop,

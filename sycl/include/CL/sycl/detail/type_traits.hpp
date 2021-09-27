@@ -77,17 +77,18 @@ template <typename T> struct vector_size_impl : int_constant<1> {};
 template <typename T, int N>
 struct vector_size_impl<vec<T, N>> : int_constant<N> {};
 template <typename T>
-struct vector_size : vector_size_impl<remove_cv_t<remove_reference_t<T>>> {};
+struct vector_size
+    : vector_size_impl<std::remove_cv_t<std::remove_reference_t<T>>> {};
 
 // 4.10.2.6 Memory layout and alignment
 template <typename T, int N>
 struct vector_alignment_impl
-    : conditional_t<N == 3, int_constant<sizeof(T) * 4>,
-                    int_constant<sizeof(T) * N>> {};
+    : std::conditional_t<N == 3, int_constant<sizeof(T) * 4>,
+                         int_constant<sizeof(T) * N>> {};
 
 template <typename T, int N>
 struct vector_alignment
-    : vector_alignment_impl<remove_cv_t<remove_reference_t<T>>, N> {};
+    : vector_alignment_impl<std::remove_cv_t<std::remove_reference_t<T>>, N> {};
 
 // vector_element
 template <typename T> struct vector_element_impl;
@@ -98,7 +99,8 @@ template <typename T, int N> struct vector_element_impl<vec<T, N>> {
   using type = T;
 };
 template <typename T> struct vector_element {
-  using type = copy_cv_qualifiers_t<T, vector_element_impl_t<remove_cv_t<T>>>;
+  using type =
+      copy_cv_qualifiers_t<T, vector_element_impl_t<std::remove_cv_t<T>>>;
 };
 template <class T> using vector_element_t = typename vector_element<T>::type;
 
@@ -132,7 +134,7 @@ struct copy_cv_qualifiers_impl<const volatile T, R> {
 };
 
 template <typename T, typename R> struct copy_cv_qualifiers {
-  using type = typename copy_cv_qualifiers_impl<T, remove_cv_t<R>>::type;
+  using type = typename copy_cv_qualifiers_impl<T, std::remove_cv_t<R>>::type;
 };
 
 // make_signed with support SYCL vec class
@@ -143,13 +145,13 @@ using make_signed_impl_t = typename make_signed_impl<T, T>::type;
 
 template <typename T>
 struct make_signed_impl<
-    T, enable_if_t<is_contained<T, gtl::scalar_integer_list>::value, T>> {
+    T, std::enable_if_t<is_contained<T, gtl::scalar_integer_list>::value, T>> {
   using type = typename std::make_signed<T>::type;
 };
 
 template <typename T>
 struct make_signed_impl<
-    T, enable_if_t<is_contained<T, gtl::vector_integer_list>::value, T>> {
+    T, std::enable_if_t<is_contained<T, gtl::vector_integer_list>::value, T>> {
   using base_type = make_signed_impl_t<vector_element_t<T>>;
   using type = change_base_type_t<T, base_type>;
 };
@@ -158,12 +160,12 @@ struct make_signed_impl<
 // infrastructure.
 template <typename T>
 struct make_signed_impl<
-    T, enable_if_t<!is_contained<T, gtl::integer_list>::value, T>> {
+    T, std::enable_if_t<!is_contained<T, gtl::integer_list>::value, T>> {
   using type = T;
 };
 
 template <typename T> struct make_signed {
-  using new_type_wo_cv_qualifiers = make_signed_impl_t<remove_cv_t<T>>;
+  using new_type_wo_cv_qualifiers = make_signed_impl_t<std::remove_cv_t<T>>;
   using type = copy_cv_qualifiers_t<T, new_type_wo_cv_qualifiers>;
 };
 
@@ -177,13 +179,13 @@ using make_unsigned_impl_t = typename make_unsigned_impl<T, T>::type;
 
 template <typename T>
 struct make_unsigned_impl<
-    T, enable_if_t<is_contained<T, gtl::scalar_integer_list>::value, T>> {
+    T, std::enable_if_t<is_contained<T, gtl::scalar_integer_list>::value, T>> {
   using type = typename std::make_unsigned<T>::type;
 };
 
 template <typename T>
 struct make_unsigned_impl<
-    T, enable_if_t<is_contained<T, gtl::vector_integer_list>::value, T>> {
+    T, std::enable_if_t<is_contained<T, gtl::vector_integer_list>::value, T>> {
   using base_type = make_unsigned_impl_t<vector_element_t<T>>;
   using type = change_base_type_t<T, base_type>;
 };
@@ -192,12 +194,12 @@ struct make_unsigned_impl<
 // infrastructure.
 template <typename T>
 struct make_unsigned_impl<
-    T, enable_if_t<!is_contained<T, gtl::integer_list>::value, T>> {
+    T, std::enable_if_t<!is_contained<T, gtl::integer_list>::value, T>> {
   using type = T;
 };
 
 template <typename T> struct make_unsigned {
-  using new_type_wo_cv_qualifiers = make_unsigned_impl_t<remove_cv_t<T>>;
+  using new_type_wo_cv_qualifiers = make_unsigned_impl_t<std::remove_cv_t<T>>;
   using type = copy_cv_qualifiers_t<T, new_type_wo_cv_qualifiers>;
 };
 
@@ -224,7 +226,7 @@ template <> struct is_floating_point_impl<half> : std::true_type {};
 
 template <typename T>
 struct is_floating_point
-    : is_floating_point_impl<remove_cv_t<vector_element_t<T>>> {};
+    : is_floating_point_impl<std::remove_cv_t<vector_element_t<T>>> {};
 
 // is_arithmetic
 template <typename T>
@@ -242,7 +244,7 @@ struct is_vector_arithmetic
 // is_bool
 template <typename T>
 struct is_scalar_bool
-    : bool_constant<std::is_same<remove_cv_t<T>, bool>::value> {};
+    : bool_constant<std::is_same<std::remove_cv_t<T>, bool>::value> {};
 
 template <typename T>
 struct is_vector_bool
@@ -260,7 +262,8 @@ template <typename T> struct is_pointer_impl<T *> : std::true_type {};
 template <typename T, access::address_space Space>
 struct is_pointer_impl<multi_ptr<T, Space>> : std::true_type {};
 
-template <typename T> struct is_pointer : is_pointer_impl<remove_cv_t<T>> {};
+template <typename T>
+struct is_pointer : is_pointer_impl<std::remove_cv_t<T>> {};
 
 // remove_pointer_t
 template <typename T> struct remove_pointer_impl { using type = T; };
@@ -273,7 +276,7 @@ struct remove_pointer_impl<multi_ptr<T, Space>> {
 };
 
 template <typename T>
-struct remove_pointer : remove_pointer_impl<remove_cv_t<T>> {};
+struct remove_pointer : remove_pointer_impl<std::remove_cv_t<T>> {};
 
 template <typename T> using remove_pointer_t = typename remove_pointer<T>::type;
 
@@ -290,7 +293,7 @@ struct is_address_space_compliant_impl<multi_ptr<T, Space>, SpaceList>
 
 template <typename T, typename SpaceList>
 struct is_address_space_compliant
-    : is_address_space_compliant_impl<remove_cv_t<T>, SpaceList> {};
+    : is_address_space_compliant_impl<std::remove_cv_t<T>, SpaceList> {};
 
 // make_type_t
 template <typename T, typename TL> struct make_type_impl {
@@ -309,21 +312,21 @@ using make_type_t = typename make_type_impl<T, TL>::type;
 template <typename T, typename Enable = void> struct make_larger_impl;
 template <typename T>
 struct make_larger_impl<
-    T, enable_if_t<is_contained<T, gtl::scalar_floating_list>::value, T>> {
+    T, std::enable_if_t<is_contained<T, gtl::scalar_floating_list>::value, T>> {
   using type = find_twice_as_large_type_t<gtl::scalar_floating_list, T>;
 };
 
 template <typename T>
 struct make_larger_impl<
-    T,
-    enable_if_t<is_contained<T, gtl::scalar_signed_integer_list>::value, T>> {
+    T, std::enable_if_t<is_contained<T, gtl::scalar_signed_integer_list>::value,
+                        T>> {
   using type = find_twice_as_large_type_t<gtl::scalar_signed_integer_list, T>;
 };
 
 template <typename T>
 struct make_larger_impl<
-    T,
-    enable_if_t<is_contained<T, gtl::scalar_unsigned_integer_list>::value, T>> {
+    T, std::enable_if_t<
+           is_contained<T, gtl::scalar_unsigned_integer_list>::value, T>> {
   using type = find_twice_as_large_type_t<gtl::scalar_unsigned_integer_list, T>;
 };
 
@@ -332,7 +335,7 @@ template <typename T, int N> struct make_larger_impl<vec<T, N>, vec<T, N>> {
   using upper_type = typename make_larger_impl<base_type, base_type>::type;
   using new_type = vec<upper_type, N>;
   static constexpr bool found = !std::is_same<upper_type, void>::value;
-  using type = conditional_t<found, new_type, void>;
+  using type = std::conditional_t<found, new_type, void>;
 };
 
 template <typename T> struct make_larger {

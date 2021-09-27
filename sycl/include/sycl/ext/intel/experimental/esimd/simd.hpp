@@ -69,8 +69,8 @@ public:
 
   /// Explicit conversion for simd_obj_impl<T, 1> into T.
   template <class To, class T = simd,
-            class = sycl::detail::enable_if_t<(T::length == 1) &&
-                                              detail::is_vectorizable_v<To>>>
+            class = std::enable_if_t<(T::length == 1) &&
+                                     detail::is_vectorizable_v<To>>>
   operator To() const {
     __esimd_dbg_print(explicit operator To());
     return (To)base_type::data()[0];

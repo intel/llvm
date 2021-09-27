@@ -97,7 +97,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
         Order, Type, Range, Pitch,
@@ -109,7 +109,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
         Order, Type, Range, Pitch,
@@ -159,7 +159,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(void *HostPointer, image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
         HostPointer, Order, Type, Range, Pitch,
@@ -171,7 +171,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(void *HostPointer, image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
         HostPointer, Order, Type, Range, Pitch,
@@ -203,7 +203,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
         HostPointer, Order, Type, Range, Pitch,
@@ -215,7 +215,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
-        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
         HostPointer, Order, Type, Range, Pitch,
@@ -261,7 +261,7 @@ public:
 
   /* Available only when: dimensions >1 */
   template <bool B = (Dimensions > 1)>
-  typename detail::enable_if_t<B, range<Dimensions - 1>> get_pitch() const {
+  typename std::enable_if_t<B, range<Dimensions - 1>> get_pitch() const {
     return impl->get_pitch();
   }
 

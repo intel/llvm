@@ -181,8 +181,7 @@ struct sub_group {
 
   template <typename T>
   using EnableIfIsScalarArithmetic =
-      sycl::detail::enable_if_t<sycl::detail::is_scalar_arithmetic<T>::value,
-                                T>;
+      std::enable_if_t<sycl::detail::is_scalar_arithmetic<T>::value, T>;
 
   /* --- one-input shuffles --- */
   /* indices in [0 , sub_group size) */
@@ -236,8 +235,8 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
   // Method for decorated pointer
   template <typename CVT, typename T = std::remove_cv_t<CVT>>
-  detail::enable_if_t<
-      !std::is_same<typename detail::remove_AS<T>::type, T>::value, T>
+  std::enable_if_t<!std::is_same<typename detail::remove_AS<T>::type, T>::value,
+                   T>
   load(CVT *cv_src) const {
     T *src = const_cast<T *>(cv_src);
     return load(sycl::multi_ptr<typename detail::remove_AS<T>::type,
@@ -247,8 +246,8 @@ struct sub_group {
 
   // Method for raw pointer
   template <typename CVT, typename T = std::remove_cv_t<CVT>>
-  detail::enable_if_t<
-      std::is_same<typename detail::remove_AS<T>::type, T>::value, T>
+  std::enable_if_t<std::is_same<typename detail::remove_AS<T>::type, T>::value,
+                   T>
   load(CVT *cv_src) const {
     T *src = const_cast<T *>(cv_src);
 
@@ -278,7 +277,7 @@ struct sub_group {
 
   template <typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value, T>
   load(const multi_ptr<CVT, Space> cv_src) const {
     multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
@@ -297,7 +296,7 @@ struct sub_group {
 
   template <typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value, T>
   load(const multi_ptr<CVT, Space> cv_src) const {
     multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
@@ -313,7 +312,7 @@ struct sub_group {
 #ifdef __NVPTX__
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value,
       vec<T, N>>
   load(const multi_ptr<CVT, Space> cv_src) const {
@@ -327,7 +326,7 @@ struct sub_group {
 #else  // __NVPTX__
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N != 1 && N != 3 && N != 16,
       vec<T, N>>
@@ -338,7 +337,7 @@ struct sub_group {
 
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 16,
       vec<T, 16>>
@@ -351,7 +350,7 @@ struct sub_group {
 
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 3,
       vec<T, 3>>
@@ -364,7 +363,7 @@ struct sub_group {
 
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 1,
       vec<T, 1>>
@@ -376,7 +375,7 @@ struct sub_group {
 #else  // __SYCL_DEVICE_ONLY__
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value,
       vec<T, N>>
   load(const multi_ptr<CVT, Space> src) const {
@@ -388,7 +387,7 @@ struct sub_group {
 
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value,
       vec<T, N>>
   load(const multi_ptr<CVT, Space> cv_src) const {
@@ -409,8 +408,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
   // Method for decorated pointer
   template <typename T>
-  detail::enable_if_t<
-      !std::is_same<typename detail::remove_AS<T>::type, T>::value>
+  std::enable_if_t<!std::is_same<typename detail::remove_AS<T>::type, T>::value>
   store(T *dst, const typename detail::remove_AS<T>::type &x) const {
     store(sycl::multi_ptr<typename detail::remove_AS<T>::type,
                           sycl::detail::deduce_AS<T>::value>(
@@ -420,8 +418,7 @@ struct sub_group {
 
   // Method for raw pointer
   template <typename T>
-  detail::enable_if_t<
-      std::is_same<typename detail::remove_AS<T>::type, T>::value>
+  std::enable_if_t<std::is_same<typename detail::remove_AS<T>::type, T>::value>
   store(T *dst, const typename detail::remove_AS<T>::type &x) const {
 
 #ifdef __NVPTX__
@@ -454,7 +451,7 @@ struct sub_group {
 #endif //__SYCL_DEVICE_ONLY__
 
   template <typename T, access::address_space Space>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const T &x) const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -472,7 +469,7 @@ struct sub_group {
   }
 
   template <typename T, access::address_space Space>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const T &x) const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -488,7 +485,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef __NVPTX__
   template <int N, typename T, access::address_space Space>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
     for (int i = 0; i < N; ++i) {
@@ -497,7 +494,7 @@ struct sub_group {
   }
 #else // __NVPTX__
   template <int N, typename T, access::address_space Space>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N != 1 && N != 3 && N != 16>
   store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
@@ -505,7 +502,7 @@ struct sub_group {
   }
 
   template <int N, typename T, access::address_space Space>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 1>
   store(multi_ptr<T, Space> dst, const vec<T, 1> &x) const {
@@ -513,7 +510,7 @@ struct sub_group {
   }
 
   template <int N, typename T, access::address_space Space>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 3>
   store(multi_ptr<T, Space> dst, const vec<T, 3> &x) const {
@@ -522,7 +519,7 @@ struct sub_group {
   }
 
   template <int N, typename T, access::address_space Space>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 16>
   store(multi_ptr<T, Space> dst, const vec<T, 16> &x) const {
@@ -533,7 +530,7 @@ struct sub_group {
 #endif // __NVPTX__
 #else  // __SYCL_DEVICE_ONLY__
   template <int N, typename T, access::address_space Space>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
     (void)dst;
@@ -544,7 +541,7 @@ struct sub_group {
 #endif // __SYCL_DEVICE_ONLY__
 
   template <int N, typename T, access::address_space Space>
-  sycl::detail::enable_if_t<
+  std::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
 #ifdef __SYCL_DEVICE_ONLY__

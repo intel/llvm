@@ -99,7 +99,7 @@ public:
 
   template <typename T>
   using EnableIfNotConstIterator =
-      enable_if_t<!iterator_to_const_type_t<T>::value, T>;
+      std::enable_if_t<!iterator_to_const_type_t<T>::value, T>;
 
   template <class InputIterator>
   buffer_impl(EnableIfNotConstIterator<InputIterator> First, InputIterator Last,
@@ -119,7 +119,7 @@ public:
 
   template <typename T>
   using EnableIfConstIterator =
-      enable_if_t<iterator_to_const_type_t<T>::value, T>;
+      std::enable_if_t<iterator_to_const_type_t<T>::value, T>;
 
   template <class InputIterator>
   buffer_impl(EnableIfConstIterator<InputIterator> First, InputIterator Last,

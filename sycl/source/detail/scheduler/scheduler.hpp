@@ -595,7 +595,7 @@ protected:
                                        const ContextImplPtr &Context);
 
     template <typename T>
-    typename detail::enable_if_t<
+    typename std::enable_if_t<
         std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
         EmptyCommand *>
     addEmptyCmd(Command *Cmd, const std::vector<T *> &Req,

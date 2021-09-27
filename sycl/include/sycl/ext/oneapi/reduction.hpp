@@ -27,9 +27,9 @@ namespace oneapi {
 namespace detail {
 
 using cl::sycl::detail::bool_constant;
-using cl::sycl::detail::enable_if_t;
 using cl::sycl::detail::queue_impl;
 using cl::sycl::detail::remove_AS;
+using std::enable_if_t;
 
 // This type trait is used to detect if the atomic operation BinaryOperation
 // used with operands of the type T is available for using in reduction.

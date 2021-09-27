@@ -29,9 +29,9 @@ class accessor;
 template <typename ElementType, access::address_space Space> class multi_ptr {
 public:
   using element_type =
-      detail::conditional_t<std::is_same<ElementType, half>::value,
-                    cl::sycl::detail::half_impl::BIsRepresentationT,
-                    ElementType>;
+      std::conditional_t<std::is_same<ElementType, half>::value,
+                         cl::sycl::detail::half_impl::BIsRepresentationT,
+                         ElementType>;
   using difference_type = std::ptrdiff_t;
 
   // Implementation defined pointer and reference types that correspond to
@@ -113,7 +113,7 @@ public:
   template <int dimensions, access::mode Mode,
             access::placeholder isPlaceholder, typename PropertyListT,
             access::address_space _Space = Space,
-            typename = typename detail::enable_if_t<
+            typename = typename std::enable_if_t<
                 _Space == Space &&
                 (Space == access::address_space::global_space ||
                  Space == access::address_space::global_device_space)>>
@@ -127,7 +127,7 @@ public:
   template <int dimensions, access::mode Mode,
             access::placeholder isPlaceholder, typename PropertyListT,
             access::address_space _Space = Space,
-            typename = typename detail::enable_if_t<
+            typename = typename std::enable_if_t<
                 _Space == Space && Space == access::address_space::local_space>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::local,
                      isPlaceholder, PropertyListT>
@@ -138,7 +138,7 @@ public:
   template <
       int dimensions, access::mode Mode, access::placeholder isPlaceholder,
       typename PropertyListT, access::address_space _Space = Space,
-      typename = typename detail::enable_if_t<
+      typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::constant_space>>
   multi_ptr(
       accessor<ElementType, dimensions, Mode, access::target::constant_buffer,
@@ -160,12 +160,12 @@ public:
       int dimensions, access::mode Mode, access::placeholder isPlaceholder,
       typename PropertyListT, access::address_space _Space = Space,
       typename ET = ElementType,
-      typename = typename detail::enable_if_t<
+      typename = typename std::enable_if_t<
           _Space == Space &&
           (Space == access::address_space::global_space ||
            Space == access::address_space::global_device_space) &&
           std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
-  multi_ptr(accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
+  multi_ptr(accessor<typename std::remove_const_t<ET>, dimensions, Mode,
                      access::target::device, isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
@@ -175,10 +175,10 @@ public:
       int dimensions, access::mode Mode, access::placeholder isPlaceholder,
       typename PropertyListT, access::address_space _Space = Space,
       typename ET = ElementType,
-      typename = typename detail::enable_if_t<
+      typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::local_space &&
           std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
-  multi_ptr(accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
+  multi_ptr(accessor<typename std::remove_const_t<ET>, dimensions, Mode,
                      access::target::local, isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
@@ -188,11 +188,11 @@ public:
       int dimensions, access::mode Mode, access::placeholder isPlaceholder,
       typename PropertyListT, access::address_space _Space = Space,
       typename ET = ElementType,
-      typename = typename detail::enable_if_t<
+      typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::constant_space &&
           std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
   multi_ptr(
-      accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
+      accessor<typename std::remove_const_t<ET>, dimensions, Mode,
                access::target::constant_buffer, isPlaceholder, PropertyListT>
           Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
@@ -204,9 +204,9 @@ public:
   // Constructs multi_ptr<const ElementType, Space>:
   //   multi_ptr<ElementType, Space> -> multi_ptr<const ElementTYpe, Space>
   template <typename ET = ElementType>
-  multi_ptr(typename detail::enable_if_t<
+  multi_ptr(typename std::enable_if_t<
             std::is_const<ET>::value && std::is_same<ET, ElementType>::value,
-            const multi_ptr<typename detail::remove_const_t<ET>, Space>> &ETP)
+            const multi_ptr<typename std::remove_const_t<ET>, Space>> &ETP)
       : m_Pointer(ETP.get()) {}
 
   // Returns the underlying OpenCL C pointer
@@ -219,9 +219,9 @@ public:
   // Only available when ElementType is not const-qualified
   template <typename ET = ElementType>
   operator multi_ptr<
-      typename detail::enable_if_t<std::is_same<ET, ElementType>::value &&
-                                       !std::is_const<ET>::value,
-                                   void>::type,
+      typename std::enable_if_t<std::is_same<ET, ElementType>::value &&
+                                    !std::is_const<ET>::value,
+                                void>::type,
       Space>() const {
     using ptr_t = typename detail::DecoratedType<void, Space> *;
     return multi_ptr<void, Space>(reinterpret_cast<ptr_t>(m_Pointer));
@@ -231,9 +231,9 @@ public:
   // Only available when ElementType is const-qualified
   template <typename ET = ElementType>
   operator multi_ptr<
-      typename detail::enable_if_t<std::is_same<ET, ElementType>::value &&
-                                       std::is_const<ET>::value,
-                                   const void>::type,
+      typename std::enable_if_t<std::is_same<ET, ElementType>::value &&
+                                    std::is_const<ET>::value,
+                                const void>::type,
       Space>() const {
     using ptr_t = typename detail::DecoratedType<const void, Space> *;
     return multi_ptr<const void, Space>(reinterpret_cast<ptr_t>(m_Pointer));
@@ -286,7 +286,7 @@ public:
   // Only available if Space == address_space::global_device_space ||
   // Space == address_space::global_host_space
   template <access::address_space _Space = Space,
-            typename = typename detail::enable_if_t<
+            typename = typename std::enable_if_t<
                 _Space == Space &&
                 (Space == access::address_space::global_device_space ||
                  Space == access::address_space::global_host_space)>>
@@ -302,7 +302,7 @@ public:
   // Only if Space == global_space
   template <
       access::address_space _Space = Space,
-      typename = typename detail::enable_if_t<
+      typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::global_space>>
   void prefetch(size_t NumElements) const {
     size_t NumBytes = NumElements * sizeof(ElementType);
@@ -376,7 +376,7 @@ public:
   // Only if Space == global_space || global_device_space
   template <typename ElementType, int dimensions, access::mode Mode,
             typename PropertyListT, access::address_space _Space = Space,
-            typename = typename detail::enable_if_t<
+            typename = typename std::enable_if_t<
                 _Space == Space &&
                 (Space == access::address_space::global_space ||
                  Space == access::address_space::global_device_space)>>
@@ -388,7 +388,7 @@ public:
   // Only if Space == local_space
   template <typename ElementType, int dimensions, access::mode Mode,
             typename PropertyListT, access::address_space _Space = Space,
-            typename = typename detail::enable_if_t<
+            typename = typename std::enable_if_t<
                 _Space == Space && Space == access::address_space::local_space>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::local,
                      access::placeholder::false_t, PropertyListT>
@@ -399,7 +399,7 @@ public:
   template <
       typename ElementType, int dimensions, access::mode Mode,
       typename PropertyListT, access::address_space _Space = Space,
-      typename = typename detail::enable_if_t<
+      typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::constant_space>>
   multi_ptr(
       accessor<ElementType, dimensions, Mode, access::target::constant_buffer,
@@ -496,7 +496,7 @@ public:
   // Only if Space == global_space || global_device_space
   template <typename ElementType, int dimensions, access::mode Mode,
             typename PropertyListT, access::address_space _Space = Space,
-            typename = typename detail::enable_if_t<
+            typename = typename std::enable_if_t<
                 _Space == Space &&
                 (Space == access::address_space::global_space ||
                  Space == access::address_space::global_device_space)>>
@@ -508,7 +508,7 @@ public:
   // Only if Space == local_space
   template <typename ElementType, int dimensions, access::mode Mode,
             typename PropertyListT, access::address_space _Space = Space,
-            typename = typename detail::enable_if_t<
+            typename = typename std::enable_if_t<
                 _Space == Space && Space == access::address_space::local_space>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::local,
                      access::placeholder::false_t, PropertyListT>
@@ -519,7 +519,7 @@ public:
   template <
       typename ElementType, int dimensions, access::mode Mode,
       typename PropertyListT, access::address_space _Space = Space,
-      typename = typename detail::enable_if_t<
+      typename = typename std::enable_if_t<
           _Space == Space && Space == access::address_space::constant_space>>
   multi_ptr(
       accessor<ElementType, dimensions, Mode, access::target::constant_buffer,

@@ -26,8 +26,8 @@ using empty_type_list = type_list<>;
 
 template <typename T>
 struct is_empty_type_list
-    : conditional_t<std::is_same<T, empty_type_list>::value, std::true_type,
-                    std::false_type> {};
+    : std::conditional_t<std::is_same<T, empty_type_list>::value,
+                         std::true_type, std::false_type> {};
 
 template <> struct type_list<> {};
 
@@ -46,14 +46,15 @@ private:
 
 public:
   using head = head_t<type_list<H>>;
-  using tail = conditional_t<has_remainder, with_remainder, without_remainder>;
+  using tail =
+      std::conditional_t<has_remainder, with_remainder, without_remainder>;
 };
 
 // is_contained
 template <typename T, typename L>
 struct is_contained
-    : conditional_t<std::is_same<remove_cv_t<T>, head_t<L>>::value,
-                    std::true_type, is_contained<T, tail_t<L>>> {};
+    : std::conditional_t<std::is_same<std::remove_cv_t<T>, head_t<L>>::value,
+                         std::true_type, is_contained<T, tail_t<L>>> {};
 
 template <typename T>
 struct is_contained<T, empty_type_list> : std::false_type {};
@@ -71,8 +72,8 @@ template <typename T> struct value_list<T> {};
 // is_contained_value
 template <typename T, T V, typename TL>
 struct is_contained_value
-    : conditional_t<V == TL::head, std::true_type,
-                    is_contained_value<T, V, tail_t<TL>>> {};
+    : std::conditional_t<V == TL::head, std::true_type,
+                         is_contained_value<T, V, tail_t<TL>>> {};
 
 template <typename T, T V>
 struct is_contained_value<T, V, value_list<T>> : std::false_type {};
@@ -107,7 +108,7 @@ template <typename TL, template <typename, typename> class C, typename T>
 struct find_type {
   using head = head_t<TL>;
   using tail = typename find_type<tail_t<TL>, C, T>::type;
-  using type = conditional_t<C<head, T>::value, head, tail>;
+  using type = std::conditional_t<C<head, T>::value, head, tail>;
 };
 
 template <template <typename, typename> class C, typename T>

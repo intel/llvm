@@ -94,7 +94,7 @@ template <typename T>
 using is_native_broadcast = bool_constant<detail::is_arithmetic<T>::value>;
 
 template <typename T, typename IdT = size_t>
-using EnableIfNativeBroadcast = detail::enable_if_t<
+using EnableIfNativeBroadcast = std::enable_if_t<
     is_native_broadcast<T>::value && std::is_integral<IdT>::value, T>;
 
 // Bitcast broadcasts can be implemented using a single SPIR-V GroupBroadcast
@@ -105,7 +105,7 @@ using is_bitcast_broadcast = bool_constant<
     (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8)>;
 
 template <typename T, typename IdT = size_t>
-using EnableIfBitcastBroadcast = detail::enable_if_t<
+using EnableIfBitcastBroadcast = std::enable_if_t<
     is_bitcast_broadcast<T>::value && std::is_integral<IdT>::value, T>;
 
 template <typename T>
@@ -122,7 +122,7 @@ using is_generic_broadcast =
                   std::is_trivially_copyable<T>::value>;
 
 template <typename T, typename IdT = size_t>
-using EnableIfGenericBroadcast = detail::enable_if_t<
+using EnableIfGenericBroadcast = std::enable_if_t<
     is_generic_broadcast<T>::value && std::is_integral<IdT>::value, T>;
 
 // Broadcast with scalar local index
@@ -270,7 +270,7 @@ static inline constexpr __spv::Scope::Flag getScope(memory_scope Scope) {
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
                       memory_order Success, memory_order Failure, T Desired,
                       T Expected) {
@@ -283,7 +283,7 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
+inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
                       memory_order Success, memory_order Failure, T Desired,
                       T Expected) {
@@ -302,7 +302,7 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicLoad(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
            memory_order Order) {
   auto *Ptr = MPtr.get();
@@ -312,7 +312,7 @@ AtomicLoad(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
+inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicLoad(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
            memory_order Order) {
   using I = detail::make_unsinged_integer_t<T>;
@@ -326,7 +326,7 @@ AtomicLoad(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_integral<T>::value>
+inline typename std::enable_if_t<std::is_integral<T>::value>
 AtomicStore(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
@@ -336,7 +336,7 @@ AtomicStore(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_floating_point<T>::value>
+inline typename std::enable_if_t<std::is_floating_point<T>::value>
 AtomicStore(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
   using I = detail::make_unsinged_integer_t<T>;
@@ -350,7 +350,7 @@ AtomicStore(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
                memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
@@ -360,7 +360,7 @@ AtomicExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
+inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
                memory_order Order, T Value) {
   using I = detail::make_unsinged_integer_t<T>;
@@ -376,7 +376,7 @@ AtomicExchange(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicIAdd(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
@@ -386,7 +386,7 @@ AtomicIAdd(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicISub(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
@@ -396,7 +396,7 @@ AtomicISub(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
+inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicFAdd(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
@@ -406,7 +406,7 @@ AtomicFAdd(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicAnd(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
@@ -416,7 +416,7 @@ AtomicAnd(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicOr(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
          memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
@@ -426,7 +426,7 @@ AtomicOr(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicXor(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
@@ -436,7 +436,7 @@ AtomicXor(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicMin(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
@@ -446,7 +446,7 @@ AtomicMin(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
+inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicMin(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
@@ -456,7 +456,7 @@ AtomicMin(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_integral<T>::value, T>
+inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicMax(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
@@ -466,7 +466,7 @@ AtomicMax(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 }
 
 template <typename T, access::address_space AddressSpace>
-inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
+inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicMax(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = MPtr.get();
@@ -482,15 +482,15 @@ AtomicMax(multi_ptr<T, AddressSpace> MPtr, memory_scope Scope,
 #ifndef __NVPTX__
 template <typename T>
 using EnableIfNativeShuffle =
-    detail::enable_if_t<detail::is_arithmetic<T>::value, T>;
+    std::enable_if_t<detail::is_arithmetic<T>::value, T>;
 #else
 template <typename T>
-using EnableIfNativeShuffle = detail::enable_if_t<
+using EnableIfNativeShuffle = std::enable_if_t<
     std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t)), T>;
 
 template <typename T>
 using EnableIfVectorShuffle =
-    detail::enable_if_t<detail::is_vector_arithmetic<T>::value, T>;
+    std::enable_if_t<detail::is_vector_arithmetic<T>::value, T>;
 #endif
 
 #ifdef __NVPTX__
@@ -589,19 +589,20 @@ EnableIfVectorShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
 #ifndef __NVPTX__
 template <typename T>
 using EnableIfBitcastShuffle =
-    detail::enable_if_t<!detail::is_arithmetic<T>::value &&
-                            (std::is_trivially_copyable<T>::value &&
-                             (sizeof(T) == 1 || sizeof(T) == 2 ||
-                              sizeof(T) == 4 || sizeof(T) == 8)),
-                        T>;
+    std::enable_if_t<!detail::is_arithmetic<T>::value &&
+                         (std::is_trivially_copyable<T>::value &&
+                          (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 ||
+                           sizeof(T) == 8)),
+                     T>;
 #else
 template <typename T>
-using EnableIfBitcastShuffle = detail::enable_if_t<
-    !(std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t))) &&
-        !detail::is_vector_arithmetic<T>::value &&
-        (std::is_trivially_copyable<T>::value &&
-         (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
-    T>;
+using EnableIfBitcastShuffle =
+    std::enable_if_t<!(std::is_integral<T>::value &&
+                       (sizeof(T) <= sizeof(int32_t))) &&
+                         !detail::is_vector_arithmetic<T>::value &&
+                         (std::is_trivially_copyable<T>::value &&
+                          (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
+                     T>;
 #endif
 
 template <typename T>
@@ -670,14 +671,14 @@ EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, id<1> local_id) {
 #ifndef __NVPTX__
 template <typename T>
 using EnableIfGenericShuffle =
-    detail::enable_if_t<!detail::is_arithmetic<T>::value &&
-                            !(std::is_trivially_copyable<T>::value &&
-                              (sizeof(T) == 1 || sizeof(T) == 2 ||
-                               sizeof(T) == 4 || sizeof(T) == 8)),
-                        T>;
+    std::enable_if_t<!detail::is_arithmetic<T>::value &&
+                         !(std::is_trivially_copyable<T>::value &&
+                           (sizeof(T) == 1 || sizeof(T) == 2 ||
+                            sizeof(T) == 4 || sizeof(T) == 8)),
+                     T>;
 #else
 template <typename T>
-using EnableIfGenericShuffle = detail::enable_if_t<
+using EnableIfGenericShuffle = std::enable_if_t<
     !(std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t))) &&
         !detail::is_vector_arithmetic<T>::value &&
         !(std::is_trivially_copyable<T>::value &&

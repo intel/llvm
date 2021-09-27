@@ -170,7 +170,7 @@ public:
 
   /// Explicit conversion for simd_obj_impl<T, 1> into T.
   template <typename T = simd_obj_impl,
-            typename = sycl::detail::enable_if_t<T::length == 1>>
+            typename = std::enable_if_t<T::length == 1>>
   operator Ty() const {
     __esimd_dbg_print(explicit operator Ty());
     return data()[0];
@@ -390,7 +390,7 @@ public:
   ///
   /// \return 1 if any element is set, 0 otherwise.
   template <typename T1 = Ty,
-            typename = sycl::detail::enable_if_t<std::is_integral<T1>::value>>
+            typename = std::enable_if_t<std::is_integral<T1>::value>>
   uint16_t any() {
     return __esimd_any<Ty, N>(data());
   }
@@ -399,7 +399,7 @@ public:
   ///
   /// \return 1 if all elements are set, 0 otherwise.
   template <typename T1 = Ty,
-            typename = sycl::detail::enable_if_t<std::is_integral<T1>::value>>
+            typename = std::enable_if_t<std::is_integral<T1>::value>>
   uint16_t all() {
     return __esimd_all<Ty, N>(data());
   }

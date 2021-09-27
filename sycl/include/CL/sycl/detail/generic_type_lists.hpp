@@ -286,36 +286,38 @@ using long_integer_list =
     type_list<scalar_long_integer_list, vector_long_integer_list>;
 
 // integer types
-using scalar_signed_integer_list = type_list<
-    conditional_t<std::is_signed<char>::value,
+using scalar_signed_integer_list =
+    type_list<std::conditional_t<
+                  std::is_signed<char>::value,
                   type_list<scalar_default_char_list, scalar_signed_char_list>,
                   scalar_signed_char_list>,
-    scalar_signed_short_list, scalar_signed_int_list, scalar_signed_long_list,
-    scalar_signed_longlong_list>;
+              scalar_signed_short_list, scalar_signed_int_list,
+              scalar_signed_long_list, scalar_signed_longlong_list>;
 
-using vector_signed_integer_list = type_list<
-    conditional_t<std::is_signed<char>::value,
+using vector_signed_integer_list =
+    type_list<std::conditional_t<
+                  std::is_signed<char>::value,
                   type_list<vector_default_char_list, vector_signed_char_list>,
                   vector_signed_char_list>,
-    vector_signed_short_list, vector_signed_int_list, vector_signed_long_list,
-    vector_signed_longlong_list>;
+              vector_signed_short_list, vector_signed_int_list,
+              vector_signed_long_list, vector_signed_longlong_list>;
 
 using signed_integer_list =
     type_list<scalar_signed_integer_list, vector_signed_integer_list>;
 
 using scalar_unsigned_integer_list =
-    type_list<conditional_t<std::is_unsigned<char>::value,
-                            type_list<scalar_default_char_list,
-                                      scalar_unsigned_char_list>,
-                            scalar_unsigned_char_list>,
+    type_list<std::conditional_t<std::is_unsigned<char>::value,
+                                 type_list<scalar_default_char_list,
+                                           scalar_unsigned_char_list>,
+                                 scalar_unsigned_char_list>,
               scalar_unsigned_short_list, scalar_unsigned_int_list,
               scalar_unsigned_long_list, scalar_unsigned_longlong_list>;
 
 using vector_unsigned_integer_list =
-    type_list<conditional_t<std::is_unsigned<char>::value,
-                            type_list<vector_default_char_list,
-                                      vector_unsigned_char_list>,
-                            vector_unsigned_char_list>,
+    type_list<std::conditional_t<std::is_unsigned<char>::value,
+                                 type_list<vector_default_char_list,
+                                           vector_unsigned_char_list>,
+                                 vector_unsigned_char_list>,
               vector_unsigned_short_list, vector_unsigned_int_list,
               vector_unsigned_long_list, vector_unsigned_longlong_list>;
 

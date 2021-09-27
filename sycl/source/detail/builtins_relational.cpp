@@ -92,7 +92,7 @@ template <typename T> inline T __sUnordered(T x, T y) {
 }
 
 template <typename T>
-inline typename sycl::detail::enable_if_t<d::is_sgeninteger<T>::value, T>
+inline typename std::enable_if_t<d::is_sgeninteger<T>::value, T>
 __bitselect(T a, T b, T c) {
   return (a & ~c) | (b & c);
 }
@@ -123,8 +123,8 @@ template <> union databitset<s::cl_half> {
 };
 
 template <typename T>
-typename sycl::detail::enable_if_t<d::is_sgenfloat<T>::value,
-                                   T> inline __bitselect(T a, T b, T c) {
+typename std::enable_if_t<d::is_sgenfloat<T>::value, T> inline __bitselect(
+    T a, T b, T c) {
   d::builtins_helper<T> helper;
   databitset<T> ba;
   ba.f = helper.get(a);

@@ -214,7 +214,7 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
 // of atomic min/max based on the type
 #define __SPIRV_ATOMIC_MINMAX(AS, Op)                                          \
   template <typename T>                                                        \
-  typename cl::sycl::detail::enable_if_t<                                      \
+  typename std::enable_if_t<                                                   \
       std::is_integral<T>::value && std::is_signed<T>::value, T>               \
       __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
                          __spv::MemorySemanticsMask::Flag Semantics,           \
@@ -222,7 +222,7 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
     return __spirv_AtomicS##Op(Ptr, Memory, Semantics, Value);                 \
   }                                                                            \
   template <typename T>                                                        \
-  typename cl::sycl::detail::enable_if_t<                                      \
+  typename std::enable_if_t<                                                   \
       std::is_integral<T>::value && !std::is_signed<T>::value, T>              \
       __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
                          __spv::MemorySemanticsMask::Flag Semantics,           \
@@ -230,7 +230,7 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
     return __spirv_AtomicU##Op(Ptr, Memory, Semantics, Value);                 \
   }                                                                            \
   template <typename T>                                                        \
-  typename cl::sycl::detail::enable_if_t<std::is_floating_point<T>::value, T>  \
+  typename std::enable_if_t<std::is_floating_point<T>::value, T>               \
       __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
                          __spv::MemorySemanticsMask::Flag Semantics,           \
                          T Value) {                                            \
