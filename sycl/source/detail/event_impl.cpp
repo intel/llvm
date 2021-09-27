@@ -97,6 +97,15 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MState = HES_NotComplete;
 }
 
+void event_impl::setSubmitFunctor(
+    std::function<EventImplPtr(bool)> DoSubmitFunctor,
+    const ContextImplPtr &Context) {
+  MDoSubmitFunctor = DoSubmitFunctor;
+  MHostEvent = Context->is_host();
+  MOpenCLInterop = !MHostEvent;
+  MContext = Context;
+}
+
 event_impl::event_impl() : MState(HES_Complete) {}
 
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
