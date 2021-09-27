@@ -98,18 +98,14 @@ struct elem {
 
 namespace detail {
 
-template<typename T> struct vec_helper {
+template <typename T> struct vec_helper {
   using RetType = T;
-  static constexpr RetType get(T value) {
-    return value;
-  }
+  static constexpr RetType get(T value) { return value; }
 };
 
-template<> struct vec_helper<std::byte> {
+template <> struct vec_helper<std::byte> {
   using RetType = std::uint8_t;
-  static constexpr RetType get(std::byte value) {
-    return (RetType)value;
-  }
+  static constexpr RetType get(std::byte value) { return (RetType)value; }
   static constexpr std::byte get(std::uint8_t value) {
     return (std::byte)value;
   }
@@ -528,8 +524,7 @@ class RoundedRangeKernelWithKH;
 
 } // namespace detail
 
-template <typename T>
-using vec_data = detail::vec_helper<T>;
+template <typename T> using vec_data = detail::vec_helper<T>;
 
 template <typename T>
 using vec_data_t = typename detail::vec_helper<T>::RetType;
@@ -689,9 +684,10 @@ public:
 
   // W/o this, things like "vec<char,*> = vec<signed char, *>" doesn't work.
   template <typename Ty = DataT>
-  typename detail::enable_if_t<!std::is_same<Ty, rel_t>::value &&
-                                   std::is_convertible<vec_data_t<Ty>, rel_t>::value,
-                               vec &>
+  typename detail::enable_if_t<
+      !std::is_same<Ty, rel_t>::value &&
+          std::is_convertible<vec_data_t<Ty>, rel_t>::value,
+      vec &>
   operator=(const vec<rel_t, NumElements> &Rhs) {
     *this = Rhs.template as<vec>();
     return *this;
@@ -780,22 +776,23 @@ public:
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<3, Ty> Arg0,
                 const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2)
-      : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1), vec_data<Ty>::get(Arg2)} {}
+      : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
+               vec_data<Ty>::get(Arg2)} {}
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<4, Ty> Arg0,
                 const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
                 const Ty Arg3)
       : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
-      vec_data<Ty>::get(Arg2), vec_data<Ty>::get(Arg3)} {}
+               vec_data<Ty>::get(Arg2), vec_data<Ty>::get(Arg3)} {}
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<8, Ty> Arg0,
                 const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
                 const DataT Arg3, const DataT Arg4, const DataT Arg5,
                 const DataT Arg6, const DataT Arg7)
       : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
-      vec_data<Ty>::get(Arg2), vec_data<Ty>::get(Arg3),
-      vec_data<Ty>::get(Arg4), vec_data<Ty>::get(Arg5),
-      vec_data<Ty>::get(Arg6), vec_data<Ty>::get(Arg7)} {}
+               vec_data<Ty>::get(Arg2), vec_data<Ty>::get(Arg3),
+               vec_data<Ty>::get(Arg4), vec_data<Ty>::get(Arg5),
+               vec_data<Ty>::get(Arg6), vec_data<Ty>::get(Arg7)} {}
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<16, Ty> Arg0,
                 const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
@@ -805,13 +802,13 @@ public:
                 const DataT ArgC, const DataT ArgD, const DataT ArgE,
                 const DataT ArgF)
       : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
-      vec_data<Ty>::get(Arg2), vec_data<Ty>::get(Arg3),
-      vec_data<Ty>::get(Arg4), vec_data<Ty>::get(Arg5),
-      vec_data<Ty>::get(Arg6), vec_data<Ty>::get(Arg7),
-      vec_data<Ty>::get(Arg8), vec_data<Ty>::get(Arg9),
-      vec_data<Ty>::get(ArgA), vec_data<Ty>::get(ArgB),
-      vec_data<Ty>::get(ArgC), vec_data<Ty>::get(ArgD),
-      vec_data<Ty>::get(ArgE), vec_data<Ty>::get(ArgF)} {}
+               vec_data<Ty>::get(Arg2), vec_data<Ty>::get(Arg3),
+               vec_data<Ty>::get(Arg4), vec_data<Ty>::get(Arg5),
+               vec_data<Ty>::get(Arg6), vec_data<Ty>::get(Arg7),
+               vec_data<Ty>::get(Arg8), vec_data<Ty>::get(Arg9),
+               vec_data<Ty>::get(ArgA), vec_data<Ty>::get(ArgB),
+               vec_data<Ty>::get(ArgC), vec_data<Ty>::get(ArgD),
+               vec_data<Ty>::get(ArgE), vec_data<Ty>::get(ArgF)} {}
 #endif
 
   // Constructor from values of base type or vec of base type. Checks that
@@ -866,10 +863,10 @@ public:
     using OpenCLR = detail::ConvertToOpenCLType_t<vec_data_t<convertT>>;
     for (size_t I = 0; I < NumElements; ++I) {
       Result.setValue(
-          I,
-          vec_data<convertT>::get(detail::convertImpl<vec_data_t<DataT>,
-                              vec_data_t<convertT>, roundingMode, OpenCLT, OpenCLR>(
-              vec_data<DataT>::get(getValue(I)))));
+          I, vec_data<convertT>::get(
+                 detail::convertImpl<vec_data_t<DataT>, vec_data_t<convertT>,
+                                     roundingMode, OpenCLT, OpenCLR>(
+                     vec_data<DataT>::get(getValue(I)))));
     }
     return Result;
   }
@@ -997,7 +994,7 @@ public:
   template <typename T>                                                        \
   typename detail::enable_if_t<                                                \
       std::is_convertible<DataT, T>::value &&                                  \
-          (std::is_fundamental<vec_data_t<T>>::value ||                                    \
+          (std::is_fundamental<vec_data_t<T>>::value ||                        \
            std::is_same<typename detail::remove_const_t<T>, half>::value),     \
       vec>                                                                     \
   operator BINOP(const T &Rhs) const {                                         \
@@ -1025,7 +1022,7 @@ public:
   template <typename T>                                                        \
   typename detail::enable_if_t<                                                \
       std::is_convertible<DataT, T>::value &&                                  \
-          (std::is_fundamental<vec_data_t<T>>::value ||                                    \
+          (std::is_fundamental<vec_data_t<T>>::value ||                        \
            std::is_same<typename detail::remove_const_t<T>, half>::value),     \
       vec>                                                                     \
   operator BINOP(const T &Rhs) const {                                         \
@@ -1082,10 +1079,11 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-  typename detail::enable_if_t<std::is_convertible<T, DataT>::value &&         \
-                                   (std::is_fundamental<vec_data_t<T>>::value ||           \
-                                    std::is_same<T, half>::value),             \
-                               vec<rel_t, NumElements>>                        \
+  typename detail::enable_if_t<                                                \
+      std::is_convertible<T, DataT>::value &&                                  \
+          (std::is_fundamental<vec_data_t<T>>::value ||                        \
+           std::is_same<T, half>::value),                                      \
+      vec<rel_t, NumElements>>                                                 \
   operator RELLOGOP(const T &Rhs) const {                                      \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
   }
@@ -1094,15 +1092,17 @@ public:
   vec<rel_t, NumElements> operator RELLOGOP(const vec &Rhs) const {            \
     vec<rel_t, NumElements> Ret;                                               \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
-      Ret.setValue(I, -(vec_data<DataT>::get(getValue(I)) RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));                \
+      Ret.setValue(I, -(vec_data<DataT>::get(getValue(I))                      \
+                            RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));  \
     }                                                                          \
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-  typename detail::enable_if_t<std::is_convertible<T, DataT>::value &&         \
-                                   (std::is_fundamental<vec_data_t<T>>::value ||           \
-                                    std::is_same<T, half>::value),             \
-                               vec<rel_t, NumElements>>                        \
+  typename detail::enable_if_t<                                                \
+      std::is_convertible<T, DataT>::value &&                                  \
+          (std::is_fundamental<vec_data_t<T>>::value ||                        \
+           std::is_same<T, half>::value),                                      \
+      vec<rel_t, NumElements>>                                                 \
   operator RELLOGOP(const T &Rhs) const {                                      \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
   }
@@ -1124,12 +1124,12 @@ public:
 #endif
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
   vec &operator UOP() {                                                        \
-    *this OPASSIGN vec_data<DataT>::get(1);                                                          \
+    *this OPASSIGN vec_data<DataT>::get(1);                                    \
     return *this;                                                              \
   }                                                                            \
   vec operator UOP(int) {                                                      \
     vec Ret(*this);                                                            \
-    *this OPASSIGN vec_data<DataT>::get(1);                                                          \
+    *this OPASSIGN vec_data<DataT>::get(1);                                    \
     return Ret;                                                                \
   }
 
@@ -1179,8 +1179,7 @@ public:
 #else
     vec Ret;
     for (size_t I = 0; I < NumElements; ++I)
-      Ret.setValue(I, vec_data<DataT>::get(
-                        +vec_data<DataT>::get(getValue(I))));
+      Ret.setValue(I, vec_data<DataT>::get(+vec_data<DataT>::get(getValue(I))));
     return Ret;
 #endif
   }
@@ -1193,8 +1192,7 @@ public:
 #else
     vec Ret;
     for (size_t I = 0; I < NumElements; ++I)
-      Ret.setValue(I, vec_data<DataT>::get(
-                        -vec_data<DataT>::get(getValue(I))));
+      Ret.setValue(I, vec_data<DataT>::get(-vec_data<DataT>::get(getValue(I))));
     return Ret;
 #endif
   }
@@ -1262,13 +1260,13 @@ private:
   template <int Num = NumElements, typename Ty = int,
             typename = typename detail::enable_if_t<1 != Num>>
   constexpr void setValue(EnableIfHostHalf<Ty> Index, const DataT &Value, int) {
-    m_Data.s[Index] = vec_data<DataT>::get(Value);      // how do we check enableifhosthalf for int? why?
+    m_Data.s[Index] = vec_data<DataT>::get(Value);
   }
 
   template <int Num = NumElements, typename Ty = int,
             typename = typename detail::enable_if_t<1 != Num>>
   DataT getValue(EnableIfHostHalf<Ty> Index, int) const {
-    return vec_data<DataT>::get(m_Data.s[Index]);     // the same question as above
+    return vec_data<DataT>::get(m_Data.s[Index]);
   }
 #else  // __SYCL_USE_EXT_VECTOR_TYPE__
   template <int Num = NumElements,
@@ -1540,7 +1538,8 @@ public:
 #undef __SYCL_UOP
 
   template <typename T = DataT>
-  typename detail::enable_if_t<std::is_integral<vec_data_t<T>>::value, vec_t> operator~() {
+  typename detail::enable_if_t<std::is_integral<vec_data_t<T>>::value, vec_t>
+  operator~() {
     vec_t Tmp = *this;
     return ~Tmp;
   }
@@ -1923,8 +1922,9 @@ private:
       return m_Vector->getValue(Idxs[Index]);
     }
     auto Op = OperationCurrentT<vec_data_t<CommonDataT>>();
-    return vec_data<CommonDataT>::get(Op(vec_data<CommonDataT>::get(m_LeftOperation.getValue(Index)),
-              vec_data<CommonDataT>::get(m_RightOperation.getValue(Index))));
+    return vec_data<CommonDataT>::get(
+        Op(vec_data<CommonDataT>::get(m_LeftOperation.getValue(Index)),
+           vec_data<CommonDataT>::get(m_RightOperation.getValue(Index))));
   }
 
   template <int IdxNum = getNumElements()>
@@ -1934,8 +1934,9 @@ private:
       return m_Vector->getValue(Idxs[Index]);
     }
     auto Op = OperationCurrentT<vec_data_t<DataT>>();
-    return vec_data<DataT>::get(Op(vec_data<DataT>::get(m_LeftOperation.getValue(Index)),
-              vec_data<DataT>::get(m_RightOperation.getValue(Index))));
+    return vec_data<DataT>::get(
+        Op(vec_data<DataT>::get(m_LeftOperation.getValue(Index)),
+           vec_data<DataT>::get(m_RightOperation.getValue(Index))));
   }
 
   template <template <typename> class Operation, typename RhsOperation>
@@ -1944,7 +1945,8 @@ private:
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
       DataT Res = vec_data<DataT>::get(
-        Op(vec_data<DataT>::get(m_Vector->getValue(Idxs[I])), vec_data<DataT>::get(Rhs.getValue(I))));
+          Op(vec_data<DataT>::get(m_Vector->getValue(Idxs[I])),
+             vec_data<DataT>::get(Rhs.getValue(I))));
       m_Vector->setValue(Idxs[I], Res);
     }
   }
@@ -1973,7 +1975,7 @@ private:
 #define __SYCL_BINOP(BINOP)                                                    \
   template <typename T, int Num>                                               \
   typename detail::enable_if_t<                                                \
-      std::is_fundamental<vec_data_t<T>>::value ||                                         \
+      std::is_fundamental<vec_data_t<T>>::value ||                             \
           std::is_same<typename detail::remove_const_t<T>, half>::value,       \
       vec<T, Num>>                                                             \
   operator BINOP(const T &Lhs, const vec<T, Num> &Rhs) {                       \
@@ -1985,7 +1987,7 @@ private:
             int Num = sizeof...(Indexes)>                                      \
   typename detail::enable_if_t<                                                \
       std::is_convertible<T, T1>::value &&                                     \
-          (std::is_fundamental<vec_data_t<T>>::value ||                                    \
+          (std::is_fundamental<vec_data_t<T>>::value ||                        \
            std::is_same<typename detail::remove_const_t<T>, half>::value),     \
       vec<T1, Num>>                                                            \
   operator BINOP(                                                              \
@@ -2028,7 +2030,7 @@ __SYCL_BINOP(<<)
   template <typename T, typename DataT, int Num>                               \
   typename detail::enable_if_t<                                                \
       std::is_convertible<T, DataT>::value &&                                  \
-          (std::is_fundamental<vec_data_t<T>>::value ||                                    \
+          (std::is_fundamental<vec_data_t<T>>::value ||                        \
            std::is_same<typename detail::remove_const_t<T>, half>::value),     \
       vec<detail::rel_t<DataT>, Num>>                                          \
   operator RELLOGOP(const T &Lhs, const vec<DataT, Num> &Rhs) {                \
@@ -2040,7 +2042,7 @@ __SYCL_BINOP(<<)
             int Num = sizeof...(Indexes)>                                      \
   typename detail::enable_if_t<                                                \
       std::is_convertible<T, T1>::value &&                                     \
-          (std::is_fundamental<vec_data_t<T>>::value ||                                    \
+          (std::is_fundamental<vec_data_t<T>>::value ||                        \
            std::is_same<typename detail::remove_const_t<T>, half>::value),     \
       vec<detail::rel_t<T1>, Num>>                                             \
   operator RELLOGOP(                                                           \

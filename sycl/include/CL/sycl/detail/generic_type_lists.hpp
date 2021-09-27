@@ -292,9 +292,7 @@ using byte_list = type_list<std::byte>;
 
 using vector_byte_list =
     type_list<vec<std::byte, 1>, vec<std::byte, 2>, vec<std::byte, 3>,
-              vec<std::byte, 4>, vec<std::byte, 8>,
-              vec<std::byte, 16>>;
-
+              vec<std::byte, 4>, vec<std::byte, 8>, vec<std::byte, 16>>;
 
 // integer types
 using scalar_signed_integer_list = type_list<
@@ -322,14 +320,13 @@ using scalar_unsigned_integer_list =
               scalar_unsigned_short_list, scalar_unsigned_int_list,
               scalar_unsigned_long_list, scalar_unsigned_longlong_list>;
 
-using vector_unsigned_integer_list =
-    type_list<conditional_t<std::is_unsigned<char>::value,
-                            type_list<vector_default_char_list,
-                                      vector_unsigned_char_list>,
-                            vector_unsigned_char_list>,
-              vector_unsigned_short_list, vector_unsigned_int_list,
-              vector_unsigned_long_list, vector_unsigned_longlong_list,
-              vector_byte_list>;
+using vector_unsigned_integer_list = type_list<
+    conditional_t<
+        std::is_unsigned<char>::value,
+        type_list<vector_default_char_list, vector_unsigned_char_list>,
+        vector_unsigned_char_list>,
+    vector_unsigned_short_list, vector_unsigned_int_list,
+    vector_unsigned_long_list, vector_unsigned_longlong_list, vector_byte_list>;
 
 using unsigned_integer_list =
     type_list<scalar_unsigned_integer_list, vector_unsigned_integer_list>;
