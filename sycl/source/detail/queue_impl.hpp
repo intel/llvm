@@ -549,7 +549,7 @@ private:
       std::lock_guard<std::mutex> Lock(MMutexSubmit);
       MEventsSharedToSubmit.emplace(EventImplFake);
     }
-    EventImplFake->setSubmitFunctor(MUploadDataFunctor);
+    EventImplFake->setSubmitFunctor(MUploadDataFunctor, MContext);
     return EventFake;
   }
 

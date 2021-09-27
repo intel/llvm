@@ -140,10 +140,8 @@ public:
   /// @param Context is a shared pointer to an instance of valid context_impl.
   void setContextImpl(const ContextImplPtr &Context);
 
-  void setSubmitFunctor(std::function<EventImplPtr(bool)> DoSubmitFunctor) {
-    MDoSubmitFunctor = DoSubmitFunctor;
-    FunctorCallsCount = 2;
-  }
+  void setSubmitFunctor(std::function<EventImplPtr(bool)> DoSubmitFunctor,
+                        const ContextImplPtr &Context);
 
   EventImplPtr doFinalize() {
     if (FunctorCallsCount != 0) {
