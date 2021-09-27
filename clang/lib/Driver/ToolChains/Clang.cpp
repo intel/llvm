@@ -4660,8 +4660,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fsycl-allow-func-ptr");
     }
 
-    if (Triple.isSPIR())
+    // Forward -fsycl-instrument-device-code option to cc1. This option can only
+    // be used for SPIR-V-based targets.
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_instrument_device_code)) {
+      if (!Triple.isSPIR())
+        D.Diag(diag::err_drv_unsupported_opt_for_target)
+            << A->getAsString(Args) << TripleStr;
       CmdArgs.push_back("-fsycl-instrument-device-code");
+    }
 
     if (!SYCLStdArg) {
       // The user had not pass SYCL version, thus we'll employ no-sycl-strict
