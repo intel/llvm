@@ -1415,7 +1415,15 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
   }
   case PI_DEVICE_INFO_EXTENSIONS: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, "");
+    // TODO:Remove when HIP support native asserts.
+    // DEVICELIB_ASSERT extension is set so fallback assert
+    // postprocessing is NOP
+    std::string SupportedExtensions = "";
+    SupportedExtensions += PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT;
+    SupportedExtensions += " ";
+
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   SupportedExtensions.c_str());
   }
   case PI_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
     // The minimum value for the FULL profile is 1 MB.
