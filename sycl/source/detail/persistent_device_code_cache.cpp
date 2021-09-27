@@ -12,6 +12,8 @@
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
+#include <fstream>
+
 #if defined(__SYCL_RT_OS_LINUX)
 #include <unistd.h>
 #else

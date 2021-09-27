@@ -93,57 +93,6 @@ static inline std::string codeToString(cl_int code) {
 #define __SYCL_ASSERT(x) assert(x)
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 
-#define __SYCL_OCL_ERROR_REPORT                                                \
-  "Native API failed. " /*__FILE__*/                                           \
-  /* TODO: replace __FILE__ to report only relative path*/                     \
-  /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
-                          "Native API returns: "
-
-#ifndef __SYCL_SUPPRESS_OCL_ERROR_REPORT
-#include <iostream>
-// TODO: rename all names with direct use of OCL/OPENCL to be backend agnostic.
-#define __SYCL_REPORT_OCL_ERR_TO_STREAM(expr)                                  \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != CL_SUCCESS) {                                                  \
-      std::cerr << __SYCL_OCL_ERROR_REPORT                                     \
-                << cl::sycl::detail::codeToString(code) << std::endl;          \
-    }                                                                          \
-  }
-#endif
-
-#ifndef SYCL_SUPPRESS_EXCEPTIONS
-#include <CL/sycl/exception.hpp>
-
-#define __SYCL_REPORT_OCL_ERR_TO_EXC(expr, exc)                                \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != CL_SUCCESS) {                                                  \
-      throw exc(__SYCL_OCL_ERROR_REPORT +                                      \
-                    cl::sycl::detail::codeToString(code),                      \
-                code);                                                         \
-    }                                                                          \
-  }
-#define __SYCL_REPORT_OCL_ERR_TO_EXC_THROW(code, exc)                          \
-  __SYCL_REPORT_OCL_ERR_TO_EXC(code, exc)
-#define __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(code)                                \
-  __SYCL_REPORT_OCL_ERR_TO_EXC(code, cl::sycl::runtime_error)
-#else
-#define __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(code)                                \
-  __SYCL_REPORT_OCL_ERR_TO_STREAM(code)
-#endif
-
-#ifdef __SYCL_SUPPRESS_OCL_ERROR_REPORT
-#define __SYCL_CHECK_OCL_CODE(X) (void)(X)
-#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC) (void)(X)
-#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) (void)(X)
-#else
-#define __SYCL_CHECK_OCL_CODE(X) __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(X)
-#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC)                                    \
-  __SYCL_REPORT_OCL_ERR_TO_EXC_THROW(X, EXC)
-#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_OCL_ERR_TO_STREAM(X)
-#endif
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -168,7 +117,7 @@ template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
 // must make sure the returned pointer is not captured in a field or otherwise
 // stored - i.e. must live only as on-stack value.
 template <class T>
-typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
+typename std::add_pointer_t<typename decltype(T::impl)::element_type>
 getRawSyclObjImpl(const T &SyclObject) {
   return SyclObject.impl.get();
 }

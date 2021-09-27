@@ -23,6 +23,7 @@
 #include <CL/sycl/kernel_bundle.hpp>
 
 #include <algorithm>
+#include <iostream>
 #include <memory>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -219,5 +220,31 @@ kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
       std::make_shared<kernel_impl>(PiKernel, ContextImpl));
 }
 } // namespace detail
+
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &Out, backend be) {
+  switch (be) {
+  case backend::host:
+    Out << "host";
+    break;
+  case backend::opencl:
+    Out << "opencl";
+    break;
+  case backend::level_zero:
+    Out << "level_zero";
+    break;
+  case backend::cuda:
+    Out << "cuda";
+    break;
+  case backend::esimd_cpu:
+    Out << "esimd_cpu";
+    break;
+  case backend::hip:
+    Out << "hip";
+    break;
+  case backend::all:
+    Out << "all";
+  }
+  return Out;
+}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

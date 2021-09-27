@@ -12,6 +12,7 @@
 #include <detail/device_impl.hpp>
 
 #include <cstring>
+#include <iostream>
 #include <string_view>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -170,6 +171,34 @@ bool device_filter_list::containsHost() {
   return false;
 }
 
+std::ostream &operator<<(std::ostream &Out, const device_filter &Filter) {
+  Out << Filter.Backend << ":";
+  if (Filter.DeviceType == info::device_type::host) {
+    Out << "host";
+  } else if (Filter.DeviceType == info::device_type::cpu) {
+    Out << "cpu";
+  } else if (Filter.DeviceType == info::device_type::gpu) {
+    Out << "gpu";
+  } else if (Filter.DeviceType == info::device_type::accelerator) {
+    Out << "accelerator";
+  } else if (Filter.DeviceType == info::device_type::all) {
+    Out << "*";
+  } else {
+    Out << "unknown";
+  }
+  if (Filter.HasDeviceNum) {
+    Out << ":" << Filter.DeviceNum;
+  }
+  return Out;
+}
+
+std::ostream &operator<<(std::ostream &Out, const device_filter_list &List) {
+  for (const device_filter &Filter : List.FilterList) {
+    Out << Filter;
+    Out << ",";
+  }
+  return Out;
+}
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

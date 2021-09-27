@@ -1,5 +1,7 @@
 #include <CL/sycl.hpp>
 
+#include <iostream>
+
 using namespace cl::sycl;
 
 // Initializes 'InBuf' buffer with pseudo-random values, computes the reduction

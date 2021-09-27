@@ -15,11 +15,13 @@
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <pi_cuda.hpp>
+#include <pi_helpers.hpp>
 
 #include <algorithm>
 #include <cassert>
 #include <cuda.h>
 #include <cuda_device_runtime_api.h>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <mutex>

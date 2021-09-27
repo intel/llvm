@@ -7,14 +7,20 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include "CL/sycl/detail/pi.h"
+#include "CL/sycl/exception.hpp"
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/plugin_printers.hpp>
+
+#include <iostream>
 #include <memory>
 #include <mutex>
+#include <string>
+#include <system_error>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting traces using the trace framework
@@ -109,7 +115,12 @@ public:
   /// \throw Exception if pi_result is not a PI_SUCCESS.
   template <typename Exception = cl::sycl::runtime_error>
   void checkPiResult(RT::PiResult pi_result) const {
-    __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception);
+    using namespace std::string_literals;
+    if (pi_result != PI_SUCCESS) {
+      throw Exception("Plugin Interface call failed. Error code: "s +
+                          std::to_string(pi_result),
+                      pi_result);
+    }
   }
 
   void reportPiError(RT::PiResult pi_result, const char *context) const {

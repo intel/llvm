@@ -11,6 +11,7 @@
 #include <detail/platform_util.hpp>
 
 #include <atomic>
+#include <iostream>
 
 // This operation is NOP on HOST as all operations there are blocking and
 // by the moment this function was called, the operations generating

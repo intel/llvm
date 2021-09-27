@@ -6,15 +6,25 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <CL/sycl/detail/device_binary_image.hpp>
 #include <CL/sycl/detail/pi.hpp>
 
+#include <iostream>
 #include <memory>
-
-#include <CL/sycl/detail/device_binary_image.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
+void RTDeviceBinaryImage::print() const {
+  pi::DeviceBinaryImage::print();
+  std::cerr << "    OSModuleHandle=" << ModuleHandle << "\n";
+}
+
+void DynRTDeviceBinaryImage::print() const {
+  RTDeviceBinaryImage::print();
+  std::cerr << "    DYNAMICALLY CREATED\n";
+}
 
 DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
     std::unique_ptr<char[]> &&DataPtr, size_t DataSize, OSModuleHandle M)

@@ -9,10 +9,9 @@
 #pragma once
 
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/export.hpp>
 
-#include <fstream>
-#include <iostream>
-#include <istream>
+#include <iosfwd>
 #include <string>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -41,31 +40,6 @@ template <backend Backend, typename SYCLObjectT>
 using backend_return_t =
     typename backend_traits<Backend>::template return_type<SYCLObjectT>;
 
-inline std::ostream &operator<<(std::ostream &Out, backend be) {
-  switch (be) {
-  case backend::host:
-    Out << "host";
-    break;
-  case backend::opencl:
-    Out << "opencl";
-    break;
-  case backend::level_zero:
-    Out << "level_zero";
-    break;
-  case backend::cuda:
-    Out << "cuda";
-    break;
-  case backend::esimd_cpu:
-    Out << "esimd_cpu";
-    break;
-  case backend::hip:
-    Out << "hip";
-    break;
-  case backend::all:
-    Out << "all";
-  }
-  return Out;
-}
-
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &Out, backend be);
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

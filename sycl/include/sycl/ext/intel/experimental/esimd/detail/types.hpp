@@ -23,6 +23,7 @@
 #endif // defined(__ESIMD_DBG_HOST) && !defined(__SYCL_DEVICE_ONLY__)
 
 #include <cstdint>
+#include <iostream>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -167,7 +168,7 @@ namespace csd = cl::sycl::detail;
 using half = cl::sycl::detail::half_impl::StorageT;
 
 template <typename T>
-using remove_cvref_t = csd::remove_cv_t<csd::remove_reference_t<T>>;
+using remove_cvref_t = std::remove_cv_t<std::remove_reference_t<T>>;
 
 // is_esimd_arithmetic_type
 template <class...> struct make_esimd_void { using type = void; };
@@ -427,14 +428,14 @@ convert(From Val) {
 template <typename U> constexpr bool is_type() { return false; }
 
 template <typename U, typename T, typename... Ts> constexpr bool is_type() {
-  using UU = typename csd::remove_const_t<U>;
-  using TT = typename csd::remove_const_t<T>;
+  using UU = typename std::remove_const_t<U>;
+  using TT = typename std::remove_const_t<T>;
   return std::is_same<UU, TT>::value || is_type<UU, Ts...>();
 }
 
 // calculates the number of elements in "To" type
 template <typename ToEltTy, typename FromEltTy, int FromN,
-          typename = csd::enable_if_t<is_vectorizable<ToEltTy>::value>>
+          typename = std::enable_if_t<is_vectorizable<ToEltTy>::value>>
 struct bitcast_helper {
   static inline constexpr int nToElems() {
     constexpr int R1 = sizeof(ToEltTy) / sizeof(FromEltTy);
@@ -446,8 +447,8 @@ struct bitcast_helper {
 
 // Change the element type of a simd vector.
 template <typename ToEltTy, typename FromEltTy, int FromN,
-          typename = csd::enable_if_t<is_vectorizable<ToEltTy>::value>>
-ESIMD_INLINE typename csd::conditional_t<
+          typename = std::enable_if_t<is_vectorizable<ToEltTy>::value>>
+ESIMD_INLINE typename std::conditional_t<
     std::is_same<FromEltTy, ToEltTy>::value, vector_type_t<FromEltTy, FromN>,
     vector_type_t<ToEltTy,
                   bitcast_helper<ToEltTy, FromEltTy, FromN>::nToElems()>>

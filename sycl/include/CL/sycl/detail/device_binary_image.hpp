@@ -33,10 +33,7 @@ public:
 
   const pi_device_binary_struct &getRawData() const { return *get(); }
 
-  void print() const override {
-    pi::DeviceBinaryImage::print();
-    std::cerr << "    OSModuleHandle=" << ModuleHandle << "\n";
-  }
+  void print() const override;
 
 protected:
   OSModuleHandle ModuleHandle;
@@ -50,10 +47,7 @@ public:
                          OSModuleHandle M);
   ~DynRTDeviceBinaryImage() override;
 
-  void print() const override {
-    RTDeviceBinaryImage::print();
-    std::cerr << "    DYNAMICALLY CREATED\n";
-  }
+  void print() const override;
 
 protected:
   std::unique_ptr<char[]> Data;

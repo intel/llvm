@@ -14,6 +14,7 @@
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/hip_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <pi_helpers.hpp>
 #include <pi_hip.hpp>
 
 #include <algorithm>

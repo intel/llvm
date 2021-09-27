@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <iostream>
 #include <string>
 #include <utility>
 

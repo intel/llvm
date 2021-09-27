@@ -17,6 +17,7 @@
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
 
+#include <cmath>
 #include <cstdint>
 
 // saturation intrinsics

@@ -24,6 +24,7 @@ target_include_directories(pi_hip
   PRIVATE
   ${sycl_inc_dir}
   ${sycl_plugin_dir}
+  ${CMAKE_CURRENT_SOURCE_DIR}/../helpers/
 )
 
 if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")

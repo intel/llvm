@@ -8,15 +8,14 @@
 
 #pragma once
 
+#include <CL/sycl/bit_cast.hpp>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 
-#include <array>
-#include <cmath>
 #include <cstdint>
 #include <functional>
-#include <iostream>
+#include <iosfwd>
 #include <limits>
 
 #if !__has_builtin(__builtin_expect)
@@ -499,20 +498,12 @@ template <> struct numeric_limits<cl::sycl::half> {
     return 5.96046e-08f;
   }
 };
-
 } // namespace std
 
-inline std::ostream &operator<<(std::ostream &O, cl::sycl::half const &rhs) {
-  O << static_cast<float>(rhs);
-  return O;
-}
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &O,
+                                       cl::sycl::half const &rhs);
 
-inline std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
-  float ValFloat = 0.0f;
-  I >> ValFloat;
-  rhs = ValFloat;
-  return I;
-}
+__SYCL_EXPORT std::istream &operator>>(std::istream &I, cl::sycl::half &rhs);
 
 #undef __SYCL_CONSTEXPR_HALF
 #undef _CPP14_CONSTEXPR

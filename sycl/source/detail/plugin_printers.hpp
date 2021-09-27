@@ -12,6 +12,7 @@
 
 #include <CL/sycl/detail/pi.hpp>
 
+#include <iostream>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {

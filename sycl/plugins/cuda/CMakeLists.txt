@@ -37,6 +37,7 @@ set_target_properties(pi_cuda PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories(pi_cuda
   PRIVATE
     ${sycl_inc_dir}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../helpers
 )
 
 target_link_libraries(pi_cuda

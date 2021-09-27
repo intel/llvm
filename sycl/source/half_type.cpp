@@ -12,6 +12,7 @@
 #include <detail/platform_util.hpp>
 
 #include <cstring>
+#include <iostream>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -86,3 +87,16 @@ bool operator!=(const half &LHS, const half &RHS) { return !(LHS == RHS); }
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &O,
+                                       cl::sycl::half const &rhs) {
+  O << static_cast<float>(rhs);
+  return O;
+}
+
+__SYCL_EXPORT std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
+  float ValFloat = 0.0f;
+  I >> ValFloat;
+  rhs = ValFloat;
+  return I;
+}

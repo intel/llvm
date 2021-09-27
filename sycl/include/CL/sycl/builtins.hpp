@@ -1549,93 +1549,102 @@ detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
+#ifdef __GLIBC__
+#define __SYCL_GLIBC_NOECX noexcept
+#else
+#define __SYCL_GLIBC_NOECX
+#endif
+
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" {
-extern SYCL_EXTERNAL int abs(int x);
-extern SYCL_EXTERNAL long int labs(long int x);
-extern SYCL_EXTERNAL long long int llabs(long long int x);
+extern SYCL_EXTERNAL int abs(int x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL long int labs(long int x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL long long int llabs(long long int x) __SYCL_GLIBC_NOEXC;
 
-extern SYCL_EXTERNAL div_t div(int x, int y);
-extern SYCL_EXTERNAL ldiv_t ldiv(long int x, long int y);
-extern SYCL_EXTERNAL lldiv_t lldiv(long long int x, long long int y);
-extern SYCL_EXTERNAL float scalbnf(float x, int n);
-extern SYCL_EXTERNAL double scalbn(double x, int n);
-extern SYCL_EXTERNAL float logf(float x);
-extern SYCL_EXTERNAL double log(double x);
-extern SYCL_EXTERNAL float expf(float x);
-extern SYCL_EXTERNAL double exp(double x);
-extern SYCL_EXTERNAL float log10f(float x);
-extern SYCL_EXTERNAL double log10(double x);
-extern SYCL_EXTERNAL float modff(float x, float *intpart);
-extern SYCL_EXTERNAL double modf(double x, double *intpart);
-extern SYCL_EXTERNAL float exp2f(float x);
-extern SYCL_EXTERNAL double exp2(double x);
-extern SYCL_EXTERNAL float expm1f(float x);
-extern SYCL_EXTERNAL double expm1(double x);
-extern SYCL_EXTERNAL int ilogbf(float x);
-extern SYCL_EXTERNAL int ilogb(double x);
-extern SYCL_EXTERNAL float log1pf(float x);
-extern SYCL_EXTERNAL double log1p(double x);
-extern SYCL_EXTERNAL float log2f(float x);
-extern SYCL_EXTERNAL double log2(double x);
-extern SYCL_EXTERNAL float logbf(float x);
-extern SYCL_EXTERNAL double logb(double x);
-extern SYCL_EXTERNAL float sqrtf(float x);
-extern SYCL_EXTERNAL double sqrt(double x);
-extern SYCL_EXTERNAL float cbrtf(float x);
-extern SYCL_EXTERNAL double cbrt(double x);
-extern SYCL_EXTERNAL float erff(float x);
-extern SYCL_EXTERNAL double erf(double x);
-extern SYCL_EXTERNAL float erfcf(float x);
-extern SYCL_EXTERNAL double erfc(double x);
-extern SYCL_EXTERNAL float tgammaf(float x);
-extern SYCL_EXTERNAL double tgamma(double x);
-extern SYCL_EXTERNAL float lgammaf(float x);
-extern SYCL_EXTERNAL double lgamma(double x);
-extern SYCL_EXTERNAL float fmodf(float x, float y);
-extern SYCL_EXTERNAL double fmod(double x, double y);
-extern SYCL_EXTERNAL float remainderf(float x, float y);
-extern SYCL_EXTERNAL double remainder(double x, double y);
-extern SYCL_EXTERNAL float remquof(float x, float y, int *q);
-extern SYCL_EXTERNAL double remquo(double x, double y, int *q);
-extern SYCL_EXTERNAL float nextafterf(float x, float y);
-extern SYCL_EXTERNAL double nextafter(double x, double y);
-extern SYCL_EXTERNAL float fdimf(float x, float y);
-extern SYCL_EXTERNAL double fdim(double x, double y);
-extern SYCL_EXTERNAL float fmaf(float x, float y, float z);
-extern SYCL_EXTERNAL double fma(double x, double y, double z);
-extern SYCL_EXTERNAL float sinf(float x);
-extern SYCL_EXTERNAL double sin(double x);
-extern SYCL_EXTERNAL float cosf(float x);
-extern SYCL_EXTERNAL double cos(double x);
-extern SYCL_EXTERNAL float tanf(float x);
-extern SYCL_EXTERNAL double tan(double x);
-extern SYCL_EXTERNAL float asinf(float x);
-extern SYCL_EXTERNAL double asin(double x);
-extern SYCL_EXTERNAL float acosf(float x);
-extern SYCL_EXTERNAL double acos(double x);
-extern SYCL_EXTERNAL float atanf(float x);
-extern SYCL_EXTERNAL double atan(double x);
-extern SYCL_EXTERNAL float powf(float x, float y);
-extern SYCL_EXTERNAL double pow(double x, double y);
-extern SYCL_EXTERNAL float atan2f(float x, float y);
-extern SYCL_EXTERNAL double atan2(double x, double y);
+extern SYCL_EXTERNAL div_t div(int x, int y) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL ldiv_t ldiv(long int x, long int y) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL lldiv_t lldiv(long long int x,
+                                   long long int y) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float scalbnf(float x, int n) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double scalbn(double x, int n) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float logf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double log(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float expf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double exp(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float log10f(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double log10(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float modff(float x, float *intpart) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double modf(double x, double *intpart) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float exp2f(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double exp2(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float expm1f(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double expm1(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL int ilogbf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL int ilogb(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float log1pf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double log1p(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float log2f(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double log2(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float logbf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double logb(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float sqrtf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double sqrt(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float cbrtf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double cbrt(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float erff(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double erf(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float erfcf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double erfc(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float tgammaf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double tgamma(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float lgammaf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double lgamma(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float fmodf(float x, float y) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double fmod(double x, double y) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float remainderf(float x, float y) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double remainder(double x, double y) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float remquof(float x, float y, int *q) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double remquo(double x, double y,
+                                   int *q) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float nextafterf(float x, float y) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double nextafter(double x, double y) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float fdimf(float x, float y) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double fdim(double x, double y) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float fmaf(float x, float y, float z) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double fma(double x, double y,
+                                double z) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float sinf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double sin(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float cosf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double cos(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float tanf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double tan(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float asinf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double asin(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float acosf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double acos(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float atanf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double atan(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float powf(float x, float y) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double pow(double x, double y) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float atan2f(float x, float y) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double atan2(double x, double y) __SYCL_GLIBC_NOEXC;
 
-extern SYCL_EXTERNAL float sinhf(float x);
-extern SYCL_EXTERNAL double sinh(double x);
-extern SYCL_EXTERNAL float coshf(float x);
-extern SYCL_EXTERNAL double cosh(double x);
-extern SYCL_EXTERNAL float tanhf(float x);
-extern SYCL_EXTERNAL double tanh(double x);
-extern SYCL_EXTERNAL float asinhf(float x);
-extern SYCL_EXTERNAL double asinh(double x);
-extern SYCL_EXTERNAL float acoshf(float x);
-extern SYCL_EXTERNAL double acosh(double x);
-extern SYCL_EXTERNAL float atanhf(float x);
-extern SYCL_EXTERNAL double atanh(double x);
-extern SYCL_EXTERNAL double frexp(double x, int *exp);
-extern SYCL_EXTERNAL double ldexp(double x, int exp);
-extern SYCL_EXTERNAL double hypot(double x, double y);
+extern SYCL_EXTERNAL float sinhf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double sinh(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float coshf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double cosh(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float tanhf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double tanh(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float asinhf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double asinh(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float acoshf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double acosh(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float atanhf(float x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double atanh(double x) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double frexp(double x, int *exp) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double ldexp(double x, int exp) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL double hypot(double x, double y) __SYCL_GLIBC_NOEXC;
 
 extern SYCL_EXTERNAL void *memcpy(void *dest, const void *src, size_t n);
 extern SYCL_EXTERNAL void *memset(void *dest, int c, size_t n);
@@ -1645,9 +1654,9 @@ extern SYCL_EXTERNAL int memcmp(const void *s1, const void *s2, size_t n);
 extern "C" {
 extern SYCL_EXTERNAL void __assert_fail(const char *expr, const char *file,
                                         unsigned int line, const char *func);
-extern SYCL_EXTERNAL float frexpf(float x, int *exp);
-extern SYCL_EXTERNAL float ldexpf(float x, int exp);
-extern SYCL_EXTERNAL float hypotf(float x, float y);
+extern SYCL_EXTERNAL float frexpf(float x, int *exp) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float ldexpf(float x, int exp) __SYCL_GLIBC_NOEXC;
+extern SYCL_EXTERNAL float hypotf(float x, float y) __SYCL_GLIBC_NOEXC;
 
 // MS UCRT supports most of the C standard library but <complex.h> is
 // an exception.
@@ -1732,5 +1741,7 @@ extern SYCL_EXTERNAL void _wassert(const wchar_t *wexpr, const wchar_t *wfile,
 }
 #endif
 #endif // __SYCL_DEVICE_ONLY__
+
+#undef __SYCL_GLIBC_NOECX
 
 #undef __NOEXC
