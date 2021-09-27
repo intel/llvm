@@ -322,19 +322,21 @@ using scalar_unsigned_integer_list =
               scalar_unsigned_short_list, scalar_unsigned_int_list,
               scalar_unsigned_long_list, scalar_unsigned_longlong_list
 #if __cplusplus >= 201703L
-              ,scalar_byte_list
+              ,
+              scalar_byte_list
 #endif
               >;
 
-using vector_unsigned_integer_list = type_list<
-    conditional_t<
-        std::is_unsigned<char>::value,
-        type_list<vector_default_char_list, vector_unsigned_char_list>,
-        vector_unsigned_char_list>,
-    vector_unsigned_short_list, vector_unsigned_int_list,
-    vector_unsigned_long_list, vector_unsigned_longlong_list
+using vector_unsigned_integer_list =
+    type_list<conditional_t<std::is_unsigned<char>::value,
+                            type_list<vector_default_char_list,
+                                      vector_unsigned_char_list>,
+                            vector_unsigned_char_list>,
+              vector_unsigned_short_list, vector_unsigned_int_list,
+              vector_unsigned_long_list, vector_unsigned_longlong_list
 #if __cplusplus >= 201703L
-              ,vector_byte_list
+              ,
+              vector_byte_list
 #endif
               >;
 
