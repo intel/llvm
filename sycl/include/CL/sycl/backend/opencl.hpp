@@ -16,6 +16,7 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/kernel_bundle.hpp>
 
+#define SYCL_BACKEND_OPENCL 1
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
