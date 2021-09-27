@@ -111,14 +111,14 @@ class device_global {
 ```
 
 However, when the property is present, it has a member variable which is the
-type itself, and member functions return the address of this value.
+type itself, and member functions return a reference to this value.
 
 ```
 template<typename T>
 class device_global {
   T val;
  public:
-  T& get() noexcept { return &val; }
+  T& get() noexcept { return val; }
   /* other member functions */
 };
 ```
@@ -602,3 +602,44 @@ the host.  We could then use that name with the backend functions, and avoid
 renaming variables with internal linkage.  This would be more effort, though,
 because we would need a new SPIR-V extension, and we would need to change the
 implementation of the Level Zero and OpenCL backends.
+
+### Does compiler need to be deterministic?
+
+The compiler is normally deterministic.  If you compile the exact same source
+file twice specifying the same command line options each time, you get exactly
+the same object file.  However, this will no longer be the case.
+
+The design in this document generates a GUID and uses that GUID to rename
+device global variable with internal linkage.  Since the GUID is different each
+time the compiler is executed, the resulting object file is different even if
+the source file did not change.  The existing design for specialization
+constants has exactly the same issue because it also uses a GUID to generate a
+unique string for `specialization_id` variables that have internal linkage.
+
+Is this a problem?  If we want to preserve determinism, we could generate
+a unique ID as a hash (e.g. SHA-256) from the content of the source file
+**and** the command line arguments passed to the compiler.  However, this would
+require reading the content of the source file, which would have an impact on
+compilation time.  It's not clear how significant this impact would be, though.
+
+Note that the non-determinism will cause a problem with the FPGA `-reuse-exe`
+compiler option.  That option uses the result of a previous compilation to
+avoid regenerating FPGA native code if the device code in a translation unit
+did not change.  (For example, this option avoids regenerating device native
+code if the only change in the translation unit was to the host code.)  The
+option is implemented by comparing device IR from the previous compilation with
+the IR in the new compilation.  Native code is regenerated only if the IR is
+different.  This logic will break, though, if the compiler is
+non-deterministic because the IR will always be different, so native code will
+always be regenerated.  This is a showstopper issue for FPGA because native
+code generation takes a very long time.
+
+I see two ways to solve the problem with `-reuse-exe`:
+
+1. We could change the GUID to be a deterministic hash as outlined above.
+
+2. We could change SPIR-V as proposed above to give a unique name to each
+   `OpVariable` which needs to be referenced from the host.  This would avoid
+   the need to change the exported variable name to be a GUID, thus the IR will
+   be deterministic.  (It is also possible to generate the unique `OpVariable`
+   names in a deterministic way, so this won't cause a problem.)
