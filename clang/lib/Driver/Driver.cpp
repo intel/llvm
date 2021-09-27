@@ -2779,6 +2779,10 @@ bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   if (!llvm::sys::fs::exists(Object))
     return false;
 
+  // Only static archives are valid FPGA Binaries for unbundling.
+  if (!isStaticArchiveFile(Object))
+    return false;
+
   // Temporary names for the output.
   llvm::Triple TT;
   TT.setArchName(types::getTypeName(Type));
