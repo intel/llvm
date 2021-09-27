@@ -446,7 +446,11 @@ private:
     }
 
     while (!EventImpls.empty()) {
-      EventImpls.front()->doIfNotFinalized();
+      auto &EventImpl = EventImpls.front();
+      if (EventImpl.use_count() == 1)
+        EventImpl->doIfNotFinalized();
+      else
+        EventImpl->CreateRealImpl();
       EventImpls.pop();
     }
   }
@@ -464,7 +468,11 @@ private:
 
     while (!EventImpls.empty()) {
       if (EventImpls.size() != 1) {
-        EventImpls.front()->doIfNotFinalized();
+        auto &EventImpl = EventImpls.front();
+        if (EventImpl.use_count() == 1)
+          EventImpl->doIfNotFinalized();
+        else
+          EventImpl->CreateRealImpl();
       } else {
         EventImpls.front()->CreateRealImpl();
       }
