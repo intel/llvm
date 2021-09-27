@@ -103,6 +103,7 @@ template <typename T> struct vec_helper {
   static constexpr RetType get(T value) { return value; }
 };
 
+#if __cplusplus >= 201703L
 template <> struct vec_helper<std::byte> {
   using RetType = std::uint8_t;
   static constexpr RetType get(std::byte value) { return (RetType)value; }
@@ -110,6 +111,7 @@ template <> struct vec_helper<std::byte> {
     return (std::byte)value;
   }
 };
+#endif
 
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
@@ -1165,7 +1167,7 @@ public:
 #else
     vec<rel_t, NumElements> Ret;
     for (size_t I = 0; I < NumElements; ++I) {
-      Ret.setValue(I, !getValue(I));
+      Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
     }
     return Ret;
 #endif
@@ -2204,12 +2206,13 @@ using select_apply_cl_t =
         __SYCL_GET_CL_TYPE(int, num), __SYCL_GET_CL_TYPE(long, num)>;          \
   };
 
+#if __cplusplus >= 201703L
 #define __SYCL_DECLARE_BYTE_CONVERTER(num)                                     \
   template <> class BaseCLTypeConverter<std::byte, num> {                      \
   public:                                                                      \
     using DataType = __SYCL_GET_CL_TYPE(uchar, num);                           \
   };
-
+#endif
 #define __SYCL_DECLARE_HALF_CONVERTER(base, num)                               \
   template <> class BaseCLTypeConverter<base, num> {                           \
   public:                                                                      \
@@ -2228,12 +2231,13 @@ using select_apply_cl_t =
     using DataType = bool;                                                     \
   };
 
+#if __cplusplus >= 201703L
 #define __SYCL_DECLARE_SCALAR_BYTE_CONVERTER                                   \
   template <> class BaseCLTypeConverter<std::byte, 1> {                        \
   public:                                                                      \
     using DataType = __SYCL_GET_SCALAR_CL_TYPE(uchar);                         \
   };
-
+#endif
 #define __SYCL_DECLARE_SCALAR_CONVERTER(base)                                  \
   template <> class BaseCLTypeConverter<base, 1> {                             \
   public:                                                                      \
@@ -2326,6 +2330,7 @@ using select_apply_cl_t =
   __SYCL_DECLARE_SCALAR_BOOL_CONVERTER                                         \
   } // namespace detail
 
+#if __cplusplus >= 201703L
 #define __SYCL_DECLARE_BYTE_VECTOR_CONVERTER                                   \
   namespace detail {                                                           \
   __SYCL_DECLARE_BYTE_CONVERTER(2)                                             \
@@ -2335,10 +2340,13 @@ using select_apply_cl_t =
   __SYCL_DECLARE_BYTE_CONVERTER(16)                                            \
   __SYCL_DECLARE_SCALAR_BYTE_CONVERTER                                         \
   }
+#endif
 __SYCL_DECLARE_VECTOR_CONVERTERS(char)
 __SYCL_DECLARE_SCHAR_VECTOR_CONVERTERS
 __SYCL_DECLARE_BOOL_VECTOR_CONVERTERS
+#if __cplusplus >= 201703L
 __SYCL_DECLARE_BYTE_VECTOR_CONVERTER
+#endif
 __SYCL_DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(uchar)
 __SYCL_DECLARE_SIGNED_INTEGRAL_VECTOR_CONVERTERS(short)
 __SYCL_DECLARE_UNSIGNED_INTEGRAL_VECTOR_CONVERTERS(ushort)
@@ -2363,9 +2371,11 @@ __SYCL_DECLARE_FLOAT_VECTOR_CONVERTERS(double)
 #undef __SYCL_DECLARE_SCALAR_SCHAR_CONVERTER
 #undef __SYCL_DECLARE_BOOL_VECTOR_CONVERTERS
 #undef __SYCL_DECLARE_BOOL_CONVERTER
+#if __cplusplus >= 201703L
 #undef __SYCL_DECLARE_BYTE_VECTOR_CONVERTER
 #undef __SYCL_DECLARE_BYTE_CONVERTER
 #undef __SYCL_DECLARE_SCALAR_BYTE_CONVERTER
+#endif
 #undef __SYCL_DECLARE_SCALAR_BOOL_CONVERTER
 #undef __SYCL_USE_EXT_VECTOR_TYPE__
 
