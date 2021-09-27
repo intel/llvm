@@ -1415,9 +1415,10 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
   }
   case PI_DEVICE_INFO_EXTENSIONS: {
-    // TODO:Remove when HIP support native asserts.
+    // TODO: Remove comment when HIP support native asserts.
     // DEVICELIB_ASSERT extension is set so fallback assert
-    // postprocessing is NOP
+    // postprocessing is NOP. HIP 4.3 docs indicate support for
+    // native asserts are in progress
     std::string SupportedExtensions = "";
     SupportedExtensions += PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT;
     SupportedExtensions += " ";
