@@ -234,6 +234,12 @@ private:
   KernelType KernelFunc;
 };
 
+// Kernel bundle flags used to identify previous uses of use_kernel_bundle and
+// set_specialization_constant. These are used to detect invalid command group
+// operation ordering.
+constexpr std::uint8_t EXPLICIT_KERNEL_BUNDLE_FLAG = 1;
+constexpr std::uint8_t SPEC_CONST_SET_FLAG = 2;
+
 } // namespace detail
 
 namespace ext {
@@ -1119,6 +1125,10 @@ private:
   std::shared_ptr<detail::kernel_bundle_impl>
   getOrInsertHandlerKernelBundle(bool Insert) const;
 
+  std::shared_ptr<detail::kernel_bundle_impl>
+  getOrInsertNonExplicitHandlerKernelBundle(bool Insert,
+                                            bool MarkSpecConstSet) const;
+
   void setHandlerKernelBundle(
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
 
@@ -1151,7 +1161,8 @@ public:
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
 
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/true);
+        getOrInsertNonExplicitHandlerKernelBundle(/*Insert=*/true,
+                                                  /*MarkSpecConstSet=*/true);
 
     detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
         KernelBundleImplPtr)
@@ -1163,7 +1174,8 @@ public:
   get_specialization_constant() const {
 
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/true);
+        getOrInsertNonExplicitHandlerKernelBundle(/*Insert=*/true,
+                                                  /*MarkSpecConstSet=*/false);
 
     return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
                KernelBundleImplPtr)

@@ -94,6 +94,7 @@ namespace detail {
 enum class ExtendedMembersType : unsigned int {
   HANDLER_KERNEL_BUNDLE = 0,
   HANDLER_MEM_ADVICE,
+  HANDLER_KERNEL_BUNDLE_FLAGS,
 };
 
 // Holds a pointer to an object of an arbitrary type and an ID value which
