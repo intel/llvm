@@ -2133,7 +2133,7 @@ cl_int ExecCGCommand::enqueueImp() {
                                    RawEvents, Event, EliminatedArgMask);
     }
 
-    if (PI_SUCCESS != Error) {
+    if (PI_SUCCESS != Error && PI_FALLBACK_SUCCESS != Error) {
       // If we have got non-success error code, let's analyze it to emit nice
       // exception explaining what was wrong
       const device_impl &DeviceImpl = *(MQueue->getDeviceImplPtr());

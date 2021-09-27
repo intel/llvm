@@ -16,13 +16,19 @@ namespace detail {
 ext::oneapi::device_func_ptr_holder_t
 getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
   ext::oneapi::device_func_ptr_holder_t FPtr = 0;
-  // FIXME: return value must be checked here, but since we cannot yet check
-  // if corresponding extension is supported, let's silently ignore it here.
+
   const detail::plugin &Plugin = detail::getSyclObjImpl(P)->getPlugin();
-  Plugin.call<cl::sycl::detail::PiApiKind::piextGetDeviceFunctionPointer>(
+  pi_result Result = Plugin.call_nocheck<
+      cl::sycl::detail::PiApiKind::piextGetDeviceFunctionPointer>(
       detail::pi::cast<pi_device>(detail::getSyclObjImpl(D)->getHandleRef()),
       detail::pi::cast<pi_program>(detail::getSyclObjImpl(P)->getHandleRef()),
       FuncName, &FPtr);
+  // If extension is not supported fallback method is used which returns only
+  // if the function exists or not. So, the address is not valid therfore return
+  // no address
+  if (Result == PI_FALLBACK_SUCCESS || Result == PI_FALLBACK_FAILURE)
+    FPtr = 0;
+
   return FPtr;
 }
 

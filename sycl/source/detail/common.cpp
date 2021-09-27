@@ -216,6 +216,10 @@ const char *stringifyErrorCode(cl_int error) {
         case CL_DX9_MEDIA_SURFACE_NOT_ACQUIRED_KHR:
           return "CL_DX9_MEDIA_SURFACE_NOT_ACQUIRED_KHR";
           */
+    case -998:
+      return "Fallback method successfully used";
+    case -997:
+      return "Fallback method failed";
     default:
       return "Unknown OpenCL error code";
   }

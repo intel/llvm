@@ -118,7 +118,7 @@ static inline std::string codeToString(cl_int code) {
 #define __SYCL_REPORT_OCL_ERR_TO_EXC(expr, exc)                                \
   {                                                                            \
     auto code = expr;                                                          \
-    if (code != CL_SUCCESS) {                                                  \
+    if (code != CL_SUCCESS && code != -998) {                                  \
       throw exc(__SYCL_OCL_ERROR_REPORT +                                      \
                     cl::sycl::detail::codeToString(code),                      \
                 code);                                                         \

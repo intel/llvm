@@ -6272,7 +6272,7 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
                                          0, nullptr, &Size);
     if (ret_err != PI_SUCCESS) {
       *FunctionPointerRet = 0;
-      return ret_err;
+      return PI_FALLBACK_FAILURE;
     }
 
     std::string ClResult(Size, ' ');
@@ -6280,13 +6280,13 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
                                ClResult.size(), &ClResult[0], nullptr);
     if (ret_err != PI_SUCCESS) {
       *FunctionPointerRet = 0;
-      return ret_err;
+      return PI_FALLBACK_FAILURE;
     }
 
     // Get rid of the null terminator and search for kernel_name
     ClResult.pop_back();
     *FunctionPointerRet = is_in_separated_string(ClResult, ';', FunctionName);
-    return PI_SUCCESS;
+    return PI_FALLBACK_SUCCESS;
   }
 
   return mapError(ZeResult);
