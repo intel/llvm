@@ -3786,6 +3786,27 @@ bool SPIRVToLLVM::transMetadata() {
       F->setMetadata(kSPIR2MD::FmaxMhz,
                      getMDNodeStringIntVec(Context, EM->getLiterals()));
     }
+    // Generate metadata for Intel FPGA streaming interface
+    if (auto *EM = BF->getExecutionMode(
+            internal::ExecutionModeStreamingInterfaceINTEL)) {
+      std::vector<uint32_t> InterfaceVec = EM->getLiterals();
+      assert(InterfaceVec.size() == 1 &&
+             "Expected StreamingInterfaceINTEL to have exactly 1 literal");
+      std::vector<Metadata *> InterfaceMDVec =
+          [&]() -> std::vector<Metadata *> {
+        switch (InterfaceVec[0]) {
+        case 0:
+          return {MDString::get(*Context, "streaming")};
+        case 1:
+          return {MDString::get(*Context, "streaming"),
+                  MDString::get(*Context, "stall_free_return")};
+        default:
+          llvm_unreachable("Invalid streaming interface mode");
+        }
+      }();
+      F->setMetadata(kSPIR2MD::IntelFPGAIPInterface,
+                     MDNode::get(*Context, InterfaceMDVec));
+    }
   }
   NamedMDNode *MemoryModelMD =
       M->getOrInsertNamedMetadata(kSPIRVMD::MemoryModel);

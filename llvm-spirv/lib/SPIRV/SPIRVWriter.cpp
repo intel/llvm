@@ -3855,6 +3855,7 @@ bool LLVMToSPIRVBase::transExecutionMode() {
           N.get(X).get(Y).get(Z);
           BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
               BF, static_cast<ExecutionMode>(EMode), X, Y, Z)));
+          BM->addExtension(ExtensionID::SPV_INTEL_kernel_attributes);
           BM->addCapability(CapabilityKernelAttributesINTEL);
         }
       } break;
@@ -3863,6 +3864,7 @@ bool LLVMToSPIRVBase::transExecutionMode() {
                 ExtensionID::SPV_INTEL_kernel_attributes)) {
           BF->addExecutionMode(BM->add(
               new SPIRVExecutionMode(BF, static_cast<ExecutionMode>(EMode))));
+          BM->addExtension(ExtensionID::SPV_INTEL_kernel_attributes);
           BM->addCapability(CapabilityKernelAttributesINTEL);
         }
       } break;
@@ -3876,13 +3878,15 @@ bool LLVMToSPIRVBase::transExecutionMode() {
       } break;
       case spv::ExecutionModeNumSIMDWorkitemsINTEL:
       case spv::ExecutionModeSchedulerTargetFmaxMhzINTEL:
-      case spv::ExecutionModeMaxWorkDimINTEL: {
+      case spv::ExecutionModeMaxWorkDimINTEL:
+      case spv::internal::ExecutionModeStreamingInterfaceINTEL: {
         if (BM->isAllowedToUseExtension(
                 ExtensionID::SPV_INTEL_kernel_attributes)) {
           unsigned X;
           N.get(X);
           BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
               BF, static_cast<ExecutionMode>(EMode), X)));
+          BM->addExtension(ExtensionID::SPV_INTEL_kernel_attributes);
           BM->addCapability(CapabilityFPGAKernelAttributesINTEL);
         }
       } break;
