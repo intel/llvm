@@ -517,9 +517,16 @@ void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   MCGType = detail::CG::BarrierWaitlist;
   MEventsWaitWithBarrier.resize(WaitList.size());
-  std::transform(
-      WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
-      [](const event &Event) { return detail::getSyclObjImpl(Event); });
+  std::transform(WaitList.begin(), WaitList.end(),
+                 MEventsWaitWithBarrier.begin(), [](const event &Event) {
+                   detail::EventImplPtr eventImpl =
+                       detail::getSyclObjImpl(Event);
+                   detail::EventImplPtr eventImplRet = eventImpl->doFinalize();
+                   if (eventImplRet) {
+                     eventImpl = eventImplRet;
+                   }
+                   return eventImpl;
+                 });
 }
 
 __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
