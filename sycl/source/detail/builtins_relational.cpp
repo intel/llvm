@@ -18,8 +18,6 @@ namespace s = cl::sycl;
 namespace d = s::detail;
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-} // namespace sycl
 namespace __host_std {
 namespace {
 
