@@ -1,0 +1,717 @@
+-- Testing: 1 tests, 1 workers --
+FAIL: Clang :: OpenMP/remarks_parallel_in_multiple_target_state_machines.c (1 of 1)
+******************** TEST 'Clang :: OpenMP/remarks_parallel_in_multiple_target_state_machines.c' FAILED ********************
+Script:
+--
+: 'RUN: at line 1';   /localdisk2/msabiani/WS/build/bin/clang -cc1 -internal-isystem /localdisk2/msabiani/WS/build/lib/clang/14.0.0/include -nostdsysteminc                                 -verify=host      -Rpass=openmp-opt -Rpass-analysis=openmp-opt -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c -o /localdisk2/msabiani/WS/build/tools/clang/test/OpenMP/Output/remarks_parallel_in_multiple_target_state_machines.c.tmp-ppc-host.bc
+: 'RUN: at line 2';   /localdisk2/msabiani/WS/build/bin/clang -cc1 -internal-isystem /localdisk2/msabiani/WS/build/lib/clang/14.0.0/include -nostdsysteminc                    -mllvm -debug-only=openmp-opt             -verify=all,safe  -Rpass=openmp-opt -Rpass-analysis=openmp-opt -fopenmp -O2 -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c -fopenmp-is-device -fopenmp-host-ir-file-path /localdisk2/msabiani/WS/build/tools/clang/test/OpenMP/Output/remarks_parallel_in_multiple_target_state_machines.c.tmp-ppc-host.bc -o /localdisk2/msabiani/WS/build/tools/clang/test/OpenMP/Output/remarks_parallel_in_multiple_target_state_machines.c.tmp.out
+: 'RUN: at line 3';   /localdisk2/msabiani/WS/build/bin/clang -cc1 -internal-isystem /localdisk2/msabiani/WS/build/lib/clang/14.0.0/include -nostdsysteminc -fexperimental-new-pass-manager -verify=all,safe  -Rpass=openmp-opt -Rpass-analysis=openmp-opt -fopenmp -O2 -x c++ -triple nvptx64-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c -fopenmp-is-device -fopenmp-host-ir-file-path /localdisk2/msabiani/WS/build/tools/clang/test/OpenMP/Output/remarks_parallel_in_multiple_target_state_machines.c.tmp-ppc-host.bc -o /localdisk2/msabiani/WS/build/tools/clang/test/OpenMP/Output/remarks_parallel_in_multiple_target_state_machines.c.tmp.out
+--
+Exit Code: 1
+
+Command Output (stderr):
+--
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 4 uses in 4 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 3 uses in 3 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 3 uses in 3 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 7 uses in 4 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 7 uses in 4 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 7 uses in 4 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 11 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 2 uses in 2 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 3 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 3 uses in 1 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 3 uses in 1 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 9 functions
+[openmp-opt]Replace globalization call   %10 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1), !dbg !33 with 1 bytes of shared memory
+[openmp-opt]Replace globalization call   %7 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1) #7, !dbg !29 with 1 bytes of shared memory
+[openmp-opt]Replace globalization call   %1 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1), !dbg !22 with 1 bytes of shared memory
+[openmp-opt] Basic block @__omp_outlined__ entry is executed by a single thread.
+[openmp-opt] Basic block @__omp_offloading_808_6c207b__Z4foo1v_l27 user_code.entry is executed by a single thread.
+[Attributor] Done with 1 functions, result: changed.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 2 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 3 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 9 functions
+[openmp-opt] Basic block @__omp_offloading_808_6c207b__Z4foo1v_l27 user_code.entry is executed by a single thread.
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]Deduplicate 2 uses of __kmpc_global_thread_num
+
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 3 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 3 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 3 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 3 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 3 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 3 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 3 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 3 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 3 uses in 3 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 2 uses in 2 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 2 uses in 2 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 5 uses in 3 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 5 uses in 3 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 5 uses in 3 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 9 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 5 uses in 2 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 9 functions
+[openmp-opt]Replace globalization call   %1 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1), !dbg !22 with 1 bytes of shared memory
+[openmp-opt]Replace globalization call   %25 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1) #8, !dbg !41 with 1 bytes of shared memory
+[openmp-opt]Replace globalization call   %12 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1) #8, !dbg !33 with 1 bytes of shared memory
+[openmp-opt]Replace globalization call   %20 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1) #8, !dbg !38 with 1 bytes of shared memory
+[openmp-opt]Replace globalization call   %7 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1) #8, !dbg !29 with 1 bytes of shared memory
+[openmp-opt]Replace globalization call   %15 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1), !dbg !37 with 1 bytes of shared memory
+[openmp-opt] Basic block @__omp_outlined__3 entry is executed by a single thread.
+[openmp-opt] Basic block @__omp_offloading_808_6c207b__Z4foo2v_l47 user_code.entry is executed by a single thread.
+[Attributor] Done with 1 functions, result: changed.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]Deduplicate 4 uses of __kmpc_global_thread_num
+
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 2 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 9 functions
+[openmp-opt] Basic block @__omp_offloading_808_6c207b__Z4foo2v_l47 user_code.entry is executed by a single thread.
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]Deduplicate 2 uses of __kmpc_global_thread_num
+
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 3 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 3 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 3 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 3 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 5 uses in 2 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 9 functions
+[openmp-opt]Replace globalization call   %12 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1) #8, !dbg !33 with 1 bytes of shared memory
+[openmp-opt]Replace globalization call   %1 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1), !dbg !22 with 1 bytes of shared memory
+[openmp-opt]Replace globalization call   %7 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1) #8, !dbg !29 with 1 bytes of shared memory
+[openmp-opt]Replace globalization call   %15 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1), !dbg !37 with 1 bytes of shared memory
+[openmp-opt]Replace globalization call   %25 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1) #8, !dbg !41 with 1 bytes of shared memory
+[openmp-opt]Replace globalization call   %20 = call dereferenceable_or_null(1) i8* @__kmpc_alloc_shared(i64 1) #8, !dbg !38 with 1 bytes of shared memory
+[openmp-opt] Basic block @__omp_outlined__6 entry is executed by a single thread.
+[openmp-opt] Basic block @__omp_offloading_808_6c207b__Z4foo3v_l69 user_code.entry is executed by a single thread.
+[Attributor] Done with 1 functions, result: changed.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]Deduplicate 4 uses of __kmpc_global_thread_num
+
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 2 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 9 functions
+[openmp-opt] Basic block @__omp_offloading_808_6c207b__Z4foo3v_l69 user_code.entry is executed by a single thread.
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]Deduplicate 2 uses of __kmpc_global_thread_num
+
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 3 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 3 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 3 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 6 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 3 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 5 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 10 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 2 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 10 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 13 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 2 uses in 2 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 2 uses in 2 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 6 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 4 uses in 4 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 3 uses in 3 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 3 uses in 3 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 16 uses in 4 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 6 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 4 uses in 4 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 3 uses in 3 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 3 uses in 3 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 16 uses in 4 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 6 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 3 uses in 3 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 2 uses in 2 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 2 uses in 2 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 13 uses in 3 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 5 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+[openmp-opt]__kmpc_global_thread_num found
+[openmp-opt]-> got 3 uses in 3 different functions.
+[openmp-opt]__kmpc_for_static_init_4 found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_for_static_fini found
+[openmp-opt]-> got 0 uses in 0 different functions.
+[openmp-opt]__kmpc_target_init found
+[openmp-opt]-> got 2 uses in 2 different functions.
+[openmp-opt]__kmpc_target_deinit found
+[openmp-opt]-> got 2 uses in 2 different functions.
+[openmp-opt]__kmpc_parallel_51 found
+[openmp-opt]-> got 13 uses in 3 different functions.
+[openmp-opt]__kmpc_alloc_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_free_shared found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]__kmpc_get_shared_variables found
+[openmp-opt]-> got 1 uses in 1 different functions.
+[openmp-opt]Run on SCC with 1 functions in a slice with 5 functions
+[Attributor] Done with 1 functions, result: unchanged.
+[openmp-opt]Found 0 global thread ID arguments
+error: 'remark' diagnostics expected but not seen: 
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 10 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:11): Parallel region is used in unknown ways. Will not attempt to rewrite the state machine. [OMP101]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 10 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:12): Value has potential side effects preventing SPMD-mode execution. [OMP121]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 10 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:12): Value has potential side effects preventing SPMD-mode execution. [OMP121]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 10 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:12): Value has potential side effects preventing SPMD-mode execution. [OMP121]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 18 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:19): Parallel region is used in unknown ways. Will not attempt to rewrite the state machine. [OMP101]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 18 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:20): Value has potential side effects preventing SPMD-mode execution. [OMP121]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 18 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:20): Value has potential side effects preventing SPMD-mode execution. [OMP121]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 27 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:28): Rewriting generic-mode kernel with a customized state machine. [OMP131]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 31: Value has potential side effects preventing SPMD-mode execution. Add `__attribute__((assume("ompx_spmd_amenable")))` to the called function to override. [OMP121]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 32 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:33): Value has potential side effects preventing SPMD-mode execution. [OMP121]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 38 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:39): Value has potential side effects preventing SPMD-mode execution. [OMP121]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 47 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:48): Rewriting generic-mode kernel with a customized state machine. [OMP131]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 50: Value has potential side effects preventing SPMD-mode execution. Add `__attribute__((assume("ompx_spmd_amenable")))` to the called function to override. [OMP121]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 51 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:52): Value has potential side effects preventing SPMD-mode execution. [OMP121]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 58 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:59): Value has potential side effects preventing SPMD-mode execution. [OMP121]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 69 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:70): Rewriting generic-mode kernel with a customized state machine. [OMP131]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 72: Value has potential side effects preventing SPMD-mode execution. Add `__attribute__((assume("ompx_spmd_amenable")))` to the called function to override. [OMP121]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 73 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:74): Value has potential side effects preventing SPMD-mode execution. [OMP121]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 80 (directive at /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c:81): Value has potential side effects preventing SPMD-mode execution. [OMP121]
+error: 'remark' diagnostics seen but not expected: 
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 18: Replaced globalized variable with 1 byte of shared memory. [OMP111]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 10: Replaced globalized variable with 1 byte of shared memory. [OMP111]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 10: Replaced globalized variable with 1 byte of shared memory. [OMP111]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 18: Replaced globalized variable with 1 byte of shared memory. [OMP111]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 10: Replaced globalized variable with 1 byte of shared memory. [OMP111]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 18: Replaced globalized variable with 1 byte of shared memory. [OMP111]
+  File /localdisk2/msabiani/WS/clang/test/OpenMP/remarks_parallel_in_multiple_target_state_machines.c Line 10: Replaced globalized variable with 1 byte of shared memory. [OMP111]
+26 errors generated.
+
+--
+
+********************
+********************
+Failed Tests (1):
+  Clang :: OpenMP/remarks_parallel_in_multiple_target_state_machines.c
+
+
+Testing Time: 0.21s
+  Failed: 1
