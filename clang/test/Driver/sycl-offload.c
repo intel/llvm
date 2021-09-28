@@ -565,22 +565,19 @@
 // CHK-ADD-TARGETS-REG-MUL: 8: backend, {7}, assembler, (host-sycl)
 // CHK-ADD-TARGETS-REG-MUL: 9: assembler, {8}, object, (host-sycl)
 // CHK-ADD-TARGETS-REG-MUL: 10: linker, {9}, image, (host-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 11: input, "[[INPUT]]", c++, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 12: preprocessor, {11}, c++-cpp-output, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 13: compiler, {12}, ir, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 14: linker, {13}, ir, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 15: sycl-post-link, {14}, tempfiletable, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 16: file-table-tform, {15}, tempfilelist, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 17: llvm-spirv, {16}, tempfilelist, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 18: file-table-tform, {15, 17}, tempfiletable, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 19: clang-offload-wrapper, {18}, object, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 20: input, "dummy.aocx", sycl-fatbin, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 21: clang-offload-wrapper, {20}, object, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 22: input, "dummy_Gen9core.bin", sycl-fatbin, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 23: clang-offload-wrapper, {22}, object, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 24: input, "dummy.ir", sycl-fatbin, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 25: clang-offload-wrapper, {24}, object, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 26: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown)" {19}, "device-sycl (spir64_fpga-unknown-unknown)" {21}, "device-sycl (spir64_gen-unknown-unknown)" {23}, "device-sycl (spir64_x86_64-unknown-unknown)" {25}, image
+// CHK-ADD-TARGETS-REG-MUL: 11: linker, {5}, ir, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 12: sycl-post-link, {11}, tempfiletable, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 13: file-table-tform, {12}, tempfilelist, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 14: llvm-spirv, {13}, tempfilelist, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 15: file-table-tform, {12, 14}, tempfiletable, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 16: clang-offload-wrapper, {15}, object, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 17: input, "dummy.aocx", sycl-fatbin, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 18: clang-offload-wrapper, {17}, object, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 19: input, "dummy_Gen9core.bin", sycl-fatbin, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 20: clang-offload-wrapper, {19}, object, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 21: input, "dummy.ir", sycl-fatbin, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 22: clang-offload-wrapper, {21}, object, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 23: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown)" {16}, "device-sycl (spir64_fpga-unknown-unknown)" {18}, "device-sycl (spir64_gen-unknown-unknown)" {20}, "device-sycl (spir64_x86_64-unknown-unknown)" {22}, image
 
 /// ###########################################################################
 
@@ -833,7 +830,7 @@
 // CHK-PHASE-MULTI-TARG: 3: input, "[[INPUT]]", c++, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 5: compiler, {4}, ir, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64-unknown-unknown)" {5}, c++-cpp-output
+// CHK-PHASE-MULTI-TARG: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64_gen-unknown-unknown)" {5}, c++-cpp-output
 // CHK-PHASE-MULTI-TARG: 7: compiler, {6}, ir, (host-sycl)
 // CHK-PHASE-MULTI-TARG: 8: backend, {7}, assembler, (host-sycl)
 // CHK-PHASE-MULTI-TARG: 9: assembler, {8}, object, (host-sycl)
@@ -865,6 +862,194 @@
 // CHK-PHASE-MULTI-TARG: 35: file-table-tform, {31, 34}, tempfiletable, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 36: clang-offload-wrapper, {35}, object, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 37: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown)" {19}, "device-sycl (spir64_fpga-unknown-unknown)" {29}, "device-sycl (spir64_gen-unknown-unknown)" {36}, image
+
+/// ###########################################################################
+
+/// Verify that triple-boundarch pairs are correct with multi-targetting
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64 -ccc-print-phases %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH %s
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 1: append-footer, {0}, c++, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 3: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 5: compiler, {4}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64-unknown-unknown)" {5}, c++-cpp-output
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 7: compiler, {6}, ir, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 8: backend, {7}, assembler, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 9: assembler, {8}, object, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 10: linker, {9}, image, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 11: input, "[[INPUT]]", c++, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 12: preprocessor, {11}, c++-cpp-output, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 13: compiler, {12}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 14: linker, {13}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 15: sycl-post-link, {14}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 16: file-table-tform, {15}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 17: backend, {16}, assembler, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 18: assembler, {17}, object, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 19: linker, {17, 18}, cuda-fatbin, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 20: foreach, {16, 19}, cuda-fatbin, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 21: file-table-tform, {15, 20}, tempfiletable, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 22: clang-offload-wrapper, {21}, object, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 23: linker, {5}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 24: input, "{{.*}}libsycl-crt.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 25: clang-offload-unbundler, {24}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 26: input, "{{.*}}libsycl-complex.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 27: clang-offload-unbundler, {26}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 28: input, "{{.*}}libsycl-complex-fp64.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 29: clang-offload-unbundler, {28}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 30: input, "{{.*}}libsycl-cmath.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 31: clang-offload-unbundler, {30}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 32: input, "{{.*}}libsycl-cmath-fp64.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 33: clang-offload-unbundler, {32}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 34: input, "{{.*}}libsycl-fallback-cassert.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 35: clang-offload-unbundler, {34}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 36: input, "{{.*}}libsycl-fallback-cstring.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 37: clang-offload-unbundler, {36}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 38: input, "{{.*}}libsycl-fallback-complex.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 39: clang-offload-unbundler, {38}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 40: input, "{{.*}}libsycl-fallback-complex-fp64.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 41: clang-offload-unbundler, {40}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 42: input, "{{.*}}libsycl-fallback-cmath.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 43: clang-offload-unbundler, {42}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 44: input, "{{.*}}libsycl-fallback-cmath-fp64.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 45: clang-offload-unbundler, {44}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 46: linker, {23, 25, 27, 29, 31, 33, 35, 37, 39, 41, 43, 45}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 47: sycl-post-link, {46}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 48: file-table-tform, {47}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 49: llvm-spirv, {48}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 50: file-table-tform, {47, 49}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 51: clang-offload-wrapper, {50}, object, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 52: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {22}, "device-sycl (spir64-unknown-unknown)" {51}, image
+
+/// Check the behaviour however with swapped -fsycl-targets
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64,nvptx64-nvidia-cuda -ccc-print-phases %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED %s
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 1: append-footer, {0}, c++, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 3: input, "[[INPUT]]", c++, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 5: compiler, {4}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {5}, c++-cpp-output
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 7: compiler, {6}, ir, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 8: backend, {7}, assembler, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 9: assembler, {8}, object, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 10: linker, {9}, image, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 11: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 12: preprocessor, {11}, c++-cpp-output, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 13: compiler, {12}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 14: linker, {13}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 15: input, "{{.*}}libsycl-crt.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 16: clang-offload-unbundler, {15}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 17: input, "{{.*}}libsycl-complex.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 18: clang-offload-unbundler, {17}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 19: input, "{{.*}}libsycl-complex-fp64.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 20: clang-offload-unbundler, {19}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 21: input, "{{.*}}libsycl-cmath.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 22: clang-offload-unbundler, {21}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 23: input, "{{.*}}libsycl-cmath-fp64.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 24: clang-offload-unbundler, {23}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 25: input, "{{.*}}libsycl-fallback-cassert.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 26: clang-offload-unbundler, {25}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 27: input, "{{.*}}libsycl-fallback-cstring.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 28: clang-offload-unbundler, {27}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 29: input, "{{.*}}libsycl-fallback-complex.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 30: clang-offload-unbundler, {29}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 31: input, "{{.*}}libsycl-fallback-complex-fp64.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 32: clang-offload-unbundler, {31}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 33: input, "{{.*}}libsycl-fallback-cmath.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 34: clang-offload-unbundler, {33}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 35: input, "{{.*}}libsycl-fallback-cmath-fp64.o", object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 36: clang-offload-unbundler, {35}, object
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 37: linker, {14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 38: sycl-post-link, {37}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 39: file-table-tform, {38}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 40: llvm-spirv, {39}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 41: file-table-tform, {38, 40}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 42: clang-offload-wrapper, {41}, object, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 43: linker, {5}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 44: sycl-post-link, {43}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 45: file-table-tform, {44}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 46: backend, {45}, assembler, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 47: assembler, {46}, object, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 48: linker, {46, 47}, cuda-fatbin, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 49: foreach, {45, 48}, cuda-fatbin, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 50: file-table-tform, {44, 49}, tempfiletable, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 51: clang-offload-wrapper, {50}, object, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH-FLIPPED: 52: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown)" {42}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {51}, image
+
+/// ###########################################################################
+
+// Check if valid bound arch behaviour occurs when compiling for spir-v,nvidia-gpu, and amd-gpu
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64,nvptx-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=nvptx-nvidia-cuda --offload-arch=sm_75 -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -ccc-print-phases %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD %s
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 1: append-footer, {0}, c++, (host-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 3: input, "[[INPUT]]", c++, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 5: compiler, {4}, ir, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (amdgcn-amd-amdhsa:gfx908)" {5}, c++-cpp-output
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 7: compiler, {6}, ir, (host-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 8: backend, {7}, assembler, (host-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 9: assembler, {8}, object, (host-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 10: linker, {9}, image, (host-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 11: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 12: preprocessor, {11}, c++-cpp-output, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 13: compiler, {12}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 14: linker, {13}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 15: input, "{{.*}}libsycl-crt.o", object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 16: clang-offload-unbundler, {15}, object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 17: input, "{{.*}}libsycl-complex.o", object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 18: clang-offload-unbundler, {17}, object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 19: input, "{{.*}}libsycl-complex-fp64.o", object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 20: clang-offload-unbundler, {19}, object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 21: input, "{{.*}}libsycl-cmath.o", object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 22: clang-offload-unbundler, {21}, object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 23: input, "{{.*}}libsycl-cmath-fp64.o", object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 24: clang-offload-unbundler, {23}, object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 25: input, "{{.*}}libsycl-fallback-cassert.o", object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 26: clang-offload-unbundler, {25}, object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 27: input, "{{.*}}libsycl-fallback-cstring.o", object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 28: clang-offload-unbundler, {27}, object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 29: input, "{{.*}}libsycl-fallback-complex.o", object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 30: clang-offload-unbundler, {29}, object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 31: input, "{{.*}}libsycl-fallback-complex-fp64.o", object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 32: clang-offload-unbundler, {31}, object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 33: input, "{{.*}}libsycl-fallback-cmath.o", object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 34: clang-offload-unbundler, {33}, object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 35: input, "{{.*}}libsycl-fallback-cmath-fp64.o", object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 36: clang-offload-unbundler, {35}, object
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 37: linker, {14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 38: sycl-post-link, {37}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 39: file-table-tform, {38}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 40: llvm-spirv, {39}, tempfilelist, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 41: file-table-tform, {38, 40}, tempfiletable, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 42: clang-offload-wrapper, {41}, object, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 43: input, "[[INPUT]]", c++, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 44: preprocessor, {43}, c++-cpp-output, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 45: compiler, {44}, ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 46: linker, {45}, ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 47: sycl-post-link, {46}, ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 48: file-table-tform, {47}, ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 49: backend, {48}, assembler, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 50: assembler, {49}, object, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 51: linker, {49, 50}, cuda-fatbin, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 52: foreach, {48, 51}, cuda-fatbin, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 53: file-table-tform, {47, 52}, tempfiletable, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 54: clang-offload-wrapper, {53}, object, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 55: linker, {5}, ir, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 56: sycl-post-link, {55}, ir, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 57: file-table-tform, {56}, ir, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 58: backend, {57}, assembler, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 59: assembler, {58}, object, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 60: linker, {59}, image, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 61: linker, {60}, hip-fatbin, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 62: foreach, {57, 61}, hip-fatbin, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 63: file-table-tform, {56, 62}, tempfiletable, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 64: clang-offload-wrapper, {63}, object, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 65: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown)" {42}, "device-sycl (nvptx-nvidia-cuda:sm_75)" {54}, "device-sycl (amdgcn-amd-amdhsa:gfx908)" {64}, image
 
 /// ###########################################################################
 /// Verify that -save-temps does not crash
