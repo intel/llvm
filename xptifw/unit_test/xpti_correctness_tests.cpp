@@ -259,12 +259,12 @@ TEST_F(xptiCorrectnessTest, xptiInitializeForUserDefinedTracePointTypes) {
   // We will test functionality of a subscriber
   // without actually creating a plugin
   uint8_t StreamID = xptiRegisterStream("test_foo");
-  typedef enum {
+  enum {
     extn1_begin = XPTI_TRACE_POINT_BEGIN(0),
     extn1_end = XPTI_TRACE_POINT_END(0),
     extn2_begin = XPTI_TRACE_POINT_BEGIN(1),
     extn2_end = XPTI_TRACE_POINT_END(1)
-  } tp_extension_t;
+  };
 
   auto TTType = xptiRegisterUserDefinedTracePoint("test_foo_tool", extn1_begin);
   auto Result = xptiRegisterCallback(StreamID, TTType, tpCallback);
@@ -287,12 +287,12 @@ TEST_F(xptiCorrectnessTest,
   xptiForceSetTraceEnabled(true);
 
   uint8_t StreamID = xptiRegisterStream("test_foo");
-  typedef enum {
+  enum {
     extn1_begin = XPTI_TRACE_POINT_BEGIN(0),
     extn1_end = XPTI_TRACE_POINT_END(0),
     extn2_begin = XPTI_TRACE_POINT_BEGIN(1),
     extn2_end = XPTI_TRACE_POINT_END(1)
-  } tp_extension_t;
+  };
 
   auto TTType1 =
       xptiRegisterUserDefinedTracePoint("test_foo_tool", extn1_begin);
@@ -470,12 +470,12 @@ TEST_F(xptiCorrectnessTest, xptiUserDefinedEventTypes) {
   xptiForceSetTraceEnabled(true);
 
   (void)xptiRegisterStream("test_foo");
-  typedef enum {
+  enum {
     extn_ev1 = XPTI_EVENT(0),
     extn_ev2 = XPTI_EVENT(1),
     extn_ev3 = XPTI_EVENT(2),
     extn_ev4 = XPTI_EVENT(3)
-  } event_extension_t;
+  };
 
   auto EventType1 = xptiRegisterUserDefinedEventType("test_foo_tool", extn_ev1);
   auto EventType2 = xptiRegisterUserDefinedEventType("test_foo_tool", extn_ev2);
