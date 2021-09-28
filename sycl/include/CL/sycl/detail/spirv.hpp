@@ -26,9 +26,6 @@ struct sub_group;
 } // namespace oneapi
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-}
 namespace detail {
 namespace spirv {
 

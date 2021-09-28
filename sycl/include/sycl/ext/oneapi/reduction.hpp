@@ -2067,6 +2067,7 @@ __SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
 } // namespace oneapi
 } // namespace ext
 
+#ifdef __SYCL_INTERNAL_API
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
   namespace detail {
@@ -2077,5 +2078,6 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
                                          size_t &NWorkGroups);
   } // namespace detail
 } // namespace ONEAPI
+#endif // __SYCL_INTERNAL_API
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()

@@ -323,10 +323,6 @@ template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 } // namespace oneapi
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-}
-
 /// Command group handler class.
 ///
 /// Objects of the handler class collect information about command group, such

@@ -225,10 +225,5 @@ namespace __SYCL2020_DEPRECATED(
   using namespace ext::intel::experimental;
 } // namespace intel
 } // namespace ext
-
-namespace __SYCL2020_DEPRECATED(
-    "use 'ext::intel::experimental' instead") INTEL {
-  using namespace ext::intel::experimental;
-} // namespace INTEL
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()

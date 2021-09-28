@@ -44,10 +44,6 @@ fpga_reg(_T t) {
 
 } // namespace intel
 } // namespace ext
-
-namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
-  using namespace ext::intel;
-}
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()
 
