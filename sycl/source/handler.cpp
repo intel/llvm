@@ -105,7 +105,7 @@ bool handler::setStateExplicitKernel() {
   auto HandlerImpl = getHandlerImpl(ExendedMembersVec);
   if (HandlerImpl->MSubmissionState ==
       detail::HandlerSubmissionState::SPEC_CONST_SET_STATE)
-      return false;
+    return false;
   HandlerImpl->MSubmissionState =
       detail::HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE;
   return true;
@@ -126,7 +126,7 @@ bool handler::setStateSpecConstSet() {
   auto HandlerImpl = getHandlerImpl(ExendedMembersVec);
   if (HandlerImpl->MSubmissionState ==
       detail::HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE)
-      return false;
+    return false;
   HandlerImpl->MSubmissionState =
       detail::HandlerSubmissionState::SPEC_CONST_SET_STATE;
   return true;
