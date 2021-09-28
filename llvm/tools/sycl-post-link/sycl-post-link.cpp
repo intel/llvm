@@ -576,7 +576,10 @@ static string_vector saveDeviceImageProperty(
 
       for (const auto &NameInfoPair : PInfo) {
         const llvm::BitVector &Bits = NameInfoPair.second;
-        const llvm::ArrayRef<uintptr_t> Arr = NameInfoPair.second.getData();
+        if (Bits.empty())
+          continue; // Nothing to add
+
+        const llvm::ArrayRef<uintptr_t> Arr = Bits.getData();
         const unsigned char *Data =
             reinterpret_cast<const unsigned char *>(Arr.begin());
         llvm::util::PropertyValue::SizeTy DataBitSize = Bits.size();
