@@ -1944,21 +1944,23 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
     llvm::outs() << "Emitting help information for " << std::get<1>(HA) << '\n'
         << "Use triple of '" << std::get<0>(HA).normalize() <<
         "' to enable ahead of time compilation\n";
+    // Flush out the buffer before calling the external tool.
+    llvm::outs().flush();
     std::vector<StringRef> ToolArgs = {std::get<1>(HA), std::get<2>(HA),
                                        std::get<3>(HA)};
     SmallString<128> ExecPath(
         C.getDefaultToolChain().GetProgramPath(std::get<1>(HA).data()));
-    auto ToolBinary = llvm::sys::findProgramByName(ExecPath);
-    if (ToolBinary.getError()) {
-      C.getDriver().Diag(diag::err_drv_command_failure) << ExecPath;
-      continue;
-    }
     // do not run the tools with -###.
     if (C.getArgs().hasArg(options::OPT__HASH_HASH_HASH)) {
       llvm::errs() << "\"" << ExecPath << "\" \"" << ToolArgs[1] << "\"";
       if (!ToolArgs[2].empty())
         llvm::errs() << " \"" << ToolArgs[2] << "\"";
       llvm::errs() << "\n";
+      continue;
+    }
+    auto ToolBinary = llvm::sys::findProgramByName(ExecPath);
+    if (ToolBinary.getError()) {
+      C.getDriver().Diag(diag::err_drv_command_failure) << ExecPath;
       continue;
     }
     // Run the Tool.
@@ -5649,13 +5651,18 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     // ignored since we are adding offload-static-libs as normal libraries to
     // the host link command.
     if (hasOffloadSections(C, LA, Args)) {
-      unbundleStaticLib(types::TY_Archive, LA);
       // Pass along the static libraries to check if we need to add them for
       // unbundling for FPGA AOT static lib usage.  Uses FPGA aoco type to
       // differentiate if aoco unbundling is needed.  Unbundling of aoco is not
       // needed for emulation, as these are treated as regular archives.
       if (!C.getDriver().isFPGAEmulationMode())
         unbundleStaticLib(types::TY_FPGA_AOCO, LA);
+      // Do not unbundle any AOCO archive as a regular archive when we are
+      // in FPGA Hardware/Simulation mode.
+      if (!C.getDriver().isFPGAEmulationMode() &&
+          hasFPGABinary(C, LA.str(), types::TY_FPGA_AOCO))
+        continue;
+      unbundleStaticLib(types::TY_Archive, LA);
     }
   }
 

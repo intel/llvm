@@ -18,9 +18,6 @@
 #include <assert.h>
 #include <cstdint>
 
-#define __SEIEED sycl::ext::intel::experimental::esimd::detail
-#define __SEIEE sycl::ext::intel::experimental::esimd
-
 // \brief __esimd_rdregion: region access intrinsic.
 //
 // @param T the element data type, one of i8, i16, i32, i64, half, float,
@@ -125,14 +122,14 @@ template <typename T, int N, int M, int VStride, int Width, int Stride,
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
 __esimd_wrregion(__SEIEED::vector_type_t<T, N> OldVal,
                  __SEIEED::vector_type_t<T, M> NewVal, uint16_t Offset,
-                 __SEIEE::mask_type_t<M> Mask = 1);
+                 __SEIEED::simd_mask_storage_t<M> Mask = 1);
 
 template <typename T, int N, int M, int ParentWidth = 0>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
 __esimd_wrindirect(__SEIEED::vector_type_t<T, N> OldVal,
                    __SEIEED::vector_type_t<T, M> NewVal,
                    __SEIEED::vector_type_t<uint16_t, M> Offset,
-                   __SEIEE::mask_type_t<M> Mask = 1);
+                   __SEIEED::simd_mask_storage_t<M> Mask = 1);
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -286,7 +283,7 @@ template <typename T, int N, int M, int VStride, int Width, int Stride,
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
 __esimd_wrregion(__SEIEED::vector_type_t<T, N> OldVal,
                  __SEIEED::vector_type_t<T, M> NewVal, uint16_t Offset,
-                 __SEIEE::mask_type_t<M> Mask) {
+                 __SEIEED::simd_mask_storage_t<M> Mask) {
   uint16_t EltOffset = Offset / sizeof(T);
   assert(Offset % sizeof(T) == 0);
 
@@ -310,7 +307,7 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
 __esimd_wrindirect(__SEIEED::vector_type_t<T, N> OldVal,
                    __SEIEED::vector_type_t<T, M> NewVal,
                    __SEIEED::vector_type_t<uint16_t, M> Offset,
-                   __SEIEE::mask_type_t<M> Mask) {
+                   __SEIEED::simd_mask_storage_t<M> Mask) {
   __SEIEED::vector_type_t<T, N> Result = OldVal;
   for (int i = 0; i < M; ++i) {
     if (Mask[i]) {
@@ -324,6 +321,3 @@ __esimd_wrindirect(__SEIEED::vector_type_t<T, N> OldVal,
 }
 
 #endif // __SYCL_DEVICE_ONLY__
-
-#undef __SEIEE
-#undef __SEIEED
