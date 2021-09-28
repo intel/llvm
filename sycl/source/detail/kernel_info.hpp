@@ -72,7 +72,7 @@ template <>
 struct IsWorkGroupInfo<info::kernel_device_specific::private_mem_size>
     : std::true_type {};
 template <>
-struct IsWorkGroupInfo<info::kernel_device_specific::num_regs>
+struct IsWorkGroupInfo<info::kernel_device_specific::ext_num_regs>
     : std::true_type {};
 
 template <typename T, info::kernel_device_specific Param>
@@ -148,7 +148,7 @@ inline cl_ulong get_kernel_device_specific_info_host<
 
 template <>
 inline uint32_t get_kernel_device_specific_info_host<
-    info::kernel_device_specific::num_regs>(const cl::sycl::device &) {
+    info::kernel_device_specific::ext_num_regs>(const cl::sycl::device &) {
   return 0;
 }
 
