@@ -924,8 +924,10 @@ pi_result cuda_piextGetDeviceFunctionPointer(pi_device device,
 
   if (ret != CUDA_SUCCESS && ret != CUDA_ERROR_NOT_FOUND)
     retError = PI_CHECK_ERROR(ret);
-  if (ret == CUDA_ERROR_NOT_FOUND)
+  if (ret == CUDA_ERROR_NOT_FOUND) {
     *function_pointer_ret = 0;
+    retError = PI_INVALID_KERNEL_NAME;
+  }
 
   return retError;
 }

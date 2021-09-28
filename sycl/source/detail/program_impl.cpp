@@ -309,10 +309,17 @@ bool program_impl::has_kernel(std::string KernelName,
   pi_uint64 function_ptr;
   const detail::plugin &Plugin = getPlugin();
 
+  RT::PiResult Err = PI_SUCCESS;
   for (RT::PiDevice Device : Devices) {
-    Plugin.call<PiApiKind::piextGetDeviceFunctionPointer>(
+    Err = Plugin.call_nocheck<PiApiKind::piextGetDeviceFunctionPointer>(
         Device, MProgram, KernelName.c_str(), &function_ptr);
-    if (function_ptr != 0)
+    if (Err != PI_SUCCESS && Err != PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE &&
+        Err != PI_INVALID_KERNEL_NAME)
+      throw runtime_error(
+          "Error from piextGetDeviceFunctionPointer when called by program",
+          Err);
+    if (((function_ptr != 0) && Err != PI_INVALID_KERNEL_NAME) ||
+        Err == PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE)
       return true;
   }
 

@@ -910,8 +910,10 @@ pi_result hip_piextGetDeviceFunctionPointer(pi_device device,
 
   if (ret != hipSuccess && ret != hipErrorNotFound)
     retError = PI_CHECK_ERROR(ret);
-  if (ret == hipErrorNotFound)
+  if (ret == hipErrorNotFound) {
     *function_pointer_ret = 0;
+    retError = PI_INVALID_KERNEL_NAME;
+  }
 
   return retError;
 }

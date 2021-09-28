@@ -111,8 +111,10 @@ typedef enum {
   PI_INVALID_IMAGE_FORMAT_DESCRIPTOR = CL_INVALID_IMAGE_FORMAT_DESCRIPTOR,
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
-  PI_FALLBACK_FAILURE = -997,
-  PI_FALLBACK_SUCCESS = -998,
+  PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE =
+      -998, ///< PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE indicates a fallback
+            ///< method determines the function exists but its address cannot be
+            ///< found.
   PI_ERROR_UNKNOWN = -999
 } _pi_result;
 
@@ -985,6 +987,9 @@ __SYCL_EXPORT pi_result piextDeviceSelectBinary(pi_device device,
 /// must present in the list of devices returned by \c get_device method for
 /// \arg \c program.
 ///
+/// If a fallback method determines the function exists but the address is
+/// not available PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE is returned. If the
+/// address does not exist PI_INVALID_KERNEL_NAME is returned.
 __SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
     pi_device device, pi_program program, const char *function_name,
     pi_uint64 *function_pointer_ret);

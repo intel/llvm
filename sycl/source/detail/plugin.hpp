@@ -113,7 +113,7 @@ public:
   }
 
   void reportPiError(RT::PiResult pi_result, const char *context) const {
-    if (pi_result != PI_SUCCESS && pi_result != PI_FALLBACK_SUCCESS) {
+    if (pi_result != PI_SUCCESS) {
       throw cl::sycl::runtime_error(
           std::string(context) + " API failed with error: " +
               cl::sycl::detail::codeToString(pi_result),

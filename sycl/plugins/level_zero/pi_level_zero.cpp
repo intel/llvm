@@ -6265,28 +6265,37 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
   // with ZE_RESULT_ERROR_INVALID_ARGUMENT
   // TODO: remove when this is no longer the case
   // If zeModuleGetFunctionPointer returns invalid argument,
-  // fallback to searching through kernel list and assign dummy pointer
+  // fallback to searching through kernel list and return
+  // PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE if the function exists
+  // or PI_INVALID_KERNEL_NAME if the function does not exist.
+  // FunctionPointerRet should always be 0
   if (ZeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
     size_t Size;
+    *FunctionPointerRet = 0;
     pi_result ret_err = piProgramGetInfo(Program, PI_PROGRAM_INFO_KERNEL_NAMES,
                                          0, nullptr, &Size);
-    if (ret_err != PI_SUCCESS) {
-      *FunctionPointerRet = 0;
-      return PI_FALLBACK_FAILURE;
-    }
+    if (ret_err != PI_SUCCESS)
+      return ret_err;
 
     std::string ClResult(Size, ' ');
     ret_err = piProgramGetInfo(Program, PI_PROGRAM_INFO_KERNEL_NAMES,
                                ClResult.size(), &ClResult[0], nullptr);
-    if (ret_err != PI_SUCCESS) {
-      *FunctionPointerRet = 0;
-      return PI_FALLBACK_FAILURE;
-    }
+    if (ret_err != PI_SUCCESS)
+      return ret_err;
 
     // Get rid of the null terminator and search for kernel_name
+    // If function can be found return error code to indicate it
+    // exists
     ClResult.pop_back();
-    *FunctionPointerRet = is_in_separated_string(ClResult, ';', FunctionName);
-    return PI_FALLBACK_SUCCESS;
+    if (is_in_separated_string(ClResult, ';', FunctionName))
+      return PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
+    else
+      return PI_INVALID_KERNEL_NAME;
+  }
+
+  if (ZeResult == ZE_RESULT_ERROR_INVALID_FUNCTION_NAME) {
+    *FunctionPointerRet = 0;
+    return PI_INVALID_KERNEL_NAME;
   }
 
   return mapError(ZeResult);

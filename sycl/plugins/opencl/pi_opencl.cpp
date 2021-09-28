@@ -570,31 +570,33 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                  func_name, function_pointer_ret));
     return piret_err;
   } else {
-    // Use backup method to return placeholder address of 1 or 0 depending on if
-    // the function can be found this is needed by program_impl's has_kernel
+    // If clGetDeviceFunctionPointerIntel extension does not exist,
+    // fallback to searching through kernel list and return
+    // PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE if the function exists
+    // or PI_INVALID_KERNEL_NAME if the function does not exist.
+    // FunctionPointerRet should always be 0
     delete[] extensions;
+    *function_pointer_ret = 0;
     size_t Size;
     cl_int Res =
         clGetProgramInfo(cast<cl_program>(program),
                          PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size);
-    if (Res != CL_SUCCESS) {
-      *function_pointer_ret = 0;
-      return PI_FALLBACK_FAILURE;
-    }
+    if (Res != CL_SUCCESS)
+      return cast<pi_result>(Res);
 
     std::string ClResult(Size, ' ');
     ret_err = clGetProgramInfo(cast<cl_program>(program),
                                PI_PROGRAM_INFO_KERNEL_NAMES, ClResult.size(),
                                &ClResult[0], nullptr);
-    if (Res != CL_SUCCESS) {
-      *function_pointer_ret = 0;
-      return PI_FALLBACK_FAILURE;
-    }
+    if (Res != CL_SUCCESS)
+      return cast<pi_result>(Res);
 
     // Get rid of the null terminator and search for kernel_name
     ClResult.pop_back();
-    *function_pointer_ret = is_in_separated_string(ClResult, ';', func_name);
-    return PI_FALLBACK_SUCCESS;
+    if (is_in_separated_string(ClResult, ';', func_name))
+      return PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
+    else
+      return PI_INVALID_KERNEL_NAME;
   }
 }
 

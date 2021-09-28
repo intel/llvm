@@ -23,11 +23,20 @@ getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
       detail::pi::cast<pi_device>(detail::getSyclObjImpl(D)->getHandleRef()),
       detail::pi::cast<pi_program>(detail::getSyclObjImpl(P)->getHandleRef()),
       FuncName, &FPtr);
-  // If extension is not supported fallback method is used which returns only
-  // if the function exists or not. So, the address is not valid therfore return
-  // no address
-  if (Result == PI_FALLBACK_SUCCESS || Result == PI_FALLBACK_FAILURE)
-    FPtr = 0;
+  // If extension is not supported, a fallback method is used which returns
+  // if the function exists or not. If the return address is not valid throw
+  // error.
+  if (Result != PI_SUCCESS) {
+    if (Result == PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE)
+      throw runtime_error("Function exists however, address is not available",
+                          Result);
+    if (Result == PI_INVALID_KERNEL_NAME)
+      throw runtime_error("Function name is not valid", Result);
+    else
+      throw runtime_error("piextGetDeviceFunctionPointer returned error when "
+                          "retrieving address",
+                          Result);
+  }
 
   return FPtr;
 }
