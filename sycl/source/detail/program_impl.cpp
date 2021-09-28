@@ -249,7 +249,6 @@ void program_impl::compile_with_source(std::string KernelSource,
 void program_impl::build_with_kernel_name(std::string KernelName,
                                           std::string BuildOptions,
                                           OSModuleHandle Module) {
-  static bool KernelCached = false;
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
   MProgramModuleHandle = Module;
@@ -260,11 +259,6 @@ void program_impl::build_with_kernel_name(std::string KernelName,
         Module, detail::getSyclObjImpl(get_context()),
         detail::getSyclObjImpl(get_devices()[0]), KernelName, this,
         /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
-    if (KernelCached) {
-      const detail::plugin &Plugin = getPlugin();
-      Plugin.call<PiApiKind::piProgramRetain>(MProgram);
-    }
-    KernelCached = true;
   }
   MState = program_state::linked;
 }

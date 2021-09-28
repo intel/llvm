@@ -503,9 +503,13 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     }
 
     // Save program to persistent cache if it is not there
-    if (!BinProg.size())
+    if (!BinProg.size()) {
       PersistentDeviceCodeCache::putItemToDisc(
           Device, Img, SpecConsts, CompileOpts + LinkOpts, BuiltProgram.get());
+    } else {
+      // Retain (increment ref count of) the pi_program when it is reused.
+      Plugin.call<PiApiKind::piProgramRetain>(NativePrg);
+    }
     return BuiltProgram.release();
   };
 
