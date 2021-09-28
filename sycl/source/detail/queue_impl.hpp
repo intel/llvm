@@ -467,6 +467,10 @@ private:
     }
 
     while (!EventImpls.empty()) {
+      // Perform submission for all until one command remains
+      // as in submit_impl() we were interested in MLastEvent from the last
+      // command to set depends_on(MLastEvent). All others, if have
+      // use_count() == 1, can be submitted without event generation.
       if (EventImpls.size() != 1) {
         auto &EventImpl = EventImpls.front();
         if (EventImpl.use_count() == 1)
@@ -538,6 +542,9 @@ private:
 
     if (MHostQueue || Type != CG::Kernel ||
         Handler->MRequirements.size() != 0 || Handler->MIsFinalized) {
+      // By this operation we guarantee that all tasks before this one have
+      // already been submitted
+      implicitly_do_submit();
       EventImplPtr EventImpl = MUploadDataFunctor(true);
       return detail::createSyclObjFromImpl<event>(EventImpl);
     }
