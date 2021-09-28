@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //
-#include "xpti_trace_framework.hpp"
+#include "xpti/xpti_trace_framework.hpp"
 
 #include <iostream>
 #include <memory>
