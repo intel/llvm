@@ -4359,6 +4359,9 @@ class OffloadingActionBuilder final {
             auto LinkInfoIter = devicelib_link_info.find(Val);
             if (LinkInfoIter == devicelib_link_info.end() ||
                 Val.equals("internal")) {
+              // TODO: Move the diagnostic to the SYCL section of
+              // Driver::CreateOffloadingDeviceToolChains() to minimize code
+              // duplication.
               C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
                   << A->getOption().getName() << Val;
             }
