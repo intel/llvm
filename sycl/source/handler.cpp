@@ -17,6 +17,7 @@
 #include <CL/sycl/stream.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/handler_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -27,21 +28,45 @@ namespace sycl {
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
     : MQueue(std::move(Queue)), MIsHost(IsHost) {
-  MSharedPtrStorage.emplace_back(
-      std::make_shared<std::vector<detail::ExtendedMemberT>>());
+  // Create extended members and insert handler_impl
+  // TODO: When allowed to break ABI the handler_impl should be made a member
+  //       of the handler class.
+  auto ExtendedMembers =
+      std::make_shared<std::vector<detail::ExtendedMemberT>>();
+  detail::ExtendedMemberT HandlerImplMember = {
+      detail::ExtendedMembersType::HANDLER_IMPL,
+      std::make_shared<detail::handler_impl>()};
+  ExtendedMembers->push_back(std::move(HandlerImplMember));
+  MSharedPtrStorage.push_back(std::move(ExtendedMembers));
+}
+
+/// Gets the handler_impl at the start of the extended members.
+// detail::GlobalHandler::instance().getHandlerExtendedMembersMutex() must
+// be held when calling this function.
+std::shared_ptr<detail::handler_impl>
+getHandlerImpl(const std::shared_ptr<std::vector<detail::ExtendedMemberT>>
+                   &ExtendedMembersVec) {
+  assert(ExtendedMembersVec->size() > 0);
+
+  auto HandlerImplMember = (*ExtendedMembersVec)[0];
+
+  assert(detail::ExtendedMembersType::HANDLER_IMPL == HandlerImplMember.MType);
+
+  return std::static_pointer_cast<detail::handler_impl>(
+      HandlerImplMember.MData);
 }
 
 // Common implementation for getting/inserting handler kernel bundle.
-// detail::GlobalHandler::instance().getHandlerExtendedMembersMutex() must be
-// held when calling this function.
+// detail::GlobalHandler::instance().getHandlerExtendedMembersMutex() must
+// be held when calling this function.
 std::shared_ptr<detail::kernel_bundle_impl>
 getOrInsertHandlerKernelBundleCommon(
     const std::shared_ptr<std::vector<detail::ExtendedMemberT>>
-        &ExendedMembersVec,
+        &ExtendedMembersVec,
     const std::shared_ptr<detail::queue_impl> &Queue, bool Insert) {
   // Look for the kernel bundle in extended members
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr;
-  for (const detail::ExtendedMemberT &EMember : *ExendedMembersVec)
+  for (const detail::ExtendedMemberT &EMember : *ExtendedMembersVec)
     if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
       KernelBundleImpPtr =
           std::static_pointer_cast<detail::kernel_bundle_impl>(EMember.MData);
@@ -59,11 +84,68 @@ getOrInsertHandlerKernelBundleCommon(
 
     detail::ExtendedMemberT EMember = {
         detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE, KernelBundleImpPtr};
-
-    ExendedMembersVec->push_back(EMember);
+    ExtendedMembersVec->push_back(EMember);
   }
 
   return KernelBundleImpPtr;
+}
+
+// If the submission state is SPEC_CONST_SET_STATE this function returns false.
+// Otherwise it sets the submission state to EXPLICIT_KERNEL_BUNDLE_STATE and
+// returns true.
+bool handler::setStateExplicitKernel() {
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
+
+  assert(!MSharedPtrStorage.empty());
+
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
+      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+  auto HandlerImpl = getHandlerImpl(ExendedMembersVec);
+  if (HandlerImpl->MSubmissionState ==
+      detail::HandlerSubmissionState::SPEC_CONST_SET_STATE)
+      return false;
+  HandlerImpl->MSubmissionState =
+      detail::HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE;
+  return true;
+}
+
+// If the submission state is EXPLICIT_KERNEL_BUNDLE_STATE this function returns
+// false. Otherwise it sets the submission state to SPEC_CONST_SET_STATE and
+// returns true.
+bool handler::setStateSpecConstSet() {
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
+
+  assert(!MSharedPtrStorage.empty());
+
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
+      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+  auto HandlerImpl = getHandlerImpl(ExendedMembersVec);
+  if (HandlerImpl->MSubmissionState ==
+      detail::HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE)
+      return false;
+  HandlerImpl->MSubmissionState =
+      detail::HandlerSubmissionState::SPEC_CONST_SET_STATE;
+  return true;
+}
+
+// Returns true if the submission state is EXPLICIT_KERNEL_BUNDLE_STATE and
+// false otherwise.
+bool handler::isStateExplicitKernel() const {
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
+
+  assert(!MSharedPtrStorage.empty());
+
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
+      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+  auto HandlerImpl = getHandlerImpl(ExendedMembersVec);
+  return HandlerImpl->MSubmissionState ==
+         detail::HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE;
 }
 
 // Returns a shared_ptr to kernel_bundle stored in the extended members vector.
@@ -78,56 +160,32 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) const {
 
   assert(!MSharedPtrStorage.empty());
 
-  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExtendedMembersVec =
       detail::convertToExtendedMembers(MSharedPtrStorage[0]);
-
-  return getOrInsertHandlerKernelBundleCommon(ExendedMembersVec, MQueue,
-                                              Insert);
-}
-
-// This function exhibits the same behavior as getOrInsertHandlerKernelBundle
-// but throws an exception with errc::invalid if a kernel bundle has been set
-// in the command group by a call to use_kernel_bundle.
-// If MarkSpecConstSet is true the command group is flagged as having had set
-// a specialization constant.
-std::shared_ptr<detail::kernel_bundle_impl>
-handler::getOrInsertNonExplicitHandlerKernelBundle(
-    bool Insert, bool MarkSpecConstSet) const {
-
-  std::lock_guard<std::mutex> Lock(
-      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
-
-  assert(!MSharedPtrStorage.empty());
-
-  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
-      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
-
-  // If kernel was explicitly set through use_kernel_bundle then throw exception
-  bool KernelBundleFlagsExist = false;
-  for (detail::ExtendedMemberT &EMember : *ExendedMembersVec) {
-    if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE_FLAGS ==
-        EMember.MType) {
-      auto Flags = std::static_pointer_cast<std::uint8_t>(EMember.MData);
-      if (*Flags & detail::EXPLICIT_KERNEL_BUNDLE_FLAG)
-        throw sycl::exception(
-            make_error_code(errc::invalid),
-            "Specialization constants cannot be accessed after explicitly "
-            "setting the used kernel bundle");
-      if (MarkSpecConstSet)
-        *Flags |= detail::SPEC_CONST_SET_FLAG;
-      KernelBundleFlagsExist = true;
+  // Look for the kernel bundle in extended members
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr;
+  for (const detail::ExtendedMemberT &EMember : *ExtendedMembersVec)
+    if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
+      KernelBundleImpPtr =
+          std::static_pointer_cast<detail::kernel_bundle_impl>(EMember.MData);
+      break;
     }
-  }
 
-  if (!KernelBundleFlagsExist && MarkSpecConstSet) {
+  // No kernel bundle yet, create one
+  if (!KernelBundleImpPtr && Insert) {
+    KernelBundleImpPtr = detail::getSyclObjImpl(
+        get_kernel_bundle<bundle_state::input>(MQueue->get_context()));
+    if (KernelBundleImpPtr->empty()) {
+      KernelBundleImpPtr = detail::getSyclObjImpl(
+          get_kernel_bundle<bundle_state::executable>(MQueue->get_context()));
+    }
+
     detail::ExtendedMemberT EMember = {
-        detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE_FLAGS,
-        std::make_shared<std::uint8_t>(detail::SPEC_CONST_SET_FLAG)};
-    ExendedMembersVec->push_back(EMember);
+        detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE, KernelBundleImpPtr};
+    ExtendedMembersVec->push_back(EMember);
   }
 
-  return getOrInsertHandlerKernelBundleCommon(ExendedMembersVec, MQueue,
-                                              Insert);
+  return KernelBundleImpPtr;
 }
 
 // Sets kernel bundle to the provided one. Either replaces existing one or
@@ -142,45 +200,19 @@ void handler::setHandlerKernelBundle(
   std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
       detail::convertToExtendedMembers(MSharedPtrStorage[0]);
 
-  // Find the handler kernel bundle flags if they have been set. Throw exception
-  // if the explicit kernel bundle flag is set.
-  bool KernelBundleFlagsExist = false;
-  for (detail::ExtendedMemberT &EMember : *ExendedMembersVec) {
-    if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE_FLAGS ==
-        EMember.MType) {
-      auto Flags = std::static_pointer_cast<std::uint8_t>(EMember.MData);
-      if (*Flags & detail::SPEC_CONST_SET_FLAG)
-        throw sycl::exception(make_error_code(errc::invalid),
-                              "Kernel bundle cannot be explicitly set after a "
-                              "specialization constant has been set");
-      *Flags |= detail::EXPLICIT_KERNEL_BUNDLE_FLAG;
-      KernelBundleFlagsExist = true;
-      break;
-    }
-  }
-
-  bool KernelBundleExist = false;
+  // Look for kernel bundle in extended members and overwrite it.
   for (detail::ExtendedMemberT &EMember : *ExendedMembersVec) {
     if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
       EMember.MData = NewKernelBundleImpPtr;
-      KernelBundleExist = true;
-      break;
+      return;
     }
   }
 
-  if (!KernelBundleFlagsExist) {
-    detail::ExtendedMemberT EMember = {
-        detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE_FLAGS,
-        std::make_shared<std::uint8_t>(detail::EXPLICIT_KERNEL_BUNDLE_FLAG)};
-    ExendedMembersVec->push_back(EMember);
-  }
-
-  if (!KernelBundleExist) {
-    detail::ExtendedMemberT EMember = {
-        detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE,
-        NewKernelBundleImpPtr};
-    ExendedMembersVec->push_back(EMember);
-  }
+  // Kernel bundle was set found so we add it.
+  detail::ExtendedMemberT EMember = {
+      detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE,
+      NewKernelBundleImpPtr};
+  ExendedMembersVec->push_back(EMember);
 }
 
 event handler::finalize() {

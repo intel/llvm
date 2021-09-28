@@ -234,12 +234,6 @@ private:
   KernelType KernelFunc;
 };
 
-// Kernel bundle flags used to identify previous uses of use_kernel_bundle and
-// set_specialization_constant. These are used to detect invalid command group
-// operation ordering.
-constexpr std::uint8_t EXPLICIT_KERNEL_BUNDLE_FLAG = 1;
-constexpr std::uint8_t SPEC_CONST_SET_FLAG = 2;
-
 } // namespace detail
 
 namespace ext {
@@ -1122,12 +1116,12 @@ private:
     kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc);
   }
 
-  std::shared_ptr<detail::kernel_bundle_impl>
-  getOrInsertHandlerKernelBundle(bool Insert) const;
+  bool setStateExplicitKernel();
+  bool setStateSpecConstSet();
+  bool isStateExplicitKernel() const;
 
   std::shared_ptr<detail::kernel_bundle_impl>
-  getOrInsertNonExplicitHandlerKernelBundle(bool Insert,
-                                            bool MarkSpecConstSet) const;
+  getOrInsertHandlerKernelBundle(bool Insert) const;
 
   void setHandlerKernelBundle(
       const std::shared_ptr<detail::kernel_bundle_impl> &NewKernelBundleImpPtr);
@@ -1160,9 +1154,13 @@ public:
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
 
+    if (!setStateSpecConstSet())
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Specialization constants cannot be set after "
+                            "explicitly setting the used kernel bundle");
+
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-        getOrInsertNonExplicitHandlerKernelBundle(/*Insert=*/true,
-                                                  /*MarkSpecConstSet=*/true);
+        getOrInsertHandlerKernelBundle(/*Insert=*/true);
 
     detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
         KernelBundleImplPtr)
@@ -1173,9 +1171,13 @@ public:
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
 
+    if (isStateExplicitKernel())
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Specialization constants cannot be read after "
+                            "explicitly setting the used kernel bundle");
+
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-        getOrInsertNonExplicitHandlerKernelBundle(/*Insert=*/true,
-                                                  /*MarkSpecConstSet=*/false);
+        getOrInsertHandlerKernelBundle(/*Insert=*/true);
 
     return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
                KernelBundleImplPtr)
@@ -1186,6 +1188,13 @@ public:
 
   void
   use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle) {
+
+    if (!setStateExplicitKernel())
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Kernel bundle cannot be explicitly set after a specialization "
+          "constant has been set");
+
     setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
   }
 
