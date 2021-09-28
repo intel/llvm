@@ -1387,12 +1387,6 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
 
 size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
                                          SmallPtrSet<Type *, 4> &GVTS) {
-  // ITT annotation functions are an exclusion from ESIMD rules regarding loads
-  // from global SPIR-V built-ins. No ESIMD intrinsics are expected in the ITT
-  // annotations, so just skip analysis for them.
-  if (F.getName().startswith("__itt"))
-    return 0;
-
   // There is a current limitation of GPU vector backend that requires kernel
   // functions to be inlined into the kernel itself. To overcome this
   // limitation, mark every function called from ESIMD kernel with
