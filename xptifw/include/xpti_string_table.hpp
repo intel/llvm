@@ -195,8 +195,7 @@ public:
   using st_forward_t = std::unordered_map<std::string, int32_t>;
   using st_reverse_t = std::unordered_map<int32_t, const char *>;
 
-  StringTable(int size = 4096)
-      : MStringToID(size), MIDToString(size), MTableSize(size) {
+  StringTable(int size = 4096) : MStringToID(size), MIDToString(size) {
     MIds = 1;
 #ifdef XPTI_STATISTICS
     MInsertions = 0;
@@ -331,7 +330,6 @@ private:
   safe_int32_t MIds;         ///< Thread-safe ID generator
   st_forward_t MStringToID;  ///< Forward lookup hash map
   st_reverse_t MIDToString;  ///< Reverse lookup hash map
-  int32_t MTableSize;        ///< Initial table size of the hash-map
   std::mutex MMutex;         ///< Mutex required for double-check pattern
                              ///< Replace with reader-writer lock in C++14
   safe_int32_t MStrings;     ///< The count of strings in the table
