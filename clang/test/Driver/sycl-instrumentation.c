@@ -19,7 +19,8 @@
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 -### %s 2>&1	\
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
-// RUN: %clangxx -fsycl -fsycl-targets=nvptx-nvidia-cuda -### %s 2>&1 \
-// RUN: | FileCheck -check-prefix=CHECK-NONPASSED %s
+// RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fsycl-instrument-device-code -nocudalib -### %s 2>&1 \
+// RUN: | FileCheck -check-prefixes=CHECK-WARNING,CHECK-NONPASSED %s
 // CHECK-NONPASSED-NOT: "-fsycl-instrument-device-code"
 // CHECK-NONPASSED-NOT: "-inputs={{.*}}libsycl-itt-{{.*}}.{{o|obj}}"
+// CHECK-WARNING: warning: argument unused during compilation: '-fsycl-instrument-device-code'
