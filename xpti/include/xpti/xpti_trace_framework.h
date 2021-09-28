@@ -6,7 +6,8 @@
 //
 //
 #pragma once
-#include "xpti_data_types.h"
+
+#include "xpti/xpti_data_types.h"
 
 #if defined(XPTI_STATIC_LIBRARY)
 // If we are building or using the proxy

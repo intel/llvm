@@ -35,7 +35,7 @@
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting
 // traces using the trace framework
-#include "xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.h"
 #endif
 
 #define STR(x) #x
