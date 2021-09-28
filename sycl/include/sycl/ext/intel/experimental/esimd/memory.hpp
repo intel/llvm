@@ -19,6 +19,17 @@
 
 #include <cstdint>
 
+/** @file
+ * Memory access intrinsics.
+ * TODO: Accessor-based memory and SLM access intrinsics must expect offsets in
+ * byte units. E.g.
+ *   block load/stores, slm gather/scatter, slm_scalar_load/slm_scalar_store,
+ *   gather_rgba/scatter_rgba
+ * all use byte units. There are few exceptions using element size units, which
+ * will be fixed shortly, along with other interface inconsistencies:
+ * gather, scatter, scalar_load, scalar_store.
+ */
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
@@ -265,6 +276,81 @@ ESIMD_INLINE ESIMD_NODEBUG
   vals.copy_to(acc, offset);
 }
 
+// Implementations of accessor-based gather and scatter functions
+namespace detail {
+template <typename T, int N, typename AccessorTy, bool ScaleOffset = false,
+          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+        !std::is_pointer<AccessorTy>::value,
+    void>
+scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
+             uint32_t glob_offset, simd_mask<N> pred) {
+  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
+  // TODO (performance) use hardware-supported scale once BE supports it
+  constexpr int16_t scale = 0;
+  constexpr uint32_t t_scale = sizeof(T);
+  if constexpr (ScaleOffset && (t_scale > 1)) {
+    glob_offset *= t_scale;
+    offsets *= t_scale;
+  }
+  const auto si = __ESIMD_GET_SURF_HANDLE(acc);
+
+  if constexpr (sizeof(T) < 4) {
+    static_assert(std::is_integral<T>::value,
+                  "only integral 1- & 2-byte types are supported");
+    using PromoT =
+        typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
+                                             uint32_t>;
+    const simd<PromoT, N> promo_vals = convert<PromoT>(vals);
+    __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale, L1H,
+                           L3H>(pred.data(), si, glob_offset, offsets.data(),
+                                promo_vals.data());
+  } else {
+    __esimd_scatter_scaled<T, N, decltype(si), TypeSizeLog2, scale, L1H, L3H>(
+        pred.data(), si, glob_offset, offsets.data(), vals.data());
+  }
+}
+
+template <typename T, int N, typename AccessorTy, bool ScaleOffset = false,
+          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+        !std::is_pointer<AccessorTy>::value,
+    simd<T, N>>
+gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
+            simd_mask<N> pred) {
+
+  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
+  // TODO (performance) use hardware-supported scale once BE supports it
+  constexpr uint32_t scale = 0;
+  constexpr uint32_t t_scale = sizeof(T);
+  if constexpr (ScaleOffset && (t_scale > 1)) {
+    glob_offset *= t_scale;
+    offsets *= t_scale;
+  }
+  const auto si = get_surface_index(acc);
+
+  if constexpr (sizeof(T) < 4) {
+    static_assert(std::is_integral<T>::value,
+                  "only integral 1- & 2-byte types are supported");
+    using PromoT =
+        typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
+                                             uint32_t>;
+    const simd<PromoT, N> promo_vals =
+        __esimd_gather_masked_scaled2<PromoT, N, decltype(si), TypeSizeLog2,
+                                      scale>(si, glob_offset, offsets.data(),
+                                             pred.data());
+    return convert<T>(promo_vals);
+  } else {
+    return __esimd_gather_masked_scaled2<T, N, decltype(si), TypeSizeLog2,
+                                         scale>(si, glob_offset, offsets.data(),
+                                                pred.data());
+  }
+}
+
+} // namespace detail
+
 /// Accessor-based gather.
 ///
 /// Collects elements located at given offsets in an accessor and returns them
@@ -283,38 +369,15 @@ ESIMD_INLINE ESIMD_NODEBUG
 /// \ingroup sycl_esimd
 template <typename T, int N, typename AccessorTy,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG
-    typename sycl::detail::enable_if_t<(sizeof(T) <= 4) &&
-                                           (N == 1 || N == 8 || N == 16) &&
-                                           !std::is_pointer<AccessorTy>::value,
-                                       simd<T, N>>
-    gather(AccessorTy acc, simd<uint32_t, N> offsets,
-           uint32_t glob_offset = 0) {
+ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+        !std::is_pointer<AccessorTy>::value,
+    simd<T, N>>
+gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
+       simd_mask<N> pred = 1) {
 
-  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
-  // TODO (performance) use hardware-supported scale once BE supports it
-  constexpr uint32_t scale = 0;
-  constexpr uint32_t t_scale = sizeof(T);
-  if constexpr (t_scale > 1) {
-    glob_offset *= t_scale;
-    offsets *= t_scale;
-  }
-  const auto si = get_surface_index(acc);
-
-  if constexpr (sizeof(T) < 4) {
-    static_assert(std::is_integral<T>::value,
-                  "only integral 1- & 2-byte types are supported");
-    using PromoT =
-        typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
-                                             uint32_t>;
-    const simd<PromoT, N> promo_vals =
-        __esimd_gather_scaled2<PromoT, N, decltype(si), TypeSizeLog2, scale,
-                               L1H, L3H>(si, glob_offset, offsets.data());
-    return convert<T>(promo_vals);
-  } else {
-    return __esimd_gather_scaled2<T, N, decltype(si), TypeSizeLog2, scale, L1H,
-                                  L3H>(si, glob_offset, offsets.data());
-  }
+  return detail::gather_impl<T, N, AccessorTy, true, L1H, L3H>(
+      acc, offsets, glob_offset, pred);
 }
 
 /// Accessor-based scatter.
@@ -338,38 +401,15 @@ ESIMD_INLINE ESIMD_NODEBUG
 /// \ingroup sycl_esimd
 template <typename T, int N, typename AccessorTy,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG
-    typename sycl::detail::enable_if_t<(sizeof(T) <= 4) &&
-                                           (N == 1 || N == 8 || N == 16) &&
-                                           !std::is_pointer<AccessorTy>::value,
-                                       void>
-    scatter(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
-            uint32_t glob_offset = 0, simd_mask<N> pred = simd_mask<N>(1)) {
+ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+        !std::is_pointer<AccessorTy>::value,
+    void>
+scatter(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
+        uint32_t glob_offset = 0, simd_mask<N> pred = 1) {
 
-  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
-  // TODO (performance) use hardware-supported scale once BE supports it
-  constexpr int16_t scale = 0;
-  constexpr uint32_t t_scale = sizeof(T);
-  if constexpr (t_scale > 1) {
-    glob_offset *= t_scale;
-    offsets *= t_scale;
-  }
-  const auto si = __ESIMD_GET_SURF_HANDLE(acc);
-
-  if constexpr (sizeof(T) < 4) {
-    static_assert(std::is_integral<T>::value,
-                  "only integral 1- & 2-byte types are supported");
-    using PromoT =
-        typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
-                                             uint32_t>;
-    const simd<PromoT, N> promo_vals = convert<PromoT>(vals);
-    __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale, L1H,
-                           L3H>(pred.data(), si, glob_offset, offsets.data(),
-                                promo_vals.data());
-  } else {
-    __esimd_scatter_scaled<T, N, decltype(si), TypeSizeLog2, scale, L1H, L3H>(
-        pred.data(), si, glob_offset, offsets.data(), vals.data());
-  }
+  detail::scatter_impl<T, N, AccessorTy, true, L1H, L3H>(acc, vals, offsets,
+                                                         glob_offset, pred);
 }
 
 /// Load a scalar value from an accessor.
@@ -377,8 +417,20 @@ ESIMD_INLINE ESIMD_NODEBUG
 template <typename T, typename AccessorTy, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 ESIMD_INLINE ESIMD_NODEBUG T scalar_load(AccessorTy acc, uint32_t offset) {
-  const simd<T, 1> Res = gather<T>(acc, simd<uint32_t, 1>(offset));
-  return Res[0];
+  const simd<T, 1> Res =
+      gather<T, 1, AccessorTy, L1H, L3H>(acc, simd<uint32_t, 1>(offset));
+  return (T)Res[0];
+}
+
+/// Load a scalar value from the Shared Local Memory.
+/// @tparam T type of the value
+/// @param offset SLM offset in bytes
+/// @return the loaded value
+/// \ingroup sycl_esimd
+template <typename T>
+ESIMD_INLINE ESIMD_NODEBUG T slm_scalar_load(uint32_t offset) {
+  const simd<T, 1> Res = slm_gather<T, 1>(simd<uint32_t, 1>(offset));
+  return (T)Res[0];
 }
 
 /// Store a scalar value into an accessor.
@@ -387,7 +439,18 @@ template <typename T, typename AccessorTy, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 ESIMD_INLINE ESIMD_NODEBUG void scalar_store(AccessorTy acc, uint32_t offset,
                                              T val) {
-  scatter<T>(acc, simd<T, 1>(val), simd<uint32_t, 1>(offset));
+  scatter<T>(acc, simd<T, 1, AccessorTy, L1H, L3H>(val),
+             simd<uint32_t, 1>(offset));
+}
+
+/// Store a scalar value into the Shared Local Memory.
+/// @tparam T type of the value
+/// @param offset SLM offset in bytes
+/// @param val value to store
+/// \ingroup sycl_esimd
+template <typename T>
+ESIMD_INLINE ESIMD_NODEBUG void slm_scalar_store(uint32_t offset, T val) {
+  slm_scatter<T, 1>(simd<T, 1>(val), simd<uint32_t, 1>(offset), 1);
 }
 
 /// Gathering read for the given starting pointer \p p and \p offsets.
@@ -671,36 +734,30 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void slm_init(uint32_t size);
 ///
 /// Only allow simd-16 and simd-32.
 template <typename T, int n>
-ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<(n == 16 || n == 32), simd<T, n>>
-slm_gather(simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
-  // TODO reimplement using __esimd_gather_scaled2
-  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
-  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
-  return __esimd_gather_scaled<T, n, decltype(si), TypeSizeLog2>(
-      pred.data(), si, 0 /*glob_offset*/, offsets.data());
+ESIMD_INLINE ESIMD_NODEBUG
+    std::enable_if_t<(n == 1 || n == 8 || n == 16 || n == 32), simd<T, n>>
+    slm_gather(simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
+  detail::LocalAccessorMarker acc;
+  return detail::gather_impl<T, n>(acc, offsets, 0, pred);
 }
 
 /// SLM gather (deprecated version).
 template <typename T, int n>
 __SYCL_DEPRECATED("use slm_gather.")
-ESIMD_INLINE
-    ESIMD_NODEBUG std::enable_if_t<(n == 16 || n == 32), simd<T, n>> slm_load(
-        simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
+ESIMD_INLINE ESIMD_NODEBUG
+    std::enable_if_t<(n == 1 || n == 8 || n == 16 || n == 32),
+                     simd<T, n>> slm_load(simd<uint32_t, n> offsets,
+                                          simd<uint16_t, n> pred = 1) {
   return slm_gather<T, n>(offsets, pred);
 }
 
 /// SLM scatter.
-// TODO support 1-,2-byte elements
 template <typename T, int n>
-ESIMD_INLINE
-    ESIMD_NODEBUG std::enable_if_t<(n == 16 || n == 32) && (sizeof(T) == 4)>
-    slm_scatter(simd<T, n> vals, simd<uint32_t, n> offsets,
-                simd_mask<n> pred = 1) {
-  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
-  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
-  constexpr int16_t scale = 0;
-  __esimd_scatter_scaled<T, n, decltype(si), TypeSizeLog2, scale>(
-      pred.data(), si, 0 /*glob_offset*/, offsets.data(), vals.data());
+ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
+    (n == 1 || n == 8 || n == 16 || n == 32) && (sizeof(T) <= 4)>
+slm_scatter(simd<T, n> vals, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
+  detail::LocalAccessorMarker acc;
+  detail::scatter_impl<T, n>(acc, vals, offsets, 0, pred);
 }
 
 /// SLM scatter (deprecated version).

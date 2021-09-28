@@ -506,7 +506,7 @@ public:
   /// elements in this object. Source memory location is represented via a
   /// global accessor and offset.
   /// @param acc accessor to copy from.
-  /// @param offset offset to copy from.
+  /// @param offset offset to copy from (in bytes).
   template <typename AccessorT>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
                                 sycl::access::target::global_buffer, void>
