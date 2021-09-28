@@ -2549,7 +2549,6 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                      pi_uint64(bytes));
     }
     case PI_KERNEL_GROUP_INFO_NUM_REGS: {
-      // OpenCL PRIVATE == CUDA LOCAL
       int bytes = 0;
       cl::sycl::detail::pi::assertion(
           cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_NUM_REGS,

@@ -3129,6 +3129,12 @@ pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }
+    case PI_KERNEL_GROUP_INFO_NUM_REGS: {
+      cl::sycl::detail::pi::die("PI_KERNEL_GROUP_INFO_NUM_REGS in "
+                                "piKernelGetGroupInfo not implemented\n");
+      return {};
+    }
+
     default:
       __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
     }
