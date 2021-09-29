@@ -2331,7 +2331,7 @@
 ?isInterop@SYCLMemObjT@detail@sycl@cl@@QEBA_NXZ
 ?isOutOfRange@detail@sycl@cl@@YA_NV?$vec@H$03@23@W4addressing_mode@23@V?$range@$02@23@@Z
 ?isPathPresent@OSUtil@detail@sycl@cl@@SA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
-?isStateExplicitKernel@handler@sycl@cl@@AEBA_NXZ
+?isStateExplicitKernelBundle@handler@sycl@cl@@AEBA_NXZ
 ?isValidModeForDestinationAccessor@handler@sycl@cl@@CA_NW4mode@access@23@@Z
 ?isValidModeForSourceAccessor@handler@sycl@cl@@CA_NW4mode@access@23@@Z
 ?isValidTargetForExplicitOp@handler@sycl@cl@@CA_NW4target@access@23@@Z
@@ -3813,7 +3813,7 @@
 ?setPitches@?$image_impl@$00@detail@sycl@cl@@AEAAXXZ
 ?setPitches@?$image_impl@$01@detail@sycl@cl@@AEAAXXZ
 ?setPitches@?$image_impl@$02@detail@sycl@cl@@AEAAXXZ
-?setStateExplicitKernel@handler@sycl@cl@@AEAA_NXZ
+?setStateExplicitKernelBundle@handler@sycl@cl@@AEAA_NXZ
 ?setStateSpecConstSet@handler@sycl@cl@@AEAA_NXZ
 ?setType@handler@sycl@cl@@AEAAXW4CGTYPE@CG@detail@23@@Z
 ?set_final_data@SYCLMemObjT@detail@sycl@cl@@QEAAX$$T@Z

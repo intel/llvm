@@ -26,9 +26,31 @@ class handler_impl {
 public:
   handler_impl() = default;
 
+  void setStateExplicitKernelBundle() {
+    if (MSubmissionState == HandlerSubmissionState::SPEC_CONST_SET_STATE)
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Kernel bundle cannot be explicitly set after a specialization "
+          "constant has been set");
+    MSubmissionState = HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE;
+  }
+
+  void setStateSpecConstSet() {
+    if (MSubmissionState ==
+        HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Specialization constants cannot be set after "
+                            "explicitly setting the used kernel bundle");
+    MSubmissionState = HandlerSubmissionState::SPEC_CONST_SET_STATE;
+  }
+
+  bool isStateExplicitKernelBundle() const {
+    return MSubmissionState ==
+           HandlerSubmissionState::EXPLICIT_KERNEL_BUNDLE_STATE;
+  }
+
   /// Registers mutually exclusive submission states.
-  HandlerSubmissionState MSubmissionState =
-      detail::HandlerSubmissionState::NO_STATE;
+  HandlerSubmissionState MSubmissionState = HandlerSubmissionState::NO_STATE;
 };
 
 } // namespace detail
