@@ -59,6 +59,7 @@ Note that all device selectors will throw an exception if the filtered list of d
 ## Controlling DPC++ Level Zero Plugin
 
 | Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
 | `SYCL_ENABLE_PCI` | Integer | When set to 1, enables obtaining the GPU PCI address when using the Level Zero backend. The default is 0. |
 | `SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR` | Any(\*) | Disable USM allocator in Level Zero plugin (each memory request will go directly to Level Zero runtime) |
 | `SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY` | Any(\*) | Enable support of the kernels with indirect access and corresponding deferred release of memory allocations in the Level Zero plugin. |
@@ -68,6 +69,7 @@ Note that all device selectors will throw an exception if the filtered list of d
 ## Tools variables
 
 | Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
 | `INTEL_ENABLE_OFFLOAD_ANNOTATIONS` | Any(\*) | Enables ITT Annotations support for SYCL runtime. This variable should only be used by tools, that support ITT Annotations. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
@@ -79,6 +81,7 @@ development and debugging of DPC++ compiler and runtime. Their semantics are
 subject to change. Do not rely on these variables in production code.
 
 | Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
 | `SYCL_QUEUE_THREAD_POOL_SIZE` | Positive integer | Number of threads in thread pool of queue. |
 | `SYCL_DEVICELIB_NO_FALLBACK` | Any(\*) | Disable loading and linking of device library images |
 | `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
@@ -126,6 +129,7 @@ development and debugging of DPC++ compiler and runtime. Their semantics are
 subject to change. Do not rely on these variables in production code.
 
 | Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
 | `SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE` | Positive integer | Maximum number of oneAPI Level Zero Command lists that can be allocated with no reuse before throwing an "out of resources" error. Default is 20000, threshold may be increased based on resource availabilty and workload demand. |
 | `SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR` | MaxPoolableSize,Capacity,MaxPoolSize | Values specified as positive integers. Defaults are 1, 4, 256. MaxPoolableSize is the maximum allocation size in MB that may be pooled. Capacity is the number of allocations in each size range that are freed by the program but retained in the pool for reallocation. Size ranges follow this pattern: 32, 48, 64, 96, 128, 192, and so on, i.e., powers of 2, with one range in between. MaxPoolSize is the maximum size of the pool in MB. |
 | `SYCL_PI_LEVEL_ZERO_BATCH_SIZE` | Integer | Sets a preferred number of commands to batch into a command list before executing the command list. A value of 0 causes the batch size to be adjusted dynamically. A value greater than 0 specifies fixed size batching, with the batch size set to the specified value. The default is 0. |
