@@ -112,6 +112,11 @@ public:
     __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception);
   }
 
+  /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
+  template <sycl::errc errc> void checkPiResult(RT::PiResult pi_result) const {
+    __SYCL_CHECK_OCL_CODE_THROW_VIA_ERRC(pi_result, errc);
+  }
+
   void reportPiError(RT::PiResult pi_result, const char *context) const {
     if (pi_result != PI_SUCCESS) {
       throw cl::sycl::runtime_error(
@@ -179,12 +184,11 @@ public:
     checkPiResult(Err);
   }
 
-  // CP - #1
-  /// \throw exception subclass Exception if the call was not successful.
-  template <typename Exception, PiApiKind PiApiOffset, typename... ArgsT>
+  /// \throw sycl::exceptions(errc) if the call was not successful.
+  template <sycl::errc errc, PiApiKind PiApiOffset, typename... ArgsT>
   void call(ArgsT... Args) const {
     RT::PiResult Err = call_nocheck<PiApiOffset>(Args...);
-    checkPiResult<Exception>(Err);
+    checkPiResult<errc>(Err);
   }
 
   backend getBackend(void) const { return MBackend; }

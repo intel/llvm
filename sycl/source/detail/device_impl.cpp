@@ -132,7 +132,7 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   std::vector<RT::PiDevice> SubDevices(SubDevicesCount);
   pi_uint32 ReturnedSubDevices = 0;
   const detail::plugin &Plugin = getPlugin();
-  Plugin.call<cl::sycl::device_error, PiApiKind::piDevicePartition>(
+  Plugin.call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
       MDevice, Properties, SubDevicesCount, SubDevices.data(),
       &ReturnedSubDevices);
   // TODO: check that returned number of sub-devices matches what was
