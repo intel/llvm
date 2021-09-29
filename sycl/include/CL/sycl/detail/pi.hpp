@@ -369,7 +369,13 @@ public:
     return AssertUsed;
   }
   const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
-  const PropertyRange &getExportedSymbols() const { return ExportedSymbols; }
+  const PropertyRange getExportedSymbols() const {
+    // We can't have this variable as a class member, since it would break
+    // the ABI backwards compatibility.
+    DeviceBinaryImage::PropertyRange ExportedSymbols;
+    ExportedSymbols.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
+    return ExportedSymbols;
+  }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -382,7 +388,6 @@ protected:
   DeviceBinaryImage::PropertyRange DeviceLibReqMask;
   DeviceBinaryImage::PropertyRange KernelParamOptInfo;
   DeviceBinaryImage::PropertyRange ProgramMetadata;
-  DeviceBinaryImage::PropertyRange ExportedSymbols;
 };
 
 /// Tries to determine the device binary image foramat. Returns
