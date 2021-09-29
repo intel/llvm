@@ -710,7 +710,6 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
   KernelParamOptInfo.init(Bin, __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
   ProgramMetadata.init(Bin, __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA);
   ExportedSymbols.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
-
 }
 
 } // namespace pi
