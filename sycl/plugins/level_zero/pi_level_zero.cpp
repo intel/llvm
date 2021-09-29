@@ -6214,8 +6214,8 @@ pi_result piEnqueueNativeKernel(pi_queue Queue, void (*UserFunc)(void *),
 // then checks if they are equal to the sub_str.
 // returns true if there is at least one instance
 // returns false if there are no instances of the name
-bool is_in_separated_string(const std::string &str, char delimiter,
-                            std::string sub_str) {
+static bool is_in_separated_string(const std::string &str, char delimiter,
+                            const std::string &sub_str) {
   size_t beg = 0;
   size_t length = 0;
   for (const auto &x : str) {
@@ -6272,22 +6272,18 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
   if (ZeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
     size_t Size;
     *FunctionPointerRet = 0;
-    pi_result ret_err = piProgramGetInfo(Program, PI_PROGRAM_INFO_KERNEL_NAMES,
-                                         0, nullptr, &Size);
-    if (ret_err != PI_SUCCESS)
-      return ret_err;
+    PI_CALL(piProgramGetInfo(Program, PI_PROGRAM_INFO_KERNEL_NAMES,
+                                         0, nullptr, &Size));
 
     std::string ClResult(Size, ' ');
-    ret_err = piProgramGetInfo(Program, PI_PROGRAM_INFO_KERNEL_NAMES,
-                               ClResult.size(), &ClResult[0], nullptr);
-    if (ret_err != PI_SUCCESS)
-      return ret_err;
+    PI_CALL(piProgramGetInfo(Program, PI_PROGRAM_INFO_KERNEL_NAMES,
+                               ClResult.size(), &ClResult[0], nullptr));
 
     // Get rid of the null terminator and search for kernel_name
     // If function can be found return error code to indicate it
     // exists
     ClResult.pop_back();
-    if (is_in_separated_string(ClResult, ';', FunctionName))
+    if (is_in_separated_string(ClResult, ';', std::string(FunctionName)))
       return PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
     else
       return PI_INVALID_KERNEL_NAME;
