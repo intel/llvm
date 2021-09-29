@@ -108,7 +108,6 @@ Context::Context()
     : initialized(),
       report_mtx(MutexTypeReport),
       nreported(),
-      nmissed_expected(),
       thread_registry(CreateThreadContext, kMaxTid, kThreadQuarantineSize,
                       kMaxTidReuse),
       racy_mtx(MutexTypeRacy),
@@ -146,6 +145,17 @@ ThreadState::ThreadState(Context *ctx, Tid tid, int unique_id, u64 epoch,
       last_sleep_clock(tid)
 #endif
 {
+  CHECK_EQ(reinterpret_cast<uptr>(this) % SANITIZER_CACHE_LINE_SIZE, 0);
+#if !SANITIZER_GO
+  shadow_stack_pos = shadow_stack;
+  shadow_stack_end = shadow_stack + kShadowStackSize;
+#else
+  // Setup dynamic shadow stack.
+  const int kInitStackSize = 8;
+  shadow_stack = (uptr *)Alloc(kInitStackSize * sizeof(uptr));
+  shadow_stack_pos = shadow_stack;
+  shadow_stack_end = shadow_stack + kInitStackSize;
+#endif
 }
 
 #if !SANITIZER_GO
@@ -462,12 +472,6 @@ int Finalize(ThreadState *thr) {
 #else
     Printf("Found %d data race(s)\n", ctx->nreported);
 #endif
-  }
-
-  if (ctx->nmissed_expected) {
-    failed = true;
-    Printf("ThreadSanitizer: missed %d expected races\n",
-        ctx->nmissed_expected);
   }
 
   if (common_flags()->print_suppressions)

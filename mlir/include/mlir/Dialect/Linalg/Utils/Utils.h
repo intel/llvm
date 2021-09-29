@@ -80,8 +80,16 @@ tensor::ExtractSliceOp makeComposedExtractSliceOp(
     ArrayRef<OpFoldResult> sizes, ArrayRef<OpFoldResult> strides);
 
 //===----------------------------------------------------------------------===//
-// Fusion utilities
+// Fusion / Tiling utilities
 //===----------------------------------------------------------------------===//
+
+/// The type of loops to be generated during tiling.
+enum class LinalgTilingLoopType {
+  Loops = 0,
+  AffineLoops = 1,
+  ParallelLoops = 2,
+  TiledLoops = 3,
+};
 
 /// Checks whether the specific `producer` is the last write to exactly the
 /// whole `consumedView`. This checks structural dominance, that the dependence
@@ -191,8 +199,10 @@ public:
 
   /// Fuse the producer of `rootOpOperand` into the tile loop nest. Returns the
   /// fused producer of fails if fusion is not possible.
-  // TODO: add replace uses callback to support passes and patterns.
   FailureOr<LinalgOp> fuseProducer(OpBuilder &b, OpOperand *rootOpOperand);
+
+  /// Returns the replacement results for the original untiled root operation.
+  ValueRange getRootOpReplacementResults();
 
   /// Returns the tiled root operation.
   LinalgOp getRootOp() { return rootOp; }
