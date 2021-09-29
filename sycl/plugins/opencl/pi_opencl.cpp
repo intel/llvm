@@ -600,7 +600,7 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                                &ClResult[0], nullptr);
     if (Res != CL_SUCCESS)
       return cast<pi_result>(Res);
-    
+
     // Get rid of the null terminator and search for kernel_name
     // If function can be found return error code to indicate it
     // exists

@@ -898,20 +898,20 @@ pi_result hip_piextDeviceSelectBinary(pi_device device,
 pi_result hip_piextGetDeviceFunctionPointer(pi_device device,
                                             pi_program program,
                                             const char *func_name,
-                                            pi_uint64 *function_pointer_ret) {
+                                            pi_uint64 *func_pointer_ret) {
   // Check if device passed is the same the device bound to the context
   assert(device == program->get_context()->get_device());
-  assert(function_pointer_ret != nullptr);
+  assert(func_pointer_ret != nullptr);
 
   hipFunction_t func;
   hipError_t ret = hipModuleGetFunction(&func, program->get(), func_name);
-  *function_pointer_ret = reinterpret_cast<pi_uint64>(func);
+  *func_pointer_ret = reinterpret_cast<pi_uint64>(func);
   pi_result retError = PI_SUCCESS;
 
   if (ret != hipSuccess && ret != hipErrorNotFound)
     retError = PI_CHECK_ERROR(ret);
   if (ret == hipErrorNotFound) {
-    *function_pointer_ret = 0;
+    *func_pointer_ret = 0;
     retError = PI_INVALID_KERNEL_NAME;
   }
 
