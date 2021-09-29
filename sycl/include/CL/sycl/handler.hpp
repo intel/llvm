@@ -561,8 +561,10 @@ private:
    */
 
   // For 'void' kernel argument
-  template <class KernelType, class NormalizedKernelType, typename KernelName>
-  KernelType *ResetHostKernelHelper(const KernelType &KernelFunc) {
+  template <class KernelType, class NormalizedKernelType, int Dims,
+            typename KernelName>
+  typename std::enable_if<Dims == 0, KernelType *>::type
+  ResetHostKernelHelper(const KernelType &KernelFunc) {
     NormalizedKernelType NormalizedKernel(KernelFunc);
     auto NormalizedKernelFunc = std::function<void(void)>(NormalizedKernel);
     auto HostKernelPtr =
@@ -576,7 +578,8 @@ private:
   // For non-'void' kernel argument - id, item w/wo offset, nd_item
   template <class KernelType, class NormalizedKernelType, int Dims,
             typename KernelName>
-  KernelType *ResetHostKernelHelper(const KernelType &KernelFunc) {
+  typename std::enable_if<Dims != 0, KernelType *>::type
+  ResetHostKernelHelper(const KernelType &KernelFunc) {
     NormalizedKernelType NormalizedKernel(KernelFunc);
     auto NormalizedKernelFunc =
         std::function<void(const sycl::nd_item<Dims> &)>(NormalizedKernel);
@@ -593,14 +596,13 @@ private:
   template <class KernelType, typename ArgT, int Dims, typename KernelName>
   typename std::enable_if<std::is_same<ArgT, void>::value, KernelType *>::type
   ResetHostKernel(const KernelType &KernelFunc) {
-    static_assert(Dims == 0, "Dimension of 'void' argument must be zero");
     struct NormalizedKernelType {
       KernelType MKernelFunc;
       NormalizedKernelType(const KernelType &KernelFunc)
           : MKernelFunc(KernelFunc) {}
       void operator()(void) { detail::runKernelWithoutArg(MKernelFunc); }
     };
-    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType,
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims,
                                  KernelName>(KernelFunc);
   }
 
@@ -1425,7 +1427,7 @@ public:
     // known constant.
     MNDRDesc.set(range<1>{1});
 
-    StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(KernelFunc);
+    StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(std::move(KernelFunc));
     setType(detail::CG::Kernel);
 #endif
   }
