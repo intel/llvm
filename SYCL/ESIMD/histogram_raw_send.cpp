@@ -82,8 +82,7 @@ ESIMD_INLINE void atomic_write(T *bins, simd<unsigned, n> offset,
   constexpr uint8_t isSendc = 0;
 
   esimd_raw_sends_load(oldDst, vAddr, src0, exDesc, desc, execSize, sfid,
-                       numSrc0, numSrc1, numDst, isEOT, isSendc,
-                       simd_mask<n>{pred});
+                       numSrc0, numSrc1, numDst, isEOT, isSendc, pred);
 }
 
 int main(int argc, char *argv[]) {
