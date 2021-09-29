@@ -40,7 +40,7 @@ template <typename T, unsigned VL, unsigned STRIDE> struct Kernel {
     simd<uint32_t, VL> offsets(0, STRIDE);
     simd<T, VL> v = gather<T, VL>(acc, offsets, global_offset);
     v += ii;
-    simd<uint16_t, VL> pred = 1;
+    simd_mask<VL> pred = 1;
     pred.template select<1, 1>(VL - MASKED_LANE_NUM_REV) =
         0; // mask out the last lane
     scatter<T, VL>(acc, v, offsets, global_offset, pred);

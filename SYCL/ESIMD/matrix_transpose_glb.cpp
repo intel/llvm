@@ -74,7 +74,7 @@ ESIMD_PRIVATE ESIMD_REGISTER(192) simd<int, 3 * 32 * 8> GRF;
 // This function does 8x8 transposition
 ESIMD_NOINLINE void transpose_matrix(int InR, int OuR) {
   // mask to control how to merge two vectors.
-  simd<uint16_t, 16> mask = 0;
+  simd_mask<16> mask = 0;
   mask.select<8, 2>(0) = 1;
   auto t1 = GRF.template bit_cast_view<int, 48, 16>().select<4, 1, 16, 1>(
       InR >> 1, 0);

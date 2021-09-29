@@ -73,7 +73,7 @@ template <typename T>
 ESIMD_INLINE simd<T, 64> transpose_matrix(simd<T, 64> v1) {
   simd<T, 64> v2;
   // mask to control how to merge two vectors.
-  simd<uint16_t, 16> mask = 0;
+  simd_mask<16> mask = 0;
   mask.select<8, 2>(0) = 1;
   auto t1 = v1.template bit_cast_view<T, 4, 16>();
   auto t2 = v2.template bit_cast_view<T, 4, 16>();

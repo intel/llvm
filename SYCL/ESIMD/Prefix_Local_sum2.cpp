@@ -107,7 +107,7 @@ void cmk_acum_iterative(unsigned *buf, unsigned h_pos,
 // to increase test coverage of different usage cases and help isolate bugs.
 // Difference from PrefixSum kernel:
 // - Use gather4<>() to read in data
-// - Use format<>() to convert a 1D vector to 2D matrix view
+// - Use bit_cast_view<>() to convert a 1D vector to 2D matrix view
 // - Use reduce<int>(t, std::plus<>()) to do reduction
 //************************************
 int main(int argc, char *argv[]) {

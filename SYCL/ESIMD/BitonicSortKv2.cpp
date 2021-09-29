@@ -325,7 +325,6 @@ ESIMD_INLINE void cmk_bitonic_sort_256(uint32_t *buf1, uint32_t *buf2,
 
   simd_mask<32> flip1 = esimd_unpack_mask<32>(0x66666666); //(init_mask1);
 
-  simd<unsigned short, 32> mask;
   // stage 0
   B = bitonic_exchange1(A, flip1);
   // stage 1

@@ -126,7 +126,7 @@ template <int M, int N, int K> ESIMD_INLINE void dgetrfnp_panel(int64_t *info) {
     }
   } else {
     for (int kk = 0; kk < N; kk += 8) {
-      simd<uint16_t, 8> mask = 1;
+      simd_mask<8> mask = 1;
       for (int k = 0; k < 8 && kk + k < N; k++) {
         auto ak = V(a, M, (kk + k) * M);
         auto ak0 = V8(ak, kk + K);
@@ -181,7 +181,7 @@ ESIMD_INLINE void dgetrfnp_left_step(double *a, int64_t lda, int64_t *info) {
     // (trsm) solve F*X=U for X, X overwrites U
     // (gemm) update T=T-L*U
     for (int kk = 0; kk < K; kk += 8) {
-      simd<uint16_t, 8> mask = 1;
+      simd_mask<8> mask = 1;
       simd<double, 8> a0k, aik;
       for (k = 0; k < 8 && kk + k < K; k++) {
         V1(mask, k) = 0;
