@@ -156,7 +156,14 @@ public:
   /// otherwise.
   bool containsPoint(ArrayRef<int64_t> point) const;
 
-  /// Clones this object.
+  /// Find pairs of inequalities identified by their position indices, using
+  /// which an explicit representation for each local variable can be computed
+  /// The pairs are stored as indices of upperbound, lowerbound
+  /// inequalities. If no such pair can be found, it is stored as llvm::None.
+  void getLocalReprLbUbPairs(
+      std::vector<llvm::Optional<std::pair<unsigned, unsigned>>> &repr) const;
+
+  // Clones this object.
   std::unique_ptr<FlatAffineConstraints> clone() const;
 
   /// Returns the value at the specified equality row and column.
@@ -275,11 +282,21 @@ public:
   void projectOut(unsigned pos, unsigned num);
   inline void projectOut(unsigned pos) { return projectOut(pos, 1); }
 
+  /// Removes identifiers of the specified kind with the specified pos (or
+  /// within the specified range) from the system. The specified location is
+  /// relative to the first identifier of the specified kind.
+  void removeId(IdKind kind, unsigned pos);
+  void removeIdRange(IdKind kind, unsigned idStart, unsigned idLimit);
+
   /// Removes the specified identifier from the system.
   void removeId(unsigned pos);
 
   void removeEquality(unsigned pos);
   void removeInequality(unsigned pos);
+
+  /// Remove the (in)equalities at positions [start, end).
+  void removeEqualityRange(unsigned start, unsigned end);
+  void removeInequalityRange(unsigned start, unsigned end);
 
   /// Sets the `values.size()` identifiers starting at `po`s to the specified
   /// values and removes them.
@@ -409,6 +426,11 @@ public:
   /// O(VC) time.
   void removeRedundantConstraints();
 
+  /// Merge local ids of `this` and `other`. This is done by appending local ids
+  /// of `other` to `this` and inserting local ids of `this` to `other` at start
+  /// of its local ids.
+  void mergeLocalIds(FlatAffineConstraints &other);
+
   /// Removes all equalities and inequalities.
   void clearConstraints();
 
@@ -416,6 +438,12 @@ public:
   void dump() const;
 
 protected:
+  /// Return the index at which the specified kind of id starts.
+  unsigned getIdKindOffset(IdKind kind) const;
+
+  /// Assert that `value` is at most the number of ids of the specified kind.
+  void assertAtMostNumIdKind(unsigned value, IdKind kind) const;
+
   /// Returns false if the fields corresponding to various identifier counts, or
   /// equality/inequality buffer sizes aren't consistent; true otherwise. This
   /// is meant to be used within an assert internally.
@@ -817,6 +845,11 @@ public:
     for (unsigned i = start; i < end; ++i)
       setValue(i, values[i - start]);
   }
+
+  /// Merge and align symbols of `this` and `other` such that both get union of
+  /// of symbols that are unique. Symbols with Value as `None` are considered
+  /// to be inequal to all other symbols.
+  void mergeSymbolIds(FlatAffineValueConstraints &other);
 
 protected:
   /// Returns false if the fields corresponding to various identifier counts, or

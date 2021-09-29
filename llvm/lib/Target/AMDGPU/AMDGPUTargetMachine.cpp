@@ -809,6 +809,7 @@ public:
     // allow calls without EnableAMDGPUFunctionCalls if they are marked
     // noinline, so this is always required.
     setRequiresCodeGenSCCOrder(true);
+    substitutePass(&PostRASchedulerID, &PostMachineSchedulerID);
   }
 
   GCNTargetMachine &getGCNTargetMachine() const {
@@ -817,6 +818,14 @@ public:
 
   ScheduleDAGInstrs *
   createMachineScheduler(MachineSchedContext *C) const override;
+
+  ScheduleDAGInstrs *
+  createPostMachineScheduler(MachineSchedContext *C) const override {
+    ScheduleDAGMI *DAG = createGenericSchedPostRA(C);
+    const GCNSubtarget &ST = C->MF->getSubtarget<GCNSubtarget>();
+    DAG->addMutation(ST.createFillMFMAShadowMutation(DAG->TII));
+    return DAG;
+  }
 
   bool addPreISel() override;
   void addMachineSSAOptimization() override;
@@ -870,7 +879,7 @@ void AMDGPUPassConfig::addStraightLineScalarOptimizationPasses() {
   addPass(createLICMPass());
   addPass(createSeparateConstOffsetFromGEPPass());
   addPass(createSpeculativeExecutionPass());
-  // ReassociateGEPs exposes more opportunites for SLSR. See
+  // ReassociateGEPs exposes more opportunities for SLSR. See
   // the example in reassociate-geps-and-slsr.ll.
   addPass(createStraightLineStrengthReducePass());
   // SeparateConstOffsetFromGEP and SLSR creates common expressions which GVN or
@@ -978,8 +987,13 @@ void AMDGPUPassConfig::addIRPasses() {
 }
 
 void AMDGPUPassConfig::addCodeGenPrepare() {
-  if (TM->getTargetTriple().getArch() == Triple::amdgcn)
+  if (TM->getTargetTriple().getArch() == Triple::amdgcn) {
+    addPass(createAMDGPUAttributorPass());
+
+    // FIXME: This pass adds 2 hacky attributes that can be replaced with an
+    // analysis, and should be removed.
     addPass(createAMDGPUAnnotateKernelFeaturesPass());
+  }
 
   if (TM->getTargetTriple().getArch() == Triple::amdgcn &&
       EnableLowerKernelArguments)
@@ -1263,7 +1277,7 @@ bool GCNPassConfig::addRegAssignAndRewriteOptimized() {
   // Commit allocated register changes. This is mostly necessary because too
   // many things rely on the use lists of the physical registers, such as the
   // verifier. This is only necessary with allocators which use LiveIntervals,
-  // since FastRegAlloc does the replacments itself.
+  // since FastRegAlloc does the replacements itself.
   addPass(createVirtRegRewriter(false));
 
   // Equivalent of PEI for SGPRs.

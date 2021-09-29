@@ -1569,14 +1569,12 @@ declare void @use4(i8, i8, i8, i8)
 
 define void @cmyk(i8 %r, i8 %g, i8 %b) {
 ; CHECK-LABEL: @cmyk(
-; CHECK-NEXT:    [[NOTR:%.*]] = xor i8 [[R:%.*]], -1
-; CHECK-NEXT:    [[NOTG:%.*]] = xor i8 [[G:%.*]], -1
-; CHECK-NEXT:    [[NOTB:%.*]] = xor i8 [[B:%.*]], -1
-; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTR]], i8 [[NOTG]])
-; CHECK-NEXT:    [[K:%.*]] = call i8 @llvm.smin.i8(i8 [[M]], i8 [[NOTB]])
-; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[NOTR]], [[K]]
-; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[NOTG]], [[K]]
-; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[NOTB]], [[K]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smax.i8(i8 [[R:%.*]], i8 [[G:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.smax.i8(i8 [[B:%.*]], i8 [[TMP1]])
+; CHECK-NEXT:    [[K:%.*]] = xor i8 [[TMP2]], -1
+; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[TMP2]], [[R]]
+; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[TMP2]], [[G]]
+; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[TMP2]], [[B]]
 ; CHECK-NEXT:    call void @use4(i8 [[CK]], i8 [[MK]], i8 [[YK]], i8 [[K]])
 ; CHECK-NEXT:    ret void
 ;
@@ -1596,14 +1594,12 @@ define void @cmyk(i8 %r, i8 %g, i8 %b) {
 
 define void @cmyk_commute1(i8 %r, i8 %g, i8 %b) {
 ; CHECK-LABEL: @cmyk_commute1(
-; CHECK-NEXT:    [[NOTR:%.*]] = xor i8 [[R:%.*]], -1
-; CHECK-NEXT:    [[NOTG:%.*]] = xor i8 [[G:%.*]], -1
-; CHECK-NEXT:    [[NOTB:%.*]] = xor i8 [[B:%.*]], -1
-; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTR]], i8 [[NOTG]])
-; CHECK-NEXT:    [[K:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTB]], i8 [[M]])
-; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[NOTR]], [[K]]
-; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[NOTG]], [[K]]
-; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[NOTB]], [[K]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smax.i8(i8 [[R:%.*]], i8 [[G:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.smax.i8(i8 [[B:%.*]], i8 [[TMP1]])
+; CHECK-NEXT:    [[K:%.*]] = xor i8 [[TMP2]], -1
+; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[TMP2]], [[R]]
+; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[TMP2]], [[G]]
+; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[TMP2]], [[B]]
 ; CHECK-NEXT:    call void @use4(i8 [[CK]], i8 [[MK]], i8 [[YK]], i8 [[K]])
 ; CHECK-NEXT:    ret void
 ;
@@ -1623,14 +1619,12 @@ define void @cmyk_commute1(i8 %r, i8 %g, i8 %b) {
 
 define void @cmyk_commute2(i8 %r, i8 %g, i8 %b) {
 ; CHECK-LABEL: @cmyk_commute2(
-; CHECK-NEXT:    [[NOTR:%.*]] = xor i8 [[R:%.*]], -1
-; CHECK-NEXT:    [[NOTG:%.*]] = xor i8 [[G:%.*]], -1
-; CHECK-NEXT:    [[NOTB:%.*]] = xor i8 [[B:%.*]], -1
-; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTG]], i8 [[NOTR]])
-; CHECK-NEXT:    [[K:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTB]], i8 [[M]])
-; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[NOTR]], [[K]]
-; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[NOTG]], [[K]]
-; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[NOTB]], [[K]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smax.i8(i8 [[G:%.*]], i8 [[R:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.smax.i8(i8 [[B:%.*]], i8 [[TMP1]])
+; CHECK-NEXT:    [[K:%.*]] = xor i8 [[TMP2]], -1
+; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[TMP2]], [[R]]
+; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[TMP2]], [[G]]
+; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[TMP2]], [[B]]
 ; CHECK-NEXT:    call void @use4(i8 [[CK]], i8 [[MK]], i8 [[YK]], i8 [[K]])
 ; CHECK-NEXT:    ret void
 ;
@@ -1650,14 +1644,12 @@ define void @cmyk_commute2(i8 %r, i8 %g, i8 %b) {
 
 define void @cmyk_commute3(i8 %r, i8 %g, i8 %b) {
 ; CHECK-LABEL: @cmyk_commute3(
-; CHECK-NEXT:    [[NOTR:%.*]] = xor i8 [[R:%.*]], -1
-; CHECK-NEXT:    [[NOTG:%.*]] = xor i8 [[G:%.*]], -1
-; CHECK-NEXT:    [[NOTB:%.*]] = xor i8 [[B:%.*]], -1
-; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTG]], i8 [[NOTR]])
-; CHECK-NEXT:    [[K:%.*]] = call i8 @llvm.smin.i8(i8 [[M]], i8 [[NOTB]])
-; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[NOTR]], [[K]]
-; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[NOTG]], [[K]]
-; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[NOTB]], [[K]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smax.i8(i8 [[G:%.*]], i8 [[R:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.smax.i8(i8 [[B:%.*]], i8 [[TMP1]])
+; CHECK-NEXT:    [[K:%.*]] = xor i8 [[TMP2]], -1
+; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[TMP2]], [[R]]
+; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[TMP2]], [[G]]
+; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[TMP2]], [[B]]
 ; CHECK-NEXT:    call void @use4(i8 [[CK]], i8 [[MK]], i8 [[YK]], i8 [[K]])
 ; CHECK-NEXT:    ret void
 ;
@@ -1678,14 +1670,12 @@ define void @cmyk_commute3(i8 %r, i8 %g, i8 %b) {
 
 define void @cmyk_commute4(i8 %r, i8 %g, i8 %b) {
 ; CHECK-LABEL: @cmyk_commute4(
-; CHECK-NEXT:    [[NOTR:%.*]] = xor i8 [[R:%.*]], -1
-; CHECK-NEXT:    [[NOTG:%.*]] = xor i8 [[G:%.*]], -1
-; CHECK-NEXT:    [[NOTB:%.*]] = xor i8 [[B:%.*]], -1
-; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTG]], i8 [[NOTR]])
-; CHECK-NEXT:    [[K:%.*]] = call i8 @llvm.umin.i8(i8 [[M]], i8 [[NOTB]])
-; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[NOTB]], [[K]]
-; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[NOTR]], [[K]]
-; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[NOTG]], [[K]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smax.i8(i8 [[G:%.*]], i8 [[R:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.umax.i8(i8 [[B:%.*]], i8 [[TMP1]])
+; CHECK-NEXT:    [[K:%.*]] = xor i8 [[TMP2]], -1
+; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[TMP2]], [[B]]
+; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[TMP2]], [[R]]
+; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[TMP2]], [[G]]
 ; CHECK-NEXT:    call void @use4(i8 [[CK]], i8 [[MK]], i8 [[YK]], i8 [[K]])
 ; CHECK-NEXT:    ret void
 ;
@@ -1706,14 +1696,12 @@ define void @cmyk_commute4(i8 %r, i8 %g, i8 %b) {
 
 define void @cmyk_commute5(i8 %r, i8 %g, i8 %b) {
 ; CHECK-LABEL: @cmyk_commute5(
-; CHECK-NEXT:    [[NOTR:%.*]] = xor i8 [[R:%.*]], -1
-; CHECK-NEXT:    [[NOTG:%.*]] = xor i8 [[G:%.*]], -1
-; CHECK-NEXT:    [[NOTB:%.*]] = xor i8 [[B:%.*]], -1
-; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smax.i8(i8 [[NOTG]], i8 [[NOTR]])
-; CHECK-NEXT:    [[K:%.*]] = call i8 @llvm.smin.i8(i8 [[M]], i8 [[NOTB]])
-; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[NOTR]], [[K]]
-; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[NOTB]], [[K]]
-; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[NOTG]], [[K]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smin.i8(i8 [[G:%.*]], i8 [[R:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.smax.i8(i8 [[B:%.*]], i8 [[TMP1]])
+; CHECK-NEXT:    [[K:%.*]] = xor i8 [[TMP2]], -1
+; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[TMP2]], [[R]]
+; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[TMP2]], [[B]]
+; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[TMP2]], [[G]]
 ; CHECK-NEXT:    call void @use4(i8 [[CK]], i8 [[MK]], i8 [[YK]], i8 [[K]])
 ; CHECK-NEXT:    ret void
 ;
@@ -1731,14 +1719,12 @@ define void @cmyk_commute5(i8 %r, i8 %g, i8 %b) {
 
 define void @cmyk_commute6(i8 %r, i8 %g, i8 %b) {
 ; CHECK-LABEL: @cmyk_commute6(
-; CHECK-NEXT:    [[NOTR:%.*]] = xor i8 [[R:%.*]], -1
-; CHECK-NEXT:    [[NOTG:%.*]] = xor i8 [[G:%.*]], -1
-; CHECK-NEXT:    [[NOTB:%.*]] = xor i8 [[B:%.*]], -1
-; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTR]], i8 [[NOTG]])
-; CHECK-NEXT:    [[K:%.*]] = call i8 @llvm.smin.i8(i8 [[M]], i8 [[NOTB]])
-; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[K]], [[NOTR]]
-; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[K]], [[NOTG]]
-; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[K]], [[NOTB]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smax.i8(i8 [[R:%.*]], i8 [[G:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.smax.i8(i8 [[B:%.*]], i8 [[TMP1]])
+; CHECK-NEXT:    [[K:%.*]] = xor i8 [[TMP2]], -1
+; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[R]], [[TMP2]]
+; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[G]], [[TMP2]]
+; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[B]], [[TMP2]]
 ; CHECK-NEXT:    call void @use4(i8 [[CK]], i8 [[MK]], i8 [[YK]], i8 [[K]])
 ; CHECK-NEXT:    ret void
 ;
@@ -1758,14 +1744,12 @@ define void @cmyk_commute6(i8 %r, i8 %g, i8 %b) {
 
 define void @cmyk_commute7(i8 %r, i8 %g, i8 %b) {
 ; CHECK-LABEL: @cmyk_commute7(
-; CHECK-NEXT:    [[NOTR:%.*]] = xor i8 [[R:%.*]], -1
-; CHECK-NEXT:    [[NOTG:%.*]] = xor i8 [[G:%.*]], -1
-; CHECK-NEXT:    [[NOTB:%.*]] = xor i8 [[B:%.*]], -1
-; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTR]], i8 [[NOTG]])
-; CHECK-NEXT:    [[K:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTB]], i8 [[M]])
-; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[K]], [[NOTR]]
-; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[K]], [[NOTG]]
-; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[K]], [[NOTB]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smax.i8(i8 [[R:%.*]], i8 [[G:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.smax.i8(i8 [[B:%.*]], i8 [[TMP1]])
+; CHECK-NEXT:    [[K:%.*]] = xor i8 [[TMP2]], -1
+; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[R]], [[TMP2]]
+; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[G]], [[TMP2]]
+; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[B]], [[TMP2]]
 ; CHECK-NEXT:    call void @use4(i8 [[CK]], i8 [[MK]], i8 [[YK]], i8 [[K]])
 ; CHECK-NEXT:    ret void
 ;
@@ -1785,14 +1769,12 @@ define void @cmyk_commute7(i8 %r, i8 %g, i8 %b) {
 
 define void @cmyk_commute8(i8 %r, i8 %g, i8 %b) {
 ; CHECK-LABEL: @cmyk_commute8(
-; CHECK-NEXT:    [[NOTR:%.*]] = xor i8 [[R:%.*]], -1
-; CHECK-NEXT:    [[NOTG:%.*]] = xor i8 [[G:%.*]], -1
-; CHECK-NEXT:    [[NOTB:%.*]] = xor i8 [[B:%.*]], -1
-; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTG]], i8 [[NOTR]])
-; CHECK-NEXT:    [[K:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTB]], i8 [[M]])
-; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[K]], [[NOTR]]
-; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[K]], [[NOTG]]
-; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[K]], [[NOTB]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smax.i8(i8 [[G:%.*]], i8 [[R:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.smax.i8(i8 [[B:%.*]], i8 [[TMP1]])
+; CHECK-NEXT:    [[K:%.*]] = xor i8 [[TMP2]], -1
+; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[R]], [[TMP2]]
+; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[G]], [[TMP2]]
+; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[B]], [[TMP2]]
 ; CHECK-NEXT:    call void @use4(i8 [[CK]], i8 [[MK]], i8 [[YK]], i8 [[K]])
 ; CHECK-NEXT:    ret void
 ;
@@ -1812,14 +1794,12 @@ define void @cmyk_commute8(i8 %r, i8 %g, i8 %b) {
 
 define void @cmyk_commute9(i8 %r, i8 %g, i8 %b) {
 ; CHECK-LABEL: @cmyk_commute9(
-; CHECK-NEXT:    [[NOTR:%.*]] = xor i8 [[R:%.*]], -1
-; CHECK-NEXT:    [[NOTG:%.*]] = xor i8 [[G:%.*]], -1
-; CHECK-NEXT:    [[NOTB:%.*]] = xor i8 [[B:%.*]], -1
-; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTG]], i8 [[NOTR]])
-; CHECK-NEXT:    [[K:%.*]] = call i8 @llvm.smin.i8(i8 [[M]], i8 [[NOTB]])
-; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[K]], [[NOTR]]
-; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[K]], [[NOTG]]
-; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[K]], [[NOTB]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smax.i8(i8 [[G:%.*]], i8 [[R:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.smax.i8(i8 [[B:%.*]], i8 [[TMP1]])
+; CHECK-NEXT:    [[K:%.*]] = xor i8 [[TMP2]], -1
+; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[R]], [[TMP2]]
+; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[G]], [[TMP2]]
+; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[B]], [[TMP2]]
 ; CHECK-NEXT:    call void @use4(i8 [[CK]], i8 [[MK]], i8 [[YK]], i8 [[K]])
 ; CHECK-NEXT:    ret void
 ;
@@ -1840,14 +1820,12 @@ define void @cmyk_commute9(i8 %r, i8 %g, i8 %b) {
 
 define void @cmyk_commute10(i8 %r, i8 %g, i8 %b) {
 ; CHECK-LABEL: @cmyk_commute10(
-; CHECK-NEXT:    [[NOTR:%.*]] = xor i8 [[R:%.*]], -1
-; CHECK-NEXT:    [[NOTG:%.*]] = xor i8 [[G:%.*]], -1
-; CHECK-NEXT:    [[NOTB:%.*]] = xor i8 [[B:%.*]], -1
-; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[NOTG]], i8 [[NOTR]])
-; CHECK-NEXT:    [[K:%.*]] = call i8 @llvm.umin.i8(i8 [[M]], i8 [[NOTB]])
-; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[NOTB]], [[K]]
-; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[K]], [[NOTR]]
-; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[NOTG]], [[K]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smax.i8(i8 [[G:%.*]], i8 [[R:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.umax.i8(i8 [[B:%.*]], i8 [[TMP1]])
+; CHECK-NEXT:    [[K:%.*]] = xor i8 [[TMP2]], -1
+; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[TMP2]], [[B]]
+; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[R]], [[TMP2]]
+; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[TMP2]], [[G]]
 ; CHECK-NEXT:    call void @use4(i8 [[CK]], i8 [[MK]], i8 [[YK]], i8 [[K]])
 ; CHECK-NEXT:    ret void
 ;
@@ -1868,14 +1846,12 @@ define void @cmyk_commute10(i8 %r, i8 %g, i8 %b) {
 
 define void @cmyk_commute11(i8 %r, i8 %g, i8 %b) {
 ; CHECK-LABEL: @cmyk_commute11(
-; CHECK-NEXT:    [[NOTR:%.*]] = xor i8 [[R:%.*]], -1
-; CHECK-NEXT:    [[NOTG:%.*]] = xor i8 [[G:%.*]], -1
-; CHECK-NEXT:    [[NOTB:%.*]] = xor i8 [[B:%.*]], -1
-; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smax.i8(i8 [[NOTG]], i8 [[NOTR]])
-; CHECK-NEXT:    [[K:%.*]] = call i8 @llvm.smin.i8(i8 [[M]], i8 [[NOTB]])
-; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[NOTR]], [[K]]
-; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[K]], [[NOTB]]
-; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[K]], [[NOTG]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call i8 @llvm.smin.i8(i8 [[G:%.*]], i8 [[R:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = call i8 @llvm.smax.i8(i8 [[B:%.*]], i8 [[TMP1]])
+; CHECK-NEXT:    [[K:%.*]] = xor i8 [[TMP2]], -1
+; CHECK-NEXT:    [[CK:%.*]] = sub i8 [[TMP2]], [[R]]
+; CHECK-NEXT:    [[YK:%.*]] = sub i8 [[B]], [[TMP2]]
+; CHECK-NEXT:    [[MK:%.*]] = sub i8 [[G]], [[TMP2]]
 ; CHECK-NEXT:    call void @use4(i8 [[CK]], i8 [[MK]], i8 [[YK]], i8 [[K]])
 ; CHECK-NEXT:    ret void
 ;
@@ -1889,4 +1865,231 @@ define void @cmyk_commute11(i8 %r, i8 %g, i8 %b) {
   %mk = sub i8 %k, %notg
   call void @use4(i8 %ck, i8 %mk, i8 %yk, i8 %k)
   ret void
+}
+
+define i8 @smax_offset(i8 %x) {
+; CHECK-LABEL: @smax_offset(
+; CHECK-NEXT:    [[A:%.*]] = add nsw i8 [[X:%.*]], 3
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smax.i8(i8 [[A]], i8 -124)
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %a = add nsw i8 %x, 3
+  %m = call i8 @llvm.smax.i8(i8 %a, i8 -124)
+  ret i8 %m
+}
+
+define i8 @smax_offset_limit(i8 %x) {
+; CHECK-LABEL: @smax_offset_limit(
+; CHECK-NEXT:    [[A:%.*]] = add nsw i8 [[X:%.*]], 3
+; CHECK-NEXT:    ret i8 [[A]]
+;
+  %a = add nsw i8 %x, 3
+  %m = call i8 @llvm.smax.i8(i8 %a, i8 -125)
+  ret i8 %m
+}
+
+define i8 @smax_offset_overflow(i8 %x) {
+; CHECK-LABEL: @smax_offset_overflow(
+; CHECK-NEXT:    [[A:%.*]] = add nsw i8 [[X:%.*]], 3
+; CHECK-NEXT:    ret i8 [[A]]
+;
+  %a = add nsw i8 %x, 3
+  %m = call i8 @llvm.smax.i8(i8 %a, i8 -126)
+  ret i8 %m
+}
+
+define i8 @smax_offset_may_wrap(i8 %x) {
+; CHECK-LABEL: @smax_offset_may_wrap(
+; CHECK-NEXT:    [[A:%.*]] = add i8 [[X:%.*]], 3
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smax.i8(i8 [[A]], i8 -124)
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %a = add i8 %x, 3
+  %m = call i8 @llvm.smax.i8(i8 %a, i8 -124)
+  ret i8 %m
+}
+
+define i8 @smax_offset_uses(i8 %x) {
+; CHECK-LABEL: @smax_offset_uses(
+; CHECK-NEXT:    [[A:%.*]] = add nsw i8 [[X:%.*]], 3
+; CHECK-NEXT:    call void @use(i8 [[A]])
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smax.i8(i8 [[A]], i8 -124)
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %a = add nsw i8 %x, 3
+  call void @use(i8 %a)
+  %m = call i8 @llvm.smax.i8(i8 %a, i8 -124)
+  ret i8 %m
+}
+
+define <3 x i8> @smin_offset(<3 x i8> %x) {
+; CHECK-LABEL: @smin_offset(
+; CHECK-NEXT:    [[A:%.*]] = add nuw nsw <3 x i8> [[X:%.*]], <i8 124, i8 124, i8 124>
+; CHECK-NEXT:    [[M:%.*]] = call <3 x i8> @llvm.smin.v3i8(<3 x i8> [[A]], <3 x i8> <i8 -3, i8 -3, i8 -3>)
+; CHECK-NEXT:    ret <3 x i8> [[M]]
+;
+  %a = add nsw nuw <3 x i8> %x, <i8 124, i8 124, i8 124>
+  %m = call <3 x i8> @llvm.smin.v3i8(<3 x i8> %a, <3 x i8> <i8 -3, i8 -3, i8 -3>)
+  ret <3 x i8> %m
+}
+
+define i8 @smin_offset_limit(i8 %x) {
+; CHECK-LABEL: @smin_offset_limit(
+; CHECK-NEXT:    ret i8 -3
+;
+  %a = add nsw i8 %x, 125
+  %m = call i8 @llvm.smin.i8(i8 %a, i8 -3)
+  ret i8 %m
+}
+
+define i8 @smin_offset_overflow(i8 %x) {
+; CHECK-LABEL: @smin_offset_overflow(
+; CHECK-NEXT:    ret i8 -3
+;
+  %a = add nsw i8 %x, 126
+  %m = call i8 @llvm.smin.i8(i8 %a, i8 -3)
+  ret i8 %m
+}
+
+define i8 @smin_offset_may_wrap(i8 %x) {
+; CHECK-LABEL: @smin_offset_may_wrap(
+; CHECK-NEXT:    [[A:%.*]] = add nuw i8 [[X:%.*]], 124
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[A]], i8 -3)
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %a = add nuw i8 %x, 124
+  %m = call i8 @llvm.smin.i8(i8 %a, i8 -3)
+  ret i8 %m
+}
+
+define i8 @smin_offset_uses(i8 %x) {
+; CHECK-LABEL: @smin_offset_uses(
+; CHECK-NEXT:    [[A:%.*]] = add nsw i8 [[X:%.*]], 124
+; CHECK-NEXT:    call void @use(i8 [[A]])
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.smin.i8(i8 [[A]], i8 -3)
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %a = add nsw i8 %x, 124
+  call void @use(i8 %a)
+  %m = call i8 @llvm.smin.i8(i8 %a, i8 -3)
+  ret i8 %m
+}
+
+define <3 x i8> @umax_offset(<3 x i8> %x) {
+; CHECK-LABEL: @umax_offset(
+; CHECK-NEXT:    [[A:%.*]] = add nuw nsw <3 x i8> [[X:%.*]], <i8 127, i8 127, i8 127>
+; CHECK-NEXT:    [[M:%.*]] = call <3 x i8> @llvm.umax.v3i8(<3 x i8> [[A]], <3 x i8> <i8 -126, i8 -126, i8 -126>)
+; CHECK-NEXT:    ret <3 x i8> [[M]]
+;
+  %a = add nsw nuw <3 x i8> %x, <i8 127, i8 127, i8 127>
+  %m = call <3 x i8> @llvm.umax.v3i8(<3 x i8> %a, <3 x i8> <i8 130, i8 130, i8 130>)
+  ret <3 x i8> %m
+}
+
+define i8 @umax_offset_limit(i8 %x) {
+; CHECK-LABEL: @umax_offset_limit(
+; CHECK-NEXT:    [[A:%.*]] = add nuw i8 [[X:%.*]], 3
+; CHECK-NEXT:    ret i8 [[A]]
+;
+  %a = add nuw i8 %x, 3
+  %m = call i8 @llvm.umax.i8(i8 %a, i8 3)
+  ret i8 %m
+}
+
+define i8 @umax_offset_overflow(i8 %x) {
+; CHECK-LABEL: @umax_offset_overflow(
+; CHECK-NEXT:    [[A:%.*]] = add nuw i8 [[X:%.*]], 3
+; CHECK-NEXT:    ret i8 [[A]]
+;
+  %a = add nuw i8 %x, 3
+  %m = call i8 @llvm.umax.i8(i8 %a, i8 2)
+  ret i8 %m
+}
+
+define i8 @umax_offset_may_wrap(i8 %x) {
+; CHECK-LABEL: @umax_offset_may_wrap(
+; CHECK-NEXT:    [[A:%.*]] = add i8 [[X:%.*]], 3
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.umax.i8(i8 [[A]], i8 4)
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %a = add i8 %x, 3
+  %m = call i8 @llvm.umax.i8(i8 %a, i8 4)
+  ret i8 %m
+}
+
+define i8 @umax_offset_uses(i8 %x) {
+; CHECK-LABEL: @umax_offset_uses(
+; CHECK-NEXT:    [[A:%.*]] = add nuw i8 [[X:%.*]], 3
+; CHECK-NEXT:    call void @use(i8 [[A]])
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.umax.i8(i8 [[A]], i8 4)
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %a = add nuw i8 %x, 3
+  call void @use(i8 %a)
+  %m = call i8 @llvm.umax.i8(i8 %a, i8 4)
+  ret i8 %m
+}
+
+define i8 @umin_offset(i8 %x) {
+; CHECK-LABEL: @umin_offset(
+; CHECK-NEXT:    [[A:%.*]] = add nuw i8 [[X:%.*]], -5
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.umin.i8(i8 [[A]], i8 -4)
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %a = add nuw i8 %x, 251
+  %m = call i8 @llvm.umin.i8(i8 %a, i8 252)
+  ret i8 %m
+}
+
+define i8 @umin_offset_limit(i8 %x) {
+; CHECK-LABEL: @umin_offset_limit(
+; CHECK-NEXT:    ret i8 -4
+;
+  %a = add nuw i8 %x, 252
+  %m = call i8 @llvm.umin.i8(i8 %a, i8 252)
+  ret i8 %m
+}
+
+define i8 @umin_offset_overflow(i8 %x) {
+; CHECK-LABEL: @umin_offset_overflow(
+; CHECK-NEXT:    ret i8 -4
+;
+  %a = add nuw i8 %x, 253
+  %m = call i8 @llvm.umin.i8(i8 %a, i8 252)
+  ret i8 %m
+}
+
+define i8 @umin_offset_may_wrap(i8 %x) {
+; CHECK-LABEL: @umin_offset_may_wrap(
+; CHECK-NEXT:    [[A:%.*]] = add nsw i8 [[X:%.*]], -5
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.umin.i8(i8 [[A]], i8 -4)
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %a = add nsw i8 %x, 251
+  %m = call i8 @llvm.umin.i8(i8 %a, i8 252)
+  ret i8 %m
+}
+
+define i8 @umin_offset_uses(i8 %x) {
+; CHECK-LABEL: @umin_offset_uses(
+; CHECK-NEXT:    [[A:%.*]] = add nuw i8 [[X:%.*]], -5
+; CHECK-NEXT:    call void @use(i8 [[A]])
+; CHECK-NEXT:    [[M:%.*]] = call i8 @llvm.umin.i8(i8 [[A]], i8 -4)
+; CHECK-NEXT:    ret i8 [[M]]
+;
+  %a = add nuw i8 %x, 251
+  call void @use(i8 %a)
+  %m = call i8 @llvm.umin.i8(i8 %a, i8 252)
+  ret i8 %m
+}
+
+define <3 x i8> @umax_vector_splat_undef(<3 x i8> %x) {
+; CHECK-LABEL: @umax_vector_splat_undef(
+; CHECK-NEXT:    [[A:%.*]] = add nuw <3 x i8> [[X:%.*]], <i8 undef, i8 64, i8 64>
+; CHECK-NEXT:    [[R:%.*]] = call <3 x i8> @llvm.umax.v3i8(<3 x i8> [[A]], <3 x i8> <i8 13, i8 -126, i8 -126>)
+; CHECK-NEXT:    ret <3 x i8> [[R]]
+;
+  %a = add nuw <3 x i8> %x, <i8 undef, i8 64, i8 64>
+  %r = call <3 x i8> @llvm.umax.v3i8(<3 x i8> %a, <3 x i8> <i8 13, i8 130, i8 130>)
+  ret <3 x i8> %r
 }

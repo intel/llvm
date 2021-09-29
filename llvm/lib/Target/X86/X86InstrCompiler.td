@@ -153,15 +153,15 @@ def STACKALLOC_W_PROBING : I<0, Pseudo, (outs), (ins i64imm:$stacksize),
 // (compared to ordinary calls) like stack pointer change.
 
 let Defs = [EAX, ESP, EFLAGS], Uses = [ESP] in
-def WIN_ALLOCA_32 : I<0, Pseudo, (outs), (ins GR32:$size),
+def DYN_ALLOCA_32 : I<0, Pseudo, (outs), (ins GR32:$size),
                      "# dynamic stack allocation",
-                     [(X86WinAlloca GR32:$size)]>,
+                     [(X86DynAlloca GR32:$size)]>,
                      Requires<[NotLP64]>;
 
 let Defs = [RAX, RSP, EFLAGS], Uses = [RSP] in
-def WIN_ALLOCA_64 : I<0, Pseudo, (outs), (ins GR64:$size),
+def DYN_ALLOCA_64 : I<0, Pseudo, (outs), (ins GR64:$size),
                      "# dynamic stack allocation",
-                     [(X86WinAlloca GR64:$size)]>,
+                     [(X86DynAlloca GR64:$size)]>,
                      Requires<[In64BitMode]>;
 } // SchedRW
 
@@ -1215,10 +1215,10 @@ def : Pat<(X86call (i64 tglobaladdr:$dst)),
 def : Pat<(X86call (i64 texternalsym:$dst)),
           (CALL64pcrel32 texternalsym:$dst)>;
 
-def : Pat<(X86call_rvmarker (timm:$sel), (i64 texternalsym:$dst)),
-          (CALL64pcrel32_RVMARKER timm:$sel, texternalsym:$dst)>;
-def : Pat<(X86call_rvmarker (timm:$sel), (i64 tglobaladdr:$dst)),
-          (CALL64pcrel32_RVMARKER timm:$sel, tglobaladdr:$dst)>;
+def : Pat<(X86call_rvmarker (i64 tglobaladdr:$rvfunc), (i64 texternalsym:$dst)),
+          (CALL64pcrel32_RVMARKER tglobaladdr:$rvfunc, texternalsym:$dst)>;
+def : Pat<(X86call_rvmarker (i64 tglobaladdr:$rvfunc), (i64 tglobaladdr:$dst)),
+          (CALL64pcrel32_RVMARKER tglobaladdr:$rvfunc, tglobaladdr:$dst)>;
 
 
 // Tailcall stuff. The TCRETURN instructions execute after the epilog, so they

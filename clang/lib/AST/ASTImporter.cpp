@@ -383,6 +383,8 @@ namespace clang {
     ExpectedType VisitTemplateTypeParmType(const TemplateTypeParmType *T);
     ExpectedType VisitSubstTemplateTypeParmType(
         const SubstTemplateTypeParmType *T);
+    ExpectedType
+    VisitSubstTemplateTypeParmPackType(const SubstTemplateTypeParmPackType *T);
     ExpectedType VisitTemplateSpecializationType(
         const TemplateSpecializationType *T);
     ExpectedType VisitElaboratedType(const ElaboratedType *T);
@@ -1492,6 +1494,22 @@ ExpectedType ASTNodeImporter::VisitSubstTemplateTypeParmType(
         Replaced, (*ToReplacementTypeOrErr).getCanonicalType());
 }
 
+ExpectedType ASTNodeImporter::VisitSubstTemplateTypeParmPackType(
+    const SubstTemplateTypeParmPackType *T) {
+  ExpectedType ReplacedOrErr = import(QualType(T->getReplacedParameter(), 0));
+  if (!ReplacedOrErr)
+    return ReplacedOrErr.takeError();
+  const TemplateTypeParmType *Replaced =
+      cast<TemplateTypeParmType>(ReplacedOrErr->getTypePtr());
+
+  Expected<TemplateArgument> ToArgumentPack = import(T->getArgumentPack());
+  if (!ToArgumentPack)
+    return ToArgumentPack.takeError();
+
+  return Importer.getToContext().getSubstTemplateTypeParmPackType(
+      Replaced, *ToArgumentPack);
+}
+
 ExpectedType ASTNodeImporter::VisitTemplateSpecializationType(
                                        const TemplateSpecializationType *T) {
   auto ToTemplateOrErr = import(T->getTemplateName());
@@ -1812,7 +1830,7 @@ ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) {
         RecordDecl *FromRecordDecl = nullptr;
         RecordDecl *ToRecordDecl = nullptr;
         // If we have a field that is an ArrayType we need to check if the array
-        // element is a RecordDecl and if so we need to import the defintion.
+        // element is a RecordDecl and if so we need to import the definition.
         if (FieldFrom->getType()->isArrayType()) {
           // getBaseElementTypeUnsafe(...) handles multi-dimensonal arrays for us.
           FromRecordDecl = FieldFrom->getType()->getBaseElementTypeUnsafe()->getAsRecordDecl();

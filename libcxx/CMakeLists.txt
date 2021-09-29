@@ -116,6 +116,10 @@ option(LIBCXX_ENABLE_LOCALIZATION
    the C locale API (e.g. embedded). When localization is not supported,
    several parts of the library will be disabled: <iostream>, <regex>, <locale>
    will be completely unusable, and other parts may be only partly available." ON)
+option(LIBCXX_ENABLE_UNICODE
+  "Whether to include support for Unicode in the library. Disabling Unicode can
+   be useful when porting to platforms that don't support UTF-8 encoding (e.g.
+   embedded)." ON)
 option(LIBCXX_ENABLE_VENDOR_AVAILABILITY_ANNOTATIONS
   "Whether to turn on vendor availability annotations on declarations that depend
    on definitions in a shared library. By default, we assume that we're not building
@@ -410,6 +414,8 @@ if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
   set(LIBCXX_GENERATED_INCLUDE_TARGET_DIR "${LLVM_BINARY_DIR}/include/${LLVM_DEFAULT_TARGET_TRIPLE}/c++/v1")
   set(LIBCXX_INSTALL_LIBRARY_DIR lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE} CACHE PATH
       "Path where built libc++ libraries should be installed.")
+  set(LIBCXX_INSTALL_RUNTIME_DIR bin CACHE PATH
+      "Path where built libc++ runtime libraries should be installed.")
   set(LIBCXX_INSTALL_INCLUDE_DIR "include/c++/v1" CACHE PATH
       "Path where target-agnostic libc++ headers should be installed.")
   set(LIBCXX_INSTALL_INCLUDE_TARGET_DIR "include/${LLVM_DEFAULT_TARGET_TRIPLE}/c++/v1" CACHE PATH
@@ -424,6 +430,8 @@ elseif(LLVM_LIBRARY_OUTPUT_INTDIR)
   set(LIBCXX_GENERATED_INCLUDE_TARGET_DIR "${LIBCXX_GENERATED_INCLUDE_DIR}")
   set(LIBCXX_INSTALL_LIBRARY_DIR lib${LIBCXX_LIBDIR_SUFFIX} CACHE PATH
       "Path where built libc++ libraries should be installed.")
+  set(LIBCXX_INSTALL_RUNTIME_DIR bin CACHE PATH
+      "Path where built libc++ runtime libraries should be installed.")
   set(LIBCXX_INSTALL_INCLUDE_DIR "include/c++/v1" CACHE PATH
       "Path where target-agnostic libc++ headers should be installed.")
   set(LIBCXX_INSTALL_INCLUDE_TARGET_DIR "${LIBCXX_INSTALL_INCLUDE_DIR}" CACHE PATH
@@ -434,6 +442,8 @@ else()
   set(LIBCXX_GENERATED_INCLUDE_TARGET_DIR "${LIBCXX_GENERATED_INCLUDE_DIR}")
   set(LIBCXX_INSTALL_LIBRARY_DIR lib${LIBCXX_LIBDIR_SUFFIX} CACHE PATH
       "Path where built libc++ libraries should be installed.")
+  set(LIBCXX_INSTALL_RUNTIME_DIR bin CACHE PATH
+      "Path where built libc++ runtime libraries should be installed.")
   set(LIBCXX_INSTALL_INCLUDE_DIR "include/c++/v1" CACHE PATH
       "Path where target-agnostic libc++ headers should be installed.")
   set(LIBCXX_INSTALL_INCLUDE_TARGET_DIR "${LIBCXX_INSTALL_INCLUDE_DIR}" CACHE PATH
@@ -878,6 +888,7 @@ config_define_if(LIBCXX_ENABLE_PARALLEL_ALGORITHMS _LIBCPP_HAS_PARALLEL_ALGORITH
 config_define_if_not(LIBCXX_ENABLE_FILESYSTEM _LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
 config_define_if_not(LIBCXX_ENABLE_RANDOM_DEVICE _LIBCPP_HAS_NO_RANDOM_DEVICE)
 config_define_if_not(LIBCXX_ENABLE_LOCALIZATION _LIBCPP_HAS_NO_LOCALIZATION)
+config_define_if_not(LIBCXX_ENABLE_UNICODE _LIBCPP_HAS_NO_UNICODE)
 config_define_if_not(LIBCXX_ENABLE_VENDOR_AVAILABILITY_ANNOTATIONS _LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS)
 # Incomplete features get their own specific disabling flags. This makes it
 # easier to grep for target specific flags once the feature is complete.

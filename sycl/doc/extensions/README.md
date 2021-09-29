@@ -36,7 +36,6 @@ DPC++ extensions status:
 | [Unified Shared Memory](USM/USM.adoc)                                                                                       | Supported(OpenCL)                         | |
 | [Use Pinned Memory Property](UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc)                                           | Supported                                 | |
 | [Level-Zero backend specification](LevelZeroBackend/LevelZeroBackend.md)                                           	      | Supported                                 | |
-| [ITT annotations support](ITTAnnotations/ITTAnnotations.rst) | Supported | |
 | [Platform Context](PlatformContext/PlatformContext.adoc) | Proposal | |
 | [SYCL_EXT_ONEAPI_DEVICE_IF](DeviceIf/device_if.asciidoc) | Proposal | |
 | [SYCL_INTEL_group_sort](GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)                                                     | Proposal                                  | |
@@ -45,6 +44,7 @@ DPC++ extensions status:
 | [Assert](Assert/SYCL_ONEAPI_ASSERT.asciidoc) | Proposal | |
 | [Matrix](Matrix/dpcpp-joint-matrix.asciidoc)                                                                        | Partially supported(AMX AOT)               | Not supported: dynamic-extent, wg and wi scopes, layouts other than packed|
 | [SYCL_INTEL_free_function_queries](FreeFunctionQueries/SYCL_INTEL_free_function_queries.asciidoc)                           | Supported (experimental)                  | |
+| [SYCL_EXT_ONEAPI_DEVICE_GLOBAL](DeviceGlobal/SYCL_INTEL_device_global.asciidoc)                                             | Proposal                                  | |
 | [SYCL_INTEL_bf16_conversion](Bf16Conversion/SYCL_INTEL_bf16_conversion.asciidoc)                                            | Partially supported (Level Zero: GPU)     | Currently available only on Xe HP GPU. ext_intel_bf16_conversion aspect is not supported. |
 
 Legend:

@@ -83,12 +83,14 @@ const char *opSegmentSizeAttrInitCode = R"(
   auto sizeAttr = (*this)->getAttr({0}).cast<::mlir::DenseIntElementsAttr>();
 )";
 const char *attrSizedSegmentValueRangeCalcCode = R"(
-  auto sizeAttrValues = sizeAttr.getValues<uint32_t>();
+  const uint32_t *sizeAttrValueIt = &*sizeAttr.value_begin<uint32_t>();
+  if (sizeAttr.isSplat())
+    return {*sizeAttrValueIt * index, *sizeAttrValueIt};
+
   unsigned start = 0;
   for (unsigned i = 0; i < index; ++i)
-    start += *(sizeAttrValues.begin() + i);
-  unsigned size = *(sizeAttrValues.begin() + index);
-  return {start, size};
+    start += sizeAttrValueIt[i];
+  return {start, sizeAttrValueIt[index]};
 )";
 // The logic to calculate the actual value range for a declared operand
 // of an op with variadic of variadic operands within the OpAdaptor.
@@ -854,7 +856,6 @@ static void generateNamedOperandGetters(const Operator &op, Class &opClass,
     const auto &operand = op.getOperand(i);
     if (operand.name.empty())
       continue;
-
     if (operand.isOptional()) {
       m = opClass.addMethodAndPrune("::mlir::Value", operand.name);
       m->body()
@@ -991,7 +992,6 @@ void OpEmitter::genNamedResultGetters() {
     const auto &result = op.getResult(i);
     if (result.name.empty())
       continue;
-
     if (result.isOptional()) {
       m = opClass.addMethodAndPrune("::mlir::Value", result.name);
       m->body()

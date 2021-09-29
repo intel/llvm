@@ -129,28 +129,14 @@ makeTiledLoopRanges(OpBuilder &b, Location loc, AffineMap map,
 static void
 transformIndexOps(OpBuilder &b, LinalgOp op, SmallVectorImpl<Value> &ivs,
                   const LoopIndexToRangeIndexMap &loopIndexToRangeIndex) {
-  // Skip operations that have no region attached.
-  if (op->getNumRegions() == 0)
-    return;
-  assert(op->getNumRegions() == 1 && op->getRegion(0).getBlocks().size() == 1 &&
-         "expected linalg operation to have one block.");
-  Block &block = op->getRegion(0).front();
-
-  for (IndexOp indexOp : block.getOps<linalg::IndexOp>()) {
-    auto rangeIndex = loopIndexToRangeIndex.find(indexOp.dim());
+  SmallVector<Value> allIvs(op.getNumLoops(), nullptr);
+  for (auto &en : enumerate(allIvs)) {
+    auto rangeIndex = loopIndexToRangeIndex.find(en.index());
     if (rangeIndex == loopIndexToRangeIndex.end())
       continue;
-    // Offset the index by the value of the corresponding induction variable and
-    // replace all uses of the previous value.
-    OpBuilder::InsertionGuard g(b);
-    b.setInsertionPointAfter(indexOp);
-    AffineExpr index, iv;
-    bindDims(b.getContext(), index, iv);
-    AffineApplyOp applyOp = b.create<AffineApplyOp>(
-        indexOp.getLoc(), index + iv,
-        ValueRange{indexOp.getResult(), ivs[rangeIndex->second]});
-    indexOp.getResult().replaceAllUsesExcept(applyOp, applyOp);
+    en.value() = ivs[rangeIndex->second];
   }
+  addTileLoopIvsToIndexOpResults(b, op, allIvs);
 }
 
 // Insert a tile `source` into the destination tensor `dest`. The position at
@@ -227,9 +213,9 @@ tileLinalgOpImpl(OpBuilder &b, LinalgOp op, ValueRange tileSizes,
   // 2. Create the tiled loops.
   LinalgOp res = op;
   SmallVector<Value, 4> ivs, tensorResults;
-  auto tiledLoopBodyBuilder = [&](OpBuilder &b, Location loc,
-                                  ValueRange localIvs,
-                                  ValueRange iterArgs) -> scf::ValueVector {
+  auto tiledLoopBodyBuilder =
+      [&](OpBuilder &b, Location loc, ValueRange localIvs,
+          ValueRange operandValuesToUse) -> scf::ValueVector {
     ivs.assign(localIvs.begin(), localIvs.end());
 
     // When an `interchangeVector` is present, it has been applied to the
@@ -241,20 +227,16 @@ tileLinalgOpImpl(OpBuilder &b, LinalgOp op, ValueRange tileSizes,
     else
       interchangedIvs.assign(ivs.begin(), ivs.end());
 
-    assert(op.getOutputTensorOperands().size() == iterArgs.size() &&
-           "num output tensors must match number of loop iter arguments");
-
-    SmallVector<Value> operands = op.getInputOperands();
-    SmallVector<Value> outputBuffers = op.getOutputBufferOperands();
-    // TODO: thanks to simplifying assumption we do not need to worry about
-    // order of output buffers and tensors: there is only ever one kind.
-    assert(outputBuffers.empty() || iterArgs.empty());
-    operands.append(outputBuffers.begin(), outputBuffers.end());
-    operands.append(iterArgs.begin(), iterArgs.end());
+    // Tile the `operandValuesToUse` that either match the `op` operands
+    // themselves or the tile loop arguments forwarding them.
+    assert(operandValuesToUse.size() ==
+               static_cast<size_t>(op.getNumInputsAndOutputs()) &&
+           "expect the number of operands and inputs and outputs to match");
+    SmallVector<Value> valuesToTile = operandValuesToUse;
     auto sizeBounds =
         applyMapToValues(b, loc, shapeSizesToLoopsMap, allShapeSizes);
     SmallVector<Value, 4> tiledOperands = makeTiledShapes(
-        b, loc, op, operands, interchangedIvs, tileSizes, sizeBounds);
+        b, loc, op, valuesToTile, interchangedIvs, tileSizes, sizeBounds);
 
     // TODO: use an interface/adaptor to avoid leaking position in
     // `tiledOperands`.
@@ -370,8 +352,9 @@ static LogicalResult tilePadTensorOp(OpBuilder &builder, PadTensorOp op,
   assert(static_cast<int64_t>(tileSizes.size()) == rank);
   // Compute lower and upper bounds of the loop nest.
   SmallVector<Range> ranges = op.getLoopBounds(builder);
-  SmallVector<Value> lbs, dims, steps;
+  SmallVector<Value> lbs, dims, allDims, steps;
   for (int64_t i = 0; i < rank; ++i) {
+    allDims.push_back(ranges[i].size);
     if (!isZero(tileSizes[i])) {
       lbs.push_back(ranges[i].offset);
       dims.push_back(ranges[i].size);
@@ -388,13 +371,14 @@ static LogicalResult tilePadTensorOp(OpBuilder &builder, PadTensorOp op,
         SmallVector<Value> offsets =
             computeTileOffsets(b, loc, localIvs, tileSizes);
         SmallVector<Value> sizes =
-            computeTileSizes(b, loc, localIvs, tileSizes, dims);
+            computeTileSizes(b, loc, localIvs, tileSizes, allDims);
         // Create ExtractSliceOp: Extract a tile from the PadTensorOp.
         // Note: The PadTensorOp is located outside of the loop nest. It is
         // later moved inside by ExtractSliceOfPadTensorSwapPattern.
         auto map = AffineMap::getMultiDimIdentityMap(rank, b.getContext());
-        Value tiledOutput = makeTiledShape(b, loc, newPadOp->getResult(0),
-                                           tileSizes, map, offsets, sizes);
+        Value tiledOutput =
+            makeTiledShape(b, loc, newPadOp->getResult(0), tileSizes, map,
+                           offsets, allDims, sizes);
         auto sliceOp = tiledOutput.getDefiningOp<tensor::ExtractSliceOp>();
         assert(sliceOp && "expected ExtractSliceOp");
         // Insert the tile into the output tensor.

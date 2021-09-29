@@ -479,6 +479,10 @@ struct LinalgTilingOptions {
   /// proper interaction with folding.
   LinalgTilingOptions &setTileSizes(ArrayRef<int64_t> ts);
 
+  /// Tile all dynamic dimensions by 1. I.e., scalarize those dimensions.
+  /// Note: `scalarizeDynamicDims` and `setTileSizes` cannot be used together.
+  LinalgTilingOptions &scalarizeDynamicDims();
+
   /// The interchange vector to reorder the tiled loops.
   SmallVector<unsigned, 4> interchangeVector = {};
 
@@ -522,6 +526,15 @@ struct LinalgTilingOptions {
   LinalgTilingOptions &
   setPaddingValueComputationFunction(PaddingValueComputationFunction fun) {
     paddingValueComputationFunction = std::move(fun);
+    return *this;
+  }
+
+  /// Peel the specified loops.
+  SmallVector<int64_t> peeledLoops;
+
+  LinalgTilingOptions &setPeeledLoops(ArrayRef<int64_t> loops) {
+    peeledLoops.clear();
+    peeledLoops.append(loops.begin(), loops.end());
     return *this;
   }
 };
@@ -1035,6 +1048,31 @@ public:
   LogicalResult matchAndRewrite(ConvOp minOp,
                                 PatternRewriter &rewriter) const override;
 };
+
+/// Rewrite a TiledLoopOp with bounds/step that potentially do not divide evenly
+/// into a TiledLoopOp where the step divides the iteration space evenly,
+/// followed by another TiledLoopOp for the last (partial) iteration (if any).
+/// This transformation is called "loop peeling".
+///
+/// This function peels the `idx`-th loop of the TiledLoopOp. To tile all loops
+/// in the loop nest, this function must be called multiple times.
+///
+/// After loop peeling, this function tries to simplify/canonicalize affine.min
+/// and affine.max ops in the body of the two TiledLoopOps. For more details,
+/// refer to `mlir::scf::peelAndCanonicalizeForLoop`.
+///
+/// The return value indicates whether the loop was rewritten or not. Loops are
+/// not rewritten if:
+/// * Loop step size is 1 or
+/// * Loop bounds and step size are static, and step already divides the
+///   iteration space evenly.
+///
+/// Note: This function rewrites the given TiledLoopOp in-place and clones the
+/// TileLoopOp operation for the last iteration. It replaces all uses of the
+/// unpeeled TiledLoopOp with the results of the newly generated TiledLoopOp.
+LogicalResult peelAndCanonicalizeTiledLoop(RewriterBase &rewriter,
+                                           TiledLoopOp loopOp, int64_t idx,
+                                           TiledLoopOp &result);
 
 //===----------------------------------------------------------------------===//
 // Support for staged pattern application.

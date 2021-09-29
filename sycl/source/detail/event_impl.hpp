@@ -197,6 +197,20 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
+  /// Returns vector of event dependencies.
+  ///
+  /// @return a reference to MPreparedDepsEvents.
+  std::vector<std::shared_ptr<event_impl>> &getPreparedDepsEvents() {
+    return MPreparedDepsEvents;
+  }
+
+  /// Returns vector of host event dependencies.
+  ///
+  /// @return a reference to MPreparedHostDepsEvents.
+  std::vector<std::shared_ptr<event_impl>> &getPreparedHostDepsEvents() {
+    return MPreparedHostDepsEvents;
+  }
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -212,6 +226,10 @@ private:
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
+
+  /// Dependency events prepared for waiting by backend.
+  std::vector<std::shared_ptr<event_impl>> MPreparedDepsEvents;
+  std::vector<std::shared_ptr<event_impl>> MPreparedHostDepsEvents;
 
   enum HostEventState : int { HES_NotComplete = 0, HES_Complete };
 
