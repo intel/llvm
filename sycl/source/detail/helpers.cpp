@@ -23,6 +23,10 @@ std::vector<RT::PiEvent> getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
   std::vector<RT::PiEvent> Events;
   for (auto SyclEvent : DepEvents) {
     auto SyclEventImplPtr = detail::getSyclObjImpl(SyclEvent);
+    detail::EventImplPtr eventImplRet = SyclEventImplPtr->doFinalize();
+    if (eventImplRet) {
+      SyclEventImplPtr = eventImplRet;
+    }
     if (SyclEventImplPtr->is_host() ||
         SyclEventImplPtr->getContextImpl() != Context) {
       SyclEventImplPtr->waitInternal();
@@ -35,7 +39,12 @@ std::vector<RT::PiEvent> getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
 
 void waitEvents(std::vector<cl::sycl::event> DepEvents) {
   for (auto SyclEvent : DepEvents) {
-    detail::getSyclObjImpl(SyclEvent)->waitInternal();
+    auto SyclEventImplPtr = detail::getSyclObjImpl(SyclEvent);
+    detail::EventImplPtr eventImplRet = SyclEventImplPtr->doFinalize();
+    if (eventImplRet) {
+      SyclEventImplPtr = eventImplRet;
+    }
+    SyclEventImplPtr->waitInternal();
   }
 }
 

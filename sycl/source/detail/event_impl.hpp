@@ -147,9 +147,9 @@ public:
     if (MDoSubmitFunctor) {
       std::function<EventImplPtr(bool)> EmptyFunctor;
       EmptyFunctor.swap(MDoSubmitFunctor);
-      return EmptyFunctor(true);
+      MRealImpl = EmptyFunctor(true);
     }
-    return nullptr;
+    return MRealImpl;
   }
 
   void doIfNotFinalized() {
