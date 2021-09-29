@@ -154,7 +154,7 @@ template <class To, class From> To cast(From value);
 extern std::shared_ptr<plugin> GlobalPlugin;
 
 // Performs PI one-time initialization.
-const std::vector<plugin> &initialize();
+std::vector<plugin> &initialize();
 
 // Get the plugin serving given backend.
 template <backend BE> __SYCL_EXPORT const plugin &getPlugin();

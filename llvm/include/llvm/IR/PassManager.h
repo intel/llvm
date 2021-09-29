@@ -377,14 +377,13 @@ template <typename DerivedT> struct PassInfoMixin {
     static_assert(std::is_base_of<PassInfoMixin, DerivedT>::value,
                   "Must pass the derived type as the template argument!");
     StringRef Name = getTypeName<DerivedT>();
-    if (Name.startswith("llvm::"))
-      Name = Name.drop_front(strlen("llvm::"));
+    Name.consume_front("llvm::");
     return Name;
   }
 
   void printPipeline(raw_ostream &OS,
                      function_ref<StringRef(StringRef)> MapClassName2PassName) {
-    auto ClassName = name();
+    StringRef ClassName = DerivedT::name();
     auto PassName = MapClassName2PassName(ClassName);
     OS << PassName;
   }
@@ -537,12 +536,6 @@ public:
       // Finally, intersect the preserved analyses to compute the aggregate
       // preserved set for this pass manager.
       PA.intersect(std::move(PassPA));
-
-      // FIXME: Historically, the pass managers all called the LLVM context's
-      // yield function here. We don't have a generic way to acquire the
-      // context and it isn't yet clear what the right pattern is for yielding
-      // in the new pass manager so it is currently omitted.
-      //IR.getContext().yield();
     }
 
     // Invalidation was handled after each pass in the above loop for the

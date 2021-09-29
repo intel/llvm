@@ -31,7 +31,12 @@ This file describes macros that have effect on SYCL compiler and run-time.
 
 - **SYCL_DISABLE_DEPRECATION_WARNINGS**
 
-  Disables all deprecation warnings in SYCL runtime headers, including SYCL 1.2.1 deprecations.
+  Disables all deprecation warnings in SYCL runtime headers, including SYCL
+  1.2.1 deprecations.
+
+- **SYCL_DISABLE_CPP_VERSION_CHECK_WARNING**
+
+  Disables a message which warns about unsupported C++ version.
 
 - **SYCL_DISABLE_FALLBACK_ASSERT**
 

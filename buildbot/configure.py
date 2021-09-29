@@ -40,6 +40,12 @@ def do_configure(args):
     llvm_enable_lld = 'OFF'
 
     sycl_enable_xpti_tracing = 'ON'
+    xpti_enable_werror = 'ON'
+
+    if args.ci_defaults:
+        print("#############################################")
+        print("# Default CI configuration will be applied. #")
+        print("#############################################")
 
     # replace not append, so ARM ^ X86
     if args.arm:
@@ -74,6 +80,7 @@ def do_configure(args):
 
     if args.no_werror:
         sycl_werror = 'OFF'
+        xpti_enable_werror = 'OFF'
 
     if args.no_assertions:
         llvm_enable_assertions = 'OFF'
@@ -118,7 +125,8 @@ def do_configure(args):
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
         "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
         "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
-        "-DSYCL_BUILD_PI_ESIMD_CPU={}".format(sycl_build_pi_esimd_cpu)
+        "-DSYCL_BUILD_PI_ESIMD_CPU={}".format(sycl_build_pi_esimd_cpu),
+        "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror)
     ]
 
     if args.l0_headers and args.l0_loader:
@@ -193,6 +201,7 @@ def main():
     parser.add_argument("--libcxx-library", metavar="LIBCXX_LIBRARY_PATH", help="libcxx library path")
     parser.add_argument("--use-lld", action="store_true", help="Use LLD linker for build")
     parser.add_argument("--llvm-external-projects", help="Add external projects to build. Add as comma seperated list.")
+    parser.add_argument("--ci-defaults", action="store_true", help="Enable default CI parameters")
     args = parser.parse_args()
 
     print("args:{}".format(args))

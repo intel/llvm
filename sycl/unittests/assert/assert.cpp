@@ -51,9 +51,10 @@ template <> struct KernelInfo<TestKernel> {
 static constexpr const kernel_param_desc_t Signatures[] = {
     {kernel_param_kind_t::kind_accessor, 4062, 0}};
 
-template <> struct KernelInfo<::sycl::detail::AssertInfoCopier> {
+template <>
+struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier> {
   static constexpr const char *getName() {
-    return "_ZTSN2cl4sycl6detail16AssertInfoCopierE";
+    return "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
   }
   static constexpr unsigned getNumParams() { return 1; }
   static constexpr const kernel_param_desc_t &getParamDesc(unsigned Idx) {
@@ -73,7 +74,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
 
   static const std::string KernelName = "TestKernel";
   static const std::string CopierKernelName =
-      "_ZTSN2cl4sycl6detail16AssertInfoCopierE";
+      "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
   PiPropertySet PropSet;
 
@@ -98,7 +99,7 @@ static sycl::unittest::PiImage generateCopierKernelImage() {
   using namespace sycl::unittest;
 
   static const std::string CopierKernelName =
-      "_ZTSN2cl4sycl6detail16AssertInfoCopierE";
+      "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
   PiPropertySet PropSet;
 
@@ -397,4 +398,18 @@ TEST(Assert, TestPositive) {
     close(PipeFD[WriteFDIdx]);
   }
 #endif // _WIN32
+}
+
+TEST(Assert, TestAssertServiceKernelHidden) {
+  const char *AssertServiceKernelName = sycl::detail::KernelInfo<
+      sycl::detail::__sycl_service_kernel__::AssertInfoCopier>::getName();
+
+  std::vector<sycl::kernel_id> AllKernelIDs = sycl::get_kernel_ids();
+
+  auto NoFoundServiceKernelID = std::none_of(
+      AllKernelIDs.begin(), AllKernelIDs.end(), [=](sycl::kernel_id KernelID) {
+        return strcmp(KernelID.get_name(), AssertServiceKernelName) == 0;
+      });
+
+  EXPECT_TRUE(NoFoundServiceKernelID);
 }
