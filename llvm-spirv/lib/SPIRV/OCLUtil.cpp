@@ -293,7 +293,7 @@ template <> void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(isgreaterequal, FOrdGreaterThanEqual)
   _SPIRV_OP(isless, FOrdLessThan)
   _SPIRV_OP(islessequal, FOrdLessThanEqual)
-  _SPIRV_OP(islessgreater, LessOrGreater)
+  _SPIRV_OP(islessgreater, FOrdNotEqual)
   _SPIRV_OP(isordered, Ordered)
   _SPIRV_OP(isunordered, Unordered)
   _SPIRV_OP(isfinite, IsFinite)
