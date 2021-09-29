@@ -428,6 +428,7 @@ public:
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;
   }
+
   void implicitly_do_submit() {
     if (MEventsSharedToSubmit.empty()) {
       return;
