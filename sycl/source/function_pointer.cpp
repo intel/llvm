@@ -28,7 +28,7 @@ getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
   // error.
   if (Result != PI_SUCCESS) {
     if (Result == PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE)
-      throw runtime_error("Function exists however, address is not available",
+      throw runtime_error("Function exists but address is not available",
                           Result);
     if (Result == PI_INVALID_KERNEL_NAME)
       throw runtime_error("Function name is not valid", Result);
