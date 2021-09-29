@@ -147,7 +147,8 @@ int main() {
           {ZeKernelBundle.front(), ext::oneapi::level_zero::ownership::keep},
           Context);
   kernel InteropKernel = make_kernel<backend::ext_oneapi_level_zero>(
-      {ZeKernel, ext::oneapi::level_zero::ownership::keep}, Context);
+      {KernelBundle, ZeKernel, ext::oneapi::level_zero::ownership::keep},
+      Context);
 
   // Check deprecated
   // expected-warning@+1 {{'make<sycl::platform, nullptr>' is deprecated: Use SYCL 2020 sycl::make_platform free function}}
