@@ -428,12 +428,6 @@ public:
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;
   }
-
-private:
-  void setSubmittedExplicitly(bool isSubmittedExplicitly) {
-    MisSubmittedExplicitly = isSubmittedExplicitly;
-  }
-
   void implicitly_do_submit() {
     if (MEventsSharedToSubmit.empty()) {
       return;
@@ -453,6 +447,11 @@ private:
         EventImpl->CreateRealImpl();
       EventImpls.pop();
     }
+  }
+
+private:
+  void setSubmittedExplicitly(bool isSubmittedExplicitly) {
+    MisSubmittedExplicitly = isSubmittedExplicitly;
   }
 
   void do_submit_for_host_task() {

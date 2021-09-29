@@ -67,6 +67,8 @@ queue::queue(const context &SyclContext, const device &SyclDevice,
             detail::getSyclObjImpl(SyclContext)->get_async_handler(),
             PropList) {}
 
+queue::~queue() { impl->implicitly_do_submit(); }
+
 cl_command_queue queue::get() const { return impl->get(); }
 
 context queue::get_context() const { return impl->get_context(); }

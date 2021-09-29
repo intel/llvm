@@ -203,6 +203,8 @@ public:
 
   queue(queue &&RHS) = default;
 
+  ~queue();
+
   queue &operator=(const queue &RHS) = default;
 
   queue &operator=(queue &&RHS) = default;
