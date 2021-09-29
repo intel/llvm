@@ -10,7 +10,7 @@
 /// A sample XPTI subscriber to demonstrate how to collect PI function call
 /// arguments.
 
-#include "xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.h"
 
 #include "pi_arguments_handler.hpp"
 

@@ -188,14 +188,14 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         LibPostfix = ".obj";
       StringRef InputFilename =
           llvm::sys::path::filename(StringRef(II.getFilename()));
-      if (!InputFilename.startswith("libsycl-") ||
+      StringRef LibSyclPrefix("libsycl-");
+      if (!InputFilename.startswith(LibSyclPrefix) ||
           !InputFilename.endswith(LibPostfix) || (InputFilename.count('-') < 2))
         return false;
-      size_t PureLibNameLen = InputFilename.find_last_of('-');
       // Skip the prefix "libsycl-"
-      StringRef PureLibName = InputFilename.substr(8, PureLibNameLen - 8);
+      StringRef PureLibName = InputFilename.substr(LibSyclPrefix.size());
       for (const auto &L : SYCLDeviceLibList) {
-        if (PureLibName.compare(L) == 0)
+        if (PureLibName.startswith(L))
           return true;
       }
       return false;
