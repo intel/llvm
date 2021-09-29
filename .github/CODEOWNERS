@@ -22,7 +22,7 @@ libdevice/ @vzakhari @jinge90
 sycl/ @intel/llvm-reviewers-runtime
 
 # Documentation
-sycl/ReleaseNotes.md @pvchupin
+sycl/ReleaseNotes.md @pvchupin @tfzhu
 sycl/doc/ @pvchupin @bader
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 
@@ -72,10 +72,6 @@ sycl/source/function_pointer.cpp @AlexeySachkov
 # Half Type
 sycl/include/CL/sycl/half_type.hpp @AlexeySachkov
 sycl/source/half_type.cpp @AlexeySachkov
-
-# vec and swizzles
-sycl/include/CL/sycl/swizzles.def @turinevgeny
-sycl/include/CL/sycl/types.hpp @turinevgeny
 
 # XPTI instrumentation utilities
 xpti/ @tovinkere @andykaylor @alexbatashev

@@ -1868,8 +1868,7 @@ static void cleanupSinglePredPHIs(Function &F) {
     }
   }
   while (!Worklist.empty()) {
-    auto *Phi = Worklist.back();
-    Worklist.pop_back();
+    auto *Phi = Worklist.pop_back_val();
     auto *OriginalValue = Phi->getIncomingValue(0);
     Phi->replaceAllUsesWith(OriginalValue);
   }
@@ -2511,7 +2510,7 @@ void coro::salvageDebugInfo(
   DIExpression *Expr = DVI->getExpression();
   // Follow the pointer arithmetic all the way to the incoming
   // function argument and convert into a DIExpression.
-  bool OutermostLoad = true;
+  bool SkipOutermostLoad = !isa<DbgValueInst>(DVI);
   Value *Storage = DVI->getVariableLocationOp(0);
   Value *OriginalStorage = Storage;
   while (auto *Inst = dyn_cast_or_null<Instruction>(Storage)) {
@@ -2523,9 +2522,8 @@ void coro::salvageDebugInfo(
       // implicitly a memory location no DW_OP_deref operation for the
       // last direct load from an alloca is necessary.  This condition
       // effectively drops the *last* DW_OP_deref in the expression.
-      if (!OutermostLoad)
+      if (!SkipOutermostLoad)
         Expr = DIExpression::prepend(Expr, DIExpression::DerefBefore);
-      OutermostLoad = false;
     } else if (auto *StInst = dyn_cast<StoreInst>(Inst)) {
       Storage = StInst->getOperand(0);
     } else {
@@ -2542,6 +2540,7 @@ void coro::salvageDebugInfo(
       Storage = Op;
       Expr = DIExpression::appendOpsToArg(Expr, Ops, 0, /*StackValue*/ false);
     }
+    SkipOutermostLoad = false;
   }
   if (!Storage)
     return;

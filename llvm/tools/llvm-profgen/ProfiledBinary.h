@@ -51,7 +51,7 @@ namespace sampleprof {
 class ProfiledBinary;
 
 struct InstructionPointer {
-  ProfiledBinary *Binary;
+  const ProfiledBinary *Binary;
   union {
     // Offset of the executable segment of the binary.
     uint64_t Offset = 0;
@@ -60,7 +60,7 @@ struct InstructionPointer {
   };
   // Index to the sorted code address array of the binary.
   uint64_t Index = 0;
-  InstructionPointer(ProfiledBinary *Binary, uint64_t Address,
+  InstructionPointer(const ProfiledBinary *Binary, uint64_t Address,
                      bool RoundToNext = false);
   void advance();
   void backward();
@@ -299,7 +299,11 @@ public:
   }
 
   uint64_t getCallAddrFromFrameAddr(uint64_t FrameAddr) const {
-    return getAddressforIndex(getIndexForAddr(FrameAddr) - 1);
+    auto I = getIndexForAddr(FrameAddr);
+    FrameAddr = I ? getAddressforIndex(I - 1) : 0;
+    if (FrameAddr && addressIsCall(FrameAddr))
+      return FrameAddr;
+    return 0;
   }
 
   StringRef getFuncFromStartOffset(uint64_t Offset) {

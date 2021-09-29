@@ -141,6 +141,7 @@ bool Sema::isSimpleTypeSpecifier(tok::TokenKind Kind) const {
   case tok::kw___bf16:
   case tok::kw__Float16:
   case tok::kw___float128:
+  case tok::kw___ibm128:
   case tok::kw_wchar_t:
   case tok::kw_bool:
   case tok::kw___underlying_type:
@@ -2704,6 +2705,10 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLIntelMaxGlobalWorkDimAttr(D, *A);
   else if (const auto *BTFA = dyn_cast<BTFTagAttr>(Attr))
     NewAttr = S.mergeBTFTagAttr(D, *BTFA);
+  else if (const auto *A = dyn_cast<IntelFPGABankWidthAttr>(Attr))
+    NewAttr = S.MergeIntelFPGABankWidthAttr(D, *A);
+  else if (const auto *A = dyn_cast<IntelFPGANumBanksAttr>(Attr))
+    NewAttr = S.MergeIntelFPGANumBanksAttr(D, *A);
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
@@ -10027,8 +10032,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
 
   if (getLangOpts().OpenCL && NewFD->hasAttr<OpenCLKernelAttr>()) {
     // OpenCL v1.2 s6.8 static is invalid for kernel functions.
-    if ((getLangOpts().OpenCLVersion >= 120)
-        && (SC == SC_Static)) {
+    if (SC == SC_Static) {
       Diag(D.getIdentifierLoc(), diag::err_static_kernel);
       D.setInvalidType();
     }
@@ -15214,6 +15218,34 @@ void Sema::AddKnownFunctionAttributes(FunctionDecl *FD) {
         FD->addAttr(CUDADeviceAttr::CreateImplicit(Context, FD->getLocation()));
       else
         FD->addAttr(CUDAHostAttr::CreateImplicit(Context, FD->getLocation()));
+    }
+
+    // Add known guaranteed alignment for allocation functions.
+    switch (BuiltinID) {
+    case Builtin::BIaligned_alloc:
+      if (!FD->hasAttr<AllocAlignAttr>())
+        FD->addAttr(AllocAlignAttr::CreateImplicit(Context, ParamIdx(1, FD),
+                                                   FD->getLocation()));
+      LLVM_FALLTHROUGH;
+    case Builtin::BIcalloc:
+    case Builtin::BImalloc:
+    case Builtin::BImemalign:
+    case Builtin::BIrealloc:
+    case Builtin::BIstrdup:
+    case Builtin::BIstrndup: {
+      if (!FD->hasAttr<AssumeAlignedAttr>()) {
+        unsigned NewAlign = Context.getTargetInfo().getNewAlign() /
+                            Context.getTargetInfo().getCharWidth();
+        IntegerLiteral *Alignment = IntegerLiteral::Create(
+            Context, Context.MakeIntValue(NewAlign, Context.UnsignedIntTy),
+            Context.UnsignedIntTy, FD->getLocation());
+        FD->addAttr(AssumeAlignedAttr::CreateImplicit(
+            Context, Alignment, /*Offset=*/nullptr, FD->getLocation()));
+      }
+      break;
+    }
+    default:
+      break;
     }
   }
 

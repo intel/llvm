@@ -8,8 +8,10 @@
 # UNSUPPORTED: libcxx
 
 ??$compile@V?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@@?$online_compiler@$00@INTEL@sycl@cl@@QEAA?AV?$vector@EV?$allocator@E@std@@@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@5@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@5@@Z
+??$compile@V?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@@?$online_compiler@$00@experimental@intel@ext@sycl@cl@@QEAA?AV?$vector@EV?$allocator@E@std@@@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@7@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@7@@Z
 ??$compile@V?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@@?$online_compiler@$00@intel@ext@sycl@cl@@QEAA?AV?$vector@EV?$allocator@E@std@@@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@6@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@6@@Z
 ??$compile@V?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@@?$online_compiler@$0A@@INTEL@sycl@cl@@QEAA?AV?$vector@EV?$allocator@E@std@@@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@5@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@5@@Z
+??$compile@V?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@@?$online_compiler@$0A@@experimental@intel@ext@sycl@cl@@QEAA?AV?$vector@EV?$allocator@E@std@@@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@7@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@7@@Z
 ??$compile@V?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@@?$online_compiler@$0A@@intel@ext@sycl@cl@@QEAA?AV?$vector@EV?$allocator@E@std@@@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@6@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@6@@Z
 ??$create_sub_devices@$0BAIG@@device@sycl@cl@@QEBA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@_K@Z
 ??$create_sub_devices@$0BAIH@@device@sycl@cl@@QEBA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@AEBV?$vector@_KV?$allocator@_K@std@@@4@@Z
@@ -301,6 +303,8 @@
 ??0exception@sycl@cl@@IEAA@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ??0exception@sycl@cl@@IEAA@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@HV?$shared_ptr@Vcontext@sycl@cl@@@4@@Z
 ??0exception@sycl@cl@@IEAA@PEBDHV?$shared_ptr@Vcontext@sycl@cl@@@std@@@Z
+??0exception@sycl@cl@@IEAA@Verror_code@std@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@4@HV?$shared_ptr@Vcontext@sycl@cl@@@4@@Z
+??0exception@sycl@cl@@IEAA@Verror_code@std@@PEBDHV?$shared_ptr@Vcontext@sycl@cl@@@4@@Z
 ??0exception@sycl@cl@@IEAA@Verror_code@std@@V?$shared_ptr@Vcontext@sycl@cl@@@4@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@4@@Z
 ??0exception@sycl@cl@@QEAA@$$QEAV012@@Z
 ??0exception@sycl@cl@@QEAA@AEBV012@@Z
@@ -337,6 +341,7 @@
 ??0half_v2@host_half_impl@detail@sycl@cl@@QEAA@AEBM@Z
 ??0half_v2@host_half_impl@detail@sycl@cl@@QEAA@AEBV01234@@Z
 ??0half_v2@host_half_impl@detail@sycl@cl@@QEAA@G@Z
+??0half_v2@host_half_impl@detail@sycl@cl@@QEAA@XZ
 ??0handler@sycl@cl@@AEAA@V?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_N@Z
 ??0host_selector@sycl@cl@@QEAA@$$QEAV012@@Z
 ??0host_selector@sycl@cl@@QEAA@AEBV012@@Z
@@ -1592,6 +1597,7 @@
 ?depends_on@handler@sycl@cl@@QEAAXAEBV?$vector@Vevent@sycl@cl@@V?$allocator@Vevent@sycl@cl@@@std@@@std@@@Z
 ?depends_on@handler@sycl@cl@@QEAAXVevent@23@@Z
 ?determineHostPtr@SYCLMemObjT@detail@sycl@cl@@IEAAXAEBV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@_NAEAPEAXAEA_N@Z
+?device_has@queue@sycl@cl@@QEBA_NW4aspect@23@@Z
 ?die@pi@detail@sycl@cl@@YAXPEBD@Z
 ?distance@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V34562@0@Z
 ?distance@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$01@62@0@Z
@@ -1738,6 +1744,11 @@
 ?expm1@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V34562@@Z
 ?expm1@__host_std@cl@@YAMM@Z
 ?expm1@__host_std@cl@@YANN@Z
+?ext_oneapi_barrier@handler@sycl@cl@@QEAAXAEBV?$vector@Vevent@sycl@cl@@V?$allocator@Vevent@sycl@cl@@@std@@@std@@@Z
+?ext_oneapi_barrier@handler@sycl@cl@@QEAAXXZ
+?ext_oneapi_get_default_context@platform@sycl@cl@@QEBA?AVcontext@23@XZ
+?ext_oneapi_submit_barrier@queue@sycl@cl@@QEAA?AVevent@23@AEBUcode_location@detail@23@@Z
+?ext_oneapi_submit_barrier@queue@sycl@cl@@QEAA?AVevent@23@AEBV?$vector@Vevent@sycl@cl@@V?$allocator@Vevent@sycl@cl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?extractArgsAndReqs@handler@sycl@cl@@AEAAXXZ
 ?extractArgsAndReqsFromLambda@handler@sycl@cl@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@@Z
 ?extractArgsAndReqsFromLambda@handler@sycl@cl@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@_N@Z
@@ -2545,25 +2556,34 @@
 ?mad@__host_std@cl@@YANNNN@Z
 ?makeDir@OSUtil@detail@sycl@cl@@SAHPEBD@Z
 ?make_context@detail@sycl@cl@@YA?AVcontext@23@_KAEBV?$function@$$A6AXVexception_list@sycl@cl@@@Z@std@@W4backend@23@@Z
+?make_context@level_zero@oneapi@ext@sycl@cl@@YA?AVcontext@45@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@_K@Z
+?make_context@level_zero@oneapi@ext@sycl@cl@@YA?AVcontext@45@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@_K_N@Z
 ?make_context@level_zero@sycl@cl@@YA?AVcontext@23@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@_K@Z
 ?make_context@level_zero@sycl@cl@@YA?AVcontext@23@AEBV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@_K_N@Z
 ?make_context@opencl@sycl@cl@@YA?AVcontext@23@_K@Z
 ?make_device@detail@sycl@cl@@YA?AVdevice@23@_KW4backend@23@@Z
+?make_device@level_zero@oneapi@ext@sycl@cl@@YA?AVdevice@45@AEBVplatform@45@_K@Z
 ?make_device@level_zero@sycl@cl@@YA?AVdevice@23@AEBVplatform@23@_K@Z
 ?make_device@opencl@sycl@cl@@YA?AVdevice@23@_K@Z
 ?make_error_code@sycl@cl@@YA?AVerror_code@std@@W4errc@12@@Z
 ?make_event@detail@sycl@cl@@YA?AVevent@23@_KAEBVcontext@23@W4backend@23@@Z
 ?make_event@detail@sycl@cl@@YA?AVevent@23@_KAEBVcontext@23@_NW4backend@23@@Z
+?make_event@level_zero@oneapi@ext@sycl@cl@@YA?AVevent@45@AEBVcontext@45@_K_N@Z
 ?make_event@level_zero@sycl@cl@@YA?AVevent@23@AEBVcontext@23@_K_N@Z
 ?make_kernel@detail@sycl@cl@@YA?AVkernel@23@_KAEBVcontext@23@W4backend@23@@Z
 ?make_kernel_bundle@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@_KAEBVcontext@23@W4bundle_state@23@W4backend@23@@Z
+?make_kernel_bundle@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@_KAEBVcontext@23@_NW4bundle_state@23@W4backend@23@@Z
 ?make_platform@detail@sycl@cl@@YA?AVplatform@23@_KW4backend@23@@Z
+?make_platform@level_zero@oneapi@ext@sycl@cl@@YA?AVplatform@45@_K@Z
 ?make_platform@level_zero@sycl@cl@@YA?AVplatform@23@_K@Z
 ?make_platform@opencl@sycl@cl@@YA?AVplatform@23@_K@Z
+?make_program@level_zero@oneapi@ext@sycl@cl@@YA?AVprogram@45@AEBVcontext@45@_K@Z
 ?make_program@level_zero@sycl@cl@@YA?AVprogram@23@AEBVcontext@23@_K@Z
 ?make_program@opencl@sycl@cl@@YA?AVprogram@23@AEBVcontext@23@_K@Z
 ?make_queue@detail@sycl@cl@@YA?AVqueue@23@_KAEBVcontext@23@AEBV?$function@$$A6AXVexception_list@sycl@cl@@@Z@std@@W4backend@23@@Z
 ?make_queue@detail@sycl@cl@@YA?AVqueue@23@_KAEBVcontext@23@_NAEBV?$function@$$A6AXVexception_list@sycl@cl@@@Z@std@@W4backend@23@@Z
+?make_queue@level_zero@oneapi@ext@sycl@cl@@YA?AVqueue@45@AEBVcontext@45@_K@Z
+?make_queue@level_zero@oneapi@ext@sycl@cl@@YA?AVqueue@45@AEBVcontext@45@_K_N@Z
 ?make_queue@level_zero@sycl@cl@@YA?AVqueue@23@AEBVcontext@23@_K@Z
 ?make_queue@level_zero@sycl@cl@@YA?AVqueue@23@AEBVcontext@23@_K_N@Z
 ?make_queue@opencl@sycl@cl@@YA?AVqueue@23@AEBVcontext@23@_K@Z

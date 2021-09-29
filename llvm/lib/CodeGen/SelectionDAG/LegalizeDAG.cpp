@@ -1164,6 +1164,16 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
     Action = TLI.getOperationAction(Node->getOpcode(),
                     cast<MaskedStoreSDNode>(Node)->getValue().getValueType());
     break;
+  case ISD::VP_SCATTER:
+    Action = TLI.getOperationAction(
+        Node->getOpcode(),
+        cast<VPScatterSDNode>(Node)->getValue().getValueType());
+    break;
+  case ISD::VP_STORE:
+    Action = TLI.getOperationAction(
+        Node->getOpcode(),
+        cast<VPStoreSDNode>(Node)->getValue().getValueType());
+    break;
   case ISD::VECREDUCE_FADD:
   case ISD::VECREDUCE_FMUL:
   case ISD::VECREDUCE_ADD:
@@ -1184,10 +1194,6 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
   case ISD::VECREDUCE_SEQ_FMUL:
     Action = TLI.getOperationAction(
         Node->getOpcode(), Node->getOperand(1).getValueType());
-    break;
-  case ISD::ISNAN:
-    Action = TLI.getOperationAction(Node->getOpcode(),
-                                    Node->getOperand(0).getValueType());
     break;
   default:
     if (Node->getOpcode() >= ISD::BUILTIN_OP_END) {
@@ -3112,12 +3118,6 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
   case ISD::FCOPYSIGN:
     Results.push_back(ExpandFCOPYSIGN(Node));
     break;
-  case ISD::ISNAN:
-    if (SDValue Expanded =
-            TLI.expandISNAN(Node->getValueType(0), Node->getOperand(0),
-                            Node->getFlags(), SDLoc(Node), DAG))
-      Results.push_back(Expanded);
-    break;
   case ISD::FNEG:
     Results.push_back(ExpandFNEG(Node));
     break;
@@ -3240,9 +3240,7 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     assert(TLI.isOperationLegalOrCustom(ISD::ADD, VT) &&
            TLI.isOperationLegalOrCustom(ISD::XOR, VT) &&
            "Don't know how to expand this subtraction!");
-    Tmp1 = DAG.getNode(ISD::XOR, dl, VT, Node->getOperand(1),
-               DAG.getConstant(APInt::getAllOnesValue(VT.getSizeInBits()), dl,
-                               VT));
+    Tmp1 = DAG.getNOT(dl, Node->getOperand(1), VT);
     Tmp1 = DAG.getNode(ISD::ADD, dl, VT, Tmp1, DAG.getConstant(1, dl, VT));
     Results.push_back(DAG.getNode(ISD::ADD, dl, VT, Node->getOperand(0), Tmp1));
     break;
@@ -4253,8 +4251,7 @@ void SelectionDAGLegalize::ConvertNodeToLibcall(SDNode *Node) {
     SDValue Op = Node->getOperand(IsStrict ? 1 : 0);
     SDValue Chain = IsStrict ? Node->getOperand(0) : SDValue();
     EVT VT = Node->getValueType(0);
-    assert(cast<ConstantSDNode>(Node->getOperand(IsStrict ? 2 : 1))
-               ->isNullValue() &&
+    assert(cast<ConstantSDNode>(Node->getOperand(IsStrict ? 2 : 1))->isZero() &&
            "Unable to expand as libcall if it is not normal rounding");
 
     RTLIB::Libcall LC = RTLIB::getFPROUND(Op.getValueType(), VT);

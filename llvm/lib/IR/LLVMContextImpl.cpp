@@ -23,9 +23,8 @@
 using namespace llvm;
 
 static cl::opt<bool>
-    ForceOpaquePointersCL("force-opaque-pointers",
-                          cl::desc("Force all pointers to be opaque pointers"),
-                          cl::init(false));
+    OpaquePointersCL("opaque-pointers", cl::desc("Use opaque pointers"),
+                     cl::init(false));
 
 LLVMContextImpl::LLVMContextImpl(LLVMContext &C)
     : DiagHandler(std::make_unique<DiagnosticHandler>()),
@@ -37,7 +36,7 @@ LLVMContextImpl::LLVMContextImpl(LLVMContext &C)
       PPC_FP128Ty(C, Type::PPC_FP128TyID), X86_MMXTy(C, Type::X86_MMXTyID),
       X86_AMXTy(C, Type::X86_AMXTyID), Int1Ty(C, 1), Int8Ty(C, 8),
       Int16Ty(C, 16), Int32Ty(C, 32), Int64Ty(C, 64), Int128Ty(C, 128),
-      ForceOpaquePointers(ForceOpaquePointersCL) {}
+      OpaquePointers(OpaquePointersCL) {}
 
 LLVMContextImpl::~LLVMContextImpl() {
   // NOTE: We need to delete the contents of OwnedModules, but Module's dtor
@@ -55,8 +54,15 @@ LLVMContextImpl::~LLVMContextImpl() {
 
   // Drop references for MDNodes.  Do this before Values get deleted to avoid
   // unnecessary RAUW when nodes are still unresolved.
-  for (auto *I : DistinctMDNodes)
+  for (auto *I : DistinctMDNodes) {
+    // We may have DIArgList that were uniqued, and as it has a custom
+    // implementation of dropAllReferences, it needs to be explicitly invoked.
+    if (auto *AL = dyn_cast<DIArgList>(I)) {
+      AL->dropAllReferences();
+      continue;
+    }
     I->dropAllReferences();
+  }
 #define HANDLE_MDNODE_LEAF_UNIQUABLE(CLASS)                                    \
   for (auto *I : CLASS##s)                                                     \
     I->dropAllReferences();

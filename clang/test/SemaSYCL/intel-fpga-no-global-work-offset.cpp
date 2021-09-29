@@ -5,10 +5,11 @@
 using namespace cl::sycl;
 queue q;
 
+//expected-warning@+1 {{unknown attribute 'no_global_work_offset' ignored}}
+[[intelfpga::no_global_work_offset]] void RemovedSpell();
+
 struct FuncObj {
-  //expected-warning@+2 {{attribute 'intelfpga::no_global_work_offset' is deprecated}}
-  //expected-note@+1 {{did you mean to use 'intel::no_global_work_offset' instead?}}
-  [[intelfpga::no_global_work_offset]] void operator()() const {}
+  [[intel::no_global_work_offset]] void operator()() const {}
 };
 
 int main() {

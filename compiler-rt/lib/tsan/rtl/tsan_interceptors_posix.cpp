@@ -1961,7 +1961,7 @@ static void CallUserSignalHandler(ThreadState *thr, bool sync, bool acquire,
     Acquire(thr, 0, (uptr)&sigactions[sig]);
   // Signals are generally asynchronous, so if we receive a signals when
   // ignores are enabled we should disable ignores. This is critical for sync
-  // and interceptors, because otherwise we can miss syncronization and report
+  // and interceptors, because otherwise we can miss synchronization and report
   // false races.
   int ignore_reads_and_writes = thr->ignore_reads_and_writes;
   int ignore_interceptors = thr->ignore_interceptors;
@@ -2514,12 +2514,12 @@ static void syscall_access_range(uptr pc, uptr p, uptr s, bool write) {
 static USED void syscall_acquire(uptr pc, uptr addr) {
   TSAN_SYSCALL();
   Acquire(thr, pc, addr);
-  DPrintf("syscall_acquire(%p)\n", addr);
+  DPrintf("syscall_acquire(0x%zx))\n", addr);
 }
 
 static USED void syscall_release(uptr pc, uptr addr) {
   TSAN_SYSCALL();
-  DPrintf("syscall_release(%p)\n", addr);
+  DPrintf("syscall_release(0x%zx)\n", addr);
   Release(thr, pc, addr);
 }
 
@@ -2531,12 +2531,12 @@ static void syscall_fd_close(uptr pc, int fd) {
 static USED void syscall_fd_acquire(uptr pc, int fd) {
   TSAN_SYSCALL();
   FdAcquire(thr, pc, fd);
-  DPrintf("syscall_fd_acquire(%p)\n", fd);
+  DPrintf("syscall_fd_acquire(%d)\n", fd);
 }
 
 static USED void syscall_fd_release(uptr pc, int fd) {
   TSAN_SYSCALL();
-  DPrintf("syscall_fd_release(%p)\n", fd);
+  DPrintf("syscall_fd_release(%d)\n", fd);
   FdRelease(thr, pc, fd);
 }
 

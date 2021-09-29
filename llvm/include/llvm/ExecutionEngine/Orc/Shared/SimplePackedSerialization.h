@@ -33,10 +33,12 @@
 #define LLVM_EXECUTIONENGINE_ORC_SHARED_SIMPLEPACKEDSERIALIZATION_H
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/SwapByteOrder.h"
 
+#include <limits>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -296,6 +298,33 @@ public:
   static constexpr bool available = true;
 };
 
+/// Specialized SPSSequence<char> -> ArrayRef<char> serialization.
+///
+/// On deserialize, points directly into the input buffer.
+template <> class SPSSerializationTraits<SPSSequence<char>, ArrayRef<char>> {
+public:
+  static size_t size(const ArrayRef<char> &A) {
+    return SPSArgList<uint64_t>::size(static_cast<uint64_t>(A.size())) +
+           A.size();
+  }
+
+  static bool serialize(SPSOutputBuffer &OB, const ArrayRef<char> &A) {
+    if (!SPSArgList<uint64_t>::serialize(OB, static_cast<uint64_t>(A.size())))
+      return false;
+    return OB.write(A.data(), A.size());
+  }
+
+  static bool deserialize(SPSInputBuffer &IB, ArrayRef<char> &A) {
+    uint64_t Size;
+    if (!SPSArgList<uint64_t>::deserialize(IB, Size))
+      return false;
+    if (Size > std::numeric_limits<size_t>::max())
+      return false;
+    A = {IB.data(), static_cast<size_t>(Size)};
+    return IB.skip(Size);
+  }
+};
+
 /// 'Trivial' sequence serialization: Sequence is serialized as a uint64_t size
 /// followed by a for-earch loop over the elements of the sequence to serialize
 /// each of them.
@@ -421,6 +450,49 @@ public:
     if (!IB.skip(Size))
       return false;
     S = StringRef(Data, Size);
+    return true;
+  }
+};
+
+/// Serialization for StringMap<ValueT>s.
+template <typename SPSValueT, typename ValueT>
+class SPSSerializationTraits<SPSSequence<SPSTuple<SPSString, SPSValueT>>,
+                             StringMap<ValueT>> {
+public:
+  static size_t size(const StringMap<ValueT> &M) {
+    size_t Sz = SPSArgList<uint64_t>::size(static_cast<uint64_t>(M.size()));
+    for (auto &E : M)
+      Sz += SPSArgList<SPSString, SPSValueT>::size(E.first(), E.second);
+    return Sz;
+  }
+
+  static bool serialize(SPSOutputBuffer &OB, const StringMap<ValueT> &M) {
+    if (!SPSArgList<uint64_t>::serialize(OB, static_cast<uint64_t>(M.size())))
+      return false;
+
+    for (auto &E : M)
+      if (!SPSArgList<SPSString, SPSValueT>::serialize(OB, E.first(), E.second))
+        return false;
+
+    return true;
+  }
+
+  static bool deserialize(SPSInputBuffer &IB, StringMap<ValueT> &M) {
+    uint64_t Size;
+    assert(M.empty() && "M already contains elements");
+
+    if (!SPSArgList<uint64_t>::deserialize(IB, Size))
+      return false;
+
+    while (Size--) {
+      StringRef S;
+      ValueT V;
+      if (!SPSArgList<SPSString, SPSValueT>::deserialize(IB, S, V))
+        return false;
+      if (!M.insert(std::make_pair(S, V)).second)
+        return false;
+    }
+
     return true;
   }
 };

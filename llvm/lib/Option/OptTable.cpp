@@ -375,11 +375,11 @@ Arg *OptTable::parseOneArgGrouped(InputArgList &Args, unsigned &Index) const {
   }
   if (Fallback) {
     Option Opt(Fallback, this);
-    if (Arg *A = Opt.accept(Args, Str.substr(0, 2), true, Index)) {
-      // Check that the last option isn't a flag wrongly given an argument.
-      if (Str[2] == '=')
-        return new Arg(getOption(TheUnknownOptionID), Str, Index++, CStr);
+    // Check that the last option isn't a flag wrongly given an argument.
+    if (Str[2] == '=')
+      return new Arg(getOption(TheUnknownOptionID), Str, Index++, CStr);
 
+    if (Arg *A = Opt.accept(Args, Str.substr(0, 2), true, Index)) {
       Args.replaceArgString(Index, Twine('-') + Str.substr(2));
       return A;
     }

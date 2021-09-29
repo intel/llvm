@@ -28,8 +28,9 @@
 // DISABLED-NOT: "-sycl-std={{.*}}"
 // DISABLED-NOT: "-fsycl-std-layout-kernel-params"
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice -c %s 2>&1 | FileCheck %s --check-prefix=CHECK_WARNING
+// RUN: %clangxx -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice,nvptx64-nvidia-cuda-sycldevice -fno-sycl-libspirv -nocudalib -c %s 2>&1 | FileCheck %s --check-prefix=CHECK_WARNING
 // CHECK_WARNING: argument 'spir64-unknown-unknown-sycldevice' is deprecated, use 'spir64' instead
+// CHECK_WARNING: argument 'nvptx64-nvidia-cuda-sycldevice' is deprecated, use 'nvptx64-nvidia-cuda' instead
 
 // RUN: %clang -### -fsycl-device-only -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
 // RUN: %clang -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT
@@ -96,11 +97,21 @@
 // SYCL-HELP-BADARG: unsupported argument 'foo' to option 'fsycl-help='
 // SYCL-HELP-GEN: Emitting help information for ocloc
 // SYCL-HELP-GEN: Use triple of 'spir64_gen-unknown-unknown' to enable ahead of time compilation
-// SYCL-HELP-FPGA-OUT: "[[DIR]]{{[/\\]+}}aoc" "-help" "-sycl"
 // SYCL-HELP-FPGA: Emitting help information for aoc
 // SYCL-HELP-FPGA: Use triple of 'spir64_fpga-unknown-unknown' to enable ahead of time compilation
+// SYCL-HELP-FPGA-OUT: "[[DIR]]{{[/\\]+}}aoc" "-help" "-sycl"
 // SYCL-HELP-CPU: Emitting help information for opencl-aot
 // SYCL-HELP-CPU: Use triple of 'spir64_x86_64-unknown-unknown' to enable ahead of time compilation
+
+// -fsycl-help redirect to file should retain proper information ordering
+// RUN: %clang -### -fsycl-help %s > %t.help-out 2>&1
+// RUN: FileCheck %s -check-prefix SYCL_HELP_ORDER --input-file=%t.help-out
+// SYCL_HELP_ORDER: Emitting help information for ocloc
+// SYCL_HELP_ORDER: ocloc{{(\.exe)?}}" "--help"
+// SYCL_HELP_ORDER: Emitting help information for aoc
+// SYCL_HELP_ORDER: aoc{{(\.exe)?}}" "-help" "-sycl"
+// SYCL_HELP_ORDER: Emitting help information for opencl-aot
+// SYCL_HELP_ORDER: opencl-aot{{(\.exe)?}}" "--help"
 
 // -fsycl-id-queries-fit-in-int
 // RUN: %clang -### -fsycl -fsycl-id-queries-fit-in-int  %s 2>&1 | FileCheck %s --check-prefix=ID_QUERIES

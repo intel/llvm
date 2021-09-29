@@ -446,13 +446,12 @@ bool InstrProfiling::lowerIntrinsics(Function *F) {
   bool MadeChange = false;
   PromotionCandidates.clear();
   for (BasicBlock &BB : *F) {
-    for (auto I = BB.begin(), E = BB.end(); I != E;) {
-      auto Instr = I++;
-      InstrProfIncrementInst *Inc = castToIncrementInst(&*Instr);
+    for (Instruction &Instr : llvm::make_early_inc_range(BB)) {
+      InstrProfIncrementInst *Inc = castToIncrementInst(&Instr);
       if (Inc) {
         lowerIncrement(Inc);
         MadeChange = true;
-      } else if (auto *Ind = dyn_cast<InstrProfValueProfileInst>(Instr)) {
+      } else if (auto *Ind = dyn_cast<InstrProfValueProfileInst>(&Instr)) {
         lowerValueProfileInst(Ind);
         MadeChange = true;
       }
@@ -1178,12 +1177,12 @@ void InstrProfiling::emitUses() {
   // GlobalOpt/ConstantMerge) may not discard associated sections as a unit, so
   // we conservatively retain all unconditionally in the compiler.
   //
-  // On ELF, the linker can guarantee the associated sections will be retained
-  // or discarded as a unit, so llvm.compiler.used is sufficient. Similarly on
-  // COFF, if prof data is not referenced by code we use one comdat and ensure
-  // this GC property as well. Otherwise, we have to conservatively make all of
-  // the sections retained by the linker.
-  if (TT.isOSBinFormatELF() ||
+  // On ELF and Mach-O, the linker can guarantee the associated sections will be
+  // retained or discarded as a unit, so llvm.compiler.used is sufficient.
+  // Similarly on COFF, if prof data is not referenced by code we use one comdat
+  // and ensure this GC property as well. Otherwise, we have to conservatively
+  // make all of the sections retained by the linker.
+  if (TT.isOSBinFormatELF() || TT.isOSBinFormatMachO() ||
       (TT.isOSBinFormatCOFF() && !profDataReferencedByCode(*M)))
     appendToCompilerUsed(*M, CompilerUsedVars);
   else

@@ -640,7 +640,7 @@ def XORIS8  : DForm_4<27, (outs g8rc:$dst), (ins g8rc:$src1, u16imm64:$src2),
                    [(set i64:$dst, (xor i64:$src1, imm16ShiftedZExt:$src2))]>;
 
 let isCommutable = 1 in
-defm ADD8  : XOForm_1rx<31, 266, 0, (outs g8rc:$rT), (ins g8rc:$rA, g8rc:$rB),
+defm ADD8  : XOForm_1rx<31, 266, (outs g8rc:$rT), (ins g8rc:$rA, g8rc:$rB),
                         "add", "$rT, $rA, $rB", IIC_IntSimple,
                         [(set i64:$rT, (add i64:$rA, i64:$rB))]>;
 // ADD8 has a special form: reg = ADD8(reg, sym@tls) for use by the
@@ -719,7 +719,7 @@ defm SUBFC8 : XOForm_1rc<31, 8, 0, (outs g8rc:$rT), (ins g8rc:$rA, g8rc:$rB),
                         "subfc", "$rT, $rA, $rB", IIC_IntGeneral,
                         [(set i64:$rT, (subc i64:$rB, i64:$rA))]>,
                         PPC970_DGroup_Cracked;
-defm SUBF8 : XOForm_1rx<31, 40, 0, (outs g8rc:$rT), (ins g8rc:$rA, g8rc:$rB),
+defm SUBF8 : XOForm_1rx<31, 40, (outs g8rc:$rT), (ins g8rc:$rA, g8rc:$rB),
                         "subf", "$rT, $rA, $rB", IIC_IntGeneral,
                         [(set i64:$rT, (sub i64:$rB, i64:$rA))]>;
 defm NEG8    : XOForm_3r<31, 104, 0, (outs g8rc:$rT), (ins g8rc:$rA),
@@ -963,7 +963,7 @@ defm DIVDEU : XOForm_1rcr<31, 393, 0, (outs g8rc:$rT), (ins g8rc:$rA, g8rc:$rB),
                           [(set i64:$rT, (int_ppc_divdeu g8rc:$rA, g8rc:$rB))]>,
                           isPPC64, Requires<[HasExtDiv]>;
 let isCommutable = 1 in
-defm MULLD : XOForm_1rx<31, 233, 0, (outs g8rc:$rT), (ins g8rc:$rA, g8rc:$rB),
+defm MULLD : XOForm_1rx<31, 233, (outs g8rc:$rT), (ins g8rc:$rA, g8rc:$rB),
                         "mulld", "$rT, $rA, $rB", IIC_IntMulHD,
                         [(set i64:$rT, (mul i64:$rA, i64:$rB))]>, isPPC64;
 let Interpretation64Bit = 1, isCodeGenOnly = 1 in
@@ -1342,11 +1342,24 @@ def LQ   : DQForm_RTp5_RA17_MEM<56, 0,
                                 []>,
                                 RegConstraint<"@earlyclobber $RTp">,
                                 isPPC64;
+// We don't really have LQX in the ISA, make a pseudo one so that we can
+// handle x-form during isel. Make it pre-ra may expose
+// oppotunities to some opts(CSE, LICM and etc.) for the result of adding
+// RA and RB.
+def LQX_PSEUDO : PPCCustomInserterPseudo<(outs g8prc:$RTp),
+                                         (ins memrr:$src), "#LQX_PSEUDO", []>;
+
 def RESTORE_QUADWORD : PPCEmitTimePseudo<(outs g8prc:$RTp), (ins memrix:$src),
                                          "#RESTORE_QUADWORD", []>;
 }
 
 }
+
+def : Pat<(int_ppc_atomic_load_i128 iaddrX16:$src),
+          (SPLIT_QUADWORD (LQ memrix16:$src))>;
+
+def : Pat<(int_ppc_atomic_load_i128 ForceXForm:$src),
+          (SPLIT_QUADWORD (LQX_PSEUDO memrr:$src))>;
 
 // Support for medium and large code model.
 let hasSideEffects = 0 in {
@@ -1536,11 +1549,27 @@ let mayStore = 1, hasNoSchedulingInfo = 1 in {
 def STQ : DSForm_1<62, 2, (outs), (ins g8prc:$RSp, memrix:$dst),
                    "stq $RSp, $dst", IIC_LdStSTQ,
                    []>, isPPC64;
+
+def STQX_PSEUDO : PPCCustomInserterPseudo<(outs),
+                                          (ins g8prc:$RSp, memrr:$dst),
+                                          "#STQX_PSEUDO", []>;
+
 def SPILL_QUADWORD : PPCEmitTimePseudo<(outs), (ins g8prc:$RSp, memrix:$dst),
                                        "#SPILL_QUADWORD", []>;
 }
 
 }
+
+def BUILD_QUADWORD : PPCPostRAExpPseudo<
+                       (outs g8prc:$RTp),
+                       (ins g8rc:$lo, g8rc:$hi),
+                       "#BUILD_QUADWORD", []>;
+
+def : Pat<(int_ppc_atomic_store_i128 i64:$lo, i64:$hi, DSForm:$dst),
+          (STQ (BUILD_QUADWORD g8rc:$lo, g8rc:$hi), memrix:$dst)>;
+
+def : Pat<(int_ppc_atomic_store_i128 i64:$lo, i64:$hi, ForceXForm:$dst),
+          (STQX_PSEUDO (BUILD_QUADWORD g8rc:$lo, g8rc:$hi), memrr:$dst)>;
 
 // Stores with Update (pre-inc).
 let PPC970_Unit = 2, mayStore = 1, mayLoad = 0 in {

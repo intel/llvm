@@ -81,6 +81,15 @@ and not recommended to use in production environment.
     * nd_item class get_global_id()/get_global_linear_id() member functions
     Enabled by default.
 
+
+**`-fgpu-inline-threshold=<n>`**
+
+    Sets the inline threshold for device compilation to <n>. Note that this
+    option only affects the behaviour of the DPC++ compiler, not target-
+    specific compilers (e.g. OpenCL/Level Zero/Nvidia/AMD target compilers)
+    which may or may not perform additional inlining.
+    Default value is 225.
+
 ## Target toolchain options
 
 **`-Xsycl-target-backend=<T> "options"`**
@@ -166,6 +175,15 @@ and not recommended to use in production environment.
     * off - creates a single module for all kernels.
     * auto - the compiler will use a heuristic to select the best way of
       splitting device code. This is default mode.
+
+**`-fsycl-max-parallel-link-jobs=<N>`**
+
+    Experimental feature. When specified, it informs the compiler
+    that it can simultaneously spawn up to `N` processes to perform
+    actions required to link the DPC++ application. This option is
+    only useful in SYCL mode. It only takes effect if link action
+    needs to be executed, i.e. it won't have any effect in presence of
+    options like `-c` or `-E`. Default value of `N` is 1.
 
 **`-f[no-]sycl-device-lib=<lib1>[,<lib2>,...]`**
 

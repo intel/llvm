@@ -169,7 +169,7 @@ Value *getDefaultCPPValue(Type *T) {
   return nullptr;
 }
 
-std::string manglePrimitiveType(const Type *T) {
+std::string mangleType(const Type *T) {
   if (T->isFloatTy())
     return "f";
   if (T->isDoubleTy())
@@ -192,7 +192,8 @@ std::string manglePrimitiveType(const Type *T) {
       llvm_unreachable("unsupported spec const integer type");
     }
   }
-  // Mangling, which is generated below is not conformant with C++ ABI rules
+  // Mangling, which is generated below is not fully conformant with C++ ABI
+  // rules
   // (https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangle.unqualified-name)
   // But it should be more or less okay, because these declarations only
   // exists in the module between invocations of sycl-post-link and llvm-spirv,
@@ -202,21 +203,33 @@ std::string manglePrimitiveType(const Type *T) {
   if (T->isStructTy())
     return T->getStructName().str();
   if (T->isArrayTy())
-    return "A" + manglePrimitiveType(T->getArrayElementType());
+    return "A" + std::to_string(T->getArrayNumElements()) + "_" +
+           mangleType(T->getArrayElementType());
+
   if (auto *VecTy = dyn_cast<FixedVectorType>(T))
     return "Dv" + std::to_string(VecTy->getNumElements()) + "_" +
-           manglePrimitiveType(VecTy->getElementType());
+           mangleType(VecTy->getElementType());
   llvm_unreachable("unsupported spec const type");
   return "";
 }
 
 // This is a very basic mangler which can mangle non-templated and non-member
 // functions with primitive types in the signature.
+// FIXME: generated mangling is not always complies with C++ ABI rules and might
+// not be demanglable. Consider fixing this.
 std::string mangleFuncItanium(StringRef BaseName, const FunctionType *FT) {
   std::string Res =
       (Twine("_Z") + Twine(BaseName.size()) + Twine(BaseName)).str();
   for (unsigned I = 0; I < FT->getNumParams(); ++I)
-    Res += manglePrimitiveType(FT->getParamType(I));
+    Res += mangleType(FT->getParamType(I));
+  if (FT->getReturnType()->isArrayTy() || FT->getReturnType()->isStructTy() ||
+      FT->getReturnType()->isVectorTy()) {
+    // It is possible that we need to generate several calls to
+    // __spirv_SpecConstantComposite, accepting the same argument types, but
+    // returning different types. Therefore, we incorporate the return type into
+    // the mangling name as well to distinguish between those functions
+    Res += "_R" + mangleType(FT->getReturnType());
+  }
   return Res;
 }
 

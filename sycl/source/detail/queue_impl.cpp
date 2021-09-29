@@ -17,7 +17,7 @@
 #include <utility>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-#include "xpti_trace_framework.hpp"
+#include "xpti/xpti_trace_framework.hpp"
 #include <detail/xpti_registry.hpp>
 #include <sstream>
 #endif
@@ -92,7 +92,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
-                             const vector_class<event> &DepEvents) {
+                             const std::vector<event> &DepEvents) {
   RT::PiEvent NativeEvent{};
   MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                             getOrWaitEvents(DepEvents, MContext), NativeEvent);
@@ -260,7 +260,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   std::vector<std::weak_ptr<event_impl>> WeakEvents;
   std::vector<event> SharedEvents;
   {
-    std::lock_guard<mutex_class> Lock(MMutex);
+    std::lock_guard<std::mutex> Lock(MMutex);
     WeakEvents.swap(MEventsWeak);
     SharedEvents.swap(MEventsShared);
   }
@@ -351,20 +351,6 @@ pi_native_handle queue_impl::getNative() const {
   return Handle;
 }
 
-bool queue_impl::kernelUsesAssert(const std::string &KernelName,
-                                  OSModuleHandle Handle) const {
-  RTDeviceBinaryImage &BinImg = ProgramManager::getInstance().getDeviceImage(
-      Handle, KernelName, get_context(), get_device());
-
-  const pi::DeviceBinaryImage::PropertyRange &AssertUsedRange =
-      BinImg.getAssertUsed();
-  if (AssertUsedRange.isAvailable())
-    for (const auto &Prop : AssertUsedRange)
-      if (Prop->Name == KernelName)
-        return true;
-
-  return false;
-}
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

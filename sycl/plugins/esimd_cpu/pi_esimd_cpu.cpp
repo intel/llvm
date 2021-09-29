@@ -508,6 +508,11 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(size_t{8192});
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY:
     return ReturnValue(pi_bool{1});
+  case PI_DEVICE_INFO_EXTENSIONS:
+    // TODO : Populate return string accordingly - e.g. cl_khr_fp16,
+    // cl_khr_fp64, cl_khr_int64_base_atomics,
+    // cl_khr_int64_extended_atomics
+    return ReturnValue("");
 
 #define UNSUPPORTED_INFO(info)                                                 \
   case info:                                                                   \
@@ -518,7 +523,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     break;
 
     UNSUPPORTED_INFO(PI_DEVICE_INFO_VENDOR_ID)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_EXTENSIONS)
     UNSUPPORTED_INFO(PI_DEVICE_INFO_COMPILER_AVAILABLE)
     UNSUPPORTED_INFO(PI_DEVICE_INFO_LINKER_AVAILABLE)
     UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_COMPUTE_UNITS)
@@ -756,7 +760,8 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
                             const pi_mem_properties *properties) {
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     if (PrintPiTrace) {
-      std::cerr << "Invalid memory attribute for piMemBufferCreate";
+      std::cerr << "Invalid memory attribute for piMemBufferCreate"
+                << std::endl;
     }
     return PI_INVALID_OPERATION;
   }
@@ -881,7 +886,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                            pi_mem *RetImage) {
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     if (PrintPiTrace) {
-      std::cerr << "Invalid memory attribute for piMemImageCreate";
+      std::cerr << "Invalid memory attribute for piMemImageCreate" << std::endl;
     }
     return PI_INVALID_OPERATION;
   }
@@ -1014,19 +1019,15 @@ pi_result piProgramGetBuildInfo(pi_program, pi_device, cl_program_build_info,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piProgramRetain(pi_program) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piProgramRetain(pi_program) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piProgramRelease(pi_program) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piProgramRelease(pi_program) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piextProgramGetNativeHandle(pi_program, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextProgramCreateWithNativeHandle(pi_native_handle, pi_context,
+pi_result piextProgramCreateWithNativeHandle(pi_native_handle, pi_context, bool,
                                              pi_program *) {
   DIE_NO_IMPLEMENTATION;
 }
@@ -1063,17 +1064,11 @@ pi_result piKernelGetSubGroupInfo(pi_kernel, pi_device,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piKernelRetain(pi_kernel) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piKernelRetain(pi_kernel) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piKernelRelease(pi_kernel) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piKernelRelease(pi_kernel) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piEventCreate(pi_context, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piEventCreate(pi_context, pi_event *) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piEventGetInfo(pi_event, pi_event_info, size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
@@ -1112,9 +1107,7 @@ pi_result piEventSetCallback(pi_event, pi_int32,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEventSetStatus(pi_event, pi_int32) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piEventSetStatus(pi_event, pi_int32) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piEventRetain(pi_event Event) {
   if (Event == nullptr) {
@@ -1165,13 +1158,9 @@ pi_result piSamplerGetInfo(pi_sampler, pi_sampler_info, size_t, void *,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piSamplerRetain(pi_sampler) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piSamplerRetain(pi_sampler) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piSamplerRelease(pi_sampler) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piSamplerRelease(pi_sampler) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piEnqueueEventsWait(pi_queue, pi_uint32, const pi_event *,
                               pi_event *) {
@@ -1513,9 +1502,19 @@ pi_result piextProgramSetSpecializationConstant(pi_program, pi_uint32, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *, pi_uint32,
-                                  pi_uint32 *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
+                                  pi_uint32 RawImgSize, pi_uint32 *ImgInd) {
+  /// TODO : Support multiple images and enable selection algorithm
+  /// for the images
+  if (RawImgSize != 1) {
+    if (PrintPiTrace) {
+      std::cerr << "Only single device binary image is supported in ESIMD_CPU"
+                << std::endl;
+    }
+    return PI_INVALID_VALUE;
+  }
+  *ImgInd = 0;
+  return PI_SUCCESS;
 }
 
 pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,

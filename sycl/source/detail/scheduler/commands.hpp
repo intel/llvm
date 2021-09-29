@@ -195,14 +195,14 @@ public:
   virtual bool producesPiEvent() const;
 
 protected:
-  EventImplPtr MEvent;
   QueueImplPtr MQueue;
   QueueImplPtr MSubmittedQueue;
+  EventImplPtr MEvent;
 
   /// Dependency events prepared for waiting by backend.
   /// See processDepEvent for details.
-  std::vector<EventImplPtr> MPreparedDepsEvents;
-  std::vector<EventImplPtr> MPreparedHostDepsEvents;
+  std::vector<EventImplPtr> &MPreparedDepsEvents;
+  std::vector<EventImplPtr> &MPreparedHostDepsEvents;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      RT::PiEvent &Event);
