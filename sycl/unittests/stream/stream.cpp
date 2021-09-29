@@ -101,7 +101,7 @@ TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
   auto ExecBundle = sycl::build(KernelBundle);
 
-  Queue.submit([&](sycl::handler &CGH) {
+  auto e = Queue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
 
     try {
@@ -116,6 +116,7 @@ TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
 
     CGH.single_task<TestKernel>([=]() {});
   });
+  e.wait();
 
   ASSERT_EQ(GBufferCreateCounter, 0u) << "Buffers were unexpectedly created.";
 }
