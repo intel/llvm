@@ -1667,6 +1667,20 @@ ESIMD_NODEBUG ESIMD_INLINE
   return esimd_pack_mask(src_0);
 }
 
+/// Extracts the lowest bit of each source vector element, and create a
+/// concatentation of these bits.
+/// @param mask the source operand to extract bits from.
+/// @return an \c uint, where each bit is set to the lowest bit of the
+/// corresponding element of the source operand.
+template <typename T, int N>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    detail::is_type<T, ushort, uint> && (N > 0 && N <= 32), uint>
+esimd_ballot(simd<T, N> mask) {
+  simd<uint16_t, (N <= 8 ? 8 : N <= 16 ? 16 : 32)> src0 = 0;
+  src0.template select<N, 1>() = convert<uint16_t>(mask);
+  return __esimd_pack_mask<(N <= 8 ? 8 : N <= 16 ? 16 : 32)>(src0.data());
+}
+
 /// Count number of bits set in the source operand per element.
 /// @param src0 the source operand to count bits in.
 /// @return a vector of \c uint32_t, where each element is set to bit count of

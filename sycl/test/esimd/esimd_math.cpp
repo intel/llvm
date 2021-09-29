@@ -72,3 +72,24 @@ bool test_esimd_trunc() __attribute__((sycl_device)) {
 
   return (vfr[0] == 1.f) && (vsr[0] == 1) && (sfr == 2.f) && (ssr == 2);
 }
+
+bool test_esimd_ballot() __attribute__((sycl_device)) {
+  simd<ushort, 4>  vus4 = {1,2,3,4};
+  simd<ushort, 10> vus10 = {1,2,3,4,5,6,7,8,9,10};
+  simd<ushort, 20> vus20 = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
+
+  uint mus4 = esimd_ballot(vus4);
+  uint mus10 = esimd_ballot(vus10);
+  uint mus20 = esimd_ballot(vus20);
+
+  simd<uint, 4>  vui4 = {1,2,3,4};
+  simd<uint, 10> vui10 = {1,2,3,4,5,6,7,8,9,10};
+  simd<uint, 20> vui20 = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
+
+  uint mui4 = esimd_ballot(vui4);
+  uint mui10 = esimd_ballot(vui10);
+  uint mui20 = esimd_ballot(vui20);
+
+  return (mus4 == 0x5) && (mus10 == 0x155) && (mus20 = 0x55555) &&
+         (mui4 == 0x5) && (mui10 == 0x155) && (mui20 = 0x55555);
+}
