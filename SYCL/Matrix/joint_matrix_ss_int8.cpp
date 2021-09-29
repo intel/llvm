@@ -59,9 +59,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
      cgh.parallel_for<class imatrix>(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [accA, accB, accC, M, N, K](nd_item<2> spmd_item)
-
-         {
+         [ accA, accB, accC, M, N,
+           K ](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
            // code divergence between the workitems
@@ -86,7 +85,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(
                  sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k * TK,
-                 K, matrix_layout::packed_a);
+                 K, matrix_layout::row_major);
              // Assuming B data is already in VNNI format.
              joint_matrix_load(sg, sub_b,
                                accB.get_pointer() + (k * TK / 4) * (N * 4) +
@@ -164,15 +163,4 @@ int main() {
     std::cout << "passed\n";
   else
     std::cout << "failed\n";
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++)
-      std::cout << C[i][j] << ", ";
-    std::cout << "\n";
-  }
-  std::cout << std::endl;
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++)
-      std::cout << D[i][j] << ", ";
-    std::cout << "\n";
-  }
 }

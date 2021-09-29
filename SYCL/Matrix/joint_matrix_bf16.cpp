@@ -182,15 +182,4 @@ int main() {
     std::cout << "passed\n";
   else
     std::cout << "failed\n";
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++)
-      std::cout << C[i][j] << ", ";
-    std::cout << "\n";
-  }
-  std::cout << std::endl;
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++)
-      std::cout << D[i][j] << ", ";
-    std::cout << "\n";
-  }
 }

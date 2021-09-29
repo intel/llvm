@@ -59,7 +59,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
      cgh.parallel_for<class imatrix>(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [accA, accB, accC, M, N, K](nd_item<2> spmd_item)
+         [ accA, accB, accC, M, N, K ](nd_item<2> spmd_item)
+             [[intel::reqd_sub_group_size(SG_SZ)]]
 
          {
            // The submatrix API has to be accessed by all the workitems in a
@@ -88,7 +89,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(
                  sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k * TK,
-                 K, matrix_layout::packed_a);
+                 K, matrix_layout::row_major);
              // Assuming B data is already in VNNI format.
              joint_matrix_load(sg, sub_b,
                                accB.get_pointer() + (k * TK / 4) * (N * 4) +
@@ -118,11 +119,11 @@ void matrix_multiply_ref(int32_t *A_mem, int32_t *B_mem, int32_t *C_mem, int M,
   for (int m = 0; m < M; m++)
     for (int n = 0; n < N; n++) {
       for (int k = 0; k < K; k++) {
-        char *va = (char *)(A_mem + m * K + k);
-        char *vb = (char *)(B_mem + k * N + n);
+        uint8_t *va = (uint8_t *)(A_mem + m * K + k);
+        int8_t *vb = (int8_t *)(B_mem + k * N + n);
         int acc = *(C_mem + m * N + n);
         for (int i = 0; i < 4; i++) {
-          acc += (va[i] * vb[i]);
+          acc += (static_cast<int>(va[i]) * static_cast<int>(vb[i]));
         }
         *(C_mem + m * N + n) = acc;
       }
@@ -166,15 +167,4 @@ int main() {
     std::cout << "passed\n";
   else
     std::cout << "failed\n";
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++)
-      std::cout << C[i][j] << ", ";
-    std::cout << "\n";
-  }
-  std::cout << std::endl;
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++)
-      std::cout << D[i][j] << ", ";
-    std::cout << "\n";
-  }
 }
