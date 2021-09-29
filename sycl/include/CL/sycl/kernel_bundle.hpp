@@ -173,6 +173,9 @@ protected:
   // \returns an iterator to the last device image kernel_bundle contains
   const device_image_plain *end() const;
 
+  // \returns the number of device images in the kernel_bundle
+  size_t size() const;
+
   bool has_specialization_constant_impl(const char *SpecName) const noexcept;
 
   void set_specialization_constant_impl(const char *SpecName, void *Value,
@@ -308,6 +311,9 @@ public:
   device_image_iterator end() const {
     return reinterpret_cast<device_image_iterator>(kernel_bundle_plain::end());
   }
+
+  /// \returns the number of device images in the kernel_bundle
+  size_t size() const { return kernel_bundle_plain::size(); }
 
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")

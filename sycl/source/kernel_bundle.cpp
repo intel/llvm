@@ -80,6 +80,8 @@ const device_image_plain *kernel_bundle_plain::end() const {
   return impl->end();
 }
 
+size_t kernel_bundle_plain::size() const { return impl->size(); }
+
 bool kernel_bundle_plain::has_kernel(const kernel_id &KernelID) const noexcept {
   return impl->has_kernel(KernelID);
 }
@@ -99,9 +101,8 @@ void kernel_bundle_plain::set_specialization_constant_impl(
   impl->set_specialization_constant_raw_value(SpecName, Value, Size);
 }
 
-void kernel_bundle_plain::get_specialization_constant_impl(const char *SpecName,
-                                                           void *Value) const
-    noexcept {
+void kernel_bundle_plain::get_specialization_constant_impl(
+    const char *SpecName, void *Value) const noexcept {
   impl->get_specialization_constant_raw_value(SpecName, Value);
 }
 
