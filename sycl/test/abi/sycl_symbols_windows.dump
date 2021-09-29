@@ -2056,6 +2056,7 @@
 ?getElementSize@?$image_impl@$01@detail@sycl@cl@@QEBA_KXZ
 ?getElementSize@?$image_impl@$02@detail@sycl@cl@@QEBA_KXZ
 ?getEndTime@HostProfilingInfo@detail@sycl@cl@@QEBA_KXZ
+?getHandlerImpl@handler@sycl@cl@@AEBA?AV?$shared_ptr@Vhandler_impl@detail@sycl@cl@@@std@@XZ
 ?getImageDesc@?$image_impl@$00@detail@sycl@cl@@AEAA?AU_pi_image_desc@@_N@Z
 ?getImageDesc@?$image_impl@$01@detail@sycl@cl@@AEAA?AU_pi_image_desc@@_N@Z
 ?getImageDesc@?$image_impl@$02@detail@sycl@cl@@AEAA?AU_pi_image_desc@@_N@Z
@@ -3813,8 +3814,8 @@
 ?setPitches@?$image_impl@$00@detail@sycl@cl@@AEAAXXZ
 ?setPitches@?$image_impl@$01@detail@sycl@cl@@AEAAXXZ
 ?setPitches@?$image_impl@$02@detail@sycl@cl@@AEAAXXZ
-?setStateExplicitKernelBundle@handler@sycl@cl@@AEAA_NXZ
-?setStateSpecConstSet@handler@sycl@cl@@AEAA_NXZ
+?setStateExplicitKernelBundle@handler@sycl@cl@@AEAAXXZ
+?setStateSpecConstSet@handler@sycl@cl@@AEAAXXZ
 ?setType@handler@sycl@cl@@AEAAXW4CGTYPE@CG@detail@23@@Z
 ?set_final_data@SYCLMemObjT@detail@sycl@cl@@QEAAX$$T@Z
 ?set_final_data_from_storage@SYCLMemObjT@detail@sycl@cl@@QEAAXXZ

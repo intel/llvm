@@ -61,14 +61,14 @@ std::shared_ptr<detail::handler_impl> handler::getHandlerImpl() const {
 }
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
-// set. This returns a sycl::exception with errc::invalid if the current state
+// set. Throws a sycl::exception with errc::invalid if the current state
 // indicates that a specialization constant has been set.
 void handler::setStateExplicitKernelBundle() {
   getHandlerImpl()->setStateExplicitKernelBundle();
 }
 
 // Sets the submission state to indicate that a specialization constant has been
-// set. This returns a sycl::exception with errc::invalid if the current state
+// set. Throws a sycl::exception with errc::invalid if the current state
 // indicates that an explicit kernel bundle has been set.
 void handler::setStateSpecConstSet() {
   getHandlerImpl()->setStateSpecConstSet();
