@@ -216,7 +216,7 @@ const char *stringifyErrorCode(cl_int error) {
         case CL_DX9_MEDIA_SURFACE_NOT_ACQUIRED_KHR:
           return "CL_DX9_MEDIA_SURFACE_NOT_ACQUIRED_KHR";
           */
-    case -998:
+    case PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE:
       return "Function exists but address is not available";
     default:
       return "Unknown OpenCL error code";

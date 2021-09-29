@@ -65,6 +65,8 @@ CONSTFIX char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
 CONSTFIX char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
 CONSTFIX char clSetProgramSpecializationConstantName[] =
     "clSetProgramSpecializationConstant";
+CONSTFIX char clGetDeviceFunctionPointerName[] =
+    "clGetDeviceFunctionPointerINTEL";
 
 #undef CONSTFIX
 
@@ -509,7 +511,7 @@ pi_result piextKernelCreateWithNativeHandle(pi_native_handle nativeHandle,
 // returns true if there is at least one instance
 // returns false if there are no instances of the name
 static bool is_in_separated_string(const std::string &str, char delimiter,
-                            const std::string &sub_str) {
+                                   const std::string &sub_str) {
   size_t beg = 0;
   size_t length = 0;
   for (const auto &x : str) {
@@ -530,6 +532,9 @@ static bool is_in_separated_string(const std::string &str, char delimiter,
   return false;
 }
 
+typedef CL_API_ENTRY cl_int(CL_API_CALL *clGetDeviceFunctionPointer_fn)(
+    cl_device_id device, cl_program program, const char *FuncName,
+    cl_ulong *ret_ptr);
 pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                                         const char *func_name,
                                         pi_uint64 *function_pointer_ret) {
@@ -555,19 +560,24 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                              "clGetDeviceFunctionPointerINTEL")) {
     delete[] extensions;
 
-    using FuncT = cl_int(CL_API_CALL *)(cl_device_id, cl_program, const char *,
-                                        cl_ulong *);
+    cl_context CLContext = nullptr;
+    ret_err = clGetProgramInfo(cast<cl_program>(program), CL_PROGRAM_CONTEXT,
+                               sizeof(CLContext), &CLContext, nullptr);
 
-    FuncT func_ptr =
-        reinterpret_cast<FuncT>(clGetExtensionFunctionAddressForPlatform(
-            cast<cl_platform_id>(platform), "clGetDeviceFunctionPointerINTEL"));
+    if (ret_err != CL_SUCCESS)
+      return cast<pi_result>(ret_err);
 
-    assert(func_ptr != nullptr &&
+    clGetDeviceFunctionPointer_fn FuncT = nullptr;
+    ret_err = getExtFuncFromContext<clGetDeviceFunctionPointerName,
+                                    clGetDeviceFunctionPointer_fn>(
+        cast<pi_context>(CLContext), &FuncT);
+
+    assert(FuncT != nullptr &&
            "Failed to get address of clGetDeviceFunctionPointerINTEL function");
 
     pi_result piret_err = cast<pi_result>(
-        func_ptr(cast<cl_device_id>(device), cast<cl_program>(program),
-                 func_name, function_pointer_ret));
+        FuncT(cast<cl_device_id>(device), cast<cl_program>(program), func_name,
+              function_pointer_ret));
     return piret_err;
   } else {
     // If clGetDeviceFunctionPointerIntel extension does not exist,
@@ -590,8 +600,10 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                                &ClResult[0], nullptr);
     if (Res != CL_SUCCESS)
       return cast<pi_result>(Res);
-
+    
     // Get rid of the null terminator and search for kernel_name
+    // If function can be found return error code to indicate it
+    // exists
     ClResult.pop_back();
     if (is_in_separated_string(ClResult, ';', func_name))
       return PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;

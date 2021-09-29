@@ -318,8 +318,7 @@ bool program_impl::has_kernel(std::string KernelName,
       throw runtime_error(
           "Error from piextGetDeviceFunctionPointer when called by program",
           Err);
-    if (Err == PI_SUCCESS ||
-        Err == PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE)
+    if (Err == PI_SUCCESS || Err == PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE)
       return true;
   }
 
