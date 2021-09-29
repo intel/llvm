@@ -202,14 +202,21 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
   return make_kernel_bundle(NativeHandle, TargetContext, false, State, Backend);
 }
 
-kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
+kernel make_kernel(const context &TargetContext,
+                   const kernel_bundle<bundle_state::executable> &KernelBundle,
+                   pi_native_handle NativeHandle, bool KeepOwnership,
                    backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
+  const auto &DeviceImage = KernelBundle.begin();
+  const auto &DeviceImageImpl = getSyclObjImpl(DeviceImage);
+
   // Create PI kernel first.
   pi::PiKernel PiKernel = nullptr;
+  pi::PiProgram PiProgram = DeviceImageImpl->get_program_ref();
   Plugin.call<PiApiKind::piextKernelCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), false, &PiKernel);
+      NativeHandle, ContextImpl->getHandleRef(), PiProgram, KeepOwnership,
+      &PiKernel);
 
   if (Backend == backend::opencl)
     Plugin.call<PiApiKind::piKernelRetain>(PiKernel);
@@ -218,6 +225,12 @@ kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
   return detail::createSyclObjFromImpl<kernel>(
       std::make_shared<kernel_impl>(PiKernel, ContextImpl));
 }
+
+kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
+                   backend Backend) {
+  return make_kernel(TargetContext, NativeHandle, false, Backend);
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -39,6 +39,10 @@ template <> struct interop<backend::level_zero, program> {
   using type = ze_module_handle_t;
 };
 
+template <> struct interop<backend::level_zero, kernel> {
+  using type = ze_kernel_handle_t;
+};
+
 template <typename DataT, int Dimensions, access::mode AccessMode>
 struct interop<backend::level_zero,
                accessor<DataT, Dimensions, AccessMode, access::target::device,
@@ -117,6 +121,15 @@ template <> struct BackendReturn<backend::level_zero, kernel> {
   using type = ze_kernel_handle_t;
 };
 
+template <> struct BackendInput<backend::level_zero, kernel> {
+  using type = struct {
+    kernel_bundle<bundle_state::executable> KernelBundle;
+    ze_kernel_handle_t NativeKernelHandle;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
+  };
+};
+
 template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakePlatform = true;
   static constexpr bool MakeDevice = true;
@@ -124,8 +137,8 @@ template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakeQueue = true;
   static constexpr bool MakeEvent = true;
   static constexpr bool MakeKernelBundle = true;
+  static constexpr bool MakeKernel = true;
   static constexpr bool MakeBuffer = false;
-  static constexpr bool MakeKernel = false;
 };
 } // namespace detail
 
@@ -269,6 +282,18 @@ make_kernel_bundle<backend::ext_oneapi_level_zero, bundle_state::executable>(
           bundle_state::executable, backend::ext_oneapi_level_zero);
   return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::executable>>(
       KBImpl);
+}
+
+// Specialization of sycl::make_kernel for Level-Zero backend.
+template <>
+kernel make_kernel<backend::level_zero>(
+    const backend_input_t<backend::level_zero, kernel> &BackendObject,
+    const context &TargetContext) {
+  return detail::make_kernel(
+      TargetContext, BackendObject.KernelBundle,
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
+      backend::ext_oneapi_level_zero);
 }
 
 // TODO: remove this specialization when generic is changed to call

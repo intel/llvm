@@ -772,7 +772,7 @@ pi_result _pi_context::initialize() {
 }
 
 pi_result _pi_context::finalize() {
-  // This function is called when pi_context is deallocated, piContextRelase.
+  // This function is called when pi_context is deallocated, piContextRelease.
   // There could be some memory that may have not been deallocated.
   // For example, zeEventPool could be still alive.
   std::lock_guard<std::mutex> NumEventsUnreleasedInEventPoolGuard(
@@ -4486,9 +4486,17 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   return PI_SUCCESS;
 }
 
-pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context, bool,
-                                            pi_kernel *) {
-  die("Unsupported operation");
+pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                            pi_context Context,
+                                            pi_program Program,
+                                            bool OwnNativeHandle,
+                                            pi_kernel *Kernel) {
+  PI_ASSERT(Context, PI_INVALID_CONTEXT);
+  PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
+  PI_ASSERT(Kernel, PI_INVALID_KERNEL);
+
+  auto ZeKernel = pi_cast<ze_kernel_handle_t>(NativeHandle);
+  *Kernel = new _pi_kernel(ZeKernel, Program);
   return PI_SUCCESS;
 }
 
