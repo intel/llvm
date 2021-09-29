@@ -124,7 +124,7 @@ template <> struct BackendReturn<backend::level_zero, kernel> {
 template <> struct BackendInput<backend::level_zero, kernel> {
   using type = struct {
     kernel_bundle<bundle_state::executable> KernelBundle;
-    ze_kernel_handle_t NativeKernelHandle;
+    ze_kernel_handle_t NativeHandle;
     ext::oneapi::level_zero::ownership Ownership{
         ext::oneapi::level_zero::ownership::transfer};
   };

@@ -208,7 +208,7 @@ kernel make_kernel(const context &TargetContext,
                    backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
-  const auto &DeviceImage = KernelBundle.begin();
+  const auto &DeviceImage = *KernelBundle.begin();
   const auto &DeviceImageImpl = getSyclObjImpl(DeviceImage);
 
   // Create PI kernel first.
@@ -228,7 +228,9 @@ kernel make_kernel(const context &TargetContext,
 
 kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
                    backend Backend) {
-  return make_kernel(TargetContext, NativeHandle, false, Backend);
+  return make_kernel(TargetContext,
+                     get_kernel_bundle<bundle_state::executable>(TargetContext),
+                     NativeHandle, false, Backend);
 }
 
 } // namespace detail
