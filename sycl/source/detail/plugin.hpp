@@ -179,6 +179,14 @@ public:
     checkPiResult(Err);
   }
 
+  // CP - #1
+  /// \throw exception subclass Exception if the call was not successful.
+  template <typename Exception, PiApiKind PiApiOffset, typename... ArgsT>
+  void call(ArgsT... Args) const {
+    RT::PiResult Err = call_nocheck<PiApiOffset>(Args...);
+    checkPiResult<Exception>(Err);
+  }
+
   backend getBackend(void) const { return MBackend; }
   void *getLibraryHandle() const { return MLibraryHandle; }
   void *getLibraryHandle() { return MLibraryHandle; }
