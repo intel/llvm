@@ -949,6 +949,9 @@ def warn_pragma_options_align_reset_failed : Warning<
   InGroup<IgnoredPragmas>;
 def err_pragma_options_align_mac68k_target_unsupported : Error<
   "mac68k alignment pragma is not supported on this target">;
+def warn_pragma_align_not_xl_compatible : Warning<
+  "#pragma align(packed) may not be compatible with objects generated with AIX XL C/C++">,
+  InGroup<AIXCompat>;
 def warn_pragma_pack_invalid_alignment : Warning<
   "expected #pragma pack parameter to be '1', '2', '4', '8', or '16'">,
   InGroup<IgnoredPragmas>;
@@ -3435,7 +3438,7 @@ def warn_attribute_dllimport_static_field_definition : Warning<
   InGroup<DiagGroup<"dllimport-static-field-def">>;
 def warn_attribute_dllexport_explicit_instantiation_decl : Warning<
   "explicit instantiation declaration should not be 'dllexport'">,
-  InGroup<DiagGroup<"dllexport-explicit-instantiation-decl">>;
+  InGroup<DllexportExplicitInstantiationDecl>;
 def warn_attribute_dllexport_explicit_instantiation_def : Warning<
   "'dllexport' attribute ignored on explicit instantiation definition">,
   InGroup<IgnoredAttributes>;
@@ -8610,6 +8613,9 @@ def err_typecheck_choose_expr_requires_constant : Error<
   "'__builtin_choose_expr' requires a constant expression">;
 def warn_unused_expr : Warning<"expression result unused">,
   InGroup<UnusedValue>;
+def warn_unused_comma_left_operand : Warning<
+  "left operand of comma operator has no effect">,
+  InGroup<UnusedValue>;
 def warn_unused_voidptr : Warning<
   "expression result unused; should this cast be to 'void'?">,
   InGroup<UnusedValue>;
@@ -9828,8 +9834,12 @@ def err_mips_builtin_requires_msa : Error<
   "this builtin requires 'msa' ASE, please use -mmsa">;
 def err_ppc_builtin_only_on_arch : Error<
   "this builtin is only valid on POWER%0 or later CPUs">;
+def err_ppc_builtin_requires_vsx : Error<
+  "this builtin requires VSX to be enabled">;
 def err_ppc_invalid_use_mma_type : Error<
   "invalid use of PPC MMA type">;
+def err_ppc_invalid_test_data_class_type : Error<
+  "expected a 'float' or 'double' for the first argument">;
 def err_x86_builtin_invalid_rounding : Error<
   "invalid rounding argument">;
 def err_x86_builtin_invalid_scale : Error<

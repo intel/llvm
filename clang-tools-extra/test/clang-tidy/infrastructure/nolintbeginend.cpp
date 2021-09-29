@@ -1,4 +1,4 @@
-// RUN: %check_clang_tidy %s google-explicit-constructor %t -- --header-filter=.* -system-headers -- -isystem %S/Inputs/nolintbeginend
+// RUN: %check_clang_tidy %s google-explicit-constructor %t
 
 class A { A(int i); };
 // CHECK-MESSAGES: :[[@LINE-1]]:11: warning: single-argument constructors must be marked explicit
@@ -106,11 +106,6 @@ MACRO(D2)
 MACRO_NOARG
 // NOLINTEND
 
-#include "error_in_include.inc"
-// CHECK-MESSAGES: error_in_include.inc:1:11: warning: single-argument constructors must be marked explicit
-
-#include "nolint_in_include.inc"
-
 // NOLINTBEGIN
 #define MACRO_WRAPPED_WITH_NO_LINT class I { I(int i); };
 // NOLINTEND
@@ -124,4 +119,4 @@ MACRO_WRAPPED_WITH_NO_LINT
 
 MACRO_NO_LINT_INSIDE_MACRO
 
-// CHECK-MESSAGES: Suppressed 19 warnings (19 NOLINT).
+// CHECK-MESSAGES: Suppressed 18 warnings (18 NOLINT).

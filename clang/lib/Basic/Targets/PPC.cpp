@@ -238,6 +238,13 @@ static void defineXLCompatMacros(MacroBuilder &Builder) {
   Builder.defineMacro("__fsqrts", "__builtin_ppc_fsqrts");
   Builder.defineMacro("__addex", "__builtin_ppc_addex");
   Builder.defineMacro("__cmplxl", "__builtin_complex");
+  Builder.defineMacro("__compare_exp_uo", "__builtin_ppc_compare_exp_uo");
+  Builder.defineMacro("__compare_exp_lt", "__builtin_ppc_compare_exp_lt");
+  Builder.defineMacro("__compare_exp_gt", "__builtin_ppc_compare_exp_gt");
+  Builder.defineMacro("__compare_exp_eq", "__builtin_ppc_compare_exp_eq");
+  Builder.defineMacro("__test_data_class", "__builtin_ppc_test_data_class");
+  Builder.defineMacro("__swdiv", "__builtin_ppc_swdiv");
+  Builder.defineMacro("__swdivs", "__builtin_ppc_swdivs");
 }
 
 /// PPCTargetInfo::getTargetDefines - Return a set of the PowerPC-specific
@@ -245,7 +252,10 @@ static void defineXLCompatMacros(MacroBuilder &Builder) {
 void PPCTargetInfo::getTargetDefines(const LangOptions &Opts,
                                      MacroBuilder &Builder) const {
 
-  defineXLCompatMacros(Builder);
+  // We define the XLC compatibility macros only on AIX and Linux since XLC
+  // was never available on any other platforms.
+  if (getTriple().isOSAIX() || getTriple().isOSLinux())
+    defineXLCompatMacros(Builder);
 
   // Target identification.
   Builder.defineMacro("__ppc__");

@@ -73,6 +73,12 @@ cl::opt<bool> EnableLTOInternalization(
     "enable-lto-internalization", cl::init(true), cl::Hidden,
     cl::desc("Enable global value internalization in LTO"));
 
+namespace llvm {
+cl::opt<bool>
+    DebugPassManager("debug-pass-manager", cl::init(false), cl::Hidden,
+                     cl::desc("Print pass management debugging information"));
+}
+
 // Computes a unique hash for the Module considering the current list of
 // export/import and other global analysis results.
 // The hash is produced in \p Key.
@@ -537,12 +543,12 @@ void LTO::addModuleToGlobalRes(ArrayRef<InputFile::Symbol> Syms,
   auto *ResI = Res.begin();
   auto *ResE = Res.end();
   (void)ResE;
+  const Triple TT(RegularLTO.CombinedModule->getTargetTriple());
   for (const InputFile::Symbol &Sym : Syms) {
     assert(ResI != ResE);
     SymbolResolution Res = *ResI++;
 
     StringRef Name = Sym.getName();
-    Triple TT(RegularLTO.CombinedModule->getTargetTriple());
     // Strip the __imp_ prefix from COFF dllimport symbols (similar to the
     // way they are handled by lld), otherwise we can end up with two
     // global resolutions (one with and one for a copy of the symbol without).

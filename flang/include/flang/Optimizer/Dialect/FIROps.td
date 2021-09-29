@@ -1061,7 +1061,7 @@ def fir_EmboxOp : fir_Op<"embox", [NoSideEffect, AttrSizedOperandSegments]> {
         - shape: emboxing an array may require shape information (an array's
           lower bounds and extents may not be known until runtime),
         - slice: an array section can be described with a slice triple,
-        - lenParams: for emboxing a derived type with LEN type parameters,
+        - typeparams: for emboxing a derived type with LEN type parameters,
         - accessMap: unused/experimental.
   }];
 
@@ -1069,7 +1069,7 @@ def fir_EmboxOp : fir_Op<"embox", [NoSideEffect, AttrSizedOperandSegments]> {
     AnyReferenceLike:$memref,
     Optional<AnyShapeType>:$shape,
     Optional<fir_SliceType>:$slice,
-    Variadic<AnyIntegerType>:$lenParams,
+    Variadic<AnyIntegerType>:$typeparams,
     OptionalAttr<AffineMapAttr>:$accessMap
   );
 
@@ -1085,7 +1085,7 @@ def fir_EmboxOp : fir_Op<"embox", [NoSideEffect, AttrSizedOperandSegments]> {
   ];
 
   let assemblyFormat = [{
-    $memref (`(` $shape^ `)`)? (`[` $slice^ `]`)? (`typeparams` $lenParams^)?
+    $memref (`(` $shape^ `)`)? (`[` $slice^ `]`)? (`typeparams` $typeparams^)?
       (`map` $accessMap^)? attr-dict `:` functional-type(operands, results)
   }];
 
@@ -1094,8 +1094,8 @@ def fir_EmboxOp : fir_Op<"embox", [NoSideEffect, AttrSizedOperandSegments]> {
   let extraClassDeclaration = [{
     mlir::Value getShape() { return shape(); }
     mlir::Value getSlice() { return slice(); }
-    bool hasLenParams() { return !lenParams().empty(); }
-    unsigned numLenParams() { return lenParams().size(); }
+    bool hasLenParams() { return !typeparams().empty(); }
+    unsigned numLenParams() { return typeparams().size(); }
   }];
 }
 
@@ -1849,16 +1849,17 @@ def fir_ArrayCoorOp : fir_Op<"array_coor",
     Optional<AnyShapeOrShiftType>:$shape,
     Optional<fir_SliceType>:$slice,
     Variadic<AnyCoordinateType>:$indices,
-    Variadic<AnyIntegerType>:$lenParams
+    Variadic<AnyIntegerType>:$typeparams
   );
 
   let results = (outs fir_ReferenceType);
 
   let assemblyFormat = [{
-    $memref (`(`$shape^`)`)? (`[`$slice^`]`)? $indices (`typeparams` $lenParams^)? attr-dict `:` functional-type(operands, results)
+    $memref (`(`$shape^`)`)? (`[`$slice^`]`)? $indices (`typeparams`
+      $typeparams^)? attr-dict `:` functional-type(operands, results)
   }];
 
-  let verifier = [{ return ::verify(*this); }];
+  let verifier = "return ::verify(*this);";
 }
 
 def fir_CoordinateOp : fir_Op<"coordinate_of", [NoSideEffect]> {
@@ -2576,6 +2577,9 @@ def fir_IterWhileOp : region_Op<"iterate_while",
   ];
 
   let extraClassDeclaration = [{
+    static constexpr llvm::StringRef getFinalValueAttrName() {
+      return "finalValue";
+    }
     mlir::Block *getBody() { return &region().front(); }
     mlir::Value getIterateVar() { return getBody()->getArgument(1); }
     mlir::Value getInductionVar() { return getBody()->getArgument(0); }
@@ -2645,36 +2649,27 @@ def fir_CallOp : fir_Op<"call", [CallOpInterface]> {
 
   let builders = [
     OpBuilder<(ins "mlir::FuncOp":$callee,
-        CArg<"mlir::ValueRange", "{}">:$operands),
-    [{
-      $_state.addOperands(operands);
-      $_state.addAttribute(calleeAttrName($_state.name),
-                           SymbolRefAttr::get(callee));
-      $_state.addTypes(callee.getType().getResults());
-    }]>,
+        CArg<"mlir::ValueRange", "{}">:$operands)>,
     OpBuilder<(ins "mlir::SymbolRefAttr":$callee,
         "llvm::ArrayRef<mlir::Type>":$results,
-        CArg<"mlir::ValueRange", "{}">:$operands),
-    [{
-      $_state.addOperands(operands);
-      $_state.addAttribute(calleeAttrName($_state.name), callee);
-      $_state.addTypes(results);
-    }]>,
+        CArg<"mlir::ValueRange", "{}">:$operands)>,
     OpBuilder<(ins "llvm::StringRef":$callee,
         "llvm::ArrayRef<mlir::Type>":$results,
         CArg<"mlir::ValueRange", "{}">:$operands),
     [{
       build($_builder, $_state,
-            SymbolRefAttr::get($_builder.getContext(), callee), results,
-            operands);
+          SymbolRefAttr::get($_builder.getContext(), callee), results,
+          operands);
     }]>];
 
   let extraClassDeclaration = [{
+    static constexpr StringRef getCalleeAttrName() { return "callee"; }
+
     mlir::FunctionType getFunctionType();
 
     /// Get the argument operands to the called function.
     operand_range getArgOperands() {
-      if (calleeAttr())
+      if ((*this)->getAttrOfType<SymbolRefAttr>(getCalleeAttrName()))
         return {arg_operand_begin(), arg_operand_end()};
       return {arg_operand_begin() + 1, arg_operand_end()};
     }
@@ -2684,7 +2679,8 @@ def fir_CallOp : fir_Op<"call", [CallOpInterface]> {
 
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() {
-      if (auto calling = calleeAttr())
+      if (auto calling =
+          (*this)->getAttrOfType<SymbolRefAttr>(getCalleeAttrName()))
         return calling;
       return getOperand(0);
     }
