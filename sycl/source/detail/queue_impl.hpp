@@ -506,6 +506,11 @@ private:
                        Type == CG::CGTYPE::CodeplayInteropTask)) {
       do_submit_for_host_task();
       Handler->depends_on(MLastEvent);
+    } else {
+      // There is no point in collecting many non-submitted tasks,
+      // so either it will be submitted immediately or
+      // like here, it will be submitted in the next submission.
+      implicitly_do_submit();
     }
 
     SubmitPostProcessF PostProcessFunction =
