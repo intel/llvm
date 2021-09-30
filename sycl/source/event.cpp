@@ -66,7 +66,14 @@ event &event::operator=(event &&rhs) {
   return *this;
 }
 
-bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
+bool event::operator==(const event &rhs) const {
+  detail::EventImplPtr realImpl = impl;
+  detail::EventImplPtr eventImplRet = realImpl->doFinalize();
+  if (eventImplRet) {
+    realImpl = eventImplRet;
+  }
+  return rhs.impl == realImpl;
+}
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
 
