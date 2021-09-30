@@ -114,7 +114,7 @@ public:
 
   /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
   template <sycl::errc errc> void checkPiResult(RT::PiResult pi_result) const {
-    __SYCL_CHECK_OCL_CODE_THROW_VIA_ERRC(pi_result, errc);
+    __SYCL_CHECK_CODE_THROW_VIA_ERRC(pi_result, errc);
   }
 
   void reportPiError(RT::PiResult pi_result, const char *context) const {
