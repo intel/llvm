@@ -688,11 +688,11 @@ pi_result piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                                pi_kernel_group_info param_name,
                                size_t param_value_size, void *param_value,
                                size_t *param_value_size_ret) {
-  if (kernel == nullptr){
+  if (kernel == nullptr) {
     return PI_INVALID_KERNEL;
   }
 
-  switch (param_name){
+  switch (param_name) {
   case PI_KERNEL_GROUP_INFO_NUM_REGS:
     return PI_INVALID_VALUE;
   default:
@@ -702,7 +702,6 @@ pi_result piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
         param_value, param_value_size_ret);
     return static_cast<pi_result>(result);
   }
-
 }
 
 pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,

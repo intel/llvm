@@ -148,7 +148,8 @@ inline cl_ulong get_kernel_device_specific_info_host<
 
 template <>
 inline uint32_t get_kernel_device_specific_info_host<
-    info::kernel_device_specific::ext_codeplay_num_regs>(const cl::sycl::device &) {
+    info::kernel_device_specific::ext_codeplay_num_regs>(
+    const cl::sycl::device &) {
   return 0;
 }
 
