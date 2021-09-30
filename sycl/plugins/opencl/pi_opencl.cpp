@@ -684,6 +684,27 @@ pi_result piKernelCreate(pi_program program, const char *kernel_name,
   return ret_err;
 }
 
+pi_result piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
+                               pi_kernel_group_info param_name,
+                               size_t param_value_size, void *param_value,
+                               size_t *param_value_size_ret) {
+  if (kernel == nullptr){
+    return PI_INVALID_KERNEL;
+  }
+
+  switch (param_name){
+  case PI_KERNEL_GROUP_INFO_NUM_REGS:
+    return PI_INVALID_VALUE;
+  default:
+    cl_int result = clGetKernelWorkGroupInfo(
+        cast<cl_kernel>(kernel), cast<cl_device_id>(device),
+        cast<cl_kernel_work_group_info>(param_name), param_value_size,
+        param_value, param_value_size_ret);
+    return static_cast<pi_result>(result);
+  }
+
+}
+
 pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
                                   pi_kernel_sub_group_info param_name,
                                   size_t input_value_size,
@@ -1308,7 +1329,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelCreate, piKernelCreate)
   _PI_CL(piKernelSetArg, clSetKernelArg)
   _PI_CL(piKernelGetInfo, clGetKernelInfo)
-  _PI_CL(piKernelGetGroupInfo, clGetKernelWorkGroupInfo)
+  _PI_CL(piKernelGetGroupInfo, piKernelGetGroupInfo)
   _PI_CL(piKernelGetSubGroupInfo, piKernelGetSubGroupInfo)
   _PI_CL(piKernelRetain, clRetainKernel)
   _PI_CL(piKernelRelease, clReleaseKernel)
