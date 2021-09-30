@@ -347,6 +347,7 @@ typedef enum {
   PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE =
       CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
   PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE = CL_KERNEL_PRIVATE_MEM_SIZE,
+  // The number of registers used by the compiled kernel (device specific)
   PI_KERNEL_GROUP_INFO_NUM_REGS = 0x10112
 } _pi_kernel_group_info;
 
