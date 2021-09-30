@@ -337,11 +337,12 @@ void gpu::addAsyncDependency(Operation *op, Value token) {
   auto attrName =
       OpTrait::AttrSizedOperandSegments<void>::getOperandSegmentSizeAttr();
   auto sizeAttr = op->template getAttrOfType<DenseIntElementsAttr>(attrName);
+
+  // Async dependencies is the only variadic operand.
   if (!sizeAttr)
-    return; // Async dependencies is the only variadic operand.
-  SmallVector<int32_t, 8> sizes;
-  for (auto size : sizeAttr.getIntValues())
-    sizes.push_back(size.getSExtValue());
+    return;
+
+  SmallVector<int32_t, 8> sizes(sizeAttr.getValues<int32_t>());
   ++sizes.front();
   op->setAttr(attrName, Builder(op->getContext()).getI32VectorAttr(sizes));
 }
@@ -531,23 +532,19 @@ static ParseResult parseLaunchOp(OpAsmParser &parser, OperationState &result) {
                  parser.parseOptionalAttrDict(result.attributes));
 }
 
-/// Simplify the gpu.launch when the range of the thread and block IDs is
+/// Simplify the gpu.launch when the range of a thread or block ID is
 /// trivially known to be one.
 struct FoldLaunchArguments : public OpRewritePattern<LaunchOp> {
   using OpRewritePattern<LaunchOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(LaunchOp op,
                                 PatternRewriter &rewriter) const override {
-    auto isTriviallyOne = [](Value size) {
-      IntegerAttr cst;
-      return matchPattern(size, m_Constant(&cst)) && cst.getInt() == 1;
-    };
-
     // If the range implies a single value for `id`, replace `id`'s uses by
     // zero.
     Value zero;
     bool simplified = false;
     auto constPropIdUses = [&](Value id, Value size) {
-      if (!isTriviallyOne(size))
+      // Check if size is trivially one.
+      if (!matchPattern(size, m_One()))
         return;
       if (!simplified) {
         // Create a zero value the first time.

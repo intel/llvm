@@ -35,7 +35,7 @@
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting
 // traces using the trace framework
-#include "xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.h"
 #endif
 
 #define STR(x) #x
@@ -78,7 +78,7 @@ getPluginOpaqueData<cl::sycl::backend::esimd_cpu>(void *);
 
 namespace pi {
 
-static void initializePlugins(std::vector<plugin> *Plugins);
+static void initializePlugins(std::vector<plugin> &Plugins);
 
 bool XPTIInitDone = false;
 
@@ -278,26 +278,13 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
   // env only.
   //
-  const char *OpenCLPluginName =
-      SYCLConfig<SYCL_OVERRIDE_PI_OPENCL>::get()
-          ? SYCLConfig<SYCL_OVERRIDE_PI_OPENCL>::get()
-          : __SYCL_OPENCL_PLUGIN_NAME;
-  const char *L0PluginName =
-      SYCLConfig<SYCL_OVERRIDE_PI_LEVEL_ZERO>::get()
-          ? SYCLConfig<SYCL_OVERRIDE_PI_LEVEL_ZERO>::get()
-          : __SYCL_LEVEL_ZERO_PLUGIN_NAME;
-  const char *CUDAPluginName = SYCLConfig<SYCL_OVERRIDE_PI_CUDA>::get()
-                                   ? SYCLConfig<SYCL_OVERRIDE_PI_CUDA>::get()
-                                   : __SYCL_CUDA_PLUGIN_NAME;
-  const char *HIPPluginName = SYCLConfig<SYCL_OVERRIDE_PI_HIP>::get()
-                                  ? SYCLConfig<SYCL_OVERRIDE_PI_HIP>::get()
-                                  : __SYCL_HIP_PLUGIN_NAME;
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
   if (!FilterList) {
-    PluginNames.emplace_back(OpenCLPluginName, backend::opencl);
-    PluginNames.emplace_back(L0PluginName, backend::level_zero);
-    PluginNames.emplace_back(CUDAPluginName, backend::cuda);
-    PluginNames.emplace_back(HIPPluginName, backend::hip);
+    PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
+    PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
+                             backend::level_zero);
+    PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
+    PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::hip);
   } else {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
@@ -308,20 +295,21 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
       backend Backend = Filter.Backend;
       if (!OpenCLFound &&
           (Backend == backend::opencl || Backend == backend::all)) {
-        PluginNames.emplace_back(OpenCLPluginName, backend::opencl);
+        PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
         OpenCLFound = true;
       }
       if (!LevelZeroFound &&
           (Backend == backend::level_zero || Backend == backend::all)) {
-        PluginNames.emplace_back(L0PluginName, backend::level_zero);
+        PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
+                                 backend::level_zero);
         LevelZeroFound = true;
       }
       if (!CudaFound && (Backend == backend::cuda || Backend == backend::all)) {
-        PluginNames.emplace_back(CUDAPluginName, backend::cuda);
+        PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
         CudaFound = true;
       }
       if (!HIPFound && (Backend == backend::hip || Backend == backend::all)) {
-        PluginNames.emplace_back(HIPPluginName, backend::hip);
+        PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::hip);
         HIPFound = true;
       }
     }
@@ -369,17 +357,17 @@ bool trace(TraceLevel Level) {
 }
 
 // Initializes all available Plugins.
-const std::vector<plugin> &initialize() {
+std::vector<plugin> &initialize() {
   static std::once_flag PluginsInitDone;
-
-  std::call_once(PluginsInitDone, []() {
-    initializePlugins(&GlobalHandler::instance().getPlugins());
+  // std::call_once is blocking all other threads if a thread is already
+  // creating a vector of plugins. So, no additional lock is needed.
+  std::call_once(PluginsInitDone, [&]() {
+    initializePlugins(GlobalHandler::instance().getPlugins());
   });
-
   return GlobalHandler::instance().getPlugins();
 }
 
-static void initializePlugins(std::vector<plugin> *Plugins) {
+static void initializePlugins(std::vector<plugin> &Plugins) {
   std::vector<std::pair<std::string, backend>> PluginNames = findPlugins();
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
@@ -438,7 +426,7 @@ static void initializePlugins(std::vector<plugin> *Plugins) {
       GlobalPlugin = std::make_shared<plugin>(PluginInformation,
                                               backend::level_zero, Library);
     }
-    Plugins->emplace_back(
+    Plugins.emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))
       std::cerr << "SYCL_PI_TRACE[basic]: "

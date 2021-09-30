@@ -1944,21 +1944,23 @@ void Driver::PrintSYCLToolHelp(const Compilation &C) const {
     llvm::outs() << "Emitting help information for " << std::get<1>(HA) << '\n'
         << "Use triple of '" << std::get<0>(HA).normalize() <<
         "' to enable ahead of time compilation\n";
+    // Flush out the buffer before calling the external tool.
+    llvm::outs().flush();
     std::vector<StringRef> ToolArgs = {std::get<1>(HA), std::get<2>(HA),
                                        std::get<3>(HA)};
     SmallString<128> ExecPath(
         C.getDefaultToolChain().GetProgramPath(std::get<1>(HA).data()));
-    auto ToolBinary = llvm::sys::findProgramByName(ExecPath);
-    if (ToolBinary.getError()) {
-      C.getDriver().Diag(diag::err_drv_command_failure) << ExecPath;
-      continue;
-    }
     // do not run the tools with -###.
     if (C.getArgs().hasArg(options::OPT__HASH_HASH_HASH)) {
       llvm::errs() << "\"" << ExecPath << "\" \"" << ToolArgs[1] << "\"";
       if (!ToolArgs[2].empty())
         llvm::errs() << " \"" << ToolArgs[2] << "\"";
       llvm::errs() << "\n";
+      continue;
+    }
+    auto ToolBinary = llvm::sys::findProgramByName(ExecPath);
+    if (ToolBinary.getError()) {
+      C.getDriver().Diag(diag::err_drv_command_failure) << ExecPath;
       continue;
     }
     // Run the Tool.
@@ -2807,6 +2809,10 @@ bool hasFPGABinary(Compilation &C, std::string Object, types::ID Type) {
   assert(types::isFPGA(Type) && "unexpected Type for FPGA binary check");
   // Do not do the check if the file doesn't exist
   if (!llvm::sys::fs::exists(Object))
+    return false;
+
+  // Only static archives are valid FPGA Binaries for unbundling.
+  if (!isStaticArchiveFile(Object))
     return false;
 
   // Temporary names for the output.
@@ -4325,10 +4331,6 @@ class OffloadingActionBuilder final {
 
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
                            bool isSpirvAOT, bool isMSVCEnv) {
-      enum SYCLDeviceLibType {
-        sycl_devicelib_wrapper,
-        sycl_devicelib_fallback
-      };
       struct DeviceLibOptInfo {
         StringRef devicelib_name;
         StringRef devicelib_option;
@@ -4336,9 +4338,12 @@ class OffloadingActionBuilder final {
 
       bool NoDeviceLibs = false;
       int NumOfDeviceLibLinked = 0;
-      // Currently, all SYCL device libraries will be linked by default
-      llvm::StringMap<bool> devicelib_link_info = {
-          {"libc", true}, {"libm-fp32", true}, {"libm-fp64", true}};
+      // Currently, all SYCL device libraries will be linked by default. Linkage
+      // of "internal" libraries cannot be affected via -fno-sycl-device-lib.
+      llvm::StringMap<bool> devicelib_link_info = {{"libc", true},
+                                                   {"libm-fp32", true},
+                                                   {"libm-fp64", true},
+                                                   {"internal", true}};
       if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
                                    options::OPT_fno_sycl_device_lib_EQ)) {
         if (A->getValues().size() == 0)
@@ -4351,11 +4356,16 @@ class OffloadingActionBuilder final {
           for (StringRef Val : A->getValues()) {
             if (Val == "all") {
               for (const auto &K : devicelib_link_info.keys())
-                devicelib_link_info[K] = true && !NoDeviceLibs;
+                devicelib_link_info[K] =
+                    true && (!NoDeviceLibs || K.equals("internal"));
               break;
             }
             auto LinkInfoIter = devicelib_link_info.find(Val);
-            if (LinkInfoIter == devicelib_link_info.end()) {
+            if (LinkInfoIter == devicelib_link_info.end() ||
+                Val.equals("internal")) {
+              // TODO: Move the diagnostic to the SYCL section of
+              // Driver::CreateOffloadingDeviceToolChains() to minimize code
+              // duplication.
               C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
                   << A->getOption().getName() << Val;
             }
@@ -4369,7 +4379,8 @@ class OffloadingActionBuilder final {
       SmallVector<SmallString<128>, 4> LibLocCandidates;
       SYCLTC->SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
       StringRef LibSuffix = isMSVCEnv ? ".obj" : ".o";
-      SmallVector<DeviceLibOptInfo, 5> sycl_device_wrapper_libs = {
+      using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
+      const SYCLDeviceLibsList sycl_device_wrapper_libs = {
           {"libsycl-crt", "libc"},
           {"libsycl-complex", "libm-fp32"},
           {"libsycl-complex-fp64", "libm-fp64"},
@@ -4377,22 +4388,25 @@ class OffloadingActionBuilder final {
           {"libsycl-cmath-fp64", "libm-fp64"}};
       // For AOT compilation, we need to link sycl_device_fallback_libs as
       // default too.
-      SmallVector<DeviceLibOptInfo, 5> sycl_device_fallback_libs = {
+      const SYCLDeviceLibsList sycl_device_fallback_libs = {
           {"libsycl-fallback-cassert", "libc"},
           {"libsycl-fallback-cstring", "libc"},
           {"libsycl-fallback-complex", "libm-fp32"},
           {"libsycl-fallback-complex-fp64", "libm-fp64"},
           {"libsycl-fallback-cmath", "libm-fp32"},
           {"libsycl-fallback-cmath-fp64", "libm-fp64"}};
-      auto addInputs = [&](SYCLDeviceLibType t) {
-        auto sycl_libs = (t == sycl_devicelib_wrapper)
-                             ? sycl_device_wrapper_libs
-                             : sycl_device_fallback_libs;
+      // ITT annotation libraries are linked in separately whenever the device
+      // code instrumentation is enabled.
+      const SYCLDeviceLibsList sycl_device_annotation_libs = {
+          {"libsycl-itt-user-wrappers", "internal"},
+          {"libsycl-itt-compiler-wrappers", "internal"},
+          {"libsycl-itt-stubs", "internal"}};
+      auto addInputs = [&](const SYCLDeviceLibsList &LibsList) {
         bool LibLocSelected = false;
         for (const auto &LLCandidate : LibLocCandidates) {
           if (LibLocSelected)
             break;
-          for (const DeviceLibOptInfo &Lib : sycl_libs) {
+          for (const DeviceLibOptInfo &Lib : LibsList) {
             if (!devicelib_link_info[Lib.devicelib_option])
               continue;
             SmallString<128> LibName(LLCandidate);
@@ -4415,9 +4429,11 @@ class OffloadingActionBuilder final {
           }
         }
       };
-      addInputs(sycl_devicelib_wrapper);
+      addInputs(sycl_device_wrapper_libs);
       if (isSpirvAOT)
-        addInputs(sycl_devicelib_fallback);
+        addInputs(sycl_device_fallback_libs);
+      if (Args.hasArg(options::OPT_fsycl_instrument_device_code))
+        addInputs(sycl_device_annotation_libs);
       return NumOfDeviceLibLinked != 0;
     }
 
