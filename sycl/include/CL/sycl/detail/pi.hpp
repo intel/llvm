@@ -369,6 +369,13 @@ public:
     return AssertUsed;
   }
   const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
+  const PropertyRange getExportedSymbols() const {
+    // We can't have this variable as a class member, since it would break
+    // the ABI backwards compatibility.
+    DeviceBinaryImage::PropertyRange ExportedSymbols;
+    ExportedSymbols.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
+    return ExportedSymbols;
+  }
   virtual ~DeviceBinaryImage() {}
 
 protected:
