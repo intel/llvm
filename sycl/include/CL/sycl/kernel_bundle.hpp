@@ -311,10 +311,9 @@ public:
 
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  std::vector<typename backend_traits<Backend>::template return_type<
-      kernel_bundle<State>>> get_native() {
-    std::vector<typename backend_traits<Backend>::template return_type<
-        kernel_bundle<State>>>
+  typename backend_traits<Backend>::template return_type<
+      kernel_bundle<State>> get_native() const {
+    typename backend_traits<Backend>::template return_type<kernel_bundle<State>>
         ReturnValue;
     ReturnValue.reserve(std::distance(begin(), end()));
 
