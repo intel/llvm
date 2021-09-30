@@ -239,6 +239,10 @@ static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
         }
       }
     }
+    // Function pointer is used somewhere. Follow the same rule as above.
+    for (const auto *U : F.users())
+      if (!isa<CallInst>(U))
+        return Scope_Global;
   }
 
   // At the moment, we assume that per-source split is the best way of splitting
