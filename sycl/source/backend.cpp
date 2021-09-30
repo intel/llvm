@@ -208,19 +208,26 @@ kernel make_kernel(const context &TargetContext,
                    backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
-  // Expect exactly one device image in the bundle. This is natural for interop
-  // kernel to get created out of a single native program/module. This way we
-  // don't need to search the exact device image for the kernel, which may not
-  // be trivial.
-  if (KernelBundle.size() != 1) {
-    throw sycl::runtime_error{
-        "make_kernel: kernel_bundle must have single program image",
-        PI_INVALID_PROGRAM};
+
+  // For Level-Zero expect exactly one device image in the bundle. This is
+  // natural for interop kernel to get created out of a single native
+  // program/module. This way we don't need to search the exact device image for
+  // the kernel, which may not be trivial.
+  //
+  // Other backends don't need PI program.
+  //
+  pi::PiProgram PiProgram = nullptr;
+  if (Backend == backend::level_zero) {
+    if (KernelBundle.size() != 1)
+      throw sycl::runtime_error{
+          "make_kernel: kernel_bundle must have single program image",
+          PI_INVALID_PROGRAM};
+
+    const device_image<bundle_state::executable> &DeviceImage =
+        *KernelBundle.begin();
+    const auto &DeviceImageImpl = getSyclObjImpl(DeviceImage);
+    PiProgram = DeviceImageImpl->get_program_ref();
   }
-  const device_image<bundle_state::executable> &DeviceImage =
-      *KernelBundle.begin();
-  const auto &DeviceImageImpl = getSyclObjImpl(DeviceImage);
-  pi::PiProgram PiProgram = DeviceImageImpl->get_program_ref();
 
   // Create PI kernel first.
   pi::PiKernel PiKernel = nullptr;
