@@ -555,23 +555,7 @@ private:
   ///
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
-  void verifyUsedKernelBundle(const std::string &KernelName) {
-    auto UsedKernelBundleImplPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/false);
-    if (!UsedKernelBundleImplPtr)
-      return;
-
-    auto UsedKernelBundle =
-        detail::createSyclObjFromImpl<kernel_bundle<bundle_state::executable>>(
-            UsedKernelBundleImplPtr);
-
-    kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
-    device Dev = detail::getDeviceFromHandler(*this);
-    if (!UsedKernelBundle.has_kernel(KernelID, Dev))
-      throw sycl::exception(
-          make_error_code(errc::kernel_not_supported),
-          "The kernel bundle in use does not contain the kernel");
-  }
+  void verifyUsedKernelBundle(const std::string &KernelName);
 
   /// Stores lambda to the template-free object
   ///
