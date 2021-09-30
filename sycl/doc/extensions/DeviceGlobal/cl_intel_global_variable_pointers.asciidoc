@@ -1,0 +1,188 @@
+= cl_intel_global_variable_pointers
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Name Strings
+
+`cl_intel_global_variable_pointers`
+
+== Contact
+
+Ben Ashbaugh, Intel (ben 'dot' ashbaugh 'at' intel 'dot' com)
+
+== Contributors
+
+// spell-checker: disable
+* Ben Ashbaugh, Intel
+* Jaroslaw Chodor, Intel
+* Vyacheslav Zakharin, Intel
+// spell-checker: enable
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation. All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback.
+When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+If you are interested in using this feature in your software product, please let us know!
+
+== Version
+
+Built On: {docdate} +
+Revision: 0.9.0
+
+== Dependencies
+
+This extension is written against the OpenCL API Specification Version 3.0.6.
+
+This extension requires support for the `cl_intel_unified_shared_memory`
+extension.
+
+== Overview
+
+The extension allows programmers to obtain pointers to global variables (aka
+program scope variables) of OpenCL Programs and read/write such global variables
+using host APIs.
+
+== New API Functions
+
+[source]
+----
+cl_int clGetDeviceGlobalVariablePointerINTEL(
+    cl_device_id device,
+    cl_program program,
+    const char *global_variable_name,
+    size_t *global_variable_size_ret,
+    void **global_variable_pointer_ret );
+----
+
+== New API Enums
+
+None.
+
+== New OpenCL C Functions
+
+None.
+
+== Modifications to the OpenCL API Specification
+
+Modify Section 5.8.9, *Program Object Queries* ::
++
+--
+
+The function
+----
+cl_int clGetDeviceGlobalVariablePointerINTEL(
+    cl_device_id device,
+    cl_program program,
+    const char *global_variable_name,
+    size_t *global_variable_size_ret,
+    void **global_variable_pointer_ret );
+----
+is used to retrieve a pointer to a user-defined global variable
+_global_variable_name_ which exists in built _program_.
+
+The returned pointer is a Unified Shared Memory pointer to the requested global
+variable and is specific to given _device_.
+
+The lifetime of the returned pointer corresponds to the lifetime of _program_
+object which was queried.  Subsequent calls to *clBuildProgram*,
+*clCompileProgram* or *clLinkProgram* invalidates the result of
+*clGetDeviceGlobalVariablePointerINTEL*.  The returned value remains valid
+between subsequent calls to *clEnqueueNDRangeKernel* or *clEnqueueTask*.
+
+The returned pointer can be stored to a global object inside a kernel.  The
+returned pointer cannot be used in program other than specified as _program_
+argument.
+
+* _device_ indicates which device should be used to retrieve the global variable pointer. 
+  The Address of a global variable might be different for each device.
+
+* _program_ indicates the program with the _global_variable_name_ global variable.
+
+* _global_variable_name_ is the global variable name to query. Must be non-NULL.
+
+* _global_variable_size_ret_ if non-NULL, can be used to query the size of the requested global variable.
+
+* _global_variable_pointer_ret_ used to return the result from the function. Must be non-NULL.
+
+*clGetDeviceGlobalVariablePointerINTEL* returns `CL_SUCCESS` if the function executed
+successfully. Otherwise, it returns one of the following errors:
+
+* `CL_INVALID_VALUE` if _global_variable_pointer_ret_ or _global_variable_name_ is NULL,
+
+* `CL_INVALID_DEVICE` if _device_ is not in the list of devices associated with _program_.
+
+* `CL_INVALID_PROGRAM` if _program_ is not a valid program object.
+
+* `CL_INVALID_PROGRAM_EXECUTABLE` if there is no successfully built executable
+  for _program_ for the specified _device_.
+
+* `CL_INVALID_ARG_VALUE` if _global_variable_name_ is not found in _program_ or it is
+  not possible to obtain address of _global_variable_name_.
+--
+
+== Modifications to the OpenCL SPIR-V Environment Specification
+
+*TODO*
+
+Modify sub-section *Extensions* ::
++
+--
+cl_intel_global_variable_pointers ...
+--
+
+== Issues
+
+. Can this extension be used to query the address of any global variable in the program?
++
+--
+*UNRESOLVED*
+
+It is not possible to obtain address of *any* arbitrary global variable using
+`clGetDeviceGlobalVariablePointerINTEL`, and the mechanism to identify that the
+global variable may have it's address taken is dependent on how program object
+is created:
+
+* for programs created from source, *TODO* (extern?)
+
+* for programs created from SPIR-V IL, *TODO* (global variable needs to have *export* linkage?)
+
+* for programs created from a binary, the mechanism is implementation defined.
+--
+
+. Can a queried global variable pointer be used by a kernel from another program object?
++
+--
+*UNRESOLVED*
+
+Currently this is disallowed.
+--
+
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|0.9.0|2019-09-14|Jaroslaw Chodor|*Initial revision*
+|0.9.0|2021-09-22|Ben Ashbaugh|Added preview disclaimer, general cleanup.
+|========================================

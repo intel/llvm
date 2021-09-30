@@ -1,19 +1,15 @@
 # Implementation design for "device\_global"
 
 This document describes the implementation design for the DPC++ extension
-SYCL\_EXT\_ONEAPI\_DEVICE\_GLOBAL, which allows applications to declare global
-variables in device code.  There are two API specifications for this feature,
-the [main specification][1] and a specification for [properties that are
-primarily used on FPGA][2].  This design document covers the APIs in both of
-those specifications.
+[SYCL\_EXT\_ONEAPI\_DEVICE\_GLOBAL][1], which allows applications to declare
+global variables in device code.
 
-[1]: <https://github.com/intel/llvm/pull/4233>
-[2]: <https://gitlab.devtools.intel.com/SYCL/extensions/-/merge_requests/73>
+[1]: <https://github.com/intel/llvm/pull/4675>
 
 
 ## Requirements
 
-The extension specification documents referenced above contain the full set of
+The extension specification document referenced above contains the full set of
 requirements for this feature, but some requirements that are particularly
 relevant to the design are called out here.
 
@@ -128,31 +124,43 @@ member variable in the class.  As we will see later, the runtime assumes that
 the address of the `device_global` variable itself is the same as the address
 of this member variable.
 
+The headers are also updated to add the new `copy()` and `memcpy()` member
+functions to `handler` and `queue` which copy data to or from a device global
+variable.  These declarations use SFINAE such that they are conditionally
+available depending on the `copy_access` property.
+
 ### New LLVM IR attributes
 
-As described below, the device compiler front-end decorates each
-`device_global` variable with the `sycl-unique-id` attribute, which provides a
-unique string identifier for each device global variable.
+Two new attributes are added to communicate information about device global
+variable to the `sycl-post-link` tool: `sycl-unique-id` and
+`sycl-device-global-image-life`.  As described below, the device compiler
+front-end is responsible for adding the attributes to the LLVM IR.
 
-This string will also be used to name the variable in SPIR-V, so it's better
-for debuggability if the string matches the mangled name for variables with
-external linkage.  This is not possible, though, for variables with internal
-linkage because the mangled name is not unique in this case.  For these
-variables, we use the mangled name and append a unique suffix.
+Each device global variable is decorated with `sycl-unique-id`, which provides
+a unique string identifier for each device global variable.  This string will
+also be used to name the variable in SPIR-V, so it's better for debuggability
+if the string matches the mangled name for variables with external linkage.
+This is not possible, though, for variables with internal linkage because the
+mangled name is not unique in this case.  For these variables, we use the
+mangled name and append a unique suffix.
+
+Each device global variable that has the `device_image_life` property is also
+decorated with the `sycl-device-global-image-life` attribute.
 
 Note that language rules ensure that `device_global` variables are always
 declared at namespace scope (i.e. a global variable), and LLVM IR [allows
-attributes to be attached to global variables][3].
+attributes to be attached to global variables][2].
 
-[3]: <https://llvm.org/docs/LangRef.html#global-attributes>
+[2]: <https://llvm.org/docs/LangRef.html#global-attributes>
 
 ### Changes to the DPC++ front-end
 
 The device compiler front-end is changed in two ways: it generates new content
 in both the integration header and the integration footer, and it adds the
-`sycl-unique-id` attribute to the IR definition of any `device_global`
-variable.  These two tasks are related because the integration footer contains
-the same string that is stored in the `sycl-unique-id` attribute.
+`sycl-unique-id` and `sycl-device-global-image-life` attributes to the IR
+definitions of `device_global` variables as defined above.  These two tasks are
+related because the integration footer contains the same string that is stored
+in the `sycl-unique-id` attribute.
 
 **NOTE**: See also the "Unresolved issues" section at the bottom of this
 document for other changes that are needed in the front-end.
@@ -296,32 +304,35 @@ unqualified name lookup.  Furthermore, the name of the temporary variable
 (`__sycl_UNIQUE_STRING`) is globally unique, so it is guaranteed not to be
 shadowed by any other name in the translation unit.  This problem with variable
 shadowing is also a problem for the integration footer we use for
-specialization constants.  See the [specialization constant design document][4]
+specialization constants.  See the [specialization constant design document][3]
 for more details on this topic.
 
-[4]: <SpecializationConstants.md>
-
-#### Decorating the IR with new attributes
-
-The device compiler front-end also adds the new `sycl-unique-id` attribute to
-the IR definition of any device global variables.  The value of this attribute
-is the same string that is emitted in the integration footer.
+[3]: <SpecializationConstants.md>
 
 ### Changes to the `sycl-post-link` tool
 
 The `sycl-post-link` tool performs its normal algorithm to identify the set of
 kernels and device functions that are bundled together into each module.  Once
 it identifies the functions in each module, it scans those functions looking
-for references to global variables of type `device_global`.  The
-`sycl-post-link` tool then includes the IR definition of each of these
-`device_global` variables in the module.
+for references to global variables of type `device_global`.  If any device
+global variable decorated with `sycl-device-global-image-life` appears in more
+than one module, the `sycl-post-link` tool issues an error diagnostic:
 
-The [backend functions described below][5] that allow the host to copy to or
+```
+error: device_global variable <name> with property "device_image_life"
+       is contained in more than one device image.
+```
+
+Assuming that no error diagnostic is issued, the `sycl-post-link` tool includes
+the IR definition of each `device_global` variable in the modules that
+reference that variable.
+
+The [backend functions described below][4] that allow the host to copy to or
 from a device global require the variable to have "export" linkage in SPIR-V.
 Therefore, the `sycl-post-link` tool needs to make the following IR
 transformations for any `device_global` variable that has internal linkage:
 
-[5]: <#back-end-specific-function-to-copy-to--from-a-device-symbol>
+[4]: <#back-end-specific-function-to-copy-to--from-a-device-symbol>
 
 * The linkage is changed to be external.
 * The name of the variable is changed to be the string from the
@@ -449,21 +460,21 @@ In both cases the `name` parameter is the same as the "unique string
 identifier" for the device global variable.
 
 On the Level Zero backend, these PI interfaces are implemented by first calling
-[`zeModuleGetGlobalPointer()`][6] to get a device pointer for the variable and
-then calling [`zeCommandListAppendMemoryCopy()`][7] to copy to or from that
+[`zeModuleGetGlobalPointer()`][5] to get a device pointer for the variable and
+then calling [`zeCommandListAppendMemoryCopy()`][6] to copy to or from that
 pointer.
 
-[6]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zemodulegetglobalpointer>
-[7]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zecommandlistappendmemorycopy>
+[5]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zemodulegetglobalpointer>
+[6]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zecommandlistappendmemorycopy>
 
 On the OpenCL backend, these PI interfaces are implemented by first calling
 `clGetDeviceGlobalVariablePointerINTEL()` to get a device pointer for the
 variable.  This function is provided by the
-[`cl_intel_global_variable_pointers`][8] extension which is not yet
+[`cl_intel_global_variable_pointers`][7] extension which is not yet
 productized.  Once we get a pointer, the PI layer calls
 `clEnqueueMemcpyINTEL()` to copy to or from that pointer.
 
-[8]: <https://gitlab.devtools.intel.com/OpenCL/opencl-extension-drafts/-/blob/master/cl_intel_global_variable_pointers.asciidoc>
+[7]: <extensions/DeviceGlobal/cl_intel_global_variable_pointers.asciidoc>
 
 On the CUDA backend, these PI interfaces are implemented on top of
 `cudaMemcpyToSymbol()` and `cudaMemcpyFromSymbol()`.
@@ -480,14 +491,14 @@ device global feature is an exception to this rule.  Device code, of course,
 can reference a `device_global` variable even if it is not declared `constexpr`
 or `const`.  We need some way to avoid the error diagnostic in this case.
 
-The [newly added][9] `sycl_global_var` attribute is almost what we need,
+The [newly added][8] `sycl_global_var` attribute is almost what we need,
 however that attribute is only allowed to decorate a variable declaration.
 This doesn't help us because we don't want to force users to add an attribute
 to each declaration of a `device_global` variable.  Instead, we want to
 decorate the class declaration of `device_global` with some attribute which
 allows any variables of that type to be accessible from device code.
 
-[9]: <https://github.com/intel/llvm/pull/3746>
+[8]: <https://github.com/intel/llvm/pull/3746>
 
 Since the `sycl_global_var` attribute is currently used only as an
 implementation detail for [device-side asserts][10], one option is to repurpose
@@ -560,9 +571,12 @@ compiler works in OpenCL C 2.0 mode.
 
 ### Need some way to propagate properties to SPIR-V
 
-The [specification of properties normally used on FPGA][2] includes three
-properties that must be propagated from DPC++ source code, through LLVM IR, and
-into SPIR-V where they are represented as SPIR-V decorations:
+The following three device global properties must be propagated from DPC++
+source code, through LLVM IR, and into SPIR-V where they are represented as
+SPIR-V decorations (defined in the
+[SPV\_INTEL\_fpga\_device\_global\_properties][12] extension).
+
+[12]: <extensions/DeviceGlobal/SPV_INTEL_fpga_device_global_properties.asciidoc>
 
 * `copy_access`
 * `init_via`
@@ -577,7 +591,7 @@ clear what this infrastructure will be.
 
 ### Will changing the name of internal symbols be bad for debugging?
 
-The [backend functions for copying to / from a device symbol][5] currently
+The [backend functions for copying to / from a device symbol][4] currently
 require the symbol to have export linkage in SPIR-V.  (This is the case for the
 Level Zero and OpenCL functions.  We are not sure about the CUDA functions, but
 it seems likely they have the same limitation.)  However, the device global
