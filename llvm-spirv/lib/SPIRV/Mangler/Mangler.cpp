@@ -180,8 +180,12 @@ public:
   }
 
   MangleError visit(const UserDefinedType *PTy) override {
+    size_t Index = Stream.str().size();
     std::string Name = PTy->toString();
-    Stream << Name.size() << Name;
+    if (!mangleSubstitution(PTy, Name)) {
+      Stream << Name.size() << Name;
+      recordSubstitution(Stream.str().substr(Index));
+    }
     return MANGLE_SUCCESS;
   }
 
