@@ -25,32 +25,29 @@
 // CHK-FPGA-AOCO-PHASES-WIN: 11: linker, {0, 10}, image, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 12: linker, {0, 10}, host_dep_image, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 13: clang-offload-deps, {12}, ir, (host-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 14: input, "[[INPUTA]]", archive
-// CHK-FPGA-AOCO-PHASES-WIN: 15: clang-offload-unbundler, {14}, archive
-// CHK-FPGA-AOCO-PHASES-WIN: 16: linker, {6, 13, 15}, ir, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 17: sycl-post-link, {16}, tempfiletable, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 18: file-table-tform, {17}, tempfilelist, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 20: input, "[[INPUTA]]", archive
-// CHK-FPGA-AOCO-PHASES-WIN: 21: clang-offload-unbundler, {20}, fpga_dep_list
-// CHK-FPGA-AOCO-PHASES-WIN: 22: input, "[[INPUTA]]", fpga_aoco
-// CHK-FPGA-AOCO-PHASES-WIN: 23: clang-offload-unbundler, {22}, fpga_aoco
-// CHK-FPGA-AOCO-PHASES-WIN: 24: backend-compiler, {19, 21, 23}, fpga_aocx, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 25: file-table-tform, {17, 24}, tempfiletable, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 26: clang-offload-wrapper, {25}, object, (device-sycl)
-// CHK-FPGA-AOCO-PHASES-WIN: 27: offload, "host-sycl (x86_64-pc-windows-msvc)" {11}, "device-sycl (spir64_fpga-unknown-unknown)" {26}, image
+// CHK-FPGA-AOCO-PHASES-WIN: 14: linker, {6, 13}, ir, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 15: sycl-post-link, {14}, tempfiletable, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 16: file-table-tform, {15}, tempfilelist, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 17: llvm-spirv, {16}, tempfilelist, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 18: input, "[[INPUTA]]", archive
+// CHK-FPGA-AOCO-PHASES-WIN: 19: clang-offload-unbundler, {18}, fpga_dep_list
+// CHK-FPGA-AOCO-PHASES-WIN: 20: input, "[[INPUTA]]", fpga_aoco
+// CHK-FPGA-AOCO-PHASES-WIN: 21: clang-offload-unbundler, {20}, fpga_aoco
+// CHK-FPGA-AOCO-PHASES-WIN: 22: backend-compiler, {17, 19, 21}, fpga_aocx, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 23: file-table-tform, {15, 22}, tempfiletable, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 24: clang-offload-wrapper, {23}, object, (device-sycl)
+// CHK-FPGA-AOCO-PHASES-WIN: 25: offload, "host-sycl (x86_64-pc-windows-msvc)" {11}, "device-sycl (spir64_fpga-unknown-unknown)" {24}, image
 
 /// aoco test, checking tools
 // RUN:  %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -fintelfpga %t_aoco.a -Xshardware -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-AOCO %s
 // RUN:  %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -fintelfpga %t_aoco.a -Xshardware -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-AOCO %s
-// CHK-FPGA-AOCO: clang-offload-bundler{{.*}} "-type=a" "-targets=sycl-spir64_fpga-unknown-unknown" "-inputs=[[INPUTLIB:.+\.a]]" "-outputs=[[OUTLIB:.+\.a]]" "-unbundle"
-// CHK-FPGA-AOCO: llvm-link{{.*}} "[[OUTLIB]]" "-o" "[[LINKEDBC:.+\.bc]]"
+// CHK-FPGA-AOCO: llvm-link{{.*}} "-o" "[[LINKEDBC:.+\.bc]]"
 // CHK-FPGA-AOCO: sycl-post-link{{.*}} "-split-esimd"{{.*}} "-O2" "-spec-const=default" "-o" "[[SPLTABLE:.+\.table]]" "[[LINKEDBC]]"
 // CHK-FPGA-AOCO: file-table-tform{{.*}} "-o" "[[TABLEOUT:.+\.txt]]" "[[SPLTABLE]]"
 // CHK-FPGA-AOCO: llvm-spirv{{.*}} "-o" "[[TARGSPV:.+\.txt]]" {{.*}} "[[TABLEOUT]]"
-// CHK-FPGA-AOCO: clang-offload-bundler{{.*}} "-type=aoo" "-targets=sycl-fpga_aoco-intel-unknown" "-inputs=[[INPUTLIB]]" "-outputs=[[AOCOLIST:.+\.txt]]" "-unbundle"
+// CHK-FPGA-AOCO: clang-offload-bundler{{.*}} "-type=aoo" "-targets=sycl-fpga_aoco-intel-unknown" "-inputs=[[INPUTLIB:.+\.a]]" "-outputs=[[AOCOLIST:.+\.txt]]" "-unbundle"
 // CHK-FPGA-AOCO: aoc{{.*}} "-o" "[[AOCXOUT:.+\.aocx]]" "[[TARGSPV]]" "-library-list=[[AOCOLIST]]" "-sycl"
 // CHK-FPGA-AOCO: file-table-tform{{.*}} "-o" "[[TABLEOUT2:.+\.table]]" "[[SPLTABLE]]" "[[AOCXOUT]]"
 // CHK-FPGA-AOCO: clang-offload-wrapper{{.*}} "-o=[[FINALBC:.+\.bc]]" {{.*}} "-target=spir64_fpga" "-kind=sycl" "-batch" "[[TABLEOUT2]]"

@@ -117,10 +117,9 @@ public:
                 _Space == Space &&
                 (Space == access::address_space::global_space ||
                  Space == access::address_space::global_device_space)>>
-  multi_ptr(
-      accessor<ElementType, dimensions, Mode, access::target::global_buffer,
-               isPlaceholder, PropertyListT>
-          Accessor) {
+  multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
+                     isPlaceholder, PropertyListT>
+                Accessor) {
     m_Pointer = (pointer_t)(Accessor.get_pointer().get());
   }
 
@@ -166,10 +165,9 @@ public:
           (Space == access::address_space::global_space ||
            Space == access::address_space::global_device_space) &&
           std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
-  multi_ptr(
-      accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
-               access::target::global_buffer, isPlaceholder, PropertyListT>
-          Accessor)
+  multi_ptr(accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
+                     access::target::device, isPlaceholder, PropertyListT>
+                Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == local_space and element type is const
@@ -382,10 +380,9 @@ public:
                 _Space == Space &&
                 (Space == access::address_space::global_space ||
                  Space == access::address_space::global_device_space)>>
-  multi_ptr(
-      accessor<ElementType, dimensions, Mode, access::target::global_buffer,
-               access::placeholder::false_t, PropertyListT>
-          Accessor)
+  multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
+                     access::placeholder::false_t, PropertyListT>
+                Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == local_space
@@ -503,10 +500,9 @@ public:
                 _Space == Space &&
                 (Space == access::address_space::global_space ||
                  Space == access::address_space::global_device_space)>>
-  multi_ptr(
-      accessor<ElementType, dimensions, Mode, access::target::global_buffer,
-               access::placeholder::false_t, PropertyListT>
-          Accessor)
+  multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
+                     access::placeholder::false_t, PropertyListT>
+                Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == local_space
@@ -557,9 +553,9 @@ private:
 #ifdef __cpp_deduction_guides
 template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
           typename PropertyListT, class T>
-multi_ptr(accessor<T, dimensions, Mode, access::target::global_buffer,
-                   isPlaceholder, PropertyListT>)
-    ->multi_ptr<T, access::address_space::global_space>;
+multi_ptr(accessor<T, dimensions, Mode, access::target::device, isPlaceholder,
+                   PropertyListT>)
+    -> multi_ptr<T, access::address_space::global_space>;
 template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
           typename PropertyListT, class T>
 multi_ptr(accessor<T, dimensions, Mode, access::target::constant_buffer,

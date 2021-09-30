@@ -42,9 +42,9 @@ template <> struct interop<backend::opencl, program> {
 template <> struct interop<backend::opencl, event> { using type = cl_event; };
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
-                                         access::target::global_buffer,
-                                         access::placeholder::false_t>> {
+struct interop<backend::opencl,
+               accessor<DataT, Dimensions, AccessMode, access::target::device,
+                        access::placeholder::false_t>> {
   using type = cl_mem;
 };
 

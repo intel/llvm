@@ -770,7 +770,7 @@ static void instantiateDependentSYCLKernelAttr(
   New->addAttr(Attr.clone(S.getASTContext()));
 }
 
-/// Determine whether the attribute A might be relevent to the declaration D.
+/// Determine whether the attribute A might be relevant to the declaration D.
 /// If not, we can skip instantiating it. The attribute may or may not have
 /// been instantiated yet.
 static bool isRelevantAttr(Sema &S, const Decl *D, const Attr *A) {
@@ -6301,11 +6301,11 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
                           const MultiLevelTemplateArgumentList &TemplateArgs,
                           bool FindingInstantiatedContext) {
   DeclContext *ParentDC = D->getDeclContext();
-  // Determine whether our parent context depends on any of the tempalte
+  // Determine whether our parent context depends on any of the template
   // arguments we're currently substituting.
   bool ParentDependsOnArgs = isDependentContextAtLevel(
       ParentDC, TemplateArgs.getNumRetainedOuterLevels());
-  // FIXME: Parmeters of pointer to functions (y below) that are themselves
+  // FIXME: Parameters of pointer to functions (y below) that are themselves
   // parameters (p below) can have their ParentDC set to the translation-unit
   // - thus we can not consistently check if the ParentDC of such a parameter
   // is Dependent or/and a FunctionOrMethod.
@@ -6583,27 +6583,6 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
   return D;
 }
 
-static void processSYCLKernel(Sema &S, FunctionDecl *FD, MangleContext &MC) {
-  if (S.LangOpts.SYCLIsDevice) {
-    S.ConstructOpenCLKernel(FD, MC);
-  } else if (S.LangOpts.SYCLIsHost) {
-    QualType KernelParamTy = (*FD->param_begin())->getType();
-    const CXXRecordDecl *CRD = (KernelParamTy->isReferenceType()
-                                    ? KernelParamTy->getPointeeCXXRecordDecl()
-                                    : KernelParamTy->getAsCXXRecordDecl());
-    if (!CRD) {
-      S.Diag(FD->getLocation(), diag::err_sycl_kernel_not_function_object);
-      FD->setInvalidDecl();
-      return;
-    }
-
-    for (auto *Method : CRD->methods())
-      if (Method->getOverloadedOperator() == OO_Call &&
-          !Method->hasAttr<AlwaysInlineAttr>())
-        Method->addAttr(AlwaysInlineAttr::CreateImplicit(S.getASTContext()));
-  }
-}
-
 static void processFunctionInstantiation(Sema &S,
                                          SourceLocation PointOfInstantiation,
                                          FunctionDecl *FD,
@@ -6613,8 +6592,8 @@ static void processFunctionInstantiation(Sema &S,
                                   DefinitionRequired, true);
   if (!FD->isDefined())
     return;
-  if (FD->hasAttr<SYCLKernelAttr>())
-    processSYCLKernel(S, FD, MC);
+  if (S.LangOpts.SYCLIsDevice && FD->hasAttr<SYCLKernelAttr>())
+    S.ConstructOpenCLKernel(FD, MC);
   FD->setInstantiationIsPending(false);
 }
 
