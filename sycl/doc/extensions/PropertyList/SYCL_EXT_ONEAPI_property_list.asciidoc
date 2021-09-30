@@ -53,7 +53,7 @@ The purpose of this document is to clearly describe and specify `property_list` 
 
 `sycl::property_list` enables users to pass additional parameters when constructing objects of the runtime classes, but the design of `sycl::property_list` is such that it is not possible to reliably determine the contents of these passed parameters at compile time.
 
-There are numerous circumstances where parameters are only useful when their presence and contents are known at compile-time; this extension address this by introducing a `property_list` that is able to represent compile-time-constant properties in addition to runtime properties.
+There are numerous circumstances where parameters are only useful when their presence and contents are known at compile-time; this extension addresses this by introducing a `property_list` that is able to represent compile-time-constant properties in addition to runtime properties.
 
 The handling of runtime properties in `property_list` departs from that of `sycl::property_list` by having the types of any runtime properties present be known at compile-time. The distinction between runtime properties and compile-time-constant properties is that runtime properties store values that are set at runtime.
 
@@ -611,7 +611,7 @@ static_assert(f3 == f1); // Equal because the property values are the same, i.e.
 The parameters of a property may also be types. For example, the property foo_types takes an arbitrary number of parameters, each of which is a type. In this example, `foo_types_v` exposes the its parameters (which are types) as `first_t`, `second_t`, `third_t`.
 
 ```c++
-property_list P8{foo_types_v<float, int, bool>()};
+property_list P8{foo_types_v<float, int, bool>};
 using f = decltype(P8.get_property<foo_types>());
 using t1 = f::first_t;
 using t2 = f::second_t;
