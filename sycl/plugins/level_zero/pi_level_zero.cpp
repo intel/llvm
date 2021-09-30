@@ -94,6 +94,11 @@ public:
 };
 std::mutex ZeCall::GlobalLock;
 
+// The global mutex to get rid of calling zeEventCreate from simultaneous
+// threads in multithreading application (prohibited by Level Zero spec).
+// Without the lock, RT finishes with CL_INVALID_VALUE from piEventCreate
+static std::mutex EventCreateMutex;
+
 // Controls PI level tracing prints.
 static bool PrintPiTrace = false;
 
@@ -592,9 +597,12 @@ inline static pi_result
 createEventAndAssociateQueue(pi_queue Queue, pi_event *Event,
                              pi_command_type CommandType,
                              pi_command_list_ptr_t CommandList) {
-  pi_result Res = piEventCreate(Queue->Context, Event);
-  if (Res != PI_SUCCESS)
-    return Res;
+  {
+    std::lock_guard<std::mutex> Lock(EventCreateMutex);
+    pi_result Res = piEventCreate(Queue->Context, Event);
+    if (Res != PI_SUCCESS)
+      return Res;
+  }
 
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
