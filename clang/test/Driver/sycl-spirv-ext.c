@@ -29,6 +29,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float_min_max
 // CHECK-DEFAULT-SAME:,+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls
+// CHECK-DEFAULT-SAME:,+SPV_KHR_linkonce_odr
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_device_side_avc_motion_estimation
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_fpga_memory_attributes
