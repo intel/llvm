@@ -54,7 +54,7 @@ prepareUSMEvent(const std::shared_ptr<detail::queue_impl> &QueueImpl,
 event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Ptr, int Value, size_t Count,
                          const std::vector<event> &DepEvents) {
-  implicitly_do_submit();
+  implicitly_submit_postponed_cg();
   RT::PiEvent NativeEvent{};
   MemoryManager::fill_usm(Ptr, Self, Count, Value,
                           getOrWaitEvents(DepEvents, MContext), NativeEvent);
@@ -74,7 +74,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
 event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Dest, const void *Src, size_t Count,
                          const std::vector<event> &DepEvents) {
-  implicitly_do_submit();
+  implicitly_submit_postponed_cg();
   RT::PiEvent NativeEvent{};
   MemoryManager::copy_usm(Src, Self, Count, Dest,
                           getOrWaitEvents(DepEvents, MContext), NativeEvent);
@@ -95,7 +95,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents) {
-  implicitly_do_submit();
+  implicitly_submit_postponed_cg();
   RT::PiEvent NativeEvent{};
   MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                             getOrWaitEvents(DepEvents, MContext), NativeEvent);
@@ -260,7 +260,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
 #endif
 
-  implicitly_do_submit();
+  implicitly_submit_postponed_cg();
 
   std::vector<std::weak_ptr<event_impl>> WeakEvents;
   std::vector<event> SharedEvents;
