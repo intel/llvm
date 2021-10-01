@@ -560,26 +560,10 @@ private:
    * type is unknown to the plugin.
    */
 
-  // For 'void' kernel argument
-  template <class KernelType, class NormalizedKernelType, int Dims,
-            typename KernelName>
-  typename std::enable_if<Dims == 0, KernelType *>::type
-  ResetHostKernelHelper(const KernelType &KernelFunc) {
-    NormalizedKernelType NormalizedKernel(KernelFunc);
-    auto NormalizedKernelFunc = std::function<void(void)>(NormalizedKernel);
-    auto HostKernelPtr =
-        new detail::HostKernel<decltype(NormalizedKernelFunc), void, 0,
-                               KernelName>(NormalizedKernelFunc);
-    MHostKernel.reset(HostKernelPtr);
-    return &HostKernelPtr->MKernel.template target<NormalizedKernelType>()
-                ->MKernelFunc;
-  }
-
   // For non-'void' kernel argument - id, item w/wo offset, nd_item
   template <class KernelType, class NormalizedKernelType, int Dims,
             typename KernelName>
-  typename std::enable_if<Dims != 0, KernelType *>::type
-  ResetHostKernelHelper(const KernelType &KernelFunc) {
+  KernelType *ResetHostKernelHelper(const KernelType &KernelFunc) {
     NormalizedKernelType NormalizedKernel(KernelFunc);
     auto NormalizedKernelFunc =
         std::function<void(const sycl::nd_item<Dims> &)>(NormalizedKernel);
@@ -596,14 +580,9 @@ private:
   template <class KernelType, typename ArgT, int Dims, typename KernelName>
   typename std::enable_if<std::is_same<ArgT, void>::value, KernelType *>::type
   ResetHostKernel(const KernelType &KernelFunc) {
-    struct NormalizedKernelType {
-      KernelType MKernelFunc;
-      NormalizedKernelType(const KernelType &KernelFunc)
-          : MKernelFunc(KernelFunc) {}
-      void operator()(void) { detail::runKernelWithoutArg(MKernelFunc); }
-    };
-    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims,
-                                 KernelName>(KernelFunc);
+    MHostKernel.reset(
+        new detail::HostKernel<KernelType, ArgT, Dims, KernelName>(KernelFunc));
+    return (KernelType *)(MHostKernel->getPtr());
   }
 
   // For 'sycl::id<Dims>' kernel argument
