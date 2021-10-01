@@ -95,11 +95,16 @@
 
 /// test invalid value for -f[no-]sycl-device-lib
 // RUN: %clangxx -fsycl %s -fsycl-device-lib=libc,dummy -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_INVALID_VALUE
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_INVALID_VALUE -DVal=dummy
 // RUN: %clangxx -fsycl %s -fno-sycl-device-lib=dummy,libm-fp32 -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_NO_DEVICE_LIB_INVALID_VALUE
-// SYCL_DEVICE_LIB_INVALID_VALUE: error: unsupported argument 'dummy' to option 'fsycl-device-lib='
-// SYCL_NO_DEVICE_LIB_INVALID_VALUE: error: unsupported argument 'dummy' to option 'fno-sycl-device-lib='
+// RUN:   | FileCheck %s -check-prefix=SYCL_NO_DEVICE_LIB_INVALID_VALUE -DVal=dummy
+// Do separate checks for the compiler-reserved "internal" value
+// RUN: %clangxx -fsycl %s -fsycl-device-lib=internal -### 2>&1		\
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_INVALID_VALUE -DVal=internal
+// RUN: %clangxx -fsycl %s -fno-sycl-device-lib=internal -### 2>&1		\
+// RUN:   | FileCheck %s -check-prefix=SYCL_NO_DEVICE_LIB_INVALID_VALUE -DVal=internal
+// SYCL_DEVICE_LIB_INVALID_VALUE: error: unsupported argument '[[Val]]' to option 'fsycl-device-lib='
+// SYCL_NO_DEVICE_LIB_INVALID_VALUE: error: unsupported argument '[[Val]]' to option 'fno-sycl-device-lib='
 
 /// ###########################################################################
 /// test llvm-link behavior for linking device libraries

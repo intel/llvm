@@ -80,6 +80,7 @@ template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
 namespace detail {
 
+class handler_impl;
 class kernel_impl;
 class queue_impl;
 class stream_impl;
@@ -1112,6 +1113,12 @@ private:
     kernel_parallel_for_work_group<KernelName, ElementType>(KernelFunc);
   }
 
+  std::shared_ptr<detail::handler_impl> getHandlerImpl() const;
+
+  void setStateExplicitKernelBundle();
+  void setStateSpecConstSet();
+  bool isStateExplicitKernelBundle() const;
+
   std::shared_ptr<detail::kernel_bundle_impl>
   getOrInsertHandlerKernelBundle(bool Insert) const;
 
@@ -1146,6 +1153,8 @@ public:
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
 
+    setStateSpecConstSet();
+
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
         getOrInsertHandlerKernelBundle(/*Insert=*/true);
 
@@ -1157,6 +1166,11 @@ public:
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
+
+    if (isStateExplicitKernelBundle())
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Specialization constants cannot be read after "
+                            "explicitly setting the used kernel bundle");
 
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
         getOrInsertHandlerKernelBundle(/*Insert=*/true);
@@ -1170,6 +1184,7 @@ public:
 
   void
   use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle) {
+    setStateExplicitKernelBundle();
     setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
   }
 
