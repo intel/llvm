@@ -62,7 +62,7 @@ void load_to_slm(uint grpSize, uint localId, uint slmOffset, char *addr,
     rowTrans.select<8, 1>(40) = row1.select<8, 4>(2);
     rowTrans.select<8, 1>(56) = row1.select<8, 4>(3);
 
-    slm_store4<uint, 16, rgba_channel_mask::ABGR>(rowTrans, vOffsets);
+    slm_scatter_rgba<uint, 16, rgba_channel_mask::ABGR>(rowTrans, vOffsets);
     threadOffsetInMemory += grpSize * 256;
     vOffsets += (grpSize * 256);
   }
@@ -123,7 +123,7 @@ int main(void) {
 
             v_Off = v_Off + shiftID * 64;
 
-            v_slmData = slm_load<uint, VL>(v_Off);
+            v_slmData = slm_gather<uint, VL>(v_Off);
 
             v_slmData.copy_to(B + globalID * VL);
           });
