@@ -134,7 +134,7 @@ public:
   }
 
   ~queue_impl() {
-    implicitly_do_submit();
+    implicitly_submit_postponed_cg();
 
     throw_asynchronous();
     if (!MHostQueue) {
@@ -429,59 +429,33 @@ public:
     return MAssertHappenedBuffer;
   }
 
-  void implicitly_do_submit() {
-    if (MEventsSharedToSubmit.empty()) {
-      return;
-    }
-
-    std::queue<detail::EventImplPtr> EventImpls;
+  /// Real submission execution of last command group
+  /// if it has not been explicitly performed in submit_impl.
+  template <bool used_for_codeplay_task = false>
+  void implicitly_submit_postponed_cg() {
+    detail::EventImplPtr EventImpl;
     {
       std::lock_guard<std::mutex> Lock(MMutexSubmit);
-      EventImpls.swap(MEventsSharedToSubmit);
+      EventImpl.swap(MPostponedEventToSubmit[std::this_thread::get_id()]);
     }
 
-    while (!EventImpls.empty()) {
-      auto &EventImpl = EventImpls.front();
-      if (EventImpl.use_count() == 1)
-        EventImpl->doIfNotFinalized();
-      else
+    if constexpr (used_for_codeplay_task) {
+      if (EventImpl) {
         EventImpl->CreateRealImpl();
-      EventImpls.pop();
+      }
+    } else {
+      if (EventImpl) {
+        if (EventImpl.use_count() == 1)
+          EventImpl->doIfNotFinalized();
+        else
+          EventImpl->CreateRealImpl();
+      }
     }
   }
 
 private:
   void setSubmittedExplicitly(bool isSubmittedExplicitly) {
     MisSubmittedExplicitly = isSubmittedExplicitly;
-  }
-
-  void do_submit_for_host_task() {
-    if (MEventsSharedToSubmit.empty()) {
-      return;
-    }
-
-    std::queue<detail::EventImplPtr> EventImpls;
-    {
-      std::lock_guard<std::mutex> Lock(MMutexSubmit);
-      EventImpls.swap(MEventsSharedToSubmit);
-    }
-
-    while (!EventImpls.empty()) {
-      // Perform submission for all until one command remains
-      // as in submit_impl() we were interested in MLastEvent from the last
-      // command to set depends_on(MLastEvent). All others, if have
-      // use_count() == 1, can be submitted without event generation.
-      if (EventImpls.size() != 1) {
-        auto &EventImpl = EventImpls.front();
-        if (EventImpl.use_count() == 1)
-          EventImpl->doIfNotFinalized();
-        else
-          EventImpl->CreateRealImpl();
-      } else {
-        EventImpls.front()->CreateRealImpl();
-      }
-      EventImpls.pop();
-    }
   }
 
   /// Performs command group submission to the queue.
@@ -504,13 +478,10 @@ private:
     const CG::CGTYPE Type = Handler->getType();
     if (MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
                        Type == CG::CGTYPE::CodeplayInteropTask)) {
-      do_submit_for_host_task();
+      implicitly_submit_postponed_cg<true>();
       Handler->depends_on(MLastEvent);
     } else {
-      // There is no point in collecting many non-submitted tasks,
-      // so either it will be submitted immediately or
-      // like here, it will be submitted in the next submission.
-      implicitly_do_submit();
+      implicitly_submit_postponed_cg();
     }
 
     SubmitPostProcessF PostProcessFunction =
@@ -555,7 +526,7 @@ private:
     EventImplPtr EventImplFake = detail::getSyclObjImpl(EventFake);
     {
       std::lock_guard<std::mutex> Lock(MMutexSubmit);
-      MEventsSharedToSubmit.emplace(EventImplFake);
+      MPostponedEventToSubmit[std::this_thread::get_id()] = EventImplFake;
     }
     EventImplFake->setSubmitFunctor(MUploadDataFunctor, MContext);
     return EventFake;
@@ -612,7 +583,7 @@ private:
 
   bool MIsEventRequired = false;
   bool MisSubmittedExplicitly = true;
-  std::queue<EventImplPtr> MEventsSharedToSubmit;
+  std::unordered_map<std::thread::id, EventImplPtr> MPostponedEventToSubmit;
   std::mutex MMutexSubmit;
   // Thread pool for host task and event callbacks execution.
   // The thread pool is instantiated upon the very first call to getThreadPool()

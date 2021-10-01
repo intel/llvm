@@ -69,7 +69,7 @@ queue::queue(const context &SyclContext, const device &SyclDevice,
 
 queue::~queue() {
   if (impl)
-    impl->implicitly_do_submit();
+    impl->implicitly_submit_postponed_cg();
 }
 
 cl_command_queue queue::get() const { return impl->get(); }
