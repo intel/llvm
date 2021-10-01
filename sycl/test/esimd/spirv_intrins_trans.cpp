@@ -30,8 +30,8 @@ size_t caller() {
     });
     // CHECK-LABEL: @{{.*}}kernel_GlobalInvocationId_x
     // CHECK: [[CALL_ESIMD1:%.*]] = call <3 x i32> @llvm.genx.local.id.v3i32()
-    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 0
     // CHECK: [[CALL_ESIMD2:%.*]] = call <3 x i32> @llvm.genx.local.size.v3i32()
+    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 0
     // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD2]], i32 0
     // CHECK: {{.*}} call i32 @llvm.genx.group.id.x()
 
@@ -40,8 +40,8 @@ size_t caller() {
     });
     // CHECK-LABEL: @{{.*}}kernel_GlobalInvocationId_y
     // CHECK: [[CALL_ESIMD1:%.*]] = call <3 x i32> @llvm.genx.local.id.v3i32()
-    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 1
     // CHECK: [[CALL_ESIMD2:%.*]] = call <3 x i32> @llvm.genx.local.size.v3i32()
+    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 1
     // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD2]], i32 1
     // CHECK: {{.*}} call i32 @llvm.genx.group.id.y()
 
@@ -50,8 +50,8 @@ size_t caller() {
     });
     // CHECK-LABEL: @{{.*}}kernel_GlobalInvocationId_z
     // CHECK: [[CALL_ESIMD1:%.*]] = call <3 x i32> @llvm.genx.local.id.v3i32()
-    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 2
     // CHECK: [[CALL_ESIMD2:%.*]] = call <3 x i32> @llvm.genx.local.size.v3i32()
+    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 2
     // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD2]], i32 2
     // CHECK: {{.*}} call i32 @llvm.genx.group.id.z()
 
@@ -60,8 +60,8 @@ size_t caller() {
     });
     // CHECK-LABEL: @{{.*}}kernel_GlobalSize_x
     // CHECK: [[CALL_ESIMD1:%.*]] = call <3 x i32> @llvm.genx.local.size.v3i32()
-    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 0
     // CHECK: [[CALL_ESIMD2:%.*]] = call <3 x i32> @llvm.genx.group.count.v3i32()
+    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 0
     // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD2]], i32 0
 
     kernel<class kernel_GlobalSize_y>([=]() SYCL_ESIMD_KERNEL {
@@ -69,8 +69,8 @@ size_t caller() {
     });
     // CHECK-LABEL: @{{.*}}kernel_GlobalSize_y
     // CHECK: [[CALL_ESIMD1:%.*]] = call <3 x i32> @llvm.genx.local.size.v3i32()
-    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 1
     // CHECK: [[CALL_ESIMD2:%.*]] = call <3 x i32> @llvm.genx.group.count.v3i32()
+    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 1
     // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD2]], i32 1
 
     kernel<class kernel_GlobalSize_z>([=]() SYCL_ESIMD_KERNEL {
@@ -78,8 +78,8 @@ size_t caller() {
     });
     // CHECK-LABEL: @{{.*}}kernel_GlobalSize_z
     // CHECK: [[CALL_ESIMD1:%.*]] = call <3 x i32> @llvm.genx.local.size.v3i32()
-    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 2
     // CHECK: [[CALL_ESIMD2:%.*]] = call <3 x i32> @llvm.genx.group.count.v3i32()
+    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 2
     // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD2]], i32 2
 
     kernel<class kernel_GlobalOffset_x>([=]() SYCL_ESIMD_KERNEL {
@@ -187,8 +187,8 @@ size_t caller() {
     //  addrspace(1)* @__spirv_BuiltInWorkgroupId to <3 x i64> addrspace(4)*),
     //  align 32 %1 = extractelement <3 x i64> %0, i64 0 %2 = extractelement <3
     //  x i64> %0, i64 1 %3 = extractelement <3 x i64> %0, i64 2
-    // In this case we will generate 3 calls to the same GenX intrinsic,
-    // But -early-cse will later remove this redundancy.
+    // In this case we will generate only 1 call to GenX intrinsic, and re-use
+    // it 3 times in extract element instructions.
     auto DoNotOptimizeXYZ =
         bufXYZ.get_access<cl::sycl::access::mode::write>(cgh);
     kernel<class kernel_LocalInvocationId_xyz>([=]() SYCL_ESIMD_KERNEL {
@@ -199,10 +199,8 @@ size_t caller() {
     // CHECK-LABEL: @{{.*}}kernel_LocalInvocationId_xyz
     // CHECK: [[CALL_ESIMD1:%.*]] = call <3 x i32> @llvm.genx.local.id.v3i32()
     // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 0
-    // CHECK: [[CALL_ESIMD2:%.*]] = call <3 x i32> @llvm.genx.local.id.v3i32()
-    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD2]], i32 1
-    // CHECK: [[CALL_ESIMD3:%.*]] = call <3 x i32> @llvm.genx.local.id.v3i32()
-    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD3]], i32 2
+    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 1
+    // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 2
 
     kernel<class kernel_WorkgroupId_xyz>([=]() SYCL_ESIMD_KERNEL {
       DoNotOptimizeXYZ[0] = __spirv_WorkgroupId_x();
@@ -213,6 +211,13 @@ size_t caller() {
     // CHECK: {{.*}} call i32 @llvm.genx.group.id.x()
     // CHECK: {{.*}} call i32 @llvm.genx.group.id.y()
     // CHECK: {{.*}} call i32 @llvm.genx.group.id.z()
+
+    kernel<class kernel_SubgroupLocalInvocationId>([=]() SYCL_ESIMD_KERNEL {
+      *DoNotOptimize.get_pointer() = __spirv_SubgroupLocalInvocationId();
+    });
+    // CHECK-LABEL: @{{.*}}kernel_SubgroupLocalInvocationId
+    // CHECK: [[ZEXT0:%.*]] = zext i32 0 to i64
+    // CHECK: store i64 [[ZEXT0]]
   });
   return DoNotOpt;
 }

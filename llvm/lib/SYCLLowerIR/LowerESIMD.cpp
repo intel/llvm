@@ -845,145 +845,170 @@ static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI) {
     auto CastOpcode = CastInst::getCastOpcode(NewI, false, OITy, false);
     NewI = CastInst::Create(CastOpcode, NewI, OITy,
                             NewI->getName() + ".cast.ty", OldI);
+    NewI->setDebugLoc(OldI->getDebugLoc());
   }
   return NewI;
 }
 
-static int getIndexForSuffix(StringRef Suff) {
-  return llvm::StringSwitch<int>(Suff)
-      .Case("x", 0)
-      .Case("y", 1)
-      .Case("z", 2)
-      .Default(-1);
-}
-
-// Helper function to convert extractelement instruction associated with the
-// load from SPIRV builtin global, into the GenX intrinsic that returns vector
-// of coordinates. It also generates required extractelement and cast
-// instructions. Example:
-//  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast
-//       (<3 x i64> addrspace(1)* @__spirv_BuiltInLocalInvocationId
-//       to <3 x i64> addrspace(4)*), align 32
-//  %1 = extractelement <3 x i64> %0, i64 0
-//
-//    =>
-//
-//  %.esimd = call <3 x i32> @llvm.genx.local.id.v3i32()
-//  %local_id.x = extractelement <3 x i32> %.esimd, i32 0
-//  %local_id.x.cast.ty = zext i32 %local_id.x to i64
-static Instruction *generateVectorGenXForSpirv(ExtractElementInst *EEI,
-                                               StringRef Suff,
-                                               const std::string &IntrinName,
-                                               StringRef ValueName) {
+/// Generates the call of GenX intrinsic \p IntrinName and inserts it
+/// right before the given instruction \p LI. If the parameter \p IsVectorCall
+/// is set to true, then the GenX intrinsic returns a vector of 3 32-bit
+/// integers.
+static Instruction *generateGenXCall(Instruction *LI, StringRef IntrinName,
+                                     bool IsVectorCall) {
   std::string IntrName =
-      std::string(GenXIntrinsic::getGenXIntrinsicPrefix()) + IntrinName;
+      (Twine(GenXIntrinsic::getGenXIntrinsicPrefix()) + Twine(IntrinName))
+          .str();
   auto ID = GenXIntrinsic::lookupGenXIntrinsicID(IntrName);
-  LLVMContext &Ctx = EEI->getModule()->getContext();
-  Type *I32Ty = Type::getInt32Ty(Ctx);
-  Function *NewFDecl = GenXIntrinsic::getGenXDeclaration(
-      EEI->getModule(), ID, {FixedVectorType::get(I32Ty, 3)});
-  Instruction *IntrI =
-      IntrinsicInst::Create(NewFDecl, {}, EEI->getName() + ".esimd", EEI);
-  int ExtractIndex = getIndexForSuffix(Suff);
-  assert(ExtractIndex != -1 && "Extract index is invalid.");
-  Twine ExtractName = ValueName + Suff;
-
-  Instruction *ExtrI = ExtractElementInst::Create(
-      IntrI, ConstantInt::get(I32Ty, ExtractIndex), ExtractName, EEI);
-  Instruction *CastI = addCastInstIfNeeded(EEI, ExtrI);
-  if (EEI->getDebugLoc()) {
-    IntrI->setDebugLoc(EEI->getDebugLoc());
-    ExtrI->setDebugLoc(EEI->getDebugLoc());
-    // It's OK if ExtrI and CastI is the same instruction
-    CastI->setDebugLoc(EEI->getDebugLoc());
-  }
-  return CastI;
-}
-
-// Helper function to convert extractelement instruction associated with the
-// load from SPIRV builtin global, into the GenX intrinsic. It also generates
-// required cast instructions. Example:
-//  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64>
-//  addrspace(1)* @__spirv_BuiltInWorkgroupId to <3 x i64> addrspace(4)*), align
-//  32 %1 = extractelement <3 x i64> %0, i64 0
-//   =>
-//  %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64>
-//  addrspace(1)* @__spirv_BuiltInWorkgroupId to <3 x i64> addrspace(4)*), align
-//  32 %group.id.x = call i32 @llvm.genx.group.id.x() %group.id.x.cast.ty = zext
-//  i32 %group.id.x to i64
-static Instruction *generateGenXForSpirv(ExtractElementInst *EEI,
-                                         StringRef Suff,
-                                         const std::string &IntrinName) {
-  std::string IntrName = std::string(GenXIntrinsic::getGenXIntrinsicPrefix()) +
-                         IntrinName + Suff.str();
-  auto ID = GenXIntrinsic::lookupGenXIntrinsicID(IntrName);
+  Type *I32Ty = Type::getInt32Ty(LI->getModule()->getContext());
   Function *NewFDecl =
-      GenXIntrinsic::getGenXDeclaration(EEI->getModule(), ID, {});
+      IsVectorCall ? GenXIntrinsic::getGenXDeclaration(
+                         LI->getModule(), ID, FixedVectorType::get(I32Ty, 3))
+                   : GenXIntrinsic::getGenXDeclaration(LI->getModule(), ID);
 
-  Instruction *IntrI =
-      IntrinsicInst::Create(NewFDecl, {}, IntrinName + Suff.str(), EEI);
-  Instruction *CastI = addCastInstIfNeeded(EEI, IntrI);
-  if (EEI->getDebugLoc()) {
-    IntrI->setDebugLoc(EEI->getDebugLoc());
-    // It's OK if IntrI and CastI is the same instruction
-    CastI->setDebugLoc(EEI->getDebugLoc());
-  }
-  return CastI;
+  std::string ResultName =
+      (Twine(LI->getNameOrAsOperand()) + "." + IntrName).str();
+  auto *Inst = IntrinsicInst::Create(NewFDecl, {}, ResultName, LI);
+  Inst->setDebugLoc(LI->getDebugLoc());
+  return Inst;
 }
 
-// This function translates one occurence of SPIRV builtin use into GenX
-// intrinsic.
-static Value *translateSpirvGlobalUse(ExtractElementInst *EEI,
-                                      StringRef SpirvGlobalName) {
+/// Returns the index from the given extract element instruction \p EEI.
+/// It is checked here that the index is either 0, 1, or 2.
+static uint64_t getIndexFromExtract(ExtractElementInst *EEI) {
   Value *IndexV = EEI->getIndexOperand();
   assert(isa<ConstantInt>(IndexV) &&
-         "Extract element index should be a constant");
+         "Expected a const index in extract element instruction");
+  uint64_t IndexValue = cast<ConstantInt>(IndexV)->getZExtValue();
+  assert(IndexValue <= 2 &&
+         "Extract element index should be either 0, 1, or 2");
+  return IndexValue;
+}
 
-  // Get the suffix based on the index of extractelement instruction
-  ConstantInt *IndexC = cast<ConstantInt>(IndexV);
-  std::string Suff;
-  if (IndexC->equalsInt(0))
-    Suff = 'x';
-  else if (IndexC->equalsInt(1))
-    Suff = 'y';
-  else if (IndexC->equalsInt(2))
-    Suff = 'z';
-  else
-    assert(false && "Extract element index should be either 0, 1, or 2");
+/// Extracts the index from the given extract element instruction \p EEI,
+/// and attaches the corresponding suffix (either "x", "y", or "z") to the given
+/// \p Name.
+static StringRef addGenXSuffix(StringRef Name, ExtractElementInst *EEI) {
+  uint64_t IndexValue = getIndexFromExtract(EEI);
+  return Twine(Name + Twine(static_cast<char>('x' + IndexValue))).str();
+}
 
-  // Translate SPIRV into GenX intrinsic.
+/// Generates extractelement instruction associated with GenX intrinsic
+/// returning a vector. It also generates required cast instructions.
+/// The new instructions are insrted before the given extract element
+/// instruction \p EEI. The index for the new extract element is copied
+/// from the old extract element instruction. The instruction \p OpndI
+/// specifies the variable from which the element must be extracted.
+static Instruction *genExtractAndCast(Instruction *OpndI,
+                                      ExtractElementInst *EEI) {
+  uint64_t IndexValue = getIndexFromExtract(EEI);
+
+  Type *I32Ty = Type::getInt32Ty(EEI->getModule()->getContext());
+  std::string ExtractName =
+      (Twine(EEI->getNameOrAsOperand()) + ".ext." + Twine(IndexValue)).str();
+  Instruction *ExtrI = ExtractElementInst::Create(
+      OpndI, ConstantInt::get(I32Ty, IndexValue), ExtractName, EEI);
+  ExtrI->setDebugLoc(EEI->getDebugLoc());
+
+  return addCastInstIfNeeded(EEI, ExtrI);
+}
+
+/// Replaces the load \p LI of SPIRV global with corresponding call(s) of GenX
+/// intrinsic(s). The users of LI may also be transformed if needed for def/use
+/// type correctness.
+/// The replaced instructions are stored into the given container
+/// \p InstsToErase.
+static void
+translateSpirvGlobalUse(LoadInst *LI, StringRef SpirvGlobalName,
+                        SmallVectorImpl<Instruction *> &InstsToErase) {
+  // Translate the original load from SPIRV global first.
+  // Generate either a) some calls of vector GenX intrinsics to replace
+  // the original vector load + extracts, or b) one scalar call replacing
+  // the original scalar call here and translate/convert the users of the
+  // SPIRV global later.
+  SmallVector<Instruction *, 2> VCall;
+  Value *SCall = nullptr;
   if (SpirvGlobalName == "WorkgroupSize") {
-    return generateVectorGenXForSpirv(EEI, Suff, "local.size.v3i32", "wgsize.");
+    VCall.push_back(generateGenXCall(LI, "local.size.v3i32", true));
   } else if (SpirvGlobalName == "LocalInvocationId") {
-    return generateVectorGenXForSpirv(EEI, Suff, "local.id.v3i32", "local_id.");
-  } else if (SpirvGlobalName == "WorkgroupId") {
-    return generateGenXForSpirv(EEI, Suff, "group.id.");
+    VCall.push_back(generateGenXCall(LI, "local.id.v3i32", true));
+  } else if (SpirvGlobalName == "NumWorkgroups") {
+    VCall.push_back(generateGenXCall(LI, "group.count.v3i32", true));
   } else if (SpirvGlobalName == "GlobalInvocationId") {
-    // GlobalId = LocalId + WorkGroupSize * GroupId
-    Instruction *LocalIdI =
-        generateVectorGenXForSpirv(EEI, Suff, "local.id.v3i32", "local_id.");
-    Instruction *WGSizeI =
-        generateVectorGenXForSpirv(EEI, Suff, "local.size.v3i32", "wgsize.");
-    Instruction *GroupIdI = generateGenXForSpirv(EEI, Suff, "group.id.");
-    Instruction *MulI =
-        BinaryOperator::CreateMul(WGSizeI, GroupIdI, "mul", EEI);
-    return BinaryOperator::CreateAdd(LocalIdI, MulI, "add", EEI);
+    // Special case: GlobalId = LocalId + WorkGroupSize * GroupId
+    // Call LocalId and WorkgroupSize here to replace the original load
+    // and do the rest of computations when lower the uses.
+    VCall.push_back(generateGenXCall(LI, "local.id.v3i32", true));
+    VCall.push_back(generateGenXCall(LI, "local.size.v3i32", true));
   } else if (SpirvGlobalName == "GlobalSize") {
-    // GlobalSize = WorkGroupSize * NumWorkGroups
-    Instruction *WGSizeI =
-        generateVectorGenXForSpirv(EEI, Suff, "local.size.v3i32", "wgsize.");
-    Instruction *NumWGI = generateVectorGenXForSpirv(
-        EEI, Suff, "group.count.v3i32", "group_count.");
-    return BinaryOperator::CreateMul(WGSizeI, NumWGI, "mul", EEI);
+    // Special case: GlobalSize = WorkGroupSize * NumWorkGroups
+    VCall.push_back(generateGenXCall(LI, "local.size.v3i32", true));
+    VCall.push_back(generateGenXCall(LI, "group.count.v3i32", true));
+  } else if (SpirvGlobalName == "WorkgroupId") {
+    // GenX does not provide a vector intrinsic for this vector global.
+    // So, proceed to lowering of users of the load and generate specialized
+    // version of GenX intrinsic, e.g. group.id.x or group.id.y
+  } else if (SpirvGlobalName == "SubgroupLocalInvocationId") {
+    // Subgroup local id always returns 0 for ESIMD.
+    SCall = llvm::Constant::getNullValue(LI->getType());
   } else if (SpirvGlobalName == "GlobalOffset") {
     // TODO: Support GlobalOffset SPIRV intrinsics
-    return llvm::Constant::getNullValue(EEI->getType());
-  } else if (SpirvGlobalName == "NumWorkgroups") {
-    return generateVectorGenXForSpirv(EEI, Suff, "group.count.v3i32",
-                                      "group_count.");
+    // Currently, GlobalOffset always returns 0.
+    // Just proceed to lowering of users of load from GlobalOffset global.
   }
 
-  return nullptr;
+  // TODO: Also, implement support for the following intrinsics:
+  // uint32_t __spirv_BuiltIn SubgroupSize;
+  // uint32_t __spirv_BuiltIn SubgroupMaxSize;
+  // uint32_t __spirv_BuiltIn NumSubgroups;
+  // uint32_t __spirv_BuiltIn SubgroupId;
+
+  // Replace the original scalar load with newly generated instruction.
+  assert(!LI->users().empty() && "Found a global load that is unused.");
+  if (SCall) {
+    LI->replaceAllUsesWith(SCall);
+    InstsToErase.push_back(LI);
+    return;
+  }
+
+  // Replace the users of vector load. Each user is expected to be an element
+  // extract instruction.
+  for (User *LU : LI->users()) {
+    ExtractElementInst *EEI = dyn_cast<ExtractElementInst>(LU);
+    assert(EEI && "User of global var load must be an instruction.");
+    User *Inst = nullptr;
+    if (SpirvGlobalName == "WorkgroupSize" ||
+        SpirvGlobalName == "LocalInvocationId" ||
+        SpirvGlobalName == "NumWorkgroups") {
+      Inst = genExtractAndCast(VCall[0], EEI);
+    } else if (SpirvGlobalName == "GlobalInvocationId") {
+      // GlobalId = LocalId + WorkGroupSize * GroupId
+      Instruction *LocalIdI = genExtractAndCast(VCall[0], EEI);
+      Instruction *WGSizeI = genExtractAndCast(VCall[1], EEI);
+      Instruction *GroupIdI = addCastInstIfNeeded(
+          EEI, generateGenXCall(EEI, addGenXSuffix("group.id.", EEI), false));
+      Instruction *MulI =
+          BinaryOperator::CreateMul(WGSizeI, GroupIdI, "mul", EEI);
+      Inst = BinaryOperator::CreateAdd(LocalIdI, MulI, "add", EEI);
+    } else if (SpirvGlobalName == "GlobalSize") {
+      // GlobalSize = WorkGroupSize * NumWorkGroups
+      Instruction *WGSizeI = genExtractAndCast(VCall[0], EEI);
+      Instruction *NumWGI = genExtractAndCast(VCall[1], EEI);
+      Inst = BinaryOperator::CreateMul(WGSizeI, NumWGI, "mul", EEI);
+    } else if (SpirvGlobalName == "GlobalOffset") {
+      // TODO: Support GlobalOffset SPIRV intrinsics
+      // Currently all users of load of GlobalOffset are replaced with 0.
+      Inst = llvm::Constant::getNullValue(EEI->getType());
+    } else if (SpirvGlobalName == "WorkgroupId") {
+      Inst = addCastInstIfNeeded(
+          EEI, generateGenXCall(EEI, addGenXSuffix("group.id.", EEI), false));
+    }
+
+    assert(Inst && "Load from global SPIRV builtin was not translated");
+    EEI->replaceAllUsesWith(Inst);
+    InstsToErase.push_back(EEI);
+  }
+  InstsToErase.push_back(LI);
 }
 
 static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
@@ -1369,8 +1394,7 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
 
 } // namespace
 
-PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
-                                          ModuleAnalysisManager &) {
+PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
   generateKernelMetadata(M);
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
 
@@ -1507,22 +1531,10 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       auto PrefLen = StringRef(SPIRV_INTRIN_PREF).size();
 
       // Go through all the uses of the load instruction from SPIRV builtin
-      // globals, which are required to be extractelement instructions.
+      // globals.which are required to be extractelement instructions.
       // Translate each of them.
-      for (auto *LU : LI->users()) {
-        auto *EEI = dyn_cast<ExtractElementInst>(LU);
-        assert(EEI && "User of load from global SPIRV builtin is not an "
-                      "extractelement instruction");
-        Value *TranslatedVal = translateSpirvGlobalUse(
-            EEI, SpirvGlobal->getName().drop_front(PrefLen));
-        assert(TranslatedVal &&
-               "Load from global SPIRV builtin was not translated");
-        EEI->replaceAllUsesWith(TranslatedVal);
-        ESIMDToErases.push_back(EEI);
-      }
-      // After all users of load were translated, we get rid of the load
-      // itself.
-      ESIMDToErases.push_back(LI);
+      translateSpirvGlobalUse(LI, SpirvGlobal->getName().drop_front(PrefLen),
+                              ESIMDToErases);
     }
   }
   // Now demangle and translate found ESIMD intrinsic calls
