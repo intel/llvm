@@ -290,8 +290,7 @@ namespace __SEIEE {
             class = std::enable_if_t<                                          \
                 __SEIEED::is_any_simd_view_type_v<SimdViewT2> && COND>>        \
   inline auto operator BINOP(T1 LHS, const SimdViewT2 &RHS) {                  \
-    using SimdT = typename SimdViewT2::value_type;                             \
-    return SimdT(LHS) BINOP RHS.read();                                        \
+    return LHS BINOP RHS.read();                                               \
   }                                                                            \
                                                                                \
   /* simd_view BINOP SCALAR */                                                 \
@@ -301,8 +300,7 @@ namespace __SEIEE {
             class = std::enable_if_t<                                          \
                 __SEIEED::is_any_simd_view_type_v<SimdViewT1> && COND>>        \
   inline auto operator BINOP(const SimdViewT1 &LHS, T2 RHS) {                  \
-    using SimdT = typename SimdViewT1::value_type;                             \
-    return LHS.read() BINOP SimdT(RHS);                                        \
+    return LHS.read() BINOP RHS;                                               \
   }
 
 #define __ESIMD_BITWISE_OP_FILTER                                              \
