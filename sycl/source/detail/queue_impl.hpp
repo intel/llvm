@@ -450,7 +450,6 @@ public:
   }
 
 private:
-
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
