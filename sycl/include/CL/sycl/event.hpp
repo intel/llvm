@@ -156,7 +156,7 @@ namespace std {
 template <> struct hash<cl::sycl::event> {
   size_t operator()(const cl::sycl::event &e) const {
     return hash<std::shared_ptr<cl::sycl::detail::event_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(e));
+        cl::sycl::detail::getSyclObjImpl(cl::sycl::event(e)));
   }
 };
 } // namespace std
