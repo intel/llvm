@@ -684,6 +684,7 @@ static bool isValidSYCLTriple(llvm::Triple T) {
 
 static bool addSYCLDefaultTriple(Compilation &C,
                                  SmallVectorImpl<llvm::Triple> &SYCLTriples) {
+  /// Returns true if a triple is added to SYCLTriples, false otherwise
   if (!C.getDriver().isSYCLDefaultTripleImplied())
     return false;
   for (const auto &SYCLTriple : SYCLTriples) {
@@ -4113,32 +4114,30 @@ class OffloadingActionBuilder final {
       }
 
       // Device compilation generates LLVM BC.
-      if (CurPhase == phases::Compile) {
-        if (!SYCLTargetInfoList.empty()) {
-          Action *DeviceCompilerInput = nullptr;
-          for (Action *&A : SYCLDeviceActions) {
-            types::ID OutputType = types::TY_LLVM_BC;
-            if ((SYCLDeviceOnly || Args.hasArg(options::OPT_emit_llvm)) &&
-                Args.hasArg(options::OPT_S))
-              OutputType = types::TY_LLVM_IR;
-            if (SYCLDeviceOnly) {
-              if (Args.hasFlag(options::OPT_fno_sycl_use_bitcode,
-                               options::OPT_fsycl_use_bitcode, false)) {
-                auto *CompileAction =
-                    C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
-                A = C.MakeAction<SPIRVTranslatorJobAction>(CompileAction,
-                                                           types::TY_SPIRV);
-                continue;
-              }
+      if (CurPhase == phases::Compile && !SYCLTargetInfoList.empty()) {
+        Action *DeviceCompilerInput = nullptr;
+        for (Action *&A : SYCLDeviceActions) {
+          types::ID OutputType = types::TY_LLVM_BC;
+          if ((SYCLDeviceOnly || Args.hasArg(options::OPT_emit_llvm)) &&
+              Args.hasArg(options::OPT_S))
+            OutputType = types::TY_LLVM_IR;
+          if (SYCLDeviceOnly) {
+            if (Args.hasFlag(options::OPT_fno_sycl_use_bitcode,
+                             options::OPT_fsycl_use_bitcode, false)) {
+              auto *CompileAction =
+                  C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
+              A = C.MakeAction<SPIRVTranslatorJobAction>(CompileAction,
+                                                         types::TY_SPIRV);
+              continue;
             }
-            A = C.MakeAction<CompileJobAction>(A, OutputType);
-            DeviceCompilerInput = A;
           }
-          const DeviceTargetInfo &DevTarget = SYCLTargetInfoList.back();
-          DA.add(*DeviceCompilerInput, *DevTarget.TC, DevTarget.BoundArch,
-                 Action::OFK_SYCL);
-          return SYCLDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
+          A = C.MakeAction<CompileJobAction>(A, OutputType);
+          DeviceCompilerInput = A;
         }
+        const DeviceTargetInfo &DevTarget = SYCLTargetInfoList.back();
+        DA.add(*DeviceCompilerInput, *DevTarget.TC, DevTarget.BoundArch,
+               Action::OFK_SYCL);
+        return SYCLDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
       }
 
       // Backend/Assemble actions are obsolete for the SYCL device side
@@ -4474,9 +4473,9 @@ class OffloadingActionBuilder final {
         ActionList DeviceLibObjects;
         ActionList LinkObjects;
         auto TT = TC->getTriple();
-        auto isNVPTX = TC->getTriple().isNVPTX();
-        auto isAMDGCN = TC->getTriple().isAMDGCN();
-        auto isSPIR = TC->getTriple().isSPIR();
+        auto isNVPTX = TT.isNVPTX();
+        auto isAMDGCN = TT.isAMDGCN();
+        auto isSPIR = TT.isSPIR();
         bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
@@ -4494,11 +4493,11 @@ class OffloadingActionBuilder final {
             // directly to the backend compilation step (aocr) or wrapper (aocx)
             Action *FPGAAOTAction;
             if (Input->getType() == types::TY_FPGA_AOCR ||
-                Input->getType() == types::TY_FPGA_AOCR_EMU) {
+                Input->getType() == types::TY_FPGA_AOCR_EMU)
               // Generate AOCX/AOCR
               FPGAAOTAction =
                   C.MakeAction<BackendCompileJobAction>(Input, FPGAOutType);
-            } else if (Input->getType() == types::TY_FPGA_AOCX)
+            else if (Input->getType() == types::TY_FPGA_AOCX)
               FPGAAOTAction = Input;
             else
               llvm_unreachable("Unexpected FPGA input type.");
@@ -4722,8 +4721,7 @@ class OffloadingActionBuilder final {
       for (auto &TargetInfo : SYCLTargetInfoList) {
         DA->registerDependentActionInfo(TargetInfo.TC, TargetInfo.BoundArch,
                                         Action::OFK_SYCL);
-        DeviceLinkerInputs[I].push_back(DA);
-        I++;
+        DeviceLinkerInputs[I++].push_back(DA);
       }
     }
 
@@ -4960,15 +4958,13 @@ class OffloadingActionBuilder final {
         }
       }
 
-      if (ShouldAddDefaultTriple) {
-        if (addSYCLDefaultTriple(C, SYCLTripleList)) {
-          // If a SYCLDefaultTriple is added to SYCLTripleList,
-          // add new target to SYCLTargetInfoList
-          llvm::Triple TT = SYCLTripleList.front();
-          auto TCIt = llvm::find_if(
-              ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
-          SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
-        }
+      if (ShouldAddDefaultTriple && addSYCLDefaultTriple(C, SYCLTripleList)) {
+        // If a SYCLDefaultTriple is added to SYCLTripleList,
+        // add new target to SYCLTargetInfoList
+        llvm::Triple TT = SYCLTripleList.front();
+        auto TCIt = llvm::find_if(
+            ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
+        SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
       }
       if (SYCLTargetInfoList.empty()) {
         // If there are no SYCL Targets add the front toolchain, this is for
@@ -7013,12 +7009,12 @@ InputInfo Driver::BuildJobsForActionNoCache(
       llvm::errs() << "] \n";
     }
   } else {
-    if (UnbundlingResults.empty()) {
+    if (UnbundlingResults.empty())
       T->ConstructJob(
           C, *JA, Result, InputInfos,
           C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind()),
           LinkingOutput);
-    } else
+    else
       T->ConstructJobMultipleOutputs(
           C, *JA, UnbundlingResults, InputInfos,
           C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind()),
