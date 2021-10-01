@@ -161,6 +161,24 @@ a Titan RTX GPU (SM 71), but it should work on any GPU compatible with SM 50 or
 above. The default SM for the NVIDIA CUDA backend is 5.0. Users can specify
 lower values, but some features may not be supported.
 
+**Non-standard CUDA location**
+
+If the CUDA toolkit is installed in a non-default location on your system, two considerations must be made.
+
+Firstly, **do not** add the toolkit to your standard environment variables (`PATH`, `LD_LIBRARY_PATH`), as to do so will create conflicts with OpenCL headers.
+
+Secondly, set the `CUDA_LIB_PATH` environment variable and pass the CMake variable `CUDA_TOOLKIT_ROOT_DIR` as follows:
+
+```
+CUDA_LIB_PATH=/path/to/cuda/toolkit/lib64/stubs CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/configure.py --cuda --cmake-opt="-DCUDA_TOOLKIT_ROOT_DIR=/path/to/cuda/toolkit"
+
+CUDA_LIB_PATH=/path/to/cuda/toolkit/lib64/stubs CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/compile.py
+
+$DPCPP_HOME/llvm/build/bin/clang++ -std=c++17 -O3 -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=/path/to/cuda/toolkit *.cpp -o a.out
+
+LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$DPCPP_HOME/llvm/build/lib ./a.out
+```
+
 ### Build DPC++ toolchain with support for HIP AMD
 
 There is experimental support for DPC++ for HIP devices.

@@ -94,6 +94,10 @@ namespace detail {
 enum class ExtendedMembersType : unsigned int {
   HANDLER_KERNEL_BUNDLE = 0,
   HANDLER_MEM_ADVICE,
+  // handler_impl is stored in the exended members to avoid breaking ABI.
+  // TODO: This should be made a member of the handler class once ABI can be
+  //       broken.
+  HANDLER_IMPL,
   HANDLER_IS_EVENT_REQUIRED,
 };
 
