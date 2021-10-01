@@ -70,8 +70,12 @@ Note that all device selectors will throw an exception if the filtered list of d
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | `INTEL_ENABLE_OFFLOAD_ANNOTATIONS` | Any(\*) | Enables ITT Annotations support for SYCL runtime. This variable should only be used by tools, that support ITT Annotations. |
+| `XPTI_FRAMEWORK_DISPATCHER`(\*\*) | Path to dispatcher library | Loads XPTI instrumentation dispatcher framework library. See [XPTI Framework documentation][xpti] for more info |
+| `XPTI_TRACE_ENABLE`(\*\*) | `1`, `true`, `0`, `false` | Enables XPTI instrumentation. See [XPTI Framework documentation][xpti] for more info |
+| `XPTI_SUBSCRIBERS`(\*\*) | Comma separated list of subscriber libraries | Loads XPTI subscribers. See [XPTI Framework documentation][xpti] for more info |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
+`(**) Note: These variables come from XPTI framework`
 
 ## Debugging variables for DPC++ Runtime
 
@@ -137,3 +141,5 @@ subject to change. Do not rely on these variables in production code.
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE` | Any(\*) | This environment variable enables users to control use of copy engines for copy operations. If the value is an integer, it will allow the use of copy engines, if available in the device, in Level Zero plugin to transfer SYCL buffer or image data between the host and/or device(s) and to fill SYCL buffer or image data in device or shared memory. The value of this environment variable can also be a pair of the form "lower_index:upper_index" where the indices point to copy engines in a list of all available copy engines. The default is 1. |
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_D2D_COPY` (experimental) | Integer | Allows the use of copy engine, if available in the device, in Level Zero plugin for device to device copy operations. The default is 0. This option is experimental and will be removed once heuristics are added to make a decision about use of copy engine for device to device copy operations. |
 | `SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS` | Any(\*) | Enable support of device-scope events whose state is not visible to the host. If enabled the Level Zero plugin would create all events having device-scope only and create proxy host-visible events for them when their status is needed (wait/query) on the host. The default is 0, meaning all events are host-visible. |
+
+[xpti]: https://github.com/intel/llvm/blob/sycl/xptifw/doc/XPTI_Framework.md
