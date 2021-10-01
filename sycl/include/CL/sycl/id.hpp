@@ -55,7 +55,6 @@ public:
 
   /* The following constructor is only available in the id struct
    * specialization where: dimensions==1 */
-  // CP - blind
   template <int N = dimensions> id(ParamTy<N, 1, size_t> dim0) : base(dim0) {}
 
   template <int N = dimensions>

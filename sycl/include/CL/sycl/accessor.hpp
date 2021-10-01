@@ -902,8 +902,7 @@ protected:
       getMemoryRange()[I] = MemRange[I];
     }
     // In case of 1D buffer, adjust pointer during initialization rather
-    // then each time in operator[] or get_pointer functions.
-    // CP - restored?
+    // then each time in operator[]. Will have to re-adjust in get_pointer
     if (1 == AdjustedDim)
       MData += Offset[0];
   }
@@ -1601,29 +1600,62 @@ public:
     return AccessorSubscript<Dims - 1>(*this, Index);
   }
 
+  // get_pointer()
+  // when dim==1, MData will have been preadjusted for faster access with []
+  // on device, getQualifiedPtr() returns MData, so we need to backjust it
+  // on host, getQualifiedPtr() does not return MData, no need to adjust
+#ifdef __SYCL_DEVICE_ONLY__
   template <access::target AccessTarget_ = AccessTarget,
             typename = detail::enable_if_t<AccessTarget_ ==
                                            access::target::host_buffer>>
   DataT *get_pointer() const {
-    // const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return getQualifiedPtr(); // + LinearIndex;
+    if (1 == AdjustedDim)
+      return getQualifiedPtr() - impl.Offset[0];
+
+    return getQualifiedPtr();
   }
 
   template <
       access::target AccessTarget_ = AccessTarget,
       typename = detail::enable_if_t<AccessTarget_ == access::target::device>>
   global_ptr<DataT> get_pointer() const {
-    // const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return global_ptr<DataT>(getQualifiedPtr()); // + LinearIndex);
+    if (1 == AdjustedDim)
+      return global_ptr<DataT>(getQualifiedPtr() - impl.Offset[0]);
+
+    return global_ptr<DataT>(getQualifiedPtr());
   }
 
   template <access::target AccessTarget_ = AccessTarget,
             typename = detail::enable_if_t<AccessTarget_ ==
                                            access::target::constant_buffer>>
   constant_ptr<DataT> get_pointer() const {
-    // const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return constant_ptr<DataT>(getQualifiedPtr()); // + LinearIndex);
+    if (1 == AdjustedDim)
+      return constant_ptr<DataT>(getQualifiedPtr() - impl.Offset[0]);
+
+    return constant_ptr<DataT>(getQualifiedPtr());
   }
+#else
+  template <access::target AccessTarget_ = AccessTarget,
+            typename = detail::enable_if_t<AccessTarget_ ==
+                                           access::target::host_buffer>>
+  DataT *get_pointer() const {
+    return getQualifiedPtr();
+  }
+
+  template <
+      access::target AccessTarget_ = AccessTarget,
+      typename = detail::enable_if_t<AccessTarget_ == access::target::device>>
+  global_ptr<DataT> get_pointer() const {
+    return global_ptr<DataT>(getQualifiedPtr());
+  }
+
+  template <access::target AccessTarget_ = AccessTarget,
+            typename = detail::enable_if_t<AccessTarget_ ==
+                                           access::target::constant_buffer>>
+  constant_ptr<DataT> get_pointer() const {
+    return constant_ptr<DataT>(getQualifiedPtr());
+  }
+#endif
 
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
@@ -1861,10 +1893,7 @@ protected:
 #endif // __SYCL_DEVICE_ONLY__
 
   // Method which calculates linear offset for the ID using Range and Offset.
-  // CP - blind
   template <int Dims = AdjustedDim> size_t getLinearIndex(id<Dims> Id) const {
-    // template <int Dims = Dimensions> size_t getLinearIndex(id<Dims> Id) const
-    // {
     size_t Result = 0;
     for (int I = 0; I < Dims; ++I)
       Result = Result * getSize()[I] + Id[I];
