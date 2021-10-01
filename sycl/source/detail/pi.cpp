@@ -312,7 +312,8 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
       }
       if (!EsimdCpuFound &&
           (Backend == backend::esimd_cpu || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_ESIMD_CPU_PLUGIN_NAME, backend::esimd_cpu);
+        PluginNames.emplace_back(__SYCL_ESIMD_CPU_PLUGIN_NAME,
+                                 backend::esimd_cpu);
         EsimdCpuFound = true;
       }
       if (!HIPFound && (Backend == backend::hip || Backend == backend::all)) {

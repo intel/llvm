@@ -561,7 +561,7 @@ private:
    * type is unknown to the plugin.
    */
 
-  // For non-'void' kernel argument - id, item w/wo offset, nd_item
+  // For 'id, item w/wo offset, nd_item' kernel arguments
   template <class KernelType, class NormalizedKernelType, int Dims,
             typename KernelName>
   KernelType *ResetHostKernelHelper(const KernelType &KernelFunc) {
@@ -575,15 +575,6 @@ private:
     MHostKernel.reset(HostKernelPtr);
     return &HostKernelPtr->MKernel.template target<NormalizedKernelType>()
                 ->MKernelFunc;
-  }
-
-  // For 'void' kernel argument
-  template <class KernelType, typename ArgT, int Dims, typename KernelName>
-  typename std::enable_if<std::is_same<ArgT, void>::value, KernelType *>::type
-  ResetHostKernel(const KernelType &KernelFunc) {
-    MHostKernel.reset(
-        new detail::HostKernel<KernelType, ArgT, Dims, KernelName>(KernelFunc));
-    return (KernelType *)(MHostKernel->getPtr());
   }
 
   // For 'sycl::id<Dims>' kernel argument
@@ -658,21 +649,21 @@ private:
                                  KernelName>(KernelFunc);
   }
 
-  // For 'sycl::group<Dims>' kernel argument
+  /* 'wrapper'-based approach using 'NormalizedKernelType' struct is
+   * not applied for 'void(void)' type kernel and
+   * 'void(sycl::group<Dims>)'. This is because 'void(void)' type does
+   * not have argument to normalize and 'void(sycl::group<Dims>)' is
+   * not supported in ESIMD.
+   */
+  // For 'void' and 'sycl::group<Dims>' kernel argument
   template <class KernelType, typename ArgT, int Dims, typename KernelName>
-  typename std::enable_if<std::is_same<ArgT, sycl::group<Dims>>::value,
+  typename std::enable_if<std::is_same<ArgT, void>::value ||
+                              std::is_same<ArgT, sycl::group<Dims>>::value,
                           KernelType *>::type
   ResetHostKernel(const KernelType &KernelFunc) {
-    struct NormalizedKernelType {
-      KernelType MKernelFunc;
-      NormalizedKernelType(const KernelType &KernelFunc)
-          : MKernelFunc(KernelFunc) {}
-      void operator()(const nd_item<Dims> &Arg) {
-        detail::runKernelWithArg(MKernelFunc, Arg.get_group());
-      }
-    };
-    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims,
-                                 KernelName>(KernelFunc);
+    MHostKernel.reset(
+        new detail::HostKernel<KernelType, ArgT, Dims, KernelName>(KernelFunc));
+    return (KernelType *)(MHostKernel->getPtr());
   }
 
   /// Stores lambda to the template-free object
