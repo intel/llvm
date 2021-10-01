@@ -1,0 +1,287 @@
+# (Nvidia Tensorcore) Matrix Programming Extension for DPC++: SYCL_EXT_ONEAPI_MATRIX=3
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+:dpcpp: pass:[DPC++]
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+Copyright (c) 2021-2021 Intel Corporation.  All rights reserved.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+This extension is written against the SYCL 2020 revision 3 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.  This extension builds on the existing AMX based matrix https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc[extension].
+
+
+**_NOTE:_** _This document describes the current design and API for the Nvidia tensorcore version of the matrix extension to {dpcpp}. This is an initial experimental version to try out functionality and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support for the matrix extension interface on Nvidia(R) Tensorcores. We are going to work with the community on incrementally improving the API to develop a single matrix interface that may be used for all backend architectures._
+
+## Introduction
+
+This document presents an ongoing work towards defining a unified matrix interface. This extension applies the existing experimental matrix extension (designed for the AMX architecture) to Nvidia tensorcore hardware, making small adaptations where necessary.
+
+**_NOTE:_** _Any necessary adaptations to the extension aim to ensure compatibility with a suitable AMX matrix implementation; any necessary adaptations to the existing AMX implementation resulting from changes introduced in this proposal should be small._
+
+The initial implementation of this extension uses Warp Matrix Multiply Accumulate https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-wmma[(wmma) PTX instructions] which can be generally used with Volta (sm_70, sm_72), Turing (sm_75), and Ampere (sm_80, sm_86) architecture generations.  These instructions are also expected to be forward compatible with future Nvidia generations.  A future implementation may additionally make use of Nvidia PTX mma instructions which are architecture generation specific, and may increase performance with respect to corresponding wmma instructions.  It is possible to implement mma ptx instructions without additional changes to this extension proposal.
+
+## Feature test macro
+
+This extension uses the existing feature-test macro used by the AMX matrix extension.  Feature test macros are described in the core SYCL
+specification section 6.3.3 "Feature test macros".  An
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_MATRIX` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[frame="none",options="header"]
+|======================
+|Value |Description
+|3     |Initial extension implementation on Nvidia Tensorcore.  Base features are supported.
+|======================
+
+## Currently implemented additions with respect to the AMX proposal
+
+### Matrix Type
+
+We introduce a new `matrix_type` enum which is necessary to distingush the correct low level PTX instruction for each operation.
+
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+enum class matrix_type { a, b, accumulator };
+}
+```
+
+### Layout
+
+We adapt the Layout enum by including only a single `matrix_layout::packed` value. Different "packed" variations for A and B matrix types can be determined by the new `matrix_type` enum.
+
+**_NOTE:_** _The "packed" layout is only applicable to the AMX implementation: matrix_layout::packed is not required by the implementation of Nvidia wmma and mma instructions.  We suggest that the AMX matrix extension could consider replacing its usage of matrix_layout::packed_a and matrix_layout::packed_b with the single matrix_layout::packed, in conjunction with matrix_type::a and matrix_type::b introduced here._
+	
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+enum class matrix_layout { row_major, col_major, packed };
+}
+```
+
+## Types, Shapes, and Layouts
+
+Unlike the AMX case, Nvidia Tensorcore architecture only supports a discrete set of matrix sizes that can form part of a Multiply Accumulate operation, and the supported matrix sizes depends on the data type of the matrix elements.
+
+MMA operations multiply matrices A (`matrix_type::a`) (M, K) and B (`matrix_type::b`) (K, N) and add the result to matrix C (`matrix_type::accumulator`) (M, N). The logical sizes are M, K, N.
+
+C = A*B + C 
+
+### Current Implementation Restrictions
+
+Currently only a single case: fp64 (M = N = 8, K = 4) is implemented:
+
+A(double, 8x4, row_major/col_major), B(double, 4x8, row_major/col_major), C(double, 8x8, row_major/col_major)
+
+In order to deal with different cases we use partial specialization of the various template functions introduced by the extension.  LLVM builtins are available for all possible matrix shapes, and runtime implementations covering these cases will be progressively added.
+
+### `joint_matrix` interface uses the new parameter, `matrix_type`, with respect to the AMX proposal
+
+We reuse the `joint_matrix` interface but add the new parameter, `matrix_type`. The user needs to additionally specify the type of the elements, shape, memory layout, and memory scope of the matrix. This results into the following description:
+
+```c++
+template <typename Group, typename T, matrix_type MT,
+          size_t Rows = sycl::dynamic_extent,
+          size_t Cols = sycl::dynamic_extent,
+          matrix_layout Layout = matrix_layout::row_major, typename Cond = void>
+struct joint_matrix {
+  joint_matrix(Group g) {}
+};
+```
+
+## Matrix Operations and their Execution Scope
+
+We define the three functions needed to perform the main and common operations on matrices namely, load, store, and the actual Multiply And Add operation. This set of functions can be easily extended if the Nvidia Tensorcore hardware implements new features.
+
+Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow.  As described in the AMX extension, `joint_matrix` is shared across a number of work-items that is hardware dependent.  For the case of Nvidia the number of work-items (CUDA threads) is equal to the warp size (32).
+
+For the CUDA backend the work-items that share a `joint_matrix` instance belong to the same sub-group. The group template parameter provided to `joint_matrix` is always a `sycl::sub_group`.  For example a column major matrix must be declared as follows:
+
+```c++
+joint_matrix<sub_group, T, K, N, matrix_layout::col_major> tB;
+```   
+
+where currently only `T = double` is supported.
+
+**_NOTE:_** _The CUDA backend does not require any other sub-group size than 32, which is the size of a warp which acts as the sub-groups. The requirement that kernels make use of the `sycl::reqd_sub_group_size` decorator is only for specific backends._
+
+To be aligned with the SYCL 2020 group algorithms, an additional group argument is added to the matrix operations to designate that these functions are collective operations. The {dpcpp} syntax is the following: 
+
+### Load
+
+```c++
+template <typename Group, typename T, matrix_type MT, size_t NumRows,
+          size_t NumCols, matrix_layout Layout, access::address_space Space>
+void joint_matrix_load(
+    Group sg, joint_matrix<Group, T, MT, NumRows, NumCols, Layout> &res,
+    multi_ptr<T, Space> src, size_t stride) {
+  detail::joint_matrix_load_impl<Group, T, MT, NumRows, NumCols, Layout,
+                                 Space>{}
+      .load(res, src, stride);
+}
+```
+
+This function loads data from memory to the Nvidia matrix "fragments".
+
+The base pointer, `src`, determines the starting address of the sub-matrix to be loaded/stored. `layout` determines whether the data are being read/written with leading dimension `row_major` or `column_major`. `stride` describes the number of elements between consecutive rows for row major and packed layout, or columns for column major layout.
+
+IMPORTANT: For the CUDA backend the layout in the load of matrices A B and C must be either `row_major` or `col_major`, and the layout in the store of matrix C must also be either `row_major` or `col_major`.
+
+**_NOTE:_** _The Layout argument has been removed with respect to the AMX extension in both `joint_matrix_load` and `joint_matrix_store`, since the Layout may be determined from the `joint_matrix`.  The addition of the `matrix_type` enumerator may also simplify the AMX implementation so that the Layout argument in `joint_matrix_load` and `joint_matrix_store` can be similarly removed for that case._
+
+The stride is currently passed to the wmma ptx instructions. The wmma ptx instruction then uses stride to pick the correct address for the current thread to load the correct fragment depending on the architecture.  When ptx mma instructions are used instead of the general wmma instructions, it becomes the responsibility of the implementation to provide the ptx mma instructions executed by each thread with the correct address to load fragments from.  The implementation can make use of `stride` to find the correct addresses.
+
+### Store
+
+```c++
+template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          matrix_layout Layout, access::address_space Space>
+void joint_matrix_store(Group sg,
+                        joint_matrix<Group, T, matrix_type::accumulator,
+                                     NumRows, NumCols, Layout> &src,
+                        multi_ptr<T, Space> dst, size_t stride) {
+  detail::joint_matrix_store_impl<Group, T, NumRows, NumCols, Layout, Space>{}
+      .store(src, dst, stride);
+}
+```
+This function stores the data from the Nvidia matrix "fragments" back to memory.
+
+### Matrix fragments
+
+Fragments hold a set of matrix elements.  Each thread is responsible for a fragment of the matrix.  Depending on its usage, a fragment may hold a single row or column of a matrix, or a subset of a row or column.  The number of matrix elements held by each thread in a fragment depends on the matrix operation being executed.  For some matrix shapes/matrix element data types, matrix elements are packed into a larger data type within a fragment.  wmma ptx instructions pick the appropriate thread for each matrix fragment depending on the architecture generation used.
+
+As stated by the Nvidia PTX ISA:
+
+*"Each thread in the warp holds a fragment of the matrix. The distribution of fragments loaded by the threads in a warp is unspecified and is target architecture dependent, and hence the identity of the fragment within the matrix is also unspecified and is target architecture dependent."*
+
+In the hardware specific mma ptx instructions the distribution of fragments loaded by the threads in a warp is specified.  It is therefore the responsibility of the implementation to provide the correct address for the contiguous matrix elements corresponding to each fragment.
+
+### Multiply and Add
+
+```c++
+template <typename Group, typename T1, typename T2, std::size_t M,
+          std::size_t K, std::size_t N, matrix_layout LayoutA,
+          matrix_layout LayoutB, matrix_layout LayoutC>
+joint_matrix<Group, T2, matrix_type::accumulator, M, N, LayoutC>
+joint_matrix_mad(
+    Group sg, joint_matrix<Group, T1, matrix_type::a, M, K, LayoutA> A,
+    joint_matrix<Group, T1, matrix_type::b, K, N, LayoutB> B,
+    joint_matrix<Group, T2, matrix_type::accumulator, M, N, LayoutC> C) {
+  return detail::joint_matrix_mad_impl<Group, T1, T2, M, K, N, LayoutA, LayoutB,
+                                       LayoutC>{}
+      .mad(sg, A, B, C);
+}
+```
+The matrix multiply and add function performs the multiply operation on the matrices `A` and `B`, accumulates the result with `C` and returns the result.
+
+## Concise example using double type and row_major matrices
+
+```c++
+using namespace sycl::ext::intel::experimental::matrix;
+
+cgh.parallel_for<class imatrix>(
+    nd_range<2>(GlobalRange,
+                LocalRange),
+    [=](nd_item<2> item){
+          sub_group sg = item.get_sub_group();
+          const auto m = item.get_group().get_id()[0]; // row id of current submatrix of BIG C matrix.
+          const auto n = item.get_group().get_id()[1]; // column id of current submatrix of BIG C matrix.
+          joint_matrix<sub_group, matrix_type::accumulator, M, N, matrix_layout::row_major> sub_c;
+          joint_matrix<sub_group, matrix_type::a, M, K, matrix_layout::row_major> sub_a;
+          joint_matrix<sub_group, matrix_type::b, K, N, matrix_layout::row_major> sub_b;
+          joint_matrix_load(sg, sub_c, accC.get_pointer() + (m * M) * BIG_N  + n * N, STRIDE_C);  
+          for (int k = 0; k < SUB_TILES_K; k += 1) {// row/col id of current submatrix of BIG A/B matrices.
+            joint_matrix_load(sg, sub_a, accA.get_pointer() + (k * K) + (m * M * BIG_K), STRIDE_A);
+	        joint_matrix_load(sg, sub_b, accB.get_pointer() + (k * K * BIG_N) + (n * N), STRIDE_B);
+            sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);}
+          joint_matrix_store(sg, sub_c, accD.get_pointer() + (m * M) * BIG_N  + n * N, STRIDE_C);});});
+```
+
+## Implementation Status
+
+Currently, this is the compilation command line needed to invoke the extension on program "matrix-cuda.cpp":
+
+```c++
+clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX=3 matrix-cuda.cpp -o output
+```
+**_NOTE:_** _--cuda-gpu-arch may be set lower than sm_80 depending on the required matrix operation and whether it is supported by the desired arch._
+
+## Future Implementation Work
+
+### Dealing with tf32 and bf16 matrix element types
+
+Alternative CUDA floating point types, bf16 and tf32, use the same number of bits for the exponent as fp32, so that these data types can cover the same range of numbers as float using lower precision.  For this reason a DPC++ programmer will be able to use these more efficient low precision data types in matrix operations by providing a matrix array consisting of fp32 elements as an argument to `joint_matrix_load` or `joint_matrix_store`.
+We will introduce a new enum, `matrix::precision`, that must be provided to the `joint_matrix` interface as an additional argument when the user desires bf16 or tf32 to be used as the A, B matrix element data type.  A future implementation will make use of the https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cvt[cvt PTX instruction] to cast the fp32 elements to either the tf32 or bf16 type.
+
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+enum class precision
+{
+    tf32,
+    bf16
+};
+}
+```
+
+### Clarify USM compatibility
+
+multi_ptr can be constructed from T* since https://github.com/intel/llvm/pull/1183.  However currently this cannot be used with USM for all cases.
+It is expected that eventually the `joint_matrix_load` and `joint_matrix_store` interfaces will be fully compatible with USM.  Currently USM has only been validated to work with this extension for a single case: using shared USM pointers by casting them to the global address space in the following way:
+
+```c++
+joint_matrix_load(sg, sub_c, global_ptr<double>(d_C) + (m * M) * BIG_N + n * N, STRIDE_C);
+```
+
+Where d_C is a shared USM pointer, e.g.:
+
+```c++
+double*  d_C  = malloc_shared<double>(size, queue);
+```
+
+However even this case is not reliable and requires more testing.
+
+### Ensuring that non-portable cases provide intelligible error messages to users.
+
+This extension proposal is intended to be compatible with a hypothetical AMX implementation.  However this requirement necessitates the inclusion of `matrix_layout::packed` which is incompatible with the CUDA implementations of `joint_matrix`, `joint_matrix_load`, `joint_matrix_store`, and `joint_matrix_mad`.  Similar portability issues would occur in the other direction once cases dealing with the alternative CUDA floating point types, tf32 and bf16, are implemented.  In addition, more backends are expected to support the matrix extension in the future.  This means that a common means of reporting errors that result from users attempting to e.g. port code written for AMX using the packed format to CUDA, needs to be defined in a more mature version of the matrix extension.
+
+### Implementation of hardware generation specific mma ptx instructions
+
+It should be decided whether mma ptx instructions are to be a default optimization when available, or whether the dpc++ programmer should decide whether to use these potential optimizations.
+
+## TODO List
+
+- Add an implementation for matrix multiplication using the tf32 and bf16 types.
+- Add remaining shapes/data types for wmma instructions.
+- Verify that USM is fully compatible once a USM pointer can be generally correctly cast to multi_ptr.
+- Work out and maintain a common interface with AMX (and other archs).
+- Optimize for specific Nvidia hardware using mma ptx instructions.
+
+## Revision History
+
+[frame="none",options="header"]
+|======================
+|Rev |Date       |Author     |Changes
+|1   | |Jack Kirk |Initial public working draft.
+|======================
