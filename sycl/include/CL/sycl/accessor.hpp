@@ -903,6 +903,7 @@ protected:
     }
     // In case of 1D buffer, adjust pointer during initialization rather
     // then each time in operator[] or get_pointer functions.
+    // CP - restored?
     if (1 == AdjustedDim)
       MData += Offset[0];
   }
@@ -1604,24 +1605,24 @@ public:
             typename = detail::enable_if_t<AccessTarget_ ==
                                            access::target::host_buffer>>
   DataT *get_pointer() const {
-    const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return getQualifiedPtr() + LinearIndex;
+    // const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
+    return getQualifiedPtr(); // + LinearIndex;
   }
 
   template <
       access::target AccessTarget_ = AccessTarget,
       typename = detail::enable_if_t<AccessTarget_ == access::target::device>>
   global_ptr<DataT> get_pointer() const {
-    const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return global_ptr<DataT>(getQualifiedPtr() + LinearIndex);
+    // const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
+    return global_ptr<DataT>(getQualifiedPtr()); // + LinearIndex);
   }
 
   template <access::target AccessTarget_ = AccessTarget,
             typename = detail::enable_if_t<AccessTarget_ ==
                                            access::target::constant_buffer>>
   constant_ptr<DataT> get_pointer() const {
-    const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return constant_ptr<DataT>(getQualifiedPtr() + LinearIndex);
+    // const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
+    return constant_ptr<DataT>(getQualifiedPtr()); // + LinearIndex);
   }
 
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
@@ -1860,7 +1861,10 @@ protected:
 #endif // __SYCL_DEVICE_ONLY__
 
   // Method which calculates linear offset for the ID using Range and Offset.
+  // CP - blind
   template <int Dims = AdjustedDim> size_t getLinearIndex(id<Dims> Id) const {
+    // template <int Dims = Dimensions> size_t getLinearIndex(id<Dims> Id) const
+    // {
     size_t Result = 0;
     for (int I = 0; I < Dims; ++I)
       Result = Result * getSize()[I] + Id[I];

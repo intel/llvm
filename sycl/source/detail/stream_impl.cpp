@@ -86,7 +86,7 @@ void stream_impl::flush() {
             .get_access<access::mode::read_write, access::target::host_buffer>(
                 cgh);
     cgh.host_task([=] {
-      printf("%s", BufHostAcc.get_pointer());
+      printf("%s", BufHostAcc.get_pointer() + OffsetSize);
       fflush(stdout);
     });
   });
