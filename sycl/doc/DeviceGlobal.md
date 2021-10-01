@@ -56,7 +56,7 @@ runtime.  As we will see later, this has a ramification on the integration
 headers and on the mechanism that connects instances of device global variables
 in host code with their corresponding instances in device code.
 
-Another issue relates to the `device_image_life` property which can be applied
+Another issue relates to the `device_image_scope` property which can be applied
 to a device global variable declaration.  The intent of this property is to
 allow a device global variable to be implemented directly on top of a SPIR-V
 module scope global variable.  When this property is **not** present, an
@@ -66,7 +66,7 @@ about the scope of a variable because the user need not understand which device
 image contains each kernel.  However, this semantic makes the implementation
 less efficient, especially on FPGA targets.
 
-By contrast, the `device_image_life` property changes the semantic of a device
+By contrast, the `device_image_scope` property changes the semantic of a device
 global variable such that the user must understand which device image contains
 each kernel, which is difficult to reason about.  For example, changing the
 value of a specialization constant may cause a kernel to be recompiled into a
@@ -75,11 +75,11 @@ referenced in a kernel may actually have several disjoint instances if the
 kernel uses specialization constants.  This problem is more tractable on FPGA
 targets because specialization constants are not implemented via separate
 device images on those targets, however, there are other factors that FPGA
-users need to be aware of when using the `device_image_life` property.  These
+users need to be aware of when using the `device_image_scope` property.  These
 are documented more throughly in the extension specification.
 
 The important impact on the design, though, is that device global variables
-declared with the `device_image_life` property have an implementation that is
+declared with the `device_image_scope` property have an implementation that is
 quite different from device global variables that are not declared with this
 property.  The sections below describe both implementations.
 
@@ -91,7 +91,7 @@ property.  The sections below describe both implementations.
 The headers, of course, include the declaration of the new `device_global`
 class, which is described in the [extension specification][1].  The declaration
 of this class uses partial specialization to define the class differently
-depending on whether is has the `device_image_life` property.  When the
+depending on whether is has the `device_image_scope` property.  When the
 property is not present, the class has a member variable which is a pointer to
 the underlying type.  Member functions which return a reference to the value
 (e.g. `get`) return the value of this pointer:
@@ -127,7 +127,7 @@ of this member variable.
 The headers are also updated to add the new `copy()` and `memcpy()` member
 functions to `handler` and `queue` which copy data to or from a device global
 variable.  These declarations use SFINAE such that they are conditionally
-available depending on the `copy_access` property.
+available depending on the `host_access` property.
 
 ### New LLVM IR attributes
 
@@ -144,7 +144,7 @@ This is not possible, though, for variables with internal linkage because the
 mangled name is not unique in this case.  For these variables, we use the
 mangled name and append a unique suffix.
 
-Each device global variable that has the `device_image_life` property is also
+Each device global variable that has the `device_image_scope` property is also
 decorated with the `sycl-device-global-image-life` attribute.
 
 Note that language rules ensure that `device_global` variables are always
@@ -209,7 +209,7 @@ global variable that is defined in the translation unit:
 * The variable's string from the `sycl-unique-id` attribute.
 * The size (in bytes) of the underlying `T` type for the variable.
 * A boolean telling whether the variable is decorated with the
-  `device_image_life` property.
+  `device_image_scope` property.
 
 ```
 namespace sycl::detail {
@@ -219,11 +219,11 @@ __sycl_device_global_registration::__sycl_device_global_registration() noexcept 
   device_global_map::add(&::Foo,
     /* mangled name of '::Foo' with unique suffix appended */,
     /* size of underlying 'T' type */,
-    /* bool telling whether variable has 'device_image_life` property */);
+    /* bool telling whether variable has 'device_image_scope` property */);
   device_global_map::add(&::inner::Bar,
     /* mangled name of '::inner::Bar' */,
     /* size of underlying 'T' type */,
-    /* bool telling whether variable has 'device_image_life` property */);
+    /* bool telling whether variable has 'device_image_scope` property */);
 }
 
 } // namepsace (unnamed)
@@ -287,11 +287,11 @@ __sycl_device_global_registration::__sycl_device_global_registration() noexcept 
   device_global_map::add(&::FuBar,
     /* mangled name of '::FuBar' */,
     /* size of underlying 'T' type */,
-    /* bool telling whether variable has 'device_image_life` property */);
+    /* bool telling whether variable has 'device_image_scope` property */);
   device_global_map::add(::__sycl_UNIQUE_STRING,
     /* mangled name of '::(unnamed)::FuBar' with unique suffix appended */,
     /* size of underlying 'T' type */,
-    /* bool telling whether variable has 'device_image_life` property */);
+    /* bool telling whether variable has 'device_image_scope` property */);
 }
 
 } // namepsace (unnamed)
@@ -319,7 +319,7 @@ global variable decorated with `sycl-device-global-image-life` appears in more
 than one module, the `sycl-post-link` tool issues an error diagnostic:
 
 ```
-error: device_global variable <name> with property "device_image_life"
+error: device_global variable <name> with property "device_image_scope"
        is contained in more than one device image.
 ```
 
@@ -361,12 +361,13 @@ strings, where each string ends with a null character (`\0`).
 Several changes are needed to the DPC++ runtime
 
 * As noted in the requirements section, an instance of a device global variable
-  that does not have the `device_image_life` property is shared by all device
+  that does not have the `device_image_scope` property is shared by all device
   images on a device.  To satisfy this requirement, the device global variable
   contains a pointer to a buffer allocated from USM device memory, and the
-  content of the variable is stored in this buffer.  All device images point to
-  the same buffer, so the variable's state is shared.  The runtime, therefore,
-  must allocate this USM buffer for each such device global variable.
+  content of the variable is stored in this buffer.  All device images on a
+  particular device point to the same buffer, so the variable's state is
+  shared.  The runtime, therefore, must allocate this USM buffer for each such
+  device global variable.
 
 * As we noted above, the front-end generates new content in the integration
   footer which calls the function `sycl::detail::device_global_map::add()`.
@@ -377,9 +378,9 @@ Several changes are needed to the DPC++ runtime
   - The string which uniquely identifies the variable.
   - The size (in bytes) of the underlying `T` type for the variable.
   - A boolean telling whether the variable is decorated with the
-    `device_image_life` property.
+    `device_image_scope` property.
   - The associated per-device USM buffer pointer, if this variable does not
-    have the `device_image_life` property.
+    have the `device_image_scope` property.
 
   We refer to this information as the "device global database" below.
 
@@ -404,13 +405,14 @@ runtime does the following:
   the `pi_program` to get the unique string associated with each device global
   variable that is used by the `pi_program`.  For each of these strings, the
   runtime uses the device global database to see if the variable was decorated
-  with `device_image_life`.  If it was not so decorated and if a USM buffer has
-  not already been created for the variable on this target device, the runtime
-  allocates the buffer from USM device memory using the size from the database.
-  The pointer to this buffer is saved in the database for future reuse.
+  with `device_image_scope`.  If it was not so decorated and if a USM buffer
+  has not already been created for the variable on this target device, the
+  runtime allocates the buffer from USM device memory using the size from the
+  database and zero-initializes the content of the buffer.  The pointer to this
+  buffer is saved in the database for future reuse.
 
 * For each device global variable that is not decorated with
-  `device_image_life`, the runtime initializes the `usmptr` member in the
+  `device_image_scope`, the runtime initializes the `usmptr` member in the
   *device instance* of the variable by using a backend-specific function which
   copies data from the host to a device variable.  It is a simple matter to use
   this function to overwrite the `usmptr` member with the address of the USM
@@ -421,22 +423,23 @@ runtime does the following:
 Each of these functions accepts a (host) pointer to a device global variable as
 one of its parameters, and the runtime uses this pointer to find the associated
 information for this variable in the device global database.  The remaining
-behavior depends on whether the variable is decorated with `device_image_life`.
+behavior depends on whether the variable is decorated with
+`device_image_scope`.
 
 If the variable is not decorated with this property, the runtime uses the
 database to determine if a USM buffer has been allocated yet for this variable
 on this device.  If not, the runtime allocates the buffer using the size from
-the database.  Regardless, the runtime implements the `copy` / `memcpy` by
-copying to or from this USM buffer, using the normal mechanism for copying
-to / from a USM pointer.
+the database and zero-initializes the buffer.  Regardless, the runtime
+implements the `copy` / `memcpy` by copying to or from this USM buffer, using
+the normal mechanism for copying to / from a USM pointer.
 
 The runtime avoids the future cost of looking up the variable in the database
 by caching the USM pointer in the host instance of the variable's `usmptr`
 member.
 
-If the variable is decorated with the `device_image_life` property, the runtime
-gets the unique string identifier for the variable from the database and uses
-a backend-specific function to copy to or from the variable with that
+If the variable is decorated with the `device_image_scope` property, the
+runtime gets the unique string identifier for the variable from the database
+and uses a backend-specific function to copy to or from the variable with that
 identifier.  Again, the details of this function are described below.
 
 In all cases, the runtime diagnoses invalid calls that write beyond the device
@@ -578,8 +581,8 @@ SPIR-V decorations (defined in the
 
 [12]: <extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc>
 
-* `copy_access`
-* `init_via`
+* `host_access`
+* `init_mode`
 * `implement_in_csr`
 
 It's not clear how this should work.  One of the goals of the new property
@@ -613,11 +616,11 @@ Currently, we use the variable's mangled name, but this could be changed.
 An alternative solution would be to augment the SPIR-V with some new decoration
 that gives a unique name to each `OpVariable` that needs to be accessed from
 the host.  We could then use that name with the backend functions, and avoid
-renaming variables with internal linkage.  This would be more effort, though,
-because we would need a new SPIR-V extension, and we would need to change the
-implementation of the Level Zero and OpenCL backends.
+renaming variables with internal linkage.  This would be only a minor change to
+the [SPV\_INTEL\_global\_variable\_decorations][12] extension, but it would
+also require changes in the Level Zero and OpenCL backends.
 
-### Does compiler need to be deterministic?
+### Does the compiler need to be deterministic?
 
 The compiler is normally deterministic.  If you compile the exact same source
 file twice specifying the same command line options each time, you get exactly
