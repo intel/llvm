@@ -491,10 +491,9 @@ private:
             ExtendedMembersVec =
                 detail::convertToExtendedMembers(Handler->MSharedPtrStorage[0]);
 
-        const bool IsEventRequired = MIsEventRequired || SubmittedExplicitly;
         detail::ExtendedMemberT EMember = {
             detail::ExtendedMembersType::HANDLER_IS_EVENT_REQUIRED,
-            std::make_shared<bool>(IsEventRequired)};
+            std::make_shared<bool>(SubmittedExplicitly)};
 
         ExtendedMembersVec->push_back(EMember);
       }
@@ -525,7 +524,7 @@ private:
       return EventImpl;
     };
 
-    if (MHostQueue || Type != CG::Kernel ||
+    if (MIsEventRequired || MHostQueue || Type != CG::Kernel ||
         Handler->MRequirements.size() != 0 || Handler->MIsFinalized) {
       EventImplPtr EventImpl = MUploadDataFunctor(true);
       return detail::createSyclObjFromImpl<event>(EventImpl);
