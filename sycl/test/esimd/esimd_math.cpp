@@ -74,17 +74,19 @@ bool test_esimd_trunc() __attribute__((sycl_device)) {
 }
 
 bool test_esimd_ballot() __attribute__((sycl_device)) {
-  simd<ushort, 4>  vus4 = {1,2,3,4};
-  simd<ushort, 10> vus10 = {1,2,3,4,5,6,7,8,9,10};
-  simd<ushort, 20> vus20 = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
+  simd<ushort, 4> vus4 = {1, 0, 3, 0};
+  simd<ushort, 10> vus10 = {1, 0, 3, 0, 5, 0, 7, 0, 9, 0};
+  simd<ushort, 20> vus20 = {1, 0, 3, 0, 5, 0, 7, 0, 9, 0,
+                            1, 0, 3, 0, 5, 0, 7, 0, 9, 0};
 
   uint mus4 = esimd_ballot(vus4);
   uint mus10 = esimd_ballot(vus10);
   uint mus20 = esimd_ballot(vus20);
 
-  simd<uint, 4>  vui4 = {1,2,3,4};
-  simd<uint, 10> vui10 = {1,2,3,4,5,6,7,8,9,10};
-  simd<uint, 20> vui20 = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
+  simd<uint, 4> vui4 = {1, 0, 3, 0};
+  simd<uint, 10> vui10 = {1, 0, 3, 0, 5, 0, 7, 0, 9, 0};
+  simd<uint, 20> vui20 = {1, 0, 3, 0, 5, 0, 7, 0, 9, 0,
+                          1, 0, 3, 0, 5, 0, 7, 0, 9, 0};
 
   uint mui4 = esimd_ballot(vui4);
   uint mui10 = esimd_ballot(vui10);

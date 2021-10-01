@@ -1667,18 +1667,21 @@ ESIMD_NODEBUG ESIMD_INLINE
   return esimd_pack_mask(src_0);
 }
 
-/// Extracts the lowest bit of each source vector element, and create a
-/// concatentation of these bits.
-/// @param mask the source operand to extract bits from.
-/// @return an \c uint, where each bit is set to the lowest bit of the
-/// corresponding element of the source operand.
+/// Compare source vector elements against zero and return a bitfield combining
+/// the comparison result. The representative bit in the result is set if
+/// corresponding source vector element is non-zero, and is unset otherwise.
+/// @param mask the source operand to be compared with zero.
+/// @return an \c uint, where each bit is set if the corresponding element of
+/// the source operand is non-zero and unset otherwise.
 template <typename T, int N>
 ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_type<T, ushort, uint> && (N > 0 && N <= 32), uint>
 esimd_ballot(simd<T, N> mask) {
-  simd<uint16_t, (N <= 8 ? 8 : N <= 16 ? 16 : 32)> src0 = 0;
-  src0.template select<N, 1>() = convert<uint16_t>(mask);
-  return __esimd_pack_mask<(N <= 8 ? 8 : N <= 16 ? 16 : 32)>(src0.data());
+  simd_mask<N> cmp = (mask != 0);
+  constexpr int N1 = (N <= 8 ? 8 : N <= 16 ? 16 : 32);
+  simd<uint16_t, N1> src0 = 0;
+  src0.template select<N, 1>() = cmp.data();
+  return __esimd_pack_mask<N1>(src0.data());
 }
 
 /// Count number of bits set in the source operand per element.
