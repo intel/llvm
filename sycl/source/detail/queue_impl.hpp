@@ -547,16 +547,12 @@ private:
 
     if (MHostQueue || Type != CG::Kernel ||
         Handler->MRequirements.size() != 0 || Handler->MIsFinalized) {
-      // By this operation we guarantee that all tasks before this one have
-      // already been submitted
-      implicitly_do_submit();
       EventImplPtr EventImpl = MUploadDataFunctor(true);
       return detail::createSyclObjFromImpl<event>(EventImpl);
     }
 
     event EventFake;
     EventImplPtr EventImplFake = detail::getSyclObjImpl(EventFake);
-    addEvent(EventFake);
     {
       std::lock_guard<std::mutex> Lock(MMutexSubmit);
       MEventsSharedToSubmit.emplace(EventImplFake);
