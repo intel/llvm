@@ -1670,6 +1670,29 @@ static bool replacingOperandWithVariableIsCheap(const Instruction *I,
   return !isa<IntrinsicInst>(I);
 }
 
+static bool moduleHasSpirTarget(const Module *M) {
+  if (StringRef(M->getTargetTriple()).startswith("spir"))
+    return true;
+  return false;
+}
+
+static bool isPointerToOCLOrSPIRVImageOrSampler(const llvm::Type *Ty) {
+  if (auto PT = dyn_cast<PointerType>(Ty)) {
+    if (auto ST = dyn_cast<StructType>(PT->getElementType())) {
+      if (ST->isOpaque()) {
+        StringRef TypeName = ST->getName();
+        if (TypeName.startswith("opencl.sampler_t") ||
+            TypeName.startswith("opencl.image") ||
+            TypeName.startswith("spirv.SampledImage") ||
+            TypeName.startswith("spirv.Image") ||
+            TypeName.startswith("spirv.Sampler"))
+          return true;
+      }
+    }
+  }
+  return false;
+}
+
 // All instructions in Insts belong to different blocks that all unconditionally
 // branch to a common successor. Analyze each instruction and return true if it
 // would be possible to sink them into their successor, creating one common
@@ -1686,6 +1709,15 @@ static bool canSinkInstructions(
     // These instructions may change or break semantics if moved.
     if (isa<PHINode>(I) || I->isEHPad() || isa<AllocaInst>(I) ||
         I->getType()->isTokenTy())
+      return false;
+
+    // In SPIR-V neither image nor sampler types cannot go through phi and
+    // select instructions. Lowering of phi nodes and select instructions with
+    // image/sampler result type by SPIR-V translator tool is very complicated
+    // in common case, so the transformation is disabled for image/sampler types
+    // here.
+    if (moduleHasSpirTarget(I->getModule()) &&
+        isPointerToOCLOrSPIRVImageOrSampler(I->getType()))
       return false;
 
     // Do not try to sink an instruction in an infinite loop - it can cause
@@ -1782,6 +1814,15 @@ static bool canSinkInstructions(
     Value *Op = I0->getOperand(OI);
     if (Op->getType()->isTokenTy())
       // Don't touch any operand of token type.
+      return false;
+
+    // In SPIR-V neither image nor sampler types cannot go through phi and
+    // select instructions. Lowering of phi nodes and select instructions with
+    // image/sampler result type by SPIR-V translator tool is very complicated
+    // in common case, so the transformation is disabled for image/sampler types
+    // here.
+    if (moduleHasSpirTarget(I0->getModule()) &&
+        isPointerToOCLOrSPIRVImageOrSampler(Op->getType()))
       return false;
 
     auto SameAsI0 = [&I0, OI](const Instruction *I) {
