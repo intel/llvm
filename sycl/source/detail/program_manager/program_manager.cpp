@@ -1060,6 +1060,12 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       KernelSetId KSId = getNextKernelSetId();
       {
         std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
+        // Register all exported symbols
+        auto ExportedSymbols = Img->getExportedSymbols();
+        for (const pi_device_binary_property &ExportedSymbol : ExportedSymbols)
+          m_ExportedSymbols.insert(ExportedSymbol->Name);
+
         for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
              ++EntriesIt) {
           auto Result = KSIdMap.insert(std::make_pair(EntriesIt->name, KSId));
@@ -1074,6 +1080,13 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
             m_ServiceKernels.insert(EntriesIt->name);
             continue;
           }
+
+          // Skip creating unique kernel ID if it is an exported device
+          // function. Exported device functions appear in the offload entries
+          // among kernels, but are identifiable by being listed in properties.
+          if (m_ExportedSymbols.find(EntriesIt->name) !=
+              m_ExportedSymbols.end())
+            continue;
 
           // ... and create a unique kernel ID for the entry
           std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
@@ -1374,9 +1387,11 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
           auto KernelID = m_KernelIDs.find(EntriesIt->name);
 
           if (KernelID == m_KernelIDs.end()) {
-            // Service kernels do not have kernel IDs
-            assert(m_ServiceKernels.find(EntriesIt->name) !=
-                       m_ServiceKernels.end() &&
+            // Service kernels and exported symbols do not have kernel IDs
+            assert((m_ServiceKernels.find(EntriesIt->name) !=
+                        m_ServiceKernels.end() ||
+                    m_ExportedSymbols.find(EntriesIt->name) !=
+                        m_ExportedSymbols.end()) &&
                    "Kernel ID in device binary missing from cache");
             continue;
           }

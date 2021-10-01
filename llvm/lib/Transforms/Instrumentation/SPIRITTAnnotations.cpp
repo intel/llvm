@@ -244,7 +244,10 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
       SPIRV_GROUP_FMAX,      SPIRV_GROUP_UMAX, SPIRV_GROUP_SMAX};
 
   for (Function &F : M) {
-    if (F.isDeclaration())
+    // Do not annotate:
+    // - declarations
+    // - ESIMD functions (TODO: consider enabling instrumentation)
+    if (F.isDeclaration() || F.getMetadata("sycl_explicit_simd"))
       continue;
 
     // Work item start/finish annotations are only for SPIR kernels

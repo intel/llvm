@@ -99,7 +99,7 @@ struct sub_group_mask {
     uint32_t mask = 0;
     if (pos.get(0) + insert_size < size())
       mask |= (0xffffffff << (pos.get(0) + insert_size));
-    if (pos.get(0) < size())
+    if (pos.get(0) < size() && pos.get(0))
       mask |= (0xffffffff >> (size() - pos.get(0)));
     Bits &= mask;
     Bits += insert_data;

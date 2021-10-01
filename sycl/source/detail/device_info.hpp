@@ -668,32 +668,82 @@ inline cl_uint get_device_info_host<info::device::max_write_image_args>() {
 
 template <>
 inline size_t get_device_info_host<info::device::image2d_max_width>() {
-  // current value is the required minimum
-  return 8192;
+  // SYCL guarantees at least 8192. Some devices already known to provide more
+  // than that (i.e. it is 16384 for opencl:gpu), which may create issues during
+  // image object allocation on host.
+  // Using any fixed number (i.e. 16384) brings the risk of having similar
+  // issues on newer devices in future. Thus it does not make sense limiting
+  // the returned value on host. Practially speaking the returned value on host
+  // depends only on memory required for the image, which also depends on
+  // the image channel_type and the image height. Both are not known in this
+  // query, thus it becomes user's responsibility to choose proper image
+  // parameters depending on similar query to (non-host device) and amount
+  // of available/allocatable memory.
+  return INT_MAX;
 }
 
 template <>
 inline size_t get_device_info_host<info::device::image2d_max_height>() {
-  // current value is the required minimum
-  return 8192;
+  // SYCL guarantees at least 8192. Some devices already known to provide more
+  // than that (i.e. it is 16384 for opencl:gpu), which may create issues during
+  // image object allocation on host.
+  // Using any fixed number (i.e. 16384) brings the risk of having similar
+  // issues on newer devices in future. Thus it does not make sense limiting
+  // the returned value on host. Practially speaking the returned value on host
+  // depends only on memory required for the image, which also depends on
+  // the image channel_type and the image width. Both are not known in this
+  // query, thus it becomes user's responsibility to choose proper image
+  // parameters depending on similar query to (non-host device) and amount
+  // of available/allocatable memory.
+  return INT_MAX;
 }
 
 template <>
 inline size_t get_device_info_host<info::device::image3d_max_width>() {
-  // current value is the required minimum
-  return 2048;
+  // SYCL guarantees at least 8192. Some devices already known to provide more
+  // than that (i.e. it is 16384 for opencl:gpu), which may create issues during
+  // image object allocation on host.
+  // Using any fixed number (i.e. 16384) brings the risk of having similar
+  // issues on newer devices in future. Thus it does not make sense limiting
+  // the returned value on host. Practially speaking the returned value on host
+  // depends only on memory required for the image, which also depends on
+  // the image channel_type and the image height/depth. Both are not known
+  // in this query, thus it becomes user's responsibility to choose proper image
+  // parameters depending on similar query to (non-host device) and amount
+  // of available/allocatable memory.
+  return INT_MAX;
 }
 
 template <>
 inline size_t get_device_info_host<info::device::image3d_max_height>() {
-  // current value is the required minimum
-  return 2048;
+  // SYCL guarantees at least 8192. Some devices already known to provide more
+  // than that (i.e. it is 16384 for opencl:gpu), which may create issues during
+  // image object allocation on host.
+  // Using any fixed number (i.e. 16384) brings the risk of having similar
+  // issues on newer devices in future. Thus it does not make sense limiting
+  // the returned value on host. Practially speaking the returned value on host
+  // depends only on memory required for the image, which also depends on
+  // the image channel_type and the image width/depth. Both are not known
+  // in this query, thus it becomes user's responsibility to choose proper image
+  // parameters depending on similar query to (non-host device) and amount
+  // of available/allocatable memory.
+  return INT_MAX;
 }
 
 template <>
 inline size_t get_device_info_host<info::device::image3d_max_depth>() {
-  // current value is the required minimum
-  return 2048;
+  // SYCL guarantees at least 8192. Some devices already known to provide more
+  // than that (i.e. it is 16384 for opencl:gpu), which may create issues during
+  // image object allocation on host.
+  // Using any fixed number (i.e. 16384) brings the risk of having similar
+  // issues on newer devices in future. Thus it does not make sense limiting
+  // the returned value on host. Practially speaking the returned value on host
+  // depends only on memory required for the image, which also depends on
+  // the image channel_type and the image height/width, which are not known
+  // in this query, thus it becomes user's responsibility to choose proper image
+  // parameters depending on similar query to (non-host device) and amount
+  // of available/allocatable memory.
+  return INT_MAX;
 }
 
 template <>

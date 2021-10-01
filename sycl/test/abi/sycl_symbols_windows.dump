@@ -4096,6 +4096,7 @@
 ?getEndTime@HostProfilingInfo@detail@__v1@__sycl_internal@@QEBA_KXZ
 ?getEndTime@HostProfilingInfo@detail@sycl@cl@@QEBA_KXZ
 ?getImageDesc@?$image_impl@$00@detail@__v1@__sycl_internal@@AEAA?AU_pi_image_desc@@_N@Z
+?getHandlerImpl@handler@sycl@cl@@AEBA?AV?$shared_ptr@Vhandler_impl@detail@sycl@cl@@@std@@XZ
 ?getImageDesc@?$image_impl@$00@detail@sycl@cl@@AEAA?AU_pi_image_desc@@_N@Z
 ?getImageDesc@?$image_impl@$01@detail@__v1@__sycl_internal@@AEAA?AU_pi_image_desc@@_N@Z
 ?getImageDesc@?$image_impl@$01@detail@sycl@cl@@AEAA?AU_pi_image_desc@@_N@Z
@@ -4646,6 +4647,7 @@
 ?isPathPresent@OSUtil@detail@__v1@__sycl_internal@@SA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?isPathPresent@OSUtil@detail@sycl@cl@@SA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?isValidModeForDestinationAccessor@handler@__v1@__sycl_internal@@CA_NW4mode@access@23@@Z
+?isStateExplicitKernelBundle@handler@sycl@cl@@AEBA_NXZ
 ?isValidModeForDestinationAccessor@handler@sycl@cl@@CA_NW4mode@access@23@@Z
 ?isValidModeForSourceAccessor@handler@__v1@__sycl_internal@@CA_NW4mode@access@23@@Z
 ?isValidModeForSourceAccessor@handler@sycl@cl@@CA_NW4mode@access@23@@Z
@@ -7600,6 +7602,8 @@
 ?setPitches@?$image_impl@$02@detail@__v1@__sycl_internal@@AEAAXXZ
 ?setPitches@?$image_impl@$02@detail@sycl@cl@@AEAAXXZ
 ?setType@handler@__v1@__sycl_internal@@AEAAXW4CGTYPE@CG@detail@23@@Z
+?setStateExplicitKernelBundle@handler@sycl@cl@@AEAAXXZ
+?setStateSpecConstSet@handler@sycl@cl@@AEAAXXZ
 ?setType@handler@sycl@cl@@AEAAXW4CGTYPE@CG@detail@23@@Z
 ?set_final_data@SYCLMemObjT@detail@__v1@__sycl_internal@@QEAAX$$T@Z
 ?set_final_data@SYCLMemObjT@detail@sycl@cl@@QEAAX$$T@Z
