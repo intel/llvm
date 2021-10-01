@@ -1169,9 +1169,10 @@ public:
   get_specialization_constant() const {
 
     if (isStateExplicitKernelBundle())
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Specialization constants cannot be read after "
-                            "explicitly setting the used kernel bundle");
+      throw __sycl_ns::exception(
+          make_error_code(errc::invalid),
+          "Specialization constants cannot be read after "
+          "explicitly setting the used kernel bundle");
 
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
         getOrInsertHandlerKernelBundle(/*Insert=*/true);
