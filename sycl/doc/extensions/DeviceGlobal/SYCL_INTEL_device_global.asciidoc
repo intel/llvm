@@ -405,8 +405,8 @@ parameter as shown in this example:
 ----
 using namespace sycl::ext::oneapi;
 
-device_global<MyClass, property_list_t<device_image_life::value_t>> dm1;
-device_global<int[4], property_list_t<copy_access::value_t<copy_access::access::read>> dm2;
+device_global<MyClass, property_list_t<device_image_scope::value_t>> dm1;
+device_global<int[4], property_list_t<host_access::value_t<host_access::access::read>> dm2;
 ----
 
 The following code synopsis shows the set of supported properties, and the
@@ -416,27 +416,27 @@ following table describes their effect.
 ----
 namespace sycl::ext::oneapi {
 
-struct device_image_life {
-  using value_t = property_value<device_image_life>;
+struct device_image_scope {
+  using value_t = property_value<device_image_scope>;
 };
 
-struct copy_access {
+struct host_access {
   enum class access: /*unspecified*/ {
     read,
     write,
     read_write,
-    no_access
+    none
   };
   template<access A>
-  using value_t = property_value<copy_access, std::integral_constant<access, A>>;
+  using value_t = property_value<host_access, std::integral_constant<access, A>>;
 
-struct init_via {
+struct init_mode {
   enum class trigger: /*unspecified*/ {
     reprogram,
     reset
   };
   template<trigger T>
-  using value_t = property_value<init_via, std::integral_constant<trigger, T>>;
+  using value_t = property_value<init_mode, std::integral_constant<trigger, T>>;
 };
 
 struct implement_in_csr {
@@ -445,13 +445,13 @@ struct implement_in_csr {
 };
 
 
-inline constexpr device_image_life::value_t device_image_life_v;
+inline constexpr device_image_scope::value_t device_image_scope_v;
 
-template<copy_access::access A>
-inline constexpr copy_access::value_t<A> copy_access_v;
+template<host_access::access A>
+inline constexpr host_access::value_t<A> host_access_v;
 
-template<init_via::trigger T>
-inline constexpr init_via::value_t<T> init_via_v;
+template<init_mode::trigger T>
+inline constexpr init_mode::value_t<T> init_mode_v;
 
 template<bool Enable>
 inline constexpr implement_in_csr::value_t<Enable> implement_in_csr_v;
@@ -466,7 +466,7 @@ inline constexpr implement_in_csr::value_t<Enable> implement_in_csr_v;
 a|
 [source,c++]
 ----
-device_image_life
+device_image_scope
 ----
 a|
 This property is most useful for kernels that are submitted to an FPGA device,
@@ -508,7 +508,7 @@ device.
 a|
 [source,c++]
 ----
-copy_access
+host_access
 ----
 a|
 This property provides an assertion by the user telling the implementation
@@ -525,7 +525,7 @@ The following values are supported:
 * `write`: The user asserts that the host code may copy to (write) the
   variable, but it never copy from (read) it.  For an FPGA device, only a write
   port is exposed.
-* `no_access`: The user asserts that the host code will never copy to or copy
+* `none`: The user asserts that the host code will never copy to or copy
   from the variable.  For an FPGA device, no external ports are exposed.
 * `read_write`: The user provides no assertions, and the host code may either
   copy to or copy from the variable.  This is the default.  For an FPGA device,
@@ -534,7 +534,7 @@ The following values are supported:
 a|
 [source,c++]
 ----
-init_via
+init_mode
 ----
 a|
 This property is only meaningful when used with an FPGA device.  It is ignored
@@ -545,7 +545,7 @@ for other devices.  The following values are supported:
 * `reset`: Initialization is performed by sending a reset signal to the device.
   This may increase area but may reduce reprogramming frequency.
 
-If the `init_via` property is not specified it may be set automatically to an
+If the `init_mode` property is not specified it may be set automatically to an
 implementation defined default.
 
 a|
@@ -569,7 +569,7 @@ to an implementation defined default.
 [NOTE]
 ====
 As stated above, the user must understand which _device image_ contains a
-kernel in order to use the `device_image_life` property.  Each implementation
+kernel in order to use the `device_image_scope` property.  Each implementation
 may have its own rules that determine when two kernels are bundled together
 into the same _device image_.  For {dpcpp} two kernels _K1_ and _K2_ will be
 bundled into the same _device image_ when both of the following conditions are
@@ -855,8 +855,8 @@ void copy(const std::remove_all_extents_t<T> *src,
 ----
 | `T` must be device copyable.
 
-Not available if `PropertyListT` contains the `copy_access` property with
-`read` or `no_access` assertions.
+Not available if `PropertyListT` contains the `host_access` property with
+`read` or `none` assertions.
 
 Copies _count_ elements of type `std::remove_all_extents_t<T>` from the pointer _src_ to the `device_global` _dest_, starting at _startIndex_ elements of _dest_. _src_ may be either a host or USM pointer.
 a| 
@@ -870,8 +870,8 @@ void copy(const device_global<T, PropertyListT>& src,
 ----
 | `T` must be device copyable.
 
-Not available if `PropertyListT` contains the `copy_access` property with
-`write` or `no_access` assertions.
+Not available if `PropertyListT` contains the `host_access` property with
+`write` or `none` assertions.
 
 Copies _count_ elements of type `std::remove_all_extents_t<T>` from the `device_global` _src_ to the pointer _dest_, starting at _startIndex_ elements of _src_. _dest_ may be either a host or USM pointer.
 
@@ -884,8 +884,8 @@ void memcpy(device_global<T, PropertyListT>& dest,
 ----
 |`T` must be device copyable.
 
-Not available if `PropertyListT` contains the `copy_access` property with
-`read` or `no_access` assertions.
+Not available if `PropertyListT` contains the `host_access` property with
+`read` or `none` assertions.
 
 Copies _count_ bytes from the pointer _src_ to the `device_global` _dest_, starting at _offset_ bytes. _src_ may be either a host or USM pointer.
 
@@ -899,8 +899,8 @@ void memcpy(void *dest,
 ----
 |`T` must be device copyable.
 
-Not available if `PropertyListT` contains the `copy_access` property with
-`write` or `no_access` assertions.
+Not available if `PropertyListT` contains the `host_access` property with
+`write` or `none` assertions.
 
 Copies _count_ bytes from the `device_global` _src_ to the pointer _dest_, starting at _offset_ bytes. _dest_ may be either a host or USM pointer.
 |====
