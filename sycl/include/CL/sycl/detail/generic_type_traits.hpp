@@ -366,18 +366,18 @@ using select_apply_cl_scalar_t =
 // Shortcuts for selecting scalar int/unsigned int/fp type.
 template <typename T>
 using select_cl_scalar_integral_signed_t =
-    select_apply_cl_scalar_t<T, sycl::cl_char, sycl::cl_short, sycl::cl_int,
-                             sycl::cl_long>;
+    select_apply_cl_scalar_t<T, __sycl_ns::cl_char, __sycl_ns::cl_short,
+                             __sycl_ns::cl_int, __sycl_ns::cl_long>;
 
 template <typename T>
 using select_cl_scalar_integral_unsigned_t =
-    select_apply_cl_scalar_t<T, sycl::cl_uchar, sycl::cl_ushort, sycl::cl_uint,
-                             sycl::cl_ulong>;
+    select_apply_cl_scalar_t<T, __sycl_ns::cl_uchar, __sycl_ns::cl_ushort,
+                             __sycl_ns::cl_uint, __sycl_ns::cl_ulong>;
 
 template <typename T>
 using select_cl_scalar_float_t =
-    select_apply_cl_scalar_t<T, std::false_type, sycl::cl_half, sycl::cl_float,
-                             sycl::cl_double>;
+    select_apply_cl_scalar_t<T, std::false_type, __sycl_ns::cl_half,
+                             __sycl_ns::cl_float, __sycl_ns::cl_double>;
 
 template <typename T>
 using select_cl_scalar_integral_t =

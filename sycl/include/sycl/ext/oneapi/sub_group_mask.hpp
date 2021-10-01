@@ -90,8 +90,8 @@ struct sub_group_mask {
     return {operator[](i) ? i : size()};
   }
 
-  template <typename Type,
-            typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
+  template <typename Type, typename = __sycl_ns::detail::enable_if_t<
+                               std::is_integral<Type>::value>>
   void insert_bits(Type bits, id<1> pos = 0) {
     size_t insert_size = sizeof(Type) * CHAR_BIT;
     uint32_t insert_data = (uint32_t)bits;
@@ -109,8 +109,9 @@ struct sub_group_mask {
   marray id |     0     |     1     |     2     |     3     |
   bit id    |7   ..    0|15   ..   8|23   ..  16|31  ..   24|
   */
-  template <typename Type, size_t Size,
-            typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
+  template <
+      typename Type, size_t Size,
+      typename = __sycl_ns::detail::enable_if_t<std::is_integral<Type>::value>>
   void insert_bits(const marray<Type, Size> &bits, id<1> pos = 0) {
     size_t cur_pos = pos.get(0);
     for (auto elem : bits) {
@@ -121,8 +122,8 @@ struct sub_group_mask {
     }
   }
 
-  template <typename Type,
-            typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
+  template <typename Type, typename = __sycl_ns::detail::enable_if_t<
+                               std::is_integral<Type>::value>>
   void extract_bits(Type &bits, id<1> pos = 0) {
     uint32_t Res = Bits;
     if (pos.get(0) < size()) {
@@ -139,8 +140,9 @@ struct sub_group_mask {
     }
   }
 
-  template <typename Type, size_t Size,
-            typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
+  template <
+      typename Type, size_t Size,
+      typename = __sycl_ns::detail::enable_if_t<std::is_integral<Type>::value>>
   void extract_bits(marray<Type, Size> &bits, id<1> pos = 0) {
     size_t cur_pos = pos.get(0);
     for (auto &elem : bits) {

@@ -105,8 +105,8 @@ template <>
 struct is_compile_time_property<ext::oneapi::property::no_alias>
     : std::true_type {};
 template <>
-struct is_compile_time_property<sycl::ext::intel::property::buffer_location>
-    : std::true_type {};
+struct is_compile_time_property<
+    __sycl_ns::ext::intel::property::buffer_location> : std::true_type {};
 } // namespace oneapi
 } // namespace ext
 

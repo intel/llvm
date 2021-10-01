@@ -31,12 +31,12 @@ private:
 class context_bound
     : public detail::PropertyWithData<detail::BufferContextBound> {
 public:
-  context_bound(sycl::context BoundContext) : MCtx(std::move(BoundContext)) {}
+  context_bound(__sycl_ns::context BoundContext) : MCtx(std::move(BoundContext)) {}
 
-  sycl::context get_context() const { return MCtx; }
+  __sycl_ns::context get_context() const { return MCtx; }
 
 private:
-  sycl::context MCtx;
+  __sycl_ns::context MCtx;
 };
 
 class mem_channel : public detail::PropertyWithData<
@@ -57,8 +57,8 @@ namespace oneapi {
 namespace property {
 namespace buffer {
 
-class use_pinned_host_memory : public sycl::detail::DataLessProperty<
-                                   sycl::detail::BufferUsePinnedHostMemory> {};
+class use_pinned_host_memory : public __sycl_ns::detail::DataLessProperty<
+                                   __sycl_ns::detail::BufferUsePinnedHostMemory> {};
 } // namespace buffer
 } // namespace property
 } // namespace oneapi

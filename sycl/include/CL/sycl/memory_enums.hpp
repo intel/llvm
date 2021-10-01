@@ -61,7 +61,8 @@ readMemoryOrderBitfield(pi_memory_order_capabilities bits) {
 }
 
 #ifndef __SYCL_DEVICE_ONLY__
-static constexpr std::memory_order getStdMemoryOrder(sycl::memory_order order) {
+static constexpr std::memory_order
+getStdMemoryOrder(__sycl_ns::memory_order order) {
   switch (order) {
   case memory_order::relaxed:
     return std::memory_order_relaxed;

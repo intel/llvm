@@ -74,7 +74,7 @@ __SYCL2020_DEPRECATED("use 'sycl::bit_cast' instead")
 constexpr
 #endif
     To bit_cast(const From &from) noexcept {
-  return sycl::bit_cast<To>(from);
+  return __sycl_ns::bit_cast<To>(from);
 }
 } // namespace detail
 

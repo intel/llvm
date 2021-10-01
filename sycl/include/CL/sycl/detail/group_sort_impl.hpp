@@ -62,7 +62,7 @@ template <typename Iter> struct GetValueType {
 };
 
 template <typename ElementType, access::address_space Space>
-struct GetValueType<sycl::multi_ptr<ElementType, Space>> {
+struct GetValueType<__sycl_ns::multi_ptr<ElementType, Space>> {
   using type = ElementType;
 };
 
@@ -85,13 +85,13 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
   const std::size_t start_2 = end_1;
   // Borders of the sequences to merge within this call
   const std::size_t local_start_1 =
-      sycl::min(static_cast<std::size_t>(offset + start_1), end_1);
+      __sycl_ns::min(static_cast<std::size_t>(offset + start_1), end_1);
   const std::size_t local_end_1 =
-      sycl::min(static_cast<std::size_t>(local_start_1 + chunk), end_1);
+      __sycl_ns::min(static_cast<std::size_t>(local_start_1 + chunk), end_1);
   const std::size_t local_start_2 =
-      sycl::min(static_cast<std::size_t>(offset + start_2), end_2);
+      __sycl_ns::min(static_cast<std::size_t>(offset + start_2), end_2);
   const std::size_t local_end_2 =
-      sycl::min(static_cast<std::size_t>(local_start_2 + chunk), end_2);
+      __sycl_ns::min(static_cast<std::size_t>(local_start_2 + chunk), end_2);
 
   const std::size_t local_size_1 = local_end_1 - local_start_1;
   const std::size_t local_size_2 = local_end_2 - local_start_2;
@@ -202,13 +202,13 @@ template <typename Group, typename Iter, typename Compare>
 void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
                 std::byte *scratch) {
   using T = typename GetValueType<Iter>::type;
-  auto id = sycl::detail::Builder::getNDItem<Group::dimensions>();
+  auto id = __sycl_ns::detail::Builder::getNDItem<Group::dimensions>();
   const std::size_t idx = id.get_local_linear_id();
   const std::size_t local = group.get_local_range().size();
   const std::size_t chunk = (n - 1) / local + 1;
 
   // we need to sort within work item first
-  bubble_sort(first, idx * chunk, sycl::min((idx + 1) * chunk, n), comp);
+  bubble_sort(first, idx * chunk, __sycl_ns::min((idx + 1) * chunk, n), comp);
   id.barrier();
 
   T *temp = reinterpret_cast<T *>(scratch);
@@ -217,9 +217,9 @@ void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
   std::size_t sorted_size = 1;
   while (sorted_size * chunk < n) {
     const std::size_t start_1 =
-        sycl::min(2 * sorted_size * chunk * (idx / sorted_size), n);
-    const std::size_t end_1 = sycl::min(start_1 + sorted_size * chunk, n);
-    const std::size_t end_2 = sycl::min(end_1 + sorted_size * chunk, n);
+        __sycl_ns::min(2 * sorted_size * chunk * (idx / sorted_size), n);
+    const std::size_t end_1 = __sycl_ns::min(start_1 + sorted_size * chunk, n);
+    const std::size_t end_2 = __sycl_ns::min(end_1 + sorted_size * chunk, n);
     const std::size_t offset = chunk * (idx % sorted_size);
 
     if (!data_in_temp) {

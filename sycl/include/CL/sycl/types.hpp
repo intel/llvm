@@ -2339,7 +2339,7 @@ struct is_device_copyable<std::tuple<T, Ts...>>
 
 // marray is device copyable if element type is device copyable
 template <typename T, std::size_t N>
-struct is_device_copyable<sycl::marray<T, N>,
+struct is_device_copyable<__sycl_ns::marray<T, N>,
                           std::enable_if_t<is_device_copyable<T>::value>>
     : std::true_type {};
 

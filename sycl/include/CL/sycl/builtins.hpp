@@ -727,7 +727,7 @@ namespace ext {
 namespace intel {
 // geninteger ctz (geninteger x)
 template <typename T>
-sycl::detail::enable_if_t<sycl::detail::is_geninteger<T>::value, T>
+__sycl_ns::detail::enable_if_t<__sycl_ns::detail::is_geninteger<T>::value, T>
 ctz(T x) __NOEXC {
   return __sycl_std::__invoke_ctz<T>(x);
 }

@@ -43,14 +43,14 @@ using IsReduOptForFastAtomicFetch =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     bool_constant<false>;
 #else
-    bool_constant<sycl::detail::is_sgeninteger<T>::value &&
-                  sycl::detail::IsValidAtomicType<T>::value &&
-                  (sycl::detail::IsPlus<T, BinaryOperation>::value ||
-                   sycl::detail::IsMinimum<T, BinaryOperation>::value ||
-                   sycl::detail::IsMaximum<T, BinaryOperation>::value ||
-                   sycl::detail::IsBitOR<T, BinaryOperation>::value ||
-                   sycl::detail::IsBitXOR<T, BinaryOperation>::value ||
-                   sycl::detail::IsBitAND<T, BinaryOperation>::value)>;
+    bool_constant<__sycl_ns::detail::is_sgeninteger<T>::value &&
+                  __sycl_ns::detail::IsValidAtomicType<T>::value &&
+                  (__sycl_ns::detail::IsPlus<T, BinaryOperation>::value ||
+                   __sycl_ns::detail::IsMinimum<T, BinaryOperation>::value ||
+                   __sycl_ns::detail::IsMaximum<T, BinaryOperation>::value ||
+                   __sycl_ns::detail::IsBitOR<T, BinaryOperation>::value ||
+                   __sycl_ns::detail::IsBitXOR<T, BinaryOperation>::value ||
+                   __sycl_ns::detail::IsBitAND<T, BinaryOperation>::value)>;
 #endif
 
 // This type trait is used to detect if the atomic operation BinaryOperation
@@ -70,8 +70,8 @@ using IsReduOptForAtomic64Add =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     bool_constant<false>;
 #else
-    bool_constant<sycl::detail::IsPlus<T, BinaryOperation>::value &&
-                  sycl::detail::is_sgenfloat<T>::value &&
+    bool_constant<__sycl_ns::detail::IsPlus<T, BinaryOperation>::value &&
+                  __sycl_ns::detail::is_sgenfloat<T>::value &&
                   (sizeof(T) == 4 || sizeof(T) == 8)>;
 #endif
 
@@ -85,21 +85,21 @@ using IsReduOptForFastReduce =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     bool_constant<false>;
 #else
-    bool_constant<((sycl::detail::is_sgeninteger<T>::value &&
+    bool_constant<((__sycl_ns::detail::is_sgeninteger<T>::value &&
                     (sizeof(T) == 4 || sizeof(T) == 8)) ||
-                   sycl::detail::is_sgenfloat<T>::value) &&
-                  (sycl::detail::IsPlus<T, BinaryOperation>::value ||
-                   sycl::detail::IsMinimum<T, BinaryOperation>::value ||
-                   sycl::detail::IsMaximum<T, BinaryOperation>::value)>;
+                   __sycl_ns::detail::is_sgenfloat<T>::value) &&
+                  (__sycl_ns::detail::IsPlus<T, BinaryOperation>::value ||
+                   __sycl_ns::detail::IsMinimum<T, BinaryOperation>::value ||
+                   __sycl_ns::detail::IsMaximum<T, BinaryOperation>::value)>;
 #endif
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now
 // Thus sycl::detail::tuple is used instead.
 // Switching from sycl::device::tuple to std::tuple can be done by re-defining
 // the ReduTupleT type and makeReduTupleT() function below.
-template <typename... Ts> using ReduTupleT = sycl::detail::tuple<Ts...>;
+template <typename... Ts> using ReduTupleT = __sycl_ns::detail::tuple<Ts...>;
 template <typename... Ts> ReduTupleT<Ts...> makeReduTupleT(Ts... Elements) {
-  return sycl::detail::make_tuple(Elements...);
+  return __sycl_ns::detail::make_tuple(Elements...);
 }
 
 __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
@@ -121,45 +121,45 @@ public:
   T getIdentity() const { return MIdentity; }
 
   template <typename _T = T>
-  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value &&
-              sycl::detail::is_geninteger<_T>::value>
+  enable_if_t<__sycl_ns::detail::IsPlus<_T, BinaryOperation>::value &&
+              __sycl_ns::detail::is_geninteger<_T>::value>
   operator++() {
     combine(static_cast<T>(1));
   }
 
   template <typename _T = T>
-  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value &&
-              sycl::detail::is_geninteger<_T>::value>
+  enable_if_t<__sycl_ns::detail::IsPlus<_T, BinaryOperation>::value &&
+              __sycl_ns::detail::is_geninteger<_T>::value>
   operator++(int) {
     combine(static_cast<T>(1));
   }
 
   template <typename _T = T>
-  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value>
+  enable_if_t<__sycl_ns::detail::IsPlus<_T, BinaryOperation>::value>
   operator+=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<sycl::detail::IsMultiplies<_T, BinaryOperation>::value>
+  enable_if_t<__sycl_ns::detail::IsMultiplies<_T, BinaryOperation>::value>
   operator*=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<sycl::detail::IsBitOR<_T, BinaryOperation>::value>
+  enable_if_t<__sycl_ns::detail::IsBitOR<_T, BinaryOperation>::value>
   operator|=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<sycl::detail::IsBitXOR<_T, BinaryOperation>::value>
+  enable_if_t<__sycl_ns::detail::IsBitXOR<_T, BinaryOperation>::value>
   operator^=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<sycl::detail::IsBitAND<_T, BinaryOperation>::value>
+  enable_if_t<__sycl_ns::detail::IsBitAND<_T, BinaryOperation>::value>
   operator&=(const _T &Partial) {
     combine(Partial);
   }
@@ -207,45 +207,45 @@ public:
   }
 
   template <typename _T = T>
-  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value &&
-              sycl::detail::is_geninteger<_T>::value>
+  enable_if_t<__sycl_ns::detail::IsPlus<_T, BinaryOperation>::value &&
+              __sycl_ns::detail::is_geninteger<_T>::value>
   operator++() {
     combine(static_cast<T>(1));
   }
 
   template <typename _T = T>
-  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value &&
-              sycl::detail::is_geninteger<_T>::value>
+  enable_if_t<__sycl_ns::detail::IsPlus<_T, BinaryOperation>::value &&
+              __sycl_ns::detail::is_geninteger<_T>::value>
   operator++(int) {
     combine(static_cast<T>(1));
   }
 
   template <typename _T = T>
-  enable_if_t<sycl::detail::IsPlus<_T, BinaryOperation>::value>
+  enable_if_t<__sycl_ns::detail::IsPlus<_T, BinaryOperation>::value>
   operator+=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<sycl::detail::IsMultiplies<_T, BinaryOperation>::value>
+  enable_if_t<__sycl_ns::detail::IsMultiplies<_T, BinaryOperation>::value>
   operator*=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<sycl::detail::IsBitOR<_T, BinaryOperation>::value>
+  enable_if_t<__sycl_ns::detail::IsBitOR<_T, BinaryOperation>::value>
   operator|=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<sycl::detail::IsBitXOR<_T, BinaryOperation>::value>
+  enable_if_t<__sycl_ns::detail::IsBitXOR<_T, BinaryOperation>::value>
   operator^=(const _T &Partial) {
     combine(Partial);
   }
 
   template <typename _T = T>
-  enable_if_t<sycl::detail::IsBitAND<_T, BinaryOperation>::value>
+  enable_if_t<__sycl_ns::detail::IsBitAND<_T, BinaryOperation>::value>
   operator&=(const _T &Partial) {
     combine(Partial);
   }
@@ -265,7 +265,7 @@ public:
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               (IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value ||
                IsReduOptForAtomic64Add<T, _BinaryOperation>::value) &&
-              sycl::detail::IsPlus<T, _BinaryOperation>::value &&
+              __sycl_ns::detail::IsPlus<T, _BinaryOperation>::value &&
               (Space == access::address_space::global_space ||
                Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
@@ -279,7 +279,7 @@ public:
             typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsBitOR<T, _BinaryOperation>::value &&
+              __sycl_ns::detail::IsBitOR<T, _BinaryOperation>::value &&
               (Space == access::address_space::global_space ||
                Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
@@ -293,7 +293,7 @@ public:
             typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsBitXOR<T, _BinaryOperation>::value &&
+              __sycl_ns::detail::IsBitXOR<T, _BinaryOperation>::value &&
               (Space == access::address_space::global_space ||
                Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
@@ -307,7 +307,7 @@ public:
             typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsBitAND<T, _BinaryOperation>::value &&
+              __sycl_ns::detail::IsBitAND<T, _BinaryOperation>::value &&
               (Space == access::address_space::global_space ||
                Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
@@ -321,7 +321,7 @@ public:
             typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsMinimum<T, _BinaryOperation>::value &&
+              __sycl_ns::detail::IsMinimum<T, _BinaryOperation>::value &&
               (Space == access::address_space::global_space ||
                Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
@@ -335,7 +335,7 @@ public:
             typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsMaximum<T, _BinaryOperation>::value &&
+              __sycl_ns::detail::IsMaximum<T, _BinaryOperation>::value &&
               (Space == access::address_space::global_space ||
                Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
@@ -425,8 +425,8 @@ public:
         MIdentity(getIdentity()), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+      throw __sycl_ns::runtime_error("Reduction variable must be a scalar.",
+                                     PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
@@ -437,8 +437,8 @@ public:
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(false) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+      throw __sycl_ns::runtime_error("Reduction variable must be a scalar.",
+                                     PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
@@ -449,8 +449,8 @@ public:
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(true) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+      throw __sycl_ns::runtime_error("Reduction variable must be a scalar.",
+                                     PI_INVALID_VALUE);
   }
 
   /// SYCL-2020.
@@ -466,8 +466,8 @@ public:
         MIdentity(getIdentity()), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+      throw __sycl_ns::runtime_error("Reduction variable must be a scalar.",
+                                     PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -490,8 +490,8 @@ public:
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(false) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+      throw __sycl_ns::runtime_error("Reduction variable must be a scalar.",
+                                     PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -514,8 +514,8 @@ public:
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(getIdentity()),
         InitializeToIdentity(true) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+      throw __sycl_ns::runtime_error("Reduction variable must be a scalar.",
+                                     PI_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -541,8 +541,8 @@ public:
         MBinaryOp(BOp), InitializeToIdentity(InitializeToIdentity) {
     associateWithHandler(CGH);
     if (Buffer.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+      throw __sycl_ns::runtime_error("Reduction variable must be a scalar.",
+                                     PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
@@ -553,8 +553,8 @@ public:
       : MRWAcc(new rw_accessor_type(Acc)), MIdentity(Identity), MBinaryOp(BOp),
         InitializeToIdentity(false) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+      throw __sycl_ns::runtime_error("Reduction variable must be a scalar.",
+                                     PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
@@ -565,8 +565,8 @@ public:
       : MDWAcc(new dw_accessor_type(Acc)), MIdentity(Identity), MBinaryOp(BOp),
         InitializeToIdentity(true) {
     if (Acc.size() != 1)
-      throw sycl::runtime_error("Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+      throw __sycl_ns::runtime_error("Reduction variable must be a scalar.",
+                                     PI_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
@@ -802,18 +802,18 @@ struct get_reduction_main_kernel_name_t {
   using name = __sycl_reduction_main_kernel<Name, B1, B2, T3>;
 };
 template <typename Type, bool B1, bool B2, typename T3>
-struct get_reduction_main_kernel_name_t<sycl::detail::auto_name, Type, B1, B2,
-                                        T3> {
-  using name = sycl::detail::auto_name;
+struct get_reduction_main_kernel_name_t<__sycl_ns::detail::auto_name, Type, B1,
+                                        B2, T3> {
+  using name = __sycl_ns::detail::auto_name;
 };
 template <typename Name, typename Type, bool B1, bool B2, typename T3>
 struct get_reduction_aux_kernel_name_t {
   using name = __sycl_reduction_aux_kernel<Name, B1, B2, T3>;
 };
 template <typename Type, bool B1, bool B2, typename T3>
-struct get_reduction_aux_kernel_name_t<sycl::detail::auto_name, Type, B1, B2,
-                                       T3> {
-  using name = sycl::detail::auto_name;
+struct get_reduction_aux_kernel_name_t<__sycl_ns::detail::auto_name, Type, B1,
+                                       B2, T3> {
+  using name = __sycl_ns::detail::auto_name;
 };
 
 /// Called in device code. This function iterates through the index space
@@ -828,7 +828,7 @@ void reductionLoop(const range<Dims> &Range, ReducerT &Reducer,
   size_t End = Range.size();
   size_t Stride = NdId.get_global_range(0);
   for (size_t I = Start; I < End; I += Stride)
-    F(sycl::detail::getDelinearizedId(Range, I), Reducer);
+    F(__sycl_ns::detail::getDelinearizedId(Range, I), Reducer);
 }
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
@@ -848,11 +848,11 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
     auto LID = NDId.get_local_id(0);
     if (LID == 0)
       GroupSum[0] = Reducer.getIdentity();
-    sycl::detail::workGroupBarrier();
+    __sycl_ns::detail::workGroupBarrier();
     Reducer.template atomic_combine<access::address_space::local_space>(
         &GroupSum[0]);
 
-    sycl::detail::workGroupBarrier();
+    __sycl_ns::detail::workGroupBarrier();
     if (LID == 0) {
       Reducer.MValue = GroupSum[0];
       Reducer.template atomic_combine(Reduction::getOutPointer(Out));
@@ -904,7 +904,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
           ++NFinished == NWorkGroups && NWorkGroups > 1;
     }
 
-    sycl::detail::workGroupBarrier();
+    __sycl_ns::detail::workGroupBarrier();
     if (DoReducePartialSumsInLastWG[0]) {
       auto LocalSum = Reducer.getIdentity();
       for (size_t I = LID; I < NWorkGroups; I += WGSize)
@@ -952,7 +952,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
     LocalReds[LID] = Reducer.MValue;
     if (LID == 0)
       LocalReds[WGSize] = Identity;
-    sycl::detail::workGroupBarrier();
+    __sycl_ns::detail::workGroupBarrier();
 
     // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0].
     // LocalReds[WGSize] accumulates last/odd elements when the step
@@ -963,7 +963,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
         LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
       else if (LID == CurStep && (PrevStep & 0x1))
         LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-      sycl::detail::workGroupBarrier();
+      __sycl_ns::detail::workGroupBarrier();
       PrevStep = CurStep;
     }
 
@@ -982,7 +982,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
           ++NFinished == NWorkGroups && NWorkGroups > 1;
     }
 
-    sycl::detail::workGroupBarrier();
+    __sycl_ns::detail::workGroupBarrier();
     if (DoReducePartialSumsInLastWG[0]) {
       auto LocalSum = Identity;
       for (size_t I = LID; I < NWorkGroups; I += WGSize)
@@ -991,7 +991,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
       LocalReds[LID] = LocalSum;
       if (LID == 0)
         LocalReds[WGSize] = Identity;
-      sycl::detail::workGroupBarrier();
+      __sycl_ns::detail::workGroupBarrier();
 
       size_t PrevStep = WGSize;
       for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
@@ -999,7 +999,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
           LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
         else if (LID == CurStep && (PrevStep & 0x1))
           LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-        sycl::detail::workGroupBarrier();
+        __sycl_ns::detail::workGroupBarrier();
         PrevStep = CurStep;
       }
       if (LID == 0) {
@@ -2050,7 +2050,7 @@ reduction(T *VarPtr, BinaryOperation) {
 // ---- has_known_identity
 template <typename BinaryOperation, typename AccumulatorT>
 struct has_known_identity
-    : sycl::has_known_identity<BinaryOperation, AccumulatorT> {};
+    : __sycl_ns::has_known_identity<BinaryOperation, AccumulatorT> {};
 
 template <typename BinaryOperation, typename AccumulatorT>
 __SYCL_INLINE_CONSTEXPR bool has_known_identity_v =
@@ -2058,7 +2058,8 @@ __SYCL_INLINE_CONSTEXPR bool has_known_identity_v =
 
 // ---- known_identity
 template <typename BinaryOperation, typename AccumulatorT>
-struct known_identity : sycl::known_identity<BinaryOperation, AccumulatorT> {};
+struct known_identity
+    : __sycl_ns::known_identity<BinaryOperation, AccumulatorT> {};
 
 template <typename BinaryOperation, typename AccumulatorT>
 __SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =

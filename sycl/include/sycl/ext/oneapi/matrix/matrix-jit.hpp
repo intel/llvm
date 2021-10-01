@@ -37,16 +37,16 @@ SPV_MATRIX_LAYOUT_TRAITS(matrix_layout::packed_a, __spv::MatrixLayout::PackedA)
 SPV_MATRIX_LAYOUT_TRAITS(matrix_layout::packed_b, __spv::MatrixLayout::PackedB)
 
 template <typename G> struct spv_scope_traits {};
-template <> struct spv_scope_traits<sycl::sub_group> {
+template <> struct spv_scope_traits<__sycl_ns::sub_group> {
   constexpr static auto value = __spv::Scope::Subgroup;
 };
-template <int D> struct spv_scope_traits<sycl::group<D>> {
+template <int D> struct spv_scope_traits<__sycl_ns::group<D>> {
   constexpr static auto value = __spv::Scope::Workgroup;
 };
 
 template <typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout = matrix_layout::row_major,
-          typename Group = sycl::sub_group>
+          typename Group = __sycl_ns::sub_group>
 struct joint_matrix {
 public:
   __spv::__spirv_JointMatrixINTEL<

@@ -25,7 +25,7 @@ namespace ext {
 namespace oneapi {
 template <typename T, typename Group>
 std::enable_if_t<std::is_trivially_destructible<T>::value &&
-                     sycl::detail::is_group<Group>::value,
+                     __sycl_ns::detail::is_group<Group>::value,
                  multi_ptr<T, access::address_space::local_space>>
     __SYCL_ALWAYS_INLINE group_local_memory_for_overwrite(Group g) {
   (void)g;
@@ -42,9 +42,9 @@ std::enable_if_t<std::is_trivially_destructible<T>::value &&
 
 template <typename T, typename Group, typename... Args>
 std::enable_if_t<std::is_trivially_destructible<T>::value &&
-                     sycl::detail::is_group<Group>::value,
+                     __sycl_ns::detail::is_group<Group>::value,
                  multi_ptr<T, access::address_space::local_space>>
-    __SYCL_ALWAYS_INLINE group_local_memory(Group g, Args &&... args) {
+    __SYCL_ALWAYS_INLINE group_local_memory(Group g, Args &&...args) {
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
   __attribute__((opencl_local)) std::uint8_t *AllocatedMem =
@@ -54,7 +54,7 @@ std::enable_if_t<std::is_trivially_destructible<T>::value &&
   id<3> Id = __spirv::initLocalInvocationId<3, id<3>>();
   if (Id == id<3>(0, 0, 0))
     new (AllocatedMem) T(std::forward<Args>(args)...);
-  sycl::detail::workGroupBarrier();
+  __sycl_ns::detail::workGroupBarrier();
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
 #else
   // Silence unused variable warning

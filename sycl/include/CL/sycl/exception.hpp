@@ -44,7 +44,7 @@ enum class errc : unsigned int {
 template <backend B> using errc_for = typename backend_traits<B>::errc;
 
 /// Constructs an error code using e and sycl_category()
-__SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;
+__SYCL_EXPORT std::error_code make_error_code(__sycl_ns::errc E) noexcept;
 
 __SYCL_EXPORT const std::error_category &sycl_category() noexcept;
 

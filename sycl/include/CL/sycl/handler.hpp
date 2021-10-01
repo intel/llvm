@@ -386,10 +386,11 @@ private:
 
   void throwIfActionIsCreated() {
     if (detail::CG::None != getType())
-      throw sycl::runtime_error("Attempt to set multiple actions for the "
-                                "command group. Command group must consist of "
-                                "a single kernel or explicit memory operation.",
-                                CL_INVALID_OPERATION);
+      throw __sycl_ns::runtime_error(
+          "Attempt to set multiple actions for the "
+          "command group. Command group must consist of "
+          "a single kernel or explicit memory operation.",
+          CL_INVALID_OPERATION);
   }
 
   /// Extracts and prepares kernel arguments from the lambda using integration
@@ -568,7 +569,7 @@ private:
         new detail::HostKernel<KernelType, LambdaArgType, Dims, KernelName>(
             KernelFunc));
 
-    using KI = sycl::detail::KernelInfo<KernelName>;
+    using KI = __sycl_ns::detail::KernelInfo<KernelName>;
     // Empty name indicates that the compilation happens without integration
     // header, so don't perform things that require it.
     if (KI::getName() != nullptr && KI::getName()[0] != '\0') {
@@ -789,7 +790,8 @@ private:
   void parallel_for_lambda_impl(range<Dims> NumWorkItems,
                                 KernelType KernelFunc) {
     throwIfActionIsCreated();
-    using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using LambdaArgType =
+        __sycl_ns::detail::lambda_arg_type<KernelType, item<Dims>>;
 
     // If 1D kernel argument is an integral type, convert it to sycl::item<1>
     using TransformedArgType =
@@ -1368,7 +1370,8 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using LambdaArgType =
+        __sycl_ns::detail::lambda_arg_type<KernelType, item<Dims>>;
     (void)NumWorkItems;
     (void)WorkItemOffset;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
@@ -1400,7 +1403,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
-        sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+        __sycl_ns::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
     (void)ExecutionRange;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1588,11 +1591,12 @@ public:
     size_t MaxWGSize =
         ext::oneapi::detail::reduGetMaxWGSize(MQueue, OneElemSize);
     if (Range.get_local_range().size() > MaxWGSize)
-      throw sycl::runtime_error("The implementation handling parallel_for with"
-                                " reduction requires work group size not bigger"
-                                " than " +
-                                    std::to_string(MaxWGSize),
-                                PI_INVALID_WORK_GROUP_SIZE);
+      throw __sycl_ns::runtime_error(
+          "The implementation handling parallel_for with"
+          " reduction requires work group size not bigger"
+          " than " +
+              std::to_string(MaxWGSize),
+          PI_INVALID_WORK_GROUP_SIZE);
 
     // 1. Call the kernel that includes user's lambda function.
     ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
@@ -1605,13 +1609,14 @@ public:
     // TODO: Create a special slow/sequential version of the kernel that would
     // handle the reduction instead of reporting an assert below.
     if (MaxWGSize <= 1)
-      throw sycl::runtime_error("The implementation handling parallel_for with "
-                                "reduction requires the maximal work group "
-                                "size to be greater than 1 to converge. "
-                                "The maximal work group size depends on the "
-                                "device and the size of the objects passed to "
-                                "the reduction.",
-                                PI_INVALID_WORK_GROUP_SIZE);
+      throw __sycl_ns::runtime_error(
+          "The implementation handling parallel_for with "
+          "reduction requires the maximal work group "
+          "size to be greater than 1 to converge. "
+          "The maximal work group size depends on the "
+          "device and the size of the objects passed to "
+          "the reduction.",
+          PI_INVALID_WORK_GROUP_SIZE);
     size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
       handler AuxHandler(QueueCopy, MIsHost);
@@ -1686,11 +1691,12 @@ public:
     size_t MaxWGSize =
         ext::oneapi::detail::reduGetMaxWGSize(MQueue, LocalMemPerWorkItem);
     if (Range.get_local_range().size() > MaxWGSize)
-      throw sycl::runtime_error("The implementation handling parallel_for with"
-                                " reduction requires work group size not bigger"
-                                " than " +
-                                    std::to_string(MaxWGSize),
-                                PI_INVALID_WORK_GROUP_SIZE);
+      throw __sycl_ns::runtime_error(
+          "The implementation handling parallel_for with"
+          " reduction requires work group size not bigger"
+          " than " +
+              std::to_string(MaxWGSize),
+          PI_INVALID_WORK_GROUP_SIZE);
 
     ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range,
                                                 ReduTuple, ReduIndices);
@@ -1732,7 +1738,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
-        sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
+        __sycl_ns::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)NumWorkGroups;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1764,7 +1770,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
-        sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
+        __sycl_ns::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)NumWorkGroups;
     (void)WorkGroupSize;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
@@ -1903,7 +1909,8 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using LambdaArgType =
+        __sycl_ns::detail::lambda_arg_type<KernelType, item<Dims>>;
     (void)Kernel;
     (void)NumWorkItems;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
@@ -1938,7 +1945,8 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using LambdaArgType =
+        __sycl_ns::detail::lambda_arg_type<KernelType, item<Dims>>;
     (void)Kernel;
     (void)NumWorkItems;
     (void)WorkItemOffset;
@@ -1974,7 +1982,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
-        sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+        __sycl_ns::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
     (void)Kernel;
     (void)NDRange;
     kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
@@ -2013,7 +2021,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
-        sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
+        __sycl_ns::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)Kernel;
     (void)NumWorkGroups;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType>(KernelFunc);
@@ -2050,7 +2058,7 @@ public:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     using LambdaArgType =
-        sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
+        __sycl_ns::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)Kernel;
     (void)NumWorkGroups;
     (void)WorkGroupSize;

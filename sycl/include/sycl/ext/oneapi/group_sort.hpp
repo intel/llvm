@@ -28,7 +28,8 @@ namespace detail {
 template <typename T, typename = void> struct has_difference_type {};
 
 template <typename T>
-struct has_difference_type<T, sycl::detail::void_t<typename T::difference_type>>
+struct has_difference_type<
+    T, __sycl_ns::detail::void_t<typename T::difference_type>>
     : std::true_type {};
 
 template <typename T> struct has_difference_type<T *> : std::true_type {};
@@ -43,7 +44,7 @@ struct is_sorter_impl {
   template <typename G = Group>
   static decltype(
       std::integral_constant<bool, is_expected_return_type<G>::value &&
-                                       sycl::is_group_v<G>>{})
+                                       __sycl_ns::is_group_v<G>>{})
   test(int);
 
   template <typename = Group> static std::false_type test(...);
@@ -54,11 +55,11 @@ template <typename Sorter, typename Group,
                         // iterator's fields
 struct is_sorter_impl<
     Sorter, Group, Ptr,
-    sycl::detail::void_t<typename has_difference_type<Ptr>::type>> {
+    __sycl_ns::detail::void_t<typename has_difference_type<Ptr>::type>> {
   template <typename G = Group>
   static decltype(std::declval<Sorter>()(std::declval<G>(), std::declval<Ptr>(),
                                          std::declval<Ptr>()),
-                  sycl::detail::is_generic_group<G>{})
+                  __sycl_ns::detail::is_generic_group<G>{})
   test(int);
 
   template <typename = Group> static std::false_type test(...);
@@ -79,8 +80,8 @@ sort_over_group(Group group, T value, Sorter sorter) {
   (void)group;
   (void)value;
   (void)sorter;
-  throw sycl::exception(
-      std::error_code(PI_INVALID_DEVICE, sycl::sycl_category()),
+  throw __sycl_ns::exception(
+      std::error_code(PI_INVALID_DEVICE, __sycl_ns::sycl_category()),
       "Group algorithms are not supported on host device.");
 #endif
 }
@@ -95,7 +96,7 @@ sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
 }
 
 template <typename Group, typename T, std::size_t Extent>
-typename std::enable_if<sycl::is_group_v<std::decay_t<Group>>, T>::type
+typename std::enable_if<__sycl_ns::is_group_v<std::decay_t<Group>>, T>::type
 sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
                 T value) {
   return sort_over_group(exec.get_group(), value,
@@ -114,8 +115,8 @@ joint_sort(Group group, Iter first, Iter last, Sorter sorter) {
   (void)first;
   (void)last;
   (void)sorter;
-  throw sycl::exception(
-      std::error_code(PI_INVALID_DEVICE, sycl::sycl_category()),
+  throw __sycl_ns::exception(
+      std::error_code(PI_INVALID_DEVICE, __sycl_ns::sycl_category()),
       "Group algorithms are not supported on host device.");
 #endif
 }
@@ -130,7 +131,7 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
 }
 
 template <typename Group, typename Iter, std::size_t Extent>
-typename std::enable_if<sycl::is_group_v<std::decay_t<Group>>, void>::type
+typename std::enable_if<__sycl_ns::is_group_v<std::decay_t<Group>>, void>::type
 joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
            Iter last) {
   joint_sort(exec.get_group(), first, last,

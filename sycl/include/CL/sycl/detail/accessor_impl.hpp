@@ -58,7 +58,7 @@ public:
 
 template <int Dims> class LocalAccessorBaseDevice {
 public:
-  LocalAccessorBaseDevice(sycl::range<Dims> Size)
+  LocalAccessorBaseDevice(__sycl_ns::range<Dims> Size)
       : AccessRange(Size),
         MemRange(InitializedVal<Dims, range>::template get<0>()) {}
   // TODO: Actually we need only one field here, but currently compiler requires
@@ -163,17 +163,17 @@ protected:
   AccessorImplPtr impl;
 
 private:
-  friend class sycl::ext::intel::experimental::esimd::detail::
+  friend class __sycl_ns::ext::intel::experimental::esimd::detail::
       AccessorPrivateProxy;
 };
 
 class __SYCL_EXPORT LocalAccessorImplHost {
 public:
-  LocalAccessorImplHost(sycl::range<3> Size, int Dims, int ElemSize)
+  LocalAccessorImplHost(__sycl_ns::range<3> Size, int Dims, int ElemSize)
       : MSize(Size), MDims(Dims), MElemSize(ElemSize),
         MMem(Size[0] * Size[1] * Size[2] * ElemSize) {}
 
-  sycl::range<3> MSize;
+  __sycl_ns::range<3> MSize;
   int MDims;
   int MElemSize;
   std::vector<char> MMem;
@@ -183,12 +183,12 @@ using LocalAccessorImplPtr = std::shared_ptr<LocalAccessorImplHost>;
 
 class LocalAccessorBaseHost {
 public:
-  LocalAccessorBaseHost(sycl::range<3> Size, int Dims, int ElemSize) {
+  LocalAccessorBaseHost(__sycl_ns::range<3> Size, int Dims, int ElemSize) {
     impl = std::shared_ptr<LocalAccessorImplHost>(
         new LocalAccessorImplHost(Size, Dims, ElemSize));
   }
-  sycl::range<3> &getSize() { return impl->MSize; }
-  const sycl::range<3> &getSize() const { return impl->MSize; }
+  __sycl_ns::range<3> &getSize() { return impl->MSize; }
+  const __sycl_ns::range<3> &getSize() const { return impl->MSize; }
   void *getPtr() { return impl->MMem.data(); }
   void *getPtr() const {
     return const_cast<void *>(reinterpret_cast<void *>(impl->MMem.data()));

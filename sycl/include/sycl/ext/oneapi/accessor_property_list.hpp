@@ -39,7 +39,7 @@ template <typename T> struct is_compile_time_property : std::false_type {};
 ///
 /// \ingroup sycl_api
 template <typename... PropsT>
-class accessor_property_list : protected sycl::detail::PropertyListBase {
+class accessor_property_list : protected __sycl_ns::detail::PropertyListBase {
   // These structures check if compile-time-constant property is present in
   // list. For runtime properties this check is always true.
   template <class T, class U> struct AreSameTemplate : std::is_same<T, U> {};
@@ -59,7 +59,7 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   template <typename PropT> struct ContainsProperty<PropT> : std::false_type {};
   template <typename PropT, typename Head, typename... Tail>
   struct ContainsProperty<PropT, Head, Tail...>
-      : sycl::detail::conditional_t<AreSameTemplate<PropT, Head>::value,
+      : __sycl_ns::detail::conditional_t<AreSameTemplate<PropT, Head>::value,
                                     std::true_type,
                                     ContainsProperty<PropT, Tail...>> {};
 
@@ -85,7 +85,7 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   template <typename ContainerT, template <auto...> typename PropT,
             auto... Args>
   struct ContainsPropertyInstance
-      : sycl::detail::conditional_t<
+      : __sycl_ns::detail::conditional_t<
             !std::is_same_v<typename ContainerT::Head, void> &&
                 AreSameTemplate<PropT<Args...>,
                                 typename ContainerT::Head>::value,
@@ -102,8 +102,8 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   // skipped.
   template <typename ContainerT, typename... OtherProps>
   struct ContainsSameProperties
-      : sycl::detail::conditional_t<
-            !sycl::detail::IsCompileTimePropertyInstance<
+      : __sycl_ns::detail::conditional_t<
+            !__sycl_ns::detail::IsCompileTimePropertyInstance<
                 typename ContainerT::Head>::value ||
                 ContainsProperty<typename ContainerT::Head,
                                  OtherProps...>::value,
@@ -119,7 +119,7 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   // use void as return type.
   template <typename ContainerT, template <auto...> class PropT, auto... Args>
   struct GetCompileTimePropertyHelper {
-    using type = typename sycl::detail::conditional_t<
+    using type = typename __sycl_ns::detail::conditional_t<
         AreSameTemplate<typename ContainerT::Head, PropT<Args...>>::value,
         typename ContainerT::Head,
         typename GetCompileTimePropertyHelper<typename ContainerT::Rest, PropT,
@@ -127,7 +127,7 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   };
   template <typename Head, template <auto...> class PropT, auto... Args>
   struct GetCompileTimePropertyHelper<PropertyContainer<Head>, PropT, Args...> {
-    using type = typename sycl::detail::conditional_t<
+    using type = typename __sycl_ns::detail::conditional_t<
         AreSameTemplate<Head, PropT<Args...>>::value, Head, void>;
   };
 #endif
@@ -140,53 +140,53 @@ class accessor_property_list : protected sycl::detail::PropertyListBase {
   template <typename... Tail> struct AllProperties : std::true_type {};
   template <typename T, typename... Tail>
   struct AllProperties<T, Tail...>
-      : sycl::detail::conditional_t<
-            std::is_base_of<sycl::detail::DataLessPropertyBase, T>::value ||
-                std::is_base_of<sycl::detail::PropertyWithDataBase, T>::value ||
-                sycl::detail::IsCompileTimePropertyInstance<T>::value,
+      : __sycl_ns::detail::conditional_t<
+            std::is_base_of<__sycl_ns::detail::DataLessPropertyBase, T>::value ||
+                std::is_base_of<__sycl_ns::detail::PropertyWithDataBase, T>::value ||
+                __sycl_ns::detail::IsCompileTimePropertyInstance<T>::value,
             AllProperties<Tail...>, std::false_type> {};
 
   accessor_property_list(
-      std::bitset<sycl::detail::DataLessPropKind::DataLessPropKindSize>
+      std::bitset<__sycl_ns::detail::DataLessPropKind::DataLessPropKindSize>
           DataLessProps,
-      std::vector<std::shared_ptr<sycl::detail::PropertyWithDataBase>>
+      std::vector<std::shared_ptr<__sycl_ns::detail::PropertyWithDataBase>>
           PropsWithData)
-      : sycl::detail::PropertyListBase(DataLessProps, PropsWithData) {}
+      : __sycl_ns::detail::PropertyListBase(DataLessProps, PropsWithData) {}
 
 public:
-  template <typename = typename sycl::detail::enable_if_t<
+  template <typename = typename __sycl_ns::detail::enable_if_t<
                 AllProperties<PropsT...>::value>>
   accessor_property_list(PropsT... Props)
-      : sycl::detail::PropertyListBase(false) {
+      : __sycl_ns::detail::PropertyListBase(false) {
     ctorHelper(Props...);
   }
 
-  accessor_property_list(const sycl::property_list &Props)
-      : sycl::detail::PropertyListBase(Props.MDataLessProps,
+  accessor_property_list(const __sycl_ns::property_list &Props)
+      : __sycl_ns::detail::PropertyListBase(Props.MDataLessProps,
                                        Props.MPropsWithData) {}
 
   template <typename... OtherProps,
-            typename = typename sycl::detail::enable_if_t<
+            typename = typename __sycl_ns::detail::enable_if_t<
                 ContainsSameProperties<PropertyContainer<PropsT...>,
                                        OtherProps...>::value &&
                 ContainsSameProperties<PropertyContainer<OtherProps...>,
                                        PropsT...>::value>>
   accessor_property_list(const accessor_property_list<OtherProps...> &OtherList)
-      : sycl::detail::PropertyListBase(OtherList.MDataLessProps,
+      : __sycl_ns::detail::PropertyListBase(OtherList.MDataLessProps,
                                        OtherList.MPropsWithData) {}
 
-  template <typename PropT, typename = typename sycl::detail::enable_if_t<
+  template <typename PropT, typename = typename __sycl_ns::detail::enable_if_t<
                                 !is_compile_time_property<PropT>::value>>
   PropT get_property() const {
     if (!has_property<PropT>())
-      throw sycl::invalid_object_error("The property is not found",
+      throw __sycl_ns::invalid_object_error("The property is not found",
                                        PI_INVALID_VALUE);
 
     return get_property_helper<PropT>();
   }
 
   template <class PropT>
-  typename sycl::detail::enable_if_t<!is_compile_time_property<PropT>::value,
+  typename __sycl_ns::detail::enable_if_t<!is_compile_time_property<PropT>::value,
                                      bool>
   has_property() const {
     return has_property_helper<PropT>();
@@ -218,7 +218,7 @@ private:
 
   template <typename... OtherProps> friend class accessor_property_list;
 
-  friend class sycl::property_list;
+  friend class __sycl_ns::property_list;
 
   // Helper method, used by accessor to restrict conversions to compatible
   // property lists.

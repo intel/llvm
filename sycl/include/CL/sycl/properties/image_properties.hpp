@@ -30,12 +30,12 @@ private:
 class context_bound
     : public detail::PropertyWithData<detail::ImageContextBound> {
 public:
-  context_bound(sycl::context BoundContext) : MCtx(std::move(BoundContext)) {}
+  context_bound(__sycl_ns::context BoundContext) : MCtx(std::move(BoundContext)) {}
 
-  sycl::context get_context() const { return MCtx; }
+  __sycl_ns::context get_context() const { return MCtx; }
 
 private:
-  sycl::context MCtx;
+  __sycl_ns::context MCtx;
 };
 } // namespace image
 } // namespace property

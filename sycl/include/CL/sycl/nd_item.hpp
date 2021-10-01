@@ -212,9 +212,10 @@ namespace oneapi {
 namespace experimental {
 template <int Dims> nd_item<Dims> this_nd_item() {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(detail::declptr<nd_item<Dims>>());
+  return __sycl_ns::detail::Builder::getElement(
+      detail::declptr<nd_item<Dims>>());
 #else
-  return sycl::detail::store_nd_item<Dims>(nullptr);
+  return __sycl_ns::detail::store_nd_item<Dims>(nullptr);
 #endif
 }
 } // namespace experimental

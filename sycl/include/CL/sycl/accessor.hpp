@@ -449,8 +449,8 @@ private:
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-  sycl::vec<int, Dimensions> getRangeInternal() const {
-    return __invoke_ImageQuerySize<sycl::vec<int, Dimensions>, OCLImageTy>(
+  __sycl_ns::vec<int, Dimensions> getRangeInternal() const {
+    return __invoke_ImageQuerySize<__sycl_ns::vec<int, Dimensions>, OCLImageTy>(
         MImageObj);
   }
 
@@ -463,17 +463,17 @@ private:
 
 #else
 
-  sycl::vec<int, Dimensions> getRangeInternal() const {
+  __sycl_ns::vec<int, Dimensions> getRangeInternal() const {
     // TODO: Implement for host.
     throw runtime_error("image::getRangeInternal() is not implemented for host",
                         PI_INVALID_OPERATION);
-    return sycl::vec<int, Dimensions>{1};
+    return __sycl_ns::vec<int, Dimensions>{1};
   }
 
 #endif
 
 private:
-  friend class sycl::ext::intel::experimental::esimd::detail::
+  friend class __sycl_ns::ext::intel::experimental::esimd::detail::
       AccessorPrivateProxy;
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -687,20 +687,20 @@ class __image_array_slice__ {
   template <typename CoordT,
             typename CoordElemType =
                 typename detail::TryToGetElementType<CoordT>::type>
-  sycl::vec<CoordElemType, AdjustedDims>
+  __sycl_ns::vec<CoordElemType, AdjustedDims>
   getAdjustedCoords(const CoordT &Coords) const {
     CoordElemType LastCoord = 0;
 
     if (std::is_same<float, CoordElemType>::value) {
-      sycl::vec<int, Dimensions + 1> Size = MBaseAcc.getRangeInternal();
+      __sycl_ns::vec<int, Dimensions + 1> Size = MBaseAcc.getRangeInternal();
       LastCoord =
           MIdx / static_cast<float>(Size.template swizzle<Dimensions>());
     } else {
       LastCoord = MIdx;
     }
 
-    sycl::vec<CoordElemType, Dimensions> LeftoverCoords{LastCoord};
-    sycl::vec<CoordElemType, AdjustedDims> AdjustedCoords{Coords,
+    __sycl_ns::vec<CoordElemType, Dimensions> LeftoverCoords{LastCoord};
+    __sycl_ns::vec<CoordElemType, AdjustedDims> AdjustedCoords{Coords,
                                                           LeftoverCoords};
     return AdjustedCoords;
   }
@@ -942,8 +942,8 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 
 private:
-  friend class sycl::stream;
-  friend class sycl::ext::intel::experimental::esimd::detail::
+  friend class __sycl_ns::stream;
+  friend class __sycl_ns::ext::intel::experimental::esimd::detail::
       AccessorPrivateProxy;
 
 public:
@@ -1825,8 +1825,8 @@ protected:
 #ifdef __SYCL_DEVICE_ONLY__
   detail::LocalAccessorBaseDevice<AdjustedDim> impl;
 
-  sycl::range<AdjustedDim> &getSize() { return impl.MemRange; }
-  const sycl::range<AdjustedDim> &getSize() const { return impl.MemRange; }
+  __sycl_ns::range<AdjustedDim> &getSize() { return impl.MemRange; }
+  const __sycl_ns::range<AdjustedDim> &getSize() const { return impl.MemRange; }
 
   void __init(ConcreteASPtrType Ptr, range<AdjustedDim> AccessRange,
               range<AdjustedDim>, id<AdjustedDim>) {

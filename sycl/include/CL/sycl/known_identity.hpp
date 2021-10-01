@@ -18,48 +18,48 @@ namespace detail {
 
 template <typename T, class BinaryOperation>
 using IsPlus =
-    bool_constant<std::is_same<BinaryOperation, sycl::plus<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::plus<void>>::value>;
+    bool_constant<std::is_same<BinaryOperation, __sycl_ns::plus<T>>::value ||
+                  std::is_same<BinaryOperation, __sycl_ns::plus<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsMultiplies =
-    bool_constant<std::is_same<BinaryOperation, sycl::multiplies<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::multiplies<void>>::value>;
+using IsMultiplies = bool_constant<
+    std::is_same<BinaryOperation, __sycl_ns::multiplies<T>>::value ||
+    std::is_same<BinaryOperation, __sycl_ns::multiplies<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsMinimum =
-    bool_constant<std::is_same<BinaryOperation, sycl::minimum<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::minimum<void>>::value>;
+using IsMinimum = bool_constant<
+    std::is_same<BinaryOperation, __sycl_ns::minimum<T>>::value ||
+    std::is_same<BinaryOperation, __sycl_ns::minimum<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsMaximum =
-    bool_constant<std::is_same<BinaryOperation, sycl::maximum<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::maximum<void>>::value>;
+using IsMaximum = bool_constant<
+    std::is_same<BinaryOperation, __sycl_ns::maximum<T>>::value ||
+    std::is_same<BinaryOperation, __sycl_ns::maximum<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsBitAND =
-    bool_constant<std::is_same<BinaryOperation, sycl::bit_and<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::bit_and<void>>::value>;
+using IsBitAND = bool_constant<
+    std::is_same<BinaryOperation, __sycl_ns::bit_and<T>>::value ||
+    std::is_same<BinaryOperation, __sycl_ns::bit_and<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsBitOR =
-    bool_constant<std::is_same<BinaryOperation, sycl::bit_or<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::bit_or<void>>::value>;
+using IsBitOR = bool_constant<
+    std::is_same<BinaryOperation, __sycl_ns::bit_or<T>>::value ||
+    std::is_same<BinaryOperation, __sycl_ns::bit_or<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsBitXOR =
-    bool_constant<std::is_same<BinaryOperation, sycl::bit_xor<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::bit_xor<void>>::value>;
+using IsBitXOR = bool_constant<
+    std::is_same<BinaryOperation, __sycl_ns::bit_xor<T>>::value ||
+    std::is_same<BinaryOperation, __sycl_ns::bit_xor<void>>::value>;
 
 template <typename T, class BinaryOperation>
 using IsLogicalAND = bool_constant<
-    std::is_same<BinaryOperation, sycl::logical_and<T>>::value ||
-    std::is_same<BinaryOperation, sycl::logical_and<void>>::value>;
+    std::is_same<BinaryOperation, __sycl_ns::logical_and<T>>::value ||
+    std::is_same<BinaryOperation, __sycl_ns::logical_and<void>>::value>;
 
 template <typename T, class BinaryOperation>
-using IsLogicalOR =
-    bool_constant<std::is_same<BinaryOperation, sycl::logical_or<T>>::value ||
-                  std::is_same<BinaryOperation, sycl::logical_or<void>>::value>;
+using IsLogicalOR = bool_constant<
+    std::is_same<BinaryOperation, __sycl_ns::logical_or<T>>::value ||
+    std::is_same<BinaryOperation, __sycl_ns::logical_or<void>>::value>;
 
 // Identity = 0
 template <typename T, class BinaryOperation>
@@ -215,7 +215,7 @@ struct has_known_identity
 
 template <typename BinaryOperation, typename AccumulatorT>
 __SYCL_INLINE_CONSTEXPR bool has_known_identity_v =
-    sycl::has_known_identity<BinaryOperation, AccumulatorT>::value;
+    __sycl_ns::has_known_identity<BinaryOperation, AccumulatorT>::value;
 
 // ---- known_identity
 template <typename BinaryOperation, typename AccumulatorT>
@@ -225,7 +225,7 @@ struct known_identity
 
 template <typename BinaryOperation, typename AccumulatorT>
 __SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
-    sycl::known_identity<BinaryOperation, AccumulatorT>::value;
+    __sycl_ns::known_identity<BinaryOperation, AccumulatorT>::value;
 
 } // __SYCL_OPEN_NS()
 __SYCL_CLOSE_NS()

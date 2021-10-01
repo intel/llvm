@@ -53,7 +53,7 @@ public:
   NDRDescT()
       : GlobalSize{0, 0, 0}, LocalSize{0, 0, 0}, NumWorkGroups{0, 0, 0} {}
 
-  template <int Dims_> void set(sycl::range<Dims_> NumWorkItems) {
+  template <int Dims_> void set(__sycl_ns::range<Dims_> NumWorkItems) {
     for (int I = 0; I < Dims_; ++I) {
       GlobalSize[I] = NumWorkItems[I];
       LocalSize[I] = 0;
@@ -67,7 +67,7 @@ public:
   // Initializes this ND range descriptor with given range of work items and
   // offset.
   template <int Dims_>
-  void set(sycl::range<Dims_> NumWorkItems, sycl::id<Dims_> Offset) {
+  void set(__sycl_ns::range<Dims_> NumWorkItems, __sycl_ns::id<Dims_> Offset) {
     for (int I = 0; I < Dims_; ++I) {
       GlobalSize[I] = NumWorkItems[I];
       LocalSize[I] = 0;
@@ -78,7 +78,7 @@ public:
     Dims = Dims_;
   }
 
-  template <int Dims_> void set(sycl::nd_range<Dims_> ExecutionRange) {
+  template <int Dims_> void set(__sycl_ns::nd_range<Dims_> ExecutionRange) {
     for (int I = 0; I < Dims_; ++I) {
       GlobalSize[I] = ExecutionRange.get_global_range()[I];
       LocalSize[I] = ExecutionRange.get_local_range()[I];
@@ -89,7 +89,7 @@ public:
     Dims = Dims_;
   }
 
-  void set(int Dims_, sycl::nd_range<3> ExecutionRange) {
+  void set(int Dims_, __sycl_ns::nd_range<3> ExecutionRange) {
     for (int I = 0; I < Dims_; ++I) {
       GlobalSize[I] = ExecutionRange.get_global_range()[I];
       LocalSize[I] = ExecutionRange.get_local_range()[I];
@@ -100,7 +100,7 @@ public:
     Dims = Dims_;
   }
 
-  template <int Dims_> void setNumWorkGroups(sycl::range<Dims_> N) {
+  template <int Dims_> void setNumWorkGroups(__sycl_ns::range<Dims_> N) {
     for (int I = 0; I < Dims_; ++I) {
       GlobalSize[I] = 0;
       // '0' is a mark to adjust before kernel launch when there is enough info:
@@ -112,13 +112,13 @@ public:
     Dims = Dims_;
   }
 
-  sycl::range<3> GlobalSize;
-  sycl::range<3> LocalSize;
-  sycl::id<3> GlobalOffset;
+  __sycl_ns::range<3> GlobalSize;
+  __sycl_ns::range<3> LocalSize;
+  __sycl_ns::id<3> GlobalOffset;
   /// Number of workgroups, used to record the number of workgroups from the
   /// simplest form of parallel_for_work_group. If set, all other fields must be
   /// zero
-  sycl::range<3> NumWorkGroups;
+  __sycl_ns::range<3> NumWorkGroups;
   size_t Dims;
 };
 
@@ -243,7 +243,7 @@ public:
 // Class which stores specific lambda object.
 template <class KernelType, class KernelArgType, int Dims, typename KernelName>
 class HostKernel : public HostKernelBase {
-  using IDBuilder = sycl::detail::Builder;
+  using IDBuilder = __sycl_ns::detail::Builder;
   KernelType MKernel;
 
 public:
@@ -284,16 +284,17 @@ public:
   }
 
   template <class ArgT = KernelArgType>
-  typename detail::enable_if_t<std::is_same<ArgT, sycl::id<Dims>>::value>
+  typename detail::enable_if_t<std::is_same<ArgT, __sycl_ns::id<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
     using KI = detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
 
-    sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
-    sycl::id<Dims> Offset;
-    sycl::range<Dims> Stride(
+    __sycl_ns::range<Dims> Range(
+        InitializedVal<Dims, range>::template get<0>());
+    __sycl_ns::id<Dims> Offset;
+    __sycl_ns::range<Dims> Stride(
         InitializedVal<Dims, range>::template get<1>()); // initialized to 1
-    sycl::range<Dims> UpperBound(
+    __sycl_ns::range<Dims> UpperBound(
         InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       Range[I] = NDRDesc.GlobalSize[I];
@@ -303,15 +304,15 @@ public:
 
     detail::NDLoop<Dims>::iterate(
         /*LowerBound=*/Offset, Stride, UpperBound,
-        [&](const sycl::id<Dims> &ID) {
-          sycl::item<Dims, /*Offset=*/true> Item =
+        [&](const __sycl_ns::id<Dims> &ID) {
+          __sycl_ns::item<Dims, /*Offset=*/true> Item =
               IDBuilder::createItem<Dims, true>(Range, ID, Offset);
 
           if (StoreLocation) {
             store_id(&ID);
             store_item(&Item);
           }
-          runKernelWithArg<const sycl::id<Dims> &>(MKernel, ID);
+          runKernelWithArg<const __sycl_ns::id<Dims> &>(MKernel, ID);
         });
   }
 
@@ -322,21 +323,22 @@ public:
     using KI = detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
 
-    sycl::id<Dims> ID;
-    sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
+    __sycl_ns::id<Dims> ID;
+    __sycl_ns::range<Dims> Range(
+        InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I)
       Range[I] = NDRDesc.GlobalSize[I];
 
-    detail::NDLoop<Dims>::iterate(Range, [&](const sycl::id<Dims> ID) {
-      sycl::item<Dims, /*Offset=*/false> Item =
+    detail::NDLoop<Dims>::iterate(Range, [&](const __sycl_ns::id<Dims> ID) {
+      __sycl_ns::item<Dims, /*Offset=*/false> Item =
           IDBuilder::createItem<Dims, false>(Range, ID);
-      sycl::item<Dims, /*Offset=*/true> ItemWithOffset = Item;
+      __sycl_ns::item<Dims, /*Offset=*/true> ItemWithOffset = Item;
 
       if (StoreLocation) {
         store_id(&ID);
         store_item(&ItemWithOffset);
       }
-      runKernelWithArg<sycl::item<Dims, /*Offset=*/false>>(MKernel, Item);
+      runKernelWithArg<__sycl_ns::item<Dims, /*Offset=*/false>>(MKernel, Item);
     });
   }
 
@@ -347,11 +349,12 @@ public:
     using KI = detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
 
-    sycl::range<Dims> Range(InitializedVal<Dims, range>::template get<0>());
-    sycl::id<Dims> Offset;
-    sycl::range<Dims> Stride(
+    __sycl_ns::range<Dims> Range(
+        InitializedVal<Dims, range>::template get<0>());
+    __sycl_ns::id<Dims> Offset;
+    __sycl_ns::range<Dims> Stride(
         InitializedVal<Dims, range>::template get<1>()); // initialized to 1
-    sycl::range<Dims> UpperBound(
+    __sycl_ns::range<Dims> UpperBound(
         InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       Range[I] = NDRDesc.GlobalSize[I];
@@ -361,15 +364,16 @@ public:
 
     detail::NDLoop<Dims>::iterate(
         /*LowerBound=*/Offset, Stride, UpperBound,
-        [&](const sycl::id<Dims> &ID) {
-          sycl::item<Dims, /*Offset=*/true> Item =
+        [&](const __sycl_ns::id<Dims> &ID) {
+          __sycl_ns::item<Dims, /*Offset=*/true> Item =
               IDBuilder::createItem<Dims, true>(Range, ID, Offset);
 
           if (StoreLocation) {
             store_id(&ID);
             store_item(&Item);
           }
-          runKernelWithArg<sycl::item<Dims, /*Offset=*/true>>(MKernel, Item);
+          runKernelWithArg<__sycl_ns::item<Dims, /*Offset=*/true>>(MKernel,
+                                                                   Item);
         });
   }
 
@@ -379,19 +383,21 @@ public:
     using KI = detail::KernelInfo<KernelName>;
     constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
 
-    sycl::range<Dims> GroupSize(InitializedVal<Dims, range>::template get<0>());
+    __sycl_ns::range<Dims> GroupSize(
+        InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||
           NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
-        throw sycl::nd_range_error("Invalid local size for global size",
-                                   PI_INVALID_WORK_GROUP_SIZE);
+        throw __sycl_ns::nd_range_error("Invalid local size for global size",
+                                        PI_INVALID_WORK_GROUP_SIZE);
       GroupSize[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     }
 
-    sycl::range<Dims> LocalSize(InitializedVal<Dims, range>::template get<0>());
-    sycl::range<Dims> GlobalSize(
+    __sycl_ns::range<Dims> LocalSize(
         InitializedVal<Dims, range>::template get<0>());
-    sycl::id<Dims> GlobalOffset;
+    __sycl_ns::range<Dims> GlobalSize(
+        InitializedVal<Dims, range>::template get<0>());
+    __sycl_ns::id<Dims> GlobalOffset;
     for (int I = 0; I < Dims; ++I) {
       GlobalOffset[I] = NDRDesc.GlobalOffset[I];
       LocalSize[I] = NDRDesc.LocalSize[I];
@@ -399,17 +405,17 @@ public:
     }
 
     detail::NDLoop<Dims>::iterate(GroupSize, [&](const id<Dims> &GroupID) {
-      sycl::group<Dims> Group = IDBuilder::createGroup<Dims>(
+      __sycl_ns::group<Dims> Group = IDBuilder::createGroup<Dims>(
           GlobalSize, LocalSize, GroupSize, GroupID);
 
       detail::NDLoop<Dims>::iterate(LocalSize, [&](const id<Dims> &LocalID) {
         id<Dims> GlobalID = GroupID * LocalSize + LocalID + GlobalOffset;
-        const sycl::item<Dims, /*Offset=*/true> GlobalItem =
+        const __sycl_ns::item<Dims, /*Offset=*/true> GlobalItem =
             IDBuilder::createItem<Dims, true>(GlobalSize, GlobalID,
                                               GlobalOffset);
-        const sycl::item<Dims, /*Offset=*/false> LocalItem =
+        const __sycl_ns::item<Dims, /*Offset=*/false> LocalItem =
             IDBuilder::createItem<Dims, false>(LocalSize, LocalID);
-        const sycl::nd_item<Dims> NDItem =
+        const __sycl_ns::nd_item<Dims> NDItem =
             IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
 
         if (StoreLocation) {
@@ -419,7 +425,7 @@ public:
           auto g = NDItem.get_group();
           store_group(&g);
         }
-        runKernelWithArg<const sycl::nd_item<Dims>>(MKernel, NDItem);
+        runKernelWithArg<const __sycl_ns::nd_item<Dims>>(MKernel, NDItem);
       });
     });
   }
@@ -427,27 +433,29 @@ public:
   template <typename ArgT = KernelArgType>
   enable_if_t<std::is_same<ArgT, __sycl_ns::group<Dims>>::value>
   runOnHost(const NDRDescT &NDRDesc) {
-    sycl::range<Dims> NGroups(InitializedVal<Dims, range>::template get<0>());
+    __sycl_ns::range<Dims> NGroups(
+        InitializedVal<Dims, range>::template get<0>());
 
     for (int I = 0; I < Dims; ++I) {
       if (NDRDesc.LocalSize[I] == 0 ||
           NDRDesc.GlobalSize[I] % NDRDesc.LocalSize[I] != 0)
-        throw sycl::nd_range_error("Invalid local size for global size",
-                                   PI_INVALID_WORK_GROUP_SIZE);
+        throw __sycl_ns::nd_range_error("Invalid local size for global size",
+                                        PI_INVALID_WORK_GROUP_SIZE);
       NGroups[I] = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
     }
 
-    sycl::range<Dims> LocalSize(InitializedVal<Dims, range>::template get<0>());
-    sycl::range<Dims> GlobalSize(
+    __sycl_ns::range<Dims> LocalSize(
+        InitializedVal<Dims, range>::template get<0>());
+    __sycl_ns::range<Dims> GlobalSize(
         InitializedVal<Dims, range>::template get<0>());
     for (int I = 0; I < Dims; ++I) {
       LocalSize[I] = NDRDesc.LocalSize[I];
       GlobalSize[I] = NDRDesc.GlobalSize[I];
     }
     detail::NDLoop<Dims>::iterate(NGroups, [&](const id<Dims> &GroupID) {
-      sycl::group<Dims> Group =
+      __sycl_ns::group<Dims> Group =
           IDBuilder::createGroup<Dims>(GlobalSize, LocalSize, NGroups, GroupID);
-      runKernelWithArg<sycl::group<Dims>>(MKernel, Group);
+      runKernelWithArg<__sycl_ns::group<Dims>>(MKernel, Group);
     });
   }
 

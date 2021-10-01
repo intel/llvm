@@ -1193,7 +1193,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
       // which won't be properly resolved in separate compile use-case
 #ifndef NDEBUG
       if (AH->Flag == __SYCL_ASSERT_START)
-        throw sycl::runtime_error(
+        throw __sycl_ns::runtime_error(
             "Internal Error. Invalid value in assert description.",
             PI_INVALID_VALUE);
 #endif

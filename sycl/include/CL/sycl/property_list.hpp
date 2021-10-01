@@ -41,7 +41,7 @@ public:
 
   template <typename PropT> PropT get_property() const {
     if (!has_property<PropT>())
-      throw sycl::invalid_object_error("The property is not found",
+      throw __sycl_ns::invalid_object_error("The property is not found",
                                        PI_INVALID_VALUE);
 
     return get_property_helper<PropT>();

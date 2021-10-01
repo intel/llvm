@@ -42,7 +42,7 @@ namespace detail {
 template <typename T> struct builtins_helper;
 
 inline __SYCL_CONSTEXPR_HALF uint16_t float2Half(const float &Val) {
-  const uint32_t Bits = sycl::bit_cast<uint32_t>(Val);
+  const uint32_t Bits = __sycl_ns::bit_cast<uint32_t>(Val);
 
   // Extract the sign from the float value
   const uint16_t Sign = (Bits & 0x80000000) >> 16;
@@ -123,7 +123,7 @@ inline __SYCL_CONSTEXPR_HALF float half2Float(const uint16_t &Val) {
   Bits |= Sign;
   Bits |= (Exp32 << 23);
   Bits |= Frac32;
-  const float Result = sycl::bit_cast<float>(Bits);
+  const float Result = __sycl_ns::bit_cast<float>(Bits);
   return Result;
 }
 

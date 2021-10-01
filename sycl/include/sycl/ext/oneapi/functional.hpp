@@ -20,8 +20,8 @@ template <typename T = void> using multiplies = std::multiplies<T>;
 template <typename T = void> using bit_or = std::bit_or<T>;
 template <typename T = void> using bit_xor = std::bit_xor<T>;
 template <typename T = void> using bit_and = std::bit_and<T>;
-template <typename T = void> using maximum = sycl::maximum<T>;
-template <typename T = void> using minimum = sycl::minimum<T>;
+template <typename T = void> using maximum = __sycl_ns::maximum<T>;
+template <typename T = void> using minimum = __sycl_ns::minimum<T>;
 
 } // namespace oneapi
 } // namespace ext
@@ -69,28 +69,28 @@ struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
   }
 
 // calc for sycl function objects
-__SYCL_CALC_OVERLOAD(GroupOpISigned, SMin, sycl::minimum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMin, sycl::minimum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, FMin, sycl::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, SMin, __sycl_ns::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMin, __sycl_ns::minimum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMin, __sycl_ns::minimum<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpISigned, SMax, sycl::maximum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMax, sycl::maximum<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, FMax, sycl::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, SMax, __sycl_ns::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, UMax, __sycl_ns::maximum<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMax, __sycl_ns::maximum<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpISigned, IAdd, sycl::plus<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, sycl::plus<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, sycl::plus<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, IAdd, __sycl_ns::plus<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, __sycl_ns::plus<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, __sycl_ns::plus<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformIMul, sycl::multiplies<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformIMul, sycl::multiplies<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, NonUniformFMul, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformIMul, __sycl_ns::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformIMul, __sycl_ns::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, NonUniformFMul, __sycl_ns::multiplies<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseOr, sycl::bit_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseOr, sycl::bit_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseXor, sycl::bit_xor<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseXor, sycl::bit_xor<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseAnd, sycl::bit_and<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseAnd, sycl::bit_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseOr, __sycl_ns::bit_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseOr, __sycl_ns::bit_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseXor, __sycl_ns::bit_xor<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseXor, __sycl_ns::bit_xor<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseAnd, __sycl_ns::bit_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseAnd, __sycl_ns::bit_and<T>)
 
 #undef __SYCL_CALC_OVERLOAD
 

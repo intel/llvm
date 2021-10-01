@@ -150,7 +150,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                      !detail::is_vector_arithmetic<T>::value),
                     T> broadcast(Group, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::spirv::GroupBroadcast<Group>(x, local_id);
+  return __sycl_ns::detail::spirv::GroupBroadcast<Group>(x, local_id);
 #else
   (void)x;
   (void)local_id;
@@ -193,7 +193,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
 #ifdef __SYCL_DEVICE_ONLY__
   return broadcast(
       g, x,
-      sycl::detail::linear_id_to_id(g.get_local_range(), linear_local_id));
+      __sycl_ns::detail::linear_id_to_id(g.get_local_range(), linear_local_id));
 #else
   (void)g;
   (void)x;
@@ -537,7 +537,7 @@ detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
 leader(Group g) {
 #ifdef __SYCL_DEVICE_ONLY__
   typename Group::linear_id_type linear_id =
-      sycl::detail::get_local_linear_id(g);
+      __sycl_ns::detail::get_local_linear_id(g);
   return (linear_id == 0);
 #else
   (void)g;

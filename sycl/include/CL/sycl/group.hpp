@@ -98,8 +98,8 @@ public:
   static constexpr int dimensions = Dimensions;
 #endif // __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
 
-  static constexpr sycl::memory_scope fence_scope =
-      sycl::memory_scope::work_group;
+  static constexpr __sycl_ns::memory_scope fence_scope =
+      __sycl_ns::memory_scope::work_group;
 
   group() = delete;
 
@@ -442,9 +442,9 @@ namespace oneapi {
 namespace experimental {
 template <int Dims> group<Dims> this_group() {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(detail::declptr<group<Dims>>());
+  return __sycl_ns::detail::Builder::getElement(detail::declptr<group<Dims>>());
 #else
-  return sycl::detail::store_group<Dims>(nullptr);
+  return __sycl_ns::detail::store_group<Dims>(nullptr);
 #endif
 }
 } // namespace experimental

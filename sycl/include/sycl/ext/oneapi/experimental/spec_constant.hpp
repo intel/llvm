@@ -50,7 +50,7 @@ private:
 
 public:
   template <typename V = T>
-  typename sycl::detail::enable_if_t<std::is_arithmetic<V>::value, V>
+  typename __sycl_ns::detail::enable_if_t<std::is_arithmetic<V>::value, V>
   get() const { // explicit access.
 #ifdef __SYCL_DEVICE_ONLY__
     const char *TName = __builtin_sycl_unique_stable_name(ID);
@@ -61,9 +61,9 @@ public:
   }
 
   template <typename V = T>
-  typename sycl::detail::enable_if_t<std::is_class<V>::value &&
-                                         std::is_pod<V>::value,
-                                     V>
+  typename __sycl_ns::detail::enable_if_t<std::is_class<V>::value &&
+                                              std::is_pod<V>::value,
+                                          V>
   get() const { // explicit access.
 #ifdef __SYCL_DEVICE_ONLY__
     const char *TName = __builtin_sycl_unique_stable_name(ID);
