@@ -574,9 +574,9 @@ compiler works in OpenCL C 2.0 mode.
 The following three device global properties must be propagated from DPC++
 source code, through LLVM IR, and into SPIR-V where they are represented as
 SPIR-V decorations (defined in the
-[SPV\_INTEL\_fpga\_device\_global\_properties][12] extension).
+[SPV\_INTEL\_global\_variable\_decorations][12] extension).
 
-[12]: <extensions/DeviceGlobal/SPV_INTEL_fpga_device_global_properties.asciidoc>
+[12]: <extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc>
 
 * `copy_access`
 * `init_via`
