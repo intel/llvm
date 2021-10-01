@@ -513,6 +513,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // cl_khr_fp64, cl_khr_int64_base_atomics,
     // cl_khr_int64_extended_atomics
     return ReturnValue("");
+    // P2P is currently unsupported in level zero
+  case PI_DEVICE_INFO_P2P_READ_DEVICES:
+    return ReturnValue(std::vector<pi_device>{});
 
 #define UNSUPPORTED_INFO(info)                                                 \
   case info:                                                                   \

@@ -2448,6 +2448,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // currently not supported in level zero runtime
     return PI_INVALID_VALUE;
+    // P2P is currently unsupported in level zero
+  case PI_DEVICE_INFO_P2P_READ_DEVICES:
+    return ReturnValue(std::vector<pi_device>{});
 
   default:
     zePrint("Unsupported ParamName in piGetDeviceInfo\n");

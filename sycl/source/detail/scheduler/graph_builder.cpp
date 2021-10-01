@@ -963,7 +963,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                    ->getHandleRef();
 
           NeedMemMoveToHost =
-              std::find(Devs.begin(), Devs.end(), SrcDev) != Devs.end();
+              std::find(Devs.begin(), Devs.end(), SrcDev) == Devs.end();
         }
       }
       if (NeedMemMoveToHost)

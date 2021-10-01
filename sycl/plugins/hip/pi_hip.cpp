@@ -1563,6 +1563,10 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     }
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
+  // P2P is currently unsupported in level zero
+  case PI_DEVICE_INFO_P2P_READ_DEVICES:
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   std::vector<pi_device>{});
 
   // TODO: Implement.
   case PI_DEVICE_INFO_ATOMIC_64:
