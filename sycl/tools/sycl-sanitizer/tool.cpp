@@ -12,13 +12,24 @@
 
 #ifdef _WIN32
 #include <process.h>
-#pragma warning(disable : 4996)
 #else
 #include <unistd.h>
 #endif
 
 void showHelp() {
   std::cout << "Sample usage: sycl-sanitizer application.exe --arg1 --arg2\n";
+}
+
+int launch(const char *Cmd, const std::vector<const char *> &Args,
+           const std::vector<const char*> &Env) {
+#ifdef _WIN32
+  _spawnve(_P_WAIT, Cmd, const_cast<char *const *>(Args.data()),
+          const_cast<char *const *>(Env.data()));
+  return 0;
+#else
+  return execve(Cmd, const_cast<char *const *>(Args.data()),
+                const_cast<char *const *>(NewEnv.data()));
+#endif
 }
 
 int main(int argc, char *argv[], char *env[]) {
@@ -40,20 +51,24 @@ int main(int argc, char *argv[], char *env[]) {
       NewEnv.push_back(env[I++]);
   }
 
-  NewEnv.push_back("XPTI_TRACE_ENABLE=1");
+#ifdef _WIN32
+  NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=xptifw.dll");
+  NewEnv.push_back("XPTI_SUBSCRIBERS=sycl_sanitizer_collector.dll");
+#else
   NewEnv.push_back("XPTI_FRAMEWORK_DISPATCHER=libxptifw.so");
   NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_sanitizer_collector.so");
+#endif
+  NewEnv.push_back("XPTI_TRACE_ENABLE=1");
   NewEnv.push_back(nullptr);
 
   std::vector<const char *> Args;
 
-  for (size_t I = 2; I < static_cast<size_t>(argc); I++)
+  for (size_t I = 1; I < static_cast<size_t>(argc); I++)
     Args.push_back(argv[I]);
 
   Args.push_back(nullptr);
 
-  int Err = execve(argv[1], const_cast<char *const *>(Args.data()),
-                   const_cast<char *const *>(NewEnv.data()));
+  int Err = launch(argv[1], Args, NewEnv);
 
   if (Err) {
     std::cerr << "Failed to launch target application. Error code " << Err
