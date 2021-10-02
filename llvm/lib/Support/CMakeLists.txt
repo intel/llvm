@@ -138,6 +138,7 @@ add_llvm_component_library(LLVMSupport
   Debug.cpp
   DebugCounter.cpp
   DeltaAlgorithm.cpp
+  DivisionByConstantInfo.cpp
   DAGDeltaAlgorithm.cpp
   DJB.cpp
   ELFAttributeParser.cpp
