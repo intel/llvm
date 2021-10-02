@@ -21,10 +21,10 @@ void showHelp() {
 }
 
 int launch(const char *Cmd, const std::vector<const char *> &Args,
-           const std::vector<const char*> &Env) {
+           const std::vector<const char *> &Env) {
 #ifdef _WIN32
   _spawnve(_P_WAIT, Cmd, const_cast<char *const *>(Args.data()),
-          const_cast<char *const *>(Env.data()));
+           const_cast<char *const *>(Env.data()));
   return 0;
 #else
   return execve(Cmd, const_cast<char *const *>(Args.data()),
