@@ -20,7 +20,7 @@
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting
 // traces using the trace framework
-#include "xpti_trace_framework.hpp"
+#include "xpti/xpti_trace_framework.hpp"
 
 #define XPTI_CREATE_TRACEPOINT(CL)                                             \
   std::unique_ptr<xpti::framework::tracepoint_t> _TP(nullptr);                 \

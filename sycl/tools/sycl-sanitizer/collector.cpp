@@ -10,7 +10,7 @@
 /// The SYCL sanitizer collector intercepts PI calls to find memory leaks in
 /// usages of USM pointers.
 
-#include "xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.h"
 
 #include "pi_arguments_handler.hpp"
 
