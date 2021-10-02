@@ -170,6 +170,10 @@ public:
   /// \return true if this queue is a SYCL host queue.
   bool is_host() const { return MHostQueue; }
 
+  bool is_event_required() const {
+    return MIsEventRequired || MisSubmittedExplicitly;
+  }
+
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
@@ -450,6 +454,10 @@ public:
   }
 
 private:
+  void setSubmittedExplicitly(bool isSubmittedExplicitly) {
+    MisSubmittedExplicitly = isSubmittedExplicitly;
+  }
+
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -480,23 +488,7 @@ private:
         PostProcess ? (*PostProcess) : nullptr;
     auto MUploadDataFunctor = [this, &Self, &Loc, CGF, Handler, Type,
                                PostProcessFunction](bool SubmittedExplicitly) {
-      {
-        assert(!Handler->MSharedPtrStorage.empty());
-
-        std::lock_guard<std::mutex> Lock(
-            detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
-
-        std::shared_ptr<std::vector<detail::ExtendedMemberT>>
-            ExtendedMembersVec =
-                detail::convertToExtendedMembers(Handler->MSharedPtrStorage[0]);
-
-        const bool IsEventRequired = MIsEventRequired || SubmittedExplicitly;
-        detail::ExtendedMemberT EMember = {
-            detail::ExtendedMembersType::HANDLER_IS_EVENT_REQUIRED,
-            std::make_shared<bool>(IsEventRequired)};
-
-        ExtendedMembersVec->push_back(EMember);
-      }
+      Self->setSubmittedExplicitly(SubmittedExplicitly);
       event Event;
 
       if (PostProcessFunction) {
@@ -590,6 +582,7 @@ private:
   bool MSupportOOO = true;
 
   bool MIsEventRequired = false;
+  bool MisSubmittedExplicitly = true;
   std::unordered_map<std::thread::id, EventImplPtr> MPostponedEventToSubmit;
   std::mutex MMutexSubmit;
   // Thread pool for host task and event callbacks execution.

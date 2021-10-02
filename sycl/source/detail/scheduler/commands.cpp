@@ -1863,7 +1863,7 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
       MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
       RawEvents.empty() ? nullptr : &RawEvents[0],
-      ExecKernel->isEventRequired() ? &Event : nullptr);
+      MQueue->is_event_required() ? &Event : nullptr);
   return Error;
 }
 
