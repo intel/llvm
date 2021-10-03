@@ -20,12 +20,12 @@
 #include <algorithm>
 #include <cassert>
 #include <hip/hip_runtime.h>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <mutex>
 #include <regex>
 #include <string.h>
-#include <iostream>
 
 namespace {
 // Hipify doesn't support cuArrayGetDescriptor, on AMD the hipArray can just be
