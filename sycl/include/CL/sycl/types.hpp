@@ -996,7 +996,7 @@ public:
   typename std::enable_if_t<                                                   \
       std::is_convertible<DataT, T>::value &&                                  \
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename std::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec>                                                                     \
   operator BINOP(const T &Rhs) const {                                         \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
@@ -1024,7 +1024,7 @@ public:
   typename std::enable_if_t<                                                   \
       std::is_convertible<DataT, T>::value &&                                  \
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename std::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec>                                                                     \
   operator BINOP(const T &Rhs) const {                                         \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
@@ -1080,11 +1080,10 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-  typename std::enable_if_t<                                                \
-      std::is_convertible<T, DataT>::value &&                                  \
-          (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<T, half>::value),                                      \
-      vec<rel_t, NumElements>>                                                 \
+  typename std::enable_if_t<std::is_convertible<T, DataT>::value &&            \
+                                (std::is_fundamental<vec_data_t<T>>::value ||  \
+                                 std::is_same<T, half>::value),                \
+                            vec<rel_t, NumElements>>                           \
   operator RELLOGOP(const T &Rhs) const {                                      \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
   }
@@ -1099,11 +1098,10 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-  typename std::enable_if_t<                                                \
-      std::is_convertible<T, DataT>::value &&                                  \
-          (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<T, half>::value),                                      \
-      vec<rel_t, NumElements>>                                                 \
+  typename std::enable_if_t<std::is_convertible<T, DataT>::value &&            \
+                                (std::is_fundamental<vec_data_t<T>>::value ||  \
+                                 std::is_same<T, half>::value),                \
+                            vec<rel_t, NumElements>>                           \
   operator RELLOGOP(const T &Rhs) const {                                      \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
   }
@@ -1975,9 +1973,9 @@ private:
 #endif
 #define __SYCL_BINOP(BINOP)                                                    \
   template <typename T, int Num>                                               \
-  typename std::enable_if_t<                                                \
+  typename std::enable_if_t<                                                   \
       std::is_fundamental<vec_data_t<T>>::value ||                             \
-          std::is_same<typename std::remove_const_t<T>, half>::value,       \
+          std::is_same<typename std::remove_const_t<T>, half>::value,          \
       vec<T, Num>>                                                             \
   operator BINOP(const T &Lhs, const vec<T, Num> &Rhs) {                       \
     return vec<T, Num>(Lhs) BINOP Rhs;                                         \
@@ -1989,7 +1987,7 @@ private:
   typename std::enable_if_t<                                                   \
       std::is_convertible<T, T1>::value &&                                     \
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename std::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec<T1, Num>>                                                            \
   operator BINOP(                                                              \
       const T &Lhs,                                                            \
@@ -2032,7 +2030,7 @@ __SYCL_BINOP(<<)
   typename std::enable_if_t<                                                   \
       std::is_convertible<T, DataT>::value &&                                  \
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename std::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec<detail::rel_t<DataT>, Num>>                                          \
   operator RELLOGOP(const T &Lhs, const vec<DataT, Num> &Rhs) {                \
     return vec<T, Num>(static_cast<T>(Lhs)) RELLOGOP Rhs;                      \
@@ -2044,7 +2042,7 @@ __SYCL_BINOP(<<)
   typename std::enable_if_t<                                                   \
       std::is_convertible<T, T1>::value &&                                     \
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename std::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec<detail::rel_t<T1>, Num>>                                             \
   operator RELLOGOP(                                                           \
       const T &Lhs,                                                            \
