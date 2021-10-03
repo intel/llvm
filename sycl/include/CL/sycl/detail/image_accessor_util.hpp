@@ -33,19 +33,19 @@ using IsValidCoordType =
 // The formula for unnormalization coordinates:
 // NormalizedCoords = [UnnormalizedCoords[i] * Range[i] for i in range(0, 3)]
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, T>
+std::enable_if_t<IsValidCoordType<T>::value, T>
 UnnormalizeCoordinates(const T &Coords, const range<3> &Range) {
   return Coords * Range[0];
 }
 
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, vec<T, 2>>
+std::enable_if_t<IsValidCoordType<T>::value, vec<T, 2>>
 UnnormalizeCoordinates(const vec<T, 2> &Coords, const range<3> &Range) {
   return {Coords.x() * Range[0], Coords.y() * Range[1]};
 }
 
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, vec<T, 4>>
+std::enable_if_t<IsValidCoordType<T>::value, vec<T, 4>>
 UnnormalizeCoordinates(const vec<T, 4> &Coords, const range<3> &Range) {
   return {Coords.x() * Range[0], Coords.y() * Range[1], Coords.z() * Range[2],
           0};
@@ -56,20 +56,20 @@ UnnormalizeCoordinates(const vec<T, 4> &Coords, const range<3> &Range) {
 // calculation won't pass 0.
 // Non-valid coordinates are written as 0.
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, cl_float4>
+std::enable_if_t<IsValidCoordType<T>::value, cl_float4>
 convertToFloat4(T Coords) {
   return {static_cast<float>(Coords), 0.5f, 0.5f, 0.f};
 }
 
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, cl_float4>
+std::enable_if_t<IsValidCoordType<T>::value, cl_float4>
 convertToFloat4(vec<T, 2> Coords) {
   return {static_cast<float>(Coords.x()), static_cast<float>(Coords.y()), 0.5f,
           0.f};
 }
 
 template <typename T>
-detail::enable_if_t<IsValidCoordType<T>::value, cl_float4>
+std::enable_if_t<IsValidCoordType<T>::value, cl_float4>
 convertToFloat4(vec<T, 4> Coords) {
   return {static_cast<float>(Coords.x()), static_cast<float>(Coords.y()),
           static_cast<float>(Coords.z()), 0.f};
@@ -79,20 +79,20 @@ convertToFloat4(vec<T, 4> Coords) {
 // Retured offset is used to find the address location of a pixel from a base
 // ptr.
 template <typename T>
-detail::enable_if_t<std::is_integral<T>::value, size_t>
+std::enable_if_t<std::is_integral<T>::value, size_t>
 getImageOffset(const T &Coords, const id<3>, const uint8_t ElementSize) {
   return Coords * ElementSize;
 }
 
 template <typename T>
-detail::enable_if_t<std::is_integral<T>::value, size_t>
+std::enable_if_t<std::is_integral<T>::value, size_t>
 getImageOffset(const vec<T, 2> &Coords, const id<3> ImgPitch,
                const uint8_t ElementSize) {
   return Coords.x() * ElementSize + Coords.y() * ImgPitch[0];
 }
 
 template <typename T>
-detail::enable_if_t<std::is_integral<T>::value, size_t>
+std::enable_if_t<std::is_integral<T>::value, size_t>
 getImageOffset(const vec<T, 4> &Coords, const id<3> ImgPitch,
                const uint8_t ElementSize) {
   return Coords.x() * ElementSize + Coords.y() * ImgPitch[0] +
