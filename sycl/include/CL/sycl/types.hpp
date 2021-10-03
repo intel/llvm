@@ -714,15 +714,9 @@ public:
   }
 
   template <typename Ty = DataT>
-<<<<<<< HEAD
   typename std::enable_if_t<
-      std::is_fundamental<Ty>::value ||
-          std::is_same<typename std::remove_const_t<Ty>, half>::value,
-=======
-  typename detail::enable_if_t<
       std::is_fundamental<vec_data_t<Ty>>::value ||
-          std::is_same<typename detail::remove_const_t<Ty>, half>::value,
->>>>>>> sycl
+          std::is_same<typename std::remove_const_t<Ty>, half>::value,
       vec &>
   operator=(const EnableIfNotHostHalf<Ty> &Rhs) {
     m_Data = (DataType)vec_data<Ty>::get(Rhs);
@@ -737,15 +731,9 @@ public:
   }
 
   template <typename Ty = DataT>
-<<<<<<< HEAD
   typename std::enable_if_t<
-      std::is_fundamental<Ty>::value ||
-          std::is_same<typename std::remove_const_t<Ty>, half>::value,
-=======
-  typename detail::enable_if_t<
       std::is_fundamental<vec_data_t<Ty>>::value ||
-          std::is_same<typename detail::remove_const_t<Ty>, half>::value,
->>>>>>> sycl
+          std::is_same<typename std::remove_const_t<Ty>, half>::value,
       vec &>
   operator=(const EnableIfHostHalf<Ty> &Rhs) {
     for (int i = 0; i < NumElements; ++i) {
@@ -761,15 +749,9 @@ public:
   }
 
   template <typename Ty = DataT>
-<<<<<<< HEAD
   typename std::enable_if_t<
-      std::is_fundamental<Ty>::value ||
-          std::is_same<typename std::remove_const_t<Ty>, half>::value,
-=======
-  typename detail::enable_if_t<
       std::is_fundamental<vec_data_t<Ty>>::value ||
-          std::is_same<typename detail::remove_const_t<Ty>, half>::value,
->>>>>>> sycl
+          std::is_same<typename std::remove_const_t<Ty>, half>::value,
       vec &>
   operator=(const DataT &Rhs) {
     for (int i = 0; i < NumElements; ++i) {
@@ -859,13 +841,8 @@ public:
 
   // Available only when: NumElements == 1
   template <int N = NumElements>
-<<<<<<< HEAD
   operator typename std::enable_if_t<N == 1, DataT>() const {
-    return m_Data;
-=======
-  operator typename detail::enable_if_t<N == 1, DataT>() const {
     return vec_data<DataT>::get(m_Data);
->>>>>>> sycl
   }
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
@@ -1018,13 +995,8 @@ public:
   template <typename T>                                                        \
   typename std::enable_if_t<                                                   \
       std::is_convertible<DataT, T>::value &&                                  \
-<<<<<<< HEAD
-          (std::is_fundamental<T>::value ||                                    \
-           std::is_same<typename std::remove_const_t<T>, half>::value),        \
-=======
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename detail::remove_const_t<T>, half>::value),     \
->>>>>>> sycl
+           std::is_same<typename std::remove_const_t<T>, half>::value),     \
       vec>                                                                     \
   operator BINOP(const T &Rhs) const {                                         \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
@@ -1051,13 +1023,8 @@ public:
   template <typename T>                                                        \
   typename std::enable_if_t<                                                   \
       std::is_convertible<DataT, T>::value &&                                  \
-<<<<<<< HEAD
-          (std::is_fundamental<T>::value ||                                    \
-           std::is_same<typename std::remove_const_t<T>, half>::value),        \
-=======
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename detail::remove_const_t<T>, half>::value),     \
->>>>>>> sycl
+           std::is_same<typename std::remove_const_t<T>, half>::value),     \
       vec>                                                                     \
   operator BINOP(const T &Rhs) const {                                         \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
@@ -1113,18 +1080,11 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-<<<<<<< HEAD
-  typename std::enable_if_t<std::is_convertible<T, DataT>::value &&            \
-                                (std::is_fundamental<T>::value ||              \
-                                 std::is_same<T, half>::value),                \
-                            vec<rel_t, NumElements>>                           \
-=======
-  typename detail::enable_if_t<                                                \
+  typename std::enable_if_t<                                                \
       std::is_convertible<T, DataT>::value &&                                  \
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
            std::is_same<T, half>::value),                                      \
       vec<rel_t, NumElements>>                                                 \
->>>>>>> sycl
   operator RELLOGOP(const T &Rhs) const {                                      \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
   }
@@ -1139,18 +1099,11 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-<<<<<<< HEAD
-  typename std::enable_if_t<std::is_convertible<T, DataT>::value &&            \
-                                (std::is_fundamental<T>::value ||              \
-                                 std::is_same<T, half>::value),                \
-                            vec<rel_t, NumElements>>                           \
-=======
-  typename detail::enable_if_t<                                                \
+  typename std::enable_if_t<                                                \
       std::is_convertible<T, DataT>::value &&                                  \
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
            std::is_same<T, half>::value),                                      \
       vec<rel_t, NumElements>>                                                 \
->>>>>>> sycl
   operator RELLOGOP(const T &Rhs) const {                                      \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
   }
@@ -1188,12 +1141,8 @@ public:
   // Available only when: dataT != cl_float && dataT != cl_double
   // && dataT != cl_half
   template <typename T = DataT>
-<<<<<<< HEAD
-  typename std::enable_if_t<std::is_integral<T>::value, vec> operator~() const {
-=======
-  typename detail::enable_if_t<std::is_integral<vec_data_t<T>>::value, vec>
+  typename std::enable_if_t<std::is_integral<vec_data_t<T>>::value, vec>
   operator~() const {
->>>>>>> sycl
 // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
 // by SYCL device compiler only.
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1483,24 +1432,14 @@ class SwizzleOp {
   template <typename T>
   using EnableIfScalarType = typename std::enable_if_t<
       std::is_convertible<DataT, T>::value &&
-<<<<<<< HEAD
-      (std::is_fundamental<T>::value ||
-       std::is_same<typename std::remove_const_t<T>, half>::value)>;
-=======
       (std::is_fundamental<vec_data_t<T>>::value ||
-       std::is_same<typename detail::remove_const_t<T>, half>::value)>;
->>>>>>> sycl
+       std::is_same<typename std::remove_const_t<T>, half>::value)>;
 
   template <typename T>
   using EnableIfNoScalarType = typename std::enable_if_t<
       !std::is_convertible<DataT, T>::value ||
-<<<<<<< HEAD
-      !(std::is_fundamental<T>::value ||
-        std::is_same<typename std::remove_const_t<T>, half>::value)>;
-=======
       !(std::is_fundamental<vec_data_t<T>>::value ||
-        std::is_same<typename detail::remove_const_t<T>, half>::value)>;
->>>>>>> sycl
+        std::is_same<typename std::remove_const_t<T>, half>::value)>;
 
   template <int... Indices>
   using Swizzle =
@@ -1600,12 +1539,8 @@ public:
 #undef __SYCL_UOP
 
   template <typename T = DataT>
-<<<<<<< HEAD
-  typename std::enable_if_t<std::is_integral<T>::value, vec_t> operator~() {
-=======
-  typename detail::enable_if_t<std::is_integral<vec_data_t<T>>::value, vec_t>
+  typename std::enable_if_t<std::is_integral<vec_data_t<T>>::value, vec_t>
   operator~() {
->>>>>>> sycl
     vec_t Tmp = *this;
     return ~Tmp;
   }
@@ -2040,15 +1975,9 @@ private:
 #endif
 #define __SYCL_BINOP(BINOP)                                                    \
   template <typename T, int Num>                                               \
-<<<<<<< HEAD
-  typename std::enable_if_t<                                                   \
-      std::is_fundamental<T>::value ||                                         \
-          std::is_same<typename std::remove_const_t<T>, half>::value,          \
-=======
-  typename detail::enable_if_t<                                                \
+  typename std::enable_if_t<                                                \
       std::is_fundamental<vec_data_t<T>>::value ||                             \
-          std::is_same<typename detail::remove_const_t<T>, half>::value,       \
->>>>>>> sycl
+          std::is_same<typename std::remove_const_t<T>, half>::value,       \
       vec<T, Num>>                                                             \
   operator BINOP(const T &Lhs, const vec<T, Num> &Rhs) {                       \
     return vec<T, Num>(Lhs) BINOP Rhs;                                         \
@@ -2059,13 +1988,8 @@ private:
             int Num = sizeof...(Indexes)>                                      \
   typename std::enable_if_t<                                                   \
       std::is_convertible<T, T1>::value &&                                     \
-<<<<<<< HEAD
-          (std::is_fundamental<T>::value ||                                    \
-           std::is_same<typename std::remove_const_t<T>, half>::value),        \
-=======
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename detail::remove_const_t<T>, half>::value),     \
->>>>>>> sycl
+           std::is_same<typename std::remove_const_t<T>, half>::value),     \
       vec<T1, Num>>                                                            \
   operator BINOP(                                                              \
       const T &Lhs,                                                            \
@@ -2107,13 +2031,8 @@ __SYCL_BINOP(<<)
   template <typename T, typename DataT, int Num>                               \
   typename std::enable_if_t<                                                   \
       std::is_convertible<T, DataT>::value &&                                  \
-<<<<<<< HEAD
-          (std::is_fundamental<T>::value ||                                    \
-           std::is_same<typename std::remove_const_t<T>, half>::value),        \
-=======
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename detail::remove_const_t<T>, half>::value),     \
->>>>>>> sycl
+           std::is_same<typename std::remove_const_t<T>, half>::value),     \
       vec<detail::rel_t<DataT>, Num>>                                          \
   operator RELLOGOP(const T &Lhs, const vec<DataT, Num> &Rhs) {                \
     return vec<T, Num>(static_cast<T>(Lhs)) RELLOGOP Rhs;                      \
@@ -2124,13 +2043,8 @@ __SYCL_BINOP(<<)
             int Num = sizeof...(Indexes)>                                      \
   typename std::enable_if_t<                                                   \
       std::is_convertible<T, T1>::value &&                                     \
-<<<<<<< HEAD
-          (std::is_fundamental<T>::value ||                                    \
-           std::is_same<typename std::remove_const_t<T>, half>::value),        \
-=======
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename detail::remove_const_t<T>, half>::value),     \
->>>>>>> sycl
+           std::is_same<typename std::remove_const_t<T>, half>::value),     \
       vec<detail::rel_t<T1>, Num>>                                             \
   operator RELLOGOP(                                                           \
       const T &Lhs,                                                            \
