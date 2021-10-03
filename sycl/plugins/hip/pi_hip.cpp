@@ -3867,8 +3867,7 @@ pi_result hip_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
       result = retImplEv->start();
     }
 
-    auto dstDevice =
-        (uint8_t *)buffer->mem_.buffer_mem_.get_with_offset(offset);
+    auto dstDevice = buffer->mem_.buffer_mem_.get_with_offset(offset);
     auto stream = command_queue->get();
     auto N = size / pattern_size;
 
@@ -3916,7 +3915,8 @@ pi_result hip_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
         value = *(static_cast<const uint8_t *>(pattern) + step);
 
         // offset the pointer to the part of the buffer we want to write to
-        auto offset_ptr = dstDevice + (step * sizeof(uint8_t));
+        auto offset_ptr = reinterpret_cast<void *>(
+            reinterpret_cast<uint8_t *>(dstDevice) + (step * sizeof(uint8_t)));
 
         // set all of the pattern chunks
         result = PI_CHECK_ERROR(hipMemset2DAsync(

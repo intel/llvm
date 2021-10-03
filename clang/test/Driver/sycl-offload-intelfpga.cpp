@@ -479,3 +479,10 @@
 // CHK-TOOLS-IMPLIED-OPTS-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "-O0"
 // CHK-TOOLS-IMPLIED-OPTS: sycl-post-link{{.*}} "-O2"
 // CHK-TOOLS-IMPLIED-OPTS: aoc{{.*}} "-g" "-DFOO1" "-DFOO2"
+
+/// shared objects should not be checked for FPGA contents
+// RUN: touch %t.so
+// RUN: %clangxx -fsycl -fintelfpga %t.so -### 2>&1 \
+// RUN:   | FileCheck -check-prefix=ERROR_BUNDLE_CHECK %s
+// ERROR_BUNDLE_CHECK-NOT: clang-offload-bundler{{.*}} "-targets=sycl-fpga_aoc{{(x|r|r_emu|o)}}-intel-unknown"{{.*}} "-check-section"
+// ERROR_BUNDLE_CHECK-NOT: error: file too small to be an archive
