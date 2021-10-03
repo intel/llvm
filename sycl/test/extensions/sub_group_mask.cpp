@@ -87,4 +87,26 @@ int main() {
   sycl::marray<char, 6> r3{-1};
   b.extract_bits(r3, 14);
   assert(r3[0] == 1 && r3[1] == 2 && r3[2] == 2 && !r3[3] && !r3[4] && !r3[5]);
+  int ibits = 0b1010101010101010101010101010101;
+  b.insert_bits(ibits);
+  for (size_t i = 0; i < 32; i++) {
+    assert(b[i] != (bool)(i % 2));
+  }
+  short sbits = 0b0111011101110111;
+  b.insert_bits(sbits, 7);
+  b.extract_bits(ibits);
+  assert(ibits == 0b1010101001110111011101111010101);
+  sbits = 0b1100001111000011;
+  b.insert_bits(sbits, 23);
+  b.extract_bits(ibits);
+  assert(ibits == 0b11100001101110111011101111010101);
+  int64_t lbits = -1;
+  b.extract_bits(lbits, 33);
+  assert(lbits == 0);
+  lbits = -1;
+  b.extract_bits(lbits, 5);
+  assert(lbits == 0b111000011011101110111011110);
+  lbits = -1;
+  b.insert_bits(lbits);
+  assert(b.all());
 }

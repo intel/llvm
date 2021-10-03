@@ -230,8 +230,5 @@ private:
 } // namespace oneapi
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

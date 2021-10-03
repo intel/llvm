@@ -12,6 +12,8 @@
 #include <CL/sycl/detail/stl_type_traits.hpp>
 #include <CL/sycl/detail/type_list.hpp>
 
+#include <cstddef>
+
 // Generic type name description, which serves as a description for all valid
 // types of parameters to kernel functions
 
@@ -285,6 +287,15 @@ using vector_long_integer_list = type_list<vector_signed_long_integer_list,
 using long_integer_list =
     type_list<scalar_long_integer_list, vector_long_integer_list>;
 
+#if __cplusplus >= 201703L
+// std::byte
+using scalar_byte_list = type_list<std::byte>;
+
+using vector_byte_list =
+    type_list<vec<std::byte, 1>, vec<std::byte, 2>, vec<std::byte, 3>,
+              vec<std::byte, 4>, vec<std::byte, 8>, vec<std::byte, 16>>;
+#endif
+
 // integer types
 using scalar_signed_integer_list =
     type_list<std::conditional_t<
@@ -311,7 +322,12 @@ using scalar_unsigned_integer_list =
                                            scalar_unsigned_char_list>,
                                  scalar_unsigned_char_list>,
               scalar_unsigned_short_list, scalar_unsigned_int_list,
-              scalar_unsigned_long_list, scalar_unsigned_longlong_list>;
+              scalar_unsigned_long_list, scalar_unsigned_longlong_list
+#if __cplusplus >= 201703L
+              ,
+              scalar_byte_list
+#endif
+              >;
 
 using vector_unsigned_integer_list =
     type_list<std::conditional_t<std::is_unsigned<char>::value,
@@ -319,7 +335,12 @@ using vector_unsigned_integer_list =
                                            vector_unsigned_char_list>,
                                  vector_unsigned_char_list>,
               vector_unsigned_short_list, vector_unsigned_int_list,
-              vector_unsigned_long_list, vector_unsigned_longlong_list>;
+              vector_unsigned_long_list, vector_unsigned_longlong_list
+#if __cplusplus >= 201703L
+              ,
+              vector_byte_list
+#endif
+              >;
 
 using unsigned_integer_list =
     type_list<scalar_unsigned_integer_list, vector_unsigned_integer_list>;
