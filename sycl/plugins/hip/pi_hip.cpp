@@ -25,6 +25,7 @@
 #include <mutex>
 #include <regex>
 #include <string.h>
+#include <iostream>
 
 namespace {
 // Hipify doesn't support cuArrayGetDescriptor, on AMD the hipArray can just be

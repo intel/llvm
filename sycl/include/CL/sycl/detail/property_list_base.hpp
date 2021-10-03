@@ -11,6 +11,8 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/property_helper.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
+#include <CL/sycl/exception.hpp>
+#include <CL/sycl/detail/pi.h>
 
 #include <bitset>
 #include <memory>
