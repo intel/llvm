@@ -113,7 +113,7 @@ using rel_t = typename std::conditional_t<
         typename std::conditional_t<
             sizeof(DataT) == sizeof(cl_int), cl_int,
             typename std::conditional_t<sizeof(DataT) == sizeof(cl_long),
-                                           cl_long, bool>>>>;
+                                        cl_long, bool>>>>;
 
 // Special type indicating that SwizzleOp should just read value from vector -
 // not trying to perform any operations. Should not be called.
@@ -258,11 +258,10 @@ std::enable_if_t<std::is_same<T, R>::value, R> convertImpl(T Value) {
 // implemented for host that takes care of the precision requirements.
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT,
           typename OpenCLR>
-std::enable_if_t<!std::is_same<T, R>::value &&
-                        (is_int_to_int<T, R>::value ||
-                         is_int_to_float<T, R>::value ||
-                         is_float_to_float<T, R>::value),
-                    R>
+std::enable_if_t<!std::is_same<T, R>::value && (is_int_to_int<T, R>::value ||
+                                                is_int_to_float<T, R>::value ||
+                                                is_float_to_float<T, R>::value),
+                 R>
 convertImpl(T Value) {
   return static_cast<R>(Value);
 }
@@ -328,12 +327,12 @@ convertImpl(T Value) {
 #define __SYCL_GENERATE_CONVERT_IMPL(DestType)                                 \
   template <typename T, typename R, rounding_mode roundingMode,                \
             typename OpenCLT, typename OpenCLR>                                \
-  std::enable_if_t<is_sint_to_sint<T, R>::value &&                          \
-                          !std::is_same<OpenCLT, OpenCLR>::value &&            \
-                          (std::is_same<OpenCLR, cl_##DestType>::value ||      \
-                           (std::is_same<OpenCLR, signed char>::value &&       \
-                            std::is_same<DestType, char>::value)),             \
-                      R>                                                       \
+  std::enable_if_t<is_sint_to_sint<T, R>::value &&                             \
+                       !std::is_same<OpenCLT, OpenCLR>::value &&               \
+                       (std::is_same<OpenCLR, cl_##DestType>::value ||         \
+                        (std::is_same<OpenCLR, signed char>::value &&          \
+                         std::is_same<DestType, char>::value)),                \
+                   R>                                                          \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
     return __spirv_SConvert##_R##DestType(OpValue);                            \
@@ -350,10 +349,10 @@ __SYCL_GENERATE_CONVERT_IMPL(long)
 #define __SYCL_GENERATE_CONVERT_IMPL(DestType)                                 \
   template <typename T, typename R, rounding_mode roundingMode,                \
             typename OpenCLT, typename OpenCLR>                                \
-  std::enable_if_t<is_uint_to_uint<T, R>::value &&                          \
-                          !std::is_same<OpenCLT, OpenCLR>::value &&            \
-                          std::is_same<OpenCLR, cl_##DestType>::value,         \
-                      R>                                                       \
+  std::enable_if_t<is_uint_to_uint<T, R>::value &&                             \
+                       !std::is_same<OpenCLT, OpenCLR>::value &&               \
+                       std::is_same<OpenCLR, cl_##DestType>::value,            \
+                   R>                                                          \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
     return __spirv_UConvert##_R##DestType(OpValue);                            \
@@ -370,9 +369,9 @@ __SYCL_GENERATE_CONVERT_IMPL(ulong)
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT,
           typename OpenCLR>
 std::enable_if_t<is_sint_to_from_uint<T, R>::value &&
-                        is_standard_type<OpenCLT>::value &&
-                        is_standard_type<OpenCLR>::value,
-                    R>
+                     is_standard_type<OpenCLT>::value &&
+                     is_standard_type<OpenCLR>::value,
+                 R>
 convertImpl(T Value) {
   return static_cast<R>(Value);
 }
@@ -381,11 +380,11 @@ convertImpl(T Value) {
 #define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType)                        \
   template <typename T, typename R, rounding_mode roundingMode,                \
             typename OpenCLT, typename OpenCLR>                                \
-  std::enable_if_t<is_sint_to_float<T, R>::value &&                         \
-                          (std::is_same<OpenCLR, DestType>::value ||           \
-                           (std::is_same<OpenCLR, _Float16>::value &&          \
-                            std::is_same<DestType, half>::value)),             \
-                      R>                                                       \
+  std::enable_if_t<is_sint_to_float<T, R>::value &&                            \
+                       (std::is_same<OpenCLR, DestType>::value ||              \
+                        (std::is_same<OpenCLR, _Float16>::value &&             \
+                         std::is_same<DestType, half>::value)),                \
+                   R>                                                          \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
     return __spirv_Convert##SPIRVOp##_R##DestType(OpValue);                    \
@@ -401,11 +400,11 @@ __SYCL_GENERATE_CONVERT_IMPL(SToF, double)
 #define __SYCL_GENERATE_CONVERT_IMPL(SPIRVOp, DestType)                        \
   template <typename T, typename R, rounding_mode roundingMode,                \
             typename OpenCLT, typename OpenCLR>                                \
-  std::enable_if_t<is_uint_to_float<T, R>::value &&                         \
-                          (std::is_same<OpenCLR, DestType>::value ||           \
-                           (std::is_same<OpenCLR, _Float16>::value &&          \
-                            std::is_same<DestType, half>::value)),             \
-                      R>                                                       \
+  std::enable_if_t<is_uint_to_float<T, R>::value &&                            \
+                       (std::is_same<OpenCLR, DestType>::value ||              \
+                        (std::is_same<OpenCLR, _Float16>::value &&             \
+                         std::is_same<DestType, half>::value)),                \
+                   R>                                                          \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
     return __spirv_Convert##SPIRVOp##_R##DestType(OpValue);                    \
@@ -422,13 +421,13 @@ __SYCL_GENERATE_CONVERT_IMPL(UToF, double)
                                      RoundingModeCondition)                    \
   template <typename T, typename R, rounding_mode roundingMode,                \
             typename OpenCLT, typename OpenCLR>                                \
-  std::enable_if_t<is_float_to_float<T, R>::value &&                        \
-                          !std::is_same<OpenCLT, OpenCLR>::value &&            \
-                          (std::is_same<OpenCLR, DestType>::value ||           \
-                           (std::is_same<OpenCLR, _Float16>::value &&          \
-                            std::is_same<DestType, half>::value)) &&           \
-                          RoundingModeCondition<roundingMode>::value,          \
-                      R>                                                       \
+  std::enable_if_t<is_float_to_float<T, R>::value &&                           \
+                       !std::is_same<OpenCLT, OpenCLR>::value &&               \
+                       (std::is_same<OpenCLR, DestType>::value ||              \
+                        (std::is_same<OpenCLR, _Float16>::value &&             \
+                         std::is_same<DestType, half>::value)) &&              \
+                       RoundingModeCondition<roundingMode>::value,             \
+                   R>                                                          \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
     return __spirv_FConvert##_R##DestType##_##RoundingMode(OpValue);           \
@@ -453,12 +452,12 @@ __SYCL_GENERATE_CONVERT_IMPL_FOR_ROUNDING_MODE(rtn, Rtn)
                                      RoundingModeCondition)                    \
   template <typename T, typename R, rounding_mode roundingMode,                \
             typename OpenCLT, typename OpenCLR>                                \
-  std::enable_if_t<is_float_to_int<T, R>::value &&                          \
-                          (std::is_same<OpenCLR, cl_##DestType>::value ||      \
-                           (std::is_same<OpenCLR, signed char>::value &&       \
-                            std::is_same<DestType, char>::value)) &&           \
-                          RoundingModeCondition<roundingMode>::value,          \
-                      R>                                                       \
+  std::enable_if_t<is_float_to_int<T, R>::value &&                             \
+                       (std::is_same<OpenCLR, cl_##DestType>::value ||         \
+                        (std::is_same<OpenCLR, signed char>::value &&          \
+                         std::is_same<DestType, char>::value)) &&              \
+                       RoundingModeCondition<roundingMode>::value,             \
+                   R>                                                          \
   convertImpl(T Value) {                                                       \
     OpenCLT OpValue = cl::sycl::detail::convertDataToType<T, OpenCLT>(Value);  \
     return __spirv_Convert##SPIRVOp##_R##DestType##_##RoundingMode(OpValue);   \
@@ -546,19 +545,19 @@ template <typename Type, int NumElements> class vec {
 
   // SizeChecker is needed for vec(const argTN &... args) ctor to validate args.
   template <int Counter, int MaxValue, class...>
-  struct SizeChecker: std::conditional_t<Counter == MaxValue,
-      std::true_type, std::false_type> {};
+  struct SizeChecker : std::conditional_t<Counter == MaxValue, std::true_type,
+                                          std::false_type> {};
 
   template <int Counter, int MaxValue, typename DataT_, class... tail>
   struct SizeChecker<Counter, MaxValue, DataT_, tail...>
       : std::conditional_t<Counter + 1 <= MaxValue,
-                      SizeChecker<Counter + 1, MaxValue, tail...>,
-                      std::false_type> {};
+                           SizeChecker<Counter + 1, MaxValue, tail...>,
+                           std::false_type> {};
 
 #define __SYCL_ALLOW_VECTOR_SIZES(num_elements)                                \
   template <int Counter, int MaxValue, typename DataT_, class... tail>         \
   struct SizeChecker<Counter, MaxValue, vec<DataT_, num_elements>, tail...>    \
-      : std::conditional_t<                                                 \
+      : std::conditional_t<                                                    \
             Counter + (num_elements) <= MaxValue,                              \
             SizeChecker<Counter + (num_elements), MaxValue, tail...>,          \
             std::false_type> {};                                               \
@@ -569,7 +568,7 @@ template <typename Type, int NumElements> class vec {
       Counter, MaxValue,                                                       \
       detail::SwizzleOp<vec<DataT_, num_elements>, T2, T3, T4, T5...>,         \
       tail...>                                                                 \
-      : std::conditional_t<                                                 \
+      : std::conditional_t<                                                    \
             Counter + sizeof...(T5) <= MaxValue,                               \
             SizeChecker<Counter + sizeof...(T5), MaxValue, tail...>,           \
             std::false_type> {};                                               \
@@ -580,7 +579,7 @@ template <typename Type, int NumElements> class vec {
       Counter, MaxValue,                                                       \
       detail::SwizzleOp<const vec<DataT_, num_elements>, T2, T3, T4, T5...>,   \
       tail...>                                                                 \
-      : std::conditional_t<                                                 \
+      : std::conditional_t<                                                    \
             Counter + sizeof...(T5) <= MaxValue,                               \
             SizeChecker<Counter + sizeof...(T5), MaxValue, tail...>,           \
             std::false_type> {};
@@ -639,8 +638,8 @@ template <typename Type, int NumElements> class vec {
       conjunction<TypeChecker<argTN, DataT>...>::value>;
 
   template <typename... argTN>
-  using EnableIfSuitableNumElements = typename std::enable_if_t<
-      SizeChecker<0, NumElements, argTN...>::value>;
+  using EnableIfSuitableNumElements =
+      typename std::enable_if_t<SizeChecker<0, NumElements, argTN...>::value>;
 
 public:
   using element_type = DataT;
@@ -667,8 +666,8 @@ public:
   // W/o this, things like "vec<char,*> = vec<signed char, *>" doesn't work.
   template <typename Ty = DataT>
   typename std::enable_if_t<!std::is_same<Ty, rel_t>::value &&
-                                   std::is_convertible<Ty, rel_t>::value,
-                               vec &>
+                                std::is_convertible<Ty, rel_t>::value,
+                            vec &>
   operator=(const vec<rel_t, NumElements> &Rhs) {
     *this = Rhs.template as<vec>();
     return *this;
@@ -961,10 +960,10 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-  typename std::enable_if_t<                                                \
+  typename std::enable_if_t<                                                   \
       std::is_convertible<DataT, T>::value &&                                  \
           (std::is_fundamental<T>::value ||                                    \
-           std::is_same<typename std::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec>                                                                     \
   operator BINOP(const T &Rhs) const {                                         \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
@@ -974,7 +973,7 @@ public:
     return *this;                                                              \
   }                                                                            \
   template <int Num = NumElements>                                             \
-  typename std::enable_if_t<Num != 1, vec &> operator OPASSIGN(             \
+  typename std::enable_if_t<Num != 1, vec &> operator OPASSIGN(                \
       const DataT &Rhs) {                                                      \
     *this = *this BINOP vec(Rhs);                                              \
     return *this;                                                              \
@@ -989,10 +988,10 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-  typename std::enable_if_t<                                                \
+  typename std::enable_if_t<                                                   \
       std::is_convertible<DataT, T>::value &&                                  \
           (std::is_fundamental<T>::value ||                                    \
-           std::is_same<typename std::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec>                                                                     \
   operator BINOP(const T &Rhs) const {                                         \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
@@ -1002,7 +1001,7 @@ public:
     return *this;                                                              \
   }                                                                            \
   template <int Num = NumElements>                                             \
-  typename std::enable_if_t<Num != 1, vec &> operator OPASSIGN(             \
+  typename std::enable_if_t<Num != 1, vec &> operator OPASSIGN(                \
       const DataT &Rhs) {                                                      \
     *this = *this BINOP vec(Rhs);                                              \
     return *this;                                                              \
@@ -1048,10 +1047,10 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-  typename std::enable_if_t<std::is_convertible<T, DataT>::value &&         \
-                                   (std::is_fundamental<T>::value ||           \
-                                    std::is_same<T, half>::value),             \
-                               vec<rel_t, NumElements>>                        \
+  typename std::enable_if_t<std::is_convertible<T, DataT>::value &&            \
+                                (std::is_fundamental<T>::value ||              \
+                                 std::is_same<T, half>::value),                \
+                            vec<rel_t, NumElements>>                           \
   operator RELLOGOP(const T &Rhs) const {                                      \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
   }
@@ -1065,10 +1064,10 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
-  typename std::enable_if_t<std::is_convertible<T, DataT>::value &&         \
-                                   (std::is_fundamental<T>::value ||           \
-                                    std::is_same<T, half>::value),             \
-                               vec<rel_t, NumElements>>                        \
+  typename std::enable_if_t<std::is_convertible<T, DataT>::value &&            \
+                                (std::is_fundamental<T>::value ||              \
+                                 std::is_same<T, half>::value),                \
+                            vec<rel_t, NumElements>>                           \
   operator RELLOGOP(const T &Rhs) const {                                      \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
   }
@@ -1106,8 +1105,7 @@ public:
   // Available only when: dataT != cl_float && dataT != cl_double
   // && dataT != cl_half
   template <typename T = DataT>
-  typename std::enable_if_t<std::is_integral<T>::value, vec>
-  operator~() const {
+  typename std::enable_if_t<std::is_integral<T>::value, vec> operator~() const {
 // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
 // by SYCL device compiler only.
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1345,7 +1343,7 @@ private:
 // all compilers supporting deduction guides also support fold expressions
 template <class T, class... U,
           class = std::enable_if_t<(std::is_same<T, U>::value && ...)>>
-vec(T, U...)->vec<T, sizeof...(U) + 1>;
+vec(T, U...) -> vec<T, sizeof...(U) + 1>;
 #endif
 
 namespace detail {
@@ -1675,10 +1673,10 @@ public:
     return NewLHOp<RhsOperation, LShift, Indexes...>(m_Vector, *this, Rhs);
   }
 
-  template <typename T1, typename T2, typename T3, template <typename> class T4,
-            int... T5,
-            typename =
-                typename std::enable_if_t<sizeof...(T5) == getNumElements()>>
+  template <
+      typename T1, typename T2, typename T3, template <typename> class T4,
+      int... T5,
+      typename = typename std::enable_if_t<sizeof...(T5) == getNumElements()>>
   SwizzleOp &operator=(const SwizzleOp<T1, T2, T3, T4, T5...> &Rhs) {
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
@@ -1687,10 +1685,10 @@ public:
     return *this;
   }
 
-  template <typename T1, typename T2, typename T3, template <typename> class T4,
-            int... T5,
-            typename =
-                typename std::enable_if_t<sizeof...(T5) == getNumElements()>>
+  template <
+      typename T1, typename T2, typename T3, template <typename> class T4,
+      int... T5,
+      typename = typename std::enable_if_t<sizeof...(T5) == getNumElements()>>
   SwizzleOp &operator=(SwizzleOp<T1, T2, T3, T4, T5...> &&Rhs) {
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
@@ -1935,9 +1933,9 @@ private:
 #endif
 #define __SYCL_BINOP(BINOP)                                                    \
   template <typename T, int Num>                                               \
-  typename std::enable_if_t<                                                \
+  typename std::enable_if_t<                                                   \
       std::is_fundamental<T>::value ||                                         \
-          std::is_same<typename std::remove_const_t<T>, half>::value,       \
+          std::is_same<typename std::remove_const_t<T>, half>::value,          \
       vec<T, Num>>                                                             \
   operator BINOP(const T &Lhs, const vec<T, Num> &Rhs) {                       \
     return vec<T, Num>(Lhs) BINOP Rhs;                                         \
@@ -1946,10 +1944,10 @@ private:
             template <typename> class OperationCurrentT, int... Indexes,       \
             typename T, typename T1 = typename VecT::element_type,             \
             int Num = sizeof...(Indexes)>                                      \
-  typename std::enable_if_t<                                                \
+  typename std::enable_if_t<                                                   \
       std::is_convertible<T, T1>::value &&                                     \
           (std::is_fundamental<T>::value ||                                    \
-           std::is_same<typename std::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec<T1, Num>>                                                            \
   operator BINOP(                                                              \
       const T &Lhs,                                                            \
@@ -1989,10 +1987,10 @@ __SYCL_BINOP(<<)
 #endif
 #define __SYCL_RELLOGOP(RELLOGOP)                                              \
   template <typename T, typename DataT, int Num>                               \
-  typename std::enable_if_t<                                                \
+  typename std::enable_if_t<                                                   \
       std::is_convertible<T, DataT>::value &&                                  \
           (std::is_fundamental<T>::value ||                                    \
-           std::is_same<typename std::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec<detail::rel_t<DataT>, Num>>                                          \
   operator RELLOGOP(const T &Lhs, const vec<DataT, Num> &Rhs) {                \
     return vec<T, Num>(static_cast<T>(Lhs)) RELLOGOP Rhs;                      \
@@ -2001,10 +1999,10 @@ __SYCL_BINOP(<<)
             template <typename> class OperationCurrentT, int... Indexes,       \
             typename T, typename T1 = typename VecT::element_type,             \
             int Num = sizeof...(Indexes)>                                      \
-  typename std::enable_if_t<                                                \
+  typename std::enable_if_t<                                                   \
       std::is_convertible<T, T1>::value &&                                     \
           (std::is_fundamental<T>::value ||                                    \
-           std::is_same<typename std::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec<detail::rel_t<T1>, Num>>                                             \
   operator RELLOGOP(                                                           \
       const T &Lhs,                                                            \
@@ -2107,10 +2105,10 @@ namespace detail {
 // select_apply_cl_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types in IN.
 template <typename T, typename T8, typename T16, typename T32, typename T64>
-using select_apply_cl_t =
-  std::conditional_t<sizeof(T) == 1, T8,
-  std::conditional_t<sizeof(T) == 2, T16,
-  std::conditional_t<sizeof(T) == 4, T32, T64>>>;
+using select_apply_cl_t = std::conditional_t<
+    sizeof(T) == 1, T8,
+    std::conditional_t<sizeof(T) == 2, T16,
+                       std::conditional_t<sizeof(T) == 4, T32, T64>>>;
 } // detail
 
 #define __SYCL_DECLARE_CONVERTER(base, num)                                    \

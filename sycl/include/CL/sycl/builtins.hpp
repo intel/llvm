@@ -1662,8 +1662,7 @@ extern SYCL_EXTERNAL double __complex__ catan(double __complex__ z);
 extern SYCL_EXTERNAL float __complex__ catanhf(float __complex__ z);
 extern SYCL_EXTERNAL double __complex__ catanh(double __complex__ z);
 extern SYCL_EXTERNAL float __complex__ cpolarf(float rho, float theta);
-extern SYCL_EXTERNAL double __complex__ cpolar(double rho,
-                                               double theta);
+extern SYCL_EXTERNAL double __complex__ cpolar(double rho, double theta);
 extern SYCL_EXTERNAL float __complex__ __mulsc3(float a, float b, float c,
                                                 float d);
 extern SYCL_EXTERNAL double __complex__ __muldc3(double a, double b, double c,
