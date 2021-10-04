@@ -39,7 +39,9 @@
 /// Non-FPGA targets should not imply -emit-non-kernel-entry-points=0 in sycl-post-link
 // RUN:   %clang -### -fsycl -fsycl-targets=spir64_fpga,spir64_gen %s 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHK-NON-KERNEL-ENTRY-POINTS-NEG-1
+// CHK-NON-KERNEL-ENTRY-POINTS-NEG-1: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown"
 // CHK-NON-KERNEL-ENTRY-POINTS-NEG-1: sycl-post-link{{.*}} "-emit-non-kernel-entry-points=0"
+// CHK-NON-KERNEL-ENTRY-POINTS-NEG-1: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // CHK-NON-KERNEL-ENTRY-POINTS-NEG-1: sycl-post-link
 // CHK-NON-KERNEL-ENTRY-POINTS-NEG-1-NOT: "-emit-non-kernel-entry-points=0"
 // RUN:   %clang -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=CHK-NON-KERNEL-ENTRY-POINTS-NEG-2
