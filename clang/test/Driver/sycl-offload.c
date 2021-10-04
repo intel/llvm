@@ -977,3 +977,10 @@
 // RUN:   %clang -### -fsycl -ffreestanding %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s
 // CHK-INCOMPATIBILITY: error: The option -fsycl conflicts with -ffreestanding
+
+/// ###########################################################################
+
+// Check that -emit-non-kernel-entry-points=0 flag is added to sycl-post-link
+// when targeting fpga
+// RUN: %clang -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s --check-prefix=CHK-NON-KERNEL-ENTRY-POINTS
+// CHK-NON-KERNEL-ENTRY-POINTS: sycl-post-link{{.*}}-emit-non-kernel-entry-points=0
