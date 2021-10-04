@@ -51,194 +51,184 @@ struct joint_matrix<
 } // namespace experimental::matrix
 
 namespace detail {
-    using namespace experimental;
+using namespace experimental;
 
-    template <typename Group, typename T, matrix::matrix_type MT,
-              size_t NumRows, size_t NumCols, matrix::matrix_layout Layout,
-              access::address_space Space, typename Cond = void>
-    struct joint_matrix_load_impl {
-      void
-      load(matrix::joint_matrix<Group, T, MT, NumRows, NumCols, Layout> &res,
-           multi_ptr<T, Space> src, size_t stride);
-    };
+template <typename Group, typename T, matrix::matrix_type MT, size_t NumRows,
+          size_t NumCols, matrix::matrix_layout Layout,
+          access::address_space Space, typename Cond = void>
+struct joint_matrix_load_impl {
+  void load(matrix::joint_matrix<Group, T, MT, NumRows, NumCols, Layout> &res,
+            multi_ptr<T, Space> src, size_t stride);
+};
 
-    template <matrix::matrix_layout Layout> constexpr int get_layout_id();
+template <matrix::matrix_layout Layout> constexpr int get_layout_id();
 
-    template <>
-    constexpr int get_layout_id<matrix::matrix_layout::row_major>() {
-      return 0;
-    }
+template <> constexpr int get_layout_id<matrix::matrix_layout::row_major>() {
+  return 0;
+}
 
-    template <>
-    constexpr int get_layout_id<matrix::matrix_layout::col_major>() {
-      return 1;
-    }
+template <> constexpr int get_layout_id<matrix::matrix_layout::col_major>() {
+  return 1;
+}
 
-    template <matrix::matrix_layout Layout, access::address_space Space>
-    struct joint_matrix_load_impl<
-        sycl::sub_group, double, matrix::matrix_type::a, 8, 4, Layout, Space,
-        typename std::enable_if_t<Layout == matrix::matrix_layout::row_major ||
-                                  Layout == matrix::matrix_layout::col_major>> {
-      void load(matrix::joint_matrix<sycl::sub_group, double,
-                                     matrix::matrix_type::a, 8, 4, Layout> &res,
-                multi_ptr<double, Space> src, size_t stride) {
+template <matrix::matrix_layout Layout, access::address_space Space>
+struct joint_matrix_load_impl<
+    sycl::sub_group, double, matrix::matrix_type::a, 8, 4, Layout, Space,
+    typename std::enable_if_t<Layout == matrix::matrix_layout::row_major ||
+                              Layout == matrix::matrix_layout::col_major>> {
+  void load(matrix::joint_matrix<sycl::sub_group, double,
+                                 matrix::matrix_type::a, 8, 4, Layout> &res,
+            multi_ptr<double, Space> src, size_t stride) {
 
 #ifdef __NVPTX__
 #ifdef __SYCL_DEVICE_ONLY__
-        __dmma_m8n8k4_ld_a(res.data, src.get(), stride,
+    __dmma_m8n8k4_ld_a(res.data, src.get(), stride, get_layout_id<Layout>());
+#endif
+#endif
+  }
+};
+
+template <matrix::matrix_layout Layout, access::address_space Space>
+struct joint_matrix_load_impl<
+    sycl::sub_group, double, matrix::matrix_type::b, 4, 8, Layout, Space,
+    typename std::enable_if_t<Layout == matrix::matrix_layout::row_major ||
+                              Layout == matrix::matrix_layout::col_major>> {
+  void load(matrix::joint_matrix<sycl::sub_group, double,
+                                 matrix::matrix_type::b, 4, 8, Layout> &res,
+            multi_ptr<double, Space> src, size_t stride) {
+#ifdef __NVPTX__
+#ifdef __SYCL_DEVICE_ONLY__
+    __dmma_m8n8k4_ld_b(res.data, src.get(), stride, get_layout_id<Layout>());
+#endif
+#endif
+  }
+};
+
+template <matrix::matrix_layout Layout, access::address_space Space>
+struct joint_matrix_load_impl<
+    sycl::sub_group, double, matrix::matrix_type::accumulator, 8, 8, Layout,
+    Space,
+    typename std::enable_if_t<Layout == matrix::matrix_layout::row_major ||
+                              Layout == matrix::matrix_layout::col_major>> {
+  void load(
+      matrix::joint_matrix<sycl::sub_group, double,
+                           matrix::matrix_type::accumulator, 8, 8, Layout> &res,
+      multi_ptr<double, Space> src, size_t stride) {
+
+#ifdef __NVPTX__
+#ifdef __SYCL_DEVICE_ONLY__
+    __dmma_m8n8k4_ld_c(res.data, src.get(), stride, get_layout_id<Layout>());
+#endif
+#endif
+  }
+};
+
+template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          matrix::matrix_layout Layout, access::address_space Space,
+          typename Cond = void>
+struct joint_matrix_store_impl {
+  void store(matrix::joint_matrix<Group, T, matrix::matrix_type::accumulator,
+                                  NumRows, NumCols, Layout> &src,
+             multi_ptr<T, Space> dst, size_t stride);
+};
+
+template <matrix::matrix_layout Layout, access::address_space Space>
+struct joint_matrix_store_impl<
+    sycl::sub_group, double, 8, 8, Layout, Space,
+    typename std::enable_if_t<Layout == matrix::matrix_layout::row_major ||
+                              Layout == matrix::matrix_layout::col_major>> {
+  void store(
+      matrix::joint_matrix<sycl::sub_group, double,
+                           matrix::matrix_type::accumulator, 8, 8, Layout> &src,
+      multi_ptr<double, Space> dst, size_t stride) {
+
+#ifdef __NVPTX__
+#ifdef __SYCL_DEVICE_ONLY__
+    __dmma_m8n8k4_st_c_f64(dst.get(), src.data, stride,
                            get_layout_id<Layout>());
 #endif
 #endif
-      }
-    };
+  }
+};
 
-    template <matrix::matrix_layout Layout, access::address_space Space>
-    struct joint_matrix_load_impl<
-        sycl::sub_group, double, matrix::matrix_type::b, 4, 8, Layout, Space,
-        typename std::enable_if_t<Layout == matrix::matrix_layout::row_major ||
-                                  Layout == matrix::matrix_layout::col_major>> {
-      void load(matrix::joint_matrix<sycl::sub_group, double,
-                                     matrix::matrix_type::b, 4, 8, Layout> &res,
-                multi_ptr<double, Space> src, size_t stride) {
-#ifdef __NVPTX__
-#ifdef __SYCL_DEVICE_ONLY__
-        __dmma_m8n8k4_ld_b(res.data, src.get(), stride,
-                           get_layout_id<Layout>());
-#endif
-#endif
-      }
-    };
-
-    template <matrix::matrix_layout Layout, access::address_space Space>
-    struct joint_matrix_load_impl<
-        sycl::sub_group, double, matrix::matrix_type::accumulator, 8, 8, Layout,
-        Space,
-        typename std::enable_if_t<Layout == matrix::matrix_layout::row_major ||
-                                  Layout == matrix::matrix_layout::col_major>> {
-      void load(matrix::joint_matrix<sycl::sub_group, double,
-                                     matrix::matrix_type::accumulator, 8, 8,
-                                     Layout> &res,
-                multi_ptr<double, Space> src, size_t stride) {
-
-#ifdef __NVPTX__
-#ifdef __SYCL_DEVICE_ONLY__
-        __dmma_m8n8k4_ld_c(res.data, src.get(), stride,
-                           get_layout_id<Layout>());
-#endif
-#endif
-      }
-    };
-
-    template <typename Group, typename T, size_t NumRows, size_t NumCols,
-              matrix::matrix_layout Layout, access::address_space Space,
-              typename Cond = void>
-    struct joint_matrix_store_impl {
-      void
-      store(matrix::joint_matrix<Group, T, matrix::matrix_type::accumulator,
-                                 NumRows, NumCols, Layout> &src,
-            multi_ptr<T, Space> dst, size_t stride);
-    };
-
-    template <matrix::matrix_layout Layout, access::address_space Space>
-    struct joint_matrix_store_impl<
-        sycl::sub_group, double, 8, 8, Layout, Space,
-        typename std::enable_if_t<Layout == matrix::matrix_layout::row_major ||
-                                  Layout == matrix::matrix_layout::col_major>> {
-      void store(matrix::joint_matrix<sycl::sub_group, double,
-                                      matrix::matrix_type::accumulator, 8, 8,
-                                      Layout> &src,
-                 multi_ptr<double, Space> dst, size_t stride) {
-
-#ifdef __NVPTX__
-#ifdef __SYCL_DEVICE_ONLY__
-        __dmma_m8n8k4_st_c_f64(dst.get(), src.data, stride,
-                               get_layout_id<Layout>());
-#endif
-#endif
-      }
-    };
-
-    template <typename Group, typename T1, typename T2, std::size_t M,
-              std::size_t K, std::size_t N, matrix::matrix_layout LayoutA,
-              matrix::matrix_layout LayoutB, matrix::matrix_layout LayoutC,
-              typename Cond = void>
-    struct joint_matrix_mad_impl {
+template <typename Group, typename T1, typename T2, std::size_t M,
+          std::size_t K, std::size_t N, matrix::matrix_layout LayoutA,
+          matrix::matrix_layout LayoutB, matrix::matrix_layout LayoutC,
+          typename Cond = void>
+struct joint_matrix_mad_impl {
+  matrix::joint_matrix<Group, T2, matrix::matrix_type::accumulator, M, N,
+                       LayoutC>
+  mad(Group sg,
+      matrix::joint_matrix<Group, T1, matrix::matrix_type::a, M, K, LayoutA> A,
+      matrix::joint_matrix<Group, T1, matrix::matrix_type::b, K, N, LayoutB> B,
       matrix::joint_matrix<Group, T2, matrix::matrix_type::accumulator, M, N,
                            LayoutC>
-      mad(Group sg,
-          matrix::joint_matrix<Group, T1, matrix::matrix_type::a, M, K, LayoutA>
-              A,
-          matrix::joint_matrix<Group, T1, matrix::matrix_type::b, K, N, LayoutB>
-              B,
-          matrix::joint_matrix<Group, T2, matrix::matrix_type::accumulator, M,
-                               N, LayoutC>
-              C);
-    };
+          C);
+};
 
-    template <matrix::matrix_layout LayoutA, matrix::matrix_layout LayoutB>
-    constexpr int get_layout_pair_id();
+template <matrix::matrix_layout LayoutA, matrix::matrix_layout LayoutB>
+constexpr int get_layout_pair_id();
 
-    template <>
-    constexpr int get_layout_pair_id<matrix::matrix_layout::row_major,
-                                     matrix::matrix_layout::row_major>() {
-      return 0;
-    }
+template <>
+constexpr int get_layout_pair_id<matrix::matrix_layout::row_major,
+                                 matrix::matrix_layout::row_major>() {
+  return 0;
+}
 
-    template <>
-    constexpr int get_layout_pair_id<matrix::matrix_layout::row_major,
-                                     matrix::matrix_layout::col_major>() {
-      return 1;
-    }
+template <>
+constexpr int get_layout_pair_id<matrix::matrix_layout::row_major,
+                                 matrix::matrix_layout::col_major>() {
+  return 1;
+}
 
-    template <>
-    constexpr int get_layout_pair_id<matrix::matrix_layout::col_major,
-                                     matrix::matrix_layout::row_major>() {
-      return 2;
-    }
+template <>
+constexpr int get_layout_pair_id<matrix::matrix_layout::col_major,
+                                 matrix::matrix_layout::row_major>() {
+  return 2;
+}
 
-    template <>
-    constexpr int get_layout_pair_id<matrix::matrix_layout::col_major,
-                                     matrix::matrix_layout::col_major>() {
-      return 3;
-    }
+template <>
+constexpr int get_layout_pair_id<matrix::matrix_layout::col_major,
+                                 matrix::matrix_layout::col_major>() {
+  return 3;
+}
 
-    template <matrix::matrix_layout LayoutA, matrix::matrix_layout LayoutB,
-              matrix::matrix_layout LayoutC>
-    struct joint_matrix_mad_impl<
-        sycl::sub_group, double, double, 8, 4, 8, LayoutA, LayoutB, LayoutC,
-        typename std::enable_if_t<
-            (LayoutA == matrix::matrix_layout::row_major ||
-             LayoutA == matrix::matrix_layout::col_major) &&
-            (LayoutB == matrix::matrix_layout::row_major ||
-             LayoutB == matrix::matrix_layout::col_major) &&
-            (LayoutC == matrix::matrix_layout::row_major ||
-             LayoutC == matrix::matrix_layout::col_major)>> {
+template <matrix::matrix_layout LayoutA, matrix::matrix_layout LayoutB,
+          matrix::matrix_layout LayoutC>
+struct joint_matrix_mad_impl<
+    sycl::sub_group, double, double, 8, 4, 8, LayoutA, LayoutB, LayoutC,
+    typename std::enable_if_t<(LayoutA == matrix::matrix_layout::row_major ||
+                               LayoutA == matrix::matrix_layout::col_major) &&
+                              (LayoutB == matrix::matrix_layout::row_major ||
+                               LayoutB == matrix::matrix_layout::col_major) &&
+                              (LayoutC == matrix::matrix_layout::row_major ||
+                               LayoutC == matrix::matrix_layout::col_major)>> {
+  matrix::joint_matrix<sycl::sub_group, double,
+                       matrix::matrix_type::accumulator, 8, 8, LayoutC>
+  mad(sycl::sub_group sg,
+      matrix::joint_matrix<sycl::sub_group, double, matrix::matrix_type::a, 8,
+                           4, LayoutA>
+          A,
+      matrix::joint_matrix<sycl::sub_group, double, matrix::matrix_type::b, 4,
+                           8, LayoutB>
+          B,
       matrix::joint_matrix<sycl::sub_group, double,
                            matrix::matrix_type::accumulator, 8, 8, LayoutC>
-      mad(sycl::sub_group sg,
-          matrix::joint_matrix<sycl::sub_group, double, matrix::matrix_type::a,
-                               8, 4, LayoutA>
-              A,
-          matrix::joint_matrix<sycl::sub_group, double, matrix::matrix_type::b,
-                               4, 8, LayoutB>
-              B,
-          matrix::joint_matrix<sycl::sub_group, double,
-                               matrix::matrix_type::accumulator, 8, 8, LayoutC>
-              C) {
-        matrix::joint_matrix<sycl::sub_group, double,
-                             matrix::matrix_type::accumulator, 8, 8, LayoutC>
-            D;
+          C) {
+    matrix::joint_matrix<sycl::sub_group, double,
+                         matrix::matrix_type::accumulator, 8, 8, LayoutC>
+        D;
 
 #ifdef __NVPTX__
 #ifdef __SYCL_DEVICE_ONLY__
-        __dmma_m8n8k4_mma_f64(D.data, A.data, B.data, C.data,
-                              get_layout_pair_id<LayoutA, LayoutB>(), 0);
+    __dmma_m8n8k4_mma_f64(D.data, A.data, B.data, C.data,
+                          get_layout_pair_id<LayoutA, LayoutB>(), 0);
 #endif
 #endif
 
-        return D;
-      }
-    };
+    return D;
+  }
+};
 
 } // namespace detail
 
