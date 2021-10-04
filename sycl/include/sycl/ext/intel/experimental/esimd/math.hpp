@@ -1678,10 +1678,14 @@ ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
     detail::is_type<T, ushort, uint> && (N > 0 && N <= 32), uint>
 esimd_ballot(simd<T, N> mask) {
   simd_mask<N> cmp = (mask != 0);
-  constexpr int N1 = (N <= 8 ? 8 : N <= 16 ? 16 : 32);
-  simd<uint16_t, N1> src0 = 0;
-  src0.template select<N, 1>() = cmp.data();
-  return __esimd_pack_mask<N1>(src0.data());
+  if constexpr (N == 8 || N == 16 || N == 32) {
+    return __esimd_pack_mask<N>(cmp.data());
+  } else {
+    constexpr int N1 = (N <= 8 ? 8 : N <= 16 ? 16 : 32);
+    simd<uint16_t, N1> res = 0;
+    res.template select<N, 1>() = cmp.data();
+    return __esimd_pack_mask<N1>(res.data());
+  }
 }
 
 /// Count number of bits set in the source operand per element.
