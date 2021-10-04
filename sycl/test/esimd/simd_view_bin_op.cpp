@@ -11,7 +11,7 @@ simd<short, 4> test1(int X, simd<short, 16> Y) __attribute__((sycl_device)) {
   // CHECK-LABEL: test1
   // CHECK-SAME: i32 [[X:%.+]],
   // CHECK-NOT: trunc i32 [[X]] to i16
-  return Y.select<4, 1>(0) * X;
+  return X * Y.select<4, 1>(0);
 }
 
 simd<short, 4> test2(int X, simd<short, 16> Y) __attribute__((sycl_device)) {
