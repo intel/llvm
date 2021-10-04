@@ -36,6 +36,7 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
+#include "llvm/IR/MatrixBuilder.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Path.h"
@@ -1940,10 +1941,15 @@ RValue CodeGenFunction::EmitLoadOfLValue(LValue LV, SourceLocation Loc) {
     return EmitLoadOfGlobalRegLValue(LV);
 
   if (LV.isMatrixElt()) {
+    llvm::Value *Idx = LV.getMatrixIdx();
+    if (CGM.getCodeGenOpts().OptimizationLevel > 0) {
+      const auto *const MatTy = LV.getType()->getAs<ConstantMatrixType>();
+      llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+      MB.CreateIndexAssumption(Idx, MatTy->getNumElementsFlattened());
+    }
     llvm::LoadInst *Load =
         Builder.CreateLoad(LV.getMatrixAddress(), LV.isVolatileQualified());
-    return RValue::get(
-        Builder.CreateExtractElement(Load, LV.getMatrixIdx(), "matrixext"));
+    return RValue::get(Builder.CreateExtractElement(Load, Idx, "matrixext"));
   }
 
   assert(LV.isBitField() && "Unknown LValue type!");
@@ -2081,9 +2087,15 @@ void CodeGenFunction::EmitStoreThroughLValue(RValue Src, LValue Dst,
       return EmitStoreThroughGlobalRegLValue(Src, Dst);
 
     if (Dst.isMatrixElt()) {
-      llvm::Value *Vec = Builder.CreateLoad(Dst.getMatrixAddress());
-      Vec = Builder.CreateInsertElement(Vec, Src.getScalarVal(),
-                                        Dst.getMatrixIdx(), "matins");
+      llvm::Value *Idx = Dst.getMatrixIdx();
+      if (CGM.getCodeGenOpts().OptimizationLevel > 0) {
+        const auto *const MatTy = Dst.getType()->getAs<ConstantMatrixType>();
+        llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+        MB.CreateIndexAssumption(Idx, MatTy->getNumElementsFlattened());
+      }
+      llvm::Instruction *Load = Builder.CreateLoad(Dst.getMatrixAddress());
+      llvm::Value *Vec =
+          Builder.CreateInsertElement(Load, Src.getScalarVal(), Idx, "matins");
       Builder.CreateStore(Vec, Dst.getMatrixAddress(),
                           Dst.isVolatileQualified());
       return;
@@ -5342,9 +5354,13 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, const CGCallee &OrigCallee
   // Generate function declaration DISuprogram in order to be used
   // in debug info about call sites.
   if (CGDebugInfo *DI = getDebugInfo()) {
-    if (auto *CalleeDecl = dyn_cast_or_null<FunctionDecl>(TargetDecl))
-      DI->EmitFuncDeclForCallSite(CallOrInvoke, QualType(FnType, 0),
+    if (auto *CalleeDecl = dyn_cast_or_null<FunctionDecl>(TargetDecl)) {
+      FunctionArgList Args;
+      QualType ResTy = BuildFunctionArgList(CalleeDecl, Args);
+      DI->EmitFuncDeclForCallSite(CallOrInvoke,
+                                  DI->getFunctionType(CalleeDecl, ResTy, Args),
                                   CalleeDecl);
+    }
   }
 
   return Call;

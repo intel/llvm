@@ -1,7 +1,7 @@
 // REQUIRES: powerpc-registered-target
-// RUN: %clang_cc1 -triple powerpc64-unknown-unknown -fsyntax-only \
+// RUN: %clang_cc1 -triple powerpc64-unknown-linux-gnu -fsyntax-only \
 // RUN:   -Wall -Werror -verify %s
-// RUN: %clang_cc1 -triple powerpc64le-unknown-unknown -fsyntax-only \
+// RUN: %clang_cc1 -triple powerpc64le-unknown-linux-gnu -fsyntax-only \
 // RUN:   -Wall -Werror -verify %s
 // RUN: %clang_cc1 -triple powerpc64-unknown-aix -fsyntax-only \
 // RUN:   -Wall -Werror -verify %s
@@ -95,6 +95,14 @@ long long testdivde(long long dividend, long long divisor) {
 
 unsigned long long testdivdeu(unsigned long long dividend, unsigned long long divisor) {
   return __divdeu(dividend, divisor); //expected-error {{this builtin is only available on 64-bit targets}}
+}
+
+int test_darn() {
+  return __darn(); //expected-error {{this builtin is only available on 64-bit targets}}
+}
+
+int test_darn_raw() {
+  return __darn_raw(); //expected-error {{this builtin is only available on 64-bit targets}}
 }
 #endif
 

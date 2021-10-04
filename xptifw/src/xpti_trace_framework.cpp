@@ -7,7 +7,6 @@
 #include "xpti_int64_hash_table.hpp"
 #include "xpti_string_table.hpp"
 
-#include <atomic>
 #include <cassert>
 #include <cstdio>
 #include <iostream>
@@ -37,16 +36,9 @@
 #define XPTI_VENDOR_DEFINED_EVENT_TYPE16(vendor_id, event_type)                \
   ((uint16_t)vendor_id << 8 | XPTI_USER_DEFINED_EVENT_TYPE16(event_type))
 
-static_assert(std::is_trivially_destructible<xpti::utils::SpinLock>::value,
-              "SpinLock is not trivial");
-static_assert(
-    std::is_trivially_destructible<xpti::utils::PlatformHelper>::value,
-    "PlatformHelper is not trivial");
-
 namespace xpti {
 constexpr const char *env_subscribers = "XPTI_SUBSCRIBERS";
 xpti::utils::PlatformHelper g_helper;
-xpti::utils::SpinLock g_framework_mutex;
 // This class is a helper class to load all the listed subscribers provided by
 // the user in XPTI_SUBSCRIBERS environment variable.
 class Subscribers {
@@ -979,35 +971,7 @@ public:
     MTracepoints.printStatistics();
   }
 
-  static Framework &instance() {
-    Framework *TmpFramework = MInstance.load(std::memory_order_relaxed);
-    std::atomic_thread_fence(std::memory_order_acquire);
-    if (TmpFramework == nullptr) {
-      std::lock_guard<utils::SpinLock> Lock{MSingletoneMutex};
-      TmpFramework = MInstance.load(std::memory_order_relaxed);
-      if (TmpFramework == nullptr) {
-        TmpFramework = new Framework();
-        std::atomic_thread_fence(std::memory_order_release);
-        MInstance.store(TmpFramework, std::memory_order_relaxed);
-      }
-    }
-
-    return *TmpFramework;
-  }
-
 private:
-  friend void ::xptiFrameworkFinalize();
-
-  static void release() {
-    Framework *TmpFramework = MInstance.load(std::memory_order_relaxed);
-    MInstance.store(nullptr, std::memory_order_relaxed);
-    delete TmpFramework;
-  }
-
-  /// Stores singleton instance
-  static std::atomic<Framework *> MInstance;
-  /// Trivially destructible mutex for double-checked lock idiom
-  static utils::SpinLock MSingletoneMutex;
   /// Thread-safe counter used for generating universal IDs
   xpti::safe_uint64_t MUniversalIDs;
   /// Manages loading the subscribers and calling their init() functions
@@ -1026,31 +990,13 @@ private:
   bool MTraceEnabled;
 };
 
-static int GFrameworkReferenceCounter = 0;
-
-std::atomic<Framework *> Framework::MInstance;
-utils::SpinLock Framework::MSingletoneMutex;
+static Framework GXPTIFramework;
 } // namespace xpti
 
 extern "C" {
-
-XPTI_EXPORT_API void xptiFrameworkInitialize() {
-  std::lock_guard<xpti::utils::SpinLock> guard{xpti::g_framework_mutex};
-  xpti::GFrameworkReferenceCounter++;
-}
-
-XPTI_EXPORT_API void xptiFrameworkFinalize() {
-  std::lock_guard<xpti::utils::SpinLock> guard{xpti::g_framework_mutex};
-
-  xpti::GFrameworkReferenceCounter--;
-  if (xpti::GFrameworkReferenceCounter == 0) {
-    xpti::Framework::release();
-  }
-}
-
 XPTI_EXPORT_API uint16_t
 xptiRegisterUserDefinedTracePoint(const char *ToolName, uint8_t UserDefinedTP) {
-  uint8_t ToolID = xpti::Framework::instance().registerVendor(ToolName);
+  uint8_t ToolID = xpti::GXPTIFramework.registerVendor(ToolName);
   UserDefinedTP |= (uint8_t)xpti::trace_point_type_t::user_defined;
   uint16_t UserDefTracepoint = XPTI_PACK08_RET16(ToolID, UserDefinedTP);
 
@@ -1059,7 +1005,7 @@ xptiRegisterUserDefinedTracePoint(const char *ToolName, uint8_t UserDefinedTP) {
 
 XPTI_EXPORT_API uint16_t xptiRegisterUserDefinedEventType(
     const char *ToolName, uint8_t UserDefinedEvent) {
-  uint8_t ToolID = xpti::Framework::instance().registerVendor(ToolName);
+  uint8_t ToolID = xpti::GXPTIFramework.registerVendor(ToolName);
   UserDefinedEvent |= (uint8_t)xpti::trace_event_type_t::user_defined;
   uint16_t UserDefEventType = XPTI_PACK08_RET16(ToolID, UserDefinedEvent);
   return UserDefEventType;
@@ -1068,72 +1014,68 @@ XPTI_EXPORT_API uint16_t xptiRegisterUserDefinedEventType(
 XPTI_EXPORT_API xpti::result_t xptiInitialize(const char *Stream, uint32_t maj,
                                               uint32_t min,
                                               const char *version) {
-  return xpti::Framework::instance().initializeStream(Stream, maj, min,
-                                                      version);
+  return xpti::GXPTIFramework.initializeStream(Stream, maj, min, version);
 }
 
 XPTI_EXPORT_API void xptiFinalize(const char *Stream) {
-  xpti::Framework::instance().finalizeStream(Stream);
+  xpti::GXPTIFramework.finalizeStream(Stream);
 }
 
 XPTI_EXPORT_API uint64_t xptiGetUniqueId() {
-  return xpti::Framework::instance().makeUniqueID();
+  return xpti::GXPTIFramework.makeUniqueID();
 }
 
 XPTI_EXPORT_API xpti::string_id_t xptiRegisterString(const char *String,
                                                      char **RefTableStr) {
-  return xpti::Framework::instance().registerString(String, RefTableStr);
+  return xpti::GXPTIFramework.registerString(String, RefTableStr);
 }
 
 XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t ID) {
-  return xpti::Framework::instance().lookupString(ID);
+  return xpti::GXPTIFramework.lookupString(ID);
 }
 
 XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload) {
-  return xpti::Framework::instance().registerPayload(payload);
+  return xpti::GXPTIFramework.registerPayload(payload);
 }
 
 XPTI_EXPORT_API uint8_t xptiRegisterStream(const char *StreamName) {
-  return xpti::Framework::instance().registerStream(StreamName);
+  return xpti::GXPTIFramework.registerStream(StreamName);
 }
 
 XPTI_EXPORT_API xpti::result_t xptiUnregisterStream(const char *StreamName) {
-  return xpti::Framework::instance().unregisterStream(StreamName);
+  return xpti::GXPTIFramework.unregisterStream(StreamName);
 }
 XPTI_EXPORT_API xpti::trace_event_data_t *
 xptiMakeEvent(const char * /*Name*/, xpti::payload_t *Payload, uint16_t Event,
               xpti::trace_activity_type_t Activity, uint64_t *InstanceNo) {
-  return xpti::Framework::instance().createEvent(Payload, Event, Activity,
-                                                 InstanceNo);
+  return xpti::GXPTIFramework.createEvent(Payload, Event, Activity, InstanceNo);
 }
 
-XPTI_EXPORT_API void xptiReset() { xpti::Framework::instance().clear(); }
+XPTI_EXPORT_API void xptiReset() { xpti::GXPTIFramework.clear(); }
 
 XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(uint64_t UId) {
-  return xpti::Framework::instance().findEvent(UId);
+  return xpti::GXPTIFramework.findEvent(UId);
 }
 
 XPTI_EXPORT_API const xpti::payload_t *
 xptiQueryPayload(xpti::trace_event_data_t *LookupObject) {
-  return xpti::Framework::instance().queryPayload(LookupObject);
+  return xpti::GXPTIFramework.queryPayload(LookupObject);
 }
 
 XPTI_EXPORT_API const xpti::payload_t *xptiQueryPayloadByUID(uint64_t uid) {
-  return xpti::Framework::instance().queryPayloadByUID(uid);
+  return xpti::GXPTIFramework.queryPayloadByUID(uid);
 }
 
 XPTI_EXPORT_API xpti::result_t
 xptiRegisterCallback(uint8_t StreamID, uint16_t TraceType,
                      xpti::tracepoint_callback_api_t cbFunc) {
-  return xpti::Framework::instance().registerCallback(StreamID, TraceType,
-                                                      cbFunc);
+  return xpti::GXPTIFramework.registerCallback(StreamID, TraceType, cbFunc);
 }
 
 XPTI_EXPORT_API xpti::result_t
 xptiUnregisterCallback(uint8_t StreamID, uint16_t TraceType,
                        xpti::tracepoint_callback_api_t cbFunc) {
-  return xpti::Framework::instance().unregisterCallback(StreamID, TraceType,
-                                                        cbFunc);
+  return xpti::GXPTIFramework.unregisterCallback(StreamID, TraceType, cbFunc);
 }
 
 XPTI_EXPORT_API xpti::result_t
@@ -1141,18 +1083,18 @@ xptiNotifySubscribers(uint8_t StreamID, uint16_t TraceType,
                       xpti::trace_event_data_t *Parent,
                       xpti::trace_event_data_t *Object, uint64_t InstanceNo,
                       const void *TemporalUserData) {
-  return xpti::Framework::instance().notifySubscribers(
+  return xpti::GXPTIFramework.notifySubscribers(
       StreamID, TraceType, Parent, Object, InstanceNo, TemporalUserData);
 }
 
 XPTI_EXPORT_API bool xptiTraceEnabled() {
-  return xpti::Framework::instance().traceEnabled();
+  return xpti::GXPTIFramework.traceEnabled();
 }
 
 XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *Event,
                                                const char *Key,
                                                const char *Value) {
-  return xpti::Framework::instance().addMetadata(Event, Key, Value);
+  return xpti::GXPTIFramework.addMetadata(Event, Key, Value);
 }
 
 XPTI_EXPORT_API xpti::metadata_t *
@@ -1161,7 +1103,7 @@ xptiQueryMetadata(xpti::trace_event_data_t *Event) {
 }
 
 XPTI_EXPORT_API void xptiForceSetTraceEnabled(bool YesOrNo) {
-  xpti::Framework::instance().setTraceEnabled(YesOrNo);
+  xpti::GXPTIFramework.setTraceEnabled(YesOrNo);
 }
 } // extern "C"
 

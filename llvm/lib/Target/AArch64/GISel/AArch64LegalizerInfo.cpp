@@ -176,7 +176,9 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .clampScalar(0, s32, s64)
       .lowerIf(typeIs(1, s1));
 
-  getActionDefinitionsBuilder({G_SMULH, G_UMULH}).legalFor({s32, s64});
+  getActionDefinitionsBuilder({G_SMULH, G_UMULH})
+      .legalFor({s64, v8s16, v16s8, v4s32})
+      .lower();
 
   getActionDefinitionsBuilder({G_SMIN, G_SMAX, G_UMIN, G_UMAX})
       .legalFor({v8s8, v16s8, v4s16, v8s16, v2s32, v4s32})
@@ -632,6 +634,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
                  {v2s64, s64}})
       .clampNumElements(0, v4s32, v4s32)
       .clampNumElements(0, v2s64, v2s64)
+      .minScalarOrElt(0, s8)
       .minScalarSameAs(1, 0);
 
   getActionDefinitionsBuilder(G_BUILD_VECTOR_TRUNC).lower();

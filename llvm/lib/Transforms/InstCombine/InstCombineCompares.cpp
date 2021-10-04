@@ -5716,7 +5716,7 @@ static Instruction *foldVectorCmp(CmpInst &Cmp,
   if (match(RHS, m_Shuffle(m_Value(V2), m_Undef(), m_SpecificMask(M))) &&
       V1Ty == V2->getType() && (LHS->hasOneUse() || RHS->hasOneUse())) {
     Value *NewCmp = Builder.CreateCmp(Pred, V1, V2);
-    return new ShuffleVectorInst(NewCmp, UndefValue::get(NewCmp->getType()), M);
+    return new ShuffleVectorInst(NewCmp, M);
   }
 
   // Try to canonicalize compare with splatted operand and splat constant.
@@ -5737,8 +5737,7 @@ static Instruction *foldVectorCmp(CmpInst &Cmp,
                                  ScalarC);
     SmallVector<int, 8> NewM(M.size(), MaskSplatIndex);
     Value *NewCmp = Builder.CreateCmp(Pred, V1, C);
-    return new ShuffleVectorInst(NewCmp, UndefValue::get(NewCmp->getType()),
-                                 NewM);
+    return new ShuffleVectorInst(NewCmp, NewM);
   }
 
   return nullptr;
@@ -5909,13 +5908,12 @@ Instruction *InstCombinerImpl::visitICmpInst(ICmpInst &I) {
   if (Instruction *Res = foldICmpInstWithConstantNotInt(I))
     return Res;
 
-  // If we can optimize a 'icmp GEP, P' or 'icmp P, GEP', do so now.
-  if (GEPOperator *GEP = dyn_cast<GEPOperator>(Op0))
+  // Try to optimize 'icmp GEP, P' or 'icmp P, GEP'.
+  if (auto *GEP = dyn_cast<GEPOperator>(Op0))
     if (Instruction *NI = foldGEPICmp(GEP, Op1, I.getPredicate(), I))
       return NI;
-  if (GEPOperator *GEP = dyn_cast<GEPOperator>(Op1))
-    if (Instruction *NI = foldGEPICmp(GEP, Op0,
-                           ICmpInst::getSwappedPredicate(I.getPredicate()), I))
+  if (auto *GEP = dyn_cast<GEPOperator>(Op1))
+    if (Instruction *NI = foldGEPICmp(GEP, Op0, I.getSwappedPredicate(), I))
       return NI;
 
   // Try to optimize equality comparisons against alloca-based pointers.

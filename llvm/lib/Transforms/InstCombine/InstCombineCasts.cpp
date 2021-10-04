@@ -333,7 +333,7 @@ Instruction *InstCombinerImpl::commonCastTransforms(CastInst &CI) {
         SrcTy->getNumElements() == DestTy->getNumElements() &&
         SrcTy->getPrimitiveSizeInBits() == DestTy->getPrimitiveSizeInBits()) {
       Value *CastX = Builder.CreateCast(CI.getOpcode(), X, DestTy);
-      return new ShuffleVectorInst(CastX, UndefValue::get(DestTy), Mask);
+      return new ShuffleVectorInst(CastX, Mask);
     }
   }
 
@@ -701,10 +701,10 @@ static Instruction *shrinkSplatShuffle(TruncInst &Trunc,
   if (Shuf && Shuf->hasOneUse() && match(Shuf->getOperand(1), m_Undef()) &&
       is_splat(Shuf->getShuffleMask()) &&
       Shuf->getType() == Shuf->getOperand(0)->getType()) {
-    // trunc (shuf X, Undef, SplatMask) --> shuf (trunc X), Undef, SplatMask
-    Constant *NarrowUndef = UndefValue::get(Trunc.getType());
+    // trunc (shuf X, Undef, SplatMask) --> shuf (trunc X), Poison, SplatMask
+    // trunc (shuf X, Poison, SplatMask) --> shuf (trunc X), Poison, SplatMask
     Value *NarrowOp = Builder.CreateTrunc(Shuf->getOperand(0), Trunc.getType());
-    return new ShuffleVectorInst(NarrowOp, NarrowUndef, Shuf->getShuffleMask());
+    return new ShuffleVectorInst(NarrowOp, Shuf->getShuffleMask());
   }
 
   return nullptr;
@@ -977,7 +977,8 @@ Instruction *InstCombinerImpl::visitTrunc(TruncInst &Trunc) {
   }
 
   if (match(Src, m_VScale(DL))) {
-    if (Trunc.getFunction()->hasFnAttribute(Attribute::VScaleRange)) {
+    if (Trunc.getFunction() &&
+        Trunc.getFunction()->hasFnAttribute(Attribute::VScaleRange)) {
       unsigned MaxVScale = Trunc.getFunction()
                                ->getFnAttribute(Attribute::VScaleRange)
                                .getVScaleRangeArgs()
@@ -1348,7 +1349,8 @@ Instruction *InstCombinerImpl::visitZExt(ZExtInst &CI) {
   }
 
   if (match(Src, m_VScale(DL))) {
-    if (CI.getFunction()->hasFnAttribute(Attribute::VScaleRange)) {
+    if (CI.getFunction() &&
+        CI.getFunction()->hasFnAttribute(Attribute::VScaleRange)) {
       unsigned MaxVScale = CI.getFunction()
                                ->getFnAttribute(Attribute::VScaleRange)
                                .getVScaleRangeArgs()
@@ -1618,7 +1620,8 @@ Instruction *InstCombinerImpl::visitSExt(SExtInst &CI) {
   }
 
   if (match(Src, m_VScale(DL))) {
-    if (CI.getFunction()->hasFnAttribute(Attribute::VScaleRange)) {
+    if (CI.getFunction() &&
+        CI.getFunction()->hasFnAttribute(Attribute::VScaleRange)) {
       unsigned MaxVScale = CI.getFunction()
                                ->getFnAttribute(Attribute::VScaleRange)
                                .getVScaleRangeArgs()
@@ -2085,6 +2088,19 @@ Instruction *InstCombinerImpl::visitPtrToInt(PtrToIntInst &CI) {
     return CastInst::CreateIntegerCast(P, Ty, /*isSigned=*/false);
   }
 
+  if (auto *GEP = dyn_cast<GetElementPtrInst>(SrcOp)) {
+    // Fold ptrtoint(gep null, x) to multiply + constant if the GEP has one use.
+    // While this can increase the number of instructions it doesn't actually
+    // increase the overall complexity since the arithmetic is just part of
+    // the GEP otherwise.
+    if (GEP->hasOneUse() &&
+        isa<ConstantPointerNull>(GEP->getPointerOperand())) {
+      return replaceInstUsesWith(CI,
+                                 Builder.CreateIntCast(EmitGEPOffset(GEP), Ty,
+                                                       /*isSigned=*/false));
+    }
+  }
+
   Value *Vec, *Scalar, *Index;
   if (match(SrcOp, m_OneUse(m_InsertElt(m_IntToPtr(m_Value(Vec)),
                                         m_Value(Scalar), m_Value(Index)))) &&
@@ -2158,9 +2174,9 @@ optimizeVectorResizeWithIntegerBitCasts(Value *InVal, VectorType *DestTy,
   if (SrcElts > DestElts) {
     // If we're shrinking the number of elements (rewriting an integer
     // truncate), just shuffle in the elements corresponding to the least
-    // significant bits from the input and use undef as the second shuffle
+    // significant bits from the input and use poison as the second shuffle
     // input.
-    V2 = UndefValue::get(SrcTy);
+    V2 = PoisonValue::get(SrcTy);
     // Make sure the shuffle mask selects the "least significant bits" by
     // keeping elements from back of the src vector for big endian, and from the
     // front for little endian.
