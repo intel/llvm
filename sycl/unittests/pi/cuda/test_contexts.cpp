@@ -21,7 +21,7 @@
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
 
-using namespace cl::sycl;
+using namespace __sycl_internal::__v1;
 
 struct CudaContextsTest : public ::testing::Test {
 
