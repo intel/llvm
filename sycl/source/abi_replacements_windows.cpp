@@ -4523,7 +4523,6 @@
 #pragma comment(linker, "/export:?code@exception@sycl@cl@@QEBAAEBVerror_code@std@@XZ=?code@exception@__v1@__sycl_internal@@QEBAAEBVerror_code@std@@XZ")
 #pragma comment(linker, "/export:?malloc_shared@sycl@cl@@YAPEAX_KAEBVdevice@12@AEBVcontext@12@AEBVproperty_list@12@@Z=?malloc_shared@__v1@__sycl_internal@@YAPEAX_KAEBVdevice@12@AEBVcontext@12@AEBVproperty_list@12@@Z")
 #pragma comment(linker, "/export:?make_queue@detail@sycl@cl@@YA?AVqueue@23@_KAEBVcontext@23@_NAEBV?$function@$$A6AXVexception_list@sycl@cl@@@Z@std@@W4backend@23@@Z=?make_queue@detail@__v1@__sycl_internal@@YA?AVqueue@23@_KAEBVcontext@23@_NAEBV?$function@$$A6AXVexception_list@__v1@__sycl_internal@@@Z@std@@W4backend@23@@Z")
-#pragma comment(linker, "/export:??0half_v2@host_half_impl@detail@sycl@cl@@QEAA@XZ=??0half_v2@host_half_impl@detail@__v1@__sycl_internal@@QEAA@XZ")
 #pragma comment(linker, "/export:?DisableRangeRounding@handler@sycl@cl@@AEAA_NXZ=?DisableRangeRounding@handler@__v1@__sycl_internal@@AEAA_NXZ")
 #pragma comment(linker, "/export:??0filter_selector@oneapi@ext@sycl@cl@@QEAA@AEBV01234@@Z=??0filter_selector@oneapi@ext@__v1@__sycl_internal@@QEAA@AEBV01234@@Z")
 #pragma comment(linker, "/export:?accessGlobalOffset@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@I$00$0EAF@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@sycl@cl@@@34@AEAVhandler@34@@Z=?accessGlobalOffset@stream_impl@detail@__v1@__sycl_internal@@QEAA?AV?$accessor@I$00$0EAF@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@__v1@__sycl_internal@@@34@AEAVhandler@34@@Z")
@@ -4572,5 +4571,4 @@
 #pragma comment(linker, "/export:?isStateExplicitKernelBundle@handler@sycl@cl@@AEBA_NXZ=?isStateExplicitKernelBundle@handler@__v1@__sycl_internal@@AEBA_NXZ")
 #pragma comment(linker, "/export:?setStateSpecConstSet@handler@sycl@cl@@AEAAXXZ=?setStateSpecConstSet@handler@__v1@__sycl_internal@@AEAAXXZ")
 #pragma comment(linker, "/export:?setStateExplicitKernelBundle@handler@sycl@cl@@AEAAXXZ=?setStateExplicitKernelBundle@handler@__v1@__sycl_internal@@AEAAXXZ")
-
 // clang-format on
