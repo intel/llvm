@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl  %s -o %t.out
-// RUN: %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t.out
+// RUN: %RUN_ON_HOST %t.out
 
 // Per the SYCL 2020 spec (4.7.6.12 and others)
 // accessor::get_pointer() returns a pointer to the start of this accessor’s
