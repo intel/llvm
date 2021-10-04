@@ -480,7 +480,7 @@ private:
         PostProcess ? (*PostProcess) : nullptr;
     auto MUploadDataFunctor = [this, &Self, &Loc, CGF, Handler, Type,
                                PostProcessFunction](bool SubmittedExplicitly) {
-      {
+      if (!Handler->MIsFinalized) {
         assert(!Handler->MSharedPtrStorage.empty());
 
         std::lock_guard<std::mutex> Lock(
