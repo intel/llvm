@@ -29,6 +29,22 @@
 // CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-disable-range-rounding"
 // CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-disable-range-rounding"{{.*}} "-fsycl-is-host"
 
+/// FPGA target implies -emit-non-kernel-entry-points=0 in sycl-post-link
+// RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NON-KERNEL-ENTRY-POINTS %s
+// RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-NON-KERNEL-ENTRY-POINTS %s
+// CHK-NON-KERNEL-ENTRY-POINTS: sycl-post-link{{.*}} "-emit-non-kernel-entry-points=0"
+
+/// Non-FPGA targets should not imply -emit-non-kernel-entry-points=0 in sycl-post-link
+// RUN:   %clang -### -fsycl -fsycl-targets=spir64_fpga,spir64_gen %s 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=CHK-NON-KERNEL-ENTRY-POINTS-NEG-1
+// CHK-NON-KERNEL-ENTRY-POINTS-NEG-1: sycl-post-link{{.*}} "-emit-non-kernel-entry-points=0"
+// CHK-NON-KERNEL-ENTRY-POINTS-NEG-1: sycl-post-link
+// CHK-NON-KERNEL-ENTRY-POINTS-NEG-1-NOT: "-emit-non-kernel-entry-points=0"
+// RUN:   %clang -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=CHK-NON-KERNEL-ENTRY-POINTS-NEG-2
+// CHK-NON-KERNEL-ENTRY-POINTS-NEG-2-NOT: "-emit-non-kernel-entry-points=0"
+
 /// -fsycl-disable-range-rounding is applied to all compilations if fpga is used
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown,spir64_gen-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING-MULTI %s
