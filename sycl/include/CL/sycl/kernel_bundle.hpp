@@ -310,21 +310,8 @@ public:
 
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  std::vector<typename backend_traits<Backend>::template return_type<
-      kernel_bundle<State>>> get_native() {
-    std::vector<typename backend_traits<Backend>::template return_type<
-        kernel_bundle<State>>>
-        ReturnValue;
-    ReturnValue.reserve(std::distance(begin(), end()));
-
-    for (const device_image<State> &DevImg : *this) {
-      ReturnValue.push_back(
-          detail::pi::cast<typename backend_traits<
-              Backend>::template return_type<kernel_bundle<State>>>(
-              DevImg.getNative()));
-    }
-
-    return ReturnValue;
+  auto get_native() const -> backend_return_t<Backend, kernel_bundle<State>> {
+    return getNative<Backend>();
   }
 
 private:

@@ -2952,8 +2952,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     CollectionInitExprs.push_back(ILE);
   }
 
-  // FIXME Avoid creation of kernel obj clone.
-  // See https://github.com/intel/llvm/issues/1544 for details.
   static VarDecl *createKernelObjClone(ASTContext &Ctx, DeclContext *DC,
                                        const CXXRecordDecl *KernelObj) {
     TypeSourceInfo *TSInfo =

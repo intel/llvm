@@ -16,6 +16,8 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/kernel_bundle.hpp>
 
+#include <vector>
+
 __SYCL_OPEN_NS() {
 
 template <> struct interop<backend::opencl, platform> {
@@ -74,8 +76,7 @@ struct BackendInput<backend::opencl, kernel_bundle<State>> {
 
 template <bundle_state State>
 struct BackendReturn<backend::opencl, kernel_bundle<State>> {
-  // TODO: Per SYCL 2020 this should be std::vector<cl_program>
-  using type = cl_program;
+  using type = std::vector<cl_program>;
 };
 
 template <> struct BackendInput<backend::opencl, kernel> {
