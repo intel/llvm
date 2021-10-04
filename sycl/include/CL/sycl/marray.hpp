@@ -47,13 +47,17 @@ private:
   using EnableIfSuitableTypes = typename std::enable_if<
       conjunction<TypeChecker<ArgTN, DataT>...>::value>::type;
 
+  constexpr void initialize_data(const Type &Arg) {
+    for (size_t i = 0; i < NumElements; ++i) {
+      MData[i] = Arg;
+    }
+  }
+
 public:
   constexpr marray() : MData{} {}
 
-  explicit constexpr marray(const Type &Arg) {
-    for (std::size_t I = 0; I < NumElements; ++I) {
-      MData[I] = Arg;
-    }
+  explicit constexpr marray(const Type &Arg) : MData{Arg} {
+    initialize_data(Arg);
   }
 
   template <

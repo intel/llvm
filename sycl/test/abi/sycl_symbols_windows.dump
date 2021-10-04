@@ -672,7 +672,6 @@
 ??0half_v2@host_half_impl@detail@sycl@cl@@QEAA@AEBM@Z
 ??0half_v2@host_half_impl@detail@sycl@cl@@QEAA@AEBV01234@@Z
 ??0half_v2@host_half_impl@detail@sycl@cl@@QEAA@G@Z
-??0half_v2@host_half_impl@detail@sycl@cl@@QEAA@XZ
 ??0handler@__v1@__sycl_internal@@AEAA@V?$shared_ptr@Vqueue_impl@detail@__v1@__sycl_internal@@@std@@_N@Z
 ??0handler@sycl@cl@@AEAA@V?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_N@Z
 ??0host_selector@__v1@__sycl_internal@@QEAA@$$QEAV012@@Z

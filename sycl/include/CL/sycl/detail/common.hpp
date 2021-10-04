@@ -108,7 +108,7 @@ __SYCL_CLOSE_NS()
 
 #ifndef SYCL_SUPPRESS_EXCEPTIONS
 #include <CL/sycl/exception.hpp>
-
+// SYCL 1.2.1 exceptions
 #define __SYCL_REPORT_OCL_ERR_TO_EXC(expr, exc)                                \
   {                                                                            \
     auto code = expr;                                                          \
@@ -126,16 +126,35 @@ __SYCL_CLOSE_NS()
 #define __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(code)                                \
   __SYCL_REPORT_OCL_ERR_TO_STREAM(code)
 #endif
+// SYCL 2020 exceptions
+#define __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(expr, errc)                          \
+  {                                                                            \
+    auto code = expr;                                                          \
+    if (code != CL_SUCCESS) {                                                  \
+      throw sycl::exception(sycl::make_error_code(errc),                       \
+                            __SYCL_OCL_ERROR_REPORT +                          \
+                                cl::sycl::detail::codeToString(code));         \
+    }                                                                          \
+  }
+#define __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(code, errc)                    \
+  __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(code, errc)
 
 #ifdef __SYCL_SUPPRESS_OCL_ERROR_REPORT
+// SYCL 1.2.1 exceptions
 #define __SYCL_CHECK_OCL_CODE(X) (void)(X)
 #define __SYCL_CHECK_OCL_CODE_THROW(X, EXC) (void)(X)
 #define __SYCL_CHECK_OCL_CODE_NO_EXC(X) (void)(X)
+// SYCL 2020 exceptions
+#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC) (void)(X)
 #else
+// SYCL 1.2.1 exceptions
 #define __SYCL_CHECK_OCL_CODE(X) __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(X)
 #define __SYCL_CHECK_OCL_CODE_THROW(X, EXC)                                    \
   __SYCL_REPORT_OCL_ERR_TO_EXC_THROW(X, EXC)
 #define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_OCL_ERR_TO_STREAM(X)
+// SYCL 2020 exceptions
+#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC)                              \
+  __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(X, ERRC)
 #endif
 
 __SYCL_OPEN_NS() {

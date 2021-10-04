@@ -36,11 +36,6 @@
 __SYCL_OPEN_NS() {
 namespace detail {
 
-// bitselect builtin uses union with half specialization, but half has no
-// trivial constructor. This struct allow to use host half class instead of main
-// half class in the bitselect builtin.
-template <typename T> struct builtins_helper;
-
 inline __SYCL_CONSTEXPR_HALF uint16_t float2Half(const float &Val) {
   const uint32_t Bits = __sycl_ns::bit_cast<uint32_t>(Val);
 
@@ -193,7 +188,7 @@ private:
 // The main host half class
 class __SYCL_EXPORT half_v2 {
 public:
-  __SYCL_CONSTEXPR_HALF half_v2() : Buf(float2Half(0.0f)) {}
+  half_v2() = default;
   constexpr half_v2(const half_v2 &) = default;
   constexpr half_v2(half_v2 &&) = default;
 
@@ -259,9 +254,6 @@ public:
   // Initialize underlying data
   constexpr explicit half_v2(uint16_t x) : Buf(x) {}
 
-  template <typename T>
-  friend struct __sycl_internal::__v1::detail::builtins_helper;
-
 private:
   uint16_t Buf;
 };
@@ -308,9 +300,11 @@ template <int NumElements> struct half_vec {
   alignas(detail::vector_alignment<StorageT, NumElements>::value)
       StorageT s[NumElements];
 
-  __SYCL_CONSTEXPR_HALF half_vec() {
-    for (int i = 0; i < NumElements; i++)
+  __SYCL_CONSTEXPR_HALF half_vec() : s{0.0f} { initialize_data(); }
+  constexpr void initialize_data() {
+    for (size_t i = 0; i < NumElements; ++i) {
       s[i] = StorageT(0.0f);
+    }
   }
 };
 
@@ -323,7 +317,7 @@ template <int NumElements> struct half_vec {
 
 class half {
 public:
-  __SYCL_CONSTEXPR_HALF half() : Data(0.0f){};
+  half() = default;
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
 
@@ -395,8 +389,6 @@ public:
   }
 
   template <typename Key> friend struct std::hash;
-  template <typename T>
-  friend struct __sycl_internal::__v1::detail::builtins_helper;
 
 private:
   StorageT Data;
