@@ -1621,7 +1621,6 @@ public:
     return constant_ptr<DataT>(getPointerAdjusted());
   }
 
-
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 
