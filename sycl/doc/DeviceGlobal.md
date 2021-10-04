@@ -515,16 +515,12 @@ declaration.
 ### Need to diagnose invalid declarations of `device_global` variables
 
 The device global extension specification places restrictions on where a
-`device_global` variable can be declared.  These restrictions are similar to
-ones we have already for variables of type `specialization_id`:
+`device_global` variable can be declared aas clarified in [this PR][11] against
+the extension specification API.
 
-* A `device_global` variable can be declared at namespace scope.
-* A `device_global` variable can be declared as a static member variable in
-  class scope, but only if the declaration has public visibility from namespace
-  scope.
-* No other declarations are allowed for a variable of type `device_global`.
+[11]: <https://github.com/intel/llvm/pull/4697>
 
-The device compiler front-end needs to emit a diagnostic if a `device_global`
+The device compiler front-end should emit a diagnostic if a `device_global`
 variable is declared in a way that violates these restrictions.  We do not have
 agreement yet, though, on how this should be done.  For example, should the
 front-end recognize these variable declarations by the name of their type, or
@@ -539,13 +535,13 @@ Unless we decorate these variables in some special way, the current behavior of
 the `llvm-spirv` tool is to generate these variables in the private address
 space, even though they are declared at module scope.
 
-The [existing OpenCL attribute][11] `[[clang::opencl_global]]` is almost what
+The [existing OpenCL attribute][12] `[[clang::opencl_global]]` is almost what
 we need, but again this attribute can only be applied to a variable
 declaration.  Instead, we want some attribute that can be applied to the type
 declaration of `class device_global`.  We could invent some new attribute with
 this semantic, but there is another problem.
 
-[11]: <https://clang.llvm.org/docs/AttributeReference.html#global-global-clang-opencl-global>
+[12]: <https://clang.llvm.org/docs/AttributeReference.html#global-global-clang-opencl-global>
 
 Applying `[[clang::opencl_global]]` to a variable of class type currently
 raises an error message saying there is no candidate "global" constructor for
@@ -577,9 +573,9 @@ compiler works in OpenCL C 2.0 mode.
 The following three device global properties must be propagated from DPC++
 source code, through LLVM IR, and into SPIR-V where they are represented as
 SPIR-V decorations (defined in the
-[SPV\_INTEL\_global\_variable\_decorations][12] extension).
+[SPV\_INTEL\_global\_variable\_decorations][13] extension).
 
-[12]: <extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc>
+[13]: <extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc>
 
 * `host_access`
 * `init_mode`
@@ -617,7 +613,7 @@ An alternative solution would be to augment the SPIR-V with some new decoration
 that gives a unique name to each `OpVariable` that needs to be accessed from
 the host.  We could then use that name with the backend functions, and avoid
 renaming variables with internal linkage.  This would be only a minor change to
-the [SPV\_INTEL\_global\_variable\_decorations][12] extension, but it would
+the [SPV\_INTEL\_global\_variable\_decorations][13] extension, but it would
 also require changes in the Level Zero and OpenCL backends.
 
 ### Does the compiler need to be deterministic?
