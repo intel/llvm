@@ -218,7 +218,8 @@ kernel make_kernel(const context &TargetContext,
   //
   pi::PiProgram PiProgram = nullptr;
   if (Backend == backend::level_zero) {
-    if (KernelBundle.size() != 1)
+    auto KernelBundleImpl = getSyclObjImpl(KernelBundle);
+    if (KernelBundleImpl->size() != 1)
       throw sycl::runtime_error{
           "make_kernel: kernel_bundle must have single program image",
           PI_INVALID_PROGRAM};

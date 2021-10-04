@@ -80,8 +80,6 @@ const device_image_plain *kernel_bundle_plain::end() const {
   return impl->end();
 }
 
-size_t kernel_bundle_plain::size() const { return impl->size(); }
-
 bool kernel_bundle_plain::has_kernel(const kernel_id &KernelID) const noexcept {
   return impl->has_kernel(KernelID);
 }
