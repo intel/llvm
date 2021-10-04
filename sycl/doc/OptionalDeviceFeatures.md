@@ -183,6 +183,118 @@ to throw an exception in such a case just because some other kernel in the same
 device image uses a feature that is not supported by device *D*.
 
 
+### Compiler switch to diagnose optional feature usage
+
+As noted above, the FE compiler does not generally know which kernels will be
+submitted to which devices, and this limits the errors that the FE compiler can
+diagnose.  However, some users may know that all code in their application will
+run on some specific target device, and these users would prefer a compiler
+diagnostic if any kernel uses a feature that is not compatible with that
+device.  This is particularly true for FPGA users who always AOT compile their
+application for a specific FPGA device.
+
+To satisfy this use case, this design adds a new compile-time switch
+`-fsycl-assume-all-kernels-run-on-targets` which is an assertion by the user
+that all device code in the translation unit is expected to be runnable on the
+specified target device(s).
+
+The definition of this switch is:
+
+> `-fsycl-assume-all-kernels-run-on-targets=target,target...`
+>
+> This switch may be passed on the compilation line as an assertion by the
+> user that all device code in the source file (translation unit) is expected
+> to be runnable on the target devices that are listed, and it will not be run
+> on any other target device.  The compiler checks whether the device code uses
+> any features that are incompatible with any of the listed devices.  If so,
+> the compiler raises a diagnostic.
+>
+> This switch works in both ahead-of-time (AOT) and just-in-time (JIT)
+> compilation modes, and it does not automatically enable AOT mode.  In order
+> to perform AOT compilation, pass `-fsycl-targets` on the link line.
+
+
+### Must preserve ability to precisely control device images
+
+FPGA users need the ability to control how kernels are bundled together into
+device images because an FPGA device is reprogrammed with the contents of a
+single device image.  Most FPGA users want all kernels in their application to
+be bundled into a single device image, so that they can all exist on the same
+FPGA device at the same time.  Advanced users may want to partition some
+kernels into one device image and other kernels into another device image,
+allowing kernels to be programmed on two (or more) different FPGA devices.
+
+FPGA users are accustomed to doing this via the `-fsycl-device-code-split`
+link-time switch.  However, not all users agree on the semantic of this switch.
+Whereas FPGA users see this switch as a hard requirement that controls the
+way kernels are bundled into device images, other users see this switch as an
+optimization that controls JIT-time overhead.  These users do not expect
+`-fsycl-device-code-split` to ever produce incorrect code which could lead to
+an exception at runtime.
+
+To satisfy both users, the meaning of `-fsycl-device-code-split` is changed as
+follows.  When used without `-fsycl-assume-all-kernels-run-on-targets`, it is
+just an optimization hint.  The implementation splits device code according to
+the switch, but it may also perform additional device code splits in order to
+preserve the correctness of the code.
+
+However, when `-fsycl-device-code-split` is used in conjunction with
+`-fsycl-assume-all-kernels-run-on-targets`, we can guarantee that additional
+device code splits are not needed for correctness.  Thus, when both switches
+are specified together, the `-fsycl-device-code-split` provides the precise
+control over bundling of kernels into device images that FPGA users expect.
+
+Note that these switches are useful even for non-FPGA users.  For example,
+non-FPGA users may want to use the `device_global` property
+[`device_image_scope`][6], which requires even non-FPGA users to have precise
+control over the way kernels are bundled into device images.
+
+[6]: <https://github.com/intel/llvm/pull/4675>
+
+The new definition of `-fsycl-device-code-split` is as follows:
+
+> `-fsycl-device-code-split[=value]`
+>
+> This switch is a hint that can help optimize the JIT time performance by
+> adjusting the way kernels are grouped together into device images.  The value
+> `off` places most kernels into one large device image, which avoids some
+> duplicated code but results in all kernels being JIT compiled whenever one of
+> them is submitted to a device.  The values `per_kernel` and `per_source`
+> cause kernels to be split into multiple device images, which can avoid JIT
+> overhead for kernels that are never submitted to a device.  However, these
+> values can also cause common functions to be duplicated if they are shared by
+> kernels in two or more device images.
+>
+> Normally, this switch is just a hint, and DPC++ may perform additional device
+> code splits beyond those that are requested.  However, translation units that
+> are compiled with `-fsycl-assume-all-kernels-run-on-targets` have stricter
+> guarantees.  All kernels from translation units that are compiled with the
+> same set of targets are first logically bundled into the same device image.
+> Kernels in each of these device images are then split exactly as specified by
+> `-fsycl-device-code-split`.  For example, when source files are compiled with
+> `-fsycl-assume-all-kernels-run-on-targets=X` and then linked with
+> `-fsycl-device-code-split=off`, all kernels in those source files are
+> guaranteed to be grouped into a single device image.
+>
+> The `value` can be any one of the following:
+>
+> `per_kernel`: Creates a separate device image for each SYCL kernel.  Each
+> device image will contain a kernel and all its dependencies, such as called
+> functions and used variables.
+>
+> `per_source`: Creates a separate device image for each source (translation
+> unit).  Each device image will contain a collection of kernels grouped on a
+> per-source basis and all their dependencies, such as all used variables and
+> called functions, including the `SYCL_EXTERNAL` macro-marked functions from
+> other translation units.
+>
+> `off`: Creates a single device image for all kernels.
+>
+> `auto`: The compiler will use a heuristic to select the best way of splitting
+> device code.  This is the same as specifying `-fsycl-device-code-split` with
+> no value.
+
+
 ## Design
 
 ### Changes to DPC++ headers
@@ -237,11 +349,11 @@ void amx_multiply();
 
 This attribute can also be used to decorate class templates where only certain
 instantiations correspond to optional features.  See ["Appendix: Adding an
-attribute to 8-byte `atomic_ref`"][6] for an illustration of how this attribute
+attribute to 8-byte `atomic_ref`"][7] for an illustration of how this attribute
 can be used in conjunction with partial specialization to mark only certain
 instantiations of `sycl::atomic_ref` as an optional feature.
 
-[6]: <#appendix-adding-an-attribute-to-8-byte-atomic_ref>
+[7]: <#appendix-adding-an-attribute-to-8-byte-atomic_ref>
 
 Although the examples above show only a single aspect parameter to the
 `[[sycl_detail::uses_aspects()]]` attribute, this attribute should support a
@@ -291,21 +403,42 @@ allow metadata to be attached directly to types.  This representation works
 around that limitation by creating global named metadata that references the
 type's name.
 
-We also introduce two metadata that can be attached to a function definition
-similar to the existing `!intel_reqd_sub_group_size`.  The
-`!intel_declared_aspects` metadata is used for functions that are decorated
-with `[[sycl::device_has()]]`, and the `!intel_used_aspects` metadata is used
-to store the propagated information about all aspects used by a kernel or
-exported device function.
+We also introduce three metadata that can be attached to a function definition
+similar to the existing `!intel_reqd_sub_group_size`:
 
-In each case, the metadata's parameter is an unnamed metadata node, and the
-value of the metadata node is a list of `i32` constants, where each constant is
-a value from `enum class aspect`.
+* The `!intel_declared_aspects` metadata is used for functions that are
+  decorated with `[[sycl::device_has()]]`.  The value of the metadata node is a
+  list of `i32` constants, where each constant is a value from
+  `enum class aspect` representing the aspects listed in the attribute.
 
-For example, the following illustrates the IR that corresponds to a function
-`foo` that is decorated with `[[sycl::device_has()]]` where the required
-aspects have the numerical values `8` and `9`.  In addition, the function uses
-an optional feature that corresponds to an aspect with numerical value `8`.
+* The `!intel_used_aspects` metadata is used to store the propagated
+  information about all aspects used by a kernel or exported device function.
+  The value of this metadata node is also a list of `i32` constants, where each
+  constant is a value from `enum class aspect` representing the aspects that
+  are used by the kernel or exported device function.
+
+* The `!intel_assumed_targets` metadata is used to decorate kernel functions
+  and `SYCL_EXTERNAL` functions, telling the value of the
+  `-fsycl-assume-all-kernels-run-on-targets` that was used to compile the
+  translation unit.  The value of this metadata node is a list of `i32`
+  constants, where each constant is a value from `enum class aspect`
+  representing the a target device specified by that switch.  (Each target
+  device has an associated aspect.)  If the translation unit is compiled
+  without the `-fsycl-assume-all-kernels-run-on-targets`, the metadata has an
+  empty list of aspects.
+
+  The reason an empty metadata is added to functions compiled without the
+  command line switch is to aid with the error checking that happens in the
+  `sycl-post-link` tool w.r.t. `SYCL_EXTERNAL` functions.  The presence of the
+  empty metadata allows `sycl-post-link` to identify functions that are
+  definitely known to be compiled without
+  `-fsycl-assume-all-kernels-run-on-targets`.  Functions with no metadata might
+  be created by backend IR passes, even when this switch *is* specified.
+
+To illustrate, the following IR corresponds to a function `foo` that is
+decorated with `[[sycl::device_has()]]` where the required aspects have the
+numerical values `8` and `9`.  In addition, the function uses an optional
+feature that corresponds to an aspect with numerical value `8`.
 
 ```
 define void @foo() !intel_declared_aspects !1 !intel_used_aspects !2 {}
@@ -350,6 +483,16 @@ We add a new IR phase to the device compiler which does the following:
 * Diagnoses a warning if any function that has `!intel_declared_aspects` uses
   an aspect not listed in that declared set.
 
+* Creates an `!intel_assumed_targets` metadata for each kernel function or
+  `SYCL_EXTERNAL` function that is defined.  This is done regardless of whether
+  the `-fsycl-assume-all-kernels-run-on-targets` command line switch is
+  specified.  If the switch is not specified, the metadata has an empty list
+  of aspects.
+
+* If the `-fsycl-assume-all-kernels-run-on-targets` command line switch is
+  specified, diagnoses a warning if any function uses an aspect that is not
+  compatible with all target devices specified by that switch.
+
 It is important that this IR phase runs before any other optimization phase
 that might eliminate a reference to a type or inline a function call because
 such optimizations will cause us to miss information about aspects that are
@@ -382,10 +525,25 @@ need only look at the `!intel_used_aspects` metadata for each function,
 propagating the aspects used by each function up to it callers and augmenting
 the caller's `!intel_used_aspects` set.
 
-Diagnosing warnings is then straightforward.  The implement looks for functions
-that have `!intel_declared_aspects` and compares that set with the
-`!intel_used_aspects` set (if any).  If a function uses an aspect that is not
-in the declared set, the implementation issues a warning.
+Diagnosing warnings for the third bullet point is then straightforward.  The
+implementation looks for functions that have `!intel_declared_aspects` and
+compares that set with the `!intel_used_aspects` set (if any).  If a function
+uses an aspect that is not in the declared set, the implementation issues a
+warning.
+
+Diagnosing warnings for the fifth bullet point requires the [device
+configuration file][8] which gives the set of allowed optional features for
+each target device.  The implementation looks for functions that have either
+`!intel_declared_aspects` or `!intel_used_aspects`, and it compares the aspects
+from these metadata to the allowed list in the configuration file.  If any
+aspect is not on the allowed list, the implementation issues a warning.  In
+addition, the implementation looks for device functions that have
+`!intel_reqd_sub_group_size` or `!reqd_work_group_size`.  If the required
+sub-group size or the required work-group size is not allowed for the target
+devices according to the configuration file, the implementation issues a
+warning.
+
+[8]: <#device-configuration-file>
 
 One weakness of this design is that the warning message will only be able to
 contain the source location of the problem if the compiler was invoked with
@@ -487,10 +645,10 @@ goal is to ensure that two kernels or exported device functions are only
 bundled together into the same device image if they use exactly the same set
 of aspects.
 
-For the purposes of this analysis, the set of *Used* aspects is computed by
-taking the union of the aspects listed in the kernel's (or device function's)
-`!intel_used_aspects` and `!intel_declared_aspects` sets.  This is consistent
-with the SYCL specification, which says that a kernel decorated with
+For the purposes of this analysis, the set of *UsedAspects* aspects is computed
+by taking the union of the aspects listed in the kernel's (or device
+function's) `!intel_used_aspects` and `!intel_declared_aspects` sets.  This is
+consistent with the SYCL specification, which says that a kernel decorated with
 `[[sycl::device_has()]]` may only be submitted to a device that provides the
 listed aspects, regardless of whether the kernel actually uses those aspects.
 
@@ -505,19 +663,31 @@ kernel that uses an unsupported work-group size, but other backends might.
 Therefore, it seems safest to split device code based required work-group size
 also.
 
-Therefore, two kernels or exported device functions are only bundled together
-into the same device image if all of the following are true:
+The algorithm is different, though, for translation units that were compiled
+with `-fsycl-assume-all-kernels-run-on-targets`.  Since the user has asserted
+that device code in these translation units will be run *only* on the targets
+listed in that switch, we know that all such device code can be bundled
+together in the same device image so long as the translation units were
+compiled with the same `-fsycl-assume-all-kernels-run-on-targets` switch.
 
-* They share the same set of *Used* aspects,
-* They either both have no required work-group size or both have the same
-  required work-group size, and
-* They either both have the same numeric value for their required sub-group
-  size or neither has a numeric value for a required sub-group size.  (Note
-  that this implies that kernels decorated with
-  `[[intel::named_sub_group_size(automatic)]]` can be bundled together with
-  kernels that are decorated with `[[intel::named_sub_group_size(primary)]]`
-  and that either of these kernels could be bundled with a kernel that has no
-  required sub-group size.)
+Therefore, two kernels or exported device functions are only bundled together
+into the same device image if:
+
+* They both have `!intel_assumed_targets` metadata with the same non-empty set
+  of aspects, or
+
+* All of the following are true:
+  - Both have an empty set of `!intel_assumed_targets` metadata,
+  - They share the same set of *UsedAspects* aspects,
+  - They either both have no required work-group size or both have the same
+    required work-group size, and
+  - They either both have the same numeric value for their required sub-group
+    size or neither has a numeric value for a required sub-group size.  (Note
+    that this implies that kernels decorated with
+    `[[intel::named_sub_group_size(automatic)]]` can be bundled together with
+    kernels that are decorated with `[[intel::named_sub_group_size(primary)]]`
+    and that either of these kernels could be bundled with a kernel that has no
+    required sub-group size.)
 
 These criteria are an additional filter applied to the device code split
 algorithm after taking into account the `-fsycl-device-code-split` command line
@@ -528,12 +698,82 @@ that option, and then another split is performed to ensure that each device
 image contains only kernels or exported device functions that meet the criteria
 listed above.
 
-#### Create the "SYCL/device-requirements" property set
+#### Error checking for SYCL\_EXTERNAL functions
 
-The DPC++ runtime needs some way to know about the *Used* aspects, required
-sub-group size, and required work-group size of an image.  Therefore, the
-post-link tool provides this information in a new property set named
-"SYCL/device-requirements".
+After bundling the device functions into images, the `sycl-post-link` tool does
+another pass over the IR of each image to catch errors that occur with
+`SYCL_EXTERNAL` functions:
+
+* It's possible that a translation unit calling a `SYCL_EXTERNAL` function did
+  not properly decorate the function's declaration with the set of aspects that
+  it uses.  Such an error would not be caught in earlier phases, which operate
+  on a single translation unit at a time.
+
+* It's possible that a translation unit calling a `SYCL_EXTERNAL` function was
+  compiled with `-fsycl-assume-all-kernels-run-on-targets`, but the translation
+  unit defining the `SYCL_EXTERNAL` function was not compiled with this option
+  (or was compiled to assume a different set of target devices).
+
+If the image contains kernels that were *not* compiled with
+`-fsycl-assume-all-kernels-run-on-targets`, the pass works as follows:
+
+* Set *FinalUsedAspects* to the image's *UsedAspects* set of aspects.
+* Set *FinalSubGroup* to the image's required sub-group size.
+* Set *FinalWorkGroup* to the image's required work-group size.
+* Scan over all functions in the image and examine the function's metadata:
+  - If the function has either `!intel_used_aspects` or
+    `!intel_declared_aspects` metadata and one of the aspects in that metadata
+    is not in the image's *UsedAspects* set, issue a warning and add that
+    aspect to the *FinalUsedAspects* set.
+  - If the function has `!intel_reqd_sub_group_size` metadata and the size is
+    not the same as the image's required sub-group size, issue a warning and
+    add that sub-group size to the *FinalSubGroup* set.
+  - (Since the `[[sycl::reqd_work_group_size()]]` attribute cannot be specified
+    on a `SYCL_EXTERNAL` function, there is no need for a similar check on the
+    required work-group size.)
+* Set the following properties in the "SYCL/device requirements" property set
+  (described below):
+  - Set "aspect" according to the values in *FinalUsedAspects*.
+  - Set "reqd\_sub\_group\_size" according to the values in *FinalSubGroup*.
+  - Set "reqd\_work\_group\_size" according to the values in *FinalWorkGroup*.
+
+Warning messages from this pass look like:
+
+```
+warning: function 'foo' uses aspect 'fp64' not expected by its calling kernel.
+Missing [[sycl::device_has()]] on SYCL_EXTERNAL function?
+
+warning: function 'bar' has required sub-group size '32' that does not match
+its calling kernel.  Missing [[sycl::reqd_sub_group()]] attribute on
+SYCL_EXTERNAL function?
+```
+
+If the image contains kernels that *were* compiled with
+`-fsycl-assume-all-kernels-run-on-targets`, the pass works as follows:
+
+* Set *FinalAssumedTargets* to the image's set of assumed target devices.
+* Scan over all functions in the image looking for functions that have the
+  `!intel_assumed_targets` metadata.  If the metadata exists and its set
+  includes any target devices not in the image's set of assumed targets, issue
+  a warning and set *FinalAssumedTargets* to the intersection of the metadata's
+  target set and the *FinalAssumedTargets* set.  (This may result in
+  *FinalAssumedTargets* being the empty set.)
+* Set the following properties in the "SYCL/device requirements" property set:
+  - Set "assumed\_target" according to the values in *FinalAssumedTargets*.
+
+Warning messages from this pass look like:
+
+```
+warning: function 'foo' compiled with a different `-fsycl-assume-all-kernels-run-on-targets`
+switch than its calling kernel.
+```
+
+#### Create the "SYCL/device requirements" property set
+
+The DPC++ runtime needs some way to know about the requirements of an image
+(e.g. the set of aspects that it uses).  Therefore, the `sycl-post-link` tool
+provides this information in a new property set named
+"SYCL/device requirements".
 
 The following table lists the properties that this set may contain and their
 types:
@@ -543,21 +783,27 @@ Property Name             | Property Type
 "aspect"                  | `PI_PROPERTY_TYPE_BYTE_ARRAY`
 "reqd\_sub\_group\_size"  | `PI_PROPERTY_TYPE_BYTE_ARRAY`
 "reqd\_work\_group\_size" | `PI_PROPERTY_TYPE_BYTE_ARRAY`
+"assumed\_target"         | `PI_PROPERTY_TYPE_BYTE_ARRAY`
 
-There is an "aspect" property if the image's *Used* set is not empty.  The
-value of the property is an array of `uint32` values, where each `uint32` value
-is the numerical value of an aspect from `enum class aspect`.  The size of the
-property (which is always divisible by `4`) tells the number of aspects in the
-array.
+The "aspect" property tells the set of aspects that a device must have in order
+to use the image.  The image is only compatible with a device that supports
+**all** of the listed aspects.  The value of the property is an array of
+`uint32` values, where each `uint32` value is the numerical value of an aspect
+from `enum class aspect`.  The size of the property (which is always divisible
+by `4`) tells the number of aspects in the array.
 
-There is a "reqd\_sub\_group\_size" property if the image contains any kernels
-with a numeric required sub-group size.  (I.e. this excludes kernels where the
-required sub-group size is a named value like `automatic` or `primary`.)  The
-value of the property is a `uint32` value that tells the required size.
+The "reqd\_sub\_group\_size" property tells the set of numeric sub-group sizes
+that a device must support in order to use the image.  (This does not include
+named sub-group sizes like `automatic` or `primary`.)  The image is only
+compatible with a device that supports **all** of the listed sizes.  The value
+of the property is an array of `uint32` values, where each `uint32` value tells
+a required sub-group size.  The size of the property (which is always divisible
+by `4`) tells the number of entries in the array.
 
-There is a "reqd\_work\_group\_size" property if the image contains any kernels
-with a required work-group size.  The value of the property is a `BYTE_ARRAY`
-with the following layout:
+The "reqd\_work\_group\_size" property tells the set of work-group sizes that a
+device must support in order to use the image.  The image is only compatible
+with a device that supports **all** of the listed sizes.  The value of the
+property is a `BYTE_ARRAY` with entries that have the following layout:
 
 ```
 <dim_count (uint32)> <dim0 (uint32)> ...
@@ -566,14 +812,16 @@ with the following layout:
 Where `dim_count` is the number of work group dimensions (i.e. 1, 2, or 3), and
 `dim0 ...` are the values of the dimensions from the
 `[[reqd_work_group_size()]]` attribute, in the same order as they appear in the
-attribute.
+attribute.  The size of the property tells the number of entries in the array.
 
-**NOTE**: One may wonder why the type of the "reqd\_sub\_group\_size" property
-is not `PI_PROPERTY_TYPE_UINT32` since its value is always 32-bits.  The
-reason is that we may want to expand this property in the future to contain a
-list of required sub-group sizes.  Likewise, the "reqd\_work\_group\_size"
-property may be expanded in the future to contain a list of required work-group
-sizes.
+The "assumed\_target" property indicates that the image was compiled with
+`-fsycl-assume-all-kernels-run-on-targets`, and it is assumed to be runnable
+only on the set of target devices that are listed in this property.  The value
+of the property is an array of `uint32` values where each `uint32` value is the
+numerical value of an aspect from `enum class aspect`, telling one of the
+target devices from the command line switch.  (Each target device has a
+corresponding aspect.)  The size of the property (which is always divisible by
+`4`) tells the number of aspects in the array.
 
 
 ### Changes specific to AOT mode
@@ -594,7 +842,7 @@ configuration file that has one entry for each device that it supports.  Each
 entry contains the set of aspects that the device supports and the set of
 sub-group sizes that it supports.  DPC++ then consults this configuration
 file to decide whether to invoke a particular AOT compiler on each device IR
-module, using the information from the module's "SYCL/device-requirements"
+module, using the information from the module's "SYCL/device requirements"
 property set.
 
 #### Device configuration file
@@ -624,7 +872,7 @@ example, if a new device is released before there is a new DPC++ release.  In
 fact, the DPC++ driver supports a command line option which allows the user
 to select an alternate configuration file.
 
-**TODO**: 
+**TODO**:
 * Define location of the default device configuration file.
 
 #### New features in clang compilation driver and tools
@@ -700,7 +948,7 @@ In more details, the tool performs the following actions:
 1) For each row in the input file table:
 
    - loads the properties file from the "Properties" column
-   - checks if there is the `SYCL/device-requirements` property
+   - checks if there is the `SYCL/device requirements` property
    - if no, copies current row to the output file table and goes to the next
    - if yes, checks if all the requirements listed in the property are supported
      by the target architecture as specified by entry `E` in the device
@@ -755,26 +1003,44 @@ When the application submits a kernel to a device, the runtime identifies all
 the other device images that export device functions which are needed by the
 kernel as described in [Device Code Dynamic Linking][5].  Before the runtime
 actually links these images together, it compares each image's
-"SYCL/device-requirements" against the features provided by the target
+"SYCL/device requirements" against the features provided by the target
 device.  If any of the following checks fail, the runtime throws
 `errc::kernel_not_supported`:
 
+* The "assumed\_target" property exists, and the device is not one of the
+  target devices listed in the property, or
 * The "aspect" property contains an aspect that is not provided by the device,
   or
 * The "reqd\_sub\_group\_size" property contains a sub-group size that the
-  device does not support.
-
-There is no way currently for the runtime to query the work-group sizes that a
-device supports, so the "reqd\_work\_group\_size" property is not checked.  We
-include this property in the set nonetheless for possible future use.
+  device does not support, or
+* The "reqd\_work\_group\_size" property contains a work-group size that the
+  device does not support.  Currently, the only portable check that will work
+  for all devices is to verify that the total number of work items in the
+  "reqd\_work\_group\_size" property is no greater than the device's value for
+  `info::device::max_work_group_size`.  However, individual backends may
+  provide other checks.
 
 If the runtime throws an exception, it happens even before the runtime tries to
 access the contents of the device image.
 
+The exception's `what` string contains a message describing the reason the
+device image is incompatible.  For example:
+
+```
+Kernel was compiled with '-fsycl-assume-all-kernels-run-on-targets=intel_gpu_11_1'
+but was submitted to a different device.
+
+Kernel uses optional feature corresponding to 'aspect::fp16' but device does
+not support this aspect.
+
+Kernel has a required sub-group size of '32' but device does not support this
+sub-group size.
+```
+
 
 ## Appendix: Adding an attribute to 8-byte `atomic_ref`
 
-As described above under ["Changes to DPC++ headers"][8], we need to decorate
+As described above under ["Changes to DPC++ headers"][9], we need to decorate
 any SYCL type representing an optional device feature with the
 `[[sycl_detail::uses_aspects()]]` attribute.  This is somewhat tricky for
 `atomic_ref`, though, because it is only an optional feature when specialized
@@ -782,7 +1048,7 @@ for a 8-byte type.  However, we can accomplish this by using partial
 specialization techniques.  The following code snippet demonstrates (best read
 from bottom to top):
 
-[8]: <#changes-to-dpc-headers>
+[9]: <#changes-to-dpc-headers>
 
 ```
 namespace sycl {
