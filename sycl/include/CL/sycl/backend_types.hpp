@@ -25,9 +25,9 @@ enum class backend : char {
   level_zero __SYCL2020_DEPRECATED("use 'ext_oneapi_level_zero' instead") =
       ext_oneapi_level_zero,
   cuda = 3,
-  all = 4,
-  esimd_cpu = 5,
-  hip = 6,
+  hip = 4,
+  all = 5,
+  esimd_cpu = 6,
 };
 
 template <backend Backend, typename SYCLObjectT> struct interop;
