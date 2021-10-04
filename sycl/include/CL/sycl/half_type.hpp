@@ -321,7 +321,7 @@ public:
   half() = default;
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
-   
+
   __SYCL_CONSTEXPR_HALF half(const float &rhs) : Data(rhs) {}
 
   constexpr half &operator=(const half &rhs) = default;
