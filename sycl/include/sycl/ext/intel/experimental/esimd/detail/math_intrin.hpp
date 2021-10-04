@@ -22,7 +22,7 @@
 // saturation intrinsics
 template <typename T0, typename T1, int SZ>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T0, SZ>
-__esimd_satf(__SEIEED::vector_type_t<T1, SZ> src);
+__esimd_sat(__SEIEED::vector_type_t<T1, SZ> src);
 
 template <typename T0, typename T1, int SZ>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T0, SZ>
@@ -148,15 +148,15 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<unsigned int, SZ>
 __esimd_cbit(__SEIEED::vector_type_t<T, SZ> src0);
 
 template <typename T0, int SZ>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T0, SZ> __esimd_bfins(
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T0, SZ> __esimd_bfi(
     __SEIEED::vector_type_t<T0, SZ> src0, __SEIEED::vector_type_t<T0, SZ> src1,
     __SEIEED::vector_type_t<T0, SZ> src2, __SEIEED::vector_type_t<T0, SZ> src3);
 
 template <typename T0, int SZ>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T0, SZ>
-__esimd_bfext(__SEIEED::vector_type_t<T0, SZ> src0,
-              __SEIEED::vector_type_t<T0, SZ> src1,
-              __SEIEED::vector_type_t<T0, SZ> src2);
+__esimd_sbfe(__SEIEED::vector_type_t<T0, SZ> src0,
+             __SEIEED::vector_type_t<T0, SZ> src1,
+             __SEIEED::vector_type_t<T0, SZ> src2);
 
 template <typename T0, int SZ>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T0, SZ>
@@ -184,7 +184,7 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<float, SZ>
 __esimd_sqrt(__SEIEED::vector_type_t<float, SZ> src0);
 template <int SZ>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<float, SZ>
-__esimd_sqrt_ieee(__SEIEED::vector_type_t<float, SZ> src0);
+__esimd_ieee_sqrt(__SEIEED::vector_type_t<float, SZ> src0);
 template <int SZ>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<float, SZ>
 __esimd_rsqrt(__SEIEED::vector_type_t<float, SZ> src0);
@@ -200,7 +200,7 @@ __esimd_pow(__SEIEED::vector_type_t<float, SZ> src0,
             __SEIEED::vector_type_t<float, SZ> src1);
 template <int SZ>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<float, SZ>
-__esimd_div_ieee(__SEIEED::vector_type_t<float, SZ> src0,
+__esimd_ieee_div(__SEIEED::vector_type_t<float, SZ> src0,
                  __SEIEED::vector_type_t<float, SZ> src1);
 
 template <int SZ>
@@ -218,10 +218,10 @@ __esimd_rndz(__SEIEED::vector_type_t<float, SZ> src0);
 
 template <int SZ>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<double, SZ>
-__esimd_sqrt_ieee(__SEIEED::vector_type_t<double, SZ> src0);
+__esimd_ieee_sqrt(__SEIEED::vector_type_t<double, SZ> src0);
 template <int SZ>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<double, SZ>
-__esimd_div_ieee(__SEIEED::vector_type_t<double, SZ> src0,
+__esimd_ieee_div(__SEIEED::vector_type_t<double, SZ> src0,
                  __SEIEED::vector_type_t<double, SZ> src1);
 
 template <int N>
@@ -280,41 +280,26 @@ __esimd_ssdp4a_sat(__SEIEED::vector_type_t<T2, N> src0,
                    __SEIEED::vector_type_t<T3, N> src1,
                    __SEIEED::vector_type_t<T4, N> src2);
 
-// Reduction functions
-template <typename Ty, int N>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
-__esimd_reduced_fmax(__SEIEED::vector_type_t<Ty, N> src1,
-                     __SEIEED::vector_type_t<Ty, N> src2);
-
-template <typename Ty, int N>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
-__esimd_reduced_umax(__SEIEED::vector_type_t<Ty, N> src1,
-                     __SEIEED::vector_type_t<Ty, N> src2);
-
-template <typename Ty, int N>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
-__esimd_reduced_smax(__SEIEED::vector_type_t<Ty, N> src1,
-                     __SEIEED::vector_type_t<Ty, N> src2);
-
-template <typename Ty, int N>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
-__esimd_reduced_fmin(__SEIEED::vector_type_t<Ty, N> src1,
-                     __SEIEED::vector_type_t<Ty, N> src2);
-
-template <typename Ty, int N>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
-__esimd_reduced_umin(__SEIEED::vector_type_t<Ty, N> src1,
-                     __SEIEED::vector_type_t<Ty, N> src2);
-
-template <typename Ty, int N>
-__SEIEED::vector_type_t<Ty, N> SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
-__esimd_reduced_smin(__SEIEED::vector_type_t<Ty, N> src1,
-                     __SEIEED::vector_type_t<Ty, N> src2);
-
 template <typename Ty, int N>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_dp4(__SEIEED::vector_type_t<Ty, N> v1,
-            __SEIEED::vector_type_t<Ty, N> v2);
+            __SEIEED::vector_type_t<Ty, N> v2)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  __SEIEED::vector_type_t<Ty, N> retv;
+  for (auto i = 0; i != N; i += 4) {
+    Ty dp = (v1[i] * v2[i]) + (v1[i + 1] * v2[i + 1]) +
+            (v1[i + 2] * v2[i + 2]) + (v1[i + 3] * v2[i + 3]);
+    retv[i] = dp;
+    retv[i + 1] = dp;
+    retv[i + 2] = dp;
+    retv[i + 3] = dp;
+  }
+  return retv;
+}
+#endif // __SYCL_DEVICE_ONLY__
 
 #ifdef __SYCL_DEVICE_ONLY__
 
@@ -386,7 +371,7 @@ inline T extract(const uint32_t &width, const uint32_t &offset, uint32_t src,
 
 template <typename T0, typename T1, int SZ>
 inline __SEIEED::vector_type_t<T0, SZ>
-__esimd_satf(__SEIEED::vector_type_t<T1, SZ> src) {
+__esimd_sat(__SEIEED::vector_type_t<T1, SZ> src) {
   __SEIEED::vector_type_t<T0, SZ> retv;
   for (int i = 0; i < SZ; i++) {
     SIMDCF_ELEMENT_SKIP(i);
@@ -839,10 +824,10 @@ __esimd_cbit(__SEIEED::vector_type_t<T, SZ> src0) {
 
 template <typename T0, int SZ>
 inline __SEIEED::vector_type_t<T0, SZ>
-__esimd_bfins(__SEIEED::vector_type_t<T0, SZ> width,
-              __SEIEED::vector_type_t<T0, SZ> offset,
-              __SEIEED::vector_type_t<T0, SZ> val,
-              __SEIEED::vector_type_t<T0, SZ> src) {
+__esimd_bfi(__SEIEED::vector_type_t<T0, SZ> width,
+            __SEIEED::vector_type_t<T0, SZ> offset,
+            __SEIEED::vector_type_t<T0, SZ> val,
+            __SEIEED::vector_type_t<T0, SZ> src) {
   int i;
   typename __SEIEEED::maxtype<T0>::type ret;
   __SEIEED::vector_type_t<T0, SZ> retv;
@@ -865,9 +850,9 @@ __esimd_bfins(__SEIEED::vector_type_t<T0, SZ> width,
 
 template <typename T0, int SZ>
 inline __SEIEED::vector_type_t<T0, SZ>
-__esimd_bfext(__SEIEED::vector_type_t<T0, SZ> width,
-              __SEIEED::vector_type_t<T0, SZ> offset,
-              __SEIEED::vector_type_t<T0, SZ> src) {
+__esimd_sbfe(__SEIEED::vector_type_t<T0, SZ> width,
+             __SEIEED::vector_type_t<T0, SZ> offset,
+             __SEIEED::vector_type_t<T0, SZ> src) {
   int i;
   typename __SEIEEED::maxtype<T0>::type ret;
   __SEIEED::vector_type_t<T0, SZ> retv;
@@ -1010,7 +995,7 @@ __esimd_sqrt(__SEIEED::vector_type_t<float, SZ> src0) {
 };
 template <int SZ>
 inline __SEIEED::vector_type_t<float, SZ>
-__esimd_sqrt_ieee(__SEIEED::vector_type_t<float, SZ> src0) {
+__esimd_ieee_sqrt(__SEIEED::vector_type_t<float, SZ> src0) {
   __SEIEED::vector_type_t<float, SZ> retv;
 
   for (int i = 0; i < SZ; i++) {
@@ -1065,7 +1050,7 @@ __esimd_pow(__SEIEED::vector_type_t<float, SZ> src0,
 
 template <int SZ>
 inline __SEIEED::vector_type_t<float, SZ>
-__esimd_div_ieee(__SEIEED::vector_type_t<float, SZ> src0,
+__esimd_ieee_div(__SEIEED::vector_type_t<float, SZ> src0,
                  __SEIEED::vector_type_t<float, SZ> src1) {
   __SEIEED::vector_type_t<float, SZ> divinv;
   __SEIEED::vector_type_t<float, SZ> retv;
@@ -1158,7 +1143,7 @@ __esimd_rndz(__SEIEED::vector_type_t<float, SZ> src0) {
 
 template <int SZ>
 inline __SEIEED::vector_type_t<double, SZ>
-__esimd_sqrt_ieee(__SEIEED::vector_type_t<double, SZ> src0) {
+__esimd_ieee_sqrt(__SEIEED::vector_type_t<double, SZ> src0) {
   __SEIEED::vector_type_t<double, SZ> retv;
 
   for (int i = 0; i < SZ; i++) {
@@ -1170,7 +1155,7 @@ __esimd_sqrt_ieee(__SEIEED::vector_type_t<double, SZ> src0) {
 
 template <int SZ>
 inline __SEIEED::vector_type_t<double, SZ>
-__esimd_div_ieee(__SEIEED::vector_type_t<double, SZ> src0,
+__esimd_ieee_div(__SEIEED::vector_type_t<double, SZ> src0,
                  __SEIEED::vector_type_t<double, SZ> src1) {
   __SEIEED::vector_type_t<double, SZ> divinv;
   __SEIEED::vector_type_t<double, SZ> retv;
@@ -1269,27 +1254,6 @@ __esimd_reduced_max(__SEIEED::vector_type_t<Ty, N> src1,
 
 template <typename Ty, int N>
 inline __SEIEED::vector_type_t<Ty, N>
-__esimd_reduced_fmax(__SEIEED::vector_type_t<Ty, N> src1,
-                     __SEIEED::vector_type_t<Ty, N> src2) {
-  return __esimd_reduced_max<Ty, N>(src1, src2);
-}
-
-template <typename Ty, int N>
-inline __SEIEED::vector_type_t<Ty, N>
-__esimd_reduced_umax(__SEIEED::vector_type_t<Ty, N> src1,
-                     __SEIEED::vector_type_t<Ty, N> src2) {
-  return __esimd_reduced_max<Ty, N>(src1, src2);
-}
-
-template <typename Ty, int N>
-inline __SEIEED::vector_type_t<Ty, N>
-__esimd_reduced_smax(__SEIEED::vector_type_t<Ty, N> src1,
-                     __SEIEED::vector_type_t<Ty, N> src2) {
-  return __esimd_reduced_max<Ty, N>(src1, src2);
-}
-
-template <typename Ty, int N>
-inline __SEIEED::vector_type_t<Ty, N>
 __esimd_reduced_min(__SEIEED::vector_type_t<Ty, N> src1,
                     __SEIEED::vector_type_t<Ty, N> src2) {
   __SEIEED::vector_type_t<Ty, N> retv;
@@ -1301,27 +1265,6 @@ __esimd_reduced_min(__SEIEED::vector_type_t<Ty, N> src1,
     }
   }
   return retv;
-}
-
-template <typename Ty, int N>
-inline __SEIEED::vector_type_t<Ty, N>
-__esimd_reduced_fmin(__SEIEED::vector_type_t<Ty, N> src1,
-                     __SEIEED::vector_type_t<Ty, N> src2) {
-  return __esimd_reduced_min<Ty, N>(src1, src2);
-}
-
-template <typename Ty, int N>
-inline __SEIEED::vector_type_t<Ty, N>
-__esimd_reduced_umin(__SEIEED::vector_type_t<Ty, N> src1,
-                     __SEIEED::vector_type_t<Ty, N> src2) {
-  return __esimd_reduced_min<Ty, N>(src1, src2);
-}
-
-template <typename Ty, int N>
-inline __SEIEED::vector_type_t<Ty, N>
-__esimd_reduced_smin(__SEIEED::vector_type_t<Ty, N> src1,
-                     __SEIEED::vector_type_t<Ty, N> src2) {
-  return __esimd_reduced_min<Ty, N>(src1, src2);
 }
 
 #endif // #ifdef __SYCL_DEVICE_ONLY__

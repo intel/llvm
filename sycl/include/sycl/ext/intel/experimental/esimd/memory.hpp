@@ -26,6 +26,32 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
+namespace detail {
+// Type used in internal functions to designate SLM access by
+// providing dummy accessor of this type.
+struct LocalAccessorMarker {};
+
+// Shared Local Memory Binding Table Index (aka surface index).
+static inline constexpr SurfaceIndex SLM_BTI = 254;
+static inline constexpr SurfaceIndex INVALID_BTI =
+    static_cast<SurfaceIndex>(-1);
+
+/// Convert accessor type to surface index (aka binding table index).
+template <typename AccessorTy>
+ESIMD_INLINE ESIMD_NODEBUG auto accessor_to_surf_ind(AccessorTy acc) {
+#ifdef __SYCL_DEVICE_ONLY__
+  if constexpr (std::is_same_v<LocalAccessorMarker, AccessorTy>) {
+    return SLM_BTI;
+  } else {
+    const auto mem_obj = detail::AccessorPrivateProxy::getNativeImageObj(acc);
+    return __esimd_get_surface_index(mem_obj);
+  }
+#else
+  return acc; // no actual conversion on host for now, use accessor
+#endif
+}
+} // namespace detail
+
 // TODO @Pennycook
 // {quote}
 // ...I'd like us to think more about what we can do to make these interfaces
@@ -84,29 +110,29 @@ gather(T *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
 
   if constexpr (sizeof(T) == 1 && ElemsPerAddr == 2) {
     auto Ret =
-        __esimd_flat_read<T, n, detail::ElemsPerAddrEncoding<4>(), L1H, L3H>(
+        __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<4>(), L1H, L3H>(
             addrs.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
             pred.data());
     return __esimd_rdregion<T, n * 4, n * ElemsPerAddr, /*VS*/ 4, 2, 1>(Ret, 0);
   } else if constexpr (sizeof(T) == 1 && ElemsPerAddr == 1) {
     auto Ret =
-        __esimd_flat_read<T, n, detail::ElemsPerAddrEncoding<4>(), L1H, L3H>(
+        __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<4>(), L1H, L3H>(
             addrs.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
             pred.data());
     return __esimd_rdregion<T, n * 4, n * ElemsPerAddr, /*VS*/ 0, n, 4>(Ret, 0);
   } else if constexpr (sizeof(T) == 2 && ElemsPerAddr == 1) {
     auto Ret =
-        __esimd_flat_read<T, n, detail::ElemsPerAddrEncoding<2>(), L1H, L3H>(
+        __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<2>(), L1H, L3H>(
             addrs.data(), detail::ElemsPerAddrEncoding<2>(), pred.data());
     return __esimd_rdregion<T, n * 2, n, /*VS*/ 0, n, 2>(Ret, 0);
   } else if constexpr (sizeof(T) == 2)
-    return __esimd_flat_read<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
-                             L1H, L3H>(
+    return __esimd_svm_gather<
+        T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>(), L1H, L3H>(
         addrs.data(), detail::ElemsPerAddrEncoding<2 * ElemsPerAddr>(),
         pred.data());
   else
-    return __esimd_flat_read<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
-                             L1H, L3H>(
+    return __esimd_svm_gather<
+        T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>(), L1H, L3H>(
         addrs.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
         pred.data());
 }
@@ -134,31 +160,31 @@ scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
     simd<T, n * 4> D;
     D = __esimd_wrregion<T, n * 4, n * ElemsPerAddr, /*VS*/ 4, 2, 1>(
         D.data(), vals.data(), 0);
-    __esimd_flat_write<T, n, detail::ElemsPerAddrEncoding<4>(), L1H, L3H>(
+    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<4>(), L1H, L3H>(
         addrs.data(), D.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
         pred.data());
   } else if constexpr (sizeof(T) == 1 && ElemsPerAddr == 1) {
     simd<T, n * 4> D;
     D = __esimd_wrregion<T, n * 4, n * ElemsPerAddr, /*VS*/ 0, n, 4>(
         D.data(), vals.data(), 0);
-    __esimd_flat_write<T, n, detail::ElemsPerAddrEncoding<4>(), L1H, L3H>(
+    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<4>(), L1H, L3H>(
         addrs.data(), D.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
         pred.data());
   } else if constexpr (sizeof(T) == 2 && ElemsPerAddr == 1) {
     simd<T, n * 2> D;
     D = __esimd_wrregion<T, n * 2, n, /*VS*/ 0, n, 2>(D.data(), vals.data(), 0);
-    __esimd_flat_write<T, n, detail::ElemsPerAddrEncoding<2>(), L1H, L3H>(
+    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<2>(), L1H, L3H>(
         addrs.data(), D.data(), detail::ElemsPerAddrEncoding<2>(), pred.data());
   } else if constexpr (sizeof(T) == 2)
-    __esimd_flat_write<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>(), L1H,
-                       L3H>(addrs.data(), vals.data(),
-                            detail::ElemsPerAddrEncoding<2 * ElemsPerAddr>(),
-                            pred.data());
+    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>(), L1H,
+                        L3H>(addrs.data(), vals.data(),
+                             detail::ElemsPerAddrEncoding<2 * ElemsPerAddr>(),
+                             pred.data());
   else
-    __esimd_flat_write<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>(), L1H,
-                       L3H>(addrs.data(), vals.data(),
-                            detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
-                            pred.data());
+    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>(), L1H,
+                        L3H>(addrs.data(), vals.data(),
+                             detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
+                             pred.data());
 }
 
 /// Flat-address block-load.
@@ -182,7 +208,7 @@ ESIMD_INLINE ESIMD_NODEBUG simd<T, n> block_load(const T *const addr) {
                 "block size must be at most 8 owords");
 
   uintptr_t Addr = reinterpret_cast<uintptr_t>(addr);
-  return __esimd_flat_block_read_unaligned<T, n, L1H, L3H>(Addr);
+  return __esimd_svm_block_ld_unaligned<T, n, L1H, L3H>(Addr);
 }
 
 /// Accessor-based block-load.
@@ -214,7 +240,7 @@ ESIMD_INLINE ESIMD_NODEBUG void block_store(T *p, simd<T, n> vals) {
                 "block size must be at most 8 owords");
 
   uintptr_t Addr = reinterpret_cast<uintptr_t>(p);
-  __esimd_flat_block_write<T, n, L1H, L3H>(Addr, vals.data());
+  __esimd_svm_block_st<T, n, L1H, L3H>(Addr, vals.data());
 }
 
 /// Accessor-based block-store.
@@ -260,6 +286,7 @@ ESIMD_INLINE ESIMD_NODEBUG
     glob_offset *= t_scale;
     offsets *= t_scale;
   }
+  const auto surf_ind = detail::accessor_to_surf_ind(acc);
 
   if constexpr (sizeof(T) < 4) {
     static_assert(std::is_integral<T>::value,
@@ -267,26 +294,15 @@ ESIMD_INLINE ESIMD_NODEBUG
     using PromoT =
         typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
                                              uint32_t>;
-#if defined(__SYCL_DEVICE_ONLY__)
-    const auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
     const simd<PromoT, N> promo_vals =
-        __esimd_surf_read<PromoT, N, decltype(surf_ind), TypeSizeLog2, L1H,
-                          L3H>(scale, surf_ind, glob_offset, offsets.data());
-#else
-    const simd<PromoT, N> promo_vals =
-        __esimd_surf_read<PromoT, N, AccessorTy, TypeSizeLog2, L1H, L3H>(
-            scale, acc, glob_offset, offsets.data());
-#endif
+        __esimd_gather_scaled2<PromoT, N, decltype(surf_ind), TypeSizeLog2,
+                               scale, L1H, L3H>(surf_ind, glob_offset,
+                                                offsets.data());
     return convert<T>(promo_vals);
   } else {
-#if defined(__SYCL_DEVICE_ONLY__)
-    const auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
-    return __esimd_surf_read<T, N, decltype(surf_ind), TypeSizeLog2, L1H, L3H>(
-        scale, surf_ind, glob_offset, offsets.data());
-#else
-    return __esimd_surf_read<T, N, AccessorTy, TypeSizeLog2, L1H, L3H>(
-        scale, acc, glob_offset, offsets.data());
-#endif
+    return __esimd_gather_scaled2<T, N, decltype(surf_ind), TypeSizeLog2, scale,
+                                  L1H, L3H>(surf_ind, glob_offset,
+                                            offsets.data());
   }
 }
 
@@ -321,12 +337,13 @@ ESIMD_INLINE ESIMD_NODEBUG
 
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
-  constexpr uint32_t scale = 0;
+  constexpr int16_t scale = 0;
   constexpr uint32_t t_scale = sizeof(T);
   if constexpr (t_scale > 1) {
     glob_offset *= t_scale;
     offsets *= t_scale;
   }
+  const auto surf_ind = detail::accessor_to_surf_ind(acc);
 
   if constexpr (sizeof(T) < 4) {
     static_assert(std::is_integral<T>::value,
@@ -335,25 +352,13 @@ ESIMD_INLINE ESIMD_NODEBUG
         typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
                                              uint32_t>;
     const simd<PromoT, N> promo_vals = convert<PromoT>(vals);
-#if defined(__SYCL_DEVICE_ONLY__)
-    const auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
-    __esimd_surf_write<PromoT, N, decltype(surf_ind), TypeSizeLog2, L1H, L3H>(
-        pred.data(), scale, surf_ind, glob_offset, offsets.data(),
-        promo_vals.data());
-#else
-    __esimd_surf_write<PromoT, N, AccessorTy, TypeSizeLog2, L1H, L3H>(
-        pred.data(), scale, acc, glob_offset, offsets.data(),
-        promo_vals.data());
-#endif
+    __esimd_scatter_scaled<PromoT, N, decltype(surf_ind), TypeSizeLog2, scale,
+                           L1H, L3H>(pred.data(), surf_ind, glob_offset,
+                                     offsets.data(), promo_vals.data());
   } else {
-#if defined(__SYCL_DEVICE_ONLY__)
-    const auto surf_ind = detail::AccessorPrivateProxy::getNativeImageObj(acc);
-    __esimd_surf_write<T, N, decltype(surf_ind), TypeSizeLog2, L1H, L3H>(
-        pred.data(), scale, surf_ind, glob_offset, offsets.data(), vals.data());
-#else
-    __esimd_surf_write<T, N, AccessorTy, TypeSizeLog2, L1H, L3H>(
-        pred.data(), scale, acc, glob_offset, offsets.data(), vals.data());
-#endif
+    __esimd_scatter_scaled<T, N, decltype(surf_ind), TypeSizeLog2, scale, L1H,
+                           L3H>(pred.data(), surf_ind, glob_offset,
+                                offsets.data(), vals.data());
   }
 }
 
@@ -395,7 +400,8 @@ gather_rgba(T *p, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
-  return __esimd_flat_read4<T, N, Mask, L1H, L3H>(addrs.data(), pred.data());
+  return __esimd_svm_gather4_scaled<T, N, Mask, L1H, L3H>(addrs.data(),
+                                                          pred.data());
 }
 
 /// Flat-address gather4.
@@ -435,8 +441,8 @@ ESIMD_INLINE ESIMD_NODEBUG
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
-  __esimd_flat_write4<T, N, Mask, L1H, L3H>(addrs.data(), vals.data(),
-                                            pred.data());
+  __esimd_svm_scatter4_scaled<T, N, Mask, L1H, L3H>(addrs.data(), vals.data(),
+                                                    pred.data());
 }
 
 /// Flat-address scatter4.
@@ -561,7 +567,7 @@ ESIMD_NODEBUG ESIMD_INLINE
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
   simd<uintptr_t, n> offset_i1 = convert<uintptr_t>(offset);
   vAddr += offset_i1;
-  return __esimd_flat_atomic0<Op, T, n, L1H, L3H>(vAddr.data(), pred.data());
+  return __esimd_svm_atomic0<Op, T, n, L1H, L3H>(vAddr.data(), pred.data());
 }
 
 /// Flat-address atomic, one source operand, add/sub/min/max etc.
@@ -576,8 +582,8 @@ ESIMD_NODEBUG ESIMD_INLINE
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
   simd<uintptr_t, n> offset_i1 = convert<uintptr_t>(offset);
   vAddr += offset_i1;
-  return __esimd_flat_atomic1<Op, T, n, L1H, L3H>(vAddr.data(), src0.data(),
-                                                  pred.data());
+  return __esimd_svm_atomic1<Op, T, n, L1H, L3H>(vAddr.data(), src0.data(),
+                                                 pred.data());
 }
 
 /// Flat-address atomic, two source operands.
@@ -592,8 +598,8 @@ ESIMD_NODEBUG ESIMD_INLINE
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
   simd<uintptr_t, n> offset_i1 = convert<uintptr_t>(offset);
   vAddr += offset_i1;
-  return __esimd_flat_atomic2<Op, T, n, L1H, L3H>(vAddr.data(), src0.data(),
-                                                  src1.data(), pred.data());
+  return __esimd_svm_atomic2<Op, T, n, L1H, L3H>(vAddr.data(), src0.data(),
+                                                 src1.data(), pred.data());
 }
 
 /// Bits used to form the bitmask that controls the behavior of esimd_fence
@@ -623,7 +629,7 @@ enum EsimdFenceMask {
 /// \tparam cntl is the bitmask composed from enum EsimdFenceMask
 /// \ingroup sycl_esimd
 ESIMD_INLINE ESIMD_NODEBUG void esimd_fence(uint8_t cntl) {
-  __esimd_slm_fence(cntl);
+  __esimd_fence(cntl);
 }
 
 /// Generic work-group barrier.
@@ -635,7 +641,7 @@ ESIMD_INLINE ESIMD_NODEBUG void esimd_fence(uint8_t cntl) {
 /// control flow.
 /// \ingroup sycl_esimd
 inline ESIMD_NODEBUG void esimd_barrier() {
-  __esimd_slm_fence(ESIMD_GLOBAL_COHERENT_FENCE | ESIMD_LOCAL_BARRIER);
+  __esimd_fence(ESIMD_GLOBAL_COHERENT_FENCE | ESIMD_LOCAL_BARRIER);
   __esimd_barrier();
 }
 
@@ -657,7 +663,12 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void slm_init(uint32_t size);
 template <typename T, int n>
 ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<(n == 16 || n == 32), simd<T, n>>
 slm_gather(simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
-  return __esimd_slm_read<T, n>(offsets.data(), pred.data());
+  // TODO reimplement using __esimd_gather_scaled2
+  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
+  const auto surf_ind =
+      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
+  return __esimd_gather_scaled<T, n, TypeSizeLog2>(pred.data(), surf_ind, 0,
+                                                   offsets.data());
 }
 
 /// SLM gather (deprecated version).
@@ -670,10 +681,19 @@ ESIMD_INLINE
 }
 
 /// SLM scatter.
+// TODO support 1-,2-byte elements
 template <typename T, int n>
-ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<(n == 16 || n == 32)>
-slm_scatter(simd<T, n> vals, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
-  __esimd_slm_write<T, n>(offsets.data(), vals.data(), pred.data());
+ESIMD_INLINE
+    ESIMD_NODEBUG std::enable_if_t<(n == 16 || n == 32) && (sizeof(T) == 4)>
+    slm_scatter(simd<T, n> vals, simd<uint32_t, n> offsets,
+                simd_mask<n> pred = 1) {
+  const auto surf_ind =
+      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
+  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
+  constexpr int16_t scale = 0;
+  __esimd_scatter_scaled<T, n, decltype(surf_ind), TypeSizeLog2, scale, L1H,
+                         L3H>(pred.data(), TypeSizeLog2, scale, surf_ind,
+                              0 /*glob_offset*/, offsets.data(), vals.data());
 }
 
 /// SLM scatter (deprecated version).
@@ -698,7 +718,8 @@ ESIMD_INLINE ESIMD_NODEBUG
     std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4),
                      simd<T, N * get_num_channels_enabled(Mask)>>
     slm_gather_rgba(simd<uint32_t, N> offsets, simd<uint16_t, N> pred = 1) {
-  return __esimd_slm_read4<T, N, Mask>(offsets.data(), pred.data());
+  return __esimd_gather4_scaled<T, N, Mask>(detail::SLM_BTI, offsets.data(),
+                                            pred.data());
 }
 
 /// SLM gather4.
@@ -730,7 +751,12 @@ ESIMD_INLINE ESIMD_NODEBUG
     std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4)>
     slm_scatter_rgba(simd<T, N * get_num_channels_enabled(Mask)> vals,
                      simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
-  __esimd_slm_write4<T, N, Mask>(offsets.data(), vals.data(), pred.data());
+  const auto surf_ind =
+      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
+  constexpr int16_t Scale = 0;
+  constexpr int global_offset = 0;
+  __esimd_scatter4_scaled<T, N, decltype(surf_ind), Mask, Scale>(
+      pred.data(), surf_ind, global_offset, offsets.data(), vals.data());
 }
 
 /// SLM scatter4.
@@ -756,7 +782,9 @@ ESIMD_INLINE ESIMD_NODEBUG simd<T, n> slm_block_load(uint32_t offset) {
   static_assert(Sz <= 16 * detail::OperandSize::OWORD,
                 "block size must be at most 16 owords");
 
-  return __esimd_slm_block_read<T, n>(offset >> 4);
+  const auto surf_ind =
+      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
+  return __esimd_oword_ld<T, n>(surf_ind, offset >> 4);
 }
 
 /// SLM block-store.
@@ -773,8 +801,10 @@ ESIMD_INLINE ESIMD_NODEBUG void slm_block_store(uint32_t offset,
   static_assert(Sz <= 8 * detail::OperandSize::OWORD,
                 "block size must be at most 8 owords");
 
+  const auto surf_ind =
+      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
   // offset in genx.oword.st is in owords
-  __esimd_slm_block_write<T, n>(offset >> 4, vals.data());
+  __esimd_oword_st<T, n>(surf_ind, offset >> 4, vals.data());
 }
 
 /// SLM atomic, zero source operand: inc and dec.
@@ -783,7 +813,9 @@ ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
                                        simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd_mask<n> pred) {
-  return __esimd_slm_atomic0<Op, T, n>(offsets.data(), pred.data());
+  const auto surf_ind =
+      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
+  return __esimd_dword_atomic0<Op, T, n>(pred.data(), surf_ind, offsets.data());
 }
 
 /// SLM atomic, one source operand, add/sub/min/max etc.
@@ -792,8 +824,10 @@ ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
                                        simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0, simd_mask<n> pred) {
-  return __esimd_slm_atomic1<Op, T, n>(offsets.data(), src0.data(),
-                                       pred.data());
+  const auto surf_ind =
+      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
+  return __esimd_dword_atomic1<Op, T, n>(pred.data(), surf_ind, offsets.data(),
+                                         src0.data());
 }
 
 /// SLM atomic, two source operands.
@@ -803,8 +837,10 @@ ESIMD_NODEBUG ESIMD_INLINE
                                        simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0, simd<T, n> src1,
                simd_mask<n> pred) {
-  return __esimd_slm_atomic2<Op, T, n>(offsets.data(), src0.data(), src1.data(),
-                                       pred.data());
+  const auto surf_ind =
+      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
+  return __esimd_dword_atomic2<Op, T, n>(pred.data(), surf_ind, offsets.data(),
+                                         src0.data(), src1.data());
 }
 /// @}
 
@@ -830,24 +866,24 @@ media_block_load(AccessorTy acc, unsigned x, unsigned y) {
   static_assert(Width <= 64u, "valid block width is in range [1, 64]");
   static_assert(m <= 64u, "valid block height is in range [1, 64]");
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
-#if defined(__SYCL_DEVICE_ONLY__)
+
+  const auto surf_ind = detail::accessor_to_surf_ind(acc);
+  using SurfIndTy = decltype(surf_ind);
   constexpr unsigned int RoundedWidth =
       Width < 4 ? 4 : detail::getNextPowerOf2<Width>();
+  constexpr int BlockWidth = sizeof(T) * n;
+  constexpr int Mod = 0;
 
   if constexpr (Width < RoundedWidth) {
     constexpr unsigned int n1 = RoundedWidth / sizeof(T);
-    simd<T, m *n1> temp = __esimd_media_block_load<T, m, n1>(
-        0, detail::AccessorPrivateProxy::getNativeImageObj(acc), plane,
-        sizeof(T) * n, x, y);
+    simd<T, m *n1> temp =
+        __esimd_media_ld<T, m, n1, Mod, SurfIndTy, (int)plane, BlockWidth>(
+            surf_ind, x, y);
     return temp.template select<m, 1, n, 1>(0, 0);
   } else {
-    return __esimd_media_block_load<T, m, n>(
-        0, detail::AccessorPrivateProxy::getNativeImageObj(acc), plane,
-        sizeof(T) * n, x, y);
+    return __esimd_media_ld<T, m, n, Mod, SurfIndTy, (int)plane, BlockWidth>(
+        surf_ind, x, y);
   }
-#else
-  return __esimd_media_block_load<T, m, n>(0, acc, plane, sizeof(T) * n, x, y);
-#endif // __SYCL_DEVICE_ONLY__
 }
 
 /// Media block store.
@@ -872,28 +908,25 @@ media_block_store(AccessorTy acc, unsigned x, unsigned y, simd<T, m * n> vals) {
   static_assert(Width <= 64u, "valid block width is in range [1, 64]");
   static_assert(m <= 64u, "valid block height is in range [1, 64]");
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
-#if defined(__SYCL_DEVICE_ONLY__)
+  const auto surf_ind = detail::accessor_to_surf_ind(acc);
+  using SurfIndTy = decltype(surf_ind);
   constexpr unsigned int RoundedWidth =
       Width < 4 ? 4 : detail::getNextPowerOf2<Width>();
   constexpr unsigned int n1 = RoundedWidth / sizeof(T);
+  constexpr int BlockWidth = sizeof(T) * n;
+  constexpr int Mod = 0;
 
   if constexpr (Width < RoundedWidth) {
     simd<T, m * n1> temp;
     auto temp_ref = temp.template bit_cast_view<T, m, n1>();
     auto vals_ref = vals.template bit_cast_view<T, m, n>();
     temp_ref.template select<m, 1, n, 1>() = vals_ref;
-    __esimd_media_block_store<T, m, n1>(
-        0, detail::AccessorPrivateProxy::getNativeImageObj(acc), plane,
-        sizeof(T) * n, x, y, temp.data());
+    __esimd_media_st<T, m, n1, Mod, SurfIndTy, plane, BlockWidth>(
+        surf_ind, x, y, temp.data());
   } else {
-    __esimd_media_block_store<T, m, n>(
-        0, detail::AccessorPrivateProxy::getNativeImageObj(acc), plane,
-        sizeof(T) * n, x, y, vals.data());
+    __esimd_media_st<T, m, n, Mod, SurfIndTy, plane, BlockWidth>(surf_ind, x, y,
+                                                                 vals.data());
   }
-#else
-  __esimd_media_block_store<T, m, n>(0, acc, plane, sizeof(T) * n, x, y,
-                                     vals.data());
-#endif // __SYCL_DEVICE_ONLY__
 }
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -901,22 +934,6 @@ media_block_store(AccessorTy acc, unsigned x, unsigned y, simd<T, m * n> vals) {
 inline void slm_init(uint32_t size) {}
 
 #endif
-
-/// esimd_get_value
-///
-/// \param acc is the SYCL accessor.
-/// \return the binding table index value.
-///
-/// \ingroup sycl_esimd
-template <typename AccessorTy>
-ESIMD_INLINE ESIMD_NODEBUG uint32_t esimd_get_value(AccessorTy acc) {
-#if defined(__SYCL_DEVICE_ONLY__)
-  return __esimd_get_value(
-      detail::AccessorPrivateProxy::getNativeImageObj(acc));
-#else
-  return __esimd_get_value(acc);
-#endif // __SYCL_DEVICE_ONLY__
-}
 
 /// \defgroup sycl_esimd_raw_send_api Raw send APIs
 /// APIs below are used to implement the send messages on Intel(R) processor
@@ -966,7 +983,7 @@ esimd_raw_sends_load(simd<T1, n1> msgDst, simd<T2, n2> msgSrc0,
   static_assert(_Width3 % 32 == 0, "Invalid size for raw send msgSrc1");
 
   uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  return __esimd_raw_sends_load<T1, n1, T2, n2, T3, n3, N>(
+  return __esimd_raw_sends2<T1, n1, T2, n2, T3, n3, N>(
       modifier, execSize, mask.data(), numSrc0, numSrc1, numDst, sfid, exDesc,
       msgDesc, msgSrc0.data(), msgSrc1.data(), msgDst.data());
 }
@@ -1004,7 +1021,7 @@ esimd_raw_send_load(simd<T1, n1> msgDst, simd<T2, n2> msgSrc0, uint32_t exDesc,
   static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc0");
 
   uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  return __esimd_raw_send_load<T1, n1, T2, n2, N>(
+  return __esimd_raw_send2<T1, n1, T2, n2, N>(
       modifier, execSize, mask.data(), numSrc0, numDst, sfid, exDesc, msgDesc,
       msgSrc0.data(), msgDst.data());
 }
@@ -1042,7 +1059,7 @@ esimd_raw_sends_store(simd<T1, n1> msgSrc0, simd<T2, n2> msgSrc1,
   static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc1");
 
   uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  __esimd_raw_sends_store<T1, n1, T2, n2, N>(
+  __esimd_raw_sends2_noresult<T1, n1, T2, n2, N>(
       modifier, execSize, mask.data(), numSrc0, numSrc1, sfid, exDesc, msgDesc,
       msgSrc0.data(), msgSrc1.data());
 }
@@ -1074,8 +1091,9 @@ esimd_raw_send_store(simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
 
   uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  __esimd_raw_send_store<T1, n1, N>(modifier, execSize, mask.data(), numSrc0,
-                                    sfid, exDesc, msgDesc, msgSrc0.data());
+  __esimd_raw_send2_noresult<T1, n1, N>(modifier, execSize, mask.data(),
+                                        numSrc0, sfid, exDesc, msgDesc,
+                                        msgSrc0.data());
 }
 /// @}
 

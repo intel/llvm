@@ -235,11 +235,33 @@ __esimd_vstore(__SEIEED::vector_type_t<T, N> *ptr,
 
 template <typename T, int N>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION uint16_t
-__esimd_any(__SEIEED::vector_type_t<T, N> src);
+__esimd_any(__SEIEED::vector_type_t<T, N> src)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  for (unsigned int i = 0; i != N; i++) {
+    if (src[i] != 0)
+      return 1;
+  }
+  return 0;
+}
+#endif // __SYCL_DEVICE_ONLY__
 
 template <typename T, int N>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION uint16_t
-__esimd_all(__SEIEED::vector_type_t<T, N> src);
+__esimd_all(__SEIEED::vector_type_t<T, N> src)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  for (unsigned int i = 0; i != N; i++) {
+    if (src[i] == 0)
+      return 0;
+  }
+  return 1;
+}
+#endif // __SYCL_DEVICE_ONLY__
 
 #ifndef __SYCL_DEVICE_ONLY__
 

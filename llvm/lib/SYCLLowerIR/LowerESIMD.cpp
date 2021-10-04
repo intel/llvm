@@ -92,7 +92,6 @@ struct ESIMDIntrinDesc {
     SRC_CALL_ARG, // is a call argument
     SRC_CALL_ALL, // this and subsequent args are just copied from the src call
     SRC_TMPL_ARG, // is an integer template argument
-    NUM_BYTES,    // is a number of bytes (gather.scaled and scatter.scaled)
     UNDEF,        // is an undef value
     CONST_INT8,   // is an i8 constant
     CONST_INT16,  // is an i16 constant
@@ -102,7 +101,6 @@ struct ESIMDIntrinDesc {
 
   enum class GenXArgConversion : int16_t {
     NONE,   // no conversion
-    TO_SI,  // convert to 32-bit integer surface index
     TO_I1,  // convert vector of N-bit integer to 1-bit
     TO_I8,  // convert vector of N-bit integer to 18-bit
     TO_I16, // convert vector of N-bit integer to 16-bit
@@ -174,7 +172,6 @@ private:
   }
   DEF_ARG_RULE(l, SRC_CALL_ALL)
   DEF_ARG_RULE(u, UNDEF)
-  DEF_ARG_RULE(nbs, NUM_BYTES)
 
   static constexpr ESIMDIntrinDesc::ArgRule t(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
@@ -218,10 +215,11 @@ private:
         {{N, ESIMDIntrinDesc::GenXArgConversion::TO_I1}}};
   }
 
+  // Just an alias for a(int16_t N) to mark surface index arguments.
   static constexpr ESIMDIntrinDesc::ArgRule aSI(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
-        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_SI}}};
+        {{N, ESIMDIntrinDesc::GenXArgConversion::NONE}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule c8(int16_t N) {
@@ -249,6 +247,16 @@ private:
   }
 
 public:
+  // The table which describes rules how to generate @llvm.genx.* intrinsics
+  // from templated __esimd* intrinsics. The general rule is that the order and
+  // the semantics of intrinsic arguments is the same in both intrinsic forms.
+  // But for some arguments, where @llvm.genx.* mandates that the argument must
+  // be 'constant' (see Intrinsic_definitions.py from the vcintrinsics repo),
+  // it is passed as template argument to the corrsponding __esimd* intrinsic,
+  // hence leading to some "gaps" in __esimd* form's arguments compared to the
+  // @llvm.genx.* form.
+  // TODO - fix all __esimd* intrinsics and table entries according to the rule
+  // above.
   ESIMDIntrinDescTable() {
     Table = {
         // An element of the table is std::pair of <key, value>; key is the
@@ -284,22 +292,14 @@ public:
         {"vload", {"vload", {l(0)}}},
         {"vstore", {"vstore", {a(1), a(0)}}},
 
-        {"flat_block_read_unaligned", {"svm.block.ld.unaligned", {l(0)}}},
-        {"flat_block_write", {"svm.block.st", {l(1)}}},
-        {"flat_read", {"svm.gather", {ai1(2), a(1), a(0), u(-1)}}},
-        {"flat_read4",
+        {"svm_block_ld_unaligned", {"svm.block.ld.unaligned", {l(0)}}},
+        {"svm_block_st", {"svm.block.st", {l(1)}}},
+        {"svm_gather", {"svm.gather", {ai1(2), a(1), a(0), u(-1)}}},
+        {"svm_gather4_scaled",
          {"svm.gather4.scaled", {ai1(1), t(2), c16(0), c64(0), a(0), u(-1)}}},
-        {"flat_write", {"svm.scatter", {ai1(3), a(2), a(0), a(1)}}},
-        {"flat_write4",
+        {"svm_scatter", {"svm.scatter", {ai1(3), a(2), a(0), a(1)}}},
+        {"svm_scatter4_scaled",
          {"svm.scatter4.scaled", {ai1(2), t(2), c16(0), c64(0), a(0), a(1)}}},
-
-        // surface index-based gather/scatter:
-        // num blocks, scale, surface index, global offset, elem offsets
-        {"surf_read", {"gather.scaled2", {t(3), c16(0), aSI(1), a(2), a(3)}}},
-        // pred, num blocks, scale, surface index, global offset, elem offsets,
-        // data to write
-        {"surf_write",
-         {"scatter.scaled", {ai1(0), t(3), c16(0), aSI(2), a(3), a(4), a(5)}}},
 
         // intrinsics to query thread's coordinates:
         {"group_id_x", {"group.id.x", {}}},
@@ -307,67 +307,135 @@ public:
         {"group_id_z", {"group.id.z", {}}},
         {"local_id", {"local.id", {}}},
         {"local_size", {"local.size", {}}},
-        {"flat_atomic0", {"svm.atomic", {ai1(1), a(0), u(-1)}, bo(0)}},
-        {"flat_atomic1", {"svm.atomic", {ai1(2), a(0), a(1), u(-1)}, bo(0)}},
-        {"flat_atomic2",
+        {"svm_atomic0", {"svm.atomic", {ai1(1), a(0), u(-1)}, bo(0)}},
+        {"svm_atomic1", {"svm.atomic", {ai1(2), a(0), a(1), u(-1)}, bo(0)}},
+        {"svm_atomic2",
          {"svm.atomic", {ai1(3), a(0), a(1), a(2), u(-1)}, bo(0)}},
-        {"reduced_fmax", {"fmax", {a(0), a(1)}}},
-        {"reduced_umax", {"umax", {a(0), a(1)}}},
-        {"reduced_smax", {"smax", {a(0), a(1)}}},
-        {"reduced_fmin", {"fmin", {a(0), a(1)}}},
-        {"reduced_umin", {"umin", {a(0), a(1)}}},
-        {"reduced_smin", {"smin", {a(0), a(1)}}},
         {"dp4", {"dp4", {a(0), a(1)}}},
-        // 2nd argumnent of media.* is a surface index -
-        // it is produced by casting and truncating the OpenCL opaque image
-        // pointer
-        // source media_block* intrinsic argument; this is according the the
-        // OpenCL runtime - JIT compiler handshake protocol for OpenCL images.
-        {"media_block_load",
-         {"media.ld", {a(0), aSI(1), a(2), a(3), a(4), a(5)}}},
-        {"media_block_store",
-         {"media.st", {a(0), aSI(1), a(2), a(3), a(4), a(5), a(6)}}},
-        {"slm_fence", {"fence", {a(0)}}},
+
+        {"fence", {"fence", {a(0)}}},
         {"barrier", {"barrier", {}}},
         {"sbarrier", {"sbarrier", {a(0)}}},
-        {"block_read", {"oword.ld.unaligned", {c32(0), aSI(0), a(1)}}},
-        {"block_write", {"oword.st", {aSI(0), a(1), a(2)}}},
-        {"slm_block_read", {"oword.ld", {c32(0), c32(SLM_BTI), a(0)}}},
-        {"slm_block_write", {"oword.st", {c32(SLM_BTI), a(0), a(1)}}},
-        {"slm_read",
-         {"gather.scaled",
-          {ai1(1), nbs(-1), c16(0), c32(SLM_BTI), c32(0), a(0), u(-1)}}},
-        {"slm_read4",
-         {"gather4.scaled",
-          {ai1(1), t(2), c16(0), c32(SLM_BTI), c32(0), a(0), u(-1)}}},
-        {"slm_write",
-         {"scatter.scaled",
-          {ai1(2), nbs(1), c16(0), c32(SLM_BTI), c32(0), a(0), a(1)}}},
-        {"slm_write4",
-         {"scatter4.scaled",
-          {ai1(2), t(2), c16(0), c32(SLM_BTI), c32(0), a(0), a(1)}}},
-        {"slm_atomic0",
-         {"dword.atomic", {ai1(1), c32(SLM_BTI), a(0), u(-1)}, bo(0)}},
-        {"slm_atomic1",
-         {"dword.atomic", {ai1(2), c32(SLM_BTI), a(0), a(1), u(-1)}, bo(0)}},
-        {"slm_atomic2",
-         {"dword.atomic",
-          {ai1(3), c32(SLM_BTI), a(0), a(1), a(2), u(-1)},
-          bo(0)}},
-        {"raw_sends_load",
+
+        // arg0: i32 modifiers, constant
+        // arg1: i32 surface index
+        // arg2: i32 plane, constant
+        // arg3: i32 block width in bytes, constant
+        // (block height inferred from return type size and block width)
+        // arg4: i32 x byte offset
+        // arg5: i32 y byte offset
+        {"media_ld", {"media.ld", {t(3), aSI(0), t(5), t(6), a(1), a(2)}}},
+
+        // arg0: i32 modifiers, constant
+        // arg1: i32 surface index
+        // arg2: i32 plane, constant
+        // arg3: i32 block width in bytes, constant
+        // (block height inferred from data type size and block width)
+        // arg4: i32 x byte offset
+        // arg5: i32 y byte offset
+        // arg6: data to write (overloaded)
+        {"media_st",
+         {"media.st", {t(3), aSI(0), t(5), t(6), a(1), a(2), a(3)}}},
+
+        // arg0 : i32 is_modified, CONSTANT
+        // arg1 : i32 surface index
+        // arg2 : i32 offset(in owords for.ld / in bytes for.ld.unaligned)
+        {"oword_ld_unaligned", {"oword.ld.unaligned", {t(3), aSI(0), a(1)}}},
+        {"oword_ld", {"oword.ld", {t(3), aSI(0), a(1)}}},
+
+        // arg0: i32 surface index
+        // arg1: i32 offset (in owords)
+        // arg2: data to write (overloaded)
+        {"oword_st", {"oword.st", {aSI(0), a(1), a(2)}}},
+
+        // surface index-based gather/scatter:
+        // arg0: i32 log2 num blocks, CONSTANT (0/1/2 for num blocks 1/2/4)
+        // arg1: i16 scale, CONSTANT
+        // arg2: i32 surface index
+        // arg3: i32 global offset in bytes
+        // arg4: vXi32 element offset in bytes (overloaded)
+        {"gather_scaled2",
+         {"gather.scaled2", {t(3), t(4), aSI(0), a(1), a(2)}}},
+
+        // arg0: vXi1 predicate (overloaded)
+        // arg1: i32 log2 num blocks, CONSTANT (0/1/2 for num blocks 1/2/4)
+        // arg2: i16 scale, CONSTANT
+        // arg3: i32 surface index
+        // arg4: i32 global offset in bytes
+        // arg5: vXi32 element offset in bytes (overloaded)
+        // arg6: old value of the data read
+        {"gather_scaled",
+         {"gather.scaled", {ai1(0), t(3), t(4), aSI(1), a(2), a(3), u(-1)}}},
+
+        // arg0: vXi1 predicate (overloaded)
+        // arg1: i32 log2 num blocks, CONSTANT (0/1/2 for num blocks 1/2/4)
+        // arg2: i16 scale, CONSTANT
+        // arg3: i32 surface index
+        // arg4: i32 global offset in bytes
+        // arg5: vXi32 element offset (overloaded)
+        // arg6: data to write (overloaded)
+        {"scatter_scaled",
+         {"scatter.scaled", {ai1(0), t(3), t(4), aSI(1), a(2), a(3), a(4)}}},
+
+        // arg0: vXi1 predicate (overloaded) (overloaded)
+        // arg1: i32 channel mask, CONSTANT
+        // arg2: i16 scale, CONSTANT
+        // arg3: i32 surface index
+        // arg4: i32 global offset in bytes
+        // arg5: vXi32 element offset in bytes (overloaded)
+        // arg6: old value of the data read
+        {"gather4_scaled",
+         {"gather4.scaled", {ai1(0), t(3), t(4), aSI(1), a(2), a(3), u(-1)}}},
+
+        // arg0: vXi1 predicate (overloaded)
+        // arg1: i32 channel mask, constant
+        // arg2: i16 scale, constant
+        // arg3: i32 surface index
+        // arg4: i32 global offset in bytes
+        // arg5: vXi32 element offset in bytes (overloaded)
+        // arg6: data to write (overloaded)
+        {"scatter4_scaled",
+         {"scatter4.scaled", {ai1(0), t(3), t(4), aSI(1), a(2), a(3), a(4)}}},
+
+        // arg0: vXi1 predicate (overloaded)
+        // arg1: i32 surface index
+        // arg2: vXi32 element offset in bytes
+        // arg3: vXi32 original value of the register that the data is read into
+        {"dword_atomic0",
+         {"dword.atomic", {ai1(0), aSI(1), a(2), u(-1)}, bo(0)}},
+
+        // arg0: vXi1 predicate (overloaded)
+        // arg1: i32 surface index
+        // arg2: vXi32 element offset in bytes (overloaded)
+        // arg3: vXi32/vXfloat src
+        // arg4: vXi32/vXfloat original value of the register that the data is
+        // read into
+        {"dword_atomic1",
+         {"dword.atomic", {ai1(0), aSI(1), a(2), a(3), u(-1)}, bo(0)}},
+
+        // arg0: vXi1 predicate (overloaded)
+        // arg1: i32 surface index
+        // arg2: vXi32 element offset in bytes
+        // arg3: vXi32 src0
+        // arg4: vXi32 src1
+        // arg5: vXi32 original value of the register that the data is read into
+        {"dword_atomic2",
+         {"dword.atomic", {ai1(0), aSI(1), a(2), a(3), a(4), u(-1)}, bo(0)}},
+
+        {"raw_sends2",
          {"raw.sends2",
           {a(0), a(1), ai1(2), a(3), a(4), a(5), a(6), a(7), a(8), a(9), a(10),
            a(11)}}},
-        {"raw_send_load",
+        {"raw_send2",
          {"raw.send2",
           {a(0), a(1), ai1(2), a(3), a(4), a(5), a(6), a(7), a(8), a(9)}}},
-        {"raw_sends_store",
+        {"raw_sends2_noresult",
          {"raw.sends2.noresult",
           {a(0), a(1), ai1(2), a(3), a(4), a(5), a(6), a(7), a(8), a(9)}}},
-        {"raw_send_store",
+        {"raw_send2_noresult",
          {"raw.send2.noresult",
           {a(0), a(1), ai1(2), a(3), a(4), a(5), a(6), a(7)}}},
-        {"satf", {"sat", {a(0)}}},
+        {"sat", {"sat", {a(0)}}},
         {"fptoui_sat", {"fptoui.sat", {a(0)}}},
         {"fptosi_sat", {"fptosi.sat", {a(0)}}},
         {"uutrunc_sat", {"uutrunc.sat", {a(0)}}},
@@ -401,8 +469,8 @@ public:
         {"smin", {"smin", {a(0), a(1)}}},
         {"bfrev", {"bfrev", {a(0)}}},
         {"cbit", {"cbit", {a(0)}}},
-        {"bfins", {"bfi", {a(0), a(1), a(2), a(3)}}},
-        {"bfext", {"sbfe", {a(0), a(1), a(2)}}},
+        {"bfi", {"bfi", {a(0), a(1), a(2), a(3)}}},
+        {"sbfe", {"sbfe", {a(0), a(1), a(2)}}},
         {"fbl", {"fbl", {a(0)}}},
         {"sfbh", {"sfbh", {a(0)}}},
         {"ufbh", {"ufbh", {a(0)}}},
@@ -410,12 +478,12 @@ public:
         {"log", {"log", {a(0)}}},
         {"exp", {"exp", {a(0)}}},
         {"sqrt", {"sqrt", {a(0)}}},
-        {"sqrt_ieee", {"ieee.sqrt", {a(0)}}},
+        {"ieee_sqrt", {"ieee.sqrt", {a(0)}}},
         {"rsqrt", {"rsqrt", {a(0)}}},
         {"sin", {"sin", {a(0)}}},
         {"cos", {"cos", {a(0)}}},
         {"pow", {"pow", {a(0), a(1)}}},
-        {"div_ieee", {"ieee.div", {a(0), a(1)}}},
+        {"ieee_div", {"ieee.div", {a(0), a(1)}}},
         {"uudp4a", {"uudp4a", {a(0), a(1), a(2)}}},
         {"usdp4a", {"usdp4a", {a(0), a(1), a(2)}}},
         {"sudp4a", {"sudp4a", {a(0), a(1), a(2)}}},
@@ -542,7 +610,6 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
     Ty = IntegerType::getInt16Ty(Ctx);
     break;
   case ESIMDIntrinDesc::GenXArgConversion::TO_I32:
-  case ESIMDIntrinDesc::GenXArgConversion::TO_SI:
     Ty = IntegerType::getInt32Ty(Ctx);
     break;
   }
@@ -826,7 +893,7 @@ static bool translateVStore(CallInst &CI, SmallPtrSet<Type *, 4> &GVTS) {
   return true;
 }
 
-static void translateGetValue(CallInst &CI) {
+static void translateGetSurfaceIndex(CallInst &CI) {
   auto opnd = CI.getArgOperand(0);
   assert(opnd->getType()->isPointerTy());
   IRBuilder<> Builder(&CI);
@@ -1001,15 +1068,6 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
         GenXArgs.push_back(Cmp);
         break;
       }
-      case ESIMDIntrinDesc::GenXArgConversion::TO_SI: {
-        // convert a pointer to 32-bit integer surface index
-        assert(Arg->getType()->isPointerTy());
-        IRBuilder<> Bld(&CI);
-        Value *Res =
-            Bld.CreatePtrToInt(Arg, IntegerType::getInt32Ty(CI.getContext()));
-        GenXArgs.push_back(Res);
-        break;
-      }
       default:
         llvm_unreachable("Unknown ESIMD arg conversion");
       }
@@ -1028,19 +1086,6 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
       Value *ArgVal = ConstantInt::get(
           Ty, static_cast<uint64_t>(Val.getSExtValue()), true /*signed*/);
       GenXArgs.push_back(ArgVal);
-      break;
-    }
-    case ESIMDIntrinDesc::GenXArgRuleKind::NUM_BYTES: {
-      Type *Ty = Rule.I.Arg.CallArgNo == -1
-                     ? CI.getType()
-                     : CI.getArgOperand(Rule.I.Arg.CallArgNo)->getType();
-      assert(Ty->isVectorTy());
-      int NBits =
-          cast<VectorType>(Ty)->getElementType()->getPrimitiveSizeInBits();
-      assert(NBits == 8 || NBits == 16 || NBits == 32);
-      int NWords = NBits / 16;
-      GenXArgs.push_back(
-          ConstantInt::get(IntegerType::getInt32Ty(CI.getContext()), NWords));
       break;
     }
     case ESIMDIntrinDesc::GenXArgRuleKind::UNDEF: {
@@ -1386,7 +1431,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
     F.addFnAttr(Attribute::AlwaysInline);
 
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
-  SmallVector<Instruction *, 8> ESIMDToErases;
+  SmallVector<Instruction *, 8> ToErase;
 
   for (Instruction &I : instructions(F)) {
     if (auto CastOp = dyn_cast<llvm::CastInst>(&I)) {
@@ -1407,7 +1452,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         llvm::Instruction::CastOps TruncOp = llvm::Instruction::Trunc;
         llvm::Value *NewDst = Builder.CreateCast(TruncOp, Src, DstTy);
         CastOp->replaceAllUsesWith(NewDst);
-        ESIMDToErases.push_back(CastOp);
+        ToErase.push_back(CastOp);
       }
     }
 
@@ -1416,7 +1461,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
     if (CI && (Callee = CI->getCalledFunction())) {
       // TODO workaround for ESIMD BE until it starts supporting @llvm.assume
       if (match(&I, PatternMatch::m_Intrinsic<Intrinsic::assume>())) {
-        ESIMDToErases.push_back(CI);
+        ToErase.push_back(CI);
         continue;
       }
       StringRef Name = Callee->getName();
@@ -1434,17 +1479,17 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       if (Name.startswith("N2cl4sycl3ext5intel12experimental5esimd8slm_init")) {
         // tag the kernel with meta-data SLMSize, and remove this builtin
         translateSLMInit(*CI);
-        ESIMDToErases.push_back(CI);
+        ToErase.push_back(CI);
         continue;
       }
       if (Name.startswith("__esimd_pack_mask")) {
         translatePackMask(*CI);
-        ESIMDToErases.push_back(CI);
+        ToErase.push_back(CI);
         continue;
       }
       if (Name.startswith("__esimd_unpack_mask")) {
         translateUnPackMask(*CI);
-        ESIMDToErases.push_back(CI);
+        ToErase.push_back(CI);
         continue;
       }
       // If vload/vstore is not about the vector-types used by
@@ -1453,20 +1498,20 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       // those insts can be optimized by llvm ASAP.
       if (Name.startswith("__esimd_vload")) {
         if (translateVLoad(*CI, GVTS)) {
-          ESIMDToErases.push_back(CI);
+          ToErase.push_back(CI);
           continue;
         }
       }
       if (Name.startswith("__esimd_vstore")) {
         if (translateVStore(*CI, GVTS)) {
-          ESIMDToErases.push_back(CI);
+          ToErase.push_back(CI);
           continue;
         }
       }
 
-      if (Name.startswith("__esimd_get_value")) {
-        translateGetValue(*CI);
-        ESIMDToErases.push_back(CI);
+      if (Name.startswith("__esimd_get_surface_index")) {
+        translateGetSurfaceIndex(*CI);
+        ToErase.push_back(CI);
         continue;
       }
 
@@ -1500,14 +1545,14 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       // Replaces the original global load and it is uses and stores the old
       // instructions to ESIMDToErases.
       translateSpirvGlobalUses(LI, SpirvGlobal->getName().drop_front(PrefLen),
-                               ESIMDToErases);
+                               ToErase);
     }
   }
   // Now demangle and translate found ESIMD intrinsic calls
   for (auto *CI : ESIMDIntrCalls) {
     translateESIMDIntrinsicCall(*CI);
   }
-  for (auto *CI : ESIMDToErases) {
+  for (auto *CI : ToErase) {
     CI->eraseFromParent();
   }
 
