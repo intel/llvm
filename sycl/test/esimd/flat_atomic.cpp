@@ -12,7 +12,7 @@ using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;
 
 void kernel0(accessor<uint32_t, 1, access::mode::read_write,
-                      access::target::global_buffer> &buf) SYCL_ESIMD_FUNCTION {
+                      access::target::device> &buf) SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, 1);
 
   // CHECK: flat_atomic.cpp:20{{.*}}warning: 'ATOMIC_INC' is deprecated
@@ -23,7 +23,7 @@ void kernel0(accessor<uint32_t, 1, access::mode::read_write,
 }
 
 void kernel1(accessor<uint32_t, 1, access::mode::read_write,
-                      access::target::global_buffer> &buf) SYCL_ESIMD_FUNCTION {
+                      access::target::device> &buf) SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, 1);
   simd<uint32_t, 32> v1(0, 1);
 
@@ -35,7 +35,7 @@ void kernel1(accessor<uint32_t, 1, access::mode::read_write,
 }
 
 void kernel2(accessor<uint32_t, 1, access::mode::read_write,
-                      access::target::global_buffer> &buf) SYCL_ESIMD_FUNCTION {
+                      access::target::device> &buf) SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, 1);
   simd<uint32_t, 32> v1(0, 1);
 
