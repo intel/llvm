@@ -177,10 +177,9 @@ static cl::opt<bool> EmitExportedSymbols{"emit-exported-symbols",
 
 static cl::opt<bool> EmitNonKernelEntryPoints{
     "emit-non-kernel-entry-points",
-    cl::desc(
-        "Consider not only sycl_kernel functions as entry points for "
-        "device code split, but also SYCL_EXTERNAL functions (one with "
-        "sycl-module-id attribute)"),
+    cl::desc("Consider not only sycl_kernel functions as entry points for "
+             "device code split, but also SYCL_EXTERNAL functions (one with "
+             "sycl-module-id attribute)"),
     cl::cat(PostLinkCat), cl::init(true)};
 
 struct ImagePropSaveInfo {
@@ -269,7 +268,7 @@ static bool funcIsSpirvSyclBuiltin(StringRef FName) {
   return FName.startswith("__spirv_") || FName.startswith("__sycl_");
 }
 
-static bool isConsideredToBeAnEntryPoint(const Function &F) {
+static bool isEntryPoint(const Function &F) {
   // Kernels are always considered to be entry points
   if (CallingConv::SPIR_KERNEL == F.getCallingConv())
     return true;
@@ -296,7 +295,7 @@ static void collectKernelModuleMap(
 
   // Only process module entry points:
   for (auto &F : M.functions()) {
-    if (!isConsideredToBeAnEntryPoint(F))
+    if (!isEntryPoint(F))
       continue;
 
     switch (EntryScope) {
@@ -893,7 +892,7 @@ static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
   // Collect information about the SYCL and ESIMD functions in the module.
   // Only process module entry points.
   for (auto &F : M->functions()) {
-    if (isConsideredToBeAnEntryPoint(F)) {
+    if (isEntryPoint(F)) {
       if (F.getMetadata("sycl_explicit_simd"))
         EsimdFunctions.push_back(&F);
       else
