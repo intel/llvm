@@ -1600,67 +1600,45 @@ public:
     return AccessorSubscript<Dims - 1>(*this, Index);
   }
 
-  // get_pointer()
-  // when dim==1, MData will have been preadjusted for faster access with []
-  // on device, getQualifiedPtr() returns MData, so we need to backjust it
-  // on host, getQualifiedPtr() does not return MData, no need to adjust
-#ifdef __SYCL_DEVICE_ONLY__
   template <access::target AccessTarget_ = AccessTarget,
             typename = detail::enable_if_t<AccessTarget_ ==
                                            access::target::host_buffer>>
   DataT *get_pointer() const {
-    if (1 == AdjustedDim)
-      return getQualifiedPtr() - impl.Offset[0];
-
-    return getQualifiedPtr();
+    return getPointerAdjusted();
   }
 
   template <
       access::target AccessTarget_ = AccessTarget,
       typename = detail::enable_if_t<AccessTarget_ == access::target::device>>
   global_ptr<DataT> get_pointer() const {
-    if (1 == AdjustedDim)
-      return global_ptr<DataT>(getQualifiedPtr() - impl.Offset[0]);
-
-    return global_ptr<DataT>(getQualifiedPtr());
+    return global_ptr<DataT>(getPointerAdjusted());
   }
 
   template <access::target AccessTarget_ = AccessTarget,
             typename = detail::enable_if_t<AccessTarget_ ==
                                            access::target::constant_buffer>>
   constant_ptr<DataT> get_pointer() const {
-    if (1 == AdjustedDim)
-      return constant_ptr<DataT>(getQualifiedPtr() - impl.Offset[0]);
-
-    return constant_ptr<DataT>(getQualifiedPtr());
-  }
-#else
-  template <access::target AccessTarget_ = AccessTarget,
-            typename = detail::enable_if_t<AccessTarget_ ==
-                                           access::target::host_buffer>>
-  DataT *get_pointer() const {
-    return getQualifiedPtr();
+    return constant_ptr<DataT>(getPointerAdjusted());
   }
 
-  template <
-      access::target AccessTarget_ = AccessTarget,
-      typename = detail::enable_if_t<AccessTarget_ == access::target::device>>
-  global_ptr<DataT> get_pointer() const {
-    return global_ptr<DataT>(getQualifiedPtr());
-  }
-
-  template <access::target AccessTarget_ = AccessTarget,
-            typename = detail::enable_if_t<AccessTarget_ ==
-                                           access::target::constant_buffer>>
-  constant_ptr<DataT> get_pointer() const {
-    return constant_ptr<DataT>(getQualifiedPtr());
-  }
-#endif
 
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 
 private:
+  // supporting function for get_pointer()
+  // when dim==1, MData will have been preadjusted for faster access with []
+  // but for get_pointer() we must return the original pointer.
+  // On device, getQualifiedPtr() returns MData, so we need to backjust it.
+  // On host, getQualifiedPtr() does not return MData, no need to adjust.
+  PtrType getPointerAdjusted() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    if (1 == AdjustedDim)
+      return getQualifiedPtr() - impl.Offset[0];
+#endif
+    return getQualifiedPtr();
+  }
+
   void checkDeviceAccessorBufferSize(const size_t elemInBuffer) {
     if (!IsHostBuf && elemInBuffer == 0)
       throw cl::sycl::invalid_object_error(
