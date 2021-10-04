@@ -1,5 +1,5 @@
-// FIXME unsuppoerted on CUDA until fallback libdevice becomes available
-// UNSUPPORTED: cuda
+// FIXME unsupported on CUDA and HIP until fallback libdevice becomes available
+// UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DNDEBUG %S/assert_in_kernels.cpp -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
