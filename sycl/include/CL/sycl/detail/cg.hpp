@@ -98,6 +98,7 @@ enum class ExtendedMembersType : unsigned int {
   // TODO: This should be made a member of the handler class once ABI can be
   //       broken.
   HANDLER_IMPL,
+  HANDLER_IS_EVENT_REQUIRED,
 };
 
 // Holds a pointer to an object of an arbitrary type and an ID value which
@@ -287,6 +288,17 @@ public:
         return std::static_pointer_cast<detail::kernel_bundle_impl>(
             EMember.MData);
     return nullptr;
+  }
+
+  bool isEventRequired() {
+    auto ExtendedMembers = getExtendedMembers();
+    if (!ExtendedMembers)
+      return true;
+    for (const ExtendedMemberT &EM : *ExtendedMembers)
+      if ((ExtendedMembersType::HANDLER_IS_EVENT_REQUIRED == EM.MType) &&
+          EM.MData)
+        return *std::static_pointer_cast<bool>(EM.MData);
+    return true;
   }
 
   void clearStreams() { MStreams.clear(); }
