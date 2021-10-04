@@ -1618,7 +1618,6 @@
 ?end@HostProfilingInfo@detail@sycl@cl@@QEAAXXZ
 ?end@exception_list@sycl@cl@@QEBA?AV?$_Vector_const_iterator@V?$_Vector_val@U?$_Simple_types@Vexception_ptr@std@@@std@@@std@@@std@@XZ
 ?end@kernel_bundle_plain@detail@sycl@cl@@IEBAPEBVdevice_image_plain@234@XZ
-?size@kernel_bundle_plain@detail@sycl@cl@@IEBA_KXZ
 ?erf@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z
 ?erf@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z
 ?erf@__host_std@cl@@YA?AV?$vec@M$02@sycl@2@V342@@Z
