@@ -133,7 +133,7 @@ __SYCL_CLOSE_NS()
     if (code != CL_SUCCESS) {                                                  \
       throw sycl::exception(sycl::make_error_code(errc),                       \
                             __SYCL_OCL_ERROR_REPORT +                          \
-                                cl::sycl::detail::codeToString(code));         \
+                                __sycl_ns::detail::codeToString(code));         \
     }                                                                          \
   }
 #define __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(code, errc)                    \
