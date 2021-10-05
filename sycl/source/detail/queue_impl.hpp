@@ -524,7 +524,8 @@ private:
     };
 
     if (MIsEventRequired || MHostQueue || Type != CG::Kernel ||
-        Handler->MRequirements.size() != 0 || Handler->MIsFinalized) {
+        Handler->MRequirements.size() != 0 || Handler->MIsFinalized ||
+        PostProcessFunction) {
       EventImplPtr EventImpl = MUploadDataFunctor(true);
       return detail::createSyclObjFromImpl<event>(EventImpl);
     }
