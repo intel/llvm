@@ -142,6 +142,30 @@ int main() {
       } catch (feature_not_supported) {
         // okay skip it
       }
+
+      // test exception
+      try {
+        const size_t out_of_bounds = std::numeric_limits<size_t>::max();
+        const auto partition =
+            sycl::info::partition_property::partition_equally;
+        dev.create_sub_devices<partition>(out_of_bounds);
+        std::cout << "we should not be here. Exception not thrown."
+                  << std::endl;
+        return 1;
+      } catch (sycl::exception &e) {
+        const auto code = e.code();
+
+        if (!(code == sycl::errc::feature_not_supported ||
+              code == sycl::errc::invalid)) {
+          std::cout << "SYCL exception has wrong error code: " << code
+                    << std::endl;
+          return 1;
+        }
+      } catch (...) {
+        std::cout << "Something besides a sycl::exception was thrown."
+                  << std::endl;
+        return 1;
+      }
     }
   } catch (exception e) {
     std::cout << "SYCL exception caught: " << e.what() << std::endl;
