@@ -28,7 +28,7 @@ int launch(const char *Cmd, const std::vector<const char *> &Args,
   return 0;
 #else
   return execve(Cmd, const_cast<char *const *>(Args.data()),
-                const_cast<char *const *>(NewEnv.data()));
+                const_cast<char *const *>(Env.data()));
 #endif
 }
 
