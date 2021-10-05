@@ -13,8 +13,8 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
-#include "SPIRKernelParamOptInfo.h"
 #include "SYCLDeviceLibReqMask.h"
+#include "SYCLKernelParamOptInfo.h"
 #include "SpecConstants.h"
 
 #include "llvm/ADT/SetVector.h"
@@ -583,9 +583,10 @@ static string_vector saveDeviceImageProperty(
       // Register required analysis
       MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
       // Register the payload analysis
-      MAM.registerPass([&] { return SPIRKernelParamOptInfoAnalysis(); });
-      SPIRKernelParamOptInfo PInfo =
-          MAM.getResult<SPIRKernelParamOptInfoAnalysis>(
+
+      MAM.registerPass([&] { return SYCLKernelParamOptInfoAnalysis(); });
+      SYCLKernelParamOptInfo PInfo =
+          MAM.getResult<SYCLKernelParamOptInfoAnalysis>(
               *ResultModules[I].ModulePtr);
 
       // convert analysis results into properties and record them
