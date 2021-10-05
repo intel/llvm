@@ -1,4 +1,4 @@
-//==-- SPIRKernelParamOptInfo.h -- get kernel param optimization info ------==//
+//==-- SYCLKernelParamOptInfo.h -- get kernel param optimization info ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,25 +21,25 @@
 namespace llvm {
 
 // the StringRef key refers to a function name
-using SPIRKernelParamOptInfoBaseTy = DenseMap<StringRef, BitVector>;
+using SYCLKernelParamOptInfoBaseTy = DenseMap<StringRef, BitVector>;
 
-class SPIRKernelParamOptInfo : public SPIRKernelParamOptInfoBaseTy {
+class SYCLKernelParamOptInfo : public SYCLKernelParamOptInfoBaseTy {
 public:
   void releaseMemory();
 };
 
-class SPIRKernelParamOptInfoAnalysis
-    : public AnalysisInfoMixin<SPIRKernelParamOptInfoAnalysis> {
-  friend AnalysisInfoMixin<SPIRKernelParamOptInfoAnalysis>;
+class SYCLKernelParamOptInfoAnalysis
+    : public AnalysisInfoMixin<SYCLKernelParamOptInfoAnalysis> {
+  friend AnalysisInfoMixin<SYCLKernelParamOptInfoAnalysis>;
 
   static AnalysisKey Key;
 
 public:
   /// Provide the result type for this analysis pass.
-  using Result = SPIRKernelParamOptInfo;
+  using Result = SYCLKernelParamOptInfo;
 
   /// Run the analysis pass over a function and produce BPI.
-  SPIRKernelParamOptInfo run(Module &M, ModuleAnalysisManager &AM);
+  SYCLKernelParamOptInfo run(Module &M, ModuleAnalysisManager &AM);
 };
 
 } // namespace llvm

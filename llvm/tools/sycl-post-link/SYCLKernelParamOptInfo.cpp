@@ -1,4 +1,4 @@
-//==-- SPIRKernelParamOptInfo.cpp -- get kernel param optimization info ----==//
+//==-- SYCLKernelParamOptInfo.cpp -- get kernel param optimization info ----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SPIRKernelParamOptInfo.h"
+#include "SYCLKernelParamOptInfo.h"
 
 #include "llvm/IR/Constants.h"
 #include "llvm/Support/Casting.h"
@@ -14,23 +14,23 @@
 namespace {
 
 // Must match the one produced by DeadArgumentElimination
-static constexpr char MetaDataID[] = "spir_kernel_omit_args";
+static constexpr char MetaDataID[] = "sycl_kernel_omit_args";
 
 } // anonymous namespace
 
 namespace llvm {
 
-void SPIRKernelParamOptInfo::releaseMemory() { clear(); }
+void SYCLKernelParamOptInfo::releaseMemory() { clear(); }
 
-SPIRKernelParamOptInfo
-SPIRKernelParamOptInfoAnalysis::run(Module &M, ModuleAnalysisManager &AM) {
-  SPIRKernelParamOptInfo Res;
+SYCLKernelParamOptInfo
+SYCLKernelParamOptInfoAnalysis::run(Module &M, ModuleAnalysisManager &AM) {
+  SYCLKernelParamOptInfo Res;
 
   for (const Function &F : M) {
     MDNode *MD = F.getMetadata(MetaDataID);
     if (!MD)
       continue;
-    using BaseTy = SPIRKernelParamOptInfoBaseTy;
+    using BaseTy = SYCLKernelParamOptInfoBaseTy;
     auto Ins =
         Res.insert(BaseTy::value_type{F.getName(), BaseTy::mapped_type{}});
     assert(Ins.second && "duplicate kernel?");
@@ -46,6 +46,6 @@ SPIRKernelParamOptInfoAnalysis::run(Module &M, ModuleAnalysisManager &AM) {
   return Res;
 }
 
-AnalysisKey SPIRKernelParamOptInfoAnalysis::Key;
+AnalysisKey SYCLKernelParamOptInfoAnalysis::Key;
 
 } // namespace llvm

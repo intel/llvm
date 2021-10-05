@@ -1133,8 +1133,9 @@ struct _pi_program : _pi_object {
 };
 
 struct _pi_kernel : _pi_object {
-  _pi_kernel(ze_kernel_handle_t Kernel, pi_program Program)
-      : ZeKernel{Kernel}, Program{Program}, MemAllocs{}, SubmissionsCount{0} {}
+  _pi_kernel(ze_kernel_handle_t Kernel, bool OwnZeKernel, pi_program Program)
+      : ZeKernel{Kernel}, OwnZeKernel{OwnZeKernel}, Program{Program},
+        MemAllocs{}, SubmissionsCount{0} {}
 
   // Returns true if kernel has indirect access, false otherwise.
   bool hasIndirectAccess() {
@@ -1145,6 +1146,10 @@ struct _pi_kernel : _pi_object {
 
   // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
+
+  // Indicates if we own the ZeKernel or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeKernel;
 
   // Keep the program of the kernel.
   pi_program Program;
