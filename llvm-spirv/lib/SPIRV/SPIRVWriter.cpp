@@ -3224,6 +3224,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::invariant_end:
   case Intrinsic::dbg_label:
   case Intrinsic::trap:
+  // llvm.instrprof.increment is not supported
+  case Intrinsic::instrprof_increment:
     // llvm.trap intrinsic is not implemented. But for now don't crash. This
     // change is pending the trap/abort intrinsic implementation.
     return nullptr;
