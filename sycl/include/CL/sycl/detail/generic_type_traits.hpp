@@ -429,12 +429,29 @@ struct select_cl_vector_or_scalar<
 template <typename T, typename Enable = void>
 struct select_cl_mptr_or_vector_or_scalar;
 
+// this struct helps to use std::uint8_t instead of std::byte,
+// which is not supported on device
+template <typename T>
+struct TypeHelper {
+  using RetType = T;
+};
+
+#if __cplusplus >= 201703L
+template<>
+struct TypeHelper<std::byte> {
+  using RetType = std::uint8_t;
+};
+#endif
+
+template <typename T>
+using type_helper = typename TypeHelper<T>::RetType;
+
 template <typename T>
 struct select_cl_mptr_or_vector_or_scalar<
     T, typename detail::enable_if_t<is_genptr<T>::value &&
                                     !std::is_pointer<T>::value>> {
   using type = multi_ptr<
-      typename select_cl_vector_or_scalar<typename T::element_type>::type,
+      typename select_cl_vector_or_scalar<type_helper<typename T::element_type>>::type,
       T::address_space>;
 };
 
