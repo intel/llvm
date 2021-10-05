@@ -5,7 +5,7 @@
 #include <CL/sycl.hpp>
 
 using namespace sycl;
-using namespace sycl::ext::intel::experimental::matrix;
+using namespace sycl::ext::oneapi::experimental::matrix;
 
 // Example usage of Nvidia matrix multiply.
 // Optimizations such as memory paddings for avoiding bank conflicts are not
@@ -107,15 +107,15 @@ int main() {
               item.get_group().get_id()[1]; // column id of current submatrix of
                                             // BIG C matrix
 
-          joint_matrix<sub_group, double, matrix_type::accumulator, M, N,
+          joint_matrix<double, matrix_use::accumulator, M, N,
                        matrix_layout::row_major>
               sub_c;
 
-          joint_matrix<sub_group, double, matrix_type::a, M, K,
+          joint_matrix<double, matrix_use::a, M, K,
                        matrix_layout::row_major>
               sub_a;
 
-          joint_matrix<sub_group, double, matrix_type::b, K, N,
+          joint_matrix<double, matrix_use::b, K, N,
                        matrix_layout::row_major>
               sub_b;
 
