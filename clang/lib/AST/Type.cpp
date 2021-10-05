@@ -3765,8 +3765,8 @@ public:
 
   friend CachedProperties merge(CachedProperties L, CachedProperties R) {
     Linkage MergedLinkage = minLinkage(L.L, R.L);
-    return CachedProperties(MergedLinkage,
-                         L.hasLocalOrUnnamedType() | R.hasLocalOrUnnamedType());
+    return CachedProperties(MergedLinkage, L.hasLocalOrUnnamedType() ||
+                                               R.hasLocalOrUnnamedType());
   }
 };
 

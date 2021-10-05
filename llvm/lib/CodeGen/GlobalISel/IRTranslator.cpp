@@ -1591,8 +1591,7 @@ bool IRTranslator::translateMemFunc(const CallInst &CI,
   Align DstAlign;
   Align SrcAlign;
   unsigned IsVol =
-      cast<ConstantInt>(CI.getArgOperand(CI.getNumArgOperands() - 1))
-          ->getZExtValue();
+      cast<ConstantInt>(CI.getArgOperand(CI.arg_size() - 1))->getZExtValue();
 
   if (auto *MCI = dyn_cast<MemCpyInst>(&CI)) {
     DstAlign = MCI->getDestAlign().valueOrOne();
@@ -2177,7 +2176,7 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
 
     // Directly emit some LOCAL_ESCAPE machine instrs. Label assignment emission
     // is the same on all targets.
-    for (unsigned Idx = 0, E = CI.getNumArgOperands(); Idx < E; ++Idx) {
+    for (unsigned Idx = 0, E = CI.arg_size(); Idx < E; ++Idx) {
       Value *Arg = CI.getArgOperand(Idx)->stripPointerCasts();
       if (isa<ConstantPointerNull>(Arg))
         continue; // Skip null pointers. They represent a hole in index space.
@@ -2697,6 +2696,28 @@ bool IRTranslator::translateVAArg(const User &U, MachineIRBuilder &MIRBuilder) {
   MIRBuilder.buildInstr(TargetOpcode::G_VAARG, {getOrCreateVReg(U)},
                         {getOrCreateVReg(*U.getOperand(0)),
                          DL->getABITypeAlign(U.getType()).value()});
+  return true;
+}
+
+bool IRTranslator::translateUnreachable(const User &U, MachineIRBuilder &MIRBuilder) {
+    if (!MF->getTarget().Options.TrapUnreachable)
+    return true;
+
+  auto &UI = cast<UnreachableInst>(U);
+  // We may be able to ignore unreachable behind a noreturn call.
+  if (MF->getTarget().Options.NoTrapAfterNoreturn) {
+    const BasicBlock &BB = *UI.getParent();
+    if (&UI != &BB.front()) {
+      BasicBlock::const_iterator PredI =
+        std::prev(BasicBlock::const_iterator(UI));
+      if (const CallInst *Call = dyn_cast<CallInst>(&*PredI)) {
+        if (Call->doesNotReturn())
+          return true;
+      }
+    }
+  }
+
+  MIRBuilder.buildIntrinsic(Intrinsic::trap, ArrayRef<Register>(), true);
   return true;
 }
 

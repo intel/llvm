@@ -66,6 +66,7 @@ def warn_infinite_recursive_function : Warning<
 def warn_comma_operator : Warning<"possible misuse of comma operator here">,
   InGroup<DiagGroup<"comma">>, DefaultIgnore;
 def note_cast_to_void : Note<"cast expression to void to silence warning">;
+def note_cast_operand_to_int : Note<"cast one or both operands to int to silence this warning">;
 
 // Constant expressions
 def err_expr_not_ice : Error<
@@ -300,10 +301,12 @@ def err_invalid_vector_double_decl_spec : Error <
 def err_invalid_vector_bool_int128_decl_spec : Error <
   "use of '__int128' with '__vector bool' requires VSX support enabled (on "
   "POWER10 or later)">;
+def err_invalid_vector_int128_decl_spec : Error<
+  "use of '__int128' with '__vector' requires extended Altivec support"
+  " (available on POWER8 or later)">;
 def err_invalid_vector_long_long_decl_spec : Error <
-  "use of 'long long' with '__vector bool' requires VSX support (available on "
-  "POWER7 or later) or extended Altivec support (available on POWER8 or later) "
-  "to be enabled">;
+  "use of 'long long' with '__vector' requires VSX support (available on "
+  "POWER7 or later) to be enabled">;
 def err_invalid_vector_long_double_decl_spec : Error<
   "cannot use 'long double' with '__vector'">;
 def warn_vector_long_decl_spec_combination : Warning<
@@ -7471,6 +7474,9 @@ def note_member_declared_here : Note<
   "member %0 declared here">;
 def note_member_first_declared_here : Note<
   "member %0 first declared here">;
+def warn_bitwise_instead_of_logical : Warning<
+  "use of bitwise '%0' with boolean operands">,
+  InGroup<BitwiseInsteadOfLogical>, DefaultIgnore;
 def warn_bitwise_negation_bool : Warning<
   "bitwise negation of a boolean expression%select{;| always evaluates to 'true';}0 "
   "did you mean logical negation?">,
