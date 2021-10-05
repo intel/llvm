@@ -6,7 +6,6 @@
 //
 // Missing __spirv_SubgroupShuffleINTEL, __spirv_SubgroupShuffleUpINTEL,
 // __spirv_SubgroupShuffleDownINTEL, __spirv_SubgroupShuffleXorINTEL on AMD
-// XFAIL: hip_amd
 //
 //==-- generic_shuffle.cpp - SYCL sub_group generic shuffle test *- C++ -*--==//
 //
