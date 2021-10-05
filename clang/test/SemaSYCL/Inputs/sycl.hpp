@@ -85,29 +85,28 @@ struct _ImplT {
   id<dim> Offset;
 };
 
-using propertyListT = ext::oneapi::accessor_property_list<>;
-template <typename dataT, access::target accessTarget, typename propertyListT>
+template <typename dataT, access::target accessTarget>
 struct DeviceValueType;
 
-template <typename dataT, typename propertyListT>
-struct DeviceValueType<dataT, access::target::global_buffer, propertyListT> {
+template <typename dataT>
+struct DeviceValueType<dataT, access::target::global_buffer> {
   using type = __attribute__((opencl_global)) dataT;
 };
 
-template <typename dataT, typename propertyListT>
-struct DeviceValueType<dataT, access::target::constant_buffer, propertyListT> {
+template <typename dataT>
+struct DeviceValueType<dataT, access::target::constant_buffer> {
   using type = __attribute__((opencl_constant)) dataT;
 };
 
-template <typename dataT, typename propertyListT>
-struct DeviceValueType<dataT, access::target::local, propertyListT> {
+template <typename dataT>
+struct DeviceValueType<dataT, access::target::local> {
   using type = __attribute__((opencl_local)) dataT;
 };
 
 template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t,
-	typename propertyListT = ext::oneapi::accessor_property_list<>>
+          typename propertyListT = ext::oneapi::accessor_property_list<>>
 class __attribute__((sycl_special_class)) accessor {
 public:
   void use(void) const {}
@@ -115,7 +114,7 @@ public:
   _ImplT<dimensions> impl;
 
 private:
-  using PtrType = typename DeviceValueType<dataT, accessTarget, propertyListT>::type *;
+  using PtrType = typename DeviceValueType<dataT, accessTarget>::type *;
   void __init(PtrType Ptr, range<dimensions> AccessRange,
               range<dimensions> MemRange, id<dimensions> Offset) {}
   friend class stream;
