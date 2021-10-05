@@ -4007,7 +4007,7 @@ class OffloadingActionBuilder final {
     /// One action per triple/boundarch.
     SmallVector<Action *, 4> SYCLDeviceActions;
 
-    /// The liker inputs obtained for each input/toolchain/arch.
+    /// The linker inputs obtained for each input/toolchain/arch.
     SmallVector<ActionList, 4> DeviceLinkerInputs;
 
     /// The SYCL link binary if it was generated for the current input.
