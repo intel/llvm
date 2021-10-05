@@ -675,7 +675,6 @@ private:
   ///                   kernel bundle contains.
   void verifyUsedKernelBundle(const std::string &KernelName);
 
-
   /// Stores lambda to the template-free object
   ///
   /// Also initializes kernel name, list of arguments and requirements using
