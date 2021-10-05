@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 
 class TestKernel;
+class TestKernelExeOnly;
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -32,23 +33,37 @@ template <> struct KernelInfo<TestKernel> {
   static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 
+template <> struct KernelInfo<TestKernelExeOnly> {
+  static constexpr unsigned getNumParams() { return 0; }
+  static const kernel_param_desc_t &getParamDesc(int) {
+    static kernel_param_desc_t Dummy;
+    return Dummy;
+  }
+  static constexpr const char *getName() { return "TestKernelExeOnly"; }
+  static constexpr bool isESIMD() { return false; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
+};
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-static sycl::unittest::PiImage generateDefaultImage() {
+static sycl::unittest::PiImage
+generateDefaultImage(std::initializer_list<std::string> KernelNames,
+                     const char *DeviceTargetSpec) {
   using namespace sycl::unittest;
 
   PiPropertySet PropSet;
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
+  PiArray<PiOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
+  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV, // Format
+              DeviceTargetSpec,
+              "", // Compile options
+              "", // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};
@@ -56,8 +71,12 @@ static sycl::unittest::PiImage generateDefaultImage() {
   return Img;
 }
 
-static sycl::unittest::PiImage Img = generateDefaultImage();
-static sycl::unittest::PiImageArray<1> ImgArray{&Img};
+static sycl::unittest::PiImage Imgs[2] = {
+    generateDefaultImage({"TestKernel"},
+                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"TestKernelExeOnly"},
+                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
+static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 
 TEST(KernelBundle, GetKernelBundleFromKernel) {
   sycl::platform Plt{sycl::default_selector()};
@@ -140,4 +159,67 @@ TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
   auto LinkBundleImpl = sycl::detail::getSyclObjImpl(LinkBundle);
   EXPECT_EQ(LinkBundleImpl->get_bundle_state(), sycl::bundle_state::executable)
       << "Expect executable device image in bundle";
+}
+
+TEST(KernelBundle, HasKernelBundle) {
+  sycl::platform Plt{sycl::default_selector()};
+  if (Plt.is_host()) {
+    std::cout << "Test is not supported on host, skipping\n";
+    return; // test is not supported on host.
+  }
+
+  if (Plt.get_backend() == sycl::backend::cuda) {
+    std::cout << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
+    return;
+  }
+
+  sycl::unittest::PiMock Mock{Plt};
+  setupDefaultMockAPIs(Mock);
+
+  const sycl::device Dev = Plt.get_devices()[0];
+
+  sycl::queue Queue{Dev};
+
+  const sycl::context Ctx = Queue.get_context();
+
+  bool HasKernelBundle =
+      sycl::has_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
+  EXPECT_TRUE(HasKernelBundle);
+  HasKernelBundle =
+      sycl::has_kernel_bundle<sycl::bundle_state::object>(Ctx, {Dev});
+  EXPECT_TRUE(HasKernelBundle);
+  HasKernelBundle =
+      sycl::has_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});
+  EXPECT_TRUE(HasKernelBundle);
+
+  HasKernelBundle =
+      sycl::has_kernel_bundle<TestKernel, sycl::bundle_state::input>(Ctx,
+                                                                     {Dev});
+  EXPECT_TRUE(HasKernelBundle);
+  HasKernelBundle =
+      sycl::has_kernel_bundle<TestKernel, sycl::bundle_state::object>(Ctx,
+                                                                      {Dev});
+  EXPECT_TRUE(HasKernelBundle);
+  HasKernelBundle =
+      sycl::has_kernel_bundle<TestKernel, sycl::bundle_state::executable>(
+          Ctx, {Dev});
+  EXPECT_TRUE(HasKernelBundle);
+
+  HasKernelBundle =
+      sycl::has_kernel_bundle<TestKernelExeOnly, sycl::bundle_state::input>(
+          Ctx, {Dev});
+  EXPECT_FALSE(HasKernelBundle);
+  HasKernelBundle =
+      sycl::has_kernel_bundle<TestKernelExeOnly, sycl::bundle_state::object>(
+          Ctx, {Dev});
+  EXPECT_FALSE(HasKernelBundle);
+  HasKernelBundle =
+      sycl::has_kernel_bundle<TestKernelExeOnly,
+                              sycl::bundle_state::executable>(Ctx, {Dev});
+  EXPECT_TRUE(HasKernelBundle);
 }
