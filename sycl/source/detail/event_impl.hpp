@@ -144,6 +144,7 @@ public:
                         const ContextImplPtr &Context);
 
   EventImplPtr doFinalize() {
+    std::lock_guard<std::mutex> Lock(MMutexFunctor);
     if (MDoSubmitFunctor) {
       std::function<EventImplPtr(bool)> EmptyFunctor;
       EmptyFunctor.swap(MDoSubmitFunctor);
@@ -153,6 +154,7 @@ public:
   }
 
   void doIfNotFinalized() {
+    std::lock_guard<std::mutex> Lock(MMutexFunctor);
     if (MDoSubmitFunctor) {
       std::function<EventImplPtr(bool)> EmptyFunctor;
       EmptyFunctor.swap(MDoSubmitFunctor);
@@ -161,6 +163,7 @@ public:
   }
 
   void CreateRealImpl() const {
+    std::lock_guard<std::mutex> Lock(MMutexFunctor);
     if (MDoSubmitFunctor) {
       std::function<EventImplPtr(bool)> EmptyFunctor;
       EmptyFunctor.swap(MDoSubmitFunctor);
@@ -235,6 +238,7 @@ private:
 
   mutable std::function<EventImplPtr(bool)> MDoSubmitFunctor;
   mutable EventImplPtr MRealImpl = nullptr;
+  mutable std::mutex MMutexFunctor;
 };
 
 } // namespace detail
