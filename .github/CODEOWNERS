@@ -98,7 +98,7 @@ clang/tools/clang-offload-deps/ @sndmitriev @mlychkov @AlexeySachkov
 clang/tools/clang-offload-extract/ @sndmitriev @mlychkov @AlexeySachkov
 
 # Explicit SIMD
-SYCLLowerIR/ @kbobrovs @sndmitriev @kychendev
+SYCLLowerIR/ @kbobrovs @sndmitriev @kychendev @v-klochkov 
 esimd/ @kbobrovs @v-klochkov @kychendev
 sycl/include/sycl/ext/intel/experimental/esimd.hpp @kbobrovs @v-klochkov @kychendev
 sycl/doc/extensions/ExplicitSIMD/ @kbobrovs @v-klochkov @kychendev
