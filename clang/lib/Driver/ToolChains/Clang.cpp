@@ -8921,7 +8921,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // it only increases amount of code for device compiler to handle, without any
   // actual benefits.
   if (getToolChain().getTriple().getArchName() == "spir64_fpga")
-    addArgs(CmdArgs, TCArgs, {"-emit-non-kernel-entry-points=0"});
+    addArgs(CmdArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
   // OPT_fsycl_device_code_split is not checked as it is an alias to
   // -fsycl-device-code-split=auto

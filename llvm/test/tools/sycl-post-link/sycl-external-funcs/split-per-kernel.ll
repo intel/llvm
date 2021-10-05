@@ -9,7 +9,7 @@
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYM1
 ; RUN: FileCheck %s -input-file=%t_2.sym --check-prefixes CHECK-SYM2
 
-; RUN: sycl-post-link -split=kernel -emit-non-kernel-entry-points=0 -symbols -S %s -o %t.table
+; RUN: sycl-post-link -split=kernel -emit-only-kernels-as-entry-points -symbols -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-IR1
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-IR2
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM1

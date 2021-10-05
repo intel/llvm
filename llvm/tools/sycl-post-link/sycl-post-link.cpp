@@ -175,12 +175,11 @@ static cl::opt<bool> EmitExportedSymbols{"emit-exported-symbols",
                                          cl::desc("emit exported symbols"),
                                          cl::cat(PostLinkCat)};
 
-static cl::opt<bool> EmitNonKernelEntryPoints{
-    "emit-non-kernel-entry-points",
-    cl::desc("Consider not only sycl_kernel functions as entry points for "
-             "device code split, but also SYCL_EXTERNAL functions (one with "
-             "sycl-module-id attribute)"),
-    cl::cat(PostLinkCat), cl::init(true)};
+static cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
+    "emit-only-kernels-as-entry-points",
+    cl::desc("Consider only sycl_kernel functions as entry points for "
+             "device code split"),
+    cl::cat(PostLinkCat), cl::init(false)};
 
 struct ImagePropSaveInfo {
   bool NeedDeviceLibReqMask;
@@ -273,9 +272,10 @@ static bool isEntryPoint(const Function &F) {
   if (CallingConv::SPIR_KERNEL == F.getCallingConv())
     return true;
 
-  if (EmitNonKernelEntryPoints) {
-    // If requested, SYCL_EXTERNAL functions with sycl-module-id attribute are
-    // also considered as entry points (except __spirv_* and __sycl_* functions)
+  if (!EmitOnlyKernelsAsEntryPoints) {
+    // If not disabled, SYCL_EXTERNAL functions with sycl-module-id attribute
+    // are also considered as entry points (except __spirv_* and __sycl_*
+    // functions)
     return F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
            !funcIsSpirvSyclBuiltin(F.getName());
   }
@@ -964,7 +964,7 @@ int main(int argc, char **argv) {
       "- SYCL and ESIMD kernels can be split into separate modules with\n"
       "  '-split-esimd' option. The option has no effect when there is only\n"
       "  one type of kernels in the input module. Functions unreachable from\n"
-      "  any entry point (kernels and optionally SYCL_EXTERNAL functions) are\n"
+      "  any entry point (kernels and SYCL_EXTERNAL functions) are\n"
       "  dropped from the resulting module(s).\n"
       "- Module splitter to split a big input module into smaller ones.\n"
       "  Groups kernels using function attribute 'sycl-module-id', i.e.\n"

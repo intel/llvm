@@ -4,7 +4,7 @@
 ; RUN: sycl-post-link -ir-output-only -split=auto -S %s -o %t.ll
 ; RUN: FileCheck %s -input-file=%t.ll --check-prefix=CHECK-ALL
 
-; RUN: sycl-post-link -ir-output-only -emit-non-kernel-entry-points=0 -split=auto -S %s -o %t.ll
+; RUN: sycl-post-link -ir-output-only -emit-only-kernels-as-entry-points -split=auto -S %s -o %t.ll
 ; RUN: FileCheck %s -input-file=%t.ll --check-prefix=CHECK-KERNEL-ONLY --implicit-check-not @externalDeviceFunc
 
 
