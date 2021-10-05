@@ -1574,11 +1574,11 @@ public:
       const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
   return atomic<DataT, AS>(
       multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
-  }
+}
 
 template <int Dims = Dimensions>
 typename detail::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
-                               atomic<DataT, AS>>
+                             atomic<DataT, AS>>
 operator[](id<Dimensions> Index) const {
   const size_t LinearIndex = getLinearIndex(Index);
   return atomic<DataT, AS>(
