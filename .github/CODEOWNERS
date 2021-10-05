@@ -1,7 +1,7 @@
 * @bader
 
 # Front-end compiler
-clang/ @premanandrao @elizabethandrews @AaronBallman
+clang/ @premanandrao @elizabethandrews
 
 # Driver
 clang/**/Driver @mdtoguchi @AGindinson @hchilama
@@ -98,10 +98,10 @@ clang/tools/clang-offload-deps/ @sndmitriev @mlychkov @AlexeySachkov
 clang/tools/clang-offload-extract/ @sndmitriev @mlychkov @AlexeySachkov
 
 # Explicit SIMD
-SYCLLowerIR/ @kbobrovs @DenisBakhvalov @kychendev
-esimd/ @kbobrovs @DenisBakhvalov @kychendev
-sycl/include/sycl/ext/intel/experimental/esimd.hpp @kbobrovs @DenisBakhvalov @kychendev
-sycl/doc/extensions/ExplicitSIMD/ @kbobrovs @DenisBakhvalov @kychendev
+SYCLLowerIR/ @kbobrovs @sndmitriev @kychendev @v-klochkov 
+esimd/ @kbobrovs @v-klochkov @kychendev
+sycl/include/sycl/ext/intel/experimental/esimd.hpp @kbobrovs @v-klochkov @kychendev
+sycl/doc/extensions/ExplicitSIMD/ @kbobrovs @v-klochkov @kychendev
 
 # ITT annotations
 llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @MrSidims @vzakhari

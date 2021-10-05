@@ -97,8 +97,8 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                        std::unique_ptr<Command> InputCommand,
                                        const InputInfoList &InputFiles,
                                        const InputInfo &Output, const Tool *T,
-                                       StringRef Increment,
-                                       StringRef Ext = "out") {
+                                       StringRef Increment, StringRef Ext,
+                                       StringRef ParallelJobs) {
   // Construct llvm-foreach command.
   // The llvm-foreach command looks like this:
   // llvm-foreach --in-file-list=a.list --in-replace='{}' -- echo '{}'
@@ -120,6 +120,9 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   if (!Increment.empty())
     ForeachArgs.push_back(
         C.getArgs().MakeArgString("--out-increment=" + Increment));
+  if (!ParallelJobs.empty())
+    ForeachArgs.push_back(C.getArgs().MakeArgString("--jobs=" + ParallelJobs));
+
   ForeachArgs.push_back(C.getArgs().MakeArgString("--"));
   ForeachArgs.push_back(
       C.getArgs().MakeArgString(InputCommand->getExecutable()));
@@ -143,12 +146,15 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
 // The list should match pre-built SYCL device library files located in
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
-static llvm::SmallVector<StringRef, 10> SYCLDeviceLibList{
+static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "crt",
     "cmath",
     "cmath-fp64",
     "complex",
     "complex-fp64",
+    "itt-compiler-wrappers",
+    "itt-stubs",
+    "itt-user-wrappers",
     "fallback-cassert",
     "fallback-cstring",
     "fallback-cmath",
@@ -185,14 +191,14 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         LibPostfix = ".obj";
       StringRef InputFilename =
           llvm::sys::path::filename(StringRef(II.getFilename()));
-      if (!InputFilename.startswith("libsycl-") ||
+      StringRef LibSyclPrefix("libsycl-");
+      if (!InputFilename.startswith(LibSyclPrefix) ||
           !InputFilename.endswith(LibPostfix) || (InputFilename.count('-') < 2))
         return false;
-      size_t PureLibNameLen = InputFilename.find_last_of('-');
       // Skip the prefix "libsycl-"
-      StringRef PureLibName = InputFilename.substr(8, PureLibNameLen - 8);
+      StringRef PureLibName = InputFilename.substr(LibSyclPrefix.size());
       for (const auto &L : SYCLDeviceLibList) {
-        if (PureLibName.compare(L) == 0)
+        if (PureLibName.startswith(L))
           return true;
       }
       return false;
@@ -392,10 +398,12 @@ void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                        Exec, CmdArgs, None);
-  if (!ForeachInputs.empty())
+  if (!ForeachInputs.empty()) {
+    StringRef ParallelJobs =
+        Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, "", ForeachExt);
-  else
+                                this, "", ForeachExt, ParallelJobs);
+  } else
     C.addCommand(std::move(Cmd));
 }
 
@@ -557,10 +565,12 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                        Exec, CmdArgs, None);
   addFPGATimingDiagnostic(Cmd, C);
-  if (!ForeachInputs.empty())
+  if (!ForeachInputs.empty()) {
+    StringRef ParallelJobs =
+        Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, ReportOptArg, ForeachExt);
-  else
+                                this, ReportOptArg, ForeachExt, ParallelJobs);
+  } else
     C.addCommand(std::move(Cmd));
 }
 
@@ -596,10 +606,12 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                        Exec, CmdArgs, None);
-  if (!ForeachInputs.empty())
+  if (!ForeachInputs.empty()) {
+    StringRef ParallelJobs =
+        Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, "");
-  else
+                                this, "", "out", ParallelJobs);
+  } else
     C.addCommand(std::move(Cmd));
 }
 
@@ -629,10 +641,12 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                        Exec, CmdArgs, None);
-  if (!ForeachInputs.empty())
+  if (!ForeachInputs.empty()) {
+    StringRef ParallelJobs =
+        Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, "");
-  else
+                                this, "", "out", ParallelJobs);
+  } else
     C.addCommand(std::move(Cmd));
 }
 

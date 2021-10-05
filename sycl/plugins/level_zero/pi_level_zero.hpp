@@ -909,7 +909,7 @@ struct _pi_event : _pi_object {
   ze_event_pool_handle_t ZeHostVisibleEventPool = {nullptr};
   // Get the host-visible event or create one and enqueue its signal.
   pi_result getOrCreateHostVisibleEvent(ze_event_handle_t &HostVisibleEvent);
-  // Get the host-visible event ensuring that one was already created before.
+  // Return the host-visible event if one was already created before, or null.
   ze_event_handle_t getHostVisibleEvent() const;
 
   // Level Zero command list where the command signaling this event was appended
@@ -1068,23 +1068,24 @@ struct _pi_program : _pi_object {
   // Construct a program in IL or Native state.
   _pi_program(pi_context Context, const void *Input, size_t Length, state St)
       : State(St), Context(Context), Code(new uint8_t[Length]),
-        CodeLength(Length), ZeModule(nullptr), HasImports(false),
-        HasImportsAndIsLinked(false), ZeBuildLog(nullptr) {
+        CodeLength(Length), ZeModule(nullptr), OwnZeModule{true},
+        HasImports(false), HasImportsAndIsLinked(false), ZeBuildLog(nullptr) {
 
     std::memcpy(Code.get(), Input, Length);
   }
 
   // Construct a program in either Object or Exe state.
-  _pi_program(pi_context Context, ze_module_handle_t ZeModule, state St,
-              bool HasImports = false)
-      : State(St), Context(Context), ZeModule(ZeModule), HasImports(HasImports),
+  _pi_program(pi_context Context, ze_module_handle_t ZeModule, bool OwnZeModule,
+              state St, bool HasImports = false)
+      : State(St), Context(Context),
+        ZeModule(ZeModule), OwnZeModule{OwnZeModule}, HasImports(HasImports),
         HasImportsAndIsLinked(false), ZeBuildLog(nullptr) {}
 
   // Construct a program in LinkedExe state.
   _pi_program(pi_context Context, std::vector<LinkedReleaser> &&Inputs,
               ze_module_build_log_handle_t ZeLog)
       : State(LinkedExe), Context(Context), ZeModule(nullptr),
-        HasImports(false), HasImportsAndIsLinked(false),
+        OwnZeModule(true), HasImports(false), HasImportsAndIsLinked(false),
         LinkedPrograms(std::move(Inputs)), ZeBuildLog(ZeLog) {}
 
   ~_pi_program();
@@ -1103,7 +1104,13 @@ struct _pi_program : _pi_object {
 
   // Used for programs in Object or Exe state.
   ze_module_handle_t ZeModule; // Level Zero module handle.
-  bool HasImports;             // Tells if module imports any symbols.
+
+  // Indicates if we own the ZeModule or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeModule;
+
+  // Tells if module imports any symbols.
+  bool HasImports;
 
   // Used for programs in Object state.  Tells if this module imports any
   // symbols AND it is linked into some other program that has state LinkedExe.
@@ -1126,8 +1133,9 @@ struct _pi_program : _pi_object {
 };
 
 struct _pi_kernel : _pi_object {
-  _pi_kernel(ze_kernel_handle_t Kernel, pi_program Program)
-      : ZeKernel{Kernel}, Program{Program}, MemAllocs{}, SubmissionsCount{0} {}
+  _pi_kernel(ze_kernel_handle_t Kernel, bool OwnZeKernel, pi_program Program)
+      : ZeKernel{Kernel}, OwnZeKernel{OwnZeKernel}, Program{Program},
+        MemAllocs{}, SubmissionsCount{0} {}
 
   // Returns true if kernel has indirect access, false otherwise.
   bool hasIndirectAccess() {
@@ -1138,6 +1146,10 @@ struct _pi_kernel : _pi_object {
 
   // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
+
+  // Indicates if we own the ZeKernel or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeKernel;
 
   // Keep the program of the kernel.
   pi_program Program;

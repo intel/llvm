@@ -1019,19 +1019,15 @@ pi_result piProgramGetBuildInfo(pi_program, pi_device, cl_program_build_info,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piProgramRetain(pi_program) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piProgramRetain(pi_program) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piProgramRelease(pi_program) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piProgramRelease(pi_program) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piextProgramGetNativeHandle(pi_program, pi_native_handle *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextProgramCreateWithNativeHandle(pi_native_handle, pi_context,
+pi_result piextProgramCreateWithNativeHandle(pi_native_handle, pi_context, bool,
                                              pi_program *) {
   DIE_NO_IMPLEMENTATION;
 }
@@ -1068,17 +1064,11 @@ pi_result piKernelGetSubGroupInfo(pi_kernel, pi_device,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piKernelRetain(pi_kernel) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piKernelRetain(pi_kernel) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piKernelRelease(pi_kernel) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piKernelRelease(pi_kernel) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piEventCreate(pi_context, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piEventCreate(pi_context, pi_event *) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piEventGetInfo(pi_event, pi_event_info, size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
@@ -1117,9 +1107,7 @@ pi_result piEventSetCallback(pi_event, pi_int32,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piEventSetStatus(pi_event, pi_int32) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piEventSetStatus(pi_event, pi_int32) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piEventRetain(pi_event Event) {
   if (Event == nullptr) {
@@ -1170,13 +1158,9 @@ pi_result piSamplerGetInfo(pi_sampler, pi_sampler_info, size_t, void *,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piSamplerRetain(pi_sampler) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piSamplerRetain(pi_sampler) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piSamplerRelease(pi_sampler) {
-  DIE_NO_IMPLEMENTATION;
-}
+pi_result piSamplerRelease(pi_sampler) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piEnqueueEventsWait(pi_queue, pi_uint32, const pi_event *,
                               pi_event *) {
@@ -1402,8 +1386,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   return PI_SUCCESS;
 }
 
-pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context, bool,
-                                            pi_kernel *) {
+pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context,
+                                            pi_program, bool, pi_kernel *) {
   DIE_NO_IMPLEMENTATION;
 }
 
