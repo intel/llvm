@@ -106,8 +106,13 @@ __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, bool KeepOwnership,
                                backend Backend);
+// TODO: Unused. Remove when allowed.
 __SYCL_EXPORT kernel make_kernel(pi_native_handle NativeHandle,
                                  const context &TargetContext, backend Backend);
+__SYCL_EXPORT kernel make_kernel(
+    const context &TargetContext,
+    const kernel_bundle<bundle_state::executable> &KernelBundle,
+    pi_native_handle NativeKernelHandle, bool KeepOwnership, backend Backend);
 // TODO: Unused. Remove when allowed.
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
@@ -211,8 +216,9 @@ kernel
 make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
                 &BackendObject,
             const context &TargetContext) {
-  return detail::make_kernel(detail::pi::cast<pi_native_handle>(BackendObject),
-                             TargetContext, Backend);
+  return detail::make_kernel(
+      TargetContext, get_kernel_bundle<bundle_state::executable>(TargetContext),
+      detail::pi::cast<pi_native_handle>(BackendObject), false, Backend);
 }
 
 template <backend Backend, bundle_state State>
