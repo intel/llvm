@@ -161,11 +161,98 @@ TEST(KernelBundle, KernelBundleAndItsDevImageStateConsistency) {
       << "Expect executable device image in bundle";
 }
 
+TEST(KernelBundle, EmptyKernelBundle) {
+  sycl::platform Plt{sycl::default_selector()};
+  if (Plt.is_host()) {
+    std::cerr << "Test is not supported on host, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::cuda) {
+    std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
+    return;
+  }
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::queue Queue{Dev};
+  const sycl::context Ctx = Queue.get_context();
+
+  auto EmptyKernelBundle =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev}, {});
+
+  EXPECT_TRUE(EmptyKernelBundle.empty());
+  EXPECT_EQ(std::distance(EmptyKernelBundle.begin(), EmptyKernelBundle.end()),
+            0u);
+}
+
+TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
+  sycl::platform Plt{sycl::default_selector()};
+  if (Plt.is_host()) {
+    std::cerr << "Test is not supported on host, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::cuda) {
+    std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
+    return;
+  }
+
+  sycl::unittest::PiMock Mock{Plt};
+  setupDefaultMockAPIs(Mock);
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::queue Queue{Dev};
+  const sycl::context Ctx = Queue.get_context();
+
+  auto EmptyKernelBundle =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev}, {});
+
+  class UnqiueException {};
+
+  try {
+    Queue.submit([&](sycl::handler &CGH) {
+      CGH.use_kernel_bundle(EmptyKernelBundle);
+
+      try {
+        CGH.single_task<TestKernel>([]() {});
+        FAIL() << "No exception was thrown.";
+      } catch (const sycl::exception &e) {
+        ASSERT_EQ(e.code().value(),
+                  static_cast<int>(sycl::errc::kernel_not_supported))
+            << "sycl::exception code was not the expected "
+               "sycl::errc::kernel_not_supported.";
+        // Throw uniquely identifiable exception to distinguish between that
+        // the sycl::exception originates from the correct level.
+        throw UnqiueException{};
+      } catch (...) {
+        FAIL()
+            << "Unexpected exception was thrown in kernel invocation function.";
+      }
+    });
+  } catch (const UnqiueException &) {
+    // Expected path
+  } catch (const sycl::exception &) {
+    FAIL() << "sycl::exception thrown at the wrong level.";
+  } catch (...) {
+    FAIL() << "Unexpected exception was thrown in submit.";
+  }
+}
+
 TEST(KernelBundle, HasKernelBundle) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
     std::cout << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
+    return;
   }
 
   if (Plt.get_backend() == sycl::backend::cuda) {

@@ -392,9 +392,7 @@ __ESIMD_DEF_SIMD_VIEW_BIN_OP(||, __SEIEED::is_simd_mask_type_v<SimdT1>)
             class = std::enable_if_t<__SEIEED::is_vectorizable_v<T2> && COND>> \
   inline auto operator CMPOP(const __SEIEE::simd_view<SimdT1, RegionT1> &LHS,  \
                              T2 RHS) {                                         \
-    using SimdValueT =                                                         \
-        typename __SEIEE::simd_view<SimdT1, RegionT1>::value_type;             \
-    return LHS.read() CMPOP SimdValueT(RHS);                                   \
+    return LHS.read() CMPOP RHS;                                               \
   }                                                                            \
                                                                                \
   /* SCALAR CMPOP simd_view */                                                 \
@@ -402,9 +400,7 @@ __ESIMD_DEF_SIMD_VIEW_BIN_OP(||, __SEIEED::is_simd_mask_type_v<SimdT1>)
             class = std::enable_if_t<__SEIEED::is_vectorizable_v<T1> && COND>> \
   inline auto operator CMPOP(                                                  \
       T1 LHS, const __SEIEE::simd_view<SimdT2, RegionT2> &RHS) {               \
-    using SimdValueT =                                                         \
-        typename __SEIEE::simd_view<SimdT2, RegionT2>::value_type;             \
-    return SimdValueT(LHS) CMPOP RHS.read();                                   \
+    return LHS CMPOP RHS.read();                                               \
   }
 
 // Equality comparison is defined for views of all simd_obj_impl derivatives.
