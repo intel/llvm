@@ -264,6 +264,7 @@ protected:
   // type
   virtual pi_result allocateImpl(void **ResultPtr, size_t Size,
                                  pi_uint32 Alignment) = 0;
+  virtual MemType getMemTypeImpl() = 0;
 
 public:
   USMMemoryAllocBase(pi_context Ctx, pi_device Dev)
@@ -271,6 +272,7 @@ public:
   void *allocate(size_t Size) override final;
   void *allocate(size_t Size, size_t Alignment) override final;
   void deallocate(void *Ptr) override final;
+  MemType getMemType() override final;
 };
 
 // Allocation routines for shared memory type
@@ -278,6 +280,7 @@ class USMSharedMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override;
 
 public:
   USMSharedMemoryAlloc(pi_context Ctx, pi_device Dev)
@@ -289,6 +292,7 @@ class USMDeviceMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override;
 
 public:
   USMDeviceMemoryAlloc(pi_context Ctx, pi_device Dev)
@@ -300,6 +304,7 @@ class USMHostMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override;
 
 public:
   USMHostMemoryAlloc(pi_context Ctx) : USMMemoryAllocBase(Ctx, nullptr) {}
@@ -420,9 +425,38 @@ struct _pi_context : _pi_object {
     // NOTE: one must additionally call initialize() to complete
     // PI context creation.
 
+    // USM minimum allocation sizes
+    size_t MinAllocSizes[3];
+
     // Create USM allocator context for each pair (device, context).
     for (uint32_t I = 0; I < NumDevices; I++) {
       pi_device Device = Devs[I];
+
+      // Determine USM minimum allocation sizes
+      void* Ptr;
+      ZeStruct<ze_host_mem_alloc_desc_t> ZeHDesc;
+      ZeHDesc.flags = 0;
+      ZeStruct<ze_device_mem_alloc_desc_t> ZeDDesc;
+      ZeDDesc.flags = 0;
+      ZeDDesc.ordinal = 0;
+
+      zeMemAllocHost(ZeContext, &ZeHDesc, 1, 1, &Ptr);
+      zeMemGetAddressRange(ZeContext, Ptr, nullptr,
+        &MinAllocSizes[SystemMemory::Host]);
+      zeMemFree(ZeContext, Ptr);
+
+      zeMemAllocDevice(ZeContext, &ZeDDesc, 1, 1, Device->ZeDevice, &Ptr);
+      zeMemGetAddressRange(ZeContext, Ptr, nullptr,
+        &MinAllocSizes[SystemMemory::Device]);
+      zeMemFree(ZeContext, Ptr);
+
+      zeMemAllocShared(ZeContext, &ZeDDesc, &ZeHDesc, 1, 1, Device->ZeDevice,
+        &Ptr);
+      zeMemGetAddressRange(ZeContext, Ptr, nullptr,
+        &MinAllocSizes[SystemMemory::Shared]);
+      zeMemFree(ZeContext, Ptr);
+      setSlabMinSizes(this, MinAllocSizes);
+
       SharedMemAllocContexts.emplace(
           std::piecewise_construct, std::make_tuple(Device),
           std::make_tuple(std::unique_ptr<SystemMemory>(

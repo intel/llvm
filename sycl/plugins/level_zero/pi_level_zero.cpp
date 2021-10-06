@@ -6397,6 +6397,18 @@ pi_result USMHostMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,
   return USMHostAllocImpl(ResultPtr, Context, nullptr, Size, Alignment);
 }
 
+SystemMemory::MemType USMSharedMemoryAlloc::getMemTypeImpl() {
+  return SystemMemory::Shared;
+}
+
+SystemMemory::MemType USMDeviceMemoryAlloc::getMemTypeImpl() {
+  return SystemMemory::Device;
+}
+
+SystemMemory::MemType USMHostMemoryAlloc::getMemTypeImpl() {
+  return SystemMemory::Host;
+}
+
 void *USMMemoryAllocBase::allocate(size_t Size) {
   void *Ptr = nullptr;
 
@@ -6423,6 +6435,10 @@ void USMMemoryAllocBase::deallocate(void *Ptr) {
   if (Res != PI_SUCCESS) {
     throw UsmAllocationException(Res);
   }
+}
+
+SystemMemory::MemType USMMemoryAllocBase::getMemType() {
+  return getMemTypeImpl();
 }
 
 pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
