@@ -79,8 +79,15 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
 
   // if cached, return cached FuncPtr
   if (auto F = FuncPtrs[context]) {
-    *fptr = F;
-    return PI_SUCCESS;
+    // if cached that extension is not available return nullptr and
+    // PI_INVALID_VALUE
+    if (F == nullptr) {
+      *fptr = nullptr;
+      return PI_INVALID_VALUE;
+    } else {
+      *fptr = F;
+      return PI_SUCCESS;
+    }
   }
 
   cl_uint deviceCount;
@@ -112,8 +119,11 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   T FuncPtr =
       (T)clGetExtensionFunctionAddressForPlatform(curPlatform, FuncName);
 
-  if (!FuncPtr)
+  if (!FuncPtr) {
+    // Cache that the extension is not available
+    FuncPtrs[context] = nullptr;
     return PI_INVALID_VALUE;
+  }
 
   *fptr = FuncPtr;
   FuncPtrs[context] = FuncPtr;
@@ -538,78 +548,62 @@ typedef CL_API_ENTRY cl_int(CL_API_CALL *clGetDeviceFunctionPointer_fn)(
 pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                                         const char *func_name,
                                         pi_uint64 *function_pointer_ret) {
-  pi_platform platform;
+
+  cl_context CLContext = nullptr;
   cl_int ret_err =
-      clGetDeviceInfo(cast<cl_device_id>(device), PI_DEVICE_INFO_PLATFORM,
-                      sizeof(platform), &platform, nullptr);
+      clGetProgramInfo(cast<cl_program>(program), CL_PROGRAM_CONTEXT,
+                       sizeof(CLContext), &CLContext, nullptr);
 
-  if (ret_err != CL_SUCCESS) {
+  if (ret_err != CL_SUCCESS)
     return cast<pi_result>(ret_err);
-  }
 
-  // Get device supported extensions
-  size_t extension_size;
-  clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS, 0, nullptr,
-                  &extension_size);
-  char *extensions = new char[extension_size];
-  clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS,
-                  extension_size, extensions, nullptr);
+  clGetDeviceFunctionPointer_fn FuncT = nullptr;
+  ret_err = getExtFuncFromContext<clGetDeviceFunctionPointerName,
+                                  clGetDeviceFunctionPointer_fn>(
+      cast<pi_context>(CLContext), &FuncT);
 
-  // Check if clGetDeviceFunctionPointer is in list of extensions
-  if (is_in_separated_string(extensions, ' ',
-                             "clGetDeviceFunctionPointerINTEL")) {
-    delete[] extensions;
+  pi_result pi_ret_err = PI_SUCCESS;
 
-    cl_context CLContext = nullptr;
-    ret_err = clGetProgramInfo(cast<cl_program>(program), CL_PROGRAM_CONTEXT,
-                               sizeof(CLContext), &CLContext, nullptr);
+  // Check if kernel name exists, to prevent opencl runtime throwing exception
+  // with cpu runtime
+  *function_pointer_ret = 0;
+  size_t Size;
+  cl_int Res =
+      clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES,
+                       0, nullptr, &Size);
+  if (Res != CL_SUCCESS)
+    return cast<pi_result>(Res);
 
-    if (ret_err != CL_SUCCESS)
-      return cast<pi_result>(ret_err);
+  std::string ClResult(Size, ' ');
+  ret_err =
+      clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES,
+                       ClResult.size(), &ClResult[0], nullptr);
+  if (Res != CL_SUCCESS)
+    return cast<pi_result>(Res);
 
-    clGetDeviceFunctionPointer_fn FuncT = nullptr;
-    ret_err = getExtFuncFromContext<clGetDeviceFunctionPointerName,
-                                    clGetDeviceFunctionPointer_fn>(
-        cast<pi_context>(CLContext), &FuncT);
+  // Get rid of the null terminator and search for kernel_name
+  // If function cannot be found return error code to indicate it
+  // exists
+  ClResult.pop_back();
+  if (!is_in_separated_string(ClResult, ';', func_name))
+    return PI_INVALID_KERNEL_NAME;
+  else
+    pi_ret_err = PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
 
-    assert(FuncT != nullptr &&
-           "Failed to get address of clGetDeviceFunctionPointerINTEL function");
-
-    pi_result piret_err = cast<pi_result>(
-        FuncT(cast<cl_device_id>(device), cast<cl_program>(program), func_name,
-              function_pointer_ret));
-    return piret_err;
-  } else {
-    // If clGetDeviceFunctionPointerIntel extension does not exist,
-    // fallback to searching through kernel list and return
-    // PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE if the function exists
-    // or PI_INVALID_KERNEL_NAME if the function does not exist.
-    // FunctionPointerRet should always be 0
-    delete[] extensions;
-    *function_pointer_ret = 0;
-    size_t Size;
-    cl_int Res =
-        clGetProgramInfo(cast<cl_program>(program),
-                         PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size);
-    if (Res != CL_SUCCESS)
-      return cast<pi_result>(Res);
-
-    std::string ClResult(Size, ' ');
-    ret_err = clGetProgramInfo(cast<cl_program>(program),
-                               PI_PROGRAM_INFO_KERNEL_NAMES, ClResult.size(),
-                               &ClResult[0], nullptr);
-    if (Res != CL_SUCCESS)
-      return cast<pi_result>(Res);
-
-    // Get rid of the null terminator and search for kernel_name
-    // If function can be found return error code to indicate it
-    // exists
-    ClResult.pop_back();
-    if (is_in_separated_string(ClResult, ';', func_name))
+  // If clGetDeviceFunctionPointer is in list of extensions
+  if (FuncT) {
+    pi_ret_err = cast<pi_result>(FuncT(cast<cl_device_id>(device),
+                                       cast<cl_program>(program), func_name,
+                                       function_pointer_ret));
+    // GPU runtime sometimes returns PI_INVALID_ARG_VALUE if func address cannot
+    // be found even if kernel exits. As the kernel does exist return that the
+    // address is not available
+    if (pi_ret_err == CL_INVALID_ARG_VALUE) {
+      *function_pointer_ret = 0;
       return PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
-    else
-      return PI_INVALID_KERNEL_NAME;
+    }
   }
+  return pi_ret_err;
 }
 
 pi_result piContextCreate(const pi_context_properties *properties,
