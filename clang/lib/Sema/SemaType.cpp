@@ -3947,7 +3947,7 @@ static CallingConv getCCForDeclaratorChunk(
   // and AMDGPU targets, hence it cannot be treated as a calling
   // convention attribute. This is the simplest place to infer
   // calling convention for OpenCL kernels.
-  if (S.getLangOpts().OpenCL) {
+  if (S.getLangOpts().OpenCL || S.getLangOpts().SYCLIsDevice) { //if (S.getLangOpts().OpenCL) {
     for (const ParsedAttr &AL : D.getDeclSpec().getAttributes()) {
       if (AL.getKind() == ParsedAttr::AT_OpenCLKernel) {
         CC = CC_OpenCLKernel;

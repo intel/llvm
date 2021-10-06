@@ -585,7 +585,7 @@ ALIAS("constant", __constant        , KEYOPENCLC | KEYOPENCLCXX)
 ALIAS("private", __private          , KEYOPENCLC)
 ALIAS("generic", __generic          , KEYOPENCLC | KEYOPENCLCXX)
 // OpenCL function qualifiers
-KEYWORD(__kernel                    , KEYOPENCLC | KEYOPENCLCXX)
+KEYWORD(__kernel                    , KEYOPENCLC | KEYOPENCLCXX | KEYSYCL)
 ALIAS("kernel", __kernel            , KEYOPENCLC | KEYOPENCLCXX)
 // OpenCL access qualifiers
 KEYWORD(__read_only                 , KEYOPENCLC | KEYOPENCLCXX | KEYSYCL)
