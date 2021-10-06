@@ -652,7 +652,11 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     const ReferenceType *RTy = cast<ReferenceType>(Ty);
     QualType ETy = RTy->getPointeeType();
     llvm::Type *PointeeType = ConvertTypeForMem(ETy);
-    unsigned AS = Context.getTargetAddressSpace(ETy);
+    unsigned AS =
+        (getContext().getLangOpts().SYCLIsDevice) && PointeeType->isFunctionTy()
+            ? getDataLayout().getProgramAddressSpace()
+            : Context.getTargetAddressSpace(ETy);
+
     ResultType = llvm::PointerType::get(PointeeType, AS);
     break;
   }
