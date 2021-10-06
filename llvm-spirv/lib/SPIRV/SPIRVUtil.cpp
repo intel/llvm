@@ -317,7 +317,7 @@ Function *getOrCreateFunction(Module *M, Type *RetTy, ArrayRef<Type *> ArgTypes,
     raw_string_ostream SS(S);
     SS << "Error: Attempt to redefine function: " << *F << " => " << *FT
        << '\n';
-    report_fatal_error(SS.str(), false);
+    report_fatal_error(Twine(SS.str()), false);
   }
   if (!F || F->getFunctionType() != FT) {
     auto NewF =

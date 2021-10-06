@@ -168,9 +168,10 @@ public:
         if (SrcVecTy) {
           uint64_t NumElemsInSrcVec = SrcVecTy->getElementCount().getValue();
           if (!isValidVectorSize(NumElemsInSrcVec))
-            report_fatal_error("Unsupported vector type with the size of: " +
-                                   std::to_string(NumElemsInSrcVec),
-                               false);
+            report_fatal_error(
+                Twine("Unsupported vector type with the size of: " +
+                      std::to_string(NumElemsInSrcVec)),
+                false);
         }
         VectorType *DestVecTy = getVectorType(BC->getDestTy());
         if (DestVecTy) {
