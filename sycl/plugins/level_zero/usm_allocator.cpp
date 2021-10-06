@@ -272,7 +272,6 @@ public:
 } USMSettings;
 } // namespace settings
 
-
 using namespace settings;
 
 static const char *MemTypeNames[3] = {"Host", "Device", "Shared"};

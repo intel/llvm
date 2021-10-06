@@ -433,7 +433,7 @@ struct _pi_context : _pi_object {
       pi_device Device = Devs[I];
 
       // Determine USM minimum allocation sizes
-      void* Ptr;
+      void *Ptr;
       ZeStruct<ze_host_mem_alloc_desc_t> ZeHDesc;
       ZeHDesc.flags = 0;
       ZeStruct<ze_device_mem_alloc_desc_t> ZeDDesc;
@@ -442,18 +442,18 @@ struct _pi_context : _pi_object {
 
       zeMemAllocHost(ZeContext, &ZeHDesc, 1, 1, &Ptr);
       zeMemGetAddressRange(ZeContext, Ptr, nullptr,
-        &MinAllocSizes[SystemMemory::Host]);
+                           &MinAllocSizes[SystemMemory::Host]);
       zeMemFree(ZeContext, Ptr);
 
       zeMemAllocDevice(ZeContext, &ZeDDesc, 1, 1, Device->ZeDevice, &Ptr);
       zeMemGetAddressRange(ZeContext, Ptr, nullptr,
-        &MinAllocSizes[SystemMemory::Device]);
+                           &MinAllocSizes[SystemMemory::Device]);
       zeMemFree(ZeContext, Ptr);
 
       zeMemAllocShared(ZeContext, &ZeDDesc, &ZeHDesc, 1, 1, Device->ZeDevice,
-        &Ptr);
+                       &Ptr);
       zeMemGetAddressRange(ZeContext, Ptr, nullptr,
-        &MinAllocSizes[SystemMemory::Shared]);
+                           &MinAllocSizes[SystemMemory::Shared]);
       zeMemFree(ZeContext, Ptr);
       setSlabMinSizes(this, MinAllocSizes);
 
