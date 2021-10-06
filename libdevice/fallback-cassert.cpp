@@ -19,7 +19,16 @@
 // definition
 SPIR_GLOBAL AssertHappened SPIR_AssertHappenedMem;
 
-DEVICE_EXTERN_C void __devicelib_assert_read(void *_Dst) {
+#ifdef __SYCL_DEVICE_ONLY__
+#define KERNEL_ATTRS __kernel __attribute__((weak))
+#else
+#define KERNEL_ATTRS __attribute__((weak))
+#endif
+
+KERNEL_ATTRS EXTERN_C /* DEVICE_EXTERN_C */ void __devicelib_assert_read(void *_Dst) {
+  if (!_Dst)
+    return;
+
   AssertHappened *Dst = (AssertHappened *)_Dst;
   int Flag = atomicLoad(&SPIR_AssertHappenedMem.Flag);
 
@@ -40,6 +49,19 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
                                              uint64_t gid0, uint64_t gid1,
                                              uint64_t gid2, uint64_t lid0,
                                              uint64_t lid1, uint64_t lid2) {
+  // FIXME make offline linking against __devicelib_assert_fail enforce linking
+  // against __devicelib_assert_read also
+  {
+ #if 0
+    void (*Ptr)(void *) = &__devicelib_assert_read;
+    void *Ptr2 = (void *)Ptr;
+    int X = *(int *)Ptr2;
+    (void)X;
+#endif
+    __devicelib_assert_read(NULL);
+  }
+
+
   int Expected = ASSERT_NONE;
   int Desired = ASSERT_START;
 
