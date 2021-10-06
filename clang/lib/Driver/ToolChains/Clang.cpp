@@ -8957,6 +8957,13 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     // auto is the default split mode
     addArgs(CmdArgs, TCArgs, {"-split=auto"});
   }
+
+  // On FPGA target we don't need non-kernel functions as entry points, because
+  // it only increases amount of code for device compiler to handle, without any
+  // actual benefits.
+  if (getToolChain().getTriple().getArchName() == "spir64_fpga")
+    addArgs(CmdArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
+
   // OPT_fsycl_device_code_split is not checked as it is an alias to
   // -fsycl-device-code-split=auto
 

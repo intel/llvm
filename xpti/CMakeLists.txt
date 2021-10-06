@@ -77,11 +77,16 @@ set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 add_subdirectory(src)
 
 if (LLVM_BINARY_DIR)
-  add_custom_target(xpti-headers ALL
+  add_custom_target(xpti-headers
+    DEPENDS ${LLVM_BINARY_DIR}/include/xpti)
+
+  add_custom_command(
+    OUTPUT  ${LLVM_BINARY_DIR}/include/xpti
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/xpti
     COMMAND ${CMAKE_COMMAND} -E copy_directory
       ${CMAKE_CURRENT_SOURCE_DIR}/include/xpti
       ${LLVM_BINARY_DIR}/include/xpti
-    COMMENT "Copying XPTI headers..."
+    COMMENT "Copying XPTI headers ..."
   )
   add_dependencies(xpti xpti-headers)
 endif()
