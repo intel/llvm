@@ -18,6 +18,7 @@
  * pipe.
  */
 
+#define SYCL_ENABLE_FALLBACK_ASSERT 1
 #include <CL/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
