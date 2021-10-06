@@ -981,6 +981,8 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     NewCmd->MEmptyCmd =
         addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements, Queue,
                     Command::BlockReason::HostTask, ToEnqueue);
+  else if (CGType == CG::CGTYPE::Kernel)
+    addAssertInfoCheckerCGs(NewCmd.get());
 
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");
@@ -1259,6 +1261,73 @@ Command *Scheduler::GraphBuilder::connectDepEvent(Command *const Cmd,
   ConnectCmd->MEmptyCmd = EmptyCmd;
 
   return ConnectCmd;
+}
+
+Command *Scheduler::GraphBuilder::addAssertInfoCheckerCGs(Command *Cmd) {
+  assert(Cmd->getType() == Command::RUN_CG &&
+         static_cast<ExecCGCommand *>(Cmd)->getCG().getType() == CG::Kernel &&
+         "Only kernel commands are allowed to be appended with assert info "
+         "copier/checker");
+
+  ExecCGCommand *KernelCmd = static_cast<ExecCGCommand *>(Cmd);
+  CGExecKernel &KernelCG = static_cast<CGExecKernel &>(KernelCmd->getCG());
+
+  (void)KernelCG;
+
+  bool FallbackAssertDisabled = false; // TODO check queue for compile-time value
+                                       // check env var also
+  bool KernelUsesAssert = true; // TODO check program manager.
+                                 // imply interop k-l uses assert
+
+  // Don't enqueue assert info copier and checker in case of either of:
+  //  * kernel is launched on host
+  //  * fallback assert is disabled
+  //  * kernel doesn't use assert
+  if (KernelCmd->getWorkerQueue()->is_host() || FallbackAssertDisabled ||
+      !KernelUsesAssert)
+    return nullptr;
+
+  // 1. create CG for copier kernel, depend it on user's kernel => CopierEv
+  NDRDescT NDRDesc;
+  NDRDesc.set(range<1>{1});
+/*
+  NDRDescT NDRDesc,
+  std::unique_ptr<HostKernelBase> HKernel = nullptr,
+  std::shared_ptr<detail::kernel_impl> SyclKernel = get kernel from devicelib,
+  std::vector<std::vector<char>> ArgsStorage,
+  std::vector<detail::AccessorImplPtr> AccStorage,
+  std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+  std::vector<Requirement *> Requirements,
+  std::vector<detail::EventImplPtr> Events,
+  std::vector<ArgDesc> Args, std::string KernelName,
+  detail::OSModuleHandle OSModuleHandle,
+  std::vector<std::shared_ptr<detail::stream_impl>> Streams,
+  CGTYPE Type, detail::code_location loc = {}
+*/
+  {
+  RT::PiKernel Kernel;
+  std::mutex *Mtx;
+  RT::PiProgram Prg;
+  std::tie(Kernel, Mtx, Prg) = ProgramManager::getInstance().getOrCreateKernel(
+      (OSModuleHandle)(-1),
+      KernelCmd->getWorkerQueue()->getContextImplPtr(),
+      KernelCmd->getWorkerQueue()->getDeviceImplPtr(),
+      "__devicelib_assert_read",
+      nullptr);
+  fprintf(stderr, "Kernel: %p, Mtx: %p, Prg: %p\n",
+          (const void *)Kernel, (const void *)Mtx, (const void *)Prg);
+  }
+#if 0
+  std::unique_ptr<detail::CG> CopierCG(new detail::CGExecKernel(
+      NDRDesc, HostKernel, SyclKernel,
+      // TODO
+  ));
+#endif
+  // 2. create CG for host task, depend on CopierEv
+
+  // TODO
+
+  return nullptr;
 }
 
 } // namespace detail

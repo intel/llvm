@@ -602,6 +602,8 @@ protected:
                 const QueueImplPtr &Queue, Command::BlockReason Reason,
                 std::vector<Command *> &ToEnqueue);
 
+    Command *addAssertInfoCheckerCGs(Command *KernelCmd);
+
   protected:
     /// Finds a command dependency corresponding to the record.
     DepDesc findDepForRecord(Command *Cmd, MemObjRecord *Record);
