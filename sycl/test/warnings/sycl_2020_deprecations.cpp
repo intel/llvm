@@ -4,8 +4,7 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=1.2.1 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/ONEAPI/atomic_fence.hpp>
-#include <CL/sycl/INTEL/online_compiler.hpp>
+#include <sycl/ext/intel/online_compiler.hpp>
 
 int main() {
   cl_context ClCtx;
@@ -69,6 +68,14 @@ int main() {
   // expected-warning@+1{{'get_count' is deprecated: get_count() is deprecated, please use size() instead}}
   size_t BufferGetCount = Buffer.get_count();
   size_t BufferSize = Buffer.size();
+  // expected-warning@+1 {{'get_size' is deprecated: get_size() is deprecated, please use byte_size() instead}}
+  size_t BufferGetSize = Buffer.get_size();
+
+  sycl::vec<int, 2> Vec(1, 2);
+  // expected-warning@+1{{'get_count' is deprecated: get_count() is deprecated, please use size() instead}}
+  size_t VecGetCount = Vec.get_count();
+  // expected-warning@+1 {{'get_size' is deprecated: get_size() is deprecated, please use byte_size() instead}}
+  size_t VecGetSize = Vec.get_size();
 
   // expected-warning@+1 {{'runtime_error' is deprecated: use sycl::exception with sycl::errc::runtime instead.}}
   sycl::runtime_error re;
@@ -98,12 +105,6 @@ int main() {
   sycl::profiling_error pre;
   // expected-warning@+1 {{'feature_not_supported' is deprecated: use sycl::exception with sycl::errc::feature_not_supported instead.}}
   sycl::feature_not_supported fns;
-  // expected-warning@+1{{'string_class' is deprecated: use STL classes directly}}
-  sycl::string_class Str = "abc";
-  (void)Str;
-  // expected-warning@+1{{'mutex_class' is deprecated: use STL classes directly}}
-  sycl::mutex_class Mtx;
-  (void)Mtx;
   // expected-warning@+1{{'exception' is deprecated: The version of an exception constructor which takes no arguments is deprecated.}}
   sycl::exception ex;
   // expected-warning@+1{{'get_cl_code' is deprecated: use sycl::exception.code() instead.}}
@@ -116,8 +117,8 @@ int main() {
     CGH.parallel_for<class Test>(
         sycl::nd_range<1>{sycl::range{10}, sycl::range{10}, sycl::range{1}},
         [](sycl::nd_item<1> it) {
-          // expected-warning@+2{{'mem_fence' is deprecated: use sycl::group_barrier() free function instead}}
-          // expected-warning@+1{{'mem_fence<sycl::access::mode::read_write>' is deprecated: use sycl::group_barrier() free function instead}}
+          // expected-warning@+2{{'mem_fence' is deprecated: use sycl::atomic_fence() free function instead}}
+          // expected-warning@+1{{'mem_fence<sycl::access::mode::read_write>' is deprecated: use sycl::atomic_fence() free function instead}}
           it.mem_fence();
         });
   });
@@ -133,16 +134,44 @@ int main() {
   auto MCA = sycl::info::device::max_constant_args;
   (void)MCA;
 
-  // expected-warning@+4{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}
+  // expected-warning@+1{{'extensions' is deprecated: platform::extensions is deprecated, use device::get_info() with info::device::aspects instead.}}
+  auto PE = sycl::info::platform::extensions;
+
+  // expected-warning@+1{{'extensions' is deprecated: device::extensions is deprecated, use info::device::aspects instead.}}
+  auto DE = sycl::info::device::extensions;
+
   // expected-warning@+3{{'atomic_fence' is deprecated: use sycl::atomic_fence instead}}
-  // expected-warning@+2{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}
-  // expected-warning@+2{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}
-  sycl::ONEAPI::atomic_fence(sycl::ONEAPI::memory_order::relaxed,
+  // expected-error@+2{{no member named 'ONEAPI' in namespace 'sycl'}}
+  // expected-error@+2{{no member named 'ONEAPI' in namespace 'sycl'}}
+  sycl::ext::oneapi::atomic_fence(sycl::ONEAPI::memory_order::relaxed,
                              sycl::ONEAPI::memory_scope::work_group);
 
-  // expected-warning@+1{{'INTEL' is deprecated: use 'ext::intel' instead}}
+  // expected-error@+1{{no member named 'INTEL' in namespace 'sycl'}}
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
+
+  // expected-warning@+1{{'intel' is deprecated: use 'ext::intel::experimental' instead}}
+  auto SLExtIntel = sycl::ext::intel::source_language::opencl_c;
+  (void)SLExtIntel;
+
+  // expected-warning@+1{{'level_zero' is deprecated: use 'ext_oneapi_level_zero' instead}}
+  auto LevelZeroBackend = sycl::backend::level_zero;
+  (void)LevelZeroBackend;
+
+  sycl::half Val = 1.0f;
+  // expected-warning@+1{{'bit_cast<unsigned short, sycl::detail::half_impl::half>' is deprecated: use 'sycl::bit_cast' instead}}
+  auto BitCastRes = sycl::detail::bit_cast<unsigned short>(Val);
+  (void)BitCastRes;
+
+  // expected-warning@+1{{'submit_barrier' is deprecated: use 'ext_oneapi_submit_barrier' instead}}
+  Queue.submit_barrier();
+
+  // expected-warning@+1{{'barrier' is deprecated: use 'ext_oneapi_barrier' instead}}
+  Queue.submit([&](sycl::handler &CGH) { CGH.barrier(); });
+  
+  // expected-warning@+1{{'half' is deprecated: use 'sycl::half' instead}}
+  half H;
+  (void)H;
 
   return 0;
 }

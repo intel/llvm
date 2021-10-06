@@ -244,6 +244,9 @@ public:
   SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) override;
   void closeStructType(SPIRVTypeStruct *T, bool) override;
   SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) override;
+  SPIRVTypeJointMatrixINTEL *addJointMatrixINTELType(SPIRVType *, SPIRVValue *,
+                                                     SPIRVValue *, SPIRVValue *,
+                                                     SPIRVValue *) override;
   SPIRVType *addOpaqueGenericType(Op) override;
   SPIRVTypeDeviceEvent *addDeviceEventType() override;
   SPIRVTypeQueue *addQueueType() override;
@@ -897,6 +900,14 @@ SPIRVTypeVector *SPIRVModuleImpl::addVectorType(SPIRVType *CompType,
                                                 SPIRVWord CompCount) {
   return addType(new SPIRVTypeVector(this, getId(), CompType, CompCount));
 }
+
+SPIRVTypeJointMatrixINTEL *SPIRVModuleImpl::addJointMatrixINTELType(
+    SPIRVType *CompType, SPIRVValue *Rows, SPIRVValue *Columns,
+    SPIRVValue *Layout, SPIRVValue *Scope) {
+  return addType(new SPIRVTypeJointMatrixINTEL(this, getId(), CompType, Rows,
+                                               Columns, Layout, Scope));
+}
+
 SPIRVType *SPIRVModuleImpl::addOpaqueGenericType(Op TheOpCode) {
   return addType(new SPIRVTypeOpaqueGeneric(TheOpCode, this, getId()));
 }
@@ -1240,8 +1251,11 @@ SPIRVModuleImpl::addInstruction(SPIRVInstruction *Inst, SPIRVBasicBlock *BB,
                                 SPIRVInstruction *InsertBefore) {
   if (BB)
     return BB->addInstruction(Inst, InsertBefore);
-  if (Inst->getOpCode() != OpSpecConstantOp)
-    Inst = createSpecConstantOpInst(Inst);
+  if (Inst->getOpCode() != OpSpecConstantOp) {
+    SPIRVInstruction *Res = createSpecConstantOpInst(Inst);
+    delete Inst;
+    Inst = Res;
+  }
   return static_cast<SPIRVInstruction *>(addConstant(Inst));
 }
 
@@ -1945,6 +1959,9 @@ static std::string to_string(uint32_t Version) {
     break;
   case static_cast<uint32_t>(VersionNumber::SPIRV_1_3):
     Res = "1.3";
+    break;
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_4):
+    Res = "1.4";
     break;
   default:
     Res = "unknown";

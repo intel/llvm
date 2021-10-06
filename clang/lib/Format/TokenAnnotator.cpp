@@ -1671,7 +1671,7 @@ private:
       Current.setType(TT_TrailingReturnArrow);
     } else if (Current.is(tok::arrow) && Current.Previous &&
                Current.Previous->is(tok::r_brace)) {
-      // Concept implicit conversion contraint needs to be treated like
+      // Concept implicit conversion constraint needs to be treated like
       // a trailing return type  ... } -> <type>.
       Current.setType(TT_TrailingReturnArrow);
     } else if (isDeductionGuide(Current)) {
@@ -2398,7 +2398,7 @@ void TokenAnnotator::annotate(AnnotatedLine &Line) {
 
 // This function heuristically determines whether 'Current' starts the name of a
 // function declaration.
-static bool isFunctionDeclarationName(const FormatToken &Current,
+static bool isFunctionDeclarationName(bool IsCpp, const FormatToken &Current,
                                       const AnnotatedLine &Line) {
   auto skipOperatorName = [](const FormatToken *Next) -> const FormatToken * {
     for (; Next; Next = Next->Next) {
@@ -2476,14 +2476,21 @@ static bool isFunctionDeclarationName(const FormatToken &Current,
   if (Next->MatchingParen->Next &&
       Next->MatchingParen->Next->is(TT_PointerOrReference))
     return true;
-  // Check for K&R C function definitions, e.g.:
+
+  // Check for K&R C function definitions (and C++ function definitions with
+  // unnamed parameters), e.g.:
   //   int f(i)
   //   {
   //     return i + 1;
   //   }
-  if (Next->Next && Next->Next->is(tok::identifier) &&
-      !(Next->MatchingParen->Next && Next->MatchingParen->Next->is(tok::semi)))
+  //   bool g(size_t = 0, bool b = false)
+  //   {
+  //     return !b;
+  //   }
+  if (IsCpp && Next->Next && Next->Next->is(tok::identifier) &&
+      !Line.endsWith(tok::semi))
     return true;
+
   for (const FormatToken *Tok = Next->Next; Tok && Tok != Next->MatchingParen;
        Tok = Tok->Next) {
     if (Tok->is(TT_TypeDeclarationParen))
@@ -2544,7 +2551,7 @@ void TokenAnnotator::calculateFormattingInformation(AnnotatedLine &Line) {
     calculateArrayInitializerColumnList(Line);
 
   while (Current) {
-    if (isFunctionDeclarationName(*Current, Line))
+    if (isFunctionDeclarationName(Style.isCpp(), *Current, Line))
       Current->setType(TT_FunctionDeclarationName);
     if (Current->is(TT_LineComment)) {
       if (Current->Previous->is(BK_BracedInit) &&
@@ -2991,7 +2998,7 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
       if (!TokenBeforeMatchingParen || !Left.is(TT_TypeDeclarationParen))
         return true;
     }
-    // Add a space if the previous token is a pointer qualifer or the closing
+    // Add a space if the previous token is a pointer qualifier or the closing
     // parenthesis of __attribute__(()) expression and the style requires spaces
     // after pointer qualifiers.
     if ((Style.SpaceAroundPointerQualifiers == FormatStyle::SAPQ_After ||
@@ -3012,7 +3019,7 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
         !Line.IsMultiVariableDeclStmt)))
     return true;
   if (Left.is(TT_PointerOrReference)) {
-    // Add a space if the next token is a pointer qualifer and the style
+    // Add a space if the next token is a pointer qualifier and the style
     // requires spaces before pointer qualifiers.
     if ((Style.SpaceAroundPointerQualifiers == FormatStyle::SAPQ_Before ||
          Style.SpaceAroundPointerQualifiers == FormatStyle::SAPQ_Both) &&
@@ -3031,7 +3038,7 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
             !Left.Previous->isOneOf(tok::l_paren, tok::coloncolon,
                                     tok::l_square));
   }
-  // Ensure right pointer alignement with ellipsis e.g. int *...P
+  // Ensure right pointer alignment with ellipsis e.g. int *...P
   if (Left.is(tok::ellipsis) && Left.Previous &&
       Left.Previous->isOneOf(tok::star, tok::amp, tok::ampamp))
     return Style.PointerAlignment != FormatStyle::PAS_Right;
@@ -3597,6 +3604,16 @@ static bool isAllmanLambdaBrace(const FormatToken &Tok) {
           !Tok.isOneOf(TT_ObjCBlockLBrace, TT_DictLiteral));
 }
 
+// Returns the first token on the line that is not a comment.
+static const FormatToken *getFirstNonComment(const AnnotatedLine &Line) {
+  const FormatToken *Next = Line.First;
+  if (!Next)
+    return Next;
+  if (Next->is(tok::comment))
+    Next = Next->getNextNonComment();
+  return Next;
+}
+
 bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
                                      const FormatToken &Right) {
   const FormatToken &Left = *Right.Previous;
@@ -3696,7 +3713,7 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
     if (Left.is(TT_ArrayInitializerLSquare) && Left.is(tok::l_square) &&
         !Right.is(tok::r_square))
       return true;
-    // Always break afer successive entries.
+    // Always break after successive entries.
     // 1,
     // 2
     if (Left.is(tok::comma))
@@ -3747,13 +3764,18 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
       return Style.BreakBeforeConceptDeclarations;
     return (Style.AlwaysBreakTemplateDeclarations == FormatStyle::BTDS_Yes);
   }
-  if (Right.is(TT_CtorInitializerComma) &&
+  if (Style.PackConstructorInitializers == FormatStyle::PCIS_Never) {
+    if (Style.BreakConstructorInitializers == FormatStyle::BCIS_BeforeColon &&
+        (Left.is(TT_CtorInitializerComma) || Right.is(TT_CtorInitializerColon)))
+      return true;
+
+    if (Style.BreakConstructorInitializers == FormatStyle::BCIS_AfterColon &&
+        Left.isOneOf(TT_CtorInitializerColon, TT_CtorInitializerComma))
+      return true;
+  }
+  if (Style.PackConstructorInitializers < FormatStyle::PCIS_CurrentLine &&
       Style.BreakConstructorInitializers == FormatStyle::BCIS_BeforeComma &&
-      !Style.ConstructorInitializerAllOnOneLineOrOnePerLine)
-    return true;
-  if (Right.is(TT_CtorInitializerColon) &&
-      Style.BreakConstructorInitializers == FormatStyle::BCIS_BeforeComma &&
-      !Style.ConstructorInitializerAllOnOneLineOrOnePerLine)
+      Right.isOneOf(TT_CtorInitializerComma, TT_CtorInitializerColon))
     return true;
   // Break only if we have multiple inheritance.
   if (Style.BreakInheritanceList == FormatStyle::BILS_BeforeComma &&
@@ -3778,12 +3800,34 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
   if (Right.is(TT_InlineASMBrace))
     return Right.HasUnescapedNewline;
 
-  if (isAllmanBrace(Left) || isAllmanBrace(Right))
-    return (Line.startsWith(tok::kw_enum) && Style.BraceWrapping.AfterEnum) ||
-           (Line.startsWith(tok::kw_typedef, tok::kw_enum) &&
-            Style.BraceWrapping.AfterEnum) ||
-           (Line.startsWith(tok::kw_class) && Style.BraceWrapping.AfterClass) ||
+  if (isAllmanBrace(Left) || isAllmanBrace(Right)) {
+    auto FirstNonComment = getFirstNonComment(Line);
+    bool AccessSpecifier =
+        FirstNonComment &&
+        FirstNonComment->isOneOf(Keywords.kw_internal, tok::kw_public,
+                                 tok::kw_private, tok::kw_protected);
+
+    if (Style.BraceWrapping.AfterEnum) {
+      if (Line.startsWith(tok::kw_enum) ||
+          Line.startsWith(tok::kw_typedef, tok::kw_enum))
+        return true;
+      // Ensure BraceWrapping for `public enum A {`.
+      if (AccessSpecifier && FirstNonComment->Next &&
+          FirstNonComment->Next->is(tok::kw_enum))
+        return true;
+    }
+
+    // Ensure BraceWrapping for `public interface A {`.
+    if (Style.BraceWrapping.AfterClass &&
+        ((AccessSpecifier && FirstNonComment->Next &&
+          FirstNonComment->Next->is(Keywords.kw_interface)) ||
+         Line.startsWith(Keywords.kw_interface)))
+      return true;
+
+    return (Line.startsWith(tok::kw_class) && Style.BraceWrapping.AfterClass) ||
            (Line.startsWith(tok::kw_struct) && Style.BraceWrapping.AfterStruct);
+  }
+
   if (Left.is(TT_ObjCBlockLBrace) &&
       Style.AllowShortBlocksOnASingleLine == FormatStyle::SBS_Never)
     return true;
@@ -3957,8 +4001,9 @@ bool TokenAnnotator::canBreakBefore(const AnnotatedLine &Line,
             tok::kw_return, Keywords.kw_yield, tok::kw_continue, tok::kw_break,
             tok::kw_throw, Keywords.kw_interface, Keywords.kw_type,
             tok::kw_static, tok::kw_public, tok::kw_private, tok::kw_protected,
-            Keywords.kw_readonly, Keywords.kw_abstract, Keywords.kw_get,
-            Keywords.kw_set, Keywords.kw_async, Keywords.kw_await))
+            Keywords.kw_readonly, Keywords.kw_override, Keywords.kw_abstract,
+            Keywords.kw_get, Keywords.kw_set, Keywords.kw_async,
+            Keywords.kw_await))
       return false; // Otherwise automatic semicolon insertion would trigger.
     if (Right.NestingLevel == 0 &&
         (Left.Tok.getIdentifierInfo() ||

@@ -16,6 +16,7 @@
 #include "clang/Basic/LLVM.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -321,13 +322,13 @@ TEST(ToolChainTest, CommandOutput) {
   const JobList &Jobs = CC->getJobs();
 
   const auto &CmdCompile = Jobs.getJobs().front();
-  const auto &InFile = CmdCompile->getInputFilenames().front();
+  const auto &InFile = CmdCompile->getInputInfos().front().getFilename();
   EXPECT_STREQ(InFile, "foo.cpp");
   auto ObjFile = CmdCompile->getOutputFilenames().front();
   EXPECT_TRUE(StringRef(ObjFile).endswith(".o"));
 
   const auto &CmdLink = Jobs.getJobs().back();
-  const auto LinkInFile = CmdLink->getInputFilenames().front();
+  const auto LinkInFile = CmdLink->getInputInfos().front().getFilename();
   EXPECT_EQ(ObjFile, LinkInFile);
   auto ExeFile = CmdLink->getOutputFilenames().front();
   EXPECT_EQ("a.out", ExeFile);
@@ -355,6 +356,12 @@ TEST(ToolChainTest, PostCallback) {
   const Command *FailingCmd = nullptr;
   CC->ExecuteCommand(*CmdCompile, FailingCmd);
   EXPECT_TRUE(CallbackHasCalled);
+}
+
+TEST(GetDriverMode, PrefersLastDriverMode) {
+  static constexpr const char *Args[] = {"clang-cl", "--driver-mode=foo",
+                                         "--driver-mode=bar", "foo.cpp"};
+  EXPECT_EQ(getDriverMode(Args[0], llvm::makeArrayRef(Args).slice(1)), "bar");
 }
 
 } // end anonymous namespace.

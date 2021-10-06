@@ -65,6 +65,7 @@ CGOPT(DenormalMode::DenormalModeKind, DenormalFP32Math)
 CGOPT(bool, EnableHonorSignDependentRoundingFPMath)
 CGOPT(FloatABI::ABIType, FloatABIForCalls)
 CGOPT(FPOpFusion::FPOpFusionMode, FuseFPOps)
+CGOPT(SwiftAsyncFramePointerMode, SwiftAsyncFramePointer)
 CGOPT(bool, DontPlaceZerosInBSS)
 CGOPT(bool, EnableGuaranteedTailCallOpt)
 CGOPT(bool, DisableTailCalls)
@@ -94,6 +95,7 @@ CGOPT(bool, ValueTrackingVariableLocations)
 CGOPT(bool, ForceDwarfFrameSection)
 CGOPT(bool, XRayOmitFunctionIndex)
 CGOPT(bool, DebugStrictDwarf)
+CGOPT(unsigned, AlignLoops)
 
 codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
 #define CGBINDOPT(NAME)                                                        \
@@ -277,6 +279,18 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
                      "Only fuse FP ops when the result won't be affected.")));
   CGBINDOPT(FuseFPOps);
 
+  static cl::opt<SwiftAsyncFramePointerMode> SwiftAsyncFramePointer(
+      "swift-async-fp",
+      cl::desc("Determine when the Swift async frame pointer should be set"),
+      cl::init(SwiftAsyncFramePointerMode::Always),
+      cl::values(clEnumValN(SwiftAsyncFramePointerMode::DeploymentBased, "auto",
+                            "Determine based on deployment target"),
+                 clEnumValN(SwiftAsyncFramePointerMode::Always, "always",
+                            "Always set the bit"),
+                 clEnumValN(SwiftAsyncFramePointerMode::Never, "never",
+                            "Never set the bit")));
+  CGBINDOPT(SwiftAsyncFramePointer);
+
   static cl::opt<bool> DontPlaceZerosInBSS(
       "nozero-initialized-in-bss",
       cl::desc("Don't place zero-initialized symbols into bss section"),
@@ -452,6 +466,10 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       "strict-dwarf", cl::desc("use strict dwarf"), cl::init(false));
   CGBINDOPT(DebugStrictDwarf);
 
+  static cl::opt<unsigned> AlignLoops("align-loops",
+                                      cl::desc("Default alignment for loops"));
+  CGBINDOPT(AlignLoops);
+
 #undef CGBINDOPT
 
   mc::RegisterMCTargetOptionsFlags();
@@ -527,13 +545,14 @@ codegen::InitTargetOptionsFromCodeGenFlags(const Triple &TheTriple) {
   Options.ForceDwarfFrameSection = getForceDwarfFrameSection();
   Options.XRayOmitFunctionIndex = getXRayOmitFunctionIndex();
   Options.DebugStrictDwarf = getDebugStrictDwarf();
+  Options.LoopAlignment = getAlignLoops();
 
   Options.MCOptions = mc::InitMCTargetOptionsFromFlags();
 
   Options.ThreadModel = getThreadModel();
   Options.EABIVersion = getEABIVersion();
   Options.DebuggerTuning = getDebuggerTuningOpt();
-
+  Options.SwiftAsyncFramePointer = getSwiftAsyncFramePointer();
   return Options;
 }
 
@@ -666,13 +685,11 @@ void codegen::setFunctionAttributes(StringRef CPU, StringRef Features,
           if (const auto *F = Call->getCalledFunction())
             if (F->getIntrinsicID() == Intrinsic::debugtrap ||
                 F->getIntrinsicID() == Intrinsic::trap)
-              Call->addAttribute(
-                  AttributeList::FunctionIndex,
+              Call->addFnAttr(
                   Attribute::get(Ctx, "trap-func-name", getTrapFuncName()));
 
   // Let NewAttrs override Attrs.
-  F.setAttributes(
-      Attrs.addAttributes(Ctx, AttributeList::FunctionIndex, NewAttrs));
+  F.setAttributes(Attrs.addFnAttributes(Ctx, NewAttrs));
 }
 
 /// Set function attributes of functions in Module M based on CPU,

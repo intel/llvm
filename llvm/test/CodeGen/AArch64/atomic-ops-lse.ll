@@ -3,7 +3,7 @@
 ; RUN: llc -mtriple=aarch64-none-linux-gnu -disable-post-ra -verify-machineinstrs -mattr=+outline-atomics < %s | FileCheck %s --check-prefix=OUTLINE-ATOMICS
 ; RUN: llc -mtriple=aarch64_be-none-linux-gnu -disable-post-ra -verify-machineinstrs -mattr=+lse < %s | FileCheck %s
 ; RUN: llc -mtriple=aarch64-none-linux-gnu -disable-post-ra -verify-machineinstrs -mattr=+lse < %s | FileCheck %s --check-prefix=CHECK-REG
-; RUN: llc -mtriple=aarch64-none-linux-gnu -disable-post-ra -verify-machineinstrs -mcpu=saphira < %s | FileCheck %s
+; RUN: llc -mtriple=aarch64-none-linux-gnu -disable-post-ra -verify-machineinstrs -mcpu=saphira -mattr=-lse2 < %s | FileCheck %s
 
 ; Point of CHECK-REG is to make sure UNPREDICTABLE instructions aren't created
 ; (i.e. reusing a register for status & data in store exclusive).
@@ -9412,4 +9412,14 @@ define dso_local void @test_atomic_load_xor_i64_noret_seq_cst(i64 %offset) nounw
   ret void
 }
 
+define dso_local i128 @test_atomic_load_i128() nounwind {
+; CHECK-LABEL: test_atomic_load_i128:
+; CHECK: ldxp
+; CHECK: stxp
 
+; OUTLINE-ATOMICS-LABEL: test_atomic_load_i128:
+; OUTLINE-ATOMICS: ldxp
+; OUTLINE-ATOMICS: stxp
+   %pair = load atomic i128, i128* @var128 monotonic, align 16
+   ret i128 %pair
+}

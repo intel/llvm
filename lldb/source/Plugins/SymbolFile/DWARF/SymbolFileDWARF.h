@@ -220,8 +220,6 @@ public:
   // PluginInterface protocol
   lldb_private::ConstString GetPluginName() override;
 
-  uint32_t GetPluginVersion() override;
-
   DWARFDebugAbbrev *DebugAbbrev();
 
   DWARFDebugInfo &DebugInfo();
@@ -367,6 +365,9 @@ protected:
 
   lldb::TypeSP ParseType(const lldb_private::SymbolContext &sc,
                          const DWARFDIE &die, bool *type_is_new);
+
+  bool ParseSupportFiles(DWARFUnit &dwarf_cu, const lldb::ModuleSP &module,
+                         lldb_private::FileSpecList &support_files);
 
   lldb_private::Type *ResolveTypeUID(const DWARFDIE &die,
                                      bool assert_not_being_parsed);

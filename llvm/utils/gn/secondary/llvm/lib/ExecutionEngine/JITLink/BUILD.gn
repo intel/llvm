@@ -10,6 +10,8 @@ static_library("JITLink") {
     "EHFrameSupport.cpp",
     "ELF.cpp",
     "ELFLinkGraphBuilder.cpp",
+    "ELF_aarch64.cpp",
+    "ELF_riscv.cpp",
     "ELF_x86_64.cpp",
     "JITLink.cpp",
     "JITLinkGeneric.cpp",
@@ -18,6 +20,8 @@ static_library("JITLink") {
     "MachOLinkGraphBuilder.cpp",
     "MachO_arm64.cpp",
     "MachO_x86_64.cpp",
+    "aarch64.cpp",
+    "riscv.cpp",
     "x86_64.cpp",
   ]
 }

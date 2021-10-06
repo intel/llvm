@@ -188,6 +188,7 @@ CODEGENOPT(NoZeroInitializedInBSS , 1, 0) ///< -fno-zero-initialized-in-bss.
 ENUM_CODEGENOPT(ObjCDispatchMethod, ObjCDispatchMethodKind, 2, Legacy)
 /// Replace certain message sends with calls to ObjC runtime entrypoints
 CODEGENOPT(ObjCConvertMessagesToRuntimeCalls , 1, 1)
+CODEGENOPT(ObjCAvoidHeapifyLocalBlocks, 1, 0)
 
 VALUE_CODEGENOPT(OptimizationLevel, 2, 0) ///< The -O[0-3] option specified.
 VALUE_CODEGENOPT(OptimizeSize, 2, 0) ///< If -Os (==1) or -Oz (==2) is specified.
@@ -293,6 +294,8 @@ CODEGENOPT(StackRealignment  , 1, 0) ///< Control whether to force stack
                                      ///< realignment.
 CODEGENOPT(UseInitArray      , 1, 0) ///< Control whether to use .init_array or
                                      ///< .ctors.
+VALUE_CODEGENOPT(LoopAlignment     , 32, 0) ///< Overrides default loop
+                                            ///< alignment, if not 0.
 VALUE_CODEGENOPT(StackAlignment    , 32, 0) ///< Overrides default stack
                                             ///< alignment, if not 0.
 VALUE_CODEGENOPT(StackProbeSize    , 32, 4096) ///< Overrides default stack
@@ -439,6 +442,11 @@ CODEGENOPT(SPIRITTAnnotations, 1, 0)
 /// Floating point opcodes that support exception flag gathering quiet and
 /// propagate signaling NaN inputs per IEEE 754-2008 (AMDGPU Only)
 CODEGENOPT(EmitIEEENaNCompliantInsts, 1, 1)
+
+// Whether to emit Swift Async function extended frame information: auto,
+// never, always.
+ENUM_CODEGENOPT(SwiftAsyncFramePointer, SwiftAsyncFramePointerKind, 2,
+                SwiftAsyncFramePointerKind::Always)
 
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT

@@ -115,6 +115,7 @@ class GIApplyKindWithArgs;
 
 def register_matchinfo: GIDefMatchData<"Register">;
 def int64_matchinfo: GIDefMatchData<"int64_t">;
+def apint_matchinfo : GIDefMatchData<"APInt">;
 def build_fn_matchinfo :
 GIDefMatchData<"std::function<void(MachineIRBuilder &)>">;
 
@@ -129,7 +130,13 @@ def extending_loads : GICombineRule<
   (match (wip_match_opcode G_LOAD, G_SEXTLOAD, G_ZEXTLOAD):$root,
          [{ return Helper.matchCombineExtendingLoads(*${root}, ${matchinfo}); }]),
   (apply [{ Helper.applyCombineExtendingLoads(*${root}, ${matchinfo}); }])>;
-def combines_for_extload: GICombineGroup<[extending_loads]>;
+
+def load_and_mask : GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_AND):$root,
+        [{ return Helper.matchCombineLoadWithAndMask(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
+def combines_for_extload: GICombineGroup<[extending_loads, load_and_mask]>;
 
 def sext_trunc_sextload : GICombineRule<
   (defs root:$d),
@@ -195,6 +202,12 @@ def reduce_shl_of_extend : GICombineRule<
   (match (G_SHL $dst, $src0, $src1):$mi,
          [{ return Helper.matchCombineShlOfExtend(*${mi}, ${matchinfo}); }]),
   (apply [{ Helper.applyCombineShlOfExtend(*${mi}, ${matchinfo}); }])>;
+
+def narrow_binop_feeding_and : GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_AND):$root,
+         [{ return Helper.matchNarrowBinopFeedingAnd(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.applyBuildFnNoErase(*${root}, ${matchinfo}); }])>;
 
 // [us]itofp(undef) = 0, because the result value is bounded.
 def undef_to_fp_zero : GICombineRule<
@@ -274,7 +287,7 @@ def select_constant_cmp: GICombineRule<
 def right_identity_zero: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode G_SUB, G_ADD, G_OR, G_XOR, G_SHL, G_ASHR, G_LSHR,
-                           G_PTR_ADD):$root,
+                           G_PTR_ADD, G_ROTL, G_ROTR):$root,
     [{ return Helper.matchConstantOp(${root}->getOperand(2), 0); }]),
   (apply [{ return Helper.replaceSingleDefInstWithOperand(*${root}, 1); }])
 >;
@@ -490,6 +503,14 @@ def unmerge_merge : GICombineRule<
   (apply [{ Helper.applyCombineUnmergeMergeToPlainValues(*${d}, ${info}); }])
 >;
 
+// Fold merge(unmerge).
+def merge_unmerge : GICombineRule<
+  (defs root:$d, register_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_MERGE_VALUES):$d,
+  [{ return Helper.matchCombineMergeUnmerge(*${d}, ${matchinfo}); }]),
+  (apply [{ Helper.replaceSingleDefInstWithReg(*${d}, ${matchinfo}); }])
+>;
+
 // Fold (fabs (fabs x)) -> (fabs x).
 def fabs_fabs_fold: GICombineRule<
   (defs root:$root, register_matchinfo:$matchinfo),
@@ -579,6 +600,14 @@ def load_or_combine : GICombineRule<
     [{ return Helper.matchLoadOrCombine(*${root}, ${info}); }]),
   (apply [{ Helper.applyBuildFn(*${root}, ${info}); }])>;
 
+
+def truncstore_merge_matcdata : GIDefMatchData<"MergeTruncStoresInfo">;
+def truncstore_merge : GICombineRule<
+  (defs root:$root, truncstore_merge_matcdata:$info),
+  (match (wip_match_opcode G_STORE):$root,
+   [{ return Helper.matchTruncStoreMerge(*${root}, ${info}); }]),
+  (apply [{ Helper.applyTruncStoreMerge(*${root}, ${info}); }])>;
+
 def extend_through_phis_matchdata: GIDefMatchData<"MachineInstr*">;
 def extend_through_phis : GICombineRule<
   (defs root:$root, extend_through_phis_matchdata:$matchinfo),
@@ -629,6 +658,12 @@ def icmp_to_true_false_known_bits : GICombineRule<
          [{ return Helper.matchICmpToTrueFalseKnownBits(*${d}, ${matchinfo}); }]),
   (apply [{ Helper.replaceInstWithConstant(*${d}, ${matchinfo}); }])>;
 
+def icmp_to_lhs_known_bits : GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$info),
+  (match (wip_match_opcode G_ICMP):$root,
+         [{ return Helper.matchICmpToLHSKnownBits(*${root}, ${info}); }]),
+  (apply [{ Helper.applyBuildFn(*${root}, ${info}); }])>;
+
 def bitfield_extract_from_and : GICombineRule<
   (defs root:$root, build_fn_matchinfo:$info),
   (match (wip_match_opcode G_AND):$root,
@@ -643,8 +678,15 @@ def bitfield_extract_from_sext_inreg : GICombineRule<
     [{ return Helper.matchBitfieldExtractFromSExtInReg(*${root}, ${info}); }]),
   (apply [{ Helper.applyBuildFn(*${root}, ${info}); }])>;
 
+def bitfield_extract_from_shr : GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$info),
+  (match (wip_match_opcode G_ASHR, G_LSHR):$root,
+    [{ return Helper.matchBitfieldExtractFromShr(*${root}, ${info}); }]),
+  (apply [{ Helper.applyBuildFn(*${root}, ${info}); }])>;
+
 def form_bitfield_extract : GICombineGroup<[bitfield_extract_from_sext_inreg,
-                                            bitfield_extract_from_and]>;
+                                            bitfield_extract_from_and,
+                                            bitfield_extract_from_shr]>;
 def reassoc_ptradd : GICombineRule<
   (defs root:$root, build_fn_matchinfo:$matchinfo),
   (match (wip_match_opcode G_PTR_ADD):$root,
@@ -652,6 +694,13 @@ def reassoc_ptradd : GICombineRule<
   (apply [{ Helper.applyBuildFnNoErase(*${root}, ${matchinfo}); }])>;
 
 def reassocs : GICombineGroup<[reassoc_ptradd]>;
+
+// Constant fold operations.
+def constant_fold : GICombineRule<
+  (defs root:$d, apint_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_ADD, G_SUB, G_MUL, G_AND, G_OR, G_XOR):$d,
+   [{ return Helper.matchConstantFold(*${d}, ${matchinfo}); }]),
+  (apply [{ Helper.replaceInstWithConstant(*${d}, ${matchinfo}); }])>;
 
 // FIXME: These should use the custom predicate feature once it lands.
 def undef_combines : GICombineGroup<[undef_to_fp_zero, undef_to_int_zero,
@@ -673,9 +722,10 @@ def const_combines : GICombineGroup<[constant_fp_op, const_ptradd_to_i2p,
 
 def known_bits_simplifications : GICombineGroup<[
   redundant_and, redundant_sext_inreg, redundant_or, urem_pow2_to_mask,
-  zext_trunc_fold, icmp_to_true_false_known_bits]>;
+  zext_trunc_fold, icmp_to_true_false_known_bits, icmp_to_lhs_known_bits]>;
 
-def width_reduction_combines : GICombineGroup<[reduce_shl_of_extend]>;
+def width_reduction_combines : GICombineGroup<[reduce_shl_of_extend,
+                                               narrow_binop_feeding_and]>;
 
 def phi_combines : GICombineGroup<[extend_through_phis]>;
 
@@ -694,10 +744,11 @@ def all_combines : GICombineGroup<[trivial_combines, insert_vec_elt_combines,
     known_bits_simplifications, ext_ext_fold,
     not_cmp_fold, opt_brcond_by_inverting_cond,
     unmerge_merge, fabs_fabs_fold, unmerge_cst, unmerge_dead_to_trunc,
-    unmerge_zext_to_zext, trunc_ext_fold, trunc_shl,
+    unmerge_zext_to_zext, merge_unmerge, trunc_ext_fold, trunc_shl,
     const_combines, xor_of_and_with_same_reg, ptr_add_with_zero,
     shift_immed_chain, shift_of_shifted_logic_chain, load_or_combine,
-    div_rem_to_divrem, funnel_shift_combines, form_bitfield_extract]>;
+    truncstore_merge, div_rem_to_divrem, funnel_shift_combines,
+    form_bitfield_extract, constant_fold]>;
 
 // A combine group used to for prelegalizer combiners at -O0. The combines in
 // this group have been selected based on experiments to balance code size and

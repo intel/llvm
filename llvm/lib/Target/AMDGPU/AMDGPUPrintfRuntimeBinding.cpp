@@ -149,7 +149,7 @@ bool AMDGPUPrintfRuntimeBindingImpl::lowerPrintfForGpu(Module &M) {
   IRBuilder<> Builder(Ctx);
   Type *I32Ty = Type::getInt32Ty(Ctx);
   unsigned UniqID = 0;
-  // NB: This is important for this string size to be divizable by 4
+  // NB: This is important for this string size to be divisible by 4
   const char NonLiteralStr[4] = "???";
 
   for (auto CI : Printfs) {
@@ -330,7 +330,7 @@ bool AMDGPUPrintfRuntimeBindingImpl::lowerPrintfForGpu(Module &M) {
           M.getOrInsertFunction(StringRef("__printf_alloc"), FTy_alloc, Attr);
 
       LLVM_DEBUG(dbgs() << "Printf metadata = " << Sizes.str() << '\n');
-      std::string fmtstr = itostr(++UniqID) + ":" + Sizes.str().c_str();
+      std::string fmtstr = itostr(++UniqID) + ":" + Sizes.str();
       MDString *fmtStrArray = MDString::get(Ctx, fmtstr);
 
       // Instead of creating global variables, the

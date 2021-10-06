@@ -12,3 +12,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
 __spirv_ocl_sqrt(__clc_fp32_t In) {
   return __builtin_amdgcn_sqrtf(In);
 }
+
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+__spirv_ocl_sqrt(__clc_fp64_t In) {
+  return __builtin_amdgcn_sqrt(In);
+}

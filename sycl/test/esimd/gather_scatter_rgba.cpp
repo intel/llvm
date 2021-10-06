@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s 2>&1 | FileCheck %s --implicit-check-not="warning:" --implicit-check-not="error:"
+// RUN: %clangxx -fsycl -fsyntax-only -Wno-unused-command-line-argument %s 2>&1 | FileCheck %s --implicit-check-not="warning:" --implicit-check-not="error:"
 
 // This test checks compilation of ESIMD slm gather_rgba/scatter_rgba APIs.
 // Those which are deprecated must produce deprecation messages.
@@ -11,8 +11,8 @@
 using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;
 
-void kernel(accessor<int, 1, access::mode::read_write,
-                     access::target::global_buffer> &buf) SYCL_ESIMD_FUNCTION {
+void kernel(accessor<int, 1, access::mode::read_write, access::target::device>
+                &buf) SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, 1);
   simd<int, 32 * 4> v1(0, 1);
 

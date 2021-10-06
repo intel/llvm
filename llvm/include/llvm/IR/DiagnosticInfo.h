@@ -79,6 +79,7 @@ enum DiagnosticKind {
   DK_PGOProfile,
   DK_Unsupported,
   DK_SrcMgr,
+  DK_DontCall,
   DK_FirstPluginKind // Must be last value to work with
                      // getNextAvailablePluginDiagnosticKind
 };
@@ -131,7 +132,7 @@ using DiagnosticHandlerFunction = std::function<void(const DiagnosticInfo &)>;
 class DiagnosticInfoInlineAsm : public DiagnosticInfo {
 private:
   /// Optional line information. 0 if not set.
-  unsigned LocCookie = 0;
+  uint64_t LocCookie = 0;
   /// Message to be reported.
   const Twine &MsgStr;
   /// Optional origin of the problem.
@@ -149,7 +150,7 @@ public:
   /// \p MsgStr gives the message.
   /// This class does not copy \p MsgStr, therefore the reference must be valid
   /// for the whole life time of the Diagnostic.
-  DiagnosticInfoInlineAsm(unsigned LocCookie, const Twine &MsgStr,
+  DiagnosticInfoInlineAsm(uint64_t LocCookie, const Twine &MsgStr,
                           DiagnosticSeverity Severity = DS_Error)
       : DiagnosticInfo(DK_InlineAsm, Severity), LocCookie(LocCookie),
         MsgStr(MsgStr) {}
@@ -162,7 +163,7 @@ public:
   DiagnosticInfoInlineAsm(const Instruction &I, const Twine &MsgStr,
                           DiagnosticSeverity Severity = DS_Error);
 
-  unsigned getLocCookie() const { return LocCookie; }
+  uint64_t getLocCookie() const { return LocCookie; }
   const Twine &getMsgStr() const { return MsgStr; }
   const Instruction *getInstruction() const { return Instr; }
 
@@ -1067,6 +1068,22 @@ public:
 
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_SrcMgr;
+  }
+};
+
+class DiagnosticInfoDontCall : public DiagnosticInfo {
+  StringRef CalleeName;
+  unsigned LocCookie;
+
+public:
+  DiagnosticInfoDontCall(StringRef CalleeName, unsigned LocCookie)
+      : DiagnosticInfo(DK_DontCall, DS_Error), CalleeName(CalleeName),
+        LocCookie(LocCookie) {}
+  StringRef getFunctionName() const { return CalleeName; }
+  unsigned getLocCookie() const { return LocCookie; }
+  void print(DiagnosticPrinter &DP) const override;
+  static bool classof(const DiagnosticInfo *DI) {
+    return DI->getKind() == DK_DontCall;
   }
 };
 

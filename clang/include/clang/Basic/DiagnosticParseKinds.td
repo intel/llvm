@@ -806,10 +806,10 @@ def err_requires_expr_expected_type_constraint : Error<
 def err_requires_expr_simple_requirement_noexcept : Error<
   "'noexcept' can only be used in a compound requirement (with '{' '}' around "
   "the expression)">;
-def warn_requires_expr_in_simple_requirement : Warning<
-  "this requires expression will only be checked for syntactic validity; did "
+def err_requires_expr_in_simple_requirement : Error<
+  "requires expression in requirement body; did "
   "you intend to place it in a nested requirement? (add another 'requires' "
-  "before the expression)">, InGroup<DiagGroup<"requires-expression">>;
+  "before the expression)">;
 
 def err_missing_dependent_template_keyword : Error<
   "use 'template' keyword to treat '%0' as a dependent template name">;
@@ -1303,8 +1303,8 @@ def err_omp_decl_in_declare_simd_variant : Error<
 def err_omp_unknown_map_type : Error<
   "incorrect map type, expected one of 'to', 'from', 'tofrom', 'alloc', 'release', or 'delete'">;
 def err_omp_unknown_map_type_modifier : Error<
-  "incorrect map type modifier, expected 'always', 'close', "
-  "%select{or 'mapper'|'mapper', or 'present'}0">;
+  "incorrect map type modifier, expected one of: 'always', 'close', 'mapper'"
+  "%select{|, 'present'}0%select{|, 'ompx_hold'}1">;
 def err_omp_map_type_missing : Error<
   "missing map type">;
 def err_omp_map_type_modifier_missing : Error<
@@ -1436,6 +1436,9 @@ def warn_omp51_compat_attributes : Warning<
   "specifying OpenMP directives with [[]] is incompatible with OpenMP "
   "standards before OpenMP 5.1">,
   InGroup<OpenMPPre51Compat>, DefaultIgnore;
+def err_omp_expected_colon : Error<"missing ':' in %0">;
+def err_omp_expected_context_selector
+    : Error<"expected valid context selector in %0">;
 
 // Pragma loop support.
 def err_pragma_loop_missing_argument : Error<

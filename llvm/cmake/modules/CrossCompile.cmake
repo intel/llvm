@@ -75,6 +75,7 @@ function(llvm_create_cross_target project_name target_name toolchain buildtype)
         -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD="${experimental_targets_to_build_arg}"
         -DLLVM_DEFAULT_TARGET_TRIPLE="${TARGET_TRIPLE}"
         -DLLVM_TARGET_ARCH="${LLVM_TARGET_ARCH}"
+        -DLLVM_CHECK_ENABLED_PROJECTS="${LLVM_CHECK_ENABLED_PROJECTS}"
         -DLLVM_ENABLE_PROJECTS="${llvm_enable_projects_arg}"
         -DLLVM_EXTERNAL_PROJECTS="${llvm_external_projects_arg}"
         ${external_project_source_dirs}
@@ -103,6 +104,7 @@ function(build_native_tool target output_path_var)
   else()
     set(output_path "${${PROJECT_NAME}_NATIVE_BUILD}/bin/${target}")
   endif()
+  set(output_path ${output_path}${LLVM_HOST_EXECUTABLE_SUFFIX})
 
   llvm_ExternalProject_BuildCmd(build_cmd ${target} ${${PROJECT_NAME}_NATIVE_BUILD}
                                 CONFIGURATION Release)

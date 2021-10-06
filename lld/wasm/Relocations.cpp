@@ -115,10 +115,17 @@ void scanRelocations(InputChunk *chunk) {
         addGOTEntry(sym);
       break;
     case R_WASM_MEMORY_ADDR_TLS_SLEB:
+    case R_WASM_MEMORY_ADDR_TLS_SLEB64:
       // In single-threaded builds TLS is lowered away and TLS data can be
       // merged with normal data and allowing TLS relocation in non-TLS
       // segments.
       if (config->sharedMemory) {
+        if (!sym->isTLS()) {
+          error(toString(file) + ": relocation " +
+                relocTypeToString(reloc.Type) +
+                " cannot be used against non-TLS symbol `" + toString(*sym) +
+                "`");
+        }
         if (auto *D = dyn_cast<DefinedData>(sym)) {
           if (!D->segment->outputSeg->isTLS()) {
             error(toString(file) + ": relocation " +

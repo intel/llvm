@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -convert-scf-to-std -convert-memref-to-llvm -convert-std-to-llvm \
+// RUN: mlir-opt %s -convert-scf-to-std -convert-memref-to-llvm -convert-std-to-llvm -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=void \
 // RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -44,6 +44,11 @@ func @main() -> () {
   // CHECK-NEXT: [0,   3]
   // CHECK-NEXT: [1,   4]
   // CHECK-NEXT: [2,   5]
+
+  %input_empty = memref.alloc() : memref<3x0x1xf32>
+  %copy_empty = memref.alloc() : memref<3x0x1xf32>
+  // Copying an empty shape should do nothing (and should not crash).
+  memref.copy %input_empty, %copy_empty : memref<3x0x1xf32> to memref<3x0x1xf32>
 
   return
 }

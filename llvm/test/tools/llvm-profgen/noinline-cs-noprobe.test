@@ -1,5 +1,54 @@
-; RUN: llvm-profgen --format=text --perfscript=%S/Inputs/noinline-cs-noprobe.perfscript --binary=%S/Inputs/noinline-cs-noprobe.perfbin --output=%t --show-unwinder-output --profile-summary-cold-count=0 | FileCheck %s --check-prefix=CHECK-UNWINDER
+;; The test fails on Windows. Fix it before removing the following requirement.
+; REQUIRES: x86_64-linux
+; RUN: llvm-profgen --format=text --perfscript=%S/Inputs/noinline-cs-noprobe.perfscript --binary=%S/Inputs/noinline-cs-noprobe.perfbin --output=%t --skip-symbolization --profile-summary-cold-count=0
+; RUN: FileCheck %s --input-file %t --check-prefix=CHECK-UNWINDER
+; RUN: llvm-profgen --format=text --perfscript=%S/Inputs/noinline-cs-noprobe.perfscript --binary=%S/Inputs/noinline-cs-noprobe.perfbin --output=%t --profile-summary-cold-count=0
 ; RUN: FileCheck %s --input-file %t
+; RUN: llvm-profgen --format=text --perfscript=%S/Inputs/noinline-cs-noprobe.aggperfscript --binary=%S/Inputs/noinline-cs-noprobe.perfbin --output=%t --skip-symbolization --profile-summary-cold-count=0
+; RUN: FileCheck %s --input-file %t --check-prefix=CHECK-AGG-UNWINDER
+; RUN: llvm-profgen --format=text --perfscript=%S/Inputs/noinline-cs-noprobe.aggperfscript --binary=%S/Inputs/noinline-cs-noprobe.perfbin --output=%t --profile-summary-cold-count=0
+; RUN: FileCheck %s --input-file %t --check-prefix=CHECK-AGG
+
+; RUN: llvm-profgen --format=text --perfscript=%S/Inputs/noinline-cs-noprobe.perfscript --binary=%S/Inputs/noinline-cs-noprobe.perfbin --output=%t1 --profile-summary-cold-count=0
+; RUN: llvm-profgen --format=extbinary --perfscript=%S/Inputs/noinline-cs-noprobe.perfscript --binary=%S/Inputs/noinline-cs-noprobe.perfbin --output=%t2 --profile-summary-cold-count=0 -use-md5
+; RUN: llvm-profdata show --sample -show-sec-info-only %t2 | FileCheck %s --check-prefix=CHECK-MD5
+; RUN: llvm-profdata show --sample -detailed-summary --function=dummy %t1 > %t.summary
+; RUN: llvm-profdata show --sample -detailed-summary --function=dummy %t2 > %t2.summary
+; RUN: diff -b %t.summary %t2.summary
+
+
+; CHECK-AGG:[main:1 @ foo]:108:0
+; CHECK-AGG: 2: 6
+; CHECK-AGG: 3: 6 bar:6
+; CHECK-AGG:[main:1 @ foo:3 @ bar]:100:6
+; CHECK-AGG: 0: 6
+; CHECK-AGG: 1: 6
+; CHECK-AGG: 2: 4
+; CHECK-AGG: 4: 2
+; CHECK-AGG: 5: 6
+
+; CHECK-AGG-UNWINDER: Binary(noinline-cs-noprobe.perfbin)'s Range Counter:
+; CHECK-AGG-UNWINDER: main:1 @ foo
+; CHECK-AGG-UNWINDER:   (5ff, 62f): 6
+; CHECK-AGG-UNWINDER:   (634, 637): 6
+; CHECK-AGG-UNWINDER:   (645, 645): 6
+; CHECK-AGG-UNWINDER: main:1 @ foo:3 @ bar
+; CHECK-AGG-UNWINDER:   (5b0, 5c8): 2
+; CHECK-AGG-UNWINDER:   (5b0, 5d7): 4
+; CHECK-AGG-UNWINDER:   (5dc, 5e9): 2
+; CHECK-AGG-UNWINDER:   (5e5, 5e9): 4
+
+; CHECK-AGG-UNWINDER: Binary(noinline-cs-noprobe.perfbin)'s Branch Counter:
+; CHECK-AGG-UNWINDER: main:1 @ foo
+; CHECK-AGG-UNWINDER:   (62f, 5b0): 6
+; CHECK-AGG-UNWINDER:   (637, 645): 6
+; CHECK-AGG-UNWINDER:   (645, 5ff): 6
+; CHECK-AGG-UNWINDER: main:1 @ foo:3 @ bar
+; CHECK-AGG-UNWINDER:   (5c8, 5dc): 4
+; CHECK-AGG-UNWINDER:   (5d7, 5e5): 4
+; CHECK-AGG-UNWINDER:   (5e9, 634): 6
+
+
 
 ; CHECK:[main:1 @ foo]:54:0
 ; CHECK: 2: 3
@@ -32,7 +81,7 @@
 ; CHECK-UNWINDER:   (5d7, 5e5): 2
 ; CHECK-UNWINDER:   (5e9, 634): 3
 
-
+; CHECK-MD5: NameTableSection {{.*}} {fixlenmd5}
 
 
 

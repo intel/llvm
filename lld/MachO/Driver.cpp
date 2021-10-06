@@ -224,48 +224,6 @@ static llvm::CachePruningPolicy getLTOCachePolicy(InputArgList &args) {
   return CHECK(parseCachePruningPolicy(ltoPolicy), "invalid LTO cache policy");
 }
 
-namespace {
-struct ArchiveMember {
-  MemoryBufferRef mbref;
-  uint32_t modTime;
-};
-} // namespace
-
-// Returns slices of MB by parsing MB as an archive file.
-// Each slice consists of a member file in the archive.
-static std::vector<ArchiveMember> getArchiveMembers(MemoryBufferRef mb) {
-  std::unique_ptr<Archive> file =
-      CHECK(Archive::create(mb),
-            mb.getBufferIdentifier() + ": failed to parse archive");
-  Archive *archive = file.get();
-  make<std::unique_ptr<Archive>>(std::move(file)); // take ownership
-
-  std::vector<ArchiveMember> v;
-  Error err = Error::success();
-
-  // Thin archives refer to .o files, so --reproduce needs the .o files too.
-  bool addToTar = archive->isThin() && tar;
-
-  for (const Archive::Child &c : archive->children(err)) {
-    MemoryBufferRef mbref =
-        CHECK(c.getMemoryBufferRef(),
-              mb.getBufferIdentifier() +
-                  ": could not get the buffer for a child of the archive");
-    if (addToTar)
-      tar->append(relativeToRoot(check(c.getFullName())), mbref.getBuffer());
-    uint32_t modTime = toTimeT(
-        CHECK(c.getLastModified(), mb.getBufferIdentifier() +
-                                       ": could not get the modification "
-                                       "time for a child of the archive"));
-    v.push_back({mbref, modTime});
-  }
-  if (err)
-    fatal(mb.getBufferIdentifier() +
-          ": Archive::children failed: " + toString(std::move(err)));
-
-  return v;
-}
-
 static DenseMap<StringRef, ArchiveFile *> loadedArchives;
 
 static InputFile *addFile(StringRef path, bool forceLoadArchive,
@@ -288,46 +246,51 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
     if (ArchiveFile *cachedFile = loadedArchives[path])
       return cachedFile;
 
-    std::unique_ptr<object::Archive> file = CHECK(
+    std::unique_ptr<object::Archive> archive = CHECK(
         object::Archive::create(mbref), path + ": failed to parse archive");
 
-    if (!file->isEmpty() && !file->hasSymbolTable())
+    if (!archive->isEmpty() && !archive->hasSymbolTable())
       error(path + ": archive has no index; run ranlib to add one");
 
+    auto *file = make<ArchiveFile>(std::move(archive));
     if (config->allLoad || forceLoadArchive) {
       if (Optional<MemoryBufferRef> buffer = readFile(path)) {
-        for (const ArchiveMember &member : getArchiveMembers(*buffer)) {
-          if (Optional<InputFile *> file = loadArchiveMember(
-                  member.mbref, member.modTime, path, /*objCOnly=*/false)) {
-            inputFiles.insert(*file);
-            printArchiveMemberLoad(
-                (forceLoadArchive ? "-force_load" : "-all_load"),
-                inputFiles.back());
-          }
+        Error e = Error::success();
+        for (const object::Archive::Child &c : file->getArchive().children(e)) {
+          StringRef reason = forceLoadArchive ? "-force_load" : "-all_load";
+          if (Error e = file->fetch(c, reason))
+            error(toString(file) + ": " + reason +
+                  " failed to load archive member: " + toString(std::move(e)));
         }
+        if (e)
+          error(toString(file) +
+                ": Archive::children failed: " + toString(std::move(e)));
       }
     } else if (config->forceLoadObjC) {
-      for (const object::Archive::Symbol &sym : file->symbols())
+      for (const object::Archive::Symbol &sym : file->getArchive().symbols())
         if (sym.getName().startswith(objc::klass))
-          symtab->addUndefined(sym.getName(), /*file=*/nullptr,
-                               /*isWeakRef=*/false);
+          file->fetch(sym);
 
       // TODO: no need to look for ObjC sections for a given archive member if
-      // we already found that it contains an ObjC symbol. We should also
-      // consider creating a LazyObjFile class in order to avoid double-loading
-      // these files here and below (as part of the ArchiveFile).
+      // we already found that it contains an ObjC symbol.
       if (Optional<MemoryBufferRef> buffer = readFile(path)) {
-        for (const ArchiveMember &member : getArchiveMembers(*buffer)) {
-          if (Optional<InputFile *> file = loadArchiveMember(
-                  member.mbref, member.modTime, path, /*objCOnly=*/true)) {
-            inputFiles.insert(*file);
-            printArchiveMemberLoad("-ObjC", inputFiles.back());
-          }
+        Error e = Error::success();
+        for (const object::Archive::Child &c : file->getArchive().children(e)) {
+          Expected<MemoryBufferRef> mb = c.getMemoryBufferRef();
+          if (!mb || !hasObjCSection(*mb))
+            continue;
+          if (Error e = file->fetch(c, "-ObjC"))
+            error(toString(file) + ": -ObjC failed to load archive member: " +
+                  toString(std::move(e)));
         }
+        if (e)
+          error(toString(file) +
+                ": Archive::children failed: " + toString(std::move(e)));
       }
     }
 
-    newFile = loadedArchives[path] = make<ArchiveFile>(std::move(file));
+    file->addLazySymbols();
+    newFile = loadedArchives[path] = file;
     break;
   }
   case file_magic::macho_object:
@@ -343,7 +306,7 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
     }
     break;
   case file_magic::bitcode:
-    newFile = make<BitcodeFile>(mbref);
+    newFile = make<BitcodeFile>(mbref, "", 0);
     break;
   case file_magic::macho_executable:
   case file_magic::macho_bundle:
@@ -1175,7 +1138,7 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   }
 
   for (const Arg *arg : args.filtered(OPT_U))
-    symtab->addDynamicLookup(arg->getValue());
+    config->explicitDynamicLookups.insert(arg->getValue());
 
   config->mapFile = args.getLastArgValue(OPT_map);
   config->optimize = args::getInteger(args, OPT_O, 1);
@@ -1419,25 +1382,6 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     if (!orderFile.empty())
       parseOrderFile(orderFile);
 
-    if (config->entry)
-      if (auto *undefined = dyn_cast<Undefined>(config->entry))
-        treatUndefinedSymbol(*undefined, "the entry point");
-
-    // FIXME: This prints symbols that are undefined both in input files and
-    // via -u flag twice.
-    for (const Symbol *sym : config->explicitUndefineds) {
-      if (const auto *undefined = dyn_cast<Undefined>(sym))
-        treatUndefinedSymbol(*undefined, "-u");
-    }
-    // Literal exported-symbol names must be defined, but glob
-    // patterns need not match.
-    for (const CachedHashStringRef &cachedName :
-         config->exportedSymbols.literals) {
-      if (const Symbol *sym = symtab->find(cachedName))
-        if (const auto *undefined = dyn_cast<Undefined>(sym))
-          treatUndefinedSymbol(*undefined, "-exported_symbol(s_list)");
-    }
-
     referenceStubBinder();
 
     // FIXME: should terminate the link early based on errors encountered so
@@ -1452,8 +1396,8 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
           StringRef symbolName = defined->getName();
           if (config->exportedSymbols.match(symbolName)) {
             if (defined->privateExtern) {
-              error("cannot export hidden symbol " + symbolName +
-                    "\n>>> defined in " + toString(defined->getFile()));
+              warn("cannot export hidden symbol " + symbolName +
+                   "\n>>> defined in " + toString(defined->getFile()));
             }
           } else {
             defined->privateExtern = true;

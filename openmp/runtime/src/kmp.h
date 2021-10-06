@@ -115,6 +115,7 @@ typedef unsigned int kmp_hwloc_depth_t;
 #include "kmp_debug.h"
 #include "kmp_lock.h"
 #include "kmp_version.h"
+#include "kmp_barrier.h"
 #if USE_DEBUGGER
 #include "kmp_debugger.h"
 #endif
@@ -263,6 +264,7 @@ typedef union kmp_root kmp_root_p;
 
 template <bool C = false, bool S = true> class kmp_flag_32;
 template <bool C = false, bool S = true> class kmp_flag_64;
+template <bool C = false, bool S = true> class kmp_atomic_flag_64;
 class kmp_flag_oncore;
 
 #ifdef __cplusplus
@@ -1437,6 +1439,8 @@ __kmp_mm_mwait(unsigned extensions, unsigned hints) {
 /* Support datatypes for the orphaned construct nesting checks.             */
 /* ------------------------------------------------------------------------ */
 
+/* When adding to this enum, add its corresponding string in cons_text_c[]
+ * array in kmp_error.cpp */
 enum cons_type {
   ct_none,
   ct_parallel,
@@ -1879,6 +1883,15 @@ typedef struct kmp_disp {
   0 // Thread th_reap_state: not safe to reap (tasking)
 #define KMP_SAFE_TO_REAP 1 // Thread th_reap_state: safe to reap (not tasking)
 
+// The flag_type describes the storage used for the flag.
+enum flag_type {
+  flag32, /**< atomic 32 bit flags */
+  flag64, /**< 64 bit flags */
+  atomic_flag64, /**< atomic 64 bit flags */
+  flag_oncore, /**< special 64-bit flag for on-core barrier (hierarchical) */
+  flag_unset
+};
+
 enum barrier_type {
   bs_plain_barrier = 0, /* 0, All non-fork/join barriers (except reduction
                            barriers if enabled) */
@@ -1902,6 +1915,7 @@ typedef enum kmp_bar_pat { /* Barrier communication patterns */
                            bp_hyper_bar = 2, /* Hypercube-embedded tree with min
                                                 branching factor 2^n */
                            bp_hierarchical_bar = 3, /* Machine hierarchy tree */
+                           bp_dist_bar = 4, /* Distributed barrier */
                            bp_last_bar /* Placeholder to mark the end */
 } kmp_bar_pat_e;
 
@@ -2241,22 +2255,26 @@ typedef union kmp_depnode kmp_depnode_t;
 typedef struct kmp_depnode_list kmp_depnode_list_t;
 typedef struct kmp_dephash_entry kmp_dephash_entry_t;
 
+// macros for checking dep flag as an integer
 #define KMP_DEP_IN 0x1
 #define KMP_DEP_OUT 0x2
 #define KMP_DEP_INOUT 0x3
 #define KMP_DEP_MTX 0x4
 #define KMP_DEP_SET 0x8
+#define KMP_DEP_ALL 0x80
 // Compiler sends us this info:
 typedef struct kmp_depend_info {
   kmp_intptr_t base_addr;
   size_t len;
   union {
-    kmp_uint8 flag;
-    struct {
+    kmp_uint8 flag; // flag as an unsigned char
+    struct { // flag as a set of 8 bits
       unsigned in : 1;
       unsigned out : 1;
       unsigned mtx : 1;
       unsigned set : 1;
+      unsigned unused : 3;
+      unsigned all : 1;
     } flags;
   };
 } kmp_depend_info_t;
@@ -2302,6 +2320,7 @@ struct kmp_dephash_entry {
 typedef struct kmp_dephash {
   kmp_dephash_entry_t **buckets;
   size_t size;
+  kmp_depnode_t *last_all;
   size_t generation;
   kmp_uint32 nelements;
   kmp_uint32 nconflicts;
@@ -2409,13 +2428,6 @@ struct kmp_taskdata { /* aligned during dynamic allocation       */
   kmp_depnode_t
       *td_depnode; // Pointer to graph node if this task has dependencies
   kmp_task_team_t *td_task_team;
-  // The global thread id of the encountering thread. We need it because when a
-  // regular task depends on a hidden helper task, and the hidden helper task
-  // is finished on a hidden helper thread, it will call __kmp_release_deps to
-  // release all dependences. If now the task is a regular task, we need to pass
-  // the encountering gtid such that the task will be picked up and executed by
-  // its encountering team instead of hidden helper team.
-  kmp_int32 encountering_gtid;
   size_t td_size_alloc; // Size of task structure, including shareds etc.
 #if defined(KMP_GOMP_COMPAT)
   // 4 or 8 byte integers for the loop bounds in GOMP_taskloop
@@ -2626,6 +2638,7 @@ typedef struct KMP_ALIGN_CACHE kmp_base_info {
   /* while awaiting queuing lock acquire */
 
   volatile void *th_sleep_loc; // this points at a kmp_flag<T>
+  flag_type th_sleep_loc_type; // enum type of flag stored in th_sleep_loc
 
   ident_t *th_ident;
   unsigned th_x; // Random number generator data
@@ -2646,6 +2659,9 @@ typedef struct KMP_ALIGN_CACHE kmp_base_info {
      written by the worker thread) */
   kmp_uint8 th_active_in_pool; // included in count of #active threads in pool
   int th_active; // ! sleeping; 32 bits for TCR/TCW
+  std::atomic<kmp_uint32> th_used_in_team; // Flag indicating use in team
+  // 0 = not used in team; 1 = used in team;
+  // 2 = transitioning to not used in team; 3 = transitioning to used in team
   struct cons_header *th_cons; // used for consistency check
 #if KMP_USE_HIER_SCHED
   // used for hierarchical scheduling
@@ -2825,6 +2841,7 @@ typedef struct KMP_ALIGN_CACHE kmp_base_team {
 #if USE_ITT_BUILD
   void *t_stack_id; // team specific stack stitching id (for ittnotify)
 #endif /* USE_ITT_BUILD */
+  distributedBarrier *b; // Distributed barrier data associated with team
 } kmp_base_team_t;
 
 union KMP_ALIGN_CACHE kmp_team {
@@ -4118,6 +4135,10 @@ typedef enum kmp_severity_t {
 } kmp_severity_t;
 extern void __kmpc_error(ident_t *loc, int severity, const char *message);
 
+// Support for scope directive
+KMP_EXPORT void __kmpc_scope(ident_t *loc, kmp_int32 gtid, void *reserved);
+KMP_EXPORT void __kmpc_end_scope(ident_t *loc, kmp_int32 gtid, void *reserved);
+
 #ifdef __cplusplus
 }
 #endif
@@ -4126,18 +4147,26 @@ template <bool C, bool S>
 extern void __kmp_suspend_32(int th_gtid, kmp_flag_32<C, S> *flag);
 template <bool C, bool S>
 extern void __kmp_suspend_64(int th_gtid, kmp_flag_64<C, S> *flag);
+template <bool C, bool S>
+extern void __kmp_atomic_suspend_64(int th_gtid,
+                                    kmp_atomic_flag_64<C, S> *flag);
 extern void __kmp_suspend_oncore(int th_gtid, kmp_flag_oncore *flag);
 #if KMP_HAVE_MWAIT || KMP_HAVE_UMWAIT
 template <bool C, bool S>
 extern void __kmp_mwait_32(int th_gtid, kmp_flag_32<C, S> *flag);
 template <bool C, bool S>
 extern void __kmp_mwait_64(int th_gtid, kmp_flag_64<C, S> *flag);
+template <bool C, bool S>
+extern void __kmp_atomic_mwait_64(int th_gtid, kmp_atomic_flag_64<C, S> *flag);
 extern void __kmp_mwait_oncore(int th_gtid, kmp_flag_oncore *flag);
 #endif
 template <bool C, bool S>
 extern void __kmp_resume_32(int target_gtid, kmp_flag_32<C, S> *flag);
 template <bool C, bool S>
 extern void __kmp_resume_64(int target_gtid, kmp_flag_64<C, S> *flag);
+template <bool C, bool S>
+extern void __kmp_atomic_resume_64(int target_gtid,
+                                   kmp_atomic_flag_64<C, S> *flag);
 extern void __kmp_resume_oncore(int target_gtid, kmp_flag_oncore *flag);
 
 template <bool C, bool S>
@@ -4156,6 +4185,14 @@ int __kmp_execute_tasks_64(kmp_info_t *thread, kmp_int32 gtid,
                            void *itt_sync_obj,
 #endif /* USE_ITT_BUILD */
                            kmp_int32 is_constrained);
+template <bool C, bool S>
+int __kmp_atomic_execute_tasks_64(kmp_info_t *thread, kmp_int32 gtid,
+                                  kmp_atomic_flag_64<C, S> *flag,
+                                  int final_spin, int *thread_finished,
+#if USE_ITT_BUILD
+                                  void *itt_sync_obj,
+#endif /* USE_ITT_BUILD */
+                                  kmp_int32 is_constrained);
 int __kmp_execute_tasks_oncore(kmp_info_t *thread, kmp_int32 gtid,
                                kmp_flag_oncore *flag, int final_spin,
                                int *thread_finished,

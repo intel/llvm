@@ -15,7 +15,9 @@
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 #include <CL/sycl/stream.hpp>
+#include <detail/config.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/handler_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -26,8 +28,56 @@ namespace sycl {
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
     : MQueue(std::move(Queue)), MIsHost(IsHost) {
-  MSharedPtrStorage.emplace_back(
-      std::make_shared<std::vector<detail::ExtendedMemberT>>());
+  // Create extended members and insert handler_impl
+  // TODO: When allowed to break ABI the handler_impl should be made a member
+  //       of the handler class.
+  auto ExtendedMembers =
+      std::make_shared<std::vector<detail::ExtendedMemberT>>();
+  detail::ExtendedMemberT HandlerImplMember = {
+      detail::ExtendedMembersType::HANDLER_IMPL,
+      std::make_shared<detail::handler_impl>()};
+  ExtendedMembers->push_back(std::move(HandlerImplMember));
+  MSharedPtrStorage.push_back(std::move(ExtendedMembers));
+}
+
+/// Gets the handler_impl at the start of the extended members.
+std::shared_ptr<detail::handler_impl> handler::getHandlerImpl() const {
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
+
+  assert(!MSharedPtrStorage.empty());
+
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExtendedMembersVec =
+      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
+
+  assert(ExtendedMembersVec->size() > 0);
+
+  auto HandlerImplMember = (*ExtendedMembersVec)[0];
+
+  assert(detail::ExtendedMembersType::HANDLER_IMPL == HandlerImplMember.MType);
+
+  return std::static_pointer_cast<detail::handler_impl>(
+      HandlerImplMember.MData);
+}
+
+// Sets the submission state to indicate that an explicit kernel bundle has been
+// set. Throws a sycl::exception with errc::invalid if the current state
+// indicates that a specialization constant has been set.
+void handler::setStateExplicitKernelBundle() {
+  getHandlerImpl()->setStateExplicitKernelBundle();
+}
+
+// Sets the submission state to indicate that a specialization constant has been
+// set. Throws a sycl::exception with errc::invalid if the current state
+// indicates that an explicit kernel bundle has been set.
+void handler::setStateSpecConstSet() {
+  getHandlerImpl()->setStateSpecConstSet();
+}
+
+// Returns true if the submission state is EXPLICIT_KERNEL_BUNDLE_STATE and
+// false otherwise.
+bool handler::isStateExplicitKernelBundle() const {
+  return getHandlerImpl()->isStateExplicitKernelBundle();
 }
 
 // Returns a shared_ptr to kernel_bundle stored in the extended members vector.
@@ -42,12 +92,11 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) const {
 
   assert(!MSharedPtrStorage.empty());
 
-  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExtendedMembersVec =
       detail::convertToExtendedMembers(MSharedPtrStorage[0]);
-
   // Look for the kernel bundle in extended members
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr;
-  for (const detail::ExtendedMemberT &EMember : *ExendedMembersVec)
+  for (const detail::ExtendedMemberT &EMember : *ExtendedMembersVec)
     if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
       KernelBundleImpPtr =
           std::static_pointer_cast<detail::kernel_bundle_impl>(EMember.MData);
@@ -65,8 +114,7 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) const {
 
     detail::ExtendedMemberT EMember = {
         detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE, KernelBundleImpPtr};
-
-    ExendedMembersVec->push_back(EMember);
+    ExtendedMembersVec->push_back(EMember);
   }
 
   return KernelBundleImpPtr;
@@ -84,16 +132,18 @@ void handler::setHandlerKernelBundle(
   std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExendedMembersVec =
       detail::convertToExtendedMembers(MSharedPtrStorage[0]);
 
-  for (detail::ExtendedMemberT &EMember : *ExendedMembersVec)
+  // Look for kernel bundle in extended members and overwrite it.
+  for (detail::ExtendedMemberT &EMember : *ExendedMembersVec) {
     if (detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE == EMember.MType) {
       EMember.MData = NewKernelBundleImpPtr;
       return;
     }
+  }
 
+  // Kernel bundle was set found so we add it.
   detail::ExtendedMemberT EMember = {
       detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE,
       NewKernelBundleImpPtr};
-
   ExendedMembersVec->push_back(EMember);
 }
 
@@ -135,13 +185,15 @@ event handler::finalize() {
   switch (getType()) {
   case detail::CG::Kernel:
   case detail::CG::RunOnHostIntel: {
+    // Copy kernel name here instead of move so that it's available after
+    // running of this method by reductions implementation. This allows for
+    // assert feature to check if kernel uses assertions
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
-        std::move(MEvents), std::move(MArgs), std::move(MKernelName),
-        std::move(MOSModuleHandle), std::move(MStreamStorage), MCGType,
-        MCodeLoc));
+        std::move(MEvents), std::move(MArgs), MKernelName, MOSModuleHandle,
+        std::move(MStreamStorage), MCGType, MCodeLoc));
     break;
   }
   case detail::CG::CodeplayInteropTask:
@@ -338,7 +390,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     // The first 11 bits of Size encodes the accessor target.
     const access::target AccTarget = static_cast<access::target>(Size & 0x7ff);
     switch (AccTarget) {
-    case access::target::global_buffer:
+    case access::target::device:
     case access::target::constant_buffer: {
       detail::Requirement *AccImpl = static_cast<detail::Requirement *>(Ptr);
       addArgsForGlobalAccessor(AccImpl, Index, IndexShift, Size,
@@ -401,8 +453,21 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
         Index + IndexShift);
     break;
   }
+  case kernel_param_kind_t::kind_invalid:
+    throw runtime_error("Invalid kernel param kind", PI_INVALID_VALUE);
+    break;
   }
 }
+
+// The argument can take up more space to store additional information about
+// MAccessRange, MMemoryRange, and MOffset added with addArgsForGlobalAccessor.
+// We use the worst-case estimate because the lifetime of the vector is short.
+// In processArg the kind_stream case introduces the maximum number of
+// additional arguments. The case adds additional 12 arguments to the currently
+// processed argument, hence worst-case estimate is 12+1=13.
+// TODO: the constant can be removed if the size of MArgs will be calculated at
+// compile time.
+inline constexpr size_t MaxNumAdditionalArgs = 13;
 
 void handler::extractArgsAndReqs() {
   assert(MKernel && "MKernel is not initialized");
@@ -416,6 +481,7 @@ void handler::extractArgsAndReqs() {
       });
 
   const bool IsKernelCreatedFromSource = MKernel->isCreatedFromSource();
+  MArgs.reserve(MaxNumAdditionalArgs * UnPreparedArgs.size());
 
   size_t IndexShift = 0;
   for (size_t I = 0; I < UnPreparedArgs.size(); ++I) {
@@ -440,6 +506,8 @@ void handler::extractArgsAndReqsFromLambda(
     const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
   const bool IsKernelCreatedFromSource = false;
   size_t IndexShift = 0;
+  MArgs.reserve(MaxNumAdditionalArgs * KernelArgsNum);
+
   for (size_t I = 0; I < KernelArgsNum; ++I) {
     void *Ptr = LambdaPtr + KernelArgs[I].offset;
     const detail::kernel_param_kind_t &Kind = KernelArgs[I].kind;
@@ -449,7 +517,7 @@ void handler::extractArgsAndReqsFromLambda(
       // The first 11 bits of Size encodes the accessor target.
       const access::target AccTarget =
           static_cast<access::target>(Size & 0x7ff);
-      if ((AccTarget == access::target::global_buffer ||
+      if ((AccTarget == access::target::device ||
            AccTarget == access::target::constant_buffer) ||
           (AccTarget == access::target::image ||
            AccTarget == access::target::image_array)) {
@@ -474,13 +542,47 @@ std::string handler::getKernelName() {
   return MKernel->get_info<info::kernel::function_name>();
 }
 
-void handler::barrier(const std::vector<event> &WaitList) {
+void handler::verifyUsedKernelBundle(const std::string &KernelName) {
+  auto UsedKernelBundleImplPtr =
+      getOrInsertHandlerKernelBundle(/*Insert=*/false);
+  if (!UsedKernelBundleImplPtr)
+    return;
+
+  kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
+  device Dev = detail::getDeviceFromHandler(*this);
+  if (!UsedKernelBundleImplPtr->has_kernel(KernelID, Dev))
+    throw sycl::exception(
+        make_error_code(errc::kernel_not_supported),
+        "The kernel bundle in use does not contain the kernel");
+}
+
+void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   MCGType = detail::CG::BarrierWaitlist;
   MEventsWaitWithBarrier.resize(WaitList.size());
   std::transform(
       WaitList.begin(), WaitList.end(), MEventsWaitWithBarrier.begin(),
       [](const event &Event) { return detail::getSyclObjImpl(Event); });
+}
+
+__SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
+void handler::barrier(const std::vector<event> &WaitList) {
+  handler::ext_oneapi_barrier(WaitList);
+}
+
+using namespace sycl::detail;
+bool handler::DisableRangeRounding() {
+  return SYCLConfig<SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING>::get();
+}
+
+bool handler::RangeRoundingTrace() {
+  return SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE>::get();
+}
+
+void handler::GetRangeRoundingSettings(size_t &MinFactor, size_t &GoodFactor,
+                                       size_t &MinRange) {
+  SYCLConfig<SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS>::GetSettings(
+      MinFactor, GoodFactor, MinRange);
 }
 
 void handler::memcpy(void *Dest, const void *Src, size_t Count) {

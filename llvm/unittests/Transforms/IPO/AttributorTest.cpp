@@ -75,8 +75,16 @@ TEST_F(AttributorTestBase, TestCast) {
 
 TEST_F(AttributorTestBase, AAReachabilityTest) {
   const char *ModuleString = R"(
-    declare void @func4()
-    declare void @func3()
+    @x = global i32 0
+    define void @func4() {
+      store i32 0, i32* @x
+      ret void
+    }
+
+    define void @func3() {
+      store i32 0, i32* @x
+      ret void
+    }
 
     define void @func2() {
     entry:
@@ -101,6 +109,13 @@ TEST_F(AttributorTestBase, AAReachabilityTest) {
       call void @func5(void ()* @func3)
       ret void
     }
+
+    define void @func7() {
+    entry:
+      call void @func2()
+      call void @func4()
+      ret void
+    }
   )";
 
   Module &M = parseModule(ModuleString);
@@ -119,6 +134,11 @@ TEST_F(AttributorTestBase, AAReachabilityTest) {
   Function *F3 = M.getFunction("func3");
   Function *F4 = M.getFunction("func4");
   Function *F6 = M.getFunction("func6");
+  Function *F7 = M.getFunction("func7");
+
+  // call void @func2()
+  CallBase &F7FirstCB =
+      *static_cast<CallBase *>(F7->getEntryBlock().getFirstNonPHI());
 
   const AAFunctionReachability &F1AA =
       A.getOrCreateAAFor<AAFunctionReachability>(IRPosition::function(*F1));
@@ -126,14 +146,22 @@ TEST_F(AttributorTestBase, AAReachabilityTest) {
   const AAFunctionReachability &F6AA =
       A.getOrCreateAAFor<AAFunctionReachability>(IRPosition::function(*F6));
 
+  const AAFunctionReachability &F7AA =
+      A.getOrCreateAAFor<AAFunctionReachability>(IRPosition::function(*F7));
+
   F1AA.canReach(A, F3);
   F1AA.canReach(A, F4);
   F6AA.canReach(A, F4);
+  F7AA.canReach(A, F7FirstCB, F3);
+  F7AA.canReach(A, F7FirstCB, F4);
 
   A.run();
 
   ASSERT_TRUE(F1AA.canReach(A, F3));
   ASSERT_FALSE(F1AA.canReach(A, F4));
+
+  ASSERT_TRUE(F7AA.canReach(A, F7FirstCB, F3));
+  ASSERT_FALSE(F7AA.canReach(A, F7FirstCB, F4));
 
   // Assumed to be reacahable, since F6 can reach a function with
   // a unknown callee.

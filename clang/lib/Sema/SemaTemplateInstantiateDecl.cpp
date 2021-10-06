@@ -593,8 +593,7 @@ static void instantiateIntelFPGABankWidthAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddOneConstantPowerTwoValueAttr<IntelFPGABankWidthAttr>(
-        New, *Attr, Result.getAs<Expr>());
+    S.AddIntelFPGABankWidthAttr(New, *Attr, Result.getAs<Expr>());
 }
 
 static void instantiateIntelFPGANumBanksAttr(
@@ -604,8 +603,7 @@ static void instantiateIntelFPGANumBanksAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddOneConstantPowerTwoValueAttr<IntelFPGANumBanksAttr>(
-        New, *Attr, Result.getAs<Expr>());
+    S.AddIntelFPGANumBanksAttr(New, *Attr, Result.getAs<Expr>());
 }
 
 static void instantiateIntelFPGABankBitsAttr(
@@ -769,16 +767,10 @@ static void instantiateWorkGroupSizeHintAttr(
 static void instantiateDependentSYCLKernelAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLKernelAttr &Attr, Decl *New) {
-  // Functions cannot be partially specialized, so if we are being instantiated,
-  // we are obviously a complete specialization. Since this attribute is only
-  // valid on function template declarations, we know that this is a full
-  // instantiation of a kernel.
-  S.AddSYCLKernelLambda(cast<FunctionDecl>(New));
-
   New->addAttr(Attr.clone(S.getASTContext()));
 }
 
-/// Determine whether the attribute A might be relevent to the declaration D.
+/// Determine whether the attribute A might be relevant to the declaration D.
 /// If not, we can skip instantiating it. The attribute may or may not have
 /// been instantiated yet.
 static bool isRelevantAttr(Sema &S, const Decl *D, const Attr *A) {
@@ -1390,7 +1382,7 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
 
   SemaRef.BuildVariableInstantiation(Var, D, TemplateArgs, LateAttrs, Owner,
                                      StartingScope, InstantiatingVarTemplate);
-  if (D->isNRVOVariable()) {
+  if (D->isNRVOVariable() && !Var->isInvalidDecl()) {
     QualType RT;
     if (auto *F = dyn_cast<FunctionDecl>(DC))
       RT = F->getReturnType();
@@ -2358,8 +2350,8 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
   } else {
     Function = FunctionDecl::Create(
         SemaRef.Context, DC, D->getInnerLocStart(), NameInfo, T, TInfo,
-        D->getCanonicalDecl()->getStorageClass(), D->isInlineSpecified(),
-        D->hasWrittenPrototype(), D->getConstexprKind(),
+        D->getCanonicalDecl()->getStorageClass(), D->UsesFPIntrin(),
+        D->isInlineSpecified(), D->hasWrittenPrototype(), D->getConstexprKind(),
         TrailingRequiresClause);
     Function->setRangeEnd(D->getSourceRange().getEnd());
   }
@@ -2714,15 +2706,16 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
   if (CXXConstructorDecl *Constructor = dyn_cast<CXXConstructorDecl>(D)) {
     Method = CXXConstructorDecl::Create(
         SemaRef.Context, Record, StartLoc, NameInfo, T, TInfo,
-        InstantiatedExplicitSpecifier, Constructor->isInlineSpecified(), false,
+        InstantiatedExplicitSpecifier, Constructor->UsesFPIntrin(),
+        Constructor->isInlineSpecified(), false,
         Constructor->getConstexprKind(), InheritedConstructor(),
         TrailingRequiresClause);
     Method->setRangeEnd(Constructor->getEndLoc());
   } else if (CXXDestructorDecl *Destructor = dyn_cast<CXXDestructorDecl>(D)) {
     Method = CXXDestructorDecl::Create(
         SemaRef.Context, Record, StartLoc, NameInfo, T, TInfo,
-        Destructor->isInlineSpecified(), false, Destructor->getConstexprKind(),
-        TrailingRequiresClause);
+        Destructor->UsesFPIntrin(), Destructor->isInlineSpecified(), false,
+        Destructor->getConstexprKind(), TrailingRequiresClause);
     Method->setRangeEnd(Destructor->getEndLoc());
     Method->setDeclName(SemaRef.Context.DeclarationNames.getCXXDestructorName(
         SemaRef.Context.getCanonicalType(
@@ -2730,15 +2723,15 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
   } else if (CXXConversionDecl *Conversion = dyn_cast<CXXConversionDecl>(D)) {
     Method = CXXConversionDecl::Create(
         SemaRef.Context, Record, StartLoc, NameInfo, T, TInfo,
-        Conversion->isInlineSpecified(), InstantiatedExplicitSpecifier,
-        Conversion->getConstexprKind(), Conversion->getEndLoc(),
-        TrailingRequiresClause);
+        Conversion->UsesFPIntrin(), Conversion->isInlineSpecified(),
+        InstantiatedExplicitSpecifier, Conversion->getConstexprKind(),
+        Conversion->getEndLoc(), TrailingRequiresClause);
   } else {
     StorageClass SC = D->isStatic() ? SC_Static : SC_None;
-    Method = CXXMethodDecl::Create(SemaRef.Context, Record, StartLoc, NameInfo,
-                                   T, TInfo, SC, D->isInlineSpecified(),
-                                   D->getConstexprKind(), D->getEndLoc(),
-                                   TrailingRequiresClause);
+    Method = CXXMethodDecl::Create(
+        SemaRef.Context, Record, StartLoc, NameInfo, T, TInfo, SC,
+        D->UsesFPIntrin(), D->isInlineSpecified(), D->getConstexprKind(),
+        D->getEndLoc(), TrailingRequiresClause);
   }
 
   if (D->isInlined())
@@ -6308,11 +6301,11 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
                           const MultiLevelTemplateArgumentList &TemplateArgs,
                           bool FindingInstantiatedContext) {
   DeclContext *ParentDC = D->getDeclContext();
-  // Determine whether our parent context depends on any of the tempalte
+  // Determine whether our parent context depends on any of the template
   // arguments we're currently substituting.
   bool ParentDependsOnArgs = isDependentContextAtLevel(
       ParentDC, TemplateArgs.getNumRetainedOuterLevels());
-  // FIXME: Parmeters of pointer to functions (y below) that are themselves
+  // FIXME: Parameters of pointer to functions (y below) that are themselves
   // parameters (p below) can have their ParentDC set to the translation-unit
   // - thus we can not consistently check if the ParentDC of such a parameter
   // is Dependent or/and a FunctionOrMethod.
@@ -6590,27 +6583,6 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
   return D;
 }
 
-static void processSYCLKernel(Sema &S, FunctionDecl *FD, MangleContext &MC) {
-  if (S.LangOpts.SYCLIsDevice) {
-    S.ConstructOpenCLKernel(FD, MC);
-  } else if (S.LangOpts.SYCLIsHost) {
-    QualType KernelParamTy = (*FD->param_begin())->getType();
-    const CXXRecordDecl *CRD = (KernelParamTy->isReferenceType()
-                                    ? KernelParamTy->getPointeeCXXRecordDecl()
-                                    : KernelParamTy->getAsCXXRecordDecl());
-    if (!CRD) {
-      S.Diag(FD->getLocation(), diag::err_sycl_kernel_not_function_object);
-      FD->setInvalidDecl();
-      return;
-    }
-
-    for (auto *Method : CRD->methods())
-      if (Method->getOverloadedOperator() == OO_Call &&
-          !Method->hasAttr<AlwaysInlineAttr>())
-        Method->addAttr(AlwaysInlineAttr::CreateImplicit(S.getASTContext()));
-  }
-}
-
 static void processFunctionInstantiation(Sema &S,
                                          SourceLocation PointOfInstantiation,
                                          FunctionDecl *FD,
@@ -6620,8 +6592,8 @@ static void processFunctionInstantiation(Sema &S,
                                   DefinitionRequired, true);
   if (!FD->isDefined())
     return;
-  if (FD->hasAttr<SYCLKernelAttr>())
-    processSYCLKernel(S, FD, MC);
+  if (S.LangOpts.SYCLIsDevice && FD->hasAttr<SYCLKernelAttr>())
+    S.ConstructOpenCLKernel(FD, MC);
   FD->setInstantiationIsPending(false);
 }
 

@@ -16,7 +16,7 @@
 // work with arbitrary lower bounds.  This may be technically an extension
 // of the standard but it more likely to conform with its intent.
 
-#include "transformational.h"
+#include "flang/Runtime/transformational.h"
 #include "copy.h"
 #include "terminator.h"
 #include "tools.h"
@@ -130,7 +130,7 @@ static inline std::size_t AllocateResult(Descriptor &result,
 
 extern "C" {
 
-// CSHIFT of rank > 1
+// CSHIFT where rank of ARRAY argument > 1
 void RTNAME(Cshift)(Descriptor &result, const Descriptor &source,
     const Descriptor &shift, int dim, const char *sourceFile, int line) {
   Terminator terminator{sourceFile, line};
@@ -172,7 +172,7 @@ void RTNAME(Cshift)(Descriptor &result, const Descriptor &source,
   }
 }
 
-// CSHIFT of vector
+// CSHIFT where rank of ARRAY argument == 1
 void RTNAME(CshiftVector)(Descriptor &result, const Descriptor &source,
     std::int64_t shift, const char *sourceFile, int line) {
   Terminator terminator{sourceFile, line};
@@ -184,6 +184,9 @@ void RTNAME(CshiftVector)(Descriptor &result, const Descriptor &source,
   for (SubscriptValue j{0}; j < extent; ++j) {
     SubscriptValue resultAt{1 + j};
     SubscriptValue sourceAt{lb + (j + shift) % extent};
+    if (sourceAt < 0) {
+      sourceAt += extent;
+    }
     CopyElement(result, &resultAt, source, &sourceAt, terminator);
   }
 }
@@ -281,6 +284,8 @@ void RTNAME(EoshiftVector)(Descriptor &result, const Descriptor &source,
     SubscriptValue sourceAt{lb + j - 1 + shift};
     if (sourceAt >= lb && sourceAt < lb + extent) {
       CopyElement(result, &j, source, &sourceAt, terminator);
+    } else if (boundary) {
+      CopyElement(result, &j, *boundary, 0, terminator);
     }
   }
 }

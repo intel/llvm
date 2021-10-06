@@ -1309,6 +1309,18 @@ static void foldExit(const Loop *L, BasicBlock *ExitingBB, bool IsTaken,
   replaceExitCond(BI, NewCond, DeadInsts);
 }
 
+static void replaceLoopPHINodesWithPreheaderValues(
+    Loop *L, SmallVectorImpl<WeakTrackingVH> &DeadInsts) {
+  assert(L->isLoopSimplifyForm() && "Should only do it in simplify form!");
+  auto *LoopPreheader = L->getLoopPreheader();
+  auto *LoopHeader = L->getHeader();
+  for (auto &PN : LoopHeader->phis()) {
+    auto *PreheaderIncoming = PN.getIncomingValueForBlock(LoopPreheader);
+    PN.replaceAllUsesWith(PreheaderIncoming);
+    DeadInsts.emplace_back(&PN);
+  }
+}
+
 static void replaceWithInvariantCond(
     const Loop *L, BasicBlock *ExitingBB, ICmpInst::Predicate InvariantPred,
     const SCEV *InvariantLHS, const SCEV *InvariantRHS, SCEVExpander &Rewriter,
@@ -1499,20 +1511,18 @@ bool IndVarSimplify::optimizeLoopExits(Loop *L, SCEVExpander &Rewriter) {
     // If we know we'd exit on the first iteration, rewrite the exit to
     // reflect this.  This does not imply the loop must exit through this
     // exit; there may be an earlier one taken on the first iteration.
-    // TODO: Given we know the backedge can't be taken, we should go ahead
-    // and break it.  Or at least, kill all the header phis and simplify.
+    // We know that the backedge can't be taken, so we replace all
+    // the header PHIs with values coming from the preheader.
     if (ExitCount->isZero()) {
       foldExit(L, ExitingBB, true, DeadInsts);
+      replaceLoopPHINodesWithPreheaderValues(L, DeadInsts);
       Changed = true;
       continue;
     }
 
-    // If we end up with a pointer exit count, bail.  Note that we can end up
-    // with a pointer exit count for one exiting block, and not for another in
-    // the same loop.
-    if (!ExitCount->getType()->isIntegerTy() ||
-        !MaxExitCount->getType()->isIntegerTy())
-      continue;
+    assert(ExitCount->getType()->isIntegerTy() &&
+           MaxExitCount->getType()->isIntegerTy() &&
+           "Exit counts must be integers");
 
     Type *WiderType =
       SE->getWiderType(MaxExitCount->getType(), ExitCount->getType());
@@ -1569,14 +1579,11 @@ bool IndVarSimplify::predicateLoopExits(Loop *L, SCEVExpander &Rewriter) {
   // through *explicit* control flow.  We have to eliminate the possibility of
   // implicit exits (see below) before we know it's truly exact.
   const SCEV *ExactBTC = SE->getBackedgeTakenCount(L);
-  if (isa<SCEVCouldNotCompute>(ExactBTC) ||
-      !SE->isLoopInvariant(ExactBTC, L) ||
-      !isSafeToExpand(ExactBTC, *SE))
+  if (isa<SCEVCouldNotCompute>(ExactBTC) || !isSafeToExpand(ExactBTC, *SE))
     return false;
 
-  // If we end up with a pointer exit count, bail.  It may be unsized.
-  if (!ExactBTC->getType()->isIntegerTy())
-    return false;
+  assert(SE->isLoopInvariant(ExactBTC, L) && "BTC must be loop invariant");
+  assert(ExactBTC->getType()->isIntegerTy() && "BTC must be integer");
 
   auto BadExit = [&](BasicBlock *ExitingBB) {
     // If our exiting block exits multiple loops, we can only rewrite the
@@ -1603,15 +1610,12 @@ bool IndVarSimplify::predicateLoopExits(Loop *L, SCEVExpander &Rewriter) {
       return true;
 
     const SCEV *ExitCount = SE->getExitCount(L, ExitingBB);
-    if (isa<SCEVCouldNotCompute>(ExitCount) ||
-        !SE->isLoopInvariant(ExitCount, L) ||
-        !isSafeToExpand(ExitCount, *SE))
+    if (isa<SCEVCouldNotCompute>(ExitCount) || !isSafeToExpand(ExitCount, *SE))
       return true;
 
-    // If we end up with a pointer exit count, bail.  It may be unsized.
-    if (!ExitCount->getType()->isIntegerTy())
-      return true;
-
+    assert(SE->isLoopInvariant(ExitCount, L) &&
+           "Exit count must be loop invariant");
+    assert(ExitCount->getType()->isIntegerTy() && "Exit count must be integer");
     return false;
   };
 

@@ -248,7 +248,7 @@ void LLVMContext::diagnose(const DiagnosticInfo &DI) {
     exit(1);
 }
 
-void LLVMContext::emitError(unsigned LocCookie, const Twine &ErrorStr) {
+void LLVMContext::emitError(uint64_t LocCookie, const Twine &ErrorStr) {
   diagnose(DiagnosticInfoInlineAsm(LocCookie, ErrorStr));
 }
 
@@ -348,6 +348,12 @@ std::unique_ptr<DiagnosticHandler> LLVMContext::getDiagnosticHandler() {
   return std::move(pImpl->DiagHandler);
 }
 
+void LLVMContext::enableOpaquePointers() const {
+  assert(pImpl->PointerTypes.empty() && pImpl->ASPointerTypes.empty() &&
+         "Must be called before creating any pointer types");
+  pImpl->OpaquePointers = true;
+}
+
 bool LLVMContext::supportsTypedPointers() const {
-  return !pImpl->ForceOpaquePointers;
+  return !pImpl->OpaquePointers;
 }

@@ -10,9 +10,6 @@
 // Test that headers are not tripped up by the surrounding code defining the
 // min() and max() macros.
 
-// GCC 5 has incomplete support for C++17, so some headers fail when included.
-// UNSUPPORTED: gcc-5 && c++17
-
 // Prevent <ext/hash_map> from generating deprecated warnings for this test.
 #if defined(__DEPRECATED)
 #    undef __DEPRECATED
@@ -136,8 +133,10 @@ TEST_MACROS();
 #endif
 #include <float.h>
 TEST_MACROS();
-#include <format>
+#ifndef _LIBCPP_HAS_NO_INCOMPLETE_FORMAT
+#    include <format>
 TEST_MACROS();
+#endif
 #include <forward_list>
 TEST_MACROS();
 #ifndef _LIBCPP_HAS_NO_LOCALIZATION
@@ -218,8 +217,10 @@ TEST_MACROS();
 TEST_MACROS();
 #include <random>
 TEST_MACROS();
-#include <ranges>
+#ifndef _LIBCPP_HAS_NO_INCOMPLETE_RANGES
+#    include <ranges>
 TEST_MACROS();
+#endif
 #include <ratio>
 TEST_MACROS();
 #ifndef _LIBCPP_HAS_NO_LOCALIZATION

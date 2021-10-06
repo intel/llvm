@@ -3750,6 +3750,14 @@ TEST(MemorySanitizer, getgroups_negative) {
   ASSERT_EQ(-1, n);
 }
 
+TEST(MemorySanitizer, wordexp_empty) {
+  wordexp_t w;
+  int res = wordexp("", &w, 0);
+  ASSERT_EQ(0, res);
+  ASSERT_EQ(0U, w.we_wordc);
+  ASSERT_STREQ(nullptr, w.we_wordv[0]);
+}
+
 TEST(MemorySanitizer, wordexp) {
   wordexp_t w;
   int res = wordexp("a b c", &w, 0);
@@ -3758,6 +3766,18 @@ TEST(MemorySanitizer, wordexp) {
   ASSERT_STREQ("a", w.we_wordv[0]);
   ASSERT_STREQ("b", w.we_wordv[1]);
   ASSERT_STREQ("c", w.we_wordv[2]);
+}
+
+TEST(MemorySanitizer, wordexp_initial_offset) {
+  wordexp_t w;
+  w.we_offs = 1;
+  int res = wordexp("a b c", &w, WRDE_DOOFFS);
+  ASSERT_EQ(0, res);
+  ASSERT_EQ(3U, w.we_wordc);
+  ASSERT_EQ(nullptr, w.we_wordv[0]);
+  ASSERT_STREQ("a", w.we_wordv[1]);
+  ASSERT_STREQ("b", w.we_wordv[2]);
+  ASSERT_STREQ("c", w.we_wordv[3]);
 }
 
 template<class T>
@@ -4318,8 +4338,8 @@ TEST(MemorySanitizerOrigins, InitializedStoreDoesNotChangeOrigin) {
 template<class T, class BinaryOp>
 ALWAYS_INLINE
 void BinaryOpOriginTest(BinaryOp op) {
-  U4 ox = rand();  //NOLINT
-  U4 oy = rand();  //NOLINT
+  U4 ox = rand();
+  U4 oy = rand();
   T *x = GetPoisonedO<T>(0, ox, 0);
   T *y = GetPoisonedO<T>(1, oy, 0);
   T *z = GetPoisonedO<T>(2, 0, 0);

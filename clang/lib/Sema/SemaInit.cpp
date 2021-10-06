@@ -2041,7 +2041,7 @@ void InitListChecker::CheckStructUnionTypes(
   RecordDecl *structDecl = DeclType->castAs<RecordType>()->getDecl();
 
   // If the record is invalid, some of it's members are invalid. To avoid
-  // confusion, we forgo checking the intializer for the entire record.
+  // confusion, we forgo checking the initializer for the entire record.
   if (structDecl->isInvalidDecl()) {
     // Assume it was supposed to consume a single initializer.
     ++Index;
@@ -2899,7 +2899,7 @@ InitListChecker::CheckDesignatedInitializer(const InitializedEntity &Entity,
     // We're modifying a string literal init; we have to decompose the string
     // so we can modify the individual characters.
     ASTContext &Context = SemaRef.Context;
-    Expr *SubExpr = StructuredList->getInit(0)->IgnoreParens();
+    Expr *SubExpr = StructuredList->getInit(0)->IgnoreParenImpCasts();
 
     // Compute the character type
     QualType CharTy = AT->getElementType();
@@ -5833,7 +5833,7 @@ void InitializationSequence::InitializeFrom(Sema &S,
                                          Entity.getType()) &&
         canPerformArrayCopy(Entity)) {
       // If source is a prvalue, use it directly.
-      if (Initializer->getValueKind() == VK_PRValue) {
+      if (Initializer->isPRValue()) {
         AddArrayInitStep(DestType, /*IsGNUExtension*/false);
         return;
       }
@@ -8253,7 +8253,7 @@ ExprResult InitializationSequence::Perform(Sema &S,
 
       // When this is an incomplete array type (such as when this is
       // initializing an array of unknown bounds from an init list), use THAT
-      // type instead so that we propogate the array bounds.
+      // type instead so that we propagate the array bounds.
       if (MTETy->isIncompleteArrayType() &&
           !CurInit.get()->getType()->isIncompleteArrayType() &&
           S.Context.hasSameType(

@@ -37,4 +37,7 @@ Developing oneAPI DPC++ Compiler
    Assert
    SharedLibraries
    MultiTileCardWithLevelZero
+   OptionalDeviceFeatures
+   SYCLInstrumentationUsingXPTI
+   ITTAnnotations
 

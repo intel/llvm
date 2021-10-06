@@ -292,7 +292,11 @@ struct MIMGBaseOpcodeInfo {
   bool LodOrClampOrMip;
   bool HasD16;
   bool MSAA;
+  bool BVH;
 };
+
+LLVM_READONLY
+const MIMGBaseOpcodeInfo *getMIMGBaseOpcode(unsigned Opc);
 
 LLVM_READONLY
 const MIMGBaseOpcodeInfo *getMIMGBaseOpcodeInfo(unsigned BaseOpcode);
@@ -688,6 +692,10 @@ uint64_t encodeMsg(uint64_t MsgId,
 
 
 unsigned getInitialPSInputAddr(const Function &F);
+
+bool getHasColorExport(const Function &F);
+
+bool getHasDepthExport(const Function &F);
 
 LLVM_READNONE
 bool isShader(CallingConv::ID CC);

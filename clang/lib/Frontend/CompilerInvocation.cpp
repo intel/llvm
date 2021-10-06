@@ -78,6 +78,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/HashBuilder.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -503,9 +504,10 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
   // -cl-strict-aliasing needs to emit diagnostic in the case where CL > 1.0.
   // This option should be deprecated for CL > 1.0 because
   // this option was added for compatibility with OpenCL 1.0.
-  if (Args.getLastArg(OPT_cl_strict_aliasing) && LangOpts.OpenCLVersion > 100)
+  if (Args.getLastArg(OPT_cl_strict_aliasing) &&
+      (LangOpts.getOpenCLCompatibleVersion() > 100))
     Diags.Report(diag::warn_option_invalid_ocl_version)
-        << LangOpts.getOpenCLVersionTuple().getAsString()
+        << LangOpts.getOpenCLVersionString()
         << Args.getLastArg(OPT_cl_strict_aliasing)->getAsString(Args);
 
   if (Arg *A = Args.getLastArg(OPT_fdefault_calling_conv_EQ)) {
@@ -1370,9 +1372,6 @@ void CompilerInvocation::GenerateCodeGenArgs(
   if (DebugInfoVal)
     GenerateArg(Args, OPT_debug_info_kind_EQ, *DebugInfoVal, SA);
 
-  if (Opts.DebugInfo == codegenoptions::DebugInfoConstructor)
-    GenerateArg(Args, OPT_fuse_ctor_homing, SA);
-
   for (const auto &Prefix : Opts.DebugPrefixMap)
     GenerateArg(Args, OPT_fdebug_prefix_map_EQ,
                 Prefix.first + "=" + Prefix.second, SA);
@@ -1421,7 +1420,7 @@ void CompilerInvocation::GenerateCodeGenArgs(
   }
 
   if (Opts.PrepareForLTO && !Opts.PrepareForThinLTO)
-    GenerateArg(Args, OPT_flto, SA);
+    GenerateArg(Args, OPT_flto_EQ, "full", SA);
 
   if (Opts.PrepareForThinLTO)
     GenerateArg(Args, OPT_flto_EQ, "thin", SA);
@@ -1628,10 +1627,16 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
   }
 
   // If -fuse-ctor-homing is set and limited debug info is already on, then use
-  // constructor homing.
-  if (Args.getLastArg(OPT_fuse_ctor_homing))
-    if (Opts.getDebugInfo() == codegenoptions::LimitedDebugInfo)
+  // constructor homing, and vice versa for -fno-use-ctor-homing.
+  if (const Arg *A =
+          Args.getLastArg(OPT_fuse_ctor_homing, OPT_fno_use_ctor_homing)) {
+    if (A->getOption().matches(OPT_fuse_ctor_homing) &&
+        Opts.getDebugInfo() == codegenoptions::LimitedDebugInfo)
       Opts.setDebugInfo(codegenoptions::DebugInfoConstructor);
+    if (A->getOption().matches(OPT_fno_use_ctor_homing) &&
+        Opts.getDebugInfo() == codegenoptions::DebugInfoConstructor)
+      Opts.setDebugInfo(codegenoptions::LimitedDebugInfo);
+  }
 
   for (const auto &Arg : Args.getAllArgValues(OPT_fdebug_prefix_map_EQ)) {
     auto Split = StringRef(Arg).split('=');
@@ -1707,9 +1712,10 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     }
   }
 
-  Opts.PrepareForLTO = Args.hasArg(OPT_flto, OPT_flto_EQ);
+  Opts.PrepareForLTO = false;
   Opts.PrepareForThinLTO = false;
   if (Arg *A = Args.getLastArg(OPT_flto_EQ)) {
+    Opts.PrepareForLTO = true;
     StringRef S = A->getValue();
     if (S == "thin")
       Opts.PrepareForThinLTO = true;
@@ -2258,6 +2264,19 @@ void CompilerInvocation::GenerateDiagnosticArgs(
   }
 }
 
+std::unique_ptr<DiagnosticOptions>
+clang::CreateAndPopulateDiagOpts(ArrayRef<const char *> Argv) {
+  auto DiagOpts = std::make_unique<DiagnosticOptions>();
+  unsigned MissingArgIndex, MissingArgCount;
+  InputArgList Args = getDriverOptTable().ParseArgs(
+      Argv.slice(1), MissingArgIndex, MissingArgCount);
+  // We ignore MissingArgCount and the return value of ParseDiagnosticArgs.
+  // Any errors that would be diagnosed here will also be diagnosed later,
+  // when the DiagnosticsEngine actually exists.
+  (void)ParseDiagnosticArgs(*DiagOpts, Args);
+  return DiagOpts;
+}
+
 bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
                                 DiagnosticsEngine *Diags,
                                 bool DefaultDiagColor) {
@@ -2624,24 +2643,24 @@ static bool ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
       StringRef ArgStr =
           Args.hasArg(OPT_interface_stub_version_EQ)
               ? Args.getLastArgValue(OPT_interface_stub_version_EQ)
-              : "experimental-ifs-v2";
+              : "ifs-v1";
       if (ArgStr == "experimental-yaml-elf-v1" ||
-          ArgStr == "experimental-ifs-v1" ||
+          ArgStr == "experimental-ifs-v1" || ArgStr == "experimental-ifs-v2" ||
           ArgStr == "experimental-tapi-elf-v1") {
         std::string ErrorMessage =
             "Invalid interface stub format: " + ArgStr.str() +
             " is deprecated.";
         Diags.Report(diag::err_drv_invalid_value)
             << "Must specify a valid interface stub format type, ie: "
-               "-interface-stub-version=experimental-ifs-v2"
+               "-interface-stub-version=ifs-v1"
             << ErrorMessage;
         ProgramAction = frontend::ParseSyntaxOnly;
-      } else if (!ArgStr.startswith("experimental-ifs-")) {
+      } else if (!ArgStr.startswith("ifs-")) {
         std::string ErrorMessage =
             "Invalid interface stub format: " + ArgStr.str() + ".";
         Diags.Report(diag::err_drv_invalid_value)
             << "Must specify a valid interface stub format type, ie: "
-               "-interface-stub-version=experimental-ifs-v2"
+               "-interface-stub-version=ifs-v1"
             << ErrorMessage;
         ProgramAction = frontend::ParseSyntaxOnly;
       }
@@ -3091,10 +3110,10 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
     case Language::LLVM_IR:
       llvm_unreachable("Invalid input kind!");
     case Language::OpenCL:
-      LangStd = LangStandard::lang_opencl10;
+      LangStd = LangStandard::lang_opencl12;
       break;
     case Language::OpenCLCXX:
-      LangStd = LangStandard::lang_openclcpp;
+      LangStd = LangStandard::lang_openclcpp10;
       break;
     case Language::CUDA:
       LangStd = LangStandard::lang_cuda;
@@ -3153,8 +3172,6 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
   Opts.HexFloats = Std.hasHexFloats();
   Opts.ImplicitInt = Std.hasImplicitInt();
 
-  Opts.CPlusPlusModules = Opts.CPlusPlus20;
-
   // Set OpenCL Version.
   Opts.OpenCL = Std.isOpenCL();
   if (LangStd == LangStandard::lang_opencl10)
@@ -3167,8 +3184,10 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
     Opts.OpenCLVersion = 200;
   else if (LangStd == LangStandard::lang_opencl30)
     Opts.OpenCLVersion = 300;
-  else if (LangStd == LangStandard::lang_openclcpp)
+  else if (LangStd == LangStandard::lang_openclcpp10)
     Opts.OpenCLCPlusPlusVersion = 100;
+  else if (LangStd == LangStandard::lang_openclcpp2021)
+    Opts.OpenCLCPlusPlusVersion = 202100;
 
   // OpenCL has some additional defaults.
   if (Opts.OpenCL) {
@@ -3176,9 +3195,8 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
     Opts.ZVector = 0;
     Opts.setDefaultFPContractMode(LangOptions::FPM_On);
     Opts.OpenCLCPlusPlus = Opts.CPlusPlus;
-    Opts.OpenCLPipe = Opts.OpenCLCPlusPlus || Opts.OpenCLVersion == 200;
-    Opts.OpenCLGenericAddressSpace =
-        Opts.OpenCLCPlusPlus || Opts.OpenCLVersion == 200;
+    Opts.OpenCLPipes = Opts.getOpenCLCompatibleVersion() == 200;
+    Opts.OpenCLGenericAddressSpace = Opts.getOpenCLCompatibleVersion() == 200;
 
     // Include default header file for OpenCL.
     if (Opts.IncludeDefaultHeader) {
@@ -3317,7 +3335,8 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
   case LangStandard::lang_opencl12:
   case LangStandard::lang_opencl20:
   case LangStandard::lang_opencl30:
-  case LangStandard::lang_openclcpp:
+  case LangStandard::lang_openclcpp10:
+  case LangStandard::lang_openclcpp2021:
     StdOpt = OPT_cl_std_EQ;
     break;
   default:
@@ -3448,6 +3467,13 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
       GenerateArg(Args, OPT_fopenmp_version_EQ, Twine(Opts.OpenMP), SA);
   }
 
+  if (Opts.OpenMPTargetNewRuntime)
+    GenerateArg(Args, OPT_fopenmp_target_new_runtime, SA);
+
+  if (Opts.OpenMPTargetDebug != 0)
+    GenerateArg(Args, OPT_fopenmp_target_debug_EQ,
+                Twine(Opts.OpenMPTargetDebug), SA);
+
   if (Opts.OpenMPCUDANumSMs != 0)
     GenerateArg(Args, OPT_fopenmp_cuda_number_of_sm_EQ,
                 Twine(Opts.OpenMPCUDANumSMs), SA);
@@ -3560,6 +3586,9 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
       break;
     }
   }
+
+  for (const auto &MP : Opts.MacroPrefixMap)
+    GenerateArg(Args, OPT_fmacro_prefix_map_EQ, MP.first + "=" + MP.second, SA);
 }
 
 bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
@@ -3640,7 +3669,9 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
         .Cases("cl1.2", "CL1.2", LangStandard::lang_opencl12)
         .Cases("cl2.0", "CL2.0", LangStandard::lang_opencl20)
         .Cases("cl3.0", "CL3.0", LangStandard::lang_opencl30)
-        .Cases("clc++", "CLC++", LangStandard::lang_openclcpp)
+        .Cases("clc++", "CLC++", LangStandard::lang_openclcpp10)
+        .Cases("clc++1.0", "CLC++1.0", LangStandard::lang_openclcpp10)
+        .Cases("clc++2021", "CLC++2021", LangStandard::lang_openclcpp2021)
         .Default(LangStandard::lang_unspecified);
 
     if (OpenCLLangStd == LangStandard::lang_unspecified) {
@@ -3884,6 +3915,9 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
       Opts.OpenMP && Args.hasArg(options::OPT_fopenmp_enable_irbuilder);
   bool IsTargetSpecified =
       Opts.OpenMPIsDevice || Args.hasArg(options::OPT_fopenmp_targets_EQ);
+  Opts.OpenMPTargetNewRuntime =
+      Opts.OpenMPIsDevice &&
+      Args.hasArg(options::OPT_fopenmp_target_new_runtime);
 
   Opts.ConvergentFunctions = Opts.ConvergentFunctions || Opts.OpenMPIsDevice;
 
@@ -3911,6 +3945,7 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   // handling code for those requiring so.
   if ((Opts.OpenMPIsDevice && (T.isNVPTX() || T.isAMDGCN())) ||
       Opts.OpenCLCPlusPlus) {
+
     Opts.Exceptions = 0;
     Opts.CXXExceptions = 0;
   }
@@ -3924,6 +3959,20 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     Opts.OpenMPCUDAReductionBufNum = getLastArgIntValue(
         Args, options::OPT_fopenmp_cuda_teams_reduction_recs_num_EQ,
         Opts.OpenMPCUDAReductionBufNum, Diags);
+  }
+
+  // Set the value of the debugging flag used in the new offloading device RTL.
+  // Set either by a specific value or to a default if not specified.
+  if (Opts.OpenMPIsDevice && (Args.hasArg(OPT_fopenmp_target_debug) ||
+                              Args.hasArg(OPT_fopenmp_target_debug_EQ))) {
+    if (Opts.OpenMPTargetNewRuntime) {
+      Opts.OpenMPTargetDebug = getLastArgIntValue(
+          Args, OPT_fopenmp_target_debug_EQ, Opts.OpenMPTargetDebug, Diags);
+      if (!Opts.OpenMPTargetDebug && Args.hasArg(OPT_fopenmp_target_debug))
+        Opts.OpenMPTargetDebug = 1;
+    } else {
+      Diags.Report(diag::err_drv_debug_no_new_runtime);
+    }
   }
 
   // Get the OpenMP target triples if any.
@@ -4103,6 +4152,12 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
                    options::OPT_fno_experimental_relative_cxx_abi_vtables,
                    TargetCXXABI::usesRelativeVTables(T));
 
+  for (const auto &A : Args.getAllArgValues(OPT_fmacro_prefix_map_EQ)) {
+    auto Split = StringRef(A).split('=');
+    Opts.MacroPrefixMap.insert(
+        {std::string(Split.first), std::string(Split.second)});
+  }
+
   return Diags.getNumErrors() == NumErrorsBefore;
 }
 
@@ -4175,9 +4230,6 @@ static void GeneratePreprocessorArgs(PreprocessorOptions &Opts,
   for (const auto &D : Opts.DeserializedPCHDeclsToErrorOn)
     GenerateArg(Args, OPT_error_on_deserialized_pch_decl, D, SA);
 
-  for (const auto &MP : Opts.MacroPrefixMap)
-    GenerateArg(Args, OPT_fmacro_prefix_map_EQ, MP.first + "=" + MP.second, SA);
-
   if (Opts.PrecompiledPreambleBytes != std::make_pair(0u, false))
     GenerateArg(Args, OPT_preamble_bytes_EQ,
                 Twine(Opts.PrecompiledPreambleBytes.first) + "," +
@@ -4245,12 +4297,6 @@ static bool ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
 
   for (const auto *A : Args.filtered(OPT_error_on_deserialized_pch_decl))
     Opts.DeserializedPCHDeclsToErrorOn.insert(A->getValue());
-
-  for (const auto &A : Args.getAllArgValues(OPT_fmacro_prefix_map_EQ)) {
-    auto Split = StringRef(A).split('=');
-    Opts.MacroPrefixMap.insert(
-        {std::string(Split.first), std::string(Split.second)});
-  }
 
   if (const Arg *A = Args.getLastArg(OPT_preamble_bytes_EQ)) {
     StringRef Value(A->getValue());
@@ -4550,116 +4596,99 @@ bool CompilerInvocation::CreateFromArgs(CompilerInvocation &Invocation,
 }
 
 std::string CompilerInvocation::getModuleHash() const {
+  // FIXME: Consider using SHA1 instead of MD5.
+  llvm::HashBuilder<llvm::MD5, llvm::support::endianness::native> HBuilder;
+
   // Note: For QoI reasons, the things we use as a hash here should all be
   // dumped via the -module-info flag.
-  using llvm::hash_code;
-  using llvm::hash_value;
-  using llvm::hash_combine;
-  using llvm::hash_combine_range;
 
   // Start the signature with the compiler version.
-  // FIXME: We'd rather use something more cryptographically sound than
-  // CityHash, but this will do for now.
-  hash_code code = hash_value(getClangFullRepositoryVersion());
+  HBuilder.add(getClangFullRepositoryVersion());
 
   // Also include the serialization version, in case LLVM_APPEND_VC_REV is off
   // and getClangFullRepositoryVersion() doesn't include git revision.
-  code = hash_combine(code, serialization::VERSION_MAJOR,
-                      serialization::VERSION_MINOR);
+  HBuilder.add(serialization::VERSION_MAJOR, serialization::VERSION_MINOR);
 
   // Extend the signature with the language options
-#define LANGOPT(Name, Bits, Default, Description) \
-   code = hash_combine(code, LangOpts->Name);
-#define ENUM_LANGOPT(Name, Type, Bits, Default, Description) \
-  code = hash_combine(code, static_cast<unsigned>(LangOpts->get##Name()));
+#define LANGOPT(Name, Bits, Default, Description) HBuilder.add(LangOpts->Name);
+#define ENUM_LANGOPT(Name, Type, Bits, Default, Description)                   \
+  HBuilder.add(static_cast<unsigned>(LangOpts->get##Name()));
 #define BENIGN_LANGOPT(Name, Bits, Default, Description)
 #define BENIGN_ENUM_LANGOPT(Name, Type, Bits, Default, Description)
 #include "clang/Basic/LangOptions.def"
 
-  for (StringRef Feature : LangOpts->ModuleFeatures)
-    code = hash_combine(code, Feature);
+  HBuilder.addRange(LangOpts->ModuleFeatures);
 
-  code = hash_combine(code, LangOpts->ObjCRuntime);
-  const auto &BCN = LangOpts->CommentOpts.BlockCommandNames;
-  code = hash_combine(code, hash_combine_range(BCN.begin(), BCN.end()));
+  HBuilder.add(LangOpts->ObjCRuntime);
+  HBuilder.addRange(LangOpts->CommentOpts.BlockCommandNames);
 
   // Extend the signature with the target options.
-  code = hash_combine(code, TargetOpts->Triple, TargetOpts->CPU,
-                      TargetOpts->TuneCPU, TargetOpts->ABI);
-  for (const auto &FeatureAsWritten : TargetOpts->FeaturesAsWritten)
-    code = hash_combine(code, FeatureAsWritten);
+  HBuilder.add(TargetOpts->Triple, TargetOpts->CPU, TargetOpts->TuneCPU,
+               TargetOpts->ABI);
+  HBuilder.addRange(TargetOpts->FeaturesAsWritten);
 
   // Extend the signature with preprocessor options.
   const PreprocessorOptions &ppOpts = getPreprocessorOpts();
-  const HeaderSearchOptions &hsOpts = getHeaderSearchOpts();
-  code = hash_combine(code, ppOpts.UsePredefines, ppOpts.DetailedRecord);
+  HBuilder.add(ppOpts.UsePredefines, ppOpts.DetailedRecord);
 
-  for (const auto &I : getPreprocessorOpts().Macros) {
+  const HeaderSearchOptions &hsOpts = getHeaderSearchOpts();
+  for (const auto &Macro : getPreprocessorOpts().Macros) {
     // If we're supposed to ignore this macro for the purposes of modules,
     // don't put it into the hash.
     if (!hsOpts.ModulesIgnoreMacros.empty()) {
       // Check whether we're ignoring this macro.
-      StringRef MacroDef = I.first;
+      StringRef MacroDef = Macro.first;
       if (hsOpts.ModulesIgnoreMacros.count(
               llvm::CachedHashString(MacroDef.split('=').first)))
         continue;
     }
 
-    code = hash_combine(code, I.first, I.second);
+    HBuilder.add(Macro);
   }
 
   // Extend the signature with the sysroot and other header search options.
-  code = hash_combine(code, hsOpts.Sysroot,
-                      hsOpts.ModuleFormat,
-                      hsOpts.UseDebugInfo,
-                      hsOpts.UseBuiltinIncludes,
-                      hsOpts.UseStandardSystemIncludes,
-                      hsOpts.UseStandardCXXIncludes,
-                      hsOpts.UseLibcxx,
-                      hsOpts.ModulesValidateDiagnosticOptions);
-  code = hash_combine(code, hsOpts.ResourceDir);
+  HBuilder.add(hsOpts.Sysroot, hsOpts.ModuleFormat, hsOpts.UseDebugInfo,
+               hsOpts.UseBuiltinIncludes, hsOpts.UseStandardSystemIncludes,
+               hsOpts.UseStandardCXXIncludes, hsOpts.UseLibcxx,
+               hsOpts.ModulesValidateDiagnosticOptions);
+  HBuilder.add(hsOpts.ResourceDir);
 
   if (hsOpts.ModulesStrictContextHash) {
-    hash_code SHPC = hash_combine_range(hsOpts.SystemHeaderPrefixes.begin(),
-                                        hsOpts.SystemHeaderPrefixes.end());
-    hash_code UEC = hash_combine_range(hsOpts.UserEntries.begin(),
-                                       hsOpts.UserEntries.end());
-    code = hash_combine(code, hsOpts.SystemHeaderPrefixes.size(), SHPC,
-                        hsOpts.UserEntries.size(), UEC);
+    HBuilder.addRange(hsOpts.SystemHeaderPrefixes);
+    HBuilder.addRange(hsOpts.UserEntries);
 
     const DiagnosticOptions &diagOpts = getDiagnosticOpts();
-    #define DIAGOPT(Name, Bits, Default) \
-      code = hash_combine(code, diagOpts.Name);
-    #define ENUM_DIAGOPT(Name, Type, Bits, Default) \
-      code = hash_combine(code, diagOpts.get##Name());
-    #include "clang/Basic/DiagnosticOptions.def"
-    #undef DIAGOPT
-    #undef ENUM_DIAGOPT
+#define DIAGOPT(Name, Bits, Default) HBuilder.add(diagOpts.Name);
+#define ENUM_DIAGOPT(Name, Type, Bits, Default)                                \
+  HBuilder.add(diagOpts.get##Name());
+#include "clang/Basic/DiagnosticOptions.def"
+#undef DIAGOPT
+#undef ENUM_DIAGOPT
   }
 
   // Extend the signature with the user build path.
-  code = hash_combine(code, hsOpts.ModuleUserBuildPath);
+  HBuilder.add(hsOpts.ModuleUserBuildPath);
 
   // Extend the signature with the module file extensions.
-  const FrontendOptions &frontendOpts = getFrontendOpts();
-  for (const auto &ext : frontendOpts.ModuleFileExtensions) {
-    code = ext->hashExtension(code);
-  }
+  for (const auto &ext : getFrontendOpts().ModuleFileExtensions)
+    ext->hashExtension(HBuilder);
 
   // When compiling with -gmodules, also hash -fdebug-prefix-map as it
   // affects the debug info in the PCM.
   if (getCodeGenOpts().DebugTypeExtRefs)
-    for (const auto &KeyValue : getCodeGenOpts().DebugPrefixMap)
-      code = hash_combine(code, KeyValue.first, KeyValue.second);
+    HBuilder.addRange(getCodeGenOpts().DebugPrefixMap);
 
   // Extend the signature with the enabled sanitizers, if at least one is
   // enabled. Sanitizers which cannot affect AST generation aren't hashed.
   SanitizerSet SanHash = LangOpts->Sanitize;
   SanHash.clear(getPPTransparentSanitizers());
   if (!SanHash.empty())
-    code = hash_combine(code, SanHash.Mask);
+    HBuilder.add(SanHash.Mask);
 
-  return toString(llvm::APInt(64, code), 36, /*Signed=*/false);
+  llvm::MD5::MD5Result Result;
+  HBuilder.getHasher().final(Result);
+  uint64_t Hash = Result.high() ^ Result.low();
+  return toString(llvm::APInt(64, Hash), 36, /*Signed=*/false);
 }
 
 void CompilerInvocation::generateCC1CommandLine(

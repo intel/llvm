@@ -123,7 +123,7 @@ TEST_F(KernelInfoTest, GetPrivateMemUsage) {
     return;
   }
 
-  context Ctx{Plt};
+  context Ctx{Plt.get_devices()[0]};
   program Prg{Ctx};
   TestContext.reset(new TestCtx(Ctx));
 

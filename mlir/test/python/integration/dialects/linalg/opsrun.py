@@ -1,5 +1,6 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
+import ctypes
 import sys
 from mlir.ir import *
 from mlir.dialects import builtin
@@ -125,9 +126,11 @@ def transform(module, boilerplate):
   mod = Module.parse(
       str(module.operation.regions[0].blocks[0].operations[0].operation) +
       boilerplate)
-  pm = PassManager.parse("func(convert-linalg-to-loops, lower-affine, " +
-                         "convert-scf-to-std), convert-vector-to-llvm," +
-                         "convert-memref-to-llvm,convert-std-to-llvm")
+  pm = PassManager.parse(
+      "builtin.func(convert-linalg-to-loops, lower-affine, " +
+      "convert-scf-to-std), convert-vector-to-llvm," +
+      "convert-memref-to-llvm,convert-std-to-llvm," +
+      "reconcile-unrealized-casts")
   pm.run(mod)
   return mod
 
@@ -242,71 +245,6 @@ def test_fill_generic():
 test_fill_generic()
 
 
-def test_conv_builtin():
-  with Context() as ctx, Location.unknown():
-    module = Module.create()
-    f64 = F64Type.get()
-    i32 = IntegerType.get_signless(32)
-    with InsertionPoint(module.body):
-
-      @builtin.FuncOp.from_py_func(
-          MemRefType.get((1, 4, 16, 1), f64), MemRefType.get((2, 2, 1), f64),
-          MemRefType.get((1, 2, 4, 1), i32))
-      def conv_on_buffers(input, filter, output):
-        linalg.depthwise_conv_2d_input_nhwc_filter_hwc_poly(
-            input, filter, outs=[output], strides=[2, 4], dilations=[1, 2])
-
-    execution_engine = ExecutionEngine(transform(module, conv_boiler))
-
-    # TODO: FFI-based solution to allow testing and printing with python code.
-    # Prepare arguments: one result i32.
-    # Arguments must be passed as pointers.
-    c_int_p = ctypes.c_int * 1
-    res = c_int_p(-1)
-    execution_engine.invoke("main", res)
-
-    log("RESULT: ", res[0])
-    # CHECK: RESULT: 8
-
-
-test_conv_builtin()
-
-
-def test_conv_generic():
-  with Context() as ctx, Location.unknown():
-    module = Module.create()
-    f64 = F64Type.get()
-    i32 = IntegerType.get_signless(32)
-    with InsertionPoint(module.body):
-
-      @builtin.FuncOp.from_py_func(
-          MemRefType.get((1, 4, 16, 1), f64), MemRefType.get((2, 2, 1), f64),
-          MemRefType.get((1, 2, 4, 1), i32))
-      def conv_on_buffers(input, filter, output):
-        linalg.depthwise_conv_2d_input_nhwc_filter_hwc_poly(
-            input,
-            filter,
-            outs=[output],
-            strides=[2, 4],
-            dilations=[1, 2],
-            emit_generic=True)
-
-    execution_engine = ExecutionEngine(transform(module, conv_boiler))
-
-    # TODO: FFI-based solution to allow testing and printing with python code.
-    # Prepare arguments: one result i32.
-    # Arguments must be passed as pointers.
-    c_int_p = ctypes.c_int * 1
-    res = c_int_p(-1)
-    execution_engine.invoke("main", res)
-
-    log("RESULT: ", res[0])
-    # CHECK: RESULT: 8
-
-
-test_conv_generic()
-
-
 def test_max_pooling_builtin():
   with Context() as ctx, Location.unknown():
     module = Module.create()
@@ -318,7 +256,7 @@ def test_max_pooling_builtin():
           MemRefType.get((1, 4, 16, 1), f64), MemRefType.get((2, 2), f64),
           MemRefType.get((1, 2, 4, 1), i32))
       def pooling_on_buffers(input, shape, output):
-        linalg.pooling_nhwc_max_poly(
+        linalg.pooling_nhwc_max(
             input, shape, outs=[output], strides=[2, 4], dilations=[1, 2])
 
     execution_engine = ExecutionEngine(transform(module, pooling_boiler))
@@ -349,7 +287,7 @@ def test_max_pooling_generic():
           MemRefType.get((1, 4, 16, 1), f64), MemRefType.get((2, 2), f64),
           MemRefType.get((1, 2, 4, 1), i32))
       def pooling_on_buffers(input, shape, output):
-        linalg.pooling_nhwc_max_poly(
+        linalg.pooling_nhwc_max(
             input,
             shape,
             outs=[output],
@@ -385,7 +323,7 @@ def test_min_pooling_builtin():
           MemRefType.get((1, 4, 16, 1), f64), MemRefType.get((2, 2), f64),
           MemRefType.get((1, 2, 4, 1), i32))
       def pooling_on_buffers(input, shape, output):
-        linalg.pooling_nhwc_min_poly(
+        linalg.pooling_nhwc_min(
             input, shape, outs=[output], strides=[2, 4], dilations=[1, 2])
 
     execution_engine = ExecutionEngine(transform(module, pooling_boiler))
@@ -415,7 +353,7 @@ def test_min_pooling_generic():
           MemRefType.get((1, 4, 16, 1), f64), MemRefType.get((2, 2), f64),
           MemRefType.get((1, 2, 4, 1), i32))
       def pooling_on_buffers(input, shape, output):
-        linalg.pooling_nhwc_min_poly(
+        linalg.pooling_nhwc_min(
             input,
             shape,
             outs=[output],

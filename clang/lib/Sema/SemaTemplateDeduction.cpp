@@ -1297,12 +1297,12 @@ static Sema::TemplateDeductionResult DeduceTemplateBases(
       AddBases(Match.first);
 
     // We can give up once we have a single item (or have run out of things to
-    // search) since cyclical inheritence isn't valid.
+    // search) since cyclical inheritance isn't valid.
     while (Matches.size() > 1 && !ToVisit.empty()) {
       const RecordType *NextT = ToVisit.pop_back_val();
       Matches.erase(NextT);
 
-      // Always add all bases, since the inheritence tree can contain
+      // Always add all bases, since the inheritance tree can contain
       // disqualifications for multiple matches.
       AddBases(NextT);
     }
@@ -2858,9 +2858,24 @@ static Sema::TemplateDeductionResult ConvertDeducedTemplateArguments(
       return Sema::TDK_Incomplete;
     }
 
-    TemplateArgumentLoc DefArg = S.SubstDefaultTemplateArgumentIfAvailable(
-        TD, TD->getLocation(), TD->getSourceRange().getEnd(), Param, Builder,
-        HasDefaultArg);
+    TemplateArgumentLoc DefArg;
+    {
+      Qualifiers ThisTypeQuals;
+      CXXRecordDecl *ThisContext = nullptr;
+      if (auto *Rec = dyn_cast<CXXRecordDecl>(TD->getDeclContext()))
+        if (Rec->isLambda())
+          if (auto *Method = dyn_cast<CXXMethodDecl>(Rec->getDeclContext())) {
+            ThisContext = Method->getParent();
+            ThisTypeQuals = Method->getMethodQualifiers();
+          }
+
+      Sema::CXXThisScopeRAII ThisScope(S, ThisContext, ThisTypeQuals,
+                                       S.getLangOpts().CPlusPlus17);
+
+      DefArg = S.SubstDefaultTemplateArgumentIfAvailable(
+          TD, TD->getLocation(), TD->getSourceRange().getEnd(), Param, Builder,
+          HasDefaultArg);
+    }
 
     // If there was no default argument, deduction is incomplete.
     if (DefArg.getArgument().isNull()) {
@@ -4346,7 +4361,7 @@ Sema::TemplateDeductionResult Sema::DeduceTemplateArguments(
     HasDeducedReturnType = true;
   }
 
-  if (!ArgFunctionType.isNull()) {
+  if (!ArgFunctionType.isNull() && !FunctionType.isNull()) {
     unsigned TDF =
         TDF_TopLevelParameterTypeList | TDF_AllowCompatibleFunctionType;
     // Deduce template arguments from the function type.

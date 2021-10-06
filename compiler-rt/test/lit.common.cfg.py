@@ -55,7 +55,9 @@ def find_compiler_libdir():
 
   # Try using `-print-runtime-dir`. This is only supported by very new versions of Clang.
   # so allow failure here.
-  runtime_dir, clang_cmd = get_path_from_clang(['-print-runtime-dir'], allow_failure=True)
+  runtime_dir, clang_cmd = get_path_from_clang(shlex.split(config.target_cflags)
+                                               + ['-print-runtime-dir'],
+                                               allow_failure=True)
   if runtime_dir:
     if os.path.exists(runtime_dir):
       return os.path.realpath(runtime_dir)
@@ -122,6 +124,16 @@ else:
   lit_config.fatal("Unsupported compiler id: %r" % compiler_id)
 # Add compiler ID to the list of available features.
 config.available_features.add(compiler_id)
+
+# When LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=on, the initial value of
+# config.compiler_rt_libdir (COMPILER_RT_RESOLVED_LIBRARY_OUTPUT_DIR) has the
+# triple as the trailing path component. The value is incorrect for -m32/-m64.
+# Adjust config.compiler_rt accordingly.
+if config.enable_per_target_runtime_dir:
+    if '-m32' in shlex.split(config.target_cflags):
+        config.compiler_rt_libdir = re.sub(r'/x86_64(?=-[^/]+$)', '/i386', config.compiler_rt_libdir)
+    elif '-m64' in shlex.split(config.target_cflags):
+        config.compiler_rt_libdir = re.sub(r'/i386(?=-[^/]+$)', '/x86_64', config.compiler_rt_libdir)
 
 # Ask the compiler for the path to libraries it is going to use. If this
 # doesn't match config.compiler_rt_libdir then it means we might be testing the
@@ -447,9 +459,8 @@ if config.android:
 
   # These are needed for tests to upload/download temp files, such as
   # suppression-files, to device.
-  config.substitutions.append( ('%device_rundir', "/data/local/tmp/Output") )
+  config.substitutions.append( ('%device_rundir/', "/data/local/tmp/Output/") )
   config.substitutions.append( ('%push_to_device', "%s -s '%s' push " % (adb, env['ANDROID_SERIAL']) ) )
-  config.substitutions.append( ('%pull_from_device', "%s -s '%s' pull " % (adb, env['ANDROID_SERIAL']) ) )
   config.substitutions.append( ('%adb_shell ', "%s -s '%s' shell " % (adb, env['ANDROID_SERIAL']) ) )
   config.substitutions.append( ('%device_rm', "%s -s '%s' shell 'rm ' " % (adb, env['ANDROID_SERIAL']) ) )
 
@@ -476,9 +487,8 @@ if config.android:
   for file in config.android_files_to_push:
     subprocess.check_call([adb, "push", file, android_tmpdir], env=env)
 else:
-  config.substitutions.append( ('%device_rundir', "") )
+  config.substitutions.append( ('%device_rundir/', "") )
   config.substitutions.append( ('%push_to_device', "echo ") )
-  config.substitutions.append( ('%pull_from_device', "echo ") )
   config.substitutions.append( ('%adb_shell', "echo ") )
 
 if config.host_os == 'Linux':
@@ -622,7 +632,7 @@ for postfix in ["2", "1", ""]:
   config.substitutions.append( ("%xdynamiclib_filename" + postfix, 'lib%xdynamiclib_namespec{}.so'.format(postfix)) )
   config.substitutions.append( ("%xdynamiclib_namespec", '%basename_t.dynamic') )
 
-# Provide a substituion that can be used to tell Clang to use a static libstdc++.
+# Provide a substitution that can be used to tell Clang to use a static libstdc++.
 # The substitution expands to nothing on non Linux platforms.
 # FIXME: This should check the target OS, not the host OS.
 if config.host_os == 'Linux':
@@ -697,16 +707,16 @@ config.target_cflags = " " + " ".join(target_cflags + extra_cflags) + " "
 
 if config.host_os == 'Darwin':
   config.substitutions.append((
-    "%get_pid_from_output", 
+    "%get_pid_from_output",
     "{} {}/get_pid_from_output.py".format(
-      sh_quote(config.python_executable), 
+      sh_quote(config.python_executable),
       sh_quote(get_ios_commands_dir())
     ))
   )
   config.substitutions.append(
-    ("%print_crashreport_for_pid", 
+    ("%print_crashreport_for_pid",
     "{} {}/print_crashreport_for_pid.py".format(
-      sh_quote(config.python_executable), 
+      sh_quote(config.python_executable),
       sh_quote(get_ios_commands_dir())
     ))
   )

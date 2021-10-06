@@ -23,6 +23,7 @@
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
+#include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
@@ -54,7 +55,7 @@ bool matchExtractVecEltPairwiseAdd(
   Register Src2 = MI.getOperand(2).getReg();
   LLT DstTy = MRI.getType(MI.getOperand(0).getReg());
 
-  auto Cst = getConstantVRegValWithLookThrough(Src2, MRI);
+  auto Cst = getIConstantVRegValWithLookThrough(Src2, MRI);
   if (!Cst || Cst->Value != 0)
     return false;
   // SDAG also checks for FullFP16, but this looks to be beneficial anyway.
@@ -128,7 +129,7 @@ bool matchAArch64MulConstCombine(
   const LLT Ty = MRI.getType(LHS);
 
   // The below optimizations require a constant RHS.
-  auto Const = getConstantVRegValWithLookThrough(RHS, MRI);
+  auto Const = getIConstantVRegValWithLookThrough(RHS, MRI);
   if (!Const)
     return false;
 
@@ -238,6 +239,27 @@ bool applyAArch64MulConstCombine(
   ApplyFn(B, MI.getOperand(0).getReg());
   MI.eraseFromParent();
   return true;
+}
+
+/// Try to fold a G_MERGE_VALUES of 2 s32 sources, where the second source
+/// is a zero, into a G_ZEXT of the first.
+bool matchFoldMergeToZext(MachineInstr &MI, MachineRegisterInfo &MRI) {
+  auto &Merge = cast<GMerge>(MI);
+  LLT SrcTy = MRI.getType(Merge.getSourceReg(0));
+  if (SrcTy != LLT::scalar(32) || Merge.getNumSources() != 2)
+    return false;
+  return mi_match(Merge.getSourceReg(1), MRI, m_SpecificICst(0));
+}
+
+void applyFoldMergeToZext(MachineInstr &MI, MachineRegisterInfo &MRI,
+                          MachineIRBuilder &B, GISelChangeObserver &Observer) {
+  // Mutate %d(s64) = G_MERGE_VALUES %a(s32), 0(s32)
+  //  ->
+  // %d(s64) = G_ZEXT %a(s32)
+  Observer.changingInstr(MI);
+  MI.setDesc(B.getTII().get(TargetOpcode::G_ZEXT));
+  MI.RemoveOperand(2);
+  Observer.changedInstr(MI);
 }
 
 #define AARCH64POSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_DEPS

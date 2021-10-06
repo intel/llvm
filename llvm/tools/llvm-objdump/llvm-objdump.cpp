@@ -297,16 +297,15 @@ void objdump::reportWarning(const Twine &Message, StringRef File) {
       << "'" << File << "': " << Message << "\n";
 }
 
-LLVM_ATTRIBUTE_NORETURN void objdump::reportError(StringRef File,
-                                                  const Twine &Message) {
+[[noreturn]] void objdump::reportError(StringRef File, const Twine &Message) {
   outs().flush();
   WithColor::error(errs(), ToolName) << "'" << File << "': " << Message << "\n";
   exit(1);
 }
 
-LLVM_ATTRIBUTE_NORETURN void objdump::reportError(Error E, StringRef FileName,
-                                                  StringRef ArchiveName,
-                                                  StringRef ArchitectureName) {
+[[noreturn]] void objdump::reportError(Error E, StringRef FileName,
+                                       StringRef ArchiveName,
+                                       StringRef ArchitectureName) {
   assert(E);
   outs().flush();
   WithColor::error(errs(), ToolName);
@@ -325,7 +324,7 @@ static void reportCmdLineWarning(const Twine &Message) {
   WithColor::warning(errs(), ToolName) << Message << "\n";
 }
 
-LLVM_ATTRIBUTE_NORETURN static void reportCmdLineError(const Twine &Message) {
+[[noreturn]] static void reportCmdLineError(const Twine &Message) {
   WithColor::error(errs(), ToolName) << Message << "\n";
   exit(1);
 }
@@ -1286,6 +1285,10 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
     if (shouldAdjustVA(Section))
       VMAAdjustment = AdjustVMA;
 
+    // In executable and shared objects, r_offset holds a virtual address.
+    // Subtract SectionAddr from the r_offset field of a relocation to get
+    // the section offset.
+    uint64_t RelAdjustment = Obj->isRelocatableObject() ? 0 : SectionAddr;
     uint64_t Size;
     uint64_t Index;
     bool PrintedSection = false;
@@ -1432,7 +1435,8 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
             // For --reloc: print zero blocks patched by relocations, so that
             // relocations can be shown in the dump.
             if (RelCur != RelEnd)
-              MaxOffset = RelCur->getOffset() - Index;
+              MaxOffset = std::min(RelCur->getOffset() - RelAdjustment - Index,
+                                   MaxOffset);
 
             if (size_t N =
                     countSkippableZeroBytes(Bytes.slice(Index, MaxOffset))) {
@@ -1481,7 +1485,7 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
             if (!PrintTarget)
               if (Optional<uint64_t> MaybeTarget =
                       MIA->evaluateMemoryOperandAddress(
-                          Inst, SectionAddr + Index, Size)) {
+                          Inst, STI, SectionAddr + Index, Size)) {
                 Target = *MaybeTarget;
                 PrintTarget = true;
                 // Do not print real address when symbolizing.
@@ -1581,7 +1585,7 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
         if (Obj->getArch() != Triple::hexagon) {
           // Print relocation for instruction and data.
           while (RelCur != RelEnd) {
-            uint64_t Offset = RelCur->getOffset();
+            uint64_t Offset = RelCur->getOffset() - RelAdjustment;
             // If this relocation is hidden, skip it.
             if (getHidden(*RelCur) || SectionAddr + Offset < StartAddress) {
               ++RelCur;
@@ -1922,7 +1926,8 @@ void objdump::printSymbolTable(const ObjectFile *O, StringRef ArchiveName,
   if (!DumpDynamic) {
     outs() << "\nSYMBOL TABLE:\n";
     for (auto I = O->symbol_begin(); I != O->symbol_end(); ++I)
-      printSymbol(O, *I, FileName, ArchiveName, ArchitectureName, DumpDynamic);
+      printSymbol(O, *I, {}, FileName, ArchiveName, ArchitectureName,
+                  DumpDynamic);
     return;
   }
 
@@ -1935,12 +1940,21 @@ void objdump::printSymbolTable(const ObjectFile *O, StringRef ArchiveName,
   }
 
   const ELFObjectFileBase *ELF = cast<const ELFObjectFileBase>(O);
-  for (auto I = ELF->getDynamicSymbolIterators().begin();
-       I != ELF->getDynamicSymbolIterators().end(); ++I)
-    printSymbol(O, *I, FileName, ArchiveName, ArchitectureName, DumpDynamic);
+  auto Symbols = ELF->getDynamicSymbolIterators();
+  Expected<std::vector<VersionEntry>> SymbolVersionsOrErr =
+      ELF->readDynsymVersions();
+  if (!SymbolVersionsOrErr) {
+    reportWarning(toString(SymbolVersionsOrErr.takeError()), FileName);
+    SymbolVersionsOrErr = std::vector<VersionEntry>();
+    (void)!SymbolVersionsOrErr;
+  }
+  for (auto &Sym : Symbols)
+    printSymbol(O, Sym, *SymbolVersionsOrErr, FileName, ArchiveName,
+                ArchitectureName, DumpDynamic);
 }
 
 void objdump::printSymbol(const ObjectFile *O, const SymbolRef &Symbol,
+                          ArrayRef<VersionEntry> SymbolVersions,
                           StringRef FileName, StringRef ArchiveName,
                           StringRef ArchitectureName, bool DumpDynamic) {
   const MachOObjectFile *MachO = dyn_cast<const MachOObjectFile>(O);
@@ -2045,6 +2059,15 @@ void objdump::printSymbol(const ObjectFile *O, const SymbolRef &Symbol,
   }
 
   if (O->isELF()) {
+    if (!SymbolVersions.empty()) {
+      const VersionEntry &Ver =
+          SymbolVersions[Symbol.getRawDataRefImpl().d.b - 1];
+      std::string Str;
+      if (!Ver.Name.empty())
+        Str = Ver.IsVerDef ? ' ' + Ver.Name : '(' + Ver.Name + ')';
+      outs() << ' ' << left_justify(Str, 12);
+    }
+
     uint8_t Other = ELFSymbolRef(Symbol).getOther();
     switch (Other) {
     case ELF::STV_DEFAULT:

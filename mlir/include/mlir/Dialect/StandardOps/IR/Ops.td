@@ -457,6 +457,32 @@ def AtomicYieldOp : Std_Op<"atomic_yield", [
 }
 
 //===----------------------------------------------------------------------===//
+// BitcastOp
+//===----------------------------------------------------------------------===//
+
+def BitcastOp : ArithmeticCastOp<"bitcast"> {
+  let summary = "bitcast between values of equal bit width";
+  let description = [{
+    Bitcast an integer or floating point value to an integer or floating point
+    value of equal bit width. When operating on vectors, casts elementwise.
+
+    Note that this implements a logical bitcast independent of target
+    endianness. This allows constant folding without target information and is
+    consitent with the bitcast constant folders in LLVM (see
+    https://github.com/llvm/llvm-project/blob/18c19414eb/llvm/lib/IR/ConstantFold.cpp#L168)
+    For targets where the source and target type have the same endianness (which
+    is the standard), this cast will also change no bits at runtime, but it may
+    still require an operation, for example if the machine has different
+    floating point and integer register files. For targets that have a different
+    endianness for the source and target types (e.g. float is big-endian and
+    integer is little-endian) a proper lowering would add operations to swap the
+    order of words in addition to the bitcast.
+  }];
+  let hasFolder = 1;
+}
+
+
+//===----------------------------------------------------------------------===//
 // BranchOp
 //===----------------------------------------------------------------------===//
 
@@ -534,7 +560,7 @@ def CallOp : Std_Op<"call",
   let builders = [
     OpBuilder<(ins "FuncOp":$callee, CArg<"ValueRange", "{}">:$operands), [{
       $_state.addOperands(operands);
-      $_state.addAttribute("callee",$_builder.getSymbolRefAttr(callee));
+      $_state.addAttribute("callee", SymbolRefAttr::get(callee));
       $_state.addTypes(callee.getType().getResults());
     }]>,
     OpBuilder<(ins "SymbolRefAttr":$callee, "TypeRange":$results,
@@ -543,14 +569,19 @@ def CallOp : Std_Op<"call",
       $_state.addAttribute("callee", callee);
       $_state.addTypes(results);
     }]>,
+    OpBuilder<(ins "StringAttr":$callee, "TypeRange":$results,
+      CArg<"ValueRange", "{}">:$operands), [{
+      build($_builder, $_state, SymbolRefAttr::get(callee), results, operands);
+    }]>,
     OpBuilder<(ins "StringRef":$callee, "TypeRange":$results,
       CArg<"ValueRange", "{}">:$operands), [{
-      build($_builder, $_state, $_builder.getSymbolRefAttr(callee), results,
-            operands);
+      build($_builder, $_state, StringAttr::get($_builder.getContext(), callee),
+            results, operands);
     }]>];
 
   let extraClassDeclaration = [{
     StringRef getCallee() { return callee(); }
+    StringAttr getCalleeAttr() { return calleeAttr().getAttr(); }
     FunctionType getCalleeType();
 
     /// Get the argument operands to the called function.
@@ -1006,7 +1037,8 @@ def CondBranchOp : Std_Op<"cond_br",
 //===----------------------------------------------------------------------===//
 
 def ConstantOp : Std_Op<"constant",
-    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+    [ConstantLike, NoSideEffect,
+     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
   let summary = "constant";
   let description = [{
     Syntax:
@@ -1194,6 +1226,8 @@ def FPTruncOp : ArithmeticCastOp<"fptrunc"> {
     If the value cannot be exactly represented, it is rounded using the default
     rounding mode. When operating on vectors, casts elementwise.
   }];
+
+  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1784,14 +1818,17 @@ def SwitchOp : Std_Op<"switch",
     ```
   }];
 
-  let arguments = (ins AnyInteger:$flag,
-                       Variadic<AnyType>:$defaultOperands,
-                       Variadic<AnyType>:$caseOperands,
-                       OptionalAttr<AnyIntElementsAttr>:$case_values,
-                       OptionalAttr<I32ElementsAttr>:$case_operand_offsets);
+  let arguments = (ins
+    AnyInteger:$flag,
+    Variadic<AnyType>:$defaultOperands,
+    VariadicOfVariadic<AnyType, "case_operand_segments">:$caseOperands,
+    OptionalAttr<AnyIntElementsAttr>:$case_values,
+    I32ElementsAttr:$case_operand_segments
+  );
   let successors = (successor
-                        AnySuccessor:$defaultDestination,
-                        VariadicSuccessor<AnySuccessor>:$caseDestinations);
+    AnySuccessor:$defaultDestination,
+    VariadicSuccessor<AnySuccessor>:$caseDestinations
+  );
   let builders = [
     OpBuilder<(ins "Value":$flag,
       "Block *":$defaultDestination,
@@ -1821,19 +1858,22 @@ def SwitchOp : Std_Op<"switch",
                             $case_values,
                             $caseDestinations,
                             $caseOperands,
-                            type($caseOperands),
-                            $case_operand_offsets)
+                            type($caseOperands))
    `]`
     attr-dict
   }];
 
   let extraClassDeclaration = [{
     /// Return the operands for the case destination block at the given index.
-    OperandRange getCaseOperands(unsigned index);
+    OperandRange getCaseOperands(unsigned index) {
+      return caseOperands()[index];
+    }
 
     /// Return a mutable range of operands for the case destination block at the
     /// given index.
-    MutableOperandRange getCaseOperandsMutable(unsigned index);
+    MutableOperandRange getCaseOperandsMutable(unsigned index) {
+      return caseOperandsMutable()[index];
+    }
   }];
 
   let hasCanonicalizer = 1;

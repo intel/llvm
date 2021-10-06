@@ -106,6 +106,7 @@ public:
   /// PropList.
   ///
   /// \param Platform is an instance of SYCL platform.
+  /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
   explicit context(const platform &Platform, async_handler AsyncHandler,
                    const property_list &PropList = {});
@@ -215,6 +216,7 @@ public:
   ///
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   auto get_native() const -> typename interop<BackendName, context>::type {
     return reinterpret_cast<typename interop<BackendName, context>::type>(
         getNative());

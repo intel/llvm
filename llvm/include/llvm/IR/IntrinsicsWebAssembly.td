@@ -50,7 +50,8 @@ def int_wasm_trunc_saturate_unsigned : Intrinsic<[llvm_anyint_ty],
 //===----------------------------------------------------------------------===//
 
 // throw / rethrow
-// The immediate argument is an index to a tag, which is 0 for C++.
+// The first immediate argument is an index to a tag, which is 0 for C++
+// exception. The second argument is the thrown exception pointer.
 def int_wasm_throw : Intrinsic<[], [llvm_i32_ty, llvm_ptr_ty],
                                [Throws, IntrNoReturn, ImmArg<ArgIndex<0>>]>;
 def int_wasm_rethrow : Intrinsic<[], [], [Throws, IntrNoReturn]>;
@@ -63,8 +64,9 @@ def int_wasm_get_ehselector : Intrinsic<[llvm_i32_ty], [llvm_token_ty],
                                         [IntrHasSideEffects]>;
 
 // wasm.catch returns the pointer to the exception object caught by wasm 'catch'
-// instruction. This returns a single pointer, which is sufficient for C++
-// support. The immediate argument is an index to for a tag, which is 0 for C++.
+// instruction. This returns a single pointer, which is the case for C++
+// exceptions. The immediate argument is an index to for a tag, which is 0 for
+// C++ exceptions.
 def int_wasm_catch : Intrinsic<[llvm_ptr_ty], [llvm_i32_ty],
                                [IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
 
@@ -162,7 +164,6 @@ def int_wasm_q15mulr_sat_signed :
             [llvm_v8i16_ty, llvm_v8i16_ty],
             [IntrNoMem, IntrSpeculatable]>;
 
-// TODO: Replace these intrinsics with normal ISel patterns
 def int_wasm_pmin :
   Intrinsic<[llvm_anyvector_ty],
             [LLVMMatchType<0>, LLVMMatchType<0>],
@@ -170,42 +171,6 @@ def int_wasm_pmin :
 def int_wasm_pmax :
   Intrinsic<[llvm_anyvector_ty],
             [LLVMMatchType<0>, LLVMMatchType<0>],
-            [IntrNoMem, IntrSpeculatable]>;
-
-// TODO: Replace these intrinsic with normal ISel patterns once the
-// load_zero instructions are merged to the proposal.
-def int_wasm_load32_zero :
-  Intrinsic<[llvm_v4i32_ty],
-            [LLVMPointerType<llvm_i32_ty>],
-            [IntrReadMem, IntrArgMemOnly],
-             "", [SDNPMemOperand]>;
-
-def int_wasm_load64_zero :
-  Intrinsic<[llvm_v2i64_ty],
-            [LLVMPointerType<llvm_i64_ty>],
-            [IntrReadMem, IntrArgMemOnly],
-             "", [SDNPMemOperand]>;
-
-// TODO: Replace this intrinsic with normal ISel patterns once popcnt is merged
-// to the proposal.
-def int_wasm_popcnt :
-  Intrinsic<[llvm_v16i8_ty], [llvm_v16i8_ty], [IntrNoMem, IntrSpeculatable]>;
-
-def int_wasm_extmul_low_signed :
-  Intrinsic<[llvm_anyvector_ty],
-            [LLVMSubdivide2VectorType<0>, LLVMSubdivide2VectorType<0>],
-            [IntrNoMem, IntrSpeculatable]>;
-def int_wasm_extmul_high_signed :
-  Intrinsic<[llvm_anyvector_ty],
-            [LLVMSubdivide2VectorType<0>, LLVMSubdivide2VectorType<0>],
-            [IntrNoMem, IntrSpeculatable]>;
-def int_wasm_extmul_low_unsigned :
-  Intrinsic<[llvm_anyvector_ty],
-            [LLVMSubdivide2VectorType<0>, LLVMSubdivide2VectorType<0>],
-            [IntrNoMem, IntrSpeculatable]>;
-def int_wasm_extmul_high_unsigned :
-  Intrinsic<[llvm_anyvector_ty],
-            [LLVMSubdivide2VectorType<0>, LLVMSubdivide2VectorType<0>],
             [IntrNoMem, IntrSpeculatable]>;
 
 def int_wasm_extadd_pairwise_signed :

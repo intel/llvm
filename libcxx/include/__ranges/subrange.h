@@ -9,31 +9,35 @@
 #ifndef _LIBCPP___RANGES_SUBRANGE_H
 #define _LIBCPP___RANGES_SUBRANGE_H
 
+#include <__concepts/constructible.h>
+#include <__concepts/convertible_to.h>
+#include <__concepts/copyable.h>
+#include <__concepts/derived_from.h>
+#include <__concepts/different_from.h>
 #include <__config>
+#include <__debug>
+#include <__iterator/advance.h>
 #include <__iterator/concepts.h>
 #include <__iterator/incrementable_traits.h>
 #include <__iterator/iterator_traits.h>
-#include <__iterator/advance.h>
 #include <__ranges/access.h>
 #include <__ranges/concepts.h>
+#include <__ranges/dangling.h>
 #include <__ranges/enable_borrowed_range.h>
 #include <__ranges/size.h>
 #include <__ranges/view_interface.h>
-#include <concepts>
+#include <__tuple>
+#include <__utility/move.h>
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if !defined(_LIBCPP_HAS_NO_RANGES)
 
-// clang-format off
 namespace ranges {
   template<class _From, class _To>
   concept __convertible_to_non_slicing =
@@ -69,7 +73,10 @@ namespace ranges {
     _Iter __begin_ = _Iter();
     _Sent __end_ = _Sent();
 
+    _LIBCPP_HIDE_FROM_ABI
     constexpr __subrange_base() = default;
+
+    _LIBCPP_HIDE_FROM_ABI
     constexpr __subrange_base(_Iter __iter, _Sent __sent, make_unsigned_t<iter_difference_t<_Iter>> = 0)
       : __begin_(_VSTD::move(__iter)), __end_(__sent) { }
   };
@@ -81,7 +88,10 @@ namespace ranges {
     _Sent __end_ = _Sent();
     make_unsigned_t<iter_difference_t<_Iter>> __size_ = 0;
 
+    _LIBCPP_HIDE_FROM_ABI
     constexpr __subrange_base() = default;
+
+    _LIBCPP_HIDE_FROM_ABI
     constexpr __subrange_base(_Iter __iter, _Sent __sent, decltype(__size_) __size)
       : __begin_(_VSTD::move(__iter)), __end_(__sent), __size_(__size) { }
   };
@@ -97,21 +107,30 @@ namespace ranges {
 
     using _Base = __subrange_base<_Iter, _Sent, _Kind == subrange_kind::sized && !sized_sentinel_for<_Sent, _Iter>>;
 
+    _LIBCPP_HIDE_FROM_ABI
     subrange() requires default_initializable<_Iter> = default;
 
+    _LIBCPP_HIDE_FROM_ABI
     constexpr subrange(__convertible_to_non_slicing<_Iter> auto __iter, _Sent __sent)
       requires (!_Base::__store_size)
       : _Base(_VSTD::move(__iter), __sent) {}
 
+    _LIBCPP_HIDE_FROM_ABI
     constexpr subrange(__convertible_to_non_slicing<_Iter> auto __iter, _Sent __sent,
                        make_unsigned_t<iter_difference_t<_Iter>> __n)
       requires (_Kind == subrange_kind::sized)
-      : _Base(_VSTD::move(__iter), __sent, __n) { }
+      : _Base(_VSTD::move(__iter), __sent, __n)
+    {
+      if constexpr (sized_sentinel_for<_Sent, _Iter>)
+        _LIBCPP_ASSERT((this->__end_ - this->__begin_) == static_cast<iter_difference_t<_Iter>>(__n),
+          "std::ranges::subrange was passed an invalid size hint");
+    }
 
     template<__different_from<subrange> _Range>
       requires borrowed_range<_Range> &&
                __convertible_to_non_slicing<iterator_t<_Range>, _Iter> &&
                convertible_to<sentinel_t<_Range>, _Sent>
+    _LIBCPP_HIDE_FROM_ABI
     constexpr subrange(_Range&& __range)
       requires (!_Base::__store_size)
       : subrange(ranges::begin(__range), ranges::end(__range)) { }
@@ -120,6 +139,7 @@ namespace ranges {
       requires borrowed_range<_Range> &&
                __convertible_to_non_slicing<iterator_t<_Range>, _Iter> &&
                convertible_to<sentinel_t<_Range>, _Sent>
+    _LIBCPP_HIDE_FROM_ABI
     constexpr subrange(_Range&& __range)
       requires _Base::__store_size && sized_range<_Range>
       : subrange(__range, ranges::size(__range)) { }
@@ -128,26 +148,31 @@ namespace ranges {
     template<borrowed_range _Range>
       requires __convertible_to_non_slicing<iterator_t<_Range>, _Iter> &&
                convertible_to<sentinel_t<_Range>, _Sent>
+    _LIBCPP_HIDE_FROM_ABI
     constexpr subrange(_Range&& __range, make_unsigned_t<iter_difference_t<_Iter>> __n)
       requires (_Kind == subrange_kind::sized)
       : subrange(ranges::begin(__range), ranges::end(__range), __n) { }
 
     template<__different_from<subrange> _Pair>
       requires __pair_like_convertible_from<_Pair, const _Iter&, const _Sent&>
+    _LIBCPP_HIDE_FROM_ABI
     constexpr operator _Pair() const { return _Pair(this->__begin_, this->__end_); }
 
+    _LIBCPP_HIDE_FROM_ABI
     constexpr _Iter begin() const requires copyable<_Iter> {
       return this->__begin_;
     }
 
-    [[nodiscard]] constexpr _Iter begin() requires (!copyable<_Iter>) {
+    [[nodiscard]] _LIBCPP_HIDE_FROM_ABI constexpr _Iter begin() requires (!copyable<_Iter>) {
       return _VSTD::move(this->__begin_);
     }
 
+    _LIBCPP_HIDE_FROM_ABI
     constexpr _Sent end() const { return this->__end_; }
 
-    [[nodiscard]] constexpr bool empty() const { return this->__begin_ == this->__end_; }
+    [[nodiscard]] _LIBCPP_HIDE_FROM_ABI constexpr bool empty() const { return this->__begin_ == this->__end_; }
 
+    _LIBCPP_HIDE_FROM_ABI
     constexpr make_unsigned_t<iter_difference_t<_Iter>> size() const
       requires (_Kind == subrange_kind::sized)
     {
@@ -157,25 +182,26 @@ namespace ranges {
         return __to_unsigned_like(this->__end_ - this->__begin_);
     }
 
-    [[nodiscard]] constexpr subrange next(iter_difference_t<_Iter> __n = 1) const&
+    [[nodiscard]] _LIBCPP_HIDE_FROM_ABI constexpr subrange next(iter_difference_t<_Iter> __n = 1) const&
       requires forward_iterator<_Iter> {
       auto __tmp = *this;
       __tmp.advance(__n);
       return __tmp;
     }
 
-    [[nodiscard]] constexpr subrange next(iter_difference_t<_Iter> __n = 1) && {
+    [[nodiscard]] _LIBCPP_HIDE_FROM_ABI constexpr subrange next(iter_difference_t<_Iter> __n = 1) && {
       advance(__n);
       return _VSTD::move(*this);
     }
 
-    [[nodiscard]] constexpr subrange prev(iter_difference_t<_Iter> __n = 1) const
+    [[nodiscard]] _LIBCPP_HIDE_FROM_ABI constexpr subrange prev(iter_difference_t<_Iter> __n = 1) const
       requires bidirectional_iterator<_Iter> {
       auto __tmp = *this;
       __tmp.advance(-__n);
       return __tmp;
     }
 
+    _LIBCPP_HIDE_FROM_ABI
     constexpr subrange& advance(iter_difference_t<_Iter> __n) {
       if constexpr (bidirectional_iterator<_Iter>) {
         if (__n < 0) {
@@ -211,6 +237,7 @@ namespace ranges {
 
   template<size_t _Index, class _Iter, class _Sent, subrange_kind _Kind>
     requires (_Index < 2)
+  _LIBCPP_HIDE_FROM_ABI
   constexpr auto get(const subrange<_Iter, _Sent, _Kind>& __subrange) {
     if constexpr (_Index == 0)
       return __subrange.begin();
@@ -220,6 +247,7 @@ namespace ranges {
 
   template<size_t _Index, class _Iter, class _Sent, subrange_kind _Kind>
     requires (_Index < 2)
+  _LIBCPP_HIDE_FROM_ABI
   constexpr auto get(subrange<_Iter, _Sent, _Kind>&& __subrange) {
     if constexpr (_Index == 0)
       return __subrange.begin();
@@ -229,16 +257,42 @@ namespace ranges {
 
   template<class _Ip, class _Sp, subrange_kind _Kp>
   inline constexpr bool enable_borrowed_range<subrange<_Ip, _Sp, _Kp>> = true;
+
+  template<range _Rp>
+  using borrowed_subrange_t = _If<borrowed_range<_Rp>, subrange<iterator_t<_Rp>>, dangling>;
 } // namespace ranges
+
+// [range.subrange.general]
 
 using ranges::get;
 
-// clang-format off
+// [ranges.syn]
+
+template<class _Ip, class _Sp, ranges::subrange_kind _Kp>
+struct tuple_size<ranges::subrange<_Ip, _Sp, _Kp>> : integral_constant<size_t, 2> {};
+
+template<class _Ip, class _Sp, ranges::subrange_kind _Kp>
+struct tuple_element<0, ranges::subrange<_Ip, _Sp, _Kp>> {
+  using type = _Ip;
+};
+
+template<class _Ip, class _Sp, ranges::subrange_kind _Kp>
+struct tuple_element<1, ranges::subrange<_Ip, _Sp, _Kp>> {
+  using type = _Sp;
+};
+
+template<class _Ip, class _Sp, ranges::subrange_kind _Kp>
+struct tuple_element<0, const ranges::subrange<_Ip, _Sp, _Kp>> {
+  using type = _Ip;
+};
+
+template<class _Ip, class _Sp, ranges::subrange_kind _Kp>
+struct tuple_element<1, const ranges::subrange<_Ip, _Sp, _Kp>> {
+  using type = _Sp;
+};
 
 #endif // !defined(_LIBCPP_HAS_NO_RANGES)
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___RANGES_SUBRANGE_H

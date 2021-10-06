@@ -111,7 +111,7 @@ static const std::pair<LibFunc, AllocFnsTy> AllocationFnData[] = {
   {LibFunc_reallocf,            {ReallocLike, 2, 1,  -1}},
   {LibFunc_strdup,              {StrDupLike,  1, -1, -1}},
   {LibFunc_strndup,             {StrDupLike,  2, 1,  -1}},
-  {LibFunc___kmpc_alloc_shared, {MallocLike,  1, 0,  -1}}
+  {LibFunc___kmpc_alloc_shared, {MallocLike,  1, 0,  -1}},
   // TODO: Handle "int posix_memalign(void **, size_t, size_t)"
 };
 
@@ -434,7 +434,6 @@ const CallInst *llvm::extractCallocCall(const Value *I,
 bool llvm::isLibFreeFunction(const Function *F, const LibFunc TLIFn) {
   unsigned ExpectedNumParams;
   if (TLIFn == LibFunc_free ||
-      TLIFn == LibFunc___kmpc_free_shared || // OpenMP Offloading RTL free
       TLIFn == LibFunc_ZdlPv || // operator delete(void*)
       TLIFn == LibFunc_ZdaPv || // operator delete[](void*)
       TLIFn == LibFunc_msvc_delete_ptr32 || // operator delete(void*)
@@ -457,7 +456,8 @@ bool llvm::isLibFreeFunction(const Function *F, const LibFunc TLIFn) {
            TLIFn == LibFunc_msvc_delete_array_ptr32_int ||      // delete[](void*, uint)
            TLIFn == LibFunc_msvc_delete_array_ptr64_longlong || // delete[](void*, ulonglong)
            TLIFn == LibFunc_msvc_delete_array_ptr32_nothrow || // delete[](void*, nothrow)
-           TLIFn == LibFunc_msvc_delete_array_ptr64_nothrow)   // delete[](void*, nothrow)
+           TLIFn == LibFunc_msvc_delete_array_ptr64_nothrow || // delete[](void*, nothrow)
+           TLIFn == LibFunc___kmpc_free_shared) // OpenMP Offloading RTL free
     ExpectedNumParams = 2;
   else if (TLIFn == LibFunc_ZdaPvSt11align_val_tRKSt9nothrow_t || // delete(void*, align_val_t, nothrow)
            TLIFn == LibFunc_ZdlPvSt11align_val_tRKSt9nothrow_t || // delete[](void*, align_val_t, nothrow)
@@ -610,7 +610,7 @@ ObjectSizeOffsetVisitor::ObjectSizeOffsetVisitor(const DataLayout &DL,
 
 SizeOffsetType ObjectSizeOffsetVisitor::compute(Value *V) {
   IntTyBits = DL.getIndexTypeSizeInBits(V->getType());
-  Zero = APInt::getNullValue(IntTyBits);
+  Zero = APInt::getZero(IntTyBits);
 
   V = V->stripPointerCasts();
   if (Instruction *I = dyn_cast<Instruction>(V)) {

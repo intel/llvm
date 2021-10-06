@@ -1365,9 +1365,9 @@ func @conv3d_no_symbols(%in : memref<?x?x?xf32>, %filter : memref<?x?x?xf32>, %o
 //  CHECK-SAME: %[[arg0:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
 //  CHECK-SAME: %[[arg1:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
 //  CHECK-SAME: %[[arg2:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
-//       CHECK: %[[c2:.*]] = constant 2 : index
-//       CHECK: %[[c0:.*]] = constant 0 : index
-//       CHECK: %[[c1:.*]] = constant 1 : index
+//       CHECK-DAG: %[[c2:.*]] = constant 2 : index
+//       CHECK-DAG: %[[c0:.*]] = constant 0 : index
+//       CHECK-DAG: %[[c1:.*]] = constant 1 : index
 //       CHECK: %[[dim0:.*]] = memref.dim %[[arg1]], %[[c0]] : memref<?x?x?xf32>
 //       CHECK: %[[dim1:.*]] = memref.dim %[[arg1]], %[[c1]] : memref<?x?x?xf32>
 //       CHECK: %[[dim2:.*]] = memref.dim %[[arg1]], %[[c2]] : memref<?x?x?xf32>
@@ -1396,9 +1396,9 @@ func @conv3d_no_symbols(%in : memref<?x?x?xf32>, %filter : memref<?x?x?xf32>, %o
 //  CHECKPARALLEL-SAME: %[[arg0:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
 //  CHECKPARALLEL-SAME: %[[arg1:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
 //  CHECKPARALLEL-SAME: %[[arg2:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
-//       CHECKPARALLEL: %[[c2:.*]] = constant 2 : index
-//       CHECKPARALLEL: %[[c0:.*]] = constant 0 : index
-//       CHECKPARALLEL: %[[c1:.*]] = constant 1 : index
+//       CHECKPARALLEL-DAG: %[[c2:.*]] = constant 2 : index
+//       CHECKPARALLEL-DAG: %[[c0:.*]] = constant 0 : index
+//       CHECKPARALLEL-DAG: %[[c1:.*]] = constant 1 : index
 //       CHECKPARALLEL: %[[dim0:.*]] = memref.dim %[[arg1]], %[[c0]] : memref<?x?x?xf32>
 //       CHECKPARALLEL: %[[dim1:.*]] = memref.dim %[[arg1]], %[[c1]] : memref<?x?x?xf32>
 //       CHECKPARALLEL: %[[dim2:.*]] = memref.dim %[[arg1]], %[[c2]] : memref<?x?x?xf32>
@@ -1418,3 +1418,28 @@ func @conv3d_no_symbols(%in : memref<?x?x?xf32>, %filter : memref<?x?x?xf32>, %o
 //       CHECKPARALLEL:         %[[inc:.*]] = mulf %[[vb]], %[[va]] : f32
 //       CHECKPARALLEL:         %[[res:.*]] = addf %[[vc]], %[[inc]] : f32
 //       CHECKPARALLEL:         store %[[res]], %[[arg2]][%[[arg3]], %[[arg4]], %[[arg5]]] : memref<?x?x?xf32>
+
+// -----
+
+func @lower_to_loops_with_rank_reducing_subviews(
+    %arg0 : memref<?xi32>, %arg1 : memref<?x?xi32>, %arg2 : index,
+    %arg3 : index, %arg4 : index) {
+  %0 = memref.subview %arg0[%arg2] [%arg3] [1]
+      : memref<?xi32> to memref<?xi32, offset: ?, strides: [1]>
+  %1 = memref.subview %arg1[0, %arg4] [1, %arg3] [1, 1]
+      : memref<?x?xi32> to memref<?xi32, offset: ?, strides : [1]>
+  linalg.copy(%0, %1)
+      : memref<?xi32, offset: ?, strides: [1]>, memref<?xi32, offset: ?, strides: [1]>
+  return
+}
+// CHECK-LABEL: func @lower_to_loops_with_rank_reducing_subviews
+//       CHECK:   scf.for %[[IV:.+]] = %{{.+}} to %{{.+}} step %{{.+}} {
+//       CHECK:     %[[VAL:.+]] = memref.load %{{.+}}[%[[IV]]]
+//       CHECK:     memref.store %[[VAL]], %{{.+}}[%[[IV]]]
+//       CHECK:   }
+
+// CHECKPARALLEL-LABEL: func @lower_to_loops_with_rank_reducing_subviews
+//       CHECKPARALLEL:   scf.parallel (%[[IV:.+]]) = (%{{.+}}) to (%{{.+}}) step (%{{.+}}) {
+//       CHECKPARALLEL:     %[[VAL:.+]] = memref.load %{{.+}}[%[[IV]]]
+//       CHECKPARALLEL:     memref.store %[[VAL]], %{{.+}}[%[[IV]]]
+//       CHECKPARALLEL:   }

@@ -140,8 +140,6 @@ public:
   // PluginInterface functions
   ConstString GetPluginName() override;
 
-  uint32_t GetPluginVersion() override;
-
   static ConstString GetPluginNameStatic();
 
   static lldb::TypeSystemSP CreateInstance(lldb::LanguageType language,
@@ -380,13 +378,6 @@ public:
                                bool isForwardDecl, bool isInternal,
                                ClangASTMetadata *metadata = nullptr);
 
-  bool SetTagTypeKind(clang::QualType type, int kind) const;
-
-  bool SetDefaultAccessForRecordFields(clang::RecordDecl *record_decl,
-                                       int default_accessibility,
-                                       int *assigned_accessibilities,
-                                       size_t num_assigned_accessibilities);
-
   // Returns a mask containing bits from the TypeSystemClang::eTypeXXX
   // enumerations
 
@@ -407,14 +398,7 @@ public:
   CompilerType CreateFunctionType(const CompilerType &result_type,
                                   const CompilerType *args, unsigned num_args,
                                   bool is_variadic, unsigned type_quals,
-                                  clang::CallingConv cc);
-
-  CompilerType CreateFunctionType(const CompilerType &result_type,
-                                  const CompilerType *args, unsigned num_args,
-                                  bool is_variadic, unsigned type_quals) {
-    return CreateFunctionType(result_type, args, num_args, is_variadic,
-                              type_quals, clang::CC_C);
-  }
+                                  clang::CallingConv cc = clang::CC_C);
 
   clang::ParmVarDecl *
   CreateParameterDeclaration(clang::DeclContext *decl_ctx,

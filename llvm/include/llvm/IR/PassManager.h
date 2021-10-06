@@ -377,9 +377,15 @@ template <typename DerivedT> struct PassInfoMixin {
     static_assert(std::is_base_of<PassInfoMixin, DerivedT>::value,
                   "Must pass the derived type as the template argument!");
     StringRef Name = getTypeName<DerivedT>();
-    if (Name.startswith("llvm::"))
-      Name = Name.drop_front(strlen("llvm::"));
+    Name.consume_front("llvm::");
     return Name;
+  }
+
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName) {
+    StringRef ClassName = DerivedT::name();
+    auto PassName = MapClassName2PassName(ClassName);
+    OS << PassName;
   }
 };
 
@@ -480,6 +486,16 @@ public:
     return *this;
   }
 
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName) {
+    for (unsigned Idx = 0, Size = Passes.size(); Idx != Size; ++Idx) {
+      auto *P = Passes[Idx].get();
+      P->printPipeline(OS, MapClassName2PassName);
+      if (Idx + 1 < Size)
+        OS << ",";
+    }
+  }
+
   /// Run all of the passes in this manager over the given unit of IR.
   /// ExtraArgs are passed to each pass.
   PreservedAnalyses run(IRUnitT &IR, AnalysisManagerT &AM,
@@ -520,12 +536,6 @@ public:
       // Finally, intersect the preserved analyses to compute the aggregate
       // preserved set for this pass manager.
       PA.intersect(std::move(PassPA));
-
-      // FIXME: Historically, the pass managers all called the LLVM context's
-      // yield function here. We don't have a generic way to acquire the
-      // context and it isn't yet clear what the right pattern is for yielding
-      // in the new pass manager so it is currently omitted.
-      //IR.getContext().yield();
     }
 
     // Invalidation was handled after each pass in the above loop for the
@@ -539,12 +549,12 @@ public:
 
   template <typename PassT>
   std::enable_if_t<!std::is_same<PassT, PassManager>::value>
-  addPass(PassT Pass) {
+  addPass(PassT &&Pass) {
     using PassModelT =
         detail::PassModel<IRUnitT, PassT, PreservedAnalyses, AnalysisManagerT,
                           ExtraArgTs...>;
 
-    Passes.emplace_back(new PassModelT(std::move(Pass)));
+    Passes.emplace_back(new PassModelT(std::forward<PassT>(Pass)));
   }
 
   /// When adding a pass manager pass that has the same type as this pass
@@ -1195,6 +1205,8 @@ public:
 
   /// Runs the function pass across every function in the module.
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName);
 
   static bool isRequired() { return true; }
 
@@ -1206,13 +1218,13 @@ private:
 /// templated adaptor.
 template <typename FunctionPassT>
 ModuleToFunctionPassAdaptor
-createModuleToFunctionPassAdaptor(FunctionPassT Pass) {
+createModuleToFunctionPassAdaptor(FunctionPassT &&Pass) {
   using PassModelT =
       detail::PassModel<Function, FunctionPassT, PreservedAnalyses,
                         FunctionAnalysisManager>;
 
   return ModuleToFunctionPassAdaptor(
-      std::make_unique<PassModelT>(std::move(Pass)));
+      std::make_unique<PassModelT>(std::forward<FunctionPassT>(Pass)));
 }
 
 /// A utility pass template to force an analysis result to be available.
@@ -1243,6 +1255,12 @@ struct RequireAnalysisPass
 
     return PreservedAnalyses::all();
   }
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName) {
+    auto ClassName = AnalysisT::name();
+    auto PassName = MapClassName2PassName(ClassName);
+    OS << "require<" << PassName << ">";
+  }
   static bool isRequired() { return true; }
 };
 
@@ -1262,6 +1280,12 @@ struct InvalidateAnalysisPass
     auto PA = PreservedAnalyses::all();
     PA.abandon<AnalysisT>();
     return PA;
+  }
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName) {
+    auto ClassName = AnalysisT::name();
+    auto PassName = MapClassName2PassName(ClassName);
+    OS << "invalidate<" << PassName << ">";
   }
 };
 
@@ -1284,7 +1308,8 @@ struct InvalidateAllAnalysesPass : PassInfoMixin<InvalidateAllAnalysesPass> {
 template <typename PassT>
 class RepeatedPass : public PassInfoMixin<RepeatedPass<PassT>> {
 public:
-  RepeatedPass(int Count, PassT P) : Count(Count), P(std::move(P)) {}
+  RepeatedPass(int Count, PassT &&P)
+      : Count(Count), P(std::forward<PassT>(P)) {}
 
   template <typename IRUnitT, typename AnalysisManagerT, typename... Ts>
   PreservedAnalyses run(IRUnitT &IR, AnalysisManagerT &AM, Ts &&... Args) {
@@ -1311,14 +1336,21 @@ public:
     return PA;
   }
 
+  void printPipeline(raw_ostream &OS,
+                     function_ref<StringRef(StringRef)> MapClassName2PassName) {
+    OS << "repeat<" << Count << ">(";
+    P.printPipeline(OS, MapClassName2PassName);
+    OS << ")";
+  }
+
 private:
   int Count;
   PassT P;
 };
 
 template <typename PassT>
-RepeatedPass<PassT> createRepeatedPass(int Count, PassT P) {
-  return RepeatedPass<PassT>(Count, std::move(P));
+RepeatedPass<PassT> createRepeatedPass(int Count, PassT &&P) {
+  return RepeatedPass<PassT>(Count, std::forward<PassT>(P));
 }
 
 } // end namespace llvm

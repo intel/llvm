@@ -191,13 +191,13 @@ public:
   /// This is just a convenience method to make client code smaller for a
   /// common code. It also correctly performs the comparison without the
   /// potential for an assertion from getZExtValue().
-  bool isZero() const { return Val.isNullValue(); }
+  bool isZero() const { return Val.isZero(); }
 
   /// This is just a convenience method to make client code smaller for a
   /// common case. It also correctly performs the comparison without the
   /// potential for an assertion from getZExtValue().
   /// Determine if the value is one.
-  bool isOne() const { return Val.isOneValue(); }
+  bool isOne() const { return Val.isOne(); }
 
   /// This function will return true iff every bit in this constant is set
   /// to true.
@@ -454,8 +454,7 @@ public:
   template <typename... Csts>
   static std::enable_if_t<are_base_of<Constant, Csts...>::value, Constant *>
   get(StructType *T, Csts *...Vs) {
-    SmallVector<Constant *, 8> Values({Vs...});
-    return get(T, Values);
+    return get(T, ArrayRef<Constant *>({Vs...}));
   }
 
   /// Return an anonymous struct that has the specified elements.
@@ -1287,10 +1286,6 @@ public:
 
   /// Return a string representation for an opcode.
   const char *getOpcodeName() const;
-
-  /// Return a constant expression identical to this one, but with the specified
-  /// operand set to the specified value.
-  Constant *getWithOperandReplaced(unsigned OpNo, Constant *Op) const;
 
   /// This returns the current constant expression with the operands replaced
   /// with the specified values. The specified array must have the same number

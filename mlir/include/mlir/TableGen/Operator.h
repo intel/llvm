@@ -64,6 +64,10 @@ public:
   // Returns the name of op's adaptor C++ class.
   std::string getAdaptorName() const;
 
+  // Check invariants (like no duplicated or conflicted names) and abort the
+  // process if any invariant is broken.
+  void assertInvariants() const;
+
   /// A class used to represent the decorators of an operator variable, i.e.
   /// argument or result.
   struct VariableDecorator {
@@ -277,7 +281,7 @@ public:
   struct OperandOrAttribute {
     enum class Kind { Operand, Attribute };
     OperandOrAttribute(Kind kind, int index) {
-      packed = (index << 1) & (kind == Kind::Attribute);
+      packed = (index << 1) | (kind == Kind::Attribute);
     }
     int operandOrAttributeIndex() const { return (packed >> 1); }
     Kind kind() { return (packed & 0x1) ? Kind::Attribute : Kind::Operand; }

@@ -10,6 +10,10 @@
 #ifndef __IMMINTRIN_H
 #define __IMMINTRIN_H
 
+#if !defined(__i386__) && !defined(__x86_64__)
+#error "This header is only meant to be used on x86 and x64 architecture"
+#endif
+
 #include <x86gprintrin.h>
 
 #if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
@@ -208,6 +212,20 @@
 #if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
     defined(__AVX512PF__)
 #include <avx512pfintrin.h>
+#endif
+
+/*
+ * FIXME: _Float16 type is legal only when HW support float16 operation.
+ * We use __AVX512FP16__ to identify if float16 is supported or not, so
+ * when float16 is not supported, the related header is not included.
+ *
+ */
+#if defined(__AVX512FP16__)
+#include <avx512fp16intrin.h>
+#endif
+
+#if defined(__AVX512FP16__) && defined(__AVX512VL__)
+#include <avx512vlfp16intrin.h>
 #endif
 
 #if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \

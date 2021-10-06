@@ -289,13 +289,13 @@ TEST_F(IRBuilderTest, ConstrainedFP) {
   EXPECT_EQ(II->getIntrinsicID(), Intrinsic::experimental_constrained_fpext);
 
   // Verify attributes on the call are created automatically.
-  AttributeSet CallAttrs = II->getAttributes().getFnAttributes();
+  AttributeSet CallAttrs = II->getAttributes().getFnAttrs();
   EXPECT_EQ(CallAttrs.hasAttribute(Attribute::StrictFP), true);
 
   // Verify attributes on the containing function are created when requested.
   Builder.setConstrainedFPFunctionAttr();
   AttributeList Attrs = BB->getParent()->getAttributes();
-  AttributeSet FnAttrs = Attrs.getFnAttributes();
+  AttributeSet FnAttrs = Attrs.getFnAttrs();
   EXPECT_EQ(FnAttrs.hasAttribute(Attribute::StrictFP), true);
 
   // Verify the codepaths for setting and overriding the default metadata.
@@ -392,8 +392,8 @@ TEST_F(IRBuilderTest, ConstrainedFPFunctionCall) {
   CallInst *FCall = Builder.CreateCall(Callee, None);
 
   // Check the attributes to verify the strictfp attribute is on the call.
-  EXPECT_TRUE(FCall->getAttributes().getFnAttributes().hasAttribute(
-      Attribute::StrictFP));
+  EXPECT_TRUE(
+      FCall->getAttributes().getFnAttrs().hasAttribute(Attribute::StrictFP));
 
   Builder.CreateRetVoid();
   EXPECT_FALSE(verifyModule(*M));
@@ -945,13 +945,17 @@ TEST_F(IRBuilderTest, DIImportedEntity) {
   auto CU = DIB.createCompileUnit(dwarf::DW_LANG_Cobol74,
                                   F, "llvm-cobol74",
                                   true, "", 0);
+  MDTuple *Elements = MDTuple::getDistinct(Ctx, None);
+
   DIB.createImportedDeclaration(CU, nullptr, F, 1);
   DIB.createImportedDeclaration(CU, nullptr, F, 1);
   DIB.createImportedModule(CU, (DIImportedEntity *)nullptr, F, 2);
   DIB.createImportedModule(CU, (DIImportedEntity *)nullptr, F, 2);
+  DIB.createImportedModule(CU, (DIImportedEntity *)nullptr, F, 2, Elements);
+  DIB.createImportedModule(CU, (DIImportedEntity *)nullptr, F, 2, Elements);
   DIB.finalize();
   EXPECT_TRUE(verifyModule(*M));
-  EXPECT_TRUE(CU->getImportedEntities().size() == 2);
+  EXPECT_TRUE(CU->getImportedEntities().size() == 3);
 }
 
 //  0: #define M0 V0          <-- command line definition

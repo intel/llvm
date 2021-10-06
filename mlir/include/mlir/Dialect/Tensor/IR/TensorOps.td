@@ -308,7 +308,7 @@ def Tensor_FromElementsOp : Tensor_Op<"from_elements", [
     Example:
 
     ```mlir
-    tensor.from_elements(i_1, ..., i_N) :  tensor<Nxindex>
+    tensor.from_elements i_1, ..., i_N :  tensor<Nxindex>
     ```
   }];
 
@@ -432,8 +432,7 @@ def Tensor_InsertOp : Tensor_Op<"insert",
 def Tensor_InsertSliceOp : BaseOpWithOffsetSizesAndStrides<
     Tensor_Dialect, "insert_slice",
     [NoSideEffect, AttrSizedOperandSegments, OffsetSizeAndStrideOpInterface,
-     DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-         ["reifyReturnTypeShapesPerResultDim"]>,
+     DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface>,
      TypesMatchWith<"expected result type to match dest type",
                     "dest", "result", "$_self">]> {
   let summary = "insert_slice operation";

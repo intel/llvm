@@ -13,8 +13,9 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ExecutionEngine/Orc/Shared/FDRawByteChannel.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/JITLoaderGDB.h"
-#include "llvm/ExecutionEngine/Orc/TargetProcess/OrcRPCTPCServer.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/RegisterEHFrames.h"
+#include "llvm/ExecutionEngine/Orc/TargetProcess/SimpleExecutorMemoryManager.h"
+#include "llvm/ExecutionEngine/Orc/TargetProcess/SimpleRemoteEPCServer.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MathExtras.h"
@@ -90,8 +91,6 @@ int openListener(std::string Host, std::string PortStr) {
   static constexpr int ConnectionQueueLen = 1;
   listen(SockFD, ConnectionQueueLen);
 
-  outs() << "Listening at " << Host << ":" << PortStr << "\n";
-
 #if defined(_AIX)
   assert(Hi_32(AI->ai_addrlen) == 0 && "Field is a size_t on 64-bit AIX");
   socklen_t AddrLen = Lo_32(AI->ai_addrlen);
@@ -104,6 +103,7 @@ int openListener(std::string Host, std::string PortStr) {
 }
 
 int main(int argc, char *argv[]) {
+#if LLVM_ENABLE_THREADS
 
   ExitOnErr.setBanner(std::string(argv[0]) + ": ");
 
@@ -133,24 +133,30 @@ int main(int argc, char *argv[]) {
                           "' is not a valid integer");
 
       InFD = OutFD = openListener(Host.str(), PortStr.str());
-      outs() << "Connection established. Running OrcRPCTPCServer...\n";
     } else
       printErrorAndExit("invalid specifier type \"" + SpecifierType + "\"");
   }
 
-  ExitOnErr.setBanner(std::string(argv[0]) + ":");
+  auto Server =
+      ExitOnErr(SimpleRemoteEPCServer::Create<FDSimpleRemoteEPCTransport>(
+          [](SimpleRemoteEPCServer::Setup &S) -> Error {
+            S.setDispatcher(
+                std::make_unique<SimpleRemoteEPCServer::ThreadDispatcher>());
+            S.bootstrapSymbols() =
+                SimpleRemoteEPCServer::defaultBootstrapSymbols();
+            S.services().push_back(
+                std::make_unique<rt_bootstrap::SimpleExecutorMemoryManager>());
+            return Error::success();
+          },
+          InFD, OutFD));
 
-  using JITLinkExecutorEndpoint =
-      shared::SingleThreadedRPCEndpoint<shared::FDRawByteChannel>;
-
-  shared::registerStringError<shared::FDRawByteChannel>();
-
-  shared::FDRawByteChannel C(InFD, OutFD);
-  JITLinkExecutorEndpoint EP(C, true);
-  OrcRPCTPCServer<JITLinkExecutorEndpoint> Server(EP);
-  Server.setProgramName(std::string("llvm-jitlink-executor"));
-
-  ExitOnErr(Server.run());
-
+  ExitOnErr(Server->waitForDisconnect());
   return 0;
+
+#else
+  errs() << argv[0]
+         << " error: this tool requires threads, but LLVM was "
+            "built with LLVM_ENABLE_THREADS=Off\n";
+  return 1;
+#endif
 }

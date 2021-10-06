@@ -46,21 +46,50 @@ func @no_fold_buffer_cast_of_tensor_load(%arg0: memref<?xf32, 2>) -> memref<?xf3
 // CHECK-DAG: #[[$OFF_3:[a-z0-9]+]] = affine_map<(d0) -> (d0 + 3)>
 // CHECK-DAG: #[[$OFF_UNK:[a-z0-9]+]] = affine_map<(d0)[s0] -> (d0 + s0)>
 
-// Test case: If the memrefs are cast-compatible, canonicalize.
+// Test case: If the memrefs are definitely cast-compatible, canonicalize to
+//            cast.
 // CHECK-LABEL: func @canonicalize_buffer_cast_of_tensor_load(
 //  CHECK-SAME:   %[[M:.*]]: memref<?xf32, #[[$OFF_3]]>)
-//  CHEKC-SAME:     -> memref<?xf32, #[[$OFF_UNK]]> {
+//  CHECK-SAME:     -> memref<?xf32, #[[$OFF_UNK]]> {
 //   CHECK-NOT: memref.tensor_load
 //   CHECK-NOT: memref.buffer_cast
 //       CHECK: %[[R:.*]] = memref.cast %[[M]]
 //  CHECK-SAME:   memref<?xf32, #[[$OFF_3]]> to memref<?xf32, #[[$OFF_UNK]]>
 //       CHECK: return %[[R]]
-func @canonicalize_buffer_cast_of_tensor_load(%arg0: memref<?xf32, offset: 3, strides: [1]>)
+func @canonicalize_buffer_cast_of_tensor_load(
+  %arg0: memref<?xf32, offset: 3, strides: [1]>)
   -> memref<?xf32, offset: ?, strides: [1]>
 {
   %0 = memref.tensor_load %arg0 : memref<?xf32, offset: 3, strides: [1]>
   %1 = memref.buffer_cast %0 : memref<?xf32, offset: ?, strides: [1]>
   return %1 : memref<?xf32, offset: ?, strides: [1]>
+}
+
+// -----
+
+// CHECK-DAG: #[[$OFF_UNK:[a-z0-9]+]] = affine_map<(d0)[s0] -> (d0 + s0)>
+// CHECK-DAG: #[[$OFF_3:[a-z0-9]+]] = affine_map<(d0) -> (d0 + 3)>
+
+// Test case: If the memrefs are potentially cast-compatible, canonicalize to
+//            copy.
+// CHECK-LABEL: func @canonicalize_buffer_cast_of_tensor_load_to_copy(
+//  CHECK-SAME:   %[[M:.*]]: memref<?xf32, #[[$OFF_UNK]]>)
+//  CHECK-SAME:     -> memref<?xf32, #[[$OFF_3]]> {
+//   CHECK-NOT: memref.tensor_load
+//   CHECK-NOT: memref.buffer_cast
+//       CHECK: %[[C0:.*]] = constant 0 : index
+//       CHECK: %[[DIM:.*]] = memref.dim %[[M]], %[[C0]] : memref<?xf32, #[[$OFF_UNK]]>
+//       CHECK: %[[ALLOC:.*]] = memref.alloc(%[[DIM]]) : memref<?xf32, #[[$OFF_3]]>
+//       CHECK: memref.copy %[[M]], %[[ALLOC]]
+//  CHECK-SAME:   memref<?xf32, #[[$OFF_UNK]]> to memref<?xf32, #[[$OFF_3]]>
+//       CHECK: return %[[ALLOC]]
+func @canonicalize_buffer_cast_of_tensor_load_to_copy(
+  %arg0: memref<?xf32, offset: ?, strides: [1]>)
+  -> memref<?xf32, offset: 3, strides: [1]>
+{
+  %0 = memref.tensor_load %arg0 : memref<?xf32, offset: ?, strides: [1]>
+  %1 = memref.buffer_cast %0 : memref<?xf32, offset: 3, strides: [1]>
+  return %1 : memref<?xf32, offset: 3, strides: [1]>
 }
 
 // -----
@@ -132,6 +161,63 @@ func @rank_reducing_subview_canonicalize(%arg0 : memref<?x?x?xf32>, %arg1 : inde
 
 // -----
 
+func @multiple_reducing_dims(%arg0 : memref<1x384x384xf32>,
+    %arg1 : index, %arg2 : index, %arg3 : index) -> memref<?xf32, offset: ?, strides: [1]>
+{
+  %c1 = constant 1 : index
+  %0 = memref.subview %arg0[0, %arg1, %arg2] [1, %c1, %arg3] [1, 1, 1] : memref<1x384x384xf32> to memref<?x?xf32, offset: ?, strides: [384, 1]>
+  %1 = memref.subview %0[0, 0] [1, %arg3] [1, 1] : memref<?x?xf32, offset: ?, strides: [384, 1]> to memref<?xf32, offset: ?, strides: [1]>
+  return %1 : memref<?xf32, offset: ?, strides: [1]>
+}
+//   CHECK-DAG: #[[MAP0:.+]] = affine_map<(d0)[s0] -> (d0 + s0)>
+//   CHECK-DAG: #[[MAP1:.+]] = affine_map<(d0, d1)[s0] -> (d0 * 384 + s0 + d1)>
+//       CHECK: func @multiple_reducing_dims
+//       CHECK:   %[[REDUCED1:.+]] = memref.subview %{{.+}}[0, %{{.+}}, %{{.+}}] [1, 1, %{{.+}}] [1, 1, 1]
+//  CHECK-SAME:       : memref<1x384x384xf32> to memref<1x?xf32, #[[MAP1]]>
+//       CHECK:   %[[REDUCED2:.+]] = memref.subview %[[REDUCED1]][0, 0] [1, %{{.+}}] [1, 1]
+//  CHECK-SAME:       : memref<1x?xf32, #[[MAP1]]> to memref<?xf32, #[[MAP0]]>
+
+// -----
+
+func @multiple_reducing_dims_dynamic(%arg0 : memref<?x?x?xf32>,
+    %arg1 : index, %arg2 : index, %arg3 : index) -> memref<?xf32, offset: ?, strides: [1]>
+{
+  %c1 = constant 1 : index
+  %0 = memref.subview %arg0[0, %arg1, %arg2] [1, %c1, %arg3] [1, 1, 1] : memref<?x?x?xf32> to memref<?x?xf32, offset: ?, strides: [?, 1]>
+  %1 = memref.subview %0[0, 0] [1, %arg3] [1, 1] : memref<?x?xf32, offset: ?, strides: [?, 1]> to memref<?xf32, offset: ?, strides: [1]>
+  return %1 : memref<?xf32, offset: ?, strides: [1]>
+}
+//   CHECK-DAG: #[[MAP0:.+]] = affine_map<(d0)[s0] -> (d0 + s0)>
+//   CHECK-DAG: #[[MAP1:.+]] = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
+//       CHECK: func @multiple_reducing_dims_dynamic
+//       CHECK:   %[[REDUCED1:.+]] = memref.subview %{{.+}}[0, %{{.+}}, %{{.+}}] [1, 1, %{{.+}}] [1, 1, 1]
+//  CHECK-SAME:       : memref<?x?x?xf32> to memref<1x?xf32, #[[MAP1]]>
+//       CHECK:   %[[REDUCED2:.+]] = memref.subview %[[REDUCED1]][0, 0] [1, %{{.+}}] [1, 1]
+//  CHECK-SAME:       : memref<1x?xf32, #[[MAP1]]> to memref<?xf32, #[[MAP0]]>
+
+// -----
+
+func @multiple_reducing_dims_all_dynamic(%arg0 : memref<?x?x?xf32, offset: ?, strides: [?, ?, ?]>,
+    %arg1 : index, %arg2 : index, %arg3 : index) -> memref<?xf32, offset: ?, strides: [?]>
+{
+  %c1 = constant 1 : index
+  %0 = memref.subview %arg0[0, %arg1, %arg2] [1, %c1, %arg3] [1, 1, 1]
+      : memref<?x?x?xf32, offset: ?, strides: [?, ?, ?]> to memref<?x?xf32, offset: ?, strides: [?, ?]>
+  %1 = memref.subview %0[0, 0] [1, %arg3] [1, 1] : memref<?x?xf32, offset: ?, strides: [?, ?]> to memref<?xf32, offset: ?, strides: [?]>
+  return %1 : memref<?xf32, offset: ?, strides: [?]>
+}
+//   CHECK-DAG: #[[MAP0:.+]] = affine_map<(d0)[s0, s1] -> (d0 * s1 + s0)>
+//   CHECK-DAG: #[[MAP1:.+]] = affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2)>
+//   CHECK-DAG: #[[MAP2:.+]] = affine_map<(d0, d1, d2)[s0, s1, s2, s3] -> (d0 * s1 + s0 + d1 * s2 + d2 * s3)>
+//       CHECK: func @multiple_reducing_dims_all_dynamic
+//       CHECK:   %[[REDUCED1:.+]] = memref.subview %{{.+}}[0, %{{.+}}, %{{.+}}] [1, 1, %{{.+}}] [1, 1, 1]
+//  CHECK-SAME:       : memref<?x?x?xf32, #[[MAP2]]> to memref<1x?xf32, #[[MAP1]]>
+//       CHECK:   %[[REDUCED2:.+]] = memref.subview %[[REDUCED1]][0, 0] [1, %{{.+}}] [1, 1]
+//  CHECK-SAME:       : memref<1x?xf32, #[[MAP1]]> to memref<?xf32, #[[MAP0]]>
+
+
+// -----
+
 // CHECK-LABEL: @clone_before_dealloc
 // CHECK-SAME: %[[ARG:.*]]: memref<?xf32>
 func @clone_before_dealloc(%arg0: memref<?xf32>) -> memref<?xf32> {
@@ -191,6 +277,44 @@ func @alias_is_freed(%arg0 : memref<?xf32>) {
   "use"(%1) : (memref<32xf32>) -> ()
   memref.dealloc %1 : memref<32xf32>
   return
+}
+
+// -----
+
+// Verify SimplifyClones skips clones with multiple deallocations.
+// CHECK-LABEL: @clone_multiple_dealloc_of_source
+// CHECK-SAME: %[[ARG:.*]]: memref<?xf32>
+func @clone_multiple_dealloc_of_source(%arg0: memref<?xf32>) -> memref<?xf32> {
+  // CHECK-NEXT: %[[RES:.*]] = memref.clone %[[ARG]]
+  // CHECK: memref.dealloc %[[ARG]]
+  // CHECK: memref.dealloc %[[ARG]]
+  // CHECK: return %[[RES]]
+  %0 = memref.clone %arg0 : memref<?xf32> to memref<?xf32>
+  "if_else"() ({
+    memref.dealloc %arg0 : memref<?xf32>
+    }, {
+    memref.dealloc %arg0 : memref<?xf32>
+    }) : () -> ()
+  return %0 : memref<?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: @clone_multiple_dealloc_of_clone
+// CHECK-SAME: %[[ARG:.*]]: memref<?xf32>
+func @clone_multiple_dealloc_of_clone(%arg0: memref<?xf32>) -> memref<?xf32> {
+  // CHECK-NEXT: %[[CLONE:.*]] = memref.clone %[[ARG]]
+  // CHECK: memref.dealloc %[[CLONE]]
+  // CHECK: memref.dealloc %[[CLONE]]
+  // CHECK: return %[[ARG]]
+  %0 = memref.clone %arg0 : memref<?xf32> to memref<?xf32>
+  "use"(%0) : (memref<?xf32>) -> ()
+  "if_else"() ({
+    memref.dealloc %0 : memref<?xf32>
+    }, {
+    memref.dealloc %0 : memref<?xf32>
+    }) : () -> ()
+  return %arg0 : memref<?xf32>
 }
 
 // -----
@@ -393,7 +517,7 @@ func @alloc_const_fold_with_symbols2() -> memref<?xi32, #map0> {
 func @allocator(%arg0 : memref<memref<?xi32>>, %arg1 : index)  {
   %0 = memref.alloc(%arg1) : memref<?xi32>
   memref.store %0, %arg0[] : memref<memref<?xi32>>
-  return 
+  return
 }
 
 // -----
@@ -473,3 +597,30 @@ func @fold_memref_reshape_dynamic(%arg0 : memref<?x?xf32>) -> memref<?x?xf32> {
 }
 // CHECK-LABEL: @fold_memref_reshape_dynamic
 //   CHECK-NOT:   linalg.{{.*}}_shape
+
+// -----
+
+// CHECK-LABEL:   func @collapse_after_memref_cast_type_change(
+// CHECK-SAME:      %[[INPUT:.*]]: memref<?x512x1x1xf32>) -> memref<?x?xf32> {
+// CHECK:           %[[COLLAPSED:.*]] = memref.collapse_shape %[[INPUT]]
+// CHECK-SAME:         {{\[\[}}0], [1, 2, 3]] : memref<?x512x1x1xf32> into memref<?x512xf32>
+// CHECK:           %[[DYNAMIC:.*]] = memref.cast %[[COLLAPSED]] :
+// CHECK-SAME:         memref<?x512xf32> to memref<?x?xf32>
+// CHECK:           return %[[DYNAMIC]] : memref<?x?xf32>
+// CHECK:         }
+func @collapse_after_memref_cast_type_change(%arg0 : memref<?x512x1x1xf32>) -> memref<?x?xf32> {
+  %dynamic = memref.cast %arg0: memref<?x512x1x1xf32> to memref<?x?x?x?xf32>
+  %collapsed = memref.collapse_shape %dynamic [[0], [1, 2, 3]] : memref<?x?x?x?xf32> into memref<?x?xf32>
+  return %collapsed : memref<?x?xf32>
+}
+
+// CHECK-LABEL:   func @collapse_after_memref_cast(
+// CHECK-SAME:      %[[INPUT:.*]]: memref<?x512x1x?xf32>) -> memref<?x?xf32> {
+// CHECK:           %[[COLLAPSED:.*]] = memref.collapse_shape %[[INPUT]]
+// CHECK_SAME:        {{\[\[}}0], [1, 2, 3]] : memref<?x512x1x?xf32> into memref<?x?xf32>
+// CHECK:           return %[[COLLAPSED]] : memref<?x?xf32>
+func @collapse_after_memref_cast(%arg0 : memref<?x512x1x?xf32>) -> memref<?x?xf32> {
+  %dynamic = memref.cast %arg0: memref<?x512x1x?xf32> to memref<?x?x?x?xf32>
+  %collapsed = memref.collapse_shape %dynamic [[0], [1, 2, 3]] : memref<?x?x?x?xf32> into memref<?x?xf32>
+  return %collapsed : memref<?x?xf32>
+}

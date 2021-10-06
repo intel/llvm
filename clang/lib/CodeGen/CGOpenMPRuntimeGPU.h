@@ -17,7 +17,6 @@
 #include "CGOpenMPRuntime.h"
 #include "CodeGenFunction.h"
 #include "clang/AST/StmtOpenMP.h"
-#include "llvm/Frontend/OpenMP/OMPGridValues.h"
 
 namespace clang {
 namespace CodeGen {
@@ -423,7 +422,8 @@ private:
     llvm::Optional<DeclToAddrMapTy> SecondaryLocalVarData = llvm::None;
     EscapedParamsTy EscapedParameters;
     llvm::SmallVector<const ValueDecl*, 4> EscapedVariableLengthDecls;
-    llvm::SmallVector<llvm::Value *, 4> EscapedVariableLengthDeclsAddrs;
+    llvm::SmallVector<std::pair<llvm::Value *, llvm::Value *>, 4>
+        EscapedVariableLengthDeclsAddrs;
     llvm::Value *IsInSPMDModeFlag = nullptr;
     std::unique_ptr<CodeGenFunction::OMPMapVars> MappedParams;
   };

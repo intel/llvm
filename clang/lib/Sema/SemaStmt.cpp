@@ -216,9 +216,9 @@ static bool DiagnoseNoDiscard(Sema &S, const WarnUnusedResultAttr *A,
   return S.Diag(Loc, diag::warn_unused_result_msg) << A << Msg << R1 << R2;
 }
 
-void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
+void Sema::DiagnoseUnusedExprResult(const Stmt *S, unsigned DiagID) {
   if (const LabelStmt *Label = dyn_cast_or_null<LabelStmt>(S))
-    return DiagnoseUnusedExprResult(Label->getSubStmt());
+    return DiagnoseUnusedExprResult(Label->getSubStmt(), DiagID);
 
   const Expr *E = dyn_cast_or_null<Expr>(S);
   if (!E)
@@ -264,7 +264,6 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
   // Okay, we have an unused result.  Depending on what the base expression is,
   // we might want to make a more specific diagnostic.  Check for one of these
   // cases now.
-  unsigned DiagID = diag::warn_unused_expr;
   if (const FullExpr *Temps = dyn_cast<FullExpr>(E))
     E = Temps->getSubExpr();
   if (const CXXBindTemporaryExpr *TempExpr = dyn_cast<CXXBindTemporaryExpr>(E))
@@ -339,7 +338,7 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
     if (LangOpts.OpenMP && isa<CallExpr>(Source) &&
         POE->getNumSemanticExprs() == 1 &&
         isa<CallExpr>(POE->getSemanticExpr(0)))
-      return DiagnoseUnusedExprResult(POE->getSemanticExpr(0));
+      return DiagnoseUnusedExprResult(POE->getSemanticExpr(0), DiagID);
     if (isa<ObjCSubscriptRefExpr>(Source))
       DiagID = diag::warn_unused_container_subscript_expr;
     else
@@ -379,7 +378,8 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
     return;
   }
 
-  DiagRuntimeBehavior(Loc, nullptr, PDiag(DiagID) << R1 << R2);
+  DiagIfReachable(Loc, S ? llvm::makeArrayRef(S) : llvm::None,
+                  PDiag(DiagID) << R1 << R2);
 }
 
 void Sema::ActOnStartOfCompoundStmt(bool IsStmtExpr) {
@@ -1461,7 +1461,8 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
 
     // If switch has default case, then ignore it.
     if (!CaseListIsErroneous && !CaseListIsIncomplete && !HasConstantCond &&
-        ET && ET->getDecl()->isCompleteDefinition()) {
+        ET && ET->getDecl()->isCompleteDefinition() &&
+        !empty(ET->getDecl()->enumerators())) {
       const EnumDecl *ED = ET->getDecl();
       EnumValsTy EnumVals;
 
@@ -1562,7 +1563,7 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
         auto DB = Diag(CondExpr->getExprLoc(), TheDefaultStmt
                                                    ? diag::warn_def_missing_case
                                                    : diag::warn_missing_case)
-                  << (int)UnhandledNames.size();
+                  << CondExpr->getSourceRange() << (int)UnhandledNames.size();
 
         for (size_t I = 0, E = std::min(UnhandledNames.size(), (size_t)3);
              I != E; ++I)
@@ -3315,13 +3316,14 @@ Sema::ActOnBreakStmt(SourceLocation BreakLoc, Scope *CurScope) {
 /// being thrown, or being co_returned from a coroutine. This expression
 /// might be modified by the implementation.
 ///
-/// \param ForceCXX2b Overrides detection of current language mode
+/// \param Mode Overrides detection of current language mode
 /// and uses the rules for C++2b.
 ///
 /// \returns An aggregate which contains the Candidate and isMoveEligible
 /// and isCopyElidable methods. If Candidate is non-null, it means
 /// isMoveEligible() would be true under the most permissive language standard.
-Sema::NamedReturnInfo Sema::getNamedReturnInfo(Expr *&E, bool ForceCXX2b) {
+Sema::NamedReturnInfo Sema::getNamedReturnInfo(Expr *&E,
+                                               SimplerImplicitMoveMode Mode) {
   if (!E)
     return NamedReturnInfo();
   // - in a return statement in a function [where] ...
@@ -3333,13 +3335,10 @@ Sema::NamedReturnInfo Sema::getNamedReturnInfo(Expr *&E, bool ForceCXX2b) {
   if (!VD)
     return NamedReturnInfo();
   NamedReturnInfo Res = getNamedReturnInfo(VD);
-  // FIXME: We supress simpler implicit move here (unless ForceCXX2b is true)
-  //        in msvc compatibility mode just as a temporary work around,
-  //        as the MSVC STL has issues with this change.
-  //        We will come back later with a more targeted approach.
   if (Res.Candidate && !E->isXValue() &&
-      (ForceCXX2b ||
-       (getLangOpts().CPlusPlus2b && !getLangOpts().MSVCCompat))) {
+      (Mode == SimplerImplicitMoveMode::ForceOn ||
+       (Mode != SimplerImplicitMoveMode::ForceOff &&
+        getLangOpts().CPlusPlus2b))) {
     E = ImplicitCastExpr::Create(Context, VD->getType().getNonReferenceType(),
                                  CK_NoOp, E, nullptr, VK_XValue,
                                  FPOptionsOverride());
@@ -3454,7 +3453,7 @@ const VarDecl *Sema::getCopyElisionCandidate(NamedReturnInfo &Info,
 /// Verify that the initialization sequence that was picked for the
 /// first overload resolution is permissible under C++98.
 ///
-/// Reject (possibly converting) contructors not taking an rvalue reference,
+/// Reject (possibly converting) constructors not taking an rvalue reference,
 /// or user conversion operators which are not ref-qualified.
 static bool
 VerifyInitializationSequenceCXX98(const Sema &S,
@@ -3479,11 +3478,12 @@ VerifyInitializationSequenceCXX98(const Sema &S,
 /// This routine implements C++20 [class.copy.elision]p3, which attempts to
 /// treat returned lvalues as rvalues in certain cases (to prefer move
 /// construction), then falls back to treating them as lvalues if that failed.
-ExprResult
-Sema::PerformMoveOrCopyInitialization(const InitializedEntity &Entity,
-                                      const NamedReturnInfo &NRInfo,
-                                      Expr *Value) {
-  if (!getLangOpts().CPlusPlus2b && NRInfo.isMoveEligible()) {
+ExprResult Sema::PerformMoveOrCopyInitialization(
+    const InitializedEntity &Entity, const NamedReturnInfo &NRInfo, Expr *Value,
+    bool SupressSimplerImplicitMoves) {
+  if (getLangOpts().CPlusPlus &&
+      (!getLangOpts().CPlusPlus2b || SupressSimplerImplicitMoves) &&
+      NRInfo.isMoveEligible()) {
     ImplicitCastExpr AsRvalue(ImplicitCastExpr::OnStack, Value->getType(),
                               CK_NoOp, Value, VK_XValue, FPOptionsOverride());
     Expr *InitExpr = &AsRvalue;
@@ -3523,7 +3523,8 @@ static bool hasDeducedReturnType(FunctionDecl *FD) {
 ///
 StmtResult Sema::ActOnCapScopeReturnStmt(SourceLocation ReturnLoc,
                                          Expr *RetValExp,
-                                         NamedReturnInfo &NRInfo) {
+                                         NamedReturnInfo &NRInfo,
+                                         bool SupressSimplerImplicitMoves) {
   // If this is the first return we've seen, infer the return type.
   // [expr.prim.lambda]p4 in C++11; block literals follow the same rules.
   CapturingScopeInfo *CurCap = cast<CapturingScopeInfo>(getCurFunction());
@@ -3654,7 +3655,8 @@ StmtResult Sema::ActOnCapScopeReturnStmt(SourceLocation ReturnLoc,
     // the C version of which boils down to CheckSingleAssignmentConstraints.
     InitializedEntity Entity = InitializedEntity::InitializeResult(
         ReturnLoc, FnRetType, NRVOCandidate != nullptr);
-    ExprResult Res = PerformMoveOrCopyInitialization(Entity, NRInfo, RetValExp);
+    ExprResult Res = PerformMoveOrCopyInitialization(
+        Entity, NRInfo, RetValExp, SupressSimplerImplicitMoves);
     if (Res.isInvalid()) {
       // FIXME: Cleanup temporaries here, anyway?
       return StmtError();
@@ -3864,15 +3866,37 @@ Sema::ActOnReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
   return R;
 }
 
+static bool CheckSimplerImplicitMovesMSVCWorkaround(const Sema &S,
+                                                    const Expr *E) {
+  if (!E || !S.getLangOpts().CPlusPlus2b || !S.getLangOpts().MSVCCompat)
+    return false;
+  const Decl *D = E->getReferencedDeclOfCallee();
+  if (!D || !S.SourceMgr.isInSystemHeader(D->getLocation()))
+    return false;
+  for (const DeclContext *DC = D->getDeclContext(); DC; DC = DC->getParent()) {
+    if (DC->isStdNamespace())
+      return true;
+  }
+  return false;
+}
+
 StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
   // Check for unexpanded parameter packs.
   if (RetValExp && DiagnoseUnexpandedParameterPack(RetValExp))
     return StmtError();
 
-  NamedReturnInfo NRInfo = getNamedReturnInfo(RetValExp);
+  // HACK: We suppress simpler implicit move here in msvc compatibility mode
+  // just as a temporary work around, as the MSVC STL has issues with
+  // this change.
+  bool SupressSimplerImplicitMoves =
+      CheckSimplerImplicitMovesMSVCWorkaround(*this, RetValExp);
+  NamedReturnInfo NRInfo = getNamedReturnInfo(
+      RetValExp, SupressSimplerImplicitMoves ? SimplerImplicitMoveMode::ForceOff
+                                             : SimplerImplicitMoveMode::Normal);
 
   if (isa<CapturingScopeInfo>(getCurFunction()))
-    return ActOnCapScopeReturnStmt(ReturnLoc, RetValExp, NRInfo);
+    return ActOnCapScopeReturnStmt(ReturnLoc, RetValExp, NRInfo,
+                                   SupressSimplerImplicitMoves);
 
   QualType FnRetType;
   QualType RelatedRetType;
@@ -4063,8 +4087,8 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
       // we have a non-void function with an expression, continue checking
       InitializedEntity Entity = InitializedEntity::InitializeResult(
           ReturnLoc, RetType, NRVOCandidate != nullptr);
-      ExprResult Res =
-          PerformMoveOrCopyInitialization(Entity, NRInfo, RetValExp);
+      ExprResult Res = PerformMoveOrCopyInitialization(
+          Entity, NRInfo, RetValExp, SupressSimplerImplicitMoves);
       if (Res.isInvalid()) {
         // FIXME: Clean up temporaries here anyway?
         return StmtError();

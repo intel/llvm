@@ -886,7 +886,8 @@ static void InsertBuiltinDeclarationsFromTable(
     for (const auto &FTy : FunctionList) {
       NewBuiltin = FunctionDecl::Create(
           Context, Parent, Loc, Loc, II, FTy, /*TInfo=*/nullptr, SC_Extern,
-          false, FTy->isFunctionProtoType());
+          S.getCurFPFeatures().isFPConstrained(), false,
+          FTy->isFunctionProtoType());
       NewBuiltin->setImplicit();
 
       // Create Decl objects for each parameter, adding them to the
@@ -3896,7 +3897,7 @@ private:
               : Ctx->noload_lookups(/*PreserveInternalState=*/false)) {
       for (auto *D : R) {
         if (auto *ND = Result.getAcceptableDecl(D)) {
-          // Rather than visit immediatelly, we put ND into a vector and visit
+          // Rather than visit immediately, we put ND into a vector and visit
           // all decls, in order, outside of this loop. The reason is that
           // Consumer.FoundDecl() may invalidate the iterators used in the two
           // loops above.

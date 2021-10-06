@@ -318,9 +318,8 @@ bool CallBase::isReturnNonNull() const {
   if (hasRetAttr(Attribute::NonNull))
     return true;
 
-  if (getDereferenceableBytes(AttributeList::ReturnIndex) > 0 &&
-           !NullPointerIsDefined(getCaller(),
-                                 getType()->getPointerAddressSpace()))
+  if (getRetDereferenceableBytes() > 0 &&
+      !NullPointerIsDefined(getCaller(), getType()->getPointerAddressSpace()))
     return true;
 
   return false;
@@ -329,11 +328,10 @@ bool CallBase::isReturnNonNull() const {
 Value *CallBase::getReturnedArgOperand() const {
   unsigned Index;
 
-  if (Attrs.hasAttrSomewhere(Attribute::Returned, &Index) && Index)
+  if (Attrs.hasAttrSomewhere(Attribute::Returned, &Index))
     return getArgOperand(Index - AttributeList::FirstArgIndex);
   if (const Function *F = getCalledFunction())
-    if (F->getAttributes().hasAttrSomewhere(Attribute::Returned, &Index) &&
-        Index)
+    if (F->getAttributes().hasAttrSomewhere(Attribute::Returned, &Index))
       return getArgOperand(Index - AttributeList::FirstArgIndex);
 
   return nullptr;
@@ -343,22 +341,22 @@ Value *CallBase::getReturnedArgOperand() const {
 bool CallBase::paramHasAttr(unsigned ArgNo, Attribute::AttrKind Kind) const {
   assert(ArgNo < getNumArgOperands() && "Param index out of bounds!");
 
-  if (Attrs.hasParamAttribute(ArgNo, Kind))
+  if (Attrs.hasParamAttr(ArgNo, Kind))
     return true;
   if (const Function *F = getCalledFunction())
-    return F->getAttributes().hasParamAttribute(ArgNo, Kind);
+    return F->getAttributes().hasParamAttr(ArgNo, Kind);
   return false;
 }
 
 bool CallBase::hasFnAttrOnCalledFunction(Attribute::AttrKind Kind) const {
   if (const Function *F = getCalledFunction())
-    return F->getAttributes().hasFnAttribute(Kind);
+    return F->getAttributes().hasFnAttr(Kind);
   return false;
 }
 
 bool CallBase::hasFnAttrOnCalledFunction(StringRef Kind) const {
   if (const Function *F = getCalledFunction())
-    return F->getAttributes().hasFnAttribute(Kind);
+    return F->getAttributes().hasFnAttr(Kind);
   return false;
 }
 
@@ -1909,6 +1907,32 @@ bool InsertElementInst::isValidOperands(const Value *Vec, const Value *Elt,
 //                      ShuffleVectorInst Implementation
 //===----------------------------------------------------------------------===//
 
+static Value *createPlaceholderForShuffleVector(Value *V) {
+  assert(V && "Cannot create placeholder of nullptr V");
+  return PoisonValue::get(V->getType());
+}
+
+ShuffleVectorInst::ShuffleVectorInst(Value *V1, Value *Mask, const Twine &Name,
+                                     Instruction *InsertBefore)
+    : ShuffleVectorInst(V1, createPlaceholderForShuffleVector(V1), Mask, Name,
+                        InsertBefore) {}
+
+ShuffleVectorInst::ShuffleVectorInst(Value *V1, Value *Mask, const Twine &Name,
+                                     BasicBlock *InsertAtEnd)
+    : ShuffleVectorInst(V1, createPlaceholderForShuffleVector(V1), Mask, Name,
+                        InsertAtEnd) {}
+
+ShuffleVectorInst::ShuffleVectorInst(Value *V1, ArrayRef<int> Mask,
+                                     const Twine &Name,
+                                     Instruction *InsertBefore)
+    : ShuffleVectorInst(V1, createPlaceholderForShuffleVector(V1), Mask, Name,
+                        InsertBefore) {}
+
+ShuffleVectorInst::ShuffleVectorInst(Value *V1, ArrayRef<int> Mask,
+                                     const Twine &Name, BasicBlock *InsertAtEnd)
+    : ShuffleVectorInst(V1, createPlaceholderForShuffleVector(V1), Mask, Name,
+                        InsertAtEnd) {}
+
 ShuffleVectorInst::ShuffleVectorInst(Value *V1, Value *V2, Value *Mask,
                                      const Twine &Name,
                                      Instruction *InsertBefore)
@@ -2256,6 +2280,80 @@ bool ShuffleVectorInst::isExtractSubvectorMask(ArrayRef<int> Mask,
     Index = SubIndex;
     return true;
   }
+  return false;
+}
+
+bool ShuffleVectorInst::isInsertSubvectorMask(ArrayRef<int> Mask,
+                                              int NumSrcElts, int &NumSubElts,
+                                              int &Index) {
+  int NumMaskElts = Mask.size();
+
+  // Don't try to match if we're shuffling to a smaller size.
+  if (NumMaskElts < NumSrcElts)
+    return false;
+
+  // TODO: We don't recognize self-insertion/widening.
+  if (isSingleSourceMaskImpl(Mask, NumSrcElts))
+    return false;
+
+  // Determine which mask elements are attributed to which source.
+  APInt UndefElts = APInt::getZero(NumMaskElts);
+  APInt Src0Elts = APInt::getZero(NumMaskElts);
+  APInt Src1Elts = APInt::getZero(NumMaskElts);
+  bool Src0Identity = true;
+  bool Src1Identity = true;
+
+  for (int i = 0; i != NumMaskElts; ++i) {
+    int M = Mask[i];
+    if (M < 0) {
+      UndefElts.setBit(i);
+      continue;
+    }
+    if (M < NumSrcElts) {
+      Src0Elts.setBit(i);
+      Src0Identity &= (M == i);
+      continue;
+    }
+    Src1Elts.setBit(i);
+    Src1Identity &= (M == (i + NumSrcElts));
+    continue;
+  }
+  assert((Src0Elts | Src1Elts | UndefElts).isAllOnesValue() &&
+         "unknown shuffle elements");
+  assert(!Src0Elts.isNullValue() && !Src1Elts.isNullValue() &&
+         "2-source shuffle not found");
+
+  // Determine lo/hi span ranges.
+  // TODO: How should we handle undefs at the start of subvector insertions?
+  int Src0Lo = Src0Elts.countTrailingZeros();
+  int Src1Lo = Src1Elts.countTrailingZeros();
+  int Src0Hi = NumMaskElts - Src0Elts.countLeadingZeros();
+  int Src1Hi = NumMaskElts - Src1Elts.countLeadingZeros();
+
+  // If src0 is in place, see if the src1 elements is inplace within its own
+  // span.
+  if (Src0Identity) {
+    int NumSub1Elts = Src1Hi - Src1Lo;
+    ArrayRef<int> Sub1Mask = Mask.slice(Src1Lo, NumSub1Elts);
+    if (isIdentityMaskImpl(Sub1Mask, NumSrcElts)) {
+      NumSubElts = NumSub1Elts;
+      Index = Src1Lo;
+      return true;
+    }
+  }
+
+  // If src1 is in place, see if the src0 elements is inplace within its own
+  // span.
+  if (Src1Identity) {
+    int NumSub0Elts = Src0Hi - Src0Lo;
+    ArrayRef<int> Sub0Mask = Mask.slice(Src0Lo, NumSub0Elts);
+    if (isIdentityMaskImpl(Sub0Mask, NumSrcElts)) {
+      NumSubElts = NumSub0Elts;
+      Index = Src0Lo;
+      return true;
+    }
+  }
+
   return false;
 }
 

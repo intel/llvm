@@ -75,11 +75,20 @@ public:
 
   CanonicalIncludes takeCanonicalIncludes() { return std::move(CanonIncludes); }
 
+  bool isMainFileIncludeGuarded() const { return IsMainFileIncludeGuarded; }
+
   void AfterExecute(CompilerInstance &CI) override {
-    if (!ParsedCallback)
-      return;
-    trace::Span Tracer("Running PreambleCallback");
-    ParsedCallback(CI.getASTContext(), CI.getPreprocessorPtr(), CanonIncludes);
+    if (ParsedCallback) {
+      trace::Span Tracer("Running PreambleCallback");
+      ParsedCallback(CI.getASTContext(), CI.getPreprocessorPtr(),
+                     CanonIncludes);
+    }
+
+    const SourceManager &SM = CI.getSourceManager();
+    const FileEntry *MainFE = SM.getFileEntryForID(SM.getMainFileID());
+    IsMainFileIncludeGuarded =
+        CI.getPreprocessor().getHeaderSearchInfo().isFileMultipleIncludeGuarded(
+            MainFE);
   }
 
   void BeforeExecute(CompilerInstance &CI) override {
@@ -121,6 +130,7 @@ private:
   IncludeStructure Includes;
   CanonicalIncludes CanonIncludes;
   MainFileMacros Macros;
+  bool IsMainFileIncludeGuarded = false;
   std::unique_ptr<CommentHandler> IWYUHandler = nullptr;
   const clang::LangOptions *LangOpts = nullptr;
   const SourceManager *SourceMgr = nullptr;
@@ -132,10 +142,11 @@ struct TextualPPDirective {
   unsigned DirectiveLine;
   // Full text that's representing the directive, including the `#`.
   std::string Text;
+  unsigned Offset;
 
   bool operator==(const TextualPPDirective &RHS) const {
-    return std::tie(DirectiveLine, Text) ==
-           std::tie(RHS.DirectiveLine, RHS.Text);
+    return std::tie(DirectiveLine, Offset, Text) ==
+           std::tie(RHS.DirectiveLine, RHS.Offset, RHS.Text);
   }
 };
 
@@ -145,7 +156,7 @@ struct TextualPPDirective {
 std::string spellDirective(llvm::StringRef Prefix,
                            CharSourceRange DirectiveRange,
                            const LangOptions &LangOpts, const SourceManager &SM,
-                           unsigned &DirectiveLine) {
+                           unsigned &DirectiveLine, unsigned &Offset) {
   std::string SpelledDirective;
   llvm::raw_string_ostream OS(SpelledDirective);
   OS << Prefix;
@@ -159,6 +170,7 @@ std::string spellDirective(llvm::StringRef Prefix,
 
   auto DecompLoc = SM.getDecomposedLoc(DirectiveRange.getBegin());
   DirectiveLine = SM.getLineNumber(DecompLoc.first, DecompLoc.second);
+  Offset = DecompLoc.second;
   auto TargetColumn = SM.getColumnNumber(DecompLoc.first, DecompLoc.second) - 1;
 
   // Pad with spaces before DirectiveRange to make sure it will be on right
@@ -207,7 +219,7 @@ struct DirectiveCollector : public PPCallbacks {
         spellDirective("#define ",
                        CharSourceRange::getTokenRange(
                            MI->getDefinitionLoc(), MI->getDefinitionEndLoc()),
-                       LangOpts, SM, TD.DirectiveLine);
+                       LangOpts, SM, TD.DirectiveLine, TD.Offset);
   }
 
 private:
@@ -302,18 +314,6 @@ bool isMainFile(llvm::StringRef FileName, const SourceManager &SM) {
 
 } // namespace
 
-PreambleData::PreambleData(const ParseInputs &Inputs,
-                           PrecompiledPreamble Preamble,
-                           std::vector<Diag> Diags, IncludeStructure Includes,
-                           MainFileMacros Macros,
-                           std::unique_ptr<PreambleFileStatusCache> StatCache,
-                           CanonicalIncludes CanonIncludes)
-    : Version(Inputs.Version), CompileCommand(Inputs.CompileCommand),
-      Preamble(std::move(Preamble)), Diags(std::move(Diags)),
-      Includes(std::move(Includes)), Macros(std::move(Macros)),
-      StatCache(std::move(StatCache)), CanonIncludes(std::move(CanonIncludes)) {
-}
-
 std::shared_ptr<const PreambleData>
 buildPreamble(PathRef FileName, CompilerInvocation CI,
               const ParseInputs &Inputs, bool StoreInMemory,
@@ -365,7 +365,7 @@ buildPreamble(PathRef FileName, CompilerInvocation CI,
   // to read back. We rely on dynamic index for the comments instead.
   CI.getPreprocessorOpts().WriteCommentListToPCH = false;
 
-  CppFilePreambleCallbacks SerializedDeclsCollector(FileName, PreambleCallback);
+  CppFilePreambleCallbacks CapturedInfo(FileName, PreambleCallback);
   auto VFS = Inputs.TFS->view(Inputs.CompileCommand.Directory);
   llvm::SmallString<32> AbsFileName(FileName);
   VFS->makeAbsolute(AbsFileName);
@@ -373,8 +373,7 @@ buildPreamble(PathRef FileName, CompilerInvocation CI,
   auto BuiltPreamble = PrecompiledPreamble::Build(
       CI, ContentsBuffer.get(), Bounds, *PreambleDiagsEngine,
       StatCache->getProducingFS(VFS),
-      std::make_shared<PCHContainerOperations>(), StoreInMemory,
-      SerializedDeclsCollector);
+      std::make_shared<PCHContainerOperations>(), StoreInMemory, CapturedInfo);
 
   // When building the AST for the main file, we do want the function
   // bodies.
@@ -384,16 +383,21 @@ buildPreamble(PathRef FileName, CompilerInvocation CI,
     vlog("Built preamble of size {0} for file {1} version {2}",
          BuiltPreamble->getSize(), FileName, Inputs.Version);
     std::vector<Diag> Diags = PreambleDiagnostics.take();
-    return std::make_shared<PreambleData>(
-        Inputs, std::move(*BuiltPreamble), std::move(Diags),
-        SerializedDeclsCollector.takeIncludes(),
-        SerializedDeclsCollector.takeMacros(), std::move(StatCache),
-        SerializedDeclsCollector.takeCanonicalIncludes());
-  } else {
-    elog("Could not build a preamble for file {0} version {1}: {2}", FileName,
-         Inputs.Version, BuiltPreamble.getError().message());
-    return nullptr;
+    auto Result = std::make_shared<PreambleData>(std::move(*BuiltPreamble));
+    Result->Version = Inputs.Version;
+    Result->CompileCommand = Inputs.CompileCommand;
+    Result->Diags = std::move(Diags);
+    Result->Includes = CapturedInfo.takeIncludes();
+    Result->Macros = CapturedInfo.takeMacros();
+    Result->CanonIncludes = CapturedInfo.takeCanonicalIncludes();
+    Result->StatCache = std::move(StatCache);
+    Result->MainIsIncludeGuarded = CapturedInfo.isMainFileIncludeGuarded();
+    return Result;
   }
+
+  elog("Could not build a preamble for file {0} version {1}: {2}", FileName,
+       Inputs.Version, BuiltPreamble.getError().message());
+  return nullptr;
 }
 
 bool isPreambleCompatible(const PreambleData &Preamble,
@@ -424,7 +428,8 @@ void escapeBackslashAndQuotes(llvm::StringRef Text, llvm::raw_ostream &OS) {
 
 PreamblePatch PreamblePatch::create(llvm::StringRef FileName,
                                     const ParseInputs &Modified,
-                                    const PreambleData &Baseline) {
+                                    const PreambleData &Baseline,
+                                    PatchType PatchType) {
   trace::Span Tracer("CreatePreamblePatch");
   SPAN_ATTACH(Tracer, "File", FileName);
   assert(llvm::sys::path::is_absolute(FileName) && "relative FileName!");
@@ -454,7 +459,8 @@ PreamblePatch PreamblePatch::create(llvm::StringRef FileName,
   bool IncludesChanged = BaselineScan->Includes != ModifiedScan->Includes;
   bool DirectivesChanged =
       BaselineScan->TextualDirectives != ModifiedScan->TextualDirectives;
-  if (!IncludesChanged && !DirectivesChanged)
+  if ((PatchType == PatchType::MacroDirectives || !IncludesChanged) &&
+      !DirectivesChanged)
     return PreamblePatch::unmodified(Baseline);
 
   PreamblePatch PP;
@@ -473,7 +479,7 @@ PreamblePatch PreamblePatch::create(llvm::StringRef FileName,
   escapeBackslashAndQuotes(FileName, Patch);
   Patch << "\"\n";
 
-  if (IncludesChanged) {
+  if (IncludesChanged && PatchType == PatchType::All) {
     // We are only interested in newly added includes, record the ones in
     // Baseline for exclusion.
     llvm::DenseMap<std::pair<tok::PPKeywordKind, llvm::StringRef>,
@@ -524,6 +530,18 @@ PreamblePatch PreamblePatch::create(llvm::StringRef FileName,
   dlog("Created preamble patch: {0}", Patch.str());
   Patch.flush();
   return PP;
+}
+
+PreamblePatch PreamblePatch::createFullPatch(llvm::StringRef FileName,
+                                             const ParseInputs &Modified,
+                                             const PreambleData &Baseline) {
+  return create(FileName, Modified, Baseline, PatchType::All);
+}
+
+PreamblePatch PreamblePatch::createMacroPatch(llvm::StringRef FileName,
+                                              const ParseInputs &Modified,
+                                              const PreambleData &Baseline) {
+  return create(FileName, Modified, Baseline, PatchType::MacroDirectives);
 }
 
 void PreamblePatch::apply(CompilerInvocation &CI) const {

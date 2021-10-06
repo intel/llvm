@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
 #include "CommonArgs.h"
-#include "InputInfo.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
+#include "clang/Driver/InputInfo.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
 #include "llvm/Support/CommandLine.h"
@@ -64,12 +64,9 @@ const char *SYCL::Linker::constructLLVMSpirvCommand(
     CmdArgs.push_back("-o");
     CmdArgs.push_back(OutputFileName);
   } else {
-    CmdArgs.push_back("-spirv-max-version=1.3");
+    CmdArgs.push_back("-spirv-max-version=1.4");
     CmdArgs.push_back("-spirv-ext=+all");
-    if (!C.getDriver().isFPGAEmulationMode())
-      CmdArgs.push_back("-spirv-debug-info-version=legacy");
-    else
-      CmdArgs.push_back("-spirv-debug-info-version=ocl-100");
+    CmdArgs.push_back("-spirv-debug-info-version=ocl-100");
     CmdArgs.push_back("-spirv-allow-extra-diexpressions");
     CmdArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.");
     CmdArgs.push_back("-o");
@@ -100,8 +97,8 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                        std::unique_ptr<Command> InputCommand,
                                        const InputInfoList &InputFiles,
                                        const InputInfo &Output, const Tool *T,
-                                       StringRef Increment,
-                                       StringRef Ext = "out") {
+                                       StringRef Increment, StringRef Ext,
+                                       StringRef ParallelJobs) {
   // Construct llvm-foreach command.
   // The llvm-foreach command looks like this:
   // llvm-foreach --in-file-list=a.list --in-replace='{}' -- echo '{}'
@@ -123,6 +120,9 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   if (!Increment.empty())
     ForeachArgs.push_back(
         C.getArgs().MakeArgString("--out-increment=" + Increment));
+  if (!ParallelJobs.empty())
+    ForeachArgs.push_back(C.getArgs().MakeArgString("--jobs=" + ParallelJobs));
+
   ForeachArgs.push_back(C.getArgs().MakeArgString("--"));
   ForeachArgs.push_back(
       C.getArgs().MakeArgString(InputCommand->getExecutable()));
@@ -146,12 +146,15 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
 // The list should match pre-built SYCL device library files located in
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
-static llvm::SmallVector<StringRef, 10> SYCLDeviceLibList{
+static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "crt",
     "cmath",
     "cmath-fp64",
     "complex",
     "complex-fp64",
+    "itt-compiler-wrappers",
+    "itt-stubs",
+    "itt-user-wrappers",
     "fallback-cassert",
     "fallback-cstring",
     "fallback-cmath",
@@ -188,14 +191,14 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         LibPostfix = ".obj";
       StringRef InputFilename =
           llvm::sys::path::filename(StringRef(II.getFilename()));
-      if (!InputFilename.startswith("libsycl-") ||
+      StringRef LibSyclPrefix("libsycl-");
+      if (!InputFilename.startswith(LibSyclPrefix) ||
           !InputFilename.endswith(LibPostfix) || (InputFilename.count('-') < 2))
         return false;
-      size_t PureLibNameLen = InputFilename.find_last_of('-');
       // Skip the prefix "libsycl-"
-      StringRef PureLibName = InputFilename.substr(8, PureLibNameLen - 8);
+      StringRef PureLibName = InputFilename.substr(LibSyclPrefix.size());
       for (const auto &L : SYCLDeviceLibList) {
-        if (PureLibName.compare(L) == 0)
+        if (PureLibName.startswith(L))
           return true;
       }
       return false;
@@ -387,18 +390,20 @@ void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
   llvm::Triple CPUTriple("spir64_x86_64");
   TC.AddImpliedTargetArgs(CPUTriple, Args, CmdArgs);
   // Add the target args passed in
-  TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
+  TC.TranslateBackendTargetArgs(CPUTriple, Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(CPUTriple, Args, CmdArgs);
 
   SmallString<128> ExecPath(
       getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                        Exec, CmdArgs, None);
-  if (!ForeachInputs.empty())
+  if (!ForeachInputs.empty()) {
+    StringRef ParallelJobs =
+        Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, "", ForeachExt);
-  else
+                                this, "", ForeachExt, ParallelJobs);
+  } else
     C.addCommand(std::move(Cmd));
 }
 
@@ -414,7 +419,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   ArgStringList TargetArgs;
-  TC.TranslateBackendTargetArgs(Args, TargetArgs);
+  TC.TranslateBackendTargetArgs(TC.getTriple(), Args, TargetArgs);
 
   // When performing emulation compilations for FPGA AOT, we want to use
   // opencl-aot instead of aoc.
@@ -517,7 +522,18 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   if (Arg *FinalOutput = Args.getLastArg(options::OPT_o, options::OPT__SLASH_o,
                                          options::OPT__SLASH_Fe)) {
     SmallString<128> FN(FinalOutput->getValue());
-    FN.append(".prj");
+    // For "-o file.xxx" where the option value has an extension, if the
+    // extension is one of .a .o .out .lib .obj .exe, the output project
+    // directory name will be file.proj which omits the extension. Otherwise
+    // the output project directory name will be file.xxx.prj which keeps
+    // the original extension.
+    StringRef Ext = llvm::sys::path::extension(FN);
+    SmallVector<StringRef, 6> Exts = {".o",   ".a",   ".out",
+                                      ".obj", ".lib", ".exe"};
+    if (std::find(Exts.begin(), Exts.end(), Ext) != Exts.end())
+      llvm::sys::path::replace_extension(FN, "prj");
+    else
+      FN.append(".prj");
     const char *FolderName = Args.MakeArgString(FN);
     ReportOptArg += FolderName;
   } else {
@@ -534,8 +550,8 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
 
   // Add -Xsycl-target* options.
-  TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
+  TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
 
   // Look for -reuse-exe=XX option
   if (Arg *A = Args.getLastArg(options::OPT_reuse_exe_EQ)) {
@@ -549,10 +565,12 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                        Exec, CmdArgs, None);
   addFPGATimingDiagnostic(Cmd, C);
-  if (!ForeachInputs.empty())
+  if (!ForeachInputs.empty()) {
+    StringRef ParallelJobs =
+        Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, ReportOptArg, ForeachExt);
-  else
+                                this, ReportOptArg, ForeachExt, ParallelJobs);
+  } else
     C.addCommand(std::move(Cmd));
 }
 
@@ -581,17 +599,19 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
   TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
-  TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
+  TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   SmallString<128> ExecPath(
       getToolChain().GetProgramPath(makeExeName(C, "ocloc")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                        Exec, CmdArgs, None);
-  if (!ForeachInputs.empty())
+  if (!ForeachInputs.empty()) {
+    StringRef ParallelJobs =
+        Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, "");
-  else
+                                this, "", "out", ParallelJobs);
+  } else
     C.addCommand(std::move(Cmd));
 }
 
@@ -614,17 +634,19 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
 
   TC.AddImpliedTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
-  TC.TranslateBackendTargetArgs(Args, CmdArgs);
-  TC.TranslateLinkerTargetArgs(Args, CmdArgs);
+  TC.TranslateBackendTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
+  TC.TranslateLinkerTargetArgs(getToolChain().getTriple(), Args, CmdArgs);
   SmallString<128> ExecPath(
       getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                        Exec, CmdArgs, None);
-  if (!ForeachInputs.empty())
+  if (!ForeachInputs.empty()) {
+    StringRef ParallelJobs =
+        Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
     constructLLVMForeachCommand(C, JA, std::move(Cmd), ForeachInputs, Output,
-                                this, "");
-  else
+                                this, "", "out", ParallelJobs);
+  } else
     C.addCommand(std::move(Cmd));
 }
 
@@ -765,7 +787,8 @@ void SYCLToolChain::AddImpliedTargetArgs(
 }
 
 void SYCLToolChain::TranslateBackendTargetArgs(
-    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs) const {
+    const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
+    llvm::opt::ArgStringList &CmdArgs) const {
   // Handle -Xs flags.
   for (auto *A : Args) {
     // When parsing the target args, the -Xs<opt> type option applies to all
@@ -775,6 +798,15 @@ void SYCLToolChain::TranslateBackendTargetArgs(
     //   -Xs "-DFOO -DBAR"
     //   -XsDFOO -XsDBAR
     // All of the above examples will pass -DFOO -DBAR to the backend compiler.
+
+    // Do not add the -Xs to the default SYCL triple (spir64) when we know we
+    // have implied the setting.
+    if ((A->getOption().matches(options::OPT_Xs) ||
+         A->getOption().matches(options::OPT_Xs_separate)) &&
+        Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
+        getDriver().isSYCLDefaultTripleImplied())
+      continue;
+
     if (A->getOption().matches(options::OPT_Xs)) {
       // Take the arg and create an option out of it.
       CmdArgs.push_back(Args.MakeArgString(Twine("-") + A->getValue()));
@@ -788,13 +820,22 @@ void SYCLToolChain::TranslateBackendTargetArgs(
       continue;
     }
   }
+  // Do not process -Xsycl-target-backend for implied spir64
+  if (Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
+      getDriver().isSYCLDefaultTripleImplied())
+    return;
   // Handle -Xsycl-target-backend.
   TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_backend,
                      options::OPT_Xsycl_backend_EQ);
 }
 
 void SYCLToolChain::TranslateLinkerTargetArgs(
-    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs) const {
+    const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
+    llvm::opt::ArgStringList &CmdArgs) const {
+  // Do not process -Xsycl-target-linker for implied spir64
+  if (Triple.getSubArch() == llvm::Triple::NoSubArch && Triple.isSPIR() &&
+      getDriver().isSYCLDefaultTripleImplied())
+    return;
   // Handle -Xsycl-target-linker.
   TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_linker,
                      options::OPT_Xsycl_linker_EQ);

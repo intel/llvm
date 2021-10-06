@@ -12,18 +12,22 @@
 #include <CL/sycl/detail/util.hpp>
 
 #include <memory>
+#include <unordered_map>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 class platform_impl;
+class context_impl;
 class Scheduler;
 class ProgramManager;
 class Sync;
 class plugin;
 class device_filter_list;
+class XPTIRegistry;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
+using ContextImplPtr = std::shared_ptr<context_impl>;
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
@@ -52,10 +56,16 @@ public:
   ProgramManager &getProgramManager();
   Sync &getSync();
   std::vector<PlatformImplPtr> &getPlatformCache();
+
+  std::unordered_map<PlatformImplPtr, ContextImplPtr> &
+  getPlatformToDefaultContextCache();
+
+  std::mutex &getPlatformToDefaultContextCacheMutex();
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
   std::vector<plugin> &getPlugins();
   device_filter_list &getDeviceFilterList(const std::string &InitValue);
+  XPTIRegistry &getXPTIRegistry();
   std::mutex &getHandlerExtendedMembersMutex();
 
 private:
@@ -78,10 +88,14 @@ private:
   InstWithLock<ProgramManager> MProgramManager;
   InstWithLock<Sync> MSync;
   InstWithLock<std::vector<PlatformImplPtr>> MPlatformCache;
+  InstWithLock<std::unordered_map<PlatformImplPtr, ContextImplPtr>>
+      MPlatformToDefaultContextCache;
+  InstWithLock<std::mutex> MPlatformToDefaultContextCacheMutex;
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
   InstWithLock<std::vector<plugin>> MPlugins;
   InstWithLock<device_filter_list> MDeviceFilterList;
+  InstWithLock<XPTIRegistry> MXPTIRegistry;
   // The mutex for synchronizing accesses to handlers extended members
   InstWithLock<std::mutex> MHandlerExtendedMembersMutex;
 };

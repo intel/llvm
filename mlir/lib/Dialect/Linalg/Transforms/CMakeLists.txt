@@ -5,6 +5,7 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   Detensorize.cpp
   Distribution.cpp
   DropUnitDims.cpp
+  ElementwiseOpFusion.cpp
   ElementwiseToLinalg.cpp
   Fusion.cpp
   FusionOnTensors.cpp

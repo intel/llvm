@@ -47,6 +47,10 @@ pi_result cuda_piMemRetain(pi_mem);
 pi_result cuda_piMemRelease(pi_mem);
 pi_result cuda_piKernelRetain(pi_kernel);
 pi_result cuda_piKernelRelease(pi_kernel);
+pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
+                                    pi_kernel_group_info param_name,
+                                    size_t param_value_size, void *param_value,
+                                    size_t *param_value_size_ret);
 /// \endcond
 }
 
@@ -72,6 +76,10 @@ private:
   std::atomic_uint32_t refCount_;
   pi_platform platform_;
 
+  static constexpr pi_uint32 max_work_item_dimensions = 3u;
+  size_t max_work_item_sizes[max_work_item_dimensions];
+  int max_work_group_size;
+
 public:
   _pi_device(native_type cuDevice, pi_platform platform)
       : cuDevice_(cuDevice), refCount_{1}, platform_(platform) {}
@@ -81,6 +89,22 @@ public:
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
   pi_platform get_platform() const noexcept { return platform_; };
+
+  void save_max_work_item_sizes(size_t size,
+                                size_t *save_max_work_item_sizes) noexcept {
+    memcpy(max_work_item_sizes, save_max_work_item_sizes, size);
+  };
+
+  void save_max_work_group_size(int value) noexcept {
+    max_work_group_size = value;
+  };
+
+  void get_max_work_item_sizes(size_t ret_size,
+                               size_t *ret_max_work_item_sizes) const noexcept {
+    memcpy(ret_max_work_item_sizes, max_work_item_sizes, ret_size);
+  };
+
+  int get_max_work_group_size() const noexcept { return max_work_group_size; };
 };
 
 /// PI context mapping to a CUDA context object.
@@ -561,6 +585,9 @@ struct _pi_kernel {
   pi_program program_;
   std::atomic_uint32_t refCount_;
 
+  static constexpr pi_uint32 REQD_THREADS_PER_BLOCK_DIMENSIONS = 3u;
+  size_t reqdThreadsPerBlock_[REQD_THREADS_PER_BLOCK_DIMENSIONS];
+
   /// Structure that holds the arguments to the kernel.
   /// Note earch argument size is known, since it comes
   /// from the kernel signature.
@@ -623,7 +650,7 @@ struct _pi_kernel {
       std::fill(std::begin(offsetPerIndex_), std::end(offsetPerIndex_), 0);
     }
 
-    args_index_t get_indices() const noexcept { return indices_; }
+    const args_index_t &get_indices() const noexcept { return indices_; }
 
     pi_uint32 get_local_size() const {
       return std::accumulate(std::begin(offsetPerIndex_),
@@ -637,11 +664,22 @@ struct _pi_kernel {
         name_{name}, context_{ctxt}, program_{program}, refCount_{1} {
     cuda_piProgramRetain(program_);
     cuda_piContextRetain(context_);
+    /// Note: this code assumes that there is only one device per context
+    pi_result retError = cuda_piKernelGetGroupInfo(
+        this, ctxt->get_device(), PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+        sizeof(reqdThreadsPerBlock_), reqdThreadsPerBlock_, nullptr);
+    assert(retError == PI_SUCCESS);
   }
 
   _pi_kernel(CUfunction func, const char *name, pi_program program,
              pi_context ctxt)
-      : _pi_kernel{func, nullptr, name, program, ctxt} {}
+      : _pi_kernel{func, nullptr, name, program, ctxt} {
+    /// Note: this code assumes that there is only one device per context
+    pi_result retError = cuda_piKernelGetGroupInfo(
+        this, ctxt->get_device(), PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+        sizeof(reqdThreadsPerBlock_), reqdThreadsPerBlock_, nullptr);
+    assert(retError == PI_SUCCESS);
+  }
 
   ~_pi_kernel()
   {
@@ -689,7 +727,7 @@ struct _pi_kernel {
     args_.set_implicit_offset(size, implicitOffset);
   }
 
-  arguments::args_index_t get_arg_indices() const {
+  const arguments::args_index_t &get_arg_indices() const {
     return args_.get_indices();
   }
 

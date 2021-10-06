@@ -99,9 +99,8 @@ void kernel_bundle_plain::set_specialization_constant_impl(
   impl->set_specialization_constant_raw_value(SpecName, Value, Size);
 }
 
-void kernel_bundle_plain::get_specialization_constant_impl(const char *SpecName,
-                                                           void *Value) const
-    noexcept {
+void kernel_bundle_plain::get_specialization_constant_impl(
+    const char *SpecName, void *Value) const noexcept {
   impl->get_specialization_constant_raw_value(SpecName, Value);
 }
 
@@ -110,9 +109,13 @@ bool kernel_bundle_plain::is_specialization_constant_set(
   return impl->is_specialization_constant_set(SpecName);
 }
 
-////////////////////////////
-///// free functions
-///////////////////////////
+//////////////////////////////////
+///// sycl::detail free functions
+//////////////////////////////////
+
+kernel_id get_kernel_id_impl(std::string KernelName) {
+  return detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+}
 
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
@@ -262,6 +265,14 @@ std::vector<sycl::device> find_device_intersection(
 }
 
 } // namespace detail
+
+//////////////////////////
+///// sycl free functions
+//////////////////////////
+
+std::vector<kernel_id> get_kernel_ids() {
+  return detail::ProgramManager::getInstance().getAllSYCLKernelIDs();
+}
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

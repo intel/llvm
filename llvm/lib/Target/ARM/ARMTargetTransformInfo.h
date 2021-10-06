@@ -120,6 +120,11 @@ public:
 
   Optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
                                                IntrinsicInst &II) const;
+  Optional<Value *> simplifyDemandedVectorEltsIntrinsic(
+      InstCombiner &IC, IntrinsicInst &II, APInt DemandedElts, APInt &UndefElts,
+      APInt &UndefElts2, APInt &UndefElts3,
+      std::function<void(Instruction *, unsigned, APInt, APInt &)>
+          SimplifyAndSetOp) const;
 
   /// \name Scalar TTI Implementations
   /// @{
@@ -257,6 +262,7 @@ public:
                                          const Instruction *I = nullptr);
 
   InstructionCost getArithmeticReductionCost(unsigned Opcode, VectorType *ValTy,
+                                             Optional<FastMathFlags> FMF,
                                              TTI::TargetCostKind CostKind);
   InstructionCost getExtendedAddReductionCost(bool IsMLA, bool IsUnsigned,
                                               Type *ResTy, VectorType *ValTy,
@@ -278,7 +284,8 @@ public:
                                    DominatorTree *DT,
                                    const LoopAccessInfo *LAI);
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
-                               TTI::UnrollingPreferences &UP);
+                               TTI::UnrollingPreferences &UP,
+                               OptimizationRemarkEmitter *ORE);
 
   bool emitGetActiveLaneMask() const;
 

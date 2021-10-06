@@ -15,6 +15,8 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
+namespace oneapi {
 namespace level_zero {
 using namespace detail;
 
@@ -93,6 +95,17 @@ __SYCL_EXPORT queue make_queue(const context &Context,
   return make_queue(Context, NativeHandle, false);
 }
 
+//----------------------------------------------------------------------------
+// Implementation of level_zero::make<event>
+__SYCL_EXPORT event make_event(const context &Context,
+                               pi_native_handle NativeHandle,
+                               bool KeepOwnership) {
+  return detail::make_event(NativeHandle, Context, KeepOwnership,
+                            backend::level_zero);
+}
+
 } // namespace level_zero
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

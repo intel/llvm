@@ -18,7 +18,7 @@ define i32 @addi(i32 %a) nounwind {
 ;
 ; RV64I-LABEL: addi:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    addi a0, a0, 1
+; RV64I-NEXT:    addiw a0, a0, 1
 ; RV64I-NEXT:    ret
   %1 = add i32 %a, 1
   ret i32 %1
@@ -106,7 +106,7 @@ define i32 @slli(i32 %a) nounwind {
 ;
 ; RV64I-LABEL: slli:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    slli a0, a0, 7
+; RV64I-NEXT:    slliw a0, a0, 7
 ; RV64I-NEXT:    ret
   %1 = shl i32 %a, 7
   ret i32 %1
@@ -198,9 +198,7 @@ define i32 @sub_negative_constant_lhs(i32 %a) nounwind {
 ;
 ; RV64I-LABEL: sub_negative_constant_lhs:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    addi a1, zero, 1
-; RV64I-NEXT:    slli a1, a1, 32
-; RV64I-NEXT:    addi a1, a1, -2
+; RV64I-NEXT:    addi a1, zero, -2
 ; RV64I-NEXT:    subw a0, a1, a0
 ; RV64I-NEXT:    ret
   %1 = sub i32 -2, %a
@@ -231,7 +229,6 @@ define i32 @sll_negative_constant_lhs(i32 %a) nounwind {
 ; RV64I-LABEL: sll_negative_constant_lhs:
 ; RV64I:       # %bb.0:
 ; RV64I-NEXT:    addi a1, zero, -1
-; RV64I-NEXT:    srli a1, a1, 32
 ; RV64I-NEXT:    sllw a0, a1, a0
 ; RV64I-NEXT:    ret
   %1 = shl i32 -1, %a
@@ -310,7 +307,6 @@ define i32 @srl_negative_constant_lhs(i32 %a) nounwind {
 ; RV64I-LABEL: srl_negative_constant_lhs:
 ; RV64I:       # %bb.0:
 ; RV64I-NEXT:    addi a1, zero, -1
-; RV64I-NEXT:    srli a1, a1, 32
 ; RV64I-NEXT:    srlw a0, a1, a0
 ; RV64I-NEXT:    ret
   %1 = lshr i32 -1, %a
@@ -340,8 +336,7 @@ define i32 @sra_negative_constant_lhs(i32 %a) nounwind {
 ;
 ; RV64I-LABEL: sra_negative_constant_lhs:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    addi a1, zero, 1
-; RV64I-NEXT:    slli a1, a1, 31
+; RV64I-NEXT:    lui a1, 524288
 ; RV64I-NEXT:    sraw a0, a1, a0
 ; RV64I-NEXT:    ret
   %1 = ashr i32 2147483648, %a

@@ -1,4 +1,4 @@
-//===-- runtime/namelist.cpp ------------------------------------*- C++ -*-===//
+//===-- runtime/namelist.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,8 +8,8 @@
 
 #include "namelist.h"
 #include "descriptor-io.h"
-#include "io-api.h"
 #include "io-stmt.h"
+#include "flang/Runtime/io-api.h"
 #include <cstring>
 #include <limits>
 
@@ -233,7 +233,7 @@ static bool HandleComponent(IoStatementState &io, Descriptor &desc,
         type{addendum ? addendum->derivedType() : nullptr}) {
       if (const typeInfo::Component *
           comp{type->FindDataComponent(compName, std::strlen(compName))}) {
-        comp->EstablishDescriptor(desc, source, nullptr, handler);
+        comp->CreatePointerDescriptor(desc, source, nullptr, handler);
         return true;
       } else {
         handler.SignalError(
@@ -260,7 +260,10 @@ bool IONAME(InputNamelist)(Cookie cookie, const NamelistGroup &group) {
   ConnectionState &connection{io.GetConnectionState()};
   connection.modes.inNamelist = true;
   IoErrorHandler &handler{io.GetIoErrorHandler()};
+  auto *listInput{io.get_if<ListDirectedStatementState<Direction::Input>>()};
+  RUNTIME_CHECK(handler, listInput != nullptr);
   // Check the group header
+  io.BeginReadingRecord();
   std::optional<char32_t> next{io.GetNextNonBlank()};
   if (!next || *next != '&') {
     handler.SignalError(
@@ -331,6 +334,7 @@ bool IONAME(InputNamelist)(Cookie cookie, const NamelistGroup &group) {
     }
     io.HandleRelativePosition(1);
     // Read the values into the descriptor
+    listInput->ResetForNextNamelistItem();
     if (!descr::DescriptorIO<Direction::Input>(io, *useDescriptor)) {
       return false;
     }

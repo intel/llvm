@@ -123,6 +123,7 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
 
   // Set IO unlocked variants as unavailable
   // Set them as available per system below
+  TLI.setUnavailable(LibFunc_getc_unlocked);
   TLI.setUnavailable(LibFunc_getchar_unlocked);
   TLI.setUnavailable(LibFunc_putc_unlocked);
   TLI.setUnavailable(LibFunc_putchar_unlocked);
@@ -589,6 +590,16 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
     TLI.setAvailable(LibFunc_fgets_unlocked);
   }
 
+  if (T.isAndroid() && T.isAndroidVersionLT(21)) {
+    TLI.setUnavailable(LibFunc_stpcpy);
+    TLI.setUnavailable(LibFunc_stpncpy);
+  }
+
+  if (T.isPS4()) {
+    TLI.setUnavailable(LibFunc_stpcpy);
+    TLI.setUnavailable(LibFunc_stpncpy);
+  }
+
   // As currently implemented in clang, NVPTX code has no standard library to
   // speak of.  Headers provide a standard-ish library implementation, but many
   // of the signatures are wrong -- for example, many libm functions are not
@@ -893,9 +904,10 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
            FTy.getReturnType()->isIntegerTy(32);
 
   case LibFunc_snprintf:
-    return (NumParams == 3 && FTy.getParamType(0)->isPointerTy() &&
-            FTy.getParamType(2)->isPointerTy() &&
-            FTy.getReturnType()->isIntegerTy(32));
+    return NumParams == 3 && FTy.getParamType(0)->isPointerTy() &&
+           IsSizeTTy(FTy.getParamType(1)) &&
+           FTy.getParamType(2)->isPointerTy() &&
+           FTy.getReturnType()->isIntegerTy(32);
 
   case LibFunc_snprintf_chk:
     return NumParams == 5 && FTy.getParamType(0)->isPointerTy() &&
@@ -915,9 +927,9 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
   case LibFunc_vec_malloc:
     return (NumParams == 1 && FTy.getReturnType()->isPointerTy());
   case LibFunc_memcmp:
-    return (NumParams == 3 && FTy.getReturnType()->isIntegerTy(32) &&
-            FTy.getParamType(0)->isPointerTy() &&
-            FTy.getParamType(1)->isPointerTy());
+    return NumParams == 3 && FTy.getReturnType()->isIntegerTy(32) &&
+           FTy.getParamType(0)->isPointerTy() &&
+           FTy.getParamType(1)->isPointerTy() && IsSizeTTy(FTy.getParamType(2));
 
   case LibFunc_memchr:
   case LibFunc_memrchr:
@@ -1048,8 +1060,10 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
   case LibFunc_mktime:
   case LibFunc_times:
   case LibFunc_vec_free:
-  case LibFunc___kmpc_free_shared:
     return (NumParams != 0 && FTy.getParamType(0)->isPointerTy());
+  case LibFunc___kmpc_free_shared:
+    return (NumParams == 2 && FTy.getParamType(0)->isPointerTy() &&
+            IsSizeTTy(FTy.getParamType(1)));
 
   case LibFunc_fopen:
     return (NumParams == 2 && FTy.getReturnType()->isPointerTy() &&

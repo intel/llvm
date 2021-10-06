@@ -142,12 +142,10 @@ static void annotateDereferenceableBytes(CallInst *CI,
     unsigned AS = CI->getArgOperand(ArgNo)->getType()->getPointerAddressSpace();
     if (!llvm::NullPointerIsDefined(F, AS) ||
         CI->paramHasAttr(ArgNo, Attribute::NonNull))
-      DerefBytes = std::max(CI->getDereferenceableOrNullBytes(
-                                ArgNo + AttributeList::FirstArgIndex),
+      DerefBytes = std::max(CI->getParamDereferenceableOrNullBytes(ArgNo),
                             DereferenceableBytes);
-  
-    if (CI->getDereferenceableBytes(ArgNo + AttributeList::FirstArgIndex) <
-        DerefBytes) {
+
+    if (CI->getParamDereferenceableBytes(ArgNo) < DerefBytes) {
       CI->removeParamAttr(ArgNo, Attribute::Dereferenceable);
       if (!llvm::NullPointerIsDefined(F, AS) ||
           CI->paramHasAttr(ArgNo, Attribute::NonNull))
@@ -512,14 +510,18 @@ Value *LibCallSimplifier::optimizeStrCpy(CallInst *CI, IRBuilderBase &B) {
       B.CreateMemCpy(Dst, Align(1), Src, Align(1),
                      ConstantInt::get(DL.getIntPtrType(CI->getContext()), Len));
   NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeAttributes(AttributeList::ReturnIndex,
-                          AttributeFuncs::typeIncompatible(NewCI->getType()));
+  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
   return Dst;
 }
 
 Value *LibCallSimplifier::optimizeStpCpy(CallInst *CI, IRBuilderBase &B) {
   Function *Callee = CI->getCalledFunction();
   Value *Dst = CI->getArgOperand(0), *Src = CI->getArgOperand(1);
+
+  // stpcpy(d,s) -> strcpy(d,s) if the result is not used.
+  if (CI->use_empty())
+    return emitStrCpy(Dst, Src, B, TLI);
+
   if (Dst == Src) { // stpcpy(x,x)  -> x+strlen(x)
     Value *StrLen = emitStrLen(Src, B, DL, TLI);
     return StrLen ? B.CreateInBoundsGEP(B.getInt8Ty(), Dst, StrLen) : nullptr;
@@ -541,8 +543,7 @@ Value *LibCallSimplifier::optimizeStpCpy(CallInst *CI, IRBuilderBase &B) {
   // copy for us.  Make a memcpy to copy the nul byte with align = 1.
   CallInst *NewCI = B.CreateMemCpy(Dst, Align(1), Src, Align(1), LenV);
   NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeAttributes(AttributeList::ReturnIndex,
-                          AttributeFuncs::typeIncompatible(NewCI->getType()));
+  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
   return DstEnd;
 }
 
@@ -577,9 +578,9 @@ Value *LibCallSimplifier::optimizeStrNCpy(CallInst *CI, IRBuilderBase &B) {
   if (SrcLen == 0) {
     // strncpy(x, "", y) -> memset(x, '\0', y)
     Align MemSetAlign =
-        CI->getAttributes().getParamAttributes(0).getAlignment().valueOrOne();
+        CI->getAttributes().getParamAttrs(0).getAlignment().valueOrOne();
     CallInst *NewCI = B.CreateMemSet(Dst, B.getInt8('\0'), Size, MemSetAlign);
-    AttrBuilder ArgAttrs(CI->getAttributes().getParamAttributes(0));
+    AttrBuilder ArgAttrs(CI->getAttributes().getParamAttrs(0));
     NewCI->setAttributes(NewCI->getAttributes().addParamAttributes(
         CI->getContext(), 0, ArgAttrs));
     return Dst;
@@ -604,8 +605,7 @@ Value *LibCallSimplifier::optimizeStrNCpy(CallInst *CI, IRBuilderBase &B) {
   CallInst *NewCI = B.CreateMemCpy(Dst, Align(1), Src, Align(1),
                                    ConstantInt::get(DL.getIntPtrType(PT), Len));
   NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeAttributes(AttributeList::ReturnIndex,
-                          AttributeFuncs::typeIncompatible(NewCI->getType()));
+  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
   return Dst;
 }
 
@@ -1082,8 +1082,7 @@ Value *LibCallSimplifier::optimizeMemCpy(CallInst *CI, IRBuilderBase &B) {
   CallInst *NewCI = B.CreateMemCpy(CI->getArgOperand(0), Align(1),
                                    CI->getArgOperand(1), Align(1), Size);
   NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeAttributes(AttributeList::ReturnIndex,
-                          AttributeFuncs::typeIncompatible(NewCI->getType()));
+  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
   return CI->getArgOperand(0);
 }
 
@@ -1136,8 +1135,7 @@ Value *LibCallSimplifier::optimizeMemPCpy(CallInst *CI, IRBuilderBase &B) {
   // any return attributes are compliant.
   // TODO: Attach return value attributes to the 1st operand to preserve them?
   NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeAttributes(AttributeList::ReturnIndex,
-                          AttributeFuncs::typeIncompatible(NewCI->getType()));
+  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
   return B.CreateInBoundsGEP(B.getInt8Ty(), Dst, N);
 }
 
@@ -1151,53 +1149,8 @@ Value *LibCallSimplifier::optimizeMemMove(CallInst *CI, IRBuilderBase &B) {
   CallInst *NewCI = B.CreateMemMove(CI->getArgOperand(0), Align(1),
                                     CI->getArgOperand(1), Align(1), Size);
   NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeAttributes(AttributeList::ReturnIndex,
-                          AttributeFuncs::typeIncompatible(NewCI->getType()));
+  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
   return CI->getArgOperand(0);
-}
-
-/// Fold memset[_chk](malloc(n), 0, n) --> calloc(1, n).
-Value *LibCallSimplifier::foldMallocMemset(CallInst *Memset, IRBuilderBase &B) {
-  // This has to be a memset of zeros (bzero).
-  auto *FillValue = dyn_cast<ConstantInt>(Memset->getArgOperand(1));
-  if (!FillValue || FillValue->getZExtValue() != 0)
-    return nullptr;
-
-  // TODO: We should handle the case where the malloc has more than one use.
-  // This is necessary to optimize common patterns such as when the result of
-  // the malloc is checked against null or when a memset intrinsic is used in
-  // place of a memset library call.
-  auto *Malloc = dyn_cast<CallInst>(Memset->getArgOperand(0));
-  if (!Malloc || !Malloc->hasOneUse())
-    return nullptr;
-
-  // Is the inner call really malloc()?
-  Function *InnerCallee = Malloc->getCalledFunction();
-  if (!InnerCallee)
-    return nullptr;
-
-  LibFunc Func;
-  if (!TLI->getLibFunc(*InnerCallee, Func) || !TLI->has(Func) ||
-      Func != LibFunc_malloc)
-    return nullptr;
-
-  // The memset must cover the same number of bytes that are malloc'd.
-  if (Memset->getArgOperand(2) != Malloc->getArgOperand(0))
-    return nullptr;
-
-  // Replace the malloc with a calloc. We need the data layout to know what the
-  // actual size of a 'size_t' parameter is.
-  B.SetInsertPoint(Malloc->getParent(), ++Malloc->getIterator());
-  const DataLayout &DL = Malloc->getModule()->getDataLayout();
-  IntegerType *SizeType = DL.getIntPtrType(B.GetInsertBlock()->getContext());
-  if (Value *Calloc = emitCalloc(ConstantInt::get(SizeType, 1),
-                                 Malloc->getArgOperand(0),
-                                 Malloc->getAttributes(), B, *TLI)) {
-    substituteInParent(Malloc, Calloc);
-    return Calloc;
-  }
-
-  return nullptr;
 }
 
 Value *LibCallSimplifier::optimizeMemSet(CallInst *CI, IRBuilderBase &B) {
@@ -1206,15 +1159,11 @@ Value *LibCallSimplifier::optimizeMemSet(CallInst *CI, IRBuilderBase &B) {
   if (isa<IntrinsicInst>(CI))
     return nullptr;
 
-  if (auto *Calloc = foldMallocMemset(CI, B))
-    return Calloc;
-
   // memset(p, v, n) -> llvm.memset(align 1 p, v, n)
   Value *Val = B.CreateIntCast(CI->getArgOperand(1), B.getInt8Ty(), false);
   CallInst *NewCI = B.CreateMemSet(CI->getArgOperand(0), Val, Size, Align(1));
   NewCI->setAttributes(CI->getAttributes());
-  NewCI->removeAttributes(AttributeList::ReturnIndex,
-                          AttributeFuncs::typeIncompatible(NewCI->getType()));
+  NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
   return CI->getArgOperand(0);
 }
 
@@ -2333,7 +2282,7 @@ Value *LibCallSimplifier::optimizeErrorReporting(CallInst *CI, IRBuilderBase &B,
   // Proceedings of PACT'98, Oct. 1998, IEEE
   if (!CI->hasFnAttr(Attribute::Cold) &&
       isReportingError(Callee, CI, StreamArg)) {
-    CI->addAttribute(AttributeList::FunctionIndex, Attribute::Cold);
+    CI->addFnAttr(Attribute::Cold);
   }
 
   return nullptr;
@@ -2468,6 +2417,7 @@ Value *LibCallSimplifier::optimizeSPrintFString(CallInst *CI,
     return nullptr;
 
   // If we just have a format string (nothing else crazy) transform it.
+  Value *Dest = CI->getArgOperand(0);
   if (CI->getNumArgOperands() == 2) {
     // Make sure there's no % in the constant array.  We could try to handle
     // %% -> % in the future if we cared.
@@ -2476,7 +2426,7 @@ Value *LibCallSimplifier::optimizeSPrintFString(CallInst *CI,
 
     // sprintf(str, fmt) -> llvm.memcpy(align 1 str, align 1 fmt, strlen(fmt)+1)
     B.CreateMemCpy(
-        CI->getArgOperand(0), Align(1), CI->getArgOperand(1), Align(1),
+        Dest, Align(1), CI->getArgOperand(1), Align(1),
         ConstantInt::get(DL.getIntPtrType(CI->getContext()),
                          FormatStr.size() + 1)); // Copy the null byte.
     return ConstantInt::get(CI->getType(), FormatStr.size());
@@ -2494,7 +2444,7 @@ Value *LibCallSimplifier::optimizeSPrintFString(CallInst *CI,
     if (!CI->getArgOperand(2)->getType()->isIntegerTy())
       return nullptr;
     Value *V = B.CreateTrunc(CI->getArgOperand(2), B.getInt8Ty(), "char");
-    Value *Ptr = castToCStr(CI->getArgOperand(0), B);
+    Value *Ptr = castToCStr(Dest, B);
     B.CreateStore(V, Ptr);
     Ptr = B.CreateGEP(B.getInt8Ty(), Ptr, B.getInt32(1), "nul");
     B.CreateStore(B.getInt8(0), Ptr);
@@ -2510,19 +2460,20 @@ Value *LibCallSimplifier::optimizeSPrintFString(CallInst *CI,
 
     if (CI->use_empty())
       // sprintf(dest, "%s", str) -> strcpy(dest, str)
-      return emitStrCpy(CI->getArgOperand(0), CI->getArgOperand(2), B, TLI);
+      return emitStrCpy(Dest, CI->getArgOperand(2), B, TLI);
 
     uint64_t SrcLen = GetStringLength(CI->getArgOperand(2));
     if (SrcLen) {
       B.CreateMemCpy(
-          CI->getArgOperand(0), Align(1), CI->getArgOperand(2), Align(1),
+          Dest, Align(1), CI->getArgOperand(2), Align(1),
           ConstantInt::get(DL.getIntPtrType(CI->getContext()), SrcLen));
       // Returns total number of characters written without null-character.
       return ConstantInt::get(CI->getType(), SrcLen - 1);
-    } else if (Value *V = emitStpCpy(CI->getArgOperand(0), CI->getArgOperand(2),
-                                     B, TLI)) {
+    } else if (Value *V = emitStpCpy(Dest, CI->getArgOperand(2), B, TLI)) {
       // sprintf(dest, "%s", str) -> stpcpy(dest, str) - dest
-      Value *PtrDiff = B.CreatePtrDiff(V, CI->getArgOperand(0));
+      // Handle mismatched pointer types (goes away with typeless pointers?).
+      V = B.CreatePointerCast(V, Dest->getType());
+      Value *PtrDiff = B.CreatePtrDiff(V, Dest);
       return B.CreateIntCast(PtrDiff, CI->getType(), false);
     }
 
@@ -2537,8 +2488,7 @@ Value *LibCallSimplifier::optimizeSPrintFString(CallInst *CI,
       return nullptr;
     Value *IncLen =
         B.CreateAdd(Len, ConstantInt::get(Len->getType(), 1), "leninc");
-    B.CreateMemCpy(CI->getArgOperand(0), Align(1), CI->getArgOperand(2),
-                   Align(1), IncLen);
+    B.CreateMemCpy(Dest, Align(1), CI->getArgOperand(2), Align(1), IncLen);
 
     // The sprintf result is the unincremented number of bytes in the string.
     return B.CreateIntCast(Len, CI->getType(), false);
@@ -3065,7 +3015,6 @@ Value *LibCallSimplifier::optimizeCall(CallInst *CI, IRBuilderBase &Builder) {
       return optimizeLog(CI, Builder);
     case Intrinsic::sqrt:
       return optimizeSqrt(CI, Builder);
-    // TODO: Use foldMallocMemset() with memset intrinsic.
     case Intrinsic::memset:
       return optimizeMemSet(CI, Builder);
     case Intrinsic::memcpy:
@@ -3265,8 +3214,7 @@ Value *FortifiedLibCallSimplifier::optimizeMemCpyChk(CallInst *CI,
         B.CreateMemCpy(CI->getArgOperand(0), Align(1), CI->getArgOperand(1),
                        Align(1), CI->getArgOperand(2));
     NewCI->setAttributes(CI->getAttributes());
-    NewCI->removeAttributes(AttributeList::ReturnIndex,
-                            AttributeFuncs::typeIncompatible(NewCI->getType()));
+    NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
     return CI->getArgOperand(0);
   }
   return nullptr;
@@ -3279,8 +3227,7 @@ Value *FortifiedLibCallSimplifier::optimizeMemMoveChk(CallInst *CI,
         B.CreateMemMove(CI->getArgOperand(0), Align(1), CI->getArgOperand(1),
                         Align(1), CI->getArgOperand(2));
     NewCI->setAttributes(CI->getAttributes());
-    NewCI->removeAttributes(AttributeList::ReturnIndex,
-                            AttributeFuncs::typeIncompatible(NewCI->getType()));
+    NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
     return CI->getArgOperand(0);
   }
   return nullptr;
@@ -3288,15 +3235,12 @@ Value *FortifiedLibCallSimplifier::optimizeMemMoveChk(CallInst *CI,
 
 Value *FortifiedLibCallSimplifier::optimizeMemSetChk(CallInst *CI,
                                                      IRBuilderBase &B) {
-  // TODO: Try foldMallocMemset() here.
-
   if (isFortifiedCallFoldable(CI, 3, 2)) {
     Value *Val = B.CreateIntCast(CI->getArgOperand(1), B.getInt8Ty(), false);
     CallInst *NewCI = B.CreateMemSet(CI->getArgOperand(0), Val,
                                      CI->getArgOperand(2), Align(1));
     NewCI->setAttributes(CI->getAttributes());
-    NewCI->removeAttributes(AttributeList::ReturnIndex,
-                            AttributeFuncs::typeIncompatible(NewCI->getType()));
+    NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
     return CI->getArgOperand(0);
   }
   return nullptr;
@@ -3310,9 +3254,7 @@ Value *FortifiedLibCallSimplifier::optimizeMemPCpyChk(CallInst *CI,
                                   CI->getArgOperand(2), B, DL, TLI)) {
       CallInst *NewCI = cast<CallInst>(Call);
       NewCI->setAttributes(CI->getAttributes());
-      NewCI->removeAttributes(
-          AttributeList::ReturnIndex,
-          AttributeFuncs::typeIncompatible(NewCI->getType()));
+      NewCI->removeRetAttrs(AttributeFuncs::typeIncompatible(NewCI->getType()));
       return NewCI;
     }
   return nullptr;

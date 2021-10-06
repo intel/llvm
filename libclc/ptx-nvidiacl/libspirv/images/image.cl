@@ -950,7 +950,7 @@ _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(int, i, 3, int4, S1_, float4)
 
 _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(uint, j, 1, float, f, float)
 _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(uint, j, 2, float2, Dv2_f, float2)
-_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(uint, j, 3, float4, DV4_f, float4)
+_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(uint, j, 3, float4, Dv4_f, float4)
 _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(uint, j, 1, int, i, float)
 _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(uint, j, 2, int2, Dv2_i, float2)
 _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(uint, j, 3, int4, Dv4_i, float4)
@@ -958,7 +958,7 @@ _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(uint, j, 3, int4, Dv4_i, float4)
 #ifdef cl_khr_fp16
 _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 1, float, f, float)
 _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 2, float2, Dv2_f, float2)
-_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 3, float4, DV4_f, float4)
+_CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 3, float4, Dv4_f, float4)
 _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 1, int, i, float)
 _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 2, int2, Dv2_i, float2)
 _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 3, int4, Dv4_i, float4)
@@ -973,7 +973,7 @@ _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 3, int4, Dv4_i, float4)
 #undef _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN
 
 // Size Queries
-_CLC_DECL int _Z22__spirv_ImageQuerySizeIDv2_i14ocl_image1d_roET_T0_(
+_CLC_DECL int _Z22__spirv_ImageQuerySizeIDv1_i14ocl_image1d_roET_T0_(
     read_only image1d_t image) {
   return __nvvm_suq_width_1i(image);
 }
@@ -985,10 +985,10 @@ _CLC_DECL int2 _Z22__spirv_ImageQuerySizeIDv2_i14ocl_image2d_roET_T0_(
   return (int2)(width, height);
 }
 
-_CLC_DECL int4 _Z22__spirv_ImageQuerySizeIDv2_i14ocl_image3d_roET_T0_(
+_CLC_DECL int3 _Z22__spirv_ImageQuerySizeIDv3_i14ocl_image3d_roET_T0_(
     read_only image3d_t image) {
   int width = __nvvm_suq_width_3i(image);
   int height = __nvvm_suq_height_3i(image);
   int depth = __nvvm_suq_depth_3i(image);
-  return (int4)(width, height, depth, 0);
+  return (int3)(width, height, depth);
 }

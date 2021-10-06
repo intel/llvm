@@ -1019,8 +1019,6 @@ lldb_private::ConstString RenderScriptRuntime::GetPluginName() {
   return GetPluginNameStatic();
 }
 
-uint32_t RenderScriptRuntime::GetPluginVersion() { return 1; }
-
 bool RenderScriptRuntime::GetDynamicTypeAndAddress(
     ValueObject &in_value, lldb::DynamicValueType use_dynamic,
     TypeAndOrName &class_type_or_name, Address &address,
@@ -2660,7 +2658,7 @@ bool RenderScriptRuntime::SaveAllocation(Stream &strm, const uint32_t alloc_id,
   FileSpec file_spec(path);
   FileSystem::Instance().Resolve(file_spec);
   auto file = FileSystem::Instance().Open(
-      file_spec, File::eOpenOptionWrite | File::eOpenOptionCanCreate |
+      file_spec, File::eOpenOptionWriteOnly | File::eOpenOptionCanCreate |
                      File::eOpenOptionTruncate);
 
   if (!file) {
@@ -4585,8 +4583,9 @@ public:
     if (outfile_spec) {
       // Open output file
       std::string path = outfile_spec.GetPath();
-      auto file = FileSystem::Instance().Open(
-          outfile_spec, File::eOpenOptionWrite | File::eOpenOptionCanCreate);
+      auto file = FileSystem::Instance().Open(outfile_spec,
+                                              File::eOpenOptionWriteOnly |
+                                                  File::eOpenOptionCanCreate);
       if (file) {
         output_stream_storage =
             std::make_unique<StreamFile>(std::move(file.get()));

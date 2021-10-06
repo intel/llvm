@@ -1464,6 +1464,16 @@
 // OPENBSD:#define __WCHAR_TYPE__ int
 // OPENBSD:#define __WINT_TYPE__ int
 //
+// RUN: %clang_cc1 -x c -std=c11 -E -dM -ffreestanding -triple=amd64-unknown-openbsd < /dev/null | FileCheck -match-full-lines -check-prefix OPENBSD-STDC %s
+// RUN: %clang_cc1 -x c -std=gnu11 -E -dM -ffreestanding -triple=amd64-unknown-openbsd < /dev/null | FileCheck -match-full-lines -check-prefix OPENBSD-STDC %s
+// RUN: %clang_cc1 -x c -std=c17 -E -dM -ffreestanding -triple=amd64-unknown-openbsd < /dev/null | FileCheck -match-full-lines -check-prefix OPENBSD-STDC %s
+// OPENBSD-STDC:#define __STDC_NO_ATOMICS__ 1
+// OPENBSD-STDC:#define __STDC_NO_THREADS__ 1
+//
+// RUN: %clang_cc1 -x c -std=c99 -E -dM -ffreestanding -triple=amd64-unknown-openbsd < /dev/null | FileCheck -match-full-lines -check-prefix OPENBSD-STDC-N %s
+// OPENBSD-STDC-N-NOT:#define __STDC_NO_ATOMICS__ 1
+// OPENBSD-STDC-N-NOT:#define __STDC_NO_THREADS__ 1
+//
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=xcore-none-none < /dev/null | FileCheck -match-full-lines -check-prefix XCORE %s
 // XCORE:#define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
 // XCORE:#define __LITTLE_ENDIAN__ 1
@@ -1854,8 +1864,10 @@
 // WEBASSEMBLY-NEXT:#define __clang_version__ "{{.*}}"
 // WEBASSEMBLY-NEXT:#define __clang_wide_literal_encoding__ {{.*}}
 // WEBASSEMBLY-NEXT:#define __llvm__ 1
-// WEBASSEMBLY-NOT:#define __unix
-// WEBASSEMBLY-NOT:#define __unix__
+// WEBASSEMBLY-WASI-NOT:#define __unix
+// WEBASSEMBLY-WASI-NOT:#define __unix__
+// EMSCRIPTEN-NEXT:#define __unix 1
+// EMSCRIPTEN-NEXT:#define __unix__ 1
 // WEBASSEMBLY-WASI-NEXT:#define __wasi__ 1
 // WEBASSEMBLY-NOT:#define __wasm_simd128__
 // WEBASSEMBLY-NOT:#define __wasm_simd256__
@@ -1870,6 +1882,8 @@
 // WEBASSEMBLY64-NEXT:#define __wasm64 1
 // WEBASSEMBLY64-NEXT:#define __wasm64__ 1
 // WEBASSEMBLY-NEXT:#define __wasm__ 1
+// EMSCRIPTEN:#define unix 1
+// WEBASSEMBLY-WASI-NOT:#define unix 1
 // WEBASSEMBLY-CXX-NOT:_REENTRANT
 // WEBASSEMBLY-CXX-NOT:__STDCPP_THREADS__
 // WEBASSEMBLY-CXX-ATOMICS:#define _REENTRANT 1

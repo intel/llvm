@@ -17,7 +17,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 using namespace mlir;
-using namespace mlir::test;
+using namespace test;
 
 // Native function for testing NativeCodeCall
 static Value chooseOperand(Value input1, Value input2, BoolAttr choice) {
@@ -44,6 +44,11 @@ static bool getFirstI32Result(Operation *op, Value &value) {
 
 static Value bindNativeCodeCallResult(Value value) { return value; }
 
+static SmallVector<Value, 2> bindMultipleNativeCodeCallResult(Value input1,
+                                                              Value input2) {
+  return SmallVector<Value, 2>({input2, input1});
+}
+
 // Test that natives calls are only called once during rewrites.
 // OpM_Test will return Pi, increased by 1 for each subsequent calls.
 // This let us check the number of times OpM_Test was called by inspecting
@@ -62,7 +67,7 @@ namespace {
 // Test Reduce Pattern Interface
 //===----------------------------------------------------------------------===//
 
-void mlir::test::populateTestReductionPatterns(RewritePatternSet &patterns) {
+void test::populateTestReductionPatterns(RewritePatternSet &patterns) {
   populateWithGenerated(patterns);
 }
 
@@ -94,6 +99,29 @@ public:
   }
 };
 
+/// This pattern creates a foldable operation at the entry point of the block.
+/// This tests the situation where the operation folder will need to replace an
+/// operation with a previously created constant that does not initially
+/// dominate the operation to replace.
+struct FolderInsertBeforePreviouslyFoldedConstantPattern
+    : public OpRewritePattern<TestCastOp> {
+public:
+  using OpRewritePattern<TestCastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TestCastOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!op->hasAttr("test_fold_before_previously_folded_op"))
+      return failure();
+    rewriter.setInsertionPointToStart(op->getBlock());
+
+    auto constOp =
+        rewriter.create<ConstantOp>(op.getLoc(), rewriter.getBoolAttr(true));
+    rewriter.replaceOpWithNewOp<TestCastOp>(op, rewriter.getI32Type(),
+                                            Value(constOp));
+    return success();
+  }
+};
+
 struct TestPatternDriver : public PassWrapper<TestPatternDriver, FunctionPass> {
   StringRef getArgument() const final { return "test-patterns"; }
   StringRef getDescription() const final { return "Run test dialect patterns"; }
@@ -102,7 +130,9 @@ struct TestPatternDriver : public PassWrapper<TestPatternDriver, FunctionPass> {
     populateWithGenerated(patterns);
 
     // Verify named pattern is generated with expected name.
-    patterns.add<FoldingPattern, TestNamedPatternRule>(&getContext());
+    patterns.add<FoldingPattern, TestNamedPatternRule,
+                 FolderInsertBeforePreviouslyFoldedConstantPattern>(
+        &getContext());
 
     (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
@@ -532,6 +562,20 @@ struct TestReplaceEraseOp : public OpRewritePattern<BlackHoleOp> {
     return success();
   };
 };
+
+// This pattern replaces explicitly illegal op with explicitly legal op,
+// but in addition creates unregistered operation.
+struct TestCreateUnregisteredOp : public OpRewritePattern<ILLegalOpG> {
+  using OpRewritePattern<ILLegalOpG>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ILLegalOpG op,
+                                PatternRewriter &rewriter) const final {
+    IntegerAttr attr = rewriter.getI32IntegerAttr(0);
+    Value val = rewriter.create<ConstantOp>(op->getLoc(), attr);
+    rewriter.replaceOpWithNewOp<LegalOpC>(op, val);
+    return success();
+  };
+};
 } // namespace
 
 namespace {
@@ -602,6 +646,10 @@ struct TestLegalizePatternDriver
 
   TestLegalizePatternDriver(ConversionMode mode) : mode(mode) {}
 
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<StandardOpsDialect>();
+  }
+
   void runOnOperation() override {
     TestTypeConverter converter;
     mlir::RewritePatternSet patterns(&getContext());
@@ -613,8 +661,8 @@ struct TestLegalizePatternDriver
              TestChangeProducerTypeI32ToF32, TestChangeProducerTypeF32ToF64,
              TestChangeProducerTypeF32ToInvalid, TestUpdateConsumerType,
              TestNonRootReplacement, TestBoundedRecursiveRewrite,
-             TestNestedOpCreationUndoRewrite, TestReplaceEraseOp>(
-            &getContext());
+             TestNestedOpCreationUndoRewrite, TestReplaceEraseOp,
+             TestCreateUnregisteredOp>(&getContext());
     patterns.add<TestDropOpSignatureConversion>(&getContext(), converter);
     mlir::populateFuncOpTypeConversionPattern(patterns, converter);
     mlir::populateCallOpTypeConversionPattern(patterns, converter);
@@ -622,7 +670,7 @@ struct TestLegalizePatternDriver
     // Define the conversion target used for the test.
     ConversionTarget target(getContext());
     target.addLegalOp<ModuleOp>();
-    target.addLegalOp<LegalOpA, LegalOpB, TestCastOp, TestValidOp,
+    target.addLegalOp<LegalOpA, LegalOpB, LegalOpC, TestCastOp, TestValidOp,
                       TerminatorOp>();
     target
         .addIllegalOp<ILLegalOpF, TestRegionBuilderOp, TestOpWithRegionFold>();
@@ -635,6 +683,11 @@ struct TestLegalizePatternDriver
       return converter.isSignatureLegal(op.getType()) &&
              converter.isLegal(&op.getBody());
     });
+
+    // TestCreateUnregisteredOp creates `std.constant` operation,
+    // which was not added to target intentionally to test
+    // correct error code from conversion driver.
+    target.addDynamicallyLegalOp<ILLegalOpG>([](ILLegalOpG) { return false; });
 
     // Expect the type_producer/type_consumer operations to only operate on f64.
     target.addDynamicallyLegalOp<TestTypeProducerOp>(
@@ -656,8 +709,10 @@ struct TestLegalizePatternDriver
     // Handle a partial conversion.
     if (mode == ConversionMode::Partial) {
       DenseSet<Operation *> unlegalizedOps;
-      (void)applyPartialConversion(getOperation(), target, std::move(patterns),
-                                   &unlegalizedOps);
+      if (failed(applyPartialConversion(
+              getOperation(), target, std::move(patterns), &unlegalizedOps))) {
+        getOperation()->emitRemark() << "applyPartialConversion failed";
+      }
       // Emit remarks for each legalizable operation.
       for (auto *op : unlegalizedOps)
         op->emitRemark() << "op '" << op->getName() << "' is not legalizable";
@@ -671,7 +726,10 @@ struct TestLegalizePatternDriver
         return (bool)op->getAttrOfType<UnitAttr>("test.dynamically_legal");
       });
 
-      (void)applyFullConversion(getOperation(), target, std::move(patterns));
+      if (failed(applyFullConversion(getOperation(), target,
+                                     std::move(patterns)))) {
+        getOperation()->emitRemark() << "applyFullConversion failed";
+      }
       return;
     }
 
