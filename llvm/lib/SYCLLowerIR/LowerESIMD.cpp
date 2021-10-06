@@ -1355,9 +1355,8 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
-    if (GTy = dyn_cast<StructType>(VTy)) {
+    if ((GTy = dyn_cast<StructType>(VTy))) {
       assert(
-          GTy &&
           GTy->getName().endswith(
               "sycl::ext::intel::experimental::esimd::detail::simd_obj_impl"));
       VTy = GTy->getContainedType(0);

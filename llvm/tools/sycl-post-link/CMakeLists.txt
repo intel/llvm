@@ -19,7 +19,7 @@ include_directories(
 
 add_llvm_tool(sycl-post-link
   sycl-post-link.cpp
-  SPIRKernelParamOptInfo.cpp
+  SYCLKernelParamOptInfo.cpp
   SpecConstants.cpp
   SYCLDeviceLibReqMask.cpp
   ADDITIONAL_HEADER_DIRS

@@ -192,6 +192,19 @@ static const bool ZeAllHostVisibleEvents = [] {
   return result;
 }();
 
+// Maximum number of events that can be present in an event ZePool is captured
+// here. Setting it to 256 gave best possible performance for several
+// benchmarks.
+static const pi_uint32 MaxNumEventsPerPool = [] {
+  const auto MaxNumEventsPerPoolEnv =
+      std::getenv("ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL");
+  pi_uint32 Result =
+      MaxNumEventsPerPoolEnv ? std::atoi(MaxNumEventsPerPoolEnv) : 256;
+  if (Result <= 0)
+    Result = 256;
+  return Result;
+}();
+
 // Helper function to implement zeHostSynchronize.
 // The behavior is to avoid infinite wait during host sync under ZE_DEBUG.
 // This allows for a much more responsive debugging of hangs.
@@ -392,50 +405,38 @@ pi_result _pi_mem::removeMapping(void *MappedTo, Mapping &MapInfo) {
 pi_result
 _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
                                             size_t &Index, bool HostVisible) {
-  // Maximum number of events that can be present in an event ZePool is captured
-  // here. Setting it to 256 gave best possible performance for several
-  // benchmarks.
-  static const pi_uint32 MaxNumEventsPerPool = [] {
-    const auto MaxNumEventsPerPoolEnv =
-        std::getenv("ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL");
-    return MaxNumEventsPerPoolEnv ? std::atoi(MaxNumEventsPerPoolEnv) : 256;
-  }();
-
-  if (MaxNumEventsPerPool == 0) {
-    zePrint("Zero size can't be specified in the "
-            "ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL\n");
-    return PI_INVALID_VALUE;
-  }
+  // Lock while updating event pool machinery.
+  std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
 
   // Setup for host-visible pool as needed.
   ze_event_pool_flag_t ZePoolFlag = {};
-  ze_event_pool_handle_t *ZePool = [&] {
-    if (ZeAllHostVisibleEvents) {
-      ZePoolFlag = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
-      return &ZeEventPool;
-    } else if (HostVisible) {
-      ZePoolFlag = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
-      return &ZeHostVisibleEventPool;
-    } else {
-      return &ZeEventPool;
-    }
-  }();
+  std::list<ze_event_pool_handle_t> *ZePoolCache;
 
+  if (ZeAllHostVisibleEvents) {
+    ZePoolFlag = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
+    ZePoolCache = &ZeEventPoolCache;
+  } else if (HostVisible) {
+    ZePoolFlag = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
+    ZePoolCache = &ZeHostVisibleEventPoolCache;
+  } else {
+    ZePoolCache = &ZeEventPoolCache;
+  }
+
+  // Remove full pool from the cache.
+  if (!ZePoolCache->empty()) {
+    if (NumEventsAvailableInEventPool[ZePoolCache->front()] == 0) {
+      ZePoolCache->erase(ZePoolCache->begin());
+    }
+  }
+  if (ZePoolCache->empty()) {
+    ZePoolCache->push_back(nullptr);
+  }
+
+  // We shall be adding an event to the front pool.
+  ze_event_pool_handle_t *ZePool = &ZePoolCache->front();
   Index = 0;
   // Create one event ZePool per MaxNumEventsPerPool events
-  if ((*ZePool == nullptr) || (NumEventsAvailableInEventPool[*ZePool] == 0)) {
-    // Creation of the new ZePool with record in NumEventsAvailableInEventPool
-    // and initialization of the record in NumEventsUnreleasedInEventPool must
-    // be done atomically. Otherwise it is possible that
-    // decrementUnreleasedEventsInPool will be called for the record in
-    // NumEventsUnreleasedInEventPool before its
-    std::lock(NumEventsAvailableInEventPoolMutex,
-              NumEventsUnreleasedInEventPoolMutex);
-    std::lock_guard<std::mutex> NumEventsAvailableInEventPoolGuard(
-        NumEventsAvailableInEventPoolMutex, std::adopt_lock);
-    std::lock_guard<std::mutex> NumEventsUnreleasedInEventPoolGuard(
-        NumEventsUnreleasedInEventPoolMutex, std::adopt_lock);
-
+  if (*ZePool == nullptr) {
     ZeStruct<ze_event_pool_desc_t> ZeEventPoolDesc;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;
     ZeEventPoolDesc.flags = ZePoolFlag | ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
@@ -449,8 +450,6 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
     NumEventsAvailableInEventPool[*ZePool] = MaxNumEventsPerPool - 1;
     NumEventsUnreleasedInEventPool[*ZePool] = MaxNumEventsPerPool;
   } else {
-    std::lock_guard<std::mutex> NumEventsAvailableInEventPoolGuard(
-        NumEventsAvailableInEventPoolMutex);
     Index = MaxNumEventsPerPool - NumEventsAvailableInEventPool[*ZePool];
     --NumEventsAvailableInEventPool[*ZePool];
   }
@@ -458,29 +457,31 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
   return PI_SUCCESS;
 }
 
-pi_result
-_pi_context::decrementUnreleasedEventsInPool(ze_event_pool_handle_t &ZePool) {
-  if (!ZePool) {
+pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
+  if (!Event->ZeEventPool) {
     // This must be an interop event created on a users's pool.
     // Do nothing.
     return PI_SUCCESS;
   }
-  std::lock_guard<std::mutex> Lock(NumEventsUnreleasedInEventPoolMutex);
-  --NumEventsUnreleasedInEventPool[ZePool];
-  if (NumEventsUnreleasedInEventPool[ZePool] == 0) {
-    ZE_CALL(zeEventPoolDestroy, (ZePool));
-    // Nullify ZeEventPool pointer to indicate this pool is already destroyed
-    // because we will call ZeEventPoolDestroy() if ZeEventPool is not null
-    // in pi_context::finalize().
-    // Note that calling ZeEventPoolDestroy() for the already destroyed pool
-    // will cause a segmentation fault in L0.
-    // We need to check the equality below because it is possible that
-    // multiple pi_context::ZeEventPool can be created if all slots in the pool
-    // are already used up. So nullifying pi_context::ZeEventPool may point
-    // a  different EventPool than Event->ZeEventPool.
-    if (ZeEventPool == ZePool)
-      ZeEventPool = nullptr;
-    ZePool = nullptr;
+
+  // Put the empty pool to the cache of the pools.
+  std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
+  if (--NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0) {
+    if (ZeEventPoolCache.front() != Event->ZeEventPool) {
+      ZeEventPoolCache.push_back(Event->ZeEventPool);
+    }
+    NumEventsAvailableInEventPool[Event->ZeEventPool] = MaxNumEventsPerPool;
+  }
+
+  if (Event->ZeHostVisibleEventPool) {
+    if (--NumEventsUnreleasedInEventPool[Event->ZeHostVisibleEventPool] == 0) {
+      if (ZeHostVisibleEventPoolCache.front() !=
+          Event->ZeHostVisibleEventPool) {
+        ZeHostVisibleEventPoolCache.push_back(Event->ZeHostVisibleEventPool);
+      }
+      NumEventsAvailableInEventPool[Event->ZeHostVisibleEventPool] =
+          MaxNumEventsPerPool;
+    }
   }
   return PI_SUCCESS;
 }
@@ -772,15 +773,19 @@ pi_result _pi_context::initialize() {
 }
 
 pi_result _pi_context::finalize() {
-  // This function is called when pi_context is deallocated, piContextRelase.
+  // This function is called when pi_context is deallocated, piContextRelease.
   // There could be some memory that may have not been deallocated.
-  // For example, zeEventPool could be still alive.
-  std::lock_guard<std::mutex> NumEventsUnreleasedInEventPoolGuard(
-      NumEventsUnreleasedInEventPoolMutex);
-  if (ZeEventPool)
-    ZE_CALL(zeEventPoolDestroy, (ZeEventPool));
-  if (ZeHostVisibleEventPool)
-    ZE_CALL(zeEventPoolDestroy, (ZeHostVisibleEventPool));
+  // For example, event pool caches would be still alive.
+  {
+    std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
+    for (auto &ZePool : ZeEventPoolCache)
+      ZE_CALL(zeEventPoolDestroy, (ZePool));
+    for (auto &ZePool : ZeHostVisibleEventPoolCache)
+      ZE_CALL(zeEventPoolDestroy, (ZePool));
+
+    ZeEventPoolCache.clear();
+    ZeHostVisibleEventPoolCache.clear();
+  }
 
   // Destroy the command list used for initializations
   ZE_CALL(zeCommandListDestroy, (ZeCommandListInit));
@@ -4088,7 +4093,7 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
     return mapError(ZeResult);
 
   try {
-    *RetKernel = new _pi_kernel(ZeKernel, Program);
+    *RetKernel = new _pi_kernel(ZeKernel, true, Program);
   } catch (const std::bad_alloc &) {
     return PI_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -4331,7 +4336,8 @@ pi_result piKernelRelease(pi_kernel Kernel) {
 
   auto KernelProgram = Kernel->Program;
   if (--(Kernel->RefCount) == 0) {
-    ZE_CALL(zeKernelDestroy, (Kernel->ZeKernel));
+    if (Kernel->OwnZeKernel)
+      ZE_CALL(zeKernelDestroy, (Kernel->ZeKernel));
     if (IndirectAccessTrackingEnabled) {
       PI_CALL(piContextRelease(KernelProgram->Context));
     }
@@ -4486,9 +4492,32 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   return PI_SUCCESS;
 }
 
-pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context, bool,
-                                            pi_kernel *) {
-  die("Unsupported operation");
+pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
+                                            pi_context Context,
+                                            pi_program Program,
+                                            bool OwnNativeHandle,
+                                            pi_kernel *Kernel) {
+  PI_ASSERT(Context, PI_INVALID_CONTEXT);
+  PI_ASSERT(Program, PI_INVALID_PROGRAM);
+  PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
+  PI_ASSERT(Kernel, PI_INVALID_KERNEL);
+
+  auto ZeKernel = pi_cast<ze_kernel_handle_t>(NativeHandle);
+  *Kernel = new _pi_kernel(ZeKernel, OwnNativeHandle, Program);
+
+  // Update the refcount of the program and context to show it's used by this
+  // kernel.
+  PI_CALL(piProgramRetain(Program));
+  if (IndirectAccessTrackingEnabled)
+    // TODO: do piContextRetain without the guard
+    PI_CALL(piContextRetain(Program->Context));
+
+  // Set up how to obtain kernel properties when needed.
+  (*Kernel)->ZeKernelProperties.Compute =
+      [ZeKernel](ze_kernel_properties_t &Properties) {
+        ZE_CALL_NOCHECK(zeKernelGetProperties, (ZeKernel, &Properties));
+      };
+
   return PI_SUCCESS;
 }
 
@@ -4962,14 +4991,8 @@ static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
     }
 
     auto Context = Event->Context;
-    if (auto Res = Context->decrementUnreleasedEventsInPool(Event->ZeEventPool))
+    if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
       return Res;
-
-    if (Event->ZeHostVisibleEvent) {
-      if (auto Res = Context->decrementUnreleasedEventsInPool(
-              Event->ZeHostVisibleEventPool))
-        return Res;
-    }
 
     // We intentionally incremented the reference counter when an event is
     // created so that we can avoid pi_queue is released before the associated
