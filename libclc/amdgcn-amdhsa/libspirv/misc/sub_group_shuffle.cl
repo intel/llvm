@@ -20,69 +20,54 @@ _Z28__spirv_SubgroupShuffleINTELIiET_S0_j(int Data, unsigned int InvocationId) {
   return __builtin_amdgcn_ds_bpermute(index << 2, Data);
 }
 
-// unsigned int __spirv_SubgroupShuffleINTEL<unsigned int>(unsigned int,
-//                                                         unsigned int);
-_CLC_DEF unsigned int
-_Z28__spirv_SubgroupShuffleINTELIjET_S0_j(unsigned int Data,
-                                          unsigned int InvocationId) {
-  return as_uint(
-      _Z28__spirv_SubgroupShuffleINTELIiET_S0_j(as_int(Data), InvocationId));
-}
 // Sub 32-bit types.
 // _Z28__spirv_SubgroupShuffleINTELIaET_S0_j - char
 // _Z28__spirv_SubgroupShuffleINTELIhET_S0_j - unsigned char
 // _Z28__spirv_SubgroupShuffleINTELIsET_S0_j - long
 // _Z28__spirv_SubgroupShuffleINTELItET_S0_j - unsigned long
-#define __AMDGCN_CLC_SUBGROUP_TO_I32(TYPE, MANGLED_TYPE_NAME)                  \
+#define __AMDGCN_CLC_SUBGROUP_SUB_I32(TYPE, MANGLED_TYPE_NAME)                 \
   _CLC_DEF TYPE _Z28__spirv_SubgroupShuffleINTELI##MANGLED_TYPE_NAME##ET_S0_j( \
       TYPE Data, unsigned int InvocationId) {                                  \
     return _Z28__spirv_SubgroupShuffleINTELIiET_S0_j(Data, InvocationId);      \
   }
-__AMDGCN_CLC_SUBGROUP_TO_I32(char, a);
-__AMDGCN_CLC_SUBGROUP_TO_I32(unsigned char, h);
-__AMDGCN_CLC_SUBGROUP_TO_I32(short, s);
-__AMDGCN_CLC_SUBGROUP_TO_I32(unsigned short, t);
-#undef __AMDGCN_CLC_SUBGROUP_TO_I32
+__AMDGCN_CLC_SUBGROUP_SUB_I32(char, a);
+__AMDGCN_CLC_SUBGROUP_SUB_I32(unsigned char, h);
+__AMDGCN_CLC_SUBGROUP_SUB_I32(short, s);
+__AMDGCN_CLC_SUBGROUP_SUB_I32(unsigned short, t);
+#undef __AMDGCN_CLC_SUBGROUP_SUB_I32
 
-// float __spirv_SubgroupShuffleINTEL<float>(float, unsigned int)
-_CLC_DEF float
-_Z28__spirv_SubgroupShuffleINTELIfET_S0_j(float Data,
-                                          unsigned int InvocationId) {
-  return as_float(
-      _Z28__spirv_SubgroupShuffleINTELIiET_S0_j(as_int(Data), InvocationId));
-}
+// 32-bit types.
+// __spirv_SubgroupShuffleINTEL - unsigned int
+// __spirv_SubgroupShuffleINTEL-  float
+#define __AMDGCN_CLC_SUBGROUP_I32(TYPE, CAST_TYPE, MANGLED_TYPE_NAME)          \
+  _CLC_DEF TYPE _Z28__spirv_SubgroupShuffleINTELI##MANGLED_TYPE_NAME##ET_S0_j( \
+      TYPE Data, unsigned int InvocationId) {                                  \
+    return __builtin_astype(                                                   \
+        _Z28__spirv_SubgroupShuffleINTELIiET_S0_j(as_int(Data), InvocationId), \
+        CAST_TYPE);                                                            \
+  }
+__AMDGCN_CLC_SUBGROUP_I32(unsigned int, uint, j);
+__AMDGCN_CLC_SUBGROUP_I32(float, float, f);
+#undef __AMDGCN_CLC_SUBGROUP_I32
 
-// double __spirv_SubgroupShuffleINTEL<double>(double, unsigned int)
-_CLC_DEF double
-_Z28__spirv_SubgroupShuffleINTELIdET_S0_j(double Data,
-                                          unsigned int InvocationId) {
-  int2 tmp = as_int2(Data);
-  tmp.lo = _Z28__spirv_SubgroupShuffleINTELIiET_S0_j(tmp.lo, InvocationId);
-  tmp.hi = _Z28__spirv_SubgroupShuffleINTELIiET_S0_j(tmp.hi, InvocationId);
-  return as_double(tmp);
-}
+// 64-bit types.
+// __spirv_SubgroupShuffleINTEL - long
+// __spirv_SubgroupShuffleINTEL - unsigned long
+// __spirv_SubgroupShuffleINTEL - double
+#define __AMDGCN_CLC_SUBGROUP_I64(TYPE, CAST_TYPE, MANGLED_TYPE_NAME)          \
+  _CLC_DEF TYPE _Z28__spirv_SubgroupShuffleINTELI##MANGLED_TYPE_NAME##ET_S0_j( \
+      TYPE Data, unsigned int InvocationId) {                                  \
+    int2 tmp = as_int2(Data);                                                  \
+    tmp.lo = _Z28__spirv_SubgroupShuffleINTELIiET_S0_j(tmp.lo, InvocationId);  \
+    tmp.hi = _Z28__spirv_SubgroupShuffleINTELIiET_S0_j(tmp.hi, InvocationId);  \
+    return __builtin_astype(tmp, CAST_TYPE);                                   \
+  }
+__AMDGCN_CLC_SUBGROUP_I64(long, long, l);
+__AMDGCN_CLC_SUBGROUP_I64(unsigned long, ulong, m);
+__AMDGCN_CLC_SUBGROUP_I64(double, double, d);
+#undef __AMDGCN_CLC_SUBGROUP_I64
 
-// long __spirv_SubgroupShuffleINTEL<long>(long, unsigned int)
-_CLC_DEF long
-_Z28__spirv_SubgroupShuffleINTELIlET_S0_j(long Data,
-                                          unsigned int InvocationId) {
-  int2 tmp = as_int2(Data);
-  tmp.lo = _Z28__spirv_SubgroupShuffleINTELIiET_S0_j(tmp.lo, InvocationId);
-  tmp.hi = _Z28__spirv_SubgroupShuffleINTELIiET_S0_j(tmp.hi, InvocationId);
-  return as_long(tmp);
-}
-
-// unsigned long __spirv_SubgroupShuffleINTEL<unsigned long>(unsigned long,
-//                                                           unsigned int);
-_CLC_DEF unsigned long
-_Z28__spirv_SubgroupShuffleINTELImET_S0_j(unsigned long Data,
-                                          unsigned int InvocationId) {
-  int2 tmp = as_int2(Data);
-  tmp.lo = _Z28__spirv_SubgroupShuffleINTELIjET_S0_j(tmp.lo, InvocationId);
-  tmp.hi = _Z28__spirv_SubgroupShuffleINTELIjET_S0_j(tmp.hi, InvocationId);
-  return as_ulong(tmp);
-}
-
+// Vector types.
 #define __AMDGCN_CLC_SUBGROUP_TO_VEC(TYPE, MANGLED_SCALAR_TY, NUM_ELEMS)             \
   _CLC_DEF TYPE                                                                      \
       _Z28__spirv_SubgroupShuffleINTELIDv##NUM_ELEMS##_##MANGLED_SCALAR_TY##ET_S1_j( \
@@ -155,70 +140,59 @@ _Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(int Data,
   return __builtin_amdgcn_ds_bpermute(index << 2, Data);
 }
 
-// unsigned int __spirv_SubgroupShuffleXorINTEL<unsigned int>(unsigned int,
-//                                                            unsigned int);
-_CLC_DEF unsigned int
-_Z31__spirv_SubgroupShuffleXorINTELIjET_S0_j(unsigned int Data,
-                                             unsigned int InvocationId) {
-  return as_uint(
-      _Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(as_int(Data), InvocationId));
-}
 // Sub 32-bit types.
 // _Z31__spirv_SubgroupShuffleXorINTELIaET_S0_j - char
 // _Z31__spirv_SubgroupShuffleXorINTELIhET_S0_j - unsigned char
 // _Z31__spirv_SubgroupShuffleXorINTELIsET_S0_j - short
 // _Z31__spirv_SubgroupShuffleXorINTELItET_S0_j - unsigned short
-#define __AMDGCN_CLC_SUBGROUP_XOR_TO_I32(TYPE, MANGLED_TYPE_NAME)              \
+#define __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(TYPE, MANGLED_TYPE_NAME)             \
   _CLC_DEF TYPE                                                                \
       _Z31__spirv_SubgroupShuffleXorINTELI##MANGLED_TYPE_NAME##ET_S0_j(        \
           TYPE Data, unsigned int InvocationId) {                              \
     return _Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(Data, InvocationId);   \
   }
-__AMDGCN_CLC_SUBGROUP_XOR_TO_I32(char, a);
-__AMDGCN_CLC_SUBGROUP_XOR_TO_I32(unsigned char, h);
-__AMDGCN_CLC_SUBGROUP_XOR_TO_I32(short, s);
-__AMDGCN_CLC_SUBGROUP_XOR_TO_I32(unsigned short, t);
-#undef __AMDGCN_CLC_SUBGROUP_XOR_TO_I32
+__AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(char, a);
+__AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(unsigned char, h);
+__AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(short, s);
+__AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(unsigned short, t);
+#undef __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32
 
-// float __spirv_SubgroupShuffleXorINTEL<float>(float, unsigned int)
-_CLC_DEF float
-_Z31__spirv_SubgroupShuffleXorINTELIfET_S0_j(float Data,
-                                             unsigned int InvocationId) {
-  return as_float(
-      _Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(as_int(Data), InvocationId));
-}
+// 32-bit types.
+// __spirv_SubgroupShuffleXorINTEL - unsigned int
+// __spirv_SubgroupShuffleXorINTEL - float
+#define __AMDGCN_CLC_SUBGROUP_XOR_I32(TYPE, CAST_TYPE, MANGLED_TYPE_NAME)      \
+  _CLC_DEF TYPE                                                                \
+      _Z31__spirv_SubgroupShuffleXorINTELI##MANGLED_TYPE_NAME##ET_S0_j(        \
+          TYPE Data, unsigned int InvocationId) {                              \
+    return __builtin_astype(_Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(      \
+                                as_int(Data), InvocationId),                   \
+                            CAST_TYPE);                                        \
+  }
+__AMDGCN_CLC_SUBGROUP_XOR_I32(unsigned int, uint, j);
+__AMDGCN_CLC_SUBGROUP_XOR_I32(float, float, f);
+#undef __AMDGCN_CLC_SUBGROUP_XOR_I32
 
-// double __spirv_SubgroupShuffleXorINTEL<double>(double, unsigned int)
-_CLC_DEF double
-_Z31__spirv_SubgroupShuffleXorINTELIdET_S0_j(double Data,
-                                             unsigned int InvocationId) {
-  int2 tmp = as_int2(Data);
-  tmp.lo = _Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(tmp.lo, InvocationId);
-  tmp.hi = _Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(tmp.hi, InvocationId);
-  return as_double(tmp);
-}
+// 64-bit types.
+// __spirv_SubgroupShuffleXorINTEL - long
+// __spirv_SubgroupShuffleXorINTEL - unsigned long
+// __spirv_SubgroupShuffleXorINTEL - double
+#define __AMDGCN_CLC_SUBGROUP_XOR_I64(TYPE, CAST_TYPE, MANGLED_TYPE_NAME)      \
+  _CLC_DEF TYPE                                                                \
+      _Z31__spirv_SubgroupShuffleXorINTELI##MANGLED_TYPE_NAME##ET_S0_j(        \
+          TYPE Data, unsigned int InvocationId) {                              \
+    int2 tmp = as_int2(Data);                                                  \
+    tmp.lo =                                                                   \
+        _Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(tmp.lo, InvocationId);    \
+    tmp.hi =                                                                   \
+        _Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(tmp.hi, InvocationId);    \
+    return __builtin_astype(tmp, CAST_TYPE);                                   \
+  }
+__AMDGCN_CLC_SUBGROUP_XOR_I64(long, long, l);
+__AMDGCN_CLC_SUBGROUP_XOR_I64(unsigned long, ulong, m);
+__AMDGCN_CLC_SUBGROUP_XOR_I64(double, double, d);
+#undef __AMDGCN_CLC_SUBGROUP_XOR_I64
 
-// long __spirv_SubgroupShuffleXorINTEL<long>(long, unsigned int)
-_CLC_DEF long
-_Z31__spirv_SubgroupShuffleXorINTELIlET_S0_j(long Data,
-                                             unsigned int InvocationId) {
-  int2 tmp = as_int2(Data);
-  tmp.lo = _Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(tmp.lo, InvocationId);
-  tmp.hi = _Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(tmp.hi, InvocationId);
-  return as_long(tmp);
-}
-
-// unsigned long __spirv_SubgroupShuffleXorINTEL<unsigned long>(unsigned long,
-//                                                              unsigned int);
-_CLC_DEF unsigned long
-_Z31__spirv_SubgroupShuffleXorINTELImET_S0_j(unsigned long Data,
-                                             unsigned int InvocationId) {
-  uint2 tmp = as_uint2(Data);
-  tmp.lo = _Z31__spirv_SubgroupShuffleXorINTELIjET_S0_j(tmp.lo, InvocationId);
-  tmp.hi = _Z31__spirv_SubgroupShuffleXorINTELIjET_S0_j(tmp.hi, InvocationId);
-  return as_ulong(tmp);
-}
-
+// Vector types.
 #define __AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(TYPE, MANGLED_SCALAR_TY, NUM_ELEMS)            \
   _CLC_DEF TYPE                                                                         \
       _Z31__spirv_SubgroupShuffleXorINTELIDv##NUM_ELEMS##_##MANGLED_SCALAR_TY##ET_S1_j( \
@@ -231,7 +205,6 @@ _Z31__spirv_SubgroupShuffleXorINTELImET_S0_j(unsigned long Data,
     }                                                                                   \
     return res;                                                                         \
   }
-
 // [u]char
 __AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(char2, a, 2)
 __AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(char4, a, 4)
@@ -291,81 +264,60 @@ _Z30__spirv_SubgroupShuffleUpINTELIiET_S0_S0_j(int var, int lane_delta,
   return __builtin_amdgcn_ds_bpermute(index << 2, var);
 }
 
-// unsigned int __spirv_SubgroupShuffleUpINTEL<unsigned int>(unsigned int,
-//                                                           unisgned int,
-//                                                           unsigned int);
-_CLC_DEF unsigned int _Z30__spirv_SubgroupShuffleUpINTELIjET_S0_S0_j(
-    unsigned int var, unsigned int lane_delta, unsigned int width) {
-  return as_uint(_Z30__spirv_SubgroupShuffleUpINTELIiET_S0_S0_j(
-      as_int(var), as_int(lane_delta), width));
-}
 // Sub 32-bit types.
 // _Z30__spirv_SubgroupShuffleUpINTELIaET_S0_S0_j - char
 // _Z30__spirv_SubgroupShuffleUpINTELIhET_S0_S0_j - unsigned char
 // _Z30__spirv_SubgroupShuffleUpINTELIsET_S0_S0_j - short
 // _Z30__spirv_SubgroupShuffleUpINTELItET_S0_S0_j - unsigned short
-#define __AMDGCN_CLC_SUBGROUP_UP_TO_I32(TYPE, MANGLED_TYPE_NAME)               \
+#define __AMDGCN_CLC_SUBGROUP_UP_SUB_I32(TYPE, MANGLED_TYPE_NAME)              \
   _CLC_DEF TYPE                                                                \
       _Z30__spirv_SubgroupShuffleUpINTELI##MANGLED_TYPE_NAME##ET_S0_S0_j(      \
           TYPE var, TYPE lane_delta, unsigned int width) {                     \
     return _Z30__spirv_SubgroupShuffleUpINTELIiET_S0_S0_j(var, lane_delta,     \
                                                           width);              \
   }
-__AMDGCN_CLC_SUBGROUP_UP_TO_I32(char, a);
-__AMDGCN_CLC_SUBGROUP_UP_TO_I32(unsigned char, h);
-__AMDGCN_CLC_SUBGROUP_UP_TO_I32(short, s);
-__AMDGCN_CLC_SUBGROUP_UP_TO_I32(unsigned short, t);
-#undef __AMDGCN_CLC_SUBGROUP_UP_TO_I32
+__AMDGCN_CLC_SUBGROUP_UP_SUB_I32(char, a);
+__AMDGCN_CLC_SUBGROUP_UP_SUB_I32(unsigned char, h);
+__AMDGCN_CLC_SUBGROUP_UP_SUB_I32(short, s);
+__AMDGCN_CLC_SUBGROUP_UP_SUB_I32(unsigned short, t);
+#undef __AMDGCN_CLC_SUBGROUP_UP_SUB_I32
 
-// float __spirv_SubgroupShuffleUpINTEL<float>(float,
-//                                             float,
-//                                             unsigned int)
-_CLC_DEF float
-_Z30__spirv_SubgroupShuffleUpINTELIfET_S0_S0_j(float var, float lane_delta,
-                                               unsigned int width) {
-  return as_float(_Z30__spirv_SubgroupShuffleUpINTELIiET_S0_S0_j(
-      as_int(var), as_int(lane_delta), width));
-}
+// 32-bit types.
+// __spirv_SubgroupShuffleUpINTELi - unsigned int
+// __spirv_SubgroupShuffleUpINTELi - float
+#define __AMDGCN_CLC_SUBGROUP_UP_I32(TYPE, CAST_TYPE, MANGLED_TYPE_NAME)       \
+  _CLC_DEF TYPE                                                                \
+      _Z30__spirv_SubgroupShuffleUpINTELI##MANGLED_TYPE_NAME##ET_S0_S0_j(      \
+          TYPE var, TYPE lane_delta, unsigned int width) {                     \
+    return __builtin_astype(_Z30__spirv_SubgroupShuffleUpINTELIiET_S0_S0_j(    \
+                                as_int(var), as_int(lane_delta), width),       \
+                            CAST_TYPE);                                        \
+  }
+__AMDGCN_CLC_SUBGROUP_UP_I32(unsigned int, uint, j);
+__AMDGCN_CLC_SUBGROUP_UP_I32(float, float, f);
+#undef __AMDGCN_CLC_SUBGROUP_UP_I32
 
-// double __spirv_SubgroupShuffleUpINTEL<double>(double,
-//                                               double,
-//                                               unsigned int)
-_CLC_DEF double
-_Z30__spirv_SubgroupShuffleUpINTELIdET_S0_S0_j(double var, double lane_delta,
-                                               unsigned int width) {
-  int2 tmp = as_int2(var);
-  tmp.lo = _Z30__spirv_SubgroupShuffleUpINTELIiET_S0_S0_j(
-      tmp.lo, (int)lane_delta, width);
-  tmp.hi = _Z30__spirv_SubgroupShuffleUpINTELIiET_S0_S0_j(
-      tmp.hi, (int)lane_delta, width);
-  return as_double(tmp);
-}
+// 64-bit types.
+// __spirv_SubgroupShuffleUpINTEL - long
+// __spirv_SubgroupShuffleUpINTEL - unsigned long
+// __spirv_SubgroupShuffleUpINTEL - double
+#define __AMDGCN_CLC_SUBGROUP_UP_I64(TYPE, CAST_TYPE, MANGLED_TYPE_NAME)       \
+  _CLC_DEF TYPE                                                                \
+      _Z30__spirv_SubgroupShuffleUpINTELI##MANGLED_TYPE_NAME##ET_S0_S0_j(      \
+          TYPE var, TYPE lane_delta, unsigned int width) {                     \
+    int2 tmp = as_int2(var);                                                   \
+    tmp.lo = _Z30__spirv_SubgroupShuffleUpINTELIiET_S0_S0_j(                   \
+        tmp.lo, (int)lane_delta, width);                                       \
+    tmp.hi = _Z30__spirv_SubgroupShuffleUpINTELIiET_S0_S0_j(                   \
+        tmp.hi, (int)lane_delta, width);                                       \
+    return __builtin_astype(tmp, CAST_TYPE);                                   \
+  }
+__AMDGCN_CLC_SUBGROUP_UP_I64(long, long, l);
+__AMDGCN_CLC_SUBGROUP_UP_I64(unsigned long, ulong, m);
+__AMDGCN_CLC_SUBGROUP_UP_I64(double, double, d);
+#undef __AMDGCN_CLC_SUBGROUP_UP_I64
 
-// long __spirv_SubgroupShuffleUpINTEL<long>(long, long, unsigned int)
-_CLC_DEF long
-_Z30__spirv_SubgroupShuffleUpINTELIlET_S0_S0_j(long var, long lane_delta,
-                                               unsigned int width) {
-  int2 tmp = as_int2(var);
-  tmp.lo = _Z30__spirv_SubgroupShuffleUpINTELIiET_S0_S0_j(
-      tmp.lo, (int)lane_delta, width);
-  tmp.hi = _Z30__spirv_SubgroupShuffleUpINTELIiET_S0_S0_j(
-      tmp.hi, (int)lane_delta, width);
-  return as_long(tmp);
-}
-
-// unsigned long __spirv_SubgroupShuffleUpINTEL<unsigned long>(unsigned long,
-//                                                             unsigned long,
-//                                                             unsigned int);
-_CLC_DEF unsigned long _Z30__spirv_SubgroupShuffleUpINTELImET_S0_S0_j(
-    unsigned long var, unsigned long lane_delta, unsigned int width) {
-  uint2 tmp = as_uint2(var);
-  tmp.lo = _Z30__spirv_SubgroupShuffleUpINTELIjET_S0_S0_j(
-      tmp.lo, (unsigned int)lane_delta, width);
-  tmp.hi = _Z30__spirv_SubgroupShuffleUpINTELIjET_S0_S0_j(
-      tmp.hi, (unsigned int)lane_delta, width);
-  return as_ulong(tmp);
-}
-
+// Vector types.
 #define __AMDGCN_CLC_SUBGROUP_UP_TO_VEC(TYPE, MANGLED_SCALAR_TY, NUM_ELEMS)               \
   _CLC_DEF TYPE                                                                           \
       _Z30__spirv_SubgroupShuffleUpINTELIDv##NUM_ELEMS##_##MANGLED_SCALAR_TY##ET_S1_S1_j( \
@@ -378,7 +330,6 @@ _CLC_DEF unsigned long _Z30__spirv_SubgroupShuffleUpINTELImET_S0_S0_j(
     }                                                                                     \
     return res;                                                                           \
   }
-
 // [u]char
 __AMDGCN_CLC_SUBGROUP_UP_TO_VEC(char2, a, 2)
 __AMDGCN_CLC_SUBGROUP_UP_TO_VEC(char4, a, 4)
@@ -438,14 +389,6 @@ _Z32__spirv_SubgroupShuffleDownINTELIiET_S0_S0_j(int var, int lane_delta,
   return __builtin_amdgcn_ds_bpermute(index << 2, var);
 }
 
-// unsigned int __spirv_SubgroupShuffleDownINTEL<unsigned int>(unsigned int,
-//                                                             unsigned int,
-//                                                             unsigned int);
-_CLC_DEF unsigned int _Z32__spirv_SubgroupShuffleDownINTELIjET_S0_S0_j(
-    unsigned int var, unsigned int lane_delta, unsigned int width) {
-  return as_uint(_Z32__spirv_SubgroupShuffleDownINTELIiET_S0_S0_j(
-      as_int(var), as_int(lane_delta), width));
-}
 // Sub 32-bit types.
 // _Z32__spirv_SubgroupShuffleDownINTELIaET_S0_S0_j - char
 // _Z32__spirv_SubgroupShuffleDownINTELIhET_S0_S0_j - unsigned char
@@ -464,51 +407,40 @@ __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(short, s);
 __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(unsigned short, t);
 #undef __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32
 
-// float __spirv_SubgroupShuffleDownINTEL<float>(float, float, int)
-_CLC_DEF float
-_Z32__spirv_SubgroupShuffleDownINTELIfET_S0_S0_j(float var, float lane_delta,
-                                                 unsigned int width) {
-  return as_float(_Z32__spirv_SubgroupShuffleDownINTELIiET_S0_S0_j(
-      as_int(var), as_int(lane_delta), width));
-}
+// 32-bit types.
+// __spirv_SubgroupShuffleDownINTEL - unsigned int
+// __spirv_SubgroupShuffleDownINTEL - float
+#define __AMDGCN_CLC_SUBGROUP_DOWN_I32(TYPE, CAST_TYPE, MANGLED_TYPE_NAME)     \
+  _CLC_DEF TYPE                                                                \
+      _Z32__spirv_SubgroupShuffleDownINTELI##MANGLED_TYPE_NAME##ET_S0_S0_j(    \
+          TYPE var, TYPE lane_delta, unsigned int width) {                     \
+    return __builtin_astype(_Z32__spirv_SubgroupShuffleDownINTELIiET_S0_S0_j(  \
+                                as_int(var), as_int(lane_delta), width),       \
+                            CAST_TYPE);                                        \
+  }
+__AMDGCN_CLC_SUBGROUP_DOWN_I32(unsigned int, uint, j);
+__AMDGCN_CLC_SUBGROUP_DOWN_I32(float, float, f);
+#undef __AMDGCN_CLC_SUBGROUP_DOWN_I32
 
+// 64-bit types.
 // double __spirv_SubgroupShuffleDownINTEL<double>(double, unsigned int, int)
-_CLC_DEF double
-_Z32__spirv_SubgroupShuffleDownINTELIdET_S0_S0_j(double var, double lane_delta,
-                                                 unsigned int width) {
-  int2 tmp = as_int2(var);
-  tmp.lo = _Z32__spirv_SubgroupShuffleDownINTELIiET_S0_S0_j(
-      tmp.lo, (int)lane_delta, width);
-  tmp.hi = _Z32__spirv_SubgroupShuffleDownINTELIiET_S0_S0_j(
-      tmp.hi, (int)lane_delta, width);
-  return as_double(tmp);
-}
+#define __AMDGCN_CLC_SUBGROUP_DOWN_I64(TYPE, CAST_TYPE, MANGLED_TYPE_NAME)     \
+  _CLC_DEF TYPE                                                                \
+      _Z32__spirv_SubgroupShuffleDownINTELI##MANGLED_TYPE_NAME##ET_S0_S0_j(    \
+          TYPE var, TYPE lane_delta, unsigned int width) {                     \
+    int2 tmp = as_int2(var);                                                   \
+    tmp.lo = _Z32__spirv_SubgroupShuffleDownINTELIiET_S0_S0_j(                 \
+        tmp.lo, (int)lane_delta, width);                                       \
+    tmp.hi = _Z32__spirv_SubgroupShuffleDownINTELIiET_S0_S0_j(                 \
+        tmp.hi, (int)lane_delta, width);                                       \
+    return __builtin_astype(tmp, CAST_TYPE);                                   \
+  }
+__AMDGCN_CLC_SUBGROUP_DOWN_I64(long, long, l);
+__AMDGCN_CLC_SUBGROUP_DOWN_I64(unsigned long, ulong, m);
+__AMDGCN_CLC_SUBGROUP_DOWN_I64(double, double, d);
+#undef __AMDGCN_CLC_SUBGROUP_DOWN_I64
 
-// long __spirv_SubgroupShuffleDownINTEL<long>(long, long, int)
-_CLC_DEF long
-_Z32__spirv_SubgroupShuffleDownINTELIlET_S0_S0_j(long var, long lane_delta,
-                                                 unsigned int width) {
-  int2 tmp = as_int2(var);
-  tmp.lo = _Z32__spirv_SubgroupShuffleDownINTELIiET_S0_S0_j(
-      tmp.lo, (int)lane_delta, width);
-  tmp.hi = _Z32__spirv_SubgroupShuffleDownINTELIiET_S0_S0_j(
-      tmp.hi, (int)lane_delta, width);
-  return as_long(tmp);
-}
-
-// unsigned long __spirv_SubgroupShuffleDownINTEL<unsigned long>(unsigned long,
-//                                                               unsigned long,
-//                                                               int);
-_CLC_DEF unsigned long _Z32__spirv_SubgroupShuffleDownINTELImET_S0_S0_j(
-    unsigned long var, unsigned long lane_delta, unsigned int width) {
-  uint2 tmp = as_uint2(var);
-  tmp.lo = _Z32__spirv_SubgroupShuffleDownINTELIjET_S0_S0_j(
-      tmp.lo, (unsigned int)lane_delta, width);
-  tmp.hi = _Z32__spirv_SubgroupShuffleDownINTELIjET_S0_S0_j(
-      tmp.hi, (unsigned int)lane_delta, width);
-  return as_ulong(tmp);
-}
-
+// Vector types.
 #define __AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(TYPE, MANGLED_SCALAR_TY, NUM_ELEMS)               \
   _CLC_DEF TYPE                                                                             \
       _Z32__spirv_SubgroupShuffleDownINTELIDv##NUM_ELEMS##_##MANGLED_SCALAR_TY##ET_S1_S1_j( \
@@ -521,7 +453,6 @@ _CLC_DEF unsigned long _Z32__spirv_SubgroupShuffleDownINTELImET_S0_S0_j(
     }                                                                                       \
     return res;                                                                             \
   }
-
 // [u]char
 __AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(char2, a, 2)
 __AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(char4, a, 4)
