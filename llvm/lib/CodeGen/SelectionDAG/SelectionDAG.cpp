@@ -175,7 +175,7 @@ bool ISD::isConstantSplatVectorAllOnes(const SDNode *N, bool BuildVectorOnly) {
 
   if (!BuildVectorOnly && N->getOpcode() == ISD::SPLAT_VECTOR) {
     APInt SplatVal;
-    return isConstantSplatVector(N, SplatVal) && SplatVal.isAllOnesValue();
+    return isConstantSplatVector(N, SplatVal) && SplatVal.isAllOnes();
   }
 
   if (N->getOpcode() != ISD::BUILD_VECTOR) return false;
@@ -224,7 +224,7 @@ bool ISD::isConstantSplatVectorAllZeros(const SDNode *N, bool BuildVectorOnly) {
 
   if (!BuildVectorOnly && N->getOpcode() == ISD::SPLAT_VECTOR) {
     APInt SplatVal;
-    return isConstantSplatVector(N, SplatVal) && SplatVal.isNullValue();
+    return isConstantSplatVector(N, SplatVal) && SplatVal.isZero();
   }
 
   if (N->getOpcode() != ISD::BUILD_VECTOR) return false;
@@ -9938,12 +9938,9 @@ SDValue SelectionDAG::getSymbolFunctionGlobalAddress(SDValue Op,
 
   std::string ErrorStr;
   raw_string_ostream ErrorFormatter(ErrorStr);
-
   ErrorFormatter << "Undefined external symbol ";
   ErrorFormatter << '"' << Symbol << '"';
-  ErrorFormatter.flush();
-
-  report_fatal_error(ErrorStr);
+  report_fatal_error(Twine(ErrorFormatter.str()));
 }
 
 //===----------------------------------------------------------------------===//

@@ -1394,6 +1394,11 @@ public:
     /// cases in a switch statement).
     ConstantEvaluated,
 
+    /// In addition of being constant evaluated, the current expression
+    /// occurs in an immediate function context - either a consteval function
+    /// or a consteval if function.
+    ImmediateFunctionContext,
+
     /// The current expression is potentially evaluated at run time,
     /// which means that code may be generated to evaluate the value of the
     /// expression at run time.
@@ -1482,8 +1487,14 @@ public:
              Context == ExpressionEvaluationContext::UnevaluatedAbstract ||
              Context == ExpressionEvaluationContext::UnevaluatedList;
     }
+
     bool isConstantEvaluated() const {
-      return Context == ExpressionEvaluationContext::ConstantEvaluated;
+      return Context == ExpressionEvaluationContext::ConstantEvaluated ||
+             Context == ExpressionEvaluationContext::ImmediateFunctionContext;
+    }
+
+    bool isImmediateFunctionContext() const {
+      return Context == ExpressionEvaluationContext::ImmediateFunctionContext;
     }
   };
 
@@ -4966,11 +4977,12 @@ public:
   bool CheckRebuiltAttributedStmtAttributes(ArrayRef<const Attr *> Attrs);
 
   class ConditionResult;
-  StmtResult ActOnIfStmt(SourceLocation IfLoc, bool IsConstexpr,
+
+  StmtResult ActOnIfStmt(SourceLocation IfLoc, IfStatementKind StatementKind,
                          SourceLocation LParenLoc, Stmt *InitStmt,
                          ConditionResult Cond, SourceLocation RParenLoc,
                          Stmt *ThenVal, SourceLocation ElseLoc, Stmt *ElseVal);
-  StmtResult BuildIfStmt(SourceLocation IfLoc, bool IsConstexpr,
+  StmtResult BuildIfStmt(SourceLocation IfLoc, IfStatementKind StatementKind,
                          SourceLocation LParenLoc, Stmt *InitStmt,
                          ConditionResult Cond, SourceLocation RParenLoc,
                          Stmt *ThenVal, SourceLocation ElseLoc, Stmt *ElseVal);
@@ -5375,13 +5387,13 @@ public:
   /// conversion.
   ExprResult tryConvertExprToType(Expr *E, QualType Ty);
 
-  /// Conditionally issue a diagnostic based on the statement's reachability
-  /// analysis evaluation context.
+  /// Conditionally issue a diagnostic based on the statements's reachability
+  /// analysis.
   ///
-  /// \param Statement If Statement is non-null, delay reporting the
-  /// diagnostic until the function body is parsed, and then do a basic
-  /// reachability analysis to determine if the statement is reachable.
-  /// If it is unreachable, the diagnostic will not be emitted.
+  /// \param Stmts If Stmts is non-empty, delay reporting the diagnostic until
+  /// the function body is parsed, and then do a basic reachability analysis to
+  /// determine if the statement is reachable. If it is unreachable, the
+  /// diagnostic will not be emitted.
   bool DiagIfReachable(SourceLocation Loc, ArrayRef<const Stmt *> Stmts,
                        const PartialDiagnostic &PD);
 
@@ -9388,6 +9400,19 @@ public:
     return ExprEvalContexts.back().isUnevaluated();
   }
 
+  bool isImmediateFunctionContext() const {
+    assert(!ExprEvalContexts.empty() &&
+           "Must be in an expression evaluation context");
+    for (const ExpressionEvaluationContextRecord &context :
+         llvm::reverse(ExprEvalContexts)) {
+      if (context.isImmediateFunctionContext())
+        return true;
+      if (context.isUnevaluated())
+        return false;
+    }
+    return false;
+  }
+
   /// RAII class used to determine whether SFINAE has
   /// trapped any errors that occur during template argument
   /// deduction.
@@ -13051,7 +13076,8 @@ private:
                                 int ArgNum, unsigned ExpectedFieldNum,
                                 bool AllowName);
   bool SemaBuiltinARMMemoryTaggingCall(unsigned BuiltinID, CallExpr *TheCall);
-  bool SemaBuiltinPPCMMACall(CallExpr *TheCall, const char *TypeDesc);
+  bool SemaBuiltinPPCMMACall(CallExpr *TheCall, unsigned BuiltinID,
+                             const char *TypeDesc);
 
   bool CheckPPCMMAType(QualType Type, SourceLocation TypeLoc);
 

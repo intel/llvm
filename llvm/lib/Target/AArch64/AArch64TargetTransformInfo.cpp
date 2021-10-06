@@ -710,16 +710,18 @@ static Instruction::BinaryOps intrinsicIDToBinOpCode(unsigned Intrinsic) {
 
 static Optional<Instruction *> instCombineSVEVectorBinOp(InstCombiner &IC,
                                                          IntrinsicInst &II) {
+  auto *OpPredicate = II.getOperand(0);
   auto BinOpCode = intrinsicIDToBinOpCode(II.getIntrinsicID());
   if (BinOpCode == Instruction::BinaryOpsEnd ||
-      !match(II.getOperand(0),
-             m_Intrinsic<Intrinsic::aarch64_sve_ptrue>(
-                 m_ConstantInt<AArch64SVEPredPattern::all>())))
+      !match(OpPredicate, m_Intrinsic<Intrinsic::aarch64_sve_ptrue>(
+                              m_ConstantInt<AArch64SVEPredPattern::all>())))
     return None;
   IRBuilder<> Builder(II.getContext());
   Builder.SetInsertPoint(&II);
-  return IC.replaceInstUsesWith(
-      II, Builder.CreateBinOp(BinOpCode, II.getOperand(1), II.getOperand(2)));
+  Builder.setFastMathFlags(II.getFastMathFlags());
+  auto BinOp =
+      Builder.CreateBinOp(BinOpCode, II.getOperand(1), II.getOperand(2));
+  return IC.replaceInstUsesWith(II, BinOp);
 }
 
 static Optional<Instruction *> instCombineSVEVectorMul(InstCombiner &IC,
@@ -1862,7 +1864,7 @@ Value *AArch64TTIImpl::getOrCreateResultFromMemIntrinsic(IntrinsicInst *Inst,
     StructType *ST = dyn_cast<StructType>(ExpectedType);
     if (!ST)
       return nullptr;
-    unsigned NumElts = Inst->getNumArgOperands() - 1;
+    unsigned NumElts = Inst->arg_size() - 1;
     if (ST->getNumElements() != NumElts)
       return nullptr;
     for (unsigned i = 0, e = NumElts; i != e; ++i) {
@@ -1903,7 +1905,7 @@ bool AArch64TTIImpl::getTgtMemIntrinsic(IntrinsicInst *Inst,
   case Intrinsic::aarch64_neon_st4:
     Info.ReadMem = false;
     Info.WriteMem = true;
-    Info.PtrVal = Inst->getArgOperand(Inst->getNumArgOperands() - 1);
+    Info.PtrVal = Inst->getArgOperand(Inst->arg_size() - 1);
     break;
   }
 

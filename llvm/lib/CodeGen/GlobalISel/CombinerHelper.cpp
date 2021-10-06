@@ -2131,6 +2131,23 @@ bool CombinerHelper::matchCombineFAbsOfFAbs(MachineInstr &MI, Register &Src) {
   return mi_match(Src, MRI, m_GFabs(m_Reg(AbsSrc)));
 }
 
+bool CombinerHelper::matchCombineFAbsOfFNeg(MachineInstr &MI,
+                                            BuildFnTy &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_FABS && "Expected a G_FABS");
+  Register Src = MI.getOperand(1).getReg();
+  Register NegSrc;
+
+  if (!mi_match(Src, MRI, m_GFNeg(m_Reg(NegSrc))))
+    return false;
+
+  MatchInfo = [=, &MI](MachineIRBuilder &B) {
+    Observer.changingInstr(MI);
+    MI.getOperand(1).setReg(NegSrc);
+    Observer.changedInstr(MI);
+  };
+  return true;
+}
+
 bool CombinerHelper::matchCombineTruncOfExt(
     MachineInstr &MI, std::pair<Register, unsigned> &MatchInfo) {
   assert(MI.getOpcode() == TargetOpcode::G_TRUNC && "Expected a G_TRUNC");
@@ -2768,14 +2785,14 @@ bool CombinerHelper::matchRedundantOr(MachineInstr &MI, Register &Replacement) {
   //
   // Check if we can replace OrDst with the LHS of the G_OR
   if (canReplaceReg(OrDst, LHS, MRI) &&
-      (LHSBits.One | RHSBits.Zero).isAllOnesValue()) {
+      (LHSBits.One | RHSBits.Zero).isAllOnes()) {
     Replacement = LHS;
     return true;
   }
 
   // Check if we can replace OrDst with the RHS of the G_OR
   if (canReplaceReg(OrDst, RHS, MRI) &&
-      (LHSBits.Zero | RHSBits.One).isAllOnesValue()) {
+      (LHSBits.Zero | RHSBits.One).isAllOnes()) {
     Replacement = RHS;
     return true;
   }

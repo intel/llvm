@@ -2757,8 +2757,8 @@ static bool handleIntIntBinOp(EvalInfo &Info, const Expr *E, const APSInt &LHS,
     Result = (Opcode == BO_Rem ? LHS % RHS : LHS / RHS);
     // Check for overflow case: INT_MIN / -1 or INT_MIN % -1. APSInt supports
     // this operation and gives the two's complement result.
-    if (RHS.isNegative() && RHS.isAllOnesValue() &&
-        LHS.isSigned() && LHS.isMinSignedValue())
+    if (RHS.isNegative() && RHS.isAllOnes() && LHS.isSigned() &&
+        LHS.isMinSignedValue())
       return HandleOverflow(Info, E, -LHS.extend(LHS.getBitWidth() + 1),
                             E->getType());
     return true;
@@ -5195,7 +5195,10 @@ static EvalStmtResult EvaluateStmt(StmtResult &Result, EvalInfo &Info,
       }
     }
     bool Cond;
-    if (!EvaluateCond(Info, IS->getConditionVariable(), IS->getCond(), Cond))
+    if (IS->isConsteval())
+      Cond = IS->isNonNegatedConsteval();
+    else if (!EvaluateCond(Info, IS->getConditionVariable(), IS->getCond(),
+                           Cond))
       return ESR_Failed;
 
     if (const Stmt *SubStmt = Cond ? IS->getThen() : IS->getElse()) {
@@ -15359,7 +15362,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
           llvm::APSInt REval = Exp->getRHS()->EvaluateKnownConstInt(Ctx);
           if (REval == 0)
             return ICEDiag(IK_ICEIfUnevaluated, E->getBeginLoc());
-          if (REval.isSigned() && REval.isAllOnesValue()) {
+          if (REval.isSigned() && REval.isAllOnes()) {
             llvm::APSInt LEval = Exp->getLHS()->EvaluateKnownConstInt(Ctx);
             if (LEval.isMinSignedValue())
               return ICEDiag(IK_ICEIfUnevaluated, E->getBeginLoc());
