@@ -448,7 +448,7 @@ private:
       bool KernelUsesAssert = false;
       if (IsKernel)
         KernelUsesAssert =
-            Handler.MKernel ? true
+            Handler.MKernel ? false
                             : ProgramManager::getInstance().kernelUsesAssert(
                                   Handler.MOSModuleHandle, Handler.MKernelName);
 
