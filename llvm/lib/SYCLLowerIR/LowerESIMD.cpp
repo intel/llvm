@@ -888,7 +888,7 @@ static uint64_t getIndexFromExtract(ExtractElementInst *EEI) {
 /// Extracts the index from the given extract element instruction \p EEI,
 /// and attaches the corresponding suffix (either "x", "y", or "z") to the given
 /// \p Name.
-static StringRef addGenXSuffix(StringRef Name, ExtractElementInst *EEI) {
+static std::string addGenXSuffix(StringRef Name, ExtractElementInst *EEI) {
   uint64_t IndexValue = getIndexFromExtract(EEI);
   return Twine(Name + Twine(static_cast<char>('x' + IndexValue))).str();
 }
