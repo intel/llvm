@@ -9,5 +9,6 @@
 #pragma once
 #include <sycl/ext/intel/fpga_device_selector.hpp>
 #include <sycl/ext/intel/fpga_lsu.hpp>
+#include <sycl/ext/intel/fpga_loop_fuse.hpp>
 #include <sycl/ext/intel/fpga_reg.hpp>
 #include <sycl/ext/intel/pipes.hpp>
