@@ -3223,11 +3223,13 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::invariant_start:
   case Intrinsic::invariant_end:
   case Intrinsic::dbg_label:
+  // llvm.trap intrinsic is not implemented. But for now don't crash. This
+  // change is pending the trap/abort intrinsic implementation.
   case Intrinsic::trap:
-  // llvm.instrprof.increment is not supported
+  // llvm.instrprof.* intrinsics are not supported
   case Intrinsic::instrprof_increment:
-    // llvm.trap intrinsic is not implemented. But for now don't crash. This
-    // change is pending the trap/abort intrinsic implementation.
+  case Intrinsic::instrprof_increment_step:
+  case Intrinsic::instrprof_value_profile:
     return nullptr;
   case Intrinsic::is_constant: {
     auto *CO = dyn_cast<Constant>(II->getOperand(0));
