@@ -84,6 +84,8 @@ public:
 
   bool IsDynamicLoader() const;
 
+  bool IsSharedCacheBinary() const;
+
   uint32_t GetAddressByteSize() const override;
 
   lldb_private::AddressClass GetAddressClass(lldb::addr_t file_addr) override;
@@ -145,8 +147,6 @@ public:
 
   // PluginInterface protocol
   lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
 
 protected:
   static lldb_private::UUID

@@ -26,9 +26,6 @@
 #pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 template <class _InputIter>
@@ -58,7 +55,7 @@ void __advance(_RandIter& __i, typename iterator_traits<_RandIter>::difference_t
 template <
     class _InputIter, class _Distance,
     class _IntegralDistance = decltype(_VSTD::__convert_to_integral(declval<_Distance>())),
-    class = _EnableIf<is_integral<_IntegralDistance>::value> >
+    class = __enable_if_t<is_integral<_IntegralDistance>::value> >
 _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
 void advance(_InputIter& __i, _Distance __orig_n) {
   typedef typename iterator_traits<_InputIter>::difference_type _Difference;
@@ -76,8 +73,8 @@ struct __advance_fn final : private __function_like {
 private:
   template <class _Tp>
   _LIBCPP_HIDE_FROM_ABI
-  static constexpr _Tp __abs(_Tp __n) noexcept {
-    return __n < 0 ? -__n : __n;
+  static constexpr _Tp __magnitude_geq(_Tp __a, _Tp __b) noexcept {
+    return __a < 0 ? (__a <= __b) : (__a >= __b);
   }
 
   template <class _Ip>
@@ -153,12 +150,12 @@ public:
   template <input_or_output_iterator _Ip, sentinel_for<_Ip> _Sp>
   _LIBCPP_HIDE_FROM_ABI
   constexpr iter_difference_t<_Ip> operator()(_Ip& __i, iter_difference_t<_Ip> __n, _Sp __bound) const {
-    _LIBCPP_ASSERT(__n >= 0 || (bidirectional_iterator<_Ip> && same_as<_Ip, _Sp>),
+    _LIBCPP_ASSERT((__n >= 0) || (bidirectional_iterator<_Ip> && same_as<_Ip, _Sp>),
                    "If `n < 0`, then `bidirectional_iterator<I> && same_as<I, S>` must be true.");
     // If `S` and `I` model `sized_sentinel_for<S, I>`:
     if constexpr (sized_sentinel_for<_Sp, _Ip>) {
       // If |n| >= |bound - i|, equivalent to `ranges::advance(i, bound)`.
-      if (const auto __M = __bound - __i; __abs(__n) >= __abs(__M)) {
+      if (const auto __M = __bound - __i; __magnitude_geq(__n, __M)) {
         (*this)(__i, __bound);
         return __n - __M;
       }
@@ -194,7 +191,5 @@ inline constexpr auto advance = __advance_fn(__function_like::__tag());
 #endif // !defined(_LIBCPP_HAS_NO_RANGES)
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___ITERATOR_ADVANCE_H

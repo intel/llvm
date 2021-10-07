@@ -164,24 +164,46 @@ namespace serialization {
 template <class> class AbstractTypeReader;
 } // namespace serialization
 
+enum class AlignRequirementKind {
+  /// The alignment was not explicit in code.
+  None,
+
+  /// The alignment comes from an alignment attribute on a typedef.
+  RequiredByTypedef,
+
+  /// The alignment comes from an alignment attribute on a record type.
+  RequiredByRecord,
+
+  /// The alignment comes from an alignment attribute on a enum type.
+  RequiredByEnum,
+};
+
 struct TypeInfo {
   uint64_t Width = 0;
   unsigned Align = 0;
-  bool AlignIsRequired : 1;
+  AlignRequirementKind AlignRequirement;
 
-  TypeInfo() : AlignIsRequired(false) {}
-  TypeInfo(uint64_t Width, unsigned Align, bool AlignIsRequired)
-      : Width(Width), Align(Align), AlignIsRequired(AlignIsRequired) {}
+  TypeInfo() : AlignRequirement(AlignRequirementKind::None) {}
+  TypeInfo(uint64_t Width, unsigned Align,
+           AlignRequirementKind AlignRequirement)
+      : Width(Width), Align(Align), AlignRequirement(AlignRequirement) {}
+  bool isAlignRequired() {
+    return AlignRequirement != AlignRequirementKind::None;
+  }
 };
 
 struct TypeInfoChars {
   CharUnits Width;
   CharUnits Align;
-  bool AlignIsRequired : 1;
+  AlignRequirementKind AlignRequirement;
 
-  TypeInfoChars() : AlignIsRequired(false) {}
-  TypeInfoChars(CharUnits Width, CharUnits Align, bool AlignIsRequired)
-      : Width(Width), Align(Align), AlignIsRequired(AlignIsRequired) {}
+  TypeInfoChars() : AlignRequirement(AlignRequirementKind::None) {}
+  TypeInfoChars(CharUnits Width, CharUnits Align,
+                AlignRequirementKind AlignRequirement)
+      : Width(Width), Align(Align), AlignRequirement(AlignRequirement) {}
+  bool isAlignRequired() {
+    return AlignRequirement != AlignRequirementKind::None;
+  }
 };
 
 /// Holds long-lived AST nodes (such as types and decls) that can be
@@ -1054,7 +1076,7 @@ public:
   CanQualType SignedCharTy, ShortTy, IntTy, LongTy, LongLongTy, Int128Ty;
   CanQualType UnsignedCharTy, UnsignedShortTy, UnsignedIntTy, UnsignedLongTy;
   CanQualType UnsignedLongLongTy, UnsignedInt128Ty;
-  CanQualType FloatTy, DoubleTy, LongDoubleTy, Float128Ty;
+  CanQualType FloatTy, DoubleTy, LongDoubleTy, Float128Ty, Ibm128Ty;
   CanQualType ShortAccumTy, AccumTy,
       LongAccumTy;  // ISO/IEC JTC1 SC22 WG14 N1169 Extension
   CanQualType UnsignedShortAccumTy, UnsignedAccumTy, UnsignedLongAccumTy;
@@ -1344,6 +1366,12 @@ public:
 
   /// Get address space for OpenCL type.
   LangAS getOpenCLTypeAddrSpace(const Type *T) const;
+
+  /// Returns default address space based on OpenCL version and enabled features
+  inline LangAS getDefaultOpenCLPointeeAddrSpace() {
+    return LangOpts.OpenCLGenericAddressSpace ? LangAS::opencl_generic
+                                              : LangAS::opencl_private;
+  }
 
   void setcudaConfigureCallDecl(FunctionDecl *FD) {
     cudaConfigureCallDecl = FD;
@@ -1635,6 +1663,8 @@ public:
   /// GCC extension.
   QualType getTypeOfExprType(Expr *e) const;
   QualType getTypeOfType(QualType t) const;
+
+  QualType getReferenceQualifiedType(const Expr *e) const;
 
   /// C++11 decltype.
   QualType getDecltypeType(Expr *e, QualType UnderlyingType) const;
@@ -3214,32 +3244,10 @@ public:
 
   StringRef getCUIDHash() const;
 
-  void AddSYCLKernelNamingDecl(const CXXRecordDecl *RD);
-  bool IsSYCLKernelNamingDecl(const NamedDecl *RD) const;
-  unsigned GetSYCLKernelNamingIndex(const NamedDecl *RD);
-  /// A SourceLocation to store whether we have evaluated a kernel name already,
-  /// and where it happened.  If so, we need to diagnose an illegal use of the
-  /// builtin. This should only contain SYCLUniqueStableNameExprs and
-  /// SYCLUniqueStableIdExprs.
-  llvm::MapVector<const Expr *, std::string>
-      SYCLUniqueStableNameEvaluatedValues;
-
 private:
   /// All OMPTraitInfo objects live in this collection, one per
   /// `pragma omp [begin] declare variant` directive.
   SmallVector<std::unique_ptr<OMPTraitInfo>, 4> OMPTraitInfoVector;
-
-  /// A list of the (right now just lambda decls) declarations required to
-  /// name all the SYCL kernels in the translation unit, so that we can get the
-  /// correct kernel name, as well as implement
-  /// __builtin_sycl_unique_stable_name.
-  llvm::DenseMap<const DeclContext *,
-                 llvm::SmallPtrSet<const CXXRecordDecl *, 4>>
-      SYCLKernelNamingTypes;
-  std::unique_ptr<ItaniumMangleContext> SYCLKernelFilterContext;
-  void FilterSYCLKernelNamingDecls(
-      const CXXRecordDecl *RD,
-      llvm::SmallVectorImpl<const CXXRecordDecl *> &Decls);
 };
 
 /// Insertion operator for diagnostics.

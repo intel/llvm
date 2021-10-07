@@ -21,7 +21,7 @@ static llvm::cl::opt<std::string> mainEntryName(
     llvm::cl::desc("override the name of the default PROGRAM entry (may be "
                    "helpful for using other runtimes)"));
 
-constexpr std::int64_t BAD_VALUE = -1;
+constexpr std::int64_t badValue = -1;
 
 inline std::string prefix() { return "_Q"; }
 
@@ -69,9 +69,9 @@ static std::int64_t readInt(llvm::StringRef uniq, std::size_t &i,
   for (i = init; i < end && uniq[i] >= '0' && uniq[i] <= '9'; ++i) {
     // do nothing
   }
-  std::int64_t result = BAD_VALUE;
+  std::int64_t result = badValue;
   if (uniq.substr(init, i - init).getAsInteger(10, result))
-    return BAD_VALUE;
+    return badValue;
   return result;
 }
 
@@ -205,6 +205,15 @@ fir::NameUniquer::doVariable(llvm::ArrayRef<llvm::StringRef> modules,
   return result.append(toLower(name));
 }
 
+std::string
+fir::NameUniquer::doNamelistGroup(llvm::ArrayRef<llvm::StringRef> modules,
+                                  llvm::Optional<llvm::StringRef> host,
+                                  llvm::StringRef name) {
+  std::string result = prefix();
+  result.append(doModulesHost(modules, host)).append("G");
+  return result.append(toLower(name));
+}
+
 llvm::StringRef fir::NameUniquer::doProgramEntry() {
   if (mainEntryName.size())
     return mainEntryName;
@@ -214,10 +223,10 @@ llvm::StringRef fir::NameUniquer::doProgramEntry() {
 std::pair<fir::NameUniquer::NameKind, fir::NameUniquer::DeconstructedName>
 fir::NameUniquer::deconstruct(llvm::StringRef uniq) {
   if (uniq.startswith("_Q")) {
-    llvm::SmallVector<std::string, 4> modules;
+    llvm::SmallVector<std::string> modules;
     llvm::Optional<std::string> host;
     std::string name;
-    llvm::SmallVector<std::int64_t, 8> kinds;
+    llvm::SmallVector<std::int64_t> kinds;
     NameKind nk = NameKind::NOT_UNIQUED;
     for (std::size_t i = 2, end{uniq.size()}; i != end;) {
       switch (uniq[i]) {
@@ -278,6 +287,10 @@ fir::NameUniquer::deconstruct(llvm::StringRef uniq) {
           kinds.push_back(-readInt(uniq, i, i + 2, end));
         else
           kinds.push_back(readInt(uniq, i, i + 1, end));
+        break;
+      case 'G':
+        nk = NameKind::NAMELIST_GROUP;
+        name = readName(uniq, i, i + 1, end);
         break;
 
       default:

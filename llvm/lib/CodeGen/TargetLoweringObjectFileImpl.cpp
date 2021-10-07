@@ -48,6 +48,7 @@
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCSectionCOFF.h"
 #include "llvm/MC/MCSectionELF.h"
+#include "llvm/MC/MCSectionGOFF.h"
 #include "llvm/MC/MCSectionMachO.h"
 #include "llvm/MC/MCSectionWasm.h"
 #include "llvm/MC/MCSectionXCOFF.h"
@@ -676,8 +677,9 @@ calcUniqueIDUpdateFlagsAndSize(const GlobalObject *GO, StringRef SectionName,
   }
 
   if (Retain) {
-    if (Ctx.getAsmInfo()->useIntegratedAssembler() ||
-        Ctx.getAsmInfo()->binutilsIsAtLeast(2, 36))
+    if ((Ctx.getAsmInfo()->useIntegratedAssembler() ||
+         Ctx.getAsmInfo()->binutilsIsAtLeast(2, 36)) &&
+        !TM.getTargetTriple().isOSSolaris())
       Flags |= ELF::SHF_GNU_RETAIN;
     return NextUniqueID++;
   }
@@ -854,8 +856,10 @@ static MCSection *selectELFSectionForGlobal(
     EmitUniqueSection = true;
     Flags |= ELF::SHF_LINK_ORDER;
   }
-  if (Retain && (Ctx.getAsmInfo()->useIntegratedAssembler() ||
-                 Ctx.getAsmInfo()->binutilsIsAtLeast(2, 36))) {
+  if (Retain &&
+      (Ctx.getAsmInfo()->useIntegratedAssembler() ||
+       Ctx.getAsmInfo()->binutilsIsAtLeast(2, 36)) &&
+      !TM.getTargetTriple().isOSSolaris()) {
     EmitUniqueSection = true;
     Flags |= ELF::SHF_GNU_RETAIN;
   }
@@ -1941,7 +1945,7 @@ static std::string APIntToHexString(const APInt &AI) {
 static std::string scalarConstantToHexString(const Constant *C) {
   Type *Ty = C->getType();
   if (isa<UndefValue>(C)) {
-    return APIntToHexString(APInt::getNullValue(Ty->getPrimitiveSizeInBits()));
+    return APIntToHexString(APInt::getZero(Ty->getPrimitiveSizeInBits()));
   } else if (const auto *CFP = dyn_cast<ConstantFP>(C)) {
     return APIntToHexString(CFP->getValueAPF().bitcastToAPInt());
   } else if (const auto *CI = dyn_cast<ConstantInt>(C)) {
@@ -2413,7 +2417,20 @@ bool TargetLoweringObjectFileXCOFF::shouldPutJumpTableInFunctionSection(
 MCSection *TargetLoweringObjectFileXCOFF::getSectionForConstant(
     const DataLayout &DL, SectionKind Kind, const Constant *C,
     Align &Alignment) const {
-  //TODO: Enable emiting constant pool to unique sections when we support it.
+  // TODO: Enable emiting constant pool to unique sections when we support it.
+  if (Alignment > Align(16))
+    report_fatal_error("Alignments greater than 16 not yet supported.");
+
+  if (Alignment == Align(8)) {
+    assert(ReadOnly8Section && "Section should always be initialized.");
+    return ReadOnly8Section;
+  }
+
+  if (Alignment == Align(16)) {
+    assert(ReadOnly16Section && "Section should always be initialized.");
+    return ReadOnly16Section;
+  }
+
   return ReadOnlySection;
 }
 
@@ -2442,7 +2459,8 @@ MCSection *TargetLoweringObjectFileXCOFF::getStaticDtorSection(
 const MCExpr *TargetLoweringObjectFileXCOFF::lowerRelativeReference(
     const GlobalValue *LHS, const GlobalValue *RHS,
     const TargetMachine &TM) const {
-  report_fatal_error("XCOFF not yet implemented.");
+  /* Not implemented yet, but don't crash, return nullptr. */
+  return nullptr;
 }
 
 XCOFF::StorageClass
@@ -2520,4 +2538,25 @@ MCSection *TargetLoweringObjectFileXCOFF::getSectionForTOCEntry(
       XCOFF::CsectProperties(
           TM.getCodeModel() == CodeModel::Large ? XCOFF::XMC_TE : XCOFF::XMC_TC,
           XCOFF::XTY_SD));
+}
+
+//===----------------------------------------------------------------------===//
+//                                  GOFF
+//===----------------------------------------------------------------------===//
+TargetLoweringObjectFileGOFF::TargetLoweringObjectFileGOFF()
+    : TargetLoweringObjectFile() {}
+
+MCSection *TargetLoweringObjectFileGOFF::getExplicitSectionGlobal(
+    const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
+  return SelectSectionForGlobal(GO, Kind, TM);
+}
+
+MCSection *TargetLoweringObjectFileGOFF::SelectSectionForGlobal(
+    const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
+  auto *Symbol = TM.getSymbol(GO);
+  if (Kind.isBSS())
+    return getContext().getGOFFSection(Symbol->getName(),
+                                       SectionKind::getBSS());
+
+  return getContext().getObjectFileInfo()->getTextSection();
 }

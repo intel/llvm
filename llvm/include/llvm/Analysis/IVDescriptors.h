@@ -117,7 +117,7 @@ public:
   /// compare instruction to the select instruction and stores this pointer in
   /// 'PatternLastInst' member of the returned struct.
   static InstDesc isRecurrenceInstr(Instruction *I, RecurKind Kind,
-                                    InstDesc &Prev, FastMathFlags FMF);
+                                    InstDesc &Prev, FastMathFlags FuncFMF);
 
   /// Returns true if instruction I has multiple uses in Insts
   static bool hasMultipleUsesOf(Instruction *I,
@@ -127,12 +127,13 @@ public:
   /// Returns true if all uses of the instruction I is within the Set.
   static bool areAllUsesIn(Instruction *I, SmallPtrSetImpl<Instruction *> &Set);
 
-  /// Returns a struct describing if the instruction is a
-  /// Select(ICmp(X, Y), X, Y) instruction pattern corresponding to a min(X, Y)
-  /// or max(X, Y). \p Prev specifies the description of an already processed
-  /// select instruction, so its corresponding cmp can be matched to it.
-  static InstDesc isMinMaxSelectCmpPattern(Instruction *I,
-                                           const InstDesc &Prev);
+  /// Returns a struct describing if the instruction is a llvm.(s/u)(min/max),
+  /// llvm.minnum/maxnum or a Select(ICmp(X, Y), X, Y) pair of instructions
+  /// corresponding to a min(X, Y) or max(X, Y), matching the recurrence kind \p
+  /// Kind. \p Prev specifies the description of an already processed select
+  /// instruction, so its corresponding cmp can be matched to it.
+  static InstDesc isMinMaxPattern(Instruction *I, RecurKind Kind,
+                                  const InstDesc &Prev);
 
   /// Returns a struct describing if the instruction is a
   /// Select(FCmp(X, Y), (Z = X op PHINode), PHINode) instruction pattern.
@@ -150,7 +151,7 @@ public:
   /// non-null, the minimal bit width needed to compute the reduction will be
   /// computed.
   static bool AddReductionVar(PHINode *Phi, RecurKind Kind, Loop *TheLoop,
-                              FastMathFlags FMF,
+                              FastMathFlags FuncFMF,
                               RecurrenceDescriptor &RedDes,
                               DemandedBits *DB = nullptr,
                               AssumptionCache *AC = nullptr,
@@ -329,6 +330,11 @@ public:
                           : Instruction::BinaryOpsEnd;
   }
 
+  Type *getElementType() const {
+    assert(IK == IK_PtrInduction && "Only pointer induction has element type");
+    return ElementType;
+  }
+
   /// Returns a reference to the type cast instructions in the induction
   /// update chain, that are redundant when guarded with a runtime
   /// SCEV overflow check.
@@ -340,6 +346,7 @@ private:
   /// Private constructor - used by \c isInductionPHI.
   InductionDescriptor(Value *Start, InductionKind K, const SCEV *Step,
                       BinaryOperator *InductionBinOp = nullptr,
+                      Type *ElementType = nullptr,
                       SmallVectorImpl<Instruction *> *Casts = nullptr);
 
   /// Start value.
@@ -350,6 +357,9 @@ private:
   const SCEV *Step = nullptr;
   // Instruction that advances induction variable.
   BinaryOperator *InductionBinOp = nullptr;
+  // Element type for pointer induction variables.
+  // TODO: This can be dropped once support for typed pointers is removed.
+  Type *ElementType = nullptr;
   // Instructions used for type-casts of the induction variable,
   // that are redundant when guarded with a runtime SCEV overflow check.
   SmallVector<Instruction *, 2> RedundantCasts;

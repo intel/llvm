@@ -10,12 +10,24 @@
 // RUN:     -resource-dir=%S/Inputs/resource_dir_with_per_target_subdir \
 // RUN:     --sysroot=%S/platform -fuse-ld=lld 2>&1 \
 // RUN:     | FileCheck -check-prefixes=CHECK,CHECK-RISCV64 %s
+// RUN: %clang %s -### -no-canonical-prefixes --target=x86_64-fuchsia \
+// RUN:     -resource-dir=%S/Inputs/resource_dir_with_per_target_subdir \
+// RUN:     --sysroot=%S/platform -fuse-ld=lld 2>&1 \
+// RUN:     | FileCheck -check-prefixes=CHECK,CHECK-X86_64 %s
+// RUN: %clang %s -### -no-canonical-prefixes --target=aarch64-fuchsia \
+// RUN:     -resource-dir=%S/Inputs/resource_dir_with_per_target_subdir \
+// RUN:     --sysroot=%S/platform -fuse-ld=lld 2>&1 \
+// RUN:     | FileCheck -check-prefixes=CHECK,CHECK-AARCH64 %s
+// RUN: %clang %s -### -no-canonical-prefixes --target=riscv64-fuchsia \
+// RUN:     -resource-dir=%S/Inputs/resource_dir_with_per_target_subdir \
+// RUN:     --sysroot=%S/platform -fuse-ld=lld 2>&1 \
+// RUN:     | FileCheck -check-prefixes=CHECK,CHECK-RISCV64 %s
 // CHECK: {{.*}}clang{{.*}}" "-cc1"
 // CHECK-X86_64: "-triple" "x86_64-unknown-fuchsia"
 // CHECK-AARCH64: "-triple" "aarch64-unknown-fuchsia"
 // CHECK-RISCV64: "-triple" "riscv64-unknown-fuchsia"
 // CHECK: "--mrelax-relocations"
-// CHECK: "-munwind-tables"
+// CHECK: "-funwind-tables=2"
 // CHECK: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
 // CHECK: "-isysroot" "[[SYSROOT:[^"]+]]"
 // CHECK: "-internal-externc-isystem" "[[SYSROOT]]{{/|\\\\}}include"
@@ -249,7 +261,6 @@
 // RUN:     -fuse-ld=lld 2>&1 \
 // RUN:     | FileCheck %s -check-prefix=CHECK-PROFRT-AARCH64
 // CHECK-PROFRT-AARCH64: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
-// CHECK-PROFRT-AARCH64: "-u__llvm_profile_runtime"
 // CHECK-PROFRT-AARCH64: "[[RESOURCE_DIR]]{{/|\\\\}}lib{{/|\\\\}}aarch64-unknown-fuchsia{{/|\\\\}}libclang_rt.profile.a"
 
 // RUN: %clang %s -### --target=x86_64-unknown-fuchsia \
@@ -258,5 +269,4 @@
 // RUN:     -fuse-ld=lld 2>&1 \
 // RUN:     | FileCheck %s -check-prefix=CHECK-PROFRT-X86_64
 // CHECK-PROFRT-X86_64: "-resource-dir" "[[RESOURCE_DIR:[^"]+]]"
-// CHECK-PROFRT-X86_64: "-u__llvm_profile_runtime"
 // CHECK-PROFRT-X86_64: "[[RESOURCE_DIR]]{{/|\\\\}}lib{{/|\\\\}}x86_64-unknown-fuchsia{{/|\\\\}}libclang_rt.profile.a"

@@ -110,6 +110,19 @@ public:
   }
 };
 
+static constexpr OptionEnumValueElement g_follow_fork_mode_values[] = {
+    {
+        eFollowParent,
+        "parent",
+        "Continue tracing the parent process and detach the child.",
+    },
+    {
+        eFollowChild,
+        "child",
+        "Trace the child process and detach the parent.",
+    },
+};
+
 #define LLDB_PROPERTIES_process
 #include "TargetProperties.inc"
 
@@ -332,6 +345,12 @@ void ProcessProperties::SetOSPluginReportsAllThreads(bool does_report) {
   if (exp_values)
     exp_values->SetPropertyAtIndexAsBoolean(
         nullptr, ePropertyOSPluginReportsAllThreads, does_report);
+}
+
+FollowForkMode ProcessProperties::GetFollowForkMode() const {
+  const uint32_t idx = ePropertyFollowForkMode;
+  return (FollowForkMode)m_collection_sp->GetPropertyAtIndexAsEnumeration(
+      nullptr, idx, g_process_properties[idx].default_uint_value);
 }
 
 ProcessSP Process::FindPlugin(lldb::TargetSP target_sp,
@@ -777,13 +796,30 @@ bool Process::HandleProcessStateChangedEvent(const EventSP &event_sp,
         ThreadSP curr_thread(thread_list.GetSelectedThread());
         ThreadSP thread;
         StopReason curr_thread_stop_reason = eStopReasonInvalid;
-        if (curr_thread) {
+        bool prefer_curr_thread = false;
+        if (curr_thread && curr_thread->IsValid()) {
           curr_thread_stop_reason = curr_thread->GetStopReason();
+          switch (curr_thread_stop_reason) {
+          case eStopReasonNone:
+          case eStopReasonInvalid:
+            // Don't prefer the current thread if it didn't stop for a reason.
+            break;
+          case eStopReasonSignal: {
+            // We need to do the same computation we do for other threads
+            // below in case the current thread happens to be the one that
+            // stopped for the no-stop signal.
+            uint64_t signo = curr_thread->GetStopInfo()->GetValue();
+            if (process_sp->GetUnixSignals()->GetShouldStop(signo))
+              prefer_curr_thread = true;
+          } break;
+          default:
+            prefer_curr_thread = true;
+            break;
+          }
           curr_thread_stop_info_sp = curr_thread->GetStopInfo();
         }
-        if (!curr_thread || !curr_thread->IsValid() ||
-            curr_thread_stop_reason == eStopReasonInvalid ||
-            curr_thread_stop_reason == eStopReasonNone) {
+
+        if (!prefer_curr_thread) {
           // Prefer a thread that has just completed its plan over another
           // thread as current thread.
           ThreadSP plan_thread;
@@ -2614,6 +2650,10 @@ DynamicLoader *Process::GetDynamicLoader() {
 
 DataExtractor Process::GetAuxvData() { return DataExtractor(); }
 
+llvm::Expected<bool> Process::SaveCore(llvm::StringRef outfile) {
+  return false;
+}
+
 JITLoaderList &Process::GetJITLoaders() {
   if (!m_jit_loaders_up) {
     m_jit_loaders_up = std::make_unique<JITLoaderList>();
@@ -4293,8 +4333,8 @@ public:
       : IOHandler(process->GetTarget().GetDebugger(),
                   IOHandler::Type::ProcessIO),
         m_process(process),
-        m_read_file(GetInputFD(), File::eOpenOptionRead, false),
-        m_write_file(write_fd, File::eOpenOptionWrite, false) {
+        m_read_file(GetInputFD(), File::eOpenOptionReadOnly, false),
+        m_write_file(write_fd, File::eOpenOptionWriteOnly, false) {
     m_pipe.CreateNew(false);
   }
 
@@ -4311,9 +4351,8 @@ public:
 
     SetIsDone(false);
     const int read_fd = m_read_file.GetDescriptor();
-    TerminalState terminal_state;
-    terminal_state.Save(read_fd, false);
     Terminal terminal(read_fd);
+    TerminalState terminal_state(terminal, false);
     terminal.SetCanonical(false);
     terminal.SetEcho(false);
 // FD_ZERO, FD_SET are not supported on windows
@@ -4359,7 +4398,6 @@ public:
     }
     m_is_running = false;
 #endif
-    terminal_state.Restore();
   }
 
   void Cancel() override {
@@ -6101,4 +6139,22 @@ Process::ReadMemoryTags(lldb::addr_t addr, size_t len) {
 
   return tag_manager->UnpackTagsData(*tag_data,
                                      len / tag_manager->GetGranuleSize());
+}
+
+Status Process::WriteMemoryTags(lldb::addr_t addr, size_t len,
+                                const std::vector<lldb::addr_t> &tags) {
+  llvm::Expected<const MemoryTagManager *> tag_manager_or_err =
+      GetMemoryTagManager();
+  if (!tag_manager_or_err)
+    return Status(tag_manager_or_err.takeError());
+
+  const MemoryTagManager *tag_manager = *tag_manager_or_err;
+  llvm::Expected<std::vector<uint8_t>> packed_tags =
+      tag_manager->PackTags(tags);
+  if (!packed_tags) {
+    return Status(packed_tags.takeError());
+  }
+
+  return DoWriteMemoryTags(addr, len, tag_manager->GetAllocationTagType(),
+                           *packed_tags);
 }

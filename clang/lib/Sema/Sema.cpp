@@ -352,10 +352,11 @@ void Sema::Initialize() {
         Context.getTargetInfo().getSupportedOpenCLOpts(), getLangOpts());
     addImplicitTypedef("sampler_t", Context.OCLSamplerTy);
     addImplicitTypedef("event_t", Context.OCLEventTy);
-    if (getLangOpts().OpenCLCPlusPlus || getLangOpts().OpenCLVersion >= 200) {
+    if (getLangOpts().getOpenCLCompatibleVersion() >= 200) {
       addImplicitTypedef("clk_event_t", Context.OCLClkEventTy);
       addImplicitTypedef("queue_t", Context.OCLQueueTy);
-      addImplicitTypedef("reserve_id_t", Context.OCLReserveIDTy);
+      if (getLangOpts().OpenCLPipes)
+        addImplicitTypedef("reserve_id_t", Context.OCLReserveIDTy);
       addImplicitTypedef("atomic_int", Context.getAtomicType(Context.IntTy));
       addImplicitTypedef("atomic_uint",
                          Context.getAtomicType(Context.UnsignedIntTy));
@@ -660,7 +661,7 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
   if (Kind == CK_ArrayToPointerDecay) {
     // C++1z [conv.array]: The temporary materialization conversion is applied.
     // We also use this to fuel C++ DR1213, which applies to C++11 onwards.
-    if (getLangOpts().CPlusPlus && E->getValueKind() == VK_PRValue) {
+    if (getLangOpts().CPlusPlus && E->isPRValue()) {
       // The temporary is an lvalue in C++98 and an xvalue otherwise.
       ExprResult Materialized = CreateMaterializeTemporaryExpr(
           E->getType(), E, !getLangOpts().CPlusPlus11);
@@ -1085,6 +1086,9 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
   }
 
   if (getLangOpts().SYCLIsDevice) {
+    // Set the names of the kernels, now that the names have settled down. This
+    // needs to happen before we generate the integration headers.
+    SetSYCLKernelNames();
     // Emit SYCL integration header for current translation unit if needed
     if (SyclIntHeader != nullptr)
       SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
@@ -1466,7 +1470,7 @@ NamedDecl *Sema::getCurFunctionOrMethodDecl() {
 
 LangAS Sema::getDefaultCXXMethodAddrSpace() const {
   if (getLangOpts().OpenCL)
-    return LangAS::opencl_generic;
+    return getASTContext().getDefaultOpenCLPointeeAddrSpace();
   return LangAS::Default;
 }
 
@@ -1953,12 +1957,26 @@ void Sema::checkDeviceDecl(ValueDecl *D, SourceLocation Loc) {
       return;
     }
 
+    // Check if we are dealing with two 'long double' but with different
+    // semantics.
+    bool LongDoubleMismatched = false;
+    if (Ty->isRealFloatingType() && Context.getTypeSize(Ty) == 128) {
+      const llvm::fltSemantics &Sem = Context.getFloatTypeSemantics(Ty);
+      if ((&Sem != &llvm::APFloat::PPCDoubleDouble() &&
+           !Context.getTargetInfo().hasFloat128Type()) ||
+          (&Sem == &llvm::APFloat::PPCDoubleDouble() &&
+           !Context.getTargetInfo().hasIbm128Type()))
+        LongDoubleMismatched = true;
+    }
+
     if ((Ty->isFloat16Type() && !Context.getTargetInfo().hasFloat16Type()) ||
         ((Ty->isFloat128Type() ||
           (Ty->isRealFloatingType() && Context.getTypeSize(Ty) == 128)) &&
          !Context.getTargetInfo().hasFloat128Type()) ||
+        (Ty->isIbm128Type() && !Context.getTargetInfo().hasIbm128Type()) ||
         (Ty->isIntegerType() && Context.getTypeSize(Ty) == 128 &&
-         !Context.getTargetInfo().hasInt128Type())) {
+         !Context.getTargetInfo().hasInt128Type()) ||
+        LongDoubleMismatched) {
       if (targetDiag(Loc, diag::err_device_unsupported_type, FD)
           << D << true /*show bit size*/
           << static_cast<unsigned>(Context.getTypeSize(Ty)) << Ty
@@ -2076,7 +2094,7 @@ static void checkEscapingByref(VarDecl *VD, Sema &S) {
   Expr *VarRef =
       new (S.Context) DeclRefExpr(S.Context, VD, false, T, VK_LValue, Loc);
   ExprResult Result;
-  auto IE = InitializedEntity::InitializeBlock(Loc, T, false);
+  auto IE = InitializedEntity::InitializeBlock(Loc, T);
   if (S.getLangOpts().CPlusPlus2b) {
     auto *E = ImplicitCastExpr::Create(S.Context, T, CK_NoOp, VarRef, nullptr,
                                        VK_XValue, FPOptionsOverride());

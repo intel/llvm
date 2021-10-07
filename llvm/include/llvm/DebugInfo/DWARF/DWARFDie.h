@@ -220,16 +220,6 @@ public:
   /// information is available.
   Expected<DWARFAddressRangesVector> getAddressRanges() const;
 
-  /// Get all address ranges for any DW_TAG_subprogram DIEs in this DIE or any
-  /// of its children.
-  ///
-  /// Get the hi/low PC range if both attributes are available or exrtracts the
-  /// non-contiguous address ranges from the DW_AT_ranges attribute for this DIE
-  /// and all children.
-  ///
-  /// \param Ranges the addres range vector to fill in.
-  void collectChildrenAddressRanges(DWARFAddressRangesVector &Ranges) const;
-
   bool addressRangeContainsAddress(const uint64_t Address) const;
 
   Expected<DWARFLocationExpressionsVector>
@@ -246,6 +236,8 @@ public:
   /// for ShortName if LinkageName is not found.
   /// Returns null if no name is found.
   const char *getName(DINameKind Kind) const;
+  void getFullName(raw_string_ostream &,
+                   std::string *OriginalFullName = nullptr) const;
 
   /// Return the DIE short name resolving DW_AT_specification or
   /// DW_AT_abstract_origin references if necessary. Returns null if no name

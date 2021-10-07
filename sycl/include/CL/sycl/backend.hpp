@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/backend.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/context.hpp>
@@ -39,6 +40,10 @@ template <backend Backend, typename T> struct BackendReturn {
   // TODO replace usage of interop with specializations.
   using type = typename interop<Backend, T>::type;
 };
+
+// TODO each backend can have its own custom errc enumeration
+// but the details for this are not fully specified yet
+enum class backend_errc : unsigned int {};
 } // namespace detail
 
 template <backend Backend> class backend_traits {
@@ -49,7 +54,7 @@ public:
   template <class T>
   using return_type = typename detail::BackendReturn<Backend, T>::type;
 
-  // TODO define errc once SYCL2020-style exceptions are supported.
+  using errc = detail::backend_errc;
 };
 
 template <backend Backend, typename SyclType>
@@ -61,8 +66,8 @@ using backend_return_t =
     typename backend_traits<Backend>::template return_type<SyclType>;
 
 template <backend BackendName, class SyclObjectT>
-auto get_native(const SyclObjectT &Obj) ->
-    typename interop<BackendName, SyclObjectT>::type {
+auto get_native(const SyclObjectT &Obj)
+    -> backend_return_t<BackendName, SyclObjectT> {
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName)
     throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
@@ -101,11 +106,20 @@ __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &TargetContext, bool KeepOwnership,
                                backend Backend);
+// TODO: Unused. Remove when allowed.
 __SYCL_EXPORT kernel make_kernel(pi_native_handle NativeHandle,
                                  const context &TargetContext, backend Backend);
+__SYCL_EXPORT kernel make_kernel(
+    const context &TargetContext,
+    const kernel_bundle<bundle_state::executable> &KernelBundle,
+    pi_native_handle NativeKernelHandle, bool KeepOwnership, backend Backend);
+// TODO: Unused. Remove when allowed.
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
                    bundle_state State, backend Backend);
+__SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
+make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
+                   bool KeepOwnership, bundle_state State, backend Backend);
 } // namespace detail
 
 template <backend Backend>
@@ -141,17 +155,18 @@ make_context(
 }
 
 template <backend Backend>
+__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
-make_queue(const typename backend_traits<Backend>::template input_type<queue>
-               &BackendObject,
-           const context &TargetContext, bool KeepOwnership,
-           const async_handler Handler = {}) {
+    make_queue(
+        const typename backend_traits<Backend>::template input_type<queue>
+            &BackendObject,
+        const context &TargetContext, bool KeepOwnership,
+        const async_handler Handler = {}) {
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
                             TargetContext, KeepOwnership, Handler, Backend);
 }
 
-// TODO: remove this version (without ownership) when allowed to break ABI.
 template <backend Backend>
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeQueue == true, queue>::type
@@ -173,11 +188,13 @@ make_event(const typename backend_traits<Backend>::template input_type<event>
 }
 
 template <backend Backend>
+__SYCL_DEPRECATED("Use SYCL 2020 sycl::make_event free function")
 typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeEvent == true, event>::type
-make_event(const typename backend_traits<Backend>::template input_type<event>
-               &BackendObject,
-           const context &TargetContext, bool KeepOwnership) {
+    make_event(
+        const typename backend_traits<Backend>::template input_type<event>
+            &BackendObject,
+        const context &TargetContext, bool KeepOwnership) {
   return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
                             TargetContext, KeepOwnership, Backend);
 }
@@ -199,8 +216,9 @@ kernel
 make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
                 &BackendObject,
             const context &TargetContext) {
-  return detail::make_kernel(detail::pi::cast<pi_native_handle>(BackendObject),
-                             TargetContext, Backend);
+  return detail::make_kernel(
+      TargetContext, get_kernel_bundle<bundle_state::executable>(TargetContext),
+      detail::pi::cast<pi_native_handle>(BackendObject), false, Backend);
 }
 
 template <backend Backend, bundle_state State>
@@ -213,7 +231,7 @@ make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
   std::shared_ptr<detail::kernel_bundle_impl> KBImpl =
       detail::make_kernel_bundle(
           detail::pi::cast<pi_native_handle>(BackendObject), TargetContext,
-          State, Backend);
+          false, State, Backend);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(KBImpl);
 }
 } // namespace sycl

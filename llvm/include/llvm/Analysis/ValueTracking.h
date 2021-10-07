@@ -549,6 +549,7 @@ constexpr unsigned MaxAnalysisRecursionDepth = 6;
   ConstantRange computeConstantRange(const Value *V, bool UseInstrInfo = true,
                                      AssumptionCache *AC = nullptr,
                                      const Instruction *CtxI = nullptr,
+                                     const DominatorTree *DT = nullptr,
                                      unsigned Depth = 0);
 
   /// Return true if this function can prove that the instruction I will
@@ -743,6 +744,10 @@ constexpr unsigned MaxAnalysisRecursionDepth = 6;
   /// Return the canonical inverse comparison predicate for the specified
   /// minimum/maximum flavor.
   CmpInst::Predicate getInverseMinMaxPred(SelectPatternFlavor SPF);
+
+  /// Return the minimum or maximum constant value for the specified integer
+  /// min/max flavor and type.
+  APInt getMinMaxLimit(SelectPatternFlavor SPF, unsigned BitWidth);
 
   /// Check if the values in \p VL are select instructions that can be converted
   /// to a min or max (vector) intrinsic. Returns the intrinsic ID, if such a

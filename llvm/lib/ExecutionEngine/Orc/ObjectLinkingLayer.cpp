@@ -64,9 +64,9 @@ private:
       LGI.SymbolFlags[ES.intern(Sym->getName())] = Flags;
     }
 
-    if (G.getTargetTriple().isOSBinFormatMachO())
-      if (hasMachOInitSection(G))
-        LGI.InitSymbol = makeInitSymbol(ES, G);
+    if ((G.getTargetTriple().isOSBinFormatMachO() && hasMachOInitSection(G)) ||
+        (G.getTargetTriple().isOSBinFormatELF() && hasELFInitSection(G)))
+      LGI.InitSymbol = makeInitSymbol(ES, G);
 
     return LGI;
   }
@@ -78,6 +78,13 @@ private:
           Sec.getName() == "__TEXT,__swift5_protos" ||
           Sec.getName() == "__TEXT,__swift5_proto" ||
           Sec.getName() == "__DATA,__mod_init_func")
+        return true;
+    return false;
+  }
+
+  static bool hasELFInitSection(LinkGraph &G) {
+    for (auto &Sec : G.sections())
+      if (Sec.getName() == ".init_array")
         return true;
     return false;
   }
@@ -272,8 +279,9 @@ public:
 
       // If there were missing symbols then report the error.
       if (!MissingSymbols.empty())
-        return make_error<MissingSymbolDefinitions>(G.getName(),
-                                                    std::move(MissingSymbols));
+        return make_error<MissingSymbolDefinitions>(
+            Layer.getExecutionSession().getSymbolStringPool(), G.getName(),
+            std::move(MissingSymbols));
 
       // If there are more definitions than expected, add them to the
       // ExtraSymbols vector.
@@ -286,8 +294,9 @@ public:
 
       // If there were extra definitions then report the error.
       if (!ExtraSymbols.empty())
-        return make_error<UnexpectedSymbolDefinitions>(G.getName(),
-                                                       std::move(ExtraSymbols));
+        return make_error<UnexpectedSymbolDefinitions>(
+            Layer.getExecutionSession().getSymbolStringPool(), G.getName(),
+            std::move(ExtraSymbols));
     }
 
     if (auto Err = MR->notifyResolved(InternedResult))
@@ -543,8 +552,7 @@ private:
 
     // Propagate block-level dependencies through the block-dependence graph.
     while (!WorkList.empty()) {
-      auto *B = WorkList.back();
-      WorkList.pop_back();
+      auto *B = WorkList.pop_back_val();
 
       auto &BI = BlockInfos[B];
       assert(BI.DependenciesChanged &&
@@ -606,6 +614,11 @@ ObjectLinkingLayer::Plugin::~Plugin() {}
 char ObjectLinkingLayer::ID;
 
 using BaseT = RTTIExtends<ObjectLinkingLayer, ObjectLayer>;
+
+ObjectLinkingLayer::ObjectLinkingLayer(ExecutionSession &ES)
+    : BaseT(ES), MemMgr(ES.getExecutorProcessControl().getMemMgr()) {
+  ES.registerResourceManager(*this);
+}
 
 ObjectLinkingLayer::ObjectLinkingLayer(ExecutionSession &ES,
                                        JITLinkMemoryManager &MemMgr)

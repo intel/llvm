@@ -262,6 +262,7 @@ LogicalResult spirv::Deserializer::processDecoration(ArrayRef<uint32_t> words) {
   case spirv::Decoration::NonWritable:
   case spirv::Decoration::NoPerspective:
   case spirv::Decoration::Restrict:
+  case spirv::Decoration::RelaxedPrecision:
     if (words.size() != 2) {
       return emitError(unknownLoc, "OpDecoration with ")
              << decorationName << "needs a single target <id>";
@@ -575,7 +576,7 @@ spirv::Deserializer::processGlobalVariable(ArrayRef<uint32_t> operands) {
              << operands[wordIndex] << "used as initializer";
     }
     wordIndex++;
-    initializer = opBuilder.getSymbolRefAttr(initializerOp.getOperation());
+    initializer = SymbolRefAttr::get(initializerOp.getOperation());
   }
   if (wordIndex != operands.size()) {
     return emitError(unknownLoc,
@@ -1279,7 +1280,7 @@ spirv::Deserializer::processSpecConstantComposite(ArrayRef<uint32_t> operands) {
   elements.reserve(operands.size() - 2);
   for (unsigned i = 2, e = operands.size(); i < e; ++i) {
     auto elementInfo = getSpecConstant(operands[i]);
-    elements.push_back(opBuilder.getSymbolRefAttr(elementInfo));
+    elements.push_back(SymbolRefAttr::get(elementInfo));
   }
 
   auto op = opBuilder.create<spirv::SpecConstantCompositeOp>(

@@ -185,6 +185,20 @@ bool getAssumedUnderlyingObjects(Attributor &A, const Value &Ptr,
                                  SmallVectorImpl<Value *> &Objects,
                                  const AbstractAttribute &QueryingAA,
                                  const Instruction *CtxI);
+
+/// Collect all potential values of the one stored by \p SI into
+/// \p PotentialCopies. That is, the only copies that were made via the
+/// store are assumed to be known and all in \p PotentialCopies. Dependences
+/// onto \p QueryingAA are properly tracked, \p UsedAssumedInformation will
+/// inform the caller if assumed information was used.
+///
+/// \returns True if the assumed potential copies are all in \p PotentialCopies,
+///          false if something went wrong and the copies could not be
+///          determined.
+bool getPotentialCopiesOfStoredValue(
+    Attributor &A, StoreInst &SI, SmallSetVector<Value *, 4> &PotentialCopies,
+    const AbstractAttribute &QueryingAA, bool &UsedAssumedInformation);
+
 } // namespace AA
 
 /// The value passed to the line option that defines the maximal initialization
@@ -577,7 +591,7 @@ struct IRPosition {
 
     LLVMContext &Ctx = getAnchorValue().getContext();
     for (Attribute::AttrKind AK : AKs)
-      AttrList = AttrList.removeAttribute(Ctx, getAttrIdx(), AK);
+      AttrList = AttrList.removeAttributeAtIndex(Ctx, getAttrIdx(), AK);
 
     if (CB)
       CB->setAttributes(AttrList);
@@ -1136,8 +1150,6 @@ struct Attributor {
   /// \param Allowed If not null, a set limiting the attribute opportunities.
   /// \param DeleteFns Whether to delete functions.
   /// \param RewriteSignatures Whether to rewrite function signatures.
-  /// \param MaxFixedPointIterations Maximum number of iterations to run until
-  ///                                fixpoint.
   Attributor(SetVector<Function *> &Functions, InformationCache &InfoCache,
              CallGraphUpdater &CGUpdater,
              DenseSet<const char *> *Allowed = nullptr, bool DeleteFns = true,
@@ -1155,8 +1167,9 @@ struct Attributor {
   /// \param CGUpdater Helper to update an underlying call graph.
   /// \param Allowed If not null, a set limiting the attribute opportunities.
   /// \param DeleteFns Whether to delete functions
-  /// \param MaxFixedPointIterations Maximum number of iterations to run until
-  ///                                fixpoint.
+  /// \param RewriteSignatures Whether to rewrite function signatures.
+  /// \param MaxFixpointIterations Maximum number of iterations to run until
+  ///                              fixpoint.
   /// \param OREGetter A callback function that returns an ORE object from a
   ///                  Function pointer.
   /// \param PassName  The name of the pass emitting remarks.
@@ -1530,6 +1543,13 @@ struct Attributor {
                                 UsedAssumedInformation);
   }
 
+  /// If \p V is assumed simplified, return it, if it is unclear yet,
+  /// return None, otherwise return `nullptr`. Same as the public version
+  /// except that it can be used without recording dependences on any \p AA.
+  Optional<Value *> getAssumedSimplified(const IRPosition &V,
+                                         const AbstractAttribute *AA,
+                                         bool &UsedAssumedInformation);
+
   /// Register \p CB as a simplification callback.
   /// `Attributor::getAssumedSimplified` will use these callbacks before
   /// we it will ask `AAValueSimplify`. It is important to ensure this
@@ -1542,17 +1562,15 @@ struct Attributor {
     SimplificationCallbacks[IRP].emplace_back(CB);
   }
 
+  /// Return true if there is a simplification callback for \p IRP.
+  bool hasSimplificationCallback(const IRPosition &IRP) {
+    return SimplificationCallbacks.count(IRP);
+  }
+
 private:
   /// The vector with all simplification callbacks registered by outside AAs.
   DenseMap<IRPosition, SmallVector<SimplifictionCallbackTy, 1>>
       SimplificationCallbacks;
-
-  /// If \p V is assumed simplified, return it, if it is unclear yet,
-  /// return None, otherwise return `nullptr`. Same as the public version
-  /// except that it can be used without recording dependences on any \p AA.
-  Optional<Value *> getAssumedSimplified(const IRPosition &V,
-                                         const AbstractAttribute *AA,
-                                         bool &UsedAssumedInformation);
 
 public:
   /// Translate \p V from the callee context into the call site context.
@@ -1836,6 +1854,10 @@ public:
   ///
   static void createShallowWrapper(Function &F);
 
+  /// Returns true if the function \p F can be internalized. i.e. it has a
+  /// compatible linkage.
+  static bool isInternalizable(Function &F);
+
   /// Make another copy of the function \p F such that the copied version has
   /// internal linkage afterwards and can be analysed. Then we replace all uses
   /// of the original function to the copied one
@@ -1850,6 +1872,22 @@ public:
   /// If the function \p F failed to be internalized the return value will be a
   /// null pointer.
   static Function *internalizeFunction(Function &F, bool Force = false);
+
+  /// Make copies of each function in the set \p FnSet such that the copied
+  /// version has internal linkage afterwards and can be analysed. Then we
+  /// replace all uses of the original function to the copied one. The map
+  /// \p FnMap contains a mapping of functions to their internalized versions.
+  ///
+  /// Only non-locally linked functions that have `linkonce_odr` or `weak_odr`
+  /// linkage can be internalized because these linkages guarantee that other
+  /// definitions with the same name have the same semantics as this one.
+  ///
+  /// This version will internalize all the functions in the set \p FnSet at
+  /// once and then replace the uses. This prevents internalized functions being
+  /// called by external functions when there is an internalized version in the
+  /// module.
+  static bool internalizeFunctions(SmallPtrSetImpl<Function *> &FnSet,
+                                   DenseMap<Function *, Function *> &FnMap);
 
   /// Return the data layout associated with the anchor scope.
   const DataLayout &getDataLayout() const { return InfoCache.DL; }
@@ -3092,9 +3130,19 @@ struct AANoReturn
 };
 
 /// An abstract interface for liveness abstract attribute.
-struct AAIsDead : public StateWrapper<BooleanState, AbstractAttribute> {
-  using Base = StateWrapper<BooleanState, AbstractAttribute>;
+struct AAIsDead
+    : public StateWrapper<BitIntegerState<uint8_t, 3, 0>, AbstractAttribute> {
+  using Base = StateWrapper<BitIntegerState<uint8_t, 3, 0>, AbstractAttribute>;
   AAIsDead(const IRPosition &IRP, Attributor &A) : Base(IRP) {}
+
+  /// State encoding bits. A set bit in the state means the property holds.
+  enum {
+    HAS_NO_EFFECT = 1 << 0,
+    IS_REMOVABLE = 1 << 1,
+
+    IS_DEAD = HAS_NO_EFFECT | IS_REMOVABLE,
+  };
+  static_assert(IS_DEAD == getBestState(), "Unexpected BEST_STATE value");
 
 protected:
   /// The query functions are protected such that other attributes need to go
@@ -3747,7 +3795,7 @@ struct AAMemoryLocation
   /// Return true if we assume that the associated functions has no observable
   /// accesses.
   bool isAssumedReadNone() const {
-    return isAssumed(NO_LOCATIONS) | isAssumedStackOnly();
+    return isAssumed(NO_LOCATIONS) || isAssumedStackOnly();
   }
 
   /// Return true if we know that the associated functions has at most
@@ -3891,19 +3939,19 @@ struct AAValueConstantRange
   static AAValueConstantRange &createForPosition(const IRPosition &IRP,
                                                  Attributor &A);
 
-  /// Return an assumed range for the assocaited value a program point \p CtxI.
+  /// Return an assumed range for the associated value a program point \p CtxI.
   /// If \p I is nullptr, simply return an assumed range.
   virtual ConstantRange
   getAssumedConstantRange(Attributor &A,
                           const Instruction *CtxI = nullptr) const = 0;
 
-  /// Return a known range for the assocaited value at a program point \p CtxI.
+  /// Return a known range for the associated value at a program point \p CtxI.
   /// If \p I is nullptr, simply return a known range.
   virtual ConstantRange
   getKnownConstantRange(Attributor &A,
                         const Instruction *CtxI = nullptr) const = 0;
 
-  /// Return an assumed constant for the assocaited value a program point \p
+  /// Return an assumed constant for the associated value a program point \p
   /// CtxI.
   Optional<ConstantInt *>
   getAssumedConstantInt(Attributor &A,
@@ -4406,6 +4454,9 @@ struct AAFunctionReachability
   /// If the function represented by this possition can reach \p Fn.
   virtual bool canReach(Attributor &A, Function *Fn) const = 0;
 
+  /// Can \p CB reach \p Fn
+  virtual bool canReach(Attributor &A, CallBase &CB, Function *Fn) const = 0;
+
   /// Create an abstract attribute view for the position \p IRP.
   static AAFunctionReachability &createForPosition(const IRPosition &IRP,
                                                    Attributor &A);
@@ -4459,6 +4510,7 @@ struct AAPointerInfo : public AbstractAttribute {
       RemoteI = Other.RemoteI;
       Content = Other.Content;
       Kind = Other.Kind;
+      Ty = Other.Ty;
       return *this;
     }
     bool operator==(const Access &R) const {

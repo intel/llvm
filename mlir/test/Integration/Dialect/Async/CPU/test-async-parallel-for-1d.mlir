@@ -7,6 +7,7 @@
 // RUN:               -convert-memref-to-llvm                                  \
 // RUN:               -std-expand                                              \
 // RUN:               -convert-std-to-llvm                                     \
+// RUN:               -reconcile-unrealized-casts                              \
 // RUN: | mlir-cpu-runner                                                      \
 // RUN:  -e entry -entry-point-result=void -O0                                 \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_runner_utils%shlibext \
@@ -21,6 +22,7 @@
 // RUN:               -convert-memref-to-llvm                                  \
 // RUN:               -std-expand                                              \
 // RUN:               -convert-std-to-llvm                                     \
+// RUN:               -reconcile-unrealized-casts                              \
 // RUN: | mlir-cpu-runner                                                      \
 // RUN:  -e entry -entry-point-result=void -O0                                 \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_runner_utils%shlibext \
@@ -29,7 +31,7 @@
 
 // RUN:   mlir-opt %s -async-parallel-for="async-dispatch=false                \
 // RUN:                                    num-workers=20                      \
-// RUN:                                    target-block-size=1"                \
+// RUN:                                    min-task-size=1"                \
 // RUN:               -async-to-async-runtime                                  \
 // RUN:               -async-runtime-ref-counting                              \
 // RUN:               -async-runtime-ref-counting-opt                          \
@@ -38,6 +40,7 @@
 // RUN:               -convert-memref-to-llvm                                  \
 // RUN:               -std-expand                                              \
 // RUN:               -convert-std-to-llvm                                     \
+// RUN:               -reconcile-unrealized-casts                              \
 // RUN: | mlir-cpu-runner                                                      \
 // RUN:  -e entry -entry-point-result=void -O0                                 \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_runner_utils%shlibext \

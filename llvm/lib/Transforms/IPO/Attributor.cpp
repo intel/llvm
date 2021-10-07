@@ -29,8 +29,10 @@
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalValue.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/NoFolder.h"
 #include "llvm/IR/ValueHandle.h"
@@ -249,10 +251,12 @@ Value *AA::getWithType(Value &V, Type &Ty) {
       return Constant::getNullValue(&Ty);
     if (C->getType()->isPointerTy() && Ty.isPointerTy())
       return ConstantExpr::getPointerCast(C, &Ty);
-    if (C->getType()->isIntegerTy() && Ty.isIntegerTy())
-      return ConstantExpr::getTrunc(C, &Ty, /* OnlyIfReduced */ true);
-    if (C->getType()->isFloatingPointTy() && Ty.isFloatingPointTy())
-      return ConstantExpr::getFPTrunc(C, &Ty, /* OnlyIfReduced */ true);
+    if (C->getType()->getPrimitiveSizeInBits() >= Ty.getPrimitiveSizeInBits()) {
+      if (C->getType()->isIntegerTy() && Ty.isIntegerTy())
+        return ConstantExpr::getTrunc(C, &Ty, /* OnlyIfReduced */ true);
+      if (C->getType()->isFloatingPointTy() && Ty.isFloatingPointTy())
+        return ConstantExpr::getFPTrunc(C, &Ty, /* OnlyIfReduced */ true);
+    }
   }
   return nullptr;
 }
@@ -281,6 +285,86 @@ AA::combineOptionalValuesInAAValueLatice(const Optional<Value *> &A,
   return nullptr;
 }
 
+bool AA::getPotentialCopiesOfStoredValue(
+    Attributor &A, StoreInst &SI, SmallSetVector<Value *, 4> &PotentialCopies,
+    const AbstractAttribute &QueryingAA, bool &UsedAssumedInformation) {
+
+  Value &Ptr = *SI.getPointerOperand();
+  SmallVector<Value *, 8> Objects;
+  if (!AA::getAssumedUnderlyingObjects(A, Ptr, Objects, QueryingAA, &SI)) {
+    LLVM_DEBUG(
+        dbgs() << "Underlying objects stored into could not be determined\n";);
+    return false;
+  }
+
+  SmallVector<const AAPointerInfo *> PIs;
+  SmallVector<Value *> NewCopies;
+
+  for (Value *Obj : Objects) {
+    LLVM_DEBUG(dbgs() << "Visit underlying object " << *Obj << "\n");
+    if (isa<UndefValue>(Obj))
+      continue;
+    if (isa<ConstantPointerNull>(Obj)) {
+      // A null pointer access can be undefined but any offset from null may
+      // be OK. We do not try to optimize the latter.
+      if (!NullPointerIsDefined(SI.getFunction(),
+                                Ptr.getType()->getPointerAddressSpace()) &&
+          A.getAssumedSimplified(Ptr, QueryingAA, UsedAssumedInformation) ==
+              Obj)
+        continue;
+      LLVM_DEBUG(
+          dbgs() << "Underlying object is a valid nullptr, giving up.\n";);
+      return false;
+    }
+    if (!isa<AllocaInst>(Obj) && !isa<GlobalVariable>(Obj)) {
+      LLVM_DEBUG(dbgs() << "Underlying object is not supported yet: " << *Obj
+                        << "\n";);
+      return false;
+    }
+    if (auto *GV = dyn_cast<GlobalVariable>(Obj))
+      if (!GV->hasLocalLinkage()) {
+        LLVM_DEBUG(dbgs() << "Underlying object is global with external "
+                             "linkage, not supported yet: "
+                          << *Obj << "\n";);
+        return false;
+      }
+
+    auto CheckAccess = [&](const AAPointerInfo::Access &Acc, bool IsExact) {
+      if (!Acc.isRead())
+        return true;
+      auto *LI = dyn_cast<LoadInst>(Acc.getRemoteInst());
+      if (!LI) {
+        LLVM_DEBUG(dbgs() << "Underlying object read through a non-load "
+                             "instruction not supported yet: "
+                          << *Acc.getRemoteInst() << "\n";);
+        return false;
+      }
+      NewCopies.push_back(LI);
+      return true;
+    };
+
+    auto &PI = A.getAAFor<AAPointerInfo>(QueryingAA, IRPosition::value(*Obj),
+                                         DepClassTy::NONE);
+    if (!PI.forallInterferingAccesses(SI, CheckAccess)) {
+      LLVM_DEBUG(
+          dbgs()
+          << "Failed to verify all interfering accesses for underlying object: "
+          << *Obj << "\n");
+      return false;
+    }
+    PIs.push_back(&PI);
+  }
+
+  for (auto *PI : PIs) {
+    if (!PI->getState().isAtFixpoint())
+      UsedAssumedInformation = true;
+    A.recordDependence(*PI, QueryingAA, DepClassTy::OPTIONAL);
+  }
+  PotentialCopies.insert(NewCopies.begin(), NewCopies.end());
+
+  return true;
+}
+
 /// Return true if \p New is equal or worse than \p Old.
 static bool isEqualOrWorse(const Attribute &New, const Attribute &Old) {
   if (!Old.isIntAttribute())
@@ -298,30 +382,30 @@ static bool addIfNotExistent(LLVMContext &Ctx, const Attribute &Attr,
 
   if (Attr.isEnumAttribute()) {
     Attribute::AttrKind Kind = Attr.getKindAsEnum();
-    if (Attrs.hasAttribute(AttrIdx, Kind))
+    if (Attrs.hasAttributeAtIndex(AttrIdx, Kind))
       if (!ForceReplace &&
-          isEqualOrWorse(Attr, Attrs.getAttribute(AttrIdx, Kind)))
+          isEqualOrWorse(Attr, Attrs.getAttributeAtIndex(AttrIdx, Kind)))
         return false;
-    Attrs = Attrs.addAttribute(Ctx, AttrIdx, Attr);
+    Attrs = Attrs.addAttributeAtIndex(Ctx, AttrIdx, Attr);
     return true;
   }
   if (Attr.isStringAttribute()) {
     StringRef Kind = Attr.getKindAsString();
-    if (Attrs.hasAttribute(AttrIdx, Kind))
+    if (Attrs.hasAttributeAtIndex(AttrIdx, Kind))
       if (!ForceReplace &&
-          isEqualOrWorse(Attr, Attrs.getAttribute(AttrIdx, Kind)))
+          isEqualOrWorse(Attr, Attrs.getAttributeAtIndex(AttrIdx, Kind)))
         return false;
-    Attrs = Attrs.addAttribute(Ctx, AttrIdx, Attr);
+    Attrs = Attrs.addAttributeAtIndex(Ctx, AttrIdx, Attr);
     return true;
   }
   if (Attr.isIntAttribute()) {
     Attribute::AttrKind Kind = Attr.getKindAsEnum();
-    if (Attrs.hasAttribute(AttrIdx, Kind))
+    if (Attrs.hasAttributeAtIndex(AttrIdx, Kind))
       if (!ForceReplace &&
-          isEqualOrWorse(Attr, Attrs.getAttribute(AttrIdx, Kind)))
+          isEqualOrWorse(Attr, Attrs.getAttributeAtIndex(AttrIdx, Kind)))
         return false;
-    Attrs = Attrs.removeAttribute(Ctx, AttrIdx, Kind);
-    Attrs = Attrs.addAttribute(Ctx, AttrIdx, Attr);
+    Attrs = Attrs.removeAttributeAtIndex(Ctx, AttrIdx, Kind);
+    Attrs = Attrs.addAttributeAtIndex(Ctx, AttrIdx, Attr);
     return true;
   }
 
@@ -574,9 +658,9 @@ bool IRPosition::getAttrsFromIRAttr(Attribute::AttrKind AK,
   else
     AttrList = getAssociatedFunction()->getAttributes();
 
-  bool HasAttr = AttrList.hasAttribute(getAttrIdx(), AK);
+  bool HasAttr = AttrList.hasAttributeAtIndex(getAttrIdx(), AK);
   if (HasAttr)
-    Attrs.push_back(AttrList.getAttribute(getAttrIdx(), AK));
+    Attrs.push_back(AttrList.getAttributeAtIndex(getAttrIdx(), AK));
   return HasAttr;
 }
 
@@ -680,7 +764,7 @@ Attributor::getAssumedConstant(const IRPosition &IRP,
   // First check all callbacks provided by outside AAs. If any of them returns
   // a non-null value that is different from the associated value, or None, we
   // assume it's simpliied.
-  for (auto &CB : SimplificationCallbacks[IRP]) {
+  for (auto &CB : SimplificationCallbacks.lookup(IRP)) {
     Optional<Value *> SimplifiedV = CB(IRP, &AA, UsedAssumedInformation);
     if (!SimplifiedV.hasValue())
       return llvm::None;
@@ -718,7 +802,7 @@ Attributor::getAssumedSimplified(const IRPosition &IRP,
   // First check all callbacks provided by outside AAs. If any of them returns
   // a non-null value that is different from the associated value, or None, we
   // assume it's simpliied.
-  for (auto &CB : SimplificationCallbacks[IRP])
+  for (auto &CB : SimplificationCallbacks.lookup(IRP))
     return CB(IRP, AA, UsedAssumedInformation);
 
   // If no high-level/outside simplification occured, use AAValueSimplify.
@@ -942,7 +1026,7 @@ bool Attributor::checkForAllUses(function_ref<bool(const Use &, bool &)> Pred,
 
   while (!Worklist.empty()) {
     const Use *U = Worklist.pop_back_val();
-    if (!Visited.insert(U).second)
+    if (isa<PHINode>(U->getUser()) && !Visited.insert(U).second)
       continue;
     LLVM_DEBUG(dbgs() << "[Attributor] Check use: " << **U << " in "
                       << *U->getUser() << "\n");
@@ -955,6 +1039,25 @@ bool Attributor::checkForAllUses(function_ref<bool(const Use &, bool &)> Pred,
     if (U->getUser()->isDroppable()) {
       LLVM_DEBUG(dbgs() << "[Attributor] Droppable user, skip!\n");
       continue;
+    }
+
+    if (auto *SI = dyn_cast<StoreInst>(U->getUser())) {
+      if (&SI->getOperandUse(0) == U) {
+        if (!Visited.insert(U).second)
+          continue;
+        SmallSetVector<Value *, 4> PotentialCopies;
+        if (AA::getPotentialCopiesOfStoredValue(*this, *SI, PotentialCopies,
+                                                QueryingAA,
+                                                UsedAssumedInformation)) {
+          LLVM_DEBUG(dbgs() << "[Attributor] Value is stored, continue with "
+                            << PotentialCopies.size()
+                            << " potential copies instead!\n");
+          for (Value *PotentialCopy : PotentialCopies)
+            for (const Use &U : PotentialCopy->uses())
+              Worklist.push_back(&U);
+          continue;
+        }
+      }
     }
 
     bool Follow = false;
@@ -1312,6 +1415,16 @@ void Attributor::runTillFixpoint() {
   } while (!Worklist.empty() && (IterationCounter++ < MaxFixedPointIterations ||
                                  VerifyMaxFixpointIterations));
 
+  if (IterationCounter > MaxFixedPointIterations && !Worklist.empty()) {
+    auto Remark = [&](OptimizationRemarkMissed ORM) {
+      return ORM << "Attributor did not reach a fixpoint after "
+                 << ore::NV("Iterations", MaxFixedPointIterations)
+                 << " iterations.";
+    };
+    Function *F = Worklist.front()->getIRPosition().getAssociatedFunction();
+    emitRemark<OptimizationRemarkMissed>(F, "FixedPoint", Remark);
+  }
+
   LLVM_DEBUG(dbgs() << "\n[Attributor] Fixpoint iteration done after: "
                     << IterationCounter << "/" << MaxFixpointIterations
                     << " iterations\n");
@@ -1607,7 +1720,7 @@ ChangeStatus Attributor::cleanupIR() {
       if (!isRunOn(*I->getFunction()))
         continue;
       CGModifiedFunctions.insert(I->getFunction());
-      changeToUnreachable(I, /* UseLLVMTrap */ false);
+      changeToUnreachable(I);
     }
 
   for (auto &V : ToBeDeletedInsts) {
@@ -1821,55 +1934,91 @@ void Attributor::createShallowWrapper(Function &F) {
 
   CallInst *CI = CallInst::Create(&F, Args, "", EntryBB);
   CI->setTailCall(true);
-  CI->addAttribute(AttributeList::FunctionIndex, Attribute::NoInline);
+  CI->addFnAttr(Attribute::NoInline);
   ReturnInst::Create(Ctx, CI->getType()->isVoidTy() ? nullptr : CI, EntryBB);
 
   NumFnShallowWrappersCreated++;
 }
 
+bool Attributor::isInternalizable(Function &F) {
+  if (F.isDeclaration() || F.hasLocalLinkage() ||
+      GlobalValue::isInterposableLinkage(F.getLinkage()))
+    return false;
+  return true;
+}
+
 Function *Attributor::internalizeFunction(Function &F, bool Force) {
   if (!AllowDeepWrapper && !Force)
     return nullptr;
-  if (F.isDeclaration() || F.hasLocalLinkage() ||
-      GlobalValue::isInterposableLinkage(F.getLinkage()))
+  if (!isInternalizable(F))
     return nullptr;
 
-  Module &M = *F.getParent();
-  FunctionType *FnTy = F.getFunctionType();
+  SmallPtrSet<Function *, 2> FnSet = {&F};
+  DenseMap<Function *, Function *> InternalizedFns;
+  internalizeFunctions(FnSet, InternalizedFns);
 
-  // create a copy of the current function
-  Function *Copied = Function::Create(FnTy, F.getLinkage(), F.getAddressSpace(),
-                                      F.getName() + ".internalized");
-  ValueToValueMapTy VMap;
-  auto *NewFArgIt = Copied->arg_begin();
-  for (auto &Arg : F.args()) {
-    auto ArgName = Arg.getName();
-    NewFArgIt->setName(ArgName);
-    VMap[&Arg] = &(*NewFArgIt++);
+  return InternalizedFns[&F];
+}
+
+bool Attributor::internalizeFunctions(SmallPtrSetImpl<Function *> &FnSet,
+                                      DenseMap<Function *, Function *> &FnMap) {
+  for (Function *F : FnSet)
+    if (!Attributor::isInternalizable(*F))
+      return false;
+
+  FnMap.clear();
+  // Generate the internalized version of each function.
+  for (Function *F : FnSet) {
+    Module &M = *F->getParent();
+    FunctionType *FnTy = F->getFunctionType();
+
+    // Create a copy of the current function
+    Function *Copied =
+        Function::Create(FnTy, F->getLinkage(), F->getAddressSpace(),
+                         F->getName() + ".internalized");
+    ValueToValueMapTy VMap;
+    auto *NewFArgIt = Copied->arg_begin();
+    for (auto &Arg : F->args()) {
+      auto ArgName = Arg.getName();
+      NewFArgIt->setName(ArgName);
+      VMap[&Arg] = &(*NewFArgIt++);
+    }
+    SmallVector<ReturnInst *, 8> Returns;
+
+    // Copy the body of the original function to the new one
+    CloneFunctionInto(Copied, F, VMap,
+                      CloneFunctionChangeType::LocalChangesOnly, Returns);
+
+    // Set the linakage and visibility late as CloneFunctionInto has some
+    // implicit requirements.
+    Copied->setVisibility(GlobalValue::DefaultVisibility);
+    Copied->setLinkage(GlobalValue::PrivateLinkage);
+
+    // Copy metadata
+    SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
+    F->getAllMetadata(MDs);
+    for (auto MDIt : MDs)
+      if (!Copied->hasMetadata())
+        Copied->addMetadata(MDIt.first, *MDIt.second);
+
+    M.getFunctionList().insert(F->getIterator(), Copied);
+    Copied->setDSOLocal(true);
+    FnMap[F] = Copied;
   }
-  SmallVector<ReturnInst *, 8> Returns;
 
-  // Copy the body of the original function to the new one
-  CloneFunctionInto(Copied, &F, VMap, CloneFunctionChangeType::LocalChangesOnly,
-                    Returns);
+  // Replace all uses of the old function with the new internalized function
+  // unless the caller is a function that was just internalized.
+  for (Function *F : FnSet) {
+    auto &InternalizedFn = FnMap[F];
+    auto IsNotInternalized = [&](Use &U) -> bool {
+      if (auto *CB = dyn_cast<CallBase>(U.getUser()))
+        return !FnMap.lookup(CB->getCaller());
+      return false;
+    };
+    F->replaceUsesWithIf(InternalizedFn, IsNotInternalized);
+  }
 
-  // Set the linakage and visibility late as CloneFunctionInto has some implicit
-  // requirements.
-  Copied->setVisibility(GlobalValue::DefaultVisibility);
-  Copied->setLinkage(GlobalValue::PrivateLinkage);
-
-  // Copy metadata
-  SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
-  F.getAllMetadata(MDs);
-  for (auto MDIt : MDs)
-    if (!Copied->hasMetadata())
-      Copied->addMetadata(MDIt.first, *MDIt.second);
-
-  M.getFunctionList().insert(F.getIterator(), Copied);
-  F.replaceAllUsesWith(Copied);
-  Copied->setDSOLocal(true);
-
-  return Copied;
+  return true;
 }
 
 bool Attributor::isValidFunctionSignatureRewrite(
@@ -1878,7 +2027,8 @@ bool Attributor::isValidFunctionSignatureRewrite(
   if (!RewriteSignatures)
     return false;
 
-  auto CallSiteCanBeChanged = [](AbstractCallSite ACS) {
+  Function *Fn = Arg.getParent();
+  auto CallSiteCanBeChanged = [Fn](AbstractCallSite ACS) {
     // Forbid the call site to cast the function return type. If we need to
     // rewrite these functions we need to re-create a cast for the new call site
     // (if the old had uses).
@@ -1886,11 +2036,12 @@ bool Attributor::isValidFunctionSignatureRewrite(
         ACS.getInstruction()->getType() !=
             ACS.getCalledFunction()->getReturnType())
       return false;
+    if (ACS.getCalledOperand()->getType() != Fn->getType())
+      return false;
     // Forbid must-tail calls for now.
     return !ACS.isCallbackCall() && !ACS.getInstruction()->isMustTailCall();
   };
 
-  Function *Fn = Arg.getParent();
   // Avoid var-arg functions for now.
   if (Fn->isVarArg()) {
     LLVM_DEBUG(dbgs() << "[Attributor] Cannot rewrite var-args functions\n");
@@ -2020,7 +2171,7 @@ ChangeStatus Attributor::rewriteFunctionSignatures(
       } else {
         NewArgumentTypes.push_back(Arg.getType());
         NewArgumentAttributes.push_back(
-            OldFnAttributeList.getParamAttributes(Arg.getArgNo()));
+            OldFnAttributeList.getParamAttrs(Arg.getArgNo()));
       }
     }
 
@@ -2051,8 +2202,8 @@ ChangeStatus Attributor::rewriteFunctionSignatures(
     // the function.
     LLVMContext &Ctx = OldFn->getContext();
     NewFn->setAttributes(AttributeList::get(
-        Ctx, OldFnAttributeList.getFnAttributes(),
-        OldFnAttributeList.getRetAttributes(), NewArgumentAttributes));
+        Ctx, OldFnAttributeList.getFnAttrs(), OldFnAttributeList.getRetAttrs(),
+        NewArgumentAttributes));
 
     // Since we have now created the new function, splice the body of the old
     // function right into the new function, leaving the old rotting hulk of the
@@ -2097,7 +2248,7 @@ ChangeStatus Attributor::rewriteFunctionSignatures(
         } else {
           NewArgOperands.push_back(ACS.getCallArgOperand(OldArgNum));
           NewArgOperandAttributes.push_back(
-              OldCallAttributeList.getParamAttributes(OldArgNum));
+              OldCallAttributeList.getParamAttrs(OldArgNum));
         }
       }
 
@@ -2127,8 +2278,8 @@ ChangeStatus Attributor::rewriteFunctionSignatures(
       NewCB->setCallingConv(OldCB->getCallingConv());
       NewCB->takeName(OldCB);
       NewCB->setAttributes(AttributeList::get(
-          Ctx, OldCallAttributeList.getFnAttributes(),
-          OldCallAttributeList.getRetAttributes(), NewArgOperandAttributes));
+          Ctx, OldCallAttributeList.getFnAttrs(),
+          OldCallAttributeList.getRetAttrs(), NewArgOperandAttributes));
 
       CallSitePairs.push_back({OldCB, NewCB});
       return true;
@@ -2451,7 +2602,7 @@ void Attributor::identifyDefaultAbstractAttributes(Function &F) {
       getOrCreateAAFor<AAValueSimplify>(CBRetPos);
     }
 
-    for (int I = 0, E = CB.getNumArgOperands(); I < E; ++I) {
+    for (int I = 0, E = CB.arg_size(); I < E; ++I) {
 
       IRPosition CBArgPos = IRPosition::callsite_argument(CB, I);
 
@@ -2631,7 +2782,9 @@ raw_ostream &llvm::operator<<(raw_ostream &OS,
                               const AAPointerInfo::Access &Acc) {
   OS << " [" << Acc.getKind() << "] " << *Acc.getRemoteInst();
   if (Acc.getLocalInst() != Acc.getRemoteInst())
-    OS << " via " << *Acc.getLocalInst() << "\n";
+    OS << " via " << *Acc.getLocalInst();
+  if (Acc.getContent().hasValue())
+    OS << " [" << *Acc.getContent() << "]";
   return OS;
 }
 ///}

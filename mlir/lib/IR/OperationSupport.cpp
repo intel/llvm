@@ -12,9 +12,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/OperationSupport.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpDefinition.h"
 #include "llvm/ADT/BitVector.h"
+#include <numeric>
 
 using namespace mlir;
 
@@ -70,6 +72,7 @@ void NamedAttrList::assign(const_iterator in_start, const_iterator in_end) {
 }
 
 void NamedAttrList::push_back(NamedAttribute newAttribute) {
+  assert(newAttribute.second && "unexpected null attribute");
   if (isSorted())
     dictionarySorted.setInt(
         attrs.empty() ||
@@ -394,11 +397,36 @@ MutableArrayRef<OpOperand> detail::OperandStorage::resize(Operation *owner,
 OperandRange::OperandRange(Operation *op)
     : OperandRange(op->getOpOperands().data(), op->getNumOperands()) {}
 
-/// Return the operand index of the first element of this range. The range
-/// must not be empty.
 unsigned OperandRange::getBeginOperandIndex() const {
   assert(!empty() && "range must not be empty");
   return base->getOperandNumber();
+}
+
+OperandRangeRange OperandRange::split(ElementsAttr segmentSizes) const {
+  return OperandRangeRange(*this, segmentSizes);
+}
+
+//===----------------------------------------------------------------------===//
+// OperandRangeRange
+
+OperandRangeRange::OperandRangeRange(OperandRange operands,
+                                     Attribute operandSegments)
+    : OperandRangeRange(OwnerT(operands.getBase(), operandSegments), 0,
+                        operandSegments.cast<DenseElementsAttr>().size()) {}
+
+OperandRange OperandRangeRange::join() const {
+  const OwnerT &owner = getBase();
+  auto sizeData = owner.second.cast<DenseElementsAttr>().getValues<uint32_t>();
+  return OperandRange(owner.first,
+                      std::accumulate(sizeData.begin(), sizeData.end(), 0));
+}
+
+OperandRange OperandRangeRange::dereference(const OwnerT &object,
+                                            ptrdiff_t index) {
+  auto sizeData = object.second.cast<DenseElementsAttr>().getValues<uint32_t>();
+  uint32_t startIndex =
+      std::accumulate(sizeData.begin(), sizeData.begin() + index, 0);
+  return OperandRange(object.first + startIndex, *(sizeData.begin() + index));
 }
 
 //===----------------------------------------------------------------------===//
@@ -419,7 +447,7 @@ MutableOperandRange::MutableOperandRange(Operation *owner)
 /// Slice this range into a sub range, with the additional operand segment.
 MutableOperandRange
 MutableOperandRange::slice(unsigned subStart, unsigned subLen,
-                           Optional<OperandSegment> segment) {
+                           Optional<OperandSegment> segment) const {
   assert((subStart + subLen) <= length && "invalid sub-range");
   MutableOperandRange subSlice(owner, start + subStart, subLen,
                                operandSegments);
@@ -475,6 +503,11 @@ MutableOperandRange::operator OperandRange() const {
   return owner->getOperands().slice(start, length);
 }
 
+MutableOperandRangeRange
+MutableOperandRange::split(NamedAttribute segmentSizes) const {
+  return MutableOperandRangeRange(*this, segmentSizes);
+}
+
 /// Update the length of this range to the one provided.
 void MutableOperandRange::updateLength(unsigned newLength) {
   int32_t diff = int32_t(newLength) - int32_t(length);
@@ -488,6 +521,88 @@ void MutableOperandRange::updateLength(unsigned newLength) {
     segment.second.second = DenseIntElementsAttr::get(attr.getType(), segments);
     owner->setAttr(segment.second.first, segment.second.second);
   }
+}
+
+//===----------------------------------------------------------------------===//
+// MutableOperandRangeRange
+
+MutableOperandRangeRange::MutableOperandRangeRange(
+    const MutableOperandRange &operands, NamedAttribute operandSegmentAttr)
+    : MutableOperandRangeRange(
+          OwnerT(operands, operandSegmentAttr), 0,
+          operandSegmentAttr.second.cast<DenseElementsAttr>().size()) {}
+
+MutableOperandRange MutableOperandRangeRange::join() const {
+  return getBase().first;
+}
+
+MutableOperandRangeRange::operator OperandRangeRange() const {
+  return OperandRangeRange(getBase().first,
+                           getBase().second.second.cast<DenseElementsAttr>());
+}
+
+MutableOperandRange MutableOperandRangeRange::dereference(const OwnerT &object,
+                                                          ptrdiff_t index) {
+  auto sizeData =
+      object.second.second.cast<DenseElementsAttr>().getValues<uint32_t>();
+  uint32_t startIndex =
+      std::accumulate(sizeData.begin(), sizeData.begin() + index, 0);
+  return object.first.slice(
+      startIndex, *(sizeData.begin() + index),
+      MutableOperandRange::OperandSegment(index, object.second));
+}
+
+//===----------------------------------------------------------------------===//
+// ResultRange
+
+ResultRange::use_range ResultRange::getUses() const {
+  return {use_begin(), use_end()};
+}
+ResultRange::use_iterator ResultRange::use_begin() const {
+  return use_iterator(*this);
+}
+ResultRange::use_iterator ResultRange::use_end() const {
+  return use_iterator(*this, /*end=*/true);
+}
+ResultRange::user_range ResultRange::getUsers() {
+  return {user_begin(), user_end()};
+}
+ResultRange::user_iterator ResultRange::user_begin() {
+  return user_iterator(use_begin());
+}
+ResultRange::user_iterator ResultRange::user_end() {
+  return user_iterator(use_end());
+}
+
+ResultRange::UseIterator::UseIterator(ResultRange results, bool end)
+    : it(end ? results.end() : results.begin()), endIt(results.end()) {
+  // Only initialize current use if there are results/can be uses.
+  if (it != endIt)
+    skipOverResultsWithNoUsers();
+}
+
+ResultRange::UseIterator &ResultRange::UseIterator::operator++() {
+  // We increment over uses, if we reach the last use then move to next
+  // result.
+  if (use != (*it).use_end())
+    ++use;
+  if (use == (*it).use_end()) {
+    ++it;
+    skipOverResultsWithNoUsers();
+  }
+  return *this;
+}
+
+void ResultRange::UseIterator::skipOverResultsWithNoUsers() {
+  while (it != endIt && (*it).use_empty())
+    ++it;
+
+  // If we are at the last result, then set use to first use of
+  // first result (sentinel value used for end).
+  if (it == endIt)
+    use = {};
+  else
+    use = (*it).use_begin();
 }
 
 //===----------------------------------------------------------------------===//
@@ -522,7 +637,9 @@ Value ValueRange::dereference_iterator(const OwnerT &owner, ptrdiff_t index) {
 // Operation Equivalency
 //===----------------------------------------------------------------------===//
 
-llvm::hash_code OperationEquivalence::computeHash(Operation *op, Flags flags) {
+llvm::hash_code OperationEquivalence::computeHash(
+    Operation *op, function_ref<llvm::hash_code(Value)> hashOperands,
+    function_ref<llvm::hash_code(Value)> hashResults, Flags flags) {
   // Hash operations based upon their:
   //   - Operation Name
   //   - Attributes
@@ -531,37 +648,106 @@ llvm::hash_code OperationEquivalence::computeHash(Operation *op, Flags flags) {
       op->getName(), op->getAttrDictionary(), op->getResultTypes());
 
   //   - Operands
-  bool ignoreOperands = flags & Flags::IgnoreOperands;
-  if (!ignoreOperands) {
-    // TODO: Allow commutative operations to have different ordering.
-    hash = llvm::hash_combine(
-        hash, llvm::hash_combine_range(op->operand_begin(), op->operand_end()));
-  }
+  for (Value operand : op->getOperands())
+    hash = llvm::hash_combine(hash, hashOperands(operand));
+  //   - Operands
+  for (Value result : op->getResults())
+    hash = llvm::hash_combine(hash, hashResults(result));
   return hash;
 }
 
-bool OperationEquivalence::isEquivalentTo(Operation *lhs, Operation *rhs,
-                                          Flags flags) {
+static bool
+isRegionEquivalentTo(Region *lhs, Region *rhs,
+                     function_ref<LogicalResult(Value, Value)> mapOperands,
+                     function_ref<LogicalResult(Value, Value)> mapResults,
+                     OperationEquivalence::Flags flags) {
+  DenseMap<Block *, Block *> blocksMap;
+  auto blocksEquivalent = [&](Block &lBlock, Block &rBlock) {
+    // Check block arguments.
+    if (lBlock.getNumArguments() != rBlock.getNumArguments())
+      return false;
+
+    // Map the two blocks.
+    auto insertion = blocksMap.insert({&lBlock, &rBlock});
+    if (insertion.first->getSecond() != &rBlock)
+      return false;
+
+    for (auto argPair :
+         llvm::zip(lBlock.getArguments(), rBlock.getArguments())) {
+      Value curArg = std::get<0>(argPair);
+      Value otherArg = std::get<1>(argPair);
+      if (curArg.getType() != otherArg.getType())
+        return false;
+      if (!(flags & OperationEquivalence::IgnoreLocations) &&
+          curArg.getLoc() != otherArg.getLoc())
+        return false;
+      // Check if this value was already mapped to another value.
+      if (failed(mapOperands(curArg, otherArg)))
+        return false;
+    }
+
+    auto opsEquivalent = [&](Operation &lOp, Operation &rOp) {
+      // Check for op equality (recursively).
+      if (!OperationEquivalence::isEquivalentTo(&lOp, &rOp, mapOperands,
+                                                mapResults, flags))
+        return false;
+      // Check successor mapping.
+      for (auto successorsPair :
+           llvm::zip(lOp.getSuccessors(), rOp.getSuccessors())) {
+        Block *curSuccessor = std::get<0>(successorsPair);
+        Block *otherSuccessor = std::get<1>(successorsPair);
+        auto insertion = blocksMap.insert({curSuccessor, otherSuccessor});
+        if (insertion.first->getSecond() != otherSuccessor)
+          return false;
+      }
+      return true;
+    };
+    return llvm::all_of_zip(lBlock, rBlock, opsEquivalent);
+  };
+  return llvm::all_of_zip(*lhs, *rhs, blocksEquivalent);
+}
+
+bool OperationEquivalence::isEquivalentTo(
+    Operation *lhs, Operation *rhs,
+    function_ref<LogicalResult(Value, Value)> mapOperands,
+    function_ref<LogicalResult(Value, Value)> mapResults, Flags flags) {
   if (lhs == rhs)
     return true;
 
-  // Compare the operation name.
-  if (lhs->getName() != rhs->getName())
+  // Compare the operation properties.
+  if (lhs->getName() != rhs->getName() ||
+      lhs->getAttrDictionary() != rhs->getAttrDictionary() ||
+      lhs->getNumRegions() != rhs->getNumRegions() ||
+      lhs->getNumSuccessors() != rhs->getNumSuccessors() ||
+      lhs->getNumOperands() != rhs->getNumOperands() ||
+      lhs->getNumResults() != rhs->getNumResults())
     return false;
-  // Check operand counts.
-  if (lhs->getNumOperands() != rhs->getNumOperands())
+  if (!(flags & IgnoreLocations) && lhs->getLoc() != rhs->getLoc())
     return false;
-  // Compare attributes.
-  if (lhs->getAttrDictionary() != rhs->getAttrDictionary())
+
+  auto checkValueRangeMapping =
+      [](ValueRange lhs, ValueRange rhs,
+         function_ref<LogicalResult(Value, Value)> mapValues) {
+        for (auto operandPair : llvm::zip(lhs, rhs)) {
+          Value curArg = std::get<0>(operandPair);
+          Value otherArg = std::get<1>(operandPair);
+          if (curArg.getType() != otherArg.getType())
+            return false;
+          if (failed(mapValues(curArg, otherArg)))
+            return false;
+        }
+        return true;
+      };
+  // Check mapping of operands and results.
+  if (!checkValueRangeMapping(lhs->getOperands(), rhs->getOperands(),
+                              mapOperands))
     return false;
-  // Compare result types.
-  if (lhs->getResultTypes() != rhs->getResultTypes())
+  if (!checkValueRangeMapping(lhs->getResults(), rhs->getResults(), mapResults))
     return false;
-  // Compare operands.
-  bool ignoreOperands = flags & Flags::IgnoreOperands;
-  if (ignoreOperands)
-    return true;
-  // TODO: Allow commutative operations to have different ordering.
-  return std::equal(lhs->operand_begin(), lhs->operand_end(),
-                    rhs->operand_begin());
+  for (auto regionPair : llvm::zip(lhs->getRegions(), rhs->getRegions()))
+    if (!isRegionEquivalentTo(&std::get<0>(regionPair),
+                              &std::get<1>(regionPair), mapOperands, mapResults,
+                              flags))
+      return false;
+  return true;
 }

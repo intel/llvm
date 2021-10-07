@@ -1079,7 +1079,7 @@ NamedDecl *Sema::ActOnTypeParameter(Scope *S, bool Typename,
       return Param;
 
     // Check the template argument itself.
-    if (CheckTemplateArgument(Param, DefaultTInfo)) {
+    if (CheckTemplateArgument(DefaultTInfo)) {
       Param->setInvalidDecl();
       return Param;
     }
@@ -1206,7 +1206,7 @@ static ExprResult formImmediatelyDeclaredConstraint(
 }
 
 /// Attach a type-constraint to a template parameter.
-/// \returns true if an error occured. This can happen if the
+/// \returns true if an error occurred. This can happen if the
 /// immediately-declared constraint could not be formed (e.g. incorrect number
 /// of arguments for the named concept).
 bool Sema::AttachTypeConstraint(NestedNameSpecifierLoc NS,
@@ -2267,22 +2267,8 @@ private:
           TTP->isParameterPack(), TTP->hasTypeConstraint(),
           TTP->isExpandedParameterPack() ?
           llvm::Optional<unsigned>(TTP->getNumExpansionParameters()) : None);
-      if (const auto *TC = TTP->getTypeConstraint()) {
-        TemplateArgumentListInfo TransformedArgs;
-        const auto *ArgsAsWritten = TC->getTemplateArgsAsWritten();
-        if (!ArgsAsWritten ||
-            SemaRef.Subst(ArgsAsWritten->getTemplateArgs(),
-                          ArgsAsWritten->NumTemplateArgs, TransformedArgs,
-                          Args))
-          SemaRef.AttachTypeConstraint(
-              TC->getNestedNameSpecifierLoc(), TC->getConceptNameInfo(),
-              TC->getNamedConcept(), ArgsAsWritten ? &TransformedArgs : nullptr,
-              NewTTP,
-              NewTTP->isParameterPack()
-                 ? cast<CXXFoldExpr>(TC->getImmediatelyDeclaredConstraint())
-                     ->getEllipsisLoc()
-                 : SourceLocation());
-      }
+      if (const auto *TC = TTP->getTypeConstraint())
+        SemaRef.SubstTypeConstraint(NewTTP, TC, Args);
       if (TTP->hasDefaultArgument()) {
         TypeSourceInfo *InstantiatedDefaultArg =
             SemaRef.SubstType(TTP->getDefaultArgumentInfo(), Args,
@@ -3511,8 +3497,10 @@ checkBuiltinTemplateIdType(Sema &SemaRef, BuiltinTemplateDecl *BTD,
 }
 
 /// Determine whether this alias template is "enable_if_t".
+/// libc++ >=14 uses "__enable_if_t" in C++11 mode.
 static bool isEnableIfAliasTemplate(TypeAliasTemplateDecl *AliasTemplate) {
-  return AliasTemplate->getName().equals("enable_if_t");
+  return AliasTemplate->getName().equals("enable_if_t") ||
+         AliasTemplate->getName().equals("__enable_if_t");
 }
 
 /// Collect all of the separable terms in the given condition, which
@@ -5042,7 +5030,7 @@ bool Sema::CheckTemplateTypeArgument(TemplateTypeParmDecl *Param,
   }
   }
 
-  if (CheckTemplateArgument(Param, TSI))
+  if (CheckTemplateArgument(TSI))
     return true;
 
   // Add the converted template type argument.
@@ -5110,7 +5098,11 @@ SubstDefaultTemplateArgument(Sema &SemaRef,
     for (unsigned i = 0, e = Param->getDepth(); i != e; ++i)
       TemplateArgLists.addOuterTemplateArguments(None);
 
-    Sema::ContextRAII SavedContext(SemaRef, Template->getDeclContext());
+    bool ForLambdaCallOperator = false;
+    if (const auto *Rec = dyn_cast<CXXRecordDecl>(Template->getDeclContext()))
+      ForLambdaCallOperator = Rec->isLambda();
+    Sema::ContextRAII SavedContext(SemaRef, Template->getDeclContext(),
+                                   !ForLambdaCallOperator);
     ArgType =
         SemaRef.SubstType(ArgType, TemplateArgLists,
                           Param->getDefaultArgumentLoc(), Param->getDeclName());
@@ -5661,7 +5653,7 @@ bool Sema::CheckTemplateArgumentList(
   TemplateArgumentListInfo NewArgs = TemplateArgs;
 
   // Make sure we get the template parameter list from the most
-  // recentdeclaration, since that is the only one that has is guaranteed to
+  // recent declaration, since that is the only one that is guaranteed to
   // have all the default template argument information.
   TemplateParameterList *Params =
       cast<TemplateDecl>(Template->getMostRecentDecl())
@@ -6208,8 +6200,7 @@ bool UnnamedLocalNoLinkageFinder::VisitNestedNameSpecifier(
 ///
 /// This routine implements the semantics of C++ [temp.arg.type]. It
 /// returns true if an error occurred, and false otherwise.
-bool Sema::CheckTemplateArgument(TemplateTypeParmDecl *Param,
-                                 TypeSourceInfo *ArgInfo) {
+bool Sema::CheckTemplateArgument(TypeSourceInfo *ArgInfo) {
   assert(ArgInfo && "invalid TypeSourceInfo");
   QualType Arg = ArgInfo->getType();
   SourceRange SR = ArgInfo->getTypeLoc().getSourceRange();
@@ -8703,7 +8694,7 @@ static SourceLocation DiagLocForExplicitInstantiation(
 ///
 /// \param PrevTSK the kind of the old explicit specialization or instantiatin.
 ///
-/// \param PrevPointOfInstantiation if valid, indicates where the previus
+/// \param PrevPointOfInstantiation if valid, indicates where the previous
 /// declaration was instantiated (either implicitly or explicitly).
 ///
 /// \param HasNoEffect will be set to true to indicate that the new

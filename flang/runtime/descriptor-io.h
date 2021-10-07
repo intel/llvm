@@ -14,8 +14,6 @@
 // some scalar I/O data transfer APIs could be changed to bypass their use
 // of descriptors in the future for better efficiency.)
 
-#include "cpp-type.h"
-#include "descriptor.h"
 #include "edit-input.h"
 #include "edit-output.h"
 #include "io-stmt.h"
@@ -23,6 +21,8 @@
 #include "type-info.h"
 #include "unit.h"
 #include "flang/Common/uint128.h"
+#include "flang/Runtime/cpp-type.h"
+#include "flang/Runtime/descriptor.h"
 
 namespace Fortran::runtime::io::descr {
 template <typename A>
@@ -315,7 +315,9 @@ static bool UnformattedDescriptorIO(
     // Regular derived type unformatted I/O, not user-defined
     auto *externalUnf{io.get_if<ExternalUnformattedIoStatementState<DIR>>()};
     auto *childUnf{io.get_if<ChildUnformattedIoStatementState<DIR>>()};
-    RUNTIME_CHECK(handler, externalUnf != nullptr || childUnf != nullptr);
+    auto *inq{
+        DIR == Direction::Output ? io.get_if<InquireIOLengthState>() : nullptr};
+    RUNTIME_CHECK(handler, externalUnf || childUnf || inq);
     std::size_t elementBytes{descriptor.ElementBytes()};
     std::size_t numElements{descriptor.Elements()};
     SubscriptValue subscripts[maxRank];
@@ -326,7 +328,8 @@ static bool UnformattedDescriptorIO(
                       std::size_t elementBytes) -> bool {
       if constexpr (DIR == Direction::Output) {
         return externalUnf ? externalUnf->Emit(&x, totalBytes, elementBytes)
-                           : childUnf->Emit(&x, totalBytes, elementBytes);
+            : childUnf     ? childUnf->Emit(&x, totalBytes, elementBytes)
+                           : inq->Emit(&x, totalBytes, elementBytes);
       } else {
         return externalUnf ? externalUnf->Receive(&x, totalBytes, elementBytes)
                            : childUnf->Receive(&x, totalBytes, elementBytes);
@@ -363,7 +366,7 @@ static bool DescriptorIO(IoStatementState &io, const Descriptor &descriptor) {
       return false;
     }
   }
-  if (!io.get_if<FormattedIoStatementState>()) {
+  if (!io.get_if<FormattedIoStatementState<DIR>>()) {
     return UnformattedDescriptorIO<DIR>(io, descriptor);
   }
   IoErrorHandler &handler{io.GetIoErrorHandler()};

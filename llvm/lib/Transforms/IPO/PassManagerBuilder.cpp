@@ -103,6 +103,10 @@ cl::opt<bool> EnableLoopFlatten("enable-loop-flatten", cl::init(false),
                                 cl::Hidden,
                                 cl::desc("Enable the LoopFlatten Pass"));
 
+cl::opt<bool> EnableDFAJumpThreading("enable-dfa-jump-thread",
+                                     cl::desc("Enable DFA jump threading."),
+                                     cl::init(false), cl::Hidden);
+
 static cl::opt<bool>
     EnablePrepareForThinLTO("prepare-for-thinlto", cl::init(false), cl::Hidden,
                             cl::desc("Enable preparation for ThinLTO."));
@@ -440,6 +444,11 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   if (!SYCLOptimizationMode)
     MPM.add(createReassociatePass()); // Reassociate expressions
 
+  // The matrix extension can introduce large vector operations early, which can
+  // benefit from running vector-combine early on.
+  if (EnableMatrix)
+    MPM.add(createVectorCombinePass());
+
   // Do not run loop pass pipeline in "SYCL Optimization Mode". Loop
   // optimizations rely on TTI, which is not accurate for SPIR target.
   if (!SYCLOptimizationMode) {
@@ -512,6 +521,9 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   MPM.add(createInstructionCombiningPass());
   addExtensionsToPM(EP_Peephole, MPM);
   if (OptLevel > 1) {
+    if (EnableDFAJumpThreading && SizeLevel == 0)
+      MPM.add(createDFAJumpThreadingPass());
+
     MPM.add(createJumpThreadingPass());         // Thread jumps
     MPM.add(createCorrelatedValuePropagationPass());
   }

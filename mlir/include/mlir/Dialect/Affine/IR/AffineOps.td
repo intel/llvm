@@ -21,7 +21,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def Affine_Dialect : Dialect {
   let name = "affine";
-  let cppNamespace = "";
+  let cppNamespace = "mlir";
   let hasConstantMaterializer = 1;
 }
 
@@ -264,6 +264,10 @@ def AffineForOp : Affine_Op<"for",
 
     /// Returns operands for the upper bound map.
     operand_range getUpperBoundOperands();
+
+    /// Returns operands for the lower and upper bound maps with the operands
+    /// for the lower bound map in front of those for the upper bound map.
+    operand_range getControlOperands();
 
     /// Returns information about the lower bound as a single object.
     AffineBound getLowerBound();

@@ -56,7 +56,7 @@ static const std::string DefaultIgnoredParameterTypeSuffixes =
                                    "reverse_const_iterator",
                                    "ConstReverseIterator",
                                    "Const_Reverse_Iterator",
-                                   "const_reverse_iterator"
+                                   "const_reverse_iterator",
                                    "Constreverseiterator",
                                    "constreverseiterator"});
 
@@ -962,11 +962,8 @@ approximateStandardConversionSequence(const TheCheck &Check, QualType From,
   // LValue->RValue is irrelevant for the check, because it is a thing to be
   // done at a call site, and will be performed if need be performed.
 
-  // Array->Ptr decay.
-  if (const auto *ArrayT = dyn_cast<ArrayType>(From)) {
-    LLVM_DEBUG(llvm::dbgs() << "--- approximateStdConv. Array->Ptr decayed.\n");
-    WorkType = ArrayT->getPointeeType();
-  }
+  // Array->Pointer decay is handled by the main method in desugaring
+  // the parameter's DecayedType as "useless sugar".
 
   // Function->Pointer conversions are also irrelevant, because a
   // "FunctionType" cannot be the type of a parameter variable, so this

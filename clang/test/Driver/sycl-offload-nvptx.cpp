@@ -1,4 +1,4 @@
-/// Tests specific to `-fsycl-targets=nvptx64-nvidia-nvcl-sycldevice`
+/// Tests specific to `-fsycl-targets=nvptx64-nvidia-nvcl`
 // REQUIRES: clang-driver
 
 // UNSUPPORTED: system-windows
@@ -12,7 +12,7 @@
 // CHK-ACTIONS: "-cc1" "-triple" "nvptx64-nvidia-cuda" "-aux-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-device"{{.*}} "-Wno-sycl-strict"{{.*}} "-sycl-std=2020" {{.*}} "-emit-llvm-bc" {{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libspirv.bc"{{.*}} "-mlink-builtin-bitcode" "{{.*}}libdevice{{.*}}.10.bc"{{.*}} "-target-feature" "+ptx42"{{.*}} "-target-sdk-version=[[CUDA_VERSION:[0-9.]+]]"{{.*}} "-target-cpu" "sm_50"{{.*}} "-std=c++11"{{.*}}
 // CHK-ACTIONS: sycl-post-link{{.*}} "-split=auto"
 // CHK-ACTIONS: file-table-tform" "-extract=Code" "-drop_titles"
-// CHK-ACTIONS: llvm-foreach" {{.*}} "--" "{{.*}}clang-13"
+// CHK-ACTIONS: llvm-foreach" {{.*}} "--" "{{.*}}clang-{{[0-9]+}}"
 // CHK-ACTIONS: llvm-foreach" {{.*}} "--" "{{.*}}ptxas"
 // CHK-ACTIONS: llvm-foreach" {{.*}} "--" "{{.*}}fatbinary"
 // CHK-ACTIONS: file-table-tform" "-replace=Code,Code"

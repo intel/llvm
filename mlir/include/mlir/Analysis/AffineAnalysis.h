@@ -25,7 +25,7 @@ namespace mlir {
 class AffineApplyOp;
 class AffineForOp;
 class AffineValueMap;
-class FlatAffineConstraints;
+class FlatAffineValueConstraints;
 class Operation;
 
 /// A description of a (parallelizable) reduction in an affine loop.
@@ -39,6 +39,10 @@ struct LoopReduction {
   /// The value being reduced.
   Value value;
 };
+
+/// Populate `supportedReductions` with descriptors of the supported reductions.
+void getSupportedReductions(
+    AffineForOp forOp, SmallVectorImpl<LoopReduction> &supportedReductions);
 
 /// Returns true if `forOp' is a parallel loop. If `parallelReductions` is
 /// provided, populates it with descriptors of the parallelizable reductions and
@@ -67,7 +71,7 @@ void getReachableAffineApplyOps(ArrayRef<Value> operands,
 /// AffineIfOp.
 //  TODO: handle non-unit strides.
 LogicalResult getIndexSet(MutableArrayRef<Operation *> ops,
-                          FlatAffineConstraints *domain);
+                          FlatAffineValueConstraints *domain);
 
 /// Encapsulates a memref load or store access information.
 struct MemRefAccess {
@@ -136,7 +140,7 @@ struct DependenceResult {
 
 DependenceResult checkMemrefAccessDependence(
     const MemRefAccess &srcAccess, const MemRefAccess &dstAccess,
-    unsigned loopDepth, FlatAffineConstraints *dependenceConstraints,
+    unsigned loopDepth, FlatAffineValueConstraints *dependenceConstraints,
     SmallVector<DependenceComponent, 2> *dependenceComponents,
     bool allowRAR = false);
 

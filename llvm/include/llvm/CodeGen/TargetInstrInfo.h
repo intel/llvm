@@ -411,8 +411,7 @@ public:
   /// This method returns a null pointer if the transformation cannot be
   /// performed, otherwise it returns the last new instruction.
   ///
-  virtual MachineInstr *convertToThreeAddress(MachineFunction::iterator &MFI,
-                                              MachineInstr &MI,
+  virtual MachineInstr *convertToThreeAddress(MachineInstr &MI,
                                               LiveVariables *LV) const {
     return nullptr;
   }
@@ -1537,7 +1536,8 @@ public:
   /// compares against in CmpValue. Return true if the comparison instruction
   /// can be analyzed.
   virtual bool analyzeCompare(const MachineInstr &MI, Register &SrcReg,
-                              Register &SrcReg2, int &Mask, int &Value) const {
+                              Register &SrcReg2, int64_t &Mask,
+                              int64_t &Value) const {
     return false;
   }
 
@@ -1545,7 +1545,8 @@ public:
   /// into something more efficient. E.g., on ARM most instructions can set the
   /// flags register, obviating the need for a separate CMP.
   virtual bool optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
-                                    Register SrcReg2, int Mask, int Value,
+                                    Register SrcReg2, int64_t Mask,
+                                    int64_t Value,
                                     const MachineRegisterInfo *MRI) const {
     return false;
   }
@@ -1623,9 +1624,6 @@ public:
   /// Return the default expected latency for a def based on its opcode.
   unsigned defaultDefLatency(const MCSchedModel &SchedModel,
                              const MachineInstr &DefMI) const;
-
-  int computeDefOperandLatency(const InstrItineraryData *ItinData,
-                               const MachineInstr &DefMI) const;
 
   /// Return true if this opcode has high latency to its result.
   virtual bool isHighLatencyDef(int opc) const { return false; }

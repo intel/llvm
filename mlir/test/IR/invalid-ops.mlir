@@ -70,7 +70,7 @@ func @affine_apply_wrong_result_count() {
 
 func @unknown_custom_op() {
 ^bb0:
-  %i = crazyThing() {value = 0} : () -> index  // expected-error {{custom op 'crazyThing' is unknown}}
+  %i = test.crazyThing() {value = 0} : () -> index  // expected-error {{custom op 'test.crazyThing' is unknown}}
   return
 }
 
@@ -159,7 +159,7 @@ func @func_with_ops(f32) {
 
 func @func_with_ops(f32) {
 ^bb0(%a : f32):
-  %sf = addf(%a, %a) : f32  // expected-error {{expected ':'}}
+  %sf = addf(%a, %a) : f32  // expected-error {{'std.addf' expected function type}}
 }
 
 // -----
@@ -287,153 +287,6 @@ func @func_with_ops(tensor<12xi1>, tensor<42xi32>, tensor<42xi32>) {
 func @invalid_cmp_shape(%idx : () -> ()) {
   // expected-error@+1 {{'lhs' must be signless-integer-like, but got '() -> ()'}}
   %cmp = cmpi eq, %idx, %idx : () -> ()
-
-// -----
-
-func @dma_start_not_enough_operands() {
-  // expected-error@+1 {{expected at least 4 operands}}
-  "memref.dma_start"() : () -> ()
-}
-
-// -----
-
-func @dma_no_src_memref(%m : f32, %tag : f32, %c0 : index) {
-  // expected-error@+1 {{expected source to be of memref type}}
-  memref.dma_start %m[%c0], %m[%c0], %c0, %tag[%c0] : f32, f32, f32
-}
-
-// -----
-
-func @dma_start_not_enough_operands_for_src(
-    %src: memref<2x2x2xf32>, %idx: index) {
-  // expected-error@+1 {{expected at least 7 operands}}
-  "memref.dma_start"(%src, %idx, %idx, %idx) : (memref<2x2x2xf32>, index, index, index) -> ()
-}
-
-// -----
-
-func @dma_start_src_index_wrong_type(
-    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
-    %tag: memref<i32,2>, %flt: f32) {
-  // expected-error@+1 {{expected source indices to be of index type}}
-  "memref.dma_start"(%src, %idx, %flt, %dst, %idx, %tag, %idx)
-      : (memref<2x2xf32>, index, f32, memref<2xf32,1>, index, memref<i32,2>, index) -> ()
-}
-
-// -----
-
-func @dma_no_dst_memref(%m : f32, %tag : f32, %c0 : index) {
-  %mref = memref.alloc() : memref<8 x f32>
-  // expected-error@+1 {{expected destination to be of memref type}}
-  memref.dma_start %mref[%c0], %m[%c0], %c0, %tag[%c0] : memref<8 x f32>, f32, f32
-}
-
-// -----
-
-func @dma_start_not_enough_operands_for_dst(
-    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
-    %tag: memref<i32,2>) {
-  // expected-error@+1 {{expected at least 7 operands}}
-  "memref.dma_start"(%src, %idx, %idx, %dst, %idx, %idx)
-      : (memref<2x2xf32>, index, index, memref<2xf32,1>, index, index) -> ()
-}
-
-// -----
-
-func @dma_start_dst_index_wrong_type(
-    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
-    %tag: memref<i32,2>, %flt: f32) {
-  // expected-error@+1 {{expected destination indices to be of index type}}
-  "memref.dma_start"(%src, %idx, %idx, %dst, %flt, %tag, %idx)
-      : (memref<2x2xf32>, index, index, memref<2xf32,1>, f32, memref<i32,2>, index) -> ()
-}
-
-// -----
-
-func @dma_start_dst_index_wrong_type(
-    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
-    %tag: memref<i32,2>, %flt: f32) {
-  // expected-error@+1 {{expected num elements to be of index type}}
-  "memref.dma_start"(%src, %idx, %idx, %dst, %idx, %flt, %tag)
-      : (memref<2x2xf32>, index, index, memref<2xf32,1>, index, f32, memref<i32,2>) -> ()
-}
-
-// -----
-
-func @dma_no_tag_memref(%tag : f32, %c0 : index) {
-  %mref = memref.alloc() : memref<8 x f32>
-  // expected-error@+1 {{expected tag to be of memref type}}
-  memref.dma_start %mref[%c0], %mref[%c0], %c0, %tag[%c0] : memref<8 x f32>, memref<8 x f32>, f32
-}
-
-// -----
-
-func @dma_start_not_enough_operands_for_tag(
-    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
-    %tag: memref<2xi32,2>) {
-  // expected-error@+1 {{expected at least 8 operands}}
-  "memref.dma_start"(%src, %idx, %idx, %dst, %idx, %idx, %tag)
-      : (memref<2x2xf32>, index, index, memref<2xf32,1>, index, index, memref<2xi32,2>) -> ()
-}
-
-// -----
-
-func @dma_start_dst_index_wrong_type(
-    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
-    %tag: memref<2xi32,2>, %flt: f32) {
-  // expected-error@+1 {{expected tag indices to be of index type}}
-  "memref.dma_start"(%src, %idx, %idx, %dst, %idx, %idx, %tag, %flt)
-      : (memref<2x2xf32>, index, index, memref<2xf32,1>, index, index, memref<2xi32,2>, f32) -> ()
-}
-
-// -----
-
-func @dma_start_too_many_operands(
-    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
-    %tag: memref<i32,2>) {
-  // expected-error@+1 {{incorrect number of operands}}
-  "memref.dma_start"(%src, %idx, %idx, %dst, %idx, %idx, %tag, %idx, %idx, %idx)
-      : (memref<2x2xf32>, index, index, memref<2xf32,1>, index, index, memref<i32,2>, index, index, index) -> ()
-}
-
-
-// -----
-
-func @dma_start_wrong_stride_type(
-    %src: memref<2x2xf32>, %idx: index, %dst: memref<2xf32,1>,
-    %tag: memref<i32,2>, %flt: f32) {
-  // expected-error@+1 {{expected stride and num elements per stride to be of type index}}
-  "memref.dma_start"(%src, %idx, %idx, %dst, %idx, %idx, %tag, %idx, %flt)
-      : (memref<2x2xf32>, index, index, memref<2xf32,1>, index, index, memref<i32,2>, index, f32) -> ()
-}
-
-// -----
-
-func @dma_wait_not_enough_operands() {
-  // expected-error@+1 {{expected at least 2 operands}}
-  "memref.dma_wait"() : () -> ()
-}
-
-// -----
-
-func @dma_wait_no_tag_memref(%tag : f32, %c0 : index) {
-  // expected-error@+1 {{expected tag to be of memref type}}
-  "memref.dma_wait"(%tag, %c0, %c0) : (f32, index, index) -> ()
-}
-
-// -----
-
-func @dma_wait_wrong_index_type(%tag : memref<2xi32>, %idx: index, %flt: f32) {
-  // expected-error@+1 {{expected tag indices to be of index type}}
-  "memref.dma_wait"(%tag, %flt, %idx) : (memref<2xi32>, f32, index) -> ()
-}
-
-// -----
-
-func @dma_wait_wrong_num_elements_type(%tag : memref<2xi32>, %idx: index, %flt: f32) {
-  // expected-error@+1 {{expected the number of elements to be of index type}}
-  "memref.dma_wait"(%tag, %idx, %flt) : (memref<2xi32>, index, f32) -> ()
-}
 
 // -----
 
@@ -815,7 +668,7 @@ func @trunci_cast_to_same_width(%arg0 : i16) {
 
 func @return_not_in_function() {
   "foo.region"() ({
-    // expected-error@+1 {{'std.return' op expects parent op 'func'}}
+    // expected-error@+1 {{'std.return' op expects parent op 'builtin.func'}}
     return
   }): () -> ()
   return
@@ -962,17 +815,6 @@ func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
   %0 = memref.alloc() : memref<8x16x4xf32>
-  // expected-error@+1 {{expected result type to be 'memref<?x?x?xf32, affine_map<(d0, d1, d2)[s0, s1, s2, s3] -> (d0 * s1 + s0 + d1 * s2 + d2 * s3)>>' or a rank-reduced version. (mismatch of result affine map)}}
-  %1 = memref.subview %0[%arg0, %arg1, %arg2][%arg0, %arg1, %arg2][%arg0, %arg1, %arg2]
-    : memref<8x16x4xf32> to
-      memref<?x?x?xf32, offset: ?, strides: [64, 4, 1]>
-  return
-}
-
-// -----
-
-func @invalid_subview(%arg0 : index, %arg1 : index, %arg2 : index) {
-  %0 = memref.alloc() : memref<8x16x4xf32>
   // expected-error@+1 {{expected result element type to be 'f32'}}
   %1 = memref.subview %0[0, 0, 0][8, 16, 4][1, 1, 1]
     : memref<8x16x4xf32> to
@@ -1014,17 +856,8 @@ func @invalid_rank_reducing_subview(%arg0 : index, %arg1 : index, %arg2 : index)
 // -----
 
 func @invalid_rank_reducing_subview(%arg0 : memref<?x?xf32>, %arg1 : index, %arg2 : index) {
-  // expected-error@+1 {{expected result type to be 'memref<?x1xf32, affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>>' or a rank-reduced version. (mismatch of result affine map)}}
+  // expected-error@+1 {{expected result type to be 'memref<?x1xf32, affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>>' or a rank-reduced version. (mismatch of result sizes)}}
   %0 = memref.subview %arg0[0, %arg1][%arg2, 1][1, 1] : memref<?x?xf32> to memref<?xf32>
-  return
-}
-
-// -----
-
-// The affine map affine_map<(d0)[s0, s1, s2] -> (d0 * s1 + s0)> has an extra unused symbol.
-func @invalid_rank_reducing_subview(%arg0 : memref<?x?xf32>, %arg1 : index, %arg2 : index) {
-  // expected-error@+1 {{expected result type to be 'memref<?x1xf32, affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>>' or a rank-reduced version. (mismatch of result affine map) inferred type: (d0)[s0, s1] -> (d0 * s1 + s0)}}
-  %0 = memref.subview %arg0[0, %arg1][%arg2, 1][1, 1] : memref<?x?xf32> to memref<?xf32, affine_map<(d0)[s0, s1, s2] -> (d0 * s1 + s0)>>
   return
 }
 

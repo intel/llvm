@@ -480,7 +480,7 @@ multiclass sme_vector_to_tile_aliases<Instruction inst,
                                       MatrixTileVectorOperand tile_ty,
                                       ZPRRegOp zpr_ty, Operand imm_ty> {
   def : InstAlias<"mov\t$ZAd[$Rv, $imm], $Pg/m, $Zn",
-                  (inst tile_ty:$ZAd, MatrixIndexGPR32Op12_15:$Rv, imm0_15:$imm, PPR3bAny:$Pg, zpr_ty:$Zn), 1>;
+                  (inst tile_ty:$ZAd, MatrixIndexGPR32Op12_15:$Rv, imm_ty:$imm, PPR3bAny:$Pg, zpr_ty:$Zn), 1>;
 }
 
 multiclass sme_vector_v_to_tile<string mnemonic, bit is_col> {
@@ -651,6 +651,38 @@ multiclass sme_tile_to_vector_v<string mnemonic, bit is_col> {
 multiclass sme_tile_to_vector<string mnemonic> {
   defm _H : sme_tile_to_vector_v<mnemonic, /*is_col=*/0b0>;
   defm _V : sme_tile_to_vector_v<mnemonic, /*is_col=*/0b1>;
+}
+
+//===----------------------------------------------------------------------===//
+// SME Zero
+//===----------------------------------------------------------------------===//
+
+class sme_zero_inst<string mnemonic>
+    : I<(outs MatrixTileList:$imm), (ins),
+        mnemonic, "\t$imm", "", []>, Sched<[]> {
+  bits<8> imm;
+  let Inst{31-8} = 0b110000000000100000000000;
+  let Inst{7-0}  = imm;
+}
+
+multiclass sme_zero<string mnemonic> {
+  def NAME : sme_zero_inst<mnemonic>;
+
+  def : InstAlias<"zero\t\\{za\\}", (!cast<Instruction>(NAME) 0b11111111), 1>;
+  def : InstAlias<"zero\t\\{za0.h\\}", (!cast<Instruction>(NAME) 0b01010101), 1>;
+  def : InstAlias<"zero\t\\{za1.h\\}", (!cast<Instruction>(NAME) 0b10101010), 1>;
+  def : InstAlias<"zero\t\\{za0.s\\}", (!cast<Instruction>(NAME) 0b00010001), 1>;
+  def : InstAlias<"zero\t\\{za1.s\\}", (!cast<Instruction>(NAME) 0b00100010), 1>;
+  def : InstAlias<"zero\t\\{za2.s\\}", (!cast<Instruction>(NAME) 0b01000100), 1>;
+  def : InstAlias<"zero\t\\{za3.s\\}", (!cast<Instruction>(NAME) 0b10001000), 1>;
+  def : InstAlias<"zero\t\\{za0.s,za1.s\\}", (!cast<Instruction>(NAME) 0b00110011), 1>;
+  def : InstAlias<"zero\t\\{za0.s,za3.s\\}", (!cast<Instruction>(NAME) 0b10011001), 1>;
+  def : InstAlias<"zero\t\\{za1.s,za2.s\\}", (!cast<Instruction>(NAME) 0b01100110), 1>;
+  def : InstAlias<"zero\t\\{za2.s,za3.s\\}", (!cast<Instruction>(NAME) 0b11001100), 1>;
+  def : InstAlias<"zero\t\\{za0.s,za1.s,za2.s\\}", (!cast<Instruction>(NAME) 0b01110111), 1>;
+  def : InstAlias<"zero\t\\{za0.s,za1.s,za3.s\\}", (!cast<Instruction>(NAME) 0b10111011), 1>;
+  def : InstAlias<"zero\t\\{za0.s,za2.s,za3.s\\}", (!cast<Instruction>(NAME) 0b11011101), 1>;
+  def : InstAlias<"zero\t\\{za1.s,za2.s,za3.s\\}", (!cast<Instruction>(NAME) 0b11101110), 1>;
 }
 
 //===----------------------------------------------------------------------===//

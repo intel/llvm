@@ -60,6 +60,10 @@ func @nested_async_execute(%arg0: f32, %arg1: f32, %arg2: memref<1xf32>) {
     async.yield
   }
   // CHECK: async.runtime.await %[[TOKEN]]
+  // CHECK: %[[IS_ERROR:.*]] = async.runtime.is_error %[[TOKEN]]
+  // CHECK: %[[TRUE:.*]] = constant true
+  // CHECK: %[[NOT_ERROR:.*]] = xor %[[IS_ERROR]], %[[TRUE]] : i1
+  // CHECK: assert %[[NOT_ERROR]]
   // CHECK-NEXT: return
   async.await %token0 : !async.token
   return
@@ -328,8 +332,8 @@ func @async_value_operands() {
 
 // -----
 
-// CHECK-LABEL: @execute_asserttion
-func @execute_asserttion(%arg0: i1) {
+// CHECK-LABEL: @execute_assertion
+func @execute_assertion(%arg0: i1) {
   %token = async.execute {
     assert %arg0, "error"
     async.yield
@@ -406,3 +410,26 @@ func @lower_scf_to_cfg(%arg0: f32, %arg1: memref<1xf32>, %arg2: i1) {
 // Check that structured control flow lowered to CFG.
 // CHECK-NOT: scf.if
 // CHECK: cond_br %[[FLAG]]
+
+// -----
+// Constants captured by the async.execute region should be cloned into the
+// outline async execute function.
+
+// CHECK-LABEL: @clone_constants
+func @clone_constants(%arg0: f32, %arg1: memref<1xf32>) {
+  %c0 = constant 0 : index
+  %token = async.execute {
+    memref.store %arg0, %arg1[%c0] : memref<1xf32>
+    async.yield
+  }
+  async.await %token : !async.token
+  return
+}
+
+// Function outlined from the async.execute operation.
+// CHECK-LABEL: func private @async_execute_fn(
+// CHECK-SAME:    %[[VALUE:arg[0-9]+]]: f32,
+// CHECK-SAME:    %[[MEMREF:arg[0-9]+]]: memref<1xf32>
+// CHECK-SAME:  ) -> !async.token
+// CHECK:         %[[CST:.*]] = constant 0 : index
+// CHECK:         memref.store %[[VALUE]], %[[MEMREF]][%[[CST]]]

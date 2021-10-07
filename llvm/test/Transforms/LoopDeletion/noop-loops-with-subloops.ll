@@ -168,9 +168,7 @@ define void @inner_loop_may_be_infinite(i1 %c1, i1 %c2) {
 ; CHECK:       loop1.latch.loopexit:
 ; CHECK-NEXT:    br label [[LOOP1_LATCH]]
 ; CHECK:       loop1.latch:
-; CHECK-NEXT:    br i1 false, label [[LOOP1_LATCH_LOOP1_CRIT_EDGE:%.*]], label [[EXIT:%.*]]
-; CHECK:       loop1.latch.loop1_crit_edge:
-; CHECK-NEXT:    unreachable
+; CHECK-NEXT:    br label [[EXIT:%.*]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret void
 ;
@@ -280,9 +278,7 @@ define void @loop2_mustprogress_but_not_sibling_loop(i1 %c1, i1 %c2, i1 %c3) {
 ; CHECK:       loop1.latch.loopexit:
 ; CHECK-NEXT:    br label [[LOOP1_LATCH]]
 ; CHECK:       loop1.latch:
-; CHECK-NEXT:    br i1 false, label [[LOOP1_LATCH_LOOP1_CRIT_EDGE:%.*]], label [[EXIT:%.*]]
-; CHECK:       loop1.latch.loop1_crit_edge:
-; CHECK-NEXT:    unreachable
+; CHECK-NEXT:    br label [[EXIT:%.*]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret void
 ;
@@ -395,11 +391,16 @@ exit:
 }
 
 ; Inner infinite loop hidden behind a call.
-; TODO: Loop should not get deleted.
 define void @not_willreturn() {
 ; CHECK-LABEL: @not_willreturn(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    br label [[EXIT:%.*]]
+; CHECK-NEXT:    br label [[LOOP:%.*]]
+; CHECK:       loop:
+; CHECK-NEXT:    [[IV:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[IV_NEXT:%.*]], [[LOOP]] ]
+; CHECK-NEXT:    call void @sideeffect() #[[ATTR2:[0-9]+]]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw i32 [[IV]], 1
+; CHECK-NEXT:    [[C:%.*]] = icmp ult i32 [[IV]], 100
+; CHECK-NEXT:    br i1 [[C]], label [[LOOP]], label [[EXIT:%.*]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    ret void
 ;

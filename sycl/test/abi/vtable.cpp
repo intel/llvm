@@ -49,13 +49,13 @@ void foo(sycl::detail::pi::DeviceBinaryImage &Img) { Img.print(); }
 // CHECK-NEXT:   4 | sycl::detail::pi::DeviceBinaryImage::~DeviceBinaryImage() [complete]
 // CHECK-NEXT:   5 | sycl::detail::pi::DeviceBinaryImage::~DeviceBinaryImage() [deleting]
 
-void foo(sycl::detail::CommandGroup *CG) { delete CG; }
-// CHECK:    Vtable for 'sycl::detail::CommandGroup' (4 entries).
+void foo(sycl::detail::CG *CG) { delete CG; }
+// CHECK:    Vtable for 'sycl::detail::CG' (4 entries).
 // CHECK-NEXT:   0 | offset_to_top (0)
-// CHECK-NEXT:   1 | sycl::detail::CommandGroup RTTI
-// CHECK-NEXT:       -- (sycl::detail::CommandGroup, 0) vtable address --
-// CHECK-NEXT:   2 | sycl::detail::CommandGroup::~CommandGroup() [complete]
-// CHECK-NEXT:   3 | sycl::detail::CommandGroup::~CommandGroup() [deleting]
+// CHECK-NEXT:   1 | sycl::detail::CG RTTI
+// CHECK-NEXT:       -- (sycl::detail::CG, 0) vtable address --
+// CHECK-NEXT:   2 | sycl::detail::CG::~CG() [complete]
+// CHECK-NEXT:   3 | sycl::detail::CG::~CG() [deleting]
 
 void foo(sycl::detail::PropertyWithDataBase *Prop) { delete Prop; }
 // CHECK:    Vtable for 'sycl::detail::PropertyWithDataBase' (4 entries).

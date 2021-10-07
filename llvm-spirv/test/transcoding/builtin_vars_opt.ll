@@ -7,6 +7,9 @@
 ; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-SPV
 
+; Check that produced builtin-call-based SPV-IR is recognized by the translator
+; RUN: llvm-spirv %t.rev.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+
 ; The IR was generated from the following source:
 ; #include <CL/sycl.hpp>
 ;
@@ -52,7 +55,7 @@
 ; CHECK-LLVM-SPV: call spir_func i32 @_Z30__spirv_BuiltInSubgroupMaxSizev()
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-linux-sycldevice"
+target triple = "spir64-unknown-linux"
 
 %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range" = type { %"class._ZTSN2cl4sycl6detail5arrayILi1EEE.cl::sycl::detail::array" }
 %"class._ZTSN2cl4sycl6detail5arrayILi1EEE.cl::sycl::detail::array" = type { [1 x i64] }
@@ -75,7 +78,7 @@ entry:
   br i1 %tobool.not.i, label %if.end.i, label %if.then.i
 
 if.then.i:                                        ; preds = %entry
-  %4 = load i32, i32 addrspace(4)* %3, align 4, !noalias !8
+  %4 = load i32, i32 addrspace(4)* %3, align 4
   %ptridx.ascast.i14.i = addrspacecast i32 addrspace(1)* %add.ptr.i to i32 addrspace(4)*
   store i32 %4, i32 addrspace(4)* %ptridx.ascast.i14.i, align 4
   br label %if.end.i
@@ -86,7 +89,7 @@ if.end.i:                                         ; preds = %if.then.i, %entry
   br i1 %tobool4.not.i, label %cond.false.i, label %"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_7nd_itemILi1EEEE_clES5_.exit"
 
 cond.false.i:                                     ; preds = %if.end.i
-  %5 = load i32, i32 addrspace(4)* %3, align 4, !noalias !11
+  %5 = load i32, i32 addrspace(4)* %3, align 4
   br label %"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_7nd_itemILi1EEEE_clES5_.exit"
 
 "_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_7nd_itemILi1EEEE_clES5_.exit": ; preds = %cond.false.i, %if.end.i
@@ -116,9 +119,3 @@ attributes #0 = { norecurse "correctly-rounded-divide-sqrt-fp-math"="false" "dis
 !9 = !{!"int", !10, i64 0}
 !10 = !{!"omnipotent char", !11, i64 0}
 !11 = !{!"Simple C++ TBAA"}
-!12 = !{!13}
-!13 = distinct !{!13, !14, !"_ZNK2cl4sycl5intel9sub_group19get_max_local_rangeEv: %agg.result"}
-!14 = distinct !{!14, !"_ZNK2cl4sycl5intel9sub_group19get_max_local_rangeEv"}
-!15 = !{!16}
-!16 = distinct !{!16, !17, !"_ZNK2cl4sycl5intel9sub_group19get_max_local_rangeEv: %agg.result"}
-!17 = distinct !{!17, !"_ZNK2cl4sycl5intel9sub_group19get_max_local_rangeEv"}

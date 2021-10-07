@@ -490,7 +490,7 @@ function(add_compiler_rt_test test_suite test_name arch)
   endif()
   add_custom_command(
     OUTPUT "${output_bin}"
-    COMMAND ${COMPILER_RT_TEST_COMPILER} ${TEST_OBJECTS} -o "${output_bin}"
+    COMMAND ${COMPILER_RT_TEST_CXX_COMPILER} ${TEST_OBJECTS} -o "${output_bin}"
             ${TEST_LINK_FLAGS}
     DEPENDS ${TEST_DEPS}
     )
@@ -598,6 +598,7 @@ macro(add_custom_libcxx name prefix)
     CMAKE_OBJCOPY
     CMAKE_OBJDUMP
     CMAKE_STRIP
+    CMAKE_READELF
     CMAKE_SYSROOT
     LIBCXX_HAS_MUSL_LIBC
     PYTHON_EXECUTABLE

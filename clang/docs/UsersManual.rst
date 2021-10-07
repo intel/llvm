@@ -2334,6 +2334,14 @@ In these cases, you can use the flag ``-fno-profile-instr-generate`` (or
 Note that these flags should appear after the corresponding profile
 flags to have an effect.
 
+.. note::
+
+  When none of the translation units inside a binary is instrumented, in the
+  case of Fuchsia the profile runtime will not be linked into the binary and
+  no profile will be produced, while on other platforms the profile runtime
+  will be linked and profile will be produced but there will not be any
+  counters.
+
 Instrumenting only selected files or functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -3244,8 +3252,9 @@ or in `the official release
 <https://github.com/KhronosGroup/OpenCL-Docs/releases/tag/cxxforopencl-v1.0-r2>`_.
 
 To enable the C++ for OpenCL mode, pass one of following command line options when
-compiling ``.cl`` file ``-cl-std=clc++``, ``-cl-std=CLC++``, ``-std=clc++`` or
-``-std=CLC++``.
+compiling ``.cl`` file ``-cl-std=clc++``, ``-cl-std=CLC++``, ``-cl-std=clc++1.0``,
+``-cl-std=CLC++1.0``, ``-std=clc++``, ``-std=CLC++``, ``-std=clc++1.0`` or
+``-std=CLC++1.0``.
 
    .. code-block:: c++
 

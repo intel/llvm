@@ -53,7 +53,7 @@ def getStdFlag(cfg, std):
   return None
 
 DEFAULT_PARAMETERS = [
-  Parameter(name='target_triple', type=str, default=getHostTriple,
+  Parameter(name='target_triple', type=str,
             help="The target triple to compile the test suite for. This must be "
                  "compatible with the target that the tests will be run on.",
             actions=lambda triple: filter(None, [
@@ -94,7 +94,7 @@ DEFAULT_PARAMETERS = [
   Parameter(name='stdlib', choices=['libc++', 'libstdc++', 'msvc'], type=str, default='libc++',
             help="The C++ Standard Library implementation being tested.",
             actions=lambda stdlib: [
-              AddFeature(stdlib)
+              AddFeature('stdlib={}'.format(stdlib))
             ]),
 
   Parameter(name='enable_warnings', choices=[True, False], type=bool, default=True,

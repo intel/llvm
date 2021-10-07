@@ -2,12 +2,12 @@
 ; RUN: opt < %s -deadargelim -S | FileCheck %s
 ; RUN: opt < %s -deadargelim-sycl -S | FileCheck %s
 
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64"
 
 ; This test ensures dead arguments are not eliminated
 ; from a global function that is not a SPIR kernel.
 
-; CHECK-NOT:    !spir_kernel_omit_args
+; CHECK-NOT:    !sycl_kernel_omit_args
 
 define weak_odr void @NotASpirKernel(float %arg1, float %arg2) {
 ; CHECK-LABEL: define {{[^@]+}}@NotASpirKernel

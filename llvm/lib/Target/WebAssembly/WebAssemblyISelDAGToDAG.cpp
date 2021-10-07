@@ -17,6 +17,7 @@
 #include "WebAssemblyTargetMachine.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
+#include "llvm/CodeGen/WasmEHFuncInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/Function.h" // To access function attributes.
 #include "llvm/IR/IntrinsicsWebAssembly.h"
@@ -24,6 +25,7 @@
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+
 using namespace llvm;
 
 #define DEBUG_TYPE "wasm-isel"
@@ -48,31 +50,10 @@ public:
     return "WebAssembly Instruction Selection";
   }
 
-  void checkForInvalidNodes(const Function &F) {
-    // This function will check for uses of ptrtoint on reference types and
-    // report a fatal error if these are found.
-    for (const BasicBlock &BB : F) {
-      for (const Instruction &I : BB) {
-        if (const PtrToIntInst *PTI = dyn_cast<const PtrToIntInst>(&I)) {
-          const Value *V = PTI->getPointerOperand();
-          if (WebAssemblyTargetLowering::isFuncrefType(V->getType()) ||
-              WebAssemblyTargetLowering::isExternrefType(V->getType()))
-            report_fatal_error("ptrtoint not allowed on reference types");
-        } else if (const IntToPtrInst *ITP = dyn_cast<const IntToPtrInst>(&I)) {
-          if (WebAssemblyTargetLowering::isFuncrefType(ITP->getDestTy()) ||
-              WebAssemblyTargetLowering::isExternrefType(ITP->getDestTy()))
-            report_fatal_error("inttoptr not allowed on reference types");
-        }
-      }
-    }
-  }
-
   bool runOnMachineFunction(MachineFunction &MF) override {
     LLVM_DEBUG(dbgs() << "********** ISelDAGToDAG **********\n"
                          "********** Function: "
                       << MF.getName() << '\n');
-
-    checkForInvalidNodes(MF.getFunction());
 
     Subtarget = &MF.getSubtarget<WebAssemblySubtarget>();
 
@@ -107,6 +88,17 @@ void WebAssemblyDAGToDAGISel::PreprocessISelDAG() {
   SelectionDAGISel::PreprocessISelDAG();
 }
 
+static SDValue getTagSymNode(int Tag, SelectionDAG *DAG) {
+  assert(Tag == WebAssembly::CPP_EXCEPTION || WebAssembly::C_LONGJMP);
+  auto &MF = DAG->getMachineFunction();
+  const auto &TLI = DAG->getTargetLoweringInfo();
+  MVT PtrVT = TLI.getPointerTy(DAG->getDataLayout());
+  const char *SymName = Tag == WebAssembly::CPP_EXCEPTION
+                            ? MF.createExternalSymbolName("__cpp_exception")
+                            : MF.createExternalSymbolName("__c_longjmp");
+  return DAG->getTargetExternalSymbol(SymName, PtrVT);
+}
+
 void WebAssemblyDAGToDAGISel::Select(SDNode *Node) {
   // If we have a custom node, we already have selected!
   if (Node->isMachineOpcode()) {
@@ -127,8 +119,7 @@ void WebAssemblyDAGToDAGISel::Select(SDNode *Node) {
     if (!MF.getSubtarget<WebAssemblySubtarget>().hasAtomics())
       break;
 
-    uint64_t SyncScopeID =
-        cast<ConstantSDNode>(Node->getOperand(2).getNode())->getZExtValue();
+    uint64_t SyncScopeID = Node->getConstantOperandVal(2);
     MachineSDNode *Fence = nullptr;
     switch (SyncScopeID) {
     case SyncScope::SingleThread:
@@ -162,7 +153,7 @@ void WebAssemblyDAGToDAGISel::Select(SDNode *Node) {
   }
 
   case ISD::INTRINSIC_WO_CHAIN: {
-    unsigned IntNo = cast<ConstantSDNode>(Node->getOperand(0))->getZExtValue();
+    unsigned IntNo = Node->getConstantOperandVal(0);
     switch (IntNo) {
     case Intrinsic::wasm_tls_size: {
       MachineSDNode *TLSSize = CurDAG->getMachineNode(
@@ -171,6 +162,7 @@ void WebAssemblyDAGToDAGISel::Select(SDNode *Node) {
       ReplaceNode(Node, TLSSize);
       return;
     }
+
     case Intrinsic::wasm_tls_align: {
       MachineSDNode *TLSAlign = CurDAG->getMachineNode(
           GlobalGetIns, DL, PtrVT,
@@ -181,8 +173,11 @@ void WebAssemblyDAGToDAGISel::Select(SDNode *Node) {
     }
     break;
   }
+
   case ISD::INTRINSIC_W_CHAIN: {
-    unsigned IntNo = cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();
+    unsigned IntNo = Node->getConstantOperandVal(1);
+    const auto &TLI = CurDAG->getTargetLoweringInfo();
+    MVT PtrVT = TLI.getPointerTy(CurDAG->getDataLayout());
     switch (IntNo) {
     case Intrinsic::wasm_tls_base: {
       MachineSDNode *TLSBase = CurDAG->getMachineNode(
@@ -192,9 +187,48 @@ void WebAssemblyDAGToDAGISel::Select(SDNode *Node) {
       ReplaceNode(Node, TLSBase);
       return;
     }
+
+    case Intrinsic::wasm_catch: {
+      int Tag = Node->getConstantOperandVal(2);
+      SDValue SymNode = getTagSymNode(Tag, CurDAG);
+      MachineSDNode *Catch =
+          CurDAG->getMachineNode(WebAssembly::CATCH, DL,
+                                 {
+                                     PtrVT,     // exception pointer
+                                     MVT::Other // outchain type
+                                 },
+                                 {
+                                     SymNode,            // exception symbol
+                                     Node->getOperand(0) // inchain
+                                 });
+      ReplaceNode(Node, Catch);
+      return;
+    }
     }
     break;
   }
+
+  case ISD::INTRINSIC_VOID: {
+    unsigned IntNo = Node->getConstantOperandVal(1);
+    switch (IntNo) {
+    case Intrinsic::wasm_throw: {
+      int Tag = Node->getConstantOperandVal(2);
+      SDValue SymNode = getTagSymNode(Tag, CurDAG);
+      MachineSDNode *Throw =
+          CurDAG->getMachineNode(WebAssembly::THROW, DL,
+                                 MVT::Other, // outchain type
+                                 {
+                                     SymNode,             // exception symbol
+                                     Node->getOperand(3), // thrown value
+                                     Node->getOperand(0)  // inchain
+                                 });
+      ReplaceNode(Node, Throw);
+      return;
+    }
+    }
+    break;
+  }
+
   case WebAssemblyISD::CALL:
   case WebAssemblyISD::RET_CALL: {
     // CALL has both variable operands and variable results, but ISel only

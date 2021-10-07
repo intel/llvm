@@ -49,24 +49,6 @@ func @pad_static(%arg0: tensor<3x4xf32>, %pad_value: f32) -> tensor<6x9xf32> {
 
 // -----
 
-func @pad_static_with_output(%arg0: tensor<3x4xf32>,
-                             %out_tensor : tensor<6x9xf32>,
-                             %pad_value: f32)
-    -> tensor<6x9xf32> {
-  %0 = linalg.pad_tensor %arg0 low[1, 2] high[2, 3] into %out_tensor {
-    ^bb0(%arg1 : index, %arg2 : index):
-      linalg.yield %pad_value : f32
-    } : tensor<3x4xf32> to tensor<6x9xf32>
-  return %0 : tensor<6x9xf32>
-}
-// CHECK-LABEL: func @pad_static
-//  CHECK-SAME: %[[ARG0:[a-zA-Z0-9_]*]]: tensor<3x4xf32>,
-//  CHECK-SAME: %[[ARG1:[a-zA-Z0-9_]*]]: tensor<6x9xf32>,
-//       CHECK:   linalg.pad_tensor %[[ARG0]] low[1, 2] high[2, 3] into %[[ARG1]]
-//       CHECK:    : tensor<3x4xf32> to tensor<6x9xf32>
-
-// -----
-
 func @pad_asymmetrical(%arg0: tensor<2x3xf32>, %ub0: index, %ub1: index,
                        %pad_value: f32) -> tensor<?x?xf32> {
   %0 = linalg.pad_tensor %arg0 low[0, 0] high[%ub0, %ub1] {
@@ -284,48 +266,6 @@ func @conv_padding(%arg0: memref<?x?x?x?xf32>,
 //  CHECK-SAME:     memref<?x?x?x?xf32>,
 //  CHECK-SAME:     memref<?x?x?x?xf32>,
 //  CHECK-SAME:     memref<?x?x?x?xf32>
-
-// -----
-
-func @pooling_max(%arg0: memref<?x?x?xf32>,
-                  %arg1: memref<?x?x?xi32>,
-                  %arg2: memref<?x?x?xf32>) {
-  linalg.pooling_max(%arg0, %arg1, %arg2) {strides = [2, 1, 2]}:
-    memref<?x?x?xf32>, memref<?x?x?xi32>, memref<?x?x?xf32>
-  return
-}
-// CHECK-LABEL: func @pooling_max
-//       CHECK:   linalg.pooling_max(%{{.*}}, %{{.*}}, %{{.*}})
-//  CHECK-SAME:   {strides = [2, 1, 2]}
-//  CHECK-SAME:   memref<?x?x?xf32>, memref<?x?x?xi32>, memref<?x?x?xf32>
-
-// -----
-
-func @pooling_min(%arg0: memref<?x?x?xf32>,
-                  %arg1: memref<?x?x?xi32>,
-                  %arg2: memref<?x?x?xf32>) {
-  linalg.pooling_min(%arg0, %arg1, %arg2) {strides = [2, 1, 2]}:
-    memref<?x?x?xf32>, memref<?x?x?xi32>, memref<?x?x?xf32>
-  return
-}
-// CHECK-LABEL: func @pooling_min
-//       CHECK:   linalg.pooling_min(%{{.*}}, %{{.*}}, %{{.*}})
-//  CHECK-SAME:   {strides = [2, 1, 2]}
-//  CHECK-SAME:   memref<?x?x?xf32>, memref<?x?x?xi32>, memref<?x?x?xf32>
-
-// -----
-
-func @pooling_sum(%arg0: memref<?x?x?xf32>,
-                  %arg1: memref<?x?x?xi32>,
-                  %arg2: memref<?x?x?xf32>) {
-  linalg.pooling_sum(%arg0, %arg1, %arg2) {strides = [2, 1, 2]}:
-    memref<?x?x?xf32>, memref<?x?x?xi32>, memref<?x?x?xf32>
-  return
-}
-// CHECK-LABEL: func @pooling_sum
-//       CHECK:   linalg.pooling_sum(%{{.*}}, %{{.*}}, %{{.*}})
-//  CHECK-SAME:   {strides = [2, 1, 2]}
-//  CHECK-SAME:   memref<?x?x?xf32>, memref<?x?x?xi32>, memref<?x?x?xf32>
 
 // -----
 

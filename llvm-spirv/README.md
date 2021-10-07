@@ -29,7 +29,7 @@ The translator can be built with the latest(nightly) package of LLVM. For Ubuntu
 wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
 sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main"
 sudo apt-get update
-sudo apt-get install llvm-13-dev llvm-13-tools clang-13 libclang-13-dev
+sudo apt-get install llvm-14-dev llvm-14-tools clang-14 libclang-14-dev
 ```
 The installed version of LLVM will be used by default for out-of-tree build of the translator.
 ```
@@ -93,6 +93,26 @@ Building clang from sources takes time and resources and it can be avoided:
   moment, see [KhronosGroup/SPIRV-LLVM-Translator#477](https://github.com/KhronosGroup/SPIRV-LLVM-Translator/issues/477)
   to track progress, discuss and contribute.
 
+## Configuring SPIR-V Headers
+
+The translator build is dependent on the official Khronos header file
+`spirv.hpp` that maps SPIR-V extensions, decorations, instructions,
+etc. onto numeric tokens. The official header version is available at
+[KhronosGroup/SPIRV-Headers](https://github.com/KhronosGroup/SPIRV-Headers).
+There are several options for accessing the header file:
+- By default, the header file repository will be downloaded from
+  Khronos Group GitHub and put into `<build_dir>/SPIRV-Headers`.
+- If you are building the translator in-tree, you can manually
+  download the SPIR-V Headers repo into `llvm/projects` - this
+  location will be automatically picked up by the LLVM build
+  scripts. Make sure the folder retains its default naming in
+  that of `SPIRV-Headers`.
+- Any build type can also use an external installation of SPIR-V
+  Headers - if you have the headers downloaded somewhere in your
+  system and want to use that version, simply extend your CMake
+  command with `-DLLVM_EXTERNAL_PROJECTS="SPIRV-Headers"
+  -DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR=</path/to/headers_dir>`.
+
 ## Test instructions
 
 All tests related to the translator are placed in the [test](test) directory. A number of the tests require spirv-as (part of SPIR-V Tools) to run, but the remainder of the tests can still be run without this. Optionally the tests can make use of spirv-val (part of SPIRV-Tools) in order to validate the generated SPIR-V against the official SPIR-V specification.
@@ -105,7 +125,7 @@ make test
 ```
 This requires that the `-DLLVM_SPIRV_INCLUDE_TESTS=ON` argument is
 passed to CMake during the build step. Additionally,
-`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-13/build/utils/lit/lit.py"` is
+`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-14/build/utils/lit/lit.py"` is
 needed when building with a pre-installed version of LLVM.
 
 The translator test suite can be disabled by passing

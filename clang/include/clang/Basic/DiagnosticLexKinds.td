@@ -113,8 +113,10 @@ def warn_four_char_character_literal : Warning<
 // Unicode and UCNs
 def err_invalid_utf8 : Error<
   "source file is not valid UTF-8">;
-def err_non_ascii : Error<
-  "non-ASCII characters are not allowed outside of literals and identifiers">;
+def err_character_not_allowed : Error<
+  "unexpected character <U+%0>">;
+def err_character_not_allowed_identifier : Error<
+  "character <U+%0> not allowed %select{in|at the start of}1 an identifier">;
 def ext_unicode_whitespace : ExtWarn<
   "treating Unicode character as whitespace">,
   InGroup<DiagGroup<"unicode-whitespace">>;
@@ -125,6 +127,15 @@ def warn_utf8_symbol_zero_width : Warning<
   "identifier contains Unicode character <U+%0> that is invisible in "
   "some environments">, InGroup<DiagGroup<"unicode-zero-width">>;
 
+def ext_delimited_escape_sequence : Extension<
+  "delimited escape sequences are a Clang extension">,
+  InGroup<DiagGroup<"delimited-escape-sequence-extension">>;
+def err_delimited_escape_empty : Error<
+  "delimited escape sequence cannot be empty">;
+def err_delimited_escape_missing_brace: Error<
+  "expected '{' after '\\%0' escape sequence">;
+def err_delimited_escape_invalid : Error<
+  "invalid digit '%0' in escape sequence">;
 def err_hex_escape_no_digits : Error<
   "\\%0 used with no following hex digits">;
 def warn_ucn_escape_no_digits : Warning<
@@ -132,6 +143,12 @@ def warn_ucn_escape_no_digits : Warning<
   "treating as '\\' followed by identifier">, InGroup<Unicode>;
 def err_ucn_escape_incomplete : Error<
   "incomplete universal character name">;
+def warn_delimited_ucn_incomplete : Warning<
+  "incomplete delimited universal character name; "
+  "treating as '\\' 'u' '{' identifier">, InGroup<Unicode>;
+def warn_delimited_ucn_empty : Warning<
+  "empty delimited universal character name; "
+  "treating as '\\' 'u' '{' '}'">, InGroup<Unicode>;
 def warn_ucn_escape_incomplete : Warning<
   "incomplete universal character name; "
   "treating as '\\' followed by identifier">, InGroup<Unicode>;
@@ -150,9 +167,6 @@ def warn_c99_compat_unicode_id : Warning<
   "%select{using this character in an identifier|starting an identifier with "
   "this character}0 is incompatible with C99">,
   InGroup<C99Compat>, DefaultIgnore;
-def warn_cxx98_compat_unicode_id : Warning<
-  "using this character in an identifier is incompatible with C++98">,
-  InGroup<CXX98Compat>, DefaultIgnore;
 
 def warn_cxx98_compat_literal_ucn_escape_basic_scs : Warning<
   "specifying character '%0' with a universal character name "
@@ -184,12 +198,10 @@ def warn_c2x_compat_digit_separator : Warning<
   InGroup<CPre2xCompat>, DefaultIgnore;
 def err_digit_separator_not_between_digits : Error<
   "digit separator cannot appear at %select{start|end}0 of digit sequence">;
-def warn_extraneous_char_constant : Warning<
-  "extraneous characters in character constant ignored">;
 def warn_char_constant_too_large : Warning<
   "character constant too long for its type">;
-def err_multichar_utf_character_literal : Error<
-  "Unicode character literals may not contain multiple characters">;
+def err_multichar_character_literal : Error<
+  "%select{wide|Unicode}0 character literals may not contain multiple characters">;
 def err_exponent_has_no_digits : Error<"exponent has no digits">;
 def err_hex_constant_requires : Error<
   "hexadecimal floating %select{constant|literal}0 requires "
@@ -300,6 +312,13 @@ def pp_pragma_once_in_main_file : Warning<"#pragma once in main file">,
 def pp_pragma_sysheader_in_main_file : Warning<
   "#pragma system_header ignored in main file">,
   InGroup<DiagGroup<"pragma-system-header-outside-header">>;
+
+def err_pragma_include_instead_not_sysheader : Error<
+  "'#pragma clang include_instead' cannot be used outside of system headers">;
+def err_pragma_include_instead_system_reserved : Error<
+  "header '%0' is an implementation detail; #include %select{'%2'|either '%2' "
+  "or '%3'|one of %2}1 instead">;
+
 def pp_poisoning_existing_macro : Warning<"poisoning existing macro">;
 def pp_out_of_date_dependency : Warning<
   "current file is older than dependency %0">;
@@ -518,6 +537,27 @@ def warn_pragma_warning_push_level :
 def warn_pragma_warning_expected_number :
   ExtWarn<"#pragma warning expected a warning number">,
   InGroup<UnknownPragmas>;
+
+// - #pragma deprecated(...)
+def warn_pragma_deprecated_macro_use :
+  ExtWarn<"macro %0 has been marked as deprecated%select{|: %2}1">,
+  InGroup<DeprecatedPragma>;
+
+// - #pragma clang restrict_expansion(...)
+def warn_pragma_restrict_expansion_macro_use :
+  ExtWarn<"macro %0 has been marked as unsafe for use in headers"
+          "%select{|: %2}1">,
+  InGroup<RestrictExpansionMacro>;
+
+// - Note for macro annotations.
+def note_pp_macro_annotation :
+  Note<"macro marked '%select{deprecated|restrict_expansion|final}0' here">;
+
+// - #pragma clang final(...)
+def warn_pragma_final_macro :
+  ExtWarn<"macro %0 has been marked as final and should not be "
+          "%select{undefined|redefined}1">,
+  InGroup<FinalMacro>;
 
 // - #pragma execution_character_set(...)
 def warn_pragma_exec_charset_expected :

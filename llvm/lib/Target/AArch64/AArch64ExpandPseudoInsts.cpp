@@ -466,6 +466,9 @@ bool AArch64ExpandPseudo::expand_DestructiveOp(
   case AArch64::DestructiveBinaryImm:
     std::tie(PredIdx, DOPIdx, SrcIdx) = std::make_tuple(1, 2, 3);
     break;
+  case AArch64::DestructiveUnaryPassthru:
+    std::tie(PredIdx, DOPIdx, SrcIdx) = std::make_tuple(2, 3, 3);
+    break;
   case AArch64::DestructiveTernaryCommWithRev:
     std::tie(PredIdx, DOPIdx, SrcIdx, Src2Idx) = std::make_tuple(1, 2, 3, 4);
     if (DstReg == MI.getOperand(3).getReg()) {
@@ -494,6 +497,7 @@ bool AArch64ExpandPseudo::expand_DestructiveOp(
       DstReg != MI.getOperand(DOPIdx).getReg() ||
       MI.getOperand(DOPIdx).getReg() != MI.getOperand(SrcIdx).getReg();
     break;
+  case AArch64::DestructiveUnaryPassthru:
   case AArch64::DestructiveBinaryImm:
     DOPRegIsUnique = true;
     break;
@@ -578,6 +582,11 @@ bool AArch64ExpandPseudo::expand_DestructiveOp(
     .addReg(DstReg, RegState::Define | getDeadRegState(DstIsDead));
 
   switch (DType) {
+  case AArch64::DestructiveUnaryPassthru:
+    DOP.addReg(MI.getOperand(DOPIdx).getReg(), RegState::Kill)
+        .add(MI.getOperand(PredIdx))
+        .add(MI.getOperand(SrcIdx));
+    break;
   case AArch64::DestructiveBinaryImm:
   case AArch64::DestructiveBinaryComm:
   case AArch64::DestructiveBinaryCommWithRev:
@@ -928,12 +937,16 @@ bool AArch64ExpandPseudo::expandMI(MachineBasicBlock &MBB,
     case AArch64::ORRWrr:      Opcode = AArch64::ORRWrs; break;
     case AArch64::ORRXrr:      Opcode = AArch64::ORRXrs; break;
     }
-    MachineInstrBuilder MIB1 =
-        BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(Opcode),
-                MI.getOperand(0).getReg())
-            .add(MI.getOperand(1))
-            .add(MI.getOperand(2))
-            .addImm(AArch64_AM::getShifterImm(AArch64_AM::LSL, 0));
+    MachineFunction &MF = *MBB.getParent();
+    // Try to create new inst without implicit operands added.
+    MachineInstr *NewMI = MF.CreateMachineInstr(
+        TII->get(Opcode), MI.getDebugLoc(), /*NoImplicit=*/true);
+    MBB.insert(MBBI, NewMI);
+    MachineInstrBuilder MIB1(MF, NewMI);
+    MIB1.addReg(MI.getOperand(0).getReg(), RegState::Define)
+        .add(MI.getOperand(1))
+        .add(MI.getOperand(2))
+        .addImm(AArch64_AM::getShifterImm(AArch64_AM::LSL, 0));
     transferImpOps(MI, MIB1, MIB1);
     MI.eraseFromParent();
     return true;
@@ -1040,6 +1053,7 @@ bool AArch64ExpandPseudo::expandMI(MachineBasicBlock &MBB,
   case AArch64::MOVaddrEXT: {
     // Expand into ADRP + ADD.
     Register DstReg = MI.getOperand(0).getReg();
+    assert(DstReg != AArch64::XZR);
     MachineInstrBuilder MIB1 =
         BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(AArch64::ADRP), DstReg)
             .add(MI.getOperand(1));

@@ -90,10 +90,8 @@ define void @func4() {
 
 define internal void @func5(i32 %0) {
 ; CHECK-LABEL: define {{[^@]+}}@func5() {
-; CHECK-NEXT:    [[TMP:%.*]] = alloca i8*, align 8
 ; CHECK-NEXT:    br label [[BLOCK:%.*]]
 ; CHECK:       block:
-; CHECK-NEXT:    store i8* blockaddress(@func5, [[BLOCK]]), i8** [[TMP]], align 8
 ; CHECK-NEXT:    call void @func6(i8* blockaddress(@func5, [[BLOCK]]))
 ; CHECK-NEXT:    ret void
 ;
@@ -105,6 +103,23 @@ block:
   %addr = load i8*, i8** %tmp
   call void @func6(i8* %addr)
   ret void
+}
+
+define i16 @foo3() {
+; CHECK-LABEL: define {{[^@]+}}@foo3() {
+; CHECK-NEXT:    [[CALL:%.*]] = call i16 bitcast (i16 (i16*, i16)* @bar3 to i16 ()*)()
+; CHECK-NEXT:    ret i16 [[CALL]]
+;
+  %call = call i16 bitcast (i16 (i16*, i16) * @bar3 to i16 () *)()
+  ret i16 %call
+}
+define internal i16 @bar3(i16* %p1, i16 %p2) {
+; CHECK: Function Attrs: nofree nosync nounwind readnone willreturn
+; CHECK-LABEL: define {{[^@]+}}@bar3
+; CHECK-SAME: (i16* nocapture nofree readnone [[P1:%.*]], i16 returned [[P2:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:    ret i16 [[P2]]
+;
+  ret i16 %p2
 }
 
 ; CHECK-LABEL: declare {{[^@]+}}@func6

@@ -54,6 +54,7 @@ set( LIBCLC_TARGETS_ALL
 set( LIBCLC_TEST_TARGETS_ALL
   nvptx--nvidiacl
   nvptx64--nvidiacl
+  amdgcn--amdhsa
 )
 
 set( LIBCLC_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR} )
@@ -64,6 +65,10 @@ set( LIBCLC_TARGETS_TO_BUILD "all"
 
 option( ENABLE_RUNTIME_SUBNORMAL "Enable runtime linking of subnormal support."
 OFF )
+
+option( LIBCLC_GENERATE_REMANGLED_VARIANTS
+				"Generate remangled variants of enabled libclc targets."
+				OFF )
 
 # mesa3d environment is only available since LLVM 4.0
 if( ${LLVM_VERSION} VERSION_GREATER "3.9.0" )
@@ -119,6 +124,8 @@ find_program( LLVM_AS llvm-as PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
 find_program( LLVM_LINK llvm-link PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
 find_program( LLVM_OPT opt PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
 find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_BINDIR} NO_DEFAULT_PATH )
+find_program( LIBCLC_REMANGLER libclc-remangler PATHS ${LLVM_BINDIR}
+							NO_DEFAULT_PATH )
 
 # Print toolchain
 message( "clang: ${LLVM_CLANG}" )
@@ -126,8 +133,10 @@ message( "llvm-as: ${LLVM_AS}" )
 message( "llvm-link: ${LLVM_LINK}" )
 message( "opt: ${LLVM_OPT}" )
 message( "llvm-spirv: ${LLVM_SPIRV}" )
+message( "libclc-remangler: ${LIBCLC_REMANGLER}" )
 message( "" )
-if( NOT LLVM_CLANG OR NOT LLVM_OPT OR NOT LLVM_AS OR NOT LLVM_LINK )
+if( NOT LLVM_CLANG OR NOT LLVM_OPT OR NOT LLVM_AS OR NOT LLVM_LINK
+		OR NOT LIBCLC_REMANGLER )
 	message( FATAL_ERROR "toolchain incomplete!" )
 endif()
 
@@ -386,5 +395,17 @@ install(DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
 				DESTINATION lib${LLVM_LIBDIR_SUFFIX}
 				COMPONENT clc-builtins
 				FILES_MATCHING PATTERN "clc-*")
+
+if( LIBCLC_GENERATE_REMANGLED_VARIANTS )
+	install(DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+					DESTINATION lib${LLVM_LIBDIR_SUFFIX}
+					COMPONENT libspirv-builtins
+					FILES_MATCHING PATTERN "remangled-*libspirv-*")
+
+	install(DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+					DESTINATION lib${LLVM_LIBDIR_SUFFIX}
+					COMPONENT clc-builtins
+					FILES_MATCHING PATTERN "remangled-*clc-*")
+endif()
 
 add_subdirectory(test)

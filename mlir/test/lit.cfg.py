@@ -51,6 +51,7 @@ config.test_source_root = os.path.dirname(__file__)
 config.test_exec_root = os.path.join(config.mlir_obj_root, 'test')
 
 # Tweak the PATH to include the tools dir.
+llvm_config.with_environment('PATH', config.mlir_tools_dir, append_path=True)
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
 
 tool_dirs = [config.mlir_tools_dir, config.llvm_tools_dir]
@@ -59,17 +60,18 @@ tools = [
     'mlir-tblgen',
     'mlir-translate',
     'mlir-lsp-server',
+    'mlir-capi-execution-engine-test',
     'mlir-capi-ir-test',
+    'mlir-capi-llvm-test',
     'mlir-capi-pass-test',
+    'mlir-capi-sparse-tensor-test',
     'mlir-cpu-runner',
-    'mlir-linalg-ods-gen',
     'mlir-linalg-ods-yaml-gen',
     'mlir-reduce',
 ]
 
 # The following tools are optional
 tools.extend([
-    ToolSubst('%PYTHON', config.python_executable, unresolved='ignore'),
     ToolSubst('toy-ch1', unresolved='ignore'),
     ToolSubst('toy-ch2', unresolved='ignore'),
     ToolSubst('toy-ch3', unresolved='ignore'),
@@ -81,6 +83,16 @@ tools.extend([
     ToolSubst('%vulkan_wrapper_library_dir', config.vulkan_wrapper_library_dir, unresolved='ignore'),
     ToolSubst('%mlir_integration_test_dir', config.mlir_integration_test_dir, unresolved='ignore'),
 ])
+
+python_executable = config.python_executable
+# Python configuration with sanitizer requires some magic preloading. This will only work on clang/linux.
+# TODO: detect Darwin/Windows situation (or mark these tests as unsupported on these platforms).
+if "asan" in config.available_features and "Linux" in config.host_os:
+  python_executable = f"LD_PRELOAD=$({config.host_cxx} -print-file-name=libclang_rt.asan-{config.host_arch}.so) {config.python_executable}"
+tools.extend([
+  ToolSubst('%PYTHON', python_executable, unresolved='ignore'),
+])
+
 llvm_config.add_tool_substitutions(tools, tool_dirs)
 
 
@@ -103,13 +115,8 @@ if config.target_triple:
 # by copying/linking sources to build.
 if config.enable_bindings_python:
     llvm_config.with_environment('PYTHONPATH', [
-        # TODO: Don't reference the llvm_obj_root here: the invariant is that
-        # the python/ must be at the same level of the lib directory
-        # where libMLIR.so is installed. This is presently not optimal from a
-        # project separation perspective and a discussion on how to better
-        # segment MLIR libraries needs to happen. See also
-        # lib/Bindings/Python/CMakeLists.txt for where this is set up.
-        os.path.join(config.llvm_obj_root, 'python'),
+        os.path.join(config.mlir_obj_root, 'python_packages', 'mlir_core'),
+        os.path.join(config.mlir_obj_root, 'python_packages', 'mlir_test'),
     ], append_path=True)
 
 if config.enable_assertions:

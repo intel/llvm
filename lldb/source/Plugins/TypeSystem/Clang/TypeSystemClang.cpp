@@ -478,7 +478,7 @@ static void ParseLangArgs(LangOptions &Opts, InputKind IK, const char *triple) {
       LangStd = LangStandard::lang_opencl10;
       break;
     case clang::Language::OpenCLCXX:
-      LangStd = LangStandard::lang_openclcpp;
+      LangStd = LangStandard::lang_openclcpp10;
       break;
     case clang::Language::CUDA:
       LangStd = LangStandard::lang_cuda;
@@ -577,8 +577,6 @@ ConstString TypeSystemClang::GetPluginNameStatic() {
 ConstString TypeSystemClang::GetPluginName() {
   return TypeSystemClang::GetPluginNameStatic();
 }
-
-uint32_t TypeSystemClang::GetPluginVersion() { return 1; }
 
 lldb::TypeSystemSP TypeSystemClang::CreateInstance(lldb::LanguageType language,
                                                    lldb_private::Module *module,
@@ -4824,6 +4822,7 @@ lldb::Encoding TypeSystemClang::GetEncoding(lldb::opaque_compiler_type_t type,
     case clang::BuiltinType::Double:
     case clang::BuiltinType::LongDouble:
     case clang::BuiltinType::BFloat16:
+    case clang::BuiltinType::Ibm128:
       return lldb::eEncodingIEEE754;
 
     case clang::BuiltinType::ObjCClass:

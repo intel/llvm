@@ -1,7 +1,7 @@
 #ifndef SPIRV_DEBUG_H
 #define SPIRV_DEBUG_H
 #include "SPIRVUtil.h"
-#include "spirv.hpp"
+#include "spirv/unified1/spirv.hpp"
 #include "llvm/BinaryFormat/Dwarf.h"
 
 namespace SPIRVDebug {

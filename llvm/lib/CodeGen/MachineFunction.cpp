@@ -129,8 +129,8 @@ void ilist_alloc_traits<MachineBasicBlock>::deleteNode(MachineBasicBlock *MBB) {
 
 static inline unsigned getFnStackAlignment(const TargetSubtargetInfo *STI,
                                            const Function &F) {
-  if (F.hasFnAttribute(Attribute::StackAlignment))
-    return F.getFnStackAlignment();
+  if (auto MA = F.getFnStackAlign())
+    return MA->value();
   return STI->getFrameLowering()->getStackAlign().value();
 }
 
@@ -1131,15 +1131,32 @@ auto MachineFunction::salvageCopySSA(MachineInstr &MI)
     }
   }
 
+  MachineBasicBlock &InsertBB = *CurInst->getParent();
+
   // We reached the start of the block before finding a defining instruction.
-  // It must be an argument: assert that this is the entry block, and produce
-  // a DBG_PHI.
-  assert(!State.first.isVirtual());
-  MachineBasicBlock &TargetBB = *CurInst->getParent();
-  assert(&*TargetBB.getParent()->begin() == &TargetBB);
+  // It could be from a constant register, otherwise it must be an argument.
+  if (TRI.isConstantPhysReg(State.first)) {
+    // We can produce a DBG_PHI that identifies the constant physreg. Doesn't
+    // matter where we put it, as it's constant valued.
+    assert(CurInst->isCopy());
+  } else if (State.first == TRI.getFrameRegister(*this)) {
+    // LLVM IR is allowed to read the framepointer by calling a
+    // llvm.frameaddress.* intrinsic. We can support this by emitting a
+    // DBG_PHI $fp. This isn't ideal, because it extends the behaviours /
+    // position that DBG_PHIs appear at, limiting what can be done later.
+    // TODO: see if there's a better way of expressing these variable
+    // locations.
+    ;
+  } else {
+    // Assert that this is the entry block. If it isn't, then there is some
+    // code construct we don't recognise that deals with physregs across
+    // blocks.
+    assert(!State.first.isVirtual());
+    assert(&*InsertBB.getParent()->begin() == &InsertBB);
+  }
 
   // Create DBG_PHI for specified physreg.
-  auto Builder = BuildMI(TargetBB, TargetBB.getFirstNonPHI(), DebugLoc(),
+  auto Builder = BuildMI(InsertBB, InsertBB.getFirstNonPHI(), DebugLoc(),
                          TII.get(TargetOpcode::DBG_PHI));
   Builder.addReg(State.first, RegState::Debug);
   unsigned NewNum = getNewDebugInstrNum();
@@ -1157,7 +1174,7 @@ void MachineFunction::finalizeDebugInstrRefs() {
     MI.getOperand(0).setIsDebug();
   };
 
-  if (!getTarget().Options.ValueTrackingVariableLocations)
+  if (!useDebugInstrRef())
     return;
 
   for (auto &MBB : *this) {
@@ -1202,6 +1219,24 @@ void MachineFunction::finalizeDebugInstrRefs() {
       }
     }
   }
+}
+
+bool MachineFunction::useDebugInstrRef() const {
+  // Disable instr-ref at -O0: it's very slow (in compile time). We can still
+  // have optimized code inlined into this unoptimized code, however with
+  // fewer and less aggressive optimizations happening, coverage and accuracy
+  // should not suffer.
+  if (getTarget().getOptLevel() == CodeGenOpt::None)
+    return false;
+
+  // Don't use instr-ref if this function is marked optnone.
+  if (F.hasFnAttribute(Attribute::OptimizeNone))
+    return false;
+
+  if (getTarget().Options.ValueTrackingVariableLocations)
+    return true;
+
+  return false;
 }
 
 /// \}

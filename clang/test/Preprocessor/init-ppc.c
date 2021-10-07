@@ -322,6 +322,7 @@
 // PPC:#define __NATURAL_ALIGNMENT__ 1
 // PPC:#define __POINTER_WIDTH__ 32
 // PPC:#define __POWERPC__ 1
+// PPC-NOT:#define __PPC 1
 // PPC:#define __PPC__ 1
 // PPC:#define __PTRDIFF_TYPE__ long int
 // PPC:#define __PTRDIFF_WIDTH__ 32
@@ -386,6 +387,7 @@
 // PPC:#define __WCHAR_WIDTH__ 32
 // PPC:#define __WINT_TYPE__ int
 // PPC:#define __WINT_WIDTH__ 32
+// PPC-NOT:#define __powerpc 1
 // PPC:#define __ppc__ 1
 
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc-ibm-aix7.1.0.0 -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPC-AIX %s
@@ -393,6 +395,7 @@
 // PPC-AIX-NOT:#define __64BIT__ 1
 // PPC-AIX:#define _AIX 1
 // PPC-AIX:#define _ARCH_PPC 1
+// PPC-AIX:#define _ARCH_PPC64 1
 // PPC-AIX:#define _BIG_ENDIAN 1
 // PPC-AIX:#define _IBMR2 1
 // PPC-AIX:#define _LONG_LONG 1
@@ -434,6 +437,7 @@
 // PPC-AIX:#define __FLT_MIN_EXP__ (-125)
 // PPC-AIX:#define __FLT_MIN__ 1.17549435e-38F
 // PPC-AIX:#define __FLT_RADIX__ 2
+// PPC-AIX:#define __HOS_AIX__ 1
 // PPC-AIX:#define __INT16_C_SUFFIX__
 // PPC-AIX:#define __INT16_FMTd__ "hd"
 // PPC-AIX:#define __INT16_FMTi__ "hi"
@@ -518,6 +522,7 @@
 // PPC-AIX-NOT:#define __NATURAL_ALIGNMENT__ 1
 // PPC-AIX:#define __POINTER_WIDTH__ 32
 // PPC-AIX:#define __POWERPC__ 1
+// PPC-AIX:#define __PPC 1
 // PPC-AIX:#define __PPC__ 1
 // PPC-AIX:#define __PTRDIFF_TYPE__ long int
 // PPC-AIX:#define __PTRDIFF_WIDTH__ 32
@@ -541,6 +546,8 @@
 // PPC-AIX:#define __SIZE_MAX__ 4294967295UL
 // PPC-AIX:#define __SIZE_TYPE__ long unsigned int
 // PPC-AIX:#define __SIZE_WIDTH__ 32
+// PPC-AIX:#define __THW_BIG_ENDIAN__ 1
+// PPC-AIX:#define __THW_PPC__ 1
 // PPC-AIX:#define __TOS_AIX__ 1
 // PPC-AIX:#define __UINT16_C_SUFFIX__
 // PPC-AIX:#define __UINT16_MAX__ 65535
@@ -583,6 +590,7 @@
 // PPC-AIX:#define __WCHAR_WIDTH__ 16
 // PPC-AIX:#define __WINT_TYPE__ int
 // PPC-AIX:#define __WINT_WIDTH__ 32
+// PPC-AIX:#define __powerpc 1
 // PPC-AIX:#define __powerpc__ 1
 // PPC-AIX:#define __ppc__ 1
 

@@ -174,21 +174,187 @@ Expr<Type<TypeCategory::Integer, KIND>> UBOUND(FoldingContext &context,
   return Expr<T>{std::move(funcRef)};
 }
 
+// COUNT()
+template <typename T>
+static Expr<T> FoldCount(FoldingContext &context, FunctionRef<T> &&ref) {
+  static_assert(T::category == TypeCategory::Integer);
+  ActualArguments &arg{ref.arguments()};
+  if (const Constant<LogicalResult> *mask{arg.empty()
+              ? nullptr
+              : Folder<LogicalResult>{context}.Folding(arg[0])}) {
+    std::optional<int> dim;
+    if (CheckReductionDIM(dim, context, arg, 1, mask->Rank())) {
+      auto accumulator{[&](Scalar<T> &element, const ConstantSubscripts &at) {
+        if (mask->At(at).IsTrue()) {
+          element = element.AddSigned(Scalar<T>{1}).value;
+        }
+      }};
+      return Expr<T>{DoReduction<T>(*mask, dim, Scalar<T>{}, accumulator)};
+    }
+  }
+  return Expr<T>{std::move(ref)};
+}
+
+// FINDLOC()
+class FindlocHelper {
+public:
+  FindlocHelper(
+      DynamicType &&type, ActualArguments &arg, FoldingContext &context)
+      : type_{type}, arg_{arg}, context_{context} {}
+  using Result = std::optional<Constant<SubscriptInteger>>;
+  using Types = AllIntrinsicTypes;
+
+  template <typename T> Result Test() const {
+    if (T::category != type_.category() || T::kind != type_.kind()) {
+      return std::nullopt;
+    }
+    CHECK(arg_.size() == 6);
+    Folder<T> folder{context_};
+    Constant<T> *array{folder.Folding(arg_[0])};
+    Constant<T> *value{folder.Folding(arg_[1])};
+    if (!array || !value) {
+      return std::nullopt;
+    }
+    std::optional<int> dim;
+    Constant<LogicalResult> *mask{
+        GetReductionMASK(arg_[3], array->shape(), context_)};
+    if ((!mask && arg_[3]) ||
+        !CheckReductionDIM(dim, context_, arg_, 2, array->Rank())) {
+      return std::nullopt;
+    }
+    bool back{false};
+    if (arg_[5]) {
+      const auto *backConst{Folder<LogicalResult>{context_}.Folding(arg_[5])};
+      if (backConst) {
+        back = backConst->GetScalarValue().value().IsTrue();
+      } else {
+        return std::nullopt;
+      }
+    }
+    // Use lower bounds of 1 exclusively.
+    array->SetLowerBoundsToOne();
+    ConstantSubscripts at{array->lbounds()}, maskAt, resultIndices, resultShape;
+    if (mask) {
+      mask->SetLowerBoundsToOne();
+      maskAt = mask->lbounds();
+    }
+    if (dim) { // DIM=
+      if (*dim < 1 || *dim > array->Rank()) {
+        context_.messages().Say(
+            "FINDLOC(DIM=%d) is out of range"_err_en_US, *dim);
+        return std::nullopt;
+      }
+      int zbDim{*dim - 1};
+      resultShape = array->shape();
+      resultShape.erase(
+          resultShape.begin() + zbDim); // scalar if array is vector
+      ConstantSubscript dimLength{array->shape()[zbDim]};
+      ConstantSubscript n{GetSize(resultShape)};
+      for (ConstantSubscript j{0}; j < n; ++j) {
+        ConstantSubscript hit{array->lbounds()[zbDim] - 1};
+        for (ConstantSubscript k{0}; k < dimLength;
+             ++k, ++at[zbDim], mask && ++maskAt[zbDim]) {
+          if ((!mask || mask->At(maskAt).IsTrue()) &&
+              IsHit(array->At(at), *value)) {
+            hit = at[zbDim];
+            if (!back) {
+              break;
+            }
+          }
+        }
+        resultIndices.emplace_back(hit);
+        at[zbDim] = array->lbounds()[zbDim] + dimLength - 1;
+        array->IncrementSubscripts(at);
+        at[zbDim] = array->lbounds()[zbDim];
+        if (mask) {
+          maskAt[zbDim] = mask->lbounds()[zbDim] + dimLength - 1;
+          mask->IncrementSubscripts(maskAt);
+          maskAt[zbDim] = mask->lbounds()[zbDim];
+        }
+      }
+    } else { // no DIM=
+      resultShape = ConstantSubscripts{array->Rank()}; // always a vector
+      ConstantSubscript n{GetSize(array->shape())};
+      resultIndices = ConstantSubscripts(array->Rank(), 0);
+      for (ConstantSubscript j{0}; j < n; ++j, array->IncrementSubscripts(at),
+           mask && mask->IncrementSubscripts(maskAt)) {
+        if ((!mask || mask->At(maskAt).IsTrue()) &&
+            IsHit(array->At(at), *value)) {
+          resultIndices = at;
+          if (!back) {
+            break;
+          }
+        }
+      }
+    }
+    std::vector<Scalar<SubscriptInteger>> resultElements;
+    for (ConstantSubscript j : resultIndices) {
+      resultElements.emplace_back(j);
+    }
+    return Constant<SubscriptInteger>{
+        std::move(resultElements), std::move(resultShape)};
+  }
+
+private:
+  template <typename T>
+  bool IsHit(typename Constant<T>::Element element, Constant<T> value) const {
+    std::optional<Expr<LogicalResult>> cmp;
+    if constexpr (T::category == TypeCategory::Logical) {
+      // array(at) .EQV. value?
+      cmp.emplace(
+          ConvertToType<LogicalResult>(Expr<T>{LogicalOperation<T::kind>{
+              LogicalOperator::Eqv, Expr<T>{Constant<T>{std::move(element)}},
+              Expr<T>{std::move(value)}}}));
+    } else { // array(at) .EQ. value?
+      cmp.emplace(PackageRelation(RelationalOperator::EQ,
+          Expr<T>{Constant<T>{std::move(element)}}, Expr<T>{std::move(value)}));
+    }
+    Expr<LogicalResult> folded{Fold(context_, std::move(*cmp))};
+    return GetScalarConstantValue<LogicalResult>(folded).value().IsTrue();
+  }
+
+  DynamicType type_;
+  ActualArguments &arg_;
+  FoldingContext &context_;
+};
+
+static std::optional<Constant<SubscriptInteger>> FoldFindlocCall(
+    ActualArguments &arg, FoldingContext &context) {
+  CHECK(arg.size() == 6);
+  if (arg[0]) {
+    if (auto type{arg[0]->GetType()}) {
+      return common::SearchTypes(FindlocHelper{std::move(*type), arg, context});
+    }
+  }
+  return std::nullopt;
+}
+
+template <typename T>
+static Expr<T> FoldFindloc(FoldingContext &context, FunctionRef<T> &&ref) {
+  static_assert(T::category == TypeCategory::Integer);
+  if (std::optional<Constant<SubscriptInteger>> found{
+          FoldFindlocCall(ref.arguments(), context)}) {
+    return Expr<T>{Fold(
+        context, ConvertToType<T>(Expr<SubscriptInteger>{std::move(*found)}))};
+  } else {
+    return Expr<T>{std::move(ref)};
+  }
+}
+
 // for IALL, IANY, & IPARITY
 template <typename T>
 static Expr<T> FoldBitReduction(FoldingContext &context, FunctionRef<T> &&ref,
     Scalar<T> (Scalar<T>::*operation)(const Scalar<T> &) const,
     Scalar<T> identity) {
   static_assert(T::category == TypeCategory::Integer);
-  using Element = Scalar<T>;
-  std::optional<ConstantSubscript> dim;
+  std::optional<int> dim;
   if (std::optional<Constant<T>> array{
           ProcessReductionArgs<T>(context, ref.arguments(), dim, identity,
               /*ARRAY=*/0, /*DIM=*/1, /*MASK=*/2)}) {
-    auto accumulator{[&](Element &element, const ConstantSubscripts &at) {
+    auto accumulator{[&](Scalar<T> &element, const ConstantSubscripts &at) {
       element = (element.*operation)(array->At(at));
     }};
-    return Expr<T>{DoReduction(*array, dim, identity, accumulator)};
+    return Expr<T>{DoReduction<T>(*array, dim, identity, accumulator)};
   }
   return Expr<T>{std::move(ref)};
 }
@@ -237,17 +403,7 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
           cx->u);
     }
   } else if (name == "count") {
-    if (!args[1]) { // TODO: COUNT(x,DIM=d)
-      if (const auto *constant{UnwrapConstantValue<LogicalResult>(args[0])}) {
-        std::int64_t result{0};
-        for (const auto &element : constant->values()) {
-          if (element.IsTrue()) {
-            ++result;
-          }
-        }
-        return Expr<T>{result};
-      }
-    }
+    return FoldCount<T>(context, std::move(funcRef));
   } else if (name == "digits") {
     if (const auto *cx{UnwrapExpr<Expr<SomeInteger>>(args[0])}) {
       return Expr<T>{std::visit(
@@ -294,6 +450,8 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
     } else {
       DIE("exponent argument must be real");
     }
+  } else if (name == "findloc") {
+    return FoldFindloc<T>(context, std::move(funcRef));
   } else if (name == "huge") {
     return Expr<T>{Scalar<T>::HUGE()};
   } else if (name == "iachar" || name == "ichar") {
@@ -596,7 +754,7 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
     if (const auto *array{UnwrapExpr<Expr<SomeType>>(args[0])}) {
       if (auto named{ExtractNamedEntity(*array)}) {
         const Symbol &symbol{named->GetLastSymbol()};
-        if (semantics::IsAssumedRankArray(symbol)) {
+        if (IsAssumedRank(symbol)) {
           // DescriptorInquiry can only be placed in expression of kind
           // DescriptorInquiry::Result::kind.
           return ConvertToType<T>(Expr<
@@ -651,7 +809,13 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
         if (auto dim{GetInt64Arg(args[1])}) {
           int rank{GetRank(*shape)};
           if (*dim >= 1 && *dim <= rank) {
-            if (auto &extent{shape->at(*dim - 1)}) {
+            const Symbol *symbol{UnwrapWholeSymbolDataRef(args[0])};
+            if (symbol && IsAssumedSizeArray(*symbol) && *dim == rank) {
+              context.messages().Say(
+                  "size(array,dim=%jd) of last dimension is not available for rank-%d assumed-size array dummy argument"_err_en_US,
+                  *dim, rank);
+              return MakeInvalidIntrinsic<T>(std::move(funcRef));
+            } else if (auto &extent{shape->at(*dim - 1)}) {
               return Fold(context, ConvertToType<T>(std::move(*extent)));
             }
           } else {
@@ -689,10 +853,8 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
   } else if (name == "ubound") {
     return UBOUND(context, std::move(funcRef));
   }
-  // TODO:
-  // cshift, dot_product, eoshift, findloc, ibits, image_status, ishftc,
-  // matmul, maxloc, minloc, not, pack, sign, spread, transfer, transpose,
-  // unpack
+  // TODO: dot_product, ibits, image_status, ishftc,
+  // matmul, maxloc, minloc, sign, transfer
   return Expr<T>{std::move(funcRef)};
 }
 

@@ -4,7 +4,7 @@
 @gv.fptr0 = external hidden unnamed_addr addrspace(4) constant void()*, align 4
 @gv.fptr1 = external hidden unnamed_addr addrspace(4) constant void(i32)*, align 4
 
-define amdgpu_kernel void @test_indirect_call_sgpr_ptr() {
+define amdgpu_kernel void @test_indirect_call_sgpr_ptr(i8) {
 ; GCN-LABEL: test_indirect_call_sgpr_ptr:
 ; GCN:         .amd_kernel_code_t
 ; GCN-NEXT:     amd_code_version_major = 1
@@ -57,7 +57,7 @@ define amdgpu_kernel void @test_indirect_call_sgpr_ptr() {
 ; GCN-NEXT:     workitem_private_segment_byte_size = 16384
 ; GCN-NEXT:     workgroup_group_segment_byte_size = 0
 ; GCN-NEXT:     gds_segment_byte_size = 0
-; GCN-NEXT:     kernarg_segment_byte_size = 0
+; GCN-NEXT:     kernarg_segment_byte_size = 4
 ; GCN-NEXT:     workgroup_fbarrier_count = 0
 ; GCN-NEXT:     wavefront_sgpr_count = 37
 ; GCN-NEXT:     workitem_vgpr_count = 32
@@ -86,8 +86,10 @@ define amdgpu_kernel void @test_indirect_call_sgpr_ptr() {
 ; GCN-NEXT:    s_getpc_b64 s[14:15]
 ; GCN-NEXT:    s_add_u32 s14, s14, gv.fptr0@rel32@lo+4
 ; GCN-NEXT:    s_addc_u32 s15, s15, gv.fptr0@rel32@hi+12
-; GCN-NEXT:    s_load_dwordx2 s[18:19], s[14:15], 0x0
 ; GCN-NEXT:    v_lshlrev_b32_e32 v2, 20, v2
+; GCN-NEXT:    s_load_dwordx2 s[18:19], s[14:15], 0x0
+; GCN-NEXT:    s_add_u32 s8, s8, 8
+; GCN-NEXT:    s_addc_u32 s9, s9, 0
 ; GCN-NEXT:    v_lshlrev_b32_e32 v1, 10, v1
 ; GCN-NEXT:    v_or_b32_e32 v0, v0, v1
 ; GCN-NEXT:    v_or_b32_e32 v31, v0, v2
@@ -100,7 +102,7 @@ define amdgpu_kernel void @test_indirect_call_sgpr_ptr() {
   ret void
 }
 
-define amdgpu_kernel void @test_indirect_call_sgpr_ptr_arg() {
+define amdgpu_kernel void @test_indirect_call_sgpr_ptr_arg(i8) {
 ; GCN-LABEL: test_indirect_call_sgpr_ptr_arg:
 ; GCN:         .amd_kernel_code_t
 ; GCN-NEXT:     amd_code_version_major = 1
@@ -153,7 +155,7 @@ define amdgpu_kernel void @test_indirect_call_sgpr_ptr_arg() {
 ; GCN-NEXT:     workitem_private_segment_byte_size = 16384
 ; GCN-NEXT:     workgroup_group_segment_byte_size = 0
 ; GCN-NEXT:     gds_segment_byte_size = 0
-; GCN-NEXT:     kernarg_segment_byte_size = 0
+; GCN-NEXT:     kernarg_segment_byte_size = 4
 ; GCN-NEXT:     workgroup_fbarrier_count = 0
 ; GCN-NEXT:     wavefront_sgpr_count = 37
 ; GCN-NEXT:     workitem_vgpr_count = 32
@@ -183,8 +185,10 @@ define amdgpu_kernel void @test_indirect_call_sgpr_ptr_arg() {
 ; GCN-NEXT:    s_add_u32 s14, s14, gv.fptr1@rel32@lo+4
 ; GCN-NEXT:    s_addc_u32 s15, s15, gv.fptr1@rel32@hi+12
 ; GCN-NEXT:    v_lshlrev_b32_e32 v2, 20, v2
-; GCN-NEXT:    s_load_dwordx2 s[18:19], s[14:15], 0x0
 ; GCN-NEXT:    v_lshlrev_b32_e32 v1, 10, v1
+; GCN-NEXT:    s_load_dwordx2 s[18:19], s[14:15], 0x0
+; GCN-NEXT:    s_add_u32 s8, s8, 8
+; GCN-NEXT:    s_addc_u32 s9, s9, 0
 ; GCN-NEXT:    v_or_b32_e32 v0, v0, v1
 ; GCN-NEXT:    v_or_b32_e32 v31, v0, v2
 ; GCN-NEXT:    v_mov_b32_e32 v0, 0x7b
@@ -210,40 +214,40 @@ define void @test_indirect_call_vgpr_ptr(void()* %fptr) {
 ; GCN-NEXT:    v_writelane_b32 v40, s34, 0
 ; GCN-NEXT:    v_writelane_b32 v40, s35, 1
 ; GCN-NEXT:    v_writelane_b32 v40, s36, 2
-; GCN-NEXT:    v_writelane_b32 v40, s38, 3
-; GCN-NEXT:    v_writelane_b32 v40, s39, 4
-; GCN-NEXT:    v_writelane_b32 v40, s40, 5
-; GCN-NEXT:    v_writelane_b32 v40, s41, 6
-; GCN-NEXT:    v_writelane_b32 v40, s42, 7
-; GCN-NEXT:    v_writelane_b32 v40, s43, 8
-; GCN-NEXT:    v_writelane_b32 v40, s44, 9
-; GCN-NEXT:    v_writelane_b32 v40, s45, 10
+; GCN-NEXT:    v_writelane_b32 v40, s37, 3
+; GCN-NEXT:    v_writelane_b32 v40, s38, 4
+; GCN-NEXT:    v_writelane_b32 v40, s39, 5
+; GCN-NEXT:    v_writelane_b32 v40, s40, 6
+; GCN-NEXT:    v_writelane_b32 v40, s41, 7
+; GCN-NEXT:    v_writelane_b32 v40, s42, 8
+; GCN-NEXT:    v_writelane_b32 v40, s43, 9
+; GCN-NEXT:    v_writelane_b32 v40, s44, 10
 ; GCN-NEXT:    v_writelane_b32 v40, s46, 11
 ; GCN-NEXT:    v_writelane_b32 v40, s47, 12
 ; GCN-NEXT:    v_writelane_b32 v40, s48, 13
 ; GCN-NEXT:    v_writelane_b32 v40, s49, 14
 ; GCN-NEXT:    v_writelane_b32 v40, s30, 15
 ; GCN-NEXT:    v_writelane_b32 v40, s31, 16
-; GCN-NEXT:    s_mov_b32 s34, s14
-; GCN-NEXT:    s_mov_b32 s35, s13
-; GCN-NEXT:    s_mov_b32 s36, s12
-; GCN-NEXT:    s_mov_b64 s[38:39], s[10:11]
-; GCN-NEXT:    s_mov_b64 s[40:41], s[8:9]
-; GCN-NEXT:    s_mov_b64 s[42:43], s[6:7]
-; GCN-NEXT:    s_mov_b64 s[44:45], s[4:5]
+; GCN-NEXT:    s_mov_b32 s42, s14
+; GCN-NEXT:    s_mov_b32 s43, s13
+; GCN-NEXT:    s_mov_b32 s44, s12
+; GCN-NEXT:    s_mov_b64 s[34:35], s[10:11]
+; GCN-NEXT:    s_mov_b64 s[36:37], s[8:9]
+; GCN-NEXT:    s_mov_b64 s[38:39], s[6:7]
+; GCN-NEXT:    s_mov_b64 s[40:41], s[4:5]
 ; GCN-NEXT:    s_mov_b64 s[46:47], exec
 ; GCN-NEXT:  BB2_1: ; =>This Inner Loop Header: Depth=1
 ; GCN-NEXT:    v_readfirstlane_b32 s16, v0
 ; GCN-NEXT:    v_readfirstlane_b32 s17, v1
 ; GCN-NEXT:    v_cmp_eq_u64_e32 vcc, s[16:17], v[0:1]
 ; GCN-NEXT:    s_and_saveexec_b64 s[48:49], vcc
-; GCN-NEXT:    s_mov_b64 s[4:5], s[44:45]
-; GCN-NEXT:    s_mov_b64 s[6:7], s[42:43]
-; GCN-NEXT:    s_mov_b64 s[8:9], s[40:41]
-; GCN-NEXT:    s_mov_b64 s[10:11], s[38:39]
-; GCN-NEXT:    s_mov_b32 s12, s36
-; GCN-NEXT:    s_mov_b32 s13, s35
-; GCN-NEXT:    s_mov_b32 s14, s34
+; GCN-NEXT:    s_mov_b64 s[4:5], s[40:41]
+; GCN-NEXT:    s_mov_b64 s[6:7], s[38:39]
+; GCN-NEXT:    s_mov_b64 s[8:9], s[36:37]
+; GCN-NEXT:    s_mov_b64 s[10:11], s[34:35]
+; GCN-NEXT:    s_mov_b32 s12, s44
+; GCN-NEXT:    s_mov_b32 s13, s43
+; GCN-NEXT:    s_mov_b32 s14, s42
 ; GCN-NEXT:    s_swappc_b64 s[30:31], s[16:17]
 ; GCN-NEXT:    ; implicit-def: $vgpr0_vgpr1
 ; GCN-NEXT:    ; implicit-def: $vgpr31
@@ -257,14 +261,14 @@ define void @test_indirect_call_vgpr_ptr(void()* %fptr) {
 ; GCN-NEXT:    v_readlane_b32 s48, v40, 13
 ; GCN-NEXT:    v_readlane_b32 s47, v40, 12
 ; GCN-NEXT:    v_readlane_b32 s46, v40, 11
-; GCN-NEXT:    v_readlane_b32 s45, v40, 10
-; GCN-NEXT:    v_readlane_b32 s44, v40, 9
-; GCN-NEXT:    v_readlane_b32 s43, v40, 8
-; GCN-NEXT:    v_readlane_b32 s42, v40, 7
-; GCN-NEXT:    v_readlane_b32 s41, v40, 6
-; GCN-NEXT:    v_readlane_b32 s40, v40, 5
-; GCN-NEXT:    v_readlane_b32 s39, v40, 4
-; GCN-NEXT:    v_readlane_b32 s38, v40, 3
+; GCN-NEXT:    v_readlane_b32 s44, v40, 10
+; GCN-NEXT:    v_readlane_b32 s43, v40, 9
+; GCN-NEXT:    v_readlane_b32 s42, v40, 8
+; GCN-NEXT:    v_readlane_b32 s41, v40, 7
+; GCN-NEXT:    v_readlane_b32 s40, v40, 6
+; GCN-NEXT:    v_readlane_b32 s39, v40, 5
+; GCN-NEXT:    v_readlane_b32 s38, v40, 4
+; GCN-NEXT:    v_readlane_b32 s37, v40, 3
 ; GCN-NEXT:    v_readlane_b32 s36, v40, 2
 ; GCN-NEXT:    v_readlane_b32 s35, v40, 1
 ; GCN-NEXT:    v_readlane_b32 s34, v40, 0
@@ -292,27 +296,27 @@ define void @test_indirect_call_vgpr_ptr_arg(void(i32)* %fptr) {
 ; GCN-NEXT:    v_writelane_b32 v40, s34, 0
 ; GCN-NEXT:    v_writelane_b32 v40, s35, 1
 ; GCN-NEXT:    v_writelane_b32 v40, s36, 2
-; GCN-NEXT:    v_writelane_b32 v40, s38, 3
-; GCN-NEXT:    v_writelane_b32 v40, s39, 4
-; GCN-NEXT:    v_writelane_b32 v40, s40, 5
-; GCN-NEXT:    v_writelane_b32 v40, s41, 6
-; GCN-NEXT:    v_writelane_b32 v40, s42, 7
-; GCN-NEXT:    v_writelane_b32 v40, s43, 8
-; GCN-NEXT:    v_writelane_b32 v40, s44, 9
-; GCN-NEXT:    v_writelane_b32 v40, s45, 10
+; GCN-NEXT:    v_writelane_b32 v40, s37, 3
+; GCN-NEXT:    v_writelane_b32 v40, s38, 4
+; GCN-NEXT:    v_writelane_b32 v40, s39, 5
+; GCN-NEXT:    v_writelane_b32 v40, s40, 6
+; GCN-NEXT:    v_writelane_b32 v40, s41, 7
+; GCN-NEXT:    v_writelane_b32 v40, s42, 8
+; GCN-NEXT:    v_writelane_b32 v40, s43, 9
+; GCN-NEXT:    v_writelane_b32 v40, s44, 10
 ; GCN-NEXT:    v_writelane_b32 v40, s46, 11
 ; GCN-NEXT:    v_writelane_b32 v40, s47, 12
 ; GCN-NEXT:    v_writelane_b32 v40, s48, 13
 ; GCN-NEXT:    v_writelane_b32 v40, s49, 14
 ; GCN-NEXT:    v_writelane_b32 v40, s30, 15
 ; GCN-NEXT:    v_writelane_b32 v40, s31, 16
-; GCN-NEXT:    s_mov_b32 s34, s14
-; GCN-NEXT:    s_mov_b32 s35, s13
-; GCN-NEXT:    s_mov_b32 s36, s12
-; GCN-NEXT:    s_mov_b64 s[38:39], s[10:11]
-; GCN-NEXT:    s_mov_b64 s[40:41], s[8:9]
-; GCN-NEXT:    s_mov_b64 s[42:43], s[6:7]
-; GCN-NEXT:    s_mov_b64 s[44:45], s[4:5]
+; GCN-NEXT:    s_mov_b32 s42, s14
+; GCN-NEXT:    s_mov_b32 s43, s13
+; GCN-NEXT:    s_mov_b32 s44, s12
+; GCN-NEXT:    s_mov_b64 s[34:35], s[10:11]
+; GCN-NEXT:    s_mov_b64 s[36:37], s[8:9]
+; GCN-NEXT:    s_mov_b64 s[38:39], s[6:7]
+; GCN-NEXT:    s_mov_b64 s[40:41], s[4:5]
 ; GCN-NEXT:    s_mov_b64 s[46:47], exec
 ; GCN-NEXT:  BB3_1: ; =>This Inner Loop Header: Depth=1
 ; GCN-NEXT:    v_readfirstlane_b32 s16, v0
@@ -320,13 +324,13 @@ define void @test_indirect_call_vgpr_ptr_arg(void(i32)* %fptr) {
 ; GCN-NEXT:    v_cmp_eq_u64_e32 vcc, s[16:17], v[0:1]
 ; GCN-NEXT:    s_and_saveexec_b64 s[48:49], vcc
 ; GCN-NEXT:    v_mov_b32_e32 v0, 0x7b
-; GCN-NEXT:    s_mov_b64 s[4:5], s[44:45]
-; GCN-NEXT:    s_mov_b64 s[6:7], s[42:43]
-; GCN-NEXT:    s_mov_b64 s[8:9], s[40:41]
-; GCN-NEXT:    s_mov_b64 s[10:11], s[38:39]
-; GCN-NEXT:    s_mov_b32 s12, s36
-; GCN-NEXT:    s_mov_b32 s13, s35
-; GCN-NEXT:    s_mov_b32 s14, s34
+; GCN-NEXT:    s_mov_b64 s[4:5], s[40:41]
+; GCN-NEXT:    s_mov_b64 s[6:7], s[38:39]
+; GCN-NEXT:    s_mov_b64 s[8:9], s[36:37]
+; GCN-NEXT:    s_mov_b64 s[10:11], s[34:35]
+; GCN-NEXT:    s_mov_b32 s12, s44
+; GCN-NEXT:    s_mov_b32 s13, s43
+; GCN-NEXT:    s_mov_b32 s14, s42
 ; GCN-NEXT:    s_swappc_b64 s[30:31], s[16:17]
 ; GCN-NEXT:    ; implicit-def: $vgpr0_vgpr1
 ; GCN-NEXT:    ; implicit-def: $vgpr31
@@ -340,14 +344,14 @@ define void @test_indirect_call_vgpr_ptr_arg(void(i32)* %fptr) {
 ; GCN-NEXT:    v_readlane_b32 s48, v40, 13
 ; GCN-NEXT:    v_readlane_b32 s47, v40, 12
 ; GCN-NEXT:    v_readlane_b32 s46, v40, 11
-; GCN-NEXT:    v_readlane_b32 s45, v40, 10
-; GCN-NEXT:    v_readlane_b32 s44, v40, 9
-; GCN-NEXT:    v_readlane_b32 s43, v40, 8
-; GCN-NEXT:    v_readlane_b32 s42, v40, 7
-; GCN-NEXT:    v_readlane_b32 s41, v40, 6
-; GCN-NEXT:    v_readlane_b32 s40, v40, 5
-; GCN-NEXT:    v_readlane_b32 s39, v40, 4
-; GCN-NEXT:    v_readlane_b32 s38, v40, 3
+; GCN-NEXT:    v_readlane_b32 s44, v40, 10
+; GCN-NEXT:    v_readlane_b32 s43, v40, 9
+; GCN-NEXT:    v_readlane_b32 s42, v40, 8
+; GCN-NEXT:    v_readlane_b32 s41, v40, 7
+; GCN-NEXT:    v_readlane_b32 s40, v40, 6
+; GCN-NEXT:    v_readlane_b32 s39, v40, 5
+; GCN-NEXT:    v_readlane_b32 s38, v40, 4
+; GCN-NEXT:    v_readlane_b32 s37, v40, 3
 ; GCN-NEXT:    v_readlane_b32 s36, v40, 2
 ; GCN-NEXT:    v_readlane_b32 s35, v40, 1
 ; GCN-NEXT:    v_readlane_b32 s34, v40, 0
@@ -375,40 +379,40 @@ define i32 @test_indirect_call_vgpr_ptr_ret(i32()* %fptr) {
 ; GCN-NEXT:    v_writelane_b32 v40, s34, 0
 ; GCN-NEXT:    v_writelane_b32 v40, s35, 1
 ; GCN-NEXT:    v_writelane_b32 v40, s36, 2
-; GCN-NEXT:    v_writelane_b32 v40, s38, 3
-; GCN-NEXT:    v_writelane_b32 v40, s39, 4
-; GCN-NEXT:    v_writelane_b32 v40, s40, 5
-; GCN-NEXT:    v_writelane_b32 v40, s41, 6
-; GCN-NEXT:    v_writelane_b32 v40, s42, 7
-; GCN-NEXT:    v_writelane_b32 v40, s43, 8
-; GCN-NEXT:    v_writelane_b32 v40, s44, 9
-; GCN-NEXT:    v_writelane_b32 v40, s45, 10
+; GCN-NEXT:    v_writelane_b32 v40, s37, 3
+; GCN-NEXT:    v_writelane_b32 v40, s38, 4
+; GCN-NEXT:    v_writelane_b32 v40, s39, 5
+; GCN-NEXT:    v_writelane_b32 v40, s40, 6
+; GCN-NEXT:    v_writelane_b32 v40, s41, 7
+; GCN-NEXT:    v_writelane_b32 v40, s42, 8
+; GCN-NEXT:    v_writelane_b32 v40, s43, 9
+; GCN-NEXT:    v_writelane_b32 v40, s44, 10
 ; GCN-NEXT:    v_writelane_b32 v40, s46, 11
 ; GCN-NEXT:    v_writelane_b32 v40, s47, 12
 ; GCN-NEXT:    v_writelane_b32 v40, s48, 13
 ; GCN-NEXT:    v_writelane_b32 v40, s49, 14
 ; GCN-NEXT:    v_writelane_b32 v40, s30, 15
 ; GCN-NEXT:    v_writelane_b32 v40, s31, 16
-; GCN-NEXT:    s_mov_b32 s34, s14
-; GCN-NEXT:    s_mov_b32 s35, s13
-; GCN-NEXT:    s_mov_b32 s36, s12
-; GCN-NEXT:    s_mov_b64 s[38:39], s[10:11]
-; GCN-NEXT:    s_mov_b64 s[40:41], s[8:9]
-; GCN-NEXT:    s_mov_b64 s[42:43], s[6:7]
-; GCN-NEXT:    s_mov_b64 s[44:45], s[4:5]
+; GCN-NEXT:    s_mov_b32 s42, s14
+; GCN-NEXT:    s_mov_b32 s43, s13
+; GCN-NEXT:    s_mov_b32 s44, s12
+; GCN-NEXT:    s_mov_b64 s[34:35], s[10:11]
+; GCN-NEXT:    s_mov_b64 s[36:37], s[8:9]
+; GCN-NEXT:    s_mov_b64 s[38:39], s[6:7]
+; GCN-NEXT:    s_mov_b64 s[40:41], s[4:5]
 ; GCN-NEXT:    s_mov_b64 s[46:47], exec
 ; GCN-NEXT:  BB4_1: ; =>This Inner Loop Header: Depth=1
 ; GCN-NEXT:    v_readfirstlane_b32 s16, v0
 ; GCN-NEXT:    v_readfirstlane_b32 s17, v1
 ; GCN-NEXT:    v_cmp_eq_u64_e32 vcc, s[16:17], v[0:1]
 ; GCN-NEXT:    s_and_saveexec_b64 s[48:49], vcc
-; GCN-NEXT:    s_mov_b64 s[4:5], s[44:45]
-; GCN-NEXT:    s_mov_b64 s[6:7], s[42:43]
-; GCN-NEXT:    s_mov_b64 s[8:9], s[40:41]
-; GCN-NEXT:    s_mov_b64 s[10:11], s[38:39]
-; GCN-NEXT:    s_mov_b32 s12, s36
-; GCN-NEXT:    s_mov_b32 s13, s35
-; GCN-NEXT:    s_mov_b32 s14, s34
+; GCN-NEXT:    s_mov_b64 s[4:5], s[40:41]
+; GCN-NEXT:    s_mov_b64 s[6:7], s[38:39]
+; GCN-NEXT:    s_mov_b64 s[8:9], s[36:37]
+; GCN-NEXT:    s_mov_b64 s[10:11], s[34:35]
+; GCN-NEXT:    s_mov_b32 s12, s44
+; GCN-NEXT:    s_mov_b32 s13, s43
+; GCN-NEXT:    s_mov_b32 s14, s42
 ; GCN-NEXT:    s_swappc_b64 s[30:31], s[16:17]
 ; GCN-NEXT:    v_mov_b32_e32 v2, v0
 ; GCN-NEXT:    ; implicit-def: $vgpr0_vgpr1
@@ -424,14 +428,14 @@ define i32 @test_indirect_call_vgpr_ptr_ret(i32()* %fptr) {
 ; GCN-NEXT:    v_readlane_b32 s48, v40, 13
 ; GCN-NEXT:    v_readlane_b32 s47, v40, 12
 ; GCN-NEXT:    v_readlane_b32 s46, v40, 11
-; GCN-NEXT:    v_readlane_b32 s45, v40, 10
-; GCN-NEXT:    v_readlane_b32 s44, v40, 9
-; GCN-NEXT:    v_readlane_b32 s43, v40, 8
-; GCN-NEXT:    v_readlane_b32 s42, v40, 7
-; GCN-NEXT:    v_readlane_b32 s41, v40, 6
-; GCN-NEXT:    v_readlane_b32 s40, v40, 5
-; GCN-NEXT:    v_readlane_b32 s39, v40, 4
-; GCN-NEXT:    v_readlane_b32 s38, v40, 3
+; GCN-NEXT:    v_readlane_b32 s44, v40, 10
+; GCN-NEXT:    v_readlane_b32 s43, v40, 9
+; GCN-NEXT:    v_readlane_b32 s42, v40, 8
+; GCN-NEXT:    v_readlane_b32 s41, v40, 7
+; GCN-NEXT:    v_readlane_b32 s40, v40, 6
+; GCN-NEXT:    v_readlane_b32 s39, v40, 5
+; GCN-NEXT:    v_readlane_b32 s38, v40, 4
+; GCN-NEXT:    v_readlane_b32 s37, v40, 3
 ; GCN-NEXT:    v_readlane_b32 s36, v40, 2
 ; GCN-NEXT:    v_readlane_b32 s35, v40, 1
 ; GCN-NEXT:    v_readlane_b32 s34, v40, 0
@@ -460,27 +464,27 @@ define void @test_indirect_call_vgpr_ptr_in_branch(void()* %fptr, i1 %cond) {
 ; GCN-NEXT:    v_writelane_b32 v40, s34, 0
 ; GCN-NEXT:    v_writelane_b32 v40, s35, 1
 ; GCN-NEXT:    v_writelane_b32 v40, s36, 2
-; GCN-NEXT:    v_writelane_b32 v40, s38, 3
-; GCN-NEXT:    v_writelane_b32 v40, s39, 4
-; GCN-NEXT:    v_writelane_b32 v40, s40, 5
-; GCN-NEXT:    v_writelane_b32 v40, s41, 6
-; GCN-NEXT:    v_writelane_b32 v40, s42, 7
-; GCN-NEXT:    v_writelane_b32 v40, s43, 8
-; GCN-NEXT:    v_writelane_b32 v40, s44, 9
-; GCN-NEXT:    v_writelane_b32 v40, s45, 10
+; GCN-NEXT:    v_writelane_b32 v40, s37, 3
+; GCN-NEXT:    v_writelane_b32 v40, s38, 4
+; GCN-NEXT:    v_writelane_b32 v40, s39, 5
+; GCN-NEXT:    v_writelane_b32 v40, s40, 6
+; GCN-NEXT:    v_writelane_b32 v40, s41, 7
+; GCN-NEXT:    v_writelane_b32 v40, s42, 8
+; GCN-NEXT:    v_writelane_b32 v40, s43, 9
+; GCN-NEXT:    v_writelane_b32 v40, s44, 10
 ; GCN-NEXT:    v_writelane_b32 v40, s46, 11
 ; GCN-NEXT:    v_writelane_b32 v40, s47, 12
 ; GCN-NEXT:    v_writelane_b32 v40, s48, 13
 ; GCN-NEXT:    v_writelane_b32 v40, s49, 14
 ; GCN-NEXT:    v_writelane_b32 v40, s50, 15
 ; GCN-NEXT:    v_writelane_b32 v40, s51, 16
-; GCN-NEXT:    s_mov_b32 s34, s14
-; GCN-NEXT:    s_mov_b32 s35, s13
-; GCN-NEXT:    s_mov_b32 s36, s12
-; GCN-NEXT:    s_mov_b64 s[38:39], s[10:11]
-; GCN-NEXT:    s_mov_b64 s[40:41], s[8:9]
-; GCN-NEXT:    s_mov_b64 s[42:43], s[6:7]
-; GCN-NEXT:    s_mov_b64 s[44:45], s[4:5]
+; GCN-NEXT:    s_mov_b32 s42, s14
+; GCN-NEXT:    s_mov_b32 s43, s13
+; GCN-NEXT:    s_mov_b32 s44, s12
+; GCN-NEXT:    s_mov_b64 s[34:35], s[10:11]
+; GCN-NEXT:    s_mov_b64 s[36:37], s[8:9]
+; GCN-NEXT:    s_mov_b64 s[38:39], s[6:7]
+; GCN-NEXT:    s_mov_b64 s[40:41], s[4:5]
 ; GCN-NEXT:    v_and_b32_e32 v2, 1, v2
 ; GCN-NEXT:    v_cmp_eq_u32_e32 vcc, 1, v2
 ; GCN-NEXT:    s_and_saveexec_b64 s[46:47], vcc
@@ -494,13 +498,13 @@ define void @test_indirect_call_vgpr_ptr_in_branch(void()* %fptr, i1 %cond) {
 ; GCN-NEXT:    v_readfirstlane_b32 s17, v1
 ; GCN-NEXT:    v_cmp_eq_u64_e32 vcc, s[16:17], v[0:1]
 ; GCN-NEXT:    s_and_saveexec_b64 s[50:51], vcc
-; GCN-NEXT:    s_mov_b64 s[4:5], s[44:45]
-; GCN-NEXT:    s_mov_b64 s[6:7], s[42:43]
-; GCN-NEXT:    s_mov_b64 s[8:9], s[40:41]
-; GCN-NEXT:    s_mov_b64 s[10:11], s[38:39]
-; GCN-NEXT:    s_mov_b32 s12, s36
-; GCN-NEXT:    s_mov_b32 s13, s35
-; GCN-NEXT:    s_mov_b32 s14, s34
+; GCN-NEXT:    s_mov_b64 s[4:5], s[40:41]
+; GCN-NEXT:    s_mov_b64 s[6:7], s[38:39]
+; GCN-NEXT:    s_mov_b64 s[8:9], s[36:37]
+; GCN-NEXT:    s_mov_b64 s[10:11], s[34:35]
+; GCN-NEXT:    s_mov_b32 s12, s44
+; GCN-NEXT:    s_mov_b32 s13, s43
+; GCN-NEXT:    s_mov_b32 s14, s42
 ; GCN-NEXT:    s_swappc_b64 s[30:31], s[16:17]
 ; GCN-NEXT:    ; implicit-def: $vgpr0_vgpr1
 ; GCN-NEXT:    ; implicit-def: $vgpr31
@@ -518,14 +522,14 @@ define void @test_indirect_call_vgpr_ptr_in_branch(void()* %fptr, i1 %cond) {
 ; GCN-NEXT:    v_readlane_b32 s48, v40, 13
 ; GCN-NEXT:    v_readlane_b32 s47, v40, 12
 ; GCN-NEXT:    v_readlane_b32 s46, v40, 11
-; GCN-NEXT:    v_readlane_b32 s45, v40, 10
-; GCN-NEXT:    v_readlane_b32 s44, v40, 9
-; GCN-NEXT:    v_readlane_b32 s43, v40, 8
-; GCN-NEXT:    v_readlane_b32 s42, v40, 7
-; GCN-NEXT:    v_readlane_b32 s41, v40, 6
-; GCN-NEXT:    v_readlane_b32 s40, v40, 5
-; GCN-NEXT:    v_readlane_b32 s39, v40, 4
-; GCN-NEXT:    v_readlane_b32 s38, v40, 3
+; GCN-NEXT:    v_readlane_b32 s44, v40, 10
+; GCN-NEXT:    v_readlane_b32 s43, v40, 9
+; GCN-NEXT:    v_readlane_b32 s42, v40, 8
+; GCN-NEXT:    v_readlane_b32 s41, v40, 7
+; GCN-NEXT:    v_readlane_b32 s40, v40, 6
+; GCN-NEXT:    v_readlane_b32 s39, v40, 5
+; GCN-NEXT:    v_readlane_b32 s38, v40, 4
+; GCN-NEXT:    v_readlane_b32 s37, v40, 3
 ; GCN-NEXT:    v_readlane_b32 s36, v40, 2
 ; GCN-NEXT:    v_readlane_b32 s35, v40, 1
 ; GCN-NEXT:    v_readlane_b32 s34, v40, 0

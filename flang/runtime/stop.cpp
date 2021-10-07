@@ -1,4 +1,4 @@
-//===-- runtime/stop.cpp ----------------------------------------*- C++ -*-===//
+//===-- runtime/stop.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "stop.h"
+#include "flang/Runtime/stop.h"
 #include "file.h"
 #include "io-error.h"
 #include "terminator.h"
@@ -124,4 +124,11 @@ void RTNAME(PauseStatementText)(const char *code, std::size_t length) {
   CloseAllExternalUnits("END statement");
   std::exit(EXIT_SUCCESS);
 }
+
+[[noreturn]] void RTNAME(Exit)(int status) {
+  CloseAllExternalUnits("CALL EXIT()");
+  std::exit(status);
+}
+
+[[noreturn]] void RTNAME(Abort)() { std::abort(); }
 }

@@ -909,7 +909,7 @@ module {
 
 module {
   llvm.func @accessGroups(%arg0 : !llvm.ptr<i32>) {
-      // expected-error@below {{expected '@func1' to reference a metadata op}}
+      // expected-error@below {{expected '@func1' to specify a fully qualified reference}}
       %0 = llvm.load %arg0 { "access_groups" = [@func1] } : !llvm.ptr<i32>
       llvm.return
   }
@@ -922,11 +922,87 @@ module {
 
 module {
   llvm.func @accessGroups(%arg0 : !llvm.ptr<i32>) {
-      // expected-error@below {{expected '@metadata' to reference an access_group op}}
-      %0 = llvm.load %arg0 { "access_groups" = [@metadata] } : !llvm.ptr<i32>
+      // expected-error@below {{expected '@accessGroups::@group1' to reference a metadata op}}
+      %0 = llvm.load %arg0 { "access_groups" = [@accessGroups::@group1] } : !llvm.ptr<i32>
       llvm.return
   }
   llvm.metadata @metadata {
+    llvm.return
+  }
+}
+
+// -----
+
+module {
+  llvm.func @accessGroups(%arg0 : !llvm.ptr<i32>) {
+      // expected-error@below {{expected '@metadata::@group1' to be a valid reference}}
+      %0 = llvm.load %arg0 { "access_groups" = [@metadata::@group1] } : !llvm.ptr<i32>
+      llvm.return
+  }
+  llvm.metadata @metadata {
+    llvm.return
+  }
+}
+
+// -----
+
+module {
+  llvm.func @accessGroups(%arg0 : !llvm.ptr<i32>) {
+      // expected-error@below {{expected '@metadata::@scope' to resolve to a llvm.access_group}}
+      %0 = llvm.load %arg0 { "access_groups" = [@metadata::@scope] } : !llvm.ptr<i32>
+      llvm.return
+  }
+  llvm.metadata @metadata {
+    llvm.alias_scope_domain @domain
+    llvm.alias_scope @scope { domain = @domain }
+    llvm.return
+  }
+}
+
+// -----
+
+module {
+  llvm.func @accessGroups(%arg0 : !llvm.ptr<i32>) {
+      // expected-error@below {{attribute 'alias_scopes' failed to satisfy constraint: symbol ref array attribute}}
+      %0 = llvm.load %arg0 { "alias_scopes" = "test" } : !llvm.ptr<i32>
+      llvm.return
+  }
+}
+
+// -----
+
+module {
+  llvm.func @accessGroups(%arg0 : !llvm.ptr<i32>) {
+      // expected-error@below {{attribute 'noalias_scopes' failed to satisfy constraint: symbol ref array attribute}}
+      %0 = llvm.load %arg0 { "noalias_scopes" = "test" } : !llvm.ptr<i32>
+      llvm.return
+  }
+}
+
+// -----
+
+module {
+  llvm.func @aliasScope(%arg0 : !llvm.ptr<i32>) {
+      // expected-error@below {{expected '@metadata::@group' to resolve to a llvm.alias_scope}}
+      %0 = llvm.load %arg0 { "alias_scopes" = [@metadata::@group] } : !llvm.ptr<i32>
+      llvm.return
+  }
+  llvm.metadata @metadata {
+    llvm.access_group @group
+    llvm.return
+  }
+}
+
+// -----
+
+module {
+  llvm.func @aliasScope(%arg0 : !llvm.ptr<i32>) {
+      // expected-error@below {{expected '@metadata::@group' to resolve to a llvm.alias_scope}}
+      %0 = llvm.load %arg0 { "noalias_scopes" = [@metadata::@group] } : !llvm.ptr<i32>
+      llvm.return
+  }
+  llvm.metadata @metadata {
+    llvm.access_group @group
     llvm.return
   }
 }
@@ -1088,4 +1164,42 @@ llvm.func @gpu_wmma_mma_op_invalid_result(%arg0: vector<2 x f16>, %arg1: vector<
   // expected-error@+1 {{'nvvm.wmma.m16n16k16.mma.row.row.f32.f32' op expected result type to be a struct of 8 f32s}}
   %0 = nvvm.wmma.m16n16k16.mma.row.row.f32.f32 %arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6, %arg7, %arg8, %arg9, %arg10, %arg11, %arg12, %arg13, %arg14, %arg15, %arg16, %arg17, %arg18, %arg19, %arg20, %arg21, %arg22, %arg23 : (vector<2xf16>, vector<2xf16>, vector<2xf16>, vector<2xf16>, vector<2xf16>, vector<2xf16>, vector<2xf16>, vector<2xf16>, vector<2xf16>, vector<2xf16>, vector<2xf16>, vector<2xf16>, vector<2xf16>, vector<2xf16>, vector<2xf16>, vector<2xf16>, f32, f32, f32, f32, f32, f32, f32, f32) -> !llvm.struct<(f32, f32, f32, f32, f32, f32, f32, vector<2xf16>)>
   llvm.return
+}
+
+// -----
+
+llvm.func @caller() {
+  // expected-error @below {{expected function call to produce a value}}
+  llvm.call @callee() : () -> ()
+  llvm.return
+}
+
+llvm.func @callee() -> i32
+
+// -----
+
+llvm.func @caller() {
+  // expected-error @below {{calling function with void result must not produce values}}
+  %0 = llvm.call @callee() : () -> i32
+  llvm.return
+}
+
+llvm.func @callee() -> ()
+
+// -----
+
+llvm.func @caller() {
+  // expected-error @below {{expected function with 0 or 1 result}}
+  %0:2 = llvm.call @callee() : () -> (i32, f32)
+  llvm.return
+}
+
+llvm.func @callee() -> !llvm.struct<(i32, f32)>
+
+// -----
+
+func @bitcast(%arg0: vector<2x3xf32>) {
+  // expected-error @below {{op operand #0 must be LLVM-compatible non-aggregate type}}
+  llvm.bitcast %arg0 : vector<2x3xf32> to vector<2x3xi32>
+  return
 }

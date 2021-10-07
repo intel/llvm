@@ -59,7 +59,7 @@ protected:
   // Template alias so that all Instruction storing alignment use the same
   // definiton.
   // Valid alignments are powers of two from 2^0 to 2^MaxAlignmentExponent =
-  // 2^29. We store them as Log2(Alignment), so we need 5 bits to encode the 30
+  // 2^30. We store them as Log2(Alignment), so we need 5 bits to encode the 31
   // possible values.
   template <unsigned Offset>
   using AlignmentBitfieldElementT =
@@ -307,11 +307,6 @@ public:
     Value::getAllMetadata(MDs);
   }
 
-  /// Fills the AAMDNodes structure with AA metadata from this instruction.
-  /// When Merge is true, the existing AA metadata is merged with that from this
-  /// instruction providing the most-general result.
-  void getAAMetadata(AAMDNodes &N, bool Merge = false) const;
-
   /// Set the metadata of the specified kind to the specified node. This updates
   /// or replaces metadata if already present, or removes it if Node is null.
   void setMetadata(unsigned KindID, MDNode *Node);
@@ -332,6 +327,8 @@ public:
   /// @{
   /// Passes are required to drop metadata they don't understand. This is a
   /// convenience method for passes to do so.
+  /// dropUndefImplyingAttrsAndUnknownMetadata should be used instead of
+  /// this API if the Instruction being modified is a call.
   void dropUnknownNonDebugMetadata(ArrayRef<unsigned> KnownIDs);
   void dropUnknownNonDebugMetadata() {
     return dropUnknownNonDebugMetadata(None);
@@ -350,7 +347,10 @@ public:
   /// to the existing node.
   void addAnnotationMetadata(StringRef Annotation);
 
-  /// Sets the metadata on this instruction from the AAMDNodes structure.
+  /// Returns the AA metadata for this instruction.
+  AAMDNodes getAAMetadata() const;
+
+  /// Sets the AA metadata on this instruction from the AAMDNodes structure.
   void setAAMetadata(const AAMDNodes &N);
 
   /// Retrieve the raw weight values of a conditional branch or select.
@@ -390,6 +390,13 @@ public:
   /// Drops flags that may cause this instruction to evaluate to poison despite
   /// having non-poison inputs.
   void dropPoisonGeneratingFlags();
+
+  /// This function drops non-debug unknown metadata (through
+  /// dropUnknownNonDebugMetadata). For calls, it also drops parameter and 
+  /// return attributes that can cause undefined behaviour. Both of these should
+  /// be done by passes which move instructions in IR.
+  void
+  dropUndefImplyingAttrsAndUnknownMetadata(ArrayRef<unsigned> KnownIDs = {});
 
   /// Determine whether the exact flag is set.
   bool isExact() const;
@@ -627,11 +634,16 @@ public:
 
   /// Return true if the instruction may have side effects.
   ///
+  /// Side effects are:
+  ///  * Writing to memory.
+  ///  * Unwinding.
+  ///  * Not returning (e.g. an infinite loop).
+  ///
   /// Note that this does not consider malloc and alloca to have side
   /// effects because the newly allocated memory is completely invisible to
   /// instructions which don't use the returned value.  For cases where this
   /// matters, isSafeToSpeculativelyExecute may be more appropriate.
-  bool mayHaveSideEffects() const { return mayWriteToMemory() || mayThrow(); }
+  bool mayHaveSideEffects() const;
 
   /// Return true if the instruction can be removed if the result is unused.
   ///

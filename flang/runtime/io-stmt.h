@@ -12,12 +12,12 @@
 #define FORTRAN_RUNTIME_IO_STMT_H_
 
 #include "connection.h"
-#include "descriptor.h"
 #include "file.h"
 #include "format.h"
 #include "internal-unit.h"
-#include "io-api.h"
 #include "io-error.h"
+#include "flang/Runtime/descriptor.h"
+#include "flang/Runtime/io-api.h"
 #include <functional>
 #include <type_traits>
 #include <variant>
@@ -52,7 +52,19 @@ struct OutputStatementState {};
 template <Direction D>
 using IoDirectionState = std::conditional_t<D == Direction::Input,
     InputStatementState, OutputStatementState>;
-struct FormattedIoStatementState {};
+
+// Common state for all kinds of formatted I/O
+template <Direction D> class FormattedIoStatementState {};
+template <> class FormattedIoStatementState<Direction::Input> {
+public:
+  std::size_t GetEditDescriptorChars() const;
+  void GotChar(int);
+
+private:
+  // Account of characters read for edit descriptors (i.e., formatted I/O
+  // with a FORMAT, not list-directed or NAMELIST), not including padding.
+  std::size_t chars_{0}; // for READ(SIZE=)
+};
 
 // The Cookie type in the I/O API is a pointer (for C) to this class.
 class IoStatementState {
@@ -83,6 +95,7 @@ public:
   bool Inquire(InquiryKeywordHash, bool &);
   bool Inquire(InquiryKeywordHash, std::int64_t, bool &); // PENDING=
   bool Inquire(InquiryKeywordHash, std::int64_t &);
+  void GotChar(signed int = 1); // for READ(SIZE=); can be <0
 
   MutableModes &mutableModes();
   ConnectionState &GetConnectionState();
@@ -115,8 +128,7 @@ public:
   std::optional<char32_t> GetNextNonBlank();
 
   template <Direction D> void CheckFormattedStmtType(const char *name) {
-    if (!get_if<FormattedIoStatementState>() ||
-        !get_if<IoDirectionState<D>>()) {
+    if (!get_if<FormattedIoStatementState<D>>()) {
       GetIoErrorHandler().Crash(
           "%s called for I/O statement that is not formatted %s", name,
           D == Direction::Output ? "output" : "input");
@@ -191,7 +203,7 @@ struct IoStatementBase : public IoErrorHandler {
 template <Direction> class ListDirectedStatementState;
 template <>
 class ListDirectedStatementState<Direction::Output>
-    : public FormattedIoStatementState {
+    : public FormattedIoStatementState<Direction::Output> {
 public:
   bool EmitLeadingSpaceOrAdvance(
       IoStatementState &, std::size_t = 1, bool isCharacter = false);
@@ -209,7 +221,7 @@ private:
 };
 template <>
 class ListDirectedStatementState<Direction::Input>
-    : public FormattedIoStatementState {
+    : public FormattedIoStatementState<Direction::Input> {
 public:
   // Skips value separators, handles repetition and null values.
   // Vacant when '/' appears; present with descriptor == ListDirectedNullValue
@@ -223,15 +235,14 @@ public:
   // successive NAMELIST input item.
   void ResetForNextNamelistItem() {
     remaining_ = 0;
-    isFirstItem_ = true;
+    eatComma_ = false;
     realPart_ = imaginaryPart_ = false;
   }
 
 private:
   int remaining_{0}; // for "r*" repetition
-  std::int64_t initialRecordNumber_;
-  std::int64_t initialPositionInRecord_;
-  bool isFirstItem_{true}; // leading separator implies null first item
+  std::int64_t repeatPositionInRecord_;
+  bool eatComma_{false}; // consume comma after previously read item
   bool hitSlash_{false}; // once '/' is seen, nullify further items
   bool realPart_{false};
   bool imaginaryPart_{false};
@@ -270,7 +281,7 @@ protected:
 template <Direction DIR, typename CHAR>
 class InternalFormattedIoStatementState
     : public InternalIoStatementState<DIR, CHAR>,
-      public FormattedIoStatementState {
+      public FormattedIoStatementState<DIR> {
 public:
   using CharType = CHAR;
   using typename InternalIoStatementState<DIR, CharType>::Buffer;
@@ -354,8 +365,9 @@ private:
 };
 
 template <Direction DIR, typename CHAR>
-class ExternalFormattedIoStatementState : public ExternalIoStatementState<DIR>,
-                                          public FormattedIoStatementState {
+class ExternalFormattedIoStatementState
+    : public ExternalIoStatementState<DIR>,
+      public FormattedIoStatementState<DIR> {
 public:
   using CharType = CHAR;
   ExternalFormattedIoStatementState(ExternalFileUnit &, const CharType *format,
@@ -412,7 +424,7 @@ private:
 
 template <Direction DIR, typename CHAR>
 class ChildFormattedIoStatementState : public ChildIoStatementState<DIR>,
-                                       public FormattedIoStatementState {
+                                       public FormattedIoStatementState<DIR> {
 public:
   using CharType = CHAR;
   ChildFormattedIoStatementState(ChildIo &, const CharType *format,
@@ -585,6 +597,10 @@ class InquireIOLengthState : public NoUnitIoStatementState,
 public:
   InquireIOLengthState(const char *sourceFile = nullptr, int sourceLine = 0);
   std::size_t bytes() const { return bytes_; }
+  bool Emit(const char *, std::size_t, std::size_t elementBytes);
+  bool Emit(const char *, std::size_t);
+  bool Emit(const char16_t *, std::size_t chars);
+  bool Emit(const char32_t *, std::size_t chars);
 
 private:
   std::size_t bytes_{0};

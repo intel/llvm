@@ -97,7 +97,15 @@ static bool isDomainMVE(MachineInstr *MI) {
   return Domain == ARMII::DomainMVE;
 }
 
+static int getVecSize(const MachineInstr &MI) {
+  const MCInstrDesc &MCID = MI.getDesc();
+  uint64_t Flags = MCID.TSFlags;
+  return (Flags & ARMII::VecSize) >> ARMII::VecSizeShift;
+}
+
 static bool shouldInspect(MachineInstr &MI) {
+  if (MI.isDebugInstr())
+    return false;
   return isDomainMVE(&MI) || isVectorPredicate(&MI) || hasVPRUse(MI);
 }
 
@@ -371,6 +379,7 @@ namespace {
     SmallVector<MachineInstr*, 4> VCTPs;
     SmallPtrSet<MachineInstr*, 4> ToRemove;
     SmallPtrSet<MachineInstr*, 4> BlockMasksToRecompute;
+    SmallPtrSet<MachineInstr*, 4> DoubleWidthResultInstrs;
     bool Revert = false;
     bool CannotTailPredicate = false;
 
@@ -730,6 +739,20 @@ bool LowOverheadLoop::ValidateTailPredicate() {
     return false;
   }
 
+  // For any DoubleWidthResultInstrs we found whilst scanning instructions, they
+  // need to compute an output size that is smaller than the VCTP mask operates
+  // on. The VecSize of the DoubleWidthResult is the larger vector size - the
+  // size it extends into, so any VCTP VecSize <= is valid.
+  unsigned VCTPVecSize = getVecSize(*VCTP);
+  for (MachineInstr *MI : DoubleWidthResultInstrs) {
+    unsigned InstrVecSize = getVecSize(*MI);
+    if (InstrVecSize > VCTPVecSize) {
+      LLVM_DEBUG(dbgs() << "ARM Loops: Double width result larger than VCTP "
+                        << "VecSize:\n" << *MI);
+      return false;
+    }
+  }
+
   // Check that the value change of the element count is what we expect and
   // that the predication will be equivalent. For this we need:
   // NumElements = NumElements - VectorWidth. The sub will be a sub immediate
@@ -880,6 +903,10 @@ static bool producesFalseLanesZero(MachineInstr &MI,
       continue;
     if (!isRegInClass(MO, QPRs) && AllowScalars)
       continue;
+    // Skip the lr predicate reg
+    int PIdx = llvm::findFirstVPTPredOperandIdx(MI);
+    if (PIdx != -1 && (int)MI.getOperandNo(&MO) == PIdx + 2)
+      continue;
 
     // Check that this instruction will produce zeros in its false lanes:
     // - If it only consumes false lanes zero or constant 0 (vmov #0)
@@ -927,6 +954,8 @@ bool LowOverheadLoop::ValidateLiveOuts() {
   SmallPtrSet<MachineInstr *, 4> Predicated;
   MachineBasicBlock *Header = ML.getHeader();
 
+  LLVM_DEBUG(dbgs() << "ARM Loops: Validating Live outs\n");
+
   for (auto &MI : *Header) {
     if (!shouldInspect(MI))
       continue;
@@ -944,11 +973,25 @@ bool LowOverheadLoop::ValidateLiveOuts() {
       FalseLanesZero.insert(&MI);
     else if (MI.getNumDefs() == 0)
       continue;
-    else if (!isPredicated && retainsOrReduces)
+    else if (!isPredicated && retainsOrReduces) {
+      LLVM_DEBUG(dbgs() << "  Unpredicated instruction that retainsOrReduces: " << MI);
       return false;
+    }
     else if (!isPredicated)
       FalseLanesUnknown.insert(&MI);
   }
+
+  LLVM_DEBUG({
+    dbgs() << "  Predicated:\n";
+    for (auto *I : Predicated)
+      dbgs() << "  " << *I;
+    dbgs() << "  FalseLanesZero:\n";
+    for (auto *I : FalseLanesZero)
+      dbgs() << "  " << *I;
+    dbgs() << "  FalseLanesUnknown:\n";
+    for (auto *I : FalseLanesUnknown)
+      dbgs() << "  " << *I;
+  });
 
   auto HasPredicatedUsers = [this](MachineInstr *MI, const MachineOperand &MO,
                               SmallPtrSetImpl<MachineInstr *> &Predicated) {
@@ -973,7 +1016,7 @@ bool LowOverheadLoop::ValidateLiveOuts() {
       if (!isRegInClass(MO, QPRs) || !MO.isDef())
         continue;
       if (!HasPredicatedUsers(MI, MO, Predicated)) {
-        LLVM_DEBUG(dbgs() << "ARM Loops: Found an unknown def of : "
+        LLVM_DEBUG(dbgs() << "  Found an unknown def of : "
                           << TRI.getRegAsmName(MO.getReg()) << " at " << *MI);
         NonPredicated.insert(MI);
         break;
@@ -993,8 +1036,10 @@ bool LowOverheadLoop::ValidateLiveOuts() {
   for (const MachineBasicBlock::RegisterMaskPair &RegMask : ExitBB->liveins()) {
     // TODO: Instead of blocking predication, we could move the vctp to the exit
     // block and calculate it's operand there in or the preheader.
-    if (RegMask.PhysReg == ARM::VPR)
+    if (RegMask.PhysReg == ARM::VPR) {
+      LLVM_DEBUG(dbgs() << "  VPR is live in to the exit block.");
       return false;
+    }
     // Check Q-regs that are live in the exit blocks. We don't collect scalars
     // because they won't be affected by lane predication.
     if (QPRs->contains(RegMask.PhysReg))
@@ -1010,7 +1055,7 @@ bool LowOverheadLoop::ValidateLiveOuts() {
   // legality.
   for (auto *MI : LiveOutMIs) {
     if (NonPredicated.count(MI) && FalseLanesUnknown.contains(MI)) {
-      LLVM_DEBUG(dbgs() << "ARM Loops: Unable to handle live out: " << *MI);
+      LLVM_DEBUG(dbgs() << "  Unable to handle live out: " << *MI);
       return false;
     }
   }
@@ -1121,7 +1166,7 @@ static bool ValidateMVEStore(MachineInstr *MI, MachineLoop *ML) {
     return false;
   int FI = GetFrameIndex(MI->memoperands().front());
 
-  MachineFrameInfo FrameInfo = MI->getParent()->getParent()->getFrameInfo();
+  auto &FrameInfo = MI->getParent()->getParent()->getFrameInfo();
   if (FI == -1 || !FrameInfo.isSpillSlotObjectIndex(FI))
     return false;
 
@@ -1211,8 +1256,13 @@ bool LowOverheadLoop::ValidateMVEInst(MachineInstr *MI) {
   bool RequiresExplicitPredication =
     (MCID.TSFlags & ARMII::ValidForTailPredication) == 0;
   if (isDomainMVE(MI) && RequiresExplicitPredication) {
-    LLVM_DEBUG(if (!IsUse)
-               dbgs() << "ARM Loops: Can't tail predicate: " << *MI);
+    if (!IsUse && producesDoubleWidthResult(*MI)) {
+      DoubleWidthResultInstrs.insert(MI);
+      return true;
+    }
+
+    LLVM_DEBUG(if (!IsUse) dbgs()
+               << "ARM Loops: Can't tail predicate: " << *MI);
     return IsUse;
   }
 

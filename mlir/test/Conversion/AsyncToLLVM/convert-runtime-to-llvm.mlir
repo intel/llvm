@@ -10,7 +10,7 @@ func @create_token() {
 // CHECK-LABEL: @create_value
 func @create_value() {
   // CHECK: %[[NULL:.*]] = llvm.mlir.null : !llvm.ptr<f32>
-  // CHECK: %[[ONE:.*]] = llvm.mlir.constant(1 : i32) : i32
+  // CHECK: %[[ONE:.*]] = llvm.mlir.constant(1 : i64) : i64
   // CHECK: %[[OFFSET:.*]] = llvm.getelementptr %[[NULL]][%[[ONE]]]
   // CHECK: %[[SIZE:.*]] = llvm.ptrtoint %[[OFFSET]]
   // CHECK: %[[VALUE:.*]] = call @mlirAsyncRuntimeCreateValue(%[[SIZE]])
@@ -21,7 +21,7 @@ func @create_value() {
 // CHECK-LABEL: @create_group
 func @create_group() {
   // CHECK: %[[C:.*]] = constant 1 : index
-  // CHECK: %[[S:.*]] = unrealized_conversion_cast %[[C]] : index to i64
+  // CHECK: %[[S:.*]] = builtin.unrealized_conversion_cast %[[C]] : index to i64
   %c = constant 1 : index
   // CHECK: %[[GROUP:.*]] = call @mlirAsyncRuntimeCreateGroup(%[[S]])
   %0 = async.runtime.create_group  %c: !async.group

@@ -102,10 +102,10 @@ define i32* @test2b(i32* %p, i64 %x, i64 %y) {
 ; PR51069
 define i32* @test2c(i32* %p, i64 %x, i64 %y) {
 ; CHECK-LABEL: @test2c(
-; CHECK-NEXT:    [[ICMP:%.*]] = icmp ugt i64 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[GEP1:%.*]] = getelementptr inbounds i32, i32* [[P:%.*]], i64 [[X:%.*]]
+; CHECK-NEXT:    [[ICMP:%.*]] = icmp ugt i64 [[X]], [[Y:%.*]]
 ; CHECK-NEXT:    [[SEL_IDX:%.*]] = select i1 [[ICMP]], i64 0, i64 6
-; CHECK-NEXT:    [[SEL_IDX1:%.*]] = add i64 [[SEL_IDX]], [[X]]
-; CHECK-NEXT:    [[SEL:%.*]] = getelementptr i32, i32* [[P:%.*]], i64 [[SEL_IDX1]]
+; CHECK-NEXT:    [[SEL:%.*]] = getelementptr i32, i32* [[GEP1]], i64 [[SEL_IDX]]
 ; CHECK-NEXT:    ret i32* [[SEL]]
 ;
   %gep1 = getelementptr inbounds i32, i32* %p, i64 %x
@@ -118,10 +118,10 @@ define i32* @test2c(i32* %p, i64 %x, i64 %y) {
 ; PR51069
 define i32* @test2d(i32* %p, i64 %x, i64 %y) {
 ; CHECK-LABEL: @test2d(
-; CHECK-NEXT:    [[ICMP:%.*]] = icmp ugt i64 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[GEP1:%.*]] = getelementptr inbounds i32, i32* [[P:%.*]], i64 [[X:%.*]]
+; CHECK-NEXT:    [[ICMP:%.*]] = icmp ugt i64 [[X]], [[Y:%.*]]
 ; CHECK-NEXT:    [[SEL_IDX:%.*]] = select i1 [[ICMP]], i64 6, i64 0
-; CHECK-NEXT:    [[SEL_IDX1:%.*]] = add i64 [[SEL_IDX]], [[X]]
-; CHECK-NEXT:    [[SEL:%.*]] = getelementptr i32, i32* [[P:%.*]], i64 [[SEL_IDX1]]
+; CHECK-NEXT:    [[SEL:%.*]] = getelementptr i32, i32* [[GEP1]], i64 [[SEL_IDX]]
 ; CHECK-NEXT:    ret i32* [[SEL]]
 ;
   %gep1 = getelementptr inbounds i32, i32* %p, i64 %x
@@ -244,3 +244,16 @@ define i32* @test6(i32* %p, i64 %x, i64 %y) {
   ret i32* %sel
 }
 declare void @use_i32p(i32*)
+
+; We cannot create a select-with-idx with a vector condition but scalar idx.
+
+define <2 x i64*> @test7(<2 x i64*> %p1, i64 %idx, <2 x i1> %cc) {
+; CHECK-LABEL: @test7(
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr i64, <2 x i64*> [[P1:%.*]], i64 [[IDX]]
+; CHECK-NEXT:    [[SELECT:%.*]] = select <2 x i1> [[CC:%.*]], <2 x i64*> [[P1:%.*]], <2 x i64*> [[GEP]]
+; CHECK-NEXT:    ret <2 x i64*> [[SELECT]]
+;
+  %gep = getelementptr i64, <2 x i64*> %p1, i64 %idx
+  %select = select <2 x i1> %cc, <2 x i64*> %p1, <2 x i64*> %gep
+  ret <2 x i64*> %select
+}

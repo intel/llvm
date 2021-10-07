@@ -35,10 +35,13 @@ public:
   size_t SetRegisterInfo(const lldb_private::StructuredData::Dictionary &dict,
                          const lldb_private::ArchSpec &arch);
 
-  void AddRegister(lldb_private::RegisterInfo &reg_info,
-                   lldb_private::ConstString &reg_name,
-                   lldb_private::ConstString &reg_alt_name,
+  void AddRegister(lldb_private::RegisterInfo reg_info,
                    lldb_private::ConstString &set_name);
+
+  // Add a new register and cross-link it via invalidate_regs with other
+  // registers sharing its value_regs.
+  void AddSupplementaryRegister(lldb_private::RegisterInfo reg_info,
+                                lldb_private::ConstString &set_name);
 
   void Finalize(const lldb_private::ArchSpec &arch);
 
@@ -83,6 +86,16 @@ protected:
   typedef std::vector<uint8_t> dwarf_opcode;
   typedef std::map<uint32_t, dwarf_opcode> dynamic_reg_size_map;
 
+  llvm::Expected<uint32_t> ByteOffsetFromSlice(uint32_t index,
+                                               llvm::StringRef slice_str,
+                                               lldb::ByteOrder byte_order);
+  llvm::Expected<uint32_t> ByteOffsetFromComposite(
+      uint32_t index, lldb_private::StructuredData::Array &composite_reg_list,
+      lldb::ByteOrder byte_order);
+  llvm::Expected<uint32_t> ByteOffsetFromRegInfoDict(
+      uint32_t index, lldb_private::StructuredData::Dictionary &reg_info_dict,
+      lldb::ByteOrder byte_order);
+
   void MoveFrom(DynamicRegisterInfo &&info);
 
   void ConfigureOffsets();
@@ -99,4 +112,5 @@ protected:
   bool m_finalized = false;
   bool m_is_reconfigurable = false;
 };
+
 #endif // LLDB_SOURCE_PLUGINS_PROCESS_UTILITY_DYNAMICREGISTERINFO_H

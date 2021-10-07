@@ -90,6 +90,9 @@ private:
   bool InPure() const {
     return innermostSymbol_ && IsPureProcedure(*innermostSymbol_);
   }
+  bool InElemental() const {
+    return innermostSymbol_ && innermostSymbol_->attrs().test(Attr::ELEMENTAL);
+  }
   bool InFunction() const {
     return innermostSymbol_ && IsFunction(*innermostSymbol_);
   }
@@ -452,24 +455,30 @@ void CheckHelper::CheckObjectEntity(
   CheckAssumedTypeEntity(symbol, details);
   WarnMissingFinal(symbol);
   if (!details.coshape().empty()) {
-    bool isDeferredShape{details.coshape().IsDeferredShape()};
+    bool isDeferredCoshape{details.coshape().IsDeferredShape()};
     if (IsAllocatable(symbol)) {
-      if (!isDeferredShape) { // C827
+      if (!isDeferredCoshape) { // C827
         messages_.Say("'%s' is an ALLOCATABLE coarray and must have a deferred"
                       " coshape"_err_en_US,
             symbol.name());
       }
     } else if (symbol.owner().IsDerivedType()) { // C746
       std::string deferredMsg{
-          isDeferredShape ? "" : " and have a deferred coshape"};
+          isDeferredCoshape ? "" : " and have a deferred coshape"};
       messages_.Say("Component '%s' is a coarray and must have the ALLOCATABLE"
                     " attribute%s"_err_en_US,
           symbol.name(), deferredMsg);
     } else {
       if (!details.coshape().IsAssumedSize()) { // C828
         messages_.Say(
-            "Component '%s' is a non-ALLOCATABLE coarray and must have"
-            " an explicit coshape"_err_en_US,
+            "'%s' is a non-ALLOCATABLE coarray and must have an explicit coshape"_err_en_US,
+            symbol.name());
+      }
+    }
+    if (const DeclTypeSpec * type{details.type()}) {
+      if (IsBadCoarrayType(type->AsDerived())) { // C747 & C824
+        messages_.Say(
+            "Coarray '%s' may not have type TEAM_TYPE, C_PTR, or C_FUNPTR"_err_en_US,
             symbol.name());
       }
     }
@@ -526,7 +535,45 @@ void CheckHelper::CheckObjectEntity(
     messages_.Say("OPTIONAL attribute may apply only to a dummy "
                   "argument"_err_en_US); // C849
   }
-  if (IsStaticallyInitialized(symbol, true /* ignore DATA inits */)) { // C808
+  if (InElemental()) {
+    if (details.isDummy()) { // C15100
+      if (details.shape().Rank() > 0) {
+        messages_.Say(
+            "A dummy argument of an ELEMENTAL procedure must be scalar"_err_en_US);
+      }
+      if (IsAllocatable(symbol)) {
+        messages_.Say(
+            "A dummy argument of an ELEMENTAL procedure may not be ALLOCATABLE"_err_en_US);
+      }
+      if (IsCoarray(symbol)) {
+        messages_.Say(
+            "A dummy argument of an ELEMENTAL procedure may not be a coarray"_err_en_US);
+      }
+      if (IsPointer(symbol)) {
+        messages_.Say(
+            "A dummy argument of an ELEMENTAL procedure may not be a POINTER"_err_en_US);
+      }
+      if (!symbol.attrs().HasAny(Attrs{Attr::VALUE, Attr::INTENT_IN,
+              Attr::INTENT_INOUT, Attr::INTENT_OUT})) { // C15102
+        messages_.Say(
+            "A dummy argument of an ELEMENTAL procedure must have an INTENT() or VALUE attribute"_err_en_US);
+      }
+    } else if (IsFunctionResult(symbol)) { // C15101
+      if (details.shape().Rank() > 0) {
+        messages_.Say(
+            "The result of an ELEMENTAL function must be scalar"_err_en_US);
+      }
+      if (IsAllocatable(symbol)) {
+        messages_.Say(
+            "The result of an ELEMENTAL function may not be ALLOCATABLE"_err_en_US);
+      }
+      if (IsPointer(symbol)) {
+        messages_.Say(
+            "The result of an ELEMENTAL function may not be a POINTER"_err_en_US);
+      }
+    }
+  }
+  if (HasDeclarationInitializer(symbol)) { // C808; ignore DATA initialization
     CheckPointerInitialization(symbol);
     if (IsAutomatic(symbol)) {
       messages_.Say(
@@ -689,7 +736,10 @@ void CheckHelper::CheckProcEntity(
       messages_.Say("A dummy procedure without the POINTER attribute"
                     " may not have an INTENT attribute"_err_en_US);
     }
-
+    if (InElemental()) { // C15100
+      messages_.Say(
+          "An ELEMENTAL subprogram may not have a dummy procedure"_err_en_US);
+    }
     const Symbol *interface { details.interface().symbol() };
     if (!symbol.attrs().test(Attr::INTRINSIC) &&
         (symbol.attrs().test(Attr::ELEMENTAL) ||
@@ -841,6 +891,22 @@ void CheckHelper::CheckSubprogram(
       if (auto *msg{messages_.Say(symbol.name(), *error)}) {
         if (subprogram) {
           msg->Attach(subprogram->name(), "Containing subprogram"_en_US);
+        }
+      }
+    }
+  }
+  if (symbol.attrs().test(Attr::ELEMENTAL)) {
+    // See comment on the similar check in CheckProcEntity()
+    if (details.isDummy()) {
+      messages_.Say("A dummy procedure may not be ELEMENTAL"_err_en_US);
+    } else if (details.dummyArgs().empty()) {
+      messages_.Say(
+          "An ELEMENTAL subprogram must have at least one dummy argument"_err_en_US);
+    } else {
+      for (const Symbol *dummy : details.dummyArgs()) {
+        if (!dummy) { // C15100
+          messages_.Say(
+              "An ELEMENTAL subroutine may not have an alternate return dummy argument"_err_en_US);
         }
       }
     }
@@ -1148,6 +1214,12 @@ bool CheckHelper::CheckDefinedOperator(SourceName opName, GenericKind kind,
     return false;
   }
   std::optional<parser::MessageFixedText> msg;
+  auto checkDefinedOperatorArgs{
+      [&](SourceName opName, const Symbol &specific, const Procedure &proc) {
+        bool arg0Defined{CheckDefinedOperatorArg(opName, specific, proc, 0)};
+        bool arg1Defined{CheckDefinedOperatorArg(opName, specific, proc, 1)};
+        return arg0Defined && arg1Defined;
+      }};
   if (specific.attrs().test(Attr::NOPASS)) { // C774
     msg = "%s procedure '%s' may not have NOPASS attribute"_err_en_US;
   } else if (!proc.functionResult.has_value()) {
@@ -1157,8 +1229,7 @@ bool CheckHelper::CheckDefinedOperator(SourceName opName, GenericKind kind,
           " result"_err_en_US;
   } else if (auto m{CheckNumberOfArgs(kind, proc.dummyArguments.size())}) {
     msg = std::move(m);
-  } else if (!CheckDefinedOperatorArg(opName, specific, proc, 0) |
-      !CheckDefinedOperatorArg(opName, specific, proc, 1)) {
+  } else if (!checkDefinedOperatorArgs(opName, specific, proc)) {
     return false; // error was reported
   } else if (ConflictsWithIntrinsicOperator(kind, proc)) {
     msg = "%s function '%s' conflicts with intrinsic operator"_err_en_US;

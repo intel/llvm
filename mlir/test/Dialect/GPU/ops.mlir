@@ -73,10 +73,13 @@ module attributes {gpu.container_module} {
     %1 = "op"() : () -> (memref<?xf32, 1>)
     // CHECK: %{{.*}} = constant 8
     %cst = constant 8 : index
+    %c0 = constant 0 : i32
     %t0 = gpu.wait async
 
     // CHECK: gpu.launch_func @kernels::@kernel_1 blocks in (%{{.*}}, %{{.*}}, %{{.*}}) threads in (%{{.*}}, %{{.*}}, %{{.*}}) args(%{{.*}} : f32, %{{.*}} : memref<?xf32, 1>)
     gpu.launch_func @kernels::@kernel_1 blocks in (%cst, %cst, %cst) threads in (%cst, %cst, %cst) args(%0 : f32, %1 : memref<?xf32, 1>)
+
+    gpu.launch_func @kernels::@kernel_1 blocks in (%cst, %cst, %cst) threads in (%cst, %cst, %cst) dynamic_shared_memory_size %c0 args(%0 : f32, %1 : memref<?xf32, 1>)
 
     // CHECK: gpu.launch_func @kernels::@kernel_2 blocks in (%{{.*}}, %{{.*}}, %{{.*}}) threads in (%{{.*}}, %{{.*}}, %{{.*}})
     gpu.launch_func @kernels::@kernel_2 blocks in (%cst, %cst, %cst) threads in (%cst, %cst, %cst)
@@ -192,6 +195,17 @@ module attributes {gpu.container_module} {
     %0 = gpu.wait async
     // CHECK: {{.*}} = gpu.memcpy async [%[[t0]]] {{.*}}, {{.*}} : memref<3x7xf32>, memref<3x7xf32, 1>
     %1 = gpu.memcpy async [%0] %dst, %src : memref<3x7xf32>, memref<3x7xf32, 1>
+    return
+  }
+
+  func @memset(%dst : memref<3x7xf32>, %value : f32) {
+    // CHECK-LABEL: func @memset
+    // CHECK: gpu.memset {{.*}}, {{.*}} : memref<3x7xf32>, f32
+    gpu.memset %dst, %value : memref<3x7xf32>, f32
+    // CHECK: %[[t0:.*]] = gpu.wait async
+    %0 = gpu.wait async
+    // CHECK: {{.*}} = gpu.memset async [%[[t0]]] {{.*}}, {{.*}} : memref<3x7xf32>, f32
+    %1 = gpu.memset async [%0] %dst, %value : memref<3x7xf32>, f32
     return
   }
 

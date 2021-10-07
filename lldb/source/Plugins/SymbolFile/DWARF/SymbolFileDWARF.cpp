@@ -687,6 +687,17 @@ static void MakeAbsoluteAndRemap(FileSpec &file_spec, DWARFUnit &dwarf_cu,
     file_spec.SetFile(*remapped_file, FileSpec::Style::native);
 }
 
+/// Return the DW_AT_(GNU_)dwo_name.
+static const char *GetDWOName(DWARFCompileUnit &dwarf_cu,
+                              const DWARFDebugInfoEntry &cu_die) {
+  const char *dwo_name =
+      cu_die.GetAttributeValueAsString(&dwarf_cu, DW_AT_GNU_dwo_name, nullptr);
+  if (!dwo_name)
+    dwo_name =
+        cu_die.GetAttributeValueAsString(&dwarf_cu, DW_AT_dwo_name, nullptr);
+  return dwo_name;
+}
+
 lldb::CompUnitSP SymbolFileDWARF::ParseCompileUnit(DWARFCompileUnit &dwarf_cu) {
   CompUnitSP cu_sp;
   CompileUnit *comp_unit = (CompileUnit *)dwarf_cu.GetUserData();
@@ -701,25 +712,66 @@ lldb::CompUnitSP SymbolFileDWARF::ParseCompileUnit(DWARFCompileUnit &dwarf_cu) {
     } else {
       ModuleSP module_sp(m_objfile_sp->GetModule());
       if (module_sp) {
-        const DWARFBaseDIE cu_die =
-            dwarf_cu.GetNonSkeletonUnit().GetUnitDIEOnly();
-        if (cu_die) {
-          FileSpec cu_file_spec(cu_die.GetName(), dwarf_cu.GetPathStyle());
-          MakeAbsoluteAndRemap(cu_file_spec, dwarf_cu, module_sp);
-
-          LanguageType cu_language = SymbolFileDWARF::LanguageTypeFromDWARF(
-              cu_die.GetAttributeValueAsUnsigned(DW_AT_language, 0));
-
-          bool is_optimized = dwarf_cu.GetNonSkeletonUnit().GetIsOptimized();
+        auto initialize_cu = [&](const FileSpec &file_spec,
+                                 LanguageType cu_language) {
           BuildCuTranslationTable();
           cu_sp = std::make_shared<CompileUnit>(
-              module_sp, &dwarf_cu, cu_file_spec,
+              module_sp, &dwarf_cu, file_spec,
               *GetDWARFUnitIndex(dwarf_cu.GetID()), cu_language,
-              is_optimized ? eLazyBoolYes : eLazyBoolNo);
+              eLazyBoolCalculate);
 
           dwarf_cu.SetUserData(cu_sp.get());
 
           SetCompileUnitAtIndex(dwarf_cu.GetID(), cu_sp);
+        };
+
+        auto lazy_initialize_cu = [&]() {
+          // If the version is < 5, we can't do lazy initialization.
+          if (dwarf_cu.GetVersion() < 5)
+            return false;
+
+          // If there is no DWO, there is no reason to initialize
+          // lazily; we will do eager initialization in that case.
+          if (GetDebugMapSymfile())
+            return false;
+          const DWARFBaseDIE cu_die = dwarf_cu.GetUnitDIEOnly();
+          if (!cu_die)
+            return false;
+          if (!GetDWOName(dwarf_cu, *cu_die.GetDIE()))
+            return false;
+
+          // With DWARFv5 we can assume that the first support
+          // file is also the name of the compile unit. This
+          // allows us to avoid loading the non-skeleton unit,
+          // which may be in a separate DWO file.
+          FileSpecList support_files;
+          if (!ParseSupportFiles(dwarf_cu, module_sp, support_files))
+            return false;
+          if (support_files.GetSize() == 0)
+            return false;
+
+          initialize_cu(support_files.GetFileSpecAtIndex(0),
+                        eLanguageTypeUnknown);
+          cu_sp->SetSupportFiles(std::move(support_files));
+          return true;
+        };
+
+        if (!lazy_initialize_cu()) {
+          // Eagerly initialize compile unit
+          const DWARFBaseDIE cu_die =
+              dwarf_cu.GetNonSkeletonUnit().GetUnitDIEOnly();
+          if (cu_die) {
+            LanguageType cu_language = SymbolFileDWARF::LanguageTypeFromDWARF(
+                dwarf_cu.GetDWARFLanguageType());
+
+            FileSpec cu_file_spec(cu_die.GetName(), dwarf_cu.GetPathStyle());
+
+            // Path needs to be remapped in this case. In the support files
+            // case ParseSupportFiles takes care of the remapping.
+            MakeAbsoluteAndRemap(cu_file_spec, dwarf_cu, module_sp);
+
+            initialize_cu(cu_file_spec, cu_language);
+          }
         }
       }
     }
@@ -807,7 +859,7 @@ lldb::LanguageType SymbolFileDWARF::ParseLanguage(CompileUnit &comp_unit) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   DWARFUnit *dwarf_cu = GetDWARFCompileUnit(&comp_unit);
   if (dwarf_cu)
-    return GetLanguage(*dwarf_cu);
+    return GetLanguage(dwarf_cu->GetNonSkeletonUnit());
   else
     return eLanguageTypeUnknown;
 }
@@ -898,18 +950,29 @@ bool SymbolFileDWARF::ParseSupportFiles(CompileUnit &comp_unit,
   if (!dwarf_cu)
     return false;
 
-  dw_offset_t offset = dwarf_cu->GetLineTableOffset();
+  if (!ParseSupportFiles(*dwarf_cu, comp_unit.GetModule(), support_files))
+    return false;
+
+  comp_unit.SetSupportFiles(support_files);
+  return true;
+}
+
+bool SymbolFileDWARF::ParseSupportFiles(DWARFUnit &dwarf_cu,
+                                        const ModuleSP &module,
+                                        FileSpecList &support_files) {
+
+  dw_offset_t offset = dwarf_cu.GetLineTableOffset();
   if (offset == DW_INVALID_OFFSET)
     return false;
 
   llvm::DWARFDebugLine::Prologue prologue;
   if (!ParseLLVMLineTablePrologue(m_context, prologue, offset,
-                                  dwarf_cu->GetOffset()))
+                                  dwarf_cu.GetOffset()))
     return false;
 
-  comp_unit.SetSupportFiles(ParseSupportFilesFromPrologue(
-      comp_unit.GetModule(), prologue, dwarf_cu->GetPathStyle(),
-      dwarf_cu->GetCompilationDirectory().GetCString()));
+  support_files = ParseSupportFilesFromPrologue(
+      module, prologue, dwarf_cu.GetPathStyle(),
+      dwarf_cu.GetCompilationDirectory().GetCString());
 
   return true;
 }
@@ -965,7 +1028,7 @@ bool SymbolFileDWARF::ParseIsOptimized(CompileUnit &comp_unit) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   DWARFUnit *dwarf_cu = GetDWARFCompileUnit(&comp_unit);
   if (dwarf_cu)
-    return dwarf_cu->GetIsOptimized();
+    return dwarf_cu->GetNonSkeletonUnit().GetIsOptimized();
   return false;
 }
 
@@ -1585,17 +1648,6 @@ SymbolFileDWARF::GetDIE(const DIERef &die_ref) {
   return DebugInfo().GetDIE(die_ref);
 }
 
-/// Return the DW_AT_(GNU_)dwo_name.
-static const char *GetDWOName(DWARFCompileUnit &dwarf_cu,
-                              const DWARFDebugInfoEntry &cu_die) {
-  const char *dwo_name =
-      cu_die.GetAttributeValueAsString(&dwarf_cu, DW_AT_GNU_dwo_name, nullptr);
-  if (!dwo_name)
-    dwo_name =
-        cu_die.GetAttributeValueAsString(&dwarf_cu, DW_AT_dwo_name, nullptr);
-  return dwo_name;
-}
-
 /// Return the DW_AT_(GNU_)dwo_id.
 /// FIXME: Technically 0 is a valid hash.
 static uint64_t GetDWOId(DWARFCompileUnit &dwarf_cu,
@@ -2083,7 +2135,7 @@ void SymbolFileDWARF::FindGlobalVariables(
       }
     }
 
-    ParseVariables(sc, die, LLDB_INVALID_ADDRESS, false, false, &variables);
+    ParseAndAppendGlobalVariable(sc, die, variables);
     while (pruned_idx < variables.GetSize()) {
       VariableSP var_sp = variables.GetVariableAtIndex(pruned_idx);
       if (name_is_mangled ||
@@ -2136,7 +2188,7 @@ void SymbolFileDWARF::FindGlobalVariables(const RegularExpression &regex,
       return true;
     sc.comp_unit = GetCompUnitForDWARFCompUnit(*dwarf_cu);
 
-    ParseVariables(sc, die, LLDB_INVALID_ADDRESS, false, false, &variables);
+    ParseAndAppendGlobalVariable(sc, die, variables);
 
     return variables.GetSize() - original_size < max_matches;
   });
@@ -2997,8 +3049,8 @@ size_t SymbolFileDWARF::ParseVariablesForContext(const SymbolContext &sc) {
               /*check_hi_lo_pc=*/true))
         func_lo_pc = ranges.GetMinRangeBase(0);
       if (func_lo_pc != LLDB_INVALID_ADDRESS) {
-        const size_t num_variables = ParseVariables(
-            sc, function_die.GetFirstChild(), func_lo_pc, true, true);
+        const size_t num_variables =
+            ParseVariablesInFunctionContext(sc, function_die, func_lo_pc);
 
         // Let all blocks know they have parse all their variables
         sc.function->GetBlock(false).SetDidParseVariables(true, true);
@@ -3017,16 +3069,14 @@ size_t SymbolFileDWARF::ParseVariablesForContext(const SymbolContext &sc) {
         variables = std::make_shared<VariableList>();
         sc.comp_unit->SetVariableList(variables);
 
-        m_index->GetGlobalVariables(
-            dwarf_cu->GetNonSkeletonUnit(), [&](DWARFDIE die) {
-              VariableSP var_sp(
-                  ParseVariableDIE(sc, die, LLDB_INVALID_ADDRESS));
-              if (var_sp) {
-                variables->AddVariableIfUnique(var_sp);
-                ++vars_added;
-              }
-              return true;
-            });
+        m_index->GetGlobalVariables(*dwarf_cu, [&](DWARFDIE die) {
+          VariableSP var_sp(ParseVariableDIE(sc, die, LLDB_INVALID_ADDRESS));
+          if (var_sp) {
+            variables->AddVariableIfUnique(var_sp);
+            ++vars_added;
+          }
+          return true;
+        });
       }
       return vars_added;
     }
@@ -3429,117 +3479,137 @@ SymbolFileDWARF::FindBlockContainingSpecification(
   return DWARFDIE();
 }
 
-size_t SymbolFileDWARF::ParseVariables(const SymbolContext &sc,
-                                       const DWARFDIE &orig_die,
-                                       const lldb::addr_t func_low_pc,
-                                       bool parse_siblings, bool parse_children,
-                                       VariableList *cc_variable_list) {
-  if (!orig_die)
+void SymbolFileDWARF::ParseAndAppendGlobalVariable(
+    const SymbolContext &sc, const DWARFDIE &die,
+    VariableList &cc_variable_list) {
+  if (!die)
+    return;
+
+  dw_tag_t tag = die.Tag();
+  if (tag != DW_TAG_variable && tag != DW_TAG_constant)
+    return;
+
+  // Check to see if we have already parsed this variable or constant?
+  VariableSP var_sp = GetDIEToVariable()[die.GetDIE()];
+  if (var_sp) {
+    cc_variable_list.AddVariableIfUnique(var_sp);
+    return;
+  }
+
+  // We haven't already parsed it, lets do that now.
+  VariableListSP variable_list_sp;
+  DWARFDIE sc_parent_die = GetParentSymbolContextDIE(die);
+  dw_tag_t parent_tag = sc_parent_die.Tag();
+  switch (parent_tag) {
+  case DW_TAG_compile_unit:
+  case DW_TAG_partial_unit:
+    if (sc.comp_unit != nullptr) {
+      variable_list_sp = sc.comp_unit->GetVariableList(false);
+    } else {
+      GetObjectFile()->GetModule()->ReportError(
+          "parent 0x%8.8" PRIx64 " %s with no valid compile unit in "
+          "symbol context for 0x%8.8" PRIx64 " %s.\n",
+          sc_parent_die.GetID(), sc_parent_die.GetTagAsCString(), die.GetID(),
+          die.GetTagAsCString());
+      return;
+    }
+    break;
+
+  default:
+    GetObjectFile()->GetModule()->ReportError(
+        "didn't find appropriate parent DIE for variable list for "
+        "0x%8.8" PRIx64 " %s.\n",
+        die.GetID(), die.GetTagAsCString());
+    return;
+  }
+
+  var_sp = ParseVariableDIE(sc, die, LLDB_INVALID_ADDRESS);
+  if (!var_sp)
+    return;
+
+  cc_variable_list.AddVariableIfUnique(var_sp);
+  if (variable_list_sp)
+    variable_list_sp->AddVariableIfUnique(var_sp);
+}
+
+size_t SymbolFileDWARF::ParseVariablesInFunctionContext(
+    const SymbolContext &sc, const DWARFDIE &die,
+    const lldb::addr_t func_low_pc) {
+  if (!die || !sc.function)
     return 0;
 
-  VariableListSP variable_list_sp;
+  Block *block =
+      sc.function->GetBlock(/*can_create=*/true).FindBlockByID(die.GetID());
+  const bool can_create = false;
+  VariableListSP variable_list_sp = block->GetBlockVariableList(can_create);
+  return ParseVariablesInFunctionContextRecursive(sc, die, func_low_pc,
+                                                  *variable_list_sp);
+}
 
+size_t SymbolFileDWARF::ParseVariablesInFunctionContextRecursive(
+    const lldb_private::SymbolContext &sc, const DWARFDIE &die,
+    const lldb::addr_t func_low_pc, VariableList &variable_list) {
   size_t vars_added = 0;
-  DWARFDIE die = orig_die;
-  while (die) {
-    dw_tag_t tag = die.Tag();
+  dw_tag_t tag = die.Tag();
 
-    // Check to see if we have already parsed this variable or constant?
-    VariableSP var_sp = GetDIEToVariable()[die.GetDIE()];
+  if ((tag == DW_TAG_variable) || (tag == DW_TAG_constant) ||
+      (tag == DW_TAG_formal_parameter)) {
+    VariableSP var_sp(ParseVariableDIE(sc, die, func_low_pc));
     if (var_sp) {
-      if (cc_variable_list)
-        cc_variable_list->AddVariableIfUnique(var_sp);
-    } else {
-      // We haven't already parsed it, lets do that now.
-      if ((tag == DW_TAG_variable) || (tag == DW_TAG_constant) ||
-          (tag == DW_TAG_formal_parameter && sc.function)) {
-        if (variable_list_sp.get() == nullptr) {
-          DWARFDIE sc_parent_die = GetParentSymbolContextDIE(orig_die);
-          dw_tag_t parent_tag = sc_parent_die.Tag();
-          switch (parent_tag) {
-          case DW_TAG_compile_unit:
-          case DW_TAG_partial_unit:
-            if (sc.comp_unit != nullptr) {
-              variable_list_sp = sc.comp_unit->GetVariableList(false);
-              if (variable_list_sp.get() == nullptr) {
-                variable_list_sp = std::make_shared<VariableList>();
-              }
-            } else {
-              GetObjectFile()->GetModule()->ReportError(
-                  "parent 0x%8.8" PRIx64 " %s with no valid compile unit in "
-                  "symbol context for 0x%8.8" PRIx64 " %s.\n",
-                  sc_parent_die.GetID(), sc_parent_die.GetTagAsCString(),
-                  orig_die.GetID(), orig_die.GetTagAsCString());
-            }
-            break;
-
-          case DW_TAG_subprogram:
-          case DW_TAG_inlined_subroutine:
-          case DW_TAG_lexical_block:
-            if (sc.function != nullptr) {
-              // Check to see if we already have parsed the variables for the
-              // given scope
-
-              Block *block = sc.function->GetBlock(true).FindBlockByID(
-                  sc_parent_die.GetID());
-              if (block == nullptr) {
-                // This must be a specification or abstract origin with a
-                // concrete block counterpart in the current function. We need
-                // to find the concrete block so we can correctly add the
-                // variable to it
-                const DWARFDIE concrete_block_die =
-                    FindBlockContainingSpecification(
-                        GetDIE(sc.function->GetID()),
-                        sc_parent_die.GetOffset());
-                if (concrete_block_die)
-                  block = sc.function->GetBlock(true).FindBlockByID(
-                      concrete_block_die.GetID());
-              }
-
-              if (block != nullptr) {
-                const bool can_create = false;
-                variable_list_sp = block->GetBlockVariableList(can_create);
-                if (variable_list_sp.get() == nullptr) {
-                  variable_list_sp = std::make_shared<VariableList>();
-                  block->SetVariableList(variable_list_sp);
-                }
-              }
-            }
-            break;
-
-          default:
-            GetObjectFile()->GetModule()->ReportError(
-                "didn't find appropriate parent DIE for variable list for "
-                "0x%8.8" PRIx64 " %s.\n",
-                orig_die.GetID(), orig_die.GetTagAsCString());
-            break;
-          }
-        }
-
-        if (variable_list_sp) {
-          VariableSP var_sp(ParseVariableDIE(sc, die, func_low_pc));
-          if (var_sp) {
-            variable_list_sp->AddVariableIfUnique(var_sp);
-            if (cc_variable_list)
-              cc_variable_list->AddVariableIfUnique(var_sp);
-            ++vars_added;
-          }
-        }
-      }
+      variable_list.AddVariableIfUnique(var_sp);
+      ++vars_added;
     }
-
-    bool skip_children = (sc.function == nullptr && tag == DW_TAG_subprogram);
-
-    if (!skip_children && parse_children && die.HasChildren()) {
-      vars_added += ParseVariables(sc, die.GetFirstChild(), func_low_pc, true,
-                                   true, cc_variable_list);
-    }
-
-    if (parse_siblings)
-      die = die.GetSibling();
-    else
-      die.Clear();
   }
+
+  switch (tag) {
+  case DW_TAG_subprogram:
+  case DW_TAG_inlined_subroutine:
+  case DW_TAG_lexical_block: {
+    // If we start a new block, compute a new block variable list and recurse.
+    Block *block =
+        sc.function->GetBlock(/*can_create=*/true).FindBlockByID(die.GetID());
+    if (block == nullptr) {
+      // This must be a specification or abstract origin with a
+      // concrete block counterpart in the current function. We need
+      // to find the concrete block so we can correctly add the
+      // variable to it.
+      const DWARFDIE concrete_block_die = FindBlockContainingSpecification(
+          GetDIE(sc.function->GetID()), die.GetOffset());
+      if (concrete_block_die)
+        block = sc.function->GetBlock(/*can_create=*/true)
+                    .FindBlockByID(concrete_block_die.GetID());
+    }
+
+    if (block == nullptr)
+      return 0;
+
+    const bool can_create = false;
+    VariableListSP block_variable_list_sp =
+        block->GetBlockVariableList(can_create);
+    if (block_variable_list_sp.get() == nullptr) {
+      block_variable_list_sp = std::make_shared<VariableList>();
+      block->SetVariableList(block_variable_list_sp);
+    }
+    for (DWARFDIE child = die.GetFirstChild(); child;
+         child = child.GetSibling()) {
+      vars_added += ParseVariablesInFunctionContextRecursive(
+          sc, child, func_low_pc, *block_variable_list_sp);
+    }
+
+    break;
+  }
+
+  default:
+    // Recurse to children with the same variable list.
+    for (DWARFDIE child = die.GetFirstChild(); child;
+         child = child.GetSibling()) {
+      vars_added += ParseVariablesInFunctionContextRecursive(
+          sc, child, func_low_pc, variable_list);
+    }
+
+    break;
+  }
+
   return vars_added;
 }
 
@@ -3768,8 +3838,6 @@ SymbolFileDWARF::ParseCallEdgesInFunction(UserID func_id) {
 
 // PluginInterface protocol
 ConstString SymbolFileDWARF::GetPluginName() { return GetPluginNameStatic(); }
-
-uint32_t SymbolFileDWARF::GetPluginVersion() { return 1; }
 
 void SymbolFileDWARF::Dump(lldb_private::Stream &s) {
   SymbolFile::Dump(s);

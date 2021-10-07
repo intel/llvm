@@ -1,13 +1,13 @@
 // REQUIRES: powerpc-registered-target
-// RUN: %clang_cc1 -triple powerpc64-unknown-unknown -emit-llvm %s \
+// RUN: %clang_cc1 -triple powerpc64-unknown-linux-gnu -emit-llvm %s \
 // RUN:   -target-cpu pwr8 -o - | FileCheck %s -check-prefix=CHECK-PWR8
-// RUN: %clang_cc1 -triple powerpc64le-unknown-unknown -emit-llvm %s \
+// RUN: %clang_cc1 -triple powerpc64le-unknown-linux-gnu -emit-llvm %s \
 // RUN:   -target-cpu pwr8 -o - | FileCheck %s -check-prefix=CHECK-PWR8
 // RUN: %clang_cc1 -triple powerpc64-unknown-aix -emit-llvm %s \
 // RUN:   -target-cpu pwr8 -o - | FileCheck %s -check-prefix=CHECK-PWR8
 // RUN: %clang_cc1 -triple powerpc-unknown-aix %s -emit-llvm %s \
 // RUN:   -target-cpu pwr8 -o - | FileCheck %s -check-prefix=CHECK-PWR8
-// RUN: not %clang_cc1 -triple powerpc64-unknown-unknown -emit-llvm %s \
+// RUN: not %clang_cc1 -triple powerpc64-unknown-linux-gnu -emit-llvm %s \
 // RUN:   -target-cpu pwr7 -o - 2>&1 | FileCheck %s -check-prefix=CHECK-NOPWR8
 // RUN: not %clang_cc1 -triple powerpc64-unknown-aix -emit-llvm %s \
 // RUN:   -target-cpu pwr7 -o - 2>&1 | FileCheck %s -check-prefix=CHECK-NOPWR8
@@ -43,4 +43,14 @@ int test_builtin_ppc_stbcx() {
 // CHECK-PWR8-NEXT:    ret i32 [[TMP3]]
 // CHECK-NOPWR8: error: this builtin is only valid on POWER8 or later CPUs
   return __builtin_ppc_stbcx(c_addr, c);
+}
+
+vector unsigned char test_ldrmb(char *ptr) {
+  // CHECK-NOPWR8: error: this builtin is only valid on POWER8 or later CPUs
+  return __builtin_vsx_ldrmb(ptr, 14);
+}
+
+void test_strmbb(char *ptr, vector unsigned char data) {
+  // CHECK-NOPWR8: error: this builtin is only valid on POWER8 or later CPUs
+  __builtin_vsx_strmb(ptr, 14, data);
 }

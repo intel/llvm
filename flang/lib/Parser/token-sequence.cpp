@@ -276,19 +276,24 @@ void TokenSequence::Emit(CookedSource &cooked) const {
   cooked.PutProvenanceMappings(provenances_);
 }
 
-void TokenSequence::Dump(llvm::raw_ostream &o) const {
+llvm::raw_ostream &TokenSequence::Dump(llvm::raw_ostream &o) const {
   o << "TokenSequence has " << char_.size() << " chars; nextStart_ "
     << nextStart_ << '\n';
   for (std::size_t j{0}; j < start_.size(); ++j) {
     o << '[' << j << "] @ " << start_[j] << " '" << TokenAt(j).ToString()
       << "'\n";
   }
+  return o;
+}
+
+Provenance TokenSequence::GetCharProvenance(std::size_t offset) const {
+  ProvenanceRange range{provenances_.Map(offset)};
+  return range.start();
 }
 
 Provenance TokenSequence::GetTokenProvenance(
     std::size_t token, std::size_t offset) const {
-  ProvenanceRange range{provenances_.Map(start_[token] + offset)};
-  return range.start();
+  return GetCharProvenance(start_[token] + offset);
 }
 
 ProvenanceRange TokenSequence::GetTokenProvenanceRange(

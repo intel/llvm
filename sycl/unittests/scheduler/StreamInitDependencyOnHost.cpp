@@ -15,10 +15,10 @@ using namespace cl::sycl;
 
 class MockHandler : public sycl::handler {
 public:
-  MockHandler(shared_ptr_class<detail::queue_impl> Queue, bool IsHost)
+  MockHandler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
       : sycl::handler(Queue, IsHost) {}
 
-  void setType(detail::CommandGroup::CGType Type) {
+  void setType(detail::CG::CGTYPE Type) {
     static_cast<sycl::handler *>(this)->MCGType = Type;
   }
 
@@ -38,12 +38,12 @@ public:
     sycl::handler::addStream(Stream);
   }
 
-  unique_ptr_class<detail::CommandGroup> finalize() {
+  std::unique_ptr<detail::CG> finalize() {
     auto CGH = static_cast<sycl::handler *>(this);
-    unique_ptr_class<detail::CommandGroup> CommandGroup;
+    std::unique_ptr<detail::CG> CommandGroup;
     switch (CGH->MCGType) {
-    case detail::CommandGroup::Kernel:
-    case detail::CommandGroup::RunOnHostIntel: {
+    case detail::CG::Kernel:
+    case detail::CG::RunOnHostIntel: {
       CommandGroup.reset(new detail::CGExecKernel(
           std::move(CGH->MNDRDesc), std::move(CGH->MHostKernel),
           std::move(CGH->MKernel), std::move(CGH->MArgsStorage),
@@ -97,7 +97,7 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
 
   // Emulating processing of command group function
   MockHandler MockCGH(HQueueImpl, true);
-  MockCGH.setType(detail::CommandGroup::Kernel);
+  MockCGH.setType(detail::CG::Kernel);
 
   auto EmptyKernel = [](sycl::nd_item<1>) {};
   MockCGH
@@ -118,10 +118,10 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
   ASSERT_TRUE(!!FlushBufMemObjPtr)
       << "Memory object for stream flush buffer not initialized";
 
-  unique_ptr_class<detail::CommandGroup> MainCG = MockCGH.finalize();
+  std::unique_ptr<detail::CG> MainCG = MockCGH.finalize();
 
   // Emulate call of Scheduler::addCG
-  vector_class<detail::StreamImplPtr> Streams =
+  std::vector<detail::StreamImplPtr> Streams =
       static_cast<detail::CGExecKernel *>(MainCG.get())->getStreams();
   ASSERT_EQ(Streams.size(), 1u) << "Invalid number of stream objects";
 

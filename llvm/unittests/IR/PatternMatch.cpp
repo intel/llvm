@@ -940,8 +940,7 @@ TEST_F(PatternMatchTest, VectorOps) {
   VecElemIdxs.push_back(ConstantInt::get(i32, 2));
   auto *IdxVec = ConstantVector::get(VecElemIdxs);
 
-  Value *UndefVec = UndefValue::get(VecTy);
-  Value *VI1 = IRB.CreateInsertElement(UndefVec, IRB.getInt8(1), (uint64_t)0);
+  Value *VI1 = IRB.CreateInsertElement(VecTy, IRB.getInt8(1), (uint64_t)0);
   Value *VI2 = IRB.CreateInsertElement(VI1, Val2, Val);
   Value *VI3 = IRB.CreateInsertElement(VI1, Val2, (uint64_t)1);
   Value *VI4 = IRB.CreateInsertElement(VI1, IRB.getInt8(2), Val);
@@ -1093,29 +1092,29 @@ TEST_F(PatternMatchTest, VectorUndefInt) {
   // We can always match simple constants and simple splats.
   C = nullptr;
   EXPECT_TRUE(match(ScalarZero, m_APInt(C)));
-  EXPECT_TRUE(C->isNullValue());
+  EXPECT_TRUE(C->isZero());
   C = nullptr;
   EXPECT_TRUE(match(ScalarZero, m_APIntForbidUndef(C)));
-  EXPECT_TRUE(C->isNullValue());
+  EXPECT_TRUE(C->isZero());
   C = nullptr;
   EXPECT_TRUE(match(ScalarZero, m_APIntAllowUndef(C)));
-  EXPECT_TRUE(C->isNullValue());
+  EXPECT_TRUE(C->isZero());
   C = nullptr;
   EXPECT_TRUE(match(VectorZero, m_APInt(C)));
-  EXPECT_TRUE(C->isNullValue());
+  EXPECT_TRUE(C->isZero());
   C = nullptr;
   EXPECT_TRUE(match(VectorZero, m_APIntForbidUndef(C)));
-  EXPECT_TRUE(C->isNullValue());
+  EXPECT_TRUE(C->isZero());
   C = nullptr;
   EXPECT_TRUE(match(VectorZero, m_APIntAllowUndef(C)));
-  EXPECT_TRUE(C->isNullValue());
+  EXPECT_TRUE(C->isZero());
 
   // Whether splats with undef can be matched depends on the matcher.
   EXPECT_FALSE(match(VectorZeroUndef, m_APInt(C)));
   EXPECT_FALSE(match(VectorZeroUndef, m_APIntForbidUndef(C)));
   C = nullptr;
   EXPECT_TRUE(match(VectorZeroUndef, m_APIntAllowUndef(C)));
-  EXPECT_TRUE(C->isNullValue());
+  EXPECT_TRUE(C->isZero());
 }
 
 TEST_F(PatternMatchTest, VectorUndefFloat) {
@@ -1441,7 +1440,7 @@ TEST_F(PatternMatchTest, IntrinsicMatcher) {
 namespace {
 
 struct is_unsigned_zero_pred {
-  bool isValue(const APInt &C) { return C.isNullValue(); }
+  bool isValue(const APInt &C) { return C.isZero(); }
 };
 
 struct is_float_zero_pred {
@@ -1469,8 +1468,8 @@ struct is_float_nan_pred {
 TEST_F(PatternMatchTest, ConstantPredicateType) {
 
   // Scalar integer
-  APInt U32Max = APInt::getAllOnesValue(32);
-  APInt U32Zero = APInt::getNullValue(32);
+  APInt U32Max = APInt::getAllOnes(32);
+  APInt U32Zero = APInt::getZero(32);
   APInt U32DeadBeef(32, 0xDEADBEEF);
 
   Type *U32Ty = Type::getInt32Ty(Ctx);
