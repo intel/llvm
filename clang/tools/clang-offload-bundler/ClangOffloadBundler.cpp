@@ -218,28 +218,6 @@ static Triple getTargetTriple(StringRef Target) {
   return Triple(OffloadInfo.getTriple());
 }
 
-static StringRef getDeviceFileExtension(StringRef Device) {
-  if (Device.contains("gfx"))
-    return ".bc";
-  if (Device.contains("sm_"))
-    return ".cubin";
-
-  WithColor::warning() << "Could not determine extension for archive"
-                          "members, using \".o\"\n";
-  return ".o";
-}
-
-static std::string getDeviceLibraryFileName(StringRef BundleFileName,
-                                            StringRef Device) {
-  StringRef LibName = sys::path::stem(BundleFileName);
-  StringRef Extension = getDeviceFileExtension(Device);
-
-  std::string Result;
-  Result += LibName;
-  Result += Extension;
-  return Result;
-}
-
 /// Generic file handler interface.
 class FileHandler {
 public:
@@ -1767,9 +1745,7 @@ static Error UnbundleArchive() {
           BundledObjectFileName.assign(BundledObjectFile);
           auto OutputBundleName =
               Twine(llvm::sys::path::stem(BundledObjectFileName) + "-" +
-                    CodeObject +
-                    getDeviceLibraryFileName(BundledObjectFileName,
-                                             CodeObjectInfo.GPUArch))
+                    CodeObject)
                   .str();
           // Replace ':' in optional target feature list with '_' to ensure
           // cross-platform validity.
