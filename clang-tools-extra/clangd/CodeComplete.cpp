@@ -1203,7 +1203,7 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
   loadMainFilePreambleMacros(Clang->getPreprocessor(), Input.Preamble);
   if (Includes)
     Clang->getPreprocessor().addPPCallbacks(
-        collectIncludeStructureCallback(Clang->getSourceManager(), Includes));
+        Includes->collect(Clang->getSourceManager()));
   if (llvm::Error Err = Action.Execute()) {
     log("Execute() failed when running codeComplete for {0}: {1}",
         Input.FileName, toString(std::move(Err)));
@@ -1379,14 +1379,17 @@ public:
       FileDistanceOptions ProxOpts{}; // Use defaults.
       const auto &SM = Recorder->CCSema->getSourceManager();
       llvm::StringMap<SourceParams> ProxSources;
-      for (auto &Entry : Includes.includeDepth(
-               SM.getFileEntryForID(SM.getMainFileID())->getName())) {
-        auto &Source = ProxSources[Entry.getKey()];
-        Source.Cost = Entry.getValue() * ProxOpts.IncludeCost;
+      auto MainFileID =
+          Includes.getID(SM.getFileEntryForID(SM.getMainFileID()));
+      assert(MainFileID);
+      for (auto &HeaderIDAndDepth : Includes.includeDepth(*MainFileID)) {
+        auto &Source =
+            ProxSources[Includes.getRealPath(HeaderIDAndDepth.getFirst())];
+        Source.Cost = HeaderIDAndDepth.getSecond() * ProxOpts.IncludeCost;
         // Symbols near our transitive includes are good, but only consider
         // things in the same directory or below it. Otherwise there can be
         // many false positives.
-        if (Entry.getValue() > 0)
+        if (HeaderIDAndDepth.getSecond() > 0)
           Source.MaxUpTraversals = 1;
       }
       FileProximity.emplace(ProxSources, ProxOpts);

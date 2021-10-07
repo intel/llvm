@@ -2332,11 +2332,13 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
   RegexIterT DecorationsIt(AnnotatedCode.begin(), AnnotatedCode.end(),
                            DecorationRegex);
   RegexIterT DecorationsEnd;
-  // If we didn't find any FPGA specific annotations then add a UserSemantic
-  // decoration
+  // If we didn't find any FPGA specific annotations that are seprated as
+  // described above, then add a UserSemantic decoration
   if (DecorationsIt == DecorationsEnd)
     Decorates.MemoryAttributesVec.emplace_back(DecorationUserSemantic,
                                                AnnotatedCode.str());
+  bool IntelFPGADecorationFound = false;
+  DecorationsInfoVec IntelFPGADecorationsVec;
   for (; DecorationsIt != DecorationsEnd; ++DecorationsIt) {
     // Drop the braces surrounding the actual decoration
     const StringRef AnnotatedDecoration = AnnotatedCode.substr(
@@ -2346,12 +2348,14 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
     StringRef Name = Split.first, ValueStr = Split.second;
     if (AllowFPGAMemAccesses) {
       if (Name == "params") {
+        IntelFPGADecorationFound = true;
         unsigned ParamsBitMask = 0;
         bool Failure = ValueStr.getAsInteger(10, ParamsBitMask);
         assert(!Failure && "Non-integer LSU controls value");
         (void)Failure;
         LSUControls.setWithBitMask(ParamsBitMask);
       } else if (Name == "cache-size") {
+        IntelFPGADecorationFound = true;
         if (!LSUControls.CacheSizeInfo.hasValue())
           continue;
         unsigned CacheSizeValue = 0;
@@ -2365,12 +2369,15 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
       StringRef Annotation;
       Decoration Dec;
       if (Name == "pump") {
+        IntelFPGADecorationFound = true;
         Dec = llvm::StringSwitch<Decoration>(ValueStr)
                   .Case("1", DecorationSinglepumpINTEL)
                   .Case("2", DecorationDoublepumpINTEL);
       } else if (Name == "register") {
+        IntelFPGADecorationFound = true;
         Dec = DecorationRegisterINTEL;
       } else if (Name == "simple_dual_port") {
+        IntelFPGADecorationFound = true;
         Dec = DecorationSimpleDualPortINTEL;
       } else {
         Dec = llvm::StringSwitch<Decoration>(Name)
@@ -2384,14 +2391,25 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
                   .Case("force_pow2_depth", DecorationForcePow2DepthINTEL)
                   .Default(DecorationUserSemantic);
         if (Dec == DecorationUserSemantic)
-          Annotation = AnnotatedCode;
-        else
+          Annotation = AnnotatedDecoration;
+        else {
+          IntelFPGADecorationFound = true;
           Annotation = ValueStr;
+        }
       }
-      Decorates.MemoryAttributesVec.emplace_back(Dec, Annotation.str());
+      IntelFPGADecorationsVec.emplace_back(Dec, Annotation.str());
     }
   }
+  // Even if there is an annotation string that is split in blocks like Intel
+  // FPGA annotation, it's not necessarily an FPGA annotation. Translate the
+  // whole string as UserSemantic decoration in this case.
+  if (IntelFPGADecorationFound)
+    Decorates.MemoryAttributesVec = IntelFPGADecorationsVec;
+  else
+    Decorates.MemoryAttributesVec.emplace_back(DecorationUserSemantic,
+                                               AnnotatedCode.str());
   Decorates.MemoryAccessesVec = LSUControls.getDecorationsFromCurrentState();
+
   return Decorates;
 }
 

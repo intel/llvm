@@ -15,7 +15,7 @@ template <typename KernelName, typename KernelType>
 template <typename Func>
 void kernel1func(const Func &F1) {
   constexpr const char *F1_output = __builtin_sycl_unique_stable_name(Func); // #USN_F1
-  kernel_single_task<Func>(F1); // #kernel1_call
+  kernel_single_task<class kernel1>(F1); // #kernel1_call
 }
 
 void callkernel1() {
@@ -34,8 +34,7 @@ void callkernel1() {
 template <typename Func>
 void kernel2func(const Func &F2) {
   constexpr const char *F2_output = __builtin_sycl_unique_stable_name(Func); // #USN_F2
-  auto Lambda = [](){};
-  kernel_single_task<decltype(Lambda)>(Lambda);
+  kernel_single_task<class kernel2>([]() {});
 }
 
 void callkernel2() {
@@ -94,7 +93,7 @@ int main() {
   auto l6 = []() { return 1; };
   constexpr const char *l6_output =
       __builtin_sycl_unique_stable_name(decltype(l6)); // #USN_l6
-  kernel_single_task<decltype(l6)>(l6); // Used in the kernel name after builtin
+  kernel_single_task<class kernel6>(l6); // Used in the kernel name after builtin
 
   // kernel7 - expect no error
   // Same as kernel11 (below) except make the lambda part of naming the kernel.
@@ -106,15 +105,15 @@ int main() {
   auto l8 = [](decltype(l7) *derp = nullptr) { return 2; };
   constexpr const char *l7_output =
       __builtin_sycl_unique_stable_name(decltype(l7)); // #USN_l7
-  kernel_single_task<decltype(l8)>(l8);
+  kernel_single_task<class kernel7>(l8);
 
   // kernel8 and kernel9 - expect no error
-  // Tests that passing a lambda to the unique stable name builtin and passing it
-  // to a kernel called with an if constexpr branch does not cause a diagnostic
-  // on the kernel9 as it does not change in the result to the stable name. This
-  // is interesting even though the use of kernel9 happens in the false branch
-  // of a constexpr if because both the true and the false branches cause the
-  // instantiation of kernel_single_task.
+  // Tests that passing a lambda to the unique stable name builtin and passing
+  // it to a kernel called with an if constexpr branch does not cause a
+  // diagnostic on the kernel9 as it does not change the result to the stable
+  // name. This is interesting even though the use of kernel9 happens in the
+  // false branch of a constexpr if because both the true and the false branches
+  // cause the instantiation of kernel_single_task.
   auto l9 = []() { return 1; };
   auto l10 = []() { return 2; };
   constexpr const char *l10_output =
@@ -122,7 +121,7 @@ int main() {
   if constexpr (1) {
     kernel_single_task<decltype(l9)>(l9);
   } else {
-    kernel_single_task<decltype(l10)>(l10);
+    kernel_single_task<class kernel9>(l10);
   }
 
   // kernel11 - expect no error
@@ -144,23 +143,16 @@ int main() {
   auto l13 = []() { return 1; };
   constexpr const char *l13_output =
       __builtin_sycl_unique_stable_name(decltype(l13)); // #USN_l13
-  kernel_single_task<S<Tangerine, decltype(l13)>>(
-      S<Tangerine, decltype(l13)>{});
+  kernel_single_task<class kernel12>(S<Tangerine, decltype(l13)>{});
 
   // kernel13 - expect no error
   // Test that passing a lambda to the unique stable name builtin within a macro
   // and then calling the macro within the kernel does not cause an error on the
   // kernel.
-  auto MacroWrapLambda = []() {
-    MACRO(); // #USN_MACRO
-  };
-  kernel_single_task<decltype(MacroWrapLambda)>(MacroWrapLambda);
-
-  // Not an error, since the kernel name isn't being used.
-  auto l14 = []() { return 42; };
-  constexpr const char *l14_output =
-      __builtin_sycl_unique_stable_name(decltype(l14));
-  kernel_single_task<class Named>(l14);
+  kernel_single_task<class kernel13>(
+      []() {
+        MACRO(); // #USN_MACRO
+      });
 }
 
 namespace NS {}
