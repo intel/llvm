@@ -319,7 +319,7 @@ static void collectKernelModuleMap(
     }
     case Scope_Global:
       // the map key is not significant here
-      ResKernelModuleMap["<GLOBAL>"].push_back(&F);
+      ResKernelModuleMap[GLOBAL_SCOPE_NAME].push_back(&F);
       break;
     }
   }
