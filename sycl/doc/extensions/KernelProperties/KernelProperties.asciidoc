@@ -468,13 +468,14 @@ with a non-kernel device function via the `SYCL_EXT_ONEAPI_PROPERTY` macro.
 |===
 
 The `SYCL_EXT_ONEAPI_PROPERTY` macro can be used alongside the
-`SYCL_EXTERNAL` macro. Whenever `SYCL_EXTERNAL` is used, there are two relevant
-translation units: the translation unit that _defines_ the function and the
-translation unit that _calls_ the function.  If a given `SYCL_EXTERNAL`
-function _F_ is defined in one translation unit with a set of properties _P_,
-then all other translation units that declare that same function _F_ must list
-the same set of properties _P_ via the `SYCL_EXT_ONEAPI_PROPERTY` macro.
-Programs which fail to do this are ill-formed, but no diagnostic is required.
+`SYCL_EXTERNAL` macro, and the macros may be specified in any order.
+Whenever `SYCL_EXTERNAL` is used, there are two relevant translation units: the
+translation unit that _defines_ the function and the translation unit that
+_calls_ the function.  If a given `SYCL_EXTERNAL` function _F_ is defined in
+one translation unit with a set of properties _P_, then all other translation
+units that declare that same function _F_ must list the same set of properties
+_P_ via the `SYCL_EXT_ONEAPI_PROPERTY` macro. Programs which fail to do this
+are ill-formed, but no diagnostic is required.
 
 == Issues
 
