@@ -22,7 +22,11 @@
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <inttypes.h>
+// Explicitly request format macros
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS 1
+#endif
+#include <cinttypes>
 #include <utility>
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
