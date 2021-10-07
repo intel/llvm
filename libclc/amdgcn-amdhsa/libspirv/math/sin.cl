@@ -8,7 +8,15 @@
 
 #include <spirv/spirv.h>
 
+float __ocml_sin_f32(float);
+double __ocml_sin_f64(double);
+
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
 __spirv_ocl_sin(__clc_fp32_t In) {
-  return __builtin_amdgcn_sinf(In);
+  return __ocml_sin_f32(In);
+}
+
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
+__spirv_ocl_sin(__clc_fp64_t In) {
+  return __ocml_sin_f64(In);
 }
