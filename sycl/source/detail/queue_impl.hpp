@@ -24,6 +24,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/kernel_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/thread_pool.hpp>
@@ -448,7 +449,7 @@ private:
       bool KernelUsesAssert = false;
       if (IsKernel)
         KernelUsesAssert =
-            Handler.MKernel ? false
+            Handler.MKernel ? Handler.MKernel->isInterop()
                             : ProgramManager::getInstance().kernelUsesAssert(
                                   Handler.MOSModuleHandle, Handler.MKernelName);
 

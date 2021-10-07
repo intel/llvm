@@ -244,6 +244,7 @@ void program_impl::compile_with_source(std::string KernelSource,
     compile(CompileOptions);
   }
   MState = program_state::compiled;
+  MIsInterop = true;
 }
 
 void program_impl::build_with_kernel_name(std::string KernelName,
@@ -275,6 +276,7 @@ void program_impl::build_with_source(std::string KernelSource,
     build(BuildOptions);
   }
   MState = program_state::linked;
+  MIsInterop = true;
 }
 
 void program_impl::link(std::string LinkOptions) {
@@ -311,17 +313,21 @@ kernel program_impl::get_kernel(std::string KernelName,
                                 std::shared_ptr<program_impl> PtrToSelf,
                                 bool IsCreatedFromSource) const {
   throw_if_state_is(program_state::none);
+  std::shared_ptr<kernel_impl> KImpl;
   if (is_host()) {
     if (IsCreatedFromSource)
       throw invalid_object_error("This instance of program is a host instance",
                                  PI_INVALID_PROGRAM);
 
-    return createSyclObjFromImpl<kernel>(
-        std::make_shared<kernel_impl>(MContext, PtrToSelf));
-  }
-  return createSyclObjFromImpl<kernel>(std::make_shared<kernel_impl>(
-      get_pi_kernel(KernelName), MContext, PtrToSelf,
-      /*IsCreatedFromSource*/ IsCreatedFromSource));
+    KImpl = std::make_shared<kernel_impl>(MContext, PtrToSelf);
+
+  } else
+    KImpl = std::make_shared<kernel_impl>(
+        get_pi_kernel(KernelName), MContext, PtrToSelf,
+        /*IsCreatedFromSource*/ IsCreatedFromSource);
+
+  KImpl->setInterop(MIsInterop);
+  return createSyclObjFromImpl<kernel>(KImpl);
 }
 
 std::vector<std::vector<char>> program_impl::get_binaries() const {

@@ -30,6 +30,8 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context)
   // For others, PI will turn this into a NOP.
   getPlugin().call<PiApiKind::piKernelSetExecInfo>(
       MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
+
+  MIsInterop = true;
 }
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,

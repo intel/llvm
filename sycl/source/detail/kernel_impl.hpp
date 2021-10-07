@@ -200,6 +200,9 @@ public:
 
   KernelBundleImplPtr get_kernel_bundle() const { return MKernelBundleImpl; }
 
+  void setInterop(bool V) { MIsInterop = V; }
+  bool isInterop() const { return MIsInterop; }
+
 private:
   RT::PiKernel MKernel;
   const ContextImplPtr MContext;
@@ -207,6 +210,7 @@ private:
   bool MCreatedFromSource = true;
   const DeviceImageImplPtr MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;
+  bool MIsInterop = false;
 };
 
 template <info::kernel param>

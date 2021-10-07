@@ -448,6 +448,8 @@ private:
   /// device list and context) and built with build_with_kernel_type with
   /// default build options
   bool MProgramAndKernelCachingAllowed = false;
+
+  bool MIsInterop = false;
 };
 
 template <>
