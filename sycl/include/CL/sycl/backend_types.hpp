@@ -26,7 +26,7 @@ enum class backend : char {
       ext_oneapi_level_zero,
   cuda = 3,
   all = 4,
-  esimd_cpu = 5,
+  esimd_emu = 5,
   hip = 6,
 };
 
@@ -55,8 +55,8 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   case backend::cuda:
     Out << "cuda";
     break;
-  case backend::esimd_cpu:
-    Out << "esimd_cpu";
+  case backend::esimd_emu:
+    Out << "esimd_emu";
     break;
   case backend::hip:
     Out << "hip";

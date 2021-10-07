@@ -1,4 +1,4 @@
-//==----- esimdcpu_device_interface.hpp - DPC++ Explicit SIMD API ---------==//
+//==----- esimdemu_device_interface.hpp - DPC++ Explicit SIMD API ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// \file esimdcpu_device_interface.hpp
-/// Declarations for ESIMD_CPU-device specific definitions.
+/// \file esimdemu_device_interface.hpp
+/// Declarations for ESIMD_EMU-device specific definitions.
 /// ESIMD intrinsic and LibCM functionalities required by intrinsic defined
 ///
 /// This interface is for ESIMD intrinsic emulation implementations
-/// such as slm_access to access ESIMD_CPU specific-support therefore
+/// such as slm_access to access ESIMD_EMU specific-support therefore
 /// it has to be defined and shared as include directory
 ///
-/// \ingroup sycl_pi_esimd_cpu
+/// \ingroup sycl_pi_esimd_emu
 
 #pragma once
 
@@ -35,7 +35,7 @@ namespace detail {
 #define ESIMD_DEVICE_INTERFACE_VERSION 1
 
 // 'ESIMDDeviceInterface' structure defines interface for ESIMD CPU
-// emulation (ESIMD_CPU) to access LibCM CPU emulation functionalities
+// emulation (ESIMD_EMU) to access LibCM CPU emulation functionalities
 // from kernel application under emulation.
 
 // Header files included in the structure contains only function
@@ -75,7 +75,7 @@ ESIMDDeviceInterface *getESIMDDeviceInterface() {
   // tight loop)
   void *PIOpaqueData = nullptr;
 
-  PIOpaqueData = getPluginOpaqueData<cl::sycl::backend::esimd_cpu>(nullptr);
+  PIOpaqueData = getPluginOpaqueData<cl::sycl::backend::esimd_emu>(nullptr);
 
   ESIMDEmuPluginOpaqueData *OpaqueData =
       reinterpret_cast<ESIMDEmuPluginOpaqueData *>(PIOpaqueData);

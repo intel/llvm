@@ -1,4 +1,4 @@
-//===---------- pi_esimd_cpu.cpp - CM Emulation Plugin --------------------===//
+//===---------- pi_esimd_emu.cpp - CM Emulation Plugin --------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// \file pi_esimd_cpu.cpp
+/// \file pi_esimd_emu.cpp
 /// Declarations for CM Emulation Plugin. It is the interface between the
 /// device-agnostic SYCL runtime layer and underlying CM Emulation
 ///
-/// \ingroup sycl_pi_esimd_cpu
+/// \ingroup sycl_pi_esimd_emu
 
 #include <stdint.h>
 
@@ -28,7 +28,7 @@
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/range.hpp>
 
-#include <esimdcpu_support.h>
+#include <esimdemu_support.h>
 
 #include <cstdarg>
 #include <cstdio>
@@ -40,7 +40,7 @@
 #include <thread>
 #include <utility>
 
-#include "pi_esimd_cpu.hpp"
+#include "pi_esimd_emu.hpp"
 
 namespace {
 
@@ -108,7 +108,7 @@ private:
 // Controls PI level tracing prints.
 static bool PrintPiTrace = false;
 
-// Global variables used in PI_esimd_cpu
+// Global variables used in PI_esimd_emu
 // Note we only create a simple pointer variables such that C++ RT won't
 // deallocate them automatically at the end of the main program.
 // The heap memory allocated for this global variable reclaimed only when
@@ -242,9 +242,9 @@ public:
       GroupDim[I] = (uint32_t)(GlobalSize[I] / LocalSize[I]);
     }
 
-    ESimdCPUKernel ESimdCPU((fptrVoid)InvokeLambda<DIMS>, GroupDim, SpaceDim);
+    EsimdemuKernel Esimdemu((fptrVoid)InvokeLambda<DIMS>, GroupDim, SpaceDim);
 
-    ESimdCPU.launchMT(sizeof(struct LambdaWrapper<DIMS>), WrappedLambda.get());
+    Esimdemu.launchMT(sizeof(struct LambdaWrapper<DIMS>), WrappedLambda.get());
   }
 };
 
@@ -276,7 +276,7 @@ void sycl_get_cm_image_params(void *PtrInput, char **BaseAddr, uint32_t *Width,
   *MtxLock = &(Img->mutexLock);
 }
 
-/// Implementation for ESIMD_CPU device interface accessing ESIMD
+/// Implementation for ESIMD_EMU device interface accessing ESIMD
 /// intrinsics and LibCM functionalties requred by intrinsics
 sycl::detail::ESIMDDeviceInterface::ESIMDDeviceInterface() {
   version = ESIMDEmuPluginInterfaceVersion;
@@ -392,7 +392,7 @@ pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
 
   switch (ParamName) {
   case PI_PLATFORM_INFO_NAME:
-    return ReturnValue("Intel(R) ESIMD_CPU/GPU");
+    return ReturnValue("Intel(R) ESIMD_EMU/GPU");
 
   case PI_PLATFORM_INFO_VENDOR:
     return ReturnValue("Intel(R) Corporation");
@@ -495,7 +495,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_PLATFORM:
     return ReturnValue(Device->Platform);
   case PI_DEVICE_INFO_NAME:
-    return ReturnValue("ESIMD_CPU");
+    return ReturnValue("ESIMD_EMU");
   case PI_DEVICE_INFO_IMAGE_SUPPORT:
     return ReturnValue(pi_bool{true});
   case PI_DEVICE_INFO_DRIVER_VERSION:
@@ -517,7 +517,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
 #define UNSUPPORTED_INFO(info)                                                 \
   case info:                                                                   \
     std::cerr << std::endl                                                     \
-              << "Unsupported device info = " << #info << " from ESIMD_CPU"    \
+              << "Unsupported device info = " << #info << " from ESIMD_EMU"    \
               << std::endl;                                                    \
     DIE_NO_IMPLEMENTATION;                                                     \
     break;
@@ -740,7 +740,7 @@ pi_result piQueueRelease(pi_queue Queue) {
 }
 
 pi_result piQueueFinish(pi_queue) {
-  // No-op as enqueued commands with ESIMD_CPU plugin are blocking
+  // No-op as enqueued commands with ESIMD_EMU plugin are blocking
   // ones that do not return until their completion - kernel execution
   // and memory read.
   CONTINUE_NO_IMPLEMENTATION;
@@ -1078,7 +1078,7 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
                                   size_t ParamValueSize, void *ParamValue,
                                   size_t *ParamValueSizeRet) {
   if (PrintPiTrace) {
-    std::cerr << "Warning : Profiling Not supported under PI_ESIMD_CPU"
+    std::cerr << "Warning : Profiling Not supported under PI_ESIMD_EMU"
               << std::endl;
   }
   return PI_SUCCESS;
@@ -1181,7 +1181,7 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   /// TODO : Support Blocked read, 'Queue' handling
   if (BlockingRead) {
     assert(false &&
-           "ESIMD_CPU support for blocking piEnqueueMemBufferRead is NYI");
+           "ESIMD_EMU support for blocking piEnqueueMemBufferRead is NYI");
   }
   if (NumEventsInWaitList != 0) {
     return PI_INVALID_EVENT_WAIT_LIST;
@@ -1277,7 +1277,7 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
                                 pi_event *Event) {
   /// TODO : Support Blocked read, 'Queue' handling
   if (BlockingRead) {
-    assert(false && "ESIMD_CPU does not support Blocking Read");
+    assert(false && "ESIMD_EMU does not support Blocking Read");
   }
   _pi_image *PiImg = static_cast<_pi_image *>(Image);
 
@@ -1508,7 +1508,7 @@ pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
   /// for the images
   if (RawImgSize != 1) {
     if (PrintPiTrace) {
-      std::cerr << "Only single device binary image is supported in ESIMD_CPU"
+      std::cerr << "Only single device binary image is supported in ESIMD_EMU"
                 << std::endl;
     }
     return PI_INVALID_VALUE;
@@ -1547,7 +1547,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   strncpy(PluginInit->PluginVersion, _PI_H_VERSION_STRING, PluginVersionSize);
 
   PiESimdDeviceAccess = new sycl::detail::ESIMDEmuPluginOpaqueData();
-  // 'version' to be compared with 'ESIMD_CPU_DEVICE_REQUIRED_VER' defined in
+  // 'version' to be compared with 'ESIMD_EMU_DEVICE_REQUIRED_VER' defined in
   // device interface file
   PiESimdDeviceAccess->version = ESIMDEmuPluginDataVersion;
   PiESimdDeviceAccess->data =

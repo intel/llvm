@@ -1,4 +1,4 @@
-//===---------- pi_esimd_cpu.hpp - CM Emulation Plugin --------------------===//
+//===---------- pi_esimd_emu.hpp - CM Emulation Plugin --------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// \file pi_esimd_cpu.hpp
+/// \file pi_esimd_emu.hpp
 /// Declarations for CM Emulation Plugin. It is the interface between the
 /// device-agnostic SYCL runtime layer and underlying CM Emulation
 ///
-/// \ingroup sycl_pi_esimd_cpu
+/// \ingroup sycl_pi_esimd_emu
 
 #pragma once
 
@@ -160,4 +160,4 @@ struct _pi_kernel : _pi_object {
   _pi_kernel() {}
 };
 
-#include <sycl/ext/intel/experimental/esimd/emu/detail/esimdcpu_device_interface.hpp>
+#include <sycl/ext/intel/experimental/esimd/emu/detail/esimdemu_device_interface.hpp>

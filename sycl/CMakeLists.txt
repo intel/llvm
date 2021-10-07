@@ -310,8 +310,8 @@ endif()
 # TODO : Remove 'if (NOT MSVC)' when CM_EMU supports Windows
 # environment
 if (NOT MSVC)
-  if (SYCL_BUILD_PI_ESIMD_CPU)
-    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_cpu libcmrt-headers)
+  if (SYCL_BUILD_PI_ESIMD_EMU)
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emu libcmrt-headers)
     if (MSVC)
       list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
     else()
