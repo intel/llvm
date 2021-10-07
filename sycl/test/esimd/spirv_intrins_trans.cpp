@@ -190,8 +190,8 @@ size_t caller() {
     //  addrspace(1)* @__spirv_BuiltInWorkgroupId to <3 x i64> addrspace(4)*),
     //  align 32 %1 = extractelement <3 x i64> %0, i64 0 %2 = extractelement <3
     //  x i64> %0, i64 1 %3 = extractelement <3 x i64> %0, i64 2
-    // In this case we will generate only 1 call to GenX intrinsic, and re-use
-    // it 3 times in extract element instructions.
+    // In this case we will generate 3 calls to the same GenX intrinsic,
+    // But -early-cse will later remove this redundancy.
     auto DoNotOptimizeXYZ =
         bufXYZ.get_access<cl::sycl::access::mode::write>(cgh);
     kernel<class kernel_LocalInvocationId_xyz>([=]() SYCL_ESIMD_KERNEL {
