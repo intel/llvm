@@ -6285,8 +6285,8 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
     ClResult.pop_back();
     if (is_in_separated_string(ClResult, ';', std::string(FunctionName)))
       return PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
-    else
-      return PI_INVALID_KERNEL_NAME;
+
+    return PI_INVALID_KERNEL_NAME;
   }
 
   if (ZeResult == ZE_RESULT_ERROR_INVALID_FUNCTION_NAME) {

@@ -81,13 +81,8 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   if (auto F = FuncPtrs[context]) {
     // if cached that extension is not available return nullptr and
     // PI_INVALID_VALUE
-    if (F == nullptr) {
-      *fptr = nullptr;
-      return PI_INVALID_VALUE;
-    } else {
-      *fptr = F;
-      return PI_SUCCESS;
-    }
+    *fptr = F;
+    return F ? PI_SUCCESS : PI_INVALID_VALUE;
   }
 
   cl_uint deviceCount;
@@ -587,8 +582,8 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
   ClResult.pop_back();
   if (!is_in_separated_string(ClResult, ';', func_name))
     return PI_INVALID_KERNEL_NAME;
-  else
-    pi_ret_err = PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
+
+  pi_ret_err = PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
 
   // If clGetDeviceFunctionPointer is in list of extensions
   if (FuncT) {
