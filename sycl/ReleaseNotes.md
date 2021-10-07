@@ -3,7 +3,7 @@
 Release notes for commit range 6a49170027fb..962909fe9e78
 
 ## New features
- - Implemented SYCL 2020 specialization constants [07b27965] [ba3d657]
+ - Implemented the SYCL 2020 specialization constants [07b27965] [ba3d657]
    [bd8dcf4] [d15b841]
  - Provided SYCL 2020 function objects [24a2ad89]
  - Added support for ITT notification in SYCL Runtime [a7b8daf] [8d3921e3]
