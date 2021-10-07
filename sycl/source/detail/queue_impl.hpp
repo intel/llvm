@@ -419,6 +419,23 @@ public:
   }
 
 private:
+  void finalizeHandler(handler &Handler, bool NeedSeparateDependencyMgmt,
+                       event &EventRet) {
+    if (MIsInorder) {
+      // Accessing and changing of an event isn't atomic operation.
+      // Hence, here is the lock for thread-safety.
+      std::lock_guard<std::mutex> Lock{MLastEventMtx};
+
+      if (NeedSeparateDependencyMgmt)
+        Handler.depends_on(MLastEvent);
+
+      EventRet = Handler.finalize();
+
+      MLastEvent = EventRet;
+    } else
+      EventRet = Handler.finalize();
+  }
+
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
@@ -437,9 +454,9 @@ private:
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
     const CG::CGTYPE Type = Handler.getType();
-    if (MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
-                       Type == CG::CGTYPE::CodeplayInteropTask))
-      Handler.depends_on(MLastEvent);
+    bool NeedSeparateDependencyMgmt =
+        MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
+                       Type == CG::CGTYPE::CodeplayInteropTask);
 
     event Event;
 
@@ -452,14 +469,11 @@ private:
                             : ProgramManager::getInstance().kernelUsesAssert(
                                   Handler.MOSModuleHandle, Handler.MKernelName);
 
-      Event = Handler.finalize();
+      finalizeHandler(Handler, NeedSeparateDependencyMgmt, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
     } else
-      Event = Handler.finalize();
-
-    if (MIsInorder)
-      MLastEvent = Event;
+      finalizeHandler(Handler, NeedSeparateDependencyMgmt, Event);
 
     addEvent(Event);
     return Event;
@@ -521,7 +535,11 @@ private:
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
 
+  // This event is employed for enhanced dependency tracking with in-order queue
+  // Access to the event should be guarded with MLastEventMtx
   event MLastEvent;
+  std::mutex MLastEventMtx;
+
   const bool MIsInorder;
 };
 

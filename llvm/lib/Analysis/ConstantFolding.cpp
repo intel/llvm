@@ -795,11 +795,11 @@ Constant *SymbolicallyEvaluateBinop(unsigned Opc, Constant *Op0, Constant *Op1,
   if (Opc == Instruction::And) {
     KnownBits Known0 = computeKnownBits(Op0, DL);
     KnownBits Known1 = computeKnownBits(Op1, DL);
-    if ((Known1.One | Known0.Zero).isAllOnesValue()) {
+    if ((Known1.One | Known0.Zero).isAllOnes()) {
       // All the bits of Op0 that the 'and' could be masking are already zero.
       return Op0;
     }
-    if ((Known0.One | Known1.Zero).isAllOnesValue()) {
+    if ((Known0.One | Known1.Zero).isAllOnes()) {
       // All the bits of Op1 that the 'and' could be masking are already zero.
       return Op1;
     }
@@ -1345,21 +1345,31 @@ Constant *llvm::ConstantFoldCastOperand(unsigned Opcode, Constant *C,
   default:
     llvm_unreachable("Missing case");
   case Instruction::PtrToInt:
-    // If the input is a inttoptr, eliminate the pair.  This requires knowing
-    // the width of a pointer, so it can't be done in ConstantExpr::getCast.
     if (auto *CE = dyn_cast<ConstantExpr>(C)) {
+      Constant *FoldedValue = nullptr;
+      // If the input is a inttoptr, eliminate the pair.  This requires knowing
+      // the width of a pointer, so it can't be done in ConstantExpr::getCast.
       if (CE->getOpcode() == Instruction::IntToPtr) {
-        Constant *Input = CE->getOperand(0);
-        unsigned InWidth = Input->getType()->getScalarSizeInBits();
-        unsigned PtrWidth = DL.getPointerTypeSizeInBits(CE->getType());
-        if (PtrWidth < InWidth) {
-          Constant *Mask =
-            ConstantInt::get(CE->getContext(),
-                             APInt::getLowBitsSet(InWidth, PtrWidth));
-          Input = ConstantExpr::getAnd(Input, Mask);
+        // zext/trunc the inttoptr to pointer size.
+        FoldedValue = ConstantExpr::getIntegerCast(
+            CE->getOperand(0), DL.getIntPtrType(CE->getType()),
+            /*IsSigned=*/false);
+      } else if (auto *GEP = dyn_cast<GEPOperator>(CE)) {
+        // If we have GEP, we can perform the following folds:
+        // (ptrtoint (gep null, x)) -> x
+        // (ptrtoint (gep (gep null, x), y) -> x + y, etc.
+        unsigned BitWidth = DL.getIndexTypeSizeInBits(GEP->getType());
+        APInt BaseOffset(BitWidth, 0);
+        auto *Base = cast<Constant>(GEP->stripAndAccumulateConstantOffsets(
+            DL, BaseOffset, /*AllowNonInbounds=*/true));
+        if (Base->isNullValue()) {
+          FoldedValue = ConstantInt::get(CE->getContext(), BaseOffset);
         }
-        // Do a zext or trunc to get to the dest size.
-        return ConstantExpr::getIntegerCast(Input, DestTy, false);
+      }
+      if (FoldedValue) {
+        // Do a zext or trunc to get to the ptrtoint dest size.
+        return ConstantExpr::getIntegerCast(FoldedValue, DestTy,
+                                            /*IsSigned=*/false);
       }
     }
     return ConstantExpr::getCast(Opcode, C, DestTy);
@@ -2641,7 +2651,7 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
       assert(C1 && "Must be constant int");
 
       // cttz(0, 1) and ctlz(0, 1) are undef.
-      if (C1->isOneValue() && (!C0 || C0->isNullValue()))
+      if (C1->isOne() && (!C0 || C0->isZero()))
         return UndefValue::get(Ty);
       if (!C0)
         return Constant::getNullValue(Ty);
@@ -2653,11 +2663,11 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
     case Intrinsic::abs:
       // Undef or minimum val operand with poison min --> undef
       assert(C1 && "Must be constant int");
-      if (C1->isOneValue() && (!C0 || C0->isMinSignedValue()))
+      if (C1->isOne() && (!C0 || C0->isMinSignedValue()))
         return UndefValue::get(Ty);
 
       // Undef operand with no poison min --> 0 (sign bit must be clear)
-      if (C1->isNullValue() && !C0)
+      if (C1->isZero() && !C0)
         return Constant::getNullValue(Ty);
 
       return ConstantInt::get(Ty, C0->abs());
@@ -3161,7 +3171,7 @@ bool llvm::isMathLibCallNoop(const CallBase *Call,
   if (!TLI || !TLI->getLibFunc(*F, Func))
     return false;
 
-  if (Call->getNumArgOperands() == 1) {
+  if (Call->arg_size() == 1) {
     if (ConstantFP *OpC = dyn_cast<ConstantFP>(Call->getArgOperand(0))) {
       const APFloat &Op = OpC->getValueAPF();
       switch (Func) {
@@ -3250,7 +3260,7 @@ bool llvm::isMathLibCallNoop(const CallBase *Call,
     }
   }
 
-  if (Call->getNumArgOperands() == 2) {
+  if (Call->arg_size() == 2) {
     ConstantFP *Op0C = dyn_cast<ConstantFP>(Call->getArgOperand(0));
     ConstantFP *Op1C = dyn_cast<ConstantFP>(Call->getArgOperand(1));
     if (Op0C && Op1C) {

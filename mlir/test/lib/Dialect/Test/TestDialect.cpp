@@ -210,8 +210,7 @@ public:
   TestReductionPatternInterface(Dialect *dialect)
       : DialectReductionPatternInterface(dialect) {}
 
-  virtual void
-  populateReductionPatterns(RewritePatternSet &patterns) const final {
+  void populateReductionPatterns(RewritePatternSet &patterns) const final {
     populateTestReductionPatterns(patterns);
   }
 };
@@ -692,7 +691,7 @@ static ParseResult parseWrappingRegionOp(OpAsmParser &parser,
   // Create a return terminator in the inner region, pass as operand to the
   // terminator the returned values from the wrapped operation.
   SmallVector<Value, 8> return_operands(wrapped_op->getResults());
-  OpBuilder builder(parser.getBuilder().getContext());
+  OpBuilder builder(parser.getContext());
   builder.setInsertionPointToEnd(&block);
   builder.create<TestReturnOp>(wrapped_op->getLoc(), return_operands);
 

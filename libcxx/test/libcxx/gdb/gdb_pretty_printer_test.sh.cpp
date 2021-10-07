@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: host-has-gdb
+// REQUIRES: host-has-gdb-with-python
 // UNSUPPORTED: libcpp-has-no-localization
 // UNSUPPORTED: c++03
 
