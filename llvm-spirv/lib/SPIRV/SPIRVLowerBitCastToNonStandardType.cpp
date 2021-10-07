@@ -74,7 +74,9 @@ bool lowerBitCastToNonStdVec(Instruction *OldInst, Value *NewInst,
   static constexpr unsigned MaxRecursionDepth = 16;
   if (RecursionDepth++ > MaxRecursionDepth)
     report_fatal_error(
-        "The depth of recursion exceeds the maximum possible depth", false);
+        llvm::Twine(
+            "The depth of recursion exceeds the maximum possible depth"),
+        false);
 
   bool Changed = false;
   VectorType *NewVecTy = getVectorType(NewInst->getType());
@@ -169,8 +171,8 @@ public:
           uint64_t NumElemsInSrcVec = SrcVecTy->getElementCount().getValue();
           if (!isValidVectorSize(NumElemsInSrcVec))
             report_fatal_error(
-                Twine("Unsupported vector type with the size of: " +
-                      std::to_string(NumElemsInSrcVec)),
+                llvm::Twine("Unsupported vector type with the size of: " +
+                            std::to_string(NumElemsInSrcVec)),
                 false);
         }
         VectorType *DestVecTy = getVectorType(BC->getDestTy());
