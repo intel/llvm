@@ -123,9 +123,9 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
   COMMENT "Copying SYCL headers ...")
 
-# Copy SYCL headers from build to install directory
-install(DIRECTORY "${SYCL_INCLUDE_BUILD_DIR}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(FILES "${version_header}" DESTINATION ${SYCL_INCLUDE_DIR}/sycl/CL/sycl COMPONENT sycl-headers)
+# Copy SYCL headers from source to install directory
+install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
+install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/sycl COMPONENT sycl-headers)
 
 set(SYCL_RT_LIBS sycl)
 if (MSVC)
