@@ -28,29 +28,42 @@ namespace esimd {
 
 namespace detail {
 // Type used in internal functions to designate SLM access by
-// providing dummy accessor of this type.
+// providing dummy accessor of this type. Used to make it possible to delegate
+// implemenations of SLM memory accesses to general surface-based memory
+// accesses and thus reuse validity checks etc.
 struct LocalAccessorMarker {};
 
 // Shared Local Memory Binding Table Index (aka surface index).
 static inline constexpr SurfaceIndex SLM_BTI = 254;
 static inline constexpr SurfaceIndex INVALID_BTI =
     static_cast<SurfaceIndex>(-1);
+} // namespace detail
 
-/// Convert accessor type to surface index (aka binding table index).
+/// Get surface index corresponding to a SYCL accessor.
+///
+/// \param acc a SYCL buffer or image accessor.
+/// \return the index of the corresponding surface (aka "binding table index").
+///
+/// \ingroup sycl_esimd
 template <typename AccessorTy>
-ESIMD_INLINE ESIMD_NODEBUG auto accessor_to_surf_ind(AccessorTy acc) {
+ESIMD_INLINE ESIMD_NODEBUG SurfaceIndex get_surface_index(AccessorTy acc) {
 #ifdef __SYCL_DEVICE_ONLY__
-  if constexpr (std::is_same_v<LocalAccessorMarker, AccessorTy>) {
-    return SLM_BTI;
+  if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy>) {
+    return detail::SLM_BTI;
   } else {
     const auto mem_obj = detail::AccessorPrivateProxy::getNativeImageObj(acc);
     return __esimd_get_surface_index(mem_obj);
   }
 #else
-  return acc; // no actual conversion on host for now, use accessor
+  throw cl::sycl::feature_not_supported();
 #endif
 }
-} // namespace detail
+
+#ifdef __SYCL_DEVICE_ONLY__
+#define __ESIMD_GET_SURF_HANDLE(acc) get_surface_index(acc)
+#else
+#define __ESIMD_GET_SURF_HANDLE(acc) acc
+#endif // __SYCL_DEVICE_ONLY__
 
 // TODO @Pennycook
 // {quote}
@@ -286,7 +299,7 @@ ESIMD_INLINE ESIMD_NODEBUG
     glob_offset *= t_scale;
     offsets *= t_scale;
   }
-  const auto surf_ind = detail::accessor_to_surf_ind(acc);
+  const auto si = get_surface_index(acc);
 
   if constexpr (sizeof(T) < 4) {
     static_assert(std::is_integral<T>::value,
@@ -295,14 +308,12 @@ ESIMD_INLINE ESIMD_NODEBUG
         typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
                                              uint32_t>;
     const simd<PromoT, N> promo_vals =
-        __esimd_gather_scaled2<PromoT, N, decltype(surf_ind), TypeSizeLog2,
-                               scale, L1H, L3H>(surf_ind, glob_offset,
-                                                offsets.data());
+        __esimd_gather_scaled2<PromoT, N, decltype(si), TypeSizeLog2, scale,
+                               L1H, L3H>(si, glob_offset, offsets.data());
     return convert<T>(promo_vals);
   } else {
-    return __esimd_gather_scaled2<T, N, decltype(surf_ind), TypeSizeLog2, scale,
-                                  L1H, L3H>(surf_ind, glob_offset,
-                                            offsets.data());
+    return __esimd_gather_scaled2<T, N, decltype(si), TypeSizeLog2, scale, L1H,
+                                  L3H>(si, glob_offset, offsets.data());
   }
 }
 
@@ -343,7 +354,7 @@ ESIMD_INLINE ESIMD_NODEBUG
     glob_offset *= t_scale;
     offsets *= t_scale;
   }
-  const auto surf_ind = detail::accessor_to_surf_ind(acc);
+  const auto si = __ESIMD_GET_SURF_HANDLE(acc);
 
   if constexpr (sizeof(T) < 4) {
     static_assert(std::is_integral<T>::value,
@@ -352,13 +363,12 @@ ESIMD_INLINE ESIMD_NODEBUG
         typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
                                              uint32_t>;
     const simd<PromoT, N> promo_vals = convert<PromoT>(vals);
-    __esimd_scatter_scaled<PromoT, N, decltype(surf_ind), TypeSizeLog2, scale,
-                           L1H, L3H>(pred.data(), surf_ind, glob_offset,
-                                     offsets.data(), promo_vals.data());
+    __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale, L1H,
+                           L3H>(pred.data(), si, glob_offset, offsets.data(),
+                                promo_vals.data());
   } else {
-    __esimd_scatter_scaled<T, N, decltype(surf_ind), TypeSizeLog2, scale, L1H,
-                           L3H>(pred.data(), surf_ind, glob_offset,
-                                offsets.data(), vals.data());
+    __esimd_scatter_scaled<T, N, decltype(si), TypeSizeLog2, scale, L1H, L3H>(
+        pred.data(), si, glob_offset, offsets.data(), vals.data());
   }
 }
 
@@ -665,10 +675,9 @@ ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<(n == 16 || n == 32), simd<T, n>>
 slm_gather(simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
   // TODO reimplement using __esimd_gather_scaled2
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
-  const auto surf_ind =
-      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
-  return __esimd_gather_scaled<T, n, TypeSizeLog2>(pred.data(), surf_ind, 0,
-                                                   offsets.data());
+  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+  return __esimd_gather_scaled<T, n, decltype(si), TypeSizeLog2>(
+      pred.data(), si, 0 /*glob_offset*/, offsets.data());
 }
 
 /// SLM gather (deprecated version).
@@ -687,13 +696,11 @@ ESIMD_INLINE
     ESIMD_NODEBUG std::enable_if_t<(n == 16 || n == 32) && (sizeof(T) == 4)>
     slm_scatter(simd<T, n> vals, simd<uint32_t, n> offsets,
                 simd_mask<n> pred = 1) {
-  const auto surf_ind =
-      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
+  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   constexpr int16_t scale = 0;
-  __esimd_scatter_scaled<T, n, decltype(surf_ind), TypeSizeLog2, scale, L1H,
-                         L3H>(pred.data(), TypeSizeLog2, scale, surf_ind,
-                              0 /*glob_offset*/, offsets.data(), vals.data());
+  __esimd_scatter_scaled<T, n, decltype(si), TypeSizeLog2, scale>(
+      pred.data(), si, 0 /*glob_offset*/, offsets.data(), vals.data());
 }
 
 /// SLM scatter (deprecated version).
@@ -718,8 +725,10 @@ ESIMD_INLINE ESIMD_NODEBUG
     std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4),
                      simd<T, N * get_num_channels_enabled(Mask)>>
     slm_gather_rgba(simd<uint32_t, N> offsets, simd<uint16_t, N> pred = 1) {
-  return __esimd_gather4_scaled<T, N, Mask>(detail::SLM_BTI, offsets.data(),
-                                            pred.data());
+
+  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+  return __esimd_gather4_scaled<T, N, decltype(si), Mask>(
+      pred.data(), si, 0 /*global_offset*/, offsets.data());
 }
 
 /// SLM gather4.
@@ -751,12 +760,11 @@ ESIMD_INLINE ESIMD_NODEBUG
     std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4)>
     slm_scatter_rgba(simd<T, N * get_num_channels_enabled(Mask)> vals,
                      simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
-  const auto surf_ind =
-      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
+  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   constexpr int16_t Scale = 0;
   constexpr int global_offset = 0;
-  __esimd_scatter4_scaled<T, N, decltype(surf_ind), Mask, Scale>(
-      pred.data(), surf_ind, global_offset, offsets.data(), vals.data());
+  __esimd_scatter4_scaled<T, N, decltype(si), Mask, Scale>(
+      pred.data(), si, global_offset, offsets.data(), vals.data());
 }
 
 /// SLM scatter4.
@@ -782,9 +790,8 @@ ESIMD_INLINE ESIMD_NODEBUG simd<T, n> slm_block_load(uint32_t offset) {
   static_assert(Sz <= 16 * detail::OperandSize::OWORD,
                 "block size must be at most 16 owords");
 
-  const auto surf_ind =
-      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
-  return __esimd_oword_ld<T, n>(surf_ind, offset >> 4);
+  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+  return __esimd_oword_ld<T, n>(si, offset >> 4);
 }
 
 /// SLM block-store.
@@ -801,10 +808,9 @@ ESIMD_INLINE ESIMD_NODEBUG void slm_block_store(uint32_t offset,
   static_assert(Sz <= 8 * detail::OperandSize::OWORD,
                 "block size must be at most 8 owords");
 
-  const auto surf_ind =
-      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
+  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   // offset in genx.oword.st is in owords
-  __esimd_oword_st<T, n>(surf_ind, offset >> 4, vals.data());
+  __esimd_oword_st<T, n>(si, offset >> 4, vals.data());
 }
 
 /// SLM atomic, zero source operand: inc and dec.
@@ -813,9 +819,8 @@ ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
                                        simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd_mask<n> pred) {
-  const auto surf_ind =
-      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
-  return __esimd_dword_atomic0<Op, T, n>(pred.data(), surf_ind, offsets.data());
+  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+  return __esimd_dword_atomic0<Op, T, n>(pred.data(), si, offsets.data());
 }
 
 /// SLM atomic, one source operand, add/sub/min/max etc.
@@ -824,9 +829,8 @@ ESIMD_NODEBUG ESIMD_INLINE
     typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
                                        simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0, simd_mask<n> pred) {
-  const auto surf_ind =
-      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
-  return __esimd_dword_atomic1<Op, T, n>(pred.data(), surf_ind, offsets.data(),
+  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+  return __esimd_dword_atomic1<Op, T, n>(pred.data(), si, offsets.data(),
                                          src0.data());
 }
 
@@ -837,9 +841,8 @@ ESIMD_NODEBUG ESIMD_INLINE
                                        simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0, simd<T, n> src1,
                simd_mask<n> pred) {
-  const auto surf_ind =
-      detail::accessor_to_surf_ind(detail::LocalAccessorMarker());
-  return __esimd_dword_atomic2<Op, T, n>(pred.data(), surf_ind, offsets.data(),
+  const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
+  return __esimd_dword_atomic2<Op, T, n>(pred.data(), si, offsets.data(),
                                          src0.data(), src1.data());
 }
 /// @}
@@ -867,8 +870,8 @@ media_block_load(AccessorTy acc, unsigned x, unsigned y) {
   static_assert(m <= 64u, "valid block height is in range [1, 64]");
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
 
-  const auto surf_ind = detail::accessor_to_surf_ind(acc);
-  using SurfIndTy = decltype(surf_ind);
+  const auto si = __ESIMD_GET_SURF_HANDLE(acc);
+  using SurfIndTy = decltype(si);
   constexpr unsigned int RoundedWidth =
       Width < 4 ? 4 : detail::getNextPowerOf2<Width>();
   constexpr int BlockWidth = sizeof(T) * n;
@@ -878,11 +881,11 @@ media_block_load(AccessorTy acc, unsigned x, unsigned y) {
     constexpr unsigned int n1 = RoundedWidth / sizeof(T);
     simd<T, m *n1> temp =
         __esimd_media_ld<T, m, n1, Mod, SurfIndTy, (int)plane, BlockWidth>(
-            surf_ind, x, y);
+            si, x, y);
     return temp.template select<m, 1, n, 1>(0, 0);
   } else {
     return __esimd_media_ld<T, m, n, Mod, SurfIndTy, (int)plane, BlockWidth>(
-        surf_ind, x, y);
+        si, x, y);
   }
 }
 
@@ -908,8 +911,8 @@ media_block_store(AccessorTy acc, unsigned x, unsigned y, simd<T, m * n> vals) {
   static_assert(Width <= 64u, "valid block width is in range [1, 64]");
   static_assert(m <= 64u, "valid block height is in range [1, 64]");
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
-  const auto surf_ind = detail::accessor_to_surf_ind(acc);
-  using SurfIndTy = decltype(surf_ind);
+  const auto si = __ESIMD_GET_SURF_HANDLE(acc);
+  using SurfIndTy = decltype(si);
   constexpr unsigned int RoundedWidth =
       Width < 4 ? 4 : detail::getNextPowerOf2<Width>();
   constexpr unsigned int n1 = RoundedWidth / sizeof(T);
@@ -921,10 +924,10 @@ media_block_store(AccessorTy acc, unsigned x, unsigned y, simd<T, m * n> vals) {
     auto temp_ref = temp.template bit_cast_view<T, m, n1>();
     auto vals_ref = vals.template bit_cast_view<T, m, n>();
     temp_ref.template select<m, 1, n, 1>() = vals_ref;
-    __esimd_media_st<T, m, n1, Mod, SurfIndTy, plane, BlockWidth>(
-        surf_ind, x, y, temp.data());
+    __esimd_media_st<T, m, n1, Mod, SurfIndTy, plane, BlockWidth>(si, x, y,
+                                                                  temp.data());
   } else {
-    __esimd_media_st<T, m, n, Mod, SurfIndTy, plane, BlockWidth>(surf_ind, x, y,
+    __esimd_media_st<T, m, n, Mod, SurfIndTy, plane, BlockWidth>(si, x, y,
                                                                  vals.data());
   }
 }
@@ -934,6 +937,18 @@ media_block_store(AccessorTy acc, unsigned x, unsigned y, simd<T, m * n> vals) {
 inline void slm_init(uint32_t size) {}
 
 #endif
+
+/// esimd_get_value
+///
+/// \param acc is the SYCL accessor.
+/// \return the binding table index value.
+///
+/// \ingroup sycl_esimd
+template <typename AccessorTy>
+__SYCL_DEPRECATED("use get_surface_index")
+ESIMD_INLINE ESIMD_NODEBUG uint32_t esimd_get_value(AccessorTy acc) {
+  return static_cast<uint32_t>(get_surface_index(acc));
+}
 
 /// \defgroup sycl_esimd_raw_send_api Raw send APIs
 /// APIs below are used to implement the send messages on Intel(R) processor
@@ -1096,6 +1111,8 @@ esimd_raw_send_store(simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
                                         msgSrc0.data());
 }
 /// @}
+
+#undef __ESIMD_GET_SURF_HANDLE
 
 } // namespace esimd
 } // namespace experimental

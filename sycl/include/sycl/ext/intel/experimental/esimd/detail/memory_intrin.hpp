@@ -27,9 +27,6 @@ namespace experimental {
 namespace esimd {
 namespace detail {
 
-// Surface index type used by the BE.
-using SurfaceIndex = unsigned int;
-
 // Provides access to sycl accessor class' private members.
 class AccessorPrivateProxy {
 public:
@@ -390,7 +387,7 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     ;
 #else
 {
-  static_assert(N == 1 || N == 8 || N == 16);
+  static_assert(N == 1 || N == 8 || N == 16 || N == 32);
   static_assert(TySizeLog2 <= 2);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
   throw cl::sycl::feature_not_supported();
@@ -740,7 +737,7 @@ __esimd_media_st(TACC handle, unsigned x, unsigned y,
 /// Returns the surface index (binding table index) value 'sid' corresponds to.
 ///
 template <typename SurfIndAliasTy>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::SurfaceIndex
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEE::SurfaceIndex
 __esimd_get_surface_index(SurfIndAliasTy sid);
 #endif // __SYCL_DEVICE_ONLY__
 

@@ -666,7 +666,8 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset) {
   static_assert(Sz <= 8 * OperandSize::OWORD,
                 "block size must be at most 8 owords");
 #if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
+  auto surf_ind =
+      __esimd_get_surface_index(AccessorPrivateProxy::getNativeImageObj(acc));
   *this = __esimd_oword_ld_unaligned<T, N>(surf_ind, offset);
 #else
   *this = __esimd_oword_ld_unaligned<T, N>(acc, offset);
@@ -705,7 +706,8 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset) {
                 "block size must be at most 8 owords");
 
 #if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
+  auto surf_ind =
+      __esimd_get_surface_index(AccessorPrivateProxy::getNativeImageObj(acc));
   __esimd_oword_st<T, N>(surf_ind, offset >> 4, data());
 #else
   __esimd_oword_st<T, N>(acc, offset >> 4, data());
