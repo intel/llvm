@@ -79,10 +79,10 @@ Note that all device selectors will throw an exception if the filtered list of d
 
 ## Debugging variables for DPC++ Runtime
 
-**Warning:** <span style="color:red">the environment variables described below
-are used for development and debugging of DPC++ compiler and runtime. Their
-semantics are subject to change. Do not rely on these variables in production
-code.</span>
+:warning: **Warning:** <span style="color:red">the environment variables
+described below are used for development and debugging of DPC++ compiler
+and runtime. Their semantics are subject to change. Do not rely on these
+variables in production code.</span>
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
@@ -129,10 +129,10 @@ code.</span>
 
 ## Debugging variables for Level Zero Plugin
 
-**Warning:** <span style="color:red">the environment variables described below
-are used for development and debugging of DPC++ compiler and runtime. Their
-semantics are subject to change. Do not rely on these variables in production
-code.</span>
+:warning: **Warning:** <span style="color:red">the environment variables
+described below are used for development and debugging of DPC++ compiler
+and runtime. Their semantics are subject to change. Do not rely on these
+variables in production code.</span>
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
