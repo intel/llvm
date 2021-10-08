@@ -238,14 +238,12 @@ KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
     // There are indirect calls in the module, which means that we don't know
     // how to group functions so both caller and callee of indirect call are in
     // the same module.
-    for (const auto &BB : F) {
-      for (const auto &I : BB) {
-        if (auto *CI = dyn_cast<CallInst>(&I)) {
-          if (!CI->getCalledFunction())
-            return Scope_Global;
-        }
-      }
+    for (const auto &I : instructions(F)) {
+      if (auto *CI = dyn_cast<CallInst>(&I))
+        if (!CI->getCalledFunction())
+          return Scope_Global;
     }
+
     // Function pointer is used somewhere. Follow the same rule as above.
     for (const auto *U : F.users())
       if (!isa<CallInst>(U))
