@@ -15,6 +15,9 @@ $handler = comdat any
 @__profn__ = weak_odr hidden constant [7 x i8] c"handler"
 
 ; CHECK-SPIRV-NOT: llvm.instrprof.increment
+; CHECK-SPIRV-NOT: llvm.instrprof.increment.step
+; CHECK-SPIRV-NOT: llvm.instrprof.value.profile
+
 ; CHECK-LLVM-NOT: call void @llvm.instrprof.increment
 ; CHECK-LLVM-NOT: declare void @llvm.instrprof.increment(i8*, i64, i32, i32)
 ; CHECK-LLVM-NOT: call void @llvm.instrprof.increment.step
