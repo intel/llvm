@@ -9,8 +9,8 @@
 // CHECK: %"class.cl::sycl::accessor.1" = type { %"class{{.*}}AccessorImplDevice", %[[UNION:.*]] }
 // CHECK-DISABLE: %[[UNION]] = type { i32 addrspace(1)* }
 // CHECK-ENABLE: %[[UNION]] = type { i32 addrspace(5)* }
-// CHECK: %struct.AccWrapper.4 = type { %"class.cl::sycl::accessor.5" }
-// CHECK-NEXT: %"class.cl::sycl::accessor.5" = type { %"class{{.*}}LocalAccessorBaseDevice", i32 addrspace(3)* }
+// CHECK: %struct.AccWrapper.{{[0-9]+}} = type { %"class.cl::sycl::accessor.[[NUM:[0-9]+]]" }
+// CHECK-NEXT: %"class.cl::sycl::accessor.[[NUM]]" = type { %"class{{.*}}LocalAccessorBaseDevice", i32 addrspace(3)* }
 //
 // Check that kernel arguments doesn't have generic address space.
 //
