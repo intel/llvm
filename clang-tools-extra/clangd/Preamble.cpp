@@ -73,6 +73,8 @@ public:
 
   MainFileMacros takeMacros() { return std::move(Macros); }
 
+  std::vector<PragmaMark> takeMarks() { return std::move(Marks); }
+
   CanonicalIncludes takeCanonicalIncludes() { return std::move(CanonIncludes); }
 
   bool isMainFileIncludeGuarded() const { return IsMainFileIncludeGuarded; }
@@ -102,8 +104,10 @@ public:
            "SourceMgr and LangOpts must be set at this point");
 
     return std::make_unique<PPChainedCallbacks>(
-        collectIncludeStructureCallback(*SourceMgr, &Includes),
-        std::make_unique<CollectMainFileMacros>(*SourceMgr, Macros));
+        Includes.collect(*SourceMgr),
+        std::make_unique<PPChainedCallbacks>(
+            std::make_unique<CollectMainFileMacros>(*SourceMgr, Macros),
+            collectPragmaMarksCallback(*SourceMgr, Marks)));
   }
 
   CommentHandler *getCommentHandler() override {
@@ -130,6 +134,7 @@ private:
   IncludeStructure Includes;
   CanonicalIncludes CanonIncludes;
   MainFileMacros Macros;
+  std::vector<PragmaMark> Marks;
   bool IsMainFileIncludeGuarded = false;
   std::unique_ptr<CommentHandler> IWYUHandler = nullptr;
   const clang::LangOptions *LangOpts = nullptr;
@@ -280,7 +285,7 @@ scanPreamble(llvm::StringRef Contents, const tooling::CompileCommand &Cmd) {
   const auto &SM = Clang->getSourceManager();
   Preprocessor &PP = Clang->getPreprocessor();
   IncludeStructure Includes;
-  PP.addPPCallbacks(collectIncludeStructureCallback(SM, &Includes));
+  PP.addPPCallbacks(Includes.collect(SM));
   ScannedPreamble SP;
   SP.Bounds = Bounds;
   PP.addPPCallbacks(
@@ -389,6 +394,7 @@ buildPreamble(PathRef FileName, CompilerInvocation CI,
     Result->Diags = std::move(Diags);
     Result->Includes = CapturedInfo.takeIncludes();
     Result->Macros = CapturedInfo.takeMacros();
+    Result->Marks = CapturedInfo.takeMarks();
     Result->CanonIncludes = CapturedInfo.takeCanonicalIncludes();
     Result->StatCache = std::move(StatCache);
     Result->MainIsIncludeGuarded = CapturedInfo.isMainFileIncludeGuarded();

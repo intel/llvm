@@ -113,6 +113,11 @@ public:
   /// \return a valid SYCL context
   context get_context() const;
 
+  /// Returns the backend associated with this kernel.
+  ///
+  /// \return the backend associated with this kernel.
+  backend get_backend() const noexcept;
+
   /// Get the kernel_bundle associated with this kernel.
   ///
   /// \return a valid kernel_bundle<bundle_state::executable>
@@ -196,8 +201,9 @@ public:
   // clang-format on
 
   template <backend Backend>
-  typename backend_traits<Backend>::template return_type<kernel>
-  get_native() const {
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
+  typename backend_traits<Backend>::template return_type<kernel> get_native()
+      const {
     return detail::pi::cast<
         typename backend_traits<Backend>::template return_type<kernel>>(
         getNativeImpl());

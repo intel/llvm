@@ -40,9 +40,9 @@ template <typename T, size_t oldSize, size_t oldAlignment> void check() {
 }
 
 int main() {
-  using accessor_t = accessor<int, 1, access::mode::read,
-                              access::target::global_buffer,
-                              access::placeholder::true_t>;
+  using accessor_t =
+      accessor<int, 1, access::mode::read, access::target::device,
+               access::placeholder::true_t>;
   check<accessor_t, 32, 8>();
   check<detail::AccessorImplDevice<1>, 24, 8>();
   check<detail::LocalAccessorBaseDevice<1>, 24, 8>();

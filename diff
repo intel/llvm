@@ -1,0 +1,16 @@
+diff --git a/clang/lib/Driver/ToolChains/Clang.cpp b/clang/lib/Driver/ToolChains/Clang.cpp
+index 9af4e6dab4c7..681500bbf785 100644
+--- a/clang/lib/Driver/ToolChains/Clang.cpp
++++ b/clang/lib/Driver/ToolChains/Clang.cpp
+@@ -22,11 +22,7 @@
+ #include "Hexagon.h"
+ #include "MSP430.h"
+ #include "PS4CPU.h"
+-<<<<<<< HEAD
+ #include "SYCL.h"
+-#include "clang/Basic/CLWarnings.h"
+-=======
+->>>>>>> 0cd9d8a48bdddb17de2c6388f9d775353f9acab9
+ #include "clang/Basic/CharInfo.h"
+ #include "clang/Basic/CodeGenOptions.h"
+ #include "clang/Basic/LangOptions.h"

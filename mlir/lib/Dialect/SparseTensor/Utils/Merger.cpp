@@ -489,11 +489,6 @@ unsigned Merger::buildLattices(unsigned e, unsigned i) {
     //  ---+---+---+    ---+---+---+
     //  !x | 0 | y |    !x | 0 |-y |
     //   x | x |x+y|     x | x |x-y|
-    //
-    // TODO: remove this zero "folding" in favor of external pass into linalg
-    //
-    if (isZero(tensorExps[e].children.e1))
-      return buildLattices(tensorExps[e].children.e0, i);
     return takeDisj(kind, // take binary disjunction
                     buildLattices(tensorExps[e].children.e0, i),
                     buildLattices(tensorExps[e].children.e1, i));
@@ -514,17 +509,6 @@ unsigned Merger::buildLattices(unsigned e, unsigned i) {
 Optional<unsigned> Merger::buildTensorExpFromLinalg(linalg::GenericOp op) {
   Operation *yield = op.region().front().getTerminator();
   return buildTensorExp(op, yield->getOperand(0));
-}
-
-/// Only returns true if we are certain this is a zero.
-bool Merger::isZero(unsigned e) const {
-  if (tensorExps[e].kind == kInvariant) {
-    if (auto c = tensorExps[e].val.getDefiningOp<ConstantIntOp>())
-      return c.getValue() == 0;
-    if (auto c = tensorExps[e].val.getDefiningOp<ConstantFloatOp>())
-      return c.getValue().isZero();
-  }
-  return false;
 }
 
 /// Only returns false if we are certain this is a nonzero.
@@ -584,7 +568,7 @@ Optional<unsigned> Merger::buildTensorExp(linalg::GenericOp op, Value v) {
       if (isa<FloorFOp>(def))
         return addExp(kFloorF, e);
       if (isa<NegFOp>(def))
-        return addExp(kNegF, e); // TODO: no negi in std?
+        return addExp(kNegF, e); // no negi in std
       if (isa<FPTruncOp>(def))
         return addExp(kTruncF, e, v);
       if (isa<FPExtOp>(def))
@@ -667,9 +651,12 @@ Value Merger::buildExp(PatternRewriter &rewriter, Location loc, unsigned e,
     return rewriter.create<FloorFOp>(loc, v0);
   case kNegF:
     return rewriter.create<NegFOp>(loc, v0);
-  case kNegI:
-    assert(v1); // no negi in std
-    return rewriter.create<SubIOp>(loc, v0, v1);
+  case kNegI: // no negi in std
+    return rewriter.create<SubIOp>(
+        loc,
+        rewriter.create<ConstantOp>(loc, v0.getType(),
+                                    rewriter.getZeroAttr(v0.getType())),
+        v0);
   case kTruncF:
     return rewriter.create<FPTruncOp>(loc, v0, inferType(e, v0));
   case kExtF:

@@ -16,6 +16,8 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/kernel_bundle.hpp>
 
+#include <vector>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -44,9 +46,9 @@ template <> struct interop<backend::opencl, program> {
 template <> struct interop<backend::opencl, event> { using type = cl_event; };
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
-                                         access::target::global_buffer,
-                                         access::placeholder::false_t>> {
+struct interop<backend::opencl,
+               accessor<DataT, Dimensions, AccessMode, access::target::device,
+                        access::placeholder::false_t>> {
   using type = cl_mem;
 };
 
@@ -77,8 +79,7 @@ struct BackendInput<backend::opencl, kernel_bundle<State>> {
 
 template <bundle_state State>
 struct BackendReturn<backend::opencl, kernel_bundle<State>> {
-  // TODO: Per SYCL 2020 this should be std::vector<cl_program>
-  using type = cl_program;
+  using type = std::vector<cl_program>;
 };
 
 template <> struct BackendInput<backend::opencl, kernel> {

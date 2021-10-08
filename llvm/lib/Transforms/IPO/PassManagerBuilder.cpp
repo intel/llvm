@@ -444,6 +444,11 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   if (!SYCLOptimizationMode)
     MPM.add(createReassociatePass()); // Reassociate expressions
 
+  // The matrix extension can introduce large vector operations early, which can
+  // benefit from running vector-combine early on.
+  if (EnableMatrix)
+    MPM.add(createVectorCombinePass());
+
   // Do not run loop pass pipeline in "SYCL Optimization Mode". Loop
   // optimizations rely on TTI, which is not accurate for SPIR target.
   if (!SYCLOptimizationMode) {

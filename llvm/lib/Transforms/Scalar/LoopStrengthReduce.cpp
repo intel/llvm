@@ -689,7 +689,7 @@ static const SCEV *getExactSDiv(const SCEV *LHS, const SCEV *RHS,
     const APInt &RA = RC->getAPInt();
     // Handle x /s -1 as x * -1, to give ScalarEvolution a chance to do
     // some folding.
-    if (RA.isAllOnesValue()) {
+    if (RA.isAllOnes()) {
       if (LHS->getType()->isPointerTy())
         return nullptr;
       return SE.getMulExpr(LHS, RC);
@@ -3934,6 +3934,9 @@ void LSRInstance::GenerateICmpZeroScales(LSRUse &LU, unsigned LUIdx,
 
   // Check each interesting stride.
   for (int64_t Factor : Factors) {
+    // Check that Factor can be represented by IntTy
+    if (!ConstantInt::isValueValidForType(IntTy, Factor))
+      continue;
     // Check that the multiplication doesn't overflow.
     if (Base.BaseOffset == std::numeric_limits<int64_t>::min() && Factor == -1)
       continue;

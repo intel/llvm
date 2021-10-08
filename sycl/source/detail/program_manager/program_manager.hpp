@@ -299,6 +299,11 @@ private:
   /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_set<std::string> m_ServiceKernels;
 
+  /// Caches all exported symbols to allow faster lookup when excluding these
+  // from kernel bundles.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  std::unordered_set<std::string> m_ExportedSymbols;
+
   // Keeps track of pi_program to image correspondence. Needed for:
   // - knowing which specialization constants are used in the program and
   //   injecting their current values before compiling the SPIR-V; the binary

@@ -517,7 +517,9 @@ StringRef AMDGPUTargetMachine::getFeatureString(const Function &F) const {
 /// Predicate for Internalize pass.
 static bool mustPreserveGV(const GlobalValue &GV) {
   if (const Function *F = dyn_cast<Function>(&GV))
-    return F->isDeclaration() || AMDGPU::isEntryFunctionCC(F->getCallingConv());
+    return F->isDeclaration() || F->getName().startswith("__asan_") ||
+           F->getName().startswith("__sanitizer_") ||
+           AMDGPU::isEntryFunctionCC(F->getCallingConv());
 
   GV.removeDeadConstantUsers();
   return !GV.use_empty();
@@ -879,7 +881,7 @@ void AMDGPUPassConfig::addStraightLineScalarOptimizationPasses() {
   addPass(createLICMPass());
   addPass(createSeparateConstOffsetFromGEPPass());
   addPass(createSpeculativeExecutionPass());
-  // ReassociateGEPs exposes more opportunites for SLSR. See
+  // ReassociateGEPs exposes more opportunities for SLSR. See
   // the example in reassociate-geps-and-slsr.ll.
   addPass(createStraightLineStrengthReducePass());
   // SeparateConstOffsetFromGEP and SLSR creates common expressions which GVN or
@@ -1018,8 +1020,7 @@ bool AMDGPUPassConfig::addPreISel() {
 }
 
 bool AMDGPUPassConfig::addInstSelector() {
-  // Defer the verifier until FinalizeISel.
-  addPass(createAMDGPUISelDag(&getAMDGPUTargetMachine(), getOptLevel()), false);
+  addPass(createAMDGPUISelDag(&getAMDGPUTargetMachine(), getOptLevel()));
   return false;
 }
 
@@ -1277,7 +1278,7 @@ bool GCNPassConfig::addRegAssignAndRewriteOptimized() {
   // Commit allocated register changes. This is mostly necessary because too
   // many things rely on the use lists of the physical registers, such as the
   // verifier. This is only necessary with allocators which use LiveIntervals,
-  // since FastRegAlloc does the replacments itself.
+  // since FastRegAlloc does the replacements itself.
   addPass(createVirtRegRewriter(false));
 
   // Equivalent of PEI for SGPRs.

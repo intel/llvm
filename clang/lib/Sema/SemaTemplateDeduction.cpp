@@ -1297,12 +1297,12 @@ static Sema::TemplateDeductionResult DeduceTemplateBases(
       AddBases(Match.first);
 
     // We can give up once we have a single item (or have run out of things to
-    // search) since cyclical inheritence isn't valid.
+    // search) since cyclical inheritance isn't valid.
     while (Matches.size() > 1 && !ToVisit.empty()) {
       const RecordType *NextT = ToVisit.pop_back_val();
       Matches.erase(NextT);
 
-      // Always add all bases, since the inheritence tree can contain
+      // Always add all bases, since the inheritance tree can contain
       // disqualifications for multiple matches.
       AddBases(NextT);
     }
@@ -2979,14 +2979,13 @@ FinishTemplateArgumentDeduction(
   auto *Template = Partial->getSpecializedTemplate();
   const ASTTemplateArgumentListInfo *PartialTemplArgInfo =
       Partial->getTemplateArgsAsWritten();
-  const TemplateArgumentLoc *PartialTemplateArgs =
-      PartialTemplArgInfo->getTemplateArgs();
 
   TemplateArgumentListInfo InstArgs(PartialTemplArgInfo->LAngleLoc,
                                     PartialTemplArgInfo->RAngleLoc);
 
-  if (S.Subst(PartialTemplateArgs, PartialTemplArgInfo->NumTemplateArgs,
-              InstArgs, MultiLevelTemplateArgumentList(*DeducedArgumentList))) {
+  if (S.SubstTemplateArguments(
+          PartialTemplArgInfo->arguments(),
+          MultiLevelTemplateArgumentList(*DeducedArgumentList), InstArgs)) {
     unsigned ArgIdx = InstArgs.size(), ParamIdx = ArgIdx;
     if (ParamIdx >= Partial->getTemplateParameters()->size())
       ParamIdx = Partial->getTemplateParameters()->size() - 1;
@@ -2994,7 +2993,7 @@ FinishTemplateArgumentDeduction(
     Decl *Param = const_cast<NamedDecl *>(
         Partial->getTemplateParameters()->getParam(ParamIdx));
     Info.Param = makeTemplateParameter(Param);
-    Info.FirstArg = PartialTemplateArgs[ArgIdx].getArgument();
+    Info.FirstArg = (*PartialTemplArgInfo)[ArgIdx].getArgument();
     return Sema::TDK_SubstitutionFailure;
   }
 
@@ -3894,8 +3893,9 @@ static bool AdjustFunctionParmAndArgTypesForDeduction(
     //   "lvalue reference to A" is used in place of A for type deduction.
     if (isForwardingReference(QualType(ParamRefType, 0), FirstInnerIndex) &&
         Arg->isLValue()) {
-      if (S.getLangOpts().OpenCL  && !ArgType.hasAddressSpace())
-        ArgType = S.Context.getAddrSpaceQualType(ArgType, LangAS::opencl_generic);
+      if (S.getLangOpts().OpenCL && !ArgType.hasAddressSpace())
+        ArgType = S.Context.getAddrSpaceQualType(
+            ArgType, S.Context.getDefaultOpenCLPointeeAddrSpace());
       ArgType = S.Context.getLValueReferenceType(ArgType);
     }
   } else {

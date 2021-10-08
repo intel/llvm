@@ -1175,8 +1175,9 @@ ParseOptimizationRemark(DiagnosticsEngine &Diags, ArgList &Args,
                         OptSpecifier OptEQ, StringRef Name) {
   CodeGenOptions::OptRemark Result;
 
-  auto InitializeResultPattern = [&Diags, &Args, &Result](const Arg *A) {
-    Result.Pattern = A->getValue();
+  auto InitializeResultPattern = [&Diags, &Args, &Result](const Arg *A,
+                                                          StringRef Pattern) {
+    Result.Pattern = Pattern.str();
 
     std::string RegexError;
     Result.Regex = std::make_shared<llvm::Regex>(Result.Pattern);
@@ -1201,17 +1202,21 @@ ParseOptimizationRemark(DiagnosticsEngine &Diags, ArgList &Args,
         Result.Kind = CodeGenOptions::RK_Disabled;
       else if (Value == "no-everything")
         Result.Kind = CodeGenOptions::RK_DisabledEverything;
+      else
+        continue;
+
+      if (Result.Kind == CodeGenOptions::RK_Disabled ||
+          Result.Kind == CodeGenOptions::RK_DisabledEverything) {
+        Result.Pattern = "";
+        Result.Regex = nullptr;
+      } else {
+        InitializeResultPattern(A, ".*");
+      }
     } else if (A->getOption().matches(OptEQ)) {
       Result.Kind = CodeGenOptions::RK_WithPattern;
-      if (!InitializeResultPattern(A))
+      if (!InitializeResultPattern(A, A->getValue()))
         return CodeGenOptions::OptRemark();
     }
-  }
-
-  if (Result.Kind == CodeGenOptions::RK_Disabled ||
-      Result.Kind == CodeGenOptions::RK_DisabledEverything) {
-    Result.Pattern = "";
-    Result.Regex = nullptr;
   }
 
   return Result;
@@ -1409,6 +1414,13 @@ void CompilerInvocation::GenerateCodeGenArgs(
                llvm::DICompileUnit::DebugNameTableKind::Default))
     GenerateArg(Args, OPT_gpubnames, SA);
 
+  auto TNK = Opts.getDebugSimpleTemplateNames();
+  if (TNK != codegenoptions::DebugTemplateNamesKind::Full) {
+    if (TNK == codegenoptions::DebugTemplateNamesKind::Simple)
+      GenerateArg(Args, OPT_gsimple_template_names_EQ, "simple", SA);
+    else if (TNK == codegenoptions::DebugTemplateNamesKind::Mangled)
+      GenerateArg(Args, OPT_gsimple_template_names_EQ, "mangled", SA);
+  }
   // ProfileInstrumentUsePath is marshalled automatically, no need to generate
   // it or PGOUseInstrumentor.
 
@@ -1688,6 +1700,16 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
           : Args.hasArg(OPT_gpubnames)
                 ? llvm::DICompileUnit::DebugNameTableKind::Default
                 : llvm::DICompileUnit::DebugNameTableKind::None);
+  if (const Arg *A = Args.getLastArg(OPT_gsimple_template_names_EQ)) {
+    StringRef Value = A->getValue();
+    if (Value != "simple" && Value != "mangled")
+      Diags.Report(diag::err_drv_unsupported_option_argument)
+          << A->getOption().getName() << A->getValue();
+    Opts.setDebugSimpleTemplateNames(
+        StringRef(A->getValue()) == "simple"
+            ? codegenoptions::DebugTemplateNamesKind::Simple
+            : codegenoptions::DebugTemplateNamesKind::Mangled);
+  }
 
   if (!Opts.ProfileInstrumentUsePath.empty())
     setPGOUseInstrumentor(Opts, Opts.ProfileInstrumentUsePath);

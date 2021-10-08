@@ -167,11 +167,33 @@ int main(int argc, const char **argv) {
     for (StringRef Symbol = DataOrErr.get(); !Symbol.empty();) {
       unsigned Len = strlen(Symbol.data());
 
+      // TODO: Consider storing Targets and Kinds in a single map-like struct,
+      // possibly reusing ClangOffloadBundler's 'OffloadTargetInfo'.
+      auto KindsIter = Kinds.begin();
       for (const std::string &Target : Targets) {
         std::string Prefix = Target + ".";
         if (Symbol.startswith(Prefix))
           Target2Symbols[Target].insert(
               Symbol.substr(Prefix.size(), Len - Prefix.size()));
+        else if (KindsIter->equals("sycl")) {
+          // FIXME: Temporary solution for supporting libraries produced by old
+          // versions of SYCL toolchain. Old versions used triples with
+          // 'sycldevice' environment component of the triple, whereas new
+          // toolchain use 'unknown' value for that triple component.
+          // We check for the legacy 'sycldevice' variant upon the negative
+          // check for a SYCL triple with 'unknown' environment.
+          std::string LegacyPrefix(Target);
+          // In case vendor and OS are not set for this target, fill these with
+          // 'unknown' so that our target has the "canonical" form of:
+          // <kind>-<arch>-<vendor>-<os>-<sycldevice>
+          while (StringRef(LegacyPrefix).count("-") < 3)
+            LegacyPrefix += "-unknown";
+          LegacyPrefix += "-sycldevice.";
+          if (Symbol.startswith(LegacyPrefix))
+            Target2Symbols[Target].insert(
+                Symbol.substr(LegacyPrefix.size(), Len - LegacyPrefix.size()));
+        }
+        ++KindsIter;
       }
 
       Symbol = Symbol.drop_front(Len + 1u);

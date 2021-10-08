@@ -1013,14 +1013,13 @@ public:
   /// Test if the given expression is known to satisfy the condition described
   /// by Pred, LHS, and RHS in the given Context.
   bool isKnownPredicateAt(ICmpInst::Predicate Pred, const SCEV *LHS,
-                        const SCEV *RHS, const Instruction *Context);
+                          const SCEV *RHS, const Instruction *CtxI);
 
   /// Check whether the condition described by Pred, LHS, and RHS is true or
   /// false in the given \p Context. If we know it, return the evaluation of
   /// this condition. If neither is proved, return None.
   Optional<bool> evaluatePredicateAt(ICmpInst::Predicate Pred, const SCEV *LHS,
-                                     const SCEV *RHS,
-                                     const Instruction *Context);
+                                     const SCEV *RHS, const Instruction *CtxI);
 
   /// Test if the condition described by Pred, LHS, RHS is known to be true on
   /// every iteration of the loop of the recurrency LHS.
@@ -1070,7 +1069,7 @@ public:
   getLoopInvariantExitCondDuringFirstIterations(ICmpInst::Predicate Pred,
                                                 const SCEV *LHS,
                                                 const SCEV *RHS, const Loop *L,
-                                                const Instruction *Context,
+                                                const Instruction *CtxI,
                                                 const SCEV *MaxIter);
 
   /// Simplify LHS and RHS in a comparison with predicate Pred. Return true
@@ -1765,7 +1764,7 @@ private:
                                   const SCEV *RHS,
                                   ICmpInst::Predicate FoundPred,
                                   const SCEV *FoundLHS, const SCEV *FoundRHS,
-                                  const Instruction *Context);
+                                  const Instruction *CtxI);
 
   /// Test whether the condition described by Pred, LHS, and RHS is true
   /// whenever the condition described by FoundPred, FoundLHS, FoundRHS is
@@ -1840,7 +1839,7 @@ private:
                                            const SCEV *LHS, const SCEV *RHS,
                                            const SCEV *FoundLHS,
                                            const SCEV *FoundRHS,
-                                           const Instruction *Context);
+                                           const Instruction *CtxI);
 
   /// Test whether the condition described by Pred, LHS, and RHS is true
   /// whenever the condition described by Pred, FoundLHS, and FoundRHS is
@@ -1920,6 +1919,16 @@ private:
   /// how poison produced from no-wrap flags on this value (e.g. a nuw add)
   /// would trigger undefined behavior on overflow.
   SCEV::NoWrapFlags getNoWrapFlagsFromUB(const Value *V);
+
+  /// Return a scope which provides an upper bound on the defining scope of
+  /// 'S'.  Specifically, return the first instruction in said bounding scope.
+  /// (See scope definition rules associated with flag discussion above)
+  const Instruction *getDefiningScopeBound(const SCEV *S);
+
+  /// Given two instructions in the same function, return true if we can
+  /// prove B must execute given A executes.
+  bool isGuaranteedToTransferExecutionTo(const Instruction *A,
+                                         const Instruction *B);
 
   /// Return true if the SCEV corresponding to \p I is never poison.  Proving
   /// this is more complex than proving that just \p I is never poison, since

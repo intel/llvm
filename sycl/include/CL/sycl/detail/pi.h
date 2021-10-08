@@ -714,7 +714,10 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA "SYCL/program metadata"
 /// PropertySetRegistry::SYCL_MISC_PROP defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP "SYCL/misc properties"
+/// PropertySetRegistry::SYCL_ASSERT_USED defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED "SYCL/assert used"
+/// PropertySetRegistry::SYCL_EXPORTED_SYMBOLS defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS "SYCL/exported symbols"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
@@ -1319,11 +1322,12 @@ __SYCL_EXPORT pi_result piKernelSetExecInfo(pi_kernel kernel,
 ///
 /// \param nativeHandle is the native handle to create PI kernel from.
 /// \param context is the PI context of the kernel.
+/// \param program is the PI program of the kernel.
 /// \param pluginOwnsNativeHandle Indicates whether the created PI object
 ///        should take ownership of the native handle.
 /// \param kernel is the PI kernel created from the native handle.
 __SYCL_EXPORT pi_result piextKernelCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context,
+    pi_native_handle nativeHandle, pi_context context, pi_program program,
     bool pluginOwnsNativeHandle, pi_kernel *kernel);
 
 /// Gets the native handle of a PI kernel object.
