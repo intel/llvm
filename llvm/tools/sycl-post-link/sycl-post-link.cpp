@@ -203,7 +203,7 @@ void checkError(std::error_code EC, const Twine &Prefix) {
     error(Prefix + ": " + EC.message());
 }
 
-void writeToFile(std::string Filename, std::string Content) {
+void writeToFile(const std::string &Filename, const std::string &Content) {
   std::error_code EC;
   raw_fd_ostream OS{Filename, EC, sys::fs::OpenFlags::OF_None};
   checkError(EC, "error opening the file '" + Filename + "'");
@@ -219,7 +219,7 @@ enum KernelMapEntryScope {
   Scope_Global     // single entry in the map for all kernels
 };
 
-KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
+KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(const Module &M) {
   if (IROutputOnly) {
     // We allow enabling auto split mode even in presence of -ir-output-only
     // flag, but in this case we are limited by it so we can't do any split at
@@ -289,11 +289,12 @@ bool isEntryPoint(const Function &F) {
 // along with IR it depends on (globals, functions from its call graph,...) will
 // constitute a separate module.
 void collectKernelModuleMap(
-    Module &M, std::map<StringRef, std::vector<Function *>> &ResKernelModuleMap,
+    const Module &M,
+    std::map<StringRef, std::vector<const Function *>> &ResKernelModuleMap,
     KernelMapEntryScope EntryScope) {
 
   // Only process module entry points:
-  for (auto &F : M.functions()) {
+  for (const auto &F : M.functions()) {
     if (!isEntryPoint(F))
       continue;
 
@@ -327,20 +328,20 @@ void collectKernelModuleMap(
 enum HasAssertStatus { No_Assert, Assert, Assert_Indirect };
 
 // Go through function call graph searching for assert call.
-HasAssertStatus hasAssertInFunctionCallGraph(Function *Func) {
+HasAssertStatus hasAssertInFunctionCallGraph(const Function *Func) {
   // Map holds the info about assertions in already examined functions:
   // true  - if there is an assertion in underlying functions,
   // false - if there are definetely no assertions in underlying functions.
-  static std::map<Function *, bool> hasAssertionInCallGraphMap;
-  std::vector<Function *> FuncCallStack;
+  static std::map<const Function *, bool> hasAssertionInCallGraphMap;
+  std::vector<const Function *> FuncCallStack;
 
-  static std::vector<Function *> isIndirectlyCalledInGraph;
+  static std::vector<const Function *> isIndirectlyCalledInGraph;
 
-  std::vector<Function *> Workstack;
+  std::vector<const Function *> Workstack;
   Workstack.push_back(Func);
 
   while (!Workstack.empty()) {
-    Function *F = Workstack.back();
+    const Function *F = Workstack.back();
     Workstack.pop_back();
     if (F != Func)
       FuncCallStack.push_back(F);
@@ -356,11 +357,11 @@ HasAssertStatus hasAssertInFunctionCallGraph(Function *Func) {
     }
 
     bool IsLeaf = true;
-    for (auto &I : instructions(F)) {
+    for (const auto &I : instructions(F)) {
       if (!isa<CallBase>(&I))
         continue;
 
-      Function *CF = cast<CallBase>(&I)->getCalledFunction();
+      const Function *CF = cast<CallBase>(&I)->getCalledFunction();
       if (!CF)
         continue;
 
@@ -385,7 +386,7 @@ HasAssertStatus hasAssertInFunctionCallGraph(Function *Func) {
       if (CF->getName().startswith("__devicelib_assert_fail")) {
         // Mark all the functions above in call graph as ones that can call
         // assert.
-        for (auto *It : FuncCallStack)
+        for (const auto *It : FuncCallStack)
           hasAssertionInCallGraphMap[It] = true;
 
         hasAssertionInCallGraphMap[Func] = true;
@@ -434,11 +435,11 @@ std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
 // The function saves names of kernels from one group to a single std::string
 // and stores this string to the ResSymbolsLists vector.
 void collectSymbolsLists(
-    std::map<StringRef, std::vector<Function *>> &KernelModuleMap,
+    const std::map<StringRef, std::vector<const Function *>> &KernelModuleMap,
     string_vector &ResSymbolsLists) {
-  for (auto &It : KernelModuleMap) {
+  for (const auto &It : KernelModuleMap) {
     std::string SymbolsList;
-    for (auto &F : It.second) {
+    for (const auto &F : It.second) {
       SymbolsList =
           (Twine(SymbolsList) + Twine(F->getName()) + Twine("\n")).str();
     }
@@ -457,25 +458,26 @@ struct ResultModule {
 // ResModules is a vector of pairs of kernel module names and produced modules.
 // The function splits input LLVM IR module M into smaller ones and stores them
 // to the ResModules vector.
-void splitModule(Module &M,
-                 std::map<StringRef, std::vector<Function *>> &KernelModuleMap,
-                 std::vector<ResultModule> &ResModules) {
-  for (auto &It : KernelModuleMap) {
+void splitModule(
+    const Module &M,
+    const std::map<StringRef, std::vector<const Function *>> &KernelModuleMap,
+    std::vector<ResultModule> &ResModules) {
+  for (const auto &It : KernelModuleMap) {
     // For each group of kernels collect all dependencies.
     SetVector<const GlobalValue *> GVs;
-    std::vector<Function *> Workqueue;
+    std::vector<const Function *> Workqueue;
 
-    for (auto &F : It.second) {
+    for (const auto &F : It.second) {
       GVs.insert(F);
       Workqueue.push_back(F);
     }
 
     while (!Workqueue.empty()) {
-      Function *F = &*Workqueue.back();
+      const Function *F = &*Workqueue.back();
       Workqueue.pop_back();
-      for (auto &I : instructions(F)) {
-        if (CallBase *CB = dyn_cast<CallBase>(&I))
-          if (Function *CF = CB->getCalledFunction())
+      for (const auto &I : instructions(F)) {
+        if (const CallBase *CB = dyn_cast<CallBase>(&I))
+          if (const Function *CF = CB->getCalledFunction())
             if (!CF->isDeclaration() && !GVs.count(CF)) {
               GVs.insert(CF);
               Workqueue.push_back(CF);
@@ -487,7 +489,7 @@ void splitModule(Module &M,
     // because global variable can be used inside a combination of operators, so
     // mark all global variables as needed and remove dead ones after
     // cloning.
-    for (auto &G : M.globals()) {
+    for (const auto &G : M.globals()) {
       GVs.insert(&G);
     }
 
@@ -539,7 +541,7 @@ void saveModule(Module &M, StringRef OutFilename) {
 
 // Saves specified collection of llvm IR modules to files.
 // Saves file list if user specified corresponding filename.
-string_vector saveResultModules(std::vector<ResultModule> &ResModules,
+string_vector saveResultModules(const std::vector<ResultModule> &ResModules,
                                 StringRef Suffix) {
   string_vector Res;
 
@@ -555,7 +557,7 @@ string_vector saveResultModules(std::vector<ResultModule> &ResModules,
 
 string_vector saveDeviceImageProperty(
     const std::vector<ResultModule> &ResultModules,
-    const std::map<StringRef, std::vector<Function *>> &KernelModuleMap,
+    const std::map<StringRef, std::vector<const Function *>> &KernelModuleMap,
     const ImagePropSaveInfo &ImgPSInfo) {
   string_vector Res;
   legacy::PassManager GetSYCLDeviceLibReqMask;
@@ -627,7 +629,7 @@ string_vector saveDeviceImageProperty(
       auto ModuleFunctionsIt =
           KernelModuleMap.find(ResultModules[I].KernelModuleName);
       if (ModuleFunctionsIt != KernelModuleMap.end()) {
-        for (auto &F : ModuleFunctionsIt->second) {
+        for (const auto &F : ModuleFunctionsIt->second) {
           if (F->getCallingConv() == CallingConv::SPIR_FUNC) {
             PropSet[llvm::util::PropertySetRegistry::SYCL_EXPORTED_SYMBOLS]
                 .insert({F->getName(), true});
@@ -662,8 +664,8 @@ string_vector saveDeviceImageProperty(
     {
       Module *M = ResultModules[I].ModulePtr.get();
       bool HasIndirectlyCalledAssert = false;
-      std::vector<Function *> Kernels;
-      for (auto &F : M->functions()) {
+      std::vector<const Function *> Kernels;
+      for (const auto &F : M->functions()) {
         // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
         // TODO: handle function pointers.
         if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
@@ -688,7 +690,7 @@ string_vector saveDeviceImageProperty(
       }
 
       if (HasIndirectlyCalledAssert) {
-        for (auto *F : Kernels)
+        for (const auto *F : Kernels)
           PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
               {F->getName(), true});
       }
@@ -782,7 +784,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   if (IsEsimd && LowerEsimd)
     LowerEsimdConstructs(*M);
 
-  std::map<StringRef, std::vector<Function *>> GlobalsSet;
+  std::map<StringRef, std::vector<const Function *>> GlobalsSet;
 
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
@@ -885,11 +887,11 @@ using ModulePair = std::pair<std::unique_ptr<Module>, std::unique_ptr<Module>>;
 // This function splits a module with a mix of SYCL and ESIMD kernels
 // into two separate modules.
 ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
-  std::vector<Function *> SyclFunctions;
-  std::vector<Function *> EsimdFunctions;
+  std::vector<const Function *> SyclFunctions;
+  std::vector<const Function *> EsimdFunctions;
   // Collect information about the SYCL and ESIMD functions in the module.
   // Only process module entry points.
-  for (auto &F : M->functions()) {
+  for (const auto &F : M->functions()) {
     if (isEntryPoint(F)) {
       if (F.getMetadata("sycl_explicit_simd"))
         EsimdFunctions.push_back(&F);
@@ -909,7 +911,7 @@ ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
   // order, in which kernels are processed in the splitModule function. The
   // caller of the splitSyclEsimd function expects a pair of 1-Sycl and 2-Esimd
   // modules, hence the strings names below.
-  std::map<StringRef, std::vector<Function *>> KernelModuleMap(
+  std::map<StringRef, std::vector<const Function *>> KernelModuleMap(
       {{"1-SYCL", SyclFunctions}, {"2-ESIMD", EsimdFunctions}});
   std::vector<ResultModule> ResultModules;
   splitModule(*M, KernelModuleMap, ResultModules);
