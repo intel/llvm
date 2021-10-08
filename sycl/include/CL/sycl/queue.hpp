@@ -22,7 +22,11 @@
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <inttypes.h>
+// Explicitly request format macros
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS 1
+#endif
+#include <cinttypes>
 #include <utility>
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
@@ -194,9 +198,10 @@ public:
   /// \param ClQueue is a valid instance of OpenCL queue.
   /// \param SyclContext is a valid SYCL context.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   queue(cl_command_queue ClQueue, const context &SyclContext,
         const async_handler &AsyncHandler = {});
+#endif
 
   queue(const queue &RHS) = default;
 
@@ -212,8 +217,9 @@ public:
 
   /// \return a valid instance of OpenCL queue, which is retained before being
   /// returned.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   cl_command_queue get() const;
+#endif
 
   /// \return an associated SYCL context.
   context get_context() const;

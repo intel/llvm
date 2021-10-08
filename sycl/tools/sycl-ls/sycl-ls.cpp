@@ -20,6 +20,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <map>
 #include <stdlib.h>
 
 using namespace sycl;
@@ -116,18 +117,17 @@ int main(int argc, char **argv) {
 
   const auto &Platforms = platform::get_platforms();
 
-  // For each backend, device num starts at zero.
-  std::vector<uint32_t> DeviceNums(static_cast<int>(backend::all), 0);
+  // Keep track of the number of devices per backend
+  std::map<backend, size_t> DeviceNums;
 
   for (const auto &Platform : Platforms) {
     backend Backend = Platform.get_backend();
     auto PlatformName = Platform.get_info<info::platform::name>();
     const auto &Devices = Platform.get_devices();
     for (const auto &Device : Devices) {
-      uint32_t DeviceNum = DeviceNums[(int)Backend]++;
       std::cout << "[" << Backend << ":" << getDeviceTypeName(Device) << ":"
-                << DeviceNum << "] ";
-      ++DeviceNum;
+                << DeviceNums[Backend] << "] ";
+      ++DeviceNums[Backend];
       // Verbose parameter is set to false to print regular devices output first
       printDeviceInfo(Device, false, PlatformName);
     }
@@ -136,6 +136,7 @@ int main(int argc, char **argv) {
   if (verbose) {
     std::cout << "\nPlatforms: " << Platforms.size() << std::endl;
     uint32_t PlatformNum = 0;
+    DeviceNums.clear();
     for (const auto &Platform : Platforms) {
       backend Backend = Platform.get_backend();
       ++PlatformNum;
@@ -150,9 +151,9 @@ int main(int argc, char **argv) {
       const auto &Devices = Platform.get_devices();
       std::cout << "    Devices  : " << Devices.size() << std::endl;
       for (const auto &Device : Devices) {
-        uint32_t DeviceNum = DeviceNums[(int)Backend]++;
-        std::cout << "        Device [#" << DeviceNum << "]:" << std::endl;
-        ++DeviceNum;
+        std::cout << "        Device [#" << DeviceNums[Backend]
+                  << "]:" << std::endl;
+        ++DeviceNums[Backend];
         printDeviceInfo(Device, true, "        ");
       }
     }

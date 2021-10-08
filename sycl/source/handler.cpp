@@ -542,6 +542,20 @@ std::string handler::getKernelName() {
   return MKernel->get_info<info::kernel::function_name>();
 }
 
+void handler::verifyUsedKernelBundle(const std::string &KernelName) {
+  auto UsedKernelBundleImplPtr =
+      getOrInsertHandlerKernelBundle(/*Insert=*/false);
+  if (!UsedKernelBundleImplPtr)
+    return;
+
+  kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
+  device Dev = detail::getDeviceFromHandler(*this);
+  if (!UsedKernelBundleImplPtr->has_kernel(KernelID, Dev))
+    throw sycl::exception(
+        make_error_code(errc::kernel_not_supported),
+        "The kernel bundle in use does not contain the kernel");
+}
+
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   MCGType = detail::CG::BarrierWaitlist;

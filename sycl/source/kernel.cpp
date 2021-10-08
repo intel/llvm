@@ -10,6 +10,7 @@
 #include <CL/sycl/detail/pi.h>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/program.hpp>
+#include <detail/backend_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 
@@ -27,6 +28,8 @@ bool kernel::is_host() const { return impl->is_host(); }
 context kernel::get_context() const {
   return impl->get_info<info::kernel::context>();
 }
+
+backend kernel::get_backend() const noexcept { return getImplBackend(impl); }
 
 kernel_bundle<sycl::bundle_state::executable>
 kernel::get_kernel_bundle() const {

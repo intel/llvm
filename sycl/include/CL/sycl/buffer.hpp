@@ -22,6 +22,14 @@ class handler;
 class queue;
 template <int dimensions> class range;
 
+namespace detail {
+template <typename T, int Dimensions, typename AllocatorT>
+buffer<T, Dimensions, AllocatorT, void>
+make_buffer_helper(pi_native_handle Handle, const context &Ctx, event Evt) {
+  return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, Evt);
+}
+} // namespace detail
+
 /// Defines a shared array that can be used by kernels in queues.
 ///
 /// Buffers can be 1-, 2-, and 3-dimensional. They have to be accessed using
@@ -32,8 +40,8 @@ template <int dimensions> class range;
 /// \ingroup sycl_api
 template <typename T, int dimensions = 1,
           typename AllocatorT = __sycl_ns::buffer_allocator,
-          typename = typename detail::enable_if_t<(dimensions > 0) &&
-                                                  (dimensions <= 3)>>
+          typename __Enabled = typename detail::enable_if_t<(dimensions > 0) &&
+                                                            (dimensions <= 3)>>
 class buffer {
 public:
   using value_type = T;
@@ -222,8 +230,8 @@ public:
           "Requested sub-buffer region is not contiguous", PI_INVALID_VALUE);
   }
 
+#ifdef __SYCL_INTERNAL_API
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
   buffer(cl_mem MemObject, const context &SyclContext,
          event AvailableEvent = {})
       : Range{0} {
@@ -233,10 +241,11 @@ public:
 
     Range[0] = BufSize / sizeof(T);
     impl = std::make_shared<detail::buffer_impl>(
-        MemObject, SyclContext, BufSize,
+        detail::pi::cast<pi_native_handle>(MemObject), SyclContext, BufSize,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
         AvailableEvent);
   }
+#endif
 
   buffer(const buffer &rhs) = default;
 
@@ -397,11 +406,30 @@ private:
   template <typename DataT, int dims, access::mode mode, access::target target,
             access::placeholder isPlaceholder, typename PropertyListT>
   friend class accessor;
+  template <typename HT, int HDims, typename HAllocT>
+  friend buffer<HT, HDims, HAllocT, void>
+  detail::make_buffer_helper(pi_native_handle, const context &, event);
   range<dimensions> Range;
   // Offset field specifies the origin of the sub buffer inside the parent
   // buffer
   size_t OffsetInBytes = 0;
   bool IsSubBuffer = false;
+
+  // Interop constructor
+  template <int N = dimensions, typename = EnableIfOneDimension<N>>
+  buffer(pi_native_handle MemObject, const context &SyclContext,
+         event AvailableEvent = {})
+      : Range{0} {
+
+    size_t BufSize = detail::SYCLMemObjT::getBufSizeForContext(
+        detail::getSyclObjImpl(SyclContext), MemObject);
+
+    Range[0] = BufSize / sizeof(T);
+    impl = std::make_shared<detail::buffer_impl>(
+        MemObject, SyclContext, BufSize,
+        make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>(),
+        AvailableEvent);
+  }
 
   // Reinterpret contructor
   buffer(std::shared_ptr<detail::buffer_impl> Impl,

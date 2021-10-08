@@ -124,7 +124,7 @@ struct sub_group_mask {
 
   template <typename Type, typename = __sycl_ns::detail::enable_if_t<
                                std::is_integral<Type>::value>>
-  void extract_bits(Type &bits, id<1> pos = 0) {
+  void extract_bits(Type &bits, id<1> pos = 0) const {
     uint32_t Res = Bits;
     if (pos.get(0) < size()) {
       if (pos.get(0) > 0) {

@@ -789,7 +789,8 @@ static void translateUnPackMask(CallInst &CI) {
   if (Width > N) {
     llvm::Type *Ty = llvm::IntegerType::get(Context, N);
     Arg0 = Builder.CreateTrunc(Arg0, Ty);
-    cast<llvm::Instruction>(Arg0)->setDebugLoc(CI.getDebugLoc());
+    if (auto *Trunc = dyn_cast<llvm::Instruction>(Arg0))
+      Trunc->setDebugLoc(CI.getDebugLoc());
   }
   assert(Arg0->getType()->getPrimitiveSizeInBits() == N);
   Arg0 = Builder.CreateBitCast(
@@ -1356,10 +1357,10 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
-    if (GTy = dyn_cast<StructType>(VTy)) {
-      assert(GTy && GTy->getName().endswith(
-                        "__sycl_internal::__v1::ext::intel::experimental::"
-                        "esimd::detail::simd_obj_impl"));
+    if ((GTy = dyn_cast<StructType>(VTy))) {
+      assert(GTy->getName().endswith(
+          "__sycl_internal::__v1::ext::intel::experimental::esimd::detail::"
+          "simd_obj_impl"));
       VTy = GTy->getContainedType(0);
     }
     assert(VTy->isVectorTy());

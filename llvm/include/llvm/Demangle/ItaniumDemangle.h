@@ -57,6 +57,7 @@
     X(LocalName) \
     X(VectorType) \
     X(PixelVectorType) \
+    X(BinaryFPType) \
     X(SyntheticTemplateParamName) \
     X(TypeTemplateParamDecl) \
     X(NonTypeTemplateParamDecl) \
@@ -1091,6 +1092,23 @@ public:
     S += "pixel vector[";
     Dimension->print(S);
     S += "]";
+  }
+};
+
+class BinaryFPType final : public Node {
+  const Node *Dimension;
+
+public:
+  BinaryFPType(const Node *Dimension_)
+      : Node(KBinaryFPType), Dimension(Dimension_) {}
+
+  template<typename Fn> void match(Fn F) const { F(Dimension); }
+
+  const Node *getDimension() const { return Dimension; }
+
+  void printLeft(OutputStream &S) const override {
+    S += "_Float";
+    Dimension->print(S);
   }
 };
 
@@ -3930,21 +3948,20 @@ Node *AbstractManglingParser<Derived, Alloc>::parseType() {
     case 'f':
       First += 2;
       return make<NameType>("decimal32");
-    //                ::= DF <number> _
-    //            # ISO/IEC TS 18661 binary floating point type _FloatN (N bits)
-    case 'F': {
-      First += 2;
-      StringView N = parseNumber(false /*disallow negatives*/);
-      if (N.size() == 0 || look() != '_')
-        return nullptr;
-      assert((N == "16") && "Unknown FP type");
-      First += 1;                        // consume '_'
-      return make<NameType>("_Float16"); // use FE-supoprted spelling
-    }
     //                ::= Dh   # IEEE 754r half-precision floating point (16 bits)
     case 'h':
       First += 2;
       return make<NameType>("half");
+    //                ::= DF <number> _ # ISO/IEC TS 18661 binary floating point (N bits)
+    case 'F': {
+      First += 2;
+      Node *DimensionNumber = make<NameType>(parseNumber());
+      if (!DimensionNumber)
+        return nullptr;
+      if (!consumeIf('_'))
+        return nullptr;
+      return make<BinaryFPType>(DimensionNumber);
+    }
     //                ::= Di   # char32_t
     case 'i':
       First += 2;

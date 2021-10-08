@@ -502,6 +502,7 @@
 ??0SYCLMemObjT@detail@__v1@__sycl_internal@@QEAA@AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@U?$default_delete@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@@std@@@std@@@Z
 ??0SYCLMemObjT@detail@__v1@__sycl_internal@@QEAA@PEAU_cl_mem@@AEBVcontext@23@Vevent@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@U?$default_delete@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@@std@@@std@@@Z
 ??0SYCLMemObjT@detail@__v1@__sycl_internal@@QEAA@PEAU_cl_mem@@AEBVcontext@23@_KVevent@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@U?$default_delete@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@@std@@@std@@@Z
+??0SYCLMemObjT@detail@__v1@__sycl_internal@@QEAA@_KAEBVcontext@23@_KVevent@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@U?$default_delete@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@@std@@@std@@@Z
 ??0SYCLMemObjT@detail@__v1@__sycl_internal@@QEAA@_KAEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@U?$default_delete@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@@std@@@std@@@Z
 ??0SYCLMemObjT@detail@sycl@cl@@QEAA@AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
 ??0SYCLMemObjT@detail@sycl@cl@@QEAA@PEAU_cl_mem@@AEBVcontext@23@Vevent@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
@@ -517,6 +518,7 @@
 ??0buffer_impl@detail@__v1@__sycl_internal@@QEAA@PEAX_K1AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@U?$default_delete@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@@std@@@std@@@Z
 ??0buffer_impl@detail@__v1@__sycl_internal@@QEAA@PEBX_K1AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@U?$default_delete@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@@std@@@std@@@Z
 ??0buffer_impl@detail@__v1@__sycl_internal@@QEAA@_K0AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@U?$default_delete@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@@std@@@std@@@Z
+??0buffer_impl@detail@__v1@__sycl_internal@@QEAA@_KAEBVcontext@23@_KV?$unique_ptr@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@U?$default_delete@VSYCLMemObjAllocator@detail@__v1@__sycl_internal@@@std@@@std@@Vevent@23@@Z
 ??0buffer_impl@detail@sycl@cl@@QEAA@PEAU_cl_mem@@AEBVcontext@23@_KV?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@Vevent@23@@Z
 ??0buffer_impl@detail@sycl@cl@@QEAA@PEAX_K1AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
 ??0buffer_impl@detail@sycl@cl@@QEAA@PEBX_K1AEBVproperty_list@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
@@ -4052,6 +4054,7 @@
 ?getBorderColor@detail@__v1@__sycl_internal@@YA?AV?$vec@M$03@23@W4image_channel_order@23@@Z
 ?getBorderColor@detail@sycl@cl@@YA?AV?$vec@M$03@23@W4image_channel_order@23@@Z
 ?getBufSizeForContext@SYCLMemObjT@detail@__v1@__sycl_internal@@SA_KAEBV?$shared_ptr@Vcontext_impl@detail@__v1@__sycl_internal@@@std@@PEAU_cl_mem@@@Z
+?getBufSizeForContext@SYCLMemObjT@detail@__v1@__sycl_internal@@SA_KAEBV?$shared_ptr@Vcontext_impl@detail@__v1@__sycl_internal@@@std@@_K@Z
 ?getBufSizeForContext@SYCLMemObjT@detail@sycl@cl@@SA_KAEBV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@PEAU_cl_mem@@@Z
 ?getChannelOrder@?$image_impl@$00@detail@__v1@__sycl_internal@@QEBA?AW4image_channel_order@34@XZ
 ?getChannelOrder@?$image_impl@$00@detail@sycl@cl@@QEBA?AW4image_channel_order@34@XZ
@@ -4203,6 +4206,7 @@
 ?get_backend@event@sycl@cl@@QEBA?AW4backend@23@XZ
 ?get_backend@interop_handle@__v1@__sycl_internal@@QEBA?AW4backend@23@XZ
 ?get_backend@interop_handle@sycl@cl@@QEBA?AW4backend@23@XZ
+?get_backend@kernel@__v1@__sycl_internal@@QEBA?AW4backend@23@XZ
 ?get_backend@kernel_bundle_plain@detail@__v1@__sycl_internal@@QEBA?AW4backend@34@XZ
 ?get_backend@kernel_bundle_plain@detail@sycl@cl@@QEBA?AW4backend@34@XZ
 ?get_backend@platform@__v1@__sycl_internal@@QEBA?AW4backend@23@XZ
@@ -5121,6 +5125,7 @@
 ?make_event@level_zero@oneapi@ext@__v1@__sycl_internal@@YA?AVevent@45@AEBVcontext@45@_K_N@Z
 ?make_event@level_zero@oneapi@ext@sycl@cl@@YA?AVevent@45@AEBVcontext@45@_K_N@Z
 ?make_event@level_zero@sycl@cl@@YA?AVevent@23@AEBVcontext@23@_K_N@Z
+?make_kernel@detail@__v1@__sycl_internal@@YA?AVkernel@23@AEBVcontext@23@AEBV?$kernel_bundle@$01@23@_K_NW4backend@23@@Z
 ?make_kernel@detail@__v1@__sycl_internal@@YA?AVkernel@23@_KAEBVcontext@23@W4backend@23@@Z
 ?make_kernel@detail@sycl@cl@@YA?AVkernel@23@_KAEBVcontext@23@W4backend@23@@Z
 ?make_kernel_bundle@detail@__v1@__sycl_internal@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@__v1@__sycl_internal@@@std@@_KAEBVcontext@23@W4bundle_state@23@W4backend@23@@Z
@@ -9105,6 +9110,7 @@
 ?use_kernel_bundle@handler@sycl@cl@@QEAAXAEBV?$kernel_bundle@$01@23@@Z
 ?verifyKernelInvoc@handler@__v1@__sycl_internal@@AEAAXAEBVkernel@23@@Z
 ?verifyKernelInvoc@handler@sycl@cl@@AEAAXAEBVkernel@23@@Z
+?verifyUsedKernelBundle@handler@__v1@__sycl_internal@@AEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?wait@event@__v1@__sycl_internal@@QEAAXXZ
 ?wait@event@__v1@__sycl_internal@@SAXAEBV?$vector@Vevent@__v1@__sycl_internal@@V?$allocator@Vevent@__v1@__sycl_internal@@@std@@@std@@@Z
 ?wait@event@sycl@cl@@QEAAXXZ

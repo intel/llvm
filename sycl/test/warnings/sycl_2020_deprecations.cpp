@@ -8,57 +8,57 @@
 
 int main() {
   cl_context ClCtx;
-  // expected-warning@+1 {{'context' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::context'}}
   sycl::context Ctx{ClCtx};
-  // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no member named 'get' in '__sycl_internal::__v1::context'}}
   (void)Ctx.get();
 
   cl_mem Mem;
-  // expected-warning@+1 {{'buffer' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::buffer<int, 1>'}}
   sycl::buffer<int, 1> Buf{Mem, Ctx};
   (void)Buf;
 
   cl_device_id DevId;
-  // expected-warning@+1 {{'device' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::device'}}
   sycl::device Device{DevId};
-  // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no member named 'get' in '__sycl_internal::__v1::device'}}
   (void)Device.get();
   // expected-warning@+1 {{'has_extension' is deprecated: use device::has() function with aspects APIs instead}}
   (void)Device.has_extension("abc");
 
   cl_event ClEvent;
-  // expected-warning@+1 {{'event' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::event'}}
   sycl::event Evt{ClEvent, Ctx};
-  // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no member named 'get' in '__sycl_internal::__v1::event'}}
   (void)Evt.get();
 
-  // expected-warning@+1 {{'image' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::image<1>'}}
   sycl::image<1> Img{Mem, Ctx};
   (void)Img;
 
   cl_platform_id ClPlatform;
-  // expected-warning@+1 {{'platform' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::platform'}}
   sycl::platform Platform{ClPlatform};
-  // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no member named 'get' in '__sycl_internal::__v1::platform'}}
   (void)Platform.get();
   // expected-warning@+1 {{'has_extension' is deprecated: use platform::has() function with aspects APIs instead}}
   (void)Platform.has_extension("abc");
 
   cl_command_queue ClQueue;
-  // expected-warning@+1 {{'queue' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::queue'}}
   sycl::queue Queue{ClQueue, Ctx};
-  // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no member named 'get' in '__sycl_internal::__v1::queue'}}
   (void)Queue.get();
 
   cl_sampler ClSampler;
-  // expected-warning@+1 {{'sampler' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::sampler'}}
   sycl::sampler Sampler{ClSampler, Ctx};
   (void)Sampler;
 
   cl_kernel ClKernel;
-  // expected-warning@+1 {{'kernel' is deprecated: OpenCL interop constructors are deprecated, use make_kernel() instead}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::kernel'}}
   sycl::kernel Kernel{ClKernel, Ctx};
-  // expected-warning@+1 {{'get' is deprecated: OpenCL interop get() functions are deprecated, use get_native() instead}}
+  // expected-error@+1 {{no member named 'get' in '__sycl_internal::__v1::kernel'}}
   (void)Kernel.get();
 
   // expected-warning@+1 {{'program' is deprecated: program class is deprecated, use kernel_bundle instead}}
