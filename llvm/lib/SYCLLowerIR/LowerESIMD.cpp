@@ -1351,10 +1351,9 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
       continue;
     auto GTy = dyn_cast<StructType>(PTy->getPointerElementType());
     // TODO FIXME relying on type name in LLVM IR is fragile, needs rework
-    if (!GTy ||
-        !GTy->getName()
-             .rtrim(".0123456789")
-             .endswith("sycl::ext::intel::experimental::esimd::simd"))
+    if (!GTy || !GTy->getName()
+                     .rtrim(".0123456789")
+                     .endswith("sycl::ext::intel::experimental::esimd::simd"))
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
