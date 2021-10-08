@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -D__SYCL_INTERNAL_API -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 SYCL_PROGRAM_LINK_OPTIONS="-cl-fast-relaxed-math" %t.out %CPU_CHECK_PLACEHOLDER --check-prefix=CHECK-IS-RELAXED-MATH
 // RUN: %GPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 SYCL_PROGRAM_LINK_OPTIONS="-cl-fast-relaxed-math" %t.out %GPU_CHECK_PLACEHOLDER --check-prefix=CHECK-IS-RELAXED-MATH
 // RUN: %ACC_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 SYCL_PROGRAM_LINK_OPTIONS="-cl-fast-relaxed-math" %t.out %ACC_CHECK_PLACEHOLDER --check-prefix=CHECK-IS-RELAXED-MATH

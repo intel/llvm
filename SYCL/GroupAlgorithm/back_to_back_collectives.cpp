@@ -23,9 +23,10 @@ int main() {
   }
 
   // Use max work-group size to maximize chance of race
-  program prog(q.get_context());
-  prog.build_with_kernel_type<back_to_back>();
-  kernel k = prog.get_kernel<back_to_back>();
+  auto KernelID = get_kernel_id<back_to_back>();
+  auto KB =
+      get_kernel_bundle<bundle_state::executable>(q.get_context(), {KernelID});
+  kernel k = KB.get_kernel(KernelID);
   device d = q.get_device();
   int N = k.get_info<info::kernel_device_specific::work_group_size>(d);
 

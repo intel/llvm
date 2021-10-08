@@ -74,48 +74,67 @@ int main() {
       // Get the previous power of 2
       auto ReqdSize = flp2(SGSize);
 
-      cl::sycl::program Prog(Queue.get_context());
-
       // Store the `cl::sycl::kernel` into a vector because `cl::sycl::kernel`
       // doesn't have default constructor
       std::vector<cl::sycl::kernel> TheKernel;
 
       switch (ReqdSize) {
-      case 64:
-        Prog.build_with_kernel_type<KernelFunctor64>();
-        TheKernel.push_back(Prog.get_kernel<KernelFunctor64>());
+      case 64: {
+        auto KernelID = sycl::get_kernel_id<KernelFunctor64>();
+        auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+            Queue.get_context(), {KernelID});
+        TheKernel.push_back(KB.get_kernel(KernelID));
         submit<KernelFunctor64>(Queue);
         break;
-      case 32:
-        Prog.build_with_kernel_type<KernelFunctor32>();
-        TheKernel.push_back(Prog.get_kernel<KernelFunctor32>());
+      }
+      case 32: {
+        auto KernelID = sycl::get_kernel_id<KernelFunctor32>();
+        auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+            Queue.get_context(), {KernelID});
+        TheKernel.push_back(KB.get_kernel(KernelID));
         submit<KernelFunctor32>(Queue);
         break;
-      case 16:
-        Prog.build_with_kernel_type<KernelFunctor16>();
-        TheKernel.push_back(Prog.get_kernel<KernelFunctor16>());
+      }
+      case 16: {
+        auto KernelID = sycl::get_kernel_id<KernelFunctor16>();
+        auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+            Queue.get_context(), {KernelID});
+        TheKernel.push_back(KB.get_kernel(KernelID));
         submit<KernelFunctor16>(Queue);
         break;
-      case 8:
-        Prog.build_with_kernel_type<KernelFunctor8>();
-        TheKernel.push_back(Prog.get_kernel<KernelFunctor8>());
+      }
+      case 8: {
+        auto KernelID = sycl::get_kernel_id<KernelFunctor8>();
+        auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+            Queue.get_context(), {KernelID});
+        TheKernel.push_back(KB.get_kernel(KernelID));
         submit<KernelFunctor8>(Queue);
         break;
-      case 4:
-        Prog.build_with_kernel_type<KernelFunctor4>();
-        TheKernel.push_back(Prog.get_kernel<KernelFunctor4>());
+      }
+      case 4: {
+        auto KernelID = sycl::get_kernel_id<KernelFunctor4>();
+        auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+            Queue.get_context(), {KernelID});
+        TheKernel.push_back(KB.get_kernel(KernelID));
         submit<KernelFunctor4>(Queue);
         break;
-      case 2:
-        Prog.build_with_kernel_type<KernelFunctor2>();
-        TheKernel.push_back(Prog.get_kernel<KernelFunctor2>());
+      }
+      case 2: {
+        auto KernelID = sycl::get_kernel_id<KernelFunctor2>();
+        auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+            Queue.get_context(), {KernelID});
+        TheKernel.push_back(KB.get_kernel(KernelID));
         submit<KernelFunctor2>(Queue);
         break;
-      case 1:
-        Prog.build_with_kernel_type<KernelFunctor1>();
-        TheKernel.push_back(Prog.get_kernel<KernelFunctor1>());
+      }
+      case 1: {
+        auto KernelID = sycl::get_kernel_id<KernelFunctor1>();
+        auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+            Queue.get_context(), {KernelID});
+        TheKernel.push_back(KB.get_kernel(KernelID));
         submit<KernelFunctor1>(Queue);
         break;
+      }
       default:
         throw feature_not_supported("sub-group size is not supported",
                                     PI_INVALID_OPERATION);

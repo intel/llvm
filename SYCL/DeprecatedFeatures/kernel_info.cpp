@@ -1,13 +1,10 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -D__SYCL_INTERNAL_API -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
 // Fail is flaky for level_zero, enable when fixed.
 // UNSUPPORTED: level_zero
-//
-// Failing on HIP AMD
-// XFAIL: hip_amd
 
 //==--- kernel_info.cpp - SYCL kernel info test ----------------------------==//
 //
@@ -26,13 +23,13 @@ int main() {
   queue q;
 
   buffer<int, 1> buf(range<1>(1));
-  auto KernelID = sycl::get_kernel_id<class SingleTask>();
-  auto KB =
-      get_kernel_bundle<bundle_state::executable>(q.get_context(), {KernelID});
-  kernel krn = KB.get_kernel(KernelID);
+  program prg(q.get_context());
+
+  prg.build_with_kernel_type<class SingleTask>();
+  assert(prg.has_kernel<class SingleTask>());
+  kernel krn = prg.get_kernel<class SingleTask>();
 
   q.submit([&](handler &cgh) {
-    cgh.use_kernel_bundle(KB);
     auto acc = buf.get_access<access::mode::read_write>(cgh);
     cgh.single_task<class SingleTask>(krn, [=]() { acc[0] = acc[0] + 1; });
   });
@@ -43,6 +40,8 @@ int main() {
   assert(krnArgCount > 0);
   const context krnCtx = krn.get_info<info::kernel::context>();
   assert(krnCtx == q.get_context());
+  const program krnPrg = krn.get_info<info::kernel::program>();
+  assert(krnPrg == prg);
   const cl_uint krnRefCount = krn.get_info<info::kernel::reference_count>();
   assert(krnRefCount > 0);
   const std::string krnAttr = krn.get_info<info::kernel::attributes>();

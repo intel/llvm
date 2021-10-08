@@ -1,6 +1,6 @@
 // UNSUPPORTED: cuda || hip
 //
-// RUN: %clangxx -fsycl %s -o %t.out -v
+// RUN: %clangxx -fsycl -D__SYCL_INTERNAL_API %s -o %t.out -v
 // RUN: %HOST_RUN_PLACEHOLDER %t.out %HOST_CHECK_PLACEHOLDER
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER

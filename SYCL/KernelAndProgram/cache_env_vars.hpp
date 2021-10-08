@@ -67,9 +67,9 @@
 #include <iostream>
 class Inc;
 template <class Kernel> void check_build_time(cl::sycl::queue &q) {
-  cl::sycl::program program(q.get_context());
   auto start = std::chrono::steady_clock::now();
-  program.build_with_kernel_type<Kernel>();
+  auto KB =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(q.get_context());
   auto end = std::chrono::steady_clock::now();
 
   std::chrono::duration<double> elapsed_seconds = end - start;

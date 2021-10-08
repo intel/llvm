@@ -34,9 +34,10 @@ int main() {
 
   try {
     size_t max_wg_size = Device.get_info<info::device::max_work_group_size>();
-    program Prog(Queue.get_context());
-    Prog.build_with_kernel_type<kernel_sg>();
-    kernel Kernel = Prog.get_kernel<kernel_sg>();
+    auto KernelID = get_kernel_id<kernel_sg>();
+    auto KB = get_kernel_bundle<bundle_state::executable>(Queue.get_context(),
+                                                          {KernelID});
+    auto Kernel = KB.get_kernel(KernelID);
     range<2> GlobalRange{50, 40};
 
     buffer<double, 2> ABuf{GlobalRange}, BBuf{GlobalRange}, CBuf{GlobalRange};

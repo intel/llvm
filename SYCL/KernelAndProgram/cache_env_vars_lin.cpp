@@ -1,6 +1,9 @@
 // No JITing for host devices and diffrent environment variables on linux and
 // windows.
 // REQUIRES: (level_zero || opencl) && linux
+// Persistent cache is not supported for Kernel Bundles right now. TODO enable
+// when it is fixed.
+// XFAIL: *
 
 // RUN: rm -rf %t/cache_dir
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -DTARGET_IMAGE=INC100

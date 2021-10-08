@@ -2,7 +2,7 @@
 //
 // FIXME Disable fallback assert so that it doesn't interferes with number of
 // program builds at run-time
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -D__SYCL_INTERNAL_API -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER

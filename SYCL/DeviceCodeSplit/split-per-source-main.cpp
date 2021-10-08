@@ -13,16 +13,18 @@ int main() {
   int Data = 0;
   {
     cl::sycl::buffer<int, 1> Buf(&Data, cl::sycl::range<1>(1));
-    cl::sycl::program Prg(Q.get_context());
-    Prg.build_with_kernel_type<File1Kern1>();
-    cl::sycl::kernel Krn = Prg.get_kernel<File1Kern1>();
+    auto KernelID = sycl::get_kernel_id<File1Kern1>();
+    auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+        Q.get_context(), {KernelID});
+    auto Krn = KB.get_kernel(KernelID);
 
-    assert(Prg.has_kernel<File1Kern2>());
+    assert(KB.has_kernel(KernelID));
     // TODO uncomment once the KernelInfo in multiple translation units
     // bug is fixed.
     // assert(!Prg.has_kernel<File2Kern1>());
 
     Q.submit([&](cl::sycl::handler &Cgh) {
+      Cgh.use_kernel_bundle(KB);
       auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(Cgh);
       Cgh.single_task<File1Kern1>(/*Krn,*/ [=]() { Acc[0] = 1; });
     });
@@ -31,16 +33,19 @@ int main() {
 
   {
     cl::sycl::buffer<int, 1> Buf(&Data, cl::sycl::range<1>(1));
-    cl::sycl::program Prg(Q.get_context());
-    Prg.build_with_kernel_type<File1Kern2>();
-    cl::sycl::kernel Krn = Prg.get_kernel<File1Kern2>();
+    auto KernelID1 = sycl::get_kernel_id<File1Kern1>();
+    auto KernelID2 = sycl::get_kernel_id<File1Kern2>();
+    auto KB = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+        Q.get_context(), {KernelID1});
+    auto Krn = KB.get_kernel(KernelID2);
 
-    assert(Prg.has_kernel<File1Kern1>());
+    assert(KB.has_kernel(KernelID1));
     // TODO uncomment once the KernelInfo in multiple translation units
     // bug is fixed.
     // assert(!Prg.has_kernel<File2Kern1>());
 
     Q.submit([&](cl::sycl::handler &Cgh) {
+      Cgh.use_kernel_bundle(KB);
       auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(Cgh);
       Cgh.single_task<File1Kern2>(/*Krn,*/ [=]() { Acc[0] = 2; });
     });
