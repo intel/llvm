@@ -91,7 +91,7 @@ cl::opt<bool> OutputAssembly{"S", cl::desc("Write output as LLVM assembly"),
                              cl::Hidden, cl::cat(PostLinkCat)};
 
 cl::opt<bool> SplitEsimd{"split-esimd",
-                         cl::desc("Split SYCL and ESIMD kernels"),
+                         cl::desc("Split SYCL and ESIMD entry points"),
                          cl::cat(PostLinkCat)};
 
 // TODO Design note: sycl-post-link should probably separate different kinds of
@@ -282,13 +282,13 @@ bool isEntryPoint(const Function &F) {
   return false;
 }
 
-// This function decides how kernels of the input module M will be distributed
-// ("split") into multiple modules based on the command options and IR
-// attributes. The decision is recorded in the output map parameter
-// ResKernelModuleMap which maps some key to a group of kernels. Each such group
-// along with IR it depends on (globals, functions from its call graph,...) will
-// constitute a separate module.
-void collectKernelModuleMap(
+// This function decides how entry points of the input module M will be
+// distributed ("split") into multiple modules based on the command options and
+// IR attributes. The decision is recorded in the output map parameter
+// ResKernelModuleMap which maps some key to a group of entry points. Each such
+// group along with IR it depends on (globals, functions from its call graph,
+// ...) will constitute a separate module.
+void collectEntryPointToModuleMap(
     const Module &M,
     std::map<StringRef, std::vector<const Function *>> &ResKernelModuleMap,
     KernelMapEntryScope EntryScope) {
@@ -304,13 +304,12 @@ void collectKernelModuleMap(
       break;
     case Scope_PerModule: {
       if (!F.hasFnAttribute(ATTR_SYCL_MODULE_ID))
-        // TODO It may make sense to group all kernels w/o the attribute into
-        // a separate module rather than issuing an error. Should probably be
-        // controlled by an option.
-        // Functions with spir_func calling convention are allowed to not have
-        // a sycl-module-id attribute.
-        error("no '" + Twine(ATTR_SYCL_MODULE_ID) + "' attribute in kernel '" +
-              F.getName() + "', per-module split not possible");
+        // TODO It may make sense to group all entry points w/o the attribute
+        // into a separate module rather than issuing an error. Should probably
+        // be controlled by an option.
+        error("no '" + Twine(ATTR_SYCL_MODULE_ID) +
+              "' attribute for entry point '" + F.getName() +
+              "', per-module split not possible");
 
       Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
       StringRef Val = Id.getValueAsString();
@@ -428,12 +427,12 @@ std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
   return {X, Y, Z};
 }
 
-// Input parameter KernelModuleMap is a map containing groups of kernels with
-// same values of the sycl-module-id attribute. ResSymbolsLists is a vector of
-// kernel name lists. Each vector element is a string with kernel names from the
-// same module separated by \n.
-// The function saves names of kernels from one group to a single std::string
-// and stores this string to the ResSymbolsLists vector.
+// Input parameter KernelModuleMap is a map containing groups of entry points
+// with same values of the sycl-module-id attribute. ResSymbolsLists is a vector
+// of entry points names lists. Each vector element is a string with entry point
+// names from the same module separated by \n.
+// The function saves names of entry points from one group to a single
+// std::string and stores this string to the ResSymbolsLists vector.
 void collectSymbolsLists(
     const std::map<StringRef, std::vector<const Function *>> &KernelModuleMap,
     string_vector &ResSymbolsLists) {
@@ -452,9 +451,9 @@ struct ResultModule {
   std::unique_ptr<Module> ModulePtr;
 };
 
-// Input parameter KernelModuleMap is a map containing groups of kernels with
-// same values of the sycl-module-id attribute. For each group of kernels a
-// separate IR module will be produced.
+// Input parameter KernelModuleMap is a map containing groups of entry points
+// with same values of the sycl-module-id attribute. For each group of entry
+// points a separate IR module will be produced.
 // ResModules is a vector of pairs of kernel module names and produced modules.
 // The function splits input LLVM IR module M into smaller ones and stores them
 // to the ResModules vector.
@@ -463,7 +462,7 @@ void splitModule(
     const std::map<StringRef, std::vector<const Function *>> &KernelModuleMap,
     std::vector<ResultModule> &ResModules) {
   for (const auto &It : KernelModuleMap) {
-    // For each group of kernels collect all dependencies.
+    // For each group of entry points collect all dependencies.
     SetVector<const GlobalValue *> GVs;
     std::vector<const Function *> Workqueue;
 
@@ -798,7 +797,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
         Scope =
             SplitMode == SPLIT_PER_KERNEL ? Scope_PerKernel : Scope_PerModule;
     }
-    collectKernelModuleMap(*M, GlobalsSet, Scope);
+    collectEntryPointToModuleMap(*M, GlobalsSet, Scope);
   }
 
   std::vector<ResultModule> ResultModules;
@@ -908,7 +907,7 @@ ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
     return std::make_pair(std::unique_ptr<Module>(nullptr), std::move(M));
 
   // Key values in KernelModuleMap are not significant, but they define the
-  // order, in which kernels are processed in the splitModule function. The
+  // order, in which entry points are processed in the splitModule function. The
   // caller of the splitSyclEsimd function expects a pair of 1-Sycl and 2-Esimd
   // modules, hence the strings names below.
   std::map<StringRef, std::vector<const Function *>> KernelModuleMap(
