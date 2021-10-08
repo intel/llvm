@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "CL/sycl/detail/pi.h"
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
@@ -136,6 +137,13 @@ public:
 
     BaseT::handleHostData(First, Last, RequiredAlign);
   }
+
+  buffer_impl(cl_mem MemObject, const context &SyclContext,
+              const size_t SizeInBytes,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator,
+              event AvailableEvent)
+      : buffer_impl(pi::cast<pi_native_handle>(MemObject), SyclContext,
+                    SizeInBytes, std::move(Allocator), std::move(AvailableEvent)) {}
 
   buffer_impl(pi_native_handle MemObject, const context &SyclContext,
               const size_t SizeInBytes,
