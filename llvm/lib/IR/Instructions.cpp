@@ -339,7 +339,7 @@ Value *CallBase::getReturnedArgOperand() const {
 
 /// Determine whether the argument or parameter has the given attribute.
 bool CallBase::paramHasAttr(unsigned ArgNo, Attribute::AttrKind Kind) const {
-  assert(ArgNo < getNumArgOperands() && "Param index out of bounds!");
+  assert(ArgNo < arg_size() && "Param index out of bounds!");
 
   if (Attrs.hasParamAttr(ArgNo, Kind))
     return true;
@@ -349,14 +349,26 @@ bool CallBase::paramHasAttr(unsigned ArgNo, Attribute::AttrKind Kind) const {
 }
 
 bool CallBase::hasFnAttrOnCalledFunction(Attribute::AttrKind Kind) const {
-  if (const Function *F = getCalledFunction())
+  Value *V = getCalledOperand();
+  if (auto *CE = dyn_cast<ConstantExpr>(V))
+    if (CE->getOpcode() == BitCast)
+      V = CE->getOperand(0);
+
+  if (auto *F = dyn_cast<Function>(V))
     return F->getAttributes().hasFnAttr(Kind);
+
   return false;
 }
 
 bool CallBase::hasFnAttrOnCalledFunction(StringRef Kind) const {
-  if (const Function *F = getCalledFunction())
+  Value *V = getCalledOperand();
+  if (auto *CE = dyn_cast<ConstantExpr>(V))
+    if (CE->getOpcode() == BitCast)
+      V = CE->getOperand(0);
+
+  if (auto *F = dyn_cast<Function>(V))
     return F->getAttributes().hasFnAttr(Kind);
+
   return false;
 }
 
@@ -931,7 +943,7 @@ void CallBrInst::updateArgBlockAddresses(unsigned i, BasicBlock *B) {
   if (BasicBlock *OldBB = getIndirectDest(i)) {
     BlockAddress *Old = BlockAddress::get(OldBB);
     BlockAddress *New = BlockAddress::get(B);
-    for (unsigned ArgNo = 0, e = getNumArgOperands(); ArgNo != e; ++ArgNo)
+    for (unsigned ArgNo = 0, e = arg_size(); ArgNo != e; ++ArgNo)
       if (dyn_cast<BlockAddress>(getArgOperand(ArgNo)) == Old)
         setArgOperand(ArgNo, New);
   }
@@ -1907,6 +1919,32 @@ bool InsertElementInst::isValidOperands(const Value *Vec, const Value *Elt,
 //                      ShuffleVectorInst Implementation
 //===----------------------------------------------------------------------===//
 
+static Value *createPlaceholderForShuffleVector(Value *V) {
+  assert(V && "Cannot create placeholder of nullptr V");
+  return PoisonValue::get(V->getType());
+}
+
+ShuffleVectorInst::ShuffleVectorInst(Value *V1, Value *Mask, const Twine &Name,
+                                     Instruction *InsertBefore)
+    : ShuffleVectorInst(V1, createPlaceholderForShuffleVector(V1), Mask, Name,
+                        InsertBefore) {}
+
+ShuffleVectorInst::ShuffleVectorInst(Value *V1, Value *Mask, const Twine &Name,
+                                     BasicBlock *InsertAtEnd)
+    : ShuffleVectorInst(V1, createPlaceholderForShuffleVector(V1), Mask, Name,
+                        InsertAtEnd) {}
+
+ShuffleVectorInst::ShuffleVectorInst(Value *V1, ArrayRef<int> Mask,
+                                     const Twine &Name,
+                                     Instruction *InsertBefore)
+    : ShuffleVectorInst(V1, createPlaceholderForShuffleVector(V1), Mask, Name,
+                        InsertBefore) {}
+
+ShuffleVectorInst::ShuffleVectorInst(Value *V1, ArrayRef<int> Mask,
+                                     const Twine &Name, BasicBlock *InsertAtEnd)
+    : ShuffleVectorInst(V1, createPlaceholderForShuffleVector(V1), Mask, Name,
+                        InsertAtEnd) {}
+
 ShuffleVectorInst::ShuffleVectorInst(Value *V1, Value *V2, Value *Mask,
                                      const Twine &Name,
                                      Instruction *InsertBefore)
@@ -2292,9 +2330,9 @@ bool ShuffleVectorInst::isInsertSubvectorMask(ArrayRef<int> Mask,
     Src1Identity &= (M == (i + NumSrcElts));
     continue;
   }
-  assert((Src0Elts | Src1Elts | UndefElts).isAllOnesValue() &&
+  assert((Src0Elts | Src1Elts | UndefElts).isAllOnes() &&
          "unknown shuffle elements");
-  assert(!Src0Elts.isNullValue() && !Src1Elts.isNullValue() &&
+  assert(!Src0Elts.isZero() && !Src1Elts.isZero() &&
          "2-source shuffle not found");
 
   // Determine lo/hi span ranges.

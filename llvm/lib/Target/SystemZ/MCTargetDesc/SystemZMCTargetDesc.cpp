@@ -11,6 +11,7 @@
 #include "SystemZMCAsmInfo.h"
 #include "SystemZTargetStreamer.h"
 #include "TargetInfo/SystemZTargetInfo.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
@@ -150,7 +151,10 @@ unsigned SystemZMC::getFirstReg(unsigned Reg) {
 static MCAsmInfo *createSystemZMCAsmInfo(const MCRegisterInfo &MRI,
                                          const Triple &TT,
                                          const MCTargetOptions &Options) {
-  MCAsmInfo *MAI = new SystemZMCAsmInfo(TT);
+  if (TT.isOSzOS())
+    return new SystemZMCAsmInfoGOFF(TT);
+
+  MCAsmInfo *MAI = new SystemZMCAsmInfoELF(TT);
   MCCFIInstruction Inst = MCCFIInstruction::cfiDefCfa(
       nullptr, MRI.getDwarfRegNum(SystemZ::R15D, true),
       SystemZMC::ELFCFAOffsetFromInitialSP);
@@ -181,6 +185,21 @@ static MCInstPrinter *createSystemZMCInstPrinter(const Triple &T,
                                                  const MCInstrInfo &MII,
                                                  const MCRegisterInfo &MRI) {
   return new SystemZInstPrinter(MAI, MII, MRI);
+}
+
+void SystemZTargetStreamer::emitConstantPools() {
+  // Emit EXRL target instructions.
+  if (EXRLTargets2Sym.empty())
+    return;
+  // Switch to the .text section.
+  const MCObjectFileInfo &OFI = *Streamer.getContext().getObjectFileInfo();
+  Streamer.SwitchSection(OFI.getTextSection());
+  for (auto &I : EXRLTargets2Sym) {
+    Streamer.emitLabel(I.second);
+    const MCInstSTIPair &MCI_STI = I.first;
+    Streamer.emitInstruction(MCI_STI.first, *MCI_STI.second);
+  }
+  EXRLTargets2Sym.clear();
 }
 
 namespace {

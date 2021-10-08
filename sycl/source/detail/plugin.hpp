@@ -18,7 +18,7 @@
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting traces using the trace framework
-#include "xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.h"
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -112,6 +112,11 @@ public:
     __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception);
   }
 
+  /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
+  template <sycl::errc errc> void checkPiResult(RT::PiResult pi_result) const {
+    __SYCL_CHECK_CODE_THROW_VIA_ERRC(pi_result, errc);
+  }
+
   void reportPiError(RT::PiResult pi_result, const char *context) const {
     if (pi_result != PI_SUCCESS) {
       throw cl::sycl::runtime_error(
@@ -177,6 +182,13 @@ public:
   void call(ArgsT... Args) const {
     RT::PiResult Err = call_nocheck<PiApiOffset>(Args...);
     checkPiResult(Err);
+  }
+
+  /// \throw sycl::exceptions(errc) if the call was not successful.
+  template <sycl::errc errc, PiApiKind PiApiOffset, typename... ArgsT>
+  void call(ArgsT... Args) const {
+    RT::PiResult Err = call_nocheck<PiApiOffset>(Args...);
+    checkPiResult<errc>(Err);
   }
 
   backend getBackend(void) const { return MBackend; }

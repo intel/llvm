@@ -77,14 +77,41 @@ int main() {
   b.insert_bits(sycl::marray<char, 8>{1, 2, 4, 8, 16, 32, 64, 128}, 5);
   assert(!b[18] && !b[20] && !b[22] && !b[24] && !b[30] && !b[16] && b[3] &&
          b[5] && b[14] && b[23]);
-  char r;
+  char r, rbc;
+  const auto b_const{b};
   b.extract_bits(r);
+  b_const.extract_bits(rbc);
   assert(r == 0b00101000);
-  long r2 = -1;
+  assert(rbc == 0b00101000);
+  long r2 = -1, r2bc = -1;
   b.extract_bits(r2, 16);
+  b_const.extract_bits(r2bc, 16);
   assert(r2 == 128);
+  assert(r2bc == 128);
   b[31] = true;
   sycl::marray<char, 6> r3{-1};
   b.extract_bits(r3, 14);
   assert(r3[0] == 1 && r3[1] == 2 && r3[2] == 2 && !r3[3] && !r3[4] && !r3[5]);
+  int ibits = 0b1010101010101010101010101010101;
+  b.insert_bits(ibits);
+  for (size_t i = 0; i < 32; i++) {
+    assert(b[i] != (bool)(i % 2));
+  }
+  short sbits = 0b0111011101110111;
+  b.insert_bits(sbits, 7);
+  b.extract_bits(ibits);
+  assert(ibits == 0b1010101001110111011101111010101);
+  sbits = 0b1100001111000011;
+  b.insert_bits(sbits, 23);
+  b.extract_bits(ibits);
+  assert(ibits == 0b11100001101110111011101111010101);
+  int64_t lbits = -1;
+  b.extract_bits(lbits, 33);
+  assert(lbits == 0);
+  lbits = -1;
+  b.extract_bits(lbits, 5);
+  assert(lbits == 0b111000011011101110111011110);
+  lbits = -1;
+  b.insert_bits(lbits);
+  assert(b.all());
 }

@@ -103,13 +103,29 @@ configure_file("${version_header}.in" "${version_header}")
 set(feature_header "${sycl_inc_dir}/CL/sycl/feature_test.hpp")
 configure_file("${feature_header}.in" "${feature_header}")
 
-# Copy SYCL headers from sources to build directory
-add_custom_target(sycl-headers ALL
-COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
-COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
-COMMENT "Copying SYCL headers ...")
+# This is workaround to detect changes (add or modify) in subtree which
+# are not detected by copy_directory command.
+# TODO: detect and process remove header/directory case
+file(GLOB_RECURSE HEADERS_IN_SYCL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/sycl/*")
+file(GLOB_RECURSE HEADERS_IN_CL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/CL/*")
 
-# Copy SYCL headers from sources to install directory
+# Copy SYCL headers from sources to build directory
+add_custom_target(sycl-headers
+  DEPENDS ${SYCL_INCLUDE_BUILD_DIR}/sycl
+          ${SYCL_INCLUDE_BUILD_DIR}/sycl/sycl.hpp
+          ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL)
+
+add_custom_command(
+  OUTPUT  ${SYCL_INCLUDE_BUILD_DIR}/sycl
+          ${SYCL_INCLUDE_BUILD_DIR}/sycl/sycl.hpp
+          ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
+  DEPENDS ${HEADERS_IN_SYCL_DIR}
+          ${HEADERS_IN_CL_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
+  COMMENT "Copying SYCL headers ...")
+
+# Copy SYCL headers from source to install directory
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/sycl COMPONENT sycl-headers)
 
@@ -174,7 +190,7 @@ if (NOT WIN32)
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  set(XPTIFW_LIBS xptifw)
+  set(XPTIFW_LIBS xpti xptifw)
 endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.

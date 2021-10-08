@@ -160,9 +160,9 @@ func @generic_singular_maps(%arg0: memref<?xf32, affine_map<(i)[off]->(off + i)>
 
 func @generic_empty_region(%arg0: memref<f32>) {
   %f0 = constant 0.0: f32
-  // expected-error @+1 {{op expects region #0 to have 0 or 1 blocks}}
+  // expected-error @+1 {{op expected 1 region with 1 block}}
   linalg.generic {
-    indexing_maps =  [ affine_map<() -> (0)> ],
+    indexing_maps =  [ affine_map<() -> ()>, affine_map<() -> ()> ],
     iterator_types = []}
       ins(%arg0 : memref<f32>)
      outs(%arg0 : memref<f32>) {
@@ -275,8 +275,8 @@ func @generic(%arg0: memref<?x?xi4>) {
   // expected-error @+2 {{op expects regions to end with 'linalg.yield', found 'std.addf'}}
   // expected-note @+1 {{in custom textual format, the absence of terminator implies 'linalg.yield'}}
   linalg.generic  {
-    indexing_maps = [ affine_map<(i) -> (i)> ],
-    iterator_types = ["parallel"]}
+    indexing_maps = [ affine_map<(i, j) -> (i, j)> ],
+    iterator_types = ["parallel", "parallel"]}
       outs(%arg0 : memref<?x?xi4>) {
     ^bb(%0: i4) :
       %1 = std.addf %0, %0: i4
@@ -305,17 +305,6 @@ func @generic(%arg0: memref<?x?xi4>) {
 
 // expected-error @+1 {{expected valid keyword}}
 !invalid_type = type !linalg<"?">
-
-// -----
-
-func @pooling_rank_mismatch(%arg0: memref<?x?x?xf32>,
-                            %arg1: memref<2x3xf32>,
-                            %arg2: memref<?x?x?xf32>) {
-  // expected-error @+1 {{expected operand rank (2) to match the result rank of indexing_map #1 (3)}}
-  linalg.pooling_max(%arg0, %arg1, %arg2) {strides = [2, 1, 2]}:
-    memref<?x?x?xf32>, memref<2x3xf32>, memref<?x?x?xf32>
-  return
-}
 
 // -----
 
@@ -675,18 +664,18 @@ func @tiled_loop_incorrent_block_arg_type(%A: memref<192xf32>) {
 // -----
 
 #attrs = {
-	indexing_maps = [
-		affine_map<(i) -> (3 - i)>,
-		affine_map<(i) -> (i)>
-	],
-	iterator_types = ["parallel"]
+        indexing_maps = [
+                affine_map<(i) -> (3 - i)>,
+                affine_map<(i) -> (i)>
+        ],
+        iterator_types = ["parallel"]
 }
 
 func @invalid_reverse(%A: memref<5xf32>, %B: memref<5xf32>) {
   // expected-error @+1 {{unexpected result less than 0 at expression #0 in}}
   linalg.generic #attrs ins(%A: memref<5xf32>) outs(%B: memref<5xf32>) {
-		^bb0(%a: f32, %b: f32):
-		linalg.yield %a : f32
-	}
-	return
+                ^bb0(%a: f32, %b: f32):
+                linalg.yield %a : f32
+        }
+        return
 }

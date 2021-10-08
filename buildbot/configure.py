@@ -32,6 +32,7 @@ def do_configure(args):
     sycl_build_pi_esimd_emulator = 'OFF'
     sycl_build_pi_hip = 'OFF'
     sycl_build_pi_hip_platform = 'AMD'
+    sycl_clang_extra_flags = ''
     sycl_werror = 'ON'
     llvm_enable_assertions = 'ON'
     llvm_enable_doxygen = 'OFF'
@@ -40,6 +41,7 @@ def do_configure(args):
     llvm_enable_lld = 'OFF'
 
     sycl_enable_xpti_tracing = 'ON'
+    xpti_enable_werror = 'ON'
 
     if args.ci_defaults:
         print("#############################################")
@@ -66,6 +68,8 @@ def do_configure(args):
         if args.hip_platform == 'AMD':
             llvm_targets_to_build += ';AMDGPU'
             libclc_targets_to_build += ';amdgcn--;amdgcn--amdhsa'
+            if args.hip_amd_arch:
+                sycl_clang_extra_flags += "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch="+args.hip_amd_arch
 
             # The HIP plugin for AMD uses lld for linking
             llvm_enable_projects += ';lld'
@@ -79,6 +83,7 @@ def do_configure(args):
 
     if args.no_werror:
         sycl_werror = 'OFF'
+        xpti_enable_werror = 'OFF'
 
     if args.no_assertions:
         llvm_enable_assertions = 'OFF'
@@ -123,7 +128,9 @@ def do_configure(args):
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
         "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
         "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
-        "-DSYCL_BUILD_PI_ESIMD_EMULATOR={}".format(sycl_build_pi_esimd_emulator)
+        "-DSYCL_BUILD_PI_ESIMD_EMULATOR={}".format(sycl_build_pi_esimd_emulator),
+        "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
+        "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags)
     ]
 
     if args.l0_headers and args.l0_loader:
@@ -185,6 +192,7 @@ def main():
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
     parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
+    parser.add_argument("--hip-amd-arch", type=str, help="Sets AMD gpu architecture for llvm lit tests, this is only needed for the HIP backend and AMD platform")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
     parser.add_argument("--enable-esimd-cpu-emulation", action='store_true', help="build with ESIMD_CPU emulation support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
