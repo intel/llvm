@@ -789,7 +789,8 @@ static void translateUnPackMask(CallInst &CI) {
   if (Width > N) {
     llvm::Type *Ty = llvm::IntegerType::get(Context, N);
     Arg0 = Builder.CreateTrunc(Arg0, Ty);
-    cast<llvm::Instruction>(Arg0)->setDebugLoc(CI.getDebugLoc());
+    if (auto *Trunc = dyn_cast<llvm::Instruction>(Arg0))
+      Trunc->setDebugLoc(CI.getDebugLoc());
   }
   assert(Arg0->getType()->getPrimitiveSizeInBits() == N);
   Arg0 = Builder.CreateBitCast(
