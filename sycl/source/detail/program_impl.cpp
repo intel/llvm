@@ -117,7 +117,9 @@ program_impl::program_impl(
 
 program_impl::program_impl(ContextImplPtr Context,
                            pi_native_handle InteropProgram)
-    : program_impl(Context, InteropProgram, nullptr) {}
+    : program_impl(Context, InteropProgram, nullptr) {
+  MIsInterop = true;
+}
 
 program_impl::program_impl(ContextImplPtr Context,
                            pi_native_handle InteropProgram,
@@ -198,7 +200,9 @@ program_impl::program_impl(ContextImplPtr Context,
 program_impl::program_impl(ContextImplPtr Context, RT::PiKernel Kernel)
     : program_impl(Context, reinterpret_cast<pi_native_handle>(nullptr),
                    ProgramManager::getInstance().getPiProgramFromPiKernel(
-                       Kernel, Context)) {}
+                       Kernel, Context)) {
+  MIsInterop = true;
+}
 
 program_impl::~program_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
