@@ -326,7 +326,6 @@ kernel program_impl::get_kernel(std::string KernelName,
         get_pi_kernel(KernelName), MContext, PtrToSelf,
         /*IsCreatedFromSource*/ IsCreatedFromSource);
 
-  KImpl->setInterop(MIsInterop);
   return createSyclObjFromImpl<kernel>(KImpl);
 }
 

@@ -200,7 +200,6 @@ public:
 
   KernelBundleImplPtr get_kernel_bundle() const { return MKernelBundleImpl; }
 
-  void setInterop(bool V) { MIsInterop = V; }
   bool isInterop() const { return MIsInterop; }
 
 private:

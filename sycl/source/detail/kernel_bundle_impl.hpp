@@ -374,8 +374,6 @@ public:
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
         Kernel, detail::getSyclObjImpl(MContext), DeviceImageImpl, Self);
 
-    KernelImpl->setInterop(MIsInterop);
-
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }
 
@@ -484,6 +482,8 @@ public:
   const SpecConstMapT &get_spec_const_map_ref() const noexcept {
     return MSpecConstValues;
   }
+
+  bool isInterop() const { return MIsInterop; }
 
 private:
   context MContext;

@@ -346,6 +346,8 @@ public:
   /// Returns the native plugin handle.
   pi_native_handle getNative() const;
 
+  bool isInterop() const { return MIsInterop; }
+
 private:
   // Deligating Constructor used in Implementation.
   program_impl(ContextImplPtr Context, pi_native_handle InteropProgram,
