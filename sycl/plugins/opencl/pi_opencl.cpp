@@ -561,6 +561,9 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
 
   // Check if kernel name exists, to prevent opencl runtime throwing exception
   // with cpu runtime
+  // TODO: Use fallback search method if extension does not exist once CPU
+  // runtime no longer throws exceptions and prints messages when given
+  // unavailable functions.
   *function_pointer_ret = 0;
   size_t Size;
   cl_int Res =
