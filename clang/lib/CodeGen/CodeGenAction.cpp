@@ -48,6 +48,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Transforms/IPO/Internalize.h"
+#include "llvm/Transforms/Utils/SYCLForceArgumentsByval.h"
 
 #include <memory>
 using namespace clang;
@@ -320,6 +321,7 @@ namespace clang {
         PrettyStackTraceString CrashInfo("Pre-linking SYCL passes");
         legacy::PassManager PreLinkingSyclPasses;
         PreLinkingSyclPasses.add(llvm::createSYCLLowerWGScopePass());
+        PreLinkingSyclPasses.add(llvm::createSYCLForceArgumentsByvalPass());
         PreLinkingSyclPasses.run(*getModule());
       }
 
