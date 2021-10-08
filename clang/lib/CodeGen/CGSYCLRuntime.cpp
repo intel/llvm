@@ -47,7 +47,13 @@ static bool isPFWI(const FunctionDecl &FD) {
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "cl"},
       Util::DeclContextDesc{clang::Decl::Kind::Namespace, "sycl"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, "group"}};
-  if (!Util::matchQualifiedTypeName(MD->getParent(), Scopes))
+
+  static std::array<Util::DeclContextDesc, 3> ScopesInternal = {
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "__sycl_internal"},
+      Util::DeclContextDesc{clang::Decl::Kind::Namespace, "__v1"},
+      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, "group"}};
+  if ((!Util::matchQualifiedTypeName(MD->getParent(), Scopes)) && 
+      (!Util::matchQualifiedTypeName(MD->getParent(), ScopesInternal)))
     return false;
   return FD.getName() == "parallel_for_work_item";
 }
