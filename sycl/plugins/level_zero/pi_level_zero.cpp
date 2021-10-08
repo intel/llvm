@@ -448,10 +448,11 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
     ZE_CALL(zeEventPoolCreate, (ZeContext, &ZeEventPoolDesc, ZeDevices.size(),
                                 &ZeDevices[0], ZePool));
     NumEventsAvailableInEventPool[*ZePool] = MaxNumEventsPerPool - 1;
-    NumEventsUnreleasedInEventPool[*ZePool] = MaxNumEventsPerPool;
+    NumEventsUnreleasedInEventPool[*ZePool] = 1;
   } else {
     Index = MaxNumEventsPerPool - NumEventsAvailableInEventPool[*ZePool];
     --NumEventsAvailableInEventPool[*ZePool];
+    ++NumEventsUnreleasedInEventPool[*ZePool];
   }
   Pool = *ZePool;
   return PI_SUCCESS;
@@ -466,6 +467,8 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
 
   // Put the empty pool to the cache of the pools.
   std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
+  if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)
+    die("Invalid event release: event pool doesn't have unreleased events");
   if (--NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0) {
     if (ZeEventPoolCache.front() != Event->ZeEventPool) {
       ZeEventPoolCache.push_back(Event->ZeEventPool);
@@ -474,6 +477,9 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
   }
 
   if (Event->ZeHostVisibleEventPool) {
+    if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)
+      die("Invalid host visible event release: host visible event pool doesn't "
+          "have unreleased events");
     if (--NumEventsUnreleasedInEventPool[Event->ZeHostVisibleEventPool] == 0) {
       if (ZeHostVisibleEventPoolCache.front() !=
           Event->ZeHostVisibleEventPool) {
