@@ -143,7 +143,8 @@ public:
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               event AvailableEvent)
       : buffer_impl(pi::cast<pi_native_handle>(MemObject), SyclContext,
-                    SizeInBytes, std::move(Allocator), std::move(AvailableEvent)) {}
+                    SizeInBytes, std::move(Allocator),
+                    std::move(AvailableEvent)) {}
 
   buffer_impl(pi_native_handle MemObject, const context &SyclContext,
               const size_t SizeInBytes,
