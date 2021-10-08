@@ -18,7 +18,6 @@
 #include "SpecConstants.h"
 
 #include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/IRPrintingPasses.h"
@@ -30,12 +29,12 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/SYCLLowerIR/LowerESIMD.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PropertySetIO.h"
 #include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/SystemUtils.h"
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
@@ -46,6 +45,8 @@
 
 #include <algorithm>
 #include <memory>
+#include <string>
+#include <vector>
 
 using namespace llvm;
 
@@ -328,16 +329,16 @@ static void collectKernelModuleMap(
 enum HasAssertStatus { No_Assert, Assert, Assert_Indirect };
 
 // Go through function call graph searching for assert call.
-static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
+static HasAssertStatus hasAssertInFunctionCallGraph(Function *Func) {
   // Map holds the info about assertions in already examined functions:
   // true  - if there is an assertion in underlying functions,
   // false - if there are definetely no assertions in underlying functions.
-  static std::map<llvm::Function *, bool> hasAssertionInCallGraphMap;
-  std::vector<llvm::Function *> FuncCallStack;
+  static std::map<Function *, bool> hasAssertionInCallGraphMap;
+  std::vector<Function *> FuncCallStack;
 
-  static std::vector<llvm::Function *> isIndirectlyCalledInGraph;
+  static std::vector<Function *> isIndirectlyCalledInGraph;
 
-  std::vector<llvm::Function *> Workstack;
+  std::vector<Function *> Workstack;
   Workstack.push_back(Func);
 
   while (!Workstack.empty()) {
@@ -466,7 +467,7 @@ splitModule(Module &M,
   for (auto &It : KernelModuleMap) {
     // For each group of kernels collect all dependencies.
     SetVector<const GlobalValue *> GVs;
-    std::vector<llvm::Function *> Workqueue;
+    std::vector<Function *> Workqueue;
 
     for (auto &F : It.second) {
       GVs.insert(F);
@@ -665,7 +666,7 @@ static string_vector saveDeviceImageProperty(
     {
       Module *M = ResultModules[I].ModulePtr.get();
       bool HasIndirectlyCalledAssert = false;
-      std::vector<llvm::Function *> Kernels;
+      std::vector<Function *> Kernels;
       for (auto &F : M->functions()) {
         // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
         // TODO: handle function pointers.
