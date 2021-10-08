@@ -74,7 +74,7 @@ void *getPluginOpaqueData(void *OpaqueDataParam) {
 }
 
 template __SYCL_EXPORT void *
-getPluginOpaqueData<cl::sycl::backend::esimd_cpu>(void *);
+getPluginOpaqueData<cl::sycl::backend::ext_intel_esimd_emulator>(void *);
 
 namespace pi {
 
@@ -504,7 +504,8 @@ template <backend BE> const plugin &getPlugin() {
 
 template __SYCL_EXPORT const plugin &getPlugin<backend::opencl>();
 template __SYCL_EXPORT const plugin &getPlugin<backend::level_zero>();
-template __SYCL_EXPORT const plugin &getPlugin<backend::esimd_cpu>();
+template __SYCL_EXPORT const plugin &
+getPlugin<backend::ext_intel_esimd_emulator>();
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,
